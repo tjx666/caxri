@@ -23,12 +23,12 @@ type EnvironmentMethodScope = 'any' | 'local-only' | 'remote-override' | 'ssh-on
 const environmentMethodScopes = {
     'agentChat.confirmRevertFiles': 'any',
     'agentChat.openPathReference': 'local-only',
-    'agentCommander.open': 'local-only',
-    'agentCommander.stop': 'local-only',
-    'agentCommander.revealSession': 'local-only',
-    'agentCommander.openSettings': 'local-only',
-    'agentCommander.openFileLink': 'local-only',
-    'agentCommander.clearData': 'local-only',
+    'caxriBot.open': 'local-only',
+    'caxriBot.stop': 'local-only',
+    'caxriBot.revealSession': 'local-only',
+    'caxriBot.openSettings': 'local-only',
+    'caxriBot.openFileLink': 'local-only',
+    'caxriBot.clearData': 'local-only',
     /**
      * Benchmark runs on the local Server; an SSH Host window has no Benchmark window of its own.
      */

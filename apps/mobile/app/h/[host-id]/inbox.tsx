@@ -1,5 +1,5 @@
-import { CommanderInboxScreen } from '../../../src/features/commander-inbox/commander-inbox-screen';
+import { BotInboxScreen } from '../../../src/features/bot-inbox/bot-inbox-screen';
 
-export default function CommanderInboxRoute() {
-    return <CommanderInboxScreen />;
+export default function BotInboxRoute() {
+    return <BotInboxScreen />;
 }

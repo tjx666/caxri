@@ -409,7 +409,7 @@ describe('registerTerminalPaneLinks', () => {
         });
     });
 
-    it("opens a clicked file link through the Commander's own request in a window with no Workbench editor", async () => {
+    it("opens a clicked file link through Caxri Bot's own request in a window with no Workbench editor", async () => {
         configureTerminalPaneHost({ openSettings: vi.fn(), hasWorkbenchLinks: false });
         mocks.caxriRequest.mockResolvedValueOnce({ opened: true });
         const links = await paneLinks(text);
@@ -417,7 +417,7 @@ describe('registerTerminalPaneLinks', () => {
         links[0].activate({ metaKey: true } as MouseEvent, links[0].text);
         await Promise.resolve();
 
-        expect(mocks.caxriRequest).toHaveBeenCalledWith('agentCommander.openFileLink', {
+        expect(mocks.caxriRequest).toHaveBeenCalledWith('caxriBot.openFileLink', {
             terminalId: 'terminal-1',
             target: 'src/file.ts',
             location: { mode: 'line', startLine: 12, endLine: 12 },

@@ -12,7 +12,7 @@ export class PullRequestSettlementWiring {
     readonly turnWindows = new SessionTurnWindows();
 
     /**
-     * @param onActivity Runs first for every transition; the Agent Commander's existing activity hook.
+     * @param onActivity Runs first for every transition; Caxri Bot's existing activity hook.
      */
     constructor(private readonly onActivity: (transition: SessionActivityTransition) => void) {}
 

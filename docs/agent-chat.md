@@ -800,7 +800,7 @@ Request`, `agentChat.focusWaitingRequest`, bound to Cmd+Alt+W, unfolds it and mo
   unavailable command lets the key through untouched. Key repeats are ignored and the popup's 450ms
   arm delay also covers the keys, so a held or doubled press cannot answer the next card.
   A file-change approval shows no diff there and points to the Session instead. The design
-  follows LobeHub's `GlobalApprovalNotification`; the Agent Commander window does not show it.
+  follows LobeHub's `GlobalApprovalNotification`; Caxri Bot window does not show it.
 - An answered question leaves an `answered` notice in the timeline, so the transcript records what
   the user chose after the card disappears.
 - Requests Caxri cannot render are answered immediately (MCP elicitation is declined, anything
@@ -978,7 +978,7 @@ Request`, `agentChat.focusWaitingRequest`, bound to Cmd+Alt+W, unfolds it and mo
 - Cmd+F in a Chat opens a find bar at the conversation's top right, clear of the message rail and
   Jump to latest. It takes its own strip above the conversation rather than floating over it, so it
   never covers the text it searches, and its buttons' tooltips name Enter, Shift+Enter, and Escape. It reuses the Terminal's `terminal.find` command: a Chat registers itself as its
-  Terminal's search handler, so the same key reaches it in a pane or the Commander window. Every
+  Terminal's search handler, so the same key reaches it in a pane or Caxri Bot window. Every
   occurrence of the query in the rendered conversation is painted through the CSS Custom Highlight
   API (`::highlight(agent-chat-find)` and `agent-chat-find-active` in `styles.css`), leaving the
   Markdown DOM untouched; matching ignores case, treats the query as plain text, and never spans
@@ -1512,7 +1512,7 @@ Grok Build does not, and the PTY surface is untouched.
 - **Method.** `agentChat.askSideQuestion {terminalId, question, history}` returns `{response}`. The
   Client sends the earlier answered exchanges as `history` (at most 20). The method never starts a
   provider: a Chat that is not running answers `UNAVAILABLE`, and a provider without the capability
-  answers `VALIDATION`. The Commander refuses it (`agent-commander-policy.ts`).
+  answers `VALIDATION`. Caxri Bot refuses it (`caxri-bot-policy.ts`).
 - **Claude.** The SDK query's `askSideQuestion` (a runtime method missing from the published types)
   sends a `side_question` control request with the history; the answer comes from the live session's
   context without a turn.
@@ -1586,8 +1586,8 @@ The meter's card in a Workbench Chat offers **Details**, which opens a read-only
 (`caxri-agent-context://<terminalId>`, `apps/desktop/src/renderer/src/features/agent-chat/context/`)
 beside the Chat, the way task tabs open. It is Claude Code only: Codex and Grok Build describe
 neither the window item by item nor each request's cache usage, so their meter has no Details
-button and the tab shows an unsupported notice. The Commander window refuses
-`agentChat.readContext` (`apps/desktop/src/main/agent-commander-policy.ts`) and hides the button.
+button and the tab shows an unsupported notice. Caxri Bot window refuses
+`agentChat.readContext` (`apps/desktop/src/main/caxri-bot-policy.ts`) and hides the button.
 
 `agentChat.readContext` (`packages/protocol/src/agent/agent-chat-context.ts`,
 `apps/server/src/domains/agent-chat/chat-context.ts`) returns one report with three parts:
@@ -1730,7 +1730,7 @@ feedback. The first two follow Cursor's Agent input; Claude Code and Codex cycle
 (`agent-chat-composer-commands.ts`), so a command is unavailable, hidden from the palette, and lets
 its chord through (an editor's `cmd+/` comment toggle, for example) on a Terminal surface, another
 tab, or a provider without that control. A menu opened this way returns focus to the composer when
-it closes. The Agent Commander window runs the same three commands for its Chat.
+it closes. Caxri Bot window runs the same three commands for its Chat.
 
 A switch is saved on the Chat's Terminal (`terminals.chat_permission_mode`,
 `terminals.chat_plan_mode`), so a restart, resume, or app relaunch starts with it. A level the Chat
@@ -1781,14 +1781,14 @@ default the row reads "Project default" and stays checked. While the Project has
 the provider, a "Clear Project default" row below it removes that default (`chatDefault: null`), so
 new Chats follow the launch settings again; Chats that already copied it keep their choice. While the level is Custom it stays
 visible but disabled with `Choose a level to save it as the default`, since a default must name a
-level. The Agent Commander window omits the row (`AgentChatHostCapabilities`). The default is stored
+level. Caxri Bot window omits the row (`AgentChatHostCapabilities`). The default is stored
 (`projects.chat_defaults`, `project.setChatDefault`). A new Chat copies it at creation, except a
 "Fork from here" Chat, which inherits its source Chat's stored choice and falls back to the default
 only when the source stored none. A Terminal switched to Chat for the first time copies the default
 too; a Chat that already has a
 choice keeps it, and changing the default never touches existing Chats. Without a default, a new
-Chat follows its provider's launch settings. The Agent Commander window omits the row: its Chat
-runs under the Commander policy, which refuses Project writes.
+Chat follows its provider's launch settings. Caxri Bot window omits the row: its Chat
+runs under Caxri Bot policy, which refuses Project writes.
 
 ## Lifecycle signals
 

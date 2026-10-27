@@ -32,8 +32,8 @@ export interface AgentChatServiceOptions {
      */
     environment?: () => Promise<NodeJS.ProcessEnv>;
     /**
-     * The provider's launch settings for this Chat's Terminal; the Terminal lets a role such as the Agent Commander add
-     * its own arguments on either surface.
+     * The provider's launch settings for this Chat's Terminal; the Terminal lets a role such as Caxri Bot add its own
+     * arguments on either surface.
      */
     launchSettings(provider: AgentProvider, terminal: TerminalRecord): AgentLaunchSettings;
     /**
@@ -45,8 +45,8 @@ export interface AgentChatServiceOptions {
      */
     sessionInstructions?: () => string | null;
     /**
-     * Runs once a Chat's provider is ready, after its state is persisted as running. The Agent Commander uses it to
-     * send what a restart cut off, the Chat equivalent of a PTY launch prompt.
+     * Runs once a Chat's provider is ready, after its state is persisted as running. Caxri Bot uses it to send what a
+     * restart cut off, the Chat equivalent of a PTY launch prompt.
      */
     onReady?(terminalId: string): void;
     /**

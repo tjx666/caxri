@@ -90,24 +90,23 @@ export const statusBar = {
     'statusBar.branch.dialogLabel': 'Branches',
     'statusBar.branch.switching': 'Switching to {{branch}}…',
     'statusBar.branch.switchFrom': 'Switch branch from {{branch}}',
-    'statusBar.commander.starting.text': 'Commander starting',
-    'statusBar.commander.starting.description':
-        'Agent Commander is starting. It keeps running after its window closes. Click to open it; stop it from View > Stop Agent Commander.',
-    'statusBar.commander.working.text': 'Commander working',
-    'statusBar.commander.working.description':
-        'Agent Commander is working on a turn. It keeps running after its window closes. Click to open it; stop it from View > Stop Agent Commander.',
-    'statusBar.commander.waiting.text': 'Commander needs input',
-    'statusBar.commander.waiting.description':
-        'Agent Commander is waiting for your answer in its window. It keeps running after its window closes. Click to open it; stop it from View > Stop Agent Commander.',
-    'statusBar.commander.idle.text': 'Commander idle',
-    'statusBar.commander.idle.description':
-        'Agent Commander is idle. It keeps running after its window closes. Click to open it; stop it from View > Stop Agent Commander.',
-    'statusBar.commanderInbox.textOne': '{{count}} needs you',
-    'statusBar.commanderInbox.textOther': '{{count}} need you',
-    'statusBar.commanderInbox.descriptionOne':
-        'Open Inbox: 1 Agent Commander item needs your answer or merge.',
-    'statusBar.commanderInbox.descriptionOther':
-        'Open Inbox: {{count}} Agent Commander items need your answer or merge.',
+    'statusBar.bot.starting.text': 'Caxri Bot starting',
+    'statusBar.bot.starting.description':
+        'Caxri Bot is starting. It keeps running after its window closes. Click to open it; stop it from View > Stop Caxri Bot.',
+    'statusBar.bot.working.text': 'Caxri Bot working',
+    'statusBar.bot.working.description':
+        'Caxri Bot is working on a turn. It keeps running after its window closes. Click to open it; stop it from View > Stop Caxri Bot.',
+    'statusBar.bot.waiting.text': 'Caxri Bot needs input',
+    'statusBar.bot.waiting.description':
+        'Caxri Bot is waiting for your answer in its window. It keeps running after its window closes. Click to open it; stop it from View > Stop Caxri Bot.',
+    'statusBar.bot.idle.text': 'Caxri Bot idle',
+    'statusBar.bot.idle.description':
+        'Caxri Bot is idle. It keeps running after its window closes. Click to open it; stop it from View > Stop Caxri Bot.',
+    'statusBar.botInbox.textOne': '{{count}} needs you',
+    'statusBar.botInbox.textOther': '{{count}} need you',
+    'statusBar.botInbox.descriptionOne': 'Open Inbox: 1 Caxri Bot item needs your answer or merge.',
+    'statusBar.botInbox.descriptionOther':
+        'Open Inbox: {{count}} Caxri Bot items need your answer or merge.',
     'statusBar.listSeparator': ', ',
     'statusBar.alsoReferenced': 'Also referenced',
     'statusBar.source.pullRequest': 'From the pull request description',

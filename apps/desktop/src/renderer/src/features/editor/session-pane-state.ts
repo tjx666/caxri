@@ -14,7 +14,7 @@ export function sessionStateOf(sessionId: string): SessionState | undefined {
 /**
  * `openResource`'s write can lose a race against a brand-new Session's own initial Terminal-attach write and come back
  * `CONFLICT` ("stale revision") even though nothing the caller did was wrong: both writes originate from opening this
- * same Session for the first time (see `pickCommanderFileLinkSession` in Main), and the Session's very first
+ * same Session for the first time (see `pickBotFileLinkSession` in Main), and the Session's very first
  * `session.updateState` has nothing to rebase against locally. Retrying once against a refreshed snapshot is safe
  * because opening a resource is idempotent: recomputing `openResource` either reveals the tab this retry adds, or
  * discovers the resource is already open from whichever write actually won (issue #1409).

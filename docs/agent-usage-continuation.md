@@ -90,7 +90,7 @@ by itself once the limit resets (issue #2220). Owner: `continuation/chat-usage-l
   lease is one per account per weekly window, shared by every Chat of that account. `Open in another
 Agent` continues from the deterministic package, with the hand-off document first when one exists.
   There is deliberately no "Continue anyway".
-- **Mobile** shows the blocked state as a banner and disables send. **The Agent Commander window**
+- **Mobile** shows the blocked state as a banner and disables send. **Caxri Bot window**
   has no Workbench to show a new Session, so it offers the hand-off but no continuation.
 
 ## Observability

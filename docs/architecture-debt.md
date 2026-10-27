@@ -134,7 +134,7 @@ Full audit 2026-10-26 @ `c23b63b9d` revalidated all seven as still present; its 
 ### AD-test-migration-relative-fixtures: [RESOLVED · Coverage or observability gap · M]
 
 - **Summary:** Upgrade tests built their starting database as "current version minus k" or by dropping a hand-kept list of later tables, so every new migration broke unrelated old tests.
-- **Evidence:** `apps/server/src/domains/db/__tests__/pre-migration.fixture.ts` builds a database just before a named migration tag through the runner's own `executableMigrationSql`; the seven upgrade tests (`agent-chat-subagents`, `agent-chat-persistence-migration`, `session-creator`, `chat-permission-migration`, `agent-session-usage`, `terminal-surface-migration`, and `commander/__tests__/inbox`) anchor on tags. `persistence.md` states the rule.
+- **Evidence:** `apps/server/src/domains/db/__tests__/pre-migration.fixture.ts` builds a database just before a named migration tag through the runner's own `executableMigrationSql`; the seven upgrade tests (`agent-chat-subagents`, `agent-chat-persistence-migration`, `session-creator`, `chat-permission-migration`, `agent-session-usage`, `terminal-surface-migration`, and `bot/__tests__/inbox`) anchor on tags. `persistence.md` states the rule.
 - **First seen:** 2026-10-26 @ c23b63b9d · **Last verified:** 2026-10-26 with the fix
 - **Resolved:** 2026-10-26 via [issue caxri#2601](https://github.com/tjx666/caxri/issues/2601).
 
@@ -173,10 +173,10 @@ Full audit 2026-10-26 @ `c23b63b9d` revalidated all seven as still present; its 
 - **First seen:** 2026-10-21 @ d0e5f01fc · **Last verified:** 2026-10-21 with the fix
 - **Resolved:** 2026-10-21 via [issue caxri#2332](https://github.com/tjx666/caxri/issues/2332). After two failed releases the stale strip remains until next launch (no reconcile-on-restore pass).
 
-### AD-authority-commander-owner-policy: [RESOLVED · Confirmed defect · M]
+### AD-authority-bot-owner-policy: [RESOLVED · Confirmed defect · M]
 
-- **Summary:** Owner-only protection for commander methods lived in a hard-coded set, so a new commander method could be reachable by an Agent principal; Agent identity and cwd validation was duplicated between the known and unknown phase paths.
-- **Evidence:** `MethodSpec.principal` with `ownerOnlyCommandPolicy`, read by `assertOwnerOnlyMethod`; a protocol contract test covers every Agent-reachable and control `commander.*` method; `validateAgentIdentity` and `validateAgentCwd` serve both phase paths in `server.ts` with a shared table test.
+- **Summary:** Owner-only protection for bot methods lived in a hard-coded set, so a new bot method could be reachable by an Agent principal; Agent identity and cwd validation was duplicated between the known and unknown phase paths.
+- **Evidence:** `MethodSpec.principal` with `ownerOnlyCommandPolicy`, read by `assertOwnerOnlyMethod`; a protocol contract test covers every Agent-reachable and control `bot.*` method; `validateAgentIdentity` and `validateAgentCwd` serve both phase paths in `server.ts` with a shared table test.
 - **First seen:** 2026-10-21 @ d0e5f01fc · **Last verified:** 2026-10-21 with the fix
 - **Resolved:** 2026-10-21 via [issue caxri#2332](https://github.com/tjx666/caxri/issues/2332). The two reads left owner-only are tracked as `AD-authority-owner-reads-not-project-scoped`.
 
@@ -204,7 +204,7 @@ Full audit 2026-10-26 @ `c23b63b9d` revalidated all seven as still present; its 
 ### AD-contract-security-docs-and-skill-drift: [RESOLVED · Contract drift · S]
 
 - **Summary:** Security and pairing docs omitted CLI-mediated egress, the Renderer path opener, and the accepted test seams, mis-stated mobile role changes, and the re-render audit skill recommended a Profiler test the repo does not allow.
-- **Evidence:** `.agents/skills/project-architecture/references/security.md` sections "CLI-mediated egress", "Renderer-requested path opener", and "Accepted test seams"; the authorization doc now states the fixed `control` role; `react-rerender-audit/SKILL.md` step 6 rewritten; a comment explains the direct delivery of `agentCommander.inboxRequested`.
+- **Evidence:** `.agents/skills/project-architecture/references/security.md` sections "CLI-mediated egress", "Renderer-requested path opener", and "Accepted test seams"; the authorization doc now states the fixed `control` role; `react-rerender-audit/SKILL.md` step 6 rewritten; a comment explains the direct delivery of `caxriBot.inboxRequested`.
 - **First seen:** 2026-10-21 @ d0e5f01fc · **Last verified:** 2026-10-21 with the fix
 - **Resolved:** 2026-10-21 via [issue caxri#2332](https://github.com/tjx666/caxri/issues/2332). The role-assignment decision stays open as `AD-contract-mobile-view-reply-roles`.
 
@@ -353,7 +353,7 @@ Full audit 2026-10-26 @ `c23b63b9d` revalidated all seven as still present; its 
 ### AD-proc-chat-endpoint-identity: [RESOLVED · Contract drift · M]
 
 - **Summary:** An Agent running on the Chat surface had no Agent Endpoint identity, so `caxri agent message send` was refused and `caxri agent delegate create` ran as the operator instead of as that Agent.
-- **Evidence:** `apps/server/src/domains/agent-chat/chat-endpoint.ts` now issues every Chat start its own Endpoint generation, with the Commander role only for the Commander Terminal. Covered by `apps/server/src/domains/agent-chat/__tests__/chat-endpoint.test.ts`.
+- **Evidence:** `apps/server/src/domains/agent-chat/chat-endpoint.ts` now issues every Chat start its own Endpoint generation, with Caxri Bot role only for Caxri Bot Terminal. Covered by `apps/server/src/domains/agent-chat/__tests__/chat-endpoint.test.ts`.
 - **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-13 with the fix
 - **Resolved:** 2026-10-13 via [issue caxri#1675](https://github.com/tjx666/caxri/issues/1675).
 - **Remediation target / Acceptance:** A Chat Agent's `caxri` commands authenticate as its own Endpoint, never as the operator.
@@ -390,9 +390,9 @@ Full audit 2026-10-26 @ `c23b63b9d` revalidated all seven as still present; its 
 - **Resolved:** 2026-10-13 via [issue caxri#1992](https://github.com/tjx666/caxri/issues/1992).
 - **Remediation target / Acceptance:** Every local-only entry point uses `isLocalOnlyAvailable`.
 
-### AD-sec-commander-handover-owner: [RESOLVED · Architecture debt · S]
+### AD-sec-bot-handover-owner: [RESOLVED · Architecture debt · S]
 
-- **Summary:** An Agent holding an `agent:control` grant could hand any Session to the Agent Commander, take one back, or list external conversations, because those methods only required the `agents.control` capability.
+- **Summary:** An Agent holding an `agent:control` grant could hand any Session to Caxri Bot, take one back, or list external conversations, because those methods only required the `agents.control` capability.
 - **Evidence:** `apps/server/src/core/principal-project-scope.ts` `assertOwnerHandover` runs before dispatch in `apps/server/src/core/server-core.ts`; `server-core-agent-endpoint.integration.test.ts` covers the granted Agent.
 - **First seen:** 2026-10-13 @ 319eab82e · **Last verified:** 2026-10-13 with the fix batch
 - **Resolved:** 2026-10-13 via [issue caxri#1992](https://github.com/tjx666/caxri/issues/1992).
@@ -409,7 +409,7 @@ Full audit 2026-10-26 @ `c23b63b9d` revalidated all seven as still present; its 
 ### AD-state-composer-window-scope: [RESOLVED · Confirmed defect · S]
 
 - **Summary:** Composer drafts, edits, and attachments were stored under one key and one IndexedDB database shared by every window on the `file://` origin, so retention in one window pruned another window's drafts and SSH Host Terminals could collide with local ones.
-- **Evidence:** `apps/desktop/src/renderer/src/features/agent-chat/agent-chat-attachment-persistence.ts` scopes storage to `local`, `commander`, or `ssh:<hostIdentity>`; `SshEnvironmentState.hostIdentity` carries Main's host key.
+- **Evidence:** `apps/desktop/src/renderer/src/features/agent-chat/agent-chat-attachment-persistence.ts` scopes storage to `local`, `bot`, or `ssh:<hostIdentity>`; `SshEnvironmentState.hostIdentity` carries Main's host key.
 - **First seen:** 2026-10-13 @ 319eab82e · **Last verified:** 2026-10-13 with the fix batch
 - **Resolved:** 2026-10-13 via [issue caxri#1992](https://github.com/tjx666/caxri/issues/1992).
 - **Remediation target / Acceptance:** Each window scope keeps its own drafts and attachments; retention never crosses scopes.
@@ -430,10 +430,10 @@ Full audit 2026-10-26 @ `c23b63b9d` revalidated all seven as still present; its 
 - **Resolved:** 2026-10-13 via [issue caxri#1992](https://github.com/tjx666/caxri/issues/1992).
 - **Remediation target / Acceptance:** Retained history stops at 5,000 items and can be loaded again on demand.
 
-### AD-state-commander-handover-races: [RESOLVED · Confirmed defect · S]
+### AD-state-bot-handover-races: [RESOLVED · Confirmed defect · S]
 
-- **Summary:** Handing the same Session to the Commander twice while conversation discovery was pending recorded two hand-overs and two tasks, a hand-over accepted during the first Commander launch was overwritten, and a conversation reached through a symlinked folder created a nested Project.
-- **Evidence:** `apps/server/src/domains/commander/handover.ts` decides existing Sessions after the last await; `service.ts` re-reads rows in `beforeStart`; `session/import-conversation.ts` matches the canonical folder.
+- **Summary:** Handing the same Session to Caxri Bot twice while conversation discovery was pending recorded two hand-overs and two tasks, a hand-over accepted during the first Caxri Bot launch was overwritten, and a conversation reached through a symlinked folder created a nested Project.
+- **Evidence:** `apps/server/src/domains/bot/handover.ts` decides existing Sessions after the last await; `service.ts` re-reads rows in `beforeStart`; `session/import-conversation.ts` matches the canonical folder.
 - **First seen:** 2026-10-13 @ 319eab82e · **Last verified:** 2026-10-13 with the fix batch
 - **Resolved:** 2026-10-13 via [issue caxri#1992](https://github.com/tjx666/caxri/issues/1992).
 - **Remediation target / Acceptance:** One hand-over per Session, launches keep concurrent hand-overs, and symlinked conversations land in their existing Project.
@@ -472,19 +472,19 @@ Full audit 2026-10-26 @ `c23b63b9d` revalidated all seven as still present; its 
 
 ### AD-docs-authority-and-baseline-drift: [RESOLVED · Contract drift · S]
 
-- **Summary:** Docs omitted the SSH Host folder browser and Commander import as Project-registration authorities, claimed a granted Agent could hand over Sessions, and described the bundle baseline as current Electron 44.
-- **Evidence:** `.agents/skills/project-architecture/references/security.md`; `apps/desktop/src/main/workbench-root-authority.ts` JSDoc; `docs/agent-commander.md`; `docs/bundle-size.md`.
+- **Summary:** Docs omitted the SSH Host folder browser and Caxri Bot import as Project-registration authorities, claimed a granted Agent could hand over Sessions, and described the bundle baseline as current Electron 44.
+- **Evidence:** `.agents/skills/project-architecture/references/security.md`; `apps/desktop/src/main/workbench-root-authority.ts` JSDoc; `docs/caxri-bot.md`; `docs/bundle-size.md`.
 - **First seen:** 2026-10-13 @ 319eab82e · **Last verified:** 2026-10-13 with the fix batch
 - **Resolved:** 2026-10-13 via [issue caxri#1992](https://github.com/tjx666/caxri/issues/1992).
 - **Remediation target / Acceptance:** Docs match runtime authority and date the measured Electron version.
 
-### AD-sec-commander-chat-edit-refused: [RESOLVED · Confirmed defect · S]
+### AD-sec-bot-chat-edit-refused: [RESOLVED · Confirmed defect · S]
 
-- **Summary:** Editing or restoring a message in the Agent Commander Chat failed because Main's Commander policy refused `agentChat.rewind`, `agentChat.restoreFiles`, and the revert confirmation, and the confirmation attached to the Workbench window.
-- **Evidence:** `apps/desktop/src/main/agent-commander-policy.ts` admits them, refuses `agentChat.fork` explicitly, and an exhaustiveness test classifies every `agentChat.*` method; `apps/desktop/src/main/request-window.ts` `requestWindowOr` parents the prompt to the requesting window.
+- **Summary:** Editing or restoring a message in Caxri Bot Chat failed because Main's Caxri Bot policy refused `agentChat.rewind`, `agentChat.restoreFiles`, and the revert confirmation, and the confirmation attached to the Workbench window.
+- **Evidence:** `apps/desktop/src/main/caxri-bot-policy.ts` admits them, refuses `agentChat.fork` explicitly, and an exhaustiveness test classifies every `agentChat.*` method; `apps/desktop/src/main/request-window.ts` `requestWindowOr` parents the prompt to the requesting window.
 - **First seen:** 2026-10-12 @ d5dbb34f6 · **Last verified:** 2026-10-12 with the fix batch
 - **Resolved:** 2026-10-12 via [issue caxri#1795](https://github.com/tjx666/caxri/issues/1795).
-- **Remediation target / Acceptance:** Edit and Restore work in the Commander Chat; Fork is hidden there; the confirmation sheet opens on the window that asked.
+- **Remediation target / Acceptance:** Edit and Restore work in Caxri Bot Chat; Fork is hidden there; the confirmation sheet opens on the window that asked.
 
 ### AD-state-fork-permission-inherit: [RESOLVED · Confirmed defect · S]
 
@@ -518,13 +518,13 @@ Full audit 2026-10-26 @ `c23b63b9d` revalidated all seven as still present; its 
 - **Resolved:** 2026-10-12 via [issue caxri#1795](https://github.com/tjx666/caxri/issues/1795).
 - **Remediation target / Acceptance:** Adding or changing a provider's levels touches only that provider's file.
 
-### AD-perf-commander-keystroke-queries: [RESOLVED · Architecture debt · S]
+### AD-perf-bot-keystroke-queries: [RESOLVED · Architecture debt · S]
 
-- **Summary:** Commander completion notices, suspension, and launch environment re-queried the Commander Session and Terminal rows on hot paths.
-- **Evidence:** `apps/server/src/domains/db/commander-rows.ts` `agentCommanderIdentity` and `agentCommanderTerminal`; query-count tests in `commander/__tests__/completion-notice-cost.integration.test.ts` and `terminal/__tests__/commander-lookup-cost.integration.test.ts`.
+- **Summary:** Caxri Bot completion notices, suspension, and launch environment re-queried Caxri Bot Session and Terminal rows on hot paths.
+- **Evidence:** `apps/server/src/domains/db/bot-rows.ts` `caxriBotIdentity` and `caxriBotTerminal`; query-count tests in `bot/__tests__/completion-notice-cost.integration.test.ts` and `terminal/__tests__/bot-lookup-cost.integration.test.ts`.
 - **First seen:** 2026-10-12 @ d5dbb34f6 · **Last verified:** 2026-10-12 with the fix batch
 - **Resolved:** 2026-10-12 via [issue caxri#1795](https://github.com/tjx666/caxri/issues/1795).
-- **Remediation target / Acceptance:** The hot paths read the Commander rows at most once per call.
+- **Remediation target / Acceptance:** The hot paths read Caxri Bot rows at most once per call.
 
 ### AD-lifecycle-chat-composer-state-retire: [RESOLVED · Confirmed defect · S]
 
@@ -544,27 +544,27 @@ Full audit 2026-10-26 @ `c23b63b9d` revalidated all seven as still present; its 
 
 ### AD-dup-inbox-mention-picker: [RESOLVED · Architecture debt · S]
 
-- **Summary:** The Commander Inbox `@` picker was a separate implementation with weaker keyboard and screen-reader behavior than Chat's suggestion menu.
+- **Summary:** The Bot Inbox `@` picker was a separate implementation with weaker keyboard and screen-reader behavior than Chat's suggestion menu.
 - **Evidence:** `apps/desktop/src/renderer/src/lib/suggestion-options.ts` and `components/suggestion-list.tsx` back both menus, including `suggestionMenuKeyAction` and `aria-activedescendant`.
 - **First seen:** 2026-10-12 @ d5dbb34f6 · **Last verified:** 2026-10-12 with the fix batch
 - **Resolved:** 2026-10-12 via [issue caxri#1795](https://github.com/tjx666/caxri/issues/1795).
 - **Remediation target / Acceptance:** Both pickers share keys, rendering, and accessibility wiring.
 
-### AD-ui-commander-terms-icons: [RESOLVED · Contract drift · S]
+### AD-ui-bot-terms-icons: [RESOLVED · Contract drift · S]
 
-- **Summary:** The Commander startup badge reused "Needs you", the Inbox toggle used a generic icon, and Settings named the Peer Inbox inconsistently.
+- **Summary:** Caxri Bot startup badge reused "Needs you", the Inbox toggle used a generic icon, and Settings named the Peer Inbox inconsistently.
 - **Evidence:** The badge reads "Waiting at startup", the toggle uses `MessageSquareWarning`, and GLOSSARY defines Peer Inbox.
 - **First seen:** 2026-10-12 @ d5dbb34f6 · **Last verified:** 2026-10-12 with the fix batch
 - **Resolved:** 2026-10-12 via [issue caxri#1795](https://github.com/tjx666/caxri/issues/1795).
-- **Remediation target / Acceptance:** One term per concept across the Commander window, Settings, and docs.
+- **Remediation target / Acceptance:** One term per concept across Caxri Bot window, Settings, and docs.
 
-### AD-ui-commander-project-default: [RESOLVED · Confirmed defect · S]
+### AD-ui-bot-project-default: [RESOLVED · Confirmed defect · S]
 
-- **Summary:** The Commander Chat permission menu offered "Use as Project default", which always failed because the Commander policy refuses Project writes.
+- **Summary:** Caxri Bot Chat permission menu offered "Use as Project default", which always failed because Caxri Bot policy refuses Project writes.
 - **Evidence:** `apps/desktop/src/renderer/src/features/agent-chat/agent-chat-host.ts` derives `canFork` and `canSaveProjectDefault` from the host window.
 - **First seen:** 2026-10-12 @ d5dbb34f6 · **Last verified:** 2026-10-12 with the fix batch
 - **Resolved:** 2026-10-12 via [issue caxri#1795](https://github.com/tjx666/caxri/issues/1795).
-- **Remediation target / Acceptance:** The row is absent in the Commander window and unchanged in the Workbench.
+- **Remediation target / Acceptance:** The row is absent in Caxri Bot window and unchanged in the Workbench.
 
 ### AD-lifecycle-claude-fork-malformed: [RESOLVED · Confirmed defect · S]
 
@@ -574,13 +574,13 @@ Full audit 2026-10-26 @ `c23b63b9d` revalidated all seven as still present; its 
 - **Resolved:** 2026-10-12 via [issue caxri#1795](https://github.com/tjx666/caxri/issues/1795).
 - **Remediation target / Acceptance:** Fork succeeds over malformed lines and refuses oversized transcripts clearly.
 
-### AD-diag-commander-terminal-diagnostics: [RESOLVED · Coverage or observability gap · S]
+### AD-diag-bot-terminal-diagnostics: [RESOLVED · Coverage or observability gap · S]
 
-- **Summary:** Terminal renderer, GPU budget, OSC 52, and resize-burst diagnostics from the Commander window were dropped because Main accepted them only from the Workbench.
+- **Summary:** Terminal renderer, GPU budget, OSC 52, and resize-burst diagnostics from Caxri Bot window were dropped because Main accepted them only from the Workbench.
 - **Evidence:** `apps/desktop/src/main/workbench-ipc.ts` accepts the Terminal diagnostics from both windows and tags them with a closed `window` field.
 - **First seen:** 2026-10-12 @ d5dbb34f6 · **Last verified:** 2026-10-12 with the fix batch
 - **Resolved:** 2026-10-12 via [issue caxri#1795](https://github.com/tjx666/caxri/issues/1795).
-- **Remediation target / Acceptance:** Commander Terminal incidents appear in logs with `window: 'commander'`.
+- **Remediation target / Acceptance:** Caxri Bot Terminal incidents appear in logs with `window: 'bot'`.
 
 ### AD-lifecycle-external-watcher-retry: [RESOLVED · Confirmed defect · S]
 
@@ -882,7 +882,7 @@ Full audit 2026-10-26 @ `c23b63b9d` revalidated all seven as still present; its 
 
 ### AD-contract-project-registration-authorities: [RESOLVED · Contract drift · S]
 
-- **Summary:** The security reference omitted two Project registration authorities: mobile `project.add` and the Agent Commander system Project.
+- **Summary:** The security reference omitted two Project registration authorities: mobile `project.add` and Caxri Bot system Project.
 - **Evidence:** `.agents/skills/project-architecture/references/security.md` lists every path that registers a Project.
 - **First seen:** 2026-10-10 @ daf68990 · **Last verified:** 2026-10-10 @ c0046f78c with the fix batch
 - **Resolved:** 2026-10-10 via [issue caxri#1620](https://github.com/tjx666/caxri/issues/1620).
@@ -904,10 +904,10 @@ Full audit 2026-10-26 @ `c23b63b9d` revalidated all seven as still present; its 
 - **Resolved:** 2026-10-10 via [issue caxri#1620](https://github.com/tjx666/caxri/issues/1620).
 - **Remediation target / Acceptance:** The reference names the owning policy instead of a copied list.
 
-### AD-ui-commander-editable-shortcuts: [RESOLVED · Contract drift · S]
+### AD-ui-bot-editable-shortcuts: [RESOLVED · Contract drift · S]
 
-- **Summary:** The Agent Commander window hand-copied which Terminal commands run inside editable fields, with no parity test.
-- **Evidence:** `apps/desktop/src/renderer/src/features/agent-commander/commander-shortcuts.ts` exports `COMMANDER_KEYBOARD_COMMANDS`, locked by `commander-shortcuts.test.ts`.
+- **Summary:** Caxri Bot window hand-copied which Terminal commands run inside editable fields, with no parity test.
+- **Evidence:** `apps/desktop/src/renderer/src/features/caxri-bot/bot-shortcuts.ts` exports `BOT_KEYBOARD_COMMANDS`, locked by `bot-shortcuts.test.ts`.
 - **First seen:** 2026-10-10 @ daf68990 · **Last verified:** 2026-10-10 @ c0046f78c with the fix batch
 - **Resolved:** 2026-10-10 via [issue caxri#1620](https://github.com/tjx666/caxri/issues/1620).
 - **Remediation target / Acceptance:** A drift between the copy and the command catalog fails the test.
@@ -1167,7 +1167,7 @@ Recorded so repeat audits do not reclassify them as findings.
 | IT-e2e-worker-local-error-gate      | `E2EErrorGate` state is isolated per Playwright worker process; pool orchestration may use more than one worker                                                                                                                                                                                                      | `e2e/support/error-gate.ts`, `scripts/run-e2e-pools.ts`                                            |
 | IT-e2e-parallel-safe-default        | Specs default to the three-worker `parallel-safe` pool; only `desktopExclusiveSpecs` entries with a closed reason stay on one worker, and mechanical capabilities are enforced by source derivation and at launch                                                                                                    | `e2e/support/pools.ts`, `docs/ci-performance.md`                                                   |
 | IT-external-document-in-place-save  | Saving a file outside every Project overwrites it in place to keep its inode, mode, and extended attributes, so a crash mid-save can truncate it; Project saves stay atomic                                                                                                                                          | `apps/desktop/src/main/external-documents.ts`, [ADR 0013](adr/0013-editable-external-documents.md) |
-| IT-commander-owner-reads            | `commander.managedSessions` and `session.permissionAutoAllowStatus` are owner-only rather than project-scoped for Agent principals; handlers carry no principal context and no Agent consumer exists                                                                                                                 | `packages/protocol/src/transport/method-spec.ts`, `agent-messaging.md`                             |
+| IT-bot-owner-reads                  | `bot.managedSessions` and `session.permissionAutoAllowStatus` are owner-only rather than project-scoped for Agent principals; handlers carry no principal context and no Agent consumer exists                                                                                                                       | `packages/protocol/src/transport/method-spec.ts`, `agent-messaging.md`                             |
 | IT-updater-streamed-rename          | The Desktop updater streams the DMG to a temp file, verifies hash and size, then renames it itself instead of using `atomicWriteFile`, which takes in-memory data                                                                                                                                                    | `apps/desktop/src/main/updates/updates.ts`                                                         |
 | IT-guards-density-ratchet-subset    | `guards` runs only the about 1.4 s directory-density ratchet among whole-tree contract tests; `checks` still runs it and the slower workspace contract, so merging before `checks` finishes remains possible for those                                                                                               | `.github/workflows/guards.yml`, `scripts/run-ci-focused-checks.ts`                                 |
 

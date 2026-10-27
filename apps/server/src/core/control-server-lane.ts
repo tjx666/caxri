@@ -36,8 +36,8 @@ const REPO_GIT_WRITES = new Set([
  * and the provider generation after each await, the Git provider bumps its model revision synchronously and rejects a
  * superseded snapshot or history read after each await, those rejections map to CANCELLED, and the Renderer cancels a
  * replaced snapshot through `viewContainers.cancelRequest` anyway. Production (0.0.95) showed why it matters: a 9.8s
- * `source.snapshot` waiting on a nested Git summary held the Desktop lane and queued `commander.status` and
- * `app.records` for the same 9.8s.
+ * `source.snapshot` waiting on a nested Git summary held the Desktop lane and queued `bot.status` and `app.records` for
+ * the same 9.8s.
  */
 function isExtensionViewRead(parameters: unknown): boolean {
     if (typeof parameters !== 'object' || parameters === null) return false;

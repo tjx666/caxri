@@ -3,7 +3,7 @@ import type {
     AgentDelegationSettings,
     AgentLaunchSettings,
     AgentProvider,
-    CommanderHandoverTarget,
+    BotHandoverTarget,
 } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 
@@ -58,9 +58,9 @@ export interface AgentDelegationServiceOptions extends DelegationTranscriptReade
     /**
      * Called after a task is created or its `status` or `failure` changes. Many of those transitions come from this
      * service alone (a startup deadline, an asynchronous result collection, a rejected follow-up) with no Session or
-     * Terminal record change beside them, yet the Agent Commander board shows both fields. Saves that only advance
-     * internal bookkeeping (transcript offsets, input epochs, fencing marks) stay silent, so a busy collector does not
-     * flood the event journal. `previous` is the stored receipt before this save, absent for a newly created task.
+     * Terminal record change beside them, yet Caxri Bot's board shows both fields. Saves that only advance internal
+     * bookkeeping (transcript offsets, input epochs, fencing marks) stay silent, so a busy collector does not flood the
+     * event journal. `previous` is the stored receipt before this save, absent for a newly created task.
      */
     onReceiptChanged?(receipt: AgentDelegationReceipt, previous?: AgentDelegationReceipt): void;
     /**
@@ -69,14 +69,14 @@ export interface AgentDelegationServiceOptions extends DelegationTranscriptReade
     newSessions?: {
         /**
          * Creates an empty Session in a visible top-level Project and returns its ID. A title names it manually, so
-         * automatic naming never replaces it. The Agent Commander's Session is also recorded as its own, which is what
-         * admits its later delegations there. `createdBySessionId` is an ordinary Agent caller's own Session, recorded
-         * as the new Session's creator.
+         * automatic naming never replaces it. Caxri Bot's Session is also recorded as its own, which is what admits its
+         * later delegations there. `createdBySessionId` is an ordinary Agent caller's own Session, recorded as the new
+         * Session's creator.
          */
         create(
             projectId: string,
             title: string | undefined,
-            isCommander: boolean,
+            isBot: boolean,
             createdBySessionId?: string,
         ): string;
         /**
@@ -85,15 +85,14 @@ export interface AgentDelegationServiceOptions extends DelegationTranscriptReade
         discard(sessionId: string): void;
     };
     /**
-     * The hand-overs the user gave the Agent Commander, for a `continueFromHandover` delegation. Optional so a unit
-     * test can omit the Commander.
+     * The hand-overs the user gave Caxri Bot, for a `continueFromHandover` delegation. Optional so a unit test can omit
+     * Caxri Bot.
      */
-    commanderHandovers?: {
+    botHandovers?: {
         /**
-         * The conversation an unconsumed hand-over of this Session lets the Commander continue; throws when there is
-         * none.
+         * The conversation an unconsumed hand-over of this Session lets Caxri Bot continue; throws when there is none.
          */
-        target(handoverId: string, sessionId: string): CommanderHandoverTarget;
+        target(handoverId: string, sessionId: string): BotHandoverTarget;
         /**
          * True while the handed-over Agent is in a turn or waiting on the user.
          */
@@ -104,7 +103,7 @@ export interface AgentDelegationServiceOptions extends DelegationTranscriptReade
         consume(handoverId: string, delegationId: string): void;
         /**
          * Undoes `consume` by this delegation when its continuation was refused before anything reached the
-         * conversation, so the Commander can retry the hand-over.
+         * conversation, so Caxri Bot can retry the hand-over.
          */
         release(handoverId: string, delegationId: string): void;
     };

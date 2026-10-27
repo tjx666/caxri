@@ -41,7 +41,7 @@ function useBenchmarkWindowState(): void {
 
 /**
  * The window's title bar and drag region. Its left padding clears the macOS `hiddenInset` traffic lights; in fullscreen
- * they are gone, so the logo takes their place, as in the Agent Commander window.
+ * they are gone, so the logo takes their place, as in the Caxri Bot window.
  */
 function BenchmarkHeader() {
     const { t } = useTranslation();

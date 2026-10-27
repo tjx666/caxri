@@ -4,7 +4,7 @@ import { logEventCatalog } from '@caxri/system';
 
 /**
  * Records one receipt transition. `isRecovery` marks a transition Server startup applied to a task the previous Server
- * left active, which is never announced to the Commander.
+ * left active, which is never announced to Caxri Bot.
  */
 export function logDelegationTransition(
     logger: StructuredLogger | undefined,
@@ -35,7 +35,7 @@ export function logDelegationRequested(
     receipt: AgentDelegationReceipt,
     input: AgentDelegationCreate,
     caller: {
-        isCommander: boolean;
+        isBot: boolean;
         parentDelegationId: string | undefined;
         terminalId: string | undefined;
     },
@@ -54,7 +54,7 @@ export function logDelegationRequested(
                     ? 'follow_up'
                     : 'new',
             parentDelegationId: caller.parentDelegationId ?? null,
-            isCommanderCaller: caller.isCommander,
+            isBotCaller: caller.isBot,
             callerTerminalId: caller.terminalId ?? null,
         },
     });

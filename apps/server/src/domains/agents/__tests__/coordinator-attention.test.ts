@@ -102,7 +102,7 @@ describe('AgentCoordinator permission attention', () => {
         },
     );
 
-    it('reports a SIGINT for the current launch only, so suspension and the Commander can clear their turn marker (#1819)', async () => {
+    it('reports a SIGINT for the current launch only, so suspension and Caxri Bot can clear their turn marker (#1819)', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-signal-interrupt-'));
         temporaryDirectories.push(directory);
         const database = new CaxriDatabase(join(directory, 'state.db'));

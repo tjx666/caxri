@@ -20,8 +20,8 @@ import { fetchCaxriQuery } from '../../queries/client';
 import { isLocalOnlyAvailable } from '../../stores/environment';
 import { getBootstrap } from '../../stores/selectors';
 import { forkAgentChat } from '../agent-chat/agent-chat-commands';
-import { takeBackFromCommander } from '../agent-commander/commander-handover-commands';
-import { openCommanderHandover } from '../agent-commander/commander-handover-store';
+import { takeBackFromBot } from '../caxri-bot/bot-handover-commands';
+import { openBotHandover } from '../caxri-bot/bot-handover-store';
 import { revokePermissionAutoAllow } from '../session/permission-auto-allow-commands';
 import type { SessionForkBlocker } from '../session/session-agent-commands';
 import {
@@ -180,15 +180,15 @@ async function isPermissionAutoAllowGranted(sessionId: string): Promise<boolean>
 }
 
 /**
- * Whether the Agent Commander manages the Session, which decides between Hand Over and Take Back. An unanswered read
- * offers Hand Over, which the Server refuses as `already_managed` if it was wrong. The set changes without a Workbench
- * record change (the Commander takes a Session, or human input takes it back), so every open reads it fresh.
+ * Whether Caxri Bot manages the Session, which decides between Hand Over and Take Back. An unanswered read offers Hand
+ * Over, which the Server refuses as `already_managed` if it was wrong. The set changes without a Workbench record
+ * change (Caxri Bot takes a Session, or human input takes it back), so every open reads it fresh.
  */
-async function isCommanderManaged(sessionId: string): Promise<boolean> {
+async function isBotManaged(sessionId: string): Promise<boolean> {
     return isConfirmedInTime(async () =>
-        (
-            await fetchCaxriQuery('commander.managedSessions', {}, { staleTime: 0 })
-        ).sessionIds.includes(sessionId),
+        (await fetchCaxriQuery('bot.managedSessions', {}, { staleTime: 0 })).sessionIds.includes(
+            sessionId,
+        ),
     );
 }
 
@@ -288,15 +288,15 @@ async function sessionRowMenu({
     const [isAutoAllowGranted, isResumable, isManaged, reopenable] = await Promise.all([
         isPermissionAutoAllowGranted(session.id),
         isAgentConversationResumable(primaryTerminal),
-        isCommanderManaged(session.id),
+        isBotManaged(session.id),
         readReopenableConversations(session.id),
     ]);
     const forkBlocker = sessionForkBlocker(primaryTerminal);
     /**
-     * Six groups: the Session itself (Rename, Rename with AI, Pin, and Hand Over to or Take Back from the Agent
-     * Commander), Fork, its Agent, opening it elsewhere, a Copy submenu for its Agent's identity, and the two ways to
-     * remove it (Archive, Delete) together at the end, the order Codex's sidebar menu uses. `serializeContextMenu`
-     * drops a separator left without neighbors.
+     * Six groups: the Session itself (Rename, Rename with AI, Pin, and Hand Over to or Take Back from the Agent Caxri
+     * Bot), Fork, its Agent, opening it elsewhere, a Copy submenu for its Agent's identity, and the two ways to remove
+     * it (Archive, Delete) together at the end, the order Codex's sidebar menu uses. `serializeContextMenu` drops a
+     * separator left without neighbors.
      */
     return [
         /**
@@ -341,12 +341,12 @@ async function sessionRowMenu({
          */
         isManaged
             ? {
-                  label: translate('primarySidebar.sessionMenu.takeBackFromCommander'),
-                  onSelect: () => takeBackFromCommander(session.id),
+                  label: translate('primarySidebar.sessionMenu.takeBackFromBot'),
+                  onSelect: () => takeBackFromBot(session.id),
               }
             : {
-                  label: translate('primarySidebar.sessionMenu.handOverToCommander'),
-                  onSelect: () => openCommanderHandover([session.id]),
+                  label: translate('primarySidebar.sessionMenu.handOverToBot'),
+                  onSelect: () => openBotHandover([session.id]),
               },
         CONTEXT_MENU_SEPARATOR,
         /**

@@ -5,7 +5,7 @@ import { keyboardEventShortcut, resolveShortcutBinding } from '../lib/keybinding
 
 /*
  * The keystroke-to-binding step of shortcut dispatch, kept free of the command registry so a companion window such as
- * the Agent Commander resolves chords exactly as the Workbench does without loading the Workbench commands (and the
+ * Caxri Bot resolves chords exactly as the Workbench does without loading the Workbench commands (and the
  * Monaco they reach).
  */
 

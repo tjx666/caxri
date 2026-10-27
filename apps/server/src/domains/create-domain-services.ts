@@ -10,11 +10,11 @@ import { createAgentLifecycleFanOut } from './agent-lifecycle-fan-out';
 import { createAgentCommandRuntime, createAgentRuntime } from './agent-runtime';
 import { AgentAttentionRequests, CompactionReadiness, createLongPasteService } from './agents';
 import { createBenchmarkService } from './benchmark-service-creation';
+import { botHostOptions, BotTerminalHooks, createBotServices } from './bot';
 import { createBugReportDeliveryHandler } from './bug-report-delivery';
 import { createAgentChatService } from './chat-service-creation';
 import { createChatTerminalCreator } from './chat-terminal-creation';
 import { createClaudeWindowService } from './claude-window-service-creation';
-import { commanderHostOptions, CommanderTerminalHooks, createCommanderServices } from './commander';
 import { coreRoutedHandlers } from './core-routed';
 import { createDeletionHandlers } from './deletion-handlers';
 import { DiagnosticsService } from './diagnostics';
@@ -94,8 +94,8 @@ export async function createDomainServices(
     const attentionRequests = new AgentAttentionRequests();
     const suspensionState: { service?: TerminalSuspensionService } = {};
     const delegationState: { service?: AgentDelegationService } = {};
-    const commanderHooks = new CommanderTerminalHooks(database, logger);
-    const settlementWiring = new PullRequestSettlementWiring(commanderHooks.sessionActivityChanged);
+    const botHooks = new BotTerminalHooks(database, logger);
+    const settlementWiring = new PullRequestSettlementWiring(botHooks.sessionActivityChanged);
     const compactionReadiness = new CompactionReadiness();
     const agentRuntime = await createAgentRuntime({
         attentionRequests,
@@ -104,7 +104,7 @@ export async function createDomainServices(
         dependencies,
         logger,
         ...createAgentLifecycleFanOut({
-            commanderHooks,
+            botHooks,
             compactionReadiness,
             delegationState,
             settlementWiring,
@@ -131,8 +131,8 @@ export async function createDomainServices(
     const terminals = new TerminalManager(database, send, logger, {
         ...dependencies.terminal,
         execution: dependencies.terminalExecution,
-        agentLaunchArguments: commanderHooks.launchArguments,
-        agentLaunchPrompt: commanderHooks.launchPrompt,
+        agentLaunchArguments: botHooks.launchArguments,
+        agentLaunchPrompt: botHooks.launchPrompt,
         agentLaunchSettings: dependencies.terminal?.agentLaunchSettings ?? agentLaunchSettings,
         agentOutputRecoverySettings:
             dependencies.terminal?.agentOutputRecoverySettings ?? agentOutputRecoverySettings,
@@ -147,7 +147,7 @@ export async function createDomainServices(
             workbenchRoots,
         }),
         onLaunched: (terminal) => {
-            commanderHooks.launched(terminal.id, terminals.agentLaunchId(terminal.id));
+            botHooks.launched(terminal.id, terminals.agentLaunchId(terminal.id));
             return suspensionState.service?.parkLaunch(terminal);
         },
         onLifecycleStarted: (terminal) => {
@@ -171,7 +171,7 @@ export async function createDomainServices(
         onInput: (terminalId, data, origin) => {
             compactionReadiness.input(terminalId, data);
             suspensionState.service?.observeInput(terminalId, data);
-            if (origin === 'human') commanderHooks.input(terminalId, data);
+            if (origin === 'human') botHooks.input(terminalId, data);
             if (origin === 'human') coordinator.maintenanceTurns.end(terminalId, 'humanInput');
             delegationState.service?.interruptTerminal(terminalId, true);
         },
@@ -193,7 +193,7 @@ export async function createDomainServices(
     );
     const agentChat = createAgentChatService({
         agentRuntime,
-        commanderHooks,
+        botHooks,
         configuration,
         database,
         delegationState,
@@ -290,8 +290,8 @@ export async function createDomainServices(
         visibleGridWaitMs: dependencies.terminalRestoreGridWaitMs,
     };
     const {
-        commanderRestores,
-        restoreCommanderTerminals,
+        botRestores,
+        restoreBotTerminals,
         restoreInterruptedTerminalsInBackground,
         watchSessionInBackground,
     } = createRestoreServices({
@@ -324,7 +324,7 @@ export async function createDomainServices(
      */
     const sessionParking = {
         agentChat,
-        commanderRestores,
+        botRestores,
         database,
         evictSessions: evictSessionCaches,
         mobileTerminalMutations,
@@ -358,17 +358,17 @@ export async function createDomainServices(
         terminals,
         userDataPath,
         agentEnvironment,
-        onDelegationReceiptChanged: commanderHooks.receiptChanged,
+        onDelegationReceiptChanged: botHooks.receiptChanged,
     });
     dispatchState.service = agentCommands.dispatchService;
     delegationState.service = agentCommands.delegationService;
-    const { inbox: commanderInbox, handovers: commanderHandovers } = createCommanderServices({
+    const { inbox: botInbox, handovers: botHandovers } = createBotServices({
         agentChat,
         coordinator,
         database,
         environment: agentEnvironment,
         github: externalStatus.github,
-        hooks: commanderHooks,
+        hooks: botHooks,
         ignoredChecks: () => configuration.getSettings().value['projectStatus.ignoredChecks'],
         logger,
         resolveProjectRoot: resolveOwnerProjectRoot,
@@ -386,8 +386,8 @@ export async function createDomainServices(
         statusServices.dispose();
         settlementWiring.dispose();
         terminalRestores.close();
-        commanderRestores.close();
-        commanderInbox.close();
+        botRestores.close();
+        botInbox.close();
         await agentChat.shutdown();
         await benchmark.service.shutdown();
         claudeWindows.service.shutdown();
@@ -536,24 +536,24 @@ export async function createDomainServices(
             agentThroughput,
             agentHooks,
             agentRuntime,
-            commander: commanderHostOptions({
+            bot: botHostOptions({
                 agentChat,
                 agentEnvironment,
                 coordinator,
                 database,
                 createAndStartTerminal,
                 logger,
-                onStopped: () => commanderHooks.notifier?.onStopped(),
+                onStopped: () => botHooks.notifier?.onStopped(),
                 restartTerminal: relaunchHandlers['terminal.restart'],
-                restores: commanderRestores,
-                restoreTerminals: restoreCommanderTerminals,
-                scopedWorkbench: snapshots.commander,
+                restores: botRestores,
+                restoreTerminals: restoreBotTerminals,
+                scopedWorkbench: snapshots.bot,
                 send,
                 sendFullStateChange: () => sendFullStateChange('session.create'),
                 terminals,
             }),
-            commanderHandovers,
-            commanderInbox,
+            botHandovers,
+            botInbox,
             configuration,
             database,
             emit: send,

@@ -6,7 +6,7 @@ import type {
 import { CaxriError } from '@caxri/protocol';
 
 import type { DelegationAuthority } from './admission';
-import { isAgentCommanderCaller } from './admission';
+import { isCaxriBotCaller } from './admission';
 import type { AgentDelegationServiceOptions } from './service-options';
 
 /**
@@ -32,7 +32,7 @@ export async function admitDelegationRequest(
     const { kind } = authority.principal;
     if (!newSessions || (kind !== 'agent' && kind !== 'human-cli' && kind !== 'desktop'))
         throw new CaxriError('FORBIDDEN', 'This caller cannot delegate into a new Session');
-    const isCommander = isAgentCommanderCaller(database, authority);
+    const isBot = isCaxriBotCaller(database, authority);
     /**
      * An Agent's own Session, or the Chat a Client continues in another Agent (`agentChat.continueInAgent`).
      */
@@ -43,8 +43,8 @@ export async function admitDelegationRequest(
     const sessionId = newSessions.create(
         fields.projectId,
         title,
-        isCommander,
-        isCommander ? undefined : callerSessionId,
+        isBot,
+        isBot ? undefined : callerSessionId,
     );
     try {
         return await admit({ ...fields, sessionId }, true);

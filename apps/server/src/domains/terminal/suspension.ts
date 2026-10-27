@@ -6,7 +6,7 @@ import { logEventCatalog } from '@caxri/system';
 import type { AgentLifecycleSignal } from '../agents';
 import { isLateMidTurnSignalAfterInterrupt, isMidTurnSignal, isStandaloneEscape } from '../agents';
 import type { CaxriDatabase } from '../db';
-import { agentCommanderIdentity } from '../db';
+import { caxriBotIdentity } from '../db';
 import { isPtyTerminal } from '../pty-guard';
 import type { WatchHandle, WatchHub } from '../watch';
 import type { TerminalExecutionPort } from './execution-port';
@@ -159,10 +159,10 @@ export class TerminalSuspensionService {
         this.observeVisibility();
         if (this.options.isPresenceSettled?.() === false) return [];
         /**
-         * The Agent Commander's Session is never selected in the Workbench, so without this exemption it would always
-         * look abandoned; its Terminal is supervised by its own window instead.
+         * Caxri Bot's Session is never selected in the Workbench, so without this exemption it would always look
+         * abandoned; its Terminal is supervised by its own window instead.
          */
-        const commanderSessionId = agentCommanderIdentity(database)?.sessionId;
+        const botSessionId = caxriBotIdentity(database)?.sessionId;
         for (const terminalId of this.parked.keys())
             if (!database.getTerminal(terminalId)) this.parked.delete(terminalId);
         const decisions = decideTerminalSuspensions({
@@ -182,7 +182,7 @@ export class TerminalSuspensionService {
             startedAt: this.startedAt,
             terminals: database
                 .listTerminals()
-                .filter((terminal) => terminal.sessionId !== commanderSessionId),
+                .filter((terminal) => terminal.sessionId !== botSessionId),
         });
         const suspended: string[] = [];
         // Suspensions run one at a time so each restart barrier and snapshot capture finishes before the next kill.

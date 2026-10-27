@@ -36,19 +36,19 @@ export interface ToastActionParameters {
      */
     'agentChat.restoreQueued': { terminalId: string; id: string };
     /**
-     * Raises the Agent Commander window, for a notice about work just handed to it.
+     * Raises the Caxri Bot window, for a notice about work just handed to it.
      */
-    'agentCommander.open': undefined;
+    'caxriBot.open': undefined;
     /**
      * Reopens the Hand Over dialog with one Session selected, for the notice that typing into a handed-over Session
      * took it back: the take-back is immediate, and this is its way back.
      */
-    'agentCommander.handBack': { sessionId: string };
+    'caxriBot.handBack': { sessionId: string };
     /**
      * Takes back an Inbox dismissal that has not been sent yet. Carries only the item id; it stops applying once the
      * request went out, because the Server cannot restore a dismissed item.
      */
-    'agentCommander.undoDismiss': { itemId: string };
+    'caxriBot.undoDismiss': { itemId: string };
     /**
      * Copies a shell command the notice asks the user to run elsewhere, such as raising a limit on an SSH Host.
      */
@@ -154,9 +154,9 @@ export const toastActionLabelKeys: Record<ToastActionId, TranslationKey> = {
     'agentChat.pasteAsText': 'agentChat.composer.pasteAsText',
     'agentChat.restoreReviewComment': 'toasts.action.undo',
     'agentChat.restoreQueued': 'toasts.action.undo',
-    'agentCommander.open': 'toasts.action.openAgentCommander',
-    'agentCommander.handBack': 'agentCommander.handover.handBack',
-    'agentCommander.undoDismiss': 'toasts.action.undo',
+    'caxriBot.open': 'toasts.action.openCaxriBot',
+    'caxriBot.handBack': 'caxriBot.handover.handBack',
+    'caxriBot.undoDismiss': 'toasts.action.undo',
     'clipboard.copyCommand': 'toasts.action.copyCommand',
     'diagnostics.copyFailure': 'toasts.action.copyDetails',
     'diagnostics.revealExport': 'toasts.action.revealInFinder',

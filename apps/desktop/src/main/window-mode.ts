@@ -24,8 +24,8 @@ export interface ForwardableWindow {
 }
 
 /**
- * Brings a window to the front for a user hand-off (Agent Commander, notifications, second instance, menu). A hidden
- * E2E launch only focuses the window's web contents: `show()`, `app.focus({ steal: true })`, and macOS
+ * Brings a window to the front for a user hand-off (Caxri Bot, notifications, second instance, menu). A hidden E2E
+ * launch only focuses the window's web contents: `show()`, `app.focus({ steal: true })`, and macOS
  * `BrowserWindow.focus()` (which orders the window front) would surface it and take OS focus from the developer's
  * foreground app and from sibling parallel E2E workers. Production and visible E2E launches keep the full behavior.
  */

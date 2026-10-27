@@ -76,8 +76,8 @@ export function useAgentChatExpansion(
  * Reveals one work row inside disclosures the user has not opened: opens each of `keys` (see `agentChatRevealItemKeys`)
  * as a user toggle anchored at the clicked control, then, once the height animation settles, scrolls the row
  * (`data-agent-chat-work-item`) into view within `container`. A finished turn's row uses it where the host cannot open
- * the subagent beside the Chat (the Agent Commander window). `undefined` without a provider, since a private state
- * could not reach the rows that hold the target.
+ * the subagent beside the Chat (Caxri Bot window). `undefined` without a provider, since a private state could not
+ * reach the rows that hold the target.
  */
 export function useAgentChatRevealWorkItem():
     | ((options: {

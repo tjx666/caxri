@@ -10,7 +10,7 @@ import {
 } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { useCommanderHandoverStore } from '../features/agent-commander/commander-handover-store';
+import { useBotHandoverStore } from '../features/caxri-bot/bot-handover-store';
 import { useEnvironmentStore } from '../stores/environment';
 import { useWorkbenchStore } from '../stores/workbench';
 import { commandDefinitions as registeredCommandDefinitions } from './definitions';
@@ -157,10 +157,10 @@ describe('executeCommand', () => {
 
     it('offers local-only commands only in a local window and SSH Host commands only in an SSH Host window', () => {
         const localOnly = [
-            'agentCommander.handOver',
-            'agentCommander.open',
-            'agentCommander.stop',
-            'agentCommander.takeBack',
+            'caxriBot.handOver',
+            'caxriBot.open',
+            'caxriBot.stop',
+            'caxriBot.takeBack',
             'developer.reportBug',
             'diagnostics.export',
             'processExplorer.open',
@@ -192,11 +192,11 @@ describe('executeCommand', () => {
             'sshHost.connect',
             'dialogs.openPathBrowser',
         ]);
-        // Each of these palette predicates holds only in a local window; see `commanderPaletteWhenContext`.
+        // Each of these palette predicates holds only in a local window; see `botPaletteWhenContext`.
         const localWindowPredicates = [
             'localMachine',
-            'commanderHandOverAvailable',
-            'commanderTakeBackAvailable',
+            'botHandOverAvailable',
+            'botTakeBackAvailable',
         ];
         for (const id of localOnly)
             expect(
@@ -216,10 +216,10 @@ describe('executeCommand', () => {
             attachEpoch: 0,
         });
 
-        executeCommand('agentCommander.handOver');
+        executeCommand('caxriBot.handOver');
 
-        expect(useCommanderHandoverStore.getState().request?.sessionIds).toEqual(['session-1']);
-        useCommanderHandoverStore.setState({ request: undefined });
+        expect(useBotHandoverStore.getState().request?.sessionIds).toEqual(['session-1']);
+        useBotHandoverStore.setState({ request: undefined });
         useEnvironmentStore.setState({ state: undefined });
     });
 

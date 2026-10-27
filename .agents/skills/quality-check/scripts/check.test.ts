@@ -280,34 +280,30 @@ describe('default typecheck selection', () => {
             ].every(canAffectTypes),
         ).toBe(true);
         expect(
-            [
-                'docs/agent-commander.md',
-                'apps/desktop/src/renderer/src/app.css',
-                'config.json',
-            ].some(canAffectTypes),
+            ['docs/caxri-bot.md', 'apps/desktop/src/renderer/src/app.css', 'config.json'].some(
+                canAffectTypes,
+            ),
         ).toBe(false);
     });
 
     it('adds the typecheck to the default selection only when a changed path affects types', () => {
         const defaults = parseCheckArguments([]);
-        expect(shouldTypecheck(defaults, ['docs/agent-commander.md'])).toBe(false);
-        expect(
-            shouldTypecheck(defaults, ['docs/agent-commander.md', 'apps/server/src/removed.ts']),
-        ).toBe(true);
+        expect(shouldTypecheck(defaults, ['docs/caxri-bot.md'])).toBe(false);
+        expect(shouldTypecheck(defaults, ['docs/caxri-bot.md', 'apps/server/src/removed.ts'])).toBe(
+            true,
+        );
     });
 
     it('runs exactly what an explicit selector names', () => {
         expect(shouldTypecheck(parseCheckArguments(['--lint']), ['apps/server/src/index.ts'])).toBe(
             false,
         );
-        expect(shouldTypecheck(parseCheckArguments(['--type']), ['docs/agent-commander.md'])).toBe(
-            true,
-        );
+        expect(shouldTypecheck(parseCheckArguments(['--type']), ['docs/caxri-bot.md'])).toBe(true);
     });
 
     it('adds knip to the default selection for the same paths, so an orphaned export fails locally', () => {
         const defaults = parseCheckArguments([]);
-        expect(shouldRunKnip(defaults, ['docs/agent-commander.md'])).toBe(false);
+        expect(shouldRunKnip(defaults, ['docs/caxri-bot.md'])).toBe(false);
         expect(shouldRunKnip(defaults, ['scripts/watch-ci.ts'])).toBe(true);
         expect(shouldRunKnip(parseCheckArguments(['--test']), ['scripts/watch-ci.ts'])).toBe(false);
         expect(shouldRunKnip(parseCheckArguments(['--knip']), [])).toBe(true);

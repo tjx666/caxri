@@ -26,10 +26,10 @@ import { ActiveFileStatus } from './active-file-status';
 import { activeFileStatusTier } from './active-file-status-target';
 import { ActiveTerminalStatus } from './active-terminal-status';
 import { AgentChatWaitingChip } from './agent-chat-waiting-chip';
+import { BotInboxChip } from './bot-inbox-chip';
+import { BotStatusChip } from './bot-status-chip';
 import { BranchPicker } from './branch-picker';
 import type { ChipVisibility } from './chip-priority';
-import { CommanderInboxChip } from './commander-inbox-chip';
-import { CommanderStatusChip } from './commander-status-chip';
 import { useChipVisibility } from './hooks/use-chip-visibility';
 import { PeerApprovalChip } from './peer-approval-chip';
 import { PermissionAutoAllowChip } from './permission-auto-allow-chip';
@@ -243,7 +243,7 @@ export function StatusBar() {
     const containerReference = useRef<HTMLElement>(null);
     const chipVisibility = useChipVisibility(containerReference);
     /**
-     * The Agent Commander runs beside this Mac's own Server, so an SSH Host window has no Commander to report.
+     * Caxri Bot runs beside this Mac's own Server, so an SSH Host window has no Caxri Bot to report.
      */
     const isLocalOnlyAvailable = useIsLocalOnlyAvailable();
     return (
@@ -302,8 +302,8 @@ export function StatusBar() {
                 <AgentChatWaitingChip />
                 <PeerApprovalChip />
                 <UpdateStatusChip />
-                {isLocalOnlyAvailable && <CommanderStatusChip />}
-                {isLocalOnlyAvailable && <CommanderInboxChip />}
+                {isLocalOnlyAvailable && <BotStatusChip />}
+                {isLocalOnlyAvailable && <BotInboxChip />}
                 <RemoteDebuggingChip />
                 <ScreencastModeChip />
                 <PermissionAutoAllowChip />

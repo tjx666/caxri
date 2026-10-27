@@ -15,7 +15,7 @@ import {
 } from './agent-chat';
 import type { AgentDelegationService } from './agent-delegation';
 import type { createAgentRuntime } from './agent-runtime';
-import type { CommanderTerminalHooks } from './commander';
+import type { BotTerminalHooks } from './bot';
 import type { ConfigService } from './config';
 import type { CaxriDatabase } from './db';
 import type { DomainDependencies } from './domain-services';
@@ -23,12 +23,12 @@ import { reapGroup } from './process-group';
 import { discardEmptySession } from './session';
 
 /**
- * Composes the Chat service with the domain root's launch settings and, when Agent Endpoints exist, the Commander
- * Endpoint so a Chat Commander keeps its `commander` role.
+ * Composes the Chat service with the domain root's launch settings and, when Agent Endpoints exist, Caxri Bot Endpoint
+ * so a Chat of Caxri Bot keeps its `bot` role.
  */
 export function createAgentChatService({
     agentRuntime,
-    commanderHooks,
+    botHooks,
     configuration,
     database,
     delegationState,
@@ -47,7 +47,7 @@ export function createAgentChatService({
         | 'observeChatLifecycleSignal'
         | 'usageGuards'
     >;
-    commanderHooks: Pick<CommanderTerminalHooks, 'chatInput' | 'chatReady' | 'launchArguments'>;
+    botHooks: Pick<BotTerminalHooks, 'chatInput' | 'chatReady' | 'launchArguments'>;
     configuration: Pick<ConfigService, 'getSettings'>;
     database: CaxriDatabase;
     /**
@@ -65,14 +65,14 @@ export function createAgentChatService({
 }): AgentChatService {
     const { agentEnvironment, agentLaunchSettings, coordinator } = agentRuntime;
     /**
-     * A Chat Commander needs the same Codex overrides as a PTY one, notably the raised `project_doc_max_bytes` that
+     * A Chat of Caxri Bot needs the same Codex overrides as a PTY one, notably the raised `project_doc_max_bytes` that
      * keeps its embedded memory from being cut; `codexChatSettings` carries `-c` over as an app-server root option.
      */
     const launchSettings: AgentChatServiceOptions['launchSettings'] = (provider, terminal) => {
         const settings = (dependencies.terminal?.agentLaunchSettings ?? agentLaunchSettings)(
             provider,
         );
-        const extra = commanderHooks.launchArguments(terminal);
+        const extra = botHooks.launchArguments(terminal);
         return extra.length === 0 ? settings : { ...settings, args: [...settings.args, ...extra] };
     };
     const usage = new ChatUsageContinuation({
@@ -112,7 +112,7 @@ export function createAgentChatService({
             configuration.getSettings().value['agents.longRunningShellCommands'],
         sessionInstructions: () => configuration.getSettings().value['agents.sessionInstructions'],
         onReady: (terminalId) => {
-            commanderHooks.chatReady(terminalId);
+            botHooks.chatReady(terminalId);
             if (service.readLeaseAt(terminalId) !== undefined) onObservationLeaseReady();
         },
         delegation: {
@@ -122,7 +122,7 @@ export function createAgentChatService({
                 delegationState.service?.interruptTerminal(terminalId, false, launchId),
             humanInput: (terminalId) => {
                 usageLimitWaits.cancel(terminalId, 'userInput');
-                commanderHooks.chatInput(terminalId);
+                botHooks.chatInput(terminalId);
                 delegationState.service?.interruptTerminal(terminalId, true);
             },
         },

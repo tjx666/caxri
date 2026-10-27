@@ -6,23 +6,23 @@ import type { AgentLifecycleSignal } from '../../agents';
 import type { CaxriDatabase } from '../../db';
 import { AgentTurnContext } from '../turn-context';
 
-const COMMANDER = { projectId: 'commander-project', sessionId: 'commander-session' };
+const BOT = { projectId: 'bot-project', sessionId: 'bot-session' };
 
 /**
- * Terminals `agent` (Terminal surface), `chat` (Chat surface), and `commander` (the Agent Commander's Terminal).
+ * Terminals `agent` (Terminal surface), `chat` (Chat surface), and `bot` (Caxri Bot's Terminal).
  */
 function database(): CaxriDatabase {
     const terminals: Record<string, Partial<TerminalRecord>> = {
         agent: { id: 'agent', sessionId: 'session' },
         chat: { id: 'chat', sessionId: 'session', surface: 'chat' },
-        commander: { id: 'commander', sessionId: COMMANDER.sessionId },
+        bot: { id: 'bot', sessionId: BOT.sessionId },
     };
     return {
         getTerminal: (id: string) => terminals[id],
-        getAppState: () => ({ ...COMMANDER, terminalId: 'commander', sessionIds: [] }),
-        getProject: (id: string) => (id === COMMANDER.projectId ? { id } : undefined),
+        getAppState: () => ({ ...BOT, terminalId: 'bot', sessionIds: [] }),
+        getProject: (id: string) => (id === BOT.projectId ? { id } : undefined),
         getSession: (id: string) =>
-            id === COMMANDER.sessionId ? { projectId: COMMANDER.projectId } : undefined,
+            id === BOT.sessionId ? { projectId: BOT.projectId } : undefined,
     } as unknown as CaxriDatabase;
 }
 
@@ -79,7 +79,7 @@ describe('AgentTurnContext', () => {
         ['a provider that ignores prompt context', { provider: 'grok' as const }],
         ['a subagent turn', { agentId: 'subagent' }],
         ['an Agent Chat', { terminalId: 'chat' }],
-        ['the Agent Commander', { terminalId: 'commander' }],
+        ['Caxri Bot', { terminalId: 'bot' }],
         ['an unknown Terminal', { terminalId: 'missing' }],
     ])('adds nothing for %s', (_label, overrides) => {
         expect(new AgentTurnContext(database(), preset).for(signal(overrides))).toBeUndefined();

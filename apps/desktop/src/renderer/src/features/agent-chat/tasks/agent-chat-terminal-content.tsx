@@ -7,8 +7,8 @@ import { AgentChatPane } from '../agent-chat-pane';
 import { CanContinueInAgentContext } from '../usage-limit/use-can-continue-in-agent';
 
 /**
- * A Terminal opened as Chat, named and capability-gated by its provider's catalog entry. The Workbench pane and the
- * Agent Commander window both mount a Chat Terminal through this.
+ * A Terminal opened as Chat, named and capability-gated by its provider's catalog entry. The Workbench pane and the the
+ * Caxri Bot window both mount a Chat Terminal through this.
  */
 export function AgentChatTerminalContent({
     ariaLabel,

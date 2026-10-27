@@ -6,8 +6,8 @@ import type { StructuredLogger } from '@caxri/system';
 import type { BaseWindow, BrowserWindow, WebContents } from 'electron';
 import { app } from 'electron';
 
-import { AgentCommanderWindowController } from './agent-commander-window';
 import { BenchmarkWindowController } from './benchmark-window';
+import { CaxriBotWindowController } from './caxri-bot-window';
 import {
     createSharedProcessReader,
     gpuRasterState,
@@ -22,8 +22,8 @@ import type { E2EWindowMode } from './window-mode';
 import type { CompanionRendererPolicy } from './workbench-ipc';
 
 /**
- * Creates the controllers of Main's on-demand windows: Process Explorer, Performance Monitor, the Agent Commander, and
- * Benchmark. No window opens here; each controller creates its BrowserWindow on first `open()`.
+ * Creates the controllers of Main's on-demand windows: Process Explorer, Performance Monitor, Caxri Bot, and Benchmark.
+ * No window opens here; each controller creates its BrowserWindow on first `open()`.
  */
 export function createOnDemandWindows(options: {
     currentDirectory: string;
@@ -44,16 +44,16 @@ export function createOnDemandWindows(options: {
     const auxiliaryWindowState = (): Promise<AuxiliaryWindowState> =>
         (auxiliaryWindowStatePromise ??= supervisor.request('app.auxiliaryWindowState.get'));
     /**
-     * Set right after Process Explorer's own construction below. Declared first only so the Agent Commander's
-     * `saveWindowState` can fold in Process Explorer's half of the combined row without a circular `const` initializer;
-     * by the time either `saveWindowState` actually runs (at quit), both controllers already exist.
+     * Set right after Process Explorer's own construction below. Declared first only so Caxri Bot's `saveWindowState`
+     * can fold in Process Explorer's half of the combined row without a circular `const` initializer; by the time
+     * either `saveWindowState` actually runs (at quit), both controllers already exist.
      */
     let processExplorerState: () => AuxiliaryWindowState['processExplorer'] = () => ({});
-    const agentCommander = new AgentCommanderWindowController({
+    const caxriBot = new CaxriBotWindowController({
         currentDirectory,
         detachTerminal: (terminalId) => supervisor.request('terminal.detach', { terminalId }),
         isPackaged: app.isPackaged,
-        loadWindowState: async () => (await auxiliaryWindowState()).agentCommander,
+        loadWindowState: async () => (await auxiliaryWindowState()).caxriBot,
         logger: () => options.logger,
         rendererUrl: process.env.ELECTRON_RENDERER_URL,
         /**
@@ -62,11 +62,11 @@ export function createOnDemandWindows(options: {
          */
         saveWindowState: (state) =>
             supervisor.request('app.auxiliaryWindowState.update', {
-                agentCommander: state,
+                caxriBot: state,
                 processExplorer: processExplorerState(),
             }),
         sendEvent: options.sendEvent,
-        stopCommander: () => supervisor.request('commander.stop'),
+        stopBot: () => supervisor.request('bot.stop'),
         windowMode,
         zoomLevel: options.zoomLevel,
     });
@@ -137,7 +137,7 @@ export function createOnDemandWindows(options: {
         rendererUrl: process.env.ELECTRON_RENDERER_URL,
         saveWindowState: (state) =>
             supervisor.request('app.auxiliaryWindowState.update', {
-                agentCommander: agentCommander.currentWindowState(),
+                caxriBot: caxriBot.currentWindowState(),
                 processExplorer: state,
             }),
         sampler: new ProcessExplorerSampler({
@@ -159,8 +159,8 @@ export function createOnDemandWindows(options: {
                 if (workbenchPid !== undefined) roles.set(workbenchPid, 'workbench');
                 const explorerPid = processExplorer.processId();
                 if (explorerPid !== undefined) roles.set(explorerPid, 'process explorer');
-                const commanderPid = agentCommander.processId();
-                if (commanderPid !== undefined) roles.set(commanderPid, 'agent commander');
+                const botPid = caxriBot.processId();
+                if (botPid !== undefined) roles.set(botPid, 'Caxri Bot');
                 const benchmarkPid = benchmark.processId();
                 if (benchmarkPid !== undefined) roles.set(benchmarkPid, 'benchmark');
                 const monitorPid = performanceMonitor.processId();
@@ -185,7 +185,7 @@ export function createOnDemandWindows(options: {
         void performanceMonitor.refreshLanguage();
     });
     performanceMonitor.installIpc();
-    return { agentCommander, benchmarkWindow: benchmark, performanceMonitor, processExplorer };
+    return { caxriBot, benchmarkWindow: benchmark, performanceMonitor, processExplorer };
 }
 
 /**

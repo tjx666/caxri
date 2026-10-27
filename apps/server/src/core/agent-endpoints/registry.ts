@@ -34,7 +34,7 @@ const MAX_RETIRED_ENDPOINTS = 256;
 
 /**
  * Every managed Agent can open Sessions and delegate tasks into them, and register a local folder as a Project to do
- * so, the way the Agent Commander does: cross-Session delegation is ordinary Agent work, not a Commander privilege. The
+ * so, the way Caxri Bot does: cross-Session delegation is ordinary Agent work, not a Caxri Bot privilege. The
  * delegation domain decides which Sessions a task may target (`authorizeDelegationSession`).
  */
 const BASELINE_CAPABILITIES = [
@@ -58,7 +58,7 @@ interface StoredEndpoint {
     expiresAt: number;
     grants: Map<string, AgentEndpointGrant>;
     launchId: string;
-    role?: 'commander';
+    role?: 'bot';
     summary: AgentEndpointSummary;
     terminalId: string;
     tokenDigest: Buffer;
@@ -103,16 +103,15 @@ function tokenDigest(token: string): Buffer {
 }
 
 /**
- * Fixed authority of the Agent Commander Terminal: read the cross-Project board, keep its task ledger and Inbox, and
- * create empty Sessions. Target Sessions are authorized per request by domain services, so the principal's Project
- * scope stays the Commander's own system Project and never widens to control or dispatch.
+ * Fixed authority of Caxri Bot's Terminal: read the cross-Project board, keep its task ledger and Inbox, and create
+ * empty Sessions. Target Sessions are authorized per request by domain services, so the principal's Project scope stays
+ * Caxri Bot's own system Project and never widens to control or dispatch.
  */
-const COMMANDER_CAPABILITIES = ['commander'] as const satisfies readonly Capability[];
+const BOT_CAPABILITIES = ['bot'] as const satisfies readonly Capability[];
 
 function capabilitiesFor(record: StoredEndpoint, now: number): Capability[] {
     const granted = new Set<Capability>(BASELINE_CAPABILITIES);
-    if (record.role === 'commander')
-        for (const capability of COMMANDER_CAPABILITIES) granted.add(capability);
+    if (record.role === 'bot') for (const capability of BOT_CAPABILITIES) granted.add(capability);
     for (const grant of record.grants.values()) {
         if (grant.expiresAt <= now) continue;
         const capabilitiesForPolicy = GRANT_CAPABILITIES[grant.policy];

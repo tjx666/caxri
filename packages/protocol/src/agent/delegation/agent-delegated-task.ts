@@ -6,12 +6,12 @@ const POINTER =
     /^Read the delegated task from ("(?:[^"\\]|\\.)*") and carry it out\. Delegation ID: ([\w-]+)\.$/u;
 
 /**
- * Where a delegated task came from: the Session whose Agent delegated it, or Agent Commander. Absent when the caller is
- * gone or was not an Agent Terminal.
+ * Where a delegated task came from: the Session whose Agent delegated it, or Caxri Bot. Absent when the caller is gone
+ * or was not an Agent Terminal.
  */
 export const agentChatDelegatedTaskSourceSchema = z.discriminatedUnion('kind', [
     z.strictObject({ kind: z.literal('session'), sessionId: identifierSchema }),
-    z.strictObject({ kind: z.literal('commander') }),
+    z.strictObject({ kind: z.literal('bot') }),
 ]);
 
 /**

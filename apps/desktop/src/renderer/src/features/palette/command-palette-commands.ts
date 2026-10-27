@@ -60,11 +60,11 @@ export function isCommandVisibleInPalette(
 }
 
 /**
- * Offers Hand Over to Agent Commander or Take Back from it for the selected Session, matching the choice its row menu
- * makes. Until the managed set is read (`managedSessionIds` undefined) the palette offers Hand Over, which the Server
- * refuses as `already_managed` if that was wrong. An SSH Host window offers neither: the Commander is local-only.
+ * Offers Hand Over to Caxri Bot or Take Back from it for the selected Session, matching the choice its row menu makes.
+ * Until the managed set is read (`managedSessionIds` undefined) the palette offers Hand Over, which the Server refuses
+ * as `already_managed` if that was wrong. An SSH Host window offers neither: Caxri Bot is local-only.
  */
-export function commanderPaletteWhenContext({
+export function botPaletteWhenContext({
     isLocalOnlyAvailable,
     managedSessionIds,
     selectedSessionId,
@@ -72,12 +72,12 @@ export function commanderPaletteWhenContext({
     isLocalOnlyAvailable: boolean;
     managedSessionIds: readonly string[] | undefined;
     selectedSessionId: string | undefined;
-}): Pick<CommandPaletteWhenContext, 'commanderHandOverAvailable' | 'commanderTakeBackAvailable'> {
+}): Pick<CommandPaletteWhenContext, 'botHandOverAvailable' | 'botTakeBackAvailable'> {
     const isManaged =
         selectedSessionId !== undefined && managedSessionIds?.includes(selectedSessionId) === true;
     return {
-        commanderHandOverAvailable: isLocalOnlyAvailable && !isManaged,
-        commanderTakeBackAvailable: isLocalOnlyAvailable && isManaged,
+        botHandOverAvailable: isLocalOnlyAvailable && !isManaged,
+        botTakeBackAvailable: isLocalOnlyAvailable && isManaged,
     };
 }
 

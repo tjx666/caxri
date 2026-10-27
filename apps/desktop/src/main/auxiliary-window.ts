@@ -33,9 +33,9 @@ export interface AuxiliaryWindowOptions {
 }
 
 /**
- * Creates one optional, single-purpose Electron window (Process Explorer, Agent Commander) with the shared hardening
- * every auxiliary window needs: denied `window.open`, navigation pinned to the immutable entry URL, console and preload
- * error logging, hang observation, and bounded crash recovery that destroys only the failed window after a crash loop.
+ * Creates one optional, single-purpose Electron window (Process Explorer, Caxri Bot) with the shared hardening every
+ * auxiliary window needs: denied `window.open`, navigation pinned to the immutable entry URL, console and preload error
+ * logging, hang observation, and bounded crash recovery that destroys only the failed window after a crash loop.
  *
  * The caller owns single-instance focus and its own IPC; this helper owns only the window's Renderer lifecycle.
  */
@@ -112,8 +112,8 @@ export function createAuxiliaryWindow(options: AuxiliaryWindowOptions): BrowserW
 }
 
 /**
- * Wires an auxiliary window's `moved`/`resized`/`close` events to remember its normal bounds. Shared by the Agent
- * Commander and Process Explorer controllers so this wiring, and the display-clamped restore it feeds
+ * Wires an auxiliary window's `moved`/`resized`/`close` events to remember its normal bounds. Shared by the Agent Caxri
+ * Bot and Process Explorer controllers so this wiring, and the display-clamped restore it feeds
  * (`auxiliary-window-bounds.ts`), exist in exactly one place instead of two near-identical copies. `close` also covers
  * a crash-like destroy that never reaches `moved`/`resized` again.
  */

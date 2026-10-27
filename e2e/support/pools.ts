@@ -70,11 +70,11 @@ export interface DesktopExclusiveClassification {
  * about one of them is a product decision, not a reclassification.
  */
 export const desktopExclusiveSpecs: Readonly<Record<string, DesktopExclusiveClassification>> = {
-    'e2e/agent-commander-inbox-chip.e2e.ts': {
+    'e2e/caxri-bot-inbox-chip.e2e.ts': {
         reasons: ['window-focus'],
-        why: 'Asserts the first Inbox item is focused after the chip brings Commander forward; toBeFocused() needs the Commander document to hold OS focus.',
+        why: 'Asserts the first Inbox item is focused after the chip brings Caxri Bot forward; toBeFocused() needs Caxri Bot document to hold OS focus.',
     },
-    'e2e/agent-commander-inbox.e2e.ts': {
+    'e2e/caxri-bot-inbox.e2e.ts': {
         reasons: ['wall-clock'],
         why: 'Clicks Undo on the "Dismissed" toast before its real 4s auto-dismissal sends the dismissal.',
     },

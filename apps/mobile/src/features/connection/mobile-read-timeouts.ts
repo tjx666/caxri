@@ -5,7 +5,7 @@ const fastMobileReadMethods: ReadonlySet<CaxriMethod> = new Set([
     'mobile.session.show',
     'mobile.session.archived',
     'mobile.agent.availability',
-    'mobile.commanderInbox.list',
+    'mobile.botInbox.list',
     'mobile.host.status',
     'terminal.preview',
 ]);

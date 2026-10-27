@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
 
 import type { AgentDispatchService } from '../../agent-dispatch';
-import { commanderHandoverAccess, CommanderHandoverService } from '../../commander';
+import { botHandoverAccess, BotHandoverService } from '../../bot';
 import { CaxriDatabase } from '../../db';
 import { AgentDelegationService } from '../service';
 import type { AgentDelegationServiceOptions } from '../service-options';
@@ -14,23 +14,23 @@ import type { AgentDelegationServiceOptions } from '../service-options';
 const conversationId = '019e676d-8740-7bb2-8bcb-f189c8260607';
 
 /**
- * A Commander that has been handed a user Session whose Agent holds a Codex conversation, as a PTY Agent or as an Agent
+ * A Caxri Bot that has been handed a user Session whose Agent holds a Codex conversation, as a PTY Agent or as an Agent
  * Chat. `state.launch` is the Agent's live launch, `undefined` once its process stopped; `state.isChatLive` says
  * whether a Chat's provider runs, including while it starts or stops.
  */
 async function fixture(surface: 'pty' | 'chat' = 'pty') {
     const directory = await mkdtemp(join(tmpdir(), 'caxri-delegation-handover-'));
     const database = new CaxriDatabase(join(directory, 'state.db'));
-    const commanderRoot = join(directory, 'commander');
+    const botRoot = join(directory, 'bot');
     const workRoot = join(directory, 'work');
-    await mkdir(commanderRoot);
+    await mkdir(botRoot);
     await mkdir(workRoot);
-    const commanderProject = database.createProject(commanderRoot);
-    const commander = database.createSession(commanderProject.id, 'codex');
-    database.setAppState('agentCommander', {
-        projectId: commanderProject.id,
-        sessionId: commander.session.id,
-        terminalId: commander.terminal!.id,
+    const botProject = database.createProject(botRoot);
+    const bot = database.createSession(botProject.id, 'codex');
+    database.setAppState('caxriBot', {
+        projectId: botProject.id,
+        sessionId: bot.session.id,
+        terminalId: bot.terminal!.id,
         sessionIds: [],
     });
     const project = database.createProject(workRoot);
@@ -39,7 +39,7 @@ async function fixture(surface: 'pty' | 'chat' = 'pty') {
     const terminal =
         created?.terminal ?? database.createTerminal(session.id, 'codex', workRoot, 'chat');
     database.rebindAgentSession(terminal.id, 'codex', conversationId);
-    const handovers = new CommanderHandoverService({
+    const handovers = new BotHandoverService({
         database,
         notify: vi.fn(),
         resolveProjectRoot: (path) => Promise.resolve(path),
@@ -77,25 +77,25 @@ async function fixture(surface: 'pty' | 'chat' = 'pty') {
         write,
         isChatTerminal: () => surface === 'chat',
         isChatLive: () => state.isChatLive,
-        commanderHandovers: commanderHandoverAccess(database),
+        botHandovers: botHandoverAccess(database),
     });
     onTestFinished(async () => {
         service.close();
         database.close();
         await rm(directory, { recursive: true, force: true });
     });
-    const commanderAuthority = {
+    const botAuthority = {
         principal: {
             kind: 'agent' as const,
-            id: 'commander',
-            endpointId: 'commander',
+            id: 'bot',
+            endpointId: 'bot',
             generation: 1,
-            projectIds: [commanderProject.id],
+            projectIds: [botProject.id],
         },
-        callerTerminalId: commander.terminal!.id,
+        callerTerminalId: bot.terminal!.id,
     };
     const { outcomes } = await handovers.handOver({ sessionIds: [session.id] });
-    const [handover] = database.getAppState('commanderHandovers')!;
+    const [handover] = database.getAppState('botHandovers')!;
     expect(outcomes[0].outcome).toBe('accepted');
     const request = {
         projectId: project.id,
@@ -104,7 +104,7 @@ async function fixture(surface: 'pty' | 'chat' = 'pty') {
         continueFromHandover: handover.id,
     };
     return {
-        commanderAuthority,
+        botAuthority,
         database,
         handover,
         handovers,
@@ -129,15 +129,15 @@ function userInput(f: Awaited<ReturnType<typeof fixture>>): void {
 }
 
 /**
- * The Commander's first task in a handed-over Session continues the Session's own Agent conversation instead of
- * starting a fresh Agent next to it.
+ * Caxri Bot's first task in a handed-over Session continues the Session's own Agent conversation instead of starting a
+ * fresh Agent next to it.
  */
-describe('Delegation continuing a Commander hand-over', () => {
+describe('Delegation continuing a Caxri Bot hand-over', () => {
     it('resumes the exact conversation in its Terminal and links the hand-over task', async () => {
         const f = await fixture();
         const id = randomUUID();
 
-        const receipt = await f.service.create(id, f.commanderAuthority, f.request);
+        const receipt = await f.service.create(id, f.botAuthority, f.request);
 
         expect(receipt).toMatchObject({ terminalId: f.terminal.id, status: 'launching' });
         expect(f.start).not.toHaveBeenCalled();
@@ -150,19 +150,19 @@ describe('Delegation continuing a Commander hand-over', () => {
             providerSessionId: conversationId,
         });
         expect(options!.replaceLaunchId).toBe('user-launch');
-        const [handover] = f.database.getAppState('commanderHandovers')!;
+        const [handover] = f.database.getAppState('botHandovers')!;
         expect(handover.firstDelegationId).toBe(id);
-        expect(f.database.commanderTasks.get(handover.taskId!)).toMatchObject({
+        expect(f.database.botTasks.get(handover.taskId!)).toMatchObject({
             delegationId: id,
             status: 'dispatched',
         });
-        // A second root task in the same conversation is refused; the Commander follows up the first one instead.
-        await expect(
-            f.service.create(randomUUID(), f.commanderAuthority, f.request),
-        ).rejects.toThrow(`follow up delegation ${id}`);
+        // A second root task in the same conversation is refused; Caxri Bot follows up the first one instead.
+        await expect(f.service.create(randomUUID(), f.botAuthority, f.request)).rejects.toThrow(
+            `follow up delegation ${id}`,
+        );
     });
 
-    it('refuses a caller other than the Commander', async () => {
+    it('refuses a caller other than Caxri Bot', async () => {
         const f = await fixture();
         const owner = { principal: { kind: 'human-cli', id: 'synthetic-owner' } } as const;
 
@@ -182,11 +182,11 @@ describe('Delegation continuing a Commander hand-over', () => {
             return current && { ...current, lastActivityState: 'running' };
         });
 
-        await expect(f.service.create(id, f.commanderAuthority, f.request)).rejects.toMatchObject({
+        await expect(f.service.create(id, f.botAuthority, f.request)).rejects.toMatchObject({
             code: 'CONFLICT',
         });
         expect(f.database.agentDelegations.get(id)).toBeUndefined();
-        expect(f.database.getAppState('commanderHandovers')![0].firstDelegationId).toBeUndefined();
+        expect(f.database.getAppState('botHandovers')![0].firstDelegationId).toBeUndefined();
     });
 
     it('does not take over the Terminal when the user typed into it while the task was prepared', async () => {
@@ -199,7 +199,7 @@ describe('Delegation continuing a Commander hand-over', () => {
             >);
         });
 
-        const receipt = await f.service.create(randomUUID(), f.commanderAuthority, f.request);
+        const receipt = await f.service.create(randomUUID(), f.botAuthority, f.request);
 
         expect(receipt).toMatchObject({ status: 'failed', failure: 'launch_failed' });
     });
@@ -208,7 +208,7 @@ describe('Delegation continuing a Commander hand-over', () => {
         const f = await fixture('chat');
         const id = randomUUID();
 
-        const receipt = await f.service.create(id, f.commanderAuthority, f.request);
+        const receipt = await f.service.create(id, f.botAuthority, f.request);
 
         expect(receipt).toMatchObject({ terminalId: f.terminal.id, status: 'submitting' });
         expect(f.resume).not.toHaveBeenCalled();
@@ -221,7 +221,7 @@ describe('Delegation continuing a Commander hand-over', () => {
             launchId: 'user-launch',
             inputEpoch: 0,
         });
-        expect(f.database.getAppState('commanderHandovers')![0].firstDelegationId).toBe(id);
+        expect(f.database.getAppState('botHandovers')![0].firstDelegationId).toBe(id);
     });
 
     it('fails a live Chat continuation the Chat refuses at its send chain', async () => {
@@ -232,7 +232,7 @@ describe('Delegation continuing a Commander hand-over', () => {
         });
         const id = randomUUID();
 
-        await f.service.create(id, f.commanderAuthority, f.request);
+        await f.service.create(id, f.botAuthority, f.request);
 
         await vi.waitFor(() =>
             expect(f.database.agentDelegations.get(id)?.receipt).toMatchObject({
@@ -247,7 +247,7 @@ describe('Delegation continuing a Commander hand-over', () => {
         f.state.launch = undefined;
         f.state.isChatLive = false;
 
-        const receipt = await f.service.create(randomUUID(), f.commanderAuthority, f.request);
+        const receipt = await f.service.create(randomUUID(), f.botAuthority, f.request);
 
         expect(receipt).toMatchObject({ terminalId: f.terminal.id, status: 'launching' });
         expect(f.write).not.toHaveBeenCalled();
@@ -270,7 +270,7 @@ describe('Delegation continuing a Commander hand-over', () => {
             return current && { ...current, lastActivityState: 'running' };
         });
 
-        await expect(f.service.create(id, f.commanderAuthority, f.request)).rejects.toMatchObject({
+        await expect(f.service.create(id, f.botAuthority, f.request)).rejects.toMatchObject({
             code: 'CONFLICT',
         });
         expect(f.database.agentDelegations.get(id)).toBeUndefined();
@@ -282,7 +282,7 @@ describe('Delegation continuing a Commander hand-over', () => {
         // The first read is the capture before the task file is written; the user's message lands meanwhile.
         f.inputEpoch.mockReturnValueOnce(0).mockReturnValue(1);
 
-        const receipt = await f.service.create(randomUUID(), f.commanderAuthority, f.request);
+        const receipt = await f.service.create(randomUUID(), f.botAuthority, f.request);
 
         expect(receipt).toMatchObject({ status: 'failed', failure: 'human_input' });
         expect(f.write).not.toHaveBeenCalled();
@@ -298,9 +298,9 @@ describe('Delegation continuing a Commander hand-over', () => {
             });
             const id = randomUUID();
 
-            await expect(
-                f.service.create(id, f.commanderAuthority, f.request),
-            ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+            await expect(f.service.create(id, f.botAuthority, f.request)).rejects.toMatchObject({
+                code: 'NOT_FOUND',
+            });
             expect(f.database.agentDelegations.get(id)).toBeUndefined();
             expect(f.write).not.toHaveBeenCalled();
             expect(f.resume).not.toHaveBeenCalled();
@@ -312,12 +312,12 @@ describe('Delegation continuing a Commander hand-over', () => {
         f.state.launch = undefined;
         const id = randomUUID();
 
-        await expect(f.service.create(id, f.commanderAuthority, f.request)).rejects.toMatchObject({
+        await expect(f.service.create(id, f.botAuthority, f.request)).rejects.toMatchObject({
             code: 'CONFLICT',
             message: expect.stringContaining('starting or stopping') as unknown,
         });
         expect(f.database.agentDelegations.get(id)).toBeUndefined();
-        expect(f.database.getAppState('commanderHandovers')![0].firstDelegationId).toBeUndefined();
+        expect(f.database.getAppState('botHandovers')![0].firstDelegationId).toBeUndefined();
         expect(f.resume).not.toHaveBeenCalled();
     });
 
@@ -328,35 +328,35 @@ describe('Delegation continuing a Commander hand-over', () => {
         f.resume.mockRejectedValueOnce(new Error('Synthetic dispatch refusal'));
         const id = randomUUID();
 
-        const receipt = await f.service.create(id, f.commanderAuthority, f.request);
+        const receipt = await f.service.create(id, f.botAuthority, f.request);
 
         expect(receipt).toMatchObject({ status: 'failed', failure: 'launch_failed' });
-        expect(f.database.getAppState('commanderHandovers')![0].firstDelegationId).toBeUndefined();
-        // The Commander's retry continues the same hand-over.
+        expect(f.database.getAppState('botHandovers')![0].firstDelegationId).toBeUndefined();
+        // Caxri Bot's retry continues the same hand-over.
         const retryId = randomUUID();
-        await expect(
-            f.service.create(retryId, f.commanderAuthority, f.request),
-        ).resolves.toMatchObject({ status: 'launching' });
-        expect(f.database.getAppState('commanderHandovers')![0].firstDelegationId).toBe(retryId);
+        await expect(f.service.create(retryId, f.botAuthority, f.request)).resolves.toMatchObject({
+            status: 'launching',
+        });
+        expect(f.database.getAppState('botHandovers')![0].firstDelegationId).toBe(retryId);
     });
 
     it('refuses a Grok Build Chat target recorded before such Chats became ownership-only', async () => {
         const f = await fixture('chat');
         f.database.rebindAgentSession(f.terminal.id, 'grok', conversationId);
         f.database.setAppState(
-            'commanderHandovers',
-            f.database.getAppState('commanderHandovers')!.map((handover) => ({
+            'botHandovers',
+            f.database.getAppState('botHandovers')!.map((handover) => ({
                 ...handover,
                 target: { ...handover.target!, provider: 'grok' as const },
             })),
         );
         const id = randomUUID();
 
-        await expect(f.service.create(id, f.commanderAuthority, f.request)).rejects.toMatchObject({
+        await expect(f.service.create(id, f.botAuthority, f.request)).rejects.toMatchObject({
             code: 'CONFLICT',
-            message: expect.stringContaining('cannot carry a Commander task') as unknown,
+            message: expect.stringContaining('cannot carry a Caxri Bot task') as unknown,
         });
         expect(f.database.agentDelegations.get(id)).toBeUndefined();
-        expect(f.database.getAppState('commanderHandovers')![0].firstDelegationId).toBeUndefined();
+        expect(f.database.getAppState('botHandovers')![0].firstDelegationId).toBeUndefined();
     });
 });

@@ -9,10 +9,10 @@ import { TooltipProvider } from './components/ui/tooltip';
 import { AgentActionsDialog } from './features/agent-actions/agent-actions-dialog';
 import { subscribeAgentChatPatches } from './features/agent-chat/agent-chat-client';
 import { AgentChatWaitingPopup } from './features/agent-chat/waiting/agent-chat-waiting-popup';
-import { CommanderHandoverDialog } from './features/agent-commander/commander-handover-dialog';
 import { AgentMessageApprovalDialog } from './features/agent-inbox/agent-message-approval-dialog';
 import { subscribeHeldMessageQueue } from './features/agent-inbox/agent-message-approval-store';
 import { BugReportDialog } from './features/bug-report/bug-report-dialog';
+import { BotHandoverDialog } from './features/caxri-bot/bot-handover-dialog';
 import { ConfirmationDialog } from './features/confirmations/confirmation-dialog';
 import {
     openFileForSession,
@@ -314,7 +314,7 @@ export function App() {
                     <StatusBar />
                     <CreateSessionDialog />
                     <ArchivedSessionsDialog />
-                    <CommanderHandoverDialog isFromWorkbench />
+                    <BotHandoverDialog isFromWorkbench />
                     <SessionSearchDialog />
                     <KeyboardShortcutsDialog />
                     <UpdateDialog />

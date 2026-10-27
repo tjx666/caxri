@@ -43,11 +43,11 @@ delegation (`agents.delegate`), and Project registration (`projects.write`) by d
 generation grants add debug, business-write, or Agent-control capabilities. Every Agent Chat process
 carries an Endpoint the same way, so a Chat Agent never falls back to the owner's identity.
 Cross-Session delegation is ordinary Agent work: do not make a general delegation capability
-Commander-only. The Agent
-Commander's Endpoint alone carries the fixed `commander` capability for `commander board`,
-`commander session create|archive`, the `commander task` ledger, and the Commander's side of the Inbox
-(`commander inbox add|list|show|ack|resolve`); replying, dismissing, and merging require `desktop` (see
-`docs/agent-commander.md`). A Shell
+Caxri Bot-only. The Agent
+Caxri Bot's Endpoint alone carries the fixed `bot` capability for `bot board`,
+`bot session create|archive`, the `bot task` ledger, and Caxri Bot's side of the Inbox
+(`bot inbox add|list|show|ack|resolve`); replying, dismissing, and merging require `desktop` (see
+`docs/caxri-bot.md`). A Shell
 promotion never receives an Endpoint. These bearer capabilities are a product authorization boundary,
 not a sandbox from same-user code that can independently read the private owner manifest.
 

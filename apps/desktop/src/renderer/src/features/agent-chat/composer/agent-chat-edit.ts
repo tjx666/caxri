@@ -29,7 +29,7 @@ const AGENT_CHAT_EDITS_STORAGE_KEY_PREFIX = 'caxri.agent-chat.edits';
 
 /**
  * The `localStorage` entry holding one composer scope's edits (`agentChatComposerScope`). Every window shares one
- * `localStorage`, and each retains only its own Chats, so one shared entry let a Workbench delete the Commander's or
+ * `localStorage`, and each retains only its own Chats, so one shared entry let a Workbench delete Caxri Bot's or
  * another environment's edits.
  */
 export function agentChatEditsStorageKey(scope: string): string {

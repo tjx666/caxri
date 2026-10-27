@@ -14,11 +14,11 @@ describe('agentChatHostCapabilities', () => {
     });
 
     /**
-     * Main's Commander policy refuses Project writes and the window has no Workbench, so offering either action there
+     * Main's Caxri Bot policy refuses Project writes and the window has no Workbench, so offering either action there
      * only ends in a failure toast.
      */
-    it('offers no fork, continuation, Project default, or Context tab in the Agent Commander window', () => {
-        expect(agentChatHostCapabilities('commander')).toMatchObject({
+    it('offers no fork, continuation, Project default, or Context tab in the Caxri Bot window', () => {
+        expect(agentChatHostCapabilities('bot')).toMatchObject({
             canFork: false,
             canContinueInAgent: false,
             canSaveProjectDefault: false,
@@ -28,9 +28,9 @@ describe('agentChatHostCapabilities', () => {
 
     /**
      * The window mounts no pane layout, so a task or turn-review tab opened there would be invisible yet persisted into
-     * the Commander Session's layout (issue caxri#1719).
+     * the layout of Caxri Bot's Session (issue caxri#1719).
      */
-    it('opens nothing beside the Chat in the Agent Commander window', () => {
-        expect(agentChatHostCapabilities('commander').canOpenBesideChat).toBe(false);
+    it('opens nothing beside the Chat in the Caxri Bot window', () => {
+        expect(agentChatHostCapabilities('bot').canOpenBesideChat).toBe(false);
     });
 });

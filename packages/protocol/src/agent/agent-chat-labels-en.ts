@@ -1,8 +1,8 @@
 /**
  * English source for the Agent Chat presentation text every client shows: work rows and summaries, turn folds, the
- * status line, approval and question cards, failure banners, permission levels, file changes, and Commander Inbox
- * labels. Desktop and the phone spread this catalog into their own dictionaries; the CLI and Server Core read it
- * through the default English translator. Keys keep the Desktop names they had before the catalog moved here.
+ * status line, approval and question cards, failure banners, permission levels, file changes, and Bot Inbox labels.
+ * Desktop and the phone spread this catalog into their own dictionaries; the CLI and Server Core read it through the
+ * default English translator. Keys keep the Desktop names they had before the catalog moved here.
  */
 export const agentChatLabelsEn = {
     // The composer status line (`agentChatActivity`)
@@ -364,12 +364,12 @@ export const agentChatLabelsEn = {
     'agentChat.permission.description.grok.auto': 'A classifier approves safe actions',
     'agentChat.permission.description.grok.fullAccess': 'Runs every tool without asking',
 
-    // Commander Inbox (`commanderInboxKindLabel`, `commanderInboxReplyState`)
-    'agentCommander.inbox.kind.decision': 'Decision',
-    'agentCommander.inbox.kind.hands': 'Your action',
-    'agentCommander.inbox.kind.merge': 'Pull request',
-    'agentCommander.inbox.replyState.read': 'Read by Commander',
-    'agentCommander.inbox.replyState.delivered': 'Delivered to Commander',
+    // Bot Inbox (`botInboxKindLabel`, `botInboxReplyState`)
+    'caxriBot.inbox.kind.decision': 'Decision',
+    'caxriBot.inbox.kind.hands': 'Your action',
+    'caxriBot.inbox.kind.merge': 'Pull request',
+    'caxriBot.inbox.replyState.read': 'Read by Caxri Bot',
+    'caxriBot.inbox.replyState.delivered': 'Delivered to Caxri Bot',
 
     // Reasoning effort levels (`agentChatEffortLabel`), on the Desktop picker and the phone's model sheet
     'agentChat.model.effort.none': 'None',

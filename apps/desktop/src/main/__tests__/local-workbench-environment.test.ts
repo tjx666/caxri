@@ -17,7 +17,7 @@ function fakeMenu() {
     const template = buildAppMenuTemplate({
         keybindings: [],
         dispatchCommand: vi.fn(),
-        openAgentCommander: vi.fn(),
+        openCaxriBot: vi.fn(),
         openBenchmark: vi.fn(),
         openProcessExplorer: vi.fn(),
         workbenchWindow: vi.fn(),

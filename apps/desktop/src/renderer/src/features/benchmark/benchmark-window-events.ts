@@ -15,9 +15,9 @@ export interface BenchmarkWindowEventEffect {
 const NO_EFFECT: BenchmarkWindowEventEffect = { snapshot: false, runs: false };
 
 /**
- * Maps one Server event onto the Benchmark window's refreshes. Deliberately partial, like the Agent Commander's: UI
- * commands belong to the Workbench window, and Session or Terminal record changes concern nothing this window shows.
- * Run progress arrives through `benchmark.changed`, which the page's own queries handle.
+ * Maps one Server event onto the Benchmark window's refreshes. Deliberately partial, like Caxri Bot's: UI commands
+ * belong to the Workbench window, and Session or Terminal record changes concern nothing this window shows. Run
+ * progress arrives through `benchmark.changed`, which the page's own queries handle.
  */
 export function benchmarkWindowEventEffect(event: ServerEvent): BenchmarkWindowEventEffect {
     switch (event.event) {

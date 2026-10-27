@@ -1,7 +1,7 @@
 import { agentProviderIds, CaxriError } from '@caxri/protocol';
 
 import { booleanFlag } from './boolean-flag';
-import { COMMANDER_COMMANDS } from './commander';
+import { BOT_COMMANDS } from './bot';
 import { DELEGATION_COMMANDS } from './delegation';
 import { DELEGATION_ACCESS_COMMANDS } from './delegation-access';
 import { DELEGATION_IMPORT_COMMAND } from './delegation-import';
@@ -32,7 +32,7 @@ export {
 
 export const CLI_COMMANDS = [
     ...DELEGATION_COMMANDS,
-    ...COMMANDER_COMMANDS,
+    ...BOT_COMMANDS,
     ...DELEGATION_ACCESS_COMMANDS,
     DELEGATION_IMPORT_COMMAND,
     {

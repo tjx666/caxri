@@ -4,7 +4,7 @@ import { useDialogStore } from '../../stores/dialogs';
 
 /**
  * What a Terminal pane asks of the window hosting it. The Workbench hosts every surface a pane action opens; a
- * companion window such as the Agent Commander has none of them, so it installs its own host before its first render.
+ * companion window such as Caxri Bot has none of them, so it installs its own host before its first render.
  */
 export interface TerminalPaneHost {
     /**
@@ -15,8 +15,8 @@ export interface TerminalPaneHost {
     /**
      * Whether links may resolve through the Workbench: file links open its editor, commit links its Git view, and a
      * reference's hover card loads its details from the Session's Git. Without it only URLs and files are links (file
-     * links hand off to the Workbench through a different, authorized request; see `commander-commands.ts`), and a
-     * reference keeps its basic card.
+     * links hand off to the Workbench through a different, authorized request; see `bot-commands.ts`), and a reference
+     * keeps its basic card.
      */
     hasWorkbenchLinks: boolean;
 }

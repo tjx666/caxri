@@ -37,7 +37,7 @@ import { didExecuteViewCatalogCommand } from '../view-containers/view-container-
 import { useActivePaneTab } from '../workbench/pane-actions';
 import type { CommandTitleContext } from './command-palette-commands';
 import {
-    commanderPaletteWhenContext,
+    botPaletteWhenContext,
     dynamicCommandSearchEntry,
     getPaletteExtensionCommands,
     isCommandVisibleInPalette,
@@ -229,16 +229,16 @@ function CommandPaletteBody() {
     const isLocalOnlyAvailable = useIsLocalOnlyAvailable();
     const isSshHost = useIsSshHost();
     /**
-     * Read fresh on each open, as the Session row menu does: the Commander takes and returns Sessions without a
-     * Workbench record change. The cache entry is the one the Session row markers share.
+     * Read fresh on each open, as the Session row menu does: Caxri Bot takes and returns Sessions without a Workbench
+     * record change. The cache entry is the one the Session row markers share.
      */
     const managedSessionIds = useCaxriQuery(
-        'commander.managedSessions',
+        'bot.managedSessions',
         {},
         { enabled: isLocalOnlyAvailable, staleTime: 0 },
     ).data?.sessionIds;
     const whenContext = {
-        ...commanderPaletteWhenContext({
+        ...botPaletteWhenContext({
             isLocalOnlyAvailable,
             managedSessionIds,
             selectedSessionId: selectedSession?.id,

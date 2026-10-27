@@ -27,7 +27,7 @@ export { createRelaunchHandlers } from './relaunch';
 export { TerminalRemoteObservers } from './remote-observers';
 export { TerminalResourceMonitor } from './resource-monitor';
 export {
-    createCommanderTerminalRestorer,
+    createBotTerminalRestorer,
     createInterruptedTerminalRestorer,
     type TerminalRestoreOptions,
 } from './restore';

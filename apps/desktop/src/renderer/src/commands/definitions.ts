@@ -464,20 +464,18 @@ export const commandDefinitions: CommandDefinition[] = [
     fromCatalog('processExplorer.open', (context) => context.windows.openProcessExplorer(), {
         when: (context) => context.sshHost.isLocalOnlyAvailable(),
     }),
-    fromCatalog('agentCommander.open', (context) => context.windows.openAgentCommander(), {
+    fromCatalog('caxriBot.open', (context) => context.windows.openCaxriBot(), {
         when: (context) => context.sshHost.isLocalOnlyAvailable(),
     }),
-    fromCatalog('agentCommander.stop', (context) => context.windows.stopAgentCommander(), {
+    fromCatalog('caxriBot.stop', (context) => context.windows.stopCaxriBot(), {
         when: (context) => context.sshHost.isLocalOnlyAvailable(),
     }),
-    fromCatalog('agentCommander.handOver', (context) => context.dialogs.openCommanderHandover(), {
+    fromCatalog('caxriBot.handOver', (context) => context.dialogs.openBotHandover(), {
         when: (context) => context.sshHost.isLocalOnlyAvailable(),
     }),
-    fromCatalog(
-        'agentCommander.takeBack',
-        (context) => context.session.takeBackSelectedFromCommander(),
-        { when: (context) => context.sshHost.isLocalOnlyAvailable() },
-    ),
+    fromCatalog('caxriBot.takeBack', (context) => context.session.takeBackSelectedFromBot(), {
+        when: (context) => context.sshHost.isLocalOnlyAvailable(),
+    }),
     fromCatalog(
         'developer.toggleScreencastMode',
         (context) => context.developer.toggleScreencastMode(),

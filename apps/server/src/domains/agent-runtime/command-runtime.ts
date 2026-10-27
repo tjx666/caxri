@@ -18,11 +18,7 @@ import {
     readDelegationTranscript,
     readVersion,
 } from '../agents';
-import {
-    commanderHandoverAccess,
-    createCommanderSession,
-    discardCommanderSession,
-} from '../commander';
+import { botHandoverAccess, createBotSession, discardBotSession } from '../bot';
 import { coreRouted } from '../core-routed';
 import { createBackgroundSession, discardEmptySession } from '../session';
 import type { AgentUsageGuards } from '../usage';
@@ -48,7 +44,7 @@ export function createAgentCommandRuntime(
          */
         usageGuards?: Pick<AgentUsageGuards, 'assertAdmitted'>;
         /**
-         * Feeds every announced delegation receipt change to the Commander completion notifier. Optional so a unit test
+         * Feeds every announced delegation receipt change to Caxri Bot's completion notifier. Optional so a unit test
          * can construct this runtime without one; the composed Server always passes it.
          */
         onDelegationReceiptChanged?(
@@ -82,9 +78,9 @@ export function createAgentCommandRuntime(
         logger: options.logger,
         userDataPath: options.userDataPath,
         newSessions: {
-            create: (projectId, title, isCommander, createdBySessionId) => {
-                const sessionId = isCommander
-                    ? createCommanderSession(options.database, projectId, options.logger, title)
+            create: (projectId, title, isBot, createdBySessionId) => {
+                const sessionId = isBot
+                    ? createBotSession(options.database, projectId, options.logger, title)
                     : createBackgroundSession(
                           options.database,
                           projectId,
@@ -95,8 +91,8 @@ export function createAgentCommandRuntime(
                 return sessionId;
             },
             discard: (sessionId) => {
-                if (options.database.agentCommanderRows()?.sessionIds.includes(sessionId))
-                    discardCommanderSession(options.database, sessionId, options.logger, () =>
+                if (options.database.caxriBotRows()?.sessionIds.includes(sessionId))
+                    discardBotSession(options.database, sessionId, options.logger, () =>
                         announce('session.delete'),
                     );
                 else
@@ -105,7 +101,7 @@ export function createAgentCommandRuntime(
                     );
             },
         },
-        commanderHandovers: commanderHandoverAccess(options.database, options.logger),
+        botHandovers: botHandoverAccess(options.database, options.logger),
         dimensions: (terminalId) => options.terminals.dimensions(terminalId),
         inputEpoch: (terminalId) =>
             chatOf(terminalId)?.delegation.inputEpoch(terminalId) ??
@@ -152,8 +148,8 @@ export function createAgentCommandRuntime(
         readTranscript: (terminalId) =>
             readAgentTranscript(options.database, terminalId, true, options.agentEnvironment),
         /**
-         * A Session-scoped records change instead of a dedicated event: the Agent Commander board already refetches on
-         * any `state.changed`, and the Workbench answers a Session-only change with one `app.records` read.
+         * A Session-scoped records change instead of a dedicated event: Caxri Bot's board already refetches on any
+         * `state.changed`, and the Workbench answers a Session-only change with one `app.records` read.
          */
         onReceiptChanged: (receipt, previous) => {
             options.emit({

@@ -27,8 +27,8 @@ import { installWorkbenchIpc } from '../workbench-ipc';
 
 describe('workbench IPC companion requests', () => {
     /**
-     * A Main method that shows native UI must present it over the window that asked: the Agent Commander Terminal's
-     * context menu opened over the Workbench instead.
+     * A Main method that shows native UI must present it over the window that asked: Caxri Bot's Terminal's context
+     * menu opened over the Workbench instead.
      */
     it('runs a companion request in the companion window and a Workbench request in none', async () => {
         const renderer = {};
@@ -45,7 +45,7 @@ describe('workbench IPC companion requests', () => {
             companion: (sender) =>
                 sender === (companionRenderer as never)
                     ? {
-                          rendererWindow: 'commander',
+                          rendererWindow: 'bot',
                           renderer: () => companionRenderer as never,
                           window: () => companionWindow as never,
                           admit: vi.fn(),
@@ -76,18 +76,18 @@ describe('workbench IPC companion requests', () => {
     });
 
     /**
-     * The Agent Commander and Benchmark windows are open together: each request is admitted by the policy of the window
-     * that sent it, so one window's allowlist never widens or narrows the other's.
+     * Caxri Bot and Benchmark windows are open together: each request is admitted by the policy of the window that sent
+     * it, so one window's allowlist never widens or narrows the other's.
      */
     it('admits each companion request through its own window policy', async () => {
-        const commanderRenderer = {} as WebContents;
+        const botRenderer = {} as WebContents;
         const benchmarkRenderer = {} as WebContents;
-        const commanderAdmit = vi.fn();
+        const botAdmit = vi.fn();
         const benchmarkAdmit = vi.fn(() => {
             throw new Error('denied');
         });
         const companion = (
-            rendererWindow: 'benchmark' | 'commander',
+            rendererWindow: 'benchmark' | 'bot',
             renderer: WebContents,
             admit: () => void,
         ): CompanionRendererPolicy => ({
@@ -107,8 +107,7 @@ describe('workbench IPC companion requests', () => {
             logger: () => {},
             isWorkbenchSender: () => false,
             companion: (sender) => {
-                if (sender === commanderRenderer)
-                    return companion('commander', commanderRenderer, commanderAdmit);
+                if (sender === botRenderer) return companion('bot', botRenderer, botAdmit);
                 if (sender === benchmarkRenderer)
                     return companion('benchmark', benchmarkRenderer, benchmarkAdmit);
                 return;
@@ -116,23 +115,23 @@ describe('workbench IPC companion requests', () => {
             transport: { dispatch, negotiate: vi.fn() },
         });
         const request = electronMock.handles.get('caxri:request')!;
-        const envelope = { protocolVersion: 2, id: 'r1', method: 'commander.board', params: {} };
+        const envelope = { protocolVersion: 2, id: 'r1', method: 'bot.board', params: {} };
 
-        const commanderReply = await request({ sender: commanderRenderer }, envelope);
+        const botReply = await request({ sender: botRenderer }, envelope);
         const benchmarkReply = await request({ sender: benchmarkRenderer }, envelope);
 
-        expect(commanderReply).toMatchObject({ ok: true });
+        expect(botReply).toMatchObject({ ok: true });
         expect(benchmarkReply).toMatchObject({ ok: false });
-        expect(commanderAdmit).toHaveBeenCalledOnce();
+        expect(botAdmit).toHaveBeenCalledOnce();
         expect(benchmarkAdmit).toHaveBeenCalledOnce();
         expect(dispatch).toHaveBeenCalledOnce();
     });
 
     /**
-     * The Agent Commander window mounts the same Terminal pane, so a WebGL failure there must reach the GPU log tagged
-     * with its window; its startup frame is not the Workbench's and must not complete the Workbench startup profile.
+     * Caxri Bot's window mounts the same Terminal pane, so a WebGL failure there must reach the GPU log tagged with its
+     * window; its startup frame is not the Workbench's and must not complete the Workbench startup profile.
      */
-    it('accepts Terminal diagnostics from the companion as the commander window and ignores its startup frame', () => {
+    it('accepts Terminal diagnostics from the companion as the bot window and ignores its startup frame', () => {
         const renderer = {};
         const companionRenderer = {};
         const onRendererDiagnostic = vi.fn();
@@ -149,7 +148,7 @@ describe('workbench IPC companion requests', () => {
             companion: (sender) =>
                 sender === (companionRenderer as never)
                     ? {
-                          rendererWindow: 'commander',
+                          rendererWindow: 'bot',
                           renderer: () => companionRenderer as never,
                           window: () => {},
                           admit: vi.fn(),
@@ -212,12 +211,12 @@ describe('workbench IPC companion requests', () => {
         };
         report({ sender: companionRenderer }, startupFrame);
 
-        expect(onRendererDiagnostic).toHaveBeenCalledExactlyOnceWith(diagnostic, 'commander');
+        expect(onRendererDiagnostic).toHaveBeenCalledExactlyOnceWith(diagnostic, 'bot');
         expect(write).toHaveBeenCalledOnce();
         expect(write.mock.calls[0]).toMatchObject([
             'warn',
             'renderer.terminal_osc52_clipboard_write_failed',
-            { fields: { code: 'TERMINAL_OSC52_CLIPBOARD_WRITE_FAILED', window: 'commander' } },
+            { fields: { code: 'TERMINAL_OSC52_CLIPBOARD_WRITE_FAILED', window: 'bot' } },
         ]);
         expect(onStartupFrame).not.toHaveBeenCalled();
         // The same frame from the Workbench is accepted, so the companion's was refused by sender, not by shape.

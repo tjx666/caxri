@@ -73,8 +73,8 @@ describe('render-count options', () => {
     });
 
     it('targets a secondary window only when a URL substring is given', async () => {
-        const options = parseRenderCountOptions(['sample', '--url', 'agent-commander']);
-        expect(options).toMatchObject({ command: 'sample', url: 'agent-commander' });
+        const options = parseRenderCountOptions(['sample', '--url', 'caxri-bot']);
+        expect(options).toMatchObject({ command: 'sample', url: 'caxri-bot' });
         expect(parseRenderCountOptions(['sample'])).not.toHaveProperty('url');
 
         // The connection fails right after target selection; only the selection arguments matter here.
@@ -82,7 +82,7 @@ describe('render-count options', () => {
         await expect(
             collectRenderSample(options as Exclude<typeof options, 'help'>, connect),
         ).rejects.toThrow('stop after selection');
-        expect(connect).toHaveBeenCalledWith(9233, 'agent-commander');
+        expect(connect).toHaveBeenCalledWith(9233, 'caxri-bot');
     });
 
     it('returns help for no arguments so a bare run explains itself', () => {

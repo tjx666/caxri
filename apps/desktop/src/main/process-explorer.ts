@@ -132,7 +132,7 @@ export function selectProcessTree(
 }
 
 const RENDERER_ROLE_NAMES: Readonly<Record<string, string>> = {
-    'agent commander': 'Agent Commander',
+    'Caxri Bot': 'Caxri Bot',
     'performance monitor': 'Performance Monitor',
     'process explorer': 'Process Explorer',
     'workbench': 'Workbench',

@@ -325,7 +325,7 @@ describe('development usage accounting', () => {
 
     it('matches repository and auxiliary roots without matching unrelated names', () => {
         expect(isProjectCwd('/workspace/caxri-worktrees/topic')).toBe(true);
-        expect(isProjectCwd('/workspace/Caxri/agent-commander')).toBe(true);
+        expect(isProjectCwd('/workspace/Caxri/caxri-bot')).toBe(true);
         expect(isProjectCwd('/workspace/not-caxri')).toBe(false);
         expect(expandHome('~/backups', '/example-home')).toBe('/example-home/backups');
     });

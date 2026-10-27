@@ -114,7 +114,7 @@ export const SessionHomeHeader = ({
     onForgetComputer: () => void;
     onOpenArchived: () => void;
     /**
-     * Present only for a control device: the Commander Inbox spans every Project, beyond a narrower device grant.
+     * Present only for a control device: the Bot Inbox spans every Project, beyond a narrower device grant.
      */
     onOpenInbox?: () => void;
     onOpenSettings: () => void;
@@ -239,7 +239,7 @@ export const SessionHomeHeader = ({
                             closeMenu();
                             onOpenInbox();
                         }}
-                        testID="commander-inbox-action"
+                        testID="bot-inbox-action"
                         theme={theme}
                     />
                 ) : null}

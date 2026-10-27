@@ -37,7 +37,7 @@ Both automatic rules consider a Terminal only when every condition holds:
 - It is a PTY Agent Terminal (never a Shell tab) whose provider supports automatic suspension
   (Claude Code and Codex; Grok Build does not), or an Agent Chat on any provider; its process is
   running, and its Agent is `starting` or `running`.
-- Its Session is not shown by any visible window (see [Open Sessions](open-sessions.md)), not the Agent Commander's Session, and not archived.
+- Its Session is not shown by any visible window (see [Open Sessions](open-sessions.md)), not Caxri Bot's Session, and not archived.
 - No phone has it open through the mobile gateway: neither its Terminal screen nor its Session's
   Conversation.
 - The Agent is not mid-turn, and it is not waiting for the user: a permission prompt or a question
@@ -64,9 +64,9 @@ process and a socket, while the Escape travels Core's input channel directly, so
 Escape first and the interrupted turn's own last hook second. A real interrupt sends no `Stop`, so
 reopening on that straggler would hold the Agent awake forever. A main-turn mid-turn signal that
 arrives within 2 seconds after the interrupt (`LATE_MID_TURN_SIGNAL_WINDOW_MS` in
-`lifecycle-watchdogs.ts`, shared with the Commander completion notifier) therefore does not reopen
+`lifecycle-watchdogs.ts`, shared with Caxri Bot completion notifier) therefore does not reopen
 the turn; the same signal after the window still does. An Agent Endpoint `SIGINT` takes the same
-path as the Escape: it clears the in-flight marker (and the Commander's `interrupted_turn` mark) and
+path as the Escape: it clears the in-flight marker (and Caxri Bot's `interrupted_turn` mark) and
 starts the same window. The 2 second value is an estimate: the real Claude and Codex timing of hooks
 after an interrupt has not been measured yet (it needs the `debug` skill's controlled real-Agent
 procedure, recording only hook names and timestamps), so whether these providers emit such late

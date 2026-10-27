@@ -74,7 +74,7 @@ export function createTerminalPaneXterm({
     /**
      * Xterm names its input field and its screen-reader overflow notice from one process-wide string table that
      * defaults to English (`Terminal input`). It reads the table when `open()` builds the field, so setting it per
-     * instance keeps every new Terminal, including the Commander's, in the current app language.
+     * instance keeps every new Terminal, including Caxri Bot's, in the current app language.
      */
     Terminal.strings.promptLabel = translate('terminal.a11y.promptLabel');
     Terminal.strings.tooMuchOutput = translate('terminal.a11y.tooMuchOutput');

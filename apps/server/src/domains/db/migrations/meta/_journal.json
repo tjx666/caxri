@@ -92,6 +92,20 @@
             "when": 1793033199791,
             "tag": "0012_session_last_viewed",
             "breakpoints": true
+        },
+        {
+            "idx": 13,
+            "version": "6",
+            "when": 1793086117206,
+            "tag": "0013_caxri_bot_rename",
+            "breakpoints": true
+        },
+        {
+            "idx": 14,
+            "version": "6",
+            "when": 1793086303275,
+            "tag": "0014_caxri_bot_app_state",
+            "breakpoints": true
         }
     ]
 }

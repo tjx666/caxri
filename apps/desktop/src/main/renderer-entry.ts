@@ -5,7 +5,7 @@ interface RendererEntryOptions {
     currentDirectory: string;
     isPackaged: boolean;
     page:
-        | 'agent-commander.html'
+        | 'caxri-bot.html'
         | 'benchmark.html'
         | 'index.html'
         | 'performance-monitor.html'

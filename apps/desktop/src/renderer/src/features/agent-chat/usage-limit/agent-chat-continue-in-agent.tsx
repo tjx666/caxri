@@ -193,7 +193,7 @@ function ContinueMenuButton({
  * leading half names the first Agent that can take over, and whose list shows every other Agent, the unavailable ones
  * disabled with why. Server Core resolves the same failed turn (`turnId`) or guard window to the same Session, so a
  * double click opens it instead of creating a second one. Once continued, the control becomes a link to that Session. A
- * window without a Workbench (the Agent Commander) cannot show the new Session, so it offers none of this.
+ * window without a Workbench (Caxri Bot) cannot show the new Session, so it offers none of this.
  */
 export function AgentChatContinueInAgent({
     continuedIn,

@@ -15,7 +15,7 @@ import {
     sampleAgentTitle,
 } from '../agents';
 import type { CaxriDatabase } from '../db';
-import { agentCommanderIdentity } from '../db';
+import { caxriBotIdentity } from '../db';
 import type { SessionRenameService } from './rename';
 
 /**
@@ -129,10 +129,10 @@ export class SessionAutoNamingService {
         if (!terminal || !session || session.primaryAgentTerminalId !== terminal.id) return;
         if (event.phase !== 'turnFinished' && event.phase !== 'turnStarted') return;
         /**
-         * The Commander's own Session is hidden and carries every task in turn, so a name taken from one request only
-         * mislabels the next. Claude Code would also show it on the Commander's composer after the `/rename` write.
+         * Caxri Bot's own Session is hidden and carries every task in turn, so a name taken from one request only
+         * mislabels the next. Claude Code would also show it on Caxri Bot's composer after the `/rename` write.
          */
-        if (agentCommanderIdentity(this.database)?.sessionId === session.id) return;
+        if (caxriBotIdentity(this.database)?.sessionId === session.id) return;
         if (
             session.titleMode !== 'automatic' ||
             session.archivedAt !== undefined ||

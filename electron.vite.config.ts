@@ -191,9 +191,7 @@ export default defineConfig(async ({ command }) => {
                     },
                     input: {
                         'index': resolve('apps/desktop/src/renderer/index.html'),
-                        'agent-commander': resolve(
-                            'apps/desktop/src/renderer/agent-commander.html',
-                        ),
+                        'caxri-bot': resolve('apps/desktop/src/renderer/caxri-bot.html'),
                         'benchmark': resolve('apps/desktop/src/renderer/benchmark.html'),
                         'performance-monitor': resolve(
                             'apps/desktop/src/renderer/performance-monitor.html',

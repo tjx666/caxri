@@ -92,7 +92,7 @@ export interface WindowZoomController {
  * `settings.changed` names no key, so the controller compares each reload against the last applied level and leaves the
  * windows alone for every unrelated settings write. A failed read keeps the current level. `window.zoomLevel` is one
  * app-wide setting, so every window that shares the Workbench's 36px drag header follows it: the Workbench and the
- * Agent Commander.
+ * Caxri Bot.
  */
 export function createWindowZoomController(options: {
     loadLevel: () => Promise<number>;
@@ -133,7 +133,7 @@ export function createWindowZoomController(options: {
  */
 export function publishFullScreenState(
     window: BrowserWindow,
-    kind: 'workbench' | 'agentCommander' | 'benchmark',
+    kind: 'workbench' | 'caxriBot' | 'benchmark',
     sendEvent: (event: ServerEvent, windowKey?: string) => void,
     windowKey?: string,
 ): void {

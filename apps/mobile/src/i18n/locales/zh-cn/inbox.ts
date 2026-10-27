@@ -16,7 +16,7 @@ export const inbox: TranslatedNamespace<typeof source> = {
     'inbox.refreshFailed': '无法刷新，正在显示上次获取的事项。',
     'inbox.reply': '回复',
     'inbox.replyFailed': '无法发送回复。',
-    'inbox.replyPlaceholder': '回复 Commander',
+    'inbox.replyPlaceholder': '回复 Caxri Bot',
     'inbox.replyTo': '回复「{{title}}」',
     'inbox.send': '发送',
     'inbox.staleNotice': '连接已断开，正在显示上次获取的事项。',

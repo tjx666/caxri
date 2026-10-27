@@ -20,8 +20,8 @@ interface TerminalFocusOwnership {
 /**
  * Whether a Terminal's view (xterm, or the composer of a Terminal opened as Chat) may take keyboard focus without being
  * asked: not from behind a modal, not out of another editable control, not out of a region marked
- * `data-keeps-keyboard-focus` (the Commander Inbox, which the status bar's Needs you chip focuses while a Chat in the
- * same window is still mounting), and not away from a work tab that roving navigation deliberately left focused while
+ * `data-keeps-keyboard-focus` (the Bot Inbox, which the status bar's Needs you chip focuses while a Chat in the same
+ * window is still mounting), and not away from a work tab that roving navigation deliberately left focused while
  * activating this very Terminal.
  */
 export function canClaimTerminalFocus({

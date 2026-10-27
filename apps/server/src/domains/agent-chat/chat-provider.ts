@@ -174,7 +174,7 @@ export interface AgentChatSessionHost {
     clientVersion: string;
     /**
      * Caxri's own instructions for this Agent, added to the provider's system or developer instructions without
-     * replacing the user's. Absent for the Agent Commander, whose workspace carries its own.
+     * replacing the user's. Absent for Caxri Bot, whose workspace carries its own.
      */
     instructions?: string;
     spawnProcess?: SpawnChatProcess;

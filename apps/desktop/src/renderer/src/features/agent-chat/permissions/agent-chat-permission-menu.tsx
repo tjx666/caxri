@@ -65,9 +65,9 @@ const TRIGGER_CLASS_NAME =
  * "Use as Project default" saves the current choice for the Project's new Chats of this provider, shows as a checked
  * "Project default" once saved (and unchecking it clears the default), and stays visible but disabled, with the reason,
  * while the level is Custom; see `docs/agent-chat.md`. While the Project has a saved default the Chat's choice differs
- * from, "Clear Project default" removes it so new Chats follow the launch settings again. The Agent Commander window
- * omits both rows, because Main's Commander policy refuses Project writes. `agentChat.changePermissionMode` opens it
- * from the keyboard, and its tooltip names that shortcut.
+ * from, "Clear Project default" removes it so new Chats follow the launch settings again. The Caxri Bot window omits
+ * both rows, because Main's Caxri Bot policy refuses Project writes. `agentChat.changePermissionMode` opens it from the
+ * keyboard, and its tooltip names that shortcut.
  */
 export function AgentChatPermissionMenu({
     canSaveProjectDefault,

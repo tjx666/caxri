@@ -12,9 +12,9 @@ import { sessionTitleForDisplay } from '../../session/session-title';
 import { useIsAgentChatClamped } from '../hooks/use-is-agent-chat-clamped';
 
 /**
- * "Delegated by" and who: a link to an open Session, Agent Commander, or an archived Session's title. A source the
- * Workbench cannot show (deleted, or in a hidden Project) reads as a plain delegated task. A hand-off (`/new-session`)
- * reads "Continued from" its Session instead, since this Session carries that one's work on.
+ * "Delegated by" and who: a link to an open Session, Caxri Bot, or an archived Session's title. A source the Workbench
+ * cannot show (deleted, or in a hidden Project) reads as a plain delegated task. A hand-off (`/new-session`) reads
+ * "Continued from" its Session instead, since this Session carries that one's work on.
  */
 function DelegatedTaskSource({ task }: { task: AgentChatDelegatedTask }) {
     const { t } = useTranslation();
@@ -25,11 +25,11 @@ function DelegatedTaskSource({ task }: { task: AgentChatDelegatedTask }) {
             {t(task.handoff ? 'agentChat.handoff.continuedFrom' : 'agentChat.delegated.by')}
         </span>
     );
-    if (source?.kind === 'commander')
+    if (source?.kind === 'bot')
         return (
             <>
                 {by}
-                <span>Agent Commander</span>
+                <span>Caxri Bot</span>
             </>
         );
     const creator =
@@ -139,7 +139,7 @@ function DelegatedTaskPointer({ text }: { text: string }) {
 
 /**
  * A delegated task in place of the user's bubble. Its text is only the pointer to a private task file, which the user
- * never typed and cannot act on, so the bubble names who delegated it (a link to that Session, Agent Commander, or an
+ * never typed and cannot act on, so the bubble names who delegated it (a link to that Session, Caxri Bot, or an
  * archived Session's title) and shows the task the caller wrote, from the delegation record. Only a task whose record
  * is gone falls back to the pointer behind Show instruction. Copy and the message's other actions still take the
  * pointer text. A hand-off wears the `/new-session` card's glyph, so its two ends read as one move.

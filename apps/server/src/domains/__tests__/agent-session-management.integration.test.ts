@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
 
-import { createCommanderSession } from '../commander';
+import { createBotSession } from '../bot';
 import { CaxriDatabase } from '../db';
 import type { SessionParkingOptions } from '../parking-handlers';
 import { createSessionHandlers } from '../parking-handlers';
@@ -27,13 +27,13 @@ async function fixture() {
         database.close();
         await rm(directory, { recursive: true, force: true });
     });
-    await Promise.all(['commander', 'caller', 'work'].map((name) => mkdir(join(directory, name))));
-    const commanderProject = database.createProject(join(directory, 'commander'));
-    const commander = database.createSession(commanderProject.id, 'codex');
-    database.setAppState('agentCommander', {
-        projectId: commanderProject.id,
-        sessionId: commander.session.id,
-        terminalId: commander.terminal!.id,
+    await Promise.all(['bot', 'caller', 'work'].map((name) => mkdir(join(directory, name))));
+    const botProject = database.createProject(join(directory, 'bot'));
+    const bot = database.createSession(botProject.id, 'codex');
+    database.setAppState('caxriBot', {
+        projectId: botProject.id,
+        sessionId: bot.session.id,
+        terminalId: bot.terminal!.id,
         sessionIds: [],
     });
     const callerProject = database.createProject(join(directory, 'caller'));
@@ -63,11 +63,11 @@ async function fixture() {
         principal: agentPrincipal('agent', callerProject.id),
         callerTerminalId: caller.terminal!.id,
     };
-    const commanderAgent = {
-        principal: agentPrincipal('commander', commanderProject.id),
-        callerTerminalId: commander.terminal!.id,
+    const botAgent = {
+        principal: agentPrincipal('bot', botProject.id),
+        callerTerminalId: bot.terminal!.id,
     };
-    return { database, manage, rename, agent, commanderAgent, caller, project };
+    return { database, manage, rename, agent, botAgent, caller, project };
 }
 
 describe('agent.session management', () => {
@@ -133,36 +133,36 @@ describe('agent.session management', () => {
         expect(database.getSession(sessionId)?.archivedAt).toBeUndefined();
     });
 
-    it('holds the Agent Commander to the Sessions it still owns', async () => {
-        const { database, manage, commanderAgent, project } = await fixture();
-        const owned = createCommanderSession(database, project.id, undefined, 'Owned');
-        const takenBack = createCommanderSession(database, project.id, undefined, 'Taken back');
-        const rows = database.agentCommanderRows()!;
-        // Take Back removes the Session from the Commander's record; its creator column still names the Commander.
-        database.setAppState('agentCommander', {
+    it('holds Caxri Bot to the Sessions it still owns', async () => {
+        const { database, manage, botAgent, project } = await fixture();
+        const owned = createBotSession(database, project.id, undefined, 'Owned');
+        const takenBack = createBotSession(database, project.id, undefined, 'Taken back');
+        const rows = database.caxriBotRows()!;
+        // Take Back removes the Session from Caxri Bot's record; its creator column still names Caxri Bot.
+        database.setAppState('caxriBot', {
             projectId: rows.projectId,
             sessionId: rows.sessionId,
             terminalId: rows.terminalId,
             sessionIds: [owned],
         });
 
-        await manage({ ...commanderAgent, sessionId: owned, operation: { action: 'archive' } });
+        await manage({ ...botAgent, sessionId: owned, operation: { action: 'archive' } });
         expect(database.getSession(owned)?.archivedAt).toBeDefined();
         await expect(
-            manage({ ...commanderAgent, sessionId: takenBack, operation: { action: 'archive' } }),
+            manage({ ...botAgent, sessionId: takenBack, operation: { action: 'archive' } }),
         ).rejects.toMatchObject({ code: 'NOT_FOUND' });
     });
 
-    it("holds every Terminal in the Commander's Session to the Commander's ownership", async () => {
-        const { database, manage, commanderAgent, project } = await fixture();
-        const takenBack = createCommanderSession(database, project.id, undefined, 'Taken back');
-        const rows = database.agentCommanderRows()!;
-        database.setAppState('agentCommander', { ...rows, sessionIds: [] });
+    it("holds every Terminal in Caxri Bot's Session to Caxri Bot's ownership", async () => {
+        const { database, manage, botAgent, project } = await fixture();
+        const takenBack = createBotSession(database, project.id, undefined, 'Taken back');
+        const rows = database.caxriBotRows()!;
+        database.setAppState('caxriBot', { ...rows, sessionIds: [] });
         const leftover = database.createTerminal(rows.sessionId, 'claude');
 
         await expect(
             manage({
-                ...commanderAgent,
+                ...botAgent,
                 callerTerminalId: leftover.id,
                 sessionId: takenBack,
                 operation: { action: 'archive' },

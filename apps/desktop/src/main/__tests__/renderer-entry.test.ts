@@ -39,14 +39,14 @@ describe('renderer entry loading', () => {
             loadRendererEntry(window, {
                 currentDirectory: '/Applications/Caxri.app/Contents/Resources/app.asar/out/main',
                 isPackaged: true,
-                page: 'agent-commander.html',
+                page: 'caxri-bot.html',
                 rendererUrl: 'http://localhost:5173',
             }),
         ).toBe(
-            'file:///Applications/Caxri.app/Contents/Resources/app.asar/out/renderer/agent-commander.html',
+            'file:///Applications/Caxri.app/Contents/Resources/app.asar/out/renderer/caxri-bot.html',
         );
         expect(loadURL).toHaveBeenLastCalledWith(
-            'file:///Applications/Caxri.app/Contents/Resources/app.asar/out/renderer/agent-commander.html',
+            'file:///Applications/Caxri.app/Contents/Resources/app.asar/out/renderer/caxri-bot.html',
         );
     });
 
@@ -73,13 +73,13 @@ describe('renderer entry loading', () => {
             loadRendererEntry(window, {
                 currentDirectory: '/project/out/main',
                 isPackaged: false,
-                page: 'agent-commander.html',
+                page: 'caxri-bot.html',
                 rendererUrl: 'http://localhost:5173',
             }),
-        ).toBe('http://localhost:5173/agent-commander.html');
+        ).toBe('http://localhost:5173/caxri-bot.html');
         expect(loadURL).toHaveBeenNthCalledWith(1, 'http://localhost:5173');
         expect(loadURL).toHaveBeenNthCalledWith(2, 'http://localhost:5173/process-explorer.html');
-        expect(loadURL).toHaveBeenNthCalledWith(3, 'http://localhost:5173/agent-commander.html');
+        expect(loadURL).toHaveBeenNthCalledWith(3, 'http://localhost:5173/caxri-bot.html');
     });
 
     it('keeps every production window on the shared packaged-origin loading contract', () => {
@@ -91,8 +91,8 @@ describe('renderer entry loading', () => {
             join(import.meta.dirname, '..', 'process-explorer-window.ts'),
             'utf8',
         );
-        const agentCommanderSource = readFileSync(
-            join(import.meta.dirname, '..', 'agent-commander-window.ts'),
+        const caxriBotSource = readFileSync(
+            join(import.meta.dirname, '..', 'caxri-bot-window.ts'),
             'utf8',
         );
 
@@ -102,8 +102,8 @@ describe('renderer entry loading', () => {
         expect(processExplorerSource).toMatch(
             /resolveProcessExplorerRendererUrl\(\{\s*\.\.\.this\.options,\s*locale: mainLocale\(\),?\s*\}\)/,
         );
-        expect(agentCommanderSource).toMatch(
-            /resolveRendererEntryUrl\(\{[\s\S]*?isPackaged: this\.options\.isPackaged,[\s\S]*?page: 'agent-commander\.html'/,
+        expect(caxriBotSource).toMatch(
+            /resolveRendererEntryUrl\(\{[\s\S]*?isPackaged: this\.options\.isPackaged,[\s\S]*?page: 'caxri-bot\.html'/,
         );
     });
 });

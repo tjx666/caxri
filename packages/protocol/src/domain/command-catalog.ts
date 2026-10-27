@@ -26,14 +26,13 @@ import { editorCommandDefinitions } from './editor/command-definitions.js';
  * - `agentChatWaiting`: the waiting popup has a request to show, so it can take keyboard focus.
  * - `agentChatApproval`: keyboard focus sits where an approval answers to the Allow and Deny keys (a Chat pane holding
  *   one, or a static spot while the waiting popup shows one). The palette holds focus itself, so it never offers them.
- * - `commanderHandOverAvailable` / `commanderTakeBackAvailable`: a local window whose selected Session the Agent
- *   Commander does not (or does) manage. Exactly one of the pair holds while a Session is selected, so the palette
- *   offers Hand Over or Take Back the way the Session row's menu does; with no Session selected, Hand Over still opens
- *   the empty picker.
+ * - `botHandOverAvailable` / `botTakeBackAvailable`: a local window whose selected Session Caxri Bot does not (or does)
+ *   manage. Exactly one of the pair holds while a Session is selected, so the palette offers Hand Over or Take Back the
+ *   way the Session row's menu does; with no Session selected, Hand Over still opens the empty picker.
  */
 export type CommandWhen =
-    | 'commanderHandOverAvailable'
-    | 'commanderTakeBackAvailable'
+    | 'botHandOverAvailable'
+    | 'botTakeBackAvailable'
     | 'sessionHasLiveAgent'
     | 'sessionHasDetachedAgent'
     | 'sessionHasPullRequest'
@@ -427,37 +426,36 @@ export const commandDefinitions: CommandDefinition[] = [
         nativeMenu: { menu: 'view', group: 1, order: 1 },
     },
     {
-        id: 'agentCommander.open',
-        title: 'Open Agent Commander',
+        id: 'caxriBot.open',
+        title: 'Open Caxri Bot',
         category: 'View',
-        description: 'Open the cross-Project Agent board beside the Commander Agent',
+        description: 'Open the cross-Project Agent board beside Caxri Bot’s Agent',
         nativeMenu: { menu: 'view', group: 1, order: 2 },
         when: 'localMachine',
     },
     {
-        id: 'agentCommander.stop',
-        title: 'Stop Agent Commander',
+        id: 'caxriBot.stop',
+        title: 'Stop Caxri Bot',
         category: 'View',
         description:
-            'Stop the Agent Commander running in the background; opening it again resumes the same conversation',
+            'Stop Caxri Bot running in the background; opening it again resumes the same conversation',
         nativeMenu: { menu: 'view', group: 1, order: 3 },
         when: 'localMachine',
     },
     {
-        id: 'agentCommander.handOver',
-        title: 'Hand Over to Agent Commander…',
+        id: 'caxriBot.handOver',
+        title: 'Hand Over to Caxri Bot…',
         category: 'View',
         description:
-            'Pick Sessions, or Agent conversations started outside Caxri, for the Agent Commander to take over',
-        when: 'commanderHandOverAvailable',
+            'Pick Sessions, or Agent conversations started outside Caxri, for Caxri Bot to take over',
+        when: 'botHandOverAvailable',
     },
     {
-        id: 'agentCommander.takeBack',
-        title: 'Take Back from Agent Commander',
+        id: 'caxriBot.takeBack',
+        title: 'Take Back from Caxri Bot',
         category: 'View',
-        description:
-            'End the Agent Commander’s management of the selected Session; its Agents keep running',
-        when: 'commanderTakeBackAvailable',
+        description: 'End Caxri Bot’s management of the selected Session; its Agents keep running',
+        when: 'botTakeBackAvailable',
     },
     /**
      * The cheatsheet leads the Help menu in its own group, the way VS Code's Help menu sets its "Keyboard Shortcuts

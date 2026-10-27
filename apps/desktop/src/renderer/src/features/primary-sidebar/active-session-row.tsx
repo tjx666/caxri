@@ -6,7 +6,7 @@ import { useTranslation } from '../../i18n';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { cn } from '../../lib/utilities';
 import { useIsSessionOpenElsewhere } from '../../stores/open-sessions';
-import { CommanderSessionMarker } from '../agent-commander/commander-session-marker';
+import { BotSessionMarker } from '../caxri-bot/bot-session-marker';
 import { useSessionLabel } from '../session/hooks/use-session-label';
 import { sessionTitleForDisplay } from '../session/session-title';
 import type { SessionOrderController } from './hooks/use-session-order';
@@ -250,10 +250,10 @@ export function ActiveSessionRow({
             )}
             {/*
              * Outside the title's span, whose overflow fade would hide a glyph after a long title. Absent for the
-             * ordinary Session the Commander does not manage, so it costs no width there.
+             * ordinary Session Caxri Bot does not manage, so it costs no width there.
              */}
             {!renaming && (
-                <CommanderSessionMarker className={HIDDEN_ON_ROW_HOVER} sessionId={session.id} />
+                <BotSessionMarker className={HIDDEN_ON_ROW_HOVER} sessionId={session.id} />
             )}
             {/*
              * On pointer hover every glyph steps aside for Pin/Archive (~42px): its slot collapses entirely, because a

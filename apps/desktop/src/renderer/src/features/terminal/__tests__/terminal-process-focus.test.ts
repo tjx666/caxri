@@ -218,7 +218,7 @@ describe('canClaimTerminalFocus', () => {
         ).toBe(true);
     });
 
-    it('leaves focus in a region that keeps it, such as the Commander Inbox item the Needs you chip focused', () => {
+    it('leaves focus in a region that keeps it, such as the Bot Inbox item the Needs you chip focused', () => {
         expect(
             canClaimTerminalFocus({
                 focusedElement: focusedInboxItem(),

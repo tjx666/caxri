@@ -47,7 +47,7 @@ export function resolveAuxiliaryWindowBounds(
 }
 
 /**
- * Where one auxiliary window (Agent Commander, Process Explorer) last stood, shared by both controllers so the
+ * Where one auxiliary window (Caxri Bot, Process Explorer) last stood, shared by both controllers so the
  * remember-and-restore rule exists once.
  *
  * The remembered rectangle is kept exactly as the window last reported it, and clamped to the displays attached at the

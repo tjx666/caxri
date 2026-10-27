@@ -1,17 +1,17 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { AgentCommanderWindowController } from '../agent-commander-window';
 import {
     persistAllWindowState,
     reopenAuxiliaryWindowsAtStartup,
 } from '../auxiliary-window-lifecycle';
+import type { CaxriBotWindowController } from '../caxri-bot-window';
 import type { ProcessExplorerWindowController } from '../process-explorer-window';
 
-function fakeAgentCommander(wasOpenAtQuit: boolean) {
+function fakeCaxriBot(wasOpenAtQuit: boolean) {
     return {
         loadPersistedState: vi.fn().mockResolvedValue(wasOpenAtQuit),
         open: vi.fn(),
-    } as unknown as AgentCommanderWindowController & {
+    } as unknown as CaxriBotWindowController & {
         loadPersistedState: () => Promise<boolean>;
         open: () => void;
     };
@@ -24,34 +24,34 @@ function fakeProcessExplorer() {
 }
 
 describe('reopenAuxiliaryWindowsAtStartup', () => {
-    it('reopens the Commander when it was open at the previous quit', async () => {
-        const agentCommander = fakeAgentCommander(true);
+    it('reopens Caxri Bot when it was open at the previous quit', async () => {
+        const caxriBot = fakeCaxriBot(true);
         const processExplorer = fakeProcessExplorer();
 
-        await reopenAuxiliaryWindowsAtStartup(agentCommander, processExplorer);
+        await reopenAuxiliaryWindowsAtStartup(caxriBot, processExplorer);
 
-        expect(agentCommander.open).toHaveBeenCalledOnce();
+        expect(caxriBot.open).toHaveBeenCalledOnce();
         expect(processExplorer.loadPersistedState).toHaveBeenCalledOnce();
     });
 
-    it('leaves the Commander closed when it was closed at the previous quit', async () => {
-        const agentCommander = fakeAgentCommander(false);
+    it('leaves Caxri Bot closed when it was closed at the previous quit', async () => {
+        const caxriBot = fakeCaxriBot(false);
         const processExplorer = fakeProcessExplorer();
 
-        await reopenAuxiliaryWindowsAtStartup(agentCommander, processExplorer);
+        await reopenAuxiliaryWindowsAtStartup(caxriBot, processExplorer);
 
-        expect(agentCommander.open).not.toHaveBeenCalled();
+        expect(caxriBot.open).not.toHaveBeenCalled();
     });
 
     it('never reopens Process Explorer on its own, only loads its remembered bounds', async () => {
         const processExplorer = fakeProcessExplorer();
 
-        await reopenAuxiliaryWindowsAtStartup(fakeAgentCommander(false), processExplorer);
+        await reopenAuxiliaryWindowsAtStartup(fakeCaxriBot(false), processExplorer);
 
         expect(processExplorer.loadPersistedState).toHaveBeenCalledOnce();
     });
 
-    it('treats a missing Commander controller as closed, without throwing', async () => {
+    it('treats a missing Caxri Bot controller as closed, without throwing', async () => {
         const processExplorer = fakeProcessExplorer();
 
         await expect(

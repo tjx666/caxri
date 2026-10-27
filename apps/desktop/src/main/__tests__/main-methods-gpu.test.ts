@@ -15,7 +15,7 @@ import type { createWorkbenchRootAuthority } from '../workbench-root-authority';
 
 function handler(overrides: Partial<Parameters<typeof createMainMethodHandler>[0]> = {}) {
     return createMainMethodHandler({
-        getAgentCommander: vi.fn(),
+        getCaxriBot: vi.fn(),
         revealSessionInWorkbench: () => Promise.resolve(),
         openSettingsInWorkbench: () => Promise.resolve(),
         getProcessExplorer: () => ({}) as ProcessExplorerWindowController,

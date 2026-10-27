@@ -32,7 +32,7 @@ function handler(
 ) {
     return createMainMethodHandler({
         environment,
-        getAgentCommander: vi.fn(),
+        getCaxriBot: vi.fn(),
         revealSessionInWorkbench: () => Promise.resolve(),
         openSettingsInWorkbench: () => Promise.resolve(),
         getProcessExplorer: () => ({}) as ProcessExplorerWindowController,

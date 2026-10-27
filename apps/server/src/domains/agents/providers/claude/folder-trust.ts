@@ -35,7 +35,7 @@ const DEFAULT_LOCK_RETRY_DELAY_MS = 50;
 /**
  * Marks folders as trusted in Claude Code's global config, the same record its "Do you trust the files in this folder?"
  * dialog writes. Claude Code shows that dialog even under `--dangerously-skip-permissions`, and a Caxri-owned workspace
- * such as the Agent Commander's would otherwise stall on it at every first launch.
+ * such as Caxri Bot's would otherwise stall on it at every first launch.
  *
  * Claude Code serializes its own config writes with a `proper-lockfile` directory lock at `<config>.lock` and re-reads
  * the file under that lock, so this writer takes the same lock, re-reads, and replaces the file atomically. A held lock

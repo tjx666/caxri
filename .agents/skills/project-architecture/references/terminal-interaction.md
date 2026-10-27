@@ -9,7 +9,7 @@ retain their entry paths and use copy-only reference payloads, so dragging a lin
 Files dropped from another application, such as Finder, follow the same rule, one space-separated argument per file.
 The Renderer cannot read their paths, so the preload resolves each `File` with `webUtils.getPathForFile`
 (`CaxriBridge.pathForFile`); a file promise with no path on disk inserts nothing and raises a warning instead.
-`features/terminal/terminal-drop.ts` owns the drop-to-input rule for both the Workbench pane and the Agent Commander.
+`features/terminal/terminal-drop.ts` owns the drop-to-input rule for both the Workbench pane and Caxri Bot.
 
 The Client binary-stream writer reserves one validated payload larger than the ordinary burst budget
 separately from that bounded burst. A concurrent resize or small input can queue before or after a large

@@ -8,10 +8,10 @@ export const core: TranslatedNamespace<typeof source> = {
     'core.errorBoundary.technicalDetails': '技术详细信息',
     'core.errorBoundary.copyDetails': '复制详细信息',
     'core.errorBoundary.reloadWithoutSession': '不打开此会话并重新加载',
-    'core.errorBoundary.agentCommander.title': 'Agent Commander 已停止渲染',
-    'core.errorBoundary.agentCommander.description':
-        '重新加载 Agent Commander 以重新连接到它的终端。在此期间 Commander 会继续运行。',
-    'core.errorBoundary.agentCommander.reload': '重新加载 Agent Commander',
+    'core.errorBoundary.caxriBot.title': 'Caxri Bot 已停止渲染',
+    'core.errorBoundary.caxriBot.description':
+        '重新加载 Caxri Bot 以重新连接到它的终端。在此期间 Caxri Bot 会继续运行。',
+    'core.errorBoundary.caxriBot.reload': '重新加载 Caxri Bot',
     'core.errorBoundary.benchmark.title': 'Benchmark 已停止渲染',
     'core.errorBoundary.benchmark.description':
         '重新加载 Benchmark 以重新显示运行记录。已开始的运行会继续进行。',
@@ -111,7 +111,7 @@ export const core: TranslatedNamespace<typeof source> = {
 
     'core.commands.usageNeedsProject': '添加项目后才能打开用量',
     'core.commands.openBenchmarkFailed': '无法打开 Benchmark',
-    'core.commands.openAgentCommanderFailed': '无法打开 Agent Commander',
+    'core.commands.openCaxriBotFailed': '无法打开 Caxri Bot',
     'core.commands.diagnosticsExportFailed': '诊断信息导出失败',
     'core.commands.diagnosticsExported': '诊断信息已导出到 {{path}}',
     'core.commands.revealExportFailed': '无法在访达中显示诊断文件',

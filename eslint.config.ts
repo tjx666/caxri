@@ -553,7 +553,7 @@ export default defineConfig(
             '**/main.tsx',
             '**/performance-monitor-main.tsx',
             '**/process-explorer-main.tsx',
-            '**/agent-commander-main.tsx',
+            '**/caxri-bot-main.tsx',
             '**/benchmark-main.tsx',
             '**/index.tsx',
             '**/*.test.tsx',

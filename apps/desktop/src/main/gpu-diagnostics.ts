@@ -440,7 +440,7 @@ export function createGpuDiagnostics(options: GpuDiagnosticsOptions) {
 
     /**
      * Logs a Terminal renderer failure, retry, or GPU-correlated transition. `rendererWindow` is the window whose
-     * Terminal pane reported it; the Agent Commander window mounts the same pane as the Workbench.
+     * Terminal pane reported it; Caxri Bot's window mounts the same pane as the Workbench.
      */
     function recordRendererDiagnostic(
         diagnostic: TerminalRendererDiagnostic,

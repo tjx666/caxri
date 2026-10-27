@@ -34,8 +34,8 @@ export interface TerminalManagerOptions {
     agentLaunchArguments?: (record: TerminalRecord) => readonly string[];
     /**
      * Server-owned first prompt for a launch whose caller supplied none (a restore or a pane restart). Called while a
-     * launch is resolved, which may not end in a spawn, so it must not consume anything; the Agent Commander uses it to
-     * hand a relaunched Commander the notices it missed and settles them once `onLaunched` reports the PTY running. A
+     * launch is resolved, which may not end in a spawn, so it must not consume anything; Caxri Bot uses it to hand a
+     * relaunched Caxri Bot the notices it missed and settles them once `onLaunched` reports the PTY running. A
      * delegation's own `initialPrompt` always wins.
      */
     agentLaunchPrompt?: (record: TerminalRecord) => string | undefined;
@@ -92,7 +92,7 @@ export interface TerminalManagerOptions {
     /**
      * Signals that Core delivered input to a Terminal; consumers receive no content. `maintenance` is housekeeping the
      * user started for many Sessions at once (warm-Session compaction): it fences like typing, but is not the user
-     * working in that Session, so it must not take a handed-over Session back from the Agent Commander.
+     * working in that Session, so it must not take a handed-over Session back from Caxri Bot.
      */
     onInput?: (terminalId: string, data: string, origin: TerminalInputOrigin) => void;
     shellIntegration?: (

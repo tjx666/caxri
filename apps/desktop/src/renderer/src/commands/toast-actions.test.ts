@@ -103,8 +103,8 @@ describe('toast action handlers', () => {
         expect(runToastAction({ id: 'diagnostics.revealExport' })).toBeUndefined();
         expect(mocks.request).toHaveBeenCalledWith('diagnostics.revealExport');
 
-        expect(runToastAction({ id: 'agentCommander.open' })).toBeUndefined();
-        expect(mocks.executeCommand).toHaveBeenCalledWith('agentCommander.open');
+        expect(runToastAction({ id: 'caxriBot.open' })).toBeUndefined();
+        expect(mocks.executeCommand).toHaveBeenCalledWith('caxriBot.open');
     });
 
     it('replays a parameterized follow-up with the data the notification recorded', () => {

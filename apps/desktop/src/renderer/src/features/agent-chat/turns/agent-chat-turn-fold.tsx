@@ -37,8 +37,8 @@ function* turnItems(entry: TurnEntry) {
 
 /**
  * One of the turn's subagents, named by its own title, with the activity sweep while it still runs. Where the host can
- * open a tab beside the Chat it reopens the subagent there; elsewhere (the Agent Commander window) it expands the fold
- * and scrolls to the subagent's row instead, and says so, since nothing opens (issue caxri#1952). With neither it is a
+ * open a tab beside the Chat it reopens the subagent there; elsewhere (Caxri Bot window) it expands the fold and
+ * scrolls to the subagent's row instead, and says so, since nothing opens (issue caxri#1952). With neither it is a
  * plain label rather than a button.
  */
 function TurnSubagentButton({

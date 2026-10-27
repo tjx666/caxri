@@ -95,7 +95,7 @@ export function createE2EBuildFreshnessOptions(root: string): BuildFreshnessOpti
             join(root, 'out', 'renderer', 'index.html'),
             join(root, 'out', 'renderer', 'process-explorer.html'),
             join(root, 'out', 'renderer', 'performance-monitor.html'),
-            join(root, 'out', 'renderer', 'agent-commander.html'),
+            join(root, 'out', 'renderer', 'caxri-bot.html'),
             join(root, 'out', 'renderer', 'benchmark.html'),
             join(root, 'apps', 'cli', 'dist', 'caxri.cjs'),
         ],

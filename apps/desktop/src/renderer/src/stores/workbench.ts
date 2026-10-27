@@ -109,10 +109,10 @@ type SessionStateFailureMode = 'retain' | 'rollback';
 const bootstrapRead = { inFlight: undefined as Promise<void> | undefined };
 const queuedRead = { current: undefined as Promise<void> | undefined };
 /**
- * Where every full snapshot read comes from. The Workbench window reads `app.bootstrap`. The Agent Commander window is
- * not admitted for that method, so its entry swaps in a Commander-scoped reader before the first render; shared code
- * that refreshes after a command (a Terminal pane's Restart, for instance) then converges on the scoped snapshot
- * instead of raising a denied request.
+ * Where every full snapshot read comes from. The Workbench window reads `app.bootstrap`. The Caxri Bot window is not
+ * admitted for that method, so its entry swaps in a Caxri Bot-scoped reader before the first render; shared code that
+ * refreshes after a command (a Terminal pane's Restart, for instance) then converges on the scoped snapshot instead of
+ * raising a denied request.
  */
 const snapshotSource = {
     read: (): Promise<BootstrapState> => caxri.request('app.bootstrap'),

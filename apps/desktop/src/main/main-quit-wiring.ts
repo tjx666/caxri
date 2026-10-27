@@ -3,10 +3,10 @@ import { logEventCatalog } from '@caxri/system';
 import type { BrowserWindow } from 'electron';
 import { app, dialog } from 'electron';
 
-import type { AgentCommanderWindowController } from './agent-commander-window';
 import type { AppQuitIntent } from './app-quit';
 import { createAppQuitHandler, createAppQuitPromptOptions, readAppQuitStatus } from './app-quit';
 import { persistAllWindowState } from './auxiliary-window-lifecycle';
+import type { CaxriBotWindowController } from './caxri-bot-window';
 import type { ProcessExplorerWindowController } from './process-explorer-window';
 import type { DesktopServerConnection } from './server-connection';
 import type { SshHostEnvironments } from './ssh/host-environments';
@@ -14,7 +14,7 @@ import type { createWorkbenchUnsavedEditors } from './unsaved-editors';
 import { readWindowState } from './window-placement';
 
 interface MainQuitWiringOptions {
-    agentCommander(): AgentCommanderWindowController | undefined;
+    caxriBot(): CaxriBotWindowController | undefined;
     /**
      * The window a quit prompt attaches to.
      */
@@ -70,7 +70,7 @@ export function createMainQuitHandler(options: MainQuitWiringOptions) {
                     window && !window.isDestroyed()
                         ? server().request('app.windowState.update', readWindowState(window))
                         : undefined,
-                () => options.agentCommander()?.persistWindowState(),
+                () => options.caxriBot()?.persistWindowState(),
                 () => options.processExplorer().persistWindowState(),
             ]);
         },

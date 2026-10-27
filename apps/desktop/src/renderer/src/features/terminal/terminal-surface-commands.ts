@@ -87,7 +87,7 @@ export function switchTerminalSurfaceTo(
 
 /**
  * `terminal.switchAgentSurface`: reopens a Terminal on its other surface. The Workbench passes its active tab's
- * Terminal, the Agent Commander window its own Terminal.
+ * Terminal, the Caxri Bot window its own Terminal.
  */
 export function switchTerminalToOtherSurface(terminalId: string): void {
     const terminal = getBootstrap()?.terminals.find((candidate) => candidate.id === terminalId);

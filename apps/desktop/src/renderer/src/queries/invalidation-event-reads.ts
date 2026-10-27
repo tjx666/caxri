@@ -9,10 +9,10 @@ import { isQueryMethod } from './client';
  */
 
 /**
- * The Commander Inbox, read by the status bar's "Needs you" chip. `commanderInbox.changed` names item IDs, but the chip
- * counts the whole list, so the event invalidates every cached list read.
+ * The Bot Inbox, read by the status bar's "Needs you" chip. `botInbox.changed` names item IDs, but the chip counts the
+ * whole list, so the event invalidates every cached list read.
  */
-const COMMANDER_INBOX_QUERY_KEY: readonly [CaxriMethod] = ['commander.inbox.list'];
+const BOT_INBOX_QUERY_KEY: readonly [CaxriMethod] = ['bot.inbox.list'];
 /**
  * Every repository's pending review comment count, across every Session; no arguments, so one invalidation covers every
  * mounted reader (the quit reminder, "Show Pending Review Comments") the same way `PULL_REQUESTS_QUERY_KEY` does.
@@ -71,9 +71,9 @@ export function invalidateGitReviewQueries(
 }
 
 /**
- * Refreshes the Commander Inbox read behind the status bar's "Needs you" chip after `commanderInbox.changed`, whichever
- * window or device changed it.
+ * Refreshes the Bot Inbox read behind the status bar's "Needs you" chip after `botInbox.changed`, whichever window or
+ * device changed it.
  */
-export function invalidateCommanderInboxQuery(queryClient: QueryClient): void {
-    void queryClient.invalidateQueries({ queryKey: COMMANDER_INBOX_QUERY_KEY });
+export function invalidateBotInboxQuery(queryClient: QueryClient): void {
+    void queryClient.invalidateQueries({ queryKey: BOT_INBOX_QUERY_KEY });
 }

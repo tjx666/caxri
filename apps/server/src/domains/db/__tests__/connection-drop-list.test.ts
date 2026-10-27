@@ -12,6 +12,17 @@ import * as schema from '../full-schema';
  */
 const RETAINED_ON_REBUILD: readonly string[] = [];
 
+/**
+ * Former names of tables the current schema still defines under a new name. A pre-baseline database may hold them, and
+ * the replayed migration chain recreates them before renaming, so the rebuild drops them too.
+ */
+const RENAMED_TABLES: ReadonlySet<string> = new Set([
+    'commander_inbox_replies',
+    'commander_inbox_items',
+    'commander_pending_notices',
+    'commander_tasks',
+]);
+
 function droppedTables(): string[] {
     const source = readFileSync(resolve(import.meta.dirname, '../connection.ts'), 'utf8');
     return source
@@ -37,7 +48,9 @@ describe('Pre-baseline rebuild DROP list', () => {
         const dropped = droppedTables();
         expect(dropped.length).toBeGreaterThan(0);
         expect(new Set(dropped).size).toBe(dropped.length);
-        expect(dropped.filter((name) => !schemaTables().includes(name))).toEqual([]);
+        expect(
+            dropped.filter((name) => !schemaTables().includes(name) && !RENAMED_TABLES.has(name)),
+        ).toEqual([]);
     });
 
     it('covers every table in the current schema', () => {

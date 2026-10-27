@@ -84,7 +84,7 @@ export function isSshHost(state = useEnvironmentStore.getState().state): boolean
 /**
  * True only once the window is known to belong to this Mac's own Server. Every entry point that reaches a Main method
  * classified `local-only` in `main/environment-method-policy.ts` (Reveal in Finder, Trash, Process Explorer, Agent
- * Commander, native folder pickers…) checks this one predicate. Unknown counts as unavailable, so an SSH Host window
+ * Caxri Bot, native folder pickers…) checks this one predicate. Unknown counts as unavailable, so an SSH Host window
  * never offers a local action during the moment before its environment is read.
  */
 export function isLocalOnlyAvailable(state = useEnvironmentStore.getState().state): boolean {

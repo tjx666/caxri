@@ -26,7 +26,7 @@ What/why of current shipped behavior, core modules, protocols, and operator know
 | [agent-chat.md](agent-chat.md)                                     | Chat Terminals for Codex, Claude Code, and Grok Build               |
 | [agent-command-authority.md](agent-command-authority.md)           | Separate Agent command domains and their authority boundaries       |
 | [agent-usage-continuation.md](agent-usage-continuation.md)         | Usage-limit recovery, weekly usage guard, continue in another Agent |
-| [agent-commander.md](agent-commander.md)                           | Second-window Codex or Claude Code commander and Agent board        |
+| [caxri-bot.md](caxri-bot.md)                                       | Second-window Codex or Claude Code bot and Agent board              |
 | [agent-delegation.md](agent-delegation.md)                         | Visible Agent delegation into a sibling pane                        |
 | [agent-dispatch-receipts.md](agent-dispatch-receipts.md)           | Managed dispatch launch requests and observed process lifetime      |
 | [agent-suspension.md](agent-suspension.md)                         | Parking idle background Agents and resuming them on return          |

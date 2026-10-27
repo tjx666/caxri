@@ -333,10 +333,10 @@ usage, Linear issue, acceptance, pull request. A chip in its warning state (the 
 limit is nearly spent or, at the current rate, on track to run out before it resets, which its tooltip explains) drops only after
 every calm chip, because hiding a warning defeats it. A chip's label is never truncated. The decision is by
 measured width, not fixed window breakpoints, because which chips are present (an Agent's two chips,
-a Commander chip, a debugging disclosure) changes how much room the rest needs; a hidden chip is
+a Caxri Bot chip, a debugging disclosure) changes how much room the rest needs; a hidden chip is
 still measured off screen, so it returns once its current width fits again, and one whose data goes
 away stops crowding out chips that fit. Everything else (the bell, degraded and update
-chips, Terminal progress, the debugging disclosure, the Commander chips including `N need you`,
+chips, Terminal progress, the debugging disclosure, Caxri Bot chips including `N need you`,
 pending peer approvals, and the Project root and branch pickers) is never
 dropped; the pickers cap their own width instead.
 Acceptance outranks Linear because it reports whether the current work passed, which changes what
@@ -490,7 +490,7 @@ regardless of its exact kind. Motion and shape carry the glance signal without c
 weight, and the accessible label plus the Session hover/focus card preserve exact lifecycle and
 attention details. On pointer hover, Pin and Archive occupy a reserved cluster at the row's right
 edge; the title (and a Pinned row's Project name) clips with the same right-edge fade before that
-cluster. Every right-edge glyph (lifecycle, delivery, and the Commander marker) collapses while the
+cluster. Every right-edge glyph (lifecycle, delivery, and Caxri Bot marker) collapses while the
 pointer is over the row, so the row shows only Pin and Archive and the title keeps its width; a
 glyph that stayed beside the buttons read as a third action and crowded the title. The hover card
 still states a non-default status, so hovering a busy row does not hide why it is busy. Keyboard focus keeps
@@ -1732,7 +1732,7 @@ popup itself hold focus until then.
   fades out 1.5s after the last change; hovering it or holding keyboard focus inside keeps it up,
   and a hidden HUD is `inert` so it never takes a click or a Tab stop. While the zoom is not 100%, a
   zoom indicator keeps saying so (Chrome's address-bar magnifier, VS Code's status bar entry): a
-  magnifier and the percentage in the Workbench status bar and the Agent Commander title bar.
+  magnifier and the percentage in the Workbench status bar and Caxri Bot's title bar.
   Clicking it opens the same row in a popover, and the HUD stays hidden while that popover is open;
   the indicator leaves once the zoom is back to 100% and the popover closes.
 - Launch shows the Caxri mark over the translucent (vibrancy) window from the first frame: the

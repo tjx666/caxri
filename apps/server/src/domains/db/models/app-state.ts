@@ -5,9 +5,9 @@ import {
     agentUsageGuardSchema,
     agentUsageLimitWindowSchema,
     auxiliaryWindowStateSchema,
+    botAgentSchema,
+    botHandoverSchema,
     CaxriError,
-    commanderAgentSchema,
-    commanderHandoverSchema,
     identifierSchema,
     persistedWindowStateSchema,
     windowKeySchema,
@@ -33,32 +33,31 @@ const appStateValueSchemas = {
         isFullScreen: true,
     }),
     /**
-     * The Agent Commander and Process Explorer windows' cross-restart bounds and open state, see
-     * `auxiliaryWindowStateSchema`. Kept as one row since Main persists both windows together at quit.
+     * Caxri Bot and Process Explorer windows' cross-restart bounds and open state, see `auxiliaryWindowStateSchema`.
+     * Kept as one row since Main persists both windows together at quit.
      */
     auxiliaryWindowState: auxiliaryWindowStateSchema,
     activeThemeId: z.string().min(1),
     externalDelegationSessions: z.record(z.string(), identifierSchema),
     /**
-     * The Agent Commander's system rows and the Sessions it created in user Projects. See `commander-rows.ts`.
+     * Caxri Bot's system rows and the Sessions it created in user Projects. See `bot-rows.ts`.
      */
-    agentCommander: z.strictObject({
+    caxriBot: z.strictObject({
         projectId: identifierSchema,
         sessionId: identifierSchema,
         terminalId: identifierSchema.optional(),
         sessionIds: z.array(identifierSchema).max(1_000),
     }),
     /**
-     * The Agent CLI the user chose for the Agent Commander. Its own cell rather than a field of `agentCommander`, whose
-     * writers rebuild that record from its rows: the choice must survive every one of them, and a Commander Terminal
-     * created later (first launch, or after its row was lost) starts with it.
+     * The Agent CLI the user chose for Caxri Bot. Its own cell rather than a field of `caxriBot`, whose writers rebuild
+     * that record from its rows: the choice must survive every one of them, and a Caxri Bot Terminal created later
+     * (first launch, or after its row was lost) starts with it.
      */
-    commanderAgent: commanderAgentSchema,
+    botAgent: botAgentSchema,
     /**
-     * The user's hand-overs of Sessions to the Agent Commander, at most one per managed Session. See
-     * `commander/handover.ts`.
+     * The user's hand-overs of Sessions to Caxri Bot, at most one per managed Session. See `bot/handover.ts`.
      */
-    commanderHandovers: z.array(commanderHandoverSchema).max(1_000),
+    botHandovers: z.array(botHandoverSchema).max(1_000),
     /**
      * Each provider account's weekly usage guard, so a restart neither lifts it early nor grants a second hand-off in
      * the same window. See `usage/usage-guard.ts`.

@@ -6,8 +6,8 @@ import { allowE2EErrors, expect, test } from './support/fixtures.ts';
 import { createShellSession, launchCaxri, pageReply, pageRequest } from './support/helpers.ts';
 
 /**
- * Benchmark opens as its own companion window, like the Agent Commander: one instance, the Workbench's Projects in its
- * workspace picker, and Main refusing any request outside the Benchmark window's allowlist.
+ * Benchmark opens as its own companion window, like Caxri Bot: one instance, the Workbench's Projects in its workspace
+ * picker, and Main refusing any request outside the Benchmark window's allowlist.
  */
 // eslint-disable-next-line no-empty-pattern -- Playwright requires object destructuring for its fixture argument
 test('Benchmark opens once in its own window and offers every Project', async ({}, testInfo) => {

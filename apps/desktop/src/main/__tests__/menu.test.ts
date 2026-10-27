@@ -18,7 +18,7 @@ describe('application menu', () => {
         const template = buildAppMenuTemplate({
             keybindings: [],
             dispatchCommand: vi.fn(),
-            openAgentCommander: vi.fn(),
+            openCaxriBot: vi.fn(),
             openBenchmark: vi.fn(),
             openProcessExplorer: vi.fn(),
             workbenchWindow: vi.fn(),
@@ -35,7 +35,7 @@ describe('application menu', () => {
         const template = buildAppMenuTemplate({
             keybindings: [],
             dispatchCommand: vi.fn(),
-            openAgentCommander: vi.fn(),
+            openCaxriBot: vi.fn(),
             openBenchmark: vi.fn(),
             openProcessExplorer: vi.fn(),
             workbenchWindow: vi.fn(),
@@ -59,13 +59,13 @@ describe('application menu', () => {
             );
     });
 
-    it('opens Agent Commander in Main and leaves Stop to the Workbench, which asks before a running turn ends', () => {
+    it('opens Caxri Bot in Main and leaves Stop to the Workbench, which asks before a running turn ends', () => {
         const dispatchCommand = vi.fn();
-        const openAgentCommander = vi.fn();
+        const openCaxriBot = vi.fn();
         const template = buildAppMenuTemplate({
             keybindings: [],
             dispatchCommand,
-            openAgentCommander,
+            openCaxriBot,
             openBenchmark: vi.fn(),
             openProcessExplorer: vi.fn(),
             workbenchWindow: vi.fn(),
@@ -78,28 +78,28 @@ describe('application menu', () => {
                 .find((item) => item.id === id)
                 ?.click?.({} as MenuItem, undefined, { triggeredByAccelerator: false });
 
-        click('command.agentCommander.open');
-        click('command.agentCommander.stop');
+        click('command.caxriBot.open');
+        click('command.caxriBot.stop');
 
-        expect(openAgentCommander).toHaveBeenCalledOnce();
-        expect(dispatchCommand).toHaveBeenCalledExactlyOnceWith('agentCommander.stop', false);
+        expect(openCaxriBot).toHaveBeenCalledOnce();
+        expect(dispatchCommand).toHaveBeenCalledExactlyOnceWith('caxriBot.stop', false);
     });
 
     describe('while another Caxri window is focused', () => {
         const workbench = {};
-        const commander = { close: vi.fn() };
+        const bot = { close: vi.fn() };
         const focusWorkbench = vi.fn();
         function menuItem(menu: string, id: string) {
             const dispatchCommand = vi.fn();
             const template = buildAppMenuTemplate({
                 keybindings: defaultKeybindings,
                 dispatchCommand,
-                openAgentCommander: vi.fn(),
+                openCaxriBot: vi.fn(),
                 openBenchmark: vi.fn(),
                 openProcessExplorer: vi.fn(),
                 workbenchWindow: () => workbench as BaseWindow,
                 focusWorkbench,
-                isFollowingAppZoom: (window) => Object.is(window, commander),
+                isFollowingAppZoom: (window) => Object.is(window, bot),
             });
             const item = submenu(template, menu).find((candidate) => candidate.id === id);
             if (!item?.click) throw new Error(`Missing ${id}`);
@@ -107,11 +107,11 @@ describe('application menu', () => {
             return {
                 dispatchCommand,
                 press: () =>
-                    click({} as MenuItem, commander as unknown as BaseWindow, {
+                    click({} as MenuItem, bot as unknown as BaseWindow, {
                         triggeredByAccelerator: true,
                     }),
                 select: () =>
-                    click({} as MenuItem, commander as unknown as BaseWindow, {
+                    click({} as MenuItem, bot as unknown as BaseWindow, {
                         triggeredByAccelerator: false,
                     }),
             };
@@ -127,7 +127,7 @@ describe('application menu', () => {
 
             press();
 
-            expect(commander.close).toHaveBeenCalledOnce();
+            expect(bot.close).toHaveBeenCalledOnce();
             expect(dispatchCommand).not.toHaveBeenCalled();
         });
 
@@ -140,7 +140,7 @@ describe('application menu', () => {
             expect(focusWorkbench).not.toHaveBeenCalled();
         });
 
-        it('zooms from the Commander without bringing the Workbench forward', () => {
+        it('zooms from Caxri Bot without bringing the Workbench forward', () => {
             const { dispatchCommand, press, select } = menuItem('View', 'command.view.zoomIn');
 
             press();
@@ -164,13 +164,11 @@ describe('application menu', () => {
 
         it('opens the palette of the focused window that has one instead of the Workbench palette', () => {
             const dispatchCommand = vi.fn();
-            const openWindowCommandPalette = vi.fn((window: BaseWindow) =>
-                Object.is(window, commander),
-            );
+            const openWindowCommandPalette = vi.fn((window: BaseWindow) => Object.is(window, bot));
             const template = buildAppMenuTemplate({
                 keybindings: defaultKeybindings,
                 dispatchCommand,
-                openAgentCommander: vi.fn(),
+                openCaxriBot: vi.fn(),
                 openBenchmark: vi.fn(),
                 openProcessExplorer: vi.fn(),
                 workbenchWindow: () => workbench as BaseWindow,
@@ -183,7 +181,7 @@ describe('application menu', () => {
             );
             const processExplorer = {};
 
-            item?.click?.({} as MenuItem, commander as unknown as BaseWindow, {
+            item?.click?.({} as MenuItem, bot as unknown as BaseWindow, {
                 triggeredByAccelerator: true,
             });
             expect(dispatchCommand).not.toHaveBeenCalled();
@@ -215,7 +213,7 @@ describe('application menu', () => {
                 { command: 'terminal.new', key: 'cmd+shift+t' },
             ],
             dispatchCommand,
-            openAgentCommander: vi.fn(),
+            openCaxriBot: vi.fn(),
             openBenchmark: vi.fn(),
             openProcessExplorer: vi.fn(),
             workbenchWindow: vi.fn(),
@@ -243,7 +241,7 @@ describe('application menu', () => {
                 { command: 'terminal.clear', key: 'cmd+k' },
             ],
             dispatchCommand: vi.fn(),
-            openAgentCommander: vi.fn(),
+            openCaxriBot: vi.fn(),
             openBenchmark: vi.fn(),
             openProcessExplorer: vi.fn(),
             workbenchWindow: vi.fn(),
@@ -269,7 +267,7 @@ describe('application menu', () => {
                 { command: 'settings.openKeybindings', key: 'cmd+k cmd+s' },
             ],
             dispatchCommand: vi.fn(),
-            openAgentCommander: vi.fn(),
+            openCaxriBot: vi.fn(),
             openBenchmark: vi.fn(),
             openProcessExplorer: vi.fn(),
             workbenchWindow: vi.fn(),
@@ -291,7 +289,7 @@ describe('application menu', () => {
         const template = buildAppMenuTemplate({
             keybindings: [{ command: 'terminal.new', key: 'cmd+k t' }],
             dispatchCommand: vi.fn(),
-            openAgentCommander: vi.fn(),
+            openCaxriBot: vi.fn(),
             openBenchmark: vi.fn(),
             openProcessExplorer: vi.fn(),
             workbenchWindow: vi.fn(),
@@ -307,8 +305,8 @@ describe('application menu', () => {
     });
 
     /**
-     * A binding without `when` would otherwise earn a native accelerator, which Main drops while the Agent Commander
-     * window is focused even though that window runs these Terminal actions itself.
+     * A binding without `when` would otherwise earn a native accelerator, which Main drops while Caxri Bot window is
+     * focused even though that window runs these Terminal actions itself.
      */
     it.each([
         'terminal.clear',
@@ -319,7 +317,7 @@ describe('application menu', () => {
         const template = buildAppMenuTemplate({
             keybindings: [{ command, key: 'cmd+alt+l' }],
             dispatchCommand: vi.fn(),
-            openAgentCommander: vi.fn(),
+            openCaxriBot: vi.fn(),
             openBenchmark: vi.fn(),
             openProcessExplorer: vi.fn(),
             workbenchWindow: vi.fn(),
@@ -338,7 +336,7 @@ describe('application menu', () => {
         const template = buildAppMenuTemplate({
             keybindings: [{ command: 'terminal.copy', key: 'cmd+c' }],
             dispatchCommand,
-            openAgentCommander: vi.fn(),
+            openCaxriBot: vi.fn(),
             openBenchmark: vi.fn(),
             openProcessExplorer: vi.fn(),
             workbenchWindow: vi.fn(),
@@ -359,7 +357,7 @@ describe('application menu', () => {
         const template = buildAppMenuTemplate({
             keybindings: [{ command: 'terminal.copy', key: 'cmd+shift+c' }],
             dispatchCommand: vi.fn(),
-            openAgentCommander: vi.fn(),
+            openCaxriBot: vi.fn(),
             openBenchmark: vi.fn(),
             openProcessExplorer: vi.fn(),
             workbenchWindow: vi.fn(),
@@ -380,7 +378,7 @@ describe('application menu', () => {
         const template = buildAppMenuTemplate({
             keybindings: [{ command: 'terminal.copy', key: '+' }],
             dispatchCommand: vi.fn(),
-            openAgentCommander: vi.fn(),
+            openCaxriBot: vi.fn(),
             openBenchmark: vi.fn(),
             openProcessExplorer: vi.fn(),
             workbenchWindow: vi.fn(),
@@ -408,7 +406,7 @@ describe('application menu', () => {
                 { command: 'terminal.nextCommand', key: 'cmd+shift+arrowdown' },
             ],
             dispatchCommand: vi.fn(),
-            openAgentCommander: vi.fn(),
+            openCaxriBot: vi.fn(),
             openBenchmark: vi.fn(),
             openProcessExplorer: vi.fn(),
             workbenchWindow: vi.fn(),
@@ -437,7 +435,7 @@ describe('application menu', () => {
         const template = buildAppMenuTemplate({
             keybindings: [],
             dispatchCommand,
-            openAgentCommander: vi.fn(),
+            openCaxriBot: vi.fn(),
             openBenchmark: vi.fn(),
             openProcessExplorer,
             workbenchWindow: vi.fn(),
@@ -457,7 +455,7 @@ describe('application menu', () => {
         const template = buildAppMenuTemplate({
             keybindings: defaultKeybindings,
             dispatchCommand: vi.fn(),
-            openAgentCommander: vi.fn(),
+            openCaxriBot: vi.fn(),
             openBenchmark: vi.fn(),
             openProcessExplorer: vi.fn(),
             workbenchWindow: vi.fn(),
@@ -499,7 +497,7 @@ describe('application menu', () => {
         const template = buildAppMenuTemplate({
             keybindings: [],
             dispatchCommand: vi.fn(),
-            openAgentCommander: vi.fn(),
+            openCaxriBot: vi.fn(),
             openBenchmark: vi.fn(),
             openProcessExplorer: vi.fn(),
             workbenchWindow: vi.fn(),

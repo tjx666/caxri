@@ -20,11 +20,8 @@ import {
 } from '../agent/agent-session-contract.js';
 import { agentSkillHealthSchema } from '../agent/agent-skill-contract.js';
 import { agentThroughputSchema } from '../agent/agent-throughput-contract.js';
-import { commanderMethods } from '../agent/commander/agent-commander-contract.js';
-import {
-    commanderDataInternalMethods,
-    commanderDataMethods,
-} from '../agent/commander/agent-commander-data-contract.js';
+import { botMethods } from '../agent/bot/caxri-bot-contract.js';
+import { botDataInternalMethods, botDataMethods } from '../agent/bot/caxri-bot-data-contract.js';
 import {
     agentDelegationInternalMethods,
     agentDelegationMethods,
@@ -173,8 +170,8 @@ export const methods = {
     ...agentDispatchMethods,
     ...agentDelegationMethods,
     ...agentSessionMethods,
-    ...commanderMethods,
-    ...commanderDataMethods,
+    ...botMethods,
+    ...botDataMethods,
     ...delegationAccessMethods,
     ...agentEndpointMethods,
     ...agentInboxMethods,
@@ -531,7 +528,7 @@ export const internalMethods = {
     ...agentDispatchInternalMethods,
     ...agentDelegationInternalMethods,
     ...agentSessionInternalMethods,
-    ...commanderDataInternalMethods,
+    ...botDataInternalMethods,
     ...delegationAccessInternalMethods,
     ...businessInternalMethods,
     ...gitInternalMethods,

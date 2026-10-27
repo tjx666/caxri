@@ -23,13 +23,13 @@ import {
     mobileAttentionRequestSchema,
 } from './mobile-attention-contract.js';
 import {
+    mobileBotInboxInternalMethods,
+    mobileBotInboxMethods,
+} from './mobile-bot-inbox-contract.js';
+import {
     mobileChangesDiffResultSchema,
     mobileChangesListResultSchema,
 } from './mobile-changes-contract.js';
-import {
-    mobileCommanderInboxInternalMethods,
-    mobileCommanderInboxMethods,
-} from './mobile-commander-inbox-contract.js';
 import { mobileFilesInternalMethods, mobileFilesMethods } from './mobile-files-contract.js';
 import { mobileHostStatusMethods } from './mobile-host-status-contract.js';
 import {
@@ -52,8 +52,8 @@ export * from './mobile-agent-chat-contract.js';
 export * from './mobile-agent-chat-state-clip.js';
 export * from './mobile-agent-usage-contract.js';
 export * from './mobile-attention-contract.js';
+export * from './mobile-bot-inbox-contract.js';
 export * from './mobile-changes-contract.js';
-export * from './mobile-commander-inbox-contract.js';
 export { MOBILE_FILES_MAX_ENTRIES, MOBILE_FILES_READ_MAX_BYTES } from './mobile-file-limits.js';
 export * from './mobile-files-contract.js';
 export * from './mobile-host-status-contract.js';
@@ -448,7 +448,7 @@ export const mobileMethods = {
     ...mobileAgentUsageMethods,
     ...mobileFilesMethods,
     ...mobileUpdateMethods,
-    ...mobileCommanderInboxMethods,
+    ...mobileBotInboxMethods,
     ...mobileHostStatusMethods,
 } as const satisfies Record<string, MethodSpec>;
 
@@ -582,7 +582,7 @@ export const mobileInternalMethods = {
         result: mobileProjectAddResultSchema,
     },
     ...mobileFilesInternalMethods,
-    ...mobileCommanderInboxInternalMethods,
+    ...mobileBotInboxInternalMethods,
 } as const satisfies Record<string, MethodSpec>;
 
 export type MobileAccessStatus = z.infer<typeof mobileAccessStatusSchema>;

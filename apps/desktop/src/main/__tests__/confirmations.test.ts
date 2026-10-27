@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-    clearCommanderDataPrompt,
+    clearBotDataPrompt,
     deleteProjectPrompt,
     deleteSessionPrompt,
     deleteSessionsPrompt,
@@ -276,7 +276,7 @@ describe('bulk delete Sessions prompt', () => {
     });
 });
 
-describe('clear Commander data prompt', () => {
+describe('clear Caxri Bot data prompt', () => {
     it.each([
         [{ tasks: 'closed' as const }, '• Every finished task in the task ledger'],
         [{ tasks: 'all' as const }, '• Every task in the task ledger'],
@@ -287,15 +287,15 @@ describe('clear Commander data prompt', () => {
             '• Long-term memory, reset to the starting notes; AGENTS.md is rewritten to match',
         ],
     ])('names the tasks %o the confirmation deletes', (request, line) => {
-        expect(clearCommanderDataPrompt(request).detail?.split('\n', 1)[0]).toBe(line);
+        expect(clearBotDataPrompt(request).detail?.split('\n', 1)[0]).toBe(line);
     });
 
     it('lists only what was ticked and keeps Cancel as the default and Escape target', () => {
-        const options = clearCommanderDataPrompt({ inbox: true, conversation: true });
+        const options = clearBotDataPrompt({ inbox: true, conversation: true });
         expect(options.detail).toBe(
             [
                 '• Every Needs you item and reply',
-                '• The current conversation; the Commander starts over',
+                '• The current conversation; Caxri Bot starts over',
                 '',
                 'This cannot be undone. Projects, Sessions, and the work running in them are not affected.',
             ].join('\n'),

@@ -297,17 +297,17 @@ describe('AgentDelegationService', () => {
         ).toThrow(/another Agent/u);
     });
 
-    it('fills an Agent Commander Session pane without anchoring to the out-of-Session caller', async () => {
+    it('fills a Caxri Bot-created Session pane without anchoring to the out-of-Session caller', async () => {
         const f = await fixture();
-        const commanderRoot = await mkdtemp(join(tmpdir(), 'caxri-delegation-commander-'));
-        onTestFinished(() => rm(commanderRoot, { recursive: true, force: true }));
-        const commanderProject = f.database.createProject(commanderRoot);
-        const commander = f.database.createSession(commanderProject.id, 'codex');
+        const botRoot = await mkdtemp(join(tmpdir(), 'caxri-delegation-bot-'));
+        onTestFinished(() => rm(botRoot, { recursive: true, force: true }));
+        const botProject = f.database.createProject(botRoot);
+        const bot = f.database.createSession(botProject.id, 'codex');
         const target = f.database.createSession(f.input.projectId, null).session;
-        f.database.setAppState('agentCommander', {
-            projectId: commanderProject.id,
-            sessionId: commander.session.id,
-            terminalId: commander.terminal!.id,
+        f.database.setAppState('caxriBot', {
+            projectId: botProject.id,
+            sessionId: bot.session.id,
+            terminalId: bot.terminal!.id,
             sessionIds: [target.id],
         });
         let launched: string | undefined;
@@ -322,12 +322,12 @@ describe('AgentDelegationService', () => {
         const authority = {
             principal: {
                 kind: 'agent' as const,
-                id: 'commander',
-                endpointId: 'commander',
+                id: 'bot',
+                endpointId: 'bot',
                 generation: 1,
-                projectIds: [commanderProject.id],
+                projectIds: [botProject.id],
             },
-            callerTerminalId: commander.terminal!.id,
+            callerTerminalId: bot.terminal!.id,
         };
 
         const receipt = await f.service.create(f.id, authority, {
@@ -349,20 +349,20 @@ describe('AgentDelegationService', () => {
     });
 
     /**
-     * Archiving a Session ends new work there, not the Commander's record of work it already started: the steward must
+     * Archiving a Session ends new work there, not Caxri Bot's record of work it already started: the steward must
      * still read a finished task's answer after the user archives the Session it ran in.
      */
-    it('lets the Agent Commander read its task after the user archives that Session, but not continue it', async () => {
+    it('lets Caxri Bot read its task after the user archives that Session, but not continue it', async () => {
         const f = await fixture();
-        const commanderRoot = await mkdtemp(join(tmpdir(), 'caxri-delegation-commander-'));
-        onTestFinished(() => rm(commanderRoot, { recursive: true, force: true }));
-        const commanderProject = f.database.createProject(commanderRoot);
-        const commander = f.database.createSession(commanderProject.id, 'codex');
+        const botRoot = await mkdtemp(join(tmpdir(), 'caxri-delegation-bot-'));
+        onTestFinished(() => rm(botRoot, { recursive: true, force: true }));
+        const botProject = f.database.createProject(botRoot);
+        const bot = f.database.createSession(botProject.id, 'codex');
         const target = f.database.createSession(f.input.projectId, null).session;
-        f.database.setAppState('agentCommander', {
-            projectId: commanderProject.id,
-            sessionId: commander.session.id,
-            terminalId: commander.terminal!.id,
+        f.database.setAppState('caxriBot', {
+            projectId: botProject.id,
+            sessionId: bot.session.id,
+            terminalId: bot.terminal!.id,
             sessionIds: [target.id],
         });
         f.start.mockImplementation((_id, _principal, _input, options) => {
@@ -374,12 +374,12 @@ describe('AgentDelegationService', () => {
         const authority = {
             principal: {
                 kind: 'agent' as const,
-                id: 'commander',
-                endpointId: 'commander',
+                id: 'bot',
+                endpointId: 'bot',
                 generation: 1,
-                projectIds: [commanderProject.id],
+                projectIds: [botProject.id],
             },
-            callerTerminalId: commander.terminal!.id,
+            callerTerminalId: bot.terminal!.id,
         };
         const input = { ...f.input, sessionId: target.id };
         await f.service.create(f.id, authority, input);
@@ -400,8 +400,8 @@ describe('AgentDelegationService', () => {
          */
         const racing = randomUUID();
         const other = f.database.createSession(f.input.projectId, null).session;
-        f.database.setAppState('agentCommander', {
-            ...f.database.agentCommanderRows()!,
+        f.database.setAppState('caxriBot', {
+            ...f.database.caxriBotRows()!,
             sessionIds: [target.id, other.id],
         });
         f.start.mockImplementation((_id, _principal, _input, options) => {

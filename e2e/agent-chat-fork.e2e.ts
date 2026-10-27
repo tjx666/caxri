@@ -125,7 +125,7 @@ test('Fork Session copies a whole Codex Chat into a new Session from the sidebar
             'Rename',
             'Rename with AI',
             'Pin',
-            'Hand Over to Agent Commander…',
+            'Hand Over to Caxri Bot…',
             'Fork Session',
             'Open as Terminal',
             'Restart Agent',

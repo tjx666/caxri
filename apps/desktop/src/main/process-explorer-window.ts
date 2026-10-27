@@ -43,7 +43,7 @@ interface ProcessExplorerWindowOptions {
      */
     language: () => Promise<AppLocale | null>;
     /**
-     * Reads bounds persisted at the previous quit; see `AgentCommanderWindowOptions.loadWindowState`.
+     * Reads bounds persisted at the previous quit; see `CaxriBotWindowOptions.loadWindowState`.
      */
     loadWindowState: () => Promise<AuxiliaryWindowState['processExplorer']>;
     rendererUrl?: string;
@@ -60,7 +60,7 @@ interface ProcessExplorerWindowOptions {
     windowMode: E2EWindowMode;
     /**
      * The app-wide `window.zoomLevel` Main last applied, which a newly opened window starts at; see
-     * `AgentCommanderWindowOptions.zoomLevel`.
+     * `CaxriBotWindowOptions.zoomLevel`.
      */
     zoomLevel: () => number;
 }
@@ -69,7 +69,7 @@ export class ProcessExplorerWindowController {
     private window?: BrowserWindow;
     /**
      * Where the last window stood, in memory for this run and seeded from the previous quit's persisted state by
-     * `loadPersistedState()`; see the identical field on `AgentCommanderWindowController`.
+     * `loadPersistedState()`; see the identical field on `CaxriBotWindowController`.
      */
     private readonly boundsMemory = new AuxiliaryWindowBoundsMemory(
         { width: 1_280, height: 760 },
@@ -157,15 +157,15 @@ export class ProcessExplorerWindowController {
 
     /**
      * The window while it is open, which also follows the app-wide window zoom; see
-     * `AgentCommanderWindowController.openWindow`.
+     * `CaxriBotWindowController.openWindow`.
      */
     openWindow(): BrowserWindow | undefined {
         return this.window?.isDestroyed() ? undefined : this.window;
     }
 
     /**
-     * Loads bounds persisted at the previous quit; see `AgentCommanderWindowController.loadPersistedState`. Unlike the
-     * Commander, Process Explorer never reopens itself at startup, so there is no boolean to return.
+     * Loads bounds persisted at the previous quit; see `CaxriBotWindowController.loadPersistedState`. Unlike the Caxri
+     * Bot, Process Explorer never reopens itself at startup, so there is no boolean to return.
      */
     async loadPersistedState(): Promise<void> {
         try {
@@ -177,9 +177,9 @@ export class ProcessExplorerWindowController {
     }
 
     /**
-     * The window's current (or last remembered) bounds, computed synchronously so the Agent Commander's own
+     * The window's current (or last remembered) bounds, computed synchronously so Caxri Bot's own
      * `persistWindowState()` can fold this half into the same combined `app.auxiliaryWindowState` row; see
-     * `AgentCommanderWindowController.currentWindowState` and `on-demand-windows.ts`.
+     * `CaxriBotWindowController.currentWindowState` and `on-demand-windows.ts`.
      */
     currentWindowState(): AuxiliaryWindowState['processExplorer'] {
         const bounds =
@@ -190,8 +190,7 @@ export class ProcessExplorerWindowController {
     }
 
     /**
-     * Persists the window's current (or last remembered) bounds; see
-     * `AgentCommanderWindowController.persistWindowState`.
+     * Persists the window's current (or last remembered) bounds; see `CaxriBotWindowController.persistWindowState`.
      */
     async persistWindowState(): Promise<void> {
         await this.options.saveWindowState(this.currentWindowState());
@@ -208,15 +207,15 @@ export class ProcessExplorerWindowController {
                  * Matches `persistedWindowStateSchema.shape.bounds`'s own `height.min(480)`, which
                  * `auxiliaryWindowStateSchema` reuses for both windows: a smaller minimum here would let the user
                  * resize down to a height the combined `app.auxiliaryWindowState` row can never validate, silently
-                 * failing to persist bounds for both this window and the Commander.
+                 * failing to persist bounds for both this window and Caxri Bot.
                  */
                 minHeight: 480,
                 title: 'Process Explorer — Caxri',
                 backgroundColor: '#282a36',
                 titleBarStyle: 'hiddenInset',
                 /**
-                 * Same reasoning as the Agent Commander window: the header is the Workbench's zoomed 36px drag header,
-                 * and the window opens at the app zoom instead of flashing at 100% first.
+                 * Same reasoning as Caxri Bot's window: the header is the Workbench's zoomed 36px drag header, and the
+                 * window opens at the app zoom instead of flashing at 100% first.
                  */
                 trafficLightPosition: trafficLightPositionForZoom(zoomFactor),
                 webPreferences: {

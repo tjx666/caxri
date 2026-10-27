@@ -41,7 +41,7 @@ export interface RenderSample {
      */
     commits: number;
     /**
-     * Whether the sampled window's product root (the Workbench, or the Agent Commander) rendered.
+     * Whether the sampled window's product root (the Workbench, or Caxri Bot) rendered.
      */
     isWindowReady: boolean;
     rows: RenderInstanceRow[];
@@ -370,8 +370,8 @@ function reportSource(within: string | undefined): string {
     collectorError: state.collectorError,
     commits: state.commits,
     windowMs: state.startedAt ? Date.now() - state.startedAt : 0,
-    // A --url sample can target the Agent Commander window, whose root replaces the Workbench.
-    isWindowReady: Boolean(document.querySelector('.workbench, .agent-commander')),
+    // A --url sample can target the Caxri Bot window, whose root replaces the Workbench.
+    isWindowReady: Boolean(document.querySelector('.workbench, .caxri-bot')),
     rows,
   });
 })();

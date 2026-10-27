@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import type { Translate } from '../../../i18n';
 import { terminal as enTerminal } from '../../../i18n/locales/en/terminal';
 import {
-    commanderPaletteWhenContext,
+    botPaletteWhenContext,
     getPaletteExtensionCommands,
     isCommandVisibleInPalette,
     paletteCommandTitle,
@@ -78,8 +78,8 @@ describe('isCommandVisibleInPalette', () => {
         pinnedSessions: false,
     };
     const localWindow = {
-        commanderHandOverAvailable: true,
-        commanderTakeBackAvailable: false,
+        botHandOverAvailable: true,
+        botTakeBackAvailable: false,
         localMachine: true,
         sshHost: false,
         ...noChat,
@@ -108,8 +108,8 @@ describe('isCommandVisibleInPalette', () => {
         const sshHostWindow = {
             ...session,
             ...noChat,
-            commanderHandOverAvailable: false,
-            commanderTakeBackAvailable: false,
+            botHandOverAvailable: false,
+            botTakeBackAvailable: false,
             localMachine: false,
             sshHost: true,
         };
@@ -203,11 +203,11 @@ describe('isCommandVisibleInPalette', () => {
     });
 });
 
-describe('commanderPaletteWhenContext', () => {
-    const handOver = commandDefinitions.find(({ id }) => id === 'agentCommander.handOver');
-    const takeBack = commandDefinitions.find(({ id }) => id === 'agentCommander.takeBack');
-    if (!handOver || !takeBack) throw new Error('Commander commands are missing from the catalog');
-    const visible = (context: ReturnType<typeof commanderPaletteWhenContext>) => {
+describe('botPaletteWhenContext', () => {
+    const handOver = commandDefinitions.find(({ id }) => id === 'caxriBot.handOver');
+    const takeBack = commandDefinitions.find(({ id }) => id === 'caxriBot.takeBack');
+    if (!handOver || !takeBack) throw new Error('Caxri Bot commands are missing from the catalog');
+    const visible = (context: ReturnType<typeof botPaletteWhenContext>) => {
         const full = {
             ...context,
             agentChatModels: false,
@@ -228,52 +228,52 @@ describe('commanderPaletteWhenContext', () => {
             .map(({ id }) => id);
     };
 
-    it('offers Hand Over for a Session the Commander does not manage, and Take Back once it does', () => {
+    it('offers Hand Over for a Session Caxri Bot does not manage, and Take Back once it does', () => {
         expect(
             visible(
-                commanderPaletteWhenContext({
+                botPaletteWhenContext({
                     isLocalOnlyAvailable: true,
                     managedSessionIds: ['other'],
                     selectedSessionId: 'selected',
                 }),
             ),
-        ).toEqual(['agentCommander.handOver']);
+        ).toEqual(['caxriBot.handOver']);
         expect(
             visible(
-                commanderPaletteWhenContext({
+                botPaletteWhenContext({
                     isLocalOnlyAvailable: true,
                     managedSessionIds: ['other', 'selected'],
                     selectedSessionId: 'selected',
                 }),
             ),
-        ).toEqual(['agentCommander.takeBack']);
+        ).toEqual(['caxriBot.takeBack']);
     });
 
     it('offers Hand Over with no Session selected or before the managed set is read', () => {
         expect(
             visible(
-                commanderPaletteWhenContext({
+                botPaletteWhenContext({
                     isLocalOnlyAvailable: true,
                     managedSessionIds: ['other'],
                     selectedSessionId: undefined,
                 }),
             ),
-        ).toEqual(['agentCommander.handOver']);
+        ).toEqual(['caxriBot.handOver']);
         expect(
             visible(
-                commanderPaletteWhenContext({
+                botPaletteWhenContext({
                     isLocalOnlyAvailable: true,
                     managedSessionIds: undefined,
                     selectedSessionId: 'selected',
                 }),
             ),
-        ).toEqual(['agentCommander.handOver']);
+        ).toEqual(['caxriBot.handOver']);
     });
 
     it('offers neither in an SSH Host window', () => {
         expect(
             visible(
-                commanderPaletteWhenContext({
+                botPaletteWhenContext({
                     isLocalOnlyAvailable: false,
                     managedSessionIds: ['selected'],
                     selectedSessionId: 'selected',

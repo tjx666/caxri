@@ -18,8 +18,8 @@ export type TransientServerEvent = Extract<
         event:
             | 'agentChat.patch'
             | 'agentChat.taskPatch'
-            | 'agentCommander.commandPaletteRequested'
-            | 'agentCommander.inboxRequested'
+            | 'caxriBot.commandPaletteRequested'
+            | 'caxriBot.inboxRequested'
             | 'agent.message.held'
             | 'agent.notification'
             | 'agent.automaticNamingUnavailable'
@@ -29,7 +29,7 @@ export type TransientServerEvent = Extract<
             | 'benchmark.changed'
             | 'claudeWindow.changed'
             | 'command.execute'
-            | 'commanderInbox.changed'
+            | 'botInbox.changed'
             | 'desktop.openRequested'
             | 'editor.unsavedRequest'
             | 'environment.changed'
@@ -94,7 +94,7 @@ const TRANSIENT_SERVER_EVENT_NAMES = new Set<ServerEvent['event']>([
      * An Inbox reader that missed this re-reads the whole list on reconnect, and the list is small and bounded, so a
      * replay would only repeat that read.
      */
-    'commanderInbox.changed',
+    'botInbox.changed',
     'desktop.openRequested',
     /**
      * Connection phase and askpass prompts belong to one Main-owned SSH session; a reloaded Renderer reads the current
@@ -143,15 +143,15 @@ const TRANSIENT_SERVER_EVENT_NAMES = new Set<ServerEvent['event']>([
      */
     'settings.openRequested',
     /**
-     * One-shot: the status bar chip asked the Commander window to show its Inbox. Replaying it after a reconnect would
+     * One-shot: the status bar chip asked the Caxri Bot window to show its Inbox. Replaying it after a reconnect would
      * reopen an Inbox the user may have closed since.
      */
-    'agentCommander.inboxRequested',
+    'caxriBot.inboxRequested',
     /**
-     * One-shot: the Command Palette shortcut typed in the Commander window. Replaying it would reopen a palette the
+     * One-shot: the Command Palette shortcut typed in the Caxri Bot window. Replaying it would reopen a palette the
      * user already dismissed.
      */
-    'agentCommander.commandPaletteRequested',
+    'caxriBot.commandPaletteRequested',
     'viewContainers.catalogChanged',
     'viewContainers.treeChanged',
     'viewContainers.viewChanged',

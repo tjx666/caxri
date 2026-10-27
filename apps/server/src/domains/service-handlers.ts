@@ -22,12 +22,8 @@ import {
     readAgentTranscript,
     recordRecentAgentAction,
 } from './agents';
-import type {
-    AgentCommanderServiceOptions,
-    CommanderHandoverService,
-    CommanderInboxService,
-} from './commander';
-import { AgentCommanderService } from './commander';
+import type { BotHandoverService, BotInboxService, CaxriBotServiceOptions } from './bot';
+import { CaxriBotService } from './bot';
 import type { ConfigService } from './config';
 import type { CaxriDatabase } from './db';
 import { DeliveryFocusRefresh } from './delivery-focus-refresh';
@@ -121,31 +117,31 @@ type ServiceHandlerMethods =
     | 'projectStatus.overview'
     | 'projectStatus.linearIssue'
     | 'session.pullRequests'
-    | 'commander.ensure'
-    | 'commander.snapshot'
-    | 'commander.board'
-    | 'commander.session.create'
-    | 'commander.session.handOver'
-    | 'commander.session.takeBack'
-    | 'commander.managedSessions'
-    | 'commander.conversations'
-    | 'commander.status'
-    | 'commander.stop'
-    | 'commander.data'
-    | 'commander.switchAgent'
-    | 'commander.clearData'
-    | 'commander.task.create'
-    | 'commander.task.list'
-    | 'commander.task.update'
-    | 'commander.inbox.list'
-    | 'commander.inbox.show'
-    | 'commander.inbox.add'
-    | 'commander.inbox.resolve'
-    | 'commander.inbox.ack'
-    | 'commander.inbox.reply'
-    | 'commander.inbox.dismiss'
-    | 'commander.inbox.merge'
-    | 'mobile.commanderInbox.replyInternal'
+    | 'bot.ensure'
+    | 'bot.snapshot'
+    | 'bot.board'
+    | 'bot.session.create'
+    | 'bot.session.handOver'
+    | 'bot.session.takeBack'
+    | 'bot.managedSessions'
+    | 'bot.conversations'
+    | 'bot.status'
+    | 'bot.stop'
+    | 'bot.data'
+    | 'bot.switchAgent'
+    | 'bot.clearData'
+    | 'bot.task.create'
+    | 'bot.task.list'
+    | 'bot.task.update'
+    | 'bot.inbox.list'
+    | 'bot.inbox.show'
+    | 'bot.inbox.add'
+    | 'bot.inbox.resolve'
+    | 'bot.inbox.ack'
+    | 'bot.inbox.reply'
+    | 'bot.inbox.dismiss'
+    | 'bot.inbox.merge'
+    | 'mobile.botInbox.replyInternal'
     | 'session.refreshDeliveryOnFocus'
     | 'session.search'
     | 'session.importConversation'
@@ -193,12 +189,12 @@ export function createServiceHandlers(services: {
         usageGuards: Pick<AgentUsageGuards, 'observe'>;
         sessionSearchIndex: Pick<SessionSearchIndex, 'describe' | 'inspect' | 'search'>;
     };
-    commander: Omit<
-        AgentCommanderServiceOptions,
+    bot: Omit<
+        CaxriBotServiceOptions,
         'database' | 'handovers' | 'inbox' | 'onLaunching' | 'pullRequests' | 'userDataPath'
     >;
-    commanderHandovers: CommanderHandoverService;
-    commanderInbox: CommanderInboxService;
+    botHandovers: BotHandoverService;
+    botInbox: BotInboxService;
     configuration: ConfigService;
     database: CaxriDatabase;
     emit: DomainDependencies['send'];
@@ -228,8 +224,8 @@ export function createServiceHandlers(services: {
         agentHooks,
         agentRuntime,
         agentThroughput,
-        commanderHandovers,
-        commanderInbox,
+        botHandovers,
+        botInbox,
         configuration,
         database,
         emit,
@@ -304,15 +300,15 @@ export function createServiceHandlers(services: {
         },
     );
     projectStatus.useSessionPullRequests((sessionId) => sessionPullRequests.resolve(sessionId));
-    const commander = new AgentCommanderService({
-        ...services.commander,
+    const bot = new CaxriBotService({
+        ...services.bot,
         database,
-        handovers: commanderHandovers,
-        inbox: commanderInbox,
+        handovers: botHandovers,
+        inbox: botInbox,
         logger,
         onLaunching: () => {
-            commanderInbox.announceUnacknowledged();
-            commanderHandovers.requeue();
+            botInbox.announceUnacknowledged();
+            botHandovers.requeue();
         },
         pullRequests: () => sessionPullRequests.snapshot(),
         userDataPath,
@@ -500,39 +496,39 @@ export function createServiceHandlers(services: {
         'projectStatus.linearIssue': ({ identifier, workspace }) =>
             projectStatus.linearIssue(identifier, workspace),
         'session.pullRequests': () => sessionPullRequests.snapshot(),
-        'commander.ensure': () => commander.ensure(),
-        'commander.snapshot': () => commander.snapshot(),
-        'commander.status': () => commander.status(),
-        'commander.stop': () => commander.stop(),
-        'commander.data': () => commander.data(),
-        'commander.switchAgent': ({ agent }) => commander.switchAgent(agent),
-        'commander.clearData': (request) => commander.clearData(request),
-        'commander.board': () => commander.board(),
-        'commander.session.create': ({ projectId }) => commander.createSession(projectId),
-        'commander.session.handOver': (request) => commanderHandovers.handOver(request),
-        'commander.session.takeBack': ({ sessionId }) => commanderHandovers.takeBack(sessionId),
-        'commander.managedSessions': () => commanderHandovers.managedSessions(),
-        'commander.conversations': () => commanderHandovers.conversations(),
-        'commander.task.create': (parameters) => commander.tasks.create(parameters),
-        'commander.task.list': ({ includeClosed }) => ({
-            tasks: commander.tasks.list({ includeClosed: includeClosed ?? false }),
+        'bot.ensure': () => bot.ensure(),
+        'bot.snapshot': () => bot.snapshot(),
+        'bot.status': () => bot.status(),
+        'bot.stop': () => bot.stop(),
+        'bot.data': () => bot.data(),
+        'bot.switchAgent': ({ agent }) => bot.switchAgent(agent),
+        'bot.clearData': (request) => bot.clearData(request),
+        'bot.board': () => bot.board(),
+        'bot.session.create': ({ projectId }) => bot.createSession(projectId),
+        'bot.session.handOver': (request) => botHandovers.handOver(request),
+        'bot.session.takeBack': ({ sessionId }) => botHandovers.takeBack(sessionId),
+        'bot.managedSessions': () => botHandovers.managedSessions(),
+        'bot.conversations': () => botHandovers.conversations(),
+        'bot.task.create': (parameters) => bot.tasks.create(parameters),
+        'bot.task.list': ({ includeClosed }) => ({
+            tasks: bot.tasks.list({ includeClosed: includeClosed ?? false }),
         }),
-        'commander.task.update': (parameters) => commander.tasks.update(parameters),
-        'commander.inbox.list': ({ includeClosed }) => commanderInbox.list(includeClosed),
-        'commander.inbox.show': ({ id }) => commanderInbox.show(id),
-        'commander.inbox.add': (input) => commanderInbox.add(input),
-        'commander.inbox.resolve': ({ id }) => commanderInbox.resolve(id),
-        'commander.inbox.ack': ({ id, sequence }) => commanderInbox.acknowledge(id, sequence),
-        'commander.inbox.reply': ({ id, body }) => commanderInbox.reply(id, body, 'desktop'),
-        'commander.inbox.dismiss': ({ id }) => commanderInbox.dismiss(id),
-        'commander.inbox.merge': ({ id, revision }) => commanderInbox.merge(id, revision),
-        'mobile.commanderInbox.replyInternal': ({ id, body, principal }) => {
+        'bot.task.update': (parameters) => bot.tasks.update(parameters),
+        'bot.inbox.list': ({ includeClosed }) => botInbox.list(includeClosed),
+        'bot.inbox.show': ({ id }) => botInbox.show(id),
+        'bot.inbox.add': (input) => botInbox.add(input),
+        'bot.inbox.resolve': ({ id }) => botInbox.resolve(id),
+        'bot.inbox.ack': ({ id, sequence }) => botInbox.acknowledge(id, sequence),
+        'bot.inbox.reply': ({ id, body }) => botInbox.reply(id, body, 'desktop'),
+        'bot.inbox.dismiss': ({ id }) => botInbox.dismiss(id),
+        'bot.inbox.merge': ({ id, revision }) => botInbox.merge(id, revision),
+        'mobile.botInbox.replyInternal': ({ id, body, principal }) => {
             if (principal.kind !== 'paired-device' || principal.role !== 'control')
                 throw new CaxriError(
                     'FORBIDDEN',
                     'Control access is required to reply to the Inbox',
                 );
-            const item = commanderInbox.reply(id, body, 'mobile');
+            const item = botInbox.reply(id, body, 'mobile');
             // `reply` appends the new reply last, so the last sequence is the one just stored.
             return { sequence: item.replies.at(-1)?.sequence ?? item.replies.length };
         },

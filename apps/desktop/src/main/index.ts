@@ -15,8 +15,6 @@ import type { BrowserWindow, WebContents } from 'electron';
 import { app, dialog, Menu, powerMonitor, screen } from 'electron';
 
 import { installAgentChatMediaProtocol } from './agent-chat/media-protocol';
-import type { AgentCommanderWindowController } from './agent-commander-window';
-import { agentCommanderMenuOptions } from './agent-commander-window';
 import { applyDevelopmentAppIdentity } from './app-icon';
 import type { AppQuitIntent } from './app-quit';
 import { installBeforeQuitTrigger, installSignalQuitTriggers } from './app-quit-triggers';
@@ -24,6 +22,8 @@ import { updateArgvConfig } from './argv-config';
 import { reopenAuxiliaryWindowsAtStartup } from './auxiliary-window-lifecycle';
 import type { BenchmarkWindowController } from './benchmark-window';
 import { stampBuildIdentity } from './build-identity';
+import type { CaxriBotWindowController } from './caxri-bot-window';
+import { caxriBotMenuOptions } from './caxri-bot-window';
 import { startClaudeWindowJob } from './claude-windows';
 import { createDesktopActions } from './desktop-actions';
 import { createDesktopLogger } from './desktop-logger';
@@ -138,7 +138,7 @@ if (ownsProfileInstance) {
     });
     let processExplorer: ProcessExplorerWindowController;
     let performanceMonitor: PerformanceMonitorWindowController | undefined;
-    let agentCommander: AgentCommanderWindowController | undefined;
+    let caxriBot: CaxriBotWindowController | undefined;
     let benchmarkWindow: BenchmarkWindowController | undefined;
     let updateService: UpdateService;
     let notifications: DesktopNotifications | undefined;
@@ -185,7 +185,7 @@ if (ownsProfileInstance) {
     const eventRelay = createMainEventRelay({
         deliver: (message, event, windowKey) => {
             benchmarkWindow?.relay(message);
-            const isForWorkbench = agentCommander?.relay(message) ?? true;
+            const isForWorkbench = caxriBot?.relay(message) ?? true;
             if (isForWorkbench) deliverToWorkbench(message, event, windowKey);
         },
         loadState: () => supervisor.request('app.bootstrap'),
@@ -198,7 +198,7 @@ if (ownsProfileInstance) {
         loadLevel: async () => (await supervisor.request('settings.get')).value['window.zoomLevel'],
         windows: () => [
             ...workbenchWindows.list().map(({ window }) => window),
-            agentCommander?.openWindow(),
+            caxriBot?.openWindow(),
             benchmarkWindow?.openWindow(),
             processExplorer.openWindow(),
             performanceMonitor?.openWindow(),
@@ -248,7 +248,7 @@ if (ownsProfileInstance) {
         sendEvent,
     });
     const requestAppQuit = createMainQuitHandler({
-        agentCommander: () => agentCommander,
+        caxriBot: () => caxriBot,
         focusedWindow: () => workbenchWindows.focusedOrPrimary(),
         logger: () => mainLogger,
         mainWindow: () => mainWindow,
@@ -303,8 +303,8 @@ if (ownsProfileInstance) {
             if (role === 'tearOff') return tearOffWindows.onClosed(windowKey, isQuitStarted);
             if (mainWindow !== window || isQuitStarted) return;
             mainWindow = undefined;
-            // Closing the Workbench detaches every Terminal view, the Commander's included.
-            agentCommander?.close();
+            // Closing the Workbench detaches every Terminal view, Caxri Bot's included.
+            caxriBot?.close();
         },
         onPrimaryReadyToShow: () => {
             updateService.startAutomaticCheck({
@@ -391,7 +391,7 @@ if (ownsProfileInstance) {
             getProcessExplorer: () => processExplorer,
             getPerformanceMonitor: () => performanceMonitor,
             requestWorkbenchProcessId: () => requestWorkbenchWindow()?.webContents.getOSProcessId(),
-            getAgentCommander: () => agentCommander,
+            getCaxriBot: () => caxriBot,
             getBenchmarkWindow: () => benchmarkWindow,
             onUnsavedEditorsReply: (parameters) => unsavedEditors.reply(parameters),
             ...createWorkbenchHandOffs({
@@ -468,7 +468,7 @@ if (ownsProfileInstance) {
             },
             isWorkbenchSender: (sender) => workbenchWindows.isWorkbenchSender(sender),
             windowKey: (sender) => localPresence.keyOf(sender),
-            companion: (sender) => companionWindowFor(sender, [agentCommander, benchmarkWindow]),
+            companion: (sender) => companionWindowFor(sender, [caxriBot, benchmarkWindow]),
             transport: dispatchCommand,
         });
     }
@@ -479,11 +479,10 @@ if (ownsProfileInstance) {
             keybindings,
             dispatchCommand: dispatchWorkbenchCommand,
             openProcessExplorer: () => processExplorer.open(),
-            ...agentCommanderMenuOptions(() => agentCommander),
+            ...caxriBotMenuOptions(() => caxriBot),
             openBenchmark: () => benchmarkWindow?.open(),
             workbenchWindow: () => workbenchWindows.focusedOrPrimary(),
-            isFollowingAppZoom: (window) =>
-                isZoomingWithApp(window, [agentCommander, benchmarkWindow]),
+            isFollowingAppZoom: (window) => isZoomingWithApp(window, [caxriBot, benchmarkWindow]),
             dispatchToSshHostWindow: sshHostWindowMenu.dispatch,
             focusWorkbench: () => {
                 void focusMainWindow().catch(() => {});
@@ -539,7 +538,7 @@ if (ownsProfileInstance) {
                 nextTestRoot: resolveNextTestRootPath,
                 shared: {
                     ...gpuRecovery.mainMethodOptions,
-                    getAgentCommander: () => agentCommander,
+                    getCaxriBot: () => caxriBot,
                     getProcessExplorer: () => processExplorer,
                     getRemoteDebugging: () => remoteDebuggingState(desktopProfile),
                     getUpdateService: () => updateService,
@@ -548,7 +547,7 @@ if (ownsProfileInstance) {
                 userDataPath,
                 zoomLevel: () => windowZoom.level(),
             });
-            ({ agentCommander, benchmarkWindow, performanceMonitor, processExplorer } =
+            ({ caxriBot, benchmarkWindow, performanceMonitor, processExplorer } =
                 createOnDemandWindows({
                     currentDirectory,
                     logger: mainLogger,
@@ -593,7 +592,7 @@ if (ownsProfileInstance) {
             // An upgrade that replaced a stale Server stopped its live Terminals; say so once the window is up.
             // Fire-and-forget: it reads a Server setting, which must not delay reopening windows or second-instance focus.
             void startupFailure.announceReplacement(supervisor);
-            await reopenAuxiliaryWindowsAtStartup(agentCommander, processExplorer);
+            await reopenAuxiliaryWindowsAtStartup(caxriBot, processExplorer);
             secondInstanceFocus.ready();
         })
         // eslint-disable-next-line unicorn/prefer-await -- see comment above

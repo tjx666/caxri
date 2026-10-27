@@ -8,11 +8,10 @@ import type { ServerEvent } from '@caxri/protocol';
  *   `queries/invalidation.ts`, which refreshes the Session row menu's `session.permissionAutoAllowStatus` read.
  * - `gitReview.changed` (issue caxri#1294) likewise refreshes `gitReview.list` and `gitReview.pending`.
  * - `agentChat.patch` and `agentChat.taskPatch` update cached snapshots through `subscribeAgentChatPatches`.
- * - `commanderInbox.changed` goes to `subscribeRuntimeQueryInvalidation`, which refreshes the `commander.inbox.list` read
- *   behind the status bar's "Needs you" chip; the Agent Commander window re-reads its own Inbox in
- *   `useAgentCommander`.
- * - `agentCommander.inboxRequested` and `agentCommander.commandPaletteRequested` are sent only to the Agent Commander
- *   window, whose `useAgentCommander` opens its Inbox or its Command Palette.
+ * - `botInbox.changed` goes to `subscribeRuntimeQueryInvalidation`, which refreshes the `bot.inbox.list` read behind the
+ *   status bar's "Needs you" chip; the Caxri Bot window re-reads its own Inbox in `useCaxriBot`.
+ * - `caxriBot.inboxRequested` and `caxriBot.commandPaletteRequested` are sent only to Caxri Bot window, whose
+ *   `useCaxriBot` opens its Inbox or its Command Palette.
  * - `subscribeUnsavedEditorRequests` answers `editor.unsavedRequest`, and `subscribeExternalDocumentSync` handles
  *   `externalDocument.changed`.
  * - `environment.changed` and `environment.connectionReused` go to `subscribeEnvironment` in `stores/environment.ts`.
@@ -30,13 +29,13 @@ const WORKBENCH_IGNORED_EVENTS = [
     'agent.permissionAutoAllowChanged',
     'agentChat.patch',
     'agentChat.taskPatch',
-    'agentCommander.commandPaletteRequested',
-    'agentCommander.inboxRequested',
+    'caxriBot.commandPaletteRequested',
+    'caxriBot.inboxRequested',
     'agentHooks.changed',
     'agentTranscript.changed',
     'benchmark.changed',
     'claudeWindow.changed',
-    'commanderInbox.changed',
+    'botInbox.changed',
     'editor.unsavedRequest',
     'environment.changed',
     'environment.connectionReused',

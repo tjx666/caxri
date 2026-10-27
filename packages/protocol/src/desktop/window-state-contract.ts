@@ -26,7 +26,7 @@ export const windowStateInternalMethods = {
         result: persistedWindowStateSchema,
     },
     /**
-     * Cross-restart state for the Agent Commander and Process Explorer windows.
+     * Cross-restart state for Caxri Bot and Process Explorer windows.
      */
     'app.auxiliaryWindowState.get': {
         ...serverRead,
@@ -42,11 +42,11 @@ export const windowStateInternalMethods = {
 
 /**
  * Main-owned window methods. `window.fullScreen.get` is live state Main owns for the window that sent the request, so
- * the Agent Commander reads its own state rather than the Workbench's. A Renderer reads it once it subscribes to events
- * instead of relying on replaying the last `window.fullScreen` push: a Renderer that (re)loads after the event journal
- * has rotated recovers from a snapshot, and that snapshot carries no window state. The `*.open` methods open an
- * optional single-instance window, or raise it when it is already open; `agentCommander.open` lives with its own
- * contract because it takes a target.
+ * Caxri Bot reads its own state rather than the Workbench's. A Renderer reads it once it subscribes to events instead
+ * of relying on replaying the last `window.fullScreen` push: a Renderer that (re)loads after the event journal has
+ * rotated recovers from a snapshot, and that snapshot carries no window state. The `*.open` methods open an optional
+ * single-instance window, or raise it when it is already open; `caxriBot.open` lives with its own contract because it
+ * takes a target.
  */
 export const windowDesktopMethods = {
     'window.fullScreen.get': {

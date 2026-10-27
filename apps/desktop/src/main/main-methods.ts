@@ -20,7 +20,7 @@ import { openAgentChatPathReference, selectAgentChatPaths } from './agent-chat/p
 import { readArgvConfig, updateArgvConfig } from './argv-config';
 import { handleBenchmarkShare, isBenchmarkShare } from './benchmark-share-methods';
 import {
-    clearCommanderDataPrompt,
+    clearBotDataPrompt,
     deleteProjectPrompt,
     deleteSessionPrompt,
     deleteSessionsPrompt,
@@ -274,16 +274,16 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                 return options.workbenchRootAuthority.cancelProjectCreate(request.params);
             case 'terminal.openFileLink':
                 return options.workbenchRootAuthority.openTerminalFileLink(request.params);
-            case 'agentCommander.openFileLink':
-                return options.workbenchRootAuthority.openCommanderFileLink(request.params);
-            case 'agentCommander.clearData': {
-                // The Agent Commander window asks, so the sheet attaches to the window that sent the request.
+            case 'caxriBot.openFileLink':
+                return options.workbenchRootAuthority.openBotFileLink(request.params);
+            case 'caxriBot.clearData': {
+                // Caxri Bot's window asks, so the sheet attaches to the window that sent the request.
                 const result = await dialog.showMessageBox(
                     requestWindowOr(mainWindow),
-                    clearCommanderDataPrompt(request.params),
+                    clearBotDataPrompt(request.params),
                 );
                 if (result.response !== 0) return { canceled: true };
-                return supervisor.request('commander.clearData', request.params);
+                return supervisor.request('bot.clearData', request.params);
             }
             case 'files.trash': {
                 const item = await supervisor.request('files.authorizeTrash', request.params);
@@ -457,7 +457,7 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                 return { choice: unsavedChangesChoice(result.response) };
             }
             case 'agentChat.confirmRevertFiles': {
-                // The Agent Commander window asks too, so the sheet attaches to the window that sent the request.
+                // Caxri Bot's window asks too, so the sheet attaches to the window that sent the request.
                 const result = await dialog.showMessageBox(
                     requestWindowOr(mainWindow),
                     revertAgentChatFilesPrompt(request.params),

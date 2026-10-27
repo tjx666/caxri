@@ -100,9 +100,9 @@ processes. The Performance Monitor preload (`performanceMonitor`) offers state, 
 always-on-top controls, theme, language, snapshot and state subscriptions, and the classifier; Main checks the
 sender on each channel. Renderer entries report only `page-exception` or
 `unhandled-rejection`; exception values never cross the bridge. Main validates both the sender and
-kind, then writes stable structured events. The Agent Commander and Benchmark windows reuse the workbench preload;
-Main identifies it as the companion sender and applies `AgentCommanderRendererPolicy` before dispatch
-(see `docs/agent-commander.md`). The preload does not expose `ipcRenderer`, Electron
+kind, then writes stable structured events. Caxri Bot and Benchmark windows reuse the workbench preload;
+Main identifies it as the companion sender and applies `CaxriBotRendererPolicy` before dispatch
+(see `docs/caxri-bot.md`). The preload does not expose `ipcRenderer`, Electron
 objects, environment data, or generic filesystem/process access. Server Core, Desktop Main, Terminal
 Host, and Extension Host observe fatal runtime errors through `uncaughtExceptionMonitor`, which
 preserves their crash/exit behavior, and use a bounded early-startup buffer plus a synchronous bootstrap

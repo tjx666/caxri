@@ -15,6 +15,8 @@ import agentChatPersistenceMigrationSql from './0009_agent_chat_persistence.sql?
 import agentChatSubagentsMigrationSql from './0010_agent_chat_subagents.sql?raw';
 import claudeWindowSchedulesMigrationSql from './0011_claude_window_schedules.sql?raw';
 import sessionLastViewedMigrationSql from './0012_session_last_viewed.sql?raw';
+import caxriBotRenameMigrationSql from './0013_caxri_bot_rename.sql?raw';
+import caxriBotAppStateMigrationSql from './0014_caxri_bot_app_state.sql?raw';
 import migrationJournal from './meta/_journal.json';
 
 interface MigrationJournal {
@@ -64,6 +66,8 @@ export const migrationManifest = [
     { tag: '0010_agent_chat_subagents', sql: agentChatSubagentsMigrationSql },
     { tag: '0011_claude_window_schedules', sql: claudeWindowSchedulesMigrationSql },
     { tag: '0012_session_last_viewed', sql: sessionLastViewedMigrationSql },
+    { tag: '0013_caxri_bot_rename', sql: caxriBotRenameMigrationSql },
+    { tag: '0014_caxri_bot_app_state', sql: caxriBotAppStateMigrationSql },
 ] as const;
 
 // Intentional: this check must run at module initialization (see the docstring above) so an

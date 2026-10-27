@@ -151,11 +151,11 @@ const mobileGatewayMethodsByRole = {
          */
         'mobile.attention.autoAllowRevoke',
         /**
-         * The Commander Inbox spans every Project, not only this device's grant, so it stays with the role that can
-         * already browse the whole Mac (`mobile.project.browse`).
+         * The Bot Inbox spans every Project, not only this device's grant, so it stays with the role that can already
+         * browse the whole Mac (`mobile.project.browse`).
          */
-        'mobile.commanderInbox.list',
-        'mobile.commanderInbox.reply',
+        'mobile.botInbox.list',
+        'mobile.botInbox.reply',
         /**
          * Computer status names Sessions from every Project and the Mac's busiest processes, so it stays with the role
          * that already sees the whole Mac.

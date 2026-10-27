@@ -42,7 +42,7 @@ finishes it shows:
 
 ## The window
 
-Like the [Agent Commander](agent-commander.md), the Benchmark window is a companion window: it shares the Workbench
+Like the [Caxri Bot](caxri-bot.md), the Benchmark window is a companion window: it shares the Workbench
 preload and Main's single connection to the Server, and Main admits its requests through its own allowlist
 (`apps/desktop/src/main/benchmark-window-policy.ts`): the `benchmark.*` methods, the Workbench snapshot it reads for
 locale, theme, and Projects, Settings and theme reads, and link handling. Anything else is refused and logged as

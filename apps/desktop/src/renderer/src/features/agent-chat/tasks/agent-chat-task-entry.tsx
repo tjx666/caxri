@@ -122,7 +122,7 @@ export function AgentChatTaskEntry({
                     {summary}
                 </button>
             ) : (
-                // A host that cannot open the task's tab (the Agent Commander window) lists the task as plain text.
+                // A host that cannot open the task's tab (Caxri Bot window) lists the task as plain text.
                 <div className={TASK_ENTRY_CLASS_NAME}>{summary}</div>
             )}
             {canStopAgentChatTask(task) && (

@@ -17,8 +17,8 @@ import type { AgentDelegationServiceOptions } from './service-options';
 const CHAT_CHILD_PROVIDERS: ReadonlySet<AgentProvider> = new Set(['claude', 'codex']);
 
 /**
- * Whether a Chat of this provider can carry a Commander task: it reports the prompt digest and turn end that correlate
- * the task. Shared by visible children and Commander hand-overs, so a Grok Build Chat is never accepted as
+ * Whether a Chat of this provider can carry a Caxri Bot task: it reports the prompt digest and turn end that correlate
+ * the task. Shared by visible children and Caxri Bot hand-overs, so a Grok Build Chat is never accepted as
  * continuable.
  */
 export function canChatCorrelateTask(provider: AgentProvider): boolean {

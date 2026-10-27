@@ -36,9 +36,9 @@ interface BenchmarkWindowOptions {
 }
 
 /**
- * Owns the Benchmark window: a second Renderer, like the Agent Commander's, that loads the Workbench preload, shares
- * Main's single Desktop connection, and is admitted only for the requests `benchmark-window-policy.ts` allows. Runs
- * belong to the Server, so closing the window stops nothing. See `docs/benchmark.md`.
+ * Owns the Benchmark window: a second Renderer, like Caxri Bot's, that loads the Workbench preload, shares Main's
+ * single Desktop connection, and is admitted only for the requests `benchmark-window-policy.ts` allows. Runs belong to
+ * the Server, so closing the window stops nothing. See `docs/benchmark.md`.
  */
 export class BenchmarkWindowController {
     private window?: BrowserWindow;

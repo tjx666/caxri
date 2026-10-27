@@ -22,7 +22,7 @@ export interface AppMenuOptions {
     keybindings: Keybinding[];
     dispatchCommand: (command: CommandId, isViaAccelerator: boolean) => void;
     openProcessExplorer: () => void;
-    openAgentCommander: () => void;
+    openCaxriBot: () => void;
     openBenchmark: () => void;
     /**
      * The Workbench window, which runs every command-backed item. Absent while it is closed.
@@ -33,12 +33,12 @@ export interface AppMenuOptions {
      */
     focusWorkbench: () => void;
     /**
-     * Whether a window other than the Workbench follows the app-wide `window.zoomLevel`, as the Agent Commander does.
+     * Whether a window other than the Workbench follows the app-wide `window.zoomLevel`, as Caxri Bot does.
      */
     isFollowingAppZoom: (window: BaseWindow) => boolean;
     /**
-     * Opens a focused companion window's own Command Palette, as the Agent Commander has; returns false for a window
-     * without one, which then follows the usual routing.
+     * Opens a focused companion window's own Command Palette, as Caxri Bot has; returns false for a window without one,
+     * which then follows the usual routing.
      */
     openWindowCommandPalette?: (window: BaseWindow) => boolean;
     /**
@@ -66,12 +66,12 @@ const APP_LEVEL_SHORTCUTS = new Set<CommandId>(['settings.open']);
 const WINDOW_ZOOM_COMMANDS = new Set<CommandId>(['view.zoomIn', 'view.zoomOut', 'view.resetZoom']);
 
 /**
- * Where a command-backed item runs while another Caxri window, such as the Agent Commander or the Process Explorer, is
- * focused. Every command acts on the Workbench, which the user is not looking at: Close Tab would close a Workbench tab
- * and Restart Terminal would restart a Workbench Terminal, out of sight. So Close Tab closes the focused window, the
- * way it does in every macOS app; a zoom command runs in place when that window follows the app zoom; a shortcut typed
- * there is dropped, because it was meant for that window, unless it is app-level; and an item picked from the menu bar
- * brings the Workbench forward first, so the user sees what it changes.
+ * Where a command-backed item runs while another Caxri window, such as Caxri Bot or the Process Explorer, is focused.
+ * Every command acts on the Workbench, which the user is not looking at: Close Tab would close a Workbench tab and
+ * Restart Terminal would restart a Workbench Terminal, out of sight. So Close Tab closes the focused window, the way it
+ * does in every macOS app; a zoom command runs in place when that window follows the app zoom; a shortcut typed there
+ * is dropped, because it was meant for that window, unless it is app-level; and an item picked from the menu bar brings
+ * the Workbench forward first, so the user sees what it changes.
  */
 function commandTarget(
     commandId: CommandId,
@@ -141,8 +141,8 @@ function commandLabel(definition: CommandDefinition, keybindings: readonly Keybi
 
 /**
  * Native accelerators cannot return an intercepted key to Monaco when a Terminal command declines it. The Terminal
- * actions, Restart included, also run in the Agent Commander window, which dispatches their chords itself; a native
- * accelerator would reach Main instead, which drops a shortcut typed in that window.
+ * actions, Restart included, also run in Caxri Bot's window, which dispatches their chords itself; a native accelerator
+ * would reach Main instead, which drops a shortcut typed in that window.
  */
 function isRendererOwnedShortcut(commandId: string): boolean {
     return [
@@ -186,7 +186,7 @@ export function syncLocalMachineMenuItems(
 export function buildAppMenuTemplate({
     keybindings,
     dispatchCommand,
-    openAgentCommander,
+    openCaxriBot,
     openBenchmark,
     openProcessExplorer,
     workbenchWindow,
@@ -220,11 +220,11 @@ export function buildAppMenuTemplate({
              */
             if (definition.id === 'processExplorer.open') return openProcessExplorer();
             /**
-             * Like Process Explorer, Open Agent Commander must work while its own window is focused, and the Workbench
+             * Like Process Explorer, Open Caxri Bot must work while its own window is focused, and the Workbench
              * Renderer is not the one that should run it. Stop is an ordinary Workbench command: only a Renderer can
-             * ask before a running Commander turn ends.
+             * ask before a running Caxri Bot turn ends.
              */
-            if (definition.id === 'agentCommander.open') return openAgentCommander();
+            if (definition.id === 'caxriBot.open') return openCaxriBot();
             // Open Benchmark raises its own window from Main too, so it also works while that window is focused.
             if (definition.id === 'benchmark.open') return openBenchmark();
             /**

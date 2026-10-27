@@ -1,15 +1,15 @@
 import type { MainRequest, PerformanceMonitorMetrics, SettingsTarget } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
-import type { AgentCommanderWindowController } from './agent-commander-window';
 import type { BenchmarkWindowController } from './benchmark-window';
+import type { CaxriBotWindowController } from './caxri-bot-window';
 import type { PerformanceMonitorWindowController } from './performance-monitor/window';
 import type { ProcessExplorerWindowController } from './process-explorer-window';
 import type { WindowPresenceRegistry } from './window-presence-registry';
 import { currentRequestWindowKey } from './window-presence-registry';
 
 /**
- * The optional windows Main opens on request, and the Workbench hand-offs the Agent Commander window uses.
+ * The optional windows Main opens on request, and the Workbench hand-offs Caxri Bot's window uses.
  */
 export interface MainWindowMethodOptions {
     getProcessExplorer(): ProcessExplorerWindowController;
@@ -21,19 +21,18 @@ export interface MainWindowMethodOptions {
      * The Renderer process of the Workbench window making the current request; the in-window monitor reports that one.
      */
     requestWorkbenchProcessId?(): number | undefined;
-    getAgentCommander(): AgentCommanderWindowController | undefined;
+    getCaxriBot(): CaxriBotWindowController | undefined;
     /**
      * Absent in an SSH Host window, which has no Benchmark window of its own.
      */
     getBenchmarkWindow?(): BenchmarkWindowController | undefined;
     /**
-     * Selects a Session in the Workbench and raises the main window; used by the Agent Commander board.
+     * Selects a Session in the Workbench and raises the main window; used by Caxri Bot's board.
      */
     revealSessionInWorkbench(sessionId: string): Promise<void>;
     /**
-     * Raises the Workbench, reopening it if needed, and opens Settings there; used by the Agent Commander window, which
-     * has no Settings of its own. An optional `target` scrolls Settings to one specific row instead of its default
-     * view.
+     * Raises the Workbench, reopening it if needed, and opens Settings there; used by Caxri Bot's window, which has no
+     * Settings of its own. An optional `target` scrolls Settings to one specific row instead of its default view.
      */
     openSettingsInWorkbench(target?: SettingsTarget): Promise<void>;
     /**
@@ -48,10 +47,10 @@ export interface MainWindowMethodOptions {
 }
 
 const WINDOW_METHODS = [
-    'agentCommander.open',
-    'agentCommander.openSettings',
-    'agentCommander.revealSession',
-    'agentCommander.stop',
+    'caxriBot.open',
+    'caxriBot.openSettings',
+    'caxriBot.revealSession',
+    'caxriBot.stop',
     'benchmark.open',
     'performanceMonitor.metrics',
     'performanceMonitor.window',
@@ -67,7 +66,7 @@ export function isWindowRequest(request: MainRequest): request is WindowRequest 
 }
 
 /**
- * Opens, raises, or stops an optional window, or hands the Agent Commander's request over to the Workbench.
+ * Opens, raises, or stops an optional window, or hands Caxri Bot's request over to the Workbench.
  */
 export async function handleWindowRequest(
     request: WindowRequest,
@@ -90,16 +89,16 @@ export async function handleWindowRequest(
             else monitor?.toggle();
             return null;
         }
-        case 'agentCommander.open':
-            options.getAgentCommander()?.open(request.params.target);
+        case 'caxriBot.open':
+            options.getCaxriBot()?.open(request.params.target);
             return null;
         case 'benchmark.open':
             options.getBenchmarkWindow?.()?.open();
             return null;
-        case 'agentCommander.stop':
-            await options.getAgentCommander()?.stop();
+        case 'caxriBot.stop':
+            await options.getCaxriBot()?.stop();
             return null;
-        case 'agentCommander.revealSession':
+        case 'caxriBot.revealSession':
             await options.revealSessionInWorkbench(request.params.sessionId);
             return null;
         case 'window.reportViewing': {
@@ -118,7 +117,7 @@ export async function handleWindowRequest(
                 throw new CaxriError('FORBIDDEN', 'Only a Workbench window can tear off a Session');
             return options.tearOffSession({ sourceKey, ...request.params });
         }
-        case 'agentCommander.openSettings':
+        case 'caxriBot.openSettings':
             await options.openSettingsInWorkbench(request.params.target);
             return null;
     }

@@ -3,13 +3,12 @@ import { isDelegationActive } from '@caxri/protocol';
 
 import type { CaxriDatabase, StoredAgentDelegation } from '../db';
 import type { DelegationAuthority } from './admission';
-import { isAgentCommanderCaller } from './admission';
+import { isCaxriBotCaller } from './admission';
 
 /**
  * A task belongs to the exact Endpoint generation that created it, so a relaunched Agent cannot settle work its
- * predecessor started. The Agent Commander is the exception: a Caxri restart or Codex relaunch starts a new generation
- * of the same system Terminal, and its ledger of earlier tasks must keep resolving. The owner's own clients see every
- * task.
+ * predecessor started. Caxri Bot is the exception: a Caxri restart or Codex relaunch starts a new generation of the
+ * same system Terminal, and its ledger of earlier tasks must keep resolving. The owner's own clients see every task.
  */
 export function isDelegationOwner(
     database: CaxriDatabase,
@@ -21,7 +20,7 @@ export function isDelegationOwner(
     return (
         authority.callerTerminalId === record.receipt.callerTerminalId &&
         (JSON.stringify(authority.principal) === JSON.stringify(record.principal) ||
-            isAgentCommanderCaller(database, authority))
+            isCaxriBotCaller(database, authority))
     );
 }
 
