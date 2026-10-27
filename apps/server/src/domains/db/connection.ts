@@ -188,7 +188,20 @@ function restoreProcessGroups(database: Database.Database, rows: readonly Proces
     for (const row of rows) insert.run(row);
 }
 
-function initializeSchema(database: Database.Database): void {
+/**
+ * What opening the database did to its schema: `created` for a new file (`user_version` 0), `current` when nothing was
+ * pending, `migrated` after running the post-baseline migrations, and `rebuilt` when a pre-baseline database was
+ * dropped and reinstalled (see {@link dropPreBaselineTables}).
+ */
+type DatabaseSchemaOutcome = 'created' | 'current' | 'migrated' | 'rebuilt';
+
+function schemaOutcome(version: number): DatabaseSchemaOutcome {
+    if (version === CURRENT_SCHEMA_VERSION) return 'current';
+    if (version === 0) return 'created';
+    return version < BASELINE_SCHEMA_VERSION ? 'rebuilt' : 'migrated';
+}
+
+function initializeSchema(database: Database.Database): number {
     const version = database.pragma('user_version', { simple: true }) as number;
     if (version > CURRENT_SCHEMA_VERSION) {
         throw new Error(
@@ -198,7 +211,7 @@ function initializeSchema(database: Database.Database): void {
     /**
      * Nothing to migrate: skipping keeps the whole-database `foreign_key_check` off the ordinary startup path.
      */
-    if (version === CURRENT_SCHEMA_VERSION) return;
+    if (version === CURRENT_SCHEMA_VERSION) return version;
     // `VACUUM INTO` cannot run inside the migration transaction, so the copy is taken first.
     if (version > 0 && version < BASELINE_SCHEMA_VERSION && database.name !== ':memory:')
         backupBeforeRebuild(database, database.name, version);
@@ -214,6 +227,15 @@ function initializeSchema(database: Database.Database): void {
                 if (migration.version > version) runGeneratedSql(database, migration.sql);
         database.pragma(`user_version = ${CURRENT_SCHEMA_VERSION}`);
     });
+    return version;
+}
+
+/**
+ * Rows {@link markShutdown} moved out of a live process state: Terminal processes and hosted Agent processes.
+ */
+export interface ShutdownMarks {
+    interruptedAgents: number;
+    interruptedTerminals: number;
 }
 
 /**
@@ -227,18 +249,31 @@ export function markShutdown(
     database: CaxriDrizzleDatabase,
     now: number,
     reason: ShutdownReason,
-): void {
+): ShutdownMarks {
     const { liveProcessStates, terminalProcessState } = shutdownOutcome(reason);
-    database
+    const terminalMarks = database
         .update(terminals)
         .set({ lastProcessState: terminalProcessState, updatedAt: now })
         .where(inArray(terminals.lastProcessState, liveProcessStates))
         .run();
-    database
+    const agentMarks = database
         .update(terminals)
         .set({ lastAgentProcessState: terminalProcessState, updatedAt: now })
         .where(inArray(terminals.lastAgentProcessState, liveProcessStates))
         .run();
+    return { interruptedAgents: agentMarks.changes, interruptedTerminals: terminalMarks.changes };
+}
+
+/**
+ * Content-free account of one {@link openDatabase}: the schema step and how many live rows the unclean-shutdown recovery
+ * rewrote. An orderly shutdown already marked every Terminal `interrupted`, so nonzero counts mean the previous Server
+ * Core did not stop cleanly.
+ */
+export interface DatabaseOpening extends ShutdownMarks {
+    durationMs: number;
+    fromVersion: number;
+    outcome: DatabaseSchemaOutcome;
+    toVersion: number;
 }
 
 export interface OpenedDatabase {
@@ -251,6 +286,7 @@ export interface OpenedDatabase {
      * Drizzle query-builder instance bound to the same connection and to `./schema` (every table).
      */
     db: CaxriDrizzleDatabase;
+    opening: DatabaseOpening;
 }
 
 /**
@@ -266,6 +302,7 @@ export function openDatabase(path: string): OpenedDatabase {
          */
         restrictPath(dirname(path), 0o700);
     }
+    const startedAt = performance.now();
     const database = new Database(path);
     try {
         if (path !== ':memory:') restrictPath(path, 0o600);
@@ -279,14 +316,24 @@ export function openDatabase(path: string): OpenedDatabase {
          * loss merely loses the last transactions.
          */
         database.pragma('synchronous = NORMAL');
-        initializeSchema(database);
+        const fromVersion = initializeSchema(database);
         const database_ = drizzle(database, { schema });
-        markShutdown(database_, Date.now(), 'unclean');
+        const marks = markShutdown(database_, Date.now(), 'unclean');
         if (path !== ':memory:') {
             restrictPath(`${path}-wal`, 0o600);
             restrictPath(`${path}-shm`, 0o600);
         }
-        return { database, db: database_ };
+        return {
+            database,
+            db: database_,
+            opening: {
+                ...marks,
+                durationMs: performance.now() - startedAt,
+                fromVersion,
+                outcome: schemaOutcome(fromVersion),
+                toVersion: CURRENT_SCHEMA_VERSION,
+            },
+        };
     } catch (error) {
         database.close();
         throw error;

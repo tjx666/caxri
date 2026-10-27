@@ -59,6 +59,16 @@ export async function createRootServices({
     userDataPath,
 }: DomainDependencies) {
     const database = new CaxriDatabase(join(userDataPath, 'caxri.db'), {
+        onOpened: (opening) =>
+            logger.write(
+                opening.outcome === 'rebuilt' ||
+                    opening.interruptedTerminals > 0 ||
+                    opening.interruptedAgents > 0
+                    ? 'warn'
+                    : 'info',
+                logEventCatalog.database.opened,
+                { fields: { ...opening } },
+            ),
         onSessionStateRepair: ({ reason, sessionId, stateVersion }) =>
             logger.write('warn', logEventCatalog.database.sessionStateRepaired, {
                 fields: { reason, sessionId, stateVersion },

@@ -27,6 +27,13 @@ export const configLogEvents = {
 } as const;
 
 export const databaseLogEvents = {
+    /**
+     * Once per Server Core lifetime, when the database opens: the closed `outcome` (`created`, `current`, `migrated`,
+     * `rebuilt`), `fromVersion`, `toVersion`, `durationMs`, and the live rows the unclean-shutdown recovery marked
+     * `interrupted` (`interruptedTerminals`, `interruptedAgents`). Nonzero counts mean the previous Server Core stopped
+     * without its orderly shutdown; a rebuild or nonzero count is logged at `warn`.
+     */
+    opened: 'db.opened',
     sessionStateRepaired: 'db.session_state_repaired',
     /**
      * A Server-owned write advanced a Session state revision: the closed `reason` (`serviceWrite`, `rootFirstVisit`,
