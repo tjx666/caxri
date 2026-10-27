@@ -139,7 +139,7 @@ rather than stored per theme, so built-in and imported themes get matching washe
 they already set. Each name is one intensity class, not one global value: `--state-hover` (60% of
 `--elevated`: sidebar and Session rows, menu items), `--state-hover-quiet` (45%: large Settings
 blocks), `--state-hover-ink` (10% of `--foreground`: compact chrome buttons), `--state-hover-ink-quiet`
-(6%: dense process rows), `--state-selected-quiet`, `--state-marker`, `--state-drop-target`,
+(6%: dense process rows), `--state-track` (6% of `--foreground`: a segmented control's resting track), `--state-selected-quiet`, `--state-marker`, `--state-drop-target`,
 `--state-focus-ring` (the 3px halo on form controls), and `--state-handle-*` (resize seams). Use the
 closest class from Tailwind (`hover:bg-state-hover`); add a new class here instead of writing a
 `color-mix` recipe in a component. A surface that needs a different strength gets a new named token,
@@ -547,8 +547,10 @@ where every browser puts them. They are `no-drag` islands in the header's drag r
 with an empty stack renders disabled rather than hidden, so the pair never reflows and its
 position stays learnable; the shortcut and command name reach the user through the shared command
 tooltip instead of a bespoke label. Archived Sessions use one stable PrimarySidebar footer entry
-with a global count: the footer row holds nothing else, so the whole row is one compact ghost
-button: archive glyph and a short `Archived` label on the left, the count on the right. A
+with a global count: the footer row holds nothing else, so the whole row is one button that reads as
+the Session tree's last row (same height, glyph inset, 14px glyph, and `--state-hover` tint): archive
+glyph and a short `Archived` label on the left, the count on the right, and a chevron on hover
+because it opens a dialog. No divider sits above it; the list's bottom scroll cue marks that edge. A
 glyph-only chip left most of the row dead to clicks. Search, filters, Project-grouped results, restore, and delete live in a
 full-width management dialog. Its footer carries the jump to Session search as a small ghost
 `Search Sessions` button beside `Done`, the Keyboard Shortcuts `Edit Keybindings` pattern, so the
@@ -719,9 +721,10 @@ starts as another Terminal in the same Session. With two or more tabs, + stays v
 same behavior. An Agent tab's Terminal | Chat toggle (`Open as Terminal or Chat`) is always visible
 while the active tab can switch, quiet at rest and full strength on bar hover, focus, or while a
 switch is pending. At rest only the pressed segment's icon dims to `--muted` like its neighbour;
-the control is never faded with opacity, which also faded its border below the non-text contrast a
-control outline needs; its pressed segment adds a `--border` to the shared Toggle fill, so it never reads like the
-hovered one. The + sits before the toggle, next to the tabs, so revealing it on hover grows the strip
+the control is never faded with opacity, which also faded its track and thumb, the only edges that show it is one
+control. The selection is a raised `--elevated` thumb on a borderless `--state-track` that slides to the open surface
+over `--motion-chrome-switch` once the switch lands; segments never take a fill of their own, so a hovered segment only
+brightens its icon and never reads like the selected one. The + sits before the toggle, next to the tabs, so revealing it on hover grows the strip
 toward the tabs and never moves the toggle out from under the pointer. An external file whose name repeats among the Session's open external files shows the
 shortest parent path that tells it apart in `meta` `--muted` after its label (VS Code's tab
 description), and every external tab tells a screen reader it is `Outside every Project`. An empty pane uses its own labelled action, reading New Chat when it will create a
@@ -818,8 +821,9 @@ edge the cue is gone. This is one rule for every scroller, not a per-surface add
 scroller picks one of the three sanctioned cues instead of hand-rolling a gradient:
 
 - A list scrolling under its own header (the PrimarySidebar Session list, Files, Source Control,
-  extension trees, Activity) wears the VS Code-style 6px inset `--shadow` on its top edge:
-  `.scroll-edge-shell` around a scroller bound with `useScrollEdge`.
+  extension trees, Activity) wears the VS Code-style 6px inset `--shadow` on its top edge, and the
+  mirrored shadow on its bottom edge while rows remain below: `.scroll-edge-shell` around a scroller
+  bound with `useScrollEdge`.
 - Content that runs on under floating chrome (the Agent Chat transcript and task output under Jump
   to latest) or past a sideways edge (pane tab strips, wide report tables) dissolves into a
   `ScrollFade` gradient toward the fill it sits on: 40px for a vertical edge, since a shorter fade

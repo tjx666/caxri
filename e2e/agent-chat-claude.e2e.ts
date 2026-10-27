@@ -46,7 +46,7 @@ test('a Claude Code Chat streams a reply, answers an approval and a question, an
         ).toBeVisible();
 
         // The Terminal | Chat switch stays findable at rest: its pressed segment's icon is muted until the pointer
-        // enters the tab bar. Only that color changes, so the segment borders keep full contrast.
+        // enters the tab bar. Only that color changes, so the track and thumb keep full contrast.
         const pressedSegment = chat.locator('.agent-surface-toggle [data-pressed]');
         const surfaceToggle = chat.locator('.agent-surface-toggle');
         await message.hover();

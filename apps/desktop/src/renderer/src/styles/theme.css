@@ -64,6 +64,7 @@
     --color-state-hover-quiet: var(--state-hover-quiet);
     --color-state-hover-ink: var(--state-hover-ink);
     --color-state-hover-ink-quiet: var(--state-hover-ink-quiet);
+    --color-state-track: var(--state-track);
     --color-state-selected-quiet: var(--state-selected-quiet);
     --color-state-marker: var(--state-marker);
     --color-state-drop-target: var(--state-drop-target);
@@ -173,6 +174,11 @@
         var(--foreground) 6%,
         transparent
     ); /* Dense data rows (process grid). */
+    --state-track: color-mix(
+        in srgb,
+        var(--foreground) 6%,
+        transparent
+    ); /* Resting track of a segmented control, under its raised thumb. */
     --state-selected-quiet: color-mix(
         in srgb,
         var(--selection) 45%,

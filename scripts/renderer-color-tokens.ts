@@ -47,6 +47,7 @@ export const registeredColorRoles = [
     'state-hover-quiet',
     'state-hover-ink',
     'state-hover-ink-quiet',
+    'state-track',
     'state-selected-quiet',
     'state-marker',
     'state-drop-target',
