@@ -43,6 +43,7 @@ export const toasts: TranslatedNamespace<typeof source> = {
     'toasts.action.openSettingsFile': '打开设置文件',
     'toasts.action.turnOffHardwareAcceleration': '关闭硬件加速…',
     'toasts.action.stop': '停止',
+    'toasts.action.turnOff': '关闭',
     'toasts.action.showUpdate': '查看更新',
     'toasts.action.openCaxriBot': '打开 Caxri Bot',
 

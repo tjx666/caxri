@@ -1,5 +1,7 @@
 # Caxri
 
+English | [简体中文](README.zh-CN.md)
+
 ![Caxri on the desktop running Claude Code and Codex Sessions across three Projects, beside the paired Caxri mobile app listing which Sessions need attention](docs/assets/readme-hero.png)
 
 Caxri is an Agent Development Environment (ADE) for macOS: the place where you build software
@@ -13,8 +15,10 @@ them.
 their existing sign-in; it does not bundle an Agent or a subscription. The interface is available
 in English and Simplified Chinese.
 
-Caxri is in active development. Repository visibility and source-available development releases
-do not establish a support or compatibility commitment. The maintainer will declare any future
+**Caxri is a preview.** It ships often and has no compatibility commitment yet, so an update may
+require resetting your local data: the profile in `~/Library/Application Support/Caxri` (see
+[Uninstall and reset](#uninstall-and-reset)). Your Project folders are never part of that reset.
+Public source and published releases do not change this; the maintainer will announce any
 compatibility commitment explicitly.
 
 ## Highlights
@@ -41,6 +45,25 @@ compatibility commitment explicitly.
   same app Server: create Sessions, delegate work and report back. Agents commit; you merge the
   pull request. See [docs/cli.md](docs/cli.md).
 
+## How Caxri compares
+
+- **Running Claude Code or Codex directly in a terminal.** Caxri runs those same CLIs with their
+  own sign-in, so nothing about the Agent changes. What it adds around them: each task is a durable
+  Session under a Project, an Agent opens as a readable Chat that can switch to its real terminal,
+  every Session reports whether it is waiting, completed or failed, and subscription automation
+  compacts eligible idle Chats, resumes after a known limit reset and offers to continue with
+  another Agent.
+- **Parallel-agent workbenches such as Conductor, Superset and Orca.** These run several Agent CLIs
+  in parallel, each task in its own Git worktree, with built-in diff review; Conductor also tracks
+  checks and opens and merges pull requests. Caxri shares the goal of supervising many Agents at
+  once. Its emphasis is one workflow across Claude Code, Codex and Grok Build, Chat as the core
+  surface with the terminal always available, automation around plan limits and prompt caches that
+  works out of the box, and an interface that shows only what still needs you.
+- **AI IDEs such as Cursor.** Caxri is not an IDE or a VS Code fork and does not replace your
+  editor. Its editor, file tree, search and review-first Source Control view stay narrow, for
+  glancing at what an Agent did; there is no manual stage or commit, because Agents commit and you
+  merge the pull request.
+
 New here? Read [Getting started](docs/getting-started.md) for the model in five minutes.
 
 ## Requirements
@@ -64,8 +87,18 @@ Install Caxri for me by following https://raw.githubusercontent.com/tjx666/caxri
 The agent checks your Mac, downloads and verifies the latest release, installs it, and offers
 optional setup: notification banners, the `caxri` command, and initial settings such as language,
 default Agent, and font sizes. To install by hand, follow the same page:
-[docs/install.md](docs/install.md). If macOS blocks the app, see
-[Troubleshooting](docs/troubleshooting.md).
+[docs/install.md](docs/install.md).
+
+**Caxri is not signed by Apple yet.** If macOS says Caxri "is damaged" or cannot be opened, run
+this once and open it again:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/Caxri.app
+```
+
+If you downloaded the disk image by hand, verify it against its `.sha256` file first.
+[Troubleshooting](docs/troubleshooting.md#macos-says-caxri-is-damaged-or-blocks-it) also covers the
+**Open Anyway** route in System Settings.
 
 ### Install on Android
 

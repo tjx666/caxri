@@ -50,6 +50,7 @@ import { useSessionAttentionAcknowledgement } from './features/session/session-a
 import { didSelectSession } from './features/session/session-commands';
 import { SessionMruSwitcher } from './features/session/session-mru-switcher';
 import { SessionSearchDialog } from './features/session/session-search/session-search-dialog';
+import { subscribeClaudeWindowsDefaultNotice } from './features/settings/claude-windows/claude-windows-default-notice';
 import { useSettingsTabOpener } from './features/settings/settings-tab-opener';
 import { ConnectSshHostDialog } from './features/ssh-host/connect-ssh-host-dialog';
 import { isConnectionOverlayVisible } from './features/ssh-host/connection-status';
@@ -188,6 +189,7 @@ export function App() {
     useSettingsTabOpener();
     useRuntimeQueryInvalidation();
     useEffect(() => subscribeAgentChatPatches(queryClient), []);
+    useEffect(() => subscribeClaudeWindowsDefaultNotice(), []);
     useEffect(() => startViewEventBridge(), []);
     useEffect(() => subscribeHeldMessageQueue(), []);
     useEffect(() => subscribeUnsavedEditorRequests(), []);

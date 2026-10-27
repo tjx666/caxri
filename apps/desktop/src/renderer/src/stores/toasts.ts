@@ -69,7 +69,8 @@ export interface ToastOptions {
     /**
      * Keeps a notification on screen until the user dismisses it. Reserved for events that already cost the user
      * something irreversible, an external write replacing an unsaved buffer, where a 4-second auto-dismiss can silently
-     * take the only record of it away.
+     * take the only record of it away, and for a one-time disclosure of something Caxri keeps doing on the user's
+     * behalf until they decide (the Claude 5-hour window keeper's default).
      */
     persist?: boolean;
     /**

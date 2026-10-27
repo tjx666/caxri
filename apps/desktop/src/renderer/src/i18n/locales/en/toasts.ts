@@ -44,6 +44,7 @@ export const toasts = {
     'toasts.action.openSettingsFile': 'Open Settings File',
     'toasts.action.turnOffHardwareAcceleration': 'Turn off hardware acceleration…',
     'toasts.action.stop': 'Stop',
+    'toasts.action.turnOff': 'Turn off',
     'toasts.action.showUpdate': 'Show Update',
     'toasts.action.openCaxriBot': 'Open Caxri Bot',
 

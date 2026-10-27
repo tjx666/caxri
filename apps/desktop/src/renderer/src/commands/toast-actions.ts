@@ -30,6 +30,7 @@ import {
 } from '../features/gpu/gpu-commands';
 import { openProcessExplorer } from '../features/process-explorer/process-explorer-commands';
 import { unarchiveSession } from '../features/session/session-archive-commands';
+import { turnOffClaudeWindows } from '../features/settings/claude-windows/claude-windows-default-notice';
 import { createTerminalForSession } from '../features/terminal/terminal-commands';
 import { terminalToastActionHandlers } from '../features/terminal/terminal-toast-actions';
 import {
@@ -92,6 +93,12 @@ export const toastActionHandlers: ToastActionHandlers = {
         unavailable: ({ itemId }) => botInboxUndoDismissUnavailableReason(itemId),
         run: ({ itemId }) => undoBotInboxDismissal(itemId),
     },
+    'claudeWindows.turnOff': {
+        // Fire-and-forget by the Toast contract: `turnOffClaudeWindows` reports its own failure.
+        run: ({ accountKey }) => {
+            void turnOffClaudeWindows(accountKey);
+        },
+    },
     'clipboard.copyCommand': {
         run: ({ text }) => {
             // The button reports the outcome in place (Copied / Copy failed), so no failure toast stacks on the notice.
@@ -136,6 +143,7 @@ export const toastActionHandlers: ToastActionHandlers = {
     'settings.open': { run: () => openSettings() },
     'settings.openNotifications': { run: () => openSettings('notifications') },
     'settings.openSource': { run: () => openSettings('source') },
+    'settings.openClaudeWindows': { run: () => openSettings('claude-windows') },
     'settings.openHardwareAcceleration': { run: openHardwareAccelerationSettings },
     'settings.turnOffHardwareAcceleration': {
         // Fire-and-forget by the Toast contract: a follow-up is synchronous, and the confirmation plus the shared

@@ -1678,6 +1678,11 @@ and it carries the only statement of what the restart is owed for. That one is a
 an event, so it names every flag still differing from the running instance's launch values, and it
 is retracted once none remain.
 
+The one-time notice that the Claude 5-hour window keeper is on by default for a Pro account is an
+`info` notice held for the same reason: it discloses something Caxri does on the user's behalf
+until they decide, and four seconds is too short to read and answer it. It offers `Turn off`, which
+leaves with the notice once it runs, and `Open Settings` for the schedule.
+
 **Confirmations**: destructive commands (Delete Session, Delete Project) require a native confirm
 dialog naming the target ("Delete session 'api-fix'? Files on disk are not touched."). Every other
 "are you sure" moment uses the one in-app confirmation modal behind

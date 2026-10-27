@@ -11,6 +11,7 @@ const FOCUSED_ROW_IDS: Partial<Record<SettingsView, string>> = {
     'hardware-acceleration': 'terminal.hardwareAcceleration',
     'remote-debugging': 'security.remoteDebugging',
     'agent-suspension': 'terminal.idleSuspension.enabled',
+    'claude-windows': 'agents.claude.windows',
 };
 
 export function rowFocusRequest(request: {
