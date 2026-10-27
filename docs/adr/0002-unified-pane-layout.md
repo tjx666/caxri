@@ -8,6 +8,7 @@ status: accepted
 - Date: 2026-08-21
 - Refs: [#257](https://github.com/tjx666/caxri/issues/257)
 - Amended by: ADR 0005 (target, pending)
+- Amended by: [ADR 0013](0013-editable-external-documents.md) (external documents are editable)
 
 The Workbench renders exactly one of two mutually exclusive split trees (Terminals or Editors)
 behind a single global tab strip, so a running Agent and the file it is editing can never be visible
@@ -52,7 +53,7 @@ An Editor tab with a filesystem path dragged onto a running Terminal's content p
 including at its edges. Hold Option to use pane placement instead: the center moves the tab and an
 edge splits it. Terminal tab drags and tab-bar reordering retain their existing placement behavior.
 Path insertion uses the Terminal's launch directory and shell quoting without submitting a command;
-a stopped Terminal rejects it. External read-only documents use their Main-authorized cached path,
+a stopped Terminal rejects it. External documents (read-only until ADR 0013) use their Main-authorized cached path,
 which is also available through the tab's Copy Path menu. Virtual documents with no single file
 retain pane placement because they have no filesystem path to paste.
 
@@ -129,15 +130,15 @@ handle.
 This breaks the wire contract: `SessionState` is shared by `app.bootstrap` and `session.updateState`,
 so the protocol version, the session-state version, and the layout version all step forward together
 and Host, Runtime, Preload, CLI, and fixtures upgrade atomically. Per the pre-public compatibility
-policy there is no adapter and no dual read or write. Migration `0012_unified_pane_layout.sql` drops
+policy there is no adapter and no dual read or write. A migration (since folded into `0000_baseline.sql`) drops
 `session_state` down to its four surviving columns and hard-resets every row's `state_version` to `2`
 and `workbench_state_json` to `{}`: it does not attempt to convert the old Terminal/Editor trees
 into pane layouts, since Caxri has no public release yet and there is nothing to preserve worth the
 conversion complexity. Each Workbench Root then rebuilds its layout the first time it is read after
-upgrade: `SessionsModel.defaultPaneLayout` places every durable Terminal owned by the Session into
+upgrade: `defaultSessionPaneLayout` places every durable Terminal owned by the Session into
 one pane, and any previously open Editor tabs are gone. Terminal identity, PTY state, and Session/
 Project records are untouched: only pane placement resets. A layout is capped at 8 panes
-(`MAX_PANE_LAYOUT_PANES`); `defaultPaneLayout`'s single-pane arrangement never approaches that limit.
+(`MAX_PANE_LAYOUT_PANES`); its single-pane arrangement never approaches that limit.
 
 ## Command surface
 

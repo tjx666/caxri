@@ -2,9 +2,9 @@ import type { TerminalSurface } from '@caxri/protocol';
 import { CaxriError, isChatTerminal } from '@caxri/protocol';
 
 /**
- * Single named boundary for PTY-only operations. A Chat Terminal has no PTY, so input bytes, resize, snapshots,
- * suspension, restore, and compaction reject it here before any side effect instead of failing later inside Terminal
- * Host. See `docs/adr/0012-agent-chat-surface.md`.
+ * Single named boundary for PTY-only operations. A Chat Terminal has no PTY, so input bytes, resize, snapshots, PTY
+ * suspension, and restore reject it here before any side effect instead of failing later inside Terminal Host. See
+ * `docs/adr/0012-agent-chat-surface.md`.
  */
 export function assertPtyTerminal(terminal: { surface?: TerminalSurface } | undefined): void {
     if (terminal && isChatTerminal(terminal))

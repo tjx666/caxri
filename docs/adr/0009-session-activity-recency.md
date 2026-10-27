@@ -41,7 +41,9 @@ The preserving migration backfills legacy Sessions from `createdAt`, never `last
 creation is the only historical event whose activity meaning is certain.
 
 The Renderer derives Primary Sidebar order from Session Activity, newest first, within each existing
-Project group. Creation time and ID provide deterministic fallbacks. The Sidebar tree, command
+Project group. Creation time and ID provide deterministic fallbacks. (Later amended: a durable manual
+`sidebarOrder` now sorts first and Session Activity breaks its ties, through
+`compareSessionSidebarOrder`; Pinned Sessions sit in their own group ordered by `pinnedOrder`.) The Sidebar tree, command
 palette, Project default selection, adjacent-Session commands, and Server fallback selection consume
 the same comparison policy. Server storage queries retain their stable creation order. MRU
 navigation continues to use `lastOpenedAt`, and Attention remains a visual signal rather than a

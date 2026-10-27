@@ -97,7 +97,7 @@ and drag tear-off no longer apply.
 - **A second window replaces a second tab.** The sidebar row's **Open in New Window** sends
   `window.tearOffSession { sessionId }`; Main always cascades the new window. The move refuses
   `shown_session` (the source would be empty), `open_elsewhere`, and `target_in_use`.
-- **Shortcuts move to Pinned.** `Cmd+1` to `Cmd+9` switch to the Pinned group's Sessions, the only stable
+- **Shortcuts move to Pinned.** `Cmd+1` to `Cmd+8` switch to the Nth Pinned Session and `Cmd+9` to the last, the only stable
   ordering the sidebar offers. Existing keybinding files migrate in place, and the removed Close Open Session
   default is deleted through a new `remove` default-keybinding change.
 
