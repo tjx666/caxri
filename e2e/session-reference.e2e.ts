@@ -141,9 +141,9 @@ test('typing @ cites another Session from Agent Chat and from the Agent Commands
         try {
             database
                 .prepare(
-                    'UPDATE terminals SET kind = ?, provider = ?, agent_session_id = ?, last_process_state = ? WHERE id = ?',
+                    'UPDATE terminals SET kind = ?, agent_session_id = ?, last_process_state = ? WHERE id = ?',
                 )
-                .run('claude', 'claude', CITED_AGENT_SESSION, 'stopped', citedTerminal.id);
+                .run('claude', CITED_AGENT_SESSION, 'stopped', citedTerminal.id);
             database
                 .prepare('UPDATE sessions SET primary_agent_terminal_id = ? WHERE id = ?')
                 .run(citedTerminal.id, citedId);

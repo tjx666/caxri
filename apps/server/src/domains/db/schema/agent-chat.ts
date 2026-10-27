@@ -1,12 +1,11 @@
 import type { TerminalSubagentSummary } from '@caxri/protocol';
 import { check, index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
-import { terminals } from './schema';
-import { closedValues, isOneOf } from './schema-constraints';
+import { closedValues, isOneOf } from './constraints';
+import { terminals } from './core';
 
 /**
- * Agent Chat state that no provider history can rebuild. Kept beside `./schema` like Caxri Bot tables; `./full-schema`
- * joins it for drizzle-kit, the drift guard, and the connection.
+ * Agent Chat state that no provider history can rebuild.
  */
 
 /**

@@ -96,7 +96,7 @@ export interface KeeperMemory {
      * The planned time (an anchor or a reset) of the newest window the keeper already handled. Every candidate at or
      * before it is spent, which makes a check idempotent across restarts, wakes, and repeated background runs.
      */
-    processedThrough?: number;
+    processedThroughAt?: number;
     /**
      * The newest 5-hour reset Claude Code reported; its passing is when the next renewal is due.
      */
@@ -113,7 +113,7 @@ export interface KeeperReading {
 
 interface DueWindow {
     /**
-     * The anchor or reset this window is planned for; it becomes `processedThrough` once handled.
+     * The anchor or reset this window is planned for; it becomes `processedThroughAt` once handled.
      */
     plannedAt: number;
     reason: 'anchor' | 'renewal';
@@ -151,14 +151,14 @@ function dueWindow(
     firstWorkdayResetMinutes: number,
     memory: KeeperMemory,
 ): DueWindow | undefined {
-    const processedThrough = memory.processedThrough ?? -Infinity;
+    const processedThroughAt = memory.processedThroughAt ?? -Infinity;
     const candidates: Array<Omit<DueWindow, 'isMissed'>> = [];
     const anchor = previousAnchor(now, firstWorkdayResetMinutes);
-    if (anchor > processedThrough && now < anchor + WINDOW_MS)
+    if (anchor > processedThroughAt && now < anchor + WINDOW_MS)
         candidates.push({ plannedAt: anchor, reason: 'anchor' });
     // A reset older than the latest anchor belongs to a chain a new day already replaced (Caxri was closed for days).
     const reset = memory.observedResetAt;
-    if (reset !== undefined && reset <= now && reset > processedThrough && reset >= anchor)
+    if (reset !== undefined && reset <= now && reset > processedThroughAt && reset >= anchor)
         candidates.push({ plannedAt: reset, reason: 'renewal' });
     if (candidates.length === 0) return undefined;
     const [due] = candidates.toSorted((a, b) => b.plannedAt - a.plannedAt);
@@ -167,7 +167,7 @@ function dueWindow(
 
 /**
  * What the keeper does at `now` for an enabled account, from a fresh reading. Pure: the caller persists the spent
- * window (`processedThrough`) before it sends anything, so a crash mid-request never sends twice.
+ * window (`processedThroughAt`) before it sends anything, so a crash mid-request never sends twice.
  */
 export function decide(
     now: number,

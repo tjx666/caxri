@@ -1,27 +1,20 @@
-import { mkdtemp, rm } from 'node:fs/promises';
 // oxlint-disable typescript/require-await, typescript/unbound-method -- Async Host fakes and Vitest method assertions have no this binding.
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 
 import type { CommandAdapter, Principal } from '@caxri/protocol';
 import { CAXRI_PROTOCOL_VERSION, CaxriError } from '@caxri/protocol';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { TerminalExecutionPort, TerminalObserverEvent } from '../../../domains/terminal';
+import { createMemoryMobileDeviceStore } from '../../__tests__/credential-stores.fixture';
 import { MobileDeviceRegistry } from '../device-registry';
 import { MobileGateway } from '../gateway';
 import { isMobileGatewayMethodAllowedForRole } from '../role-methods';
 import { connectDevice } from './gateway-client.fixture';
 
-const temporaryDirectories: string[] = [];
-
-async function registryFixture() {
-    const directory = await mkdtemp(join(tmpdir(), 'caxri-mobile-gateway-subscription-'));
-    temporaryDirectories.push(directory);
+function registryFixture() {
     let byte = 1;
     return MobileDeviceRegistry.open({
-        directory,
-        path: join(directory, 'mobile-devices.json'),
+        store: createMemoryMobileDeviceStore(),
         now: () => 1_788_106_000_000 + byte,
         random: (bytes) => new Uint8Array(bytes).fill(byte++),
     });
@@ -40,15 +33,9 @@ const subscriptionOptions = {
     matchesSubscriptionEvent: () => Promise.resolve(true),
 };
 
-afterEach(async () => {
-    const paths = [...temporaryDirectories];
-    temporaryDirectories.length = 0;
-    await Promise.all(paths.map((path) => rm(path, { recursive: true, force: true })));
-});
-
 describe('MobileGateway subscriptions', () => {
     it('aborts queued Terminal input as soon as revocation begins, before registry persistence', async () => {
-        const registry = await registryFixture();
+        const registry = registryFixture();
         const record = registry.preparePair({
             displayName: 'Test tablet',
             platform: 'android',
@@ -142,7 +129,7 @@ describe('MobileGateway subscriptions', () => {
     });
 
     it('resyncs a view-only Terminal observer when its Host exits without input or a lease', async () => {
-        const registry = await registryFixture();
+        const registry = registryFixture();
         const candidate = registry.preparePair({
             displayName: 'Test tablet',
             platform: 'android',
@@ -206,7 +193,7 @@ describe('MobileGateway subscriptions', () => {
     });
 
     it('ACKs before Terminal snapshot, streams Host output, and releases only its lease on revoke', async () => {
-        const registry = await registryFixture();
+        const registry = registryFixture();
         const record = registry.preparePair({
             displayName: 'Test tablet',
             platform: 'android',
@@ -342,7 +329,7 @@ describe('MobileGateway subscriptions', () => {
     });
 
     it('routes subscriptions, live dashboard hints, and heartbeat over one encrypted socket', async () => {
-        const registry = await registryFixture();
+        const registry = registryFixture();
         const record = registry.preparePair({
             displayName: 'Test tablet',
             platform: 'android',
@@ -431,7 +418,7 @@ describe('MobileGateway subscriptions', () => {
     });
 
     it('lets heartbeat and a fast command complete while another command is pending', async () => {
-        const registry = await registryFixture();
+        const registry = registryFixture();
         const record = registry.preparePair({
             displayName: 'Test tablet',
             platform: 'android',
@@ -508,7 +495,7 @@ describe('MobileGateway subscriptions', () => {
     });
 
     it('can publish an authenticated event before the subscription acknowledgement', async () => {
-        const registry = await registryFixture();
+        const registry = registryFixture();
         const record = registry.preparePair({
             displayName: 'Test tablet',
             platform: 'android',

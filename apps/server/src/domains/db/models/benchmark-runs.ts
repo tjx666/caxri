@@ -5,8 +5,8 @@ import { desc, eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 
 import type { CaxriDrizzleDatabase } from '../connection';
-import * as schema from '../full-schema';
-import { benchmarkRuns } from '../schema-benchmark';
+import * as schema from '../schema';
+import { benchmarkRuns } from '../schema';
 
 /**
  * Pure persistence for Benchmark runs. Scheduling and Attempt lifecycle live in the Benchmark domain. A document that

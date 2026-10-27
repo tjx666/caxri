@@ -11,6 +11,7 @@ import type { DomainHandlers } from '../../domains/domain-services';
 import type { CreateDomainServices } from '../domain-service';
 import type { ServerCore } from '../server-core';
 import { startServerCore } from '../server-core';
+import { createMemoryCredentialStores } from './credential-stores.fixture';
 
 const apps: ServerCore[] = [];
 const directories: string[] = [];
@@ -61,6 +62,7 @@ function createInvalidEventFixture(): CreateDomainServices {
         return Promise.resolve({
             close: async () => dependencies.agentEndpoints?.close(),
             handlers: fixtureHandlers(handlers),
+            credentials: createMemoryCredentialStores(),
             protocolRecovery: createTestProtocolRecoveryState(),
             validateRequestContext: () => {},
         });

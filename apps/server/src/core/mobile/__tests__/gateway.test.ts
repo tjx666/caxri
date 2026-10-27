@@ -21,12 +21,11 @@ import {
 } from '@caxri/mobile-transport';
 import type { CommandAdapter } from '@caxri/protocol';
 import { CAXRI_PROTOCOL_VERSION } from '@caxri/protocol';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { MobileGateway, selectMobileGatewayAddress } from '../gateway';
 import {
     authorizeMethod,
-    cleanupRegistryDirectories,
     connectDevice,
     nextMessage,
     openSocket,
@@ -34,11 +33,9 @@ import {
     subscriptionOptions,
 } from './gateway-client.fixture';
 
-afterEach(cleanupRegistryDirectories);
-
 describe('MobileGateway', () => {
     it('records bounded transport causes without peer or payload contents', async () => {
-        const registry = await registryFixture();
+        const registry = registryFixture();
         const write = vi.fn();
         const gateway = new MobileGateway({
             ...subscriptionOptions,
@@ -100,7 +97,7 @@ describe('MobileGateway', () => {
     it.each(['view', 'reply', 'control'] as const)(
         'enforces the %s role on each encrypted request and rejects a revoked generation',
         async (role) => {
-            const registry = await registryFixture();
+            const registry = registryFixture();
             const record = {
                 ...registry.preparePair({
                     displayName: 'Test tablet',
@@ -301,7 +298,7 @@ describe('MobileGateway', () => {
     it.each(['pair', 'connect'] as const)(
         'returns an explicit version mismatch before %s authentication',
         async (mode) => {
-            const registry = await registryFixture();
+            const registry = registryFixture();
             const gateway = new MobileGateway({
                 ...subscriptionOptions,
                 adapters: { server: { invoke: vi.fn() } },
@@ -340,7 +337,7 @@ describe('MobileGateway', () => {
     );
 
     it('consumes a pairing ID on the first hello and rejects a second handshake', async () => {
-        const registry = await registryFixture();
+        const registry = registryFixture();
         const gateway = new MobileGateway({
             ...subscriptionOptions,
             adapters: { server: { invoke: vi.fn() } },
@@ -404,7 +401,7 @@ describe('MobileGateway', () => {
     });
 
     it('reuses the persisted endpoint port after mobile access is toggled', async () => {
-        const registry = await registryFixture();
+        const registry = registryFixture();
         const gateway = new MobileGateway({
             ...subscriptionOptions,
             adapters: { server: { invoke: vi.fn() } },
@@ -422,7 +419,7 @@ describe('MobileGateway', () => {
     });
 
     it('owns and closes a pre-upgrade TCP connection when mobile access is disabled', async () => {
-        const registry = await registryFixture();
+        const registry = registryFixture();
         const gateway = new MobileGateway({
             ...subscriptionOptions,
             adapters: { server: { invoke: vi.fn() } },
@@ -452,7 +449,7 @@ describe('MobileGateway', () => {
     ])(
         'keeps $credential credentials indistinguishable after revoke=$revokeBeforeConnect',
         async ({ credential, revokeBeforeConnect }) => {
-            const registry = await registryFixture();
+            const registry = registryFixture();
             const paired = await registry.pair({
                 displayName: 'Credential test tablet',
                 platform: 'android',
@@ -548,7 +545,7 @@ describe('MobileGateway', () => {
     );
 
     it('pairs and authenticates a Tailscale source, rejects forbidden methods, and revokes the live generation', async () => {
-        const registry = await registryFixture();
+        const registry = registryFixture();
         const sourceAddress = vi.fn(() => '100.100.100.1');
         const invoke = vi.fn<CommandAdapter['invoke']>((request) => {
             if (request.method !== 'mobile.dashboard')

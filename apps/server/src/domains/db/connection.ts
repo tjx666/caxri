@@ -6,7 +6,6 @@ import { inArray } from 'drizzle-orm';
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 
-import * as schema from './full-schema';
 import {
     BASELINE_SCHEMA_VERSION,
     CURRENT_SCHEMA_VERSION,
@@ -14,6 +13,7 @@ import {
     migrationsAfterBaseline,
 } from './migrations/manifest';
 import { backupBeforeRebuild } from './rebuild-backup';
+import * as schema from './schema';
 import { terminals } from './schema';
 import type { ShutdownReason } from './session-policy';
 import { shutdownOutcome } from './session-policy';
@@ -135,6 +135,44 @@ function migrateWithForeignKeysOff(
     }
 }
 
+interface ProcessGroupRow {
+    pgid: number;
+    terminal_id: string;
+    leader_started_at: string;
+    recorded_at: number;
+}
+
+/**
+ * Owner-declared clean-install cutoff: pre-baseline development metadata is rebuilt, never upgraded. Every table goes,
+ * including ones a later schema renamed or removed, so nothing of the old shape can collide with the baseline. Project
+ * folders and user files are never touched, and `backupBeforeRebuild` kept a copy of the old database beside it.
+ *
+ * Returns the provider process-group ledger first: a Server Core that was killed left those Agent process groups
+ * running, and the startup sweep (`reapStaleProviderGroups`) can only stop what the rebuilt ledger still lists.
+ */
+function dropPreBaselineTables(database: Database.Database): ProcessGroupRow[] {
+    const tables = database
+        .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'")
+        .pluck()
+        .all() as string[];
+    const processGroups = tables.includes('agent_chat_process_groups')
+        ? (database
+              .prepare(
+                  'SELECT pgid, terminal_id, leader_started_at, recorded_at FROM agent_chat_process_groups',
+              )
+              .all() as ProcessGroupRow[])
+        : [];
+    for (const table of tables) database.exec(`DROP TABLE "${table.replaceAll('"', '""')}"`);
+    return processGroups;
+}
+
+function restoreProcessGroups(database: Database.Database, rows: readonly ProcessGroupRow[]): void {
+    const insert = database.prepare(
+        'INSERT INTO agent_chat_process_groups (pgid, terminal_id, leader_started_at, recorded_at) VALUES (@pgid, @terminal_id, @leader_started_at, @recorded_at)',
+    );
+    for (const row of rows) insert.run(row);
+}
+
 function initializeSchema(database: Database.Database): void {
     const version = database.pragma('user_version', { simple: true }) as number;
     if (version > CURRENT_SCHEMA_VERSION) {
@@ -151,45 +189,12 @@ function initializeSchema(database: Database.Database): void {
         backupBeforeRebuild(database, database.name, version);
     // Every pending step commits atomically or not at all, with foreign keys off; see migrateWithForeignKeysOff.
     migrateWithForeignKeysOff(database, CURRENT_SCHEMA_VERSION, () => {
-        if (version > 0 && version < BASELINE_SCHEMA_VERSION) {
-            /**
-             * Owner-declared clean-install cutoff: pre-baseline development metadata is rebuilt, never upgraded.
-             * Project folders and user files are never touched, and `backupBeforeRebuild` kept a copy of the old
-             * database beside it.
-             */
-            database.exec(`
-                DROP TABLE IF EXISTS claude_window_schedules;
-                DROP TABLE IF EXISTS agent_chat_subagents;
-                DROP TABLE IF EXISTS agent_chat_answered_notices;
-                DROP TABLE IF EXISTS agent_chat_process_groups;
-                DROP TABLE IF EXISTS benchmark_runs;
-                DROP TABLE IF EXISTS bot_inbox_replies;
-                DROP TABLE IF EXISTS bot_inbox_items;
-                DROP TABLE IF EXISTS bot_pending_notices;
-                DROP TABLE IF EXISTS bot_tasks;
-                DROP TABLE IF EXISTS commander_inbox_replies;
-                DROP TABLE IF EXISTS commander_inbox_items;
-                DROP TABLE IF EXISTS commander_pending_notices;
-                DROP TABLE IF EXISTS commander_tasks;
-                DROP TABLE IF EXISTS agent_session_usage;
-                DROP TABLE IF EXISTS external_agent_usage;
-                DROP TABLE IF EXISTS pull_request_outcomes;
-                DROP TABLE IF EXISTS protocol_changefeed;
-                DROP TABLE IF EXISTS protocol_command_receipts;
-                DROP TABLE IF EXISTS protocol_identity;
-                DROP TABLE IF EXISTS agent_delegations;
-                DROP TABLE IF EXISTS agent_dispatch_receipts;
-                DROP TABLE IF EXISTS mobile_agent_submit_receipts;
-                DROP TABLE IF EXISTS terminal_snapshots;
-                DROP TABLE IF EXISTS session_state;
-                DROP TABLE IF EXISTS terminals;
-                DROP TABLE IF EXISTS sessions;
-                DROP TABLE IF EXISTS projects;
-                DROP TABLE IF EXISTS app_state;
-            `);
-        }
-        if (version < BASELINE_SCHEMA_VERSION) installCurrentSchema(database);
-        else
+        const processGroups =
+            version > 0 && version < BASELINE_SCHEMA_VERSION ? dropPreBaselineTables(database) : [];
+        if (version < BASELINE_SCHEMA_VERSION) {
+            installCurrentSchema(database);
+            restoreProcessGroups(database, processGroups);
+        } else
             for (const migration of migrationsAfterBaseline)
                 if (migration.version > version) runGeneratedSql(database, migration.sql);
         database.pragma(`user_version = ${CURRENT_SCHEMA_VERSION}`);
@@ -228,7 +233,7 @@ export interface OpenedDatabase {
      */
     database: Database.Database;
     /**
-     * Drizzle query-builder instance bound to the same connection and to `./schema`.
+     * Drizzle query-builder instance bound to the same connection and to `./schema` (every table).
      */
     db: CaxriDrizzleDatabase;
 }

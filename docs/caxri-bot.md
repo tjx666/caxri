@@ -497,7 +497,7 @@ and the composer stays the way to answer anything else. Questions sort
 above pull requests, because a question blocks Caxri Bot while a ready pull request only waits.
 
 **Storage.** Items and replies live in `bot_inbox_items` and `bot_inbox_replies`
-(`apps/server/src/domains/db/schema-bot.ts`), owned by `BotInboxService`
+(`apps/server/src/domains/db/schema/bot.ts`), owned by `BotInboxService`
 (`apps/server/src/domains/bot/inbox.ts`). An open item is unique per `kind` and key: a
 `merge` item is keyed by its pull request URL, so reporting the same pull request again replaces
 the open item and bumps its `revision` instead of adding a second card. A question uses the

@@ -12,7 +12,7 @@ const projectRoot = resolve(import.meta.dirname, '..');
  * Mirrors `BASELINE_SCHEMA_VERSION`; the manifest itself imports SQL through `?raw`, which Playwright cannot load. A
  * later migration upgrades this seeded database like any other post-baseline install.
  */
-const BASELINE_SCHEMA_VERSION = 39;
+const BASELINE_SCHEMA_VERSION = 54;
 
 async function seedProjects(databasePath: string, roots: string[]): Promise<void> {
     const database = new Database(databasePath);

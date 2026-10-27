@@ -124,7 +124,6 @@ describe('AgentCoordinator', () => {
                 // Agent CLI never reports that title through OSC 0/2, so without this every Agent tab reads "Claude".
                 expect(database.getTerminal(created.terminal!.id)).toMatchObject({
                     agentSessionId: `${provider}-session`,
-                    icon: provider,
                     kind: provider,
                     title: `${provider} from Shell`,
                 });
@@ -171,7 +170,6 @@ describe('AgentCoordinator', () => {
             expect(detectForegroundAgent).toHaveBeenCalledWith(4242);
             expect(database.getTerminal(created.terminal!.id)).toMatchObject({
                 agentSessionId: undefined,
-                icon: 'codex',
                 kind: 'codex',
                 title: 'Codex',
             });

@@ -3,7 +3,7 @@ import { agentChatItemSchema } from '@caxri/protocol';
 import { and, asc, eq, inArray } from 'drizzle-orm';
 
 import type { CaxriDrizzleDatabase } from '../connection';
-import { agentChatAnsweredNotices } from '../schema-agent-chat';
+import { agentChatAnsweredNotices } from '../schema';
 
 /**
  * An `answered` notice item with the item it followed, the anchor a history replay re-inserts it after.

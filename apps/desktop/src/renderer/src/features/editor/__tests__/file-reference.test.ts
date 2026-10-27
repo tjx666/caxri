@@ -17,7 +17,6 @@ function terminal(overrides: Partial<TerminalRecord> & Pick<TerminalRecord, 'id'
         kind: 'shell',
         cwd: '/repo',
         title: overrides.id,
-        icon: 'terminal',
         orderIndex: 0,
         lastProcessState: 'running',
         createdAt: 0,

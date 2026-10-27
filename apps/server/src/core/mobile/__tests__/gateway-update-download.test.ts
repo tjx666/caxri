@@ -11,6 +11,7 @@ import {
 } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { createMemoryMobileDeviceStore } from '../../__tests__/credential-stores.fixture';
 import type { MobileDeviceRecord } from '../device-registry';
 import { MobileDeviceRegistry } from '../device-registry';
 import { MobileGateway } from '../gateway';
@@ -49,9 +50,8 @@ const writeBundle = async (directory: string, sizeBytes = APK_BYTES.length): Pro
 const openGateway = async (now: () => number) => {
     const directory = await temporaryDirectory();
     let byte = 1;
-    const registry = await MobileDeviceRegistry.open({
-        directory,
-        path: join(directory, 'mobile-devices.json'),
+    const registry = MobileDeviceRegistry.open({
+        store: createMemoryMobileDeviceStore(),
         now: () => 1_788_106_000_000 + byte,
         random: (bytes) => new Uint8Array(bytes).fill(byte++),
     });

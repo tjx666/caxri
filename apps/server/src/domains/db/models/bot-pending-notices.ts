@@ -1,7 +1,7 @@
 import { and, asc, eq, lte, or } from 'drizzle-orm';
 
 import type { CaxriDrizzleDatabase } from '../connection';
-import { botPendingNotices } from '../schema-bot';
+import { botPendingNotices } from '../schema';
 
 type BotNoticeStatus = 'completed' | 'failed' | 'needsInput';
 

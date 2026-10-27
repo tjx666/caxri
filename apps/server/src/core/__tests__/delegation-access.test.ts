@@ -1,20 +1,12 @@
-import { mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-
 import type { CommandExecutionContext } from '@caxri/protocol';
-import { expect, it, onTestFinished, vi } from 'vitest';
+import { expect, it, vi } from 'vitest';
 
 import { invokeDelegationAccess } from '../delegation-access';
 import { DelegationAccessRegistry } from '../delegation-access-registry';
+import { createMemoryDelegationClientStore } from './credential-stores.fixture';
 
 it('requires the owner CLI and validates the authoritative directory binding before issuing credentials', async () => {
-    const directory = await mkdtemp(join(tmpdir(), 'caxri-access-owner-'));
-    onTestFinished(() => rm(directory, { recursive: true, force: true }));
-    const registry = await DelegationAccessRegistry.open(
-        directory,
-        join(directory, 'clients.json'),
-    );
+    const registry = DelegationAccessRegistry.open(createMemoryDelegationClientStore());
     const forward = vi.fn(() =>
         Promise.resolve({ projectId: 'project', sessionId: 'session', callerProvider: 'codex' }),
     );

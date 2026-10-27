@@ -20,7 +20,6 @@ const terminal: TerminalRecord = {
     kind: 'codex',
     provider: 'codex',
     title: 'Fake Agent',
-    icon: 'terminal',
     orderIndex: 0,
     lastProcessState: 'running',
     createdAt: 1,

@@ -1,1 +1,0 @@
-ALTER TABLE `terminals` ADD `surface` text DEFAULT 'pty' NOT NULL;

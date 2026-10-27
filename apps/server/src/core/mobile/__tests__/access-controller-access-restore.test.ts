@@ -1,15 +1,11 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-
 import type { CommandExecutionContext, MobileAccessStatus } from '@caxri/protocol';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { TerminalExecutionPort } from '../../../domains/terminal';
+import { createMemoryMobileDeviceStore } from '../../__tests__/credential-stores.fixture';
 import type { ServerDomainService } from '../../domain-service';
 import { openMobileAccessController } from '../access-controller';
 
-const temporaryDirectories: string[] = [];
 const terminalExecution = {
     onObserverEvent: () => () => {},
     onHostExit: () => () => {},
@@ -20,21 +16,12 @@ const context = {
     principal: { kind: 'owner', id: 'owner' },
 } as unknown as CommandExecutionContext;
 
-afterEach(async () => {
-    const paths = [...temporaryDirectories];
-    temporaryDirectories.length = 0;
-    await Promise.all(paths.map((path) => rm(path, { recursive: true, force: true })));
-});
-
 describe('MobileAccessController remembered access switch', () => {
     it('reopens the gateway on the next start only while the owner left access on', async () => {
-        const directory = await mkdtemp(join(tmpdir(), 'caxri-mobile-restore-'));
-        temporaryDirectories.push(directory);
-        const registryPath = join(directory, 'mobile-devices.json');
-        const start = async () => {
-            const controller = await openMobileAccessController({
-                directory,
-                registryPath,
+        const store = createMemoryMobileDeviceStore();
+        const start = () => {
+            const controller = openMobileAccessController({
+                store,
                 selectAddress: () => '127.0.0.1',
             });
             controller.attach(
@@ -56,7 +43,7 @@ describe('MobileAccessController remembered access switch', () => {
             return { controller, isEnabled };
         };
 
-        const first = await start();
+        const first = start();
         expect(await first.isEnabled()).toBe(false);
         await first.controller.invokeControl(
             { method: 'mobile.access.enable', params: {} },
@@ -64,11 +51,9 @@ describe('MobileAccessController remembered access switch', () => {
             domainService,
         );
         await first.controller.close();
-        expect(JSON.parse(await readFile(registryPath, 'utf8'))).toMatchObject({
-            accessEnabled: true,
-        });
+        expect(store.preferences).toMatchObject({ accessEnabled: true });
 
-        const second = await start();
+        const second = start();
         await vi.waitFor(async () => expect(await second.isEnabled()).toBe(true));
         await second.controller.invokeControl(
             { method: 'mobile.access.disable', params: {} },
@@ -78,7 +63,6 @@ describe('MobileAccessController remembered access switch', () => {
         await second.controller.close();
 
         // The next start reads this flag; `access-persistence.test.ts` covers that a cleared flag never reopens.
-        const store = JSON.parse(await readFile(registryPath, 'utf8')) as Record<string, unknown>;
-        expect(store).not.toHaveProperty('accessEnabled');
+        expect(store.preferences).not.toHaveProperty('accessEnabled');
     });
 });

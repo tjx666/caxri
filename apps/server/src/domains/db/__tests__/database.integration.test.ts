@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import Database from 'better-sqlite3';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 
 import { CURRENT_SCHEMA_VERSION } from '../connection';
 import type { DatabaseTransactionObservation } from '../database-connection';
@@ -196,9 +196,8 @@ describe('CaxriDatabaseConnection', () => {
         const now = Date.now();
         const insertAtFirstPosition = database.database.prepare(
             `INSERT INTO terminals
-             (id, session_id, kind, provider, cwd, title, icon, order_index,
-              last_process_state, created_at, updated_at)
-             VALUES (?, ?, 'shell', NULL, ?, 'Shell', 'shell', 0, 'stopped', ?, ?)`,
+             (id, session_id, kind, cwd, title, order_index, last_process_state, created_at, updated_at)
+             VALUES (?, ?, 'shell', ?, 'Shell', 0, 'stopped', ?, ?)`,
         );
         insertAtFirstPosition.run('terminal-a', session.id, root, now, now);
 
@@ -310,6 +309,32 @@ describe('CaxriDatabaseConnection', () => {
             { rootPath: projectRoot },
         ]);
         backup.close();
+    });
+
+    it('drops legacy tables on a pre-baseline rebuild but keeps the Agent process groups to reap', async () => {
+        const directory = await temporaryDirectory('caxri-db-rebuild-legacy-');
+        const databasePath = join(directory, 'state.db');
+        const previous = new CaxriDatabase(databasePath);
+        previous.database.exec(`
+            CREATE TABLE commander_tasks (id TEXT PRIMARY KEY);
+            INSERT INTO agent_chat_process_groups (pgid, terminal_id, leader_started_at, recorded_at)
+                VALUES (4242, 'terminal-gone', 'Tue Oct 20 16:09:54 2026', 1);
+        `);
+        previous.database.pragma(`user_version = ${BASELINE_SCHEMA_VERSION - 1}`);
+        previous.close();
+
+        new CaxriDatabase(databasePath).close();
+
+        const rebuilt = new Database(databasePath, { readonly: true });
+        onTestFinished(() => {
+            rebuilt.close();
+        });
+        expect(
+            rebuilt.prepare("SELECT name FROM sqlite_master WHERE name = 'commander_tasks'").all(),
+        ).toEqual([]);
+        expect(
+            rebuilt.prepare('SELECT pgid, terminal_id FROM agent_chat_process_groups').all(),
+        ).toEqual([{ pgid: 4242, terminal_id: 'terminal-gone' }]);
     });
 
     it('leaves a pre-baseline database untouched when its backup cannot be written', async () => {

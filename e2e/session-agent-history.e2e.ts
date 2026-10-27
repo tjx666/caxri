@@ -83,9 +83,9 @@ test("a Session's context menu reopens a closed past conversation", async () => 
         try {
             database
                 .prepare(
-                    'UPDATE terminals SET kind = ?, provider = ?, agent_session_id = ?, last_process_state = ? WHERE id = ?',
+                    'UPDATE terminals SET kind = ?, agent_session_id = ?, last_process_state = ? WHERE id = ?',
                 )
-                .run('claude', 'claude', CURRENT, 'stopped', terminal.id);
+                .run('claude', CURRENT, 'stopped', terminal.id);
             database
                 .prepare('UPDATE sessions SET primary_agent_terminal_id = ? WHERE id = ?')
                 .run(terminal.id, sessionId);

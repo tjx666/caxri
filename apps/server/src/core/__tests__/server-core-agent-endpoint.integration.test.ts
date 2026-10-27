@@ -20,6 +20,7 @@ import type { CreateDomainServices } from '../../core/domain-service';
 import type { DomainHandlers } from '../../domains/domain-services';
 import type { ServerCore } from '../server-core';
 import { startServerCore } from '../server-core';
+import { createMemoryCredentialStores } from './credential-stores.fixture';
 
 /**
  * Split out of `server-core.integration.test.ts` (see `source-size-ratchet`) because these two tests, and only these
@@ -72,7 +73,6 @@ function createAgentEndpointFixture(paths: AgentFixturePaths): CreateDomainServi
             provider: 'codex',
             cwd: '/projects/fixture',
             title: 'Codex',
-            icon: '',
             orderIndex: 0,
             lastProcessState: 'running',
             createdAt: 1,
@@ -160,6 +160,7 @@ function createAgentEndpointFixture(paths: AgentFixturePaths): CreateDomainServi
         return {
             close: () => endpoints.close(),
             handlers: fixtureHandlers(handlers),
+            credentials: createMemoryCredentialStores(),
             protocolRecovery: createTestProtocolRecoveryState(),
             validateRequestContext: () => {},
         };

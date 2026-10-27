@@ -18,6 +18,14 @@ export type {
 } from './models/bot-pending-notices';
 export type { ClaudeWindowSchedule } from './models/claude-window-schedules';
 export { ClaudeWindowSchedulesModel } from './models/claude-window-schedules';
+export type {
+    DelegationClientRow,
+    DelegationClientStore,
+    MobileDeviceRow,
+    MobileDeviceStore,
+    MobileGatewayPreferenceRow,
+    ServerCredentialStores,
+} from './models/server-credentials';
 export { SessionViewsModel } from './models/session-views';
 export { CaxriDatabase } from './repository';
 export { shutdownOutcome, type ShutdownReason } from './session-policy';

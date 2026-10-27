@@ -17,20 +17,17 @@ import {
 } from '@caxri/mobile-transport';
 import type { CommandAdapter } from '@caxri/protocol';
 import { CAXRI_PROTOCOL_VERSION } from '@caxri/protocol';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { MobileGateway } from '../gateway';
 import {
     authorizeMethod,
-    cleanupRegistryDirectories,
     connectDevice,
     nextMessage,
     openSocket,
     registryFixture,
     subscriptionOptions,
 } from './gateway-client.fixture';
-
-afterEach(cleanupRegistryDirectories);
 
 /**
  * Structured-log coverage for the mobile gateway's diagnostics instrumentation (issue caxri#739): bounded failure
@@ -39,7 +36,7 @@ afterEach(cleanupRegistryDirectories);
  */
 describe('MobileGateway diagnostics', () => {
     it('records exactly one handshakeTimeout failure when a socket never completes its handshake', async () => {
-        const registry = await registryFixture();
+        const registry = registryFixture();
         const write = vi.fn();
         const gateway = new MobileGateway({
             ...subscriptionOptions,
@@ -69,7 +66,7 @@ describe('MobileGateway diagnostics', () => {
     });
 
     it('records exactly one admissionRate failure once a source exhausts its connection window', async () => {
-        const registry = await registryFixture();
+        const registry = registryFixture();
         const write = vi.fn();
         const gateway = new MobileGateway({
             ...subscriptionOptions,
@@ -124,7 +121,7 @@ describe('MobileGateway diagnostics', () => {
     });
 
     it('distinguishes pairing outcomes and keeps a per-lifetime count of each', async () => {
-        const registry = await registryFixture();
+        const registry = registryFixture();
         const write = vi.fn();
         let clock = 1_000_000;
         const gateway = new MobileGateway({
@@ -254,7 +251,7 @@ describe('MobileGateway diagnostics', () => {
     });
 
     it('records connection lifecycle with an established event and a durationMs on close', async () => {
-        const registry = await registryFixture();
+        const registry = registryFixture();
         const record = registry.preparePair({
             displayName: 'Test tablet',
             platform: 'android',
@@ -298,7 +295,7 @@ describe('MobileGateway diagnostics', () => {
     });
 
     it('logs a replayed frame counter as replayRejected instead of a generic invalid frame', async () => {
-        const registry = await registryFixture();
+        const registry = registryFixture();
         const record = registry.preparePair({
             displayName: 'Test tablet',
             platform: 'android',
@@ -352,7 +349,7 @@ describe('MobileGateway diagnostics', () => {
     });
 
     it('logs exactly one enabled and one disabled event across a toggle', async () => {
-        const registry = await registryFixture();
+        const registry = registryFixture();
         const write = vi.fn();
         const gateway = new MobileGateway({
             ...subscriptionOptions,
@@ -377,7 +374,7 @@ describe('MobileGateway diagnostics', () => {
     });
 
     it('keeps log fields to closed reasons, counts, durations, and identifiers, never secrets or payloads', async () => {
-        const registry = await registryFixture();
+        const registry = registryFixture();
         const record = registry.preparePair({
             displayName: 'Secret Display Name',
             platform: 'android',

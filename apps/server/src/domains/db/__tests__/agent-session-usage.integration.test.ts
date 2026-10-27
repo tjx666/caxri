@@ -2,12 +2,9 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import Database from 'better-sqlite3';
 import { describe, expect, it, onTestFinished } from 'vitest';
 
-import { CURRENT_SCHEMA_VERSION } from '../connection';
 import { CaxriDatabase } from '../index';
-import { createDatabaseBeforeMigration } from './pre-migration.fixture';
 
 async function openDatabase() {
     const directory = await mkdtemp(join(tmpdir(), 'caxri-db-usage-'));
@@ -99,24 +96,5 @@ describe('Agent Session usage ledger', () => {
         expect(database.agentSessionUsage.listExternal()).toEqual([
             { ...row, cwd: '/work', scannedAt: 6 },
         ]);
-    });
-
-    it('creates the usage tables when upgrading across each of their migrations', async () => {
-        const tags = ['0002_agent_session_usage', '0003_external_agent_usage'] as const;
-        for (const tag of tags) {
-            // eslint-disable-next-line no-await-in-loop -- each upgrade gets its own database
-            const { path } = await createDatabaseBeforeMigration(tag);
-
-            const upgraded = new CaxriDatabase(path);
-            onTestFinished(() => upgraded.close());
-            expect(upgraded.agentSessionUsage.list()).toEqual([]);
-            expect(upgraded.agentSessionUsage.listPullRequestOutcomes()).toEqual([]);
-            expect(upgraded.agentSessionUsage.listExternal()).toEqual([]);
-            const check = new Database(path, { readonly: true });
-            onTestFinished(() => {
-                check.close();
-            });
-            expect(check.pragma('user_version', { simple: true })).toBe(CURRENT_SCHEMA_VERSION);
-        }
     });
 });

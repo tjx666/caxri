@@ -21,7 +21,6 @@ function terminal(overrides: Partial<TerminalRecord> = {}): TerminalRecord {
         provider: 'claude',
         cwd: '/tmp/project',
         title: 'claude',
-        icon: 'claude',
         orderIndex: 0,
         lastProcessState: 'running',
         lastAgentProcessState: 'running',

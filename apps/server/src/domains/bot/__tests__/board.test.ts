@@ -38,7 +38,6 @@ function terminal(overrides: Partial<TerminalRecord> = {}): TerminalRecord {
         kind: 'codex',
         cwd: '/workspace/project',
         title: 'Codex',
-        icon: 'codex',
         orderIndex: 0,
         lastProcessState: 'running',
         lastAgentProcessState: 'running',

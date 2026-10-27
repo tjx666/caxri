@@ -22,7 +22,6 @@ const terminal: TerminalRecord = {
     cwd: '/project',
     kind: 'shell',
     title: 'Shell',
-    icon: 'terminal',
     orderIndex: 0,
     lastProcessState: 'starting',
     createdAt: 1,

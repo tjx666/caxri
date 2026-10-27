@@ -5,7 +5,7 @@ import { MAX_BOT_TASKS, openBotTaskStatuses } from '@caxri/protocol';
 import { and, asc, count, desc, eq, inArray, ne, notInArray } from 'drizzle-orm';
 
 import type { CaxriDrizzleDatabase } from '../connection';
-import { botTasks } from '../schema-bot';
+import { botTasks } from '../schema';
 
 type BotTaskRow = typeof botTasks.$inferSelect;
 

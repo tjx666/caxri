@@ -592,6 +592,7 @@ export async function createDomainServices(
         close,
         onActiveContextChanged: (listener) => presence.onCurrentChange(listener),
         onConnectionClosed: (connectionId) => presence.dropConnection(connectionId),
+        credentials: database.credentials,
         protocolRecovery: database.protocolState,
         validateRequestContext: (context) => validateWorkbenchRequestContext(database, context),
     };

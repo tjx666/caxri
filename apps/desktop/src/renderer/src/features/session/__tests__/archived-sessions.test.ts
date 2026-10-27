@@ -58,7 +58,6 @@ function terminal(
         kind,
         cwd: `/projects/${sessionId}`,
         title: kind,
-        icon: kind,
         orderIndex,
         lastProcessState: 'stopped',
         createdAt: 1,

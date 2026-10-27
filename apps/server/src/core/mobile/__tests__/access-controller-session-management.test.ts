@@ -1,32 +1,20 @@
-import { mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-
 import type { CommandExecutionContext } from '@caxri/protocol';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { TerminalExecutionPort } from '../../../domains/terminal';
+import { createMemoryMobileDeviceStore } from '../../__tests__/credential-stores.fixture';
 import type { ServerDomainService } from '../../domain-service';
 import { openMobileAccessController } from '../access-controller';
 import { MobileDeviceRegistry } from '../device-registry';
 
-const temporaryDirectories: string[] = [];
 const terminalExecution = {
     onObserverEvent: () => () => {},
     onHostExit: () => () => {},
 } as unknown as TerminalExecutionPort;
 
-afterEach(async () => {
-    const paths = [...temporaryDirectories];
-    temporaryDirectories.length = 0;
-    await Promise.all(paths.map((path) => rm(path, { recursive: true, force: true })));
-});
-
 const open = async () => {
-    const directory = await mkdtemp(join(tmpdir(), 'caxri-mobile-session-management-'));
-    temporaryDirectories.push(directory);
-    const registryPath = join(directory, 'mobile-devices.json');
-    const registry = await MobileDeviceRegistry.open({ directory, path: registryPath });
+    const store = createMemoryMobileDeviceStore();
+    const registry = MobileDeviceRegistry.open({ store });
     const paired = await registry.pair({
         displayName: 'Test phone',
         platform: 'ios',
@@ -37,7 +25,7 @@ const open = async () => {
         deviceId: paired.device.deviceId,
         generation: paired.device.generation,
     });
-    const controller = await openMobileAccessController({ directory, registryPath });
+    const controller = openMobileAccessController({ store });
     controller.attach(
         { invoke: vi.fn() },
         'b'.repeat(32),

@@ -17,12 +17,11 @@ import {
     uniqueIndex,
 } from 'drizzle-orm/sqlite-core';
 
-import { projects, sessions } from './schema';
-import { closedValues, isOneOf } from './schema-constraints';
+import { closedValues, isOneOf } from './constraints';
+import { projects, sessions } from './core';
 
 /**
- * Caxri Bot tables. Kept beside `./schema` rather than in it so the core schema stays one reviewable file;
- * `./full-schema` joins both for drizzle-kit, the drift guard, and the connection.
+ * Caxri Bot tables.
  */
 
 const botTaskStatuses = closedValues<BotTaskStatus>()([
@@ -60,6 +59,8 @@ export const botTasks = sqliteTable(
     },
     (table) => [
         index('bot_tasks_status').on(table.status),
+        index('bot_tasks_project').on(table.projectId),
+        index('bot_tasks_session').on(table.sessionId),
         uniqueIndex('bot_tasks_delegation').on(table.delegationId),
         check('bot_tasks_status', isOneOf(table.status, botTaskStatuses)),
     ],

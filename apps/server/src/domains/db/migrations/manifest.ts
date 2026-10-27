@@ -3,20 +3,6 @@
 // `bunx drizzle-kit generate` from `schema.ts`; keep these in sync by regenerating rather than
 // hand-editing migration files.
 import baselineMigrationSql from './0000_baseline.sql?raw';
-import terminalSurfaceMigrationSql from './0001_terminal_surface.sql?raw';
-import agentSessionUsageMigrationSql from './0002_agent_session_usage.sql?raw';
-import externalAgentUsageMigrationSql from './0003_external_agent_usage.sql?raw';
-import commanderTasksAndNoticesMigrationSql from './0004_commander_tasks_and_notices.sql?raw';
-import commanderInboxMigrationSql from './0005_commander_inbox.sql?raw';
-import chatPermissionModesMigrationSql from './0006_chat_permission_modes.sql?raw';
-import benchmarkRunsMigrationSql from './0007_benchmark_runs.sql?raw';
-import sessionCreatorMigrationSql from './0008_session_creator.sql?raw';
-import agentChatPersistenceMigrationSql from './0009_agent_chat_persistence.sql?raw';
-import agentChatSubagentsMigrationSql from './0010_agent_chat_subagents.sql?raw';
-import claudeWindowSchedulesMigrationSql from './0011_claude_window_schedules.sql?raw';
-import sessionLastViewedMigrationSql from './0012_session_last_viewed.sql?raw';
-import caxriBotRenameMigrationSql from './0013_caxri_bot_rename.sql?raw';
-import caxriBotAppStateMigrationSql from './0014_caxri_bot_app_state.sql?raw';
 import migrationJournal from './meta/_journal.json';
 
 interface MigrationJournal {
@@ -52,23 +38,7 @@ export function assertMigrationManifestMatchesJournal(
     }
 }
 
-export const migrationManifest = [
-    { tag: '0000_baseline', sql: baselineMigrationSql },
-    { tag: '0001_terminal_surface', sql: terminalSurfaceMigrationSql },
-    { tag: '0002_agent_session_usage', sql: agentSessionUsageMigrationSql },
-    { tag: '0003_external_agent_usage', sql: externalAgentUsageMigrationSql },
-    { tag: '0004_commander_tasks_and_notices', sql: commanderTasksAndNoticesMigrationSql },
-    { tag: '0005_commander_inbox', sql: commanderInboxMigrationSql },
-    { tag: '0006_chat_permission_modes', sql: chatPermissionModesMigrationSql },
-    { tag: '0007_benchmark_runs', sql: benchmarkRunsMigrationSql },
-    { tag: '0008_session_creator', sql: sessionCreatorMigrationSql },
-    { tag: '0009_agent_chat_persistence', sql: agentChatPersistenceMigrationSql },
-    { tag: '0010_agent_chat_subagents', sql: agentChatSubagentsMigrationSql },
-    { tag: '0011_claude_window_schedules', sql: claudeWindowSchedulesMigrationSql },
-    { tag: '0012_session_last_viewed', sql: sessionLastViewedMigrationSql },
-    { tag: '0013_caxri_bot_rename', sql: caxriBotRenameMigrationSql },
-    { tag: '0014_caxri_bot_app_state', sql: caxriBotAppStateMigrationSql },
-] as const;
+export const migrationManifest = [{ tag: '0000_baseline', sql: baselineMigrationSql }] as const;
 
 // Intentional: this check must run at module initialization (see the docstring above) so an
 // omitted, reordered, or duplicate manifest entry fails at import time in tests and at startup,
@@ -80,11 +50,12 @@ assertMigrationManifestMatchesJournal(
 );
 
 /**
- * `user_version` written by the open-source baseline. The unpublished pre-baseline chain ended at schema 38, so any
- * `user_version` in `1..38` is a pre-cutoff development database that is rebuilt rather than upgraded, and none of them
- * can look newer than this build. Project folders and user files are never touched by that rebuild.
+ * `user_version` written by the current baseline. Earlier development builds reached schema 53 through a chain of
+ * incremental migrations that this baseline replaced, so any `user_version` in `1..53` is rebuilt rather than upgraded
+ * (after `rebuild-backup.ts` copies the old file aside), and none of them can look newer than this build. Project
+ * folders and user files are never touched by that rebuild.
  */
-export const BASELINE_SCHEMA_VERSION = 39;
+export const BASELINE_SCHEMA_VERSION = 54;
 
 /**
  * Every migration generated after the baseline, each advancing `user_version` by one while preserving data.

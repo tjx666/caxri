@@ -22,6 +22,7 @@ import {
 } from '@caxri/protocol';
 
 import { createDomainServices } from '../domains/create-domain-services';
+import type { ServerCredentialStores } from '../domains/db';
 import type { DomainDependencies, DomainServices } from '../domains/domain-services';
 import type { ProtocolRecoveryState } from '../domains/protocol-recovery';
 import { isAtomicStructuralMethod } from './atomic-structural-methods';
@@ -331,6 +332,16 @@ export class ServerDomainService extends EventTarget {
         if (!this.services)
             throw new CaxriError('UNAVAILABLE', 'Server recovery state is unavailable');
         return this.services.protocolRecovery;
+    }
+
+    /**
+     * The started domain's credential storage; Server Core opens its paired-phone and delegation registries on it.
+     */
+    async credentialStores(): Promise<ServerCredentialStores> {
+        await this.start();
+        if (!this.services)
+            throw new CaxriError('UNAVAILABLE', 'Server credentials are unavailable');
+        return this.services.credentials;
     }
 
     requestWithSignal<M extends ServerOperation>(

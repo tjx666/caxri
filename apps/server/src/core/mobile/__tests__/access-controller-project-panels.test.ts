@@ -1,35 +1,23 @@
-import { mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-
 import type { CommandExecutionContext } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { TerminalExecutionPort } from '../../../domains/terminal';
+import { createMemoryMobileDeviceStore } from '../../__tests__/credential-stores.fixture';
 import type { ServerDomainService } from '../../domain-service';
 import type { ExtensionService } from '../../extensions/service';
 import { openMobileAccessController } from '../access-controller';
 import { MobileDeviceRegistry } from '../device-registry';
 
-const temporaryDirectories: string[] = [];
 const terminalExecution = {
     onObserverEvent: () => () => {},
     onHostExit: () => () => {},
 } as unknown as TerminalExecutionPort;
 
-afterEach(async () => {
-    const paths = [...temporaryDirectories];
-    temporaryDirectories.length = 0;
-    await Promise.all(paths.map((path) => rm(path, { recursive: true, force: true })));
-});
-
 describe('MobileAccessController Project add, read-only panels, tree, and files', () => {
     it('delegates Project add and durably grants it to the requesting device', async () => {
-        const directory = await mkdtemp(join(tmpdir(), 'caxri-mobile-project-add-'));
-        temporaryDirectories.push(directory);
-        const registryPath = join(directory, 'mobile-devices.json');
-        const registry = await MobileDeviceRegistry.open({ directory, path: registryPath });
+        const store = createMemoryMobileDeviceStore();
+        const registry = MobileDeviceRegistry.open({ store });
         const paired = await registry.pair({
             displayName: 'Test phone',
             platform: 'ios',
@@ -40,7 +28,7 @@ describe('MobileAccessController Project add, read-only panels, tree, and files'
             deviceId: paired.device.deviceId,
             generation: paired.device.generation,
         });
-        const controller = await openMobileAccessController({ directory, registryPath });
+        const controller = openMobileAccessController({ store });
         controller.attach(
             { invoke: vi.fn() },
             'b'.repeat(32),
@@ -93,7 +81,7 @@ describe('MobileAccessController Project add, read-only panels, tree, and files'
                 path: 'code/demo',
                 principal,
             });
-            const reopened = await MobileDeviceRegistry.open({ directory, path: registryPath });
+            const reopened = MobileDeviceRegistry.open({ store });
             const granted = reopened.currentPrincipal(
                 paired.device.deviceId,
                 paired.device.generation,
@@ -106,10 +94,8 @@ describe('MobileAccessController Project add, read-only panels, tree, and files'
     });
 
     it('rejects Project files outside the granted Project scope', async () => {
-        const directory = await mkdtemp(join(tmpdir(), 'caxri-mobile-files-scope-'));
-        temporaryDirectories.push(directory);
-        const registryPath = join(directory, 'mobile-devices.json');
-        const registry = await MobileDeviceRegistry.open({ directory, path: registryPath });
+        const store = createMemoryMobileDeviceStore();
+        const registry = MobileDeviceRegistry.open({ store });
         const paired = await registry.pair({
             displayName: 'Test phone',
             platform: 'ios',
@@ -120,7 +106,7 @@ describe('MobileAccessController Project add, read-only panels, tree, and files'
             deviceId: paired.device.deviceId,
             generation: paired.device.generation,
         });
-        const controller = await openMobileAccessController({ directory, registryPath });
+        const controller = openMobileAccessController({ store });
         controller.attach(
             { invoke: vi.fn() },
             'b'.repeat(32),
@@ -176,10 +162,8 @@ describe('MobileAccessController Project add, read-only panels, tree, and files'
     });
 
     it('projects the secondary-sidebar panel catalog and drops a resource icon', async () => {
-        const directory = await mkdtemp(join(tmpdir(), 'caxri-mobile-panels-'));
-        temporaryDirectories.push(directory);
-        const registryPath = join(directory, 'mobile-devices.json');
-        const registry = await MobileDeviceRegistry.open({ directory, path: registryPath });
+        const store = createMemoryMobileDeviceStore();
+        const registry = MobileDeviceRegistry.open({ store });
         const paired = await registry.pair({
             displayName: 'Test phone',
             platform: 'ios',
@@ -234,7 +218,7 @@ describe('MobileAccessController Project add, read-only panels, tree, and files'
                 extensions: [],
             }),
         } as unknown as ExtensionService;
-        const controller = await openMobileAccessController({ directory, registryPath });
+        const controller = openMobileAccessController({ store });
         controller.attach(
             { invoke: vi.fn() },
             'b'.repeat(32),
@@ -279,10 +263,8 @@ describe('MobileAccessController Project add, read-only panels, tree, and files'
     });
 
     it('reports a Session that no longer resolves as unavailable instead of reading the tree', async () => {
-        const directory = await mkdtemp(join(tmpdir(), 'caxri-mobile-tree-mismatch-'));
-        temporaryDirectories.push(directory);
-        const registryPath = join(directory, 'mobile-devices.json');
-        const registry = await MobileDeviceRegistry.open({ directory, path: registryPath });
+        const store = createMemoryMobileDeviceStore();
+        const registry = MobileDeviceRegistry.open({ store });
         const paired = await registry.pair({
             displayName: 'Test phone',
             platform: 'ios',
@@ -297,7 +279,7 @@ describe('MobileAccessController Project add, read-only panels, tree, and files'
         const extensionService = {
             treeChildren,
         } as unknown as ExtensionService;
-        const controller = await openMobileAccessController({ directory, registryPath });
+        const controller = openMobileAccessController({ store });
         controller.attach(
             { invoke: vi.fn() },
             'b'.repeat(32),
@@ -332,10 +314,8 @@ describe('MobileAccessController Project add, read-only panels, tree, and files'
     });
 
     it('surfaces a Workbench Root change during a Conversation Tree read as cancellation', async () => {
-        const directory = await mkdtemp(join(tmpdir(), 'caxri-mobile-tree-switch-'));
-        temporaryDirectories.push(directory);
-        const registryPath = join(directory, 'mobile-devices.json');
-        const registry = await MobileDeviceRegistry.open({ directory, path: registryPath });
+        const store = createMemoryMobileDeviceStore();
+        const registry = MobileDeviceRegistry.open({ store });
         const paired = await registry.pair({
             displayName: 'Test phone',
             platform: 'ios',
@@ -352,7 +332,7 @@ describe('MobileAccessController Project add, read-only panels, tree, and files'
         const extensionService = {
             treeChildren,
         } as unknown as ExtensionService;
-        const controller = await openMobileAccessController({ directory, registryPath });
+        const controller = openMobileAccessController({ store });
         controller.attach(
             { invoke: vi.fn() },
             'b'.repeat(32),
@@ -396,10 +376,8 @@ describe('MobileAccessController Project add, read-only panels, tree, and files'
      * Session Desktop is not showing still loads instead of asking the user to open it on the computer.
      */
     it('projects Conversation Tree children for the requested Session, dropping tooltip and a resource icon', async () => {
-        const directory = await mkdtemp(join(tmpdir(), 'caxri-mobile-tree-'));
-        temporaryDirectories.push(directory);
-        const registryPath = join(directory, 'mobile-devices.json');
-        const registry = await MobileDeviceRegistry.open({ directory, path: registryPath });
+        const store = createMemoryMobileDeviceStore();
+        const registry = MobileDeviceRegistry.open({ store });
         const paired = await registry.pair({
             displayName: 'Test phone',
             platform: 'ios',
@@ -437,7 +415,7 @@ describe('MobileAccessController Project add, read-only panels, tree, and files'
             ],
         });
         const extensionService = { treeChildren } as unknown as ExtensionService;
-        const controller = await openMobileAccessController({ directory, registryPath });
+        const controller = openMobileAccessController({ store });
         controller.attach(
             { invoke: vi.fn() },
             'b'.repeat(32),

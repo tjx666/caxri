@@ -5,8 +5,8 @@ import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 
 import type { CaxriDrizzleDatabase } from '../connection';
-import * as schema from '../full-schema';
-import { claudeWindowSchedules } from '../schema-claude-windows';
+import * as schema from '../schema';
+import { claudeWindowSchedules } from '../schema';
 
 export interface ClaudeWindowSchedule {
     accountHash: string;
@@ -16,7 +16,7 @@ export interface ClaudeWindowSchedule {
      */
     keepRolling?: boolean;
     firstWorkdayResetMinutes?: number;
-    processedThrough?: number;
+    processedThroughAt?: number;
     observedResetAt?: number;
     triggeredResetAt?: number;
     lastOutcome?: { outcome: ClaudeWindowOutcome; at: number; missedPlannedAt?: number };
@@ -62,7 +62,7 @@ export class ClaudeWindowSchedulesModel {
             ...(row.firstWorkdayResetMinutes !== null && {
                 firstWorkdayResetMinutes: row.firstWorkdayResetMinutes,
             }),
-            ...(row.processedThrough !== null && { processedThrough: row.processedThrough }),
+            ...(row.processedThroughAt !== null && { processedThroughAt: row.processedThroughAt }),
             ...(row.observedResetAt !== null && { observedResetAt: row.observedResetAt }),
             ...(row.triggeredResetAt !== null && { triggeredResetAt: row.triggeredResetAt }),
             ...(lastOutcome && { lastOutcome }),
@@ -74,7 +74,7 @@ export class ClaudeWindowSchedulesModel {
             planType: schedule.planType ?? null,
             keepRolling: schedule.keepRolling ?? null,
             firstWorkdayResetMinutes: schedule.firstWorkdayResetMinutes ?? null,
-            processedThrough: schedule.processedThrough ?? null,
+            processedThroughAt: schedule.processedThroughAt ?? null,
             observedResetAt: schedule.observedResetAt ?? null,
             triggeredResetAt: schedule.triggeredResetAt ?? null,
             lastOutcome: schedule.lastOutcome?.outcome ?? null,

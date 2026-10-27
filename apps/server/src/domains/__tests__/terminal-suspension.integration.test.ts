@@ -128,15 +128,9 @@ describe('background Agent suspension', () => {
                     };
                     direct
                         .prepare(
-                            'INSERT INTO agent_delegations (id, session_id, terminal_id, status, record_json) VALUES (?, ?, ?, ?, ?)',
+                            'INSERT INTO agent_delegations (id, session_id, record_json) VALUES (?, ?, ?)',
                         )
-                        .run(
-                            'synthetic-delegation',
-                            first.session.id,
-                            terminalId,
-                            'completed',
-                            JSON.stringify(record),
-                        );
+                        .run('synthetic-delegation', first.session.id, JSON.stringify(record));
                 }
                 direct.close();
 

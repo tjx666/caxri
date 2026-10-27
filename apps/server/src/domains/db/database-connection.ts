@@ -13,6 +13,8 @@ import { BotTasksModel } from './models/bot-tasks';
 import { MobileAgentSubmitReceiptsModel } from './models/mobile-agent-submit-receipts';
 import { ProjectsModel } from './models/projects';
 import { ProtocolStateModel } from './models/protocol-state';
+import type { ServerCredentialStores } from './models/server-credentials';
+import { createServerCredentialStores } from './models/server-credentials';
 import type {
     SessionStateRevisionAdvance,
     SessionStateStaleWrite,
@@ -63,7 +65,7 @@ export class CaxriDatabaseConnection {
      */
     readonly database: Database.Database;
     /**
-     * Drizzle query-builder instance bound to `./schema`; used by every CRUD module below.
+     * Drizzle query-builder instance bound to `./schema` (every table); used by every CRUD module below.
      */
     readonly db: CaxriDrizzleDatabase;
     readonly projects: ProjectsModel;
@@ -80,6 +82,7 @@ export class CaxriDatabaseConnection {
     readonly botTasks: BotTasksModel;
     readonly botPendingNotices: BotPendingNoticesModel;
     readonly agentChatState: AgentChatStateModel;
+    readonly credentials: ServerCredentialStores;
 
     constructor(path: string, options: CaxriDatabaseConnectionOptions = {}) {
         const opened = openDatabase(path);
@@ -106,6 +109,7 @@ export class CaxriDatabaseConnection {
         this.botTasks = new BotTasksModel(this.db);
         this.botPendingNotices = new BotPendingNoticesModel(this.db);
         this.agentChatState = new AgentChatStateModel(this.database);
+        this.credentials = createServerCredentialStores(this.db, this.database, this.appState);
         this.protocolState = new ProtocolStateModel(this.db, (work) => this.transaction(work));
         this.onTransaction = options.onTransaction;
     }

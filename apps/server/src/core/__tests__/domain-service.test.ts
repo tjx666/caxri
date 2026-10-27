@@ -12,6 +12,7 @@ import { CaxriDatabase } from '../../domains/db';
 import type { DomainHandlers, DomainServices } from '../../domains/domain-services';
 import type { TerminalExecutionPort } from '../../domains/terminal';
 import { ServerDomainService } from '../domain-service';
+import { createMemoryCredentialStores } from './credential-stores.fixture';
 
 const serverOperationNames = [
     ...Object.keys(methods),
@@ -49,6 +50,7 @@ describe('ServerDomainService', () => {
                         startedAt: 1,
                     }),
                 }),
+                credentials: createMemoryCredentialStores(),
                 protocolRecovery: createTestProtocolRecoveryState(),
                 validateRequestContext: vi.fn(),
             }),
@@ -89,6 +91,7 @@ describe('ServerDomainService', () => {
                         return [];
                     },
                 }),
+                credentials: createMemoryCredentialStores(),
                 protocolRecovery: createTestProtocolRecoveryState(),
                 validateRequestContext: () => {},
             }),
@@ -125,6 +128,7 @@ describe('ServerDomainService', () => {
                         return null;
                     },
                 }),
+                credentials: createMemoryCredentialStores(),
                 protocolRecovery: createTestProtocolRecoveryState(),
                 validateRequestContext: () => {},
             }),
@@ -164,6 +168,7 @@ describe('ServerDomainService', () => {
                         return updated;
                     },
                 }),
+                credentials: createMemoryCredentialStores(),
                 protocolRecovery: database.protocolState,
                 validateRequestContext: () => {},
             }),
@@ -275,6 +280,7 @@ describe('ServerDomainService', () => {
                         return finalizeDurably ? finalizeDurably(commit) : commit();
                     },
                 }),
+                credentials: createMemoryCredentialStores(),
                 protocolRecovery: database.protocolState,
                 validateRequestContext: () => {},
             }),

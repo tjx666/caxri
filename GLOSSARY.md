@@ -47,7 +47,7 @@ _Avoid_: Workspace, repository, directory (except for filesystem primitives)
 
 **Session**:
 A durable unit of work within one owning Project that owns Terminals, the shared Workbench Root,
-document Drafts, and Agent activity and Attention.
+and Agent activity and Attention.
 _Avoid_: Conversation, tab, Session View
 
 **Open Session**:
@@ -64,8 +64,8 @@ Project.
 _Avoid_: Session Project, Terminal root, Client root
 
 **Draft**:
-Durable unsaved document content owned by a Session and Workbench Root and protected by a Server
-revision until it is saved or discarded.
+Unsaved Editor content of a document, kept on the device where it was typed until it is saved,
+reverted, or discarded, and offered back after a crash or reload.
 _Avoid_: Dirty flag, tab content, Client buffer
 
 **Terminal**:

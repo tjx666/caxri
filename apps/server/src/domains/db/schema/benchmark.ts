@@ -1,11 +1,10 @@
 import type { BenchmarkRunStatus } from '@caxri/protocol';
 import { check, index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
-import { closedValues, isOneOf } from './schema-constraints';
+import { closedValues, isOneOf } from './constraints';
 
 /**
- * Benchmark runs. Kept beside `./schema` like Caxri Bot tables; `./full-schema` joins it for drizzle-kit, the drift
- * guard, and the connection.
+ * Benchmark runs.
  */
 
 const benchmarkRunStatuses = closedValues<BenchmarkRunStatus>()([

@@ -1,9 +1,6 @@
-import { mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { describe, expect, it, vi } from 'vitest';
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
-
+import { createMemoryMobileDeviceStore } from '../../__tests__/credential-stores.fixture';
 import { MobileDeviceRegistry } from '../device-registry';
 import { MobileGateway } from '../gateway';
 import { connectDevice } from './gateway-client.fixture';
@@ -13,22 +10,11 @@ vi.mock('../gateway/sealed-payload', async (importOriginal) => ({
     sendFinalSealedPayload: () => Promise.resolve('failed'),
 }));
 
-const temporaryDirectories: string[] = [];
-
-afterEach(async () => {
-    const paths = [...temporaryDirectories];
-    temporaryDirectories.length = 0;
-    await Promise.all(paths.map((path) => rm(path, { recursive: true, force: true })));
-});
-
 describe('MobileGateway revocation failure', () => {
     it('force-closes a revoked socket when its final encrypted frame cannot be sent', async () => {
-        const directory = await mkdtemp(join(tmpdir(), 'caxri-mobile-revoke-failure-'));
-        temporaryDirectories.push(directory);
         let byte = 1;
-        const registry = await MobileDeviceRegistry.open({
-            directory,
-            path: join(directory, 'mobile-devices.json'),
+        const registry = MobileDeviceRegistry.open({
+            store: createMemoryMobileDeviceStore(),
             now: () => 1_788_106_000_000 + byte,
             random: (bytes) => new Uint8Array(bytes).fill(byte++),
         });

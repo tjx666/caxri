@@ -1,35 +1,23 @@
-import { mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-
 import type { CommandExecutionContext } from '@caxri/protocol';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { TerminalExecutionPort } from '../../../domains/terminal';
+import { createMemoryMobileDeviceStore } from '../../__tests__/credential-stores.fixture';
 import type { ServerDomainService } from '../../domain-service';
 import { openMobileAccessController } from '../access-controller';
 import { MobileDeviceRegistry } from '../device-registry';
 import { mobileHostDisplayName } from '../host-display-name';
 import { isMobileGatewayMethodAllowedForRole } from '../role-methods';
 
-const temporaryDirectories: string[] = [];
 const terminalExecution = {
     onObserverEvent: () => () => {},
     onHostExit: () => () => {},
 } as unknown as TerminalExecutionPort;
 
-afterEach(async () => {
-    const paths = [...temporaryDirectories];
-    temporaryDirectories.length = 0;
-    await Promise.all(paths.map((path) => rm(path, { recursive: true, force: true })));
-});
-
 describe('MobileAccessController role and resource authority', () => {
     it('rejects a revoked device before answering or writing a file', async () => {
-        const directory = await mkdtemp(join(tmpdir(), 'caxri-mobile-revoked-write-'));
-        temporaryDirectories.push(directory);
-        const registryPath = join(directory, 'mobile-devices.json');
-        const registry = await MobileDeviceRegistry.open({ directory, path: registryPath });
+        const store = createMemoryMobileDeviceStore();
+        const registry = MobileDeviceRegistry.open({ store });
         const paired = await registry.pair({
             displayName: 'Test phone',
             platform: 'ios',
@@ -40,7 +28,7 @@ describe('MobileAccessController role and resource authority', () => {
             deviceId: paired.device.deviceId,
             generation: paired.device.generation,
         });
-        const controller = await openMobileAccessController({ directory, registryPath });
+        const controller = openMobileAccessController({ store });
         const request = vi.fn();
         const domainService = { request } as unknown as ServerDomainService;
         controller.attach(
@@ -96,10 +84,8 @@ describe('MobileAccessController role and resource authority', () => {
     });
 
     it('revokes promptly while a mobile Session start is pending', async () => {
-        const directory = await mkdtemp(join(tmpdir(), 'caxri-mobile-create-revoke-'));
-        temporaryDirectories.push(directory);
-        const registryPath = join(directory, 'mobile-devices.json');
-        const registry = await MobileDeviceRegistry.open({ directory, path: registryPath });
+        const store = createMemoryMobileDeviceStore();
+        const registry = MobileDeviceRegistry.open({ store });
         const paired = await registry.pair({
             displayName: 'Test phone',
             platform: 'ios',
@@ -110,7 +96,7 @@ describe('MobileAccessController role and resource authority', () => {
             deviceId: paired.device.deviceId,
             generation: paired.device.generation,
         });
-        const controller = await openMobileAccessController({ directory, registryPath });
+        const controller = openMobileAccessController({ store });
         controller.attach(
             { invoke: vi.fn() },
             'b'.repeat(32),
@@ -262,11 +248,9 @@ describe('MobileAccessController role and resource authority', () => {
     });
 
     it('rejects a mobile control method with no implementation', async () => {
-        const directory = await mkdtemp(join(tmpdir(), 'caxri-mobile-unknown-control-'));
-        temporaryDirectories.push(directory);
-        const controller = await openMobileAccessController({
-            directory,
-            registryPath: join(directory, 'mobile-devices.json'),
+        const store = createMemoryMobileDeviceStore();
+        const controller = openMobileAccessController({
+            store,
         });
         const domainService = {} as ServerDomainService;
         controller.attach(
@@ -295,10 +279,8 @@ describe('MobileAccessController role and resource authority', () => {
     });
 
     it('rejects a Project outside the grant and a revoked generation', async () => {
-        const directory = await mkdtemp(join(tmpdir(), 'caxri-mobile-authority-'));
-        temporaryDirectories.push(directory);
-        const registryPath = join(directory, 'mobile-devices.json');
-        const registry = await MobileDeviceRegistry.open({ directory, path: registryPath });
+        const store = createMemoryMobileDeviceStore();
+        const registry = MobileDeviceRegistry.open({ store });
         const paired = await registry.pair({
             displayName: 'Test phone',
             platform: 'ios',
@@ -310,9 +292,8 @@ describe('MobileAccessController role and resource authority', () => {
             generation: paired.device.generation,
         });
         if (principal.kind !== 'paired-device') throw new Error('Expected paired device');
-        const controller = await openMobileAccessController({
-            directory,
-            registryPath,
+        const controller = openMobileAccessController({
+            store,
             hostDisplayName: 'Caxri Test Host',
         });
         controller.attach(
@@ -482,10 +463,8 @@ describe('MobileAccessController role and resource authority', () => {
 
 describe('MobileAccessController Agent submissions', () => {
     it('forwards one paired submission and cancels pending work after device revocation', async () => {
-        const directory = await mkdtemp(join(tmpdir(), 'caxri-mobile-submit-'));
-        temporaryDirectories.push(directory);
-        const registryPath = join(directory, 'mobile-devices.json');
-        const registry = await MobileDeviceRegistry.open({ directory, path: registryPath });
+        const store = createMemoryMobileDeviceStore();
+        const registry = MobileDeviceRegistry.open({ store });
         const paired = await registry.pair({
             displayName: 'Test phone',
             platform: 'android',
@@ -496,9 +475,8 @@ describe('MobileAccessController Agent submissions', () => {
             deviceId: paired.device.deviceId,
             generation: paired.device.generation,
         });
-        const controller = await openMobileAccessController({
-            directory,
-            registryPath,
+        const controller = openMobileAccessController({
+            store,
             selectAddress: () => '127.0.0.1',
         });
         controller.attach(

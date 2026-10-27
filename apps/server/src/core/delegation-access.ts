@@ -1,5 +1,3 @@
-import { join } from 'node:path';
-
 import type {
     CommandExecutionContext,
     ServerOperationRequest,
@@ -7,7 +5,7 @@ import type {
 } from '@caxri/protocol';
 import { CaxriError, delegationAccessInternalMethods } from '@caxri/protocol';
 
-import { DelegationAccessRegistry } from './delegation-access-registry';
+import type { DelegationAccessRegistry } from './delegation-access-registry';
 
 type AccessRequest = Extract<
     ServerRequest,
@@ -25,18 +23,6 @@ export function isDelegationAccessRequest(request: ServerRequest): request is Ac
         'agent.delegation.access.list',
         'agent.delegation.access.revoke',
     ].includes(request.method);
-}
-
-export async function openDelegationAccess(directory: string, onOpenError: () => Promise<void>) {
-    try {
-        return await DelegationAccessRegistry.open(
-            directory,
-            join(directory, 'delegation-clients.json'),
-        );
-    } catch (error) {
-        await onOpenError();
-        throw error;
-    }
 }
 
 /**

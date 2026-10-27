@@ -13,6 +13,7 @@ import type { StructuredLogger } from '@caxri/system';
 
 import type { AgentEndpointLifecycle } from './agent-endpoints';
 import type { AgentAdapter, AgentEnvironment } from './agents';
+import type { ServerCredentialStores } from './db';
 import type { ProtocolRecoveryState } from './protocol-recovery';
 import type { TerminalExecutionPort, TerminalManagerOptions } from './terminal';
 
@@ -77,6 +78,10 @@ export interface DomainDependencies {
 export interface DomainServices {
     handlers: DomainHandlers;
     protocolRecovery: ProtocolRecoveryState;
+    /**
+     * Paired-phone and delegation-client storage on the Server database, which Server Core's registries own.
+     */
+    credentials: ServerCredentialStores;
     /**
      * Releases every owned resource: schedulers, PTYs, watchers, and the database.
      */

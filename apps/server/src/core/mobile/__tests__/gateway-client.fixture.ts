@@ -1,7 +1,4 @@
 import { Buffer } from 'node:buffer';
-import { mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 
 import type { HandshakeTranscript } from '@caxri/mobile-transport';
 import {
@@ -24,33 +21,22 @@ import { expect } from 'vitest';
 import type { ClientOptions } from 'ws';
 import WebSocket from 'ws';
 
+import { createMemoryMobileDeviceStore } from '../../__tests__/credential-stores.fixture';
 import type { MobileDeviceRecord } from '../device-registry';
 import { MobileDeviceRegistry } from '../device-registry';
 import type { MobileGateway } from '../gateway';
 import { isMobileGatewayMethodAllowedForRole } from '../role-methods';
 
-const registryDirectories: string[] = [];
-
 /**
- * Creates an isolated on-disk device registry for a single test. Call `cleanupRegistryDirectories` from the test file's
- * own `afterEach` to remove every directory this fixture created.
+ * Creates an isolated in-memory device registry for a single test.
  */
-export async function registryFixture() {
-    const directory = await mkdtemp(join(tmpdir(), 'caxri-mobile-gateway-'));
-    registryDirectories.push(directory);
+export function registryFixture() {
     let byte = 1;
     return MobileDeviceRegistry.open({
-        directory,
-        path: join(directory, 'mobile-devices.json'),
+        store: createMemoryMobileDeviceStore(),
         now: () => 1_788_106_000_000 + byte,
         random: (bytes) => new Uint8Array(bytes).fill(byte++),
     });
-}
-
-export async function cleanupRegistryDirectories(): Promise<void> {
-    const paths = [...registryDirectories];
-    registryDirectories.length = 0;
-    await Promise.all(paths.map((path) => rm(path, { recursive: true, force: true })));
 }
 
 export function authorizeMethod(principal: Principal, method: string): void {

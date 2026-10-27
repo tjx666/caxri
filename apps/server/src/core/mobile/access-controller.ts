@@ -5,6 +5,7 @@ import type { Principal } from '@caxri/protocol';
 import { assertNever, CaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 
+import type { MobileDeviceStore } from '../../domains/db';
 import type { ServerDomainService } from '../domain-service';
 import type { ExtensionService } from '../extensions/service';
 import type { MobileAccessController } from './access-controller-contract';
@@ -53,33 +54,22 @@ const requiredGateway = (gateway: MobileGateway | undefined): MobileGateway => {
 /**
  * Owns the default-off LAN listener and keeps paired-device authorization out of the general Server dispatcher.
  */
-export const openMobileAccessController = async (options: {
+export const openMobileAccessController = (options: {
     logger?: Pick<StructuredLogger, 'write'>;
-    directory: string;
     hostDisplayName?: string;
-    onOpenError?: () => Promise<void>;
     /**
      * Forwarded to `MobileGateway`; lets a caller fold the authenticated Mobile connection count into a broader
      * idle-exit or diagnostics signal alongside `ControlServer`'s own client count.
      */
     onConnectionCountChanged?: (count: number) => void;
-    registryPath: string;
     selectAddress?: () => string;
+    store: MobileDeviceStore;
     /**
      * Directory holding the Android update bundle shipped with this Desktop build, when there is one.
      */
     updateDirectory?: string;
-}): Promise<MobileAccessController> => {
-    let registry: MobileDeviceRegistry;
-    try {
-        registry = await MobileDeviceRegistry.open({
-            directory: options.directory,
-            path: options.registryPath,
-        });
-    } catch (error) {
-        await options.onOpenError?.();
-        throw error;
-    }
+}): MobileAccessController => {
+    const registry = MobileDeviceRegistry.open({ store: options.store });
     let gateway: MobileGateway | undefined;
     let getExtensionService: (() => ExtensionService | undefined) | undefined;
     const hostDisplayName = mobileHostDisplayName(options.hostDisplayName ?? hostname());
