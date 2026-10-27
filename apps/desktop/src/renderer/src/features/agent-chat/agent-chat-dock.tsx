@@ -42,7 +42,8 @@ function OpenExecutableSettingsButton({ terminalId }: { terminalId: string }) {
  * kind (a conversation open in another client) uses an info glyph and Retry, which reopens it once the other client
  * lets go. A failure the Chat cannot explain also offers Open as Terminal, where the provider's own output says what
  * went wrong. A missing CLI offers Settings, at the same Executable row the Terminal recovery bar opens, ahead of
- * Retry.
+ * Retry. It is inset 12px like the composer strip, so the banner, the strip below it, and the composer card step in one
+ * rhythm instead of the banner jutting out past the strip to the card's full width.
  */
 function AgentChatRecoveryBanner({
     notice,
@@ -64,7 +65,7 @@ function AgentChatRecoveryBanner({
     return (
         <div
             className={cn(
-                'flex items-start gap-2 rounded-lg border bg-surface px-3 py-2 text-[12px] leading-5',
+                'mx-3 flex items-start gap-2 rounded-lg border bg-surface px-3 py-2 text-[12px] leading-5',
                 isFailure ? 'border-danger' : 'border-border',
             )}
             data-agent-chat-recovery={notice.kind}
