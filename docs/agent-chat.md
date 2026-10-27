@@ -1593,9 +1593,12 @@ no transcript on disk refuses with an error instead of opening an empty Chat.
 
 The meter's card in a Workbench Chat offers **Details**, which opens a read-only Context tab
 (`caxri-agent-context://<terminalId>`, `apps/desktop/src/renderer/src/features/agent-chat/context/`)
-beside the Chat, the way task tabs open. It is Claude Code only: Codex and Grok Build describe
-neither the window item by item nor each request's cache usage, so their meter has no Details
-button and the tab shows an unsupported notice. Caxri Bot window refuses
+beside the Chat, the way task tabs open. It is Claude Code only, so the other providers' meter has
+no Details button and the tab shows an unsupported notice. Codex records each request's input and
+cache-hit tokens (`last_token_usage.cached_input_tokens`), but no cache writes (its
+`cache_write_input_tokens` stays 0), no item-by-item window, and no prefix change to blame for a
+miss, so the tab's main parts have no source. Grok Build describes neither the window nor each
+request's cache usage. Caxri Bot window refuses
 `agentChat.readContext` (`apps/desktop/src/main/caxri-bot-policy.ts`) and hides the button.
 
 `agentChat.readContext` (`packages/protocol/src/agent/agent-chat-context.ts`,
