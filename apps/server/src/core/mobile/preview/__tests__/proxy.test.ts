@@ -113,6 +113,28 @@ describe('MobilePreviewProxies', () => {
         expect((await fetch(late, { redirect: 'manual' })).status).toBe(403);
     });
 
+    it('keeps the launch token for the real GET when a HEAD, POST, or prefetch arrives first', async () => {
+        const url = await proxies.open(GRANT, '127.0.0.1', { host: '127.0.0.1', port: targetPort });
+        expect((await fetch(url, { method: 'HEAD', redirect: 'manual' })).status).toBe(403);
+        expect((await fetch(url, { method: 'POST', redirect: 'manual' })).status).toBe(403);
+        expect(
+            (
+                await fetch(url, {
+                    headers: { 'Sec-Purpose': 'prefetch;prerender' },
+                    redirect: 'manual',
+                })
+            ).status,
+        ).toBe(403);
+        expect(
+            (await fetch(url, { headers: { Purpose: 'prefetch' }, redirect: 'manual' })).status,
+        ).toBe(403);
+
+        const response = await fetch(url, { redirect: 'manual' });
+        expect(response.status).toBe(302);
+        expect(response.headers.get('set-cookie')).toContain('HttpOnly');
+        expect((await fetch(url, { redirect: 'manual' })).status).toBe(403);
+    });
+
     it('stops serving a device the registry no longer authorizes', async () => {
         const { cookie, origin } = await launch();
         isAuthorized = false;

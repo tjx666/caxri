@@ -76,6 +76,36 @@ describe('mobile preview requests', () => {
         await requests.clear();
     });
 
+    it('re-checks the port on every open, so a reused listener never reaches a process that left the Session', async () => {
+        let owner = { pid: 11, cwd: '/work/app/web' };
+        const requests = createMobilePreviewRequests({
+            random: (bytes) => new Uint8Array(bytes).fill(7),
+            readListening: () =>
+                Promise.resolve({
+                    sockets: [
+                        { host: '127.0.0.1', pid: owner.pid, port: 5173, processName: 'node' },
+                    ],
+                    workingDirectories: new Map([[owner.pid, owner.cwd]]),
+                }),
+            registry: { currentPrincipal: () => principal },
+        });
+        const open = () =>
+            requests.invoke(
+                { method: 'mobile.preview.open', params: { sessionId: 'session-1', port: 5173 } },
+                principal,
+                domainService,
+                () => '127.0.0.1',
+                () => {},
+            );
+        try {
+            expect((await open()) as { url: string }).toHaveProperty('url');
+            owner = { pid: 12, cwd: '/' };
+            await expect(open()).rejects.toMatchObject({ code: 'NOT_FOUND' });
+        } finally {
+            await requests.clear();
+        }
+    });
+
     it('matches a process whose working directory is the resolved form of a symlinked root', async () => {
         const base = await mkdtemp(path.join(tmpdir(), 'caxri-preview-'));
         try {
