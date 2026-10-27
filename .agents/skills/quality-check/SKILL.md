@@ -8,7 +8,7 @@ description: Run Caxri's compact changed-file validation entry point. Use after 
 Use the repository-owned checker instead of loading every validation command into context:
 
 ```bash
-bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--e2e] [--e2e-grep '<pattern>'] [--staged]
+bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--related] [--e2e] [--e2e-grep '<pattern>'] [--staged]
 ```
 
 ## Selection
@@ -61,6 +61,9 @@ bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--e2e] [-
   the same worktree rechecks only what changed; delete those files to force a cold check.
 - `--knip` runs the repository-wide dead-code and unused-export gate for Renderer or shared-contract
   changes.
+- `--related` runs `vitest related` over the changed sources with the hosted `affected` scope's
+  argv, so it also reaches the transitive importers `--test` deliberately skips. It is the
+  pre-fast-merge gate `pull-request` requires; never hand-compose `vitest related` instead.
 - `--e2e` requires one or more explicit `e2e/*.e2e.ts` files, rebuilds Caxri, and runs only those
   Playwright specs. It acquires the repository desktop lease before the build and keeps it through
   every spec; a live owner fails fast with its worktree, PID, and lease age. Add `--e2e-wait <seconds>`

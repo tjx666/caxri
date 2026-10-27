@@ -16,7 +16,7 @@ const SHARD_PATTERN = /^([1-9]\d*)\/([1-9]\d*)$/u;
  * `vitest related` follows the whole import graph, so a change deep in a shared package still reaches every suite that
  * transitively imports it: the direct-import heuristic `check --test` uses would miss those.
  */
-// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/run-ci-unit-tests.test.ts
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by its test and quality-check's `check --related`
 export function affectedTestArguments(paths: readonly string[]): string[] | undefined {
     const sources = paths.filter((path) => RELATED_SOURCE_EXTENSIONS.test(path));
     if (sources.length === 0) return undefined;
