@@ -1,7 +1,7 @@
-import type { AccountInfo } from '@anthropic-ai/claude-agent-sdk';
+import type { AccountInfo, Options, Query } from '@anthropic-ai/claude-agent-sdk';
 import { describe, expect, it } from 'vitest';
 
-import { accountGate, usageReading } from '../probe';
+import { accountGate, openSdkSession, usageReading } from '../probe';
 
 const NOW = Date.parse('2026-10-26T06:00:00Z');
 const subscription: AccountInfo = {
@@ -83,5 +83,24 @@ describe('usageReading', () => {
         expect(usageReading(usage(idle, 'max', 100), NOW)).toMatchObject({
             isWeeklyLimitReached: true,
         });
+    });
+});
+
+describe('openSdkSession', () => {
+    it("labels the probe process as Caxri's own entrypoint, overwriting an inherited one", async () => {
+        let options: Options | undefined;
+        const session = await openSdkSession({
+            executable: '/bin/claude',
+            environment: { CLAUDE_CODE_ENTRYPOINT: 'sdk-ts' },
+            clientVersion: 'test',
+            query: (parameters) => {
+                options = parameters.options;
+                return Object.assign((async function* () {})(), {
+                    close: () => {},
+                }) as unknown as Query;
+            },
+        });
+        await session.close();
+        expect(options?.env).toMatchObject({ CLAUDE_CODE_ENTRYPOINT: 'caxri' });
     });
 });

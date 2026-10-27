@@ -7,6 +7,7 @@ import type {
     SpawnOptions,
 } from '@anthropic-ai/claude-agent-sdk';
 
+import { CAXRI_CLAUDE_ENTRYPOINT } from '../agents';
 import type { AgentChatSessionHost } from './chat-provider';
 import { AgentChatStartError } from './chat-provider';
 import type { ClaudeChatSettings } from './launch-settings';
@@ -51,6 +52,7 @@ export function claudeQueryOptions({
         env: {
             ...host.environment,
             CLAUDE_AGENT_SDK_CLIENT_APP: `caxri/${host.clientVersion}`,
+            CLAUDE_CODE_ENTRYPOINT: CAXRI_CLAUDE_ENTRYPOINT,
             // Reports `system/session_state_changed`, the authoritative turn boundary.
             CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS: '1',
         },

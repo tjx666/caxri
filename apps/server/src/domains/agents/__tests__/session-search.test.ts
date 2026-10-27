@@ -156,11 +156,11 @@ describe('Session search index', () => {
     it('finds an SDK-started conversation by content only while a Caxri Session holds it', async () => {
         await seed();
         const HOSTED = '9c4f5d6e-7081-4c92-8da3-c5e6f708192a';
-        // Agent Chat starts through the SDK; Caxri's `/rename` later appends a `claude -p` record to the same file.
+        // Agent Chat labels its Claude process `caxri`; an older build's `/rename` appended an `sdk-cli` record.
         await writeTranscript(
             HOSTED,
             [
-                user(HOSTED, 'Draft a note to the vendor', { entrypoint: 'sdk-ts' }),
+                user(HOSTED, 'Draft a note to the vendor', { entrypoint: 'caxri' }),
                 assistant(HOSTED, 'Even a probe with only 21 tokens waits 30 to 190 seconds.'),
                 user(HOSTED, '/rename vendor note', { entrypoint: 'sdk-cli' }),
             ],

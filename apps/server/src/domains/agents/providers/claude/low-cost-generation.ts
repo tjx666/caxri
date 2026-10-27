@@ -6,6 +6,7 @@ import type { AgentProviderLowCostGenerationContext } from '../../contract';
 import { prepareLowCostSandbox } from '../../low-cost-sandbox';
 import { agentCommandEnvironment, assertAgentRenameVersion } from '../../rename';
 import { runAgentTextCommand } from '../../text-generation';
+import { CAXRI_CLAUDE_ENTRYPOINT } from './entrypoint';
 import { resolveClaudeConfigDirectory } from './paths';
 
 const CLAUDE_LOW_COST_GENERATION_MINIMUM_VERSION = '2.1.232';
@@ -60,7 +61,10 @@ export async function generateClaudeLowCostText(
                 '1',
             ],
             cwd: isolatedDirectory,
-            environment: await agentCommandEnvironment(context.environment),
+            environment: {
+                ...(await agentCommandEnvironment(context.environment)),
+                CLAUDE_CODE_ENTRYPOINT: CAXRI_CLAUDE_ENTRYPOINT,
+            },
             executable: sandbox.executable,
             input: context.prompt,
             limits: timeoutMs === undefined ? undefined : { timeoutMs },

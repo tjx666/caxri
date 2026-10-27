@@ -52,6 +52,7 @@ export { lowCostSandboxFailureReason } from './low-cost-sandbox';
 export { reconcilePrimaryTurnFailure } from './primary-turn-failure';
 export { agentProviders } from './providers';
 export { extractClaudeDelegationAnswer } from './providers/claude/delegation';
+export { CAXRI_CLAUDE_ENTRYPOINT } from './providers/claude/entrypoint';
 export type { ClaudeFolderTrustOutcome } from './providers/claude/folder-trust';
 export { grantClaudeFolderTrust } from './providers/claude/folder-trust';
 export {

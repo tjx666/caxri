@@ -8,10 +8,11 @@ function options(instructions?: string) {
         host: {
             cwd: '/project',
             executable: '/bin/claude',
-            environment: {},
+            // A Server Core started from inside another Claude session inherits its label.
+            environment: { CLAUDE_CODE_ENTRYPOINT: 'sdk-ts' } as NodeJS.ProcessEnv,
             clientVersion: '0.0.0',
             ...(instructions && { instructions }),
-        } as AgentChatSessionHost,
+        } as Partial<AgentChatSessionHost> as AgentChatSessionHost,
         settings: {
             permissionMode: 'default',
             additionalDirectories: [],
@@ -38,5 +39,11 @@ describe('claudeQueryOptions instructions', () => {
 
     it('keeps the plain Claude Code system prompt without instructions', () => {
         expect(options().systemPrompt).toEqual({ type: 'preset', preset: 'claude_code' });
+    });
+});
+
+describe('claudeQueryOptions environment', () => {
+    it("labels the process as Caxri's own entrypoint, overwriting an inherited one", () => {
+        expect(options().env).toMatchObject({ CLAUDE_CODE_ENTRYPOINT: 'caxri' });
     });
 });

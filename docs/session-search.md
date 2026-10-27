@@ -27,9 +27,9 @@ into one message first. Inline Markdown markers (code spans, `**`, `__`, `~~`) a
 both the indexed text and the query, so a sentence copied from a rendered Agent Chat message still
 matches. Scripted runs (a Claude conversation whose first entry point is `sdk-cli`, Codex subagent
 threads) are not conversations the user had and never appear. A Claude conversation an application
-started through the Agent SDK (any other `sdk-*` entry point, which is how Agent Chat runs Claude)
-is indexed but appears only while a Caxri Session holds it, so Agent Chat conversations are
-searchable by content while another application's SDK runs stay out.
+started (Caxri's own `caxri` entry point, which every Claude process Caxri starts carries, or any
+other `sdk-*` entry point) is indexed but appears only while a Caxri Session holds it, so Agent
+Chat conversations are searchable by content while another application's SDK runs stay out.
 
 A message match quotes the message with every matched term highlighted (the phrase message when
 there is one), prefixed by who wrote it
