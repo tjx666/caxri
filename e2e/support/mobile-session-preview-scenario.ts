@@ -102,7 +102,7 @@ const isChipShowingOnly = async (serial: string, port: number, other: number): P
     (await mobileNativeControlBounds(serial, { text: String(other) })) === null;
 
 /**
- * `MOB-CHAT-35`: a web server started from the Session's folder appears as a port chip in the phone's Session header,
+ * `MOB-CHAT-36`: a web server started from the Session's folder appears as a port chip in the phone's Session header,
  * while one started outside it does not; tapping the chip opens the page through the computer's preview proxy in the
  * in-app browser; the chip stays while the server runs and disappears once it stops.
  */
