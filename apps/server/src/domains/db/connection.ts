@@ -13,6 +13,7 @@ import {
     migrationManifest,
     migrationsAfterBaseline,
 } from './migrations/manifest';
+import { backupBeforeRebuild } from './rebuild-backup';
 import { terminals } from './schema';
 import type { ShutdownReason } from './session-policy';
 import { shutdownOutcome } from './session-policy';
@@ -145,12 +146,16 @@ function initializeSchema(database: Database.Database): void {
      * Nothing to migrate: skipping keeps the whole-database `foreign_key_check` off the ordinary startup path.
      */
     if (version === CURRENT_SCHEMA_VERSION) return;
+    // `VACUUM INTO` cannot run inside the migration transaction, so the copy is taken first.
+    if (version > 0 && version < BASELINE_SCHEMA_VERSION && database.name !== ':memory:')
+        backupBeforeRebuild(database, database.name, version);
     // Every pending step commits atomically or not at all, with foreign keys off; see migrateWithForeignKeysOff.
     migrateWithForeignKeysOff(database, CURRENT_SCHEMA_VERSION, () => {
         if (version > 0 && version < BASELINE_SCHEMA_VERSION) {
             /**
              * Owner-declared clean-install cutoff: pre-baseline development metadata is rebuilt, never upgraded.
-             * Project folders and user files are never touched.
+             * Project folders and user files are never touched, and `backupBeforeRebuild` kept a copy of the old
+             * database beside it.
              */
             database.exec(`
                 DROP TABLE IF EXISTS claude_window_schedules;
