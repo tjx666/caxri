@@ -10,12 +10,15 @@ import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 import { notifyListeners } from '@caxri/utils';
 
-import { normalizeProxyRoute } from './probe';
+import type { EnvironmentMonitorProbeFailureReason } from './probe';
+import { environmentMonitorProbeFailureReason, normalizeProxyRoute } from './probe';
 import type { EnvironmentMonitorProbe, EnvironmentMonitorSignals } from './types';
 import { hasEnvironmentMonitorSignal, requiresExternalEnvironmentProbe } from './types';
 
 const DEFAULT_POLL_INTERVAL_MS = 5 * 60_000;
 const DEFAULT_FAILURE_THRESHOLD = 3;
+const EXTERNAL_PROBE_SKIPPED =
+    'externalProbeSkipped' satisfies EnvironmentMonitorProbeFailureReason;
 
 export const defaultEnvironmentMonitorSignals: EnvironmentMonitorSignals = {
     publicIpChanges: true,
@@ -47,8 +50,11 @@ export interface EnvironmentMonitor {
     refresh(): Promise<EnvironmentMonitorState>;
     settingsChanged(): void;
     start(): void;
-    subscribeAlerts(listener: (state: EnvironmentMonitorState) => void): () => void;
+    subscribeAlerts(listener: (event: EnvironmentMonitorAlertEvent) => void): () => void;
 }
+
+export type EnvironmentMonitorAlertEvent =
+    { type: 'clear' } | { state: EnvironmentMonitorState; type: 'show' };
 
 interface EnvironmentMonitorOptions {
     failureThreshold?: number;
@@ -206,12 +212,23 @@ function issuesFor(
 
 function issueLogFields(issues: readonly EnvironmentMonitorIssueKind[]) {
     return {
+        issueCount: issues.length,
         publicIpChanged: issues.includes('publicIpChanged'),
         locationChanged: issues.includes('locationChanged'),
         proxyRouteChanged: issues.includes('proxyRouteChanged'),
         proxyUnavailable: issues.includes('proxyUnavailable'),
         timeZoneMismatch: issues.includes('timeZoneMismatch'),
         checkUnavailable: issues.includes('checkUnavailable'),
+    };
+}
+
+function signalLogFields(signals: EnvironmentMonitorSignals) {
+    return {
+        checkUnavailableEnabled: signals.checkUnavailable,
+        locationChangesEnabled: signals.locationChanges,
+        proxyProtectionEnabled: signals.proxyProtection,
+        publicIpChangesEnabled: signals.publicIpChanges,
+        timeZoneMismatchEnabled: signals.timeZoneMismatch,
     };
 }
 
@@ -255,14 +272,13 @@ export function createEnvironmentMonitor({
     let timer: ReturnType<typeof setInterval> | undefined;
     let controller: AbortController | undefined;
     let isDisposed = false;
-    let lastAlertSignature = '';
     let state: EnvironmentMonitorState = {
         state: 'checking',
         issues: [],
         consecutiveFailures: 0,
         canAcceptBaseline: false,
     };
-    const alertListeners = new Set<(next: EnvironmentMonitorState) => void>();
+    const alertListeners = new Set<(event: EnvironmentMonitorAlertEvent) => void>();
 
     const projectState = (): EnvironmentMonitorState => {
         if (!hasEnvironmentMonitorSignal(activeSignals))
@@ -306,7 +322,8 @@ export function createEnvironmentMonitor({
         shouldNotify = true,
     ): void => {
         const previousState = state.state;
-        const previousIssues = issueSignature(state.issues);
+        const previousIssueKinds = state.issues;
+        const previousIssues = issueSignature(previousIssueKinds);
         state = next;
         const signature = issueSignature(next.issues);
         if (previousIssues !== signature || previousState !== next.state)
@@ -316,16 +333,18 @@ export function createEnvironmentMonitor({
                     toState: next.state,
                     consecutiveFailures: next.consecutiveFailures,
                     durationMs,
+                    ...signalLogFields(activeSignals),
                     ...issueLogFields(next.issues),
                 },
             });
-        if (!signature) {
-            lastAlertSignature = '';
+        if (previousIssues === signature) return;
+        const previousIssueSet = new Set(previousIssueKinds);
+        const addedIssue = next.issues.some((issue) => !previousIssueSet.has(issue));
+        if (shouldNotify && addedIssue) {
+            notifyListeners(alertListeners, { type: 'show', state: next });
             return;
         }
-        if (!shouldNotify || signature === lastAlertSignature) return;
-        lastAlertSignature = signature;
-        notifyListeners(alertListeners, next);
+        notifyListeners(alertListeners, { type: 'clear' });
     };
 
     const runProbe = async (): Promise<EnvironmentMonitorState> => {
@@ -386,9 +405,22 @@ export function createEnvironmentMonitor({
             baseline = syncBaseline(baseline, next, activeSignals);
             const externalProbeMissed =
                 reading.egress === undefined && requiresExternalEnvironmentProbe(activeSignals);
-            consecutiveFailures = externalProbeMissed ? consecutiveFailures + 1 : 0;
-            lastSuccessfulAt = checkedAt;
-            publish(projectState(), Math.max(0, monotonicNow() - startedAt));
+            const durationMs = Math.max(0, monotonicNow() - startedAt);
+            if (externalProbeMissed) {
+                consecutiveFailures += 1;
+                logger?.()?.write('warn', logEventCatalog.environmentMonitor.probeFailed, {
+                    fields: {
+                        consecutiveFailures,
+                        durationMs,
+                        failureReason: EXTERNAL_PROBE_SKIPPED,
+                        ...signalLogFields(activeSignals),
+                    },
+                });
+            } else {
+                consecutiveFailures = 0;
+                lastSuccessfulAt = checkedAt;
+            }
+            publish(projectState(), durationMs);
         } catch (error) {
             if (isDisposed || controller.signal.aborted) return state;
             consecutiveFailures += 1;
@@ -397,7 +429,8 @@ export function createEnvironmentMonitor({
                 fields: {
                     consecutiveFailures,
                     durationMs,
-                    errorKind: error instanceof Error ? error.name : typeof error,
+                    failureReason: environmentMonitorProbeFailureReason(error),
+                    ...signalLogFields(activeSignals),
                 },
             });
             publish(projectState(), durationMs);
@@ -434,7 +467,6 @@ export function createEnvironmentMonitor({
             };
             const next = projectState();
             publish(next, null, false);
-            lastAlertSignature = issueSignature(next.issues);
             return state;
         },
         dispose() {

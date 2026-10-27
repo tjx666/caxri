@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { createConnection } from 'node:net';
+import { createConnection, isIP } from 'node:net';
 
 import { readCappedBody } from '@caxri/system';
 
@@ -13,6 +13,37 @@ import { requiresExternalEnvironmentProbe } from './types';
 const FETCH_TIMEOUT_MS = 8_000;
 const LOCAL_PROXY_TIMEOUT_MS = 750;
 const MAX_RESPONSE_BYTES = 64 * 1_024;
+
+export type EnvironmentMonitorProbeFailureReason =
+    | 'externalProbeSkipped'
+    | 'httpStatus'
+    | 'invalidResponse'
+    | 'network'
+    | 'proxyCheck'
+    | 'proxyResolution'
+    | 'redirected'
+    | 'responseTooLarge'
+    | 'timeout'
+    | 'unexpected';
+
+export class EnvironmentMonitorProbeError extends Error {
+    constructor(
+        readonly reason: EnvironmentMonitorProbeFailureReason,
+        message: string,
+        options?: ErrorOptions,
+    ) {
+        super(message, options);
+        this.name = 'EnvironmentMonitorProbeError';
+    }
+}
+
+export function environmentMonitorProbeFailureReason(
+    error: unknown,
+): EnvironmentMonitorProbeFailureReason {
+    if (error instanceof EnvironmentMonitorProbeError) return error.reason;
+    if (error instanceof DOMException && error.name === 'TimeoutError') return 'timeout';
+    return 'unexpected';
+}
 
 interface ProbeSource {
     normalize(text: string): EnvironmentEgressReading | undefined;
@@ -210,14 +241,47 @@ async function readResponse(response: Response): Promise<string> {
     const end = await readCappedBody(response, MAX_RESPONSE_BYTES, (chunk) => {
         chunks.push(chunk);
     });
-    if (end === 'limit') throw new Error('Environment response exceeded the size limit');
+    if (end === 'limit')
+        throw new EnvironmentMonitorProbeError(
+            'responseTooLarge',
+            'Environment response exceeded the size limit',
+        );
     const bytes = new Uint8Array(chunks.reduce((sum, chunk) => sum + chunk.byteLength, 0));
     let offset = 0;
     for (const chunk of chunks) {
         bytes.set(chunk, offset);
         offset += chunk.byteLength;
     }
-    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    try {
+        return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    } catch (error) {
+        throw new EnvironmentMonitorProbeError(
+            'invalidResponse',
+            'Environment response was not valid UTF-8',
+            { cause: error },
+        );
+    }
+}
+
+function normalizeProbeError(error: unknown): EnvironmentMonitorProbeError {
+    if (error instanceof EnvironmentMonitorProbeError) return error;
+    if (error instanceof DOMException && error.name === 'TimeoutError')
+        return new EnvironmentMonitorProbeError('timeout', 'Environment source timed out', {
+            cause: error,
+        });
+    return new EnvironmentMonitorProbeError('network', 'Environment source request failed', {
+        cause: error,
+    });
+}
+
+function hasRequiredEgressFields(
+    egress: EnvironmentEgressReading,
+    signals: Parameters<EnvironmentMonitorProbe>[0],
+): boolean {
+    if (isIP(egress.ip) === 0) return false;
+    if (signals.locationChanges && !egress.countryCode && !egress.region) return false;
+    if (signals.timeZoneMismatch && !egress.timeZone) return false;
+    return true;
 }
 
 export function createLiveEnvironmentMonitorProbe(options: {
@@ -230,21 +294,41 @@ export function createLiveEnvironmentMonitorProbe(options: {
         const sources =
             signals.locationChanges || signals.timeZoneMismatch ? GEO_SOURCES : IP_SOURCES;
         const needsExternalProbe = requiresExternalEnvironmentProbe(signals);
-        let lastError: unknown;
+        let lastError: EnvironmentMonitorProbeError | undefined;
         const attempt = async (index: number): Promise<EnvironmentMonitorProbeReading> => {
             if (index >= sources.length)
-                throw lastError instanceof Error
-                    ? lastError
-                    : new Error('No environment source was available', { cause: lastError });
+                throw (
+                    lastError ??
+                    new EnvironmentMonitorProbeError(
+                        'unexpected',
+                        'No environment source was available',
+                    )
+                );
             const source = sources[index];
             try {
-                const proxyRoute = signals.proxyProtection
-                    ? normalizeProxyRoute(await options.resolveProxy(source.url))
-                    : undefined;
+                let proxyRoute: string | undefined;
+                if (signals.proxyProtection) {
+                    try {
+                        proxyRoute = normalizeProxyRoute(await options.resolveProxy(source.url));
+                    } catch (error) {
+                        throw new EnvironmentMonitorProbeError(
+                            'proxyResolution',
+                            'Environment source proxy resolution failed',
+                            { cause: error },
+                        );
+                    }
+                }
                 const endpoint = proxyRoute ? loopbackProxyEndpoint(proxyRoute) : undefined;
-                const proxyAvailable = endpoint
-                    ? await checkLocalProxy(endpoint, signal)
-                    : undefined;
+                let proxyAvailable: boolean | undefined;
+                try {
+                    proxyAvailable = endpoint ? await checkLocalProxy(endpoint, signal) : undefined;
+                } catch (error) {
+                    throw new EnvironmentMonitorProbeError(
+                        'proxyCheck',
+                        'Local proxy availability check failed',
+                        { cause: error },
+                    );
+                }
                 if (proxyAvailable === false)
                     return { proxy: { route: proxyRoute ?? '', available: false } };
                 if (!needsExternalProbe)
@@ -257,12 +341,35 @@ export function createLiveEnvironmentMonitorProbe(options: {
                     cache: 'no-store',
                     credentials: 'omit',
                     headers: { Accept: 'application/json, text/plain;q=0.9' },
+                    redirect: 'error',
                     signal: AbortSignal.any([signal, AbortSignal.timeout(FETCH_TIMEOUT_MS)]),
                 });
+                if (response.redirected)
+                    throw new EnvironmentMonitorProbeError(
+                        'redirected',
+                        'Environment source redirected unexpectedly',
+                    );
                 if (!response.ok)
-                    throw new Error(`Environment source returned HTTP ${response.status}`);
-                const egress = source.normalize(await readResponse(response));
-                if (!egress) throw new Error('Environment source returned an invalid response');
+                    throw new EnvironmentMonitorProbeError(
+                        'httpStatus',
+                        'Environment source returned an unsuccessful HTTP status',
+                    );
+                let egress: EnvironmentEgressReading | undefined;
+                try {
+                    egress = source.normalize(await readResponse(response));
+                } catch (error) {
+                    if (error instanceof EnvironmentMonitorProbeError) throw error;
+                    throw new EnvironmentMonitorProbeError(
+                        'invalidResponse',
+                        'Environment source returned an invalid response',
+                        { cause: error },
+                    );
+                }
+                if (!egress || !hasRequiredEgressFields(egress, signals))
+                    throw new EnvironmentMonitorProbeError(
+                        'invalidResponse',
+                        'Environment source omitted required fields',
+                    );
                 return {
                     egress,
                     ...(proxyRoute !== undefined && {
@@ -271,7 +378,7 @@ export function createLiveEnvironmentMonitorProbe(options: {
                 };
             } catch (error) {
                 if (signal.aborted) throw error;
-                lastError = error;
+                lastError = normalizeProbeError(error);
                 return attempt(index + 1);
             }
         };
@@ -284,19 +391,26 @@ export function createLiveEnvironmentMonitorProbe(options: {
  * healthy baseline to a warning without restarting the app.
  */
 export function createE2EEnvironmentMonitorProbe(path: string): EnvironmentMonitorProbe {
-    return async () => {
+    return async (signals) => {
         const value: unknown = JSON.parse(await readFile(path, 'utf8'));
         const row = objectRecord(value);
         const ip = safeText(row?.ip, 64);
-        if (!row || !ip) throw new Error('The environment monitor E2E fixture is invalid');
+        const egress = ip
+            ? {
+                  ip,
+                  countryCode: countryCode(row?.countryCode),
+                  region: safeText(row?.region, 160),
+                  network: safeText(row?.network, 160),
+                  timeZone: timeZone(row?.timeZone),
+              }
+            : undefined;
+        if (!row || !egress || !hasRequiredEgressFields(egress, signals))
+            throw new EnvironmentMonitorProbeError(
+                'invalidResponse',
+                'The environment monitor E2E fixture is invalid',
+            );
         return {
-            egress: {
-                ip,
-                countryCode: countryCode(row.countryCode),
-                region: safeText(row.region, 160),
-                network: safeText(row.network, 160),
-                timeZone: timeZone(row.timeZone),
-            },
+            egress,
             proxy: {
                 route: safeText(row.proxyRoute, 512) ?? 'DIRECT',
                 ...(typeof row.proxyAvailable === 'boolean' && {

@@ -27,9 +27,12 @@ export function createDesktopEnvironmentMonitorNotifications({
     monitor,
 }: DesktopEnvironmentMonitorNotificationOptions): { dispose(): void } {
     let notification: AgentSystemNotificationHandle | undefined;
-    const unsubscribe = monitor.subscribeAlerts((state) => {
-        const count = state.issues.length;
+    const unsubscribe = monitor.subscribeAlerts((event) => {
         notification?.close();
+        notification = undefined;
+        if (event.type === 'clear') return;
+        const { state } = event;
+        const count = state.issues.length;
         notification = delivery.show(
             {
                 body: translateMain('desktop.environmentMonitor.notification.body', { count }),

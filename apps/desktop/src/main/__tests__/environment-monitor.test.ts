@@ -1,13 +1,18 @@
-import type { EnvironmentMonitorState } from '@caxri/protocol';
+import type { StructuredLogger } from '@caxri/system';
 import { describe, expect, it, vi } from 'vitest';
 
+import type { EnvironmentMonitorAlertEvent } from '../environment-monitor/monitor';
 import {
     createEnvironmentMonitor,
     defaultEnvironmentMonitorSignals,
     proxyModeOf,
     timeZoneOffsetMinutes,
 } from '../environment-monitor/monitor';
-import { createLiveEnvironmentMonitorProbe } from '../environment-monitor/probe';
+import {
+    createLiveEnvironmentMonitorProbe,
+    EnvironmentMonitorProbeError,
+    environmentMonitorProbeFailureReason,
+} from '../environment-monitor/probe';
 import type {
     EnvironmentMonitorProbeReading,
     EnvironmentMonitorSignals,
@@ -38,10 +43,10 @@ function reading(overrides: Partial<EnvironmentMonitorProbeReading> = {}) {
 
 describe('Environment monitor', () => {
     it('defaults to public IP changes and keeps raw network identity out of state', async () => {
-        const alerts: EnvironmentMonitorState[] = [];
+        const alerts: EnvironmentMonitorAlertEvent[] = [];
         const probe = vi.fn().mockResolvedValue(reading());
         const monitor = createEnvironmentMonitor({ probe, now: () => NOW });
-        monitor.subscribeAlerts((state) => alerts.push(state));
+        monitor.subscribeAlerts((event) => alerts.push(event));
 
         const state = await monitor.refresh();
 
@@ -107,8 +112,8 @@ describe('Environment monitor', () => {
             probe,
             systemTimeZone: () => 'America/Los_Angeles',
         });
-        const alerts: EnvironmentMonitorState[] = [];
-        monitor.subscribeAlerts((state) => alerts.push(state));
+        const alerts: EnvironmentMonitorAlertEvent[] = [];
+        monitor.subscribeAlerts((event) => alerts.push(event));
 
         await monitor.refresh();
         const changed = await monitor.refresh();
@@ -126,7 +131,51 @@ describe('Environment monitor', () => {
             issues: ['timeZoneMismatch'],
             canAcceptBaseline: false,
         });
-        expect(alerts).toHaveLength(1);
+        expect(alerts).toHaveLength(2);
+        expect(alerts.at(-1)).toEqual({ type: 'clear' });
+    });
+
+    it('notifies only when an issue is added and clears stale banners after reductions', async () => {
+        const signals = {
+            ...defaultEnvironmentMonitorSignals,
+            proxyProtection: true,
+        };
+        const proxyAvailable = { route: 'PROXY proxy.example:443', available: true };
+        const proxyUnavailable = { route: 'PROXY proxy.example:443', available: false };
+        const changedIp = { ...reading().egress, ip: '198.51.100.20' };
+        const probe = vi
+            .fn()
+            .mockResolvedValueOnce(reading({ proxy: proxyAvailable }))
+            .mockResolvedValueOnce(reading({ egress: changedIp, proxy: proxyUnavailable }))
+            .mockResolvedValueOnce(reading({ egress: changedIp, proxy: proxyAvailable }))
+            .mockResolvedValueOnce(reading({ egress: changedIp, proxy: proxyAvailable }))
+            .mockResolvedValueOnce(reading({ egress: changedIp, proxy: proxyUnavailable }))
+            .mockResolvedValueOnce(reading({ proxy: proxyAvailable }));
+        const monitor = createEnvironmentMonitor({
+            loadSignals: () => Promise.resolve(signals),
+            probe,
+        });
+        const alerts: EnvironmentMonitorAlertEvent[] = [];
+        monitor.subscribeAlerts((event) => alerts.push(event));
+
+        await monitor.refresh();
+        await monitor.refresh();
+        await monitor.refresh();
+        await monitor.refresh();
+        await monitor.refresh();
+        await monitor.refresh();
+
+        expect(alerts).toHaveLength(4);
+        expect(alerts[0]).toMatchObject({
+            type: 'show',
+            state: { issues: ['publicIpChanged', 'proxyUnavailable'] },
+        });
+        expect(alerts[1]).toEqual({ type: 'clear' });
+        expect(alerts[2]).toMatchObject({
+            type: 'show',
+            state: { issues: ['publicIpChanged', 'proxyUnavailable'] },
+        });
+        expect(alerts[3]).toEqual({ type: 'clear' });
     });
 
     it('reports a selected local proxy interruption without exposing its address', async () => {
@@ -204,13 +253,43 @@ describe('Environment monitor', () => {
         await expect(second).resolves.toMatchObject({ state: 'healthy' });
         expect(probe).toHaveBeenCalledOnce();
     });
+
+    it('logs a closed failure reason and selected signal booleans', async () => {
+        const write = vi.fn<StructuredLogger['write']>();
+        const monitor = createEnvironmentMonitor({
+            logger: () => ({ write }) as never,
+            probe: vi
+                .fn()
+                .mockRejectedValue(
+                    new EnvironmentMonitorProbeError(
+                        'invalidResponse',
+                        'synthetic invalid response',
+                    ),
+                ),
+        });
+
+        await monitor.refresh();
+
+        expect(write).toHaveBeenCalledOnce();
+        expect(write.mock.calls[0]?.[0]).toBe('warn');
+        expect(write.mock.calls[0]?.[1]).toBe('environment_monitor.probe_failed');
+        expect(write.mock.calls[0]?.[2]?.fields).toMatchObject({
+            failureReason: 'invalidResponse',
+            publicIpChangesEnabled: true,
+        });
+        expect(
+            environmentMonitorProbeFailureReason(
+                new EnvironmentMonitorProbeError('redirected', 'synthetic redirect'),
+            ),
+        ).toBe('redirected');
+    });
 });
 
 describe('Environment monitor probes', () => {
     it('uses neutral IP-only sources by default and skips proxy resolution', async () => {
         const fetch = vi
             .fn<typeof globalThis.fetch>()
-            .mockResolvedValueOnce(new Response('{not-json', { status: 200 }))
+            .mockResolvedValueOnce(Response.json({ ip: 'not-an-ip' }))
             .mockResolvedValueOnce(Response.json({ ip: '203.0.113.3' }));
         const resolveProxy = vi.fn();
         const probe = createLiveEnvironmentMonitorProbe({ fetch, resolveProxy });
@@ -224,6 +303,30 @@ describe('Environment monitor probes', () => {
             const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url;
             expect(href).not.toMatch(/anthropic|claude/iu);
         }
+        for (const [, init] of fetch.mock.calls) expect(init?.redirect).toBe('error');
+    });
+
+    it('tries another source when enabled location fields are incomplete', async () => {
+        const fetch = vi
+            .fn<typeof globalThis.fetch>()
+            .mockResolvedValueOnce(Response.json({ ip: '203.0.113.3' }))
+            .mockResolvedValueOnce(
+                Response.json({
+                    ip: '203.0.113.4',
+                    country_code: 'JP',
+                    region: 'Example Region',
+                    timezone: 'Asia/Tokyo',
+                }),
+            );
+        const probe = createLiveEnvironmentMonitorProbe({ fetch, resolveProxy: vi.fn() });
+
+        await expect(
+            probe(
+                { ...defaultEnvironmentMonitorSignals, locationChanges: true },
+                new AbortController().signal,
+            ),
+        ).resolves.toMatchObject({ egress: { ip: '203.0.113.4', countryCode: 'JP' } });
+        expect(fetch).toHaveBeenCalledTimes(2);
     });
 
     it('resolves and checks a loopback proxy against the neutral source URL', async () => {

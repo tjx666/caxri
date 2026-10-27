@@ -45,11 +45,14 @@ and **Check unavailable** are independent opt-in signals under **Settings → No
 Disabling every signal stops the probe.
 
 The probe uses neutral public IP endpoints and resolves proxy routing only for the selected neutral
-endpoint. It never sends a probe to, or resolves the route for, an Agent service domain. A warning
+endpoint. Requests refuse redirects, so a catalog endpoint cannot move the probe to another host.
+The monitor never sends a probe to, or resolves the route for, an Agent service domain. A warning
 describes only the enabled observable signals; it does not interpret their meaning for another
-service. Repeated readings with the same issue set share one notification. **Use current
-environment** accepts change-based readings as the in-memory baseline, while an unavailable proxy,
-time zone mismatch, or failed check stays visible until the live condition clears.
+service. A notification is sent only when the current reading adds an issue. Repeated readings and
+issue-only reductions do not send another banner; a recovered issue can notify again if it later
+returns. **Use current environment** accepts change-based readings as the in-memory baseline, while
+an unavailable proxy, time zone mismatch, or failed check stays visible until the live condition
+clears.
 
 Delivery failure alerts cover every unarchived Session, not only the selected one: a failing CI
 check, a failing Vercel preview build, or a failing Vercel production build raises one
@@ -159,7 +162,7 @@ Environment signal preferences are persisted as independent booleans. The baseli
 fingerprint, and resolved proxy route stay in Desktop Main memory and reset when Desktop restarts.
 Raw IP addresses and proxy endpoints never enter the Renderer protocol, settings, notification
 copy, diagnostic logs, or notification history. Logs retain only state transitions, enabled-signal
-booleans, issue count, and probe duration.
+booleans, issue count, closed failure reasons, failure count, and probe duration.
 
 History uses an ordinary Zustand memory store with no persistence middleware:
 
