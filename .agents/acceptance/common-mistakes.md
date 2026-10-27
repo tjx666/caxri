@@ -246,7 +246,9 @@ reviewer sees.
 
 **Works:** Keep the plan item strictly about the outcome a person judges, and put the supporting-test
 explanation in `report.md`. Reject the plan before execution if its title, category, or method still
-describes a unit test, lint gate, type-check, build, or CI result. If an invalid round was already
+describes a unit test, lint gate, type-check, build, or CI result. `report.ts init` and `finalize` reject
+the common English and Chinese phrasings (`report-plan-schema.ts`), but the plan gate still owns the judgment.
+If an invalid round was already
 published, keep it and publish the corrected round as a new one; never delete remote history.
 
 ## Recovering a case whose launcher never completed its receipt
