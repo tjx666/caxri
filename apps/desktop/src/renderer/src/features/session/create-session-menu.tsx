@@ -219,13 +219,13 @@ export function CreateSessionMenu({ project }: { project: ProjectRecord }) {
                 <button
                     type="button"
                     /**
-                     * Base UI moves focus into the portalled popup, so the row loses `:focus-within` while the menu is
-                     * open. Without the open-state override the trigger would fade out from under its own menu the
-                     * moment it was used.
+                     * Base UI moves focus into the portalled popup, so the row loses its focused descendant while the
+                     * menu is open. Without the open-state override the trigger would fade out from under its own menu
+                     * the moment it was used.
                      */
                     className={cn(
                         sessionRowActionButton,
-                        'pointer-events-none opacity-0 transition-opacity group-focus-within/project-heading:pointer-events-auto group-focus-within/project-heading:opacity-100 group-hover/project-heading:pointer-events-auto group-hover/project-heading:opacity-100',
+                        'pointer-events-none opacity-0 transition-opacity group-hover/project-heading:pointer-events-auto group-hover/project-heading:opacity-100 group-has-focus-visible/project-heading:pointer-events-auto group-has-focus-visible/project-heading:opacity-100',
                         open && 'pointer-events-auto opacity-100',
                     )}
                     aria-label={t('session.create.newInProject', {

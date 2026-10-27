@@ -184,7 +184,7 @@ export function ProjectGroup({
                  */}
                 <div
                     ref={headingReference}
-                    className="project-heading group/project-heading relative flex min-h-7 cursor-grab items-center gap-1 rounded-md text-foreground [--project-hover-actions:2.875rem] focus-within:pr-[var(--project-hover-actions)] hover:bg-state-hover hover:pr-[var(--project-hover-actions)] active:cursor-grabbing has-[[data-popup-open]]:pr-[var(--project-hover-actions)]"
+                    className="project-heading group/project-heading relative flex min-h-7 cursor-grab items-center gap-1 rounded-md text-foreground [--project-hover-actions:2.875rem] hover:bg-state-hover hover:pr-[var(--project-hover-actions)] active:cursor-grabbing has-focus-visible:pr-[var(--project-hover-actions)] has-[[data-popup-open]]:pr-[var(--project-hover-actions)]"
                     data-project-id={project.id}
                     draggable
                     onDragOver={(event) => {
@@ -296,12 +296,14 @@ export function ProjectGroup({
                      * `gap-0.5`) as `--project-hover-actions` and pads by it only while the actions show, so the name
                      * fades before them instead of painting under them, the same rule `SessionRowActions` follows. The
                      * buttons reuse the Session chip so both levels of the tree show one size of hover action.
+                     * Keyboard focus reveals them through `:focus-visible`, not `:focus-within`: a pointer collapse
+                     * leaves focus on the row, and `:focus-within` kept the actions shown after the pointer left.
                      */}
                     <div className="project-heading-actions absolute top-1/2 right-1 z-10 flex -translate-y-1/2 items-center gap-0.5">
                         <CommandTooltip commandId="project.customizeIcon">
                             <button
                                 type="button"
-                                className={`${sessionRowActionButton} pointer-events-none opacity-0 transition-opacity group-focus-within/project-heading:pointer-events-auto group-focus-within/project-heading:opacity-100 group-hover/project-heading:pointer-events-auto group-hover/project-heading:opacity-100`}
+                                className={`${sessionRowActionButton} pointer-events-none opacity-0 transition-opacity group-hover/project-heading:pointer-events-auto group-hover/project-heading:opacity-100 group-has-focus-visible/project-heading:pointer-events-auto group-has-focus-visible/project-heading:opacity-100`}
                                 aria-label={t('primarySidebar.project.customizeIconAriaLabel', {
                                     title: project.displayTitle,
                                 })}
