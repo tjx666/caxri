@@ -29,7 +29,7 @@ import { listLocalBranches } from './branches';
 import { GitChangeTracker } from './change-tracker';
 import type { GitCommandOptions } from './command';
 import { runGitCommand } from './command';
-import { GitCommandBudget } from './command-budget';
+import { serverGitCommands } from './command-budget';
 import { parseCommitFiles, readCommitDetails } from './commit-details';
 import { COMMIT_FORMAT, parseCommitLog } from './commit-log';
 import { readGitHubPullRequestView } from './github';
@@ -77,7 +77,7 @@ interface GitServiceOptions {
 }
 
 export class GitService {
-    private readonly commands = new GitCommandBudget();
+    private readonly commands = serverGitCommands;
     private readonly histories = new SingleFlight<string, GitCommitPage>();
     private readonly repositoryService: GitRepoService;
     private readonly blameService: GitBlameService;

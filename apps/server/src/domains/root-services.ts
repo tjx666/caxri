@@ -19,7 +19,7 @@ import { CaxriDatabase } from './db';
 import type { DomainDependencies } from './domain-services';
 import { ExternalStatusHub } from './external-status';
 import { FileService } from './files';
-import { GitService } from './git';
+import { GitService, scheduleGitCommand, serverGitCommands } from './git';
 import { ProjectRootResolver } from './project';
 import { SessionContextService } from './session';
 import { WatchHub } from './watch';
@@ -151,7 +151,11 @@ export async function createRootServices({
      * Status panel, the status bar, and the sidebar sweep all share a single pull-request projection and a single
      * per-source rate-limit circuit instead of discovering the same limit four times over.
      */
-    const externalStatus = new ExternalStatusHub({ logger });
+    const externalStatus = new ExternalStatusHub({
+        logger,
+        scheduleGit: (cwd, arguments_, run) =>
+            scheduleGitCommand(serverGitCommands, logger, cwd, arguments_, run),
+    });
     const git = new GitService(new ProjectRootResolver(database), logger, {
         emit: send,
         externalStatus,

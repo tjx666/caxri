@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 
+import type { BackgroundWorkSource } from '@caxri/protocol';
 import type { AsyncSemaphore, StructuredLogger } from '@caxri/system';
 import { currentObservationContext, execFileAsync, logEventCatalog } from '@caxri/system';
 
@@ -91,6 +92,62 @@ export function gitCommandLogLevel(timing: { execMs: number; queueMs: number }):
 }
 
 /**
+ * Records a successful Git command as `git.command`. Debug, not info, for a fast command: on a real profile
+ * `git.command` plus `git.summary` filled 87% of a 5MB generation and cut retention to ~38h, rotating out the lifecycle
+ * evidence incidents need. A slow or long-queued one is `info` and names the Server request or background driver that
+ * issued it. Failures stay at warn and are recorded by the caller that owns their classification.
+ */
+function recordGitCommand(
+    logger: Pick<StructuredLogger, 'write'>,
+    cwd: string,
+    arguments_: readonly string[],
+    times: { background: BackgroundWorkSource | undefined; queuedAt: number; startedAt: number },
+): void {
+    const { background, queuedAt, startedAt } = times;
+    const finished = {
+        queueMs: startedAt - queuedAt,
+        execMs: performance.now() - startedAt,
+        repository: hashRepoPath(cwd),
+    };
+    const level = gitCommandLogLevel(finished);
+    const callerMethod =
+        level === 'info'
+            ? requestActivity.methodOf(currentObservationContext().requestId)
+            : undefined;
+    logger.write(level, logEventCatalog.git.command, {
+        durationMs: performance.now() - queuedAt,
+        fields: {
+            operation: classifyGitOperation(arguments_),
+            ...finished,
+            ...(callerMethod && { callerMethod }),
+            ...(level === 'info' && background && { background }),
+        },
+    });
+}
+
+/**
+ * Runs a Git spawn another domain owns (Project Status's probes) in the shared budget and records it as `git.command`,
+ * so it yields to foreground requests and keeps to the loaded machine's background cap like every other Server Git
+ * spawn. `run` keeps its own timeout and error shape; its owner records a failure.
+ */
+export function scheduleGitCommand(
+    commands: Pick<AsyncSemaphore, 'run'>,
+    logger: Pick<StructuredLogger, 'write'>,
+    cwd: string,
+    arguments_: readonly string[],
+    run: () => Promise<string>,
+): Promise<string> {
+    const queuedAt = performance.now();
+    const background = currentBackgroundWork();
+    return commands.run(async () => {
+        const startedAt = performance.now();
+        const stdout = await run();
+        recordGitCommand(logger, cwd, arguments_, { background, queuedAt, startedAt });
+        return stdout;
+    });
+}
+
+/**
  * Runs one Git command under the shared concurrency budget with a non-interactive, locale-stable environment, and
  * records it as a `git.command` (or `git.commandFailed`) event that never carries a path or ref. A failure is explained
  * by the closed `GitFailureReason` plus the exit status from {@link gitFailureFields}, never by the fault message.
@@ -135,24 +192,7 @@ export async function runGitCommand(
                 execution.child.stdin?.end(options.input);
             }
             const { stdout } = await execution;
-            // Debug, not info, for a fast command: on a real profile `git.command` plus `git.summary` filled 87% of a
-            // 5MB generation and cut retention to ~38h, rotating out the lifecycle evidence incidents need. A slow or
-            // long-queued one is `info` and names the Server request that issued it. Failures stay at warn.
-            const finished = timing();
-            const level = gitCommandLogLevel(finished);
-            const callerMethod =
-                level === 'info'
-                    ? requestActivity.methodOf(currentObservationContext().requestId)
-                    : undefined;
-            logger.write(level, logEventCatalog.git.command, {
-                durationMs: performance.now() - queuedAt,
-                fields: {
-                    operation: classifyGitOperation(arguments_),
-                    ...finished,
-                    ...(callerMethod && { callerMethod }),
-                    ...(level === 'info' && background && { background }),
-                },
-            });
+            recordGitCommand(logger, cwd, arguments_, { background, queuedAt, startedAt });
             return stdout;
         } catch (error) {
             const reason = classifyGitFailure(error);

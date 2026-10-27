@@ -17,7 +17,19 @@ export interface ExternalStatusHubOptions {
      * Unguarded CLI runner; the hub is what wraps it in the quota circuit. Overridden in tests.
      */
     runner?: ExternalStatusRunner;
+    /**
+     * Runs a `git` probe in the Server's Git budget (the composition root wires the Git domain's `scheduleGitCommand`),
+     * so a background status poll yields to the Git requests a user is waiting on and logs `git.command`. Without it
+     * the probe runs directly (tests, and a `GitService` built without a shared hub).
+     */
+    scheduleGit?: ExternalStatusGitScheduler;
 }
+
+export type ExternalStatusGitScheduler = (
+    cwd: string,
+    arguments_: readonly string[],
+    run: () => Promise<string>,
+) => Promise<string>;
 
 /**
  * The Server's single owner of external delivery-status queries. Every `gh`, `linear`, and `vc` spawn goes through
@@ -28,6 +40,7 @@ export interface ExternalStatusHubOptions {
  */
 export class ExternalStatusHub {
     private readonly base: ExternalStatusRunner;
+    private readonly scheduleGit: ExternalStatusGitScheduler;
     readonly github: GitHubPullRequestStore;
     /**
      * Hover-preview reads for `owner/repo#123`; see {@link GitHubReferenceStore} for why it is not the store above.
@@ -35,17 +48,19 @@ export class ExternalStatusHub {
     readonly githubReferences: GitHubReferenceStore;
     readonly limiter: ExternalStatusLimiter;
     /**
-     * Quota-governed CLI runner. `git` is local and free, so it bypasses the circuit entirely. Declared as a field
-     * initializer so it is bound before the constructor body hands it to {@link GitHubPullRequestStore}; the arrow reads
-     * `this.base` and `this.limiter` at call time, after the constructor has assigned them.
+     * Quota-governed CLI runner. `git` is local and free, so it bypasses the circuit and queues in the Server's Git
+     * budget instead. Declared as a field initializer so it is bound before the constructor body hands it to
+     * {@link GitHubPullRequestStore}; the arrow reads `this.base` and `this.limiter` at call time, after the constructor
+     * has assigned them.
      */
     readonly run: ExternalStatusRunner = (source, arguments_, cwd) =>
         source === 'git'
-            ? this.base(source, arguments_, cwd)
+            ? this.scheduleGit(cwd, arguments_, () => this.base(source, arguments_, cwd))
             : this.limiter.guard(source, () => this.base(source, arguments_, cwd));
 
     constructor(options: ExternalStatusHubOptions = {}) {
         this.base = options.runner ?? runExternalStatusCommand;
+        this.scheduleGit = options.scheduleGit ?? ((_cwd, _arguments, run) => run());
         this.limiter = new ExternalStatusLimiter({
             logger: options.logger,
             now: options.now,
