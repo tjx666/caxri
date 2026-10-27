@@ -26,13 +26,13 @@ ever attached to a conversation at a time.
 - **Vendor protocols, not ACP.** Claude Code and Codex are the priority providers and neither ships
   native Agent Client Protocol support; ACP reaches them only through community adapters that wrap
   the same vendor protocols. Codex uses `codex app-server` (stdio JSON-RPC, the interface its own
-  IDE extension uses). Claude Code will use the Claude Agent SDK pointed at the user's own `claude`
-  binary. Grok remains PTY-only. ACP stays an option for a future long-tail provider that ships it
-  natively.
+  IDE extension uses). Claude Code uses the Claude Agent SDK pointed at the user's own `claude`
+  binary. ACP stays the path for a provider that ships it natively: Grok Build, PTY-only when this
+  was decided, later gained Chat through its own ACP agent.
 - **A Chat Terminal is still a Terminal row.** It keeps Session ownership, Primary Agent election,
   Agent Session identity, naming, ordering, pane placement, and the `terminal` pane resource. A
   `surface` column distinguishes it. Features that need a PTY (input bytes, resize, snapshots,
-  suspension, restore) reject a Chat Terminal at one central guard instead of growing a parallel
+  PTY suspension, restore) reject a Chat Terminal at one central guard instead of growing a parallel
   entity: a separate table would have duplicated the Primary Agent foreign key, attention, naming,
   and about twenty pane-layout branches.
 - **Server Core owns the provider child process.** Each live Chat Terminal owns one provider
@@ -57,12 +57,14 @@ ever attached to a conversation at a time.
   change, but it cannot stream, answer approvals, or confirm that input became a turn; it would
   have remained a second-class reader.
 - **A dedicated worker process for Chat runtimes.** Better isolation for an in-process SDK. Codex's
-  app-server is already its own process, so the extra hop buys nothing yet; revisit when the Claude
-  Agent SDK, which runs inside Node, is added.
+  app-server is already its own process, so the extra hop buys nothing. The Claude Agent SDK was
+  added later and still runs in Server Core, spawning the user's `claude` through the shared
+  provider process wrapper, so no worker process was adopted.
 
 ## Consequences
 
 The README product boundary changes from "Agent CLIs always run in a real PTY" to "Agent CLIs run
-unmodified, in a real PTY or through their vendor's structured protocol". Chat Terminals do not
-support PTY-only actions such as Terminal input from other Clients, Agent dispatch, or batch
-compaction until each one gains an explicit structured path.
+unmodified, in a real PTY or through their vendor's structured protocol". Chat Terminals still
+reject raw PTY actions such as Terminal input from other Clients, long pastes, and restore at one
+guard. Agent dispatch, idle suspension, and batch compaction later gained structured Chat paths;
+see [Agent Chat](../agent-chat.md).

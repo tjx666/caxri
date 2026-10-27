@@ -38,8 +38,8 @@ attaches to it exactly like a local Server. Everything above the transport is un
   `nodejs.org` URL and verifies its hash; when the remote cannot reach the internet, Desktop streams it instead. Old
   builds are removed only when no running Server uses them.
 - **Supported remotes**: Linux x64 and arm64 with glibc 2.28 or newer, the Node 24 baseline. Native modules are built
-  in a `manylinux_2_28` container so the artifact honors that floor; musl, macOS, and Windows remotes are not
-  supported.
+  in a `manylinux_2_28` container so the artifact honors that floor; musl, Intel macOS, and Windows remotes are not
+  supported; macOS on Apple silicon was added by ADR 0018.
 - **Lifecycle**: closing an SSH Host's window or quitting Desktop only detaches, the same as the local window's
   detach. The SSH Host's Server keeps its Terminals and Agents and is reclaimed only by ADR 0010's idle exit, which already
   defers while a PTY is live, or by the explicit **Stop Server on SSH Host** action. A dropped connection reconnects

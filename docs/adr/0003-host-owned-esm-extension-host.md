@@ -7,7 +7,7 @@ status: accepted
 
 - Date: 2026-08-22
 - Refs: [#292](https://github.com/tjx666/caxri/issues/292)
-- Amended by: ADR 0004 (target, pending)
+- Amended by: [ADR 0004](0004-independently-deployable-server.md) (Server Core supervises the Extension Host; implemented)
 
 Caxri uses one shared, Host-owned Node Extension Host for declarative ViewContainer, View, and
 Command contributions. The Host is the sole catalog, supervision, grant, and Runtime-projection

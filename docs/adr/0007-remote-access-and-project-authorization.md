@@ -8,6 +8,7 @@ status: accepted
 - Date: 2026-08-25
 - Implementation plan: [Server architecture refactor plan](../server-refactor-plan.md)
 - Amended by: [ADR 0013](0013-editable-external-documents.md) (external documents are editable and can open a Terminal in their folder)
+- Amended by: [ADR 0014](0014-ssh-remote-server.md) (adds an SSH access path beside local, direct, and Relay)
 
 Local, direct, and Relay access establish the same public Server protocol. Local access uses a private
 loopback bootstrap credential. Direct access uses TLS with a pairing-delivered certificate pin,
@@ -29,7 +30,9 @@ Selecting a file inside the current Project still uses its existing authorized e
 An external file opens as a read-only virtual Editor tab in the current Session. Its display path and
 content live only in Renderer memory for that Renderer lifetime, and the tab is stripped from every
 Session persistence write. The external flow neither creates nor reuses a Project for the file and never
-creates another Session. It grants no Files, Search, Git, Terminal cwd, save, or Project authority. Remote
+creates another Session. It grants no Files, Search, Git, Terminal cwd, save, or Project authority (ADR 0013 later made the
+file editable and allowed a Terminal in its folder; Files, Search, Git, and Project authority stay
+withheld). Remote
 Clients do not inherit this same-machine capability or gain a way to submit a local Client path to
 Server Core. Add Project, Workbench-root selection, Agent folder selection, and other durable-root
 workflows continue to use native selection and single-use Main grants.
