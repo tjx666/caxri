@@ -92,9 +92,11 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
         await message.press('Enter');
         const approval = chat.getByRole('region', { name: 'Run this command?' });
         await expect(approval).toContainText('echo approved');
+        // Codex lists only accept and cancel for a command, yet it still takes a decline, so the card offers Deny.
+        await expect(approval.getByRole('button', { name: 'Deny', exact: true })).toBeVisible();
         await expect(
             approval.getByRole('button', { name: 'Always Allow in This Chat' }),
-        ).toBeVisible();
+        ).toHaveCount(0);
         await page.screenshot({ path: testInfo.outputPath('agent-chat-approval.png') });
         await approval.getByRole('button', { name: 'Run', exact: true }).click();
         await expect(approval).toHaveCount(0);

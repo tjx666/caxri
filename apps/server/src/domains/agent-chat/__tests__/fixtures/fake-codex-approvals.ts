@@ -38,6 +38,12 @@ export async function runApprovalCommand(io: FakeCodexIo, turn: FakeTurn) {
         command: command.command,
         cwd: command.cwd,
         reason: 'Fake approval',
+        // The list real Codex sends for a command approval: no `decline`, though it accepts one.
+        availableDecisions: [
+            'accept',
+            { acceptWithExecpolicyAmendment: { execpolicy_amendment: ['echo'] } },
+            'cancel',
+        ],
     })) as ApprovalResponse | undefined;
     if (response?.decision === 'accept' || response?.decision === 'acceptForSession') {
         io.notifyTurn(turn, 'item/commandExecution/outputDelta', {

@@ -383,21 +383,36 @@ const SIMPLE_DECISIONS = new Set<AgentChatDecision>([
  * Fields every approval shares. Codex lists `availableDecisions` for prompts that must not offer every choice; only the
  * plain decisions are kept (policy amendments carry payloads Caxri does not offer), and an absent list means all.
  */
+/**
+ * The plain decisions Codex lists, plus `decline` whenever it lists `cancel`. Codex's default command approval offers
+ * `accept` and `cancel` but not `decline`, yet its app-server answers `decline` for any command approval: the command
+ * is marked declined and the turn goes on, which is what the TUI's "No, continue without running it" sends. Without it
+ * a Chat card would offer only `Run`, since `cancel` (stopping the whole turn) is the Stop button's job, not a card
+ * choice.
+ *
+ * @see https://github.com/openai/codex/blob/main/codex-rs/app-server/src/bespoke_event_handling.rs
+ */
+function approvalDecisions(available: unknown): AgentChatDecision[] | undefined {
+    if (!Array.isArray(available)) return undefined;
+    const decisions = new Set(
+        available.filter(
+            (decision): decision is AgentChatDecision =>
+                typeof decision === 'string' && SIMPLE_DECISIONS.has(decision as AgentChatDecision),
+        ),
+    );
+    if (decisions.has('cancel')) decisions.add('decline');
+    return decisions.size > 0 ? [...decisions] : undefined;
+}
+
 function approvalFields(id: string, parameters: Json) {
     const itemId = optionalText(parameters.itemId, 200);
     const reason = optionalText(parameters.reason, 2_000);
-    const decisions = Array.isArray(parameters.availableDecisions)
-        ? parameters.availableDecisions.filter(
-              (decision): decision is AgentChatDecision =>
-                  typeof decision === 'string' &&
-                  SIMPLE_DECISIONS.has(decision as AgentChatDecision),
-          )
-        : undefined;
+    const decisions = approvalDecisions(parameters.availableDecisions);
     return {
         id,
         ...(itemId && { itemId }),
         ...(reason && { reason }),
-        ...(decisions?.length && { decisions: [...new Set(decisions)] }),
+        ...(decisions && { decisions }),
     };
 }
 
