@@ -38,6 +38,20 @@ const longReply = (snapshot: AgentChatSnapshot) =>
             item.type === 'agentMessage' && item.text.startsWith('Long reply first line.'),
     );
 
+/**
+ * Drags the timeline down until check `id` is on screen.
+ */
+const scrollTo = (serial: string, id: string) =>
+    waitForMobile(
+        async () => {
+            const isShown = checkBounds(await mobileSemantics(serial), id) !== undefined;
+            if (!isShown)
+                await adbShell(serial, ['input', 'swipe', '540', '700', '540', '1500', '200']);
+            return isShown;
+        },
+        (isShown) => isShown,
+    );
+
 const composerReads = (serial: string, value: string) =>
     waitForMobile(
         () => observeMobileNode(serial, 'agent-chat-composer-input', { kind: 'equals', value }),
@@ -120,7 +134,9 @@ export async function executeMobileChatMessageActionsScenario(
         await tapMobileCheckByBounds(serial, 'conversation-message-select-done');
         await waitForNoCheck(serial, 'conversation-message-sheet');
 
-        // Edit from Here, cancelled: the composer takes the message and Cancel gives the draft back.
+        // Edit from Here, cancelled: the composer takes the message and Cancel gives the draft back. The long reply
+        // pushed the first message above the screen, so the timeline scrolls back to it first.
+        await scrollTo(serial, `conversation-user-bubble-${firstMessage.id}`);
         await tapMobileCheck(serial, `conversation-user-bubble-${firstMessage.id}`, {
             isLongPress: true,
         });
@@ -138,6 +154,7 @@ export async function executeMobileChatMessageActionsScenario(
         await capture(environment, 'edit-cancelled', artifacts);
 
         // Leaving the Chat mid-edit ends the edit the way Cancel does, so the message never lingers as a plain draft.
+        await scrollTo(serial, `conversation-user-bubble-${firstMessage.id}`);
         await tapMobileCheck(serial, `conversation-user-bubble-${firstMessage.id}`, {
             isLongPress: true,
         });
@@ -153,6 +170,7 @@ export async function executeMobileChatMessageActionsScenario(
         await waitForNoCheck(serial, 'agent-chat-edit-banner');
 
         // Edit from Here, sent: the Chat rewinds to the first message and answers the edited one in its place.
+        await scrollTo(serial, `conversation-user-bubble-${firstMessage.id}`);
         await tapMobileCheck(serial, `conversation-user-bubble-${firstMessage.id}`, {
             isLongPress: true,
         });
