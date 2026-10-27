@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { delimiter, join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -81,6 +81,43 @@ describe('gitleaksReleaseAssetName', () => {
 });
 
 describe('resolveGitleaksBinary', () => {
+    it('uses the pinned version found on PATH without touching the cache or the network', async () => {
+        const cacheRoot = await temporaryDirectory('caxri-gitleaks-empty-cache-');
+        const elsewhere = await temporaryDirectory('caxri-gitleaks-other-bin-');
+        const installed = await temporaryDirectory('caxri-gitleaks-installed-bin-');
+        await writeFile(join(elsewhere, 'gitleaks'), fakeBinaryScript('0.0.0-other'));
+        await chmod(join(elsewhere, 'gitleaks'), 0o755);
+        await writeFile(join(installed, 'gitleaks'), fakeBinaryScript(FAKE_VERSION));
+        await chmod(join(installed, 'gitleaks'), 0o755);
+
+        const downloadFile = vi.fn();
+        await expect(
+            resolveGitleaksBinary({
+                cacheRoot,
+                downloadFile,
+                searchPath: ['relative/bin', elsewhere, installed].join(delimiter),
+                version: FAKE_VERSION,
+            }),
+        ).resolves.toBe(join(installed, 'gitleaks'));
+        expect(downloadFile).not.toHaveBeenCalled();
+    });
+
+    it('falls back to the cache when PATH only has another version', async () => {
+        const cacheRoot = await temporaryDirectory('caxri-gitleaks-path-mismatch-');
+        const versionDirectory = join(cacheRoot, 'gitleaks', FAKE_VERSION);
+        await mkdir(versionDirectory, { recursive: true });
+        const cachedBinary = join(versionDirectory, 'gitleaks');
+        await writeFile(cachedBinary, fakeBinaryScript(FAKE_VERSION));
+        await chmod(cachedBinary, 0o755);
+        const installed = await temporaryDirectory('caxri-gitleaks-old-bin-');
+        await writeFile(join(installed, 'gitleaks'), fakeBinaryScript('0.0.0-other'));
+        await chmod(join(installed, 'gitleaks'), 0o755);
+
+        await expect(
+            resolveGitleaksBinary({ cacheRoot, searchPath: installed, version: FAKE_VERSION }),
+        ).resolves.toBe(cachedBinary);
+    });
+
     it('reuses an already-cached binary without downloading again', async () => {
         const cacheRoot = await temporaryDirectory('caxri-gitleaks-cache-hit-');
         const versionDirectory = join(cacheRoot, 'gitleaks', FAKE_VERSION);

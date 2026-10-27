@@ -11,7 +11,7 @@ import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { delimiter, isAbsolute, join } from 'node:path';
 import process from 'node:process';
 import { promisify } from 'node:util';
 
@@ -86,6 +86,10 @@ export interface GitleaksPreparationOptions {
     checksums?: Readonly<Record<string, string>>;
     downloadFile?: (url: string, destinationPath: string) => Promise<void>;
     platform?: NodeJS.Platform;
+    /**
+     * The `PATH` searched for an installed copy of the pinned version; defaults to `process.env.PATH`.
+     */
+    searchPath?: string;
     version?: string;
 }
 
@@ -104,13 +108,25 @@ async function isReadyBinary(binaryPath: string, expectedVersion: string): Promi
 }
 
 /**
- * A machine that already has the exact pinned version reachable on `PATH` (the maintainer's own Homebrew install,
- * today) never needs the cached or downloaded copy. This keeps every local `git commit` fast and offline in the common
- * case. Not exported: every test supplies a cache-hit or cache-miss fixture instead of exercising this "already on
- * PATH" branch directly.
+ * A machine that already has the exact pinned version reachable on `PATH` (a Homebrew or mise install) never needs the
+ * cached or downloaded copy. This keeps every local `git commit` fast and offline, including the first commit in a new
+ * worktree, whose `.cache/tool-cache` starts empty. Each `PATH` entry is joined into an absolute candidate: `stat` on
+ * the bare name only looks in the working directory, which once left this branch dead and sent every new worktree to
+ * the network. `Bun.which` is not used because Vitest imports this module under plain Node.
  */
-async function pathGitleaksBinary(expectedVersion: string): Promise<string | undefined> {
-    return (await isReadyBinary('gitleaks', expectedVersion)) ? 'gitleaks' : undefined;
+async function pathGitleaksBinary(
+    expectedVersion: string,
+    searchPath: string,
+): Promise<string | undefined> {
+    const candidates = searchPath
+        .split(delimiter)
+        .filter((directory) => isAbsolute(directory))
+        .map((directory) => join(directory, 'gitleaks'));
+    const ready = await Promise.all(
+        candidates.map((candidate) => isReadyBinary(candidate, expectedVersion)),
+    );
+    // The first ready entry wins, matching the shell's own PATH precedence.
+    return candidates[ready.indexOf(true)];
 }
 
 async function defaultDownloadFile(url: string, destinationPath: string): Promise<void> {
@@ -147,7 +163,7 @@ export async function resolveGitleaksBinary(options: GitleaksPreparationOptions)
     const checksums = options.checksums ?? GITLEAKS_RELEASE_CHECKSUMS;
     const downloadFile = options.downloadFile ?? defaultDownloadFile;
 
-    const onPath = await pathGitleaksBinary(version);
+    const onPath = await pathGitleaksBinary(version, options.searchPath ?? process.env.PATH ?? '');
     if (onPath) return onPath;
 
     const releaseKey = gitleaksReleaseKey({ arch, platform });
