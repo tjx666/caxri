@@ -1,5 +1,7 @@
 # Caxri
 
+![Caxri on the desktop running Claude Code and Codex Sessions across three Projects, beside the paired Caxri mobile app listing which Sessions need attention](docs/assets/readme-hero.png)
+
 Caxri is an Agent Development Environment (ADE) for macOS: the place where you build software
 through the coding Agents you already use, Claude Code, Codex and Grok Build. It gives those Agents
 one consistent workflow, keeps each task as a durable Session under a local Project folder, handles

@@ -1,0 +1,290 @@
+{
+    "name": "readme-hero",
+    "layout": "hero-desktop-mobile",
+    "canvas": {
+        "width": 1200,
+        "height": 675
+    },
+    "copy": {
+        "headline": "The Agent Development Environment",
+        "subhead": "Run Claude Code and Codex side by side, see which Session needs you, and follow along from your phone."
+    },
+    "theme": "dracula",
+    "desktop": {
+        "width": 1120,
+        "height": 700,
+        "session": "coupons",
+        "panel": "Git"
+    },
+    "mobile": {
+        "hostName": "Studio Mac",
+        "screen": "sessions"
+    },
+    "agents": {
+        "claude": "readme-hero.claude.json",
+        "codex": "readme-hero.codex.json"
+    },
+    "projects": [
+        {
+            "key": "storefront",
+            "name": "storefront",
+            "branch": "feat/coupon-codes",
+            "commits": [
+                {
+                    "message": "Add the checkout total",
+                    "files": {
+                        "package.json": [
+                            "{",
+                            "  \"name\": \"storefront\",",
+                            "  \"private\": true,",
+                            "  \"type\": \"module\",",
+                            "  \"scripts\": { \"test\": \"vitest run\" },",
+                            "  \"devDependencies\": { \"vitest\": \"^4.0.0\" }",
+                            "}"
+                        ],
+                        "src/checkout/total.ts": [
+                            "import type { Cart } from '../cart/cart';",
+                            "",
+                            "const TAX_RATE = 0.08;",
+                            "",
+                            "export interface CheckoutTotal {",
+                            "    subtotal: number;",
+                            "    tax: number;",
+                            "    total: number;",
+                            "}",
+                            "",
+                            "export function checkoutTotal(cart: Cart): CheckoutTotal {",
+                            "    const subtotal = cart.items.reduce((sum, item) => sum + item.price * item.quantity, 0);",
+                            "    const tax = Math.round(subtotal * TAX_RATE * 100) / 100;",
+                            "    return { subtotal, tax, total: subtotal + tax };",
+                            "}"
+                        ],
+                        "src/cart/cart.ts": [
+                            "export interface CartItem {",
+                            "    sku: string;",
+                            "    price: number;",
+                            "    quantity: number;",
+                            "}",
+                            "",
+                            "export interface Cart {",
+                            "    items: CartItem[];",
+                            "    updatedAt: Date;",
+                            "}"
+                        ]
+                    }
+                },
+                {
+                    "message": "Cover the cart total",
+                    "files": {
+                        "src/cart/cart-total.test.ts": [
+                            "import { expect, it } from 'vitest';",
+                            "",
+                            "import { checkoutTotal } from '../checkout/total';",
+                            "",
+                            "it('totals a cart updated today', () => {",
+                            "    const cart = { items: [{ sku: 'mug', price: 12, quantity: 2 }], updatedAt: new Date() };",
+                            "    expect(checkoutTotal(cart).total).toBe(25.92);",
+                            "});"
+                        ]
+                    }
+                }
+            ],
+            "changes": {
+                "src/checkout/coupons.ts": [
+                    "export interface Coupon {",
+                    "    code: string;",
+                    "    percentOff: number;",
+                    "    minimumSubtotal: number;",
+                    "    expiresAt: Date;",
+                    "}",
+                    "",
+                    "export function couponDiscount(coupon: Coupon, subtotal: number, now = new Date()): number {",
+                    "    if (now > coupon.expiresAt || subtotal < coupon.minimumSubtotal) return 0;",
+                    "    return Math.round(subtotal * coupon.percentOff) / 100;",
+                    "}"
+                ],
+                "src/checkout/total.ts": [
+                    "import type { Cart } from '../cart/cart';",
+                    "import type { Coupon } from './coupons';",
+                    "import { couponDiscount } from './coupons';",
+                    "",
+                    "const TAX_RATE = 0.08;",
+                    "",
+                    "export interface CheckoutTotal {",
+                    "    subtotal: number;",
+                    "    discount: number;",
+                    "    tax: number;",
+                    "    total: number;",
+                    "}",
+                    "",
+                    "export function checkoutTotal(cart: Cart, coupon?: Coupon): CheckoutTotal {",
+                    "    const subtotal = cart.items.reduce((sum, item) => sum + item.price * item.quantity, 0);",
+                    "    const discount = coupon ? couponDiscount(coupon, subtotal) : 0;",
+                    "    const tax = Math.round((subtotal - discount) * TAX_RATE * 100) / 100;",
+                    "    return { subtotal, discount, tax, total: subtotal - discount + tax };",
+                    "}"
+                ],
+                "src/checkout/coupons.test.ts": [
+                    "import { expect, it } from 'vitest';",
+                    "",
+                    "import { couponDiscount } from './coupons';",
+                    "",
+                    "const coupon = { code: 'SPRING10', percentOff: 10, minimumSubtotal: 50, expiresAt: new Date('2026-04-01') };",
+                    "",
+                    "it('takes 10% off a qualifying subtotal', () => {",
+                    "    expect(couponDiscount(coupon, 80, new Date('2026-03-10'))).toBe(8);",
+                    "});",
+                    "",
+                    "it('ignores an expired coupon', () => {",
+                    "    expect(couponDiscount(coupon, 80, new Date('2026-04-02'))).toBe(0);",
+                    "});",
+                    "",
+                    "it('ignores a subtotal below the minimum', () => {",
+                    "    expect(couponDiscount(coupon, 40, new Date('2026-03-10'))).toBe(0);",
+                    "});"
+                ]
+            }
+        },
+        {
+            "key": "billing",
+            "name": "billing-service",
+            "commits": [
+                {
+                    "message": "Add invoices and receipts",
+                    "files": {
+                        "package.json": [
+                            "{",
+                            "  \"name\": \"billing-service\",",
+                            "  \"private\": true,",
+                            "  \"type\": \"module\",",
+                            "  \"scripts\": { \"test\": \"vitest run\" }",
+                            "}"
+                        ],
+                        "src/invoices/invoice-total.ts": [
+                            "import type { InvoiceLine } from './invoice';",
+                            "",
+                            "export function invoiceTotal(lines: InvoiceLine[]): number {",
+                            "    const total = lines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0);",
+                            "    return Number(total.toFixed(2));",
+                            "}"
+                        ],
+                        "src/invoices/invoice.ts": [
+                            "export interface InvoiceLine {",
+                            "    description: string;",
+                            "    unitPrice: number;",
+                            "    quantity: number;",
+                            "}"
+                        ],
+                        "src/receipts/receipt.ts": [
+                            "export interface ReceiptLine {",
+                            "    label: string;",
+                            "    amount: number;",
+                            "}",
+                            "",
+                            "export function receiptLines(subtotal: number): ReceiptLine[] {",
+                            "    return [{ label: 'Total', amount: subtotal }];",
+                            "}"
+                        ]
+                    }
+                }
+            ],
+            "changes": {
+                "src/receipts/receipt.ts": [
+                    "export interface ReceiptLine {",
+                    "    label: string;",
+                    "    amount: number;",
+                    "}",
+                    "",
+                    "export function receiptLines(subtotal: number, tax: number): ReceiptLine[] {",
+                    "    return [",
+                    "        { label: 'Subtotal', amount: subtotal },",
+                    "        { label: 'Tax', amount: tax },",
+                    "        { label: 'Total', amount: subtotal + tax },",
+                    "    ];",
+                    "}"
+                ]
+            }
+        },
+        {
+            "key": "docs",
+            "name": "docs",
+            "commits": [
+                {
+                    "message": "Document webhooks",
+                    "files": {
+                        "webhooks.md": [
+                            "# Webhooks",
+                            "",
+                            "Each event is sent as a signed `POST` to the endpoint you register.",
+                            "",
+                            "## Verifying signatures",
+                            "",
+                            "Compare the `X-Signature` header with an HMAC of the raw body."
+                        ]
+                    }
+                }
+            ],
+            "changes": {
+                "webhooks.md": [
+                    "# Webhooks",
+                    "",
+                    "Each event is sent as a signed `POST` to the endpoint you register.",
+                    "",
+                    "## Verifying signatures",
+                    "",
+                    "Compare the `X-Signature` header with an HMAC of the raw body.",
+                    "",
+                    "## Retries",
+                    "",
+                    "A delivery that does not return `2xx` within 10 seconds is retried up to 8 times,",
+                    "with exponential backoff starting at 30 seconds. Every retry carries the same",
+                    "`X-Event-Id`, so deduplicate on it."
+                ]
+            }
+        }
+    ],
+    "sessions": [
+        {
+            "key": "tax-receipts",
+            "project": "billing",
+            "agent": "codex",
+            "title": "Show tax on receipts",
+            "prompt": "Show the tax as its own line on receipts.",
+            "expect": "completed",
+            "read": true
+        },
+        {
+            "key": "webhook-docs",
+            "project": "docs",
+            "agent": "claude",
+            "title": "Webhook retry docs",
+            "prompt": "Document how webhook deliveries are retried.",
+            "expect": "completed"
+        },
+        {
+            "key": "cart-flake",
+            "project": "storefront",
+            "agent": "claude",
+            "title": "Fix flaky cart test",
+            "prompt": "The cart total test fails now and then in CI. Find out why and fix it.",
+            "expect": "waiting"
+        },
+        {
+            "key": "coupons",
+            "project": "storefront",
+            "agent": "claude",
+            "title": "Add coupon codes",
+            "prompt": "Add coupon codes to checkout: a percentage off, with an expiry date and a minimum subtotal.",
+            "expect": "completed",
+            "read": true
+        },
+        {
+            "key": "invoice-rounding",
+            "project": "billing",
+            "agent": "codex",
+            "title": "Round invoice lines",
+            "prompt": "Invoice totals are off by a cent sometimes. Round each line before summing.",
+            "expect": "running"
+        }
+    ]
+}

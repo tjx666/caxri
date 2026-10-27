@@ -303,3 +303,4 @@ em-dash-check` enforces this in the `guards` job and the pre-commit hook.
 | Commits                                                   | `commit`               |
 | Pull requests and CI watch                                | `pull-request`         |
 | Packaging, GitHub Release, local uninstall                | `$release`             |
+| Promotional images (README hero, release, social)         | `promo-images`         |
