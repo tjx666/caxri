@@ -267,7 +267,10 @@ shared component when every usage shows changing digits (`StatusItem`, `StatTile
   reserved for intrinsically circular shapes: activity dots, the drag insertion line's leading
   cap, and the Switch track/thumb. The Agent Chat composer is the one other sanctioned exception,
   copying the Codex app's composer: its `+`, its Plan chip, its model picker pill, its 28px primary
-  action circle, and the effort slider's track and thumb. No other radii.
+  action circle, and the effort slider's track and thumb. The Agent-choice dialog's tiles are the
+  last: their 56px icon wells and the tray holding them take 12px (`rounded-xl`), the macOS Dock's
+  app-icon proportion, because an 8px corner on a 56px square reads as a button rather than an app
+  icon. No other radii.
 - Keyboard focus on a shared control (`Button`, `Input`, `Select`) is one treatment: an `--accent`
   border plus a 3px `--accent` glow at 50%, shown only for `:focus-visible`, so a pointer click
   draws nothing. A feature-local icon button uses the shared `Button` (`size="icon"`, `ghost`) to
@@ -1211,6 +1214,18 @@ inset ring over the `--elevated` fill): the surface exists only while its chord 
 whole purpose is to show where the pending jump lands, which is the transient action-scoped
 carve-out in principle 2. Cycling scrolls the highlight into view; a pointer may highlight a row
 by moving over it and commit it by clicking.
+
+**Agent-choice dialog**: the centered `Start a Session` dialog that follows Add Project (every
+other entry point uses the Project row's anchored New Session menu) lays the Terminal catalog out
+as one row of Dock-style tiles inside a 12px `--background` tray, not as full-width buttons: four
+choices read faster as icons than as a stack of wide bars. Each tile is a 56px `--elevated` icon
+well over the Agent name and a reserved one-line slot for the row's muted suffix (`Chat`,
+`Not installed`), so labels share a baseline whether or not a suffix is present. Hovering lifts and
+scales the well and washes the tile with `--state-hover`; keyboard focus draws the shared accent
+border and glow on the well, not around the whole tile, and the arrow keys, `Home`, and `End` move
+between tiles. An Agent that is not installed stays pickable but its well recedes. Below the tray
+sit the full-access notice, then a hairline footer with the two preference Switches and the quieter
+ghost `Empty Session` escape hatch.
 
 **Agent Actions picker**: `Command+Shift+A` opens an independent 560px picker only for a running
 Agent Terminal. Its fixed target line names the provider, Session, and Terminal captured at open;

@@ -1,9 +1,10 @@
+import type { KeyboardEvent } from 'react';
 import { useState } from 'react';
 
 import type { TerminalKind } from '@caxri/protocol';
 import { terminalKindSchema } from '@caxri/protocol';
 import { pathBasename } from '@caxri/utils';
-import { SquareDashed } from 'lucide-react';
+import { ShieldAlert, SquareDashed } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
 import {
@@ -18,6 +19,7 @@ import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
 import { resolveAgentIcon } from '../../icons/agents/agent-icon-registry';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
+import { cn } from '../../lib/utilities';
 import { useDialogStore } from '../../stores/dialogs';
 import { useProjects, useSettings } from '../../stores/selectors';
 import { useAgentAvailability } from '../terminal/hooks/use-agent-availability';
@@ -44,7 +46,7 @@ export function CreateSessionDialog() {
         : projects?.find((project) => project.id === pendingProjectId)?.displayTitle;
     return (
         <Dialog open={isOpen} onOpenChange={(nextOpen) => !nextOpen && cancelPendingSession()}>
-            <DialogContent className="w-80">
+            <DialogContent className="w-[min(480px,calc(100vw-32px))]">
                 <DialogHeader>
                     <DialogTitle>
                         {contextLabel
@@ -60,7 +62,26 @@ export function CreateSessionDialog() {
 }
 
 /**
- * The Agent list and its footer. It mounts with the open dialog, so availability is read only then and the "Always use
+ * Moves focus between the Agent tiles with the arrow keys, wrapping at both ends, so the row reads as one dock-like
+ * control rather than a run of separate Tab stops the user has to count through.
+ */
+function moveTileFocus(event: KeyboardEvent<HTMLDivElement>): void {
+    const step = { ArrowLeft: -1, ArrowRight: 1, End: Infinity, Home: -Infinity }[event.key];
+    if (step === undefined) return;
+    const tiles = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('button')];
+    const current = tiles.indexOf(document.activeElement as HTMLButtonElement);
+    if (current === -1) return;
+    event.preventDefault();
+    const next = Number.isFinite(step)
+        ? (current + step + tiles.length) % tiles.length
+        : step > 0
+          ? tiles.length - 1
+          : 0;
+    tiles[next]?.focus();
+}
+
+/**
+ * The Agent tiles and the footer. It mounts with the open dialog, so availability is read only then and the "Always use
  * this Agent" switch starts off for every visit: it is a choice for this pick, not a saved preference until an Agent is
  * chosen.
  */
@@ -76,51 +97,76 @@ function CreateSessionChoices() {
         confirmPendingSession(kind);
     };
     return (
-        <div className="flex flex-col gap-1 p-2">
-            {terminalKindSchema.options.map((kind) => {
-                const isUnavailable = unavailable.has(kind);
-                const hint = isUnavailable ? agentInstallHint(kind, t) : undefined;
-                /**
-                 * Always wrapped: swapping a bare button for a Tooltip when availability resolves would remount it and
-                 * drop the keyboard focus the dialog just placed on the first Agent.
-                 */
-                return (
-                    <Tooltip key={kind} content={hint} disabled={!hint} side="right">
-                        <Button
-                            className="justify-start"
-                            variant="secondary"
-                            onClick={() => choose(kind)}
-                        >
-                            <AgentIdentityIcon identity={kind} size={15} />
-                            <span className="flex-1 text-left">{resolveAgentIcon(kind).label}</span>
-                            <AgentChoiceMarker
-                                isDefault={false}
-                                isUnavailable={isUnavailable}
-                                surface={newAgentSurface(kind, openInChat)}
-                            />
-                        </Button>
-                    </Tooltip>
-                );
-            })}
-            <p className="m-0 px-1 py-1 text-[12px] leading-4 text-muted">
-                {t('session.createDialog.fullAccessNotice')}
-            </p>
-            {/**
-             * Deliberately quieter than the Terminal choices above: skipping the Terminal is an escape hatch, not a peer of the
-             * real options.
-             */}
-            <Button
-                className="justify-start text-muted"
-                variant="ghost"
-                onClick={() => choose(null)}
+        <div className="flex flex-col gap-3 p-4">
+            <div
+                className="grid auto-cols-fr grid-flow-col gap-1 rounded-xl border border-border bg-background p-2"
+                onKeyDown={moveTileFocus}
             >
-                <SquareDashed size={15} /> {t('session.create.withoutTerminal')}
-            </Button>
-            <label className="flex cursor-pointer items-center justify-between gap-2 px-1 text-[12px] text-muted">
-                {t('session.createDialog.alwaysUseAgent')}
-                <Switch checked={isDefaultRequested} onCheckedChange={setDefaultRequested} />
-            </label>
-            <OpenInChatSwitch />
+                {terminalKindSchema.options.map((kind) => {
+                    const isUnavailable = unavailable.has(kind);
+                    const hint = isUnavailable ? agentInstallHint(kind, t) : undefined;
+                    /**
+                     * Always wrapped: swapping a bare button for a Tooltip when availability resolves would remount it
+                     * and drop the keyboard focus the dialog just placed on the first Agent.
+                     */
+                    return (
+                        <Tooltip key={kind} content={hint} disabled={!hint} side="bottom">
+                            <button
+                                className="group flex cursor-pointer flex-col items-center gap-1.5 rounded-lg border-0 bg-transparent px-1 pt-3 pb-2 text-foreground outline-none hover:bg-state-hover"
+                                type="button"
+                                onClick={() => choose(kind)}
+                            >
+                                {/**
+                                 * The icon well lifts on hover like a Dock icon; an Agent that is not installed stays pickable (the tooltip says how to
+                                 * install it) but its glyph recedes.
+                                 */}
+                                <span
+                                    className={cn(
+                                        'mb-1 grid size-14 place-items-center rounded-xl border border-border bg-elevated shadow-[0_2px_8px_var(--shadow)] transition-[translate,scale,border-color,box-shadow] duration-150 ease-out group-hover:-translate-y-0.5 group-hover:scale-105 group-focus-visible:border-accent group-focus-visible:shadow-[0_0_0_3px_var(--state-focus-ring)] motion-reduce:transition-none',
+                                        isUnavailable && 'opacity-50 grayscale',
+                                    )}
+                                >
+                                    <AgentIdentityIcon identity={kind} size={30} />
+                                </span>
+                                <span className="text-[13px] leading-4 font-medium">
+                                    {resolveAgentIcon(kind).label}
+                                </span>
+                                {/* Reserved so tiles with and without a marker keep their labels on one baseline. */}
+                                <span className="h-4 text-[11px] leading-4 whitespace-nowrap">
+                                    <AgentChoiceMarker
+                                        isDefault={false}
+                                        isUnavailable={isUnavailable}
+                                        surface={newAgentSurface(kind, openInChat)}
+                                    />
+                                </span>
+                            </button>
+                        </Tooltip>
+                    );
+                })}
+            </div>
+            <div className="flex items-start gap-2 px-1 text-[12px] leading-4 text-muted">
+                <ShieldAlert aria-hidden="true" className="mt-px flex-none" size={14} />
+                <p className="m-0">{t('session.createDialog.fullAccessNotice')}</p>
+            </div>
+            <div className="-mx-4 -mb-4 flex flex-col gap-2 border-t border-border px-4 pt-3 pb-3">
+                <label className="flex cursor-pointer items-center justify-between gap-2 px-1 text-[12px] text-muted">
+                    {t('session.createDialog.alwaysUseAgent')}
+                    <Switch checked={isDefaultRequested} onCheckedChange={setDefaultRequested} />
+                </label>
+                <OpenInChatSwitch />
+                {/**
+                 * Deliberately quieter than the Agent tiles above: skipping the Terminal is an escape hatch, not a peer of the real
+                 * options.
+                 */}
+                <Button
+                    className="-ml-1 self-start text-muted"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => choose(null)}
+                >
+                    <SquareDashed size={14} /> {t('session.create.withoutTerminal')}
+                </Button>
+            </div>
         </div>
     );
 }
