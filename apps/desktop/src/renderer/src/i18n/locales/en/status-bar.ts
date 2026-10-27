@@ -2,6 +2,42 @@
  * Status bar chips, their hover cards, and the branch and Workbench Root pickers.
  */
 export const statusBar = {
+    'statusBar.environmentMonitor.eyebrow': 'Environment monitor',
+    'statusBar.environmentMonitor.warningLabel': 'Environment · {{count}}',
+    'statusBar.environmentMonitor.unavailableLabel': 'Environment check unavailable',
+    'statusBar.environmentMonitor.warningTitle': '{{count}} environment issue(s) need review',
+    'statusBar.environmentMonitor.unavailableTitle': 'Environment check unavailable',
+    'statusBar.environmentMonitor.ariaLabel':
+        'Environment monitor: {{count}} issue(s): {{issues}}. Click to review.',
+    'statusBar.environmentMonitor.issue.publicIpChanged': 'The public IP changed',
+    'statusBar.environmentMonitor.issue.locationChanged': 'The network location changed',
+    'statusBar.environmentMonitor.issue.proxyRouteChanged': 'The proxy route changed',
+    'statusBar.environmentMonitor.issue.proxyUnavailable': 'The local proxy is unavailable',
+    'statusBar.environmentMonitor.issue.timeZoneMismatch':
+        'The system and egress time zones have different UTC offsets',
+    'statusBar.environmentMonitor.issue.checkUnavailable':
+        'The environment check failed three times in a row',
+    'statusBar.environmentMonitor.disclaimer':
+        'Only signals enabled in Settings are reported. Caxri does not change network settings.',
+    'statusBar.environmentMonitor.hint': 'Click to review and check again',
+    'statusBar.environmentMonitor.dialogLabel': 'Environment monitor details',
+    'statusBar.environmentMonitor.issues': 'Environment issues',
+    'statusBar.environmentMonitor.region': 'Egress region',
+    'statusBar.environmentMonitor.network': 'Network',
+    'statusBar.environmentMonitor.egressTimeZone': 'Egress time zone',
+    'statusBar.environmentMonitor.systemTimeZone': 'System time zone',
+    'statusBar.environmentMonitor.timeZones': 'Time zones',
+    'statusBar.environmentMonitor.proxyMode': 'Proxy route',
+    'statusBar.environmentMonitor.proxyMode.direct': 'Direct',
+    'statusBar.environmentMonitor.proxyMode.proxy': 'Proxy',
+    'statusBar.environmentMonitor.proxyMode.mixed': 'Proxy with direct fallback',
+    'statusBar.environmentMonitor.proxyMode.unknown': 'Unknown',
+    'statusBar.environmentMonitor.lastChecked': 'Last checked',
+    'statusBar.environmentMonitor.unknown': 'Unknown',
+    'statusBar.environmentMonitor.checkAgain': 'Check again',
+    'statusBar.environmentMonitor.useCurrent': 'Use current environment',
+    'statusBar.environmentMonitor.refreshFailed': "Couldn't check the environment",
+    'statusBar.environmentMonitor.acceptFailed': "Couldn't accept the current environment",
     'statusBar.runtime.failed': 'Caxri stopped',
     'statusBar.runtime.failedDetail': 'Caxri stopped unexpectedly. Click to relaunch it.',
     'statusBar.runtime.relaunchAction': 'Relaunch Caxri',

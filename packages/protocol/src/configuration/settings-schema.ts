@@ -173,6 +173,15 @@ export const appSettingsSchema = z.object({
         .default(spec['workbench.language'].default),
     'notifications.worktreeFallback': booleanField(spec['notifications.worktreeFallback']),
     'notifications.agentRecovery': booleanField(spec['notifications.agentRecovery']),
+    'environmentMonitor.publicIpChanges': booleanField(spec['environmentMonitor.publicIpChanges']),
+    'environmentMonitor.proxyProtection': booleanField(spec['environmentMonitor.proxyProtection']),
+    'environmentMonitor.locationChanges': booleanField(spec['environmentMonitor.locationChanges']),
+    'environmentMonitor.timeZoneMismatch': booleanField(
+        spec['environmentMonitor.timeZoneMismatch'],
+    ),
+    'environmentMonitor.checkUnavailable': booleanField(
+        spec['environmentMonitor.checkUnavailable'],
+    ),
     'session.defaultAgent': z
         .enum(enumValues(spec['session.defaultAgent'].options))
         .nullable()

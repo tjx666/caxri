@@ -3,6 +3,8 @@ import type { TranslatedNamespace } from '@caxri/protocol';
 import type { desktop as source } from '../en/desktop';
 
 export const desktop: TranslatedNamespace<typeof source> = {
+    'desktop.environmentMonitor.notification.title': '环境发生变化',
+    'desktop.environmentMonitor.notification.body': 'Caxri 检测到 {{count}} 项已启用的环境信号。',
     'desktop.menu.project': '项目',
     'desktop.menu.session': '会话',
     'desktop.menu.terminal': '终端',

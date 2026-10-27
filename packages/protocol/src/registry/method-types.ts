@@ -203,6 +203,8 @@ export const effectfulCommandRecovery = {
      */
     'notifications.sendTest': 'none',
     'notifications.openSystemSettings': 'none',
+    'environmentMonitor.refresh': 'memory',
+    'environmentMonitor.acceptBaseline': 'memory',
     'gpu.restartInSafeMode': 'none',
     'gpu.testInjectContextLoss': 'none',
     'external.open': 'durable',
@@ -357,9 +359,13 @@ export type DurableCaxriMethod = {
     [M in EffectfulCaxriMethod]: (typeof effectfulCommandRecovery)[M] extends 'durable' ? M : never;
 }[EffectfulCaxriMethod];
 
+function isEffectfulCaxriMethod(method: CaxriMethod): method is EffectfulCaxriMethod {
+    return Object.hasOwn(effectfulCommandRecovery, method);
+}
+
 export function commandRecoveryFor(method: CaxriMethod): CommandRecovery {
-    if (methods[method].effect === 'read') return 'none';
-    return effectfulCommandRecovery[method as EffectfulCaxriMethod];
+    if (!isEffectfulCaxriMethod(method)) return 'none';
+    return effectfulCommandRecovery[method];
 }
 
 /**

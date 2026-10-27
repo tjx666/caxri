@@ -348,7 +348,7 @@ every calm chip, because hiding a warning defeats it. A chip's label is never tr
 measured width, not fixed window breakpoints, because which chips are present (an Agent's two chips,
 a Caxri Bot chip, a debugging disclosure) changes how much room the rest needs; a hidden chip is
 still measured off screen, so it returns once its current width fits again, and one whose data goes
-away stops crowding out chips that fit. Everything else (the bell, degraded and update
+away stops crowding out chips that fit. Everything else (the bell, degraded, environment alert, and update
 chips, Terminal progress, the debugging disclosure, Caxri Bot chips including `N need you`,
 pending peer approvals, and the Project root and branch pickers) is never
 dropped; the pickers cap their own width instead.
@@ -396,6 +396,13 @@ window's GPU incident budget; subsequent failures still use the normal limits. A
 progress stays informational to avoid duplicate retries. User-facing copy names the setting `hardware acceleration` and the
 state `software rendering`; implementation vocabulary (`DOM renderer`, `WebGL2`, `GPU Safe Mode`,
 `argv.json`) never reaches a label, tooltip, toast, or confirmation.
+The environment monitor follows the same attention-first rule: disabled, checking, and healthy
+states show no chip. A warning or unavailable state earns a permanent `--warning` chip until the
+selected signals recover or the user accepts the current readings as the new baseline. Its popover
+lists only enabled signal findings and filtered facts, never raw IP addresses or proxy endpoints,
+then offers **Check again** and **Use current environment**. Copy describes observable environment
+changes without assigning provider-specific meaning. The monitor does not change network settings
+and never probes an Agent service domain.
 A downloaded or downloading update is the one non-degraded chip on that rail, and it is `--muted`
 like Screencast Mode for exactly that reason: a release being available is not a degradation, and
 colouring it would spend the vocabulary reserved for a Caxri that is not working. It earns a

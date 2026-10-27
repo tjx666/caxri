@@ -269,3 +269,15 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 ## prettier-plugin-jsdoc (MIT)
 
 - **JSDoc text formatting rule**: `caxri/jsdoc-format` reproduces the plugin's 1.8.1 output for capitalization, whitespace collapse, 120-column wrapping, tag synonyms and order, Markdown lists, and embedded code. Borrowed: the formatting algorithm and tag tables, ported as code. Evidence: `scripts/eslint-rules/jsdoc-format/description.ts`; `scripts/eslint-rules/jsdoc-format/tags.ts`; `docs/quality-toolchain.md`; `THIRD_PARTY_NOTICES.md`.
+
+## claude-code-four-o-three (MIT)
+
+- **Environment baseline comparison**: Cache a prior egress reading and report a later change without assigning external-service meaning. Borrowed: the comparison model only, no code. Evidence: `apps/desktop/src/main/environment-monitor/monitor.ts`; `docs/notifications.md`.
+
+## claude-env-check-skill (MIT)
+
+- **Optional consistency signals**: Keep public IP as the minimal default and let users independently select additional observable environment signals. Borrowed: the layered signal model only, no code. Evidence: `packages/protocol/src/configuration/environment-monitor-settings-spec.ts`; `apps/desktop/src/main/environment-monitor/types.ts`.
+
+## ipcheck (MIT)
+
+- **Read-only environment diagnostics**: Present filtered findings without changing proxy or network configuration. Borrowed: read-only diagnostics only, no code. Evidence: `apps/desktop/src/main/environment-monitor/probe.ts`; `apps/desktop/src/renderer/src/features/status-bar/environment-monitor-chip.tsx`.

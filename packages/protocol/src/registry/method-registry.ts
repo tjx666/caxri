@@ -48,10 +48,12 @@ import {
     desktopStatusResultSchema,
 } from '../desktop/desktop-contract.js';
 import { editorPromptDesktopMethods } from '../desktop/editor-prompt-contract.js';
+import { environmentMonitorDesktopMethods } from '../desktop/environment-monitor-contract.js';
 import {
     externalDocumentDesktopMethods,
     externalDocumentServerMethods,
 } from '../desktop/external-document-contract.js';
+import { externalOpenResultSchema } from '../desktop/external-open-contract.js';
 import { gpuDesktopMethods } from '../desktop/gpu-contract.js';
 import { linkFaviconDesktopMethods } from '../desktop/link-favicon-contract.js';
 import { linkPreviewDesktopMethods } from '../desktop/link-preview-contract.js';
@@ -151,14 +153,6 @@ const themeImportResult = z.object({
     warnings: z.array(themeImportWarningSchema),
 });
 const exportedFile = z.object({ path: z.string() });
-const externalOpenResult = z.discriminatedUnion('status', [
-    z.object({ status: z.literal('opened') }),
-    z.object({ status: z.literal('canceled') }),
-    z.object({
-        status: z.literal('rejected'),
-        reason: z.enum(['invalid_url', 'unsupported_protocol', 'credentials_not_allowed']),
-    }),
-]);
 /**
  * The single source of truth for every public command. Each entry declares its Host/Desktop owner, effect, capability
  * boundary, idempotency policy, and Zod input/output shape. Transport adapters may route an entry but must never copy
@@ -278,12 +272,13 @@ export const methods = {
     ...editorPromptDesktopMethods,
     ...linkFaviconDesktopMethods,
     ...agentProviderStatusDesktopMethods,
+    ...environmentMonitorDesktopMethods,
     ...linkPreviewDesktopMethods,
     ...windowDesktopMethods,
     'external.open': {
         ...desktopControl,
         params: z.object({ url: z.string().min(1).max(16_384) }),
-        result: externalOpenResult,
+        result: externalOpenResultSchema,
     },
     'dialog.selectDirectory': {
         ...desktopControl,
