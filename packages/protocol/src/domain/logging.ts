@@ -8,6 +8,7 @@ import {
     agentEndpointLogEvents,
     agentHooksLogEvents,
     agentLogEvents,
+    agentMessageLogEvents,
     agentNotificationsLogEvents,
 } from './logging/logging-agent.js';
 import { agentChatSubagentLogEvents } from './logging/logging-agent-chat-subagents.js';
@@ -74,6 +75,7 @@ export const logEventCatalog = {
     agentDispatch: agentDispatchLogEvents,
     agentEndpoint: agentEndpointLogEvents,
     agentHooks: agentHooksLogEvents,
+    agentMessage: agentMessageLogEvents,
     agentNotifications: agentNotificationsLogEvents,
     app: appLogEvents,
     configuration: configLogEvents,

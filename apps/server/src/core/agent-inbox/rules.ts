@@ -116,3 +116,23 @@ export function decideInboundStatus(
     if (policy === 'accept') return 'waiting';
     return sender !== 'unknown' && sender === receiver ? 'waiting' : 'held';
 }
+
+/**
+ * Appends a message ID to one endpoint's FIFO queue.
+ */
+export function pushQueued(map: Map<string, string[]>, key: string, messageId: string): void {
+    const queue = map.get(key) ?? [];
+    queue.push(messageId);
+    map.set(key, queue);
+}
+
+/**
+ * Removes a message ID from one endpoint's queue, dropping the queue once it is empty.
+ */
+export function removeQueued(map: Map<string, string[]>, key: string, messageId: string): void {
+    const queue = map.get(key);
+    if (!queue) return;
+    const index = queue.indexOf(messageId);
+    if (index !== -1) queue.splice(index, 1);
+    if (queue.length === 0) map.delete(key);
+}

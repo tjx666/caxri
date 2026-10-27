@@ -18,6 +18,7 @@ export function createAgentMessaging(
     return {
         providerMessaging: new ProviderMessagingAdapterRegistry(endpoints),
         agentInbox: new AgentInboxRegistry(endpoints, {
+            logger: endpoints.logger,
             emitHeld: (payload) =>
                 server()?.broadcastDesktop({ event: 'agent.message.held', payload }),
             emitReceipt: (endpoint, payload) => {

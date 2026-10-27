@@ -5,6 +5,7 @@ import type {
     AgentMessagePullResult,
     AgentMessageReceipt,
 } from '@caxri/protocol';
+import type { StructuredLogger } from '@caxri/system';
 
 export type PendingState = 'waiting' | 'held' | 'delivering';
 
@@ -47,7 +48,24 @@ export interface AgentInboxRegistryOptions {
     emitHeld?(message: AgentHeldMessage): void;
     emitReceipt?(endpoint: AgentEndpointReference, receipt: AgentMessageReceipt): void;
     id?: () => string;
+    /**
+     * Receives one content-free `agent_message.transitioned` record per receipt status change.
+     */
+    logger?: Pick<StructuredLogger, 'write'>;
     now?: () => number;
+}
+
+/**
+ * What every admitted or rejected send shares, computed once before the admission checks.
+ */
+export interface MessageAdmission {
+    canonicalDigest: string;
+    createdAt: number;
+    fingerprint: string;
+    from: AgentEndpointSummary;
+    idempotencyMapKey: string;
+    input: AgentMessageSendInput;
+    messageId: string;
 }
 
 export interface AgentMessageSendInput {
