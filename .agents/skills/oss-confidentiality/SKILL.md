@@ -96,14 +96,21 @@ is reversible; unpublishing from clones, caches, pull refs, artifacts, or downlo
 Prioritize screenshots and logs in PR and issue bodies, comments, and review comments, including
 embedded images, attachments, and linked evidence. Reading the surrounding prose is not enough.
 
-- Open and visually inspect every screenshot for private repository names, paths, accounts, hosts,
-  non-public source, Terminal output, and Agent conversations, including background windows and sidebars.
+- The acting Agent owns the visual privacy review. Never ask the maintainer to open, inspect, or
+  approve screenshots as a routine publication gate. Inspect a local original before uploading it;
+  for an existing reference, retrieve the original-size image. Use the harness's image-viewing
+  capability; OCR and credential scanners are supplementary and never replace visual inspection.
+- Open and visually inspect every original screenshot for private repository names, paths, accounts,
+  hosts, non-public source, Terminal output, and Agent conversations, including background windows
+  and sidebars. Inspect the exact final image again after any crop, opaque redaction, annotation,
+  or regeneration; reviewing the source image does not clear a different output artifact.
 - Read pasted logs and linked or attached log files for the same red lines, including credentials
   and environment values. Inspect the actual content, not only the filename or link label.
-- Gitleaks does not replace visual inspection. If an attachment cannot be accessed or read, record
-  it as unverified and do not describe the review as complete or publish it as reviewed evidence.
+- Fail closed when an attachment cannot be fetched, decoded, viewed at useful resolution, or judged
+  safe. Omit it or replace it with a synthetic artifact; do not publish it, describe the review as
+  complete, or ask the maintainer to vouch for content the Agent could not inspect.
 - Prefer synthetic reproductions. Inspect the final sanitized image or log before publishing it,
-  and describe findings without repeating the private content.
+  and report only safe categories and outcomes without repeating the private content.
 
 ## Public artifacts and history
 
