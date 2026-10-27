@@ -242,13 +242,23 @@ async function executeSkillsAndQuestionFlow(
                     'agent-chat-question-0-other',
                     'agent-chat-question-skip',
                     'agent-chat-question-next',
+                    'agent-chat-activity',
+                    'agent-chat-model-button',
                     'agent-chat-composer-input',
                 ].every((id) => hasCheck(nodes, id)),
         );
         const typingCard = checkBounds(typing, 'agent-chat-request');
-        const composer = checkBounds(typing, 'agent-chat-composer-input');
-        if (!typingCard || !composer || typingCard.bottom > composer.top)
-            throw new Error('The question card overlaps the composer while typing');
+        if (!typingCard) throw new Error('The question card is not laid out while typing');
+        // The card ends above the waiting status row, the access and model row, and the composer input below it.
+        for (const id of [
+            'agent-chat-activity',
+            'agent-chat-model-button',
+            'agent-chat-composer-input',
+        ]) {
+            const below = checkBounds(typing, id);
+            if (!below || typingCard.bottom > below.top)
+                throw new Error(`The question card overlaps ${id} while typing`);
+        }
         for (const id of [
             'agent-chat-question-0-text',
             'agent-chat-question-0-other',
