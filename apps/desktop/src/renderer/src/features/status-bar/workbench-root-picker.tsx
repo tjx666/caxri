@@ -1,5 +1,5 @@
 import type { WorkbenchRootOption } from '@caxri/protocol';
-import { Check, FolderGit2 } from 'lucide-react';
+import { Check, FolderGit2, FolderTree } from 'lucide-react';
 
 import { StructuredTooltip } from '../../components/structured-tooltip';
 import {
@@ -14,7 +14,6 @@ import { Separator } from '../../components/ui/separator';
 import { Spinner } from '../../components/ui/spinner';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
-import { WorktreeIcon } from '../../icons/codicons/worktree-icon';
 import { cn } from '../../lib/utilities';
 import { useSelectedSession, useSelectedWorkbenchProject } from '../../stores/selectors';
 import { useWorkbenchRootPicker } from './hooks/use-workbench-root-picker';
@@ -284,7 +283,9 @@ function WorkbenchRootTrigger({
                 {isSwitching ? (
                     <Spinner size={13} />
                 ) : isWorktree ? (
-                    <WorktreeIcon size={13} className="flex-none" />
+                    // A folder tree reads as "another checkout of this repository" (monocode's worktree glyph); it is the one worktree
+                    // mark across the status bar, Agent Activity rows, and tree views.
+                    <FolderTree size={13} className="flex-none" />
                 ) : (
                     <RootGlyph hasSuggestion={Boolean(suggestedBranch)} />
                 )}

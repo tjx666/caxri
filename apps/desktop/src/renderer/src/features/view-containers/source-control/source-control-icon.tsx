@@ -5,6 +5,7 @@ import {
     EyeOff,
     FileDiff,
     FileText,
+    FolderTree,
     GitCommitHorizontal,
     GitPullRequest,
     Package,
@@ -16,7 +17,6 @@ import { DiffMultipleIcon } from '../../../icons/codicons/diff-multiple-icon';
 import { DiscardIcon } from '../../../icons/codicons/discard-icon';
 import { RepoIcon } from '../../../icons/codicons/repo-icon';
 import { SyncIcon } from '../../../icons/codicons/sync-icon';
-import { WorktreeIcon } from '../../../icons/codicons/worktree-icon';
 import { FileTypeIcon } from '../../../icons/files/file-type-icon';
 
 type ModelIcon = SourceControlViewModel['refreshAction']['icon'];
@@ -29,6 +29,7 @@ const icons: Readonly<Record<string, LucideIcon>> = {
     'git-commit': GitCommitHorizontal,
     'git-pull-request': GitPullRequest,
     'refresh': RefreshCw,
+    'worktree': FolderTree,
 };
 
 /**
@@ -50,7 +51,6 @@ export function SourceControlIcon({
     if (icon.id === 'diff-multiple') return <DiffMultipleIcon className={className} size={size} />;
     if (icon.id === 'repo') return <RepoIcon className={className} size={size} />;
     if (icon.id === 'sync') return <SyncIcon className={className} size={size} />;
-    if (icon.id === 'worktree') return <WorktreeIcon className={className} size={size} />;
     const Icon = icons[icon.id] ?? Package;
     return <Icon className={className} size={size} />;
 }

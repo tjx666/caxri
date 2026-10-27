@@ -7,13 +7,13 @@ import {
     CircleDashed,
     CircleQuestionMark,
     CircleX,
+    FolderTree,
     Unplug,
 } from 'lucide-react';
 
 import { Spinner } from '../../components/ui/spinner';
 import type { Translate } from '../../i18n';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
-import { WorktreeIcon } from '../../icons/codicons/worktree-icon';
 import { cn } from '../../lib/utilities';
 import type { SessionRenameController } from '../primary-sidebar/hooks/use-session-rename';
 import type { SessionTitleScroll } from '../primary-sidebar/hooks/use-session-title-scroll';
@@ -233,7 +233,7 @@ export function AgentActivityRowTrigger({
                                 className="agent-activity-worktree flex min-w-0 shrink items-center gap-0.5"
                                 data-session-worktree={worktreeProject.displayTitle}
                             >
-                                <WorktreeIcon className="flex-none" size={11} />
+                                <FolderTree className="flex-none" size={11} />
                                 {/* Same reserved-padding reasoning as `.agent-activity-project` above. */}
                                 <span className="overflow-fade pr-2">
                                     {worktreeProject.displayTitle}

@@ -114,7 +114,7 @@ The bundled icon assets are (c) the vscode-icons project, licensed under the Cre
 
 ## VS Code Codicons
 
-Caxri includes the `archive`, `diff-multiple`, `discard`, `repo`, `sync`, and `worktree` glyphs from Microsoft's VS Code Codicons. Caxri converted the upstream SVG glyphs into inline React components; the component wrappers and `currentColor` integration are Caxri modifications.
+Caxri includes the `archive`, `diff-multiple`, `discard`, `repo`, and `sync` glyphs from Microsoft's VS Code Codicons. Caxri converted the upstream SVG glyphs into inline React components; the component wrappers and `currentColor` integration are Caxri modifications.
 
 The upstream source is <https://github.com/microsoft/vscode-codicons>. Licensed under the Creative Commons Attribution 4.0 International License (<https://creativecommons.org/licenses/by/4.0/>). The complete license text and warranty disclaimer are in `licenses/VSCODE_CODICONS_LICENSE.txt`.
 

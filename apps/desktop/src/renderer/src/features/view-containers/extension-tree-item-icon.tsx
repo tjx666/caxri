@@ -13,6 +13,7 @@ import {
     EyeOff,
     File,
     FileDiff,
+    FolderTree,
     GitBranch,
     GitMerge,
     GitPullRequest,
@@ -37,7 +38,6 @@ import {
 import { Spinner } from '../../components/ui/spinner';
 import { ArchiveIcon } from '../../icons/codicons/archive-icon';
 import { RepoIcon } from '../../icons/codicons/repo-icon';
-import { WorktreeIcon } from '../../icons/codicons/worktree-icon';
 import { DeploymentPreviewIcon } from '../../icons/deployment-preview-icon';
 import type { LinearStatusKind } from '../../icons/linear/linear-status-icon';
 import { LinearStatusIcon } from '../../icons/linear/linear-status-icon';
@@ -117,7 +117,7 @@ const themeIcons = {
     'shield-x': ShieldX,
     'symbol-string': File,
     'warning': AlertTriangle,
-    'worktree': WorktreeIcon,
+    'worktree': FolderTree,
 } as const;
 
 const linearStatusIconKinds = {

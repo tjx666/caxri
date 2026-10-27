@@ -111,7 +111,7 @@ all:
 
 The second line says where the Session runs, in the order a user narrows it down: which Agent CLI
 (its identity icon), which repository, and (only when the Session works in a linked worktree rather
-than its Project root) which worktree, marked by the same `worktree` codicon the Project tree uses.
+than its Project root) which worktree, marked by the same `FolderTree` worktree glyph the status bar uses.
 The pull request glyph is the Project tree's own, colored by lifecycle, in the same right-edge slot.
 It is centered on the whole row rather than on the title line, so it belongs to the Session instead
 of floating in the row's top-right corner. The title clips with the Project tree's right-edge fade
