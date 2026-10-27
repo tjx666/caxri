@@ -9,6 +9,8 @@ interface FakeImage {
     src: string;
     style: Record<string, string>;
     isConnected: boolean;
+    isInPendingRow: boolean;
+    closest: () => FakeImage | null;
     getBoundingClientRect: () => typeof ON_SCREEN;
     remove: () => void;
 }
@@ -18,6 +20,8 @@ function image(rect: typeof ON_SCREEN, source = ''): FakeImage {
         src: source,
         style: {},
         isConnected: true,
+        isInPendingRow: false,
+        closest: () => (element.isInPendingRow ? element : null),
         getBoundingClientRect: () => rect,
         remove: () => {
             element.isConnected = false;
@@ -28,14 +32,15 @@ function image(rect: typeof ON_SCREEN, source = ''): FakeImage {
 
 /**
  * The Renderer's tests run under Node, so the page is a fake `document`: the composer's thumbnails by attachment id,
- * the pending row's tiles that `send` puts on the page, and the clones appended to the body. Frames run only when the
- * test flushes them.
+ * the pending row's tiles that `send` puts on the page, every message tile on the page, and the clones appended to the
+ * body. Frames run only when the test flushes them.
  */
 function page(composer: Record<string, FakeImage>) {
     const state = {
         composer,
         pending: [] as FakeImage[],
         pendingId: '',
+        messages: [] as FakeImage[],
         clones: [] as FakeImage[],
     };
     const frames: Array<() => void> = [];
@@ -47,8 +52,10 @@ function page(composer: Record<string, FakeImage>) {
         querySelector: (selector: string) =>
             state.composer[/composer-image="(?<id>[^"]+)"/.exec(selector)?.groups?.id ?? ''] ??
             null,
-        querySelectorAll: (selector: string) =>
-            selector.includes(`"${state.pendingId}"`) ? state.pending : [],
+        querySelectorAll: (selector: string) => {
+            if (selector.startsWith('img[')) return state.messages;
+            return selector.includes(`"${state.pendingId}"`) ? state.pending : [];
+        },
     });
     const send = (pending: FakeImage[]) =>
         vi.fn(() => {
@@ -68,9 +75,14 @@ function page(composer: Record<string, FakeImage>) {
 describe('sendWithAgentChatImageFlight', () => {
     let isReducesMotion = false;
     let finish: Array<() => void> = [];
+    /**
+     * The keyframes the flight last retargeted to.
+     */
+    let keyframes: Keyframe[] = [];
     beforeEach(() => {
         isReducesMotion = false;
         finish = [];
+        keyframes = [];
         vi.useFakeTimers({ toFake: ['setTimeout'] });
         vi.stubGlobal('matchMedia', () => ({ matches: isReducesMotion }));
         vi.stubGlobal('CSS', { escape: (value: string) => value });
@@ -82,7 +94,9 @@ describe('sendWithAgentChatImageFlight', () => {
         vi.stubGlobal(
             'KeyframeEffect',
             class {
-                setKeyframes = vi.fn();
+                setKeyframes = vi.fn((next: Keyframe[]) => {
+                    keyframes = next;
+                });
             },
         );
         vi.stubGlobal(
@@ -117,6 +131,26 @@ describe('sendWithAgentChatImageFlight', () => {
         for (const resolve of finish) resolve();
         await vi.waitFor(() => expect(state.clones[0]?.isConnected).toBe(false));
         expect(tiles[0]?.style.visibility).toBe('');
+    });
+
+    it("follows the tile to the accepted message, never an earlier message's or another pending row's", () => {
+        const { flushFrame, send, state } = page({ a: image(ON_SCREEN, 'data:a') });
+        const earlier = image({ ...ON_SCREEN, top: 1 }, 'data:a');
+        const tile = image(ON_SCREEN);
+        state.messages = [earlier];
+        sendWithAgentChatImageFlight(['a'], send([tile]));
+        flushFrame();
+        // The pending row gives way to the accepted message while the same screenshot waits in a second pending row.
+        tile.remove();
+        const resent = image({ ...ON_SCREEN, top: 2 }, 'data:a');
+        resent.isInPendingRow = true;
+        const accepted = image({ ...ON_SCREEN, top: 3 }, 'data:a');
+        state.messages = [earlier, accepted, resent];
+        flushFrame();
+        expect(accepted.style.visibility).toBe('hidden');
+        expect(earlier.style.visibility).toBeUndefined();
+        expect(resent.style.visibility).toBeUndefined();
+        expect(keyframes.at(-1)?.top).toBe('3px');
     });
 
     it('drops a flight whose tile is off screen once measured', () => {

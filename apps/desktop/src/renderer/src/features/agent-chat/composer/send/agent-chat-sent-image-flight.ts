@@ -22,15 +22,25 @@ function isOnScreen(rect: DOMRect): boolean {
     );
 }
 
+const MESSAGE_TILE = 'img[data-agent-chat-message-image]';
+
 /**
  * The tile an image is landing on now: the pending row's while it shows, then the accepted message's, which wears the
- * same thumbnail; the newest match is that message.
+ * same thumbnail. Tiles already on the page at send time (an earlier message with the same screenshot) and other
+ * pending rows (the same screenshot sent again) are never this message's, so the first remaining match is.
  */
-function landingTile(pendingTile: HTMLImageElement, source: string): HTMLImageElement | undefined {
+function landingTile(
+    pendingTile: HTMLImageElement,
+    source: string,
+    earlierTiles: ReadonlySet<HTMLImageElement>,
+): HTMLImageElement | undefined {
     if (pendingTile.isConnected) return pendingTile;
-    return [
-        ...document.querySelectorAll<HTMLImageElement>('img[data-agent-chat-message-image]'),
-    ].findLast((tile) => tile.src === source);
+    return [...document.querySelectorAll<HTMLImageElement>(MESSAGE_TILE)].find(
+        (tile) =>
+            tile.src === source &&
+            !earlierTiles.has(tile) &&
+            !tile.closest('[data-agent-chat-pending-id]'),
+    );
 }
 
 function boxKeyframe({ height, left, top, width }: Box, borderRadius: string): Keyframe {
@@ -78,7 +88,7 @@ export function sendWithAgentChatImageFlight(
     const pendingId = flushSync(send);
     const tiles = [
         ...document.querySelectorAll<HTMLImageElement>(
-            `[data-agent-chat-pending-id="${CSS.escape(pendingId)}"] img[data-agent-chat-message-image]`,
+            `[data-agent-chat-pending-id="${CSS.escape(pendingId)}"] ${MESSAGE_TILE}`,
         ),
     ];
     const flights = sources.flatMap((source) => {
@@ -102,6 +112,7 @@ export function sendWithAgentChatImageFlight(
         ];
     });
     if (flights.length === 0) return pendingId;
+    const earlierTiles = new Set(document.querySelectorAll<HTMLImageElement>(MESSAGE_TILE));
     let isSettled = false;
     const settle = (): void => {
         if (isSettled) return;
@@ -139,7 +150,7 @@ export function sendWithAgentChatImageFlight(
             animation.play();
             const follow = (): void => {
                 if (isSettled || animation.playState !== 'running') return;
-                const target = landingTile(flight.tile, flight.source.src);
+                const target = landingTile(flight.tile, flight.source.src, earlierTiles);
                 if (target) {
                     target.style.visibility = 'hidden';
                     flight.hidden.add(target);
