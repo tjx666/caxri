@@ -16,6 +16,10 @@ export interface CheckOptions {
     isStaged: boolean;
     knip: boolean;
     lint: boolean;
+    /**
+     * Run `vitest related` over the changed sources, so a test reaching a change only through another module also runs.
+     */
+    related: boolean;
     test: boolean;
     type: boolean;
 }
@@ -35,13 +39,14 @@ export class CheckError extends Error {
  */
 const MAX_E2E_WAIT_SECONDS = 1800;
 
-const usage = `Usage: bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--e2e] [--e2e-grep <pattern>] [--e2e-wait <seconds>] [--staged]
+const usage = `Usage: bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--related] [--e2e] [--e2e-grep <pattern>] [--e2e-wait <seconds>] [--staged]
 
 Selectors:
   --lint     Autofix supported changed files with ESLint and Prettier
   --test     Run changed tests and colocated tests for changed source files
   --type     Run the repository-wide TypeScript check
   --knip     Run the repository-wide dead code/export check (CI blocking)
+  --related  Run every test that transitively imports a changed source (vitest related)
   --e2e      Build and run explicitly named e2e/*.e2e.ts Playwright specs
   --e2e-grep Narrow --e2e to a Playwright test-title pattern
   --e2e-wait Wait up to ${MAX_E2E_WAIT_SECONDS} seconds for the repository desktop lease (default: fail immediately)
@@ -94,6 +99,9 @@ function didConsumeNextCheckArgument(
         case '--lint':
             options.lint = true;
             return false;
+        case '--related':
+            options.related = true;
+            return false;
         case '--staged':
             options.isStaged = true;
             return false;
@@ -132,6 +140,7 @@ export function parseCheckArguments(arguments_: string[]): CheckOptions {
         isStaged: false,
         knip: false,
         lint: false,
+        related: false,
         test: false,
         type: false,
     };
@@ -151,7 +160,14 @@ export function parseCheckArguments(arguments_: string[]): CheckOptions {
     if (options.e2eWaitSeconds && !options.e2e)
         throw new CheckError('--e2e-wait requires --e2e', 2);
 
-    if (!options.e2e && !options.knip && !options.lint && !options.test && !options.type) {
+    if (
+        !options.e2e &&
+        !options.knip &&
+        !options.lint &&
+        !options.related &&
+        !options.test &&
+        !options.type
+    ) {
         options.isDefaultSelection = true;
         options.lint = true;
         options.test = true;

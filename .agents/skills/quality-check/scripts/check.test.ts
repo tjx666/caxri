@@ -171,6 +171,7 @@ describe('parseCheckArguments', () => {
             isStaged: false,
             knip: false,
             lint: true,
+            related: false,
             test: true,
             type: false,
         });
@@ -192,6 +193,7 @@ describe('parseCheckArguments', () => {
             isStaged: true,
             knip: false,
             lint: false,
+            related: false,
             test: false,
             type: true,
         });
@@ -207,8 +209,18 @@ describe('parseCheckArguments', () => {
             isStaged: false,
             knip: true,
             lint: false,
+            related: false,
             test: false,
             type: false,
+        });
+    });
+
+    it('treats --related as an explicit selector that suppresses defaults', () => {
+        expect(parseCheckArguments(['--related'])).toMatchObject({
+            isDefaultSelection: false,
+            lint: false,
+            related: true,
+            test: false,
         });
     });
 
@@ -229,6 +241,7 @@ describe('parseCheckArguments', () => {
             isStaged: false,
             knip: false,
             lint: false,
+            related: false,
             test: false,
             type: false,
         });

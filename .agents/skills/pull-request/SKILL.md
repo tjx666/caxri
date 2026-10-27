@@ -207,17 +207,14 @@ Run the gates that actually cover the changed files first, and require them to p
 | Any `.md`                          | `bun run lint:markdown`, `bun run format:check`                                      |
 | `.agents/skills/**` or `AGENTS.md` | plus `bunx vitest run scripts/__tests__/skill-invocation.test.ts`                    |
 | Renderer styling                   | `bun run lint`, the change's own test, and the CDP visual check `AGENTS.md` requires |
-| Locally verified code change       | `check --lint --test --type --knip`, `vitest related` (below), `CI-E2E-Tests`, CDP   |
+| Locally verified code change       | `check --lint --test --type --knip --related` (below), `CI-E2E-Tests`, CDP           |
 
 `check --test` selects only tests that import a changed file directly, so a test reaching it through
 another module is skipped: `status-merge.test.ts` imports `status-tree.ts`, which reaches
 `status-agent-actions.ts`, and a stale assertion there merged under this class and turned `main`'s
-hosted `checks` red. Before a fast merge of a code change, also run the transitive importers of every
-changed non-test source file with `bunx vitest related --run --silent=passed-only <files...>` (a
-44-file Renderer and Mobile diff selected 325 test files and ran in about two minutes). Pass each
-path as its own argument: zsh does not split an unquoted `$files`, so a list held in one variable
-reaches Vitest as a single path and reports `No test files found` with exit 0. Write `${=files}` in
-zsh, or pipe the list through `xargs`. When the diff touches `package.json`, a Vitest config, or a
+hosted `checks` red. Before a fast merge of a code change, also pass `--related`, which runs every
+transitive importer of the changed sources (a 44-file Renderer and Mobile diff selected 325 test
+files and ran in about two minutes). When the diff touches `package.json`, a Vitest config, or a
 module nearly every suite imports, skip this class and wait for the hosted `checks` result instead
 of running the full suite locally: one changed `packages/protocol` source selected 1127 test files
 and ran for about seven minutes.

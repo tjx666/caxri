@@ -6,6 +6,7 @@ import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 
+import { affectedTestArguments } from '../../../../scripts/run-ci-unit-tests';
 import {
     acquireDesktopLease,
     inspectDesktopLease,
@@ -417,6 +418,18 @@ async function runTests(
     return tests.length;
 }
 
+/**
+ * `--test` selects only direct importers, so a test reaching a change through another module stays unrun. This reuses
+ * the hosted `affected` scope's argv so the local run and CI select the same suites. Passing paths as argv also
+ * replaces the hand-written `vitest related $files` an agent used to compose, which zsh never word-splits.
+ */
+async function runRelatedTests(root: string, files: string[]): Promise<number> {
+    const related = affectedTestArguments(files);
+    if (!related) return 0;
+    await runTool(root, 'vitest', related.slice(1));
+    return files.filter((file) => CODE_EXTENSIONS.has(extname(file))).length;
+}
+
 async function runE2E(
     root: string,
     specs: string[],
@@ -487,6 +500,7 @@ async function main(): Promise<void> {
         );
     }
     if (options.test) summaries.push(`tests ${await runTests(root, files, removedFiles)}`);
+    if (options.related) summaries.push(`related sources ${await runRelatedTests(root, files)}`);
     if (shouldTypecheck(options, requestedFiles)) {
         await runCapture('bun', ['run', 'typecheck'], root);
         summaries.push('typecheck');
