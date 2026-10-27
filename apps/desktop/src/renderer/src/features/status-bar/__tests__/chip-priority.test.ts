@@ -5,6 +5,7 @@ import {
     CHIP_DROP_ORDER,
     chipDropOrder,
     chipVisibility,
+    isChipQueryUnread,
     isSameHiddenChips,
     NO_HIDDEN_CHIPS,
     resolveHiddenChips,
@@ -133,5 +134,18 @@ describe('chipVisibility', () => {
         expect(visibility.memory).toBe(false);
         expect(visibility.childProcessCount).toBe(true);
         expect(visibility.pullRequest).toBe(true);
+    });
+});
+
+describe('isChipQueryUnread', () => {
+    it('keeps a shared query polling while any chip it feeds is shown', () => {
+        // The window first drops the child-process count; memory still reads `terminal.resources`.
+        expect(isChipQueryUnread({ childProcessCount: false, memory: true })).toBe(false);
+        expect(isChipQueryUnread({ childProcessCount: false, memory: false })).toBe(true);
+    });
+
+    it('pauses a single-chip query exactly while its chip is hidden', () => {
+        expect(isChipQueryUnread({ agentThroughput: true })).toBe(false);
+        expect(isChipQueryUnread({ agentThroughput: false })).toBe(true);
     });
 });

@@ -35,6 +35,7 @@ import {
 } from '../terminal/terminal-renderer-status';
 import { AgentThroughputStatus } from './agent-throughput-status';
 import { AgentUsageStatus } from './agent-usage-status';
+import { isChipQueryUnread } from './chip-priority';
 import { StatusInfo } from './status-info';
 import { PriorityChipSlot, StatusItem } from './status-item';
 
@@ -150,7 +151,16 @@ function TerminalUsageStatus({
     const usage = usePolledQuery(
         'terminal.resources',
         { terminalId },
-        { label: 'terminal.resources', intervalMs: 2_000, staleTime: 1_000, retry: false },
+        {
+            label: 'terminal.resources',
+            intervalMs: 2_000,
+            isPaused: isChipQueryUnread({
+                childProcessCount: showChildProcessCount,
+                memory: showMemory,
+            }),
+            staleTime: 1_000,
+            retry: false,
+        },
     ).data;
     if (!usage) return null;
     const childLabel = t(
@@ -258,9 +268,14 @@ export function ActiveTerminalStatus({
             <TerminalRendererStatus terminalId={terminalId} />
             <TerminalProgressStatus terminalId={terminalId} />
             <PriorityChipSlot chip="agentThroughput" isHidden={!showAgentThroughput}>
-                <AgentThroughputStatus terminalId={terminalId} />
+                <AgentThroughputStatus
+                    isPaused={isChipQueryUnread({ agentThroughput: showAgentThroughput })}
+                    terminalId={terminalId}
+                />
             </PriorityChipSlot>
             <PriorityChipSlot chip="agentUsage" isHidden={!showAgentUsage}>
+                {/* Keeps polling while hidden: a usage chip that turns into a warning has to come back to the bar (see
+                    `chipDropOrder`), and only a fresh reading can tell it has. */}
                 <AgentUsageStatus terminalId={terminalId} />
             </PriorityChipSlot>
             <TerminalUsageStatus

@@ -8,6 +8,7 @@ import {
     parseE2EMaxPollIntervalMs,
     registerPoll,
     resolvePollIntervalMs,
+    resolveRefetchInterval,
     subscribeVisibility,
     unregisterPoll,
 } from './poll-scheduler';
@@ -246,5 +247,19 @@ describe('createVisibilityAwarePoll', () => {
         vi.advanceTimersByTime(10_000);
 
         expect(callback).not.toHaveBeenCalled();
+    });
+});
+
+describe('resolveRefetchInterval', () => {
+    const polling = { enabled: true, intervalMs: 2_000, isPaused: false, isVisible: true };
+
+    it('polls on the configured cadence while enabled, unpaused, and visible', () => {
+        expect(resolveRefetchInterval(polling)).toBe(2_000);
+    });
+
+    it('stops polling while the caller pauses it, the query is disabled, or the document is hidden', () => {
+        expect(resolveRefetchInterval({ ...polling, isPaused: true })).toBe(false);
+        expect(resolveRefetchInterval({ ...polling, enabled: false })).toBe(false);
+        expect(resolveRefetchInterval({ ...polling, isVisible: false })).toBe(false);
     });
 });

@@ -176,12 +176,27 @@ function UnmeasuredThroughputStatus({
  * Before the first measured response it renders nothing either, unless the provider's status page reports a problem
  * (`UnmeasuredThroughputStatus`), so it never holds a slot to say "none".
  */
-export function AgentThroughputStatus({ terminalId }: { terminalId: string }) {
+export function AgentThroughputStatus({
+    isPaused,
+    terminalId,
+}: {
+    /**
+     * The chip is hidden by priority, so nobody reads its periodic refresh (see `isChipQueryUnread`).
+     */
+    isPaused: boolean;
+    terminalId: string;
+}) {
     const { t } = useTranslation();
     const throughputQuery = usePolledQuery(
         'terminal.agentThroughput',
         { terminalId },
-        { label: 'terminal.agentThroughput', intervalMs: 2_000, staleTime: 1_000, retry: false },
+        {
+            label: 'terminal.agentThroughput',
+            intervalMs: 2_000,
+            isPaused,
+            staleTime: 1_000,
+            retry: false,
+        },
     );
     const throughput = throughputQuery.data;
     // The transcript names the provider once it exists; until then the Terminal record does.
