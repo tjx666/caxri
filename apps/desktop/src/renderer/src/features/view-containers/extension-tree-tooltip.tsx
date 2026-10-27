@@ -4,7 +4,7 @@ import type {
     PointerEvent as ReactPointerEvent,
     ReactElement,
 } from 'react';
-import { cloneElement, useCallback, useId, useRef, useState } from 'react';
+import { cloneElement, useCallback, useEffect, useId, useRef, useState } from 'react';
 
 import type { TreeItemDto } from '@caxri/protocol';
 
@@ -30,6 +30,8 @@ const badgeToneClassNames: Record<NonNullable<RichTooltip['badge']>['tone'], str
     warning: 'text-warning',
 };
 
+const HOVER_OPEN_DELAY_MS = 500;
+
 function isRowActionTarget(target: EventTarget): boolean {
     return target instanceof Element && target.closest('[data-tree-item-actions]') !== null;
 }
@@ -47,6 +49,7 @@ export function ExtensionTreeTooltip({
 }) {
     const latestPointer = useRef<{ x: number; y: number }>(undefined);
     const isPointerOnRowAction = useRef(false);
+    const reopenTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
     const popupReference = useRef<HTMLDivElement>(null);
     const triggerReference = useRef<HTMLAnchorElement>(null);
     const tooltipId = useId();
@@ -87,13 +90,36 @@ export function ExtensionTreeTooltip({
      */
     const capturePointer = useCallback((event: ReactPointerEvent) => {
         latestPointer.current = { x: event.clientX, y: event.clientY };
+        const wasOnRowAction = isPointerOnRowAction.current;
         isPointerOnRowAction.current = isRowActionTarget(event.target);
+        if (isPointerOnRowAction.current) {
+            /**
+             * An inline action (Merge) has its own tooltip; the row's card would cover the rows below it and compete
+             * with that tooltip, so moving onto an action closes a card the row itself raised.
+             */
+            clearTimeout(reopenTimer.current);
+            setOpen(false);
+            return;
+        }
+        if (!wasOnRowAction) return;
         /**
-         * An inline action (Merge) has its own tooltip; the row's card would cover the rows below it and compete with
-         * that tooltip, so moving onto an action closes a card the row itself raised.
+         * Base UI starts its hover delay only when the pointer enters the row, and the open cancelled over the action
+         * used it up. Returning to the row body restarts the same delay here, so the card still opens without leaving
+         * and re-entering the row.
          */
-        if (isPointerOnRowAction.current) setOpen(false);
+        clearTimeout(reopenTimer.current);
+        reopenTimer.current = setTimeout(() => {
+            setCursorAnchor(
+                resolveTooltipCursorAnchor(true, 'trigger-hover', latestPointer.current),
+            );
+            setOpen(true);
+        }, HOVER_OPEN_DELAY_MS);
     }, []);
+    const handlePointerLeave = useCallback(() => {
+        isPointerOnRowAction.current = false;
+        clearTimeout(reopenTimer.current);
+    }, []);
+    useEffect(() => () => clearTimeout(reopenTimer.current), []);
     /**
      * Base UI gives the rendered element's props precedence over Trigger props. Compose focus opening and the Tab
      * bridge into the tree row so its roving-focus handlers remain active and keyboard users can enter the links.
@@ -146,10 +172,11 @@ export function ExtensionTreeTooltip({
         >
             <HoverCardTrigger
                 closeDelay={120}
-                delay={500}
+                delay={HOVER_OPEN_DELAY_MS}
                 ref={triggerReference}
                 render={keyboardTrigger}
                 onPointerEnter={capturePointer}
+                onPointerLeave={handlePointerLeave}
                 onPointerMove={capturePointer}
             />
             <HoverCardContent

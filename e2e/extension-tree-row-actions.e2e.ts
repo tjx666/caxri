@@ -155,6 +155,10 @@ test('Hovering an inline action shows its tooltip instead of the row hover card'
         await merge.hover();
         await expect(card).toHaveCount(0);
         await expect(actionTooltip).toBeVisible();
+
+        // Returning to the label without leaving the row raises the card again.
+        await row.getByText('Pull request #7', { exact: true }).hover();
+        await expect(card).toContainText('Pull request #7 details');
     } finally {
         await running.app.close();
         await rm(testDirectory, { recursive: true, force: true });
