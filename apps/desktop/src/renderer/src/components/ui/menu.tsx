@@ -25,17 +25,22 @@ export function MenuTrigger(properties: MenuPrimitive.Trigger.Props) {
 
 export function MenuContent({
     align = 'start',
+    alignOffset,
     className,
     collisionPadding = 8,
     side = 'bottom',
     sideOffset = 4,
     ...properties
 }: MenuPrimitive.Popup.Props &
-    Pick<MenuPrimitive.Positioner.Props, 'align' | 'collisionPadding' | 'side' | 'sideOffset'>) {
+    Pick<
+        MenuPrimitive.Positioner.Props,
+        'align' | 'alignOffset' | 'collisionPadding' | 'side' | 'sideOffset'
+    >) {
     return (
         <MenuPrimitive.Portal>
             <MenuPrimitive.Positioner
                 align={align}
+                alignOffset={alignOffset}
                 className="z-[70]"
                 collisionPadding={collisionPadding}
                 side={side}
