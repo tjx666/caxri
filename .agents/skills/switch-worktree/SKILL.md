@@ -119,13 +119,18 @@ The command prints the target path. Use that path as the working directory for l
 do not expect a child process to change the parent shell's directory. If Git already has the branch
 checked out elsewhere, reuse the reported path.
 
-After a completed PR has merged, a genuinely new delivery may reuse the same clean linked
-worktree on a fresh branch. Fetch `origin/main`, then target that worktree explicitly with
-`git -C <absolute-worktree-path> switch -c <branch> origin/main`. That path bypasses `create`'s
-remote-name check, so first confirm `git ls-remote --heads origin refs/heads/<branch>` prints nothing. The primary-checkout
-guard resolves the target from the command; a bare `git switch` can be misclassified as a
-primary-checkout mutation even when the command runner's working directory is the linked worktree.
-Never switch branches in the primary checkout.
+After a completed PR has merged, a genuinely new delivery may reuse that linked worktree on a
+fresh branch from `origin/main`:
+
+```bash
+bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts reuse <branch-or-path> feat/next
+```
+
+It refuses the primary checkout, a dirty worktree, a HEAD not yet merged into `origin/main`, live
+processes or the desktop lease, and a new branch name that exists locally or on `origin`. Never
+substitute a raw `git switch -c`: it silently carries another session's uncommitted files onto the
+new branch. A clean checkout that a sibling session has only just switched still passes, so stop
+if `list` shows it on a branch you did not expect. Never switch branches in the primary checkout.
 
 ## Inspect and diagnose
 
