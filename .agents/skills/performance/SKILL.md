@@ -59,6 +59,11 @@ description: Measure and protect Caxri startup, Server Core responsiveness, Rend
    process spends CPU without relaunching it, sample it over the always-on inspector:
    `bun run .agents/skills/performance/scripts/cpu-profile.ts --port 9229 --seconds 10`
    (9230 Extension Host, 9231 Terminal Host, `--renderer --port 9224` for the packaged Renderer).
+   To find which request or Git operation is slow, rank first and read records second:
+   `caxri diagnostics snapshot --json` lists `ipc.request` rows keyed by method and boundary
+   (`handler` or `relay`) and `git.command` rows keyed by operation, each with count, p50, p95, max,
+   and the first and last timestamp; then `caxri logs query --event <name>` reads the individual
+   records behind the slowest row.
    **Diagnose a reported Session switch lag or frame drop from logs alone.** Every signal below is
    threshold-gated, so a healthy profile writes none of it. Query with `caxri logs query --event <name>`.
 
