@@ -86,7 +86,7 @@ async function startPreviewServer(script: string, cwd: string): Promise<PreviewS
         proxiedHits: () => proxiedHits,
         stop: () =>
             new Promise<void>((resolve) => {
-                if (child.exitCode !== null) {
+                if (child.exitCode !== null || child.signalCode !== null) {
                     resolve();
                     return;
                 }
