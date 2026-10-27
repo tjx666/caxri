@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import type { AgentChatItem } from '@caxri/protocol';
+import type { AgentChatItem, AgentChatNoticeHeading } from '@caxri/protocol';
 
 import { clip, isRecord, noticeChunks, stringField } from '../chat-items';
 
@@ -70,7 +70,7 @@ export function claudeFeedbackItems(
               }
             : input;
     let content: string;
-    let title: string | undefined;
+    let heading: AgentChatNoticeHeading | undefined;
     let kind: Notice['kind'] = 'output';
     const command = message.local_command_run ?? message.commandRun;
     if (
@@ -79,8 +79,11 @@ export function claudeFeedbackItems(
     ) {
         const name = stringField(command.command);
         const plugin = stringField(command.plugin);
-        title =
-            [plugin, name ? `/${name}` : undefined].filter(Boolean).join(' · ') || 'Command output';
+        heading = {
+            kind: 'command',
+            ...(plugin && { plugin: clip(plugin, 100) }),
+            ...(name && { command: clip(name, 100) }),
+        };
         // Plain command output, as the Terminal prints it; a warning tone made `/rename` read like a problem.
         content = commandText(message.local_command_source ?? message.content);
     } else {
@@ -107,26 +110,24 @@ export function claudeFeedbackItems(
                         : isBlocked || message.level === 'warning'
                           ? 'warning'
                           : 'output';
-                title = isBlocked
-                    ? 'Input blocked by Hook'
-                    : kind === 'warning'
-                      ? 'Claude Code warning'
-                      : kind === 'error'
-                        ? 'Claude Code error'
-                        : undefined;
+                heading = isBlocked
+                    ? { kind: 'event', event: 'inputBlocked' }
+                    : kind === 'output'
+                      ? undefined
+                      : { kind: 'provider', provider: 'claude', topic: kind };
                 break;
             }
             case 'local_command':
             case 'local_command_output': {
                 content = commandText(message.content);
-                title = 'Command output';
+                heading = { kind: 'command' };
                 break;
             }
             case 'model_refusal_fallback':
             case 'model_refusal_no_fallback': {
                 content = stringField(message.content) ?? '';
                 kind = 'warning';
-                title = 'Model response declined';
+                heading = { kind: 'event', event: 'modelDeclined' };
                 break;
             }
             case 'hook_response': {
@@ -136,11 +137,14 @@ export function claudeFeedbackItems(
                 // twice (red, then yellow) until a reload (verified with Claude Code 2.1.304).
                 if (message.hook_event === 'UserPromptSubmit' && message.exit_code === 2) return [];
                 const name = clip(stringField(message.hook_name) ?? 'Unknown', 100);
-                const code =
-                    typeof message.exit_code === 'number' && Number.isSafeInteger(message.exit_code)
-                        ? ` (exit code ${message.exit_code})`
-                        : '';
-                title = `${scope === 'session' ? 'Session Hook' : 'Hook'} "${name}" failed${code}`;
+                heading = {
+                    kind: 'hook',
+                    outcome: 'failed',
+                    hook: name,
+                    ...(scope === 'session' && { session: true }),
+                    ...(typeof message.exit_code === 'number' &&
+                        Number.isSafeInteger(message.exit_code) && { exitCode: message.exit_code }),
+                };
                 content =
                     diagnostic(message.stderr) ||
                     diagnostic(message.output) ||
@@ -158,6 +162,6 @@ export function claudeFeedbackItems(
     return noticeChunks(id, content, {
         ...(turnId && { turnId }),
         kind,
-        ...(title && { title: clip(title, 200) }),
+        ...(heading && { heading }),
     });
 }

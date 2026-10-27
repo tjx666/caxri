@@ -158,7 +158,11 @@ assistant reply. Tool-scoped feedback stays with the main or subagent conversati
 tool use id. Raw Hook lifecycle responses carry no Agent identity and remain Session-level feedback
 rather than being guessed as main Agent output. The same feedback survives Terminal-to-Chat
 switching and history restoration; live SDK events and persisted records have distinct envelopes.
-Local `--plugin-dir` launch arguments also carry through to the Chat SDK.
+Local `--plugin-dir` launch arguments also carry through to the Chat SDK. Server Core sends each
+callout's heading as a closed kind with the provider's own Hook, plugin, and command names
+(the notice item's `heading`), and each Client words it in the reader's language with
+`agentChatNoticeHeading`, so a Chinese interface reads `Hook "PreToolUse" 执行失败` while the
+provider's details stay as written.
 
 Codex Chat applies the same rule to the app-server's feedback notifications
 (`apps/server/src/domains/agent-chat/feedback/codex-feedback.ts`). A `hook/completed` run that `failed` is an

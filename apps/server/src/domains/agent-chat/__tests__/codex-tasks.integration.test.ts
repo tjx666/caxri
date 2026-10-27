@@ -123,7 +123,10 @@ describe('Codex Chat background work with a fake app-server', () => {
         const done = await until((snapshot) => !snapshot.activeTurnId);
         // The note was steered into the same turn, shown as a notice rather than as the user's words.
         const notice = done.items.find(
-            (item) => item.type === 'notice' && item.title === 'Caxri told the Agent',
+            (item) =>
+                item.type === 'notice' &&
+                item.heading?.kind === 'event' &&
+                item.heading.event === 'caxriNote',
         );
         expect(notice).toMatchObject({ turnId, kind: 'output' });
         expect(notice?.type === 'notice' && notice.message).toContain(

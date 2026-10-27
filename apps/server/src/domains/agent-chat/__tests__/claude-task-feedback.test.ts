@@ -27,7 +27,21 @@ describe('Claude tool Hook attribution', () => {
         routing.observeToolUses([{ type: 'tool_use', id: 'child-read', name: 'Read' }], 'task-a');
         expect(routing.onMessage(hook('PreToolUse:Read'))).toBe(true);
         expect(applyTask.mock.calls).toMatchObject([
-            ['task-a', [{ item: { title: 'Hook "PreToolUse:Read" failed (exit code 2)' } }]],
+            [
+                'task-a',
+                [
+                    {
+                        item: {
+                            heading: {
+                                kind: 'hook',
+                                outcome: 'failed',
+                                hook: 'PreToolUse:Read',
+                                exitCode: 2,
+                            },
+                        },
+                    },
+                ],
+            ],
         ]);
     });
 

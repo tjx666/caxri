@@ -180,7 +180,7 @@ export function mapCodexItem(
                     ...base,
                     type: 'notice',
                     kind: 'output',
-                    title: 'Caxri told the Agent',
+                    heading: { kind: 'event', event: 'caxriNote' },
                     message: clip(userMessageText(raw.content), 2_000),
                 };
             // A turn started with no input (the automatic continuation after a usage limit resets) has no message.

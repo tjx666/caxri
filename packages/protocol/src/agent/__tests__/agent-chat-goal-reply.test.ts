@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
-import type { AgentChatItem } from '../agent-chat-contract.js';
+import type { AgentChatItem, AgentChatNoticeHeading } from '../agent-chat-contract.js';
 import { parseAgentChatGoalReply } from '../agent-chat-goal.js';
 
-function output(message: string, title = '/goal'): Extract<AgentChatItem, { type: 'notice' }> {
-    return { id: 'notice', type: 'notice', kind: 'output', title, message };
+const GOAL_COMMAND: AgentChatNoticeHeading = { kind: 'command', command: 'goal' };
+
+function output(
+    message: string,
+    heading: AgentChatNoticeHeading = GOAL_COMMAND,
+): Extract<AgentChatItem, { type: 'notice' }> {
+    return { id: 'notice', type: 'notice', kind: 'output', heading, message };
 }
 
 describe('parseAgentChatGoalReply', () => {
@@ -42,7 +47,13 @@ describe('parseAgentChatGoalReply', () => {
         expect(
             parseAgentChatGoalReply(output('No goal set. Usage: `/goal <condition>`')),
         ).toBeUndefined();
-        expect(parseAgentChatGoalReply(output('Goal set: x', 'my-plugin · /goal'))).toBeUndefined();
-        expect(parseAgentChatGoalReply(output('Goal set: x', '/rename'))).toBeUndefined();
+        expect(
+            parseAgentChatGoalReply(
+                output('Goal set: x', { kind: 'command', plugin: 'my-plugin', command: 'goal' }),
+            ),
+        ).toBeUndefined();
+        expect(
+            parseAgentChatGoalReply(output('Goal set: x', { kind: 'command', command: 'rename' })),
+        ).toBeUndefined();
     });
 });

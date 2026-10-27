@@ -234,26 +234,26 @@ describe('buildAgentChatTimeline', () => {
     });
 
     it('keeps provider feedback severity, source, and complete details in dedicated cards', () => {
-        const notices = [
+        const notices: Array<Extract<AgentChatItem, { type: 'notice' }>> = [
             {
                 id: 'failure',
                 type: 'notice' as const,
                 kind: 'error' as const,
-                title: 'Hook failed',
+                heading: { kind: 'hook', outcome: 'failed', hook: 'Example' },
                 message: 'Configuration missing.\nCheck the file.',
             },
             {
                 id: 'blocked',
                 type: 'notice' as const,
                 kind: 'warning' as const,
-                title: 'Input blocked by Hook',
+                heading: { kind: 'event', event: 'inputBlocked' },
                 message: 'Choose another input.',
             },
             {
                 id: 'command',
                 type: 'notice' as const,
                 kind: 'output' as const,
-                title: 'Example · /display-test',
+                heading: { kind: 'command', plugin: 'Example', command: 'display-test' },
                 message: 'Command result.',
             },
         ];

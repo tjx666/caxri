@@ -1,4 +1,4 @@
-import type { AgentChatItem } from '@caxri/protocol';
+import type { AgentChatItem, AgentChatNoticeHeading } from '@caxri/protocol';
 import {
     agentChatGoalToggle,
     applyAgentChatOperation,
@@ -26,8 +26,10 @@ function harness(activeTurnId?: string) {
     return { goals: new ClaudeGoals(host), read: () => snapshot };
 }
 
-function reply(message: string, title = '/goal'): Notice {
-    return { id: `notice:${message}`, type: 'notice', kind: 'output', title, message };
+const GOAL_COMMAND: AgentChatNoticeHeading = { kind: 'command', command: 'goal' };
+
+function reply(message: string, heading: AgentChatNoticeHeading = GOAL_COMMAND): Notice {
+    return { id: `notice:${message}`, type: 'notice', kind: 'output', heading, message };
 }
 
 const turn = (status: 'completed' | 'interrupted' | 'failed', id = 'turn-1') => ({
@@ -103,7 +105,7 @@ describe('ClaudeGoals', () => {
                 id: 'warning',
                 type: 'notice',
                 kind: 'warning',
-                title: 'Claude Code warning',
+                heading: { kind: 'provider', provider: 'claude', topic: 'warning' },
                 message:
                     'Goal cleared after an unrecoverable error (context limit): "Green CI". Run /goal again to continue.',
             } satisfies Notice,
@@ -117,7 +119,10 @@ describe('ClaudeGoals', () => {
 
     it('ignores a plugin command of the same name and other output', () => {
         const { goals, read } = harness();
-        goals.onNotices([reply('Goal set: x', 'my-plugin · /goal'), reply('Renamed', '/rename')]);
+        goals.onNotices([
+            reply('Goal set: x', { kind: 'command', plugin: 'my-plugin', command: 'goal' }),
+            reply('Renamed', { kind: 'command', command: 'rename' }),
+        ]);
         expect(read().goal).toBeUndefined();
     });
 });

@@ -70,7 +70,7 @@ describe('Codex feedback notices', () => {
                 turnId: 't1',
                 type: 'notice',
                 kind: 'error',
-                title: 'Hook "PreToolUse" failed',
+                heading: { kind: 'hook', outcome: 'failed', hook: 'PreToolUse' },
                 message: 'hook exited with code 1',
             },
         ]);
@@ -112,7 +112,7 @@ describe('Codex feedback notices', () => {
         );
         expect(blocked.items[0]).toMatchObject({
             kind: 'warning',
-            title: 'Hook "PreToolUse" blocked the action',
+            heading: { kind: 'hook', outcome: 'blocked', hook: 'PreToolUse' },
             message: 'Force pushes are not allowed.\nOpen a pull request.',
         });
         expect(
@@ -121,7 +121,7 @@ describe('Codex feedback notices', () => {
             }).items[0],
         ).toMatchObject({
             kind: 'warning',
-            title: 'Hook "Stop" stopped the turn',
+            heading: { kind: 'hook', outcome: 'stopped', hook: 'Stop' },
             message: 'Tests still fail.',
         });
     });
@@ -144,7 +144,7 @@ describe('Codex feedback notices', () => {
         expect(first.items[0]).toMatchObject({
             turnId: 't2',
             kind: 'warning',
-            title: 'Codex warning',
+            heading: { kind: 'provider', provider: 'codex', topic: 'warning' },
             message: 'Exceeded skills context budget.',
         });
         expect(first.events).toEqual([
@@ -157,11 +157,11 @@ describe('Codex feedback notices', () => {
                 path: '/home/user/.codex/config.toml',
             }).items[0],
         ).toMatchObject({
-            title: 'Codex configuration warning',
+            heading: { kind: 'provider', provider: 'codex', topic: 'configuration' },
             message: 'Ignored key.\n\nRemove it.\n\n/home/user/.codex/config.toml',
         });
         expect(notice('deprecationNotice', { summary: 'Old flag.' }).items[0]).toMatchObject({
-            title: 'Codex deprecation notice',
+            heading: { kind: 'provider', provider: 'codex', topic: 'deprecation' },
         });
         expect(notice('warning', { message: '  ' })).toEqual({ items: [], events: [] });
     });
@@ -173,7 +173,7 @@ describe('Codex feedback notices', () => {
             { turnId: 't1' },
         );
         expect(rerouted.items[0]).toMatchObject({
-            title: 'Model changed',
+            heading: { kind: 'event', event: 'modelChanged' },
             message:
                 'Codex answered with gpt-b instead of gpt-a because it detected possible high-risk cybersecurity activity.',
         });
@@ -189,7 +189,9 @@ describe('Codex feedback notices', () => {
         const verification = notice('model/verification', {
             verifications: ['trustedAccessForCyber'],
         });
-        expect(verification.items[0]).toMatchObject({ title: 'Account verification needed' });
+        expect(verification.items[0]).toMatchObject({
+            heading: { kind: 'event', event: 'verificationNeeded' },
+        });
         expect(verification.events[0]).toMatchObject({ reason: 'trustedAccessForCyber' });
         expect(notice('model/verification', { verifications: ['unknown'] })).toEqual({
             items: [],

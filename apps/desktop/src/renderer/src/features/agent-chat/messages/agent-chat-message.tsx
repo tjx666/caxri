@@ -160,7 +160,7 @@ export function AgentChatNotice({ item }: { item: Extract<AgentChatItem, { type:
         return <AgentChatUsageLimitNotice item={item} usageLimit={item.usageLimit} />;
     const goal = parseAgentChatGoalReply(item);
     if (goal) return <AgentChatGoalNotice notice={goal} />;
-    if (item.title || item.kind === 'warning') return <AgentChatFeedback item={item} />;
+    if (item.heading || item.kind === 'warning') return <AgentChatFeedback item={item} />;
     if (item.kind === 'compacted') return <AgentChatCompactedNotice item={item} />;
     if (item.kind === 'retrying') return <AgentChatRetryNotice item={item} />;
     const isError = item.kind === 'error';

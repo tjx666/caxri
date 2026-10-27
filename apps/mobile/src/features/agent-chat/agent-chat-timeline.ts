@@ -227,7 +227,7 @@ function groupEntries(
         flush();
         const answered = answeredEntry(item);
         if (answered) entries.push(answered);
-        else if (item.type === 'notice' && (item.title || item.kind === 'warning'))
+        else if (item.type === 'notice' && (item.heading || item.kind === 'warning'))
             entries.push({ kind: 'feedback', id: item.id, notice: item });
         else if (item.type === 'userMessage' && item.delegatedTask)
             entries.push({

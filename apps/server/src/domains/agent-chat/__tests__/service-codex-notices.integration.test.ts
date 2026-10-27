@@ -1,3 +1,4 @@
+import { agentChatNoticeHeading } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import { fixture } from './chat-service-fixture';
@@ -11,7 +12,13 @@ describe('Codex feedback in Chat with a fake Codex app-server', () => {
         const turnId = snapshot.turns.at(-1)?.id;
 
         const notices = snapshot.items.filter((item) => item.type === 'notice');
-        expect(notices.map((item) => [item.turnId, item.kind, item.title])).toEqual([
+        expect(
+            notices.map((item) => [
+                item.turnId,
+                item.kind,
+                item.heading && agentChatNoticeHeading(item.heading),
+            ]),
+        ).toEqual([
             [turnId, 'error', 'Hook "PreToolUse" failed'],
             [turnId, 'warning', 'Hook "PreToolUse" blocked the action'],
             [turnId, 'warning', 'Codex warning'],

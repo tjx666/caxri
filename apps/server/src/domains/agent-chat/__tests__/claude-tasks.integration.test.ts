@@ -61,20 +61,20 @@ describe('Claude Code background work in Agent Chat', () => {
         expect(task.items[3]).toMatchObject({
             type: 'notice',
             kind: 'error',
-            title: 'Hook "PreToolUse:Read" failed (exit code 2)',
+            heading: { kind: 'hook', outcome: 'failed', hook: 'PreToolUse:Read', exitCode: 2 },
             message: 'Subagent read Hook failed.',
         });
         task.items.splice(3, 1);
         expect(task.items[3]).toMatchObject({
             type: 'notice',
             kind: 'warning',
-            title: 'Input blocked by Hook',
+            heading: { kind: 'event', event: 'inputBlocked' },
             message: 'The subagent Hook blocked this read once. Retry with a narrower range.',
         });
         expect(task.items[4]).toMatchObject({
             type: 'notice',
             kind: 'output',
-            title: 'review-tools · /check-read',
+            heading: { kind: 'command', plugin: 'review-tools', command: 'check-read' },
             message: 'Subagent mod output.',
         });
         expect(task.items[5]).toMatchObject({ text: 'Found a README.' });
@@ -106,7 +106,7 @@ describe('Claude Code background work in Agent Chat', () => {
         expect(task.items[4]).toMatchObject({
             type: 'notice',
             kind: 'output',
-            title: 'review-tools · /check-read',
+            heading: { kind: 'command', plugin: 'review-tools', command: 'check-read' },
             message: 'Subagent mod output.',
         });
         expect(task.items.every((item) => item.turnId === undefined)).toBe(true);

@@ -120,6 +120,56 @@ const itemBase = {
     createdAt: z.number().int().nonnegative().optional(),
 };
 
+const noticeName = z.string().min(1).max(100);
+
+/**
+ * A provider feedback notice's heading (see the notice item's `heading`).
+ */
+export const agentChatNoticeHeadingSchema = z.discriminatedUnion('kind', [
+    /**
+     * A slash command's output, named by the plugin and command that produced it when the provider reports them.
+     */
+    z.strictObject({
+        kind: z.literal('command'),
+        plugin: noticeName.optional(),
+        command: noticeName.optional(),
+    }),
+    /**
+     * A Hook that failed, blocked an action, or stopped the turn. `session` marks a Hook the Session's settings
+     * configured rather than one a plugin or the turn added.
+     */
+    z.strictObject({
+        kind: z.literal('hook'),
+        outcome: z.enum(['failed', 'blocked', 'stopped']),
+        hook: noticeName,
+        session: z.boolean().optional(),
+        exitCode: z.number().int().optional(),
+    }),
+    /**
+     * A message the provider itself raised, worded by what it is about.
+     */
+    z.strictObject({
+        kind: z.literal('provider'),
+        provider: z.enum(['claude', 'codex']),
+        topic: z.enum(['warning', 'error', 'configuration', 'deprecation']),
+    }),
+    /**
+     * `caxriNote` is a note Caxri itself sent the Agent, such as that the user stopped a subagent.
+     */
+    z.strictObject({
+        kind: z.literal('event'),
+        event: z.enum([
+            'inputBlocked',
+            'modelDeclined',
+            'modelChanged',
+            'verificationNeeded',
+            'caxriNote',
+        ]),
+    }),
+]);
+
+export type AgentChatNoticeHeading = z.infer<typeof agentChatNoticeHeadingSchema>;
+
 export const agentChatItemSchema = z.discriminatedUnion('type', [
     z.strictObject({
         ...itemBase,
@@ -223,9 +273,11 @@ export const agentChatItemSchema = z.discriminatedUnion('type', [
          */
         kind: z.enum(['error', 'warning', 'compacted', 'retrying', 'answered', 'output']),
         /**
-         * Provider feedback heading, kept separate from its complete readable details.
+         * Provider feedback heading, kept separate from its complete readable details. A closed kind plus the
+         * provider's own names, so each Client words it in the reader's language (`agentChatNoticeHeading`); Hook,
+         * plugin, and command names stay as the provider wrote them.
          */
-        title: z.string().max(200).optional(),
+        heading: agentChatNoticeHeadingSchema.optional(),
         message: z.string().max(2_000).optional(),
         /**
          * For `compacted`: how large the context was before and after, and whether the user or the provider started it,

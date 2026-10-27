@@ -4,6 +4,7 @@ import type {
     AgentChatFailureReason,
     AgentChatItem,
     AgentChatItemStatus,
+    AgentChatNoticeHeading,
     AgentChatPlan,
     AgentChatSnapshot,
 } from './agent-chat-contract.js';
@@ -397,6 +398,59 @@ export function agentChatRetryHeadline(
               attempt,
               max: maxAttempts,
           });
+}
+
+const NOTICE_PROVIDER_NAMES = { claude: 'Claude Code', codex: 'Codex' } as const;
+
+const NOTICE_PROVIDER_TOPICS = {
+    warning: 'agentChat.notice.providerWarning',
+    error: 'agentChat.notice.providerError',
+    configuration: 'agentChat.notice.providerConfiguration',
+    deprecation: 'agentChat.notice.providerDeprecation',
+} as const satisfies Record<string, AgentChatLabelKey>;
+
+/**
+ * A provider feedback notice's heading in the reader's language. Hook, plugin, and command names stay as the provider
+ * wrote them.
+ */
+export function agentChatNoticeHeading(
+    heading: AgentChatNoticeHeading,
+    t: AgentChatLabelTranslate = translateAgentChatLabel,
+): string {
+    switch (heading.kind) {
+        case 'command': {
+            const name = [heading.plugin, heading.command && `/${heading.command}`]
+                .filter(Boolean)
+                .join(' · ');
+            return name || t('agentChat.notice.commandOutput');
+        }
+        case 'hook': {
+            const { exitCode, hook } = heading;
+            if (heading.outcome === 'blocked') return t('agentChat.notice.hookBlocked', { hook });
+            if (heading.outcome === 'stopped') return t('agentChat.notice.hookStopped', { hook });
+            if (exitCode === undefined)
+                return t(
+                    heading.session
+                        ? 'agentChat.notice.sessionHookFailed'
+                        : 'agentChat.notice.hookFailed',
+                    { hook },
+                );
+            return t(
+                heading.session
+                    ? 'agentChat.notice.sessionHookFailedCode'
+                    : 'agentChat.notice.hookFailedCode',
+                { hook, code: exitCode },
+            );
+        }
+        case 'provider': {
+            return t(NOTICE_PROVIDER_TOPICS[heading.topic], {
+                provider: NOTICE_PROVIDER_NAMES[heading.provider],
+            });
+        }
+        case 'event': {
+            return t(`agentChat.notice.${heading.event}`);
+        }
+    }
 }
 
 /**
