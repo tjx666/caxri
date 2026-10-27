@@ -90,14 +90,21 @@ describe('Agent Chat model and effort with a fake Codex app-server', () => {
                     { keyPath: 'service_tier', value: 'default', mergeStrategy: 'replace' },
                 ],
             ]);
-        expect(
-            logWrite.mock.calls
-                .filter(([, event]) => event === 'agent_chat.defaults_saved')
-                .map(([level, , record]) => [level, record?.fields?.outcome, record?.fields?.keys]),
-        ).toEqual([
-            ['info', 'saved', 'service_tier'],
-            ['info', 'saved', 'model,model_reasoning_effort,service_tier'],
-        ]);
+        // The fake writes its config file before it replies, and the log follows the reply, so poll for it too.
+        await expect
+            .poll(() =>
+                logWrite.mock.calls
+                    .filter(([, event]) => event === 'agent_chat.defaults_saved')
+                    .map(([level, , record]) => [
+                        level,
+                        record?.fields?.outcome,
+                        record?.fields?.keys,
+                    ]),
+            )
+            .toEqual([
+                ['info', 'saved', 'service_tier'],
+                ['info', 'saved', 'model,model_reasoning_effort,service_tier'],
+            ]);
     });
 
     it('rejects a model or effort the provider did not list', async () => {
