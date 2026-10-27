@@ -68,6 +68,24 @@ export const shouldFillConversationWithOlder = ({
     contentHeight < viewportHeight;
 
 /**
+ * Whether reaching the list's top reads an older page. A short list sits at its top while it follows its end, so only a
+ * reader who left the end scrolls back; while following, `shouldFillConversationWithOlder` reads one page at a time
+ * instead. A scroll-back reads several pages in a row, and each one shifted the followed rows before the list returned
+ * to its end.
+ */
+export const shouldReadOlderAtConversationTop = ({
+    hasOlder,
+    isFollowing,
+    isLoadingOlder,
+    isPositioned,
+}: {
+    hasOlder: boolean;
+    isFollowing: boolean;
+    isLoadingOlder: boolean;
+    isPositioned: boolean;
+}): boolean => isPositioned && !isFollowing && hasOlder && !isLoadingOlder;
+
+/**
  * Whether the list follows its end after a scroll event. Only the reader's own touch (a drag or the momentum after it)
  * may stop following: a programmatic scroll, or a scroll event reporting an offset taken before the list caught up with
  * new content, would otherwise read as the reader leaving the end. Any scroll that reaches the end resumes it.

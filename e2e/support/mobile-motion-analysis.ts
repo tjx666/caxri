@@ -156,6 +156,24 @@ function displacementOf(
 }
 
 /**
+ * How often a recorded region left its final picture after first showing it. A list that holds still shows its final
+ * picture once and keeps it; one that shakes reaches it, moves away, and returns, so `departures` counts the frames
+ * that differ from the final picture after it first appeared. `settledAt` is that first frame's time.
+ */
+export function departuresFromFinalPicture(frames: readonly GrayFrame[]): {
+    departures: number;
+    settledAt: number;
+} {
+    const final = frames.at(-1);
+    if (!final) throw new Error('Recording has no frames');
+    const first = frames.findIndex((frame) => !isDifferent(frame, final));
+    return {
+        departures: frames.slice(first).filter((frame) => isDifferent(frame, final)).length,
+        settledAt: frames[first].time,
+    };
+}
+
+/**
  * Splits a recording of one screen region into panel changes and reports from which side each new panel entered.
  *
  * A panel is settled once its picture holds for `settleMs`; an empty region never counts as settled, so the blank

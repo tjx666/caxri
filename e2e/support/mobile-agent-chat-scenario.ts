@@ -30,6 +30,7 @@ import {
     executeMobileChatModelScenario,
     executeMobileClaudeModelScenario,
 } from './mobile-agent-chat-model-scenario';
+import { executeMobileChatRunningTurnScenario } from './mobile-agent-chat-running-turn-scenario';
 import {
     executeMobileChatChineseScenario,
     executeMobileChatSkillsQuestionScenario,
@@ -550,6 +551,8 @@ export async function executeMobileAgentChatCase(
             return executeMobileChatMessageActionsScenario(environment, artifacts);
         case 'MOB-CHAT-36':
             return executeMobileSessionPreviewScenario(environment, artifacts);
+        case 'MOB-CHAT-RUNNING-OPEN-01':
+            return executeMobileChatRunningTurnScenario(environment, artifacts);
         case 'MOB-CHAT-SEND-UNKNOWN-01':
             return executeMobileChatSendUnknownScenario(environment, artifacts);
         case 'MOB-CHAT-USAGE-GUARD-01':

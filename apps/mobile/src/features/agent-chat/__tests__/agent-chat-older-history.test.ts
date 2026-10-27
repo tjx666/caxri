@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import {
     canLoadOlderAgentChatHistory,
     mergeAgentChatOlderHistory,
+    shouldContinueAgentChatHistoryLoad,
     syncAgentChatOlderHistory,
 } from '../agent-chat-older-history';
 import { buildAgentChatTimeline } from '../agent-chat-timeline';
@@ -167,5 +168,19 @@ describe('phone Chat older history', () => {
         const timeline = buildAgentChatTimeline(merged);
         // One fold for the whole turn, then its final reply.
         expect(timeline.map((entry) => entry.kind)).toEqual(['turn', 'message']);
+    });
+});
+
+describe('shouldContinueAgentChatHistoryLoad', () => {
+    const previous = emptyAgentChatOlderHistory('history-1');
+    const agentOnly = page(['b', 'c'], { hasMore: true });
+    const next = prependAgentChatHistoryPage(previous, agentOnly, []);
+
+    it('reads on through Agent output until the turn request', () => {
+        expect(shouldContinueAgentChatHistoryLoad(false, agentOnly, previous, next, 1)).toBe(true);
+    });
+
+    it('stops a fill after one page, so pages never land in a row above a followed end', () => {
+        expect(shouldContinueAgentChatHistoryLoad(true, agentOnly, previous, next, 1)).toBe(false);
     });
 });

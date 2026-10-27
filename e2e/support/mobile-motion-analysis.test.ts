@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { GrayFrame } from './mobile-motion-analysis';
-import { panelTransitions, redShare } from './mobile-motion-analysis';
+import { departuresFromFinalPicture, panelTransitions, redShare } from './mobile-motion-analysis';
 
 const geometry = { height: 12, width: 60 };
 const BACKGROUND = 40;
@@ -130,5 +130,25 @@ describe('swipe action red share', () => {
 
     it('only counts samples inside the region', () => {
         expect(redShare(frame(5), area, { ...region, left: 820 })).toBe(0);
+    });
+});
+
+describe('departures from the final picture', () => {
+    const settled = panel(7);
+    const recording = (shifts: Array<number | null>): GrayFrame[] =>
+        shifts.map((shift, index) => ({
+            data: shift === null ? draw(null) : draw(settled, shift),
+            time: index * 16,
+        }));
+
+    it('counts none for a region that stays blank until it shows its final picture', () => {
+        expect(departuresFromFinalPicture(recording([null, null, 0, 0, 0]))).toEqual({
+            departures: 0,
+            settledAt: 32,
+        });
+    });
+
+    it('counts every frame that moves away after the final picture first appeared', () => {
+        expect(departuresFromFinalPicture(recording([null, 0, 6, 0, -4, 0])).departures).toBe(2);
     });
 });

@@ -42,6 +42,22 @@ export interface ConversationTimelineState {
     truncated: boolean;
 }
 
+export interface ConversationLoadOlderOptions {
+    /**
+     * The list reads older rows only to fill a viewport its rows leave short, so one page is enough: the list asks
+     * again after laying it out if the rows still fall short. A scroll-back may read on until it reaches the turn's
+     * request.
+     */
+    isFill?: boolean;
+}
+
+/**
+ * A timeline the list can page back through.
+ */
+export type ConversationPagedTimeline = ConversationTimelineState & {
+    loadOlder: (options?: ConversationLoadOlderOptions) => Promise<void>;
+};
+
 const initialState = (): ConversationTimelineState => ({
     error: null,
     historyExpired: false,

@@ -7,6 +7,7 @@ import {
     isConversationFollowingAfterScroll,
     latestConversationTurnStart,
     shouldFillConversationWithOlder,
+    shouldReadOlderAtConversationTop,
 } from '../conversation-scroll';
 
 describe('latestConversationTurnStart', () => {
@@ -78,6 +79,24 @@ describe('shouldFillConversationWithOlder', () => {
     it('waits for the first positioning and a measured viewport', () => {
         expect(shouldFillConversationWithOlder({ ...base, isPositioned: false })).toBe(false);
         expect(shouldFillConversationWithOlder({ ...base, viewportHeight: 0 })).toBe(false);
+    });
+});
+
+describe('shouldReadOlderAtConversationTop', () => {
+    const base = { hasOlder: true, isFollowing: false, isLoadingOlder: false, isPositioned: true };
+
+    it('reads an older page once the reader has scrolled back to the top', () => {
+        expect(shouldReadOlderAtConversationTop(base)).toBe(true);
+    });
+
+    it('leaves a short list that follows its end to the one-page fill', () => {
+        expect(shouldReadOlderAtConversationTop({ ...base, isFollowing: true })).toBe(false);
+    });
+
+    it('waits for positioning, more history, and the page already on its way', () => {
+        expect(shouldReadOlderAtConversationTop({ ...base, isPositioned: false })).toBe(false);
+        expect(shouldReadOlderAtConversationTop({ ...base, hasOlder: false })).toBe(false);
+        expect(shouldReadOlderAtConversationTop({ ...base, isLoadingOlder: true })).toBe(false);
     });
 });
 

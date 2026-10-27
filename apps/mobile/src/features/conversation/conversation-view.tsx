@@ -3,7 +3,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import type { LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 import { Platform, Pressable, Text, View } from 'react-native';
 import type { SharedValue } from 'react-native-reanimated';
-import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 
 import type { FlashListRef, ListRenderItemInfo } from '@shopify/flash-list';
 import { FlashList } from '@shopify/flash-list';
@@ -13,7 +13,6 @@ import { NoticeBanner } from '../../components/notice-banner';
 import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { SavedCopyNote } from '../read-cache/saved-copy-note';
-import { PANEL_ENTER_MS, segmentEnterOffset } from '../sessions/hooks/use-segment-entering';
 import { ConversationEntry } from './conversation-entry';
 import type { ConversationMessageTarget } from './conversation-message-actions';
 import { ConversationMessageActions } from './conversation-message-actions';
@@ -34,7 +33,11 @@ import {
 } from './conversation-scroll';
 import { conversationStyles as styles } from './conversation-styles';
 import { useConversationOlderPages } from './use-conversation-older-pages';
-import type { ConversationTimelineState } from './use-conversation-timeline';
+import { useConversationOpening } from './use-conversation-opening';
+import type {
+    ConversationPagedTimeline,
+    ConversationTimelineState,
+} from './use-conversation-timeline';
 
 const ConversationHistory = ({
     error,
@@ -188,15 +191,7 @@ const ConversationTurnSpacer = ({ height }: { height: SharedValue<number> }) => 
 };
 
 /**
- * FlashList 2.0.2 places `startRenderingFromBottom` from estimated row heights, then corrects the offset over several
- * frames while rows measure; on a Conversation of mixed-height rows that reads as the list scrolling into place and
- * blanking mid-transition. The list stays transparent until an explicit scroll to the end has landed, so the first
- * visible frame is already the settled bottom.
- * https://github.com/Shopify/flash-list/blob/v2.0.2/src/recyclerview/hooks/useRecyclerViewController.tsx
- *
- * Positioning outlasts a tab switch's entering animation, so a list opened by a tab switch plays that motion itself
- * when it is revealed. Only the wrapper's opacity and transform animate; the list's own layout and measurement are
- * untouched.
+ * The list opens hidden and reveals itself at its settled end (`useConversationOpening`).
  *
  * With `isTurnStart`, the list pins the latest turn the way Desktop's Agent Chat does: a spacer after the rows keeps
  * that turn's first row at the top of the viewport when the list is at its end, so a sent message rises to the top and
@@ -240,7 +235,7 @@ export const ConversationList = <Entry extends { id: string }>({
     onRetry: () => void;
     renderEntry: (entry: Entry) => ReactNode;
     theme: MobileTheme;
-    timeline: ConversationTimelineState & { loadOlder: () => Promise<void> };
+    timeline: ConversationPagedTimeline;
 }) => {
     const { t } = useTranslation();
     const list = useRef<FlashListRef<Entry>>(null);
@@ -274,12 +269,6 @@ export const ConversationList = <Entry extends { id: string }>({
     useLayoutEffect(() => {
         latest.current = { entries, isTurnStart, timeline };
     });
-    const revealProgress = useSharedValue(0);
-    const enterOffset = enterFrom === null ? 0 : segmentEnterOffset(enterFrom);
-    const revealStyle = useAnimatedStyle(() => ({
-        opacity: revealProgress.get(),
-        transform: [{ translateX: (1 - revealProgress.get()) * enterOffset }],
-    }));
     /**
      * Sizes the turn spacer from the latest turn's measured rows and returns whether it changed. A row FlashList has
      * not laid out yet keeps the current spacer; the next layout commit measures again.
@@ -314,13 +303,23 @@ export const ConversationList = <Entry extends { id: string }>({
     }, [follower, measureSpacer]);
     const {
         fillWithOlder,
+        isShort,
         loadOlder: onLoadOlder,
         onStartReached,
     } = useConversationOlderPages({
+        isFollowing: () => follower.isFollowing,
         isPositionedReference,
         list,
         timeline: latest,
         viewportHeight,
+    });
+    const { onLayoutCommitted, onLoad, revealStyle } = useConversationOpening({
+        enterFrom,
+        fillWithOlder,
+        isPositionedReference,
+        isShort,
+        list,
+        measureSpacer,
     });
     /**
      * A row that grows on a short Conversation (an unfolded delegated task) never changes the content size:
@@ -329,8 +328,8 @@ export const ConversationList = <Entry extends { id: string }>({
      */
     const onCommitLayout = useCallback((): void => {
         if (measureSpacer()) follower.request();
-        fillWithOlder();
-    }, [fillWithOlder, follower, measureSpacer]);
+        onLayoutCommitted();
+    }, [follower, measureSpacer, onLayoutCommitted]);
     const onScroll = useCallback(
         (event: NativeSyntheticEvent<NativeScrollEvent>): void => {
             // Initial positioning passes through offsets far from the end; they are not the reader's scroll.
@@ -364,23 +363,6 @@ export const ConversationList = <Entry extends { id: string }>({
         },
         [pin],
     );
-    const onLoad = useCallback((): void => {
-        const reveal = (): void => {
-            isPositionedReference.current = true;
-            revealProgress.set(
-                enterFrom === null ? 1 : withTiming(1, { duration: PANEL_ENTER_MS }),
-            );
-            fillWithOlder();
-        };
-        measureSpacer();
-        /**
-         * FlashList resolves `scrollToEnd` before its native scroll, which it defers by one task; reveal one frame
-         * after that task has run.
-         */
-        void Promise.resolve(list.current?.scrollToEnd({ animated: false })).finally(() => {
-            setTimeout(() => requestAnimationFrame(reveal), 0);
-        });
-    }, [enterFrom, fillWithOlder, measureSpacer, revealProgress]);
     const renderItem = useCallback(
         ({ item }: ListRenderItemInfo<Entry>) => (
             <View style={styles.entry}>{renderEntry(item)}</View>
@@ -522,7 +504,7 @@ export const ConversationView = ({
     isConnected?: boolean;
     onRetry: () => void;
     theme: MobileTheme;
-    timeline: ConversationTimelineState & { loadOlder: () => Promise<void> };
+    timeline: ConversationPagedTimeline;
 }) => {
     const { t } = useTranslation();
     const entries = useMemo(() => groupConversationItems(timeline.items, t), [timeline.items, t]);
