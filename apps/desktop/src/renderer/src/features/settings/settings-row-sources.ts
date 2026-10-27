@@ -390,6 +390,7 @@ export const settingRowSources: SettingRowSource[] = [
         ]),
     },
     specRow('agents.longRunningShellCommands', { binding: { type: 'long-running-commands' } }),
+    specRow('agents.sessionInstructions'),
     specRow('agents.notifications.enabled'),
     specRow('agents.notifications.completionThresholdSeconds'),
     specRow('terminal.suspendUntouchedAgents'),

@@ -155,7 +155,10 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
      * controller so the transition log and the live `agent.permissionAutoAllowChanged` event are always attached.
      */
     const attentionAutoAllow = createPermissionAutoAllowController({ logger, send });
-    const turnContext = new AgentTurnContext(database);
+    const turnContext = new AgentTurnContext(
+        database,
+        () => configuration.getSettings().value['agents.sessionInstructions'],
+    );
     const agentHooks = new AgentHookManager({
         discoverExecutable,
         environment: agentEnvironment,

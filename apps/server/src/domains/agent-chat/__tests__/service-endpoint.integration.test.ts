@@ -1,6 +1,6 @@
+import { DEFAULT_AGENT_SESSION_INSTRUCTIONS } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
-import { AGENT_SESSION_DISCOVERY_CONTEXT } from '../../agents';
 import type { AgentChatEndpoint } from '../service-options';
 import { fixture } from './chat-service-fixture';
 
@@ -45,8 +45,38 @@ describe('Agent Chat Endpoint', () => {
         await until((snapshot) => snapshot.status === 'ready');
 
         expect((await threadOpens()).at(-1)).toMatchObject({
-            developerInstructions: AGENT_SESSION_DISCOVERY_CONTEXT,
+            developerInstructions: DEFAULT_AGENT_SESSION_INSTRUCTIONS,
         });
+    });
+
+    it('sends the instructions the user wrote in Settings instead of the preset', async () => {
+        const lease = endpoint({
+            environment: vi.fn(() => Promise.resolve({ CAXRI_CLI: '/profile/bin/caxri' })),
+        });
+        const { service, terminal, threadOpens, until } = await fixture({
+            endpoint: lease,
+            sessionInstructions: () => '  Reply in haiku.\n',
+        });
+        service.read(terminal.id);
+        await until((snapshot) => snapshot.status === 'ready');
+
+        expect((await threadOpens()).at(-1)).toMatchObject({
+            developerInstructions: 'Reply in haiku.',
+        });
+    });
+
+    it('adds no instructions when the user cleared them in Settings', async () => {
+        const lease = endpoint({
+            environment: vi.fn(() => Promise.resolve({ CAXRI_CLI: '/profile/bin/caxri' })),
+        });
+        const { service, terminal, threadOpens, until } = await fixture({
+            endpoint: lease,
+            sessionInstructions: () => ' \n ',
+        });
+        service.read(terminal.id);
+        await until((snapshot) => snapshot.status === 'ready');
+
+        expect((await threadOpens()).at(-1)).not.toHaveProperty('developerInstructions');
     });
 
     it('adds no instructions to an Agent without the Caxri CLI', async () => {

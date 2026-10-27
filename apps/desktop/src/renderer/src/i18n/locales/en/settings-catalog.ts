@@ -333,6 +333,10 @@ export const settingsCatalog = {
     'settings.agents.longRunningShellCommands.description':
         "Commands that keep running on purpose, like a dev server. Caxri won't wait for them to finish before treating the Agent's turn as done",
 
+    'settings.agents.sessionInstructions.title': 'Session instructions',
+    'settings.agents.sessionInstructions.description':
+        "Added after each Agent's own system prompt when it starts, so it knows it runs inside Caxri and how to start work in another Session. Clear it to add nothing; changes apply to Agents started afterward",
+
     'settings.agents.delegation.title': 'Agent delegation',
     'settings.agents.delegation.description':
         'Named delegation presets, caller bindings and maximum delegation depth',

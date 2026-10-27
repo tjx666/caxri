@@ -1,3 +1,4 @@
+export * from './agent-session-instructions.js';
 export * from './builtin-themes/index.js';
 export * from './config-files.js';
 export * from './configuration-contract.js';

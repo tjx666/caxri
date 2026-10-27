@@ -7,6 +7,10 @@
 
 import { agentProviderCatalog, agentProviderIds } from '../agent/agents.js';
 import { agentChatSettingsSpec } from './agent-chat-settings-spec.js';
+import {
+    DEFAULT_AGENT_SESSION_INSTRUCTIONS,
+    MAX_AGENT_SESSION_INSTRUCTIONS_LENGTH,
+} from './agent-session-instructions.js';
 import { agentSuspensionSettingsSpec } from './agent-suspension-settings-spec.js';
 import { editorSettingsSpec } from './editor-settings-spec.js';
 import { languageSettingsSpec } from './language-settings-spec.js';
@@ -77,6 +81,16 @@ export interface StringSettingSpec extends SettingSpecBase {
     maxLength: number;
     default: string | null;
     placeholder?: string;
+    /**
+     * Prose that spans lines, edited in a resizable text area instead of a one-line field.
+     */
+    multiline?: boolean;
+    /**
+     * Text a nullable setting stands for while it is `null`: the control shows it, and editing the field back to it
+     * stores `null` again. `settings.jsonc` holds every default, so a preset stored as the default itself would freeze
+     * in each profile at its first write and never follow a newer Caxri; `null` keeps tracking the installed preset.
+     */
+    preset?: string;
 }
 
 /**
@@ -521,6 +535,20 @@ export const settingsSpec = [
             'wait',
             'bash',
         ],
+    },
+    {
+        kind: 'string',
+        key: 'agents.sessionInstructions',
+        title: 'Session instructions',
+        description:
+            "Added after each Agent's own system prompt when it starts, so it knows it runs inside Caxri and how to start work in another Session. Clear it to add nothing; changes apply to Agents started afterward",
+        category: 'agents',
+        keywords: ['prompt', 'system prompt', 'instructions', 'context', 'caxri cli', 'session'],
+        nullable: true,
+        multiline: true,
+        preset: DEFAULT_AGENT_SESSION_INSTRUCTIONS,
+        maxLength: MAX_AGENT_SESSION_INSTRUCTIONS_LENGTH,
+        default: null,
     },
     {
         kind: 'complex',

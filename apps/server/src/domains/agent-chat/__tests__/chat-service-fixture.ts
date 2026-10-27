@@ -45,6 +45,10 @@ export async function fixture(
         provider?: keyof typeof FAKE_CLIS;
         turnRequestTimeoutMs?: number;
         endpoint?: AgentChatEndpoint;
+        /**
+         * The `agents.sessionInstructions` value each start reads; Caxri's preset when omitted, as in the Server.
+         */
+        sessionInstructions?: () => string | null;
         onAgentStateChanged?: AgentChatServiceOptions['onAgentStateChanged'];
         delegation?: AgentChatServiceOptions['delegation'];
         /**
@@ -135,6 +139,7 @@ export async function fixture(
                 turnRequestTimeoutMs: options.turnRequestTimeoutMs,
             }),
             ...(options.endpoint && { endpoint: options.endpoint }),
+            sessionInstructions: options.sessionInstructions ?? (() => null),
             onAgentStateChanged: options.onAgentStateChanged,
             delegation: options.delegation,
             usage,
