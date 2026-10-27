@@ -16,10 +16,13 @@ import {
     observeMobileNode,
     startMobileFramebufferRecording,
     tapMobileCheck,
-    tapMobileNativeControl,
     waitForMobile,
 } from './mobile-android';
-import { addMobileGalleryImage, removeMobileGalleryImage } from './mobile-gallery';
+import {
+    addMobileGalleryImages,
+    pickMobileGalleryImages,
+    removeMobileGalleryImages,
+} from './mobile-gallery';
 import {
     assertMobileComposerDraft,
     insertMobileInputUnicode,
@@ -264,7 +267,7 @@ export async function executeMobileImageAttachmentScenario(
     });
     let recording: Awaited<ReturnType<typeof startMobileFramebufferRecording>> | undefined;
     try {
-        await addMobileGalleryImage(environment.serial);
+        await addMobileGalleryImages(environment.serial);
         await fixture.pair();
         if (!fixture.allowedSessionId) throw new Error('Image fixture Session is unavailable');
         // Recording starts on the list so the video also shows the screen transition into the Session.
@@ -290,7 +293,7 @@ export async function executeMobileImageAttachmentScenario(
         await tapMobileCheck(environment.serial, 'session-attach-image');
         await tapMobileCheck(environment.serial, 'image-source-library');
         await capture(environment, 'picker', artifacts);
-        await tapMobileNativeControl(environment.serial, { singleImageTile: true });
+        await pickMobileGalleryImages(environment.serial);
         // A ready thumbnail drops its progress scrim, so the attachment is ready once only its remove control remains.
         await waitForMobile(
             () => mobileSemantics(environment.serial),
@@ -329,7 +332,7 @@ export async function executeMobileImageAttachmentScenario(
     } finally {
         await recording?.stop();
         await fixture.stop();
-        await removeMobileGalleryImage(environment.serial);
+        await removeMobileGalleryImages(environment.serial);
         await completeAgentFixtureLifecycle(reportDirectory, {
             caseId: environment.caseId,
             cleanupCompleted: true,

@@ -14,10 +14,13 @@ import {
     observeMobileNode,
     tapMobileCheck,
     tapMobileCheckByBounds,
-    tapMobileNativeControl,
     waitForMobile,
 } from './mobile-android';
-import { addMobileGalleryImage, removeMobileGalleryImage } from './mobile-gallery';
+import {
+    addMobileGalleryImages,
+    pickMobileGalleryImages,
+    removeMobileGalleryImages,
+} from './mobile-gallery';
 
 type ChatFixture = Awaited<ReturnType<typeof createMobileAcceptanceFixture>>;
 
@@ -55,7 +58,7 @@ async function sendGalleryImage(
     await tapMobileCheckByBounds(serial, 'agent-chat-attach-image');
     await waitForCheck(serial, 'image-source-library');
     await tapMobileCheck(serial, 'image-source-library');
-    await tapMobileNativeControl(serial, { singleImageTile: true });
+    await pickMobileGalleryImages(serial);
     await waitForMobile(
         () => mobileSemantics(serial),
         (nodes) =>
@@ -98,7 +101,7 @@ export async function executeMobileChatPreviewScenario(
         serial,
     });
     try {
-        await addMobileGalleryImage(serial);
+        await addMobileGalleryImages(serial);
         await writeFile(join(fixture.testDirectory, 'drop-images'), '');
         const message = await sendGalleryImage(serial, fixture, '');
         await waitForCheck(serial, `agent-chat-message-thumbnail-${message.id}-0`);
@@ -116,7 +119,7 @@ export async function executeMobileChatPreviewScenario(
         try {
             await fixture.stop();
         } finally {
-            await removeMobileGalleryImage(serial);
+            await removeMobileGalleryImages(serial);
         }
     }
 }
@@ -133,7 +136,7 @@ export async function executeMobileChatMissingImageScenario(
     const { serial } = environment;
     const fixture = await createMobileAcceptanceFixture({ mode: 'agent-chat', serial });
     try {
-        await addMobileGalleryImage(serial);
+        await addMobileGalleryImages(serial);
         // The fake app-server echoes a message containing `unpaired` without the id that pairs its thumbnail.
         const message = await sendGalleryImage(serial, fixture, 'unpaired');
         const thumbnail = `agent-chat-message-thumbnail-${message.id}-0`;
@@ -160,7 +163,7 @@ export async function executeMobileChatMissingImageScenario(
         try {
             await fixture.stop();
         } finally {
-            await removeMobileGalleryImage(serial);
+            await removeMobileGalleryImages(serial);
         }
     }
 }

@@ -17,7 +17,12 @@ import {
     tapMobileNativeControl,
     waitForMobile,
 } from './mobile-android';
-import { addMobileGalleryImage, removeMobileGalleryImage } from './mobile-gallery';
+import {
+    addMobileGalleryImages,
+    pickMobileGalleryImages,
+    removeMobileGalleryImages,
+    selectMobileGalleryImages,
+} from './mobile-gallery';
 import { pinchWithin } from './mobile-native-pinch';
 
 const VIEWER_IMAGE = 'agent-chat-image-viewer-image';
@@ -84,7 +89,7 @@ export async function executeMobileChatImageScenario(
     });
     let isNetworkDisabled = false;
     try {
-        await addMobileGalleryImage(serial);
+        await addMobileGalleryImages(serial);
         await fixture.pair();
         const chat = fixture.agentChat;
         if (!chat || !fixture.allowedSessionId) throw new Error('Chat fixture is unavailable');
@@ -97,7 +102,7 @@ export async function executeMobileChatImageScenario(
         await waitForCheck(serial, 'image-source-library');
         await capture(environment, 'image-sources', artifacts);
         await tapMobileCheck(serial, 'image-source-library');
-        await tapMobileNativeControl(serial, { singleImageTile: true });
+        await pickMobileGalleryImages(serial);
         // A ready attachment drops its progress scrim, leaving only its remove control.
         await waitForMobile(
             () => mobileSemantics(serial),
@@ -170,7 +175,7 @@ export async function executeMobileChatImageScenario(
         try {
             await fixture.stop();
         } finally {
-            await removeMobileGalleryImage(serial);
+            await removeMobileGalleryImages(serial);
         }
     }
 }
@@ -188,7 +193,7 @@ async function attachGalleryImage(serial: string, index: number): Promise<void> 
     await tapMobileCheckByBounds(serial, 'agent-chat-attach-image');
     await waitForCheck(serial, 'image-source-library');
     await tapMobileCheck(serial, 'image-source-library');
-    await tapMobileNativeControl(serial, { singleImageTile: true });
+    await pickMobileGalleryImages(serial);
     try {
         await waitForMobile(
             () => mobileSemantics(serial),
@@ -236,7 +241,7 @@ export async function executeMobileChatImageStripScenario(
         serial,
     });
     try {
-        await addMobileGalleryImage(serial);
+        await addMobileGalleryImages(serial);
         await fixture.pair();
         const chat = fixture.agentChat;
         if (!chat || !fixture.allowedSessionId) throw new Error('Chat fixture is unavailable');
@@ -341,7 +346,81 @@ export async function executeMobileChatImageStripScenario(
         try {
             await fixture.stop();
         } finally {
-            await removeMobileGalleryImage(serial);
+            await removeMobileGalleryImages(serial);
+        }
+    }
+}
+
+/**
+ * How many gallery photos `MOB-CHAT-32` picks at once.
+ */
+const MULTI_PICK_COUNT = 3;
+
+/**
+ * `MOB-CHAT-32`: the phone picks several gallery photos in one trip through the system Photo Picker (#2690). They all
+ * join the attachment strip in the order picked, upload, and send together as one message.
+ */
+export async function executeMobileChatMultiImagePickScenario(
+    environment: MobileAgentScenarioEnvironment,
+    artifacts: string[],
+): Promise<void> {
+    const { serial } = environment;
+    const fixture = await createMobileAcceptanceFixture({
+        chatProvider: 'claude',
+        mode: 'agent-chat',
+        serial,
+    });
+    try {
+        await addMobileGalleryImages(serial, MULTI_PICK_COUNT);
+        await fixture.pair();
+        const chat = fixture.agentChat;
+        if (!chat || !fixture.allowedSessionId) throw new Error('Chat fixture is unavailable');
+        await tapMobileCheck(serial, `session-row-${fixture.allowedSessionId}`);
+        await waitForCheck(serial, 'agent-chat-status-empty');
+        await tapMobileCheckByBounds(serial, 'agent-chat-attach-image');
+        await waitForCheck(serial, 'image-source-library');
+        await tapMobileCheck(serial, 'image-source-library');
+        await selectMobileGalleryImages(serial, MULTI_PICK_COUNT);
+        // The picker holds every tick until Done, the system's own count reading the number picked.
+        await capture(environment, 'picker-selected', artifacts);
+        await tapMobileNativeControl(serial, { text: 'Done' });
+        await waitForMobile(
+            () => mobileSemantics(serial),
+            (nodes) =>
+                hasCheck(nodes, `session-image-remove-${MULTI_PICK_COUNT - 1}`) &&
+                nodes.every(({ checkId }) => !checkId.startsWith('session-image-status-')),
+            60_000,
+        );
+        await capture(environment, 'attached', artifacts);
+
+        await tapMobileCheckByBounds(serial, 'agent-chat-composer-send');
+        const sent = await waitForMobile(
+            () => chat.read(),
+            (snapshot) =>
+                (imageMessage(snapshot)?.images?.length ?? 0) === MULTI_PICK_COUNT &&
+                agentText(snapshot).includes(`Received ${MULTI_PICK_COUNT} images.`) &&
+                !snapshot.activeTurnId,
+            60_000,
+        );
+        const message = imageMessage(sent);
+        if (!message) throw new Error('The image message did not reach the Chat');
+        await waitForCheck(
+            serial,
+            `agent-chat-message-thumbnail-${message.id}-${MULTI_PICK_COUNT - 1}`,
+        );
+        await waitForNoCheck(serial, 'session-image-attachments');
+        await capture(environment, 'sent', artifacts);
+
+        await finish(environment, artifacts, {
+            picked: MULTI_PICK_COUNT,
+            sent: MULTI_PICK_COUNT,
+            status: 'passed',
+        });
+    } finally {
+        try {
+            await fixture.stop();
+        } finally {
+            await removeMobileGalleryImages(serial);
         }
     }
 }
