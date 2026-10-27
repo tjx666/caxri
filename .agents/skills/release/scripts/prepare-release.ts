@@ -39,7 +39,8 @@ const defaultGitReader: GitReader = async (arguments_, cwd) => {
 };
 
 function nextVersion(currentVersion: string, target: string): string {
-    if (!valid(currentVersion)) throw new Error(`Current version is not valid SemVer: ${currentVersion}`);
+    if (!valid(currentVersion))
+        throw new Error(`Current version is not valid SemVer: ${currentVersion}`);
     if (['major', 'minor', 'patch'].includes(target)) {
         const version = inc(currentVersion, target as ReleaseIncrement);
         if (!version) throw new Error(`Cannot apply ${target} to ${currentVersion}`);
@@ -47,7 +48,8 @@ function nextVersion(currentVersion: string, target: string): string {
     }
 
     const version = valid(target);
-    if (!version) throw new Error(`Release target must be major, minor, patch, or a SemVer version`);
+    if (!version)
+        throw new Error(`Release target must be major, minor, patch, or a SemVer version`);
     if (!gt(version, currentVersion)) {
         throw new Error(`Release version ${version} must be newer than ${currentVersion}`);
     }
@@ -59,8 +61,8 @@ async function writeAtomic(path: string, source: string): Promise<void> {
 }
 
 /**
- * Restores every release source when any write fails so a version preparation never leaves a
- * partially bumped workspace.
+ * Restores every release source when any write fails so a version preparation never leaves a partially bumped
+ * workspace.
  */
 async function applyChanges(changes: FileChange[]): Promise<void> {
     const written: FileChange[] = [];
@@ -85,9 +87,9 @@ async function applyChanges(changes: FileChange[]): Promise<void> {
 }
 
 /**
- * Requires a clean checkout whose HEAD is exactly the freshly fetched `origin/main`. The branch name is
- * deliberately unchecked: releases are prepared on a linked worktree's release branch, because the primary
- * checkout stays on `main` and Git cannot check `main` out twice.
+ * Requires a clean checkout whose HEAD is exactly the freshly fetched `origin/main`. The branch name is deliberately
+ * unchecked: releases are prepared on a linked worktree's release branch, because the primary checkout stays on `main`
+ * and Git cannot check `main` out twice.
  */
 export async function assertReleaseSource(
     cwd: string,
@@ -101,13 +103,15 @@ export async function assertReleaseSource(
     const head = await readGit(['rev-parse', 'HEAD'], root);
     const remoteMain = await readGit(['rev-parse', 'refs/remotes/origin/main'], root);
     if (head !== remoteMain) {
-        throw new Error('Release preparation requires HEAD to match origin/main; run `git rebase origin/main` first');
+        throw new Error(
+            'Release preparation requires HEAD to match origin/main; run `git rebase origin/main` first',
+        );
     }
 }
 
 /**
-Reads the latest completed CI runs on `main` as a JSON string (newest first).
-*/
+ * Reads the latest completed CI runs on `main` as a JSON string (newest first).
+ */
 export type MainCiReader = () => Promise<string>;
 
 const defaultMainCiReader: MainCiReader = async () => {
@@ -133,12 +137,14 @@ const defaultMainCiReader: MainCiReader = async () => {
 };
 
 /**
- * Refuses to prepare a release while `main`'s latest completed CI run for a non-release commit failed.
- * Release commits take the lightweight CI fast-path that skips tests and relies on the merged PRs' hosted
- * checks, and `checks` is not a required status, so a PR can merge before it turns red (v0.0.122 shipped
- * that way). Release commits are skipped because their own run proves nothing about the tree.
+ * Refuses to prepare a release while `main`'s latest completed CI run for a non-release commit failed. Release commits
+ * take the lightweight CI fast-path that skips tests and relies on the merged PRs' hosted checks, and `checks` is not a
+ * required status, so a PR can merge before it turns red (v0.0.122 shipped that way). Release commits are skipped
+ * because their own run proves nothing about the tree.
  */
-export async function assertMainCiHealthy(readRuns: MainCiReader = defaultMainCiReader): Promise<void> {
+export async function assertMainCiHealthy(
+    readRuns: MainCiReader = defaultMainCiReader,
+): Promise<void> {
     const runs = JSON.parse(await readRuns()) as Array<{
         conclusion: string;
         displayTitle: string;
@@ -161,8 +167,12 @@ export async function prepareRelease(cwd: string, target: string): Promise<Prepa
             path,
         })),
     );
-    const rootManifest = parseManifest(manifestSources[0].originalSource, PRODUCT_MANIFEST_PATHS[0]);
-    if (typeof rootManifest.version !== 'string') throw new Error('package.json is missing version');
+    const rootManifest = parseManifest(
+        manifestSources[0].originalSource,
+        PRODUCT_MANIFEST_PATHS[0],
+    );
+    if (typeof rootManifest.version !== 'string')
+        throw new Error('package.json is missing version');
     const currentVersion = rootManifest.version;
     const version = nextVersion(currentVersion, target);
 

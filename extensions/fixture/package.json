@@ -6,7 +6,7 @@
     "main": "./dist/extension.js",
     "scripts": {
         "build": "bun run --cwd ../.. scripts/build-extension.ts --extension-root extensions/fixture",
-        "typecheck": "tsc --noEmit -p tsconfig.json --incremental --tsBuildInfoFile ../../.cache/tsc/extensions-fixture.tsbuildinfo"
+        "typecheck": "bun check --no-script -p tsconfig.json"
     },
     "devDependencies": {
         "@caxri/protocol": "workspace:*",

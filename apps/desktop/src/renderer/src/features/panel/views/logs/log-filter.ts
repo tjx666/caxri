@@ -69,8 +69,8 @@ export function isLogFilterMatch(haystack: string, filter: ParsedLogFilter): boo
 }
 
 /**
- * Applies the level toggles and text filter together, in the order the panel needs for both its record list and its
- * "N of M" count. Extracted from the panel component so the count computation is unit-testable without rendering.
+ * Applies the level toggles and text filter together, in the order the panel needs for both its record list and its "N
+ * of M" count. Extracted from the panel component so the count computation is unit-testable without rendering.
  */
 export function filterLogRecords<T extends LogQueryRecord>(
     records: readonly T[],

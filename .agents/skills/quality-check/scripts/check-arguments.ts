@@ -42,7 +42,7 @@ const MAX_E2E_WAIT_SECONDS = 1800;
 const usage = `Usage: bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--related] [--e2e] [--e2e-grep <pattern>] [--e2e-wait <seconds>] [--staged]
 
 Selectors:
-  --lint     Autofix supported changed files with ESLint and Prettier
+  --lint     Autofix supported changed files with ESLint and bun fmt
   --test     Run changed tests and colocated tests for changed source files
   --type     Run the repository-wide TypeScript check
   --knip     Run the repository-wide dead code/export check (CI blocking)

@@ -94,7 +94,7 @@ territory) and enables, as errors:
 - `bun run lint:type-aware`: repository-wide gate; CI runs it in the full-checks job right after
   ESLint.
 - `bun run check --lint`: the focused changed-file pipeline runs
-  `oxlint --type-aware --fix` on changed TS files between `eslint --fix` and Prettier (also the CI
+  `oxlint --type-aware --fix` on changed TS files between `eslint --fix` and the final `bun fmt` pass (also the CI
   focused-scope path).
 - lint-staged: the `*.{ts,tsx,mts,cts}` chain runs the same autofix on staged files.
 

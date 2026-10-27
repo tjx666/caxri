@@ -24,5 +24,4 @@ describe('infrastructure authority routing', () => {
         expect(releaseGuide).not.toContain('A normal commit runs the\nself-hosted CI checks only.');
         expect(e2eSkill).not.toContain('three consecutive green samples');
     });
-
 });

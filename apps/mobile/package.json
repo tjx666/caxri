@@ -18,7 +18,7 @@
         "prebuild:android": "bun run build:dependencies && EXPO_NO_GIT_STATUS=1 expo prebuild --platform android",
         "prebuild:ios": "bun run build:dependencies && EXPO_NO_GIT_STATUS=1 expo prebuild --platform ios",
         "test": "vitest run --root ../.. --project mobile",
-        "typecheck": "../../node_modules/.bin/tsc --noEmit -p tsconfig.runtime.json --incremental --tsBuildInfoFile ../../.cache/tsc/apps-mobile-runtime.tsbuildinfo && ../../node_modules/.bin/tsc --noEmit -p tsconfig.json --incremental --tsBuildInfoFile ../../.cache/tsc/apps-mobile.tsbuildinfo"
+        "typecheck": "bun check --no-script -p tsconfig.runtime.json && bun check --no-script -p tsconfig.json"
     },
     "dependencies": {
         "@caxri/mobile-transport": "workspace:*",

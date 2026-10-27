@@ -39,12 +39,11 @@ const packageManifest = JSON.parse(
 ) as PackageManifest;
 const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
 /**
- * The `tsc` the mobile `typecheck` script runs: the root TypeScript 7 CLI, addressed by path because the workspace's
- * own TypeScript 6 `tsc` bin shadows it on `PATH`. See the `apps/mobile` exception in
+ * Every workspace `typecheck` script runs Bun's built-in TypeScript 7 checker, so `apps/mobile`'s own TypeScript 6
+ * `tsc` bin (which Expo tooling needs) never decides which compiler checks it. See the `apps/mobile` exception in
  * `.agents/skills/project-architecture/references/stack-baseline.md`.
  */
-const mobileTypecheckTscPath = join(repoRoot, 'node_modules/.bin/tsc');
-const mobileTypecheckTsc = '../../node_modules/.bin/tsc';
+const typecheckCommand = 'bun check --no-script -p';
 
 function miseVersion(tool: 'node' | 'pnpm'): string {
     const match = mise.match(new RegExp(`^${tool} = "([^"]+)"$`, 'mu'));
@@ -327,17 +326,15 @@ describe('toolchain contract', () => {
             name: string;
             version: string;
         };
-        const { stdout } = await execFileAsync(mobileTypecheckTscPath, ['--version']);
         const typecheck = mobileManifest.scripts?.typecheck ?? '';
-        const compilers = typecheck.match(/(?:^|&& )(\S+) --noEmit/gu) ?? [];
+        const compilers = typecheck.split(' && ');
 
         expect(mobileManifest.devDependencies.typescript).toMatch(/^\^6\./u);
         expect(resolvedTypescript).toMatchObject({ name: 'typescript' });
         expect(resolvedTypescript.version).toMatch(/^6\./u);
         expect(compilers).toHaveLength(2);
         for (const compiler of compilers)
-            expect(compiler).toContain(`${mobileTypecheckTsc} --noEmit`);
-        expect(stdout.trim()).toMatch(/^Version 7\./u);
+            expect(compiler).toMatch(new RegExp(`^${typecheckCommand} `, 'u'));
     });
 
     it('rejects browser document globals from the React Native runtime project', async () => {
@@ -364,8 +361,11 @@ describe('toolchain contract', () => {
 
             let diagnostics = '';
             try {
-                await execFileAsync(mobileTypecheckTscPath, [
-                    '--noEmit',
+                await execFileAsync('bun', [
+                    'check',
+                    '--no-script',
+                    '--no-pretty',
+                    '--all',
                     '-p',
                     join(workspace, 'tsconfig.json'),
                 ]);

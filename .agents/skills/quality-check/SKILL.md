@@ -30,8 +30,8 @@ bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--related
   path that is neither a file nor a deletion Git records, fails with exit 2 before any gate runs;
   a deleted path stays valid because it selects the tests that still reference it. Use
   `rg --files` to discover the concrete paths before selecting a feature's files.
-- `--lint` applies ESLint, oxlint type-aware (`.oxlintrc.json`, TS files only), and Prettier fixes
-  to supported files. Always inspect the resulting diff. Appending file paths to `bun run format`
+- `--lint` applies ESLint, oxlint type-aware (`.oxlintrc.json`, TS files only), and `bun fmt` fixes
+  to supported files, formatting before ESLint so `caxri/jsdoc-format` wraps comments at their final indentation. Always inspect the resulting diff. Appending file paths to `bun run format`
   does not narrow formatting; use `bun run --silent check <files...> --lint` for a focused pass.
   When the changed set includes source files, `--lint` also runs the source-size ratchet; when it
   includes Markdown, `--lint` also runs the documentation check. Neither autofixes -- see
@@ -64,10 +64,9 @@ bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--related
 - For added or changed production structured-log writes, explicitly include
   `scripts/__tests__/logging-contract.test.ts` in the focused check. It scans call sites rather
   than importing them, so import-based related-test discovery cannot select this contract.
-- `--type` runs the repository-wide TypeScript check (about 16 seconds) because TypeScript cannot
-  safely validate one file in isolation. Every `tsc` keeps gitignored incremental build info
-  (composite projects beside their `tsconfig`, the rest under `.cache/tsc/`), so a repeat run in
-  the same worktree rechecks only what changed; delete those files to force a cold check.
+- `--type` runs the repository-wide TypeScript check (`bun check` per project, about 4 seconds)
+  because TypeScript cannot safely validate one file in isolation. `bun check` keeps no incremental
+  state, so every run is a full check.
 - `--knip` runs the repository-wide dead-code and unused-export gate for Renderer or shared-contract
   changes.
 - `--related` runs `vitest related` over the changed sources with the hosted `affected` scope's

@@ -29,7 +29,9 @@ const ALL_PROCESSES = '__all__';
  * Process names are Caxri's own component names (the same words the log records and docs use), so they stay English;
  * only the "all" choice is a phrase and carries a translation key.
  */
-const PROCESS_OPTIONS: Array<{ value: string } & ({ label: string } | { labelKey: TranslationKey })> = [
+const PROCESS_OPTIONS: Array<
+    { value: string } & ({ label: string } | { labelKey: TranslationKey })
+> = [
     { value: ALL_PROCESSES, labelKey: 'panel.logs.allProcesses' },
     { value: 'desktop', label: 'Desktop' },
     { value: 'extension-host', label: 'Extension Host' },
@@ -89,7 +91,7 @@ function LogRow({
                 )}
             </div>
             {expanded && (
-                <div className="mt-0.5 text-muted [overflow-wrap:anywhere] whitespace-pre-wrap">
+                <div className="mt-0.5 [overflow-wrap:anywhere] whitespace-pre-wrap text-muted">
                     {record.correlationId && `correlationId: ${record.correlationId}\n`}
                     {record.fields
                         ? JSON.stringify(record.fields, undefined, 2)
@@ -180,7 +182,10 @@ export function LogViewerPanel() {
                         value={processValue}
                         onValueChange={(next) => setProcessValue(next ?? ALL_PROCESSES)}
                     >
-                        <SelectTrigger aria-label={t('panel.logs.processFilter')} className="h-6 flex-1 text-[11px]">
+                        <SelectTrigger
+                            aria-label={t('panel.logs.processFilter')}
+                            className="h-6 flex-1 text-[11px]"
+                        >
                             <SelectValue>
                                 {(() => {
                                     const selected = PROCESS_OPTIONS.find(
@@ -262,9 +267,7 @@ export function LogViewerPanel() {
             </div>
             {showGapBanner && (
                 <div className="flex flex-none items-center gap-2 border-b border-border px-2 py-1 text-[11px] text-warning">
-                    <span className="flex-1">
-                        {t('panel.logs.gapNotice')}
-                    </span>
+                    <span className="flex-1">{t('panel.logs.gapNotice')}</span>
                     <Button
                         aria-label={t('panel.logs.dismissGapNotice')}
                         className="text-warning enabled:hover:bg-[color-mix(in_srgb,var(--warning)_18%,transparent)]"
@@ -276,7 +279,11 @@ export function LogViewerPanel() {
                     </Button>
                 </div>
             )}
-            <div ref={scrollReference} className="min-h-0 flex-1 overflow-auto" onScroll={handleScroll}>
+            <div
+                ref={scrollReference}
+                className="min-h-0 flex-1 overflow-auto"
+                onScroll={handleScroll}
+            >
                 {visible.length === 0 && stream.isLoading ? (
                     <LoadingSkeleton
                         variant="document"

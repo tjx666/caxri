@@ -22,7 +22,7 @@
     "scripts": {
         "build": "tsc -p tsconfig.build.json",
         "test": "vitest run --root ../.. --project api",
-        "typecheck": "tsc --noEmit -p tsconfig.json --incremental --tsBuildInfoFile ../../.cache/tsc/packages-extension-api.tsbuildinfo"
+        "typecheck": "bun check --no-script -p tsconfig.json"
     },
     "engines": {
         "node": ">=24.0.0"

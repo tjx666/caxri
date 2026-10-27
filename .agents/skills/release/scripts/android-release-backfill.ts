@@ -68,8 +68,8 @@ async function publishedRelease(
 }
 
 /**
-Resolves an already published release before the job exposes signing secrets to its pinned source.
-*/
+ * Resolves an already published release before the job exposes signing secrets to its pinned source.
+ */
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- exercised by the focused backfill integration tests
 export async function resolveAndroidBackfill(
     repo: string,
@@ -91,8 +91,8 @@ export async function resolveAndroidBackfill(
 }
 
 /**
-Checks the staged bundle again after the existing builder verifies APK identity and release-key signatures.
-*/
+ * Checks the staged bundle again after the existing builder verifies APK identity and release-key signatures.
+ */
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- exercised by the focused backfill integration tests
 export async function stageAndroidBackfill(cwd: string, tag: string): Promise<string> {
     const version = releaseVersion(tag);
@@ -122,13 +122,16 @@ export async function stageAndroidBackfill(cwd: string, tag: string): Promise<st
     await copyFile(join(bundleDirectory, 'caxri-mobile.apk'), path);
     const staged = await readFile(path);
     if (!apk.equals(staged)) throw new Error('Staged Android APK differs from the verified bundle');
-    await writeFile(`${path}.sha256`, `${createHash('sha256').update(staged).digest('hex')}  ${name}\n`);
+    await writeFile(
+        `${path}.sha256`,
+        `${createHash('sha256').update(staged).digest('hex')}  ${name}\n`,
+    );
     return path;
 }
 
 /**
-Uses current trusted parsers and tools even when the selected historical tag has a weaker builder.
-*/
+ * Uses current trusted parsers and tools even when the selected historical tag has a weaker builder.
+ */
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- exercised by the focused backfill integration tests
 export async function verifyAndroidBackfill(
     cwd: string,
@@ -142,13 +145,22 @@ export async function verifyAndroidBackfill(
     const apk = await stageAndroidBackfill(cwd, tag);
     const tools = join(sdk, 'build-tools/36.0.0');
     const badging = await run(join(tools, 'aapt2'), ['dump', 'badging', apk]);
-    if (!/^native-code: 'arm64-v8a'$/mu.test(badging)) throw new Error('APK must contain only arm64-v8a native code');
+    if (!/^native-code: 'arm64-v8a'$/mu.test(badging))
+        throw new Error('APK must contain only arm64-v8a native code');
     const signers = await run(join(tools, 'apksigner'), ['verify', '--print-certs', apk]);
     const certificate = await run(join(environment.JAVA_HOME, 'bin/keytool'), [
-        '-list', '-v', '-keystore', signing.keystorePath, '-alias', signing.keyAlias,
-        '-storepass:env', ANDROID_RELEASE_SIGNING_ENVIRONMENT.keystorePassword,
+        '-list',
+        '-v',
+        '-keystore',
+        signing.keystorePath,
+        '-alias',
+        signing.keyAlias,
+        '-storepass:env',
+        ANDROID_RELEASE_SIGNING_ENVIRONMENT.keystorePassword,
     ]);
-    const manifest = JSON.parse(await readFile(join(cwd, 'out/mobile-update/manifest.json'), 'utf8')) as { versionCode: number };
+    const manifest = JSON.parse(
+        await readFile(join(cwd, 'out/mobile-update/manifest.json'), 'utf8'),
+    ) as { versionCode: number };
     assertUpdateApkIdentity({
         badging: parseApkBadging(badging),
         expectedVersion: releaseVersion(tag),
@@ -156,12 +168,14 @@ export async function verifyAndroidBackfill(
         releaseDigest: parseKeytoolDigest(certificate),
         signerDigests: parseApkSignerDigests(signers),
     });
-    return createHash('sha256').update(await readFile(apk)).digest('hex');
+    return createHash('sha256')
+        .update(await readFile(apk))
+        .digest('hex');
 }
 
 /**
-Rechecks remote identity after the build and appends assets without overwriting a published download.
-*/
+ * Rechecks remote identity after the build and appends assets without overwriting a published download.
+ */
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- exercised by the focused backfill integration tests
 export async function publishAndroidBackfill(
     cwd: string,
@@ -172,25 +186,51 @@ export async function publishAndroidBackfill(
 ): Promise<void> {
     const { tag, sha, releaseId } = target;
     const release = await publishedRelease(repo, tag, run);
-    const remoteCommit = (await run('gh', ['api', `repos/${repo}/commits/${tag}`, '--jq', '.sha'])).trim();
+    const remoteCommit = (
+        await run('gh', ['api', `repos/${repo}/commits/${tag}`, '--jq', '.sha'])
+    ).trim();
     const checkoutCommit = (await run('git', ['rev-parse', 'HEAD'])).trim();
     if (remoteCommit !== sha || checkoutCommit !== sha || release.id !== releaseId) {
         throw new Error('Release or tag identity changed during the Android build');
     }
     const apk = await stageAndroidBackfill(cwd, tag);
-    if (createHash('sha256').update(await readFile(apk)).digest('hex') !== verifiedApkSha256) {
+    if (
+        createHash('sha256')
+            .update(await readFile(apk))
+            .digest('hex') !== verifiedApkSha256
+    ) {
         throw new Error('APK changed after trusted signature verification');
     }
 
     const existingNames = new Set(release.assets.map(({ name }) => name));
     const downloadDirectory = await mkdtemp(join(tmpdir(), 'caxri-android-existing-assets-'));
     try {
-        const comparisons = await Promise.allSettled([apk, `${apk}.sha256`].filter((path) => existingNames.has(basename(path))).map(async (path) => {
-            const name = basename(path);
-            await run('gh', ['release', 'download', tag, '--repo', repo, '--pattern', name, '--dir', downloadDirectory]);
-            const [existing, staged] = await Promise.all([readFile(join(downloadDirectory, name)), readFile(path)]);
-            if (!existing.equals(staged)) throw new Error(`Existing release asset conflicts with verified bytes: ${name}`);
-        }));
+        const comparisons = await Promise.allSettled(
+            [apk, `${apk}.sha256`]
+                .filter((path) => existingNames.has(basename(path)))
+                .map(async (path) => {
+                    const name = basename(path);
+                    await run('gh', [
+                        'release',
+                        'download',
+                        tag,
+                        '--repo',
+                        repo,
+                        '--pattern',
+                        name,
+                        '--dir',
+                        downloadDirectory,
+                    ]);
+                    const [existing, staged] = await Promise.all([
+                        readFile(join(downloadDirectory, name)),
+                        readFile(path),
+                    ]);
+                    if (!existing.equals(staged))
+                        throw new Error(
+                            `Existing release asset conflicts with verified bytes: ${name}`,
+                        );
+                }),
+        );
         const failed = comparisons.find((result) => result.status === 'rejected');
         if (failed) throw failed.reason;
         for (const path of [apk, `${apk}.sha256`]) {
@@ -205,8 +245,11 @@ export async function publishAndroidBackfill(
     const notesDirectory = await mkdtemp(join(tmpdir(), 'caxri-android-release-notes-'));
     try {
         const notesPath = join(notesDirectory, 'notes.md');
-        const latest = JSON.parse(await run('gh', ['api', `repos/${repo}/releases/tags/${tag}`])) as PublishedRelease;
-        if (latest.id !== releaseId) throw new Error('Release identity changed before updating notes');
+        const latest = JSON.parse(
+            await run('gh', ['api', `repos/${repo}/releases/tags/${tag}`]),
+        ) as PublishedRelease;
+        if (latest.id !== releaseId)
+            throw new Error('Release identity changed before updating notes');
         const marker = `<!-- caxri-android-backfill:${tag}:${sha} -->`;
         if (latest.body?.includes(marker)) return;
         const androidNotes = `## Android (arm64)
@@ -237,14 +280,25 @@ if (import.meta.main) {
     if (phase === 'resolve' && tag) {
         const target = await resolveAndroidBackfill(repo, tag, run);
         if (!process.env.GITHUB_OUTPUT) throw new Error('GITHUB_OUTPUT is required');
-        await appendFile(process.env.GITHUB_OUTPUT, `sha=${target.sha}\nrelease_id=${target.releaseId}\n`);
+        await appendFile(
+            process.env.GITHUB_OUTPUT,
+            `sha=${target.sha}\nrelease_id=${target.releaseId}\n`,
+        );
     } else if (phase === 'verify' && tag) {
         const hash = await verifyAndroidBackfill(process.cwd(), tag, process.env, run);
         if (!process.env.GITHUB_OUTPUT) throw new Error('GITHUB_OUTPUT is required');
         await appendFile(process.env.GITHUB_OUTPUT, `apk_sha256=${hash}\n`);
     } else if (phase === 'publish' && tag && sha && releaseId && verifiedHash) {
-        await publishAndroidBackfill(process.cwd(), repo, { tag, sha, releaseId: Number(releaseId) }, run, verifiedHash);
+        await publishAndroidBackfill(
+            process.cwd(),
+            repo,
+            { tag, sha, releaseId: Number(releaseId) },
+            run,
+            verifiedHash,
+        );
     } else {
-        throw new Error('Usage: android-release-backfill.ts resolve TAG | verify TAG | publish TAG SHA RELEASE_ID APK_SHA256');
+        throw new Error(
+            'Usage: android-release-backfill.ts resolve TAG | verify TAG | publish TAG SHA RELEASE_ID APK_SHA256',
+        );
     }
 }

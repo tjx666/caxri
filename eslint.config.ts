@@ -258,7 +258,7 @@ export default defineConfig(
                 },
             ],
             /**
-             * Prettier never inserts blank lines between class members. Require a blank line on either side of a
+             * The formatter never inserts blank lines between class members. Require a blank line on either side of a
              * method; consecutive fields may stay packed, and TypeScript overload signatures stay adjacent.
              */
             '@stylistic/lines-between-class-members': [
@@ -445,21 +445,27 @@ export default defineConfig(
         rules: {
             /**
              * `eslint-config-prettier` (already composed into the shared preset) only disables core and `@stylistic`
-             * rules that conflict with Prettier's own formatting; it does not cover `eslint-plugin-jsdoc`. Prettier
-             * reformats `/** ... *\/` block comments (including the `{/** ... *\/}` form used for JSX-embedded doc
-             * comments) in a way `jsdoc/check-alignment` disagrees with, so the two fight indefinitely on every `bun
-             * run format` pass. Prettier owns formatting; this rule is the one Prettier-formatting-conflict category
-             * the shared-preset migration allows disabling.
+             * rules that conflict with the formatter; it does not cover `eslint-plugin-jsdoc`. `bun fmt` re-indents
+             * `/** ... *\/` block comments (including the `{/** ... *\/}` form used for JSX-embedded doc comments) in a
+             * way `jsdoc/check-alignment` disagrees with, so the two would fight on every format pass. The formatter
+             * owns comment indentation; this is the one formatter-conflict category the shared-preset migration allows
+             * disabling.
              */
             'jsdoc/check-alignment': 'off',
             /**
              * The shared preset runs `check-line-alignment` in `never` mode with an empty `wrapIndent`, so a tag
-             * description that wraps must continue flush with the `*`. `prettier-plugin-jsdoc` re-wraps that same
-             * description with a two-space hanging indent, and `lint-staged` runs Prettier after `eslint --fix`, so the
-             * committed file carried a warning that only CI's `--max-warnings=0` reported. Declaring Prettier's hanging
-             * indent as the expected `wrapIndent` makes both tools converge on one layout.
+             * description that wraps must continue flush with the `*`. `caxri/jsdoc-format` re-wraps that same
+             * description with a two-space hanging indent; declaring that indent as the expected `wrapIndent` makes
+             * both rules converge on one layout.
              */
             'jsdoc/check-line-alignment': ['warn', 'never', { wrapIndent: '  ' }],
+            /**
+             * JSDoc text formatting (capitalization, wrapping at 120 columns, tag order, blank lines) that
+             * `prettier-plugin-jsdoc` used to own. `bun fmt` loads no plugins and leaves comment text alone, so the
+             * rule owns it without the formatter undoing it. Run it after the formatter: its wrap width depends on the
+             * comment's final indentation.
+             */
+            'caxri/jsdoc-format': 'error',
         },
     },
     {

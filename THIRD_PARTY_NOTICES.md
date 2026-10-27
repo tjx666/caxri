@@ -8,6 +8,12 @@ Caxri vendors the generic anti-slop Oxlint plugin as contributor tooling. The so
 
 Copyright (c) 2026 Dillon Mulroy. Licensed under the MIT License. The vendored license text is in `licenses/ANTI_SLOP_LICENSE.txt`; the upstream source is <https://github.com/dmmulroy/anti-slop>.
 
+## prettier-plugin-jsdoc
+
+The `caxri/jsdoc-format` ESLint rule (`scripts/eslint-rules/jsdoc-format/`) is a port of `prettier-plugin-jsdoc` 1.8.1: its tag tables, tag ordering, description and Markdown formatting, and comment printing were translated from the published source so the rule produces the same output. It is contributor tooling, not part of the product runtime.
+
+Copyright (c) 2020 Hossein Mohammadi. Licensed under the MIT License. The license text is in `licenses/PRETTIER_PLUGIN_JSDOC_LICENSE.txt`; the upstream source is <https://github.com/hosseinmd/prettier-plugin-jsdoc>.
+
 ## Patched dependencies
 
 ### app-builder-lib 26.15.3

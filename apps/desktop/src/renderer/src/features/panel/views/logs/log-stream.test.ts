@@ -112,10 +112,7 @@ describe('gap dismiss epoch', () => {
         );
         const cleared = clearLogStream(withGap);
         expect(cleared.gapEpoch).toBe(2);
-        const newGap = appendLogPage(
-            cleared,
-            page([record('b')], { nextCursor: 'c2', gap: true }),
-        );
+        const newGap = appendLogPage(cleared, page([record('b')], { nextCursor: 'c2', gap: true }));
         expect(newGap.gapEpoch).toBe(3);
     });
 });

@@ -1,9 +1,10 @@
 {
     "$schema": "https://raw.githubusercontent.com/DavidAnson/markdownlint-cli2/main/schema/markdownlint-cli2-config-schema.json",
     /**
-     * Tool ownership: Prettier formats Markdown, markdownlint checks Markdown semantics, and
-     * ESLint's markdown processor lints fenced JS/TS code blocks. `markdownlint/style/prettier`
-     * disables every rule that would otherwise fight Prettier's own formatting decisions (blank
+     * Tool ownership: `bun fmt` formats Markdown (with Prettier-compatible output),
+     * markdownlint checks Markdown semantics, and ESLint's markdown processor lints fenced JS/TS
+     * code blocks. `markdownlint/style/prettier` disables every rule that would otherwise fight
+     * the formatter's own decisions (blank
      * lines, heading style, list indent, line length, trailing whitespace, ...); only semantic
      * rules stay enabled below.
      */

@@ -18,7 +18,7 @@
     "scripts": {
         "build": "tsc -p tsconfig.build.json",
         "test": "vitest run --root ../.. --project protocol",
-        "typecheck": "tsc --noEmit -p tsconfig.json --incremental --tsBuildInfoFile ../../.cache/tsc/packages-protocol.tsbuildinfo"
+        "typecheck": "bun check --no-script -p tsconfig.json"
     },
     "dependencies": {
         "@caxri/utils": "workspace:*",

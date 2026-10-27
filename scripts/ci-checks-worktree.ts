@@ -461,10 +461,7 @@ async function prepareCaches(worktree: string, environment: NodeJS.ProcessEnv): 
     const cacheRoot = requiredEnvironment(environment, 'CAXRI_CACHE_ROOT');
     const cacheDirectory = join(worktree, '.cache');
     await mkdir(cacheDirectory, { recursive: true });
-    await Promise.all([
-        symlink(join(cacheRoot, 'eslint'), join(cacheDirectory, 'eslint')),
-        symlink(join(cacheRoot, 'prettier'), join(cacheDirectory, 'prettier')),
-    ]);
+    await symlink(join(cacheRoot, 'eslint'), join(cacheDirectory, 'eslint'));
 }
 
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- the concurrent runner overlaps checkout preparation with E2E setup

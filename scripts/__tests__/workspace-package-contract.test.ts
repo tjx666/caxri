@@ -325,7 +325,7 @@ describe('workspace package manifests', () => {
             expect(manifest.engines?.caxri).toBe(`^${appManifest.version}`);
             expect(manifest.scripts).toEqual({
                 build: `bun run --cwd ../.. scripts/build-extension.ts --extension-root extensions/${name}`,
-                typecheck: `tsc --noEmit -p tsconfig.json --incremental --tsBuildInfoFile ../../.cache/tsc/extensions-${name}.tsbuildinfo`,
+                typecheck: 'bun check --no-script -p tsconfig.json',
             });
             await expect(access(join(extensionRoot, 'tsconfig.json'))).resolves.toBeUndefined();
         },
