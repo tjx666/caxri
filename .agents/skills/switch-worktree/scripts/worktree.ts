@@ -40,13 +40,9 @@ import {
 import type { OrphanProcess } from './worktree-orphans';
 import { describeOrphans, orphansByWorktree, toOrphanProcess } from './worktree-orphans';
 import type { ProcessEntry, SignalFailureReason, StopOperations } from './worktree-processes';
-import {
-    defaultStopOperations,
-    inspectWorktreeProcesses,
-    stopWorktreeProcesses,
-} from './worktree-processes';
+import { defaultStopOperations, stopWorktreeProcesses } from './worktree-processes';
 import { finishProfileRemoval, prepareProfileRemoval } from './worktree-profile-removal';
-import { isWorktreeHeadPreserved } from './worktree-removal-safety';
+import { assertWorktreeIdle, isWorktreeHeadPreserved } from './worktree-safety';
 
 const SEMANTIC_BRANCH = /^(?:feat|fix|refactor|perf|docs|test|chore)\/[a-z0-9][a-z0-9._/-]*$/;
 
@@ -258,7 +254,7 @@ export async function listWorktreeStatus(cwd: string): Promise<WorktreeStatus[]>
     );
 }
 
-function resolveExistingTarget(
+export function resolveExistingTarget(
     worktrees: WorktreeRecord[],
     cwd: string,
     target: string,
@@ -275,7 +271,7 @@ function resolveExistingTarget(
 /**
  * Outcome of the locked half of `create` or `switch`: an identity to install for, or a worktree that is already usable.
  */
-type ResolvedWorktree =
+export type ResolvedWorktree =
     { kind: 'ready'; status: WorktreeStatus } | { identity: string; kind: 'install'; path: string };
 
 async function repairManagedWorktree(
@@ -298,7 +294,7 @@ async function repairManagedWorktree(
     };
 }
 
-async function finishManagedWorktree(
+export async function finishManagedWorktree(
     context: RepoContext,
     resolved: ResolvedWorktree,
     install: (path: string) => Promise<void>,
@@ -312,7 +308,7 @@ async function finishManagedWorktree(
     return inspectOne(context, worktree, await inspectDesktopLease(context.root));
 }
 
-function assertSemanticBranch(branch: string): void {
+export function assertSemanticBranch(branch: string): void {
     if (!SEMANTIC_BRANCH.test(branch)) {
         throw new CommandError(
             'Branch must use feat/, fix/, refactor/, perf/, docs/, test/, or chore/ with a lowercase topic',
@@ -439,48 +435,10 @@ export async function removeWorktree(
         if (resolve(worktree.path) === resolve(context.root)) {
             throw new CommandError('Run remove from another associated checkout');
         }
-        if (
-            (
-                await runCapture(
-                    'git',
-                    ['status', '--porcelain', '--untracked-files=all'],
-                    worktree.path,
-                )
-            ).trim()
-        ) {
-            throw new CommandError(`Refusing to remove dirty worktree: ${worktree.path}`);
-        }
+        const { identity, processRecord } = await assertWorktreeIdle(context, worktree, 'remove');
         if (!(await isWorktreeHeadPreserved(worktree))) {
             throw new CommandError(
                 `Refusing to remove worktree whose changes are not preserved on origin: ${worktree.path}`,
-            );
-        }
-        const identity = await worktreeIdentity(worktree.path, false);
-        const processRecord = await readDevelopmentProcess(context, identity);
-        if (
-            processRecord &&
-            (await isProcessIdentityAlive(processRecord.pid, processRecord.identity))
-        ) {
-            throw new CommandError(
-                `Refusing to remove worktree with active dev PID ${processRecord.pid}`,
-            );
-        }
-        const live = await inspectWorktreeProcesses({
-            selfPid: process.pid,
-            worktreePath: worktree.path,
-        });
-        const active = [...live.owned, ...live.unresolved];
-        if (active.length > 0)
-            throw new CommandError(
-                `Refusing to remove worktree with active processes: PIDs ${active.map(({ pid }) => pid).join(', ')}`,
-            );
-        const desktop = await inspectDesktopLease(context.root);
-        if (
-            desktop.state === 'active' &&
-            resolve(desktop.lease.worktreePath) === resolve(worktree.path)
-        ) {
-            throw new CommandError(
-                `Refusing to remove worktree holding desktop lease ${desktop.lease.label}`,
             );
         }
         const profileRemoval = await prepareProfileRemoval(

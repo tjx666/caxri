@@ -17,12 +17,14 @@ import {
 import { installWorktreeDependencies } from './worktree-install';
 import { listOrphanedProcesses } from './worktree-orphans';
 import { pruneOrphanProfiles } from './worktree-profile-prune';
+import { reuseWorktree } from './worktree-reuse';
 
 const USAGE = `Usage: switch-worktree <command> [options]
 
 Commands:
   create <branch> [--base <ref>]       Create an isolated checkout and run ni
   switch <branch|path>                 Resolve or create a checkout for a local branch
+  reuse <branch|path> <new-branch>     Start a new branch from origin/main in a clean, merged checkout
   list                                 Inspect every associated checkout
   doctor [branch|path]                 Diagnose one checkout (default: current)
   dev [--user-data-dir <path>]         Start Caxri with this checkout's isolated profile
@@ -234,6 +236,21 @@ export async function runCli(argv: string[]): Promise<void> {
                 oneOperand(arguments_)!,
                 arguments_.json ? (path) => installWorktreeDependencies(path, true) : undefined,
             );
+            print(arguments_.json ? result : result.path, arguments_.json);
+            return;
+        }
+        case 'reuse': {
+            if (arguments_.operands.length !== 2)
+                throw new CommandError('reuse expects <branch|path> <new-branch>', 2);
+            const [target, branch] = arguments_.operands;
+            const result = await reuseWorktree({
+                branch,
+                cwd: process.cwd(),
+                install: arguments_.json
+                    ? (path) => installWorktreeDependencies(path, true)
+                    : undefined,
+                target,
+            });
             print(arguments_.json ? result : result.path, arguments_.json);
             return;
         }
