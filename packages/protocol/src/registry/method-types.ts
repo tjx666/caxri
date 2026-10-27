@@ -182,6 +182,7 @@ export const effectfulCommandRecovery = {
     'mobile.agentChat.takeQueued': 'memory',
     'mobile.agentChat.readQueued': 'memory',
     'mobile.agentChat.editQueued': 'memory',
+    'mobile.agentChat.rewind': 'memory',
     'mobile.agentChat.runCommand': 'memory',
     'mobile.botInbox.reply': 'durable',
     'mobile.project.add': 'durable',

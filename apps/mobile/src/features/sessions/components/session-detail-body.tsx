@@ -4,6 +4,7 @@ import Animated from 'react-native-reanimated';
 
 import { useTranslation } from '../../../i18n';
 import type { MobileTheme } from '../../../theme/tokens';
+import type { AgentChatEditTarget } from '../../agent-chat/agent-chat-message-edit';
 import { AgentChatView } from '../../agent-chat/agent-chat-view';
 import type { SessionAgentChat } from '../../agent-chat/use-session-agent-chat';
 import { AttentionCards } from '../../conversation/attention-cards';
@@ -51,6 +52,7 @@ const SessionConversationPane = ({
     deviceRole,
     enterFrom,
     isConnected,
+    onEditMessage,
     onEditQueued,
     theme,
     timeline,
@@ -60,6 +62,7 @@ const SessionConversationPane = ({
     deviceRole: 'view' | 'reply' | 'control' | null;
     enterFrom: -1 | 0 | 1 | null;
     isConnected: boolean;
+    onEditMessage: (target: AgentChatEditTarget, text: string) => void;
     onEditQueued: (text: string) => void;
     theme: MobileTheme;
     timeline: ReturnType<typeof useConversationTimeline>;
@@ -71,6 +74,7 @@ const SessionConversationPane = ({
             enterFrom={enterFrom}
             isConnected={isConnected}
             isHandedOff={chat.isHandedOff}
+            onEditMessage={onEditMessage}
             onEditQueued={onEditQueued}
             provider={chat.provider}
             theme={theme}
@@ -97,6 +101,7 @@ export const SessionDetailBody = ({
     deviceRole,
     isConnected,
     isVisible,
+    onEditMessage,
     onEditQueued,
     onSegmentChange,
     segment,
@@ -119,6 +124,10 @@ export const SessionDetailBody = ({
     deviceRole: 'view' | 'reply' | 'control' | null;
     isConnected: boolean;
     isVisible: boolean;
+    /**
+     * Starts "Edit from Here" on an earlier Chat message: its text replaces the composer draft until sent or cancelled.
+     */
+    onEditMessage: (target: AgentChatEditTarget, text: string) => void;
     /**
      * Puts a queued Chat message taken back for editing into the composer draft and focuses it.
      */
@@ -190,6 +199,7 @@ export const SessionDetailBody = ({
             deviceRole={deviceRole}
             enterFrom={conversationEnterFrom}
             isConnected={isConnected}
+            onEditMessage={onEditMessage}
             onEditQueued={onEditQueued}
             theme={theme}
             timeline={conversationTimeline}

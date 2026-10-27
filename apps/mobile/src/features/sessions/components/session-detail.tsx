@@ -40,6 +40,7 @@ export const SessionDetail = ({
     onDraftChange,
     onEditQueued,
     onMarkRead,
+    onRequestComposerFocus,
     onRefresh,
     onSegmentChange,
     savedAt,
@@ -66,6 +67,10 @@ export const SessionDetail = ({
      */
     onEditQueued: (text: string) => void;
     onMarkRead: () => Promise<void>;
+    /**
+     * Focuses the composer once, as a notification reply does.
+     */
+    onRequestComposerFocus: () => void;
     onRefresh: () => Promise<void>;
     onSegmentChange: (segment: SessionSegment) => void;
     /**
@@ -160,6 +165,16 @@ export const SessionDetail = ({
                 deviceRole={deviceRole}
                 isConnected={isConnected}
                 isVisible={isVisible}
+                onEditMessage={(target, text) => {
+                    if (!chat) return;
+                    // A second edit keeps the draft held back by the first, so Cancel still restores what was typed.
+                    chat.controller.setEditing({
+                        ...target,
+                        previousDraft: chat.controller.editing?.previousDraft ?? draft,
+                    });
+                    onDraftChange(text);
+                    onRequestComposerFocus();
+                }}
                 onEditQueued={onEditQueued}
                 onSegmentChange={onSegmentChange}
                 segment={segment}

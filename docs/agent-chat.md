@@ -1259,6 +1259,14 @@ after this turn`, or `Queue paused · sends nothing until you resume` with Resum
   computer; that refusal, and an entry that left the queue first, show as an alert, because the
   row is already gone from the card. While a turn runs the main button reads `Steer message` with Desktop's
   steer glyph and the placeholder reads `Add to this turn`.
+- Sent messages. A long press opens Copy Message, Select Text, and on a user message "Edit from
+  Here" (see [Mobile Design](mobile/design.md#conversation)). `mobile.agentChat.readMessage`
+  returns a message's whole text from Core's projection (a user message split by
+  `agentChatQueuedTextEdit`, as a queued edit is), bounded by the same 16 KiB; a message outside the
+  projection is `NOT_FOUND`, and the phone then copies the text it holds unless that is only a
+  tail. `mobile.agentChat.rewind` forwards `agentChat.rewind` with `restoreFiles: false` and the
+  message's own reference block put back ahead of the edited text; the gateway refuses a message
+  with images with `CONFLICT`, since its images could not ride along. It carries the sending grant.
 - Background work. The snapshot and `state` patches carry the Chat's `tasks` as a bounded copy
   (`clipAgentChatTasksForMobile`: every running task up to 24, the newest started kept, and the 10
   that ended most recently, with titles and command lines cut to 300 characters and summaries to

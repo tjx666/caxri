@@ -14,11 +14,19 @@ import { Spinner } from '../../components/spinner';
 import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { useMobileClient } from '../connection/mobile-client-provider';
+import type { ConversationMessageTarget } from '../conversation/conversation-message-actions';
+import { ConversationMessageActions } from '../conversation/conversation-message-actions';
+import { ConversationMessageSheet } from '../conversation/conversation-message-sheet';
 import { ConversationUserAttachments } from '../conversation/conversation-user-attachments';
 import { ConversationList } from '../conversation/conversation-view';
 import { SavedCopyNote } from '../read-cache/saved-copy-note';
 import { AgentChatGoalBar } from './agent-chat-goal-bar';
 import { AgentChatMcpServersContext } from './agent-chat-mcp-icons';
+import type { AgentChatEditTarget } from './agent-chat-message-edit';
+import {
+    agentChatMessageEditAvailability,
+    isAgentChatMessageClipped,
+} from './agent-chat-message-edit';
 import { AgentChatMessageImages } from './agent-chat-message-images';
 import {
     agentChatComposerAvailability,
@@ -61,6 +69,7 @@ const AgentChatBody = ({
     enterFrom,
     isConnected,
     isHandedOff,
+    onEditMessage,
     provider,
     theme,
 }: {
@@ -72,11 +81,13 @@ const AgentChatBody = ({
     enterFrom: -1 | 0 | 1 | null;
     isConnected: boolean;
     isHandedOff: boolean;
+    onEditMessage: (target: AgentChatEditTarget, text: string) => void;
     provider: string;
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
     const { pending } = chat;
+    const [actionTarget, setActionTarget] = useState<ConversationMessageTarget>();
     /**
      * The window with the older pages the reader loaded in front of it; turn folds and artifacts build over both.
      */
@@ -165,19 +176,33 @@ const AgentChatBody = ({
         return (
             <ConversationUserAttachments value={renderImages}>
                 <AgentChatMcpServersContext value={mcpServers}>
-                    <ConversationList
-                        entries={entries}
-                        enterFrom={enterFrom}
-                        followKey={pending.sendCount}
-                        isConnected={isConnected}
-                        isTurnStart={isAgentChatTurnStart}
-                        onFollowingChange={setFollowing}
-                        onRetry={chat.refresh}
-                        renderEntry={renderEntry}
-                        theme={theme}
-                        timeline={timeline}
-                    />
+                    <ConversationMessageActions value={setActionTarget}>
+                        <ConversationList
+                            entries={entries}
+                            enterFrom={enterFrom}
+                            followKey={pending.sendCount}
+                            isConnected={isConnected}
+                            isTurnStart={isAgentChatTurnStart}
+                            onFollowingChange={setFollowing}
+                            onRetry={chat.refresh}
+                            renderEntry={renderEntry}
+                            theme={theme}
+                            timeline={timeline}
+                        />
+                    </ConversationMessageActions>
                 </AgentChatMcpServersContext>
+                {actionTarget ? (
+                    <AgentChatMessageSheet
+                        canSend={canSend}
+                        chat={chat}
+                        isConnected={isConnected}
+                        message={actionTarget}
+                        onClose={() => setActionTarget(undefined)}
+                        onEditMessage={onEditMessage}
+                        snapshot={snapshot}
+                        theme={theme}
+                    />
+                ) : null}
             </ConversationUserAttachments>
         );
     if (chat.status === 'error')
@@ -235,6 +260,77 @@ const AgentChatBody = ({
                 {agentChatEmptyMessage({ canSend, isHandedOff, provider }, t)}
             </Text>
         </View>
+    );
+};
+
+/**
+ * A long-pressed Chat message's actions. Its whole text comes from Server Core while the Chat is live, so a long
+ * message the phone holds only the tail of copies whole and an edit starts from exactly what was sent; a saved copy, or
+ * a message that left Core's projection, copies the text the phone holds unless that is only a tail.
+ */
+const AgentChatMessageSheet = ({
+    canSend,
+    chat,
+    isConnected,
+    message,
+    onClose,
+    onEditMessage,
+    snapshot,
+    theme,
+}: {
+    canSend: boolean;
+    chat: AgentChatController;
+    isConnected: boolean;
+    message: ConversationMessageTarget;
+    onClose: () => void;
+    onEditMessage: (target: AgentChatEditTarget, text: string) => void;
+    /**
+     * The window with the older pages the reader loaded, so a message from those pages finds its turn.
+     */
+    snapshot: AgentChatController['snapshot'];
+    theme: MobileTheme;
+}) => {
+    const { t } = useTranslation();
+    const isLive = isConnected && chat.savedAt === undefined;
+    const readText = async (): Promise<string> => {
+        const isClipped = isAgentChatMessageClipped(message.text);
+        if (!isLive) {
+            if (isClipped) throw new Error('Only the tail of this message is on the phone');
+            return message.text;
+        }
+        try {
+            return await chat.readMessage(message.id);
+        } catch (error) {
+            if (isClipped) throw error;
+            return message.text;
+        }
+    };
+    const availability = isLive
+        ? agentChatMessageEditAvailability(snapshot, message.id, t)
+        : { canEdit: false as const, reason: t('chat.disabled.send.offline') };
+    return (
+        <ConversationMessageSheet
+            edit={
+                canSend && message.role === 'user'
+                    ? {
+                          availability,
+                          onEdit: (text) => {
+                              if (availability.canEdit)
+                                  onEditMessage(
+                                      {
+                                          itemId: message.id,
+                                          removedTurns: availability.removedTurns,
+                                      },
+                                      text,
+                                  );
+                          },
+                      }
+                    : undefined
+            }
+            onClose={onClose}
+            readText={readText}
+            theme={theme}
+        />
     );
 };
 
@@ -304,6 +400,7 @@ export const AgentChatView = ({
     enterFrom,
     isConnected,
     isHandedOff,
+    onEditMessage,
     onEditQueued,
     provider,
     theme,
@@ -324,6 +421,10 @@ export const AgentChatView = ({
      * cannot resume a Session, and Retry restarts only a failed Chat.
      */
     isHandedOff: boolean;
+    /**
+     * Starts "Edit from Here" on an earlier message: its whole text goes into the composer, which sends it as an edit.
+     */
+    onEditMessage: (target: AgentChatEditTarget, text: string) => void;
     /**
      * Puts a queued message's full text, taken back by its Edit, into the composer draft.
      */
@@ -427,6 +528,7 @@ export const AgentChatView = ({
                     enterFrom={enterFrom}
                     isConnected={isConnected}
                     isHandedOff={isHandedOff}
+                    onEditMessage={onEditMessage}
                     provider={provider}
                     theme={theme}
                 />

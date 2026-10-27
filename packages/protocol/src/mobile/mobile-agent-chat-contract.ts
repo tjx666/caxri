@@ -554,4 +554,37 @@ export const mobileAgentChatMethods = {
         }),
         result: z.null(),
     },
+    /**
+     * The whole text of one message for the phone's Copy and Edit, since its window keeps only the tail of a long one
+     * (`clipAgentChatItemForMobile`): a reply's Markdown source, or the words a user message's sender typed without the
+     * reference block its file chips stand for. Only a message still in Core's projection is found; another fails with
+     * `NOT_FOUND`, and a text over the 16 KiB a phone may send fails with `VALIDATION`.
+     */
+    'mobile.agentChat.readMessage': {
+        ...commandPolicy('server', 'read', ['sessions.read']),
+        params: z.strictObject({ ...terminalTarget, itemId: z.string().min(1).max(200) }),
+        result: z.strictObject({
+            text: z
+                .string()
+                .refine(canMobileAgentChatSend, 'Mobile Chat messages must be at most 16 KiB'),
+        }),
+    },
+    /**
+     * The phone's "Edit from here", forwarded to `agentChat.rewind`: rewinds the conversation to just before user
+     * message `itemId` and sends `text` in its place, with the message's own reference block put back ahead of it as
+     * `mobile.agentChat.editQueued` does. The phone never restores files; a running turn, a message with images, or one
+     * that did not start its turn fails with `CONFLICT` before anything changes.
+     */
+    'mobile.agentChat.rewind': {
+        ...commandPolicy('server', 'control', ['terminals.steer']),
+        params: z.strictObject({
+            ...terminalTarget,
+            itemId: z.string().min(1).max(200),
+            text: z
+                .string()
+                .min(1)
+                .refine(canMobileAgentChatSend, 'Mobile Chat messages must be at most 16 KiB'),
+        }),
+        result: z.null(),
+    },
 } as const satisfies Record<string, MethodSpec>;

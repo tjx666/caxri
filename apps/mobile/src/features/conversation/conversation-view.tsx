@@ -15,6 +15,9 @@ import type { MobileTheme } from '../../theme/tokens';
 import { SavedCopyNote } from '../read-cache/saved-copy-note';
 import { PANEL_ENTER_MS, segmentEnterOffset } from '../sessions/hooks/use-segment-entering';
 import { ConversationEntry } from './conversation-entry';
+import type { ConversationMessageTarget } from './conversation-message-actions';
+import { ConversationMessageActions } from './conversation-message-actions';
+import { ConversationMessageSheet } from './conversation-message-sheet';
 import type { ConversationEntry as GroupedEntry } from './conversation-model';
 import {
     CONVERSATION_SEND_FOLLOW_HOLD_MS,
@@ -527,6 +530,7 @@ export const ConversationView = ({
         (entry: GroupedEntry) => <ConversationEntry entry={entry} theme={theme} />,
         [theme],
     );
+    const [actionTarget, setActionTarget] = useState<ConversationMessageTarget>();
     if (timeline.items.length === 0) {
         const status = timeline.status === 'available' ? 'empty' : timeline.status;
         return (
@@ -539,15 +543,25 @@ export const ConversationView = ({
             />
         );
     }
+    // A terminal Agent's messages copy the text the phone holds; there is no Server read or edit behind them.
     return (
-        <ConversationList
-            entries={entries}
-            enterFrom={enterFrom}
-            isConnected={isConnected}
-            onRetry={onRetry}
-            renderEntry={renderEntry}
-            theme={theme}
-            timeline={timeline}
-        />
+        <ConversationMessageActions value={setActionTarget}>
+            <ConversationList
+                entries={entries}
+                enterFrom={enterFrom}
+                isConnected={isConnected}
+                onRetry={onRetry}
+                renderEntry={renderEntry}
+                theme={theme}
+                timeline={timeline}
+            />
+            {actionTarget ? (
+                <ConversationMessageSheet
+                    onClose={() => setActionTarget(undefined)}
+                    readText={() => Promise.resolve(actionTarget.text)}
+                    theme={theme}
+                />
+            ) : null}
+        </ConversationMessageActions>
     );
 };
