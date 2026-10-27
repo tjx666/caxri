@@ -19,6 +19,8 @@ import type { Translate, TranslationKey } from '../../i18n';
 import { translate } from '../../i18n';
 import { formatCount } from '../../lib/locale-format';
 import { localizedDuration, localizedLimitReset } from '../../lib/usage-format';
+import type { UsageCustomRange } from './usage-custom-range';
+import { localDateOf } from './usage-custom-range';
 
 /**
  * The heatmap always shows the trailing 53 weeks, GitHub style: one column per week, Sunday on top.
@@ -63,11 +65,15 @@ export function formatDate(t: Translate, date: string): string {
  * {@link formatDate} for an epoch-millisecond timestamp, read in the local zone.
  */
 export function formatTimestampDate(t: Translate, timestamp: number): string {
-    const date = new Date(timestamp);
-    return formatDate(
-        t,
-        `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`,
-    );
+    return formatDate(t, localDateOf(timestamp));
+}
+
+/**
+ * A calendar month heading, `Oct 2026`, for `YYYY-MM`.
+ */
+export function formatMonth(t: Translate, month: string): string {
+    const [year, monthNumber] = month.split('-').map(Number);
+    return t('usage.calendar.month', { month: t(SHORT_MONTHS[monthNumber - 1]), year });
 }
 
 /**
@@ -93,10 +99,22 @@ export function topCaption(t: Translate, shown: number, total: number): string |
 }
 
 /**
- * What the page caption says for a range the user just picked, before its report arrives.
+ * What the page caption says for a range the user just picked, before its report arrives: a custom range names its
+ * days.
  */
-export function usageRangeLabel(t: Translate, range: UsageRange): string {
-    return t(`usage.rangeLabel.${range}`);
+export function usageRangeLabel(
+    t: Translate,
+    range: UsageRange,
+    custom: UsageCustomRange | undefined,
+): string {
+    if (range !== 'custom') return t(`usage.rangeLabel.${range}`);
+    if (!custom) return t('usage.rangeShort.custom');
+    return custom.start === custom.end
+        ? formatDate(t, custom.start)
+        : t('usage.caption.range', {
+              start: formatDate(t, custom.start),
+              end: formatDate(t, custom.end),
+          });
 }
 
 /**

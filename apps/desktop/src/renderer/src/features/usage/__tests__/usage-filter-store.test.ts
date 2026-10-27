@@ -34,12 +34,35 @@ describe('parseUsageFilters', () => {
         expect(parseUsageFilters({ agent: 'retired-agent', range: '7d', scope: 'all' })).toEqual({
             agent: 'all',
             range: '7d',
+            custom: undefined,
             scope: 'all',
         });
         expect(parseUsageFilters({ agent: 'codex', range: 'week', scope: 'everywhere' })).toEqual({
             agent: 'codex',
             range: '30d',
+            custom: undefined,
             scope: 'caxri',
+        });
+    });
+
+    it('keeps a custom range only with valid ordered days', () => {
+        const custom = { start: '2026-10-25', end: '2026-10-27' };
+        expect(parseUsageFilters({ range: 'custom', custom })).toMatchObject({
+            range: 'custom',
+            custom,
+        });
+        expect(
+            parseUsageFilters({
+                range: 'custom',
+                custom: { start: '2026-10-27', end: '2026-10-25' },
+            }),
+        ).toMatchObject({ range: '30d', custom: undefined });
+        expect(
+            parseUsageFilters({ range: 'custom', custom: { start: 'yesterday' } }),
+        ).toMatchObject({ range: '30d', custom: undefined });
+        expect(parseUsageFilters({ range: 'today', custom })).toMatchObject({
+            range: 'today',
+            custom,
         });
     });
 });
@@ -57,6 +80,15 @@ describe('useUsageFilterStore', () => {
             range: '90d',
             scope: 'all',
         });
+        first.rememberUsageFilters({
+            range: 'custom',
+            custom: { start: '2026-10-25', end: '2026-10-27' },
+        });
+        expect(JSON.parse(entries.get(STORAGE_KEY) ?? 'null')).toMatchObject({
+            range: 'custom',
+            custom: { start: '2026-10-25', end: '2026-10-27' },
+        });
+        first.rememberUsageFilters({ range: '90d' });
 
         const reopened = await openPage();
         expect(reopened.useUsageFilterStore.getState()).toMatchObject({

@@ -5,9 +5,10 @@ import { commandPolicy } from '../transport/method-spec.js';
 import { identifierSchema } from './identifiers.js';
 
 /**
- * Selectable report windows. Each one ends today in the requested time zone; `all` has no lower bound.
+ * Selectable report windows. Each preset ends today in the requested time zone (`today` is that day alone, `all` has no
+ * lower bound); `custom` spans the request's own `start` through `end`.
  */
-export const usageRangeIds = ['7d', '30d', '90d', '365d', 'all'] as const;
+export const usageRangeIds = ['today', '7d', '30d', '90d', '365d', 'all', 'custom'] as const;
 export type UsageRange = (typeof usageRangeIds)[number];
 
 /**
@@ -40,25 +41,38 @@ export const usageTokenBreakdownSchema = z.object({
 });
 export type UsageTokenBreakdown = z.infer<typeof usageTokenBreakdownSchema>;
 
-export const usageReportParametersSchema = z.object({
-    /**
-     * IANA zone the Client renders in; day boundaries, the heatmap, and hour-of-day use it.
-     */
-    timeZone: z.string().min(1).max(64),
-    range: z.enum(usageRangeIds),
-    provider: agentProvider.optional(),
-    /**
-     * Defaults to `caxri`.
-     */
-    scope: z.enum(usageScopeIds).optional(),
-    /**
-     * Narrows the report to the Agent Sessions one Caxri Session owns or currently hosts: those the ledger attributes
-     * to it (the Session that first hosted each conversation) plus any bound to one of its Terminals now, such as a
-     * conversation resumed there. Included conversations keep their owner in the per-Session rows, and conversations
-     * run outside Caxri are left out whatever the scope.
-     */
-    sessionId: identifierSchema.optional(),
-});
+export const usageReportParametersSchema = z
+    .object({
+        /**
+         * IANA zone the Client renders in; day boundaries, the heatmap, and hour-of-day use it.
+         */
+        timeZone: z.string().min(1).max(64),
+        range: z.enum(usageRangeIds),
+        /**
+         * First and last local day of a `custom` range, both inclusive; required by `custom` and rejected otherwise.
+         */
+        start: localDate.optional(),
+        end: localDate.optional(),
+        provider: agentProvider.optional(),
+        /**
+         * Defaults to `caxri`.
+         */
+        scope: z.enum(usageScopeIds).optional(),
+        /**
+         * Narrows the report to the Agent Sessions one Caxri Session owns or currently hosts: those the ledger
+         * attributes to it (the Session that first hosted each conversation) plus any bound to one of its Terminals
+         * now, such as a conversation resumed there. Included conversations keep their owner in the per-Session rows,
+         * and conversations run outside Caxri are left out whatever the scope.
+         */
+        sessionId: identifierSchema.optional(),
+    })
+    .refine(
+        ({ end, range, start }) =>
+            range === 'custom'
+                ? start !== undefined && end !== undefined && start <= end
+                : start === undefined && end === undefined,
+        { message: 'A custom range needs start <= end; other ranges take neither' },
+    );
 export type UsageReportParameters = z.infer<typeof usageReportParametersSchema>;
 
 export const usageDaySchema = z.object({
@@ -198,6 +212,10 @@ export const usageReportSchema = z.object({
      * First local day of the selected range; absent for `all`.
      */
     rangeStart: localDate.optional(),
+    /**
+     * Last local day of the selected range; absent when the range ends today.
+     */
+    rangeEnd: localDate.optional(),
     totals: z.object({
         costUsd: usd,
         tokens: usageTokenBreakdownSchema,

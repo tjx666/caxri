@@ -94,7 +94,6 @@ export function AgentChatComposerStrip({
                 )}
                 {work && (
                     <AgentChatBackgroundWorkSection
-                        isTurnRunning={isTurnRunning}
                         terminalId={terminalId}
                         work={work}
                         onOpenTask={onOpenTask}
