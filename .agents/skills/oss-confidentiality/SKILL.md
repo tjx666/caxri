@@ -82,9 +82,11 @@ Before a public write or mutation:
 4. Run `bun run gitleaks -- --staged` for staged repository changes. For committed changes, reuse a
    successful exact-head CI range scan or explicitly provide the base and head revisions to
    `scripts/gitleaks-scan.ts`; reserve a plain `bun run gitleaks` for an intentional full-history
-   scan. For broad or fixture-heavy audits, also inspect identifying home paths, private ticket
-   identifiers, and internal or preview hosts; credential scanning does not cover every private fact.
-   Inspect surrounding diffs when tracing a finding through Git history.
+   scan. Repository rules reject home paths without an explicit synthetic account placeholder and
+   deployment hosts under `vercel.app`, `netlify.app`, or `pages.dev` without an `example` label;
+   keep those allowlists narrow when adding fixtures. For broad or fixture-heavy audits, also inspect
+   private ticket identifiers and other internal or preview hosts that credential scanning cannot
+   classify. Inspect surrounding diffs when tracing a finding through Git history.
 5. Replace, omit, or move every red-line item before the write. Never quote a secret or private
    identifier in the remediation record.
 

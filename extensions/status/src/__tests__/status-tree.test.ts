@@ -15,9 +15,9 @@ describe('Status extension tree', () => {
         (state) => {
             const deployment = {
                 environment: 'preview' as const,
-                hostname: 'fixture.vercel.app',
+                hostname: 'fixture.example.vercel.app',
                 state,
-                url: 'https://fixture.vercel.app',
+                url: 'https://fixture.example.vercel.app',
                 inspectorUrl: 'https://vercel.com/team/project/Deployment123',
             };
             const root = buildRepoNode({
@@ -316,17 +316,17 @@ describe('Status extension tree', () => {
                 branchDeployments: [
                     {
                         environment: 'production',
-                        hostname: 'production-branch.vercel.app',
+                        hostname: 'app-production.example.vercel.app',
                         state: 'success',
-                        url: 'https://production-branch.vercel.app',
+                        url: 'https://app-production.example.vercel.app',
                         inspectorUrl: 'https://vercel.com/tjx666/caxri/production-branch',
                         createdAt: 1_700_000_000_000,
                     },
                     {
                         environment: 'preview',
-                        hostname: 'preview-branch.vercel.app',
+                        hostname: 'app-git-preview.example.vercel.app',
                         state: 'pending',
-                        url: 'https://preview-branch.vercel.app',
+                        url: 'https://app-git-preview.example.vercel.app',
                     },
                 ],
                 production: {
@@ -424,8 +424,8 @@ describe('Status extension tree', () => {
             rows: [
                 {
                     label: 'alias',
-                    value: 'production-branch.vercel.app',
-                    url: 'https://production-branch.vercel.app',
+                    value: 'app-production.example.vercel.app',
+                    url: 'https://app-production.example.vercel.app',
                 },
                 {
                     label: 'inspect',
@@ -437,7 +437,7 @@ describe('Status extension tree', () => {
         });
         expect(children[6].children?.[1].item.tooltip).toMatchObject({
             badge: { label: 'running', tone: 'warning' },
-            rows: [{ label: 'alias', value: 'preview-branch.vercel.app' }],
+            rows: [{ label: 'alias', value: 'app-git-preview.example.vercel.app' }],
         });
         /**
          * The environment rows print no alias: a Vercel hostname is mostly a generated hash, so it stays on the hover
@@ -545,15 +545,15 @@ describe('Status extension tree', () => {
                 branchDeployments: [
                     {
                         environment: 'production',
-                        hostname: 'production-branch.vercel.app',
+                        hostname: 'app-production.example.vercel.app',
                         state: 'success',
-                        url: 'https://production-branch.vercel.app',
+                        url: 'https://app-production.example.vercel.app',
                     },
                     {
                         environment: 'preview',
-                        hostname: 'preview-branch.vercel.app',
+                        hostname: 'app-git-preview.example.vercel.app',
                         state: 'pending',
-                        url: 'https://preview-branch.vercel.app',
+                        url: 'https://app-git-preview.example.vercel.app',
                     },
                 ],
             },

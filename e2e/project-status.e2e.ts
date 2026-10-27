@@ -31,7 +31,7 @@ test('bundled Project Status extension renders and refreshes the current reposit
     const statusRequestLogPath = join(testDirectory, 'status-requests.txt');
     const statusTitlePath = join(testDirectory, 'status-title.txt');
     const branchResponsePath = join(testDirectory, 'branch-response.json');
-    const longCheckUrl = `https://github.com/tjx666/project/actions/runs/42/job/${'a'.repeat(180)}`;
+    const longCheckUrl = `https://github.com/example-team/project/actions/runs/42/job/${'a'.repeat(180)}`;
     await execFileAsync('mkdir', ['-p', root, bin]);
     await execFileAsync('git', ['init', '-b', 'feature/status'], { cwd: root });
     await execFileAsync('git', ['config', 'user.email', 'fixture@caxri.test'], { cwd: root });
@@ -46,7 +46,7 @@ test('bundled Project Status extension renders and refreshes the current reposit
     );
     await execFileAsync(
         'git',
-        ['remote', 'add', 'origin', 'https://github.com/tjx666/project.git'],
+        ['remote', 'add', 'origin', 'https://github.com/example-team/project.git'],
         { cwd: root },
     );
     await execFileAsync('git', ['update-ref', 'refs/remotes/origin/feature/status', 'HEAD'], {
@@ -71,7 +71,7 @@ if [ "$1 $2" = "pr list" ]; then printf '%s' '[{"number":42,"state":"MERGED","is
 sleep "$(cat ${JSON.stringify(statusDelayPath)})"
 printf 'request\n' >> ${JSON.stringify(statusRequestLogPath)}
 status_title=$(cat ${JSON.stringify(statusTitlePath)})
-printf '{"body":"Related to https://linear.app/example/issue/TASK-42/project-status","headRefName":"feature/status","state":"MERGED","mergeCommit":{"oid":"c3d4e5f60718293a4b5c6d7e8f90123456789abc"},"isDraft":false,"number":42,"title":"%s","url":"https://github.com/tjx666/project/pull/42","statusCheckRollup":[{"workflowName":"Test","name":"App","status":"COMPLETED","conclusion":"FAILURE","startedAt":"2026-08-23T00:00:00.000Z","completedAt":"2026-08-23T00:02:05.000Z"},{"workflowName":"Test","name":"Packages","status":"COMPLETED","conclusion":"SUCCESS","startedAt":"2026-08-23T00:00:00.000Z","completedAt":"2026-08-23T00:01:00.000Z","detailsUrl":${JSON.stringify(longCheckUrl)}}]}' "$status_title"
+printf '{"body":"Related to https://linear.app/example/issue/TASK-42/project-status","headRefName":"feature/status","state":"MERGED","mergeCommit":{"oid":"c3d4e5f60718293a4b5c6d7e8f90123456789abc"},"isDraft":false,"number":42,"title":"%s","url":"https://github.com/example-team/project/pull/42","statusCheckRollup":[{"workflowName":"Test","name":"App","status":"COMPLETED","conclusion":"FAILURE","startedAt":"2026-08-23T00:00:00.000Z","completedAt":"2026-08-23T00:02:05.000Z"},{"workflowName":"Test","name":"Packages","status":"COMPLETED","conclusion":"SUCCESS","startedAt":"2026-08-23T00:00:00.000Z","completedAt":"2026-08-23T00:01:00.000Z","detailsUrl":${JSON.stringify(longCheckUrl)}}]}' "$status_title"
 `,
         'utf8',
     );
@@ -84,12 +84,12 @@ printf '{"body":"Related to https://linear.app/example/issue/TASK-42/project-sta
         join(bin, 'vc'),
         String.raw`#!/bin/sh
 case " $* " in
-  *" teams ls "*) printf '%s' '{"teams":[{"slug":"tjx666"}]}' ;;
+  *" teams ls "*) printf '%s' '{"teams":[{"slug":"example-team"}]}' ;;
   *"meta-githubCommitRef="*"target=production"*) printf '%s' '[]' ;;
-  *"target=production"*) printf '%s' '[{"uid":"dpl_Production123","created":1700000000000,"name":"project","readyState":"READY","target":"production","url":"project-production-tjx666.vercel.app","meta":{"githubCommitSha":"c3d4e5f60718293a4b5c6d7e8f90123456789abc","githubCommitMessage":"fix: restore the production alias","githubCommitOrg":"tjx666","githubCommitRepo":"project"}}]' ;;
-  *"target=preview"*) printf '%s' '[{"uid":"dpl_Canceled123","name":"project","readyState":"CANCELED","target":"preview","url":"project-preview-tjx666.vercel.app","meta":{"githubCommitSha":"d4e5f60718293a4b5c6d7e8f90123456789abcde","githubCommitMessage":"refactor: split the status tree","githubCommitOrg":"tjx666","githubCommitRepo":"project"}}]' ;;
-  *"meta-githubCommitRef="*) printf '%s' '[{"uid":"dpl_Ready123","created":1700000000000,"name":"project","readyState":"READY","target":"preview","url":"project-8ykp416o7-tjx666.vercel.app","meta":{"githubCommitSha":"a1b2c3d4e5f60718293a4b5c6d7e8f9012345678","githubCommitMessage":"feat: add the status rollup\n\nBody the row never shows.","githubCommitOrg":"tjx666","githubCommitRepo":"project","githubCommitAuthorLogin":"tjx666"}},{"uid":"dpl_Building123","name":"project","readyState":"BUILDING","target":"preview","url":"project-building-tjx666.vercel.app"},{"uid":"dpl_Queued123","name":"project","readyState":"QUEUED","target":"production","url":"project-queued-tjx666.vercel.app","meta":{"githubCommitSha":"b2c3d4e5f60718293a4b5c6d7e8f90123456789a","githubCommitMessage":"chore: bump the deploy target","githubCommitOrg":"tjx666","githubCommitRepo":"project"}}]' ;;
-  *) printf '%s' '[{"name":"project","readyState":"READY","target":"production","url":"discovery.vercel.app"}]' ;;
+  *"target=production"*) printf '%s' '[{"uid":"dpl_Production123","created":1700000000000,"name":"project","readyState":"READY","target":"production","url":"app-production.example.vercel.app","meta":{"githubCommitSha":"c3d4e5f60718293a4b5c6d7e8f90123456789abc","githubCommitMessage":"fix: restore the production alias","githubCommitOrg":"example","githubCommitRepo":"project"}}]' ;;
+  *"target=preview"*) printf '%s' '[{"uid":"dpl_Canceled123","name":"project","readyState":"CANCELED","target":"preview","url":"app-git-preview.example.vercel.app","meta":{"githubCommitSha":"d4e5f60718293a4b5c6d7e8f90123456789abcde","githubCommitMessage":"refactor: split the status tree","githubCommitOrg":"example","githubCommitRepo":"project"}}]' ;;
+  *"meta-githubCommitRef="*) printf '%s' '[{"uid":"dpl_Ready123","created":1700000000000,"name":"project","readyState":"READY","target":"preview","url":"app-git-feature.example.vercel.app","meta":{"githubCommitSha":"a1b2c3d4e5f60718293a4b5c6d7e8f9012345678","githubCommitMessage":"feat: add the status rollup\n\nBody the row never shows.","githubCommitOrg":"example","githubCommitRepo":"project","githubCommitAuthorLogin":"octocat"}},{"uid":"dpl_Building123","name":"project","readyState":"BUILDING","target":"preview","url":"app-git-building.example.vercel.app"},{"uid":"dpl_Queued123","name":"project","readyState":"QUEUED","target":"production","url":"app-queued.example.vercel.app","meta":{"githubCommitSha":"b2c3d4e5f60718293a4b5c6d7e8f90123456789a","githubCommitMessage":"chore: bump the deploy target","githubCommitOrg":"example","githubCommitRepo":"project"}}]' ;;
+  *) printf '%s' '[{"name":"project","readyState":"READY","target":"production","url":"discovery.example.vercel.app"}]' ;;
 esac
 `,
         'utf8',
@@ -202,7 +202,7 @@ esac
         await expect(pullRequestTooltip).toContainText('CI failed');
         await expect(
             pullRequestTooltip.getByRole('button', {
-                name: 'Open link: github.com/tjx666/project/pull/42',
+                name: 'Open link: github.com/example-team/project/pull/42',
                 exact: true,
             }),
         ).toBeVisible();
@@ -361,7 +361,7 @@ esac
         await pullRequestA.click();
         await expect
             .poll(() => treeCommandOpenedUrls(running))
-            .toEqual(['https://github.com/tjx666/project/pull/42']);
+            .toEqual(['https://github.com/example-team/project/pull/42']);
         await expect(pullRequestA).toHaveAttribute('aria-expanded', 'true');
 
         await collapsePullRequest.click();
@@ -406,7 +406,7 @@ esac
         });
         await expect(deployments).toBeVisible();
         const productionDeployment = tree.getByRole('treeitem', {
-            name: 'Production, passed · fix: restore the production alias · project-production-tjx666.vercel.app',
+            name: 'Production, passed · fix: restore the production alias · app-production.example.vercel.app',
             exact: true,
         });
         await expect(productionDeployment).toBeVisible();
@@ -415,7 +415,7 @@ esac
         await expect(productionDeployment).not.toContainText('vercel.app');
         await expect(
             tree.getByRole('treeitem', {
-                name: 'Preview, canceled · refactor: split the status tree · project-preview-tjx666.vercel.app',
+                name: 'Preview, canceled · refactor: split the status tree · app-git-preview.example.vercel.app',
                 exact: true,
             }),
         ).toBeVisible();
@@ -455,7 +455,7 @@ esac
         await running.page.keyboard.press('Escape');
         await expect(running.page.locator('.tree-item-rich-tooltip:visible')).toHaveCount(0);
         const successfulDeployment = tree.getByRole('treeitem', {
-            name: 'feat: add the status rollup, preview · passed · project-8ykp416o7-tjx666.vercel.app',
+            name: 'feat: add the status rollup, preview · passed · app-git-feature.example.vercel.app',
             exact: true,
         });
         // Only the commit subject: no message body, no short SHA, and no alias the reader cannot parse. The
@@ -469,7 +469,7 @@ esac
         await expect(successfulDeployment.locator('[data-theme-icon="eye-off"]')).toHaveCount(0);
         await expect(
             tree.getByRole('treeitem', {
-                name: 'chore: bump the deploy target, production · queued · project-queued-tjx666.vercel.app',
+                name: 'chore: bump the deploy target, production · queued · app-queued.example.vercel.app',
                 exact: true,
             }),
         ).toContainText('Production');
@@ -501,7 +501,7 @@ esac
         ).toBeVisible();
         await expect(
             richTooltip.getByRole('button', {
-                name: 'Open alias: project-8ykp416o7-tjx666.vercel.app',
+                name: 'Open alias: app-git-feature.example.vercel.app',
                 exact: true,
             }),
         ).toBeVisible();
@@ -529,9 +529,9 @@ esac
         ).toBe(true);
         // A deployment without Git provenance (a direct CLI upload) still falls back to its alias.
         const buildingDeployment = tree.getByRole('treeitem', {
-            name: /^project-building-tjx666\.vercel\.app, preview · /,
+            name: /^app-git-building\.example\.vercel\.app, preview · /,
         });
-        await expect(buildingDeployment).toContainText('project-building-tjx666.vercel.app');
+        await expect(buildingDeployment).toContainText('app-git-building.example.vercel.app');
         const buildingDeploymentBounds = await buildingDeployment.boundingBox();
         if (!buildingDeploymentBounds)
             throw new Error('Building deployment bounds are unavailable');
@@ -546,13 +546,13 @@ esac
         await expect(richTooltip).toBeVisible();
         await richTooltip
             .getByRole('button', {
-                name: 'Open alias: project-8ykp416o7-tjx666.vercel.app',
+                name: 'Open alias: app-git-feature.example.vercel.app',
                 exact: true,
             })
             .click();
         await expect
             .poll(async () => (await treeCommandOpenedUrls(running))?.at(-1))
-            .toBe('https://project-8ykp416o7-tjx666.vercel.app/');
+            .toBe('https://app-git-feature.example.vercel.app/');
         await running.page.keyboard.press('Escape');
         await expect(richTooltip).toHaveCount(0);
         if (originalViewport) await running.page.setViewportSize(originalViewport);
@@ -565,7 +565,7 @@ esac
             exact: true,
         });
         const aliasLink = richTooltip.getByRole('button', {
-            name: 'Open alias: project-8ykp416o7-tjx666.vercel.app',
+            name: 'Open alias: app-git-feature.example.vercel.app',
             exact: true,
         });
         const logsLink = richTooltip.getByRole('button', {
@@ -582,11 +582,11 @@ esac
         await running.page.keyboard.press('Enter');
         await expect
             .poll(async () => (await treeCommandOpenedUrls(running))?.at(-1))
-            .toBe('https://vercel.com/tjx666/project/Ready123');
+            .toBe('https://vercel.com/example-team/project/Ready123');
         await running.page.keyboard.press('Escape');
         await expect(richTooltip).toHaveCount(0);
         const production = tree.getByRole('treeitem', {
-            name: 'Production, passed · fix: restore the production alias · project-production-tjx666.vercel.app',
+            name: 'Production, passed · fix: restore the production alias · app-production.example.vercel.app',
             exact: true,
         });
         await production.focus();
@@ -595,7 +595,7 @@ esac
         await expect(richTooltip).toContainText('passed');
         await expect(
             richTooltip.getByRole('button', {
-                name: 'Open alias: project-production-tjx666.vercel.app',
+                name: 'Open alias: app-production.example.vercel.app',
                 exact: true,
             }),
         ).toBeVisible();
@@ -606,7 +606,7 @@ esac
         await running.page.keyboard.press('Escape');
         await expect(richTooltip).toHaveCount(0);
         const preview = tree.getByRole('treeitem', {
-            name: 'Preview, canceled · refactor: split the status tree · project-preview-tjx666.vercel.app',
+            name: 'Preview, canceled · refactor: split the status tree · app-git-preview.example.vercel.app',
             exact: true,
         });
         await preview.focus();
@@ -620,7 +620,7 @@ esac
         });
         await expect(
             richTooltip.getByRole('button', {
-                name: 'Open alias: project-preview-tjx666.vercel.app',
+                name: 'Open alias: app-git-preview.example.vercel.app',
                 exact: true,
             }),
         ).toBeVisible();
@@ -630,7 +630,7 @@ esac
         await preview.click();
         await expect
             .poll(async () => (await treeCommandOpenedUrls(running))?.at(-1))
-            .toBe('https://vercel.com/tjx666/project/Canceled123');
+            .toBe('https://vercel.com/example-team/project/Canceled123');
         await production.click();
         /**
          * The environment rows print only the environment, never the short SHA or the generated Vercel alias: the alias
@@ -640,11 +640,11 @@ esac
         await expect(preview).toHaveText('Preview');
         await expect
             .poll(async () => (await treeCommandOpenedUrls(running))?.at(-1))
-            .toBe('https://vercel.com/tjx666/project/Production123');
+            .toBe('https://vercel.com/example-team/project/Production123');
         await successfulDeployment.click();
         await expect
             .poll(async () => (await treeCommandOpenedUrls(running))?.at(-1))
-            .toBe('https://vercel.com/tjx666/project/Ready123');
+            .toBe('https://vercel.com/example-team/project/Ready123');
         await running.page.keyboard.press('Escape');
         await running.page.mouse.move(0, 0);
         await expect(richTooltip).toHaveCount(0);
@@ -747,7 +747,7 @@ esac
         await expect(restoredDeployments).toHaveAttribute('aria-expanded', 'true');
         await expect(
             restoredTree.getByRole('treeitem', {
-                name: 'Production, passed · fix: restore the production alias · project-production-tjx666.vercel.app',
+                name: 'Production, passed · fix: restore the production alias · app-production.example.vercel.app',
                 exact: true,
             }),
         ).toHaveAttribute('aria-selected', 'true');

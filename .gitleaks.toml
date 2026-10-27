@@ -7,15 +7,48 @@
 # additionally scoped by `paths` (`condition = "AND"` requires both to match). A real credential
 # that happened to land in one of these files, or that happened to collide with one of these exact
 # placeholder strings, is not realistic: the allowlisted values are either a fixed shortcut-syntax
-# shape or an exact known placeholder literal, not a broad pattern.
+# shape or an exact known placeholder literal, not a broad pattern. Repository-specific rules below
+# also reject identifying paths and deployment hosts, with explicit synthetic-placeholder allowlists.
 #
-# Verification (see the delivering PR's evidence): both `gitleaks detect` (working tree) and
-# `gitleaks git` (full commit history) report zero findings with this config, and a synthetic
-# secret staged in a throwaway repository is still caught and fails the scan.
+# Verification (see the delivering PR's evidence): the current working tree and PR revision range
+# report zero findings, while synthetic staged violations are caught. Full-history scans still find
+# identifying values intentionally retained under the repository's no-history-rewrite decision.
 title = "Caxri gitleaks configuration"
 
 [extend]
 useDefault = true
+
+# Public fixtures must not carry a real local account name. The rule accepts both raw and escaped
+# Windows separators because gitleaks scans source text rather than evaluated string literals.
+[[rules]]
+id = "identifying-home-path"
+description = "Non-placeholder macOS or Windows home path"
+regex = '''(?:/Users/[A-Za-z0-9._-]+/|(?i:C:\\{1,2}Users\\{1,2}[a-z0-9._-]+\\{1,2}))'''
+
+[[allowlists]]
+description = "Explicit synthetic account names used by public path fixtures"
+targetRules = ["identifying-home-path"]
+regexTarget = "match"
+condition = "OR"
+regexes = [
+    '''^(?:/Users/(?:me|example|user|test|runner|dev|private|someone|u|x|you)/|(?i:C:\\{1,2}Users\\{1,2}(?:me|example|user|test|runner|dev|private|someone|u|x|you)\\{1,2}))$''',
+]
+
+# Hosting-platform subdomains can identify a real project, team, or deployment. Bare platform
+# suffixes remain valid documentation examples; fixture hosts must include an exact `example` label.
+[[rules]]
+id = "identifying-deployment-host"
+description = "Non-placeholder deployment host on a shared hosting platform"
+regex = '''(?i)\b(?:[a-z0-9-]+\.)*(?:vercel\.app|netlify\.app|pages\.dev)\b'''
+
+[[allowlists]]
+description = "Bare platform suffixes and example-labeled deployment placeholders"
+targetRules = ["identifying-deployment-host"]
+regexTarget = "match"
+condition = "OR"
+regexes = [
+    '''(?i)^(?:(?:[a-z0-9-]+\.)*example\.)?(?:vercel\.app|netlify\.app|pages\.dev)$''',
+]
 
 # `generic-api-key` fires on any `<key-like-word>: '<token>'` assignment above a modest entropy
 # floor. Caxri's keybinding domain model and its fixtures spell keyboard shortcuts as

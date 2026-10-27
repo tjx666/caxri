@@ -56,9 +56,9 @@ function previewSnapshot(
             branchDeployments,
             preview: {
                 environment: 'preview',
-                hostname: 'caxri-abc.vercel.app',
+                hostname: 'app-abc.example.vercel.app',
                 state: 'failure',
-                url: 'https://caxri-abc.vercel.app',
+                url: 'https://app-abc.example.vercel.app',
                 inspectorUrl: 'https://vercel.com/tjx666/caxri/abc',
                 ...deployment,
             },
@@ -145,7 +145,7 @@ describe('ProjectStatusAlertTracker', () => {
         const tracker = new ProjectStatusAlertTracker();
         tracker.observe(previewSnapshot({ state: 'pending' }));
         tracker.observe(previewSnapshot({ state: 'failure' }));
-        const alerts = tracker.observe(previewSnapshot({ hostname: 'caxri-def.vercel.app' }));
+        const alerts = tracker.observe(previewSnapshot({ hostname: 'app-def.example.vercel.app' }));
         expect(alerts).toHaveLength(1);
     });
 
@@ -153,9 +153,9 @@ describe('ProjectStatusAlertTracker', () => {
         const tracker = new ProjectStatusAlertTracker();
         const historical: ProjectStatusDeployment = {
             environment: 'preview',
-            hostname: 'caxri-old.vercel.app',
+            hostname: 'app-old.example.vercel.app',
             state: 'failure',
-            url: 'https://caxri-old.vercel.app',
+            url: 'https://app-old.example.vercel.app',
         };
         tracker.observe(previewSnapshot({ state: 'success' }, [historical]));
         expect(tracker.observe(previewSnapshot({ state: 'success' }, [historical]))).toEqual([]);
@@ -238,9 +238,9 @@ describe('ProjectStatusAlertTracker', () => {
                         branchDeployments: [],
                         production: {
                             environment: 'production',
-                            hostname: 'caxri-prod.vercel.app',
+                            hostname: 'app-production.example.vercel.app',
                             state: 'failure',
-                            url: 'https://caxri-prod.vercel.app',
+                            url: 'https://app-production.example.vercel.app',
                             createdAt: now - 1_000,
                         },
                     },

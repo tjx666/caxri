@@ -252,7 +252,7 @@ describe('ProjectStatusService', () => {
                             name: 'project',
                             readyState: 'READY',
                             target: environment,
-                            url: `project-${environment}-example.vercel.app`,
+                            url: `app-${environment}.example.vercel.app`,
                         },
                     ]),
                 );
@@ -267,14 +267,14 @@ describe('ProjectStatusService', () => {
                             name: 'project',
                             readyState: 'BUILDING',
                             target: 'preview',
-                            url: 'branch.vercel.app',
+                            url: 'branch.example.vercel.app',
                         },
                     ]),
                 );
             }
             if (command === 'vc') {
                 return Promise.resolve(
-                    JSON.stringify([{ name: 'project', url: 'discovery.vercel.app' }]),
+                    JSON.stringify([{ name: 'project', url: 'discovery.example.vercel.app' }]),
                 );
             }
             return Promise.reject(

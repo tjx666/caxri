@@ -187,8 +187,8 @@ jobs:
           install-playwright-shell: ${{ needs.retry-policy.outputs.checks_scope == 'focused-source' || needs.retry-policy.outputs.checks_scope == 'affected' }}
           install-media-tools: ${{ needs.retry-policy.outputs.checks_scope == 'focused-source' || needs.retry-policy.outputs.checks_scope == 'affected' }}
       - name: Run gitleaks
-        # Scoped to the commits this push or pull request actually introduced. The full-history scan runs instead,
-        # inside "Run full platform checks", whenever this job handles the 'full' scope.
+        # Scoped to the commits this push or pull request actually introduced. Manual dispatches retain the
+        # wrapper's intentional full-history audit when no base revision exists.
         if: needs.retry-policy.outputs.checks_scope != 'full'
         env:
           GITLEAKS_BASE_REVISION: >-
@@ -211,6 +211,13 @@ jobs:
         env:
           ESLINT_CONCURRENCY: ${{ inputs.eslint_concurrency || 'off' }}
           CAXRI_REACT_DOCTOR_BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          GITLEAKS_BASE_REVISION: >-
+            ${{ github.event_name == 'pull_request'
+              && github.event.pull_request.base.sha
+              || github.event_name == 'push'
+              && github.event.before
+              || '' }}
+          GITLEAKS_HEAD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
         run: bun run scripts/ci-platform-checks.ts --skip-node-pty-preparation --skip-vitest --skip-eslint --skip-bundle-budget
   # Full-scope ESLint is the longest platform-neutral gate (about ten minutes serially on macos-15), so it runs on a
   # four-core Linux runner with worker concurrency, beside `checks` and outside the account's macOS concurrency limit.

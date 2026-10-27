@@ -30,8 +30,8 @@ describe('extension view contracts', () => {
                     rows: [
                         {
                             label: 'alias',
-                            value: 'project-abc-team.vercel.app',
-                            url: 'https://project-abc-team.vercel.app',
+                            value: 'app-git-branch.example.vercel.app',
+                            url: 'https://app-git-branch.example.vercel.app',
                         },
                         {
                             label: 'inspect',

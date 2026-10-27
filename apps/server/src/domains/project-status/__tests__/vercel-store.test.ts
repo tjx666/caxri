@@ -26,7 +26,7 @@ function storeWith(readyState: string) {
                     readyState,
                     target: 'preview',
                     uid: 'dpl_feature_preview',
-                    url: 'widget-feature-preview.vercel.app',
+                    url: 'app-git-feature.example.vercel.app',
                     meta: { githubCommitRef: 'feat/panel', githubCommitSha: head },
                 },
             ]),
