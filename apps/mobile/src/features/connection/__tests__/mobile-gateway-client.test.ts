@@ -1,4 +1,4 @@
-import { MOBILE_TRANSPORT_VERSION, serializeMobilePairingLink } from '@caxri/mobile-transport';
+import { mobileClientCloseReasons } from '@caxri/mobile-transport';
 import { describe, expect, it, vi } from 'vitest';
 
 import type {
@@ -8,284 +8,23 @@ import type {
 } from '../mobile-gateway-client';
 import { pairMobileGateway, reconnectMobileGateway } from '../mobile-gateway-client';
 import {
-    AndroidConnectingSocket,
     FakeGatewaySocket,
-    flushTasks,
     memoryStore,
     mobileCredential,
-    NeverOpenSocket,
     observeSettlement,
     pairingLink,
     pairingSecret,
-    serverId,
     UnverifiedReconnectSocket,
-    VersionMismatchSocket,
 } from './mobile-gateway-fixture';
 
 describe('mobile gateway client', () => {
-    it('closes a pending handshake immediately when its owner cancels', async () => {
-        const socket = new NeverOpenSocket();
-        const cancellation = new AbortController();
+    it('disconnects a half-open socket when an ordinary request times out', async () => {
+        let socket: FakeGatewaySocket | undefined;
         const runtime: MobileGatewayRuntime = {
-            openWebSocket: () => socket as unknown as WebSocket,
-            platform: 'android',
-            randomBytes: (bytes) => new Uint8Array(bytes).fill(128),
-        };
-        const { store } = memoryStore();
-        const attempt = pairMobileGateway({
-            displayName: 'Pixel fixture',
-            pairingLink,
-            runtime,
-            signal: cancellation.signal,
-            store,
-        });
-        cancellation.abort();
-        await expect(attempt).rejects.toThrow();
-        expect(socket.isClosed).toBe(true);
-        await expect(store.load()).resolves.toBeNull();
-    });
-
-    it('stops waiting for a socket to open after four seconds', async () => {
-        const socket = new NeverOpenSocket();
-        const runtime: MobileGatewayRuntime = {
-            openWebSocket: () => socket as unknown as WebSocket,
-            platform: 'android',
-            randomBytes: (bytes) => new Uint8Array(bytes).fill(128),
-        };
-        const { store } = memoryStore();
-        vi.useFakeTimers();
-        try {
-            let isSettled = false;
-            const attempt = observeSettlement(
-                pairMobileGateway({
-                    displayName: 'Pixel fixture',
-                    pairingLink,
-                    runtime,
-                    store,
-                }),
-                () => {
-                    isSettled = true;
-                },
-            );
-            await vi.advanceTimersByTimeAsync(4_000);
-            expect(isSettled).toBe(true);
-            expect(socket.isClosed).toBe(true);
-            await attempt;
-        } finally {
-            socket.close();
-            await vi.advanceTimersByTimeAsync(10_000);
-            vi.useRealTimers();
-        }
-    });
-
-    it('races eligible sockets but sends the one-time pairing handshake only to the winner', async () => {
-        const sockets: FakeGatewaySocket[] = [];
-        const runtime: MobileGatewayRuntime = {
-            openWebSocket: (url) => {
-                const socket = new FakeGatewaySocket(false, url.includes('192.168.1.5') ? 20 : 0);
-                sockets.push(socket);
+            openWebSocket: () => {
+                socket = new FakeGatewaySocket(false, 0, true);
                 return socket as unknown as WebSocket;
             },
-            platform: 'android',
-            randomBytes: (bytes) => new Uint8Array(bytes).fill(128),
-        };
-        const { store } = memoryStore();
-        const link = serializeMobilePairingLink({
-            version: MOBILE_TRANSPORT_VERSION,
-            addresses: ['192.168.1.5', '192.168.1.6'],
-            port: 41_337,
-            serverId,
-            pairingId: '11'.repeat(16),
-            secret: pairingSecret,
-            expiresAt: Date.now() + 60_000,
-        });
-
-        const paired = await pairMobileGateway({
-            displayName: 'Pixel fixture',
-            pairingLink: link,
-            runtime,
-            store,
-        });
-
-        expect(sockets).toHaveLength(2);
-        expect(sockets[0]?.helloCount).toBe(0);
-        expect(sockets[0]?.isClosed).toBe(true);
-        expect(sockets[1]?.helloCount).toBe(1);
-        paired.connection.close();
-    });
-
-    it('closes a race loser that Android opens after the winner, without sending it a hello', async () => {
-        const loser = new AndroidConnectingSocket();
-        const winner = new FakeGatewaySocket();
-        const runtime: MobileGatewayRuntime = {
-            openWebSocket: (url) =>
-                (url.includes('192.168.1.5') ? loser : winner) as unknown as WebSocket,
-            platform: 'android',
-            randomBytes: (bytes) => new Uint8Array(bytes).fill(128),
-        };
-        const { store } = memoryStore();
-        const link = serializeMobilePairingLink({
-            version: MOBILE_TRANSPORT_VERSION,
-            addresses: ['192.168.1.5', '192.168.1.6'],
-            port: 41_337,
-            serverId,
-            pairingId: '11'.repeat(16),
-            secret: pairingSecret,
-            expiresAt: Date.now() + 60_000,
-        });
-
-        const paired = await pairMobileGateway({
-            displayName: 'Pixel fixture',
-            pairingLink: link,
-            runtime,
-            store,
-        });
-        loser.open();
-        await flushTasks();
-
-        expect(winner.helloCount).toBe(1);
-        expect(loser.sent).toEqual([]);
-        expect(loser.isClosed).toBe(true);
-        paired.connection.close();
-    });
-
-    it('closes a socket that Android opens after its open deadline passed', async () => {
-        const socket = new AndroidConnectingSocket();
-        const runtime: MobileGatewayRuntime = {
-            openWebSocket: () => socket as unknown as WebSocket,
-            platform: 'android',
-            randomBytes: (bytes) => new Uint8Array(bytes).fill(128),
-        };
-        const { store } = memoryStore();
-        vi.useFakeTimers();
-        try {
-            const attempt = pairMobileGateway({
-                displayName: 'Pixel fixture',
-                pairingLink,
-                runtime,
-                store,
-            });
-            const outcome = expect(attempt).rejects.toMatchObject({ code: 'unreachable' });
-            await vi.advanceTimersByTimeAsync(4_000);
-            await outcome;
-            socket.open();
-            await vi.advanceTimersByTimeAsync(0);
-
-            expect(socket.sent).toEqual([]);
-            expect(socket.isClosed).toBe(true);
-        } finally {
-            vi.useRealTimers();
-        }
-    });
-
-    it('never sends the pairing hello to a socket Android opens after its owner cancelled', async () => {
-        const socket = new AndroidConnectingSocket();
-        const cancellation = new AbortController();
-        const runtime: MobileGatewayRuntime = {
-            openWebSocket: () => socket as unknown as WebSocket,
-            platform: 'android',
-            randomBytes: (bytes) => new Uint8Array(bytes).fill(128),
-        };
-        const { store } = memoryStore();
-        const attempt = pairMobileGateway({
-            displayName: 'Pixel fixture',
-            pairingLink,
-            runtime,
-            signal: cancellation.signal,
-            store,
-        });
-        const outcome = expect(attempt).rejects.toThrow();
-        cancellation.abort();
-        socket.open();
-        await flushTasks();
-
-        expect(socket.sent).toEqual([]);
-        expect(socket.isClosed).toBe(true);
-        await outcome;
-        await expect(store.load()).resolves.toBeNull();
-    });
-
-    it('classifies a version-mismatch response as terminal during reconnect', async () => {
-        const runtime: MobileGatewayRuntime = {
-            openWebSocket: () => new VersionMismatchSocket() as unknown as WebSocket,
-            platform: 'android',
-            randomBytes: (bytes) => new Uint8Array(bytes).fill(128),
-        };
-        const { store } = memoryStore();
-        await store.save(mobileCredential);
-
-        await expect(reconnectMobileGateway(mobileCredential, runtime, store)).rejects.toEqual(
-            expect.objectContaining({
-                code: 'version-mismatch',
-                isDesktopNewer: false,
-                supportedVersion: 1,
-            }),
-        );
-        await expect(store.load()).resolves.toEqual(mobileCredential);
-    });
-
-    it('marks a mismatch from a newer Desktop as one update recovery can fix', async () => {
-        const runtime: MobileGatewayRuntime = {
-            openWebSocket: () =>
-                new VersionMismatchSocket(MOBILE_TRANSPORT_VERSION + 1) as unknown as WebSocket,
-            platform: 'android',
-            randomBytes: (bytes) => new Uint8Array(bytes).fill(128),
-        };
-        const { store } = memoryStore();
-
-        await expect(reconnectMobileGateway(mobileCredential, runtime, store)).rejects.toEqual(
-            expect.objectContaining({
-                code: 'version-mismatch',
-                isDesktopNewer: true,
-                supportedVersion: MOBILE_TRANSPORT_VERSION + 1,
-            }),
-        );
-    });
-
-    it('classifies a version-mismatch response as terminal during pairing', async () => {
-        const runtime: MobileGatewayRuntime = {
-            openWebSocket: () => new VersionMismatchSocket() as unknown as WebSocket,
-            platform: 'android',
-            randomBytes: (bytes) => new Uint8Array(bytes).fill(128),
-        };
-        const { store } = memoryStore();
-
-        await expect(
-            pairMobileGateway({
-                displayName: 'Pixel fixture',
-                pairingLink,
-                runtime,
-                store,
-            }),
-        ).rejects.toEqual(expect.objectContaining({ code: 'version-mismatch' }));
-        await expect(store.load()).resolves.toBeNull();
-    });
-
-    it('reports an incompatible pairing link as an update requirement before opening a socket', async () => {
-        const openWebSocket = vi.fn();
-        const runtime: MobileGatewayRuntime = {
-            openWebSocket,
-            platform: 'android',
-            randomBytes: (bytes) => new Uint8Array(bytes).fill(128),
-        };
-        const { store } = memoryStore();
-        const incompatibleLink = new URL(pairingLink);
-        incompatibleLink.searchParams.set('v', String(MOBILE_TRANSPORT_VERSION + 1));
-
-        await expect(
-            pairMobileGateway({
-                displayName: 'Pixel fixture',
-                pairingLink: incompatibleLink.href,
-                runtime,
-                store,
-            }),
-        ).rejects.toEqual(expect.objectContaining({ code: 'version-mismatch' }));
-        expect(openWebSocket).not.toHaveBeenCalled();
-    });
-
-    it('disconnects a half-open socket when an ordinary request times out', async () => {
-        const runtime: MobileGatewayRuntime = {
-            openWebSocket: () => new FakeGatewaySocket(false, 0, true) as unknown as WebSocket,
             platform: 'android',
             randomBytes: (bytes) => new Uint8Array(bytes).fill(128),
         };
@@ -304,6 +43,8 @@ describe('mobile gateway client', () => {
             await vi.advanceTimersByTimeAsync(15_000);
             await rejected;
             await expect(termination).resolves.toBe('disconnected');
+            // The phone's own verdict reaches the Server log only through this private close code.
+            expect(socket?.closeCodes.at(-1)).toBe(mobileClientCloseReasons['request-timeout']);
         } finally {
             vi.useRealTimers();
         }
@@ -348,7 +89,7 @@ describe('mobile gateway client', () => {
             expect(isSettled).toBe(true);
             await outcome;
         } finally {
-            paired.connection.close();
+            paired.connection.close('unmounted');
             vi.useRealTimers();
         }
     });
@@ -386,7 +127,7 @@ describe('mobile gateway client', () => {
             await outcome;
             expect(paired.connection.hasOutstandingMutation()).toBe(false);
         } finally {
-            paired.connection.close();
+            paired.connection.close('unmounted');
             vi.useRealTimers();
         }
     });
@@ -443,7 +184,7 @@ describe('mobile gateway client', () => {
                 projects: [{ id: 'project-1', title: 'Fixture' }],
             },
         );
-        paired.connection.close();
+        paired.connection.close('unmounted');
     });
 
     it('sends two requests before either reply and correlates reverse-order replies', async () => {
@@ -466,7 +207,7 @@ describe('mobile gateway client', () => {
         expect(socket.requestCount).toBe(2);
         socket.releaseHeldRequests();
         await expect(Promise.all([first, second])).resolves.toHaveLength(2);
-        paired.connection.close();
+        paired.connection.close('unmounted');
     });
 
     it('routes subscribed dashboard events separately from command replies and stops on unsubscribe', async () => {
@@ -492,7 +233,7 @@ describe('mobile gateway client', () => {
         socket.sendDashboardEvent(1);
         await Promise.resolve();
         expect(onEvent).toHaveBeenCalledOnce();
-        paired.connection.close();
+        paired.connection.close('unmounted');
     });
 
     it('delivers a pre-ACK resync before subscribe resolves', async () => {
@@ -515,7 +256,7 @@ describe('mobile gateway client', () => {
             expect.objectContaining({ kind: 'resync-required', sequence: 0 }),
         );
         await handle.unsubscribe();
-        paired.connection.close();
+        paired.connection.close('unmounted');
     });
 
     it('pauses heartbeats in background and resumes them on the foreground connection', async () => {
@@ -544,7 +285,7 @@ describe('mobile gateway client', () => {
             await vi.advanceTimersByTimeAsync(3_000);
             expect(socket.heartbeatCount).toBe(2);
         } finally {
-            paired.connection.close();
+            paired.connection.close('unmounted');
             vi.useRealTimers();
         }
     });
@@ -576,7 +317,7 @@ describe('mobile gateway client', () => {
             await vi.advanceTimersByTimeAsync(3_000);
             expect(socket.heartbeatCount).toBe(2);
         } finally {
-            paired.connection.close();
+            paired.connection.close('unmounted');
             vi.useRealTimers();
         }
     });
@@ -619,7 +360,7 @@ describe('mobile gateway client', () => {
             expect(onTermination).toHaveBeenCalledExactlyOnceWith('disconnected');
             expect(socket.isClosed).toBe(true);
         } finally {
-            paired.connection.close();
+            paired.connection.close('unmounted');
             vi.useRealTimers();
         }
     });

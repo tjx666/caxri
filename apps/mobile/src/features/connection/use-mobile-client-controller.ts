@@ -3,6 +3,7 @@ import type { AppStateStatus } from 'react-native';
 import { AppState } from 'react-native';
 
 import type {
+    MobileClientCloseReason,
     MobileSubscriptionResource,
     MobileUpdateRecoveryPayload,
 } from '@caxri/mobile-transport';
@@ -35,6 +36,7 @@ import { createPairingAttemptOwner } from './pairing-attempt';
 import {
     foregroundRecoveryAction,
     observeMobileConnectionTermination,
+    retryAttemptAfterConnectionEnded,
 } from './reconnect-lifecycle';
 import { recoverMobileUpdate } from './recover-mobile-update';
 import { useMobileReconnect } from './use-mobile-reconnect';
@@ -115,19 +117,33 @@ export const useMobileClientController = (): MobileClientContextValue => {
     const removeObservationListener = useRef<() => void>(() => {});
     const readCache = useReadCache();
 
-    const replaceConnection = useCallback((next: MobileGatewayConnection | null): void => {
-        removeTerminationListener.current();
-        removeTerminationListener.current = () => {};
-        removeObservationListener.current();
-        removeObservationListener.current = () => {};
-        if (connection.current !== next) {
-            connection.current?.close();
-            activeProbe.current = null;
-            deferredForegroundReconnect.current = false;
-            deferredNetworkWake.current = false;
-        }
-        connection.current = next;
+    /**
+     * When the current connection was adopted, so its end can tell a stable connection from a reconnect loop.
+     */
+    const connectedAt = useRef(0);
+    const backOffAfterConnectionEnded = useCallback((): void => {
+        const endedAt = Date.now();
+        setRetryAttempt((attempt) =>
+            retryAttemptAfterConnectionEnded(attempt, connectedAt.current, endedAt),
+        );
     }, []);
+
+    const replaceConnection = useCallback(
+        (next: MobileGatewayConnection | null, reason: MobileClientCloseReason): void => {
+            removeTerminationListener.current();
+            removeTerminationListener.current = () => {};
+            removeObservationListener.current();
+            removeObservationListener.current = () => {};
+            if (connection.current !== next) {
+                connection.current?.close(reason);
+                activeProbe.current = null;
+                deferredForegroundReconnect.current = false;
+                deferredNetworkWake.current = false;
+            }
+            connection.current = next;
+        },
+        [],
+    );
 
     const probeCurrentConnection = useCallback(
         (current: MobileGatewayConnection): void => {
@@ -148,30 +164,32 @@ export const useMobileClientController = (): MobileClientContextValue => {
                         deferredNetworkWake.current = true;
                         return;
                     }
-                    replaceConnection(null);
+                    replaceConnection(null, 'probe-failed');
                     setLastSeenAt(null);
-                    setRetryAttempt(0);
+                    backOffAfterConnectionEnded();
                     setStatus('stale');
                 })
                 .finally(() => {
                     if (activeProbe.current === current) activeProbe.current = null;
                 });
         },
-        [replaceConnection, setLastSeenAt],
+        [backOffAfterConnectionEnded, replaceConnection, setLastSeenAt],
     );
 
     const adoptConnection = useCallback(
         (next: MobileGatewayConnection): boolean => {
-            replaceConnection(next);
+            replaceConnection(next, 'superseded');
+            connectedAt.current = Date.now();
             next.setForeground(appState.current === 'active');
             removeObservationListener.current = next.onObservation(() => {
                 if (connection.current === next) setLastSeenAt(Date.now());
             });
             const observation = observeMobileConnectionTermination(next, (reason) => {
                 if (connection.current !== next) return;
-                replaceConnection(null);
+                // Already terminated, so this close sends nothing; the reason only satisfies the signature.
+                replaceConnection(null, 'superseded');
                 setLastSeenAt(null);
-                setRetryAttempt(0);
+                backOffAfterConnectionEnded();
                 if (reason === 'revoked') {
                     // The saved copy belongs to the revoked pairing; nothing of it stays on the phone.
                     readCache.clear();
@@ -183,7 +201,7 @@ export const useMobileClientController = (): MobileClientContextValue => {
             if (!observation.didTerminate) setConnectionEpoch((epoch) => epoch + 1);
             return !observation.didTerminate;
         },
-        [readCache, replaceConnection, setLastSeenAt],
+        [backOffAfterConnectionEnded, readCache, replaceConnection, setLastSeenAt],
     );
 
     useEffect(() => {
@@ -202,7 +220,7 @@ export const useMobileClientController = (): MobileClientContextValue => {
         return () => {
             isActive = false;
             pairingAttempts.invalidate();
-            replaceConnection(null);
+            replaceConnection(null, 'unmounted');
         };
     }, [credentialLoadAttempt, pairingAttempts, readCache, replaceConnection]);
 
@@ -219,7 +237,7 @@ export const useMobileClientController = (): MobileClientContextValue => {
         (next: MobileGatewayConnection): void => {
             if (!adoptConnection(next)) return;
             setLastSeenAt(Date.now());
-            setRetryAttempt(0);
+            // The attempt count survives until this connection proves stable; see `retryAttemptAfterConnectionEnded`.
             setStatus('connected');
         },
         [adoptConnection, setLastSeenAt],
@@ -278,7 +296,7 @@ export const useMobileClientController = (): MobileClientContextValue => {
             return;
         }
         if (action === 'reconnect') {
-            replaceConnection(null);
+            replaceConnection(null, 'foreground-reconnect');
             setLastSeenAt(null);
             setRetryAttempt(0);
             setRetryToken((token) => token + 1);
@@ -308,7 +326,7 @@ export const useMobileClientController = (): MobileClientContextValue => {
         }
         if (action === 'reconnect') {
             if (!credential) return;
-            replaceConnection(null);
+            replaceConnection(null, 'network-reconnect');
             setLastSeenAt(null);
             setRetryAttempt(0);
             setRetryToken((token) => token + 1);
@@ -334,7 +352,7 @@ export const useMobileClientController = (): MobileClientContextValue => {
                 throw new Error('Pairing is unavailable while Caxri is in the background.');
             const attempt = pairingAttempts.begin();
             const isCurrent = () => attempt.isCurrent() && appState.current === 'active';
-            replaceConnection(null);
+            replaceConnection(null, 'superseded');
             setStatus('connecting');
             try {
                 const paired = await pairMobileGateway({
@@ -346,7 +364,7 @@ export const useMobileClientController = (): MobileClientContextValue => {
                     store: expoMobileCredentialStore,
                 });
                 if (!isCurrent()) {
-                    paired.connection.close();
+                    paired.connection.close('superseded');
                     throw new Error('Pairing attempt was superseded.');
                 }
                 // A new pairing starts without the previous one's saved copy.
@@ -382,7 +400,7 @@ export const useMobileClientController = (): MobileClientContextValue => {
 
     const forgetDevice = useCallback(async (): Promise<void> => {
         pairingAttempts.invalidate();
-        replaceConnection(null);
+        replaceConnection(null, 'forgotten');
         // Cleared first, so a failing secure store cannot leave the forgotten computer's content behind.
         readCache.clear();
         await expoMobileCredentialStore.clear();
@@ -442,7 +460,8 @@ export const useMobileClientController = (): MobileClientContextValue => {
                     !(error instanceof MobileGatewayRequestError) &&
                     connection.current === current
                 ) {
-                    replaceConnection(null);
+                    replaceConnection(null, 'request-failed');
+                    backOffAfterConnectionEnded();
                     setStatus('stale');
                 }
                 throw error;
@@ -454,7 +473,7 @@ export const useMobileClientController = (): MobileClientContextValue => {
                 ) {
                     if (deferredForegroundReconnect.current) {
                         deferredForegroundReconnect.current = false;
-                        replaceConnection(null);
+                        replaceConnection(null, 'foreground-reconnect');
                         setLastSeenAt(null);
                         setRetryAttempt(0);
                         setRetryToken((token) => token + 1);
@@ -466,7 +485,13 @@ export const useMobileClientController = (): MobileClientContextValue => {
                 }
             }
         },
-        [isForeground, probeCurrentConnection, replaceConnection, setLastSeenAt],
+        [
+            backOffAfterConnectionEnded,
+            isForeground,
+            probeCurrentConnection,
+            replaceConnection,
+            setLastSeenAt,
+        ],
     );
 
     const recoverUpdate = useMemo(

@@ -8,7 +8,11 @@ import type { Principal, ServerEvent } from '@caxri/protocol';
 import { assertNever, CaxriError, clipAgentChatPatchForMobile } from '@caxri/protocol';
 
 import type { TerminalExecutionPort, TerminalObserverEvent } from '../../../domains/terminal';
-import type { MobileTerminalResyncReason, MobileTerminalTeardownReason } from './diagnostics';
+import type {
+    MobileGatewayFailureReason,
+    MobileTerminalResyncReason,
+    MobileTerminalTeardownReason,
+} from './diagnostics';
 import { MobileTerminalObserver } from './terminal-observer';
 
 const MAXIMUM_SUBSCRIPTIONS = 32;
@@ -72,7 +76,7 @@ export interface MobileSubscriptionOptions {
     reportTerminalResync?: (reason: MobileTerminalResyncReason) => void;
     reportTerminalTeardownFailure?: (reason: MobileTerminalTeardownReason) => void;
     reportHumanSteer?: (terminalId: string) => void;
-    terminate: () => void;
+    terminate: (reason?: MobileGatewayFailureReason) => void;
     connectionId: string;
     beginConversation?: (principal: Principal, sessionId: string) => Promise<() => void>;
     beginAgentChat?: (principal: Principal, terminalId: string) => Promise<() => void>;
@@ -441,7 +445,7 @@ export class MobileGatewaySubscriptions {
             };
             await this.#options.send(payload);
         } catch {
-            this.#options.terminate();
+            this.#options.terminate('sendFailed');
         } finally {
             subscription.pendingFrames -= 1;
             subscription.pendingBytes -= estimatedBytes;
@@ -475,7 +479,7 @@ export class MobileGatewaySubscriptions {
             await this.#options.authorize(this.#options.currentPrincipal(), subscription.resource);
             if (!this.#closed) await this.#options.send(payload);
         } catch {
-            this.#options.terminate();
+            this.#options.terminate('sendFailed');
         }
     }
 }

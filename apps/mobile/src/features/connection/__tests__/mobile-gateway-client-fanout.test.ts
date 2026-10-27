@@ -35,7 +35,7 @@ describe('mobile gateway client fan-out isolation', () => {
 
         expect(failing).toHaveBeenCalledTimes(1);
         expect(surviving).toHaveBeenCalledTimes(1);
-        paired.connection.close();
+        paired.connection.close('unmounted');
     });
 
     it('notifies a later onTermination listener when an earlier one throws', async () => {
@@ -78,7 +78,7 @@ describe('mobile gateway client fan-out isolation', () => {
             expect(failing).toHaveBeenCalledExactlyOnceWith('disconnected');
             expect(surviving).toHaveBeenCalledExactlyOnceWith('disconnected');
         } finally {
-            paired.connection.close();
+            paired.connection.close('unmounted');
             vi.useRealTimers();
         }
     });

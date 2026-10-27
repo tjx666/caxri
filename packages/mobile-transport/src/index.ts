@@ -1,4 +1,5 @@
 export * from './acceptance-vector.js';
+export * from './close-reason.js';
 export * from './contract.js';
 export * from './encoding.js';
 export * from './messages.js';

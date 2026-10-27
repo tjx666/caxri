@@ -5,7 +5,9 @@ import {
     foregroundRecoveryAction,
     observeMobileConnectionTermination,
     reconnectWaitForAttempt,
+    retryAttemptAfterConnectionEnded,
     runReconnectAttempt,
+    STABLE_CONNECTION_MS,
 } from '../reconnect-lifecycle';
 import { shouldScheduleMobileReconnect } from '../use-mobile-reconnect';
 
@@ -14,6 +16,22 @@ describe('mobile reconnect lifecycle', () => {
         expect(reconnectWaitForAttempt(0, reconnectDelay)).toBe(0);
         expect(reconnectWaitForAttempt(1, reconnectDelay)).toBe(500);
         expect(reconnectWaitForAttempt(4, reconnectDelay)).toBe(4_000);
+    });
+
+    it('keeps backing off while each connection ends right after it was adopted', () => {
+        // A screen that closed every connection on open used to reconnect at once until Server's admission limit hit.
+        let attempt = 0;
+        const waits: number[] = [];
+        for (let index = 0; index < 4; index += 1) {
+            attempt = retryAttemptAfterConnectionEnded(attempt, 1_000, 1_150);
+            waits.push(reconnectWaitForAttempt(attempt, reconnectDelay));
+        }
+        expect(waits).toEqual([500, 1_000, 2_000, 4_000]);
+    });
+
+    it('reconnects at once after a connection that stayed up', () => {
+        expect(retryAttemptAfterConnectionEnded(5, 1_000, 1_000 + STABLE_CONNECTION_MS)).toBe(0);
+        expect(retryAttemptAfterConnectionEnded(5, 1_000, STABLE_CONNECTION_MS)).toBe(6);
     });
 
     it('only schedules a stored credential while the connection is stale', () => {

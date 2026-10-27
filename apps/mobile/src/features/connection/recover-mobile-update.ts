@@ -19,7 +19,7 @@ import {
 
 import type { MobileCredential } from './credential-store';
 import type { MobileGatewayRuntime } from './mobile-gateway-client';
-import { openSocket } from './mobile-gateway-client';
+import { openSocket } from './mobile-gateway-session';
 import { createSocketReader } from './socket-reader';
 
 const RECOVERY_STEP_TIMEOUT_MS = 10_000;

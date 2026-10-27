@@ -1,32 +1,21 @@
 import type {
-    HandshakeTranscript,
+    MobileClientCloseReason,
     MobileClientPayload,
-    MobileSessionKeys,
     MobileSubscriptionResource,
 } from '@caxri/mobile-transport';
 import {
     decodeHex,
-    deriveMobileSessionKeys,
     encodeHex,
     HANDSHAKE_NONCE_BYTES,
-    handshakeConfirmation,
-    isHandshakeConfirmationValid,
     MOBILE_TRANSPORT_VERSION,
-    mobileClientConfirmationSchema,
-    MobileFrameCounter,
+    mobileClientCloseReasons,
     mobilePairingResultSchema,
     mobilePublicKey,
-    MobileReplayGuard,
-    mobileSealedFrameSchema,
-    mobileServerHelloSchema,
     mobileServerPayloadSchema,
     mobileSubscribeResultSchema,
     mobileUnsubscribeResultSchema,
-    mobileVersionMismatchSchema,
-    openMobileFrame,
     PAIRING_SECRET_BYTES,
     parseMobilePairingLink,
-    sealMobileFrame,
     X25519_KEY_BYTES,
 } from '@caxri/mobile-transport';
 import type {
@@ -45,7 +34,6 @@ import { z } from 'zod';
 
 import { notifyListeners } from '../../lib/notify-listeners';
 import type { MobileCredential, MobileCredentialStore } from './credential-store';
-import { discardSocket, isSocketDiscarded } from './discard-socket';
 import type { MobileSubscriptionListener } from './mobile-frame-router';
 import { MobileFrameRouter } from './mobile-frame-router';
 import {
@@ -56,21 +44,23 @@ import {
     MobileServerVerificationError,
     MobileVersionMismatchError,
 } from './mobile-gateway-errors';
+import type { EstablishedSession } from './mobile-gateway-session';
+import {
+    establish,
+    HANDSHAKE_TIMEOUT_MS,
+    receiveSealed,
+    sendSealed,
+} from './mobile-gateway-session';
 import { MobileHeartbeat } from './mobile-heartbeat';
 import { isFastMobileRead } from './mobile-read-timeouts';
 import { pairingClientHello } from './pairing-client-hello';
 import { pairingCredential } from './pairing-credential';
 import { createPairingSocketRuntime } from './pairing-socket-runtime';
-import type { SocketReader } from './socket-reader';
-import { connectionClosedError, createSocketReader } from './socket-reader';
+import { connectionClosedError } from './socket-reader';
 
-const HANDSHAKE_TIMEOUT_MS = 10_000;
-const SOCKET_OPEN_TIMEOUT_MS = 4_000;
 const READ_REQUEST_TIMEOUT_MS = 3_000;
 const REQUEST_TIMEOUT_MS = 15_000;
 const FOREGROUND_PROBE_TIMEOUT_MS = 1_500;
-const textDecoder = new TextDecoder();
-const textEncoder = new TextEncoder();
 
 export {
     MobileGatewayRequestError,
@@ -92,186 +82,22 @@ const mobileReadySchema = z.strictObject({
     generation: z.number().int().positive(),
 });
 
-const openSocketAt = async (
-    address: string,
-    port: number,
-    runtime: MobileGatewayRuntime,
-    onSocket: (socket: WebSocket) => void,
-): Promise<WebSocket> => {
-    const socket = runtime.openWebSocket(`ws://${address}:${port}/mobile`);
-    onSocket(socket);
-    await new Promise<void>((resolve, reject) => {
-        const timeout: { handle?: ReturnType<typeof setTimeout> } = {};
-        function cleanup(): void {
-            clearTimeout(timeout.handle);
-            socket.removeEventListener('open', onOpen);
-            socket.removeEventListener('error', onError);
-            socket.removeEventListener('close', onError);
-        }
-        function onError(): void {
-            cleanup();
-            discardSocket(socket);
-            reject(new MobilePairingError('unreachable', 'Caxri could not be reached.'));
-        }
-        function onOpen(): void {
-            // A cancelled pairing's socket can still open on Android; it fails here and `discardSocket` closes it.
-            if (isSocketDiscarded(socket)) {
-                onError();
-                return;
-            }
-            cleanup();
-            resolve();
-        }
-        timeout.handle = setTimeout(onError, SOCKET_OPEN_TIMEOUT_MS);
-        socket.addEventListener('open', onOpen, { once: true });
-        socket.addEventListener('error', onError, { once: true });
-        socket.addEventListener('close', onError, { once: true });
-    });
-    return socket;
-};
+export type MobileGatewayTermination = 'disconnected' | 'revoked';
 
 /**
- * Races one socket per advertised address and keeps the first to open. Only the winner ever carries a hello; every
- * other candidate is discarded, including one still connecting that React Native Android would otherwise leave open.
+ * A liveness or mutation failure held back while a mutation is outstanding, with the close reason it ends with.
  */
-export const openSocket = async (
-    addresses: string[],
-    port: number,
-    runtime: MobileGatewayRuntime,
-): Promise<WebSocket> => {
-    const sockets: WebSocket[] = [];
-    try {
-        const winner = await Promise.any(
-            addresses.map((address) =>
-                openSocketAt(address, port, runtime, (socket) => sockets.push(socket)),
-            ),
-        );
-        for (const socket of sockets) if (socket !== winner) discardSocket(socket);
-        return winner;
-    } catch {
-        // Every candidate rejects only after `openSocketAt` discarded it, so nothing is left to close here.
-        throw new MobilePairingError('unreachable', 'Caxri could not be reached.');
-    }
-};
-
-interface EstablishedSession {
-    connectionId: Uint8Array;
-    connectionIdHex: string;
-    deviceId: string;
-    generation: number;
-    inbound: MobileReplayGuard;
-    keys: MobileSessionKeys;
-    outbound: MobileFrameCounter;
-    reader: SocketReader;
-    runtime: MobileGatewayRuntime;
-    socket: WebSocket;
+interface DeferredFailure {
+    error: Error;
+    reason: MobileClientCloseReason;
 }
 
-const receiveSealed = async (session: EstablishedSession, timeoutMs?: number): Promise<unknown> => {
-    const frame = mobileSealedFrameSchema.parse(await session.reader.next(timeoutMs));
-    if (frame.connectionId !== session.connectionIdHex)
-        throw new Error('Connection identity changed.');
-    session.inbound.assertAndAdvance(frame.counter);
-    const plaintext = openMobileFrame(
-        session.keys.serverToClient,
-        {
-            connectionId: session.connectionId,
-            counter: frame.counter,
-            deviceId: session.deviceId,
-            direction: 'server-to-client',
-        },
-        decodeHex(frame.ciphertext),
-    );
-    const source = textDecoder.decode(plaintext);
-    return JSON.parse(source) as unknown;
+/**
+ * Closes with the phone's reason as a private close code, the only way it reaches the Server log.
+ */
+const closeSocketFor = (socket: WebSocket, reason: MobileClientCloseReason): void => {
+    socket.close(mobileClientCloseReasons[reason], reason);
 };
-
-const sendSealed = (session: EstablishedSession, payload: unknown): void => {
-    const counter = session.outbound.take();
-    const ciphertext = sealMobileFrame(
-        session.keys.clientToServer,
-        {
-            connectionId: session.connectionId,
-            counter,
-            deviceId: session.deviceId,
-            direction: 'client-to-server',
-        },
-        textEncoder.encode(JSON.stringify(payload)),
-    );
-    const frame = mobileSealedFrameSchema.parse({
-        type: 'sealed',
-        version: MOBILE_TRANSPORT_VERSION,
-        connectionId: session.connectionIdHex,
-        counter,
-        ciphertext: encodeHex(ciphertext),
-    });
-    session.socket.send(JSON.stringify(frame));
-};
-
-const establish = async (input: {
-    addresses: string[];
-    clientHello: Record<string, unknown>;
-    clientNonce: Uint8Array;
-    clientSecretKey: Uint8Array;
-    expectedServerId: string;
-    mode: 'connect' | 'pair';
-    port: number;
-    presharedKey: Uint8Array;
-    runtime: MobileGatewayRuntime;
-}): Promise<EstablishedSession> => {
-    const socket = await openSocket(input.addresses, input.port, input.runtime);
-    const reader = createSocketReader(socket);
-    try {
-        socket.send(JSON.stringify(input.clientHello));
-        const response = await reader.next(HANDSHAKE_TIMEOUT_MS);
-        const mismatch = mobileVersionMismatchSchema.safeParse(response);
-        if (mismatch.success) throw new MobileVersionMismatchError(mismatch.data.supportedVersion);
-        const challenge = mobileServerHelloSchema.parse(response);
-        const transcript: HandshakeTranscript = {
-            mode: input.mode,
-            serverId: input.expectedServerId,
-            principalId: `paired-device:${challenge.deviceId}`,
-            connectionId: decodeHex(challenge.connectionId, 16),
-            clientPublicKey: mobilePublicKey(input.clientSecretKey),
-            serverPublicKey: decodeHex(challenge.serverPublicKey, X25519_KEY_BYTES),
-            clientNonce: input.clientNonce,
-            serverNonce: decodeHex(challenge.serverNonce, HANDSHAKE_NONCE_BYTES),
-        };
-        const keys = deriveMobileSessionKeys({
-            localSecretKey: input.clientSecretKey,
-            peerPublicKey: transcript.serverPublicKey,
-            presharedKey: input.presharedKey,
-            transcript,
-        });
-        if (!isHandshakeConfirmationValid(decodeHex(challenge.confirmation, 32), keys, 'server'))
-            throw new MobileServerVerificationError();
-        const confirmation = mobileClientConfirmationSchema.parse({
-            type: 'confirm',
-            version: MOBILE_TRANSPORT_VERSION,
-            connectionId: challenge.connectionId,
-            confirmation: encodeHex(handshakeConfirmation(keys, 'client')),
-        });
-        socket.send(JSON.stringify(confirmation));
-        return {
-            connectionId: transcript.connectionId,
-            connectionIdHex: challenge.connectionId,
-            deviceId: challenge.deviceId,
-            generation: challenge.generation,
-            inbound: new MobileReplayGuard(),
-            keys,
-            outbound: new MobileFrameCounter(),
-            reader,
-            runtime: input.runtime,
-            socket,
-        };
-    } catch (error) {
-        reader.close();
-        socket.close();
-        throw error;
-    }
-};
-
-export type MobileGatewayTermination = 'disconnected' | 'revoked';
 
 export interface MobileGatewaySubscriptionHandle {
     subscriptionId: string;
@@ -286,11 +112,11 @@ export class MobileGatewayConnection {
     readonly #router = new MobileFrameRouter();
     readonly #session: EstablishedSession;
     #closedByOwner = false;
-    #deferredLivenessError?: Error;
+    #deferredLiveness?: DeferredFailure;
     /**
      * A timed-out mutation may have reached the server; later traffic cannot make retry safe.
      */
-    #deferredMutationError?: Error;
+    #deferredMutation?: DeferredFailure;
     #isForeground = false;
     #outstandingMutations = 0;
     #subscriptionQueue = Promise.resolve();
@@ -302,8 +128,9 @@ export class MobileGatewayConnection {
         this.#heartbeat = new MobileHeartbeat({
             onTimeout: () => {
                 const error = new Error('Caxri did not acknowledge the heartbeat.');
-                if (this.hasOutstandingMutation()) this.#deferredLivenessError = error;
-                else this.#finish('disconnected', error);
+                if (this.hasOutstandingMutation())
+                    this.#deferredLiveness = { error, reason: 'heartbeat-timeout' };
+                else this.#finish('disconnected', error, 'heartbeat-timeout');
             },
             randomBytes: (size) => session.runtime.randomBytes(size),
             send: (payload) => sendSealed(session, payload),
@@ -311,13 +138,17 @@ export class MobileGatewayConnection {
         void this.#readLoop();
     }
 
-    #finish(reason: MobileGatewayTermination, error: Error): void {
+    #finish(
+        reason: MobileGatewayTermination,
+        error: Error,
+        closeReason: MobileClientCloseReason,
+    ): void {
         if (this.#termination || this.#closedByOwner) return;
         this.#termination = reason;
         this.#heartbeat.stop();
         this.#router.rejectAll(error);
         this.#session.reader.close();
-        this.#session.socket.close();
+        closeSocketFor(this.#session.socket, closeReason);
         // Isolates each termination subscriber so one throwing screen cannot stop the rest from observing this
         // connection's termination. Mobile has no structured-log sink to report into yet, so the failure is isolated
         // silently rather than reported.
@@ -342,23 +173,25 @@ export class MobileGatewayConnection {
                     // A credential is cleared only after the control payload has passed authenticated frame opening.
                     // eslint-disable-next-line no-await-in-loop -- revocation is the terminal frame for this connection.
                     await this.#clearCredential();
-                    this.#finish('revoked', new Error('This device was revoked.'));
+                    this.#finish('revoked', new Error('This device was revoked.'), 'superseded');
                     return;
                 }
                 if (payload.type === 'reply') this.#router.receiveReply(payload.reply);
                 else if (payload.type === 'heartbeat-ack')
                     this.#heartbeat.acknowledge(payload.nonce);
                 else this.#router.receiveSubscriptionMessage(payload);
-                this.#deferredLivenessError = undefined;
+                this.#deferredLiveness = undefined;
                 if (this.#isForeground) this.#heartbeat.start();
                 // Isolates each observation subscriber so one throwing screen cannot stop the rest from observing this
                 // frame; Mobile has no structured-log sink to report into yet, so the failure is isolated silently.
                 notifyListeners(this.#observationListeners, undefined);
             }
         } catch (error) {
+            // A peer close also lands here; closing an already closed socket again sends nothing.
             this.#finish(
                 'disconnected',
                 error instanceof Error ? error : new Error('The Caxri connection closed.'),
+                'protocol-error',
             );
         }
     }
@@ -370,15 +203,19 @@ export class MobileGatewayConnection {
         isMutation = false,
     ): Promise<CommandReplyEnvelope> {
         if (this.#termination || this.#closedByOwner) throw connectionClosedError();
-        if (this.#deferredMutationError) throw this.#deferredMutationError;
+        if (this.#deferredMutation) throw this.#deferredMutation.error;
         const timeoutError = new MobileGatewayTimeoutError();
         const response = this.#router.waitForReply(
             id,
             timeoutMs,
             () => {
-                if (isMutation) this.#deferredMutationError = timeoutError;
-                else if (this.hasOutstandingMutation()) this.#deferredLivenessError = timeoutError;
-                else this.#finish('disconnected', timeoutError);
+                const deferred: DeferredFailure = {
+                    error: timeoutError,
+                    reason: 'request-timeout',
+                };
+                if (isMutation) this.#deferredMutation = deferred;
+                else if (this.hasOutstandingMutation()) this.#deferredLiveness = deferred;
+                else this.#finish('disconnected', timeoutError, 'request-timeout');
             },
             timeoutError,
         );
@@ -388,17 +225,22 @@ export class MobileGatewayConnection {
             this.#finish(
                 'disconnected',
                 error instanceof Error ? error : new Error('The Caxri connection closed.'),
+                'send-failed',
             );
         }
         return response;
     }
 
-    close(): void {
+    /**
+     * Ends the connection for its owner; `reason` says why, so the Server log can tell an app reset from a reconnect.
+     */
+    close(reason: MobileClientCloseReason): void {
+        if (!this.#closedByOwner && !this.#termination)
+            closeSocketFor(this.#session.socket, reason);
         this.#closedByOwner = true;
         this.#heartbeat.stop();
         this.#router.rejectAll(connectionClosedError());
         this.#session.reader.close();
-        this.#session.socket.close();
         this.#listeners.clear();
         this.#observationListeners.clear();
     }
@@ -456,8 +298,8 @@ export class MobileGatewayConnection {
             if (!isFastRead) {
                 this.#outstandingMutations -= 1;
                 if (!this.hasOutstandingMutation()) {
-                    const error = this.#deferredMutationError ?? this.#deferredLivenessError;
-                    if (error) this.#finish('disconnected', error);
+                    const deferred = this.#deferredMutation ?? this.#deferredLiveness;
+                    if (deferred) this.#finish('disconnected', deferred.error, deferred.reason);
                 }
             }
         }
@@ -525,8 +367,9 @@ export class MobileGatewayConnection {
                 new Promise<never>((_resolve, reject) => {
                     timeout = setTimeout(() => {
                         const error = new Error('Caxri did not respond to the foreground probe.');
-                        if (this.hasOutstandingMutation()) this.#deferredLivenessError = error;
-                        else this.#finish('disconnected', error);
+                        if (this.hasOutstandingMutation())
+                            this.#deferredLiveness = { error, reason: 'probe-timeout' };
+                        else this.#finish('disconnected', error, 'probe-timeout');
                         reject(error);
                     }, FOREGROUND_PROBE_TIMEOUT_MS);
                 }),
