@@ -115,7 +115,8 @@ async function main(): Promise<void> {
             '--android-serial must name a disposable emulator such as emulator-5560: the run clears Caxri data on it',
         );
     }
-    // A broken scene fails here, before anything is launched.
+    // A broken scene, or a desktop too small for its canvas, fails here before anything is launched. Whether the phone
+    // capture fits needs its real size, so composing checks that.
     const { scene } = await loadPromoScene(scenePath);
     if (shouldBuildApk) await buildReleaseApk(repoRoot);
     await assertReleaseApkFresh(repoRoot);

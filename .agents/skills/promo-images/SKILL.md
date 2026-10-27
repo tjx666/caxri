@@ -70,8 +70,10 @@ the scene names; their formats are documented in
 `apps/server/src/domains/agent-chat/__tests__/fixtures/fake-claude-script.ts` and
 `fake-codex-script.ts`.
 
-- Each Session's `prompt` must equal a scripted turn's prompt. `expect` needs a matching step:
-  `waiting` an approval, `running` a hold, `failed` a fail step. Load errors name the field.
+- Each Session's `prompt` must equal a scripted turn's prompt, and `expect` must be where that turn
+  stops: its first approval step stops it in `waiting`, a hold in `running`, a fail in `failed`,
+  and a turn with none of them reaches `completed`. Load errors name the field, as they do for a
+  `desktop` too small for the `canvas`.
 - Name hold files `promo-hold-<session>`. The fake Claude control directory also holds keyword
   files such as `hold-reply`, so a shorter name can collide.
 - Seed `changes` so that they match the edits the Agents report. Source Control then agrees with

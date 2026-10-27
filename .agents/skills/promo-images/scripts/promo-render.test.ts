@@ -76,7 +76,7 @@ describe('renderHtmlToPng', () => {
         });
     }, 60_000);
 
-    it('rejects copy that would be cut off or run into the desktop window', async (context) => {
+    it('rejects a headline that would be cut off', async (context) => {
         const html = renderPromoHtml({
             ...HERO,
             headline:
@@ -91,6 +91,24 @@ describe('renderHtmlToPng', () => {
                 outPath: join(directory, 'long.png'),
             });
             expect((error as Error).message).toMatch(/does not fit: the headline is cut off/u);
+        });
+    }, 60_000);
+
+    it('rejects copy that fits its lines but runs into the desktop window', async (context) => {
+        const html = renderPromoHtml({
+            ...HERO,
+            headline:
+                'A headline long enough to need more than one line in the hero layout so it wraps twice, yes',
+            subhead:
+                'A subhead long enough to need more than one line in the hero layout so that it wraps to two lines at least, okay.',
+        });
+        await inTemporaryDirectory(async (directory) => {
+            const error = await renderOrSkip(context, html, {
+                ...HERO.canvas,
+                scale: 2,
+                outPath: join(directory, 'overlap.png'),
+            });
+            expect((error as Error).message).toMatch(/the copy overlaps the desktop window/u);
         });
     }, 60_000);
 

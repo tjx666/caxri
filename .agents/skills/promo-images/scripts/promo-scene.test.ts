@@ -13,6 +13,14 @@ const claude = {
                 { kind: 'approval', name: 'Bash', input: { command: 'make migrate' }, output: '' },
             ],
         },
+        {
+            prompt: 'Wait, then migrate.',
+            steps: [
+                { kind: 'hold', file: 'promo-hold-wait' },
+                { kind: 'approval', name: 'Bash', input: { command: 'make migrate' }, output: '' },
+            ],
+        },
+        { prompt: 'Break the build.', steps: [{ kind: 'fail', message: 'Build failed.' }] },
     ],
 };
 const codex = {
@@ -126,8 +134,64 @@ describe('parsePromoScene', () => {
             },
         ];
         expect(() => parsePromoScene(scene({ sessions }), { claude, codex })).toThrow(
-            'sessions.0.expect: "waiting" needs a "approval" step in its turn',
+            'sessions.0.expect: "waiting", but its turn stops in "completed"',
         );
+    });
+
+    it('rejects "completed" for a turn that stops at an approval', () => {
+        const sessions = [
+            {
+                key: 'coupons',
+                project: 'shop',
+                agent: 'claude',
+                title: 'Migrate',
+                prompt: 'Run the migration.',
+                expect: 'completed',
+            },
+        ];
+        expect(() => parsePromoScene(scene({ sessions }), { claude, codex })).toThrow(
+            'sessions.0.expect: "completed", but its turn stops in "waiting"',
+        );
+    });
+
+    it('lets the first blocking step decide where a turn stops', () => {
+        const session = (prompt: string, expected: string) =>
+            scene({
+                sessions: [
+                    {
+                        key: 'coupons',
+                        project: 'shop',
+                        agent: 'claude',
+                        title: 'Turn',
+                        prompt,
+                        expect: expected,
+                    },
+                ],
+            });
+        // The hold keeps the turn running, so its later approval is never reached.
+        expect(() =>
+            parsePromoScene(session('Wait, then migrate.', 'waiting'), { claude, codex }),
+        ).toThrow('sessions.0.expect: "waiting", but its turn stops in "running"');
+        expect(
+            parsePromoScene(session('Wait, then migrate.', 'running'), { claude, codex }).holds,
+        ).toEqual(['promo-hold-wait']);
+        expect(() =>
+            parsePromoScene(session('Break the build.', 'failed'), { claude, codex }),
+        ).not.toThrow();
+        expect(() =>
+            parsePromoScene(session('Break the build.', 'completed'), { claude, codex }),
+        ).toThrow('sessions.0.expect: "completed", but its turn stops in "failed"');
+    });
+
+    it('rejects a desktop too small for its canvas slot and blank copy before anything runs', () => {
+        expect(() =>
+            parsePromoScene(scene({ canvas: { width: 1500, height: 844 } }), { claude, codex }),
+        ).toThrow(
+            'desktop: a 1500px canvas draws the desktop in a 1140x713 slot, which needs at least 1140x713',
+        );
+        expect(() =>
+            parsePromoScene(scene({ copy: { headline: ' '.repeat(3) } }), { claude, codex }),
+        ).toThrow(/copy\.headline/u);
     });
 });
 

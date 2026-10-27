@@ -51,12 +51,16 @@ describe('renderPromoHtml', () => {
         expect(html).not.toContain('<b>&</b>');
     });
 
-    it('embeds the logo and both captures inline', () => {
+    it('embeds the logo and each capture inline in its own slot', () => {
         const value = input();
         const html = renderPromoHtml(value);
-        for (const picture of [value.logo, value.desktop, value.mobile]) {
-            expect(html).toContain(`src="${picture.dataUri}"`);
-        }
+        const slotSource = (slot: string) =>
+            new RegExp(String.raw`<div class="${slot}"[^>]*>\s*<img [^>]*src="([^"]+)"`, 'u').exec(
+                html,
+            )?.[1];
+        expect(slotSource('logo')).toBe(value.logo.dataUri);
+        expect(slotSource('window')).toBe(value.desktop.dataUri);
+        expect(slotSource('screen')).toBe(value.mobile.dataUri);
         expect(html).not.toMatch(/(?:src|href)="(?!data:)/u);
         expect(html).not.toContain('url(http');
     });

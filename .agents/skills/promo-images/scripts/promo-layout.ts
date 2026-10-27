@@ -154,6 +154,31 @@ function assertImage(name: string, image: PromoImage): void {
 }
 
 /**
+ * Source pixels a slot of `width` x `height` CSS pixels needs to stay sharp in a PNG rendered at `PROMO_SCALE`.
+ */
+export function slotPixels(slot: { width: number; height: number }): {
+    width: number;
+    height: number;
+} {
+    return {
+        width: Math.ceil(slot.width * PROMO_SCALE),
+        height: Math.ceil(slot.height * PROMO_SCALE),
+    };
+}
+
+/**
+ * The hero's slot for the desktop capture in CSS pixels: a fixed share of the canvas width, at the capture's aspect
+ * ratio. It depends only on the scene, so scene validation can reject a desktop too small for its canvas up front.
+ */
+export function heroDesktopSlot(
+    canvasWidth: number,
+    desktop: { width: number; height: number },
+): { width: number; height: number } {
+    const width = Math.round(canvasWidth * WINDOW_WIDTH_RATIO);
+    return { width, height: Math.round((width * desktop.height) / desktop.width) };
+}
+
+/**
  * Refuses to draw a capture larger than it can be sharp. The PNG is rendered at `PROMO_SCALE`, so a slot of `width` x
  * `height` CSS pixels needs at least `PROMO_SCALE` times that many source pixels.
  */
@@ -162,8 +187,7 @@ function assertFitsSlot(
     image: PromoImage,
     slot: { width: number; height: number },
 ): void {
-    const needWidth = Math.ceil(slot.width * PROMO_SCALE);
-    const needHeight = Math.ceil(slot.height * PROMO_SCALE);
+    const { width: needWidth, height: needHeight } = slotPixels(slot);
     if (image.width < needWidth || image.height < needHeight) {
         throw new Error(
             `The ${name} capture is ${image.width}x${image.height}, too small for its ` +
@@ -202,8 +226,10 @@ function planHero(input: PromoLayoutInput): HeroPlan {
     const { width: canvasWidth, height: canvasHeight } = input.canvas;
     const margin = Math.round(canvasWidth * 0.047);
 
-    const windowWidth = Math.round(canvasWidth * WINDOW_WIDTH_RATIO);
-    const windowHeight = Math.round((windowWidth * input.desktop.height) / input.desktop.width);
+    const { width: windowWidth, height: windowHeight } = heroDesktopSlot(
+        canvasWidth,
+        input.desktop,
+    );
     assertFitsSlot('desktop', input.desktop, { width: windowWidth, height: windowHeight });
     const window: Rect = {
         left: margin,

@@ -70,6 +70,17 @@
                     "name": "Edit",
                     "input": {
                         "file_path": "{{cwd}}/src/checkout/total.ts",
+                        "old_string": "import type { Cart } from '../cart/cart';\n\nconst TAX_RATE = 0.08;\n\nexport interface CheckoutTotal {\n    subtotal: number;\n    tax: number;",
+                        "new_string": "import type { Cart } from '../cart/cart';\nimport type { Coupon } from './coupons';\nimport { couponDiscount } from './coupons';\n\nconst TAX_RATE = 0.08;\n\nexport interface CheckoutTotal {\n    subtotal: number;\n    discount: number;\n    tax: number;"
+                    },
+                    "output": "The file {{cwd}}/src/checkout/total.ts has been updated successfully.",
+                    "durationMs": 150
+                },
+                {
+                    "kind": "tool",
+                    "name": "Edit",
+                    "input": {
+                        "file_path": "{{cwd}}/src/checkout/total.ts",
                         "old_string": "export function checkoutTotal(cart: Cart): CheckoutTotal {\n    const subtotal = cart.items.reduce((sum, item) => sum + item.price * item.quantity, 0);\n    const tax = Math.round(subtotal * TAX_RATE * 100) / 100;\n    return { subtotal, tax, total: subtotal + tax };\n}",
                         "new_string": "export function checkoutTotal(cart: Cart, coupon?: Coupon): CheckoutTotal {\n    const subtotal = cart.items.reduce((sum, item) => sum + item.price * item.quantity, 0);\n    const discount = coupon ? couponDiscount(coupon, subtotal) : 0;\n    const tax = Math.round((subtotal - discount) * TAX_RATE * 100) / 100;\n    return { subtotal, discount, tax, total: subtotal - discount + tax };\n}"
                     },

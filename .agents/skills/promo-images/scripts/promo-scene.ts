@@ -6,6 +6,7 @@ import { z } from 'zod';
 
 import { parseFakeClaudeScript } from '../../../../apps/server/src/domains/agent-chat/__tests__/fixtures/fake-claude-script.ts';
 import { parseFakeCodexScript } from '../../../../apps/server/src/domains/agent-chat/__tests__/fixtures/fake-codex-script.ts';
+import { heroDesktopSlot, slotPixels } from './promo-layout';
 
 /**
  * A promo scene: the synthetic Projects, the Agent Sessions and the copy one promo image shows. The capture spec seeds
@@ -70,8 +71,9 @@ const sessionSchema = z.strictObject({
      */
     prompt: z.string().min(1),
     /**
-     * The activity state to wait for. `waiting` needs an `approval` step, `failed` a `fail` step, and `running` a
-     * `hold` step, which the capture keeps in place until both captures are done.
+     * The activity state to wait for: where the turn stops, decided by its first blocking step. An `approval` step
+     * stops it in `waiting`, a `hold` step in `running` (the capture keeps the hold file until both captures are done),
+     * and a `fail` step in `failed`. Only a turn with none of them reaches `completed`.
      */
     expect: z.enum(['completed', 'waiting', 'running', 'failed']),
     /**
@@ -92,8 +94,8 @@ const sceneSchema = z
             height: z.number().int().min(300),
         }),
         copy: z.strictObject({
-            headline: z.string().min(1),
-            subhead: z.string().min(1).optional(),
+            headline: z.string().trim().min(1),
+            subhead: z.string().trim().min(1).optional(),
         }),
         theme: z.enum(builtinThemeIds),
         desktop: z.strictObject({
@@ -150,6 +152,19 @@ const sceneSchema = z
         });
         if (!sessionKeys.has(scene.desktop.session))
             issue(['desktop', 'session'], `names no session "${scene.desktop.session}"`);
+        const slot = heroDesktopSlot(scene.canvas.width, scene.desktop);
+        const needed = slotPixels(slot);
+        if (
+            scene.desktop.width * DESKTOP_CAPTURE_SCALE < needed.width ||
+            scene.desktop.height * DESKTOP_CAPTURE_SCALE < needed.height
+        ) {
+            issue(
+                ['desktop'],
+                `a ${scene.canvas.width}px canvas draws the desktop in a ${slot.width}x${slot.height} slot, ` +
+                    `which needs at least ${Math.ceil(needed.width / DESKTOP_CAPTURE_SCALE)}x` +
+                    `${Math.ceil(needed.height / DESKTOP_CAPTURE_SCALE)} to stay sharp`,
+            );
+        }
     });
 
 export type PromoScene = z.output<typeof sceneSchema>;
@@ -176,14 +191,14 @@ export interface LoadedPromoScene extends ParsedPromoScene {
 }
 
 /**
- * The step a Session's expected state needs in its scripted turn.
+ * Where a scripted turn stops during a capture, by its first blocking step: the capture never answers an approval and
+ * keeps every hold file until both captures are done. A turn with none of these steps completes.
  */
-const REQUIRED_STEP = {
-    completed: undefined,
-    waiting: 'approval',
-    running: 'hold',
-    failed: 'fail',
-} as const;
+const STOP_STATES = new Map<string, PromoSceneSession['expect']>([
+    ['approval', 'waiting'],
+    ['hold', 'running'],
+    ['fail', 'failed'],
+]);
 
 function formatIssues(error: z.ZodError): string {
     return error.issues
@@ -229,10 +244,13 @@ export function parsePromoScene(
         }
         for (const candidate of turn.steps)
             if (candidate.kind === 'hold') holds.add(candidate.file);
-        const step = REQUIRED_STEP[session.expect];
-        if (step && turn.steps.every((candidate) => candidate.kind !== step)) {
+        const reached =
+            turn.steps.map((candidate) => STOP_STATES.get(candidate.kind)).find(Boolean) ??
+            'completed';
+        if (reached !== session.expect) {
             problems.push(
-                `sessions.${index}.expect: "${session.expect}" needs a "${step}" step in its turn`,
+                `sessions.${index}.expect: "${session.expect}", but its turn stops in "${reached}" ` +
+                    '(its first approval, hold, or fail step decides)',
             );
         }
     });
