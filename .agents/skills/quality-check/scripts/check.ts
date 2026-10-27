@@ -10,6 +10,7 @@ import { verifyBuildReceipt } from '../../../../scripts/build-receipt';
 import { affectedTestArguments } from '../../../../scripts/run-ci-unit-tests';
 import {
     acquireDesktopLease,
+    DesktopLeaseBusyError,
     inspectDesktopLease,
     releaseDesktopLease,
 } from '../../switch-worktree/scripts/desktop-lease';
@@ -17,7 +18,7 @@ import { CommandError } from '../../switch-worktree/scripts/process';
 import { runChangedFileGuardrails } from './changed-file-guardrails';
 import type { DirtyLayer } from './changed-file-layers';
 import { dirtyLayerReportForFiles, TYPE_AWARE_EXTENSIONS } from './changed-file-layers';
-import { CheckError, parseCheckArguments } from './check-arguments';
+import { CheckError, MAX_E2E_WAIT_SECONDS, parseCheckArguments } from './check-arguments';
 import { contractTestCandidates } from './contract-test-candidates';
 import { shouldRunKnip, shouldTypecheck } from './default-gates';
 import { assertExplicitFiles } from './explicit-files';
@@ -432,6 +433,23 @@ async function runRelatedTests(root: string, files: string[]): Promise<number> {
     return files.filter((file) => CODE_EXTENSIONS.has(extname(file))).length;
 }
 
+/**
+ * Turns a failed desktop lease acquisition into the check's own error. A busy lease without `--e2e-wait` also names
+ * that option: the error is all an Agent reads at that moment, and without the hint it writes a shell retry loop whose
+ * own matching can miss the failure. A bounded wait that ran out arrives as a plain `CommandError`, so it gets no
+ * hint.
+ */
+export function checkErrorForDesktopLease(error: unknown): unknown {
+    if (error instanceof DesktopLeaseBusyError)
+        return new CheckError(
+            `${error.message}\nTo wait for it to finish, rerun with --e2e-wait <seconds> (1-${MAX_E2E_WAIT_SECONDS}) ` +
+                'instead of retrying in a shell loop.',
+            error.exitCode,
+        );
+    if (error instanceof CommandError) return new CheckError(error.message, error.exitCode);
+    return error;
+}
+
 async function runE2E(
     root: string,
     specs: string[],
@@ -460,8 +478,7 @@ async function runE2E(
                 waitMs: waitSeconds * 1000,
             });
         } catch (error) {
-            if (error instanceof CommandError) throw new CheckError(error.message, error.exitCode);
-            throw error;
+            throw checkErrorForDesktopLease(error);
         }
     }
     const environment = {
