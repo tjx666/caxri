@@ -77,6 +77,7 @@ export const SelectedSessionDetail = ({
                 requestComposerFocus(selected.id);
             }}
             onMarkRead={markRead}
+            onRequestComposerFocus={() => requestComposerFocus(selected.id)}
             onRefresh={refresh}
             onSegmentChange={(next) => setSegment(selected.id, next, conversation.segment)}
             savedAt={sessions.savedAt}

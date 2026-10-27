@@ -32,6 +32,7 @@ const mobileGatewayMethodsByRole = {
         'mobile.agentChat.readHistory',
         'mobile.agentChat.readUsage',
         'mobile.agentChat.dismissPlanPace',
+        'mobile.agentChat.readMessage',
         'mobile.session.show',
         'mobile.timeline.read',
         'mobile.changes.list',
@@ -50,6 +51,7 @@ const mobileGatewayMethodsByRole = {
         'mobile.agentChat.readHistory',
         'mobile.agentChat.readUsage',
         'mobile.agentChat.dismissPlanPace',
+        'mobile.agentChat.readMessage',
         /**
          * Sending is a reply device's whole job; Retry only resumes a failed Chat so that reply can be delivered.
          */
@@ -75,6 +77,11 @@ const mobileGatewayMethodsByRole = {
         'mobile.agentChat.readQueued',
         'mobile.agentChat.editQueued',
         /**
+         * "Edit from here" replaces a message this device could have sent and sends the new one, so it carries the
+         * sending grant, as an edited queued message does.
+         */
+        'mobile.agentChat.rewind',
+        /**
          * A slash command is typed and sent from the composer like a message, so it carries the sending grant.
          */
         'mobile.agentChat.runCommand',
@@ -99,6 +106,7 @@ const mobileGatewayMethodsByRole = {
         'mobile.agentChat.readHistory',
         'mobile.agentChat.readUsage',
         'mobile.agentChat.dismissPlanPace',
+        'mobile.agentChat.readMessage',
         'mobile.agentChat.send',
         'mobile.agentChat.retry',
         'mobile.agentChat.configure',
@@ -108,6 +116,7 @@ const mobileGatewayMethodsByRole = {
         'mobile.agentChat.takeQueued',
         'mobile.agentChat.readQueued',
         'mobile.agentChat.editQueued',
+        'mobile.agentChat.rewind',
         'mobile.agentChat.runCommand',
         /**
          * Approvals, answers, and Stop match `mobile.attention.answer` and `agent.control.interrupt`: control only.

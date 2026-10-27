@@ -17,6 +17,7 @@ import {
     liveReadSaveScope,
     trimChatSnapshot,
 } from '../read-cache/read-cache-model';
+import type { AgentChatMessageEdit } from './agent-chat-message-edit';
 import {
     agentChatPendingKey,
     agentChatPendingStore,
@@ -335,6 +336,46 @@ export const useAgentChat = ({
         },
         [request, terminalId],
     );
+    /**
+     * The whole text of a message whose tail is all the phone's window holds, for Copy and "Edit from Here".
+     */
+    const readMessage = useCallback(
+        async (itemId: string): Promise<string> => {
+            if (terminalId === null) throw new Error('No Chat is open');
+            const { text } = await request('mobile.agentChat.readMessage', { terminalId, itemId });
+            return text;
+        },
+        [request, terminalId],
+    );
+    /**
+     * "Edit from Here" held by the composer, kept per Chat so it never carries over to another Session's composer.
+     */
+    const [editRecord, setEditRecord] = useState<{
+        terminalId: string;
+        edit: AgentChatMessageEdit;
+    } | null>(null);
+    const editing = editRecord?.terminalId === terminalId ? editRecord.edit : undefined;
+    const setEditing = useCallback(
+        (edit: AgentChatMessageEdit | undefined): void => {
+            // Ending an edit leaves another Chat's alone: a rewind that settles after the reader moved on must not clear it.
+            setEditRecord((current) => {
+                if (edit) return terminalId === null ? current : { terminalId, edit };
+                return current?.terminalId === terminalId ? null : current;
+            });
+        },
+        [terminalId],
+    );
+    /**
+     * Sends an edit: Server Core rewinds the conversation to before message `itemId` and sends `text` in its place,
+     * keeping the files as they are.
+     */
+    const rewind = useCallback(
+        async (itemId: string, text: string): Promise<void> => {
+            if (terminalId === null) throw new Error('No Chat is open');
+            await request('mobile.agentChat.rewind', { terminalId, itemId, text });
+        },
+        [request, terminalId],
+    );
     const resumeQueue = useCallback(async (): Promise<void> => {
         if (terminalId === null) return;
         await request('mobile.agentChat.resumeQueue', { terminalId });
@@ -357,6 +398,10 @@ export const useAgentChat = ({
         readQueued,
         editQueued,
         takeQueued,
+        editing,
+        setEditing,
+        readMessage,
+        rewind,
     };
 };
 

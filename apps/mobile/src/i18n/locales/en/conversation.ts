@@ -49,6 +49,13 @@ export const conversation = {
     'conversation.loadFailed': 'Unable to load Conversation.',
     'conversation.loading': 'Loading Conversation…',
     'conversation.loadingEarlier': 'Loading earlier messages…',
+    'conversation.message.actions': 'Message actions',
+    'conversation.message.close': 'Close message actions',
+    'conversation.message.copy': 'Copy Message',
+    'conversation.message.copyFailed': 'Unable to copy the message. Try again.',
+    'conversation.message.readFailed': 'Unable to load the whole message. Try again.',
+    'conversation.message.selectText': 'Select Text',
+    'conversation.message.selectTitle': 'Select text to copy',
     'conversation.reconnectToUpdate': 'Reconnect to update Conversation.',
     'conversation.staleNotice':
         'This Conversation could not be updated. Showing the last loaded messages.',

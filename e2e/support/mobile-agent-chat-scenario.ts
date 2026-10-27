@@ -25,6 +25,7 @@ import {
     executeMobileChatImageStripScenario,
     executeMobileChatMultiImagePickScenario,
 } from './mobile-agent-chat-image-scenario';
+import { executeMobileChatMessageActionsScenario } from './mobile-agent-chat-message-actions-scenario';
 import {
     executeMobileChatModelScenario,
     executeMobileClaudeModelScenario,
@@ -544,6 +545,8 @@ export async function executeMobileAgentChatCase(
         case 'MOB-CHAT-33':
         case 'MOB-CHAT-34':
             return executeMobileBotInboxScenario(environment, artifacts);
+        case 'MOB-CHAT-35':
+            return executeMobileChatMessageActionsScenario(environment, artifacts);
         case 'MOB-CHAT-SEND-UNKNOWN-01':
             return executeMobileChatSendUnknownScenario(environment, artifacts);
         case 'MOB-CHAT-USAGE-GUARD-01':

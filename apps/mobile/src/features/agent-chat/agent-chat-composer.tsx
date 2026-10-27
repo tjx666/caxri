@@ -33,6 +33,7 @@ import {
     AttachButton,
 } from './agent-chat-composer-buttons';
 import { AgentChatComposerInput } from './agent-chat-composer-input';
+import { AgentChatEditBanner } from './agent-chat-edit-banner';
 import {
     agentChatComposerAvailability,
     agentChatComposerPressDeliveries,
@@ -101,6 +102,7 @@ const useComposerAction = ({
     const { t } = useTranslation();
     const [stoppingTurnId, setStoppingTurnId] = useState<string>();
     const [error, setError] = useState<string | null>(null);
+    const [isSendingEdit, setSendingEdit] = useState(false);
     /**
      * The draft a first tap was held for because no command matches it. Any edit ends the confirmation; reset during
      * render, as Desktop's command menu does.
@@ -128,6 +130,24 @@ const useComposerAction = ({
                 setError(
                     t('chat.composer.stopFailed', { provider: sentenceStartProvider(provider) }),
                 );
+            }
+            return;
+        }
+        /**
+         * An edit sends its text as the replacement message, never as a command, and leaves no pending row: the rewound
+         * timeline arrives with the new message in it. The composer gets back the draft the edit held.
+         */
+        const edit = chat.editing;
+        if (edit) {
+            setSendingEdit(true);
+            try {
+                await chat.rewind(edit.itemId, draft.trim());
+                chat.setEditing(undefined);
+                onDraftChange(edit.previousDraft);
+            } catch {
+                setError(t('chat.edit.failed'));
+            } finally {
+                setSendingEdit(false);
             }
             return;
         }
@@ -171,6 +191,7 @@ const useComposerAction = ({
         confirmsSendAsText: confirmedDraft === draft,
         error,
         isRunningCommand: commands.isRunning,
+        isSendingEdit,
         isStopping,
         run,
     };
@@ -333,19 +354,40 @@ export const AgentChatComposer = ({
     const hasDraft = draft.trim().length > 0 || images.attachments.length > 0;
     const canStop = isRunning && deviceRole === 'control';
     const isStopAction = canStop && !hasDraft;
-    const menu = useComposerMenu({ chat, draft, isEnabled: availability.isEnabled, sessionId });
-    const { chooseCommand, confirmsSendAsText, error, isRunningCommand, isStopping, run } =
-        useComposerAction({
-            activeTurnId,
-            chat,
-            draft,
-            images,
-            isStopAction,
-            menuMatches: menu.matches,
-            onDraftChange,
-            provider,
-        });
-    const isEditable = availability.isEnabled && !isRunningCommand;
+    const { editing } = chat;
+    const menu = useComposerMenu({
+        chat,
+        draft,
+        // An edit's text is the replacement message, so the command menu does not offer to run it.
+        isEnabled: availability.isEnabled && !editing,
+        sessionId,
+    });
+    const {
+        chooseCommand,
+        confirmsSendAsText,
+        error,
+        isRunningCommand,
+        isSendingEdit,
+        isStopping,
+        run,
+    } = useComposerAction({
+        activeTurnId,
+        chat,
+        draft,
+        images,
+        isStopAction,
+        menuMatches: menu.matches,
+        onDraftChange,
+        provider,
+    });
+    const isEditable = availability.isEnabled && !isRunningCommand && !isSendingEdit;
+    /**
+     * An edit waits for the running turn (or a compaction) to end, as on Desktop; Core would refuse it.
+     */
+    const editWaitReason =
+        editing && (isRunning || chat.snapshot?.operation === 'compacting')
+            ? t('chat.edit.stopToSend')
+            : undefined;
     const inputReference = useFocusRequest({
         focusComposer,
         isEditable,
@@ -354,7 +396,11 @@ export const AgentChatComposer = ({
     });
     const { canSteer, canSubmit } = agentChatComposerSubmission({
         // A message waits for its images to finish uploading, as the Terminal composer does.
-        hasDraft: hasDraft && !images.hasUnsentAttachment,
+        hasDraft:
+            hasDraft &&
+            !images.hasUnsentAttachment &&
+            // An edit replaces the message with text only; Core refuses an empty one.
+            (!editing || (draft.trim().length > 0 && editWaitReason === undefined)),
         isEditable,
         isRunning,
         isStopAction,
@@ -370,14 +416,17 @@ export const AgentChatComposer = ({
     const queue = async (): Promise<void> => {
         if (deliveries.hold === 'queue') await run();
     };
-    const { showsAttach } = agentChatComposerRowControls({
+    const rowControls = agentChatComposerRowControls({
         canAttach: deviceRole === 'reply' || deviceRole === 'control',
         hasText: draft.trim().length > 0,
         isRunning,
     });
+    // Images never return to an edit (`agentChatMessageEditAvailability`), so it offers none to add.
+    const showsAttach = rowControls.showsAttach && !editing;
     const isMenuOpen = menu.matches !== undefined || menu.notice !== undefined;
     const statusReason =
         availability.reason ??
+        editWaitReason ??
         images.waitReason ??
         imageAttachmentBudgetNote(
             images.attachments,
@@ -415,6 +464,16 @@ export const AgentChatComposer = ({
                     />
                 </View>
             )}
+            {editing ? (
+                <AgentChatEditBanner
+                    onCancel={() => {
+                        chat.setEditing(undefined);
+                        onDraftChange(editing.previousDraft);
+                    }}
+                    removedTurns={editing.removedTurns}
+                    theme={theme}
+                />
+            ) : null}
             <SessionComposerAttachments images={images} theme={theme} />
             <AgentChatCommandList
                 confirmsSendAsText={confirmsSendAsText}
@@ -452,7 +511,7 @@ export const AgentChatComposer = ({
                 <AgentChatComposerButton
                     canQueue={deliveries.hold === 'queue'}
                     canSubmit={canSubmit}
-                    isBusy={isStopping || isRunningCommand}
+                    isBusy={isStopping || isRunningCommand || isSendingEdit}
                     isRunning={isRunning}
                     isStopAction={isStopAction}
                     isStopping={isStopping}

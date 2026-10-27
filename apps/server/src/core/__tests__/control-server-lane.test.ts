@@ -171,6 +171,7 @@ const expectedLanes: Record<string, ControlLane> = {
     'mobile.agentChat.takeQueued': 'ordered',
     'mobile.agentChat.readQueued': 'ordered',
     'mobile.agentChat.editQueued': 'ordered',
+    'mobile.agentChat.rewind': 'ordered',
     'mobile.attention.answer': 'ordered',
     'mobile.attention.answerInternal': 'ordered',
     'mobile.attention.autoAllowRevoke': 'ordered',

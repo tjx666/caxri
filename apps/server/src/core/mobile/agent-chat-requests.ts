@@ -45,6 +45,7 @@ const mobileAgentChatReads: ReadonlySet<MobileAgentChatRequest['method']> = new 
     'mobile.agentChat.readTask',
     'mobile.agentChat.readHistory',
     'mobile.agentChat.readUsage',
+    'mobile.agentChat.readMessage',
 ]);
 
 export const isMobileAgentChatRead = (request: MobileAgentChatRequest): boolean =>
@@ -463,6 +464,43 @@ export async function invokeMobileAgentChatRequest(
             await forward({
                 method: 'agentChat.editQueued',
                 params: { terminalId, id, text: agentChatQueuedTextAfterEdit(prefix, text) },
+            });
+            return null;
+        }
+        case 'mobile.agentChat.readMessage': {
+            const snapshot = await domainService.request('agentChat.read', { terminalId });
+            reauthorize();
+            const item = snapshot.items.find((candidate) => candidate.id === request.params.itemId);
+            if (item?.type !== 'userMessage' && item?.type !== 'agentMessage')
+                throw new CaxriError('NOT_FOUND', 'This message is no longer in the Chat');
+            const text =
+                item.type === 'userMessage' ? agentChatQueuedTextEdit(item.text).body : item.text;
+            if (!canMobileAgentChatSend(text))
+                throw new CaxriError('VALIDATION', 'This message is too long to read on a phone');
+            return { text };
+        }
+        case 'mobile.agentChat.rewind': {
+            /**
+             * Checked here as well as in Core so a message with images is refused rather than resent without them: its
+             * images stay on Server Core and the phone has no way to put them back into an edit, as on Desktop.
+             */
+            const { itemId, text } = request.params;
+            const snapshot = await domainService.request('agentChat.read', { terminalId });
+            reauthorize();
+            const item = snapshot.items.find((candidate) => candidate.id === itemId);
+            if (item?.type !== 'userMessage')
+                throw new CaxriError('CONFLICT', 'This message is no longer in the Chat');
+            if ((item.images?.length ?? 0) > 0)
+                throw new CaxriError('CONFLICT', 'A message with images cannot be edited');
+            const { prefix } = agentChatQueuedTextEdit(item.text);
+            await forward({
+                method: 'agentChat.rewind',
+                params: {
+                    terminalId,
+                    itemId,
+                    restoreFiles: false,
+                    text: agentChatQueuedTextAfterEdit(prefix, text),
+                },
             });
             return null;
         }

@@ -321,6 +321,17 @@ parses provider files.
 - User messages: right-aligned bubbles on the raised surface color, max 85% width.
 - Agent replies: full-width Markdown, rendered natively. Code blocks scroll horizontally and never
   wrap; inline code uses the monospace face.
+- Long-pressing a user bubble or an Agent reply opens a message sheet: `Copy Message` copies its
+  whole text (a reply as its Markdown source), and `Select Text` shows that text selectable so any
+  part can be copied. Message text in the timeline is not selectable itself, because on Android a
+  selectable text claims the long press. A live Chat reads the whole text through
+  `mobile.agentChat.readMessage`, since the window keeps only the tail of a long message. On a Chat
+  a reply or control device also gets `Edit from Here` on its own messages: the composer takes the
+  message's text under a caption naming the turns it replaces (`Editing an earlier message · 3 turns
+will be replaced`) with `Cancel`, which restores the held-back draft. Sending calls
+  `mobile.agentChat.rewind`, which rewinds only the conversation; the phone never reverts files.
+  A message with images, a steered one, or any message while a turn runs shows the action dimmed
+  with Desktop's reason.
 - Tool calls: one row each: icon, verb, and a one-line summary (`Ran npm test`, `Edited
 src/auth.ts`), plus duration once it reaches a second; a sub-second duration is never shown, on a
   row, a group, or a turn. Consecutive settled tool calls collapse into one group row (`Ran 4

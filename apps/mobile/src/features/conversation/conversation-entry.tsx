@@ -1,6 +1,6 @@
-import type { ReactNode } from 'react';
+import type { ComponentProps, ReactNode } from 'react';
 import { memo, use, useState } from 'react';
-import { Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { useReducedMotion } from 'react-native-reanimated';
 
 import type { AgentTimelineItem } from '@caxri/protocol';
@@ -8,6 +8,8 @@ import type { AgentTimelineItem } from '@caxri/protocol';
 import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { ConversationMarkdown } from './conversation-markdown';
+import type { ConversationMessageTarget } from './conversation-message-actions';
+import { ConversationMessageActions } from './conversation-message-actions';
 import type { ConversationEntry as Entry } from './conversation-model';
 import { conversationTurnDivider } from './conversation-model';
 import { conversationStyles as styles } from './conversation-styles';
@@ -71,6 +73,43 @@ const ConversationAgentMessage = ({
     );
 };
 
+/**
+ * A message that opens its actions on a long press, as chat apps do. Without actions it is a plain view. The text
+ * inside is not `selectable`: on Android a selectable text claims the long press for its own selection, so the press
+ * would never reach the actions; Select Text in the sheet offers selection instead.
+ */
+const ConversationMessagePress = ({
+    children,
+    message,
+    style,
+    testID,
+}: {
+    children: ReactNode;
+    message: ConversationMessageTarget;
+    style: ComponentProps<typeof View>['style'];
+    testID: string;
+}) => {
+    const { t } = useTranslation();
+    const openActions = use(ConversationMessageActions);
+    if (!openActions)
+        return (
+            <View style={style} testID={testID}>
+                {children}
+            </View>
+        );
+    return (
+        <Pressable
+            accessibilityActions={[{ name: 'longpress', label: t('conversation.message.actions') }]}
+            onAccessibilityAction={() => openActions(message)}
+            onLongPress={() => openActions(message)}
+            style={style}
+            testID={testID}
+        >
+            {children}
+        </Pressable>
+    );
+};
+
 export const ConversationEntry = memo(
     ({
         entry,
@@ -107,11 +146,15 @@ export const ConversationEntry = memo(
                     {renderUserAttachments?.(entry.id)}
                     {userExtras}
                     {entry.text.length > 0 ? (
-                        <View style={[styles.userBubble, { backgroundColor: theme.surface }]}>
-                            <Text selectable style={[styles.userText, { color: theme.text }]}>
+                        <ConversationMessagePress
+                            message={{ id: entry.id, role: 'user', text: entry.text }}
+                            style={[styles.userBubble, { backgroundColor: theme.surface }]}
+                            testID={`conversation-user-bubble-${entry.id}`}
+                        >
+                            <Text style={[styles.userText, { color: theme.text }]}>
                                 {entry.text}
                             </Text>
-                        </View>
+                        </ConversationMessagePress>
                     ) : null}
                 </View>
             );
@@ -119,13 +162,17 @@ export const ConversationEntry = memo(
             return <ConversationSystemEvent event={entry} theme={theme} />;
         if (entry.type === 'agentMessage')
             return (
-                <View style={styles.message} testID={`conversation-agent-${entry.id}`}>
+                <ConversationMessagePress
+                    message={{ id: entry.id, role: 'agent', text: entry.text }}
+                    style={styles.message}
+                    testID={`conversation-agent-${entry.id}`}
+                >
                     <ConversationAgentMessage
                         isStreaming={entry.streaming === true}
                         text={entry.text}
                         theme={theme}
                     />
-                </View>
+                </ConversationMessagePress>
             );
         return (
             <View style={styles.message}>
