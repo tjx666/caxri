@@ -8,6 +8,7 @@ import { Tooltip } from '../../components/ui/tooltip';
 import type { TranslationKey } from '../../i18n';
 import { useTranslation } from '../../i18n';
 import { useCommandShortcut } from '../../lib/keybindings';
+import { cn } from '../../lib/utilities';
 import { switchTerminalSurfaceTo } from './terminal-surface-commands';
 import { usePendingTerminalSurface } from './terminal-surface-switch-pending';
 
@@ -43,13 +44,14 @@ const SURFACE_COPY: Record<
  * A host may dim the pressed segment's icon at rest by setting `--agent-surface-toggle-pressed` (the Workbench tab rail
  * does); without it the segment keeps the shared Toggle's `--foreground`.
  *
- * The pressed segment carries a border on top of the shared Toggle's pressed fill, scoped to this control: the shared
- * Toggle paints hover and pressed identically (`bg-elevated` + `text-foreground`), which in a two-segment switch made
- * the hovered other segment look already selected.
+ * The selection is one raised thumb (`--elevated` with a 1px `--shadow`) on a borderless `--state-track`, and it slides
+ * to the open surface over `--motion-chrome-switch` once the switch lands (it jumps under reduced motion). The segments
+ * themselves never take a fill: the shared Toggle paints hover and pressed identically (`bg-elevated`), which in a
+ * two-segment switch made the hovered other segment look already selected, so here hover only brightens the icon.
  *
  * Each segment is 24px wide and its hit area reaches 24px tall through an invisible `::after` that overflows the 20px
  * visual into the group's padding, so the 13px icons and the rail's height stay as they were while the target meets the
- * 24px minimum.
+ * 24px minimum. The thumb is the same 24px wide, so moving one segment over is exactly `translate-x-6`.
  *
  * The Server answers only after the provider restarted, which takes seconds. While that switch is pending (from any
  * entry point) both segments read as disabled and the target segment shows a spinner, so the press visibly registered.
@@ -67,12 +69,19 @@ export function AgentSurfaceToggle({ terminal }: { terminal: TerminalRecord }) {
         <ToggleGroup<TerminalSurface>
             aria-label={t('terminal.surface.toggleLabel')}
             aria-busy={isSwitching}
-            className="agent-surface-toggle gap-0.5 rounded border border-border p-0.5"
+            className="agent-surface-toggle relative gap-0 rounded-md bg-state-track p-0.5"
             value={[current]}
             onValueChange={(next) => {
                 if (!isSwitching && next[0]) void switchTerminalSurfaceTo(terminal, next[0]);
             }}
         >
+            <span
+                aria-hidden="true"
+                className={cn(
+                    'pointer-events-none absolute inset-y-0.5 left-0.5 w-6 rounded bg-elevated shadow-[0_1px_2px_var(--shadow)] transition-transform duration-(--motion-chrome-switch) ease-(--motion-ease-emphasized) motion-reduce:transition-none',
+                    current === 'chat' ? 'translate-x-6' : 'translate-x-0',
+                )}
+            />
             {SURFACES.map(({ surface, Icon }) => {
                 const copy = SURFACE_COPY[surface];
                 const label = t(copy.label);
@@ -88,7 +97,7 @@ export function AgentSurfaceToggle({ terminal }: { terminal: TerminalRecord }) {
                             aria-busy={isPending}
                             aria-disabled={isSwitching || undefined}
                             aria-label={label}
-                            className="relative h-5 min-w-6 px-1 after:absolute after:inset-x-0 after:-inset-y-0.5 after:content-[''] aria-disabled:cursor-not-allowed aria-disabled:opacity-50 data-pressed:border-border data-pressed:text-[var(--agent-surface-toggle-pressed,var(--foreground))]"
+                            className="relative h-5 w-6 min-w-6 rounded px-1 after:absolute after:inset-x-0 after:-inset-y-0.5 after:content-[''] hover:bg-transparent aria-disabled:cursor-not-allowed aria-disabled:opacity-50 data-pressed:bg-transparent data-pressed:text-[var(--agent-surface-toggle-pressed,var(--foreground))]"
                             value={surface}
                         >
                             {isPending ? (

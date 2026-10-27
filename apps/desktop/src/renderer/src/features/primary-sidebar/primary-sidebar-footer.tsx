@@ -1,6 +1,5 @@
-import { Archive } from 'lucide-react';
+import { Archive, ChevronRight } from 'lucide-react';
 
-import { Button } from '../../components/ui/button';
 import { useTranslation } from '../../i18n';
 import { setArchivedSessionsOpen } from '../../stores/dialogs';
 
@@ -8,26 +7,37 @@ import { setArchivedSessionsOpen } from '../../stores/dialogs';
  * The global Archived Sessions entry. The footer row holds nothing else, so the whole row is the button: a short
  * visible label on the left, the count on the right. A glyph-only chip was tried and reverted: it left most of the row
  * dead to clicks and read as a stray control.
+ *
+ * It reads as one more row of the Session tree above it: the same 28px height, 16px glyph inset (the footer's 8px
+ * padding plus the row's, matching the list's), 14px glyph, and `--state-hover` tint as a Session row, so its icon and
+ * label line up with the Sessions. A chevron appears on hover because the row opens the Archived Sessions dialog rather
+ * than selecting anything; it fades in over reserved space so the count never shifts. There is no divider above it: the
+ * list's bottom scroll cue marks the edge only while rows are hidden below, so a list that ends above the footer ends
+ * cleanly.
  */
 export function PrimarySidebarFooter({ archivedCount }: { archivedCount: number }) {
     const { t } = useTranslation();
     return (
-        <div className="shrink-0 border-t border-border p-1">
-            <Button
-                className="archived-sessions-entry w-full justify-start gap-1.5 text-muted hover:text-foreground focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none"
-                size="sm"
-                variant="ghost"
+        <div className="shrink-0 px-2 pt-1 pb-2">
+            <button
+                className="archived-sessions-entry group/archived flex h-7 w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-left text-[12px] text-muted hover:bg-state-hover hover:text-foreground focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none"
+                type="button"
                 aria-label={t('primarySidebar.footer.archivedAriaLabel', { count: archivedCount })}
                 onClick={() => setArchivedSessionsOpen(true)}
             >
-                <Archive aria-hidden="true" size={13} className="shrink-0" />
+                <Archive aria-hidden="true" size={14} className="shrink-0" />
                 <span aria-hidden="true" className="min-w-0 truncate">
                     {t('primarySidebar.footer.archived')}
                 </span>
-                <span aria-hidden="true" className="ml-auto tabular-nums">
+                <span aria-hidden="true" className="ml-auto text-[11px] tabular-nums">
                     {archivedCount}
                 </span>
-            </Button>
+                <ChevronRight
+                    aria-hidden="true"
+                    size={12}
+                    className="-mr-0.5 shrink-0 opacity-0 group-hover/archived:opacity-100 group-focus-visible/archived:opacity-100"
+                />
+            </button>
         </div>
     );
 }

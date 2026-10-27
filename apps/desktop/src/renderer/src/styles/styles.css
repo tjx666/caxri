@@ -491,20 +491,31 @@
 
 /*
  * VS Code's `.shadow.top` scroll cue, shared by every side bar body: the Project tree, the Activity queue, and each
- * Secondary Sidebar view. `useScrollEdge` (`hooks/use-scroll-edge.ts`) publishes `data-scrolled` on the overflow box,
- * and the shadow is painted on its `.scroll-edge-shell` parent rather than on the scroller itself: an inset
- * `box-shadow` on the scroller would sit in its padding, above the first visible row, instead of overlaying it.
+ * Secondary Sidebar view. `useScrollEdge` (`hooks/use-scroll-edge.ts`) publishes `data-scrolled` and `data-more-below`
+ * on the overflow box, and the shadows are painted on its `.scroll-edge-shell` parent rather than on the scroller
+ * itself: an inset `box-shadow` on the scroller would sit in its padding, beyond the first or last visible row, instead
+ * of overlaying it. The bottom one mirrors the top while rows remain below, so the edge of a side bar body that ends at
+ * a footer is marked only when something is actually hidden there.
  */
-.scroll-edge-shell:has(> [data-scrolled='true'])::after {
+.scroll-edge-shell:has(> [data-scrolled='true'])::after,
+.scroll-edge-shell:has(> [data-more-below='true'])::before {
     content: '';
     position: absolute;
     inset-inline: 0;
-    top: 0;
     /* Above the Files tree's sticky ancestor overlay, which lives inside the scroller. */
     z-index: 20;
     height: 6px;
     pointer-events: none;
+}
+
+.scroll-edge-shell:has(> [data-scrolled='true'])::after {
+    top: 0;
     box-shadow: var(--shadow) 0 6px 6px -6px inset;
+}
+
+.scroll-edge-shell:has(> [data-more-below='true'])::before {
+    bottom: 0;
+    box-shadow: var(--shadow) 0 -6px 6px -6px inset;
 }
 
 /*
