@@ -3,7 +3,10 @@ import { agentChatApprovalChoices } from '@caxri/protocol';
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
 
 import { fixture } from './chat-service-fixture';
-import { FAKE_CODEX_WEB_LINK_LABEL } from './fixtures/fake-codex-replies';
+import {
+    FAKE_CODEX_INLINE_LINK_PREFIX,
+    FAKE_CODEX_WEB_LINK_LABEL,
+} from './fixtures/fake-codex-replies';
 
 describe('AgentChatService with a fake Codex app-server', () => {
     it('streams a turn into a projection every Client converges on, and binds the thread on its first turn', async () => {
@@ -207,6 +210,18 @@ describe('AgentChatService with a fake Codex app-server', () => {
         expect(done.items.at(-1)).toMatchObject({
             type: 'agentMessage',
             text: `[${FAKE_CODEX_WEB_LINK_LABEL}](http://10.0.2.2:8123/page)`,
+        });
+    });
+
+    it('answers weblink inline with a label and the named page as an autolink on one line', async () => {
+        const { service, terminal, until } = await fixture();
+        await service.send(terminal.id, {
+            text: 'weblink inline http://10.0.2.2:8123/page?report=1',
+        });
+        const done = await until((snapshot) => snapshot.turns.at(-1)?.status === 'completed');
+        expect(done.items.at(-1)).toMatchObject({
+            type: 'agentMessage',
+            text: `${FAKE_CODEX_INLINE_LINK_PREFIX}<http://10.0.2.2:8123/page?report=1>`,
         });
     });
 

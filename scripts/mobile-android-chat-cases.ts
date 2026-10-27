@@ -229,6 +229,12 @@ export const androidChatCases = {
         recordingOwner: 'scenario',
         scenario: 'agent-chat-session-preview',
     },
+    'MOB-CHAT-LINK-WRAP-01': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'agent-chat-inline-link',
+    },
     'MOB-CHAT-RUNNING-OPEN-01': {
         desktopProfile: 'managed-by-isolated-e2e',
         media: ['screenshot', 'video'],

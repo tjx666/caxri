@@ -221,9 +221,31 @@ export const ConversationMarkdown = memo(
             }),
             [monospace, theme],
         );
+        const onLinkPress = useCallback(
+            (url: string) => {
+                onBeforeOpenLink?.();
+                openLink(url);
+                // The library opens the link itself unless the handler returns false.
+                return false;
+            },
+            [onBeforeOpenLink],
+        );
         const rules = useMemo<RenderRules>(
             () => ({
                 image: () => null,
+                // The library wraps a link in a `Pressable`, a View that sits inside the paragraph's text as one
+                // unbreakable box: after other text it rides above the baseline and a long URL runs off the screen. A
+                // nested pressable `Text` flows, aligns, and wraps with the words around it.
+                link: (node, children, _parents, styles) => (
+                    <Text
+                        accessibilityRole="link"
+                        key={node.key}
+                        onPress={() => onLinkPress(node.attributes.href)}
+                        style={styles.link}
+                    >
+                        {children}
+                    </Text>
+                ),
                 // A run that just arrived is a nested span whose color fades in: the reply's tail reads as a soft
                 // gradient. A span takes no `opacity` of its own inside a `Text`, so the color carries it.
                 [FADING_TEXT_NODE]: (node, _children, _parents, styles, inheritedStyles) => {
@@ -270,18 +292,9 @@ export const ConversationMarkdown = memo(
                     />
                 ),
             }),
-            [monospace, theme],
+            [monospace, onLinkPress, theme],
         );
         const source = useRevealingMarkdown(text, reveal);
-        const onLinkPress = useCallback(
-            (url: string) => {
-                onBeforeOpenLink?.();
-                openLink(url);
-                // The library opens the link itself unless the handler returns false.
-                return false;
-            },
-            [onBeforeOpenLink],
-        );
         return (
             <Markdown
                 allowedImageHandlers={NO_IMAGE_HANDLERS}

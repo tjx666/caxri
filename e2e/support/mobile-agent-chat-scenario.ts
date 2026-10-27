@@ -25,6 +25,7 @@ import {
     executeMobileChatImageStripScenario,
     executeMobileChatMultiImagePickScenario,
 } from './mobile-agent-chat-image-scenario';
+import { executeMobileChatInlineLinkScenario } from './mobile-agent-chat-inline-link-scenario';
 import { executeMobileChatMessageActionsScenario } from './mobile-agent-chat-message-actions-scenario';
 import {
     executeMobileChatModelScenario,
@@ -551,6 +552,8 @@ export async function executeMobileAgentChatCase(
             return executeMobileChatMessageActionsScenario(environment, artifacts);
         case 'MOB-CHAT-36':
             return executeMobileSessionPreviewScenario(environment, artifacts);
+        case 'MOB-CHAT-LINK-WRAP-01':
+            return executeMobileChatInlineLinkScenario(environment, artifacts);
         case 'MOB-CHAT-RUNNING-OPEN-01':
             return executeMobileChatRunningTurnScenario(environment, artifacts);
         case 'MOB-CHAT-SEND-UNKNOWN-01':

@@ -49,7 +49,11 @@ export interface MobileBrowserPage {
 export async function startMobileBrowserPage(): Promise<MobileBrowserPage> {
     let hits = 0;
     const server = createServer((request, response) => {
-        if (request.method === 'GET' && request.url === MOBILE_BROWSER_PAGE_PATH) {
+        // A query string names nothing the page reads; the inline link case adds one only to make its URL long.
+        if (
+            request.method === 'GET' &&
+            request.url?.split('?', 1)[0] === MOBILE_BROWSER_PAGE_PATH
+        ) {
             hits += 1;
             response.writeHead(200, {
                 'cache-control': 'no-store',
