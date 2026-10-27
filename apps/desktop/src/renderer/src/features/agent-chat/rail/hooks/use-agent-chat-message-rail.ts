@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 
 import { isScrolledToEnd } from '../../hooks/use-agent-chat-scroll';
 import { AGENT_CHAT_SETTLED_ENTRY_ATTRIBUTE } from '../../transcript/agent-chat-history';
+import { AGENT_CHAT_TURN_START_ATTRIBUTE } from '../../transcript/agent-chat-timeline';
 import {
     AGENT_CHAT_USER_MESSAGE_ATTRIBUTE,
     agentChatActiveRailIndex,
@@ -42,13 +43,27 @@ function messageElements(content: HTMLElement): Map<string, HTMLElement> {
 /**
  * The element a jump to user message `id` aligns, or `null` when the message is not rendered.
  */
-export function agentChatMessageElement(content: HTMLElement, id: string): HTMLElement | null {
+function agentChatMessageElement(content: HTMLElement, id: string): HTMLElement | null {
     const message = content.querySelector<HTMLElement>(
         `[${CSS.escape(AGENT_CHAT_USER_MESSAGE_ATTRIBUTE)}="${CSS.escape(id)}"]`,
     );
     return (
         message?.closest<HTMLElement>(`[${CSS.escape(AGENT_CHAT_SETTLED_ENTRY_ATTRIBUTE)}]`) ??
         message
+    );
+}
+
+/**
+ * The element where turn `turnId` begins (`AGENT_CHAT_TURN_START_ATTRIBUTE`), or `null` when none of it is rendered.
+ * The first match in document order is the earliest, since a turn split between history read back and the live timeline
+ * is marked in both.
+ */
+export function agentChatTurnStartElement(
+    content: HTMLElement,
+    turnId: string,
+): HTMLElement | null {
+    return content.querySelector<HTMLElement>(
+        `[${CSS.escape(AGENT_CHAT_TURN_START_ATTRIBUTE)}="${CSS.escape(turnId)}"]`,
     );
 }
 
@@ -60,15 +75,21 @@ function contentTop(view: HTMLElement, element: HTMLElement): number {
 }
 
 /**
- * Tracks which user message the reader is at and scrolls to one on request. Positions are measured from the DOM
- * whenever the content resizes, since a streamed reply or an expanded work row moves every message below it without a
- * scroll; a scroll frame only compares them with the reading line.
+ * Tracks which user message the reader is at and scrolls to one, or to where a turn begins, on request. Positions are
+ * measured from the DOM whenever the content resizes, since a streamed reply or an expanded work row moves every
+ * message below it without a scroll; a scroll frame only compares them with the reading line. A jump calls
+ * `stopFollowing` first, so the view stays where it lands instead of following the latest entry.
  */
 export function useAgentChatMessageRail(
     scrollReference: RefObject<HTMLDivElement | null>,
     contentReference: RefObject<HTMLDivElement | null>,
     markIds: readonly string[],
-): { activeIndex: number; jumpTo: (id: string) => void } {
+    stopFollowing: () => void,
+): {
+    activeIndex: number;
+    jumpTo: (id: string) => void;
+    jumpToTurn: (turnId: string) => void;
+} {
     const [activeIndex, setActiveIndex] = useState(-1);
     const idsKey = markIds.join('\n');
     useEffect(() => {
@@ -120,25 +141,29 @@ export function useAgentChatMessageRail(
             if (frame !== undefined) cancelAnimationFrame(frame);
         };
     }, [scrollReference, contentReference, idsKey]);
-    const jumpTo = (id: string): void => {
+    const align = (resolve: (content: HTMLElement) => HTMLElement | null): void => {
         const view = scrollReference.current;
         const content = contentReference.current;
-        const element = content && agentChatMessageElement(content, id);
+        const element = content && resolve(content);
         if (!view || !element) return;
+        stopFollowing();
         /**
          * Instant rather than smooth: a smooth scroll's first frames still sit within the follow threshold of the end,
          * so their scroll events would resume following and the next layout would pin the view straight back down.
          */
-        const align = (frames: number): void => {
+        const settle = (frames: number): void => {
             const top = Math.max(contentTop(view, element) - JUMP_MARGIN_PX, 0);
             if (Math.abs(view.scrollTop - top) > 1) view.scrollTo({ top });
             /**
              * Entries of history read back render at a placeholder height until they come near the view, so the ones
              * the jump brings into range resize and move the message; align again until they settle.
              */
-            if (frames > 0) requestAnimationFrame(() => align(frames - 1));
+            if (frames > 0) requestAnimationFrame(() => settle(frames - 1));
         };
-        align(JUMP_SETTLE_FRAMES);
+        settle(JUMP_SETTLE_FRAMES);
     };
-    return { activeIndex, jumpTo };
+    const jumpTo = (id: string): void => align((content) => agentChatMessageElement(content, id));
+    const jumpToTurn = (turnId: string): void =>
+        align((content) => agentChatTurnStartElement(content, turnId));
+    return { activeIndex, jumpTo, jumpToTurn };
 }

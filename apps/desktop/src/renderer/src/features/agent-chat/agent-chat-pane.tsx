@@ -77,7 +77,9 @@ import { AgentChatReturnHint } from './transcript/agent-chat-return-hint';
 import { AgentChatSettledTimeline } from './transcript/agent-chat-settled-timeline';
 import type { AgentChatTimelineEntry } from './transcript/agent-chat-timeline';
 import {
+    AGENT_CHAT_TURN_START_ATTRIBUTE,
     agentChatTimelineEntryKey,
+    agentChatTurnStartId,
     isAgentChatAwaitingReplyInTimeline,
 } from './transcript/agent-chat-timeline';
 import { AgentChatTimelineEntryView } from './transcript/agent-chat-timeline-entry-view';
@@ -230,14 +232,11 @@ export function AgentChatPane({
         history.history,
     );
     const railMarkIds = useMemo(() => railMarks.map((mark) => mark.id), [railMarks]);
-    const rail = useAgentChatMessageRail(scrollReference, contentReference, railMarkIds);
-    const { jumpTo } = rail;
-    const jumpToMessage = useCallback(
-        (id: string): void => {
-            stopFollowing();
-            jumpTo(id);
-        },
-        [jumpTo, stopFollowing],
+    const rail = useAgentChatMessageRail(
+        scrollReference,
+        contentReference,
+        railMarkIds,
+        stopFollowing,
     );
     const readBackHistory = useMemo(() => ({ canFork }), [canFork]);
     const taskLinks = useAgentChatTaskLinks(snapshot?.tasks, terminalId, canOpenBesideChat);
@@ -378,7 +377,7 @@ export function AgentChatPane({
                         <AgentChatReturnHint
                             hint={returnHint}
                             onDismiss={() => dismissReturn(terminal.sessionId)}
-                            onJump={jumpToMessage}
+                            onJump={rail.jumpToTurn}
                         />
                     )}
                     <AgentChatSelectionToolbar
@@ -391,7 +390,7 @@ export function AgentChatPane({
                         activeIndex={rail.activeIndex}
                         hasEarlierHistory={history.hasMore || history.history.truncated}
                         marks={railMarks}
-                        onJump={jumpToMessage}
+                        onJump={rail.jumpTo}
                     />
                     <AgentChatJumpToLatest
                         focusTarget={inputReference}
@@ -469,7 +468,9 @@ function ConversationLoading() {
 }
 
 /**
- * The live timeline's rows, each preceded by the day break that starts its calendar day.
+ * The live timeline's rows, each preceded by the day break that starts its calendar day. A row that opens a turn sits
+ * in a box marked with the turn's id (`AGENT_CHAT_TURN_START_ATTRIBUTE`), laid out like a settled entry's box, so the
+ * return hint can jump to a turn no prompt opened.
  */
 function LiveTimelineEntries({
     dayBreaks,
@@ -480,13 +481,24 @@ function LiveTimelineEntries({
     onOpenFile: (reference: string) => void;
     timeline: readonly AgentChatTimelineEntry[];
 }) {
-    return timeline.map((entry) => {
+    return timeline.map((entry, index) => {
         const key = agentChatTimelineEntryKey(entry);
         const dayBreak = dayBreaks.get(key);
+        const turnStartId = agentChatTurnStartId(entry, timeline[index - 1]);
+        const view = <AgentChatTimelineEntryView entry={entry} onOpenFile={onOpenFile} />;
         return (
             <Fragment key={key}>
                 {dayBreak !== undefined && <AgentChatDayBreak timestamp={dayBreak} />}
-                <AgentChatTimelineEntryView entry={entry} onOpenFile={onOpenFile} />
+                {turnStartId === undefined ? (
+                    view
+                ) : (
+                    <div
+                        {...{ [AGENT_CHAT_TURN_START_ATTRIBUTE]: turnStartId }}
+                        className="flex flex-col gap-3"
+                    >
+                        {view}
+                    </div>
+                )}
             </Fragment>
         );
     });

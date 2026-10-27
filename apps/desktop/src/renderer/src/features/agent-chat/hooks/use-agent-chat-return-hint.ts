@@ -4,9 +4,9 @@ import { useEffect, useMemo, useState } from 'react';
 import type { AgentChatItem, AgentChatSnapshot } from '@caxri/protocol';
 
 import { useSessionLookStore } from '../../session/session-look-boundary';
-import { agentChatMessageElement } from '../rail/hooks/use-agent-chat-message-rail';
+import { agentChatTurnStartElement } from '../rail/hooks/use-agent-chat-message-rail';
 import {
-    agentChatReturnAnchorId,
+    agentChatReturnAnchorTurnId,
     isAgentChatReturnAnchorAbove,
     isAgentChatReturnHintShown,
     turnsFinishedDuringAbsence,
@@ -18,15 +18,15 @@ export interface AgentChatReturnHintData {
      */
     count: number;
     /**
-     * The prompt to jump to, when it is loaded.
+     * The first missed turn, to jump to where it begins, when it is loaded.
      */
-    anchorId: string | undefined;
+    anchorTurnId: string | undefined;
 }
 
 /**
- * Whether user message `anchorId` sits wholly above the scroll view (`isAgentChatReturnAnchorAbove`), so the reader
- * cannot see where the missed reply begins; checked on scroll and whenever the content or view resizes. `undefined`
- * while there is no anchor or it is not rendered.
+ * Whether the opening entry of turn `anchorId` sits wholly above the scroll view (`isAgentChatReturnAnchorAbove`), so
+ * the reader cannot see where the missed reply begins; checked on scroll and whenever the content or view resizes.
+ * `undefined` while there is no anchor or it is not rendered.
  */
 function useAgentChatAnchorAbove(
     scrollReference: RefObject<HTMLDivElement | null>,
@@ -40,7 +40,7 @@ function useAgentChatAnchorAbove(
         const content = contentReference.current;
         if (!view || !content || anchorId === undefined) return;
         const measure = (): void => {
-            const element = agentChatMessageElement(content, anchorId);
+            const element = agentChatTurnStartElement(content, anchorId);
             setMeasured({
                 anchorId,
                 isAbove: element
@@ -97,7 +97,7 @@ export function useAgentChatReturnHint(
         if (count === 0) return;
         return {
             count,
-            anchorId: agentChatReturnAnchorId(
+            anchorTurnId: agentChatReturnAnchorTurnId(
                 [...olderItems, ...snapshot.items],
                 snapshot.turns,
                 window,
@@ -107,7 +107,7 @@ export function useAgentChatReturnHint(
     const isAnchorAbove = useAgentChatAnchorAbove(
         view.scrollReference,
         view.contentReference,
-        hint?.anchorId,
+        hint?.anchorTurnId,
     );
     if (!hint) return undefined;
     const { isLatestInView } = view;

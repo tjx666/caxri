@@ -22,10 +22,10 @@ export function AgentChatReturnHint({
 }: {
     hint: AgentChatReturnHintData;
     onDismiss: () => void;
-    onJump: (anchorId: string) => void;
+    onJump: (turnId: string) => void;
 }) {
     const { t } = useTranslation();
-    const { anchorId, count } = hint;
+    const { anchorTurnId, count } = hint;
     const label = t(
         count === 1 ? 'agentChat.returnHint.turnsOne' : 'agentChat.returnHint.turnsOther',
         { count },
@@ -34,14 +34,14 @@ export function AgentChatReturnHint({
         <div
             className={cn(
                 'absolute bottom-2 left-1/2 z-10 flex -translate-x-1/2 items-center gap-0.5 rounded-full border border-border bg-elevated pr-0.5 text-xs text-foreground shadow-[0_8px_24px_var(--shadow)]',
-                anchorId === undefined ? 'pl-3' : 'pl-0.5',
+                anchorTurnId === undefined ? 'pl-3' : 'pl-0.5',
                 // Fades and rises in on the overlay tokens like Jump to latest. The pane unmounts the hint, so only the
                 // enter can animate here.
                 'transition-[opacity,translate] duration-(--motion-overlay-enter) ease-(--motion-ease-enter) motion-safe:starting:translate-y-1 motion-safe:starting:opacity-0',
             )}
             role="status"
         >
-            {anchorId === undefined ? (
+            {anchorTurnId === undefined ? (
                 <span className="tabular-nums">{label}</span>
             ) : (
                 <Tooltip
@@ -57,7 +57,7 @@ export function AgentChatReturnHint({
                         size="sm"
                         variant="ghost"
                         onClick={() => {
-                            onJump(anchorId);
+                            onJump(anchorTurnId);
                             onDismiss();
                         }}
                     >

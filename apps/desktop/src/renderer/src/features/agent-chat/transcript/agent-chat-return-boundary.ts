@@ -1,4 +1,5 @@
 import type { AgentChatItem, AgentChatTurn } from '@caxri/protocol';
+import { isAgentChatItemVisible } from '@caxri/protocol';
 
 /**
  * The window of time the user was away from a Session: `boundary` is when they last looked at it, `capturedAt` is when
@@ -33,23 +34,27 @@ export function turnsFinishedDuringAbsence(
 }
 
 /**
- * The prompt that opened the first turn the user missed, to jump to; `undefined` when no turn was missed or its prompt
- * is not among the loaded items.
+ * The first turn the user missed, to jump to where it begins; `undefined` when no turn was missed or none of its
+ * visible items is loaded. Its prompt opens it when the user sent one, while a turn a background task or `/goal`
+ * started opens on whatever it showed first (`AGENT_CHAT_TURN_START_ATTRIBUTE`).
  */
-export function agentChatReturnAnchorId(
+export function agentChatReturnAnchorTurnId(
     items: readonly AgentChatItem[],
     turns: readonly AgentChatTurn[],
     window: AgentChatReturnWindow,
 ): string | undefined {
     const first = turnsFinishedDuringAbsence(turns, window).at(0);
     if (!first) return undefined;
-    return items.find((item) => item.type === 'userMessage' && item.turnId === first.id)?.id;
+    return items.some((item) => item.turnId === first.id && isAgentChatItemVisible(item))
+        ? first.id
+        : undefined;
 }
 
 /**
- * Whether the first missed prompt sits wholly above the scroll view, given both elements' client rects. What the user
- * missed is the Agent's reply, which starts where the prompt ends, so the prompt's bottom edge decides: a long prompt
- * whose top has scrolled away while its end and the reply below it are on screen is already in view.
+ * Whether the first missed turn's opening entry sits wholly above the scroll view, given both elements' client rects.
+ * When that entry is the prompt, what the user missed is the Agent's reply, which starts where the prompt ends, so the
+ * bottom edge decides: a long prompt whose top has scrolled away while its end and the reply below it are on screen is
+ * already in view.
  */
 export function isAgentChatReturnAnchorAbove(
     anchor: Pick<DOMRect, 'bottom'>,
@@ -62,7 +67,7 @@ export function isAgentChatReturnAnchorAbove(
  * Whether the return hint shows now. It only helps while the start of what the user missed is out of view above: one
  * missed turn longer than the view still needs a way back to its prompt, while two short ones may sit fully on screen.
  * It shares the bottom slot with Jump to latest, which shows only once the latest entry leaves the view, so the two
- * never overlap. When the first missed prompt is not loaded (`isAnchorAbove` is `undefined`), the hint has nothing to
+ * never overlap. When the first missed turn is not loaded (`isAnchorAbove` is `undefined`), the hint has nothing to
  * jump to and only reports a count worth knowing: two turns or more.
  */
 export function isAgentChatReturnHintShown({
