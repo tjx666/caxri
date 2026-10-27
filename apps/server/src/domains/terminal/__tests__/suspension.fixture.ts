@@ -54,6 +54,7 @@ function session(id: string, primaryAgentTerminalId: string) {
 export function createHarness(
     options: {
         chats?: ConstructorParameters<typeof TerminalSuspensionService>[0]['chats'];
+        isChatCompactionPending?: (terminalId: string) => boolean;
         botSessionId?: string;
         /**
          * When set, every `terminals.suspend` call pauses instead of resolving immediately, standing in for the real
@@ -128,6 +129,7 @@ export function createHarness(
                 logs.push({ event, fields: entry?.fields ?? {} }),
         } as never,
         chats: options.chats,
+        isChatCompactionPending: options.isChatCompactionPending,
         now: () => now,
         onSuspendedSessionReselected: options.onSuspendedSessionReselected,
         isPresenceSettled: () => options.isPresenceSettled ?? true,

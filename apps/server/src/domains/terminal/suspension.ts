@@ -60,6 +60,11 @@ interface TerminalSuspensionServiceOptions {
             reason?: 'idle' | 'observation',
         ): Promise<TerminalRecord | undefined>;
     };
+    /**
+     * Whether a Chat's idle compaction is still due before its cache expires; see `isChatCompactionPending` on the
+     * policy input.
+     */
+    isChatCompactionPending?: (terminalId: string) => boolean;
     watchHub: Pick<WatchHub, 'registerPoller'>;
 }
 
@@ -143,6 +148,7 @@ export class TerminalSuspensionService {
             chatReadLeaseAt: (terminalId) => this.options.chats?.readLeaseAt(terminalId),
             isChatSuspendable: (terminalId) =>
                 this.options.chats?.isSuspendable(terminalId) ?? false,
+            isChatCompactionPending: this.options.isChatCompactionPending,
             isObservedRemotely: (terminalId) =>
                 this.options.remoteObservers.some((source) =>
                     source.isObservedRemotely(terminalId),

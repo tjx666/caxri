@@ -42,7 +42,7 @@ export const agentSuspensionSettingsSpec = [
         key: 'terminal.idleSuspension.afterMinutes',
         title: 'Suspend idle Agents after',
         description:
-            'How long an Agent waits, in a Session you are not viewing, before it is suspended. Used only while Suspend idle Agents in the background is on.',
+            'How long an Agent waits, in a Session you are not viewing, before it is suspended. Used only while Suspend idle Agents in the background is on. A long Chat that is about to be summarized while idle keeps running until the summary is done.',
         category: 'agents',
         keywords: ['agent', 'suspend', 'idle', 'timeout', 'delay', 'hibernate', 'sleep'],
         min: 1,

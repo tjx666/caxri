@@ -166,10 +166,58 @@ describe('ChatIdleCompaction', () => {
     ])('leaves the Chat alone for %s', async (_name, options) => {
         const f = fixture(options);
         f.advanceTo(4.5);
+        expect(f.compaction.isPending('chat')).toBe(false);
         await f.compaction.sweep();
         f.advanceTo(55);
         await f.compaction.sweep();
         expect(f.agentChat.compactIdle).not.toHaveBeenCalled();
         expect(f.maintenanceTurns.begin).not.toHaveBeenCalled();
+    });
+});
+
+describe('ChatIdleCompaction.isPending', () => {
+    it('holds an eligible Chat from its response until the compaction is attempted', async () => {
+        const f = fixture();
+        f.advanceTo(30);
+        expect(f.compaction.isPending('chat')).toBe(true);
+        f.advanceTo(54);
+        expect(f.compaction.isPending('chat')).toBe(true);
+        await f.compaction.sweep();
+        expect(f.compaction.isPending('chat')).toBe(false);
+    });
+
+    it.each([
+        ['refused', new CaxriError('CONFLICT', 'moved on')],
+        ['unsupported', new CaxriError('VALIDATION', 'no compact command')],
+        ['failed', new Error('provider crashed')],
+    ])('releases the Chat once its compaction was %s', async (_name, error) => {
+        const f = fixture();
+        f.agentChat.compactIdle.mockRejectedValue(error);
+        f.advanceTo(54);
+        await f.compaction.sweep();
+        expect(f.compaction.isPending('chat')).toBe(false);
+    });
+
+    it('releases a busy Chat once its cache expired', () => {
+        const f = fixture();
+        f.agentChat.idleLaunchId.mockReturnValue(undefined);
+        f.advanceTo(59.9);
+        expect(f.compaction.isPending('chat')).toBe(true);
+        f.advanceTo(60);
+        expect(f.compaction.isPending('chat')).toBe(false);
+    });
+
+    it("does not hold a Chat still over the threshold for the compaction's own response, but does for the next one", async () => {
+        const f = fixture();
+        f.advanceTo(54);
+        await f.compaction.sweep();
+        // The compaction's turn finishes as a response that restarts the cache, still above the threshold.
+        f.current.usage = { ...f.current.usage!, lastResponseAt: respondedAt + 55 * minute };
+        f.advanceTo(56);
+        expect(f.compaction.isPending('chat')).toBe(false);
+        // The user's next message starts a new response, which is held again.
+        f.current.usage = { ...f.current.usage, lastResponseAt: respondedAt + 120 * minute };
+        f.advanceTo(121);
+        expect(f.compaction.isPending('chat')).toBe(true);
     });
 });

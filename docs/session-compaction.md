@@ -114,6 +114,13 @@ once: a compaction resets the response time, and a refused or failed attempt wai
 response. A Chat that stays busy through the whole window is given up as `cache_expired`. Every attempt
 logs `session.idle_compaction` with its closed `outcome`, provider, context size, and idle time.
 
+Because a suspended Chat is never started to compact, idle suspension waits for this one: while a Chat
+is eligible, its current response has not been attempted, and its cache has not expired
+(`ChatIdleCompaction.isPending`), the idle rule leaves it running ([Agent suspension](agent-suspension.md#agent-chats)).
+The hold ends once the attempt finishes, whatever its outcome, or the cache expires, and it never
+covers the compaction's own response, so a Chat still above the threshold afterwards is not kept
+resident one cache lifetime after another.
+
 The composer's cache row says `Auto-compacts in N min` while a compaction is pending, and the resulting
 transcript notice says it was compacted while idle. That label is live only: a history replay shows it
 as a manual compaction. The `agentChat.idleCompaction.enabled` setting (on by default) turns the feature

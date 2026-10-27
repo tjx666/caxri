@@ -51,6 +51,14 @@ export class ChatIdleCompaction {
      * The `lastResponseAt` each Chat was last attempted (or found expired) for.
      */
     private readonly attempted = new Map<string, number>();
+    /**
+     * The `lastResponseAt` a submitted compaction ran for, until the compaction's own response replaces it.
+     */
+    private readonly submittedFor = new Map<string, number>();
+    /**
+     * The `lastResponseAt` of each Chat's latest compaction response, which never holds the Chat from suspension.
+     */
+    private readonly compactionResponse = new Map<string, number>();
     private poller: WatchHandle | undefined;
     private sweeping: Promise<void> | undefined;
 
@@ -62,14 +70,20 @@ export class ChatIdleCompaction {
 
     private async runSweep(): Promise<void> {
         const terminalIds = new Set(this.options.agentChat.states.terminalIds());
-        for (const terminalId of this.attempted.keys())
-            if (!terminalIds.has(terminalId)) this.attempted.delete(terminalId);
+        for (const entries of [this.attempted, this.submittedFor, this.compactionResponse])
+            for (const terminalId of entries.keys())
+                if (!terminalIds.has(terminalId)) entries.delete(terminalId);
         if (!this.options.settings()['agentChat.idleCompaction.enabled']) return;
         // One Chat at a time: each compaction is a provider request, and none needs to wait on another.
         await mapWithConcurrency([...terminalIds], 1, (terminalId) => this.check(terminalId));
     }
 
-    private async check(terminalId: string): Promise<void> {
+    /**
+     * The usage that makes this Session's primary Chat eligible for idle compaction, or `undefined` when it never will
+     * be for its current response (not the primary Chat, a provider that does not compact, a short cache, or a context
+     * under the threshold).
+     */
+    private eligible(terminalId: string) {
         const { agentChat, database } = this.options;
         const terminal = database.getTerminal(terminalId);
         // Only a Session's primary Chat, as batch compaction (`SessionCompaction`) targets.
@@ -90,6 +104,32 @@ export class ChatIdleCompaction {
         )
             return;
         const { cacheTtlMinutes, lastResponseAt, totalTokens } = usage;
+        this.noteCompactionResponse(terminalId, lastResponseAt);
+        return {
+            dueAt,
+            expiresAt: lastResponseAt + cacheTtlMinutes * 60_000,
+            lastResponseAt,
+            provider,
+            totalTokens,
+        };
+    }
+
+    /**
+     * Records the first response after a submitted compaction as the compaction's own, so {@link isPending} does not
+     * hold the Chat for it.
+     */
+    private noteCompactionResponse(terminalId: string, lastResponseAt: number): void {
+        const submittedFor = this.submittedFor.get(terminalId);
+        if (submittedFor === undefined || submittedFor === lastResponseAt) return;
+        this.submittedFor.delete(terminalId);
+        this.compactionResponse.set(terminalId, lastResponseAt);
+    }
+
+    private async check(terminalId: string): Promise<void> {
+        const { agentChat } = this.options;
+        const due = this.eligible(terminalId);
+        if (!due) return;
+        const { dueAt, expiresAt, lastResponseAt, provider, totalTokens } = due;
         const now = this.now();
         if (now < dueAt || this.attempted.get(terminalId) === lastResponseAt) return;
         const fields = {
@@ -98,7 +138,7 @@ export class ChatIdleCompaction {
             contextTokens: totalTokens,
             idleMs: now - lastResponseAt,
         };
-        if (now >= lastResponseAt + cacheTtlMinutes * 60_000) {
+        if (now >= expiresAt) {
             this.attempted.set(terminalId, lastResponseAt);
             this.options.logger.write('info', logEventCatalog.sessionCompaction.idle, {
                 fields: { ...fields, outcome: 'cache_expired' satisfies IdleCompactionOutcome },
@@ -111,6 +151,7 @@ export class ChatIdleCompaction {
         if (!launchId || this.options.maintenanceTurns.holds(terminalId)) return;
         this.attempted.set(terminalId, lastResponseAt);
         const { error, outcome } = await this.compact(terminalId, launchId);
+        if (outcome === 'submitted') this.submittedFor.set(terminalId, lastResponseAt);
         this.options.logger.write(
             outcome === 'failed' ? 'warn' : 'info',
             logEventCatalog.sessionCompaction.idle,
@@ -143,6 +184,24 @@ export class ChatIdleCompaction {
                 return { outcome: 'unsupported' };
             return { outcome: 'failed', error };
         }
+    }
+
+    /**
+     * Whether this Chat's idle compaction is still to run before its cache expires: the idle-suspension rule keeps such
+     * a Chat running until then (`isChatCompactionPending`), because a suspended Chat is never started to compact. The
+     * hold ends once the compaction was attempted (whatever its outcome) or the cache expired, and never covers the
+     * compaction's own response, so a Chat still above the threshold afterwards is not kept one cache lifetime after
+     * another.
+     */
+    isPending(terminalId: string): boolean {
+        if (!this.options.settings()['agentChat.idleCompaction.enabled']) return false;
+        const due = this.eligible(terminalId);
+        return (
+            due !== undefined &&
+            this.now() < due.expiresAt &&
+            this.attempted.get(terminalId) !== due.lastResponseAt &&
+            this.compactionResponse.get(terminalId) !== due.lastResponseAt
+        );
     }
 
     start(): void {

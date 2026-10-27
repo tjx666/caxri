@@ -11,6 +11,13 @@ const recorder = vi.hoisted(
     () =>
         function recorder(name: string) {
             return class {
+                constructor(readonly options?: Record<string, unknown>) {}
+
+                isPending(terminalId: string): boolean {
+                    lifecycle.events.push(`${name}.isPending:${terminalId}`);
+                    return true;
+                }
+
                 start(): void {
                     lifecycle.events.push(`${name}.start`);
                 }
@@ -56,6 +63,18 @@ describe('createTerminalSupervision', () => {
         const { supervision, suspensionState } = compose();
 
         expect(suspensionState.service).toBe(supervision.terminalSuspension);
+    });
+
+    it('holds idle suspension for a Chat whose idle compaction is pending', () => {
+        const { supervision } = compose();
+        const { isChatCompactionPending } = (
+            supervision.terminalSuspension as unknown as {
+                options: { isChatCompactionPending: (terminalId: string) => boolean };
+            }
+        ).options;
+
+        expect(isChatCompactionPending('chat-1')).toBe(true);
+        expect(lifecycle.events).toEqual(['idleCompaction.isPending:chat-1']);
     });
 
     it('starts every poller and fully closes each one before the next', async () => {
