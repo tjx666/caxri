@@ -160,6 +160,18 @@ rather than being guessed as main Agent output. The same feedback survives Termi
 switching and history restoration; live SDK events and persisted records have distinct envelopes.
 Local `--plugin-dir` launch arguments also carry through to the Chat SDK.
 
+Codex Chat applies the same rule to the app-server's feedback notifications
+(`apps/server/src/domains/agent-chat/feedback/codex-feedback.ts`). A `hook/completed` run that `failed` is an
+error titled with its event (`Hook "PreToolUse" failed`) and its error entries; Codex reports no exit
+code, so a silent Hook reads `hook exited with code N`. A `blocked` or `stopped` run is a warning
+with its feedback and stop entries. A run that completed, and `hook/started`, stay out of Chat.
+`warning`, `configWarning`, `guardianWarning`, and `deprecationNotice` become warnings in the running
+turn, one per text and turn because Codex repeats them. `model/rerouted` names the model that
+answered instead (`Model changed`), and `model/verification` shows Codex's own Trusted Access for
+Cyber copy. Each shown notice logs `agent_chat.provider_notice` with closed values only. Codex keeps
+none of these in `thread/read`, so they do not survive a restart or a Terminal-to-Chat switch, and a
+subagent thread's feedback is not shown.
+
 The feedback callouts follow [Paseo's notification presentation](https://github.com/getpaseo/paseo/blob/64693f21cf564389a0b74b57777267761e27f71c/packages/app/src/components/message.tsx):
 severity color, an icon, and a readable body. Mod command output and blocked input use the warning
 treatment; a failed Hook is an error. An error or warning body renders as Markdown with its line

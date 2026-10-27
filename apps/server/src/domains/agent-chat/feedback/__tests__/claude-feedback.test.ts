@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
+import { claudeChatSettings } from '../../launch-settings';
 import { claudeFeedbackItems, claudeFeedbackToolUseId } from '../claude-feedback';
-import { claudeChatSettings } from '../launch-settings';
 
 describe('real Claude feedback envelopes', () => {
     it('keeps live mod output separate from model replies', () => {

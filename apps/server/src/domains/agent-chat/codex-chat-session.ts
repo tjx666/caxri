@@ -58,6 +58,7 @@ import { CodexTasks } from './codex-tasks';
 import { initializeCodexConnection, openCodexThread } from './codex-thread-open';
 import { finishedTurnOperations, historyOperations } from './codex-turns';
 import { codexTurnFailure, CodexUsageLimits } from './continuation/codex-usage-limit';
+import { applyCodexNotice } from './feedback/codex-feedback';
 import { CodexGoals } from './goals/codex-goals';
 import { JsonRpcConnection } from './json-rpc-connection';
 import { forkCodexThread, revertCodexThread } from './rewind/codex-rewind';
@@ -269,7 +270,7 @@ class CodexChatSession implements AgentChatProviderSession {
                 return;
             }
             default: {
-                // MCP startup and warning notifications are not conversation content.
+                applyCodexNotice(this.options, method, parameters, turnId);
             }
         }
     }

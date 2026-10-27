@@ -1,9 +1,11 @@
 /**
  * The fake Codex app-server's reply to a message no scenario claims: reasoning, a plan, and a streamed reply quoting
- * the message, then a token usage report.
+ * the message, then a token usage report. A `hookfeedback` message plays Codex's non-item feedback instead
+ * (`fake-codex-feedback.ts`).
  */
 import crypto from 'node:crypto';
 
+import { runProviderFeedback } from './fake-codex-feedback.ts';
 import type { FakeCodexIo, FakeTurn } from './fake-codex-io.ts';
 
 /**
@@ -22,6 +24,7 @@ const LONG_REPLY_TEXT = [
 ].join('\n\n');
 
 export async function runDefaultReply(io: FakeCodexIo, turn: FakeTurn, said: string) {
+    if (said.includes('hookfeedback')) return runProviderFeedback(io, turn);
     const reasoning = { type: 'reasoning', id: crypto.randomUUID(), summary: [], content: [] };
     io.startItem(turn, { ...reasoning });
     /**

@@ -34,6 +34,7 @@ function unstartedHost(provider: (typeof agentProviderIds)[number]): AgentChatSe
         onPermissionChanged: vi.fn(),
         onProtocolRejected: vi.fn(),
         onDeliveryChecked: vi.fn(),
+        onProviderNotice: vi.fn(),
         onForkReleaseFailed: vi.fn(),
         onExit: vi.fn(),
         readTranscript: () => Promise.resolve(undefined),

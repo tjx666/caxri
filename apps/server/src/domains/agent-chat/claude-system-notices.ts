@@ -4,7 +4,7 @@ import type { AgentChatItem, AgentChatPatchOperation, AgentChatUsage } from '@ca
 
 import { clip, isRecord, stringField } from './chat-items';
 import type { AgentChatSessionHost } from './chat-provider';
-import { claudeFeedbackItems } from './claude-feedback';
+import { claudeFeedbackItems } from './feedback/claude-feedback';
 
 /**
  * Claude Code `system` frames that show as Chat state or notices rather than conversation content: compaction progress

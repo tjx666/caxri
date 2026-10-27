@@ -63,6 +63,27 @@ export function clip(value: string, limit: number): string {
 }
 
 /**
+ * A notice the provider wrote, split into the 2,000-character pieces a notice `message` allows, so long feedback stays
+ * complete instead of cut. Each piece's id appends its offset to `id`.
+ */
+export function noticeChunks(
+    id: string,
+    content: string,
+    notice: Omit<Extract<AgentChatItem, { type: 'notice' }>, 'id' | 'message' | 'type'>,
+): Array<Extract<AgentChatItem, { type: 'notice' }>> {
+    const items: Array<Extract<AgentChatItem, { type: 'notice' }>> = [];
+    for (let offset = 0; offset < content.length; offset += 2_000) {
+        items.push({
+            id: `${id}:${offset}`,
+            type: 'notice',
+            ...notice,
+            message: content.slice(offset, offset + 2_000),
+        });
+    }
+    return items;
+}
+
+/**
  * An image original as a provider's record stores it, validated before it reaches a Client.
  */
 export const storedChatImageSchema = agentChatImageInputSchema.omit({ thumbnail: true });

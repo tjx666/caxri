@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import type { AgentChatItem } from '@caxri/protocol';
 
-import { clip, isRecord, stringField } from './chat-items';
+import { clip, isRecord, noticeChunks, stringField } from '../chat-items';
 
 type Json = Record<string, unknown>;
 type Notice = Extract<AgentChatItem, { type: 'notice' }>;
@@ -155,16 +155,9 @@ export function claudeFeedbackItems(
     }
     if (!content.trim()) return [];
     const id = clip(`claude-output:${stringField(message.uuid) ?? randomUUID()}`, 180);
-    const items: Notice[] = [];
-    for (let offset = 0; offset < content.length; offset += 2_000) {
-        items.push({
-            id: `${id}:${offset}`,
-            ...(turnId && { turnId }),
-            type: 'notice',
-            kind,
-            ...(title && { title: clip(title, 200) }),
-            message: content.slice(offset, offset + 2_000),
-        });
-    }
-    return items;
+    return noticeChunks(id, content, {
+        ...(turnId && { turnId }),
+        kind,
+        ...(title && { title: clip(title, 200) }),
+    });
 }
