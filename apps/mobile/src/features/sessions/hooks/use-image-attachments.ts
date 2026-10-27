@@ -67,6 +67,16 @@ const renderChatThumbnail = async (
 
 export type ImageSource = 'library' | 'camera' | 'clipboard';
 
+/**
+ * One image a source returned; a clipboard image arrives already encoded.
+ */
+interface PickedImage {
+    uri: string;
+    width: number;
+    height: number;
+    base64?: string;
+}
+
 const failureMessage = (error: unknown, t: Translate): string =>
     mobileErrorMessage(error, t('sessions.image.uploadFailed'), t);
 
@@ -171,12 +181,9 @@ export const useImageAttachments = (
     /**
      * Prepares a picked image into an upload: a JPEG at most 1600 wide, plus a Chat thumbnail when asked for one.
      */
-    const prepare = async (source: {
-        uri: string;
-        width: number;
-        height: number;
-        base64?: string;
-    }): Promise<Pick<ImageAttachment, 'base64' | 'thumbnail' | 'uri'>> => {
+    const prepare = async (
+        source: PickedImage,
+    ): Promise<Pick<ImageAttachment, 'base64' | 'thumbnail' | 'uri'>> => {
         let { uri, base64 } = source;
         let size = { width: source.width, height: source.height };
         if (base64 === undefined) {
@@ -206,43 +213,16 @@ export const useImageAttachments = (
         };
     };
 
-    const add = async (source: ImageSource) => {
-        if (imageAttachmentStore.get(key).length >= maxAttachments) return;
-        const id = newAttachmentId();
+    /**
+     * Resizes, compresses, and uploads an image already shown as `Preparing…`. A failure removes the image and is
+     * returned for the caller to report, so one bad image of several does not stop the rest.
+     */
+    const attach = async (id: string, picked: PickedImage): Promise<unknown> => {
+        // Removed while an earlier image of the same pick was still uploading.
+        if (imageAttachmentStore.isCancelled(id)) return undefined;
         try {
-            let picked: { uri: string; width: number; height: number; base64?: string };
-            if (source === 'clipboard') {
-                const image = await Clipboard.getImageAsync({ format: 'jpeg', jpegQuality: 0.75 });
-                if (!image) throw new MobileLocalizedError(t('sessions.image.clipboardEmpty'));
-                picked = {
-                    uri: image.data,
-                    base64: image.data.replace(/^data:image\/jpeg;base64,/u, ''),
-                    ...image.size,
-                };
-            } else {
-                const result =
-                    source === 'camera'
-                        ? await ImagePicker.launchCameraAsync({
-                              mediaTypes: ['images'],
-                              quality: 1,
-                          })
-                        : await ImagePicker.launchImageLibraryAsync({
-                              mediaTypes: ['images'],
-                              quality: 1,
-                          });
-                if (result.canceled || !result.assets[0]) return;
-                const asset = result.assets[0];
-                picked = { uri: asset.uri, width: asset.width, height: asset.height };
-            }
-            // Another pick may have filled the strip while the picker was open.
-            if (imageAttachmentStore.get(key).length >= maxAttachments) return;
-            // The picked picture shows at once as `Preparing…` while it is resized and compressed.
-            update((current) => [
-                ...current,
-                { id, uri: picked.uri, progress: 0, state: 'preparing' },
-            ]);
             const prepared = await prepare(picked);
-            if (imageAttachmentStore.isCancelled(id)) return;
+            if (imageAttachmentStore.isCancelled(id)) return undefined;
             const base64Length = prepared.base64?.length ?? 0;
             if (
                 maxTotal &&
@@ -265,13 +245,79 @@ export const useImageAttachments = (
                 }),
             );
             await upload(item);
+            return undefined;
         } catch (error) {
             update((current) => removeImageAttachment(current, id));
+            return error;
+        }
+    };
+
+    const add = async (source: ImageSource) => {
+        const remaining = () => maxAttachments - imageAttachmentStore.get(key).length;
+        if (remaining() <= 0) return;
+        let picked: PickedImage[];
+        try {
+            if (source === 'clipboard') {
+                const image = await Clipboard.getImageAsync({ format: 'jpeg', jpegQuality: 0.75 });
+                if (!image) throw new MobileLocalizedError(t('sessions.image.clipboardEmpty'));
+                picked = [
+                    {
+                        uri: image.data,
+                        base64: image.data.replace(/^data:image\/jpeg;base64,/u, ''),
+                        ...image.size,
+                    },
+                ];
+            } else {
+                const result =
+                    source === 'camera'
+                        ? await ImagePicker.launchCameraAsync({
+                              mediaTypes: ['images'],
+                              quality: 1,
+                          })
+                        : await ImagePicker.launchImageLibraryAsync({
+                              allowsMultipleSelection: true,
+                              mediaTypes: ['images'],
+                              orderedSelection: true,
+                              quality: 1,
+                              selectionLimit: remaining(),
+                          });
+                if (result.canceled) return;
+                picked = result.assets.map(({ height, uri, width }) => ({ height, uri, width }));
+            }
+        } catch (error) {
             Alert.alert(
                 t('sessions.image.attachFailedTitle'),
                 mobileErrorMessage(error, t('sessions.image.attachFailedBody'), t),
             );
+            return;
         }
+        // Another pick may have filled the strip while the picker was open.
+        const pending = picked
+            .slice(0, Math.max(0, remaining()))
+            .map((image) => ({ id: newAttachmentId(), image }));
+        // Every picked image shows at once as `Preparing…`, then each is prepared and uploaded in turn, so the
+        // combined-size limit sees the images before it.
+        update((current) => [
+            ...current,
+            ...pending.map(({ id, image }) => ({
+                id,
+                uri: image.uri,
+                progress: 0,
+                state: 'preparing' as const,
+            })),
+        ]);
+        let failure: unknown;
+        for (const { id, image } of pending) {
+            // Each image is checked against the ones prepared before it, so the uploads are sequential by design.
+            // react-doctor-disable-next-line react-doctor/async-await-in-loop -- see above
+            const error = await attach(id, image); // eslint-disable-line no-await-in-loop -- see above
+            failure ??= error;
+        }
+        if (failure !== undefined)
+            Alert.alert(
+                t('sessions.image.attachFailedTitle'),
+                mobileErrorMessage(failure, t('sessions.image.attachFailedBody'), t),
+            );
     };
 
     const remove = (id: string) => {

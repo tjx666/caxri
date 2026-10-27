@@ -103,7 +103,7 @@ export const pushMobileFixture = (
  */
 export async function mobileNativeControlBounds(
     serial: string,
-    query: { className?: string; text?: string; resourceId?: string; singleImageTile?: boolean },
+    query: { className?: string; text?: string; resourceId?: string; imageTile?: number },
 ): Promise<ReturnType<typeof androidBounds>> {
     const dumpPath = '/data/local/tmp/caxri-acceptance-native.xml';
     let source: string;
@@ -121,7 +121,7 @@ export async function mobileNativeControlBounds(
         .matchAll(/<node\b[^>]*>/gu)
         .map(([node]) => node)
         .filter((node) => {
-            if (query.singleImageTile) {
+            if (query.imageTile !== undefined) {
                 const tile = androidBounds(/\bbounds="([^"]+)"/u.exec(node)?.[1] ?? '');
                 if (!tile || !node.includes('clickable="true"')) return false;
                 const width = tile.right - tile.left;
@@ -134,15 +134,19 @@ export async function mobileNativeControlBounds(
             return new RegExp(String.raw`\b${attribute}="([^"]*)"`, 'u').exec(node)?.[1] === value;
         })
         .toArray();
-    if (candidates.length !== 1) return null;
-    const node = candidates[0];
+    // A Photo Picker grid lists its square tiles in reading order; any other query must name exactly one node.
+    const node =
+        query.imageTile === undefined
+            ? candidates.length === 1 && candidates[0]
+            : candidates[query.imageTile];
+    if (!node) return null;
     if (!node.includes('enabled="true"')) return null;
     return androidBounds(/\bbounds="([^"]+)"/u.exec(node)?.[1] ?? '');
 }
 
 export async function tapMobileNativeControl(
     serial: string,
-    query: { text?: string; resourceId?: string; singleImageTile?: boolean },
+    query: { text?: string; resourceId?: string; imageTile?: number },
 ): Promise<void> {
     const bounds = await waitForMobile(
         () => mobileNativeControlBounds(serial, query),
