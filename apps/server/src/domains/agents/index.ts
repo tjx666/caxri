@@ -10,7 +10,7 @@ export {
 } from './attention-auto-allow';
 export { AgentAttentionRequests } from './attention-requests';
 export { CompactionReadiness } from './compaction-readiness';
-export type { ContextCacheObservation } from './context-cache';
+export type { ContextCacheObservation, ContextCacheOptions } from './context-cache';
 export { inspectContextCache } from './context-cache';
 export {
     type AgentEnvironment,
@@ -60,6 +60,7 @@ export {
     readClaudeSubagentToolUseId,
     resolveClaudeConfigDirectory,
 } from './providers/claude/paths';
+export { hasForeverCodexCache, readCodexAuthMode } from './providers/codex/cache-auth';
 export { probeOpenCodexSessionIds } from './providers/codex/open-sessions';
 export { resolveCodexHome } from './providers/codex/paths';
 export { parseCodexRolloutName } from './providers/codex/rollouts';

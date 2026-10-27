@@ -7,6 +7,7 @@ import type {
 } from '@caxri/protocol';
 import { findAgentChatModel } from '@caxri/protocol';
 
+import { hasForeverCodexCache } from '../agents';
 import { ChatTurnUsage, codexTurnResponse } from '../usage';
 import { boundedChatModels, clip, isRecord, stringField } from './chat-items';
 import type { AgentChatDefaultsSave, AgentChatSessionHost } from './chat-provider';
@@ -252,16 +253,11 @@ const ACCOUNT_READ_TIMEOUT_MS = 5_000;
 
 /**
  * The cache lifetime for a Codex sign-in mode, as `account/read` (`account.type`) or `account/updated` (`authMode`)
- * names it. A ChatGPT sign-in keeps its cache with no expiry: since 2026-10-21 OpenAI keeps the cache of signed-in
- * Codex users forever, so returning to an old conversation never re-reads it at full price, and an expiry hint would be
+ * names it. A sign-in that keeps its cache forever (`hasForeverCodexCache`) has no expiry, so an expiry hint would be
  * wrong. Any other mode, and a mode Codex did not report, keeps the 30-minute estimate.
- *
- * @see https://x.com/thsottiaux/status/2112712984644784534
  */
 function codexCacheTtlMinutes(authMode: string | undefined): number | undefined {
-    return authMode === 'chatgpt' || authMode === 'chatgptAuthTokens'
-        ? undefined
-        : CODEX_CACHE_TTL_MINUTES;
+    return hasForeverCodexCache(authMode) ? undefined : CODEX_CACHE_TTL_MINUTES;
 }
 
 /**

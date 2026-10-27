@@ -30,7 +30,9 @@ Server Core reads a bounded, provider-authorized native transcript tail. It uses
 input usage, not cumulative usage or transcript file size. No transcript content reaches notifications,
 diagnostics, or application storage.
 
-- Codex: `last_token_usage.input_tokens`, falling back to `total_tokens` when input is zero; 30 minutes.
+- Codex: `last_token_usage.input_tokens`, falling back to `total_tokens` when input is zero; 30 minutes,
+  or no expiry when `$CODEX_HOME/auth.json` reports a ChatGPT sign-in (`auth_mode` `chatgpt` or
+  `chatgptAuthTokens`), whose cache OpenAI keeps indefinitely. A missing or unreadable file keeps 30 minutes.
 - Claude: input, cache creation, and cache read tokens combined; explicit one-hour cache creation takes
   precedence over five-minute creation. A cache-read-only turn can reuse preceding lifetime evidence
   within the current compacted segment. Missing lifetime evidence falls back to one hour.

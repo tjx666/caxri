@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -24,13 +24,18 @@ function transcript(ageMinutes = 1) {
         }),
     };
 }
-async function fixture() {
+async function fixture(authMode?: string) {
     const directory = await mkdtemp(join(tmpdir(), 'caxri-batch-compact-'));
     const database = new CaxriDatabase(join(directory, 'state.db'));
     onTestFinished(async () => {
         database.close();
         await rm(directory, { recursive: true, force: true });
     });
+    // A fake CODEX_HOME keeps the developer's real sign-in out of the cache lifetime.
+    const codexHome = join(directory, 'codex-home');
+    await mkdir(codexHome);
+    if (authMode)
+        await writeFile(join(codexHome, 'auth.json'), JSON.stringify({ auth_mode: authMode }));
     const project = database.createProject(directory);
     const readiness = new CompactionReadiness();
     const add = () => {
@@ -84,7 +89,7 @@ async function fixture() {
         readiness,
         terminals,
         coordinator,
-        environment: defaultAgentEnvironment(),
+        environment: { ...defaultAgentEnvironment(), variables: { CODEX_HOME: codexHome } },
         now: () => now,
         readTranscript,
     });
@@ -149,6 +154,19 @@ describe('batch compaction', () => {
         f.agentChat.compactIdle.mockRejectedValueOnce(new Error('crashed'));
         expect((await f.service.run()).items[0]?.outcome).toBe('failed');
     });
+    it('keeps an old Codex Session eligible when the ChatGPT sign-in never expires its cache', async () => {
+        const f = await fixture('chatgpt');
+        f.readTranscript.mockResolvedValue(transcript(24 * 60));
+        expect((await f.service.run()).items[0]?.outcome).toBe('submitted');
+    });
+    it.each(['apikey', undefined])(
+        'still expires an old Codex Session under sign-in mode %s',
+        async (mode) => {
+            const f = await fixture(mode);
+            f.readTranscript.mockResolvedValue(transcript(24 * 60));
+            expect((await f.service.run()).items[0]?.outcome).toBe('cache_expired');
+        },
+    );
     it.each([30, 31, -1])(
         'does not spend tokens outside the estimated cache window (%i minutes)',
         async (age) => {
