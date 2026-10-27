@@ -1,4 +1,5 @@
 import type { AgentChatItem, AgentChatSnapshot } from '@caxri/protocol';
+import { agentChatApprovalChoices } from '@caxri/protocol';
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
 
 import { fixture } from './chat-service-fixture';
@@ -88,6 +89,24 @@ describe('AgentChatService with a fake Codex app-server', () => {
         });
         expect(signals.map((signal) => signal.phase)).toContain('attentionRequested');
         expect(signals.map((signal) => signal.phase)).toContain('attentionResolved');
+    });
+
+    it('offers Deny on a Codex command approval that lists only accept and cancel, and goes on when declined', async () => {
+        const { service, terminal, until } = await fixture();
+        await service.send(terminal.id, { text: 'please approve this' });
+        const pending = await until((snapshot) => snapshot.requests.length === 1);
+        const request = pending.requests[0];
+        if (request.kind !== 'command') throw new Error('expected a command approval');
+        expect(agentChatApprovalChoices(request).map((choice) => choice.decision)).toEqual([
+            'accept',
+            'decline',
+        ]);
+        service.respond(terminal.id, request.id, { kind: 'decision', decision: 'decline' });
+        const done = await until((snapshot) => snapshot.turns.at(-1)?.status === 'completed');
+        expect(done.items.find((item) => item.type === 'command')).toMatchObject({
+            status: 'declined',
+        });
+        expect(done.items.at(-1)).toMatchObject({ text: 'The command was declined.' });
     });
 
     it('links a file-change approval to the change it gates and marks an oversized diff', async () => {

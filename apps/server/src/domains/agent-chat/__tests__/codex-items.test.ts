@@ -392,6 +392,22 @@ describe('Codex item mapping', () => {
             networkHost: 'example.com',
             decisions: ['accept', 'decline'],
         });
+        // Codex's default command approval lists `cancel` but not `decline`; declining still answers it, so it stays.
+        expect(
+            mapCodexRequest('command', 'd', {
+                command: 'git push --force',
+                availableDecisions: [
+                    'accept',
+                    { acceptWithExecpolicyAmendment: { execpolicy_amendment: ['git', 'push'] } },
+                    'cancel',
+                ],
+            }),
+        ).toEqual({
+            id: 'd',
+            kind: 'command',
+            command: 'git push --force',
+            decisions: ['accept', 'cancel', 'decline'],
+        });
         // No list, or a list with nothing Caxri can offer, means every plain decision applies.
         expect(mapCodexRequest('fileChange', 'f', { availableDecisions: [{ other: 1 }] })).toEqual({
             id: 'f',

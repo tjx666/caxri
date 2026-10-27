@@ -771,7 +771,11 @@ several callbacks can share one item, so the transport id is never the key.
   Project, hidden at its root), the network host for a network approval, the diff of every file a
   file-change approval would touch (read from the file-change item the request gates), and Codex's
   stated reason. Only the decisions Codex lists in
-  `availableDecisions` are offered. Controls stay disabled while an answer is in flight.
+  `availableDecisions` are offered, with one addition: a list with `cancel` also offers `decline`
+  (Deny). Codex's default command approval lists `accept` and `cancel` only, yet its app-server
+  takes `decline` for any command approval and continues the turn without running the command, as
+  its own TUI's "No, continue without running it" does. `cancel` itself is never a card button;
+  stopping the turn is the Stop button's job. Controls stay disabled while an answer is in flight.
 - A question form with several questions shows one tab per question. Its primary button reads Next
   while a later question is neither answered nor opened yet, and moves to it; once every question
   has been answered or seen it reads Submit (`questionFormPrimaryAction` in
