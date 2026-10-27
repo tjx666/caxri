@@ -10,6 +10,7 @@ import {
     resolveAutomaticDownload,
     resolveReadyAnnouncement,
     resolveUpdatedNotice,
+    resolveUpdatePrimaryAction,
     shouldExplainUnsignedInstall,
     updateRetryTimeLabel,
 } from './update-presentation';
@@ -291,6 +292,36 @@ describe('describeUpdateStatus', () => {
         expect(describeUpdateStatus(available, { skippedVersion: null }).description).toContain(
             'Download Caxri-1.1.0-arm64.dmg',
         );
+    });
+});
+
+describe('resolveUpdatePrimaryAction', () => {
+    const failed = (action: 'check' | 'download' | 'install' | 'open'): UpdateState => ({
+        status: 'error',
+        failureKind: 'other',
+        currentVersion: '1.0.0',
+        action,
+        message: 'Failed.',
+    });
+
+    it('offers Restart to Update only for a staged update and the DMG otherwise', () => {
+        expect(resolveUpdatePrimaryAction(ready, false)).toBe('install');
+        expect(resolveUpdatePrimaryAction({ ...ready, installMode: 'manual' }, false)).toBe(
+            'openDmg',
+        );
+    });
+
+    it('retries the step that failed', () => {
+        expect(resolveUpdatePrimaryAction(failed('install'), false)).toBe('retryInstall');
+        expect(resolveUpdatePrimaryAction(failed('open'), false)).toBe('openDmg');
+        expect(resolveUpdatePrimaryAction(failed('download'), false)).toBe('retryDownload');
+        expect(resolveUpdatePrimaryAction(failed('check'), false)).toBe('check');
+    });
+
+    it('lets a skipped release be un-skipped instead of downloaded', () => {
+        expect(resolveUpdatePrimaryAction(available, true)).toBe('stopSkipping');
+        expect(resolveUpdatePrimaryAction(available, false)).toBe('download');
+        expect(resolveUpdatePrimaryAction(undefined, false)).toBe('checking');
     });
 });
 

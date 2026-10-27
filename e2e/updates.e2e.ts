@@ -37,7 +37,7 @@ test('Check for Updates opens the packaged-only update workflow', async () => {
  * Main wiring end to end: the launch check publishes the fixed release, the Renderer announces it, and a later manual
  * check re-reads the served state instead of consuming the fixture again.
  */
-test('an admitted Acceptance update fixture announces its fixed release off the network', async () => {
+test('an admitted Acceptance update fixture downloads in the background and announces it ready', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-updates-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -55,7 +55,7 @@ test('an admitted Acceptance update fixture announces its fixed release off the 
         await expect(
             running.page
                 .locator('[data-sonner-toast]')
-                .filter({ hasText: 'Caxri 999.0.0 is available.' }),
+                .filter({ hasText: 'Caxri 999.0.0 is downloaded and verified.' }),
         ).toBeVisible();
 
         await running.page.keyboard.press('Meta+Shift+P');
@@ -64,8 +64,8 @@ test('an admitted Acceptance update fixture announces its fixed release off the 
         await palette.getByText('Check for Updates…', { exact: true }).click();
 
         const dialog = running.page.getByRole('dialog');
-        await expect(dialog).toHaveAttribute('data-update-status', 'available');
-        await expect(dialog).toContainText('Caxri 999.0.0 is available');
+        await expect(dialog).toHaveAttribute('data-update-status', 'ready');
+        await expect(dialog).toContainText('Caxri 999.0.0 is ready to install');
         expect(await readFile(join(userData, 'acceptance-update-receipt.jsonl'), 'utf8')).toBe(
             `${JSON.stringify({ caseId: 'e2e-update-notification', fixture: 'available', version: '999.0.0' })}\n`,
         );

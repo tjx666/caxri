@@ -368,7 +368,9 @@ export class UpdateService {
         }
     }
 
-    private readyState(release: AvailableRelease): UpdateState {
+    private readyState(
+        release: Pick<AvailableRelease, 'fileName' | 'releaseUrl' | 'version'>,
+    ): UpdateState {
         return {
             status: 'ready',
             currentVersion: this.options.currentVersion,
@@ -458,7 +460,7 @@ export class UpdateService {
         const { acceptanceDiscovery } = this.options;
         if (acceptanceDiscovery && this.acceptanceRelease)
             return Promise.resolve(
-                this.state.status === 'available'
+                this.state.status === 'available' || this.state.status === 'ready'
                     ? this.state
                     : this.publishAcceptanceRelease(this.acceptanceRelease),
             );
@@ -553,20 +555,10 @@ export class UpdateService {
 
     download(): Promise<UpdateState> {
         if (this.downloadPromise) return this.downloadPromise;
-        if (this.options.acceptanceDiscovery)
-            return Promise.resolve(
-                this.publish({
-                    status: 'error',
-                    failureKind: 'other',
-                    currentVersion: this.options.currentVersion,
-                    action: 'download',
-                    message: 'Update downloads are disabled in Acceptance launches.',
-                    ...(this.state.status === 'available' && {
-                        version: this.state.version,
-                        fileName: this.state.fileName,
-                    }),
-                }),
-            );
+        // The fixture has no installer to fetch, so its download completes at once: Acceptance sees the notification a
+        // real background download raises, while opening or installing it stays disabled (no `readyPath`).
+        if (this.options.acceptanceDiscovery && this.acceptanceRelease)
+            return Promise.resolve(this.publish(this.readyState(this.acceptanceRelease)));
         const release = this.release;
         if (!release)
             return Promise.resolve(

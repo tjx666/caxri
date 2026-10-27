@@ -145,6 +145,39 @@ export function canRetryUpdateCheck(state: UpdateState | undefined): boolean {
     return state?.status !== 'unavailable' || state.rateLimited === true;
 }
 
+/**
+ * The dialog's one primary action for a state. `install` covers both Restart to Update and its retry after a failed
+ * restart; a manual `ready` and a failed open both lead to the DMG.
+ */
+export type UpdatePrimaryAction =
+    | 'cancelDownload'
+    | 'check'
+    | 'checking'
+    | 'download'
+    | 'install'
+    | 'openDmg'
+    | 'retryDownload'
+    | 'retryInstall'
+    | 'stopSkipping';
+
+export function resolveUpdatePrimaryAction(
+    state: UpdateState | undefined,
+    isSkipped: boolean,
+): UpdatePrimaryAction {
+    if (!state || state.status === 'checking') return 'checking';
+    if (state.status === 'available') return isSkipped ? 'stopSkipping' : 'download';
+    if (state.status === 'downloading') return 'cancelDownload';
+    if (state.status === 'ready') return state.installMode === 'restart' ? 'install' : 'openDmg';
+    if (state.status !== 'error') return 'check';
+    const byFailedAction = {
+        check: 'check',
+        download: 'retryDownload',
+        install: 'retryInstall',
+        open: 'openDmg',
+    } as const satisfies Record<typeof state.action, UpdatePrimaryAction>;
+    return byFailedAction[state.action];
+}
+
 export interface UpdateChip {
     /**
      * Short status-bar text. Long prose belongs in `description`, which is both the tooltip and the accessible name.

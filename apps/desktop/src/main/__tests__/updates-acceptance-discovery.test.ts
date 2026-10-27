@@ -49,31 +49,35 @@ describe('Acceptance update discovery', () => {
         ]);
     });
 
-    it('keeps download and install disabled for the fixture release', async () => {
+    it('completes the fixture download at once and keeps opening and installing disabled', async () => {
         const { fetch, openPath, service } = acceptanceService();
         await service.check({ manual: true });
 
+        // The ready state is what raises the update notification after a real background download.
         await expect(service.download()).resolves.toMatchObject({
-            status: 'error',
-            action: 'download',
-            message: 'Update downloads are disabled in Acceptance launches.',
+            status: 'ready',
             version: '999.0.0',
+            installMode: 'manual',
         });
         await expect(service.open()).resolves.toMatchObject({
             status: 'error',
             action: 'download',
         });
+        await expect(service.install()).resolves.toMatchObject({
+            status: 'error',
+            action: 'install',
+        });
         expect(fetch).not.toHaveBeenCalled();
         expect(openPath).not.toHaveBeenCalled();
     });
 
-    it('restores the served release when a check follows the disabled download', async () => {
+    it('keeps the served release when a check follows the fixture download', async () => {
         const { discover, service } = acceptanceService();
         await service.check({ manual: true });
         await service.download();
 
         await expect(service.check({ manual: true })).resolves.toMatchObject({
-            status: 'available',
+            status: 'ready',
             version: '999.0.0',
             fileName: 'Caxri-999.0.0-arm64.dmg',
         });

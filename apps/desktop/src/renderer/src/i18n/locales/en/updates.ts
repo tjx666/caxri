@@ -30,7 +30,7 @@ export const updates = {
         'Caxri will not offer {{version}} again until a newer version is released. Settings can undo this.',
     'updates.ready.message': 'Caxri {{version}} is ready. Restart to finish updating.',
     'updates.ready.manualMessage': 'Caxri {{version}} is downloaded and verified.',
-    'updates.ready.restartLabel': 'Restart to Update to Caxri {{version}}',
+    'updates.ready.restartLabel': 'Restart to install Caxri {{version}}',
     'updates.updated.message': 'Updated to Caxri {{version}}',
     'updates.updated.releaseNotesLabel': 'Release Notes for Caxri {{version}}',
     'updates.announcement.showLabel': 'Show Update for Caxri {{version}}',

@@ -214,7 +214,7 @@ describe('automatic discovery', () => {
         // the toast expired, and a screen reader hears which release the button restarts into.
         expect(options?.action).toEqual({
             id: 'updates.install',
-            accessibleLabel: 'Restart to Update to Caxri 1.1.0',
+            accessibleLabel: 'Restart to install Caxri 1.1.0',
         });
         expect(mocks.caxriRequest).toHaveBeenCalledWith('updates.acknowledge');
 
