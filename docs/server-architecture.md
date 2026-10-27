@@ -441,7 +441,9 @@ Target public machine-readable surfaces are:
 
 The future Doctor reads artifacts and owner-readable process manifests directly and probes private
 process boundaries, so it can distinguish a dead control endpoint from a dead Server Core, Terminal Host,
-or Extension Host. A6 intentionally provides only the private manifests and parity classifier.
+or Extension Host. A6 intentionally provides only the private manifests and parity classifier. Until
+Doctor ships, a contributor Agent reads the manifests of a stopped or unresponsive Server with
+`.agents/skills/debug/scripts/read-process-manifests.ts`, which the `debug` skill documents.
 
 Metrics cover queue wait and execution, event-loop delay, connection buffered bytes and close reasons,
 changefeed lag and snapshot fallbacks, worker health and restarts, PTY throughput and drops, database

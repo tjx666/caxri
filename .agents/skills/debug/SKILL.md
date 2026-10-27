@@ -26,7 +26,14 @@ the active repair scope when that input arrives.
 3. Inspect structured Desktop Main, Server Core, Terminal Host, and Extension Host logs together
    under the active runtime profile's `<userData>/logs/` directory. Compare correlation IDs and
    boundary timings. Repeated Renderer requests may come from StrictMode, but must not duplicate
-   expensive native work.
+   expensive native work. While Server Core answers, query it with `caxri logs query` and
+   `caxri diagnostics snapshot`. When it does not (killed, out of memory, hung), first run
+   `bun run .agents/skills/debug/scripts/read-process-manifests.ts --user-data-dir <userData>`: it
+   reads the manifests each background process writes to `<userData>/observability/processes/`
+   and prints each one's last lifecycle state, whether its pid is alive, its metric aggregates
+   (`process.memory`, `process.open_fds`, `queue.wait`, `persistence.latency`, restarts), its last
+   failure capsule, and the faulted owner. A `ready` manifest whose pid is dead is that owner's
+   crash; `stopped` is a clean exit; classification `unknown` means no fault evidence, not health.
 4. Trace the typed method and event from its owning `packages/protocol` domain through the Server
    dispatcher, Preload, and Renderer consumer. Treat the selected Session root as a security and
    state-lifetime boundary.
