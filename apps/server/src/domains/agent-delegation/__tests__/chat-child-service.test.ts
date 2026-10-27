@@ -175,4 +175,40 @@ describe('AgentDelegationService with a Chat child', () => {
         ).toMatchObject({ status: 'failed', failure: 'human_input' });
         expect(f.resume).not.toHaveBeenCalled();
     });
+
+    it('opens a Chat child even when its provider has lifecycle hooks off', async () => {
+        const f = await fixture({ hasLifecycleHooks: () => false });
+        expect(f.service.status(f.id, owner).failure).toBeUndefined();
+        expect(f.start.mock.lastCall?.[3]).toMatchObject({ surface: 'chat' });
+    });
+});
+
+describe('AgentDelegationService with a Terminal child', () => {
+    it('fails the task before launch when its provider has lifecycle hooks off', async () => {
+        const hasLifecycleHooks = vi.fn(() => false);
+        const f = await fixture({ hasLifecycleHooks, opensAgentsInChat: () => false });
+        expect(f.service.status(f.id, owner)).toMatchObject({
+            status: 'failed',
+            failure: 'hooks_required',
+        });
+        expect(hasLifecycleHooks).toHaveBeenCalledWith('claude');
+        expect(f.start).not.toHaveBeenCalled();
+    });
+
+    it('refuses a launch whose provider turned its hooks off, even with a hook token from another provider', async () => {
+        let hasHooks = true;
+        const f = await fixture({
+            hasLifecycleHooks: () => hasHooks,
+            opensAgentsInChat: () => false,
+        });
+        hasHooks = false;
+        expect(() =>
+            f.service.bindEnvironment(
+                f.terminal.id,
+                'launch',
+                { CAXRI_HOOK_TOKEN: 'synthetic' },
+                f.id,
+            ),
+        ).toThrow(/requires active lifecycle hooks/u);
+    });
 });

@@ -519,6 +519,16 @@ export const settingsSpec = [
         ],
     },
     {
+        kind: 'boolean',
+        key: 'agents.suggestLifecycleHooks',
+        title: 'Suggest lifecycle hooks',
+        description:
+            "Offer to turn on a provider's lifecycle hooks when its Agent runs in a Terminal without them. Chats never need them",
+        category: 'agents',
+        keywords: ['hooks', 'lifecycle', 'suggest', 'prompt', 'terminal', ...agentProviderIds],
+        default: true,
+    },
+    {
         kind: 'complex',
         key: 'agents.longRunningShellCommands',
         title: 'Long-running background commands',

@@ -17,7 +17,6 @@ export const grokProvider: AgentProviderDescriptor = {
     id: 'grok',
     delegation: grokDelegationAdapter,
     locateTranscript: locateGrokTranscript,
-    requiresLifecycleHooks: true,
     hooks: grokHookAdapter,
     /**
      * Hooks own identity and activity. The probe only adds the conversation title Grok Build keeps for the exact

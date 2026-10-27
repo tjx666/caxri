@@ -1,5 +1,10 @@
-import type { AgentHookHealth, AgentHookHealthMap } from '@caxri/protocol';
-import { agentProviderIds } from '@caxri/protocol';
+import type {
+    AgentHookHealth,
+    AgentHookHealthMap,
+    AgentProvider,
+    AgentProviderSettings,
+} from '@caxri/protocol';
+import { agentProviderCatalog, agentProviderIds, CaxriError } from '@caxri/protocol';
 
 import type { AgentHookEntryStatus } from './contract';
 
@@ -59,4 +64,31 @@ export function hookHealthFor(
      * twice in one sentence (DESIGN.md principle 6, "say each meaning once"). No message here.
      */
     return { kind: 'drifted' };
+}
+
+/**
+ * Whether a PTY launch starting now would report through the provider's lifecycle hooks: the provider is enabled at the
+ * executable gate and its installation is usable. A launch environment alone does not prove this, because any enabled
+ * provider gives every Agent launch hook credentials while signals of a disabled provider are ignored.
+ */
+export function isHookLaunchReady(
+    settings: AgentProviderSettings | undefined,
+    health: AgentHookHealth,
+): boolean {
+    return settings?.hooks.enabled === true && ['active', 'installedPending'].includes(health.kind);
+}
+
+/**
+ * Refuses a Terminal launch of a provider that cannot run there without its hooks. Not a Terminal failure reason: that
+ * enum is a database CHECK constraint. The launch plan carries this message as the failure detail instead, and the pane
+ * offers to turn the hooks on.
+ */
+export function assertTerminalLaunchHooks(provider: AgentProvider, isReady: boolean): void {
+    const { displayName, requiresLifecycleHooks } = agentProviderCatalog[provider];
+    if (!requiresLifecycleHooks || isReady) return;
+    throw new CaxriError(
+        'UNAVAILABLE',
+        `${displayName} needs its lifecycle hooks to run in a Terminal. Turn them on in Settings, or open it as a Chat.`,
+        { reason: 'lifecycle_hooks_required' },
+    );
 }

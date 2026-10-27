@@ -58,6 +58,20 @@ export const terminal = {
     'terminal.recovery.restart': 'Restart',
     'terminal.recovery.startNewConversation': 'Start New Conversation',
     'terminal.recovery.newConversation': 'New Conversation',
+    'terminal.hookSuggestion.suggest':
+        'Turn on lifecycle hooks to see when {{provider}} is working and get notified when it finishes.',
+    'terminal.hookSuggestion.suggestDetail':
+        "Caxri adds one hook entry to {{provider}}'s user settings. It does nothing outside Caxri, and you can turn it off in Settings.",
+    'terminal.hookSuggestion.restart': 'Lifecycle hooks are on. Restart the Agent to apply them.',
+    'terminal.hookSuggestion.required':
+        '{{provider}} needs its lifecycle hooks to run in a Terminal.',
+    'terminal.hookSuggestion.enable': 'Turn On Hooks',
+    'terminal.hookSuggestion.enableAndRestart': 'Turn On Hooks and Restart',
+    'terminal.hookSuggestion.dontAskAgain': "Don't Ask Again",
+    'terminal.hookSuggestion.dismiss': 'Dismiss',
+    'terminal.hookSuggestion.enableFailed': 'Could not turn on lifecycle hooks',
+    'terminal.hookSuggestion.dontAskAgainFailed':
+        'Could not save the lifecycle hook suggestion setting',
     'terminal.contextMenu.paste': 'Paste',
     'terminal.contextMenu.openDetectedLink': 'Open Detected Link…',
     'terminal.mobileSizeOwnership': 'Phone controls Terminal size',

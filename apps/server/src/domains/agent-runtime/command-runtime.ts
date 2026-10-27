@@ -1,4 +1,9 @@
-import type { AgentDelegationReceipt, AppSettings, FullStateChangeReason } from '@caxri/protocol';
+import type {
+    AgentDelegationReceipt,
+    AgentProvider,
+    AppSettings,
+    FullStateChangeReason,
+} from '@caxri/protocol';
 
 import { AgentDelegationService, createDelegationHandlers } from '../agent-delegation';
 import type { AgentDispatchServiceOptions } from '../agent-dispatch';
@@ -44,6 +49,11 @@ export function createAgentCommandRuntime(
          */
         usageGuards?: Pick<AgentUsageGuards, 'assertAdmitted'>;
         /**
+         * Whether a PTY launch of the provider would report through lifecycle hooks; see
+         * `AgentDelegationServiceOptions.hasLifecycleHooks`.
+         */
+        hasLifecycleHooks?: (provider: AgentProvider) => boolean;
+        /**
          * Feeds every announced delegation receipt change to Caxri Bot's completion notifier. Optional so a unit test
          * can construct this runtime without one; the composed Server always passes it.
          */
@@ -70,6 +80,7 @@ export function createAgentCommandRuntime(
         delegationSettings: () => options.settings()['agents.delegation'],
         opensAgentsInChat: () =>
             options.agentChat !== undefined && options.settings()['session.openAgentsInChat'],
+        hasLifecycleHooks: options.hasLifecycleHooks,
         isChatTerminal: (terminalId) => chatOf(terminalId) !== undefined,
         isChatLive: (terminalId) => chatOf(terminalId)?.isLive(terminalId) === true,
         readChatTurn: (terminalId, turnId) =>

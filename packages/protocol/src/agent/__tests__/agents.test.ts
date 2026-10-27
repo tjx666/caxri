@@ -63,7 +63,7 @@ describe('defaultAgentProviderSettings', () => {
             expect(defaultAgentProviderSettings[provider].launch.args).toEqual(
                 agentProviderCatalog[provider].defaultLaunchArgs,
             );
-            expect(defaultAgentProviderSettings[provider].hooks.enabled).toBe(true);
+            expect(defaultAgentProviderSettings[provider].hooks.enabled).toBe(false);
             expect(defaultAgentProviderSettings[provider].messaging.enabled).toBe(
                 agentProviderCatalog[provider].capabilities.messaging,
             );

@@ -141,7 +141,7 @@ export async function launchCaxriApp(options: LaunchCaxriOptions): Promise<Runni
         clipboardFixture,
     } = options;
     const closeDecision = quitDecisionOnClose ?? (preserveHostOnClose ? 'keep-running' : 'stop');
-    await prepareE2EProfile(projectRoot, userDataDir, executablePath);
+    await prepareE2EProfile(projectRoot, userDataDir, executablePath, environment);
     const agentEnvironment = await e2eAgentEnvironment(userDataDir, agentMode, environment);
     markStage('agentEnvironmentMs');
     const clipboardPolicy = resolveE2ELaunchPolicy(process.env, { clipboard, gpuMode, windowMode });

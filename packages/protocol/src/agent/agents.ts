@@ -138,6 +138,11 @@ export interface AgentProviderCatalogEntry {
         terminalInput: string;
     };
     /**
+     * Whether this provider cannot start in a Terminal without its lifecycle hooks: it has no live-session metadata
+     * probe, so hooks are its only source of identity and activity. Agent Chat never needs them.
+     */
+    requiresLifecycleHooks: boolean;
+    /**
      * The argv tokens that, followed by the Agent Session id, resume one conversation in the provider's TUI. Server
      * Core launches a resumed PTY with them, and the Renderer shows the same tokens in a copyable resume command, so
      * the two cannot disagree.
@@ -168,6 +173,7 @@ export const agentProviderCatalog = {
         displayName: 'Claude',
         executableName: 'claude',
         imageInput: undefined,
+        requiresLifecycleHooks: false,
         resumeArgs: ['--resume'],
     },
     codex: {
@@ -192,6 +198,7 @@ export const agentProviderCatalog = {
         displayName: 'Codex',
         executableName: 'codex',
         imageInput: { kind: 'systemClipboardPaste', terminalInput: '\u{16}' },
+        requiresLifecycleHooks: false,
         resumeArgs: ['resume'],
     },
     grok: {
@@ -223,6 +230,7 @@ export const agentProviderCatalog = {
         displayName: 'Grok Build',
         executableName: 'grok',
         imageInput: undefined,
+        requiresLifecycleHooks: true,
         resumeArgs: ['--resume'],
     },
 } satisfies Record<AgentProvider, AgentProviderCatalogEntry>;
@@ -259,7 +267,7 @@ export const defaultAgentProviderSettings = Object.fromEntries(
         provider,
         {
             actions: structuredClone(defaultAgentActionsSettings),
-            hooks: { enabled: true },
+            hooks: { enabled: false },
             messaging: { enabled: agentProviderCatalog[provider].capabilities.messaging },
             recovery: { ...defaultAgentOutputRecoverySettings, patterns: [] },
             launch: {

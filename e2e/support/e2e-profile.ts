@@ -12,10 +12,27 @@ import { stageDevelopmentTestExtension } from './test-extension.ts';
  *
  * `session.openAgentsInChat` defaults to true for users, but most specs drive the PTY Agent surface by its plain
  * create-menu name ("Claude", not "Claude Chat"), so the baseline keeps Terminal; Chat specs turn it on themselves.
+ *
+ * `agents.suggestLifecycleHooks` would add a row under every PTY Agent whose hooks are off, which is most specs, and
+ * shift the Terminal grid they measure; `agent-hook-suggestion.e2e.ts` turns it back on.
  */
 const E2E_DEFAULT_SETTINGS = {
+    'agents.suggestLifecycleHooks': false,
     'files.autoSave': 'off',
     'session.openAgentsInChat': false,
+} as const;
+
+/**
+ * Lifecycle hooks are off by default for users. A spec that opts into the isolated hook root with
+ * `CAXRI_E2E_AGENT_HOOKS=1` drives PTY Agents through those hooks, so its profile starts with every provider enabled;
+ * specs that rewrite Settings start from `settings.get` and keep this baseline.
+ */
+const E2E_AGENT_HOOK_SETTINGS = {
+    'agents.providers': {
+        claude: { hooks: { enabled: true } },
+        codex: { hooks: { enabled: true } },
+        grok: { hooks: { enabled: true } },
+    },
 } as const;
 
 export function e2eSettingsPath(userDataDirectory: string): string {
@@ -30,13 +47,19 @@ export async function prepareE2EProfile(
     projectRoot: string,
     userDataDirectory: string,
     executablePath: string | undefined,
+    environment: Readonly<Record<string, string | undefined>>,
 ): Promise<void> {
+    const hasAgentHooks = environment.CAXRI_E2E_AGENT_HOOKS === '1';
     if (!executablePath) await stageDevelopmentTestExtension(projectRoot, userDataDirectory);
     await mkdir(join(userDataDirectory, 'config'), { recursive: true });
     try {
         await writeFile(
             e2eSettingsPath(userDataDirectory),
-            `${JSON.stringify(E2E_DEFAULT_SETTINGS, null, 2)}\n`,
+            `${JSON.stringify(
+                { ...E2E_DEFAULT_SETTINGS, ...(hasAgentHooks && E2E_AGENT_HOOK_SETTINGS) },
+                null,
+                2,
+            )}\n`,
             { flag: 'wx' },
         );
     } catch (error) {

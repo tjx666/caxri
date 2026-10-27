@@ -105,7 +105,12 @@ test('Restart Agent resumes the same conversation in the approval mode it launch
         // Turning YOLO off in Settings must not silently change the approval mode of the conversation being restarted.
         await pageRequest(page, 'settings.update', {
             source: JSON.stringify({
-                'agents.providers': { claude: { launch: { executable: 'claude', args: [] } } },
+                'agents.providers': {
+                    claude: {
+                        hooks: { enabled: true },
+                        launch: { executable: 'claude', args: [] },
+                    },
+                },
             }),
         });
 

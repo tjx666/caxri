@@ -130,7 +130,7 @@ describe('AgentHookManager launches during a reconcile', () => {
 
             expect(manager.terminalEnvironment('terminal-claude', 'claude')).toEqual({});
             expect(() => manager.terminalEnvironment('terminal-grok', 'grok')).toThrow(
-                'requires installed lifecycle hooks for reliable Session identity',
+                'needs its lifecycle hooks to run in a Terminal',
             );
             release();
             await reconcile;

@@ -547,6 +547,13 @@ the user can answer. The user's input in that state answers the prompt and is no
 the native session starts the task returns to `awaiting_ready` with a fresh 15-second deadline for
 its turn. A resumed task has a conversation already, so input there still counts as intervention.
 
+A child that runs in a Terminal correlates its task through its provider's lifecycle hooks, which
+are off by default. When the target provider's hooks are not ready for a launch (turned off, or the
+installation is unusable), the task fails as `hooks_required` before anything launches, instead of
+starting an Agent whose task can never settle. A Chat child reports through its provider protocol
+and needs no hooks. The launch-time binding checks the same per-provider readiness, so hook
+credentials granted because another provider is enabled never stand in for it.
+
 Grok supports explicit model, reasoning effort, sandbox, permission mode and tool restrictions.
 Session selectors, headless modes and unknown overrides fail before launch. An already configured
 `--always-approve` or `--yolo` is preserved; Caxri never adds it.

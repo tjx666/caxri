@@ -20,7 +20,7 @@ import {
     isCaxriBotCaller,
     resolveDelegationAdmission,
 } from './admission';
-import { delegationChildLaunch } from './chat-child';
+import { assertTerminalChildHooks, childLaunchFailure, delegationChildLaunch } from './chat-child';
 import { readDelegationCompletion } from './collection';
 import { logDelegationRequested, logDelegationTransition } from './diagnostics';
 import { prepareDelegationFollowUp, prepareDelegationLaunch } from './launch';
@@ -455,8 +455,8 @@ export class AgentDelegationService {
                     },
                 );
                 if (dispatched.status === 'failed') this.fail(id, 'launch_failed');
-            } catch {
-                this.fail(id, 'launch_failed');
+            } catch (error) {
+                this.fail(id, childLaunchFailure(error));
             }
             return this.owned(id, authority).receipt;
         });
@@ -574,11 +574,8 @@ export class AgentDelegationService {
         delegationId?: string,
     ): void {
         if (!this.bindTerminalLaunch(terminalId, launchId, delegationId)) return;
-        if (!environment.CAXRI_HOOK_TOKEN)
-            throw new CaxriError(
-                'UNAVAILABLE',
-                'Visible delegation requires active lifecycle hooks',
-            );
+        const active = this.activeForTerminal(terminalId);
+        assertTerminalChildHooks(this.options, active?.receipt.provider, environment);
         environment.CAXRI_HOOK_DIGEST = '1';
     }
 
