@@ -19,6 +19,7 @@ import { dirtyLayerReportForFiles, TYPE_AWARE_EXTENSIONS } from './changed-file-
 import { CheckError, parseCheckArguments } from './check-arguments';
 import { contractTestCandidates } from './contract-test-candidates';
 import { shouldRunKnip, shouldTypecheck } from './default-gates';
+import { assertExplicitFiles } from './explicit-files';
 import {
     directImportTestCandidates,
     githubConfigReaderTestCandidates,
@@ -482,6 +483,13 @@ async function main(): Promise<void> {
         options.files.length > 0
             ? options.files.map((file) => repoRelativePath(root, cwd, file))
             : await discoverChangedFiles(root, options.isStaged);
+    if (options.files.length > 0) {
+        await assertExplicitFiles(
+            root,
+            options.files.map((argument, index) => ({ argument, path: requestedFiles[index] })),
+            (arguments_) => runCapture('git', arguments_, root),
+        );
+    }
     const files = await existingFiles(root, requestedFiles);
     const removedFiles = requestedFiles.filter((file) => !files.includes(file));
     const e2eSpecs = options.e2e ? selectE2ESpecs(files, options.files.length > 0) : [];

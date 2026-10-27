@@ -177,12 +177,6 @@ describe('parseCheckArguments', () => {
         });
     });
 
-    it('rejects a newline-joined file list instead of checking nothing', () => {
-        expect(() => parseCheckArguments(['apps/a.ts\napps/b.ts', '--lint'])).toThrow(
-            /contains a newline/u,
-        );
-    });
-
     it('uses explicit selectors without adding defaults', () => {
         expect(parseCheckArguments(['--staged', '--type'])).toEqual({
             e2e: false,
