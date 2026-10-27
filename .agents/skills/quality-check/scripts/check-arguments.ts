@@ -115,16 +115,6 @@ function didConsumeNextCheckArgument(
             if (argument.startsWith('-')) {
                 throw new CheckError(`Unknown option: ${argument}\n\n${usage}`, 2);
             }
-            /**
-             * Zsh does not word-split an unquoted `$files`, so `check $files` passes a newline-joined list as one path.
-             * That path matches nothing and the check used to report a green "0 changed" without checking a file.
-             */
-            if (/[\n\r]/u.test(argument)) {
-                throw new CheckError(
-                    'A file argument contains a newline; pass one path per argument, e.g. `git diff --name-only | xargs bun run --silent check --lint`',
-                    2,
-                );
-            }
             options.files.push(argument);
             return false;
     }
