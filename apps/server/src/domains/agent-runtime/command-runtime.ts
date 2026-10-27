@@ -1,9 +1,4 @@
-import type {
-    AgentDelegationReceipt,
-    AgentProvider,
-    AppSettings,
-    FullStateChangeReason,
-} from '@caxri/protocol';
+import type { AgentDelegationReceipt, AppSettings, FullStateChangeReason } from '@caxri/protocol';
 
 import { AgentDelegationService, createDelegationHandlers } from '../agent-delegation';
 import type { AgentDispatchServiceOptions } from '../agent-dispatch';
@@ -42,17 +37,15 @@ export function createAgentCommandRuntime(
          * follow-ups, stops, and answer go through it.
          */
         agentChat?: DelegationChats;
-        settings(): Pick<AppSettings, 'agents.delegation' | 'session.openAgentsInChat'>;
+        settings(): Pick<
+            AppSettings,
+            'agents.delegation' | 'agents.providers' | 'session.openAgentsInChat'
+        >;
         /**
          * Refuses a dispatch or delegation launch while its provider's account is at the weekly usage guard (issue
          * #2580). Optional so a unit test can construct this runtime without one.
          */
         usageGuards?: Pick<AgentUsageGuards, 'assertAdmitted'>;
-        /**
-         * Whether a PTY launch of the provider would report through lifecycle hooks; see
-         * `AgentDelegationServiceOptions.hasLifecycleHooks`.
-         */
-        hasLifecycleHooks?: (provider: AgentProvider) => boolean;
         /**
          * Feeds every announced delegation receipt change to Caxri Bot's completion notifier. Optional so a unit test
          * can construct this runtime without one; the composed Server always passes it.
@@ -80,7 +73,8 @@ export function createAgentCommandRuntime(
         delegationSettings: () => options.settings()['agents.delegation'],
         opensAgentsInChat: () =>
             options.agentChat !== undefined && options.settings()['session.openAgentsInChat'],
-        hasLifecycleHooks: options.hasLifecycleHooks,
+        hasLifecycleHooks: (provider) =>
+            options.settings()['agents.providers'][provider].hooks.enabled,
         isChatTerminal: (terminalId) => chatOf(terminalId) !== undefined,
         isChatLive: (terminalId) => chatOf(terminalId)?.isLive(terminalId) === true,
         readChatTurn: (terminalId, turnId) =>

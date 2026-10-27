@@ -359,7 +359,6 @@ export async function createDomainServices(
         userDataPath,
         agentEnvironment,
         onDelegationReceiptChanged: botHooks.receiptChanged,
-        hasLifecycleHooks: (provider) => hookLaunchEnvironment.isLaunchReady(provider),
     });
     dispatchState.service = agentCommands.dispatchService;
     delegationState.service = agentCommands.delegationService;

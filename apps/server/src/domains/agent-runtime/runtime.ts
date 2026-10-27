@@ -327,7 +327,6 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
          * `agents.longRunningShellCommands` file.
          */
         hookLaunchEnvironment: {
-            isLaunchReady: (provider: AgentProvider) => agentHooks.isLaunchReady(provider),
             terminalEnvironment: (
                 terminalId: string,
                 provider?: AgentProvider,
