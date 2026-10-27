@@ -1,6 +1,10 @@
-import type { AgentChatGoal, AgentChatItem, AgentChatTurn } from '@caxri/protocol';
+import type {
+    AgentChatGoal,
+    AgentChatGoalReply,
+    AgentChatItem,
+    AgentChatTurn,
+} from '@caxri/protocol';
 import {
-    AGENT_CHAT_GOAL_COMMAND_TITLE,
     agentChatGoalElapsedSeconds,
     MAX_AGENT_CHAT_GOAL_OBJECTIVE_LENGTH,
     parseAgentChatGoalReply,
@@ -17,6 +21,18 @@ type Notice = Extract<AgentChatItem, { type: 'notice' }>;
  * (verified with Claude Code 2.1.304).
  */
 const ERROR_CLEARED_PREFIX = 'Goal cleared after an unrecoverable error';
+
+/**
+ * What a notice says about the goal: `null` when it dropped the goal (a clear, `No goal set`, or the error warning),
+ * the `/goal` reply when it set or reported one, and `undefined` when it says nothing. Shared by the live Chat and the
+ * history replay so both read the same replies.
+ */
+export function claudeGoalNotice(notice: Notice): AgentChatGoalReply | null | undefined {
+    if (notice.kind === 'warning' && notice.message?.startsWith(ERROR_CLEARED_PREFIX)) return null;
+    const reply = parseAgentChatGoalReply(notice);
+    if (!reply) return undefined;
+    return reply.action === 'cleared' || reply.action === 'none' ? null : reply;
+}
 
 /**
  * A Claude Code session's `/goal`, kept in the snapshot's `goal` so the composer's goal row shows it while Claude works
@@ -55,14 +71,9 @@ export class ClaudeGoals {
      */
     onNotices(notices: readonly Notice[], now = Date.now()): void {
         for (const notice of notices) {
-            if (notice.kind === 'warning' && notice.message?.startsWith(ERROR_CLEARED_PREFIX)) {
-                this.set(null);
-                continue;
-            }
-            if (notice.title !== AGENT_CHAT_GOAL_COMMAND_TITLE) continue;
-            const reply = parseAgentChatGoalReply(notice);
-            if (!reply) continue;
-            if (reply.action === 'cleared' || reply.action === 'none') {
+            const reply = claudeGoalNotice(notice);
+            if (reply === undefined) continue;
+            if (reply === null) {
                 this.set(null);
                 continue;
             }
