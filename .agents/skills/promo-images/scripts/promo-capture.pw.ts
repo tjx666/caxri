@@ -27,6 +27,7 @@ import {
     openMobilePairingLink,
     waitForMobile,
 } from '../../../../e2e/support/mobile-android.ts';
+import { showDemoStatusBar } from './promo-android';
 import type { PromoScene, PromoSceneSession } from './promo-scene';
 import { DESKTOP_CAPTURE_SCALE, loadPromoScene } from './promo-scene';
 import { seedPromoProject, writePromoSettings } from './promo-seed';
@@ -312,6 +313,7 @@ test('capture a promo scene', async () => {
             (snapshot) => snapshot.status === 'ready',
         );
         await hideDevelopmentChrome(running);
+        await showDemoStatusBar(serial);
         await delay(SETTLE_MS);
 
         await page.screenshot({

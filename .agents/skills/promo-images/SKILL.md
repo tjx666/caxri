@@ -51,8 +51,9 @@ composition steps:
    Session is marked read the moment it shows new attention, so its sidebar glyph would vanish.
    Wait for each expected state, mark `read` Sessions as read, pair the phone, and only then start
    `running` Sessions, because a held turn keeps the phone from idling.
-4. Open `desktop.panel`, fold the waiting popup into the status bar, then capture the selected
-   Session on the desktop and the Sessions list on the phone.
+4. Open `desktop.panel`, fold the waiting popup into the status bar, apply the demo-mode status bar
+   again (a just-booted emulator can drop a demo command), then capture the selected Session on the
+   desktop and the Sessions list on the phone.
 5. Compose the PNG. `--out` is replaced only when the new image passes its checks.
 
 The captures, `layout.html`, and Playwright's output stay in `.records/promo-images/<scene>-<time>/`

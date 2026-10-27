@@ -22,6 +22,7 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 
 import { execFileAsync, runChildProcess } from '../../../../scripts/exec';
+import { showDemoStatusBar } from './promo-android';
 import { assertReleaseApkFresh, buildReleaseApk, RELEASE_APK } from './promo-apk';
 import { composePromoImage } from './promo-image';
 import { DESKTOP_CAPTURE_SCALE, loadPromoScene } from './promo-scene';
@@ -42,33 +43,16 @@ function device(serial: string) {
 }
 
 /**
- * Turns animations off and puts the status bar in demo mode (fixed clock, full battery and Wi-Fi, no notifications), so
- * the phone capture shows nothing of the emulator's real state.
+ * Turns animations off and puts the status bar in demo mode, so the phone capture shows nothing of the emulator's real
+ * state.
  */
-async function prepareAndroid(run: ReturnType<typeof device>): Promise<void> {
+async function prepareAndroid(run: ReturnType<typeof device>, serial: string): Promise<void> {
     for (const name of ANIMATION_SCALES) {
         // eslint-disable-next-line no-await-in-loop -- three settings on one device
         await run(['shell', 'settings', 'put', 'global', name, '0']);
     }
     await run(['shell', 'settings', 'put', 'global', 'sysui_demo_allowed', '1']);
-    const demo = (command: string, extras: string[] = []) =>
-        run([
-            'shell',
-            'am',
-            'broadcast',
-            '-a',
-            'com.android.systemui.demo',
-            '-e',
-            'command',
-            command,
-            ...extras,
-        ]);
-    await demo('enter');
-    await demo('clock', ['-e', 'hhmm', '0941']);
-    await demo('battery', ['-e', 'level', '100', '-e', 'plugged', 'false']);
-    await demo('network', ['-e', 'wifi', 'show', '-e', 'level', '4', '-e', 'fully', 'true']);
-    await demo('network', ['-e', 'mobile', 'hide']);
-    await demo('notifications', ['-e', 'visible', 'false']);
+    await showDemoStatusBar(serial);
 }
 
 async function restoreAndroid(run: ReturnType<typeof device>): Promise<void> {
@@ -128,7 +112,7 @@ async function main(): Promise<void> {
     try {
         await run(['install', '-r', join(repoRoot, RELEASE_APK)]);
         await run(['shell', 'pm', 'clear', MOBILE_PACKAGE]);
-        await prepareAndroid(run);
+        await prepareAndroid(run, serial);
         const code = await runChildProcess(
             'bunx',
             [
