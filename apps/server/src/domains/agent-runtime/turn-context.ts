@@ -9,8 +9,8 @@ import { caxriBotTerminal } from '../db';
  *
  * The text is the current `agents.sessionInstructions`, read when the turn starts so an edit reaches the next launch; a
  * cleared setting adds nothing. Only Claude and Codex read `additionalContext` from `UserPromptSubmit`. An Agent Chat
- * gets the same text through its provider's instructions, and Caxri Bot through its workspace instructions, so both
- * are skipped here.
+ * gets the same text through its provider's instructions, and Caxri Bot through its workspace instructions, so both are
+ * skipped here.
  */
 export class AgentTurnContext {
     /**
