@@ -110,8 +110,13 @@ export function failureReason(error: unknown): FailureReason {
         )
     )
         return 'tls';
+    /*
+     * `gh` is a Go binary: offline it prints "error connecting to api.github.com / check your internet connection" or a
+     * Go dialer error ("dial tcp: lookup ...: no such host", "i/o timeout"), none of which carries a Node errno. Those
+     * fell through to `other`, so a 90-minute outage in production read as 222 unexplained `pr.list` failures.
+     */
     if (
-        /ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ECONNRESET|ETIMEDOUT|network|fetch failed|socket hang up/i.test(
+        /ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ECONNRESET|ETIMEDOUT|network|fetch failed|socket hang up|error connecting to|check your internet connection|dial tcp|no such host|i\/o timeout|connection refused/i.test(
             message,
         )
     )

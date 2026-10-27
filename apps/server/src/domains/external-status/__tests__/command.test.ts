@@ -73,6 +73,14 @@ describe('runExternalStatusCommand', () => {
 
     it.each([
         ['fetch failed ECONNRESET', 'network'],
+        [
+            'error connecting to api.github.com\ncheck your internet connection or https://githubstatus.com',
+            'network',
+        ],
+        [
+            'Post "https://api.github.com/graphql": dial tcp: lookup api.github.com: no such host',
+            'network',
+        ],
         ['certificate has expired', 'tls'],
         // Each provider words being signed out differently; all of them name the login command, so that is what is
         // matched. Getting this wrong costs the user the one sentence that would have fixed it.
