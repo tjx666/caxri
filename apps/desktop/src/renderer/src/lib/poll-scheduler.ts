@@ -105,6 +105,18 @@ export function resolvePollIntervalMs(intervalMs: number): number {
 }
 
 /**
+ * The `refetchInterval` a polled query runs on: none while disabled, paused by its caller, or in a hidden document.
+ */
+export function resolveRefetchInterval(state: {
+    enabled: boolean;
+    intervalMs: number;
+    isPaused: boolean;
+    isVisible: boolean;
+}): number | false {
+    return state.enabled && !state.isPaused && state.isVisible ? state.intervalMs : false;
+}
+
+/**
  * `true` when the document is visible (or when running outside a DOM, e.g. a unit test with no `document` stub) so
  * callers default to "visible" rather than silently never polling.
  */

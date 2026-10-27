@@ -131,3 +131,13 @@ export function chipVisibility(hidden: HiddenChips): ChipVisibility {
         boolean
     >;
 }
+
+/**
+ * True when a chip query has no reader left in the bar: every chip it feeds is hidden by priority. Such a query stops
+ * its periodic poll (`usePolledQuery`'s `isPaused`) but stays enabled, so a hidden chip still fetches once for a new
+ * Terminal and keeps a measurable width; see {@link resolveHiddenChips}. `terminal.resources` feeds both the memory and
+ * child-process count chips, so it pauses only once both are hidden.
+ */
+export function isChipQueryUnread(readers: Partial<Record<DroppableChip, boolean>>): boolean {
+    return !Object.values(readers).some(Boolean);
+}
