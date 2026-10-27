@@ -57,7 +57,10 @@ bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--related
   which reads every spec's launch options to check its pool classification.
   A locale catalog, Desktop-shared i18n copy, or protocol Agent Chat label file runs the three
   Renderer i18n contracts (`i18n`, `zh-cn-terminology`, `english-counterpart-parity`), which reach
-  those sources only through the aggregated locale resources.
+  those sources only through the aggregated locale resources. Any changed or removed executable
+  source (the scope `scripts/reporters/ci-e2e-log-safety-scope.ts` defines) runs
+  `scripts/__tests__/ci-e2e-log-safety.test.ts`, which scans every launcher for Playwright configs
+  and reporters.
 - For added or changed production structured-log writes, explicitly include
   `scripts/__tests__/logging-contract.test.ts` in the focused check. It scans call sites rather
   than importing them, so import-based related-test discovery cannot select this contract.

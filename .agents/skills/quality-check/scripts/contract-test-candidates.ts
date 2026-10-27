@@ -12,6 +12,10 @@ import {
     DIRECTORY_DENSITY_TEST,
     isDirectoryDensityPath,
 } from '../../../../scripts/directory-density-baseline';
+import {
+    CI_E2E_LOG_SAFETY_TEST,
+    isCiE2ELogSafetyScanPath,
+} from '../../../../scripts/reporters/ci-e2e-log-safety-scope';
 
 /**
  * Every runtime-scanning contract test that the changed and removed paths could break.
@@ -28,6 +32,7 @@ export function contractTestCandidates(
         ...directoryDensityContractTestCandidates(files, removedFiles),
         ...localeContractTestCandidates(files, removedFiles),
         ...e2ePoolContractTestCandidates(files, removedFiles),
+        ...ciLogSafetyContractTestCandidates(files, removedFiles),
     ];
 }
 
@@ -195,5 +200,22 @@ function localeContractTestCandidates(
         LOCALE_SOURCES.some((prefix) => file.replaceAll('\\', '/').startsWith(prefix)),
     )
         ? [...LOCALE_CONTRACT_TESTS]
+        : [];
+}
+
+/**
+ * The public CI log safety contract scans every executable source for Playwright launches and reporter overrides, so
+ * import discovery never selects it. A promo capture script launching Playwright with its own config once passed `check
+ * --test` and failed first in the PR's hosted unit suite (#2769). Selecting on the whole scan scope rather than on
+ * reporter keywords also covers a deleted launcher and an edit that removes the last keyword.
+ */
+function ciLogSafetyContractTestCandidates(
+    files: readonly string[],
+    removedFiles: readonly string[],
+): string[] {
+    return [...files, ...removedFiles].some((file) =>
+        isCiE2ELogSafetyScanPath(file.replaceAll('\\', '/')),
+    )
+        ? [CI_E2E_LOG_SAFETY_TEST]
         : [];
 }

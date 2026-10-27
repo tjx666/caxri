@@ -60,6 +60,21 @@ describe('direct import test selection', () => {
         for (const contract of localeContracts) expect(unrelated).not.toContain(contract);
     });
 
+    it('routes changed or removed executable sources to the CI log safety scan', async () => {
+        const logSafety = 'scripts/__tests__/ci-e2e-log-safety.test.ts';
+        const promoLauncher = '.agents/skills/promo-images/scripts/promo.ts';
+        expect(await selectedTestCandidates(process.cwd(), [promoLauncher])).toContain(logSafety);
+        expect(await selectedTestCandidates(process.cwd(), [], [promoLauncher])).toContain(
+            logSafety,
+        );
+
+        const unscanned = await selectedTestCandidates(process.cwd(), [
+            'docs/README.md',
+            'apps/server/src/domains/__tests__/structure.test.ts',
+        ]);
+        expect(unscanned).not.toContain(logSafety);
+    });
+
     it('recognizes direct relative static imports and re-exports without following dynamic imports', () => {
         expect(
             hasDirectSourceImport(
@@ -289,7 +304,12 @@ describe('direct import test selection', () => {
         expect(direct.filter((test) => !test.startsWith(filesSuites))).toEqual(consumers);
         expect(direct).toContain(`${filesSuites}files.integration.test.ts`);
         expect(direct).toContain(`${filesSuites}mutations.integration.test.ts`);
-        expect(selected.filter((test) => !test.endsWith('/structure.test.ts'))).toEqual(direct);
+        // Beside the direct suites, only the whole-tree scans of any Server domain source join.
+        const scans = new Set([
+            'apps/server/src/domains/__tests__/structure.test.ts',
+            'scripts/__tests__/ci-e2e-log-safety.test.ts',
+        ]);
+        expect(selected.filter((test) => !scans.has(test))).toEqual(direct);
         expect(selected).not.toContain(
             'apps/server/src/domains/__tests__/domain-services.integration.test.ts',
         );
