@@ -130,9 +130,9 @@ test('Session search finds open, archived, and external conversations and acts o
                 if (!terminal) throw new Error('Synthetic Terminal missing');
                 database
                     .prepare(
-                        'UPDATE terminals SET kind = ?, provider = ?, agent_session_id = ?, last_process_state = ? WHERE id = ?',
+                        'UPDATE terminals SET kind = ?, agent_session_id = ?, last_process_state = ? WHERE id = ?',
                     )
-                    .run('claude', 'claude', agentSessionId, 'stopped', terminal.id);
+                    .run('claude', agentSessionId, 'stopped', terminal.id);
                 database
                     .prepare('UPDATE sessions SET primary_agent_terminal_id = ? WHERE id = ?')
                     .run(terminal.id, sessionId);
@@ -257,9 +257,9 @@ test('Session search finds an Agent Chat conversation by message text and opens 
         try {
             database
                 .prepare(
-                    'UPDATE terminals SET kind = ?, provider = ?, agent_session_id = ?, last_process_state = ?, surface = ? WHERE id = ?',
+                    'UPDATE terminals SET kind = ?, agent_session_id = ?, last_process_state = ?, surface = ? WHERE id = ?',
                 )
-                .run('claude', 'claude', CHAT, 'stopped', 'chat', terminal.id);
+                .run('claude', CHAT, 'stopped', 'chat', terminal.id);
             database
                 .prepare('UPDATE sessions SET primary_agent_terminal_id = ? WHERE id = ?')
                 .run(terminal.id, sessionId);
