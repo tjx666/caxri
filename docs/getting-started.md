@@ -8,7 +8,7 @@ status: current
 Caxri is an Agent Development Environment (ADE) for macOS: you build software through the coding
 Agents you already use (Claude Code, Codex, Grok Build), and Caxri keeps their work organized,
 automated and in view.
-This page is the model in five minutes. Install steps are in the [README](../README.md#install).
+This page is the model in five minutes. Install steps are in [install.md](install.md).
 
 ## The model
 

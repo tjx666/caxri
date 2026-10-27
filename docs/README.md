@@ -10,8 +10,9 @@ explains behavior.
 
 ## Start here (users)
 
-Plain-language guides for people using Caxri. Both are living docs and are also listed below.
+Plain-language guides for people using Caxri. All are living docs and are also listed below.
 
+- [install.md](install.md): install Caxri, or have a coding agent do it.
 - [getting-started.md](getting-started.md): the model in five minutes.
 - [troubleshooting.md](troubleshooting.md): blocked app, notifications, Agent not found, logs and reset.
 
@@ -51,6 +52,7 @@ What/why of current shipped behavior, core modules, protocols, and operator know
 | [hook-installation-authority.md](hook-installation-authority.md)   | Provider hook installation authority                                |
 | [hook-turn-recovery.md](hook-turn-recovery.md)                     | Lifecycle hook turn recovery                                        |
 | [i18n.md](i18n.md)                                                 | Interface languages, translation resources, and terminology         |
+| [install.md](install.md)                                           | Agent-executable install steps and optional initial settings        |
 | [keybindings.md](keybindings.md)                                   | Keybinding format and chord sequences                               |
 | [low-cost-generation.md](low-cost-generation.md)                   | Automatic Session-naming sandbox                                    |
 | [notifications.md](notifications.md)                               | Notification center history and reminders                           |
