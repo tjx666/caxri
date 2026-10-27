@@ -2,7 +2,7 @@ import type { Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
 import type { Stats } from 'node:fs';
 import { lstat, readdir, readFile, readlink, rm } from 'node:fs/promises';
-import { join } from 'node:path';
+import { basename, delimiter, join } from 'node:path';
 import process from 'node:process';
 
 import { writeJsonAtomic } from './atomic-json';
@@ -115,8 +115,20 @@ function compareText(left: string, right: string): number {
     return left < right ? -1 : 1;
 }
 
+/**
+ * `bun --bun` and `bunx --bun` (the Android Acceptance runner starts Playwright that way) put a `bun-node-*` directory
+ * first on PATH whose `node` is Bun itself, and Bun refuses `node --version` without a script. The probe skips that
+ * shim so every runner reads the same installed Node.
+ */
 async function toolVersion(command: string): Promise<string> {
-    const { stdout } = await execFileAsync(command, ['--version'], { encoding: 'utf8' });
+    const path = (process.env.PATH ?? '')
+        .split(delimiter)
+        .filter((entry) => !basename(entry).startsWith('bun-node-'))
+        .join(delimiter);
+    const { stdout } = await execFileAsync(command, ['--version'], {
+        encoding: 'utf8',
+        env: { ...process.env, PATH: path },
+    });
     return stdout.trim();
 }
 

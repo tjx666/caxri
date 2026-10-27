@@ -173,4 +173,22 @@ describe('build receipt', () => {
         // `check --e2e` decides under Bun while Playwright workers verify under Node.
         expect(stdout.trim()).toBe(await computeBuildSourceKey(root));
     });
+
+    it("reads the installed Node behind Bun's `node` shim", async () => {
+        const root = await createBuiltRepo();
+        const modulePath = join(import.meta.dirname, '..', 'build-receipt.ts');
+        // `bunx --bun` runs the Android Acceptance Playwright with a `node` that is Bun itself.
+        const { stdout } = await execFileAsync(
+            'bunx',
+            [
+                '--bun',
+                'node',
+                '-e',
+                `const { computeBuildSourceKey } = await import(${JSON.stringify(modulePath)}); console.log(await computeBuildSourceKey(${JSON.stringify(root)}));`,
+            ],
+            { encoding: 'utf8' },
+        );
+
+        expect(stdout.trim()).toBe(await computeBuildSourceKey(root));
+    });
 });
