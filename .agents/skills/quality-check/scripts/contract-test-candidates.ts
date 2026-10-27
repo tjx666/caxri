@@ -2,9 +2,10 @@
  * Contract tests that scan source or config files at runtime instead of importing them, so import-based discovery in
  * `check.ts` cannot select them. Each selector maps a changed-path pattern to the contract it could break.
  *
- * Only whole-tree contracts belong here: ones that walk a directory's structure or react to deleted paths. A test that
- * asserts on specific files' text imports them with `?raw` or `import.meta.glob`, which import discovery already
- * follows.
+ * Only whole-tree contracts belong here: ones that walk a directory's structure or react to deleted paths, plus
+ * contracts over an aggregated resource whose sources reach the test only through ordinary imports that discovery
+ * deliberately does not follow. A test that asserts on specific files' text imports them with `?raw` or
+ * `import.meta.glob`, which import discovery already follows.
  */
 
 import {
@@ -25,6 +26,7 @@ export function contractTestCandidates(
         ...pathReferenceContractTestCandidates(files, removedFiles),
         ...dependencyManifestContractTestCandidates(files),
         ...directoryDensityContractTestCandidates(files, removedFiles),
+        ...localeContractTestCandidates(files, removedFiles),
     ];
 }
 
@@ -144,5 +146,37 @@ function directoryDensityContractTestCandidates(
         isDirectoryDensityPath(file.replaceAll('\\', '/')),
     )
         ? [DIRECTORY_DENSITY_TEST]
+        : [];
+}
+
+/**
+ * Every source that feeds the Renderer's locale resources: the locale catalogs themselves, the Desktop-shared command
+ * and window copy, and the protocol's Agent Chat labels.
+ */
+const LOCALE_SOURCES = [
+    'apps/desktop/src/renderer/src/i18n/locales/',
+    'apps/desktop/src/shared/i18n/',
+    'packages/protocol/src/agent/agent-chat-labels',
+];
+
+const LOCALE_CONTRACT_TESTS = [
+    'apps/desktop/src/renderer/src/i18n/__tests__/i18n.test.ts',
+    'apps/desktop/src/renderer/src/i18n/__tests__/zh-cn-terminology.test.ts',
+    'apps/desktop/src/renderer/src/i18n/__tests__/english-counterpart-parity.test.ts',
+];
+
+/**
+ * The i18n contracts import the aggregated `enResources`/`zhCNResources`, which each catalog reaches through object
+ * literals rather than pure re-exports, so import discovery stops before the test. An untranslated "Session" in a zh-CN
+ * Settings description once passed `check --test` and failed first in CI's sharded unit suite.
+ */
+function localeContractTestCandidates(
+    files: readonly string[],
+    removedFiles: readonly string[],
+): string[] {
+    return [...files, ...removedFiles].some((file) =>
+        LOCALE_SOURCES.some((prefix) => file.replaceAll('\\', '/').startsWith(prefix)),
+    )
+        ? [...LOCALE_CONTRACT_TESTS]
         : [];
 }

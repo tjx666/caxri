@@ -52,6 +52,9 @@ bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--related
   `workspace-dependency-contract`), which assert scripts and ranges without importing source.
   A changed or removed path inside a directory `scripts/directory-density-baseline.ts`
   guards runs `scripts/__tests__/directory-density-ratchet.test.ts`, which counts files on disk.
+  A locale catalog, Desktop-shared i18n copy, or protocol Agent Chat label file runs the three
+  Renderer i18n contracts (`i18n`, `zh-cn-terminology`, `english-counterpart-parity`), which reach
+  those sources only through the aggregated locale resources.
 - For added or changed production structured-log writes, explicitly include
   `scripts/__tests__/logging-contract.test.ts` in the focused check. It scans call sites rather
   than importing them, so import-based related-test discovery cannot select this contract.
