@@ -6,8 +6,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
 import { useMobileTheme } from '../../../theme/use-mobile-theme';
-import type { ConnectionClock, MobileConnectionStatus } from '../../connection/connection-state';
-import { initialConnectionClock, isConnectionFresh } from '../../connection/connection-state';
+import type { MobileConnectionStatus } from '../../connection/connection-state';
+import { initialConnectionClock, nextConnectionClock } from '../../connection/connection-state';
 import { useMobileClient } from '../../connection/mobile-client-provider';
 import type { MobileLayoutMode } from '../../layout/layout-mode';
 import { mobileLayoutMode } from '../../layout/layout-mode';
@@ -100,12 +100,19 @@ export const SessionsScreen = ({ routeSessionId }: { routeSessionId: string | nu
      * Lazy-initialized so the first paint already reflects the client's current `lastSeenAt` instead of the
      * guaranteed-stale `null` placeholder (see `initialConnectionClock`).
      */
-    const [{ now, lastSeenAt }, setClock] = useState<ConnectionClock>(() =>
-        initialConnectionClock(getLastSeenAt),
+    const [{ fresh, now }, setClock] = useState(() =>
+        initialConnectionClock(status, getLastSeenAt),
     );
 
     useEffect(() => {
-        const tick = (): void => setClock({ now: Date.now(), lastSeenAt: getLastSeenAt() });
+        /**
+         * Sampled every second, but a sample that changes nothing on screen returns the same clock and skips the
+         * render.
+         */
+        const tick = (): void =>
+            setClock((previous) =>
+                nextConnectionClock(previous, status, getLastSeenAt(), Date.now()),
+            );
         const initial = setTimeout(tick, 0);
         const interval = setInterval(tick, 1_000);
         return () => {
@@ -113,8 +120,6 @@ export const SessionsScreen = ({ routeSessionId }: { routeSessionId: string | nu
             clearInterval(interval);
         };
     }, [getLastSeenAt, status]);
-
-    const fresh = isConnectionFresh(status, lastSeenAt, now);
 
     const openSession = useCallback(
         (sessionId: string): void => {

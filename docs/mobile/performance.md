@@ -24,10 +24,15 @@ measurement.
 ## Development-client sampler
 
 Authenticated frames update a ref-backed last-observation timestamp without publishing a new
-shared React context. The Session screen samples it on its existing one-second freshness clock.
-Connection status changes still propagate immediately. The browser-backed runtime regression
-drives observations on separate frames and requires zero shared controller renders from those
-observations; this is a render-count contract, not a device frame-rate or release-performance claim.
+shared React context. The Sessions screen samples it once a second, so the Connection banner still
+appears within about a second of the five-second stale threshold, but it re-renders only when a
+sample changes what it shows: freshness flips at once, and the time Session ages are measured against
+moves in 15-second steps (`nextConnectionClock` in
+`apps/mobile/src/features/connection/connection-state.ts`, covered by its unit test). An idle,
+connected Sessions screen therefore renders about four times a minute instead of every second, and
+the Session detail, which never reads the clock, is memoized so those renders stop at it.
+Connection status changes still propagate immediately. This is a render-count contract, not a device
+frame-rate or release-performance claim.
 
 Run from the repository root with one explicit ADB serial and one stable ready `testID`:
 
