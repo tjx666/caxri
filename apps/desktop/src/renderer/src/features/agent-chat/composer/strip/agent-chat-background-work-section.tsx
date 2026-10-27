@@ -1,6 +1,6 @@
 import { useId, useState } from 'react';
 
-import { ChevronRight, X } from 'lucide-react';
+import { History, X } from 'lucide-react';
 
 import { DisclosureMotion } from '../../../../components/disclosure-motion';
 import { Button } from '../../../../components/ui/button';
@@ -9,8 +9,11 @@ import { useTranslation } from '../../../../i18n';
 import { cn } from '../../../../lib/utilities';
 import { AgentChatTaskEntry } from '../../tasks/agent-chat-task-entry';
 import { AgentChatTaskGlyph } from '../../tasks/agent-chat-task-glyph';
-import { agentChatChevronMotion } from '../../transcript/agent-chat-disclosure';
 import { markAgentChatFailuresSeen } from './agent-chat-seen-failures';
+import {
+    toggleAgentChatStripFold,
+    useIsAgentChatStripSectionCollapsed,
+} from './agent-chat-strip-folds';
 import { AgentChatStripSection } from './agent-chat-strip-section';
 import type { AgentChatBackgroundWork, AgentChatRunningKind } from './agent-chat-strip-sections';
 import { agentChatBackgroundWorkCounts } from './agent-chat-strip-sections';
@@ -34,79 +37,65 @@ function RunningKindGlyphs({ kinds }: { kinds: readonly AgentChatRunningKind[] }
 }
 
 /**
- * The tasks behind the `N ended` disclosure, most recent first, with how each ended.
+ * The header's `N ended` disclosure: a history glyph with the count, so ended work costs no row of its own until the
+ * user asks for it. Opening it also unfolds a collapsed section, since the list it reveals lives in the section body.
  */
-function EndedTasks({
-    tasks,
+function EndedTasksToggle({
+    count,
+    isShowing,
+    listId,
     terminalId,
-    onOpenTask,
+    onToggle,
 }: {
-    tasks: AgentChatBackgroundWork['ended'];
+    count: number;
+    isShowing: boolean;
+    listId: string;
     terminalId: string;
-    onOpenTask: ((taskId: string) => void) | undefined;
+    onToggle: () => void;
 }) {
     const { t } = useTranslation();
-    const [isShowing, setShowing] = useState(false);
-    const listId = useId();
-    if (tasks.length === 0) return null;
+    const isCollapsed = useIsAgentChatStripSectionCollapsed(terminalId, 'tasks');
+    const label = t('agentChat.tasks.endedCount', { count });
     return (
-        <>
-            <button
+        <Tooltip content={label}>
+            <Button
                 aria-controls={listId}
-                aria-expanded={isShowing}
-                className="mx-2 mt-1 inline-flex cursor-pointer items-center gap-0.5 border-0 bg-transparent p-0 text-[11px] text-muted tabular-nums hover:text-foreground focus-visible:outline focus-visible:outline-accent"
-                type="button"
-                onClick={() => setShowing((value) => !value)}
+                aria-expanded={isShowing && !isCollapsed}
+                aria-label={label}
+                className={cn(
+                    'h-6 shrink-0 gap-1 px-1.5 text-[11px] text-muted tabular-nums hover:text-foreground',
+                    isShowing && !isCollapsed && 'text-foreground',
+                )}
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                    if (isCollapsed) {
+                        toggleAgentChatStripFold(terminalId, 'tasks');
+                        if (!isShowing) onToggle();
+                        return;
+                    }
+                    onToggle();
+                }}
             >
-                {t('agentChat.tasks.endedCount', { count: tasks.length })}
-                {/* The count reads as plain status text without a disclosure cue. */}
-                <ChevronRight
-                    aria-hidden="true"
-                    className={cn(
-                        'size-3 shrink-0',
-                        agentChatChevronMotion(isShowing),
-                        isShowing && 'rotate-90',
-                    )}
-                />
-            </button>
-            <DisclosureMotion
-                animate
-                expanded={isShowing}
-                id={listId}
-                kind="agent-chat-ended-tasks"
-            >
-                <ul
-                    aria-label={t('agentChat.tasks.endedList')}
-                    className="m-0 mt-1 flex max-h-32 list-none flex-col overflow-y-auto p-0"
-                >
-                    {tasks.map((task) => (
-                        <AgentChatTaskEntry
-                            key={task.id}
-                            task={task}
-                            terminalId={terminalId}
-                            onOpenTask={onOpenTask}
-                        />
-                    ))}
-                </ul>
-            </DisclosureMotion>
-        </>
+                <History aria-hidden="true" className="size-3.5" />
+                {count}
+            </Button>
+        </Tooltip>
     );
 }
 
 /**
  * Background work as a collapsible list in the composer strip (`agentChatBackgroundWork`): failures from the latest
  * turn first so one is never buried, then each running subagent and background shell with its elapsed time, opened in
- * its side tab on click where the host can open one and stoppable on its own. Stopping the turn never stops these, and
- * the list says so while a turn runs. Ended work is counted, and the count reveals it. Failures stay until the user
- * dismisses them, which files them under the ended tasks; the section leaves once nothing runs and no failure waits.
+ * its side tab on click where the host can open one and stoppable on its own. Ended work is counted by a header control
+ * that reveals it. Failures stay until the user dismisses them, which files them under the ended tasks; the section
+ * leaves once nothing runs and no failure waits.
  */
 export function AgentChatBackgroundWorkSection({
-    isTurnRunning,
     terminalId,
     work,
     onOpenTask,
 }: {
-    isTurnRunning: boolean;
     terminalId: string;
     work: AgentChatBackgroundWork;
     /**
@@ -117,27 +106,40 @@ export function AgentChatBackgroundWorkSection({
     const { t } = useTranslation();
     const { running, failed, ended } = work;
     const counts = agentChatBackgroundWorkCounts(work, t);
+    const [isShowingEnded, setShowingEnded] = useState(false);
+    const endedListId = useId();
     return (
         <AgentChatStripSection
             actions={
-                failed.length > 0 && (
-                    <Tooltip content={t('agentChat.tasks.dismissFailures')}>
-                        <Button
-                            aria-label={t('agentChat.tasks.dismissFailures')}
-                            className="size-6 shrink-0 text-muted hover:text-foreground"
-                            size="icon"
-                            variant="ghost"
-                            onClick={() =>
-                                markAgentChatFailuresSeen(
-                                    terminalId,
-                                    failed.map(({ id }) => id),
-                                )
-                            }
-                        >
-                            <X aria-hidden="true" className="size-3.5" />
-                        </Button>
-                    </Tooltip>
-                )
+                <>
+                    {ended.length > 0 && (
+                        <EndedTasksToggle
+                            count={ended.length}
+                            isShowing={isShowingEnded}
+                            listId={endedListId}
+                            terminalId={terminalId}
+                            onToggle={() => setShowingEnded((value) => !value)}
+                        />
+                    )}
+                    {failed.length > 0 && (
+                        <Tooltip content={t('agentChat.tasks.dismissFailures')}>
+                            <Button
+                                aria-label={t('agentChat.tasks.dismissFailures')}
+                                className="size-6 shrink-0 text-muted hover:text-foreground"
+                                size="icon"
+                                variant="ghost"
+                                onClick={() =>
+                                    markAgentChatFailuresSeen(
+                                        terminalId,
+                                        failed.map(({ id }) => id),
+                                    )
+                                }
+                            >
+                                <X aria-hidden="true" className="size-3.5" />
+                            </Button>
+                        </Tooltip>
+                    )}
+                </>
             }
             glyph={<RunningKindGlyphs kinds={work.runningKinds} />}
             label={t('agentChat.tasks.backgroundWork')}
@@ -165,12 +167,28 @@ export function AgentChatBackgroundWorkSection({
                     />
                 ))}
             </ul>
-            {isTurnRunning && running.length > 0 && (
-                <p className="m-0 mt-1 px-2 text-[11px] text-muted">
-                    {t('agentChat.tasks.stopTurnKeepsTasks')}
-                </p>
+            {ended.length > 0 && (
+                <DisclosureMotion
+                    animate
+                    expanded={isShowingEnded}
+                    id={endedListId}
+                    kind="agent-chat-ended-tasks"
+                >
+                    <ul
+                        aria-label={t('agentChat.tasks.endedList')}
+                        className="m-0 mt-1 flex max-h-32 list-none flex-col overflow-y-auto border-0 border-t border-solid border-border p-0 pt-1"
+                    >
+                        {ended.map((task) => (
+                            <AgentChatTaskEntry
+                                key={task.id}
+                                task={task}
+                                terminalId={terminalId}
+                                onOpenTask={onOpenTask}
+                            />
+                        ))}
+                    </ul>
+                </DisclosureMotion>
             )}
-            <EndedTasks tasks={ended} terminalId={terminalId} onOpenTask={onOpenTask} />
         </AgentChatStripSection>
     );
 }

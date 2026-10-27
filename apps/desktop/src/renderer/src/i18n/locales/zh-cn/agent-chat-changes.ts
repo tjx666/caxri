@@ -112,7 +112,6 @@ export const agentChatChanges: TranslatedNamespace<typeof source> = {
     'agentChat.tasks.endedCount': '{{count}} 个已结束',
     'agentChat.tasks.failedCount': '{{count}} 个失败',
     'agentChat.tasks.dismissFailures': '忽略失败',
-    'agentChat.tasks.stopTurnKeepsTasks': '停止本轮不会停止后台任务。',
     'agentChat.tasks.endedList': '已结束的后台任务',
     'agentChat.tasks.earlierHidden': '较早的消息未显示：对话只保留较长子 Agent 对话的最近部分。',
     'agentChat.tasks.emptyRunning': '子 Agent 尚未报告任何内容。',

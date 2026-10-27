@@ -14,10 +14,10 @@ import {
 
 /**
  * One collapsible section of the composer strip (the plan, background work): a 32px header that folds and unfolds the
- * list under it, and the list itself. The whole header is the toggle, with the chevron trailing like the `N ended`
- * disclosure; `actions` sit beside it outside the toggle. Collapsed, the header still says what matters (`summary`,
- * `meta`), so folding never hides that work is running. Only a fold the user makes animates: a section that appears
- * with its work renders still, like every other strip row.
+ * list under it, and the list itself. The whole header is the toggle, with the chevron trailing; `actions` sit beside
+ * it outside the toggle. Collapsed, the header still says what matters (`summary`, `meta`), so folding never hides that
+ * work is running. Only a fold the user makes animates: a section that appears with its work renders still, like every
+ * other strip row.
  */
 export function AgentChatStripSection({
     actions,
