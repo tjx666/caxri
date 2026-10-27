@@ -98,6 +98,25 @@ describe('built-in themes', () => {
         }
     });
 
+    /**
+     * A drifted built-in snapshot that lacks a late role keeps its saved colors; only the absent key is backfilled. The
+     * snapshot then fails the catalog match and is demoted to `custom-*` rather than silently refreshed.
+     */
+    it('does not replace the colors of a drifted built-in snapshot that lacks a late role', () => {
+        const saved = structuredClone(solarizedLightTheme) as {
+            colors: Record<string, string>;
+        };
+        delete saved.colors.merged;
+        saved.colors.accent = '#123456';
+
+        const upgraded = themeTokensSchema.parse(upgradeThemeColors(saved));
+        expect(upgraded.colors.accent).toBe('#123456');
+        expect(upgraded.colors.merged).toBe(solarizedLightTheme.colors.merged);
+        const normalized = normalizeBuiltinTheme(upgraded);
+        expect(normalized.source).toBe('custom');
+        expect(normalized.colors.accent).toBe('#123456');
+    });
+
     it('falls back to a custom theme own accent, and leaves non-theme input to the schema', () => {
         const custom = structuredClone(solarizedLightTheme) as {
             colors: Record<string, string>;

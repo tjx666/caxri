@@ -125,11 +125,9 @@ const CUSTOM_THEME_ROLE_LITERAL = {
  * chrome. Recovering the preset's own value keeps identity and contrast intact. A genuinely custom theme has no catalog
  * entry to recover from and borrows the nearest role it already carries (see {@link CUSTOM_THEME_ROLE_SOURCE}).
  *
- * A built-in snapshot missing any of these roles gets its whole `colors` block replaced by the catalog's, not just the
- * absent keys. Such a file was written by an older build, so a value that now differs is drift from that build rather
- * than a deliberate edit, and backfilling only the new keys would leave the preset failing `findMatchingBuiltinTheme`,
- * silently downgrading the user to `custom-*` and pinning them to the old colors. The escape hatch closes on its own:
- * once rewritten, the snapshot carries every role and takes the branch below.
+ * Only the absent keys are filled, for built-in snapshots too. A built-in snapshot whose other colors have drifted from
+ * the current catalog is not refreshed: it fails `findMatchingBuiltinTheme` and `normalizeBuiltinTheme` demotes it to
+ * `custom-*` with its saved colors. Following the catalog would be a compatibility layer for older unpublished builds.
  *
  * Anything that is not a theme-shaped object passes through untouched so the schema still owns rejection.
  */
@@ -141,8 +139,6 @@ export function upgradeThemeColors(value: unknown): unknown {
     const missing = UPGRADABLE_COLOR_ROLES.filter((role) => !(role in colors));
     if (missing.length === 0) return value;
     const preset = builtinThemes.find((candidate) => candidate.id === theme.id);
-    if (preset && theme.source === 'builtin')
-        return { ...theme, colors: structuredClone(preset.colors) };
     const existing = colors as Record<string, unknown>;
     const recovered: Record<string, unknown> = { ...existing };
     for (const role of missing) {
