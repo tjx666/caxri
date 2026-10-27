@@ -99,6 +99,30 @@ describe('createAgentChatStreamPacer', () => {
         expect(pacer.next('New', 0)).toBe('New');
     });
 
+    it('keeps easing in a clipped reply after its window moves', () => {
+        // The phone keeps only a long reply's last characters behind a marker, so re-reading the window after more
+        // text arrived drops some of the start the screen shows while the end still continues it.
+        const reply = Array.from({ length: 600 }, (_, index) => `word${index}`).join(' ');
+        const clip = (text: string) => `…${text.slice(-4_000)}`;
+        const pacer = createAgentChatStreamPacer(clip(reply.slice(0, 4_500)));
+
+        const target = clip(reply.slice(0, 4_800));
+        const first = pacer.next(target, 0);
+        // Where the old window ended in the new one; the first frame reveals only a little past it.
+        const shownEnd = target.indexOf(reply.slice(4_420, 4_500)) + 80;
+        expect(target.startsWith(first)).toBe(true);
+        expect(first.length).toBeGreaterThan(shownEnd);
+        expect(first.length).toBeLessThan(shownEnd + 50);
+        expect(reveal(pacer, target, 16).at(-1)).toBe(target.length);
+    });
+
+    it('still shows a rewrite whole when the end of what is shown is gone', () => {
+        const reply = Array.from({ length: 30 }, (_, index) => `word${index}`).join(' ');
+        const pacer = createAgentChatStreamPacer(reply);
+        const rewrite = `${reply.slice(0, 100)} and then something else entirely`;
+        expect(pacer.next(rewrite, 0)).toBe(rewrite);
+    });
+
     it('never splits a surrogate pair', () => {
         const pacer = createAgentChatStreamPacer();
         const target = `${'😀'.repeat(40)}`;
