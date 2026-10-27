@@ -842,7 +842,8 @@ Request`, `agentChat.focusWaitingRequest`, bound to Cmd+Alt+W, unfolds it and mo
   pie is a neutral glyph with no number; from 85%, where compacting is suggested, it turns `--warning` and shows the percentage, and the model and effort picker (see "Model and effort" below). Activating a Chat's tab puts the cursor in the composer, as activating
   a Terminal tab focuses its grid, under the same rules: not behind a modal, not out of another
   text field, and not when arrow-key tab navigation activated it, which keeps focus on the tab.
-  A single status row at the top of the composer card says whether the Chat is starting or working, with the plan and
+  A single status row at the top of the composer card says whether the Chat is starting or working (while a turn works
+  on an active goal, the goal row says it instead; see [Goals](#goals)), with the plan and
   background work as collapsible sections above it (`agentChatPlanSection`, `agentChatBackgroundWork`); a working turn shows one verb chosen per turn from its id, its elapsed time, and on the right what the turn
   has spent so far, as LobeHub's composer tray does: steps, tokens (the Usage page's `total`), and
   the cost estimated from the bundled price list (a bare figure, its currency in the tooltip), each behind an icon with a pointer tooltip. A figure still at zero
@@ -1476,8 +1477,19 @@ enters Goal mode and Enter sends `/goal <condition>` as prompt text. The list be
   again. `goal.updatedAt` is when Server Core received the report: Codex counts time only while a turn
   works on an active goal and reports it at turn boundaries, so a Client adds the running turn's time
   since the later of its start and that report (`agentChatGoalElapsedSeconds`).
+- Server Core also counts the goal's spend across its turns in the snapshot's `goalUsage` (requests,
+  tokens, and estimated cost, like `turnUsage`, named by the objective): `ChatTurnUsage` adds each
+  response to it while the goal is active and starts over when another goal is set; the reducer drops
+  it with a cleared goal, so the same objective set again counts from zero. It lives only in the
+  Chat's snapshot, so a restarted Chat or Server Core counts from the next response, while the goal's
+  time still comes from the provider. Both providers fill it, so it
+  stands in for Claude Code's goal, which reports no tokens, and for Codex's `tokensUsed`, which
+  counts tokens its own way and arrives only at turn boundaries.
 - Desktop shows the goal as a row in the composer strip and enters Goal mode from `/goal` or the Add
-  menu (see `DESIGN.md`). The phone runs `/goal` as a command and shows no goal row.
+  menu (see `DESIGN.md`). While a turn works on an active goal, the goal row shows that work live
+  with the goal's time and `goalUsage`, in place of the status row (`agentChatLiveGoalActivity`). The
+  phone runs `/goal` as a command and shows a goal row of its own (the objective, the goal's time,
+  and Clear and Pause or Resume) beside its status row, without `goalUsage`.
 
 ### Claude Code goals
 

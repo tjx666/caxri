@@ -93,6 +93,22 @@ describe('Agent Chat composer snapshot selection', () => {
         expect(view.snapshot).toMatchObject({ fast: true, ultracode: false });
     });
 
+    it('keeps the goal and its spend for the goal row', () => {
+        const goal = {
+            objective: 'ship it',
+            status: 'active' as const,
+            tokensUsed: 0,
+            timeUsedSeconds: 0,
+            updatedAt: 1000,
+        };
+        const goalUsage = { objective: 'ship it', requests: 4, totalTokens: 4800 };
+        const view = selectAgentChatComposerView(
+            { ...snapshot([prompt], 1), goal, goalUsage },
+            context,
+        );
+        expect(view.snapshot).toMatchObject({ goal, goalUsage });
+    });
+
     it('keeps the plan the status row leads with once a turn stops short of it', () => {
         const plan = {
             turnId: 'turn-1',

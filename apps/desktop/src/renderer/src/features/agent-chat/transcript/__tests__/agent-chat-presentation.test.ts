@@ -166,6 +166,18 @@ describe('agentChatSendAction', () => {
         });
     });
 
+    it('adds to the goal rather than the turn while an active goal runs', () => {
+        expect(
+            agentChatSendAction({ isTurnRunning: true, isBusy: true, isGoalActive: true }, 'Codex'),
+        ).toMatchObject({ kind: 'steer', placeholder: 'Add to the goal' });
+        expect(
+            agentChatSendAction(
+                { isTurnRunning: false, isBusy: false, isGoalActive: true },
+                'Codex',
+            ),
+        ).toMatchObject({ placeholder: 'Message Codex' });
+    });
+
     it('asks what to plan in an idle Chat with plan mode on', () => {
         expect(
             agentChatSendAction({ isTurnRunning: false, isBusy: false, isPlanMode: true }, 'Codex'),

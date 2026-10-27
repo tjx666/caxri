@@ -254,6 +254,9 @@ export function applyAgentChatOperation(
                 next.activeTurnId = state.activeTurnId ?? undefined;
             if (state.plan !== undefined) next.plan = state.plan ?? undefined;
             if (state.goal !== undefined) next.goal = state.goal ?? undefined;
+            // The spend belongs to the goal, so a cleared goal takes it along and the same objective set again counts from zero.
+            if (state.goal === null) next.goalUsage = undefined;
+            if (state.goalUsage !== undefined) next.goalUsage = state.goalUsage ?? undefined;
             if (state.model !== undefined) next.model = state.model ?? undefined;
             if (state.effort !== undefined) next.effort = state.effort ?? undefined;
             if (state.ultracode !== undefined) next.ultracode = state.ultracode ?? undefined;
@@ -279,6 +282,7 @@ export function applyAgentChatOperation(
                 'activeTurnId',
                 'plan',
                 'goal',
+                'goalUsage',
                 'model',
                 'effort',
                 'ultracode',

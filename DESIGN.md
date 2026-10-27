@@ -1374,7 +1374,7 @@ its Stop, since `1 running` would only repeat the row. The plan list scrolls pas
 192px. The Plan section shows while the Chat is busy and after the turn only while the plan is
 unfinished; Background work shows while anything runs or a failure from the latest turn is
 unseen, and its X dismisses those failures. The status row is the one place the turn's live state
-shows: on the left Buddy, the turn's verb (which swaps with a short rise, blur, and fade), and the
+shows, except while a turn works on an active goal, when the goal row below takes its place: on the left Buddy, the turn's verb (which swaps with a short rise, blur, and fade), and the
 elapsed time (`4m 23s`); on the right the turn's spend as bare icon-and-figure pairs with details in
 tooltips (cost without a `$`). Rows and the strip's frame appear and leave at once, with no fade or
 unfolding height: animating them pushed the transcript up and back down whenever a turn started or
@@ -1382,11 +1382,19 @@ ended, and with several rows trading places the composer's top edge read as jump
 user makes animates; inside the status row numbers roll, and all of it honors reduced motion.
 References: the Codex app's and Mux's compact turn summaries and the Codex app's collapsible plan
 and background lists above the composer. While the provider pursues a goal, a goal row leads the strip, after the Codex
-app's: a goal glyph (`--accent` while active), the status in `--foreground` medium (`Pursuing goal`,
-`Goal paused`, `Goal stalled`, `Goal hit usage limits`, `Goal budget reached`, `Goal achieved`), the
-objective truncated in `--muted`, the goal's time (`1h 37m 29s`, ticking each second only while an
-active goal's turn runs), and ghost icon buttons Clear, Pause or Resume, and Expand, which shows the
-whole objective below the row. A completed goal stays until cleared. Claude Code's `/goal` reads
+app's: a goal glyph (`--accent` while active), the status in `--foreground` medium only when the goal
+is not active (`Goal paused`, `Goal stalled`, `Goal hit usage limits`, `Goal budget reached`, `Goal
+achieved`), the objective truncated in `--muted`, the goal's time (`1h 37m 29s`, localized like a
+turn's time, rolling each second only while an active goal's turn runs), the goal's spend across all
+its turns as the status row's icon-and-figure pairs, and ghost icon buttons Clear, Pause or Resume,
+and Expand, which shows the whole objective below the row. While a turn works on an active goal the
+goal row is the Chat's live state and the status row stays out of the strip: the provider starts the
+goal's turns on its own, so a second row would repeat the work with a second clock and figures that
+start over each turn. The goal glyph sends out one `--accent` ring (a single `animate-ping`) for
+each model request the goal makes, and the objective carries the working text's sweep; the glyph
+stays between the provider's turns, so the row's lead never swaps. The composer's placeholder reads
+`Add to the goal` instead of `Add to this turn`. A turn that is stopping, compacting, or waiting on
+the user keeps its own status row. A completed goal stays until cleared. Claude Code's `/goal` reads
 the same while it is pursued, without Pause, since Claude Code cannot pause a goal; the row leaves once
 Claude Code accepts the goal as met, and its time counts only the turns that worked on it. Goal mode, entered by choosing
 `/goal` from the suggestion list or Goal from `+`, adds a Goal chip after the permission picker,

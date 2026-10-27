@@ -71,12 +71,25 @@ test('a Codex Chat sets, pauses, resumes, and clears a goal', async ({}, testInf
         await message.press('Enter');
         const row = chat.locator('[data-agent-chat-goal]');
         await expect(row).toHaveAttribute('data-agent-chat-goal', 'active');
-        await expect(row).toContainText('Pursuing goal');
         await expect(row).toContainText('hold the line until the fixtures pass');
         await expect(goalChip).toHaveCount(0);
-        // Codex starts the goal's turn on its own; the row's time ticks while it runs.
+        // Codex starts the goal's turn on its own. The goal row shows that work live in place of the status row: its
+        // time ticks and the goal's spend grows, and the active goal needs no status label.
         await expect(chat.getByRole('button', { name: 'Stop', exact: true })).toBeVisible();
-        await expect(row).toContainText(/[1-9]\d*s$/u, { timeout: 5000 });
+        await expect(row).toHaveAttribute('data-agent-chat-goal-live', '');
+        await expect(row).not.toContainText('Pursuing goal');
+        await expect(chat.locator('[data-agent-chat-status-row]')).toHaveCount(0);
+        await expect(row.locator('[data-agent-chat-goal-time]')).toHaveAttribute(
+            'data-value',
+            /^[1-9]\d*s$/u,
+            { timeout: 5000 },
+        );
+        await expect(row.locator('[data-agent-chat-turn-metric="steps"]')).toBeVisible({
+            timeout: 5000,
+        });
+        await expect(row.locator('[data-agent-chat-goal-ripple]')).toHaveCount(1);
+        // A message sent now adds to the goal's work, so the input names the goal rather than a turn.
+        await expect(message).toHaveAttribute('aria-placeholder', 'Add to the goal');
         await page.screenshot({ path: testInfo.outputPath('goal-active.png') });
 
         // Pause runs while the turn is still going, rather than waiting in the follow-up queue.

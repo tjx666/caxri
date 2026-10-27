@@ -3,8 +3,8 @@
  * the goal on the thread, and each request's parameters are appended to `goal-requests.jsonl` so tests can assert what
  * Caxri asked for. Like Codex, an active goal starts a turn on its own when the thread is idle, on `set` and after each
  * goal turn: the turn streams a short reply and completes the goal, unless the objective contains `hold`, which keeps
- * the turn streaming until `turn/interrupt` stops it. A `set` whose objective contains `reject` fails, as Codex refuses
- * an objective it cannot accept.
+ * the turn streaming, with a model request's token usage about every half second, until `turn/interrupt` stops it. A
+ * `set` whose objective contains `reject` fails, as Codex refuses an objective it cannot accept.
  */
 import fs from 'node:fs';
 
@@ -31,13 +31,40 @@ function notifyGoal(io: FakeCodexIo, turnId: string | null, goal: Json) {
     });
 }
 
+const requestCounts = new WeakMap<FakeTurn, number>();
+
+/**
+ * One model request of a held goal turn, as `thread/tokenUsage/updated` reports it; the turn's running total names the
+ * request.
+ */
+function reportRequest(io: FakeCodexIo, turn: FakeTurn) {
+    const count = (requestCounts.get(turn) ?? 0) + 1;
+    requestCounts.set(turn, count);
+    const total = count * 1200;
+    io.notifyTurn(turn, 'thread/tokenUsage/updated', {
+        turnId: turn.id,
+        tokenUsage: {
+            total: { totalTokens: total },
+            last: {
+                totalTokens: 1200,
+                inputTokens: 1150,
+                cachedInputTokens: 900,
+                outputTokens: 50,
+            },
+            modelContextWindow: 200_000,
+        },
+    });
+}
+
 async function pursueGoal(io: FakeCodexIo, turn: FakeTurn) {
     const thread = io.currentThread();
     const objective = typeof thread.goal?.objective === 'string' ? thread.goal.objective : '';
     if (objective.includes('hold')) {
-        while (!turn.interrupted) {
+        for (let step = 1; !turn.interrupted; step += 1) {
             // eslint-disable-next-line no-await-in-loop -- streams until the user stops the turn
             await io.streamMessage(turn, 'Still pursuing the goal. ', 0);
+            // A model request every 25 chunks, so the goal's spend grows while it runs.
+            if (step % 25 === 0) reportRequest(io, turn);
             // eslint-disable-next-line no-await-in-loop -- see above
             await delay(20);
         }

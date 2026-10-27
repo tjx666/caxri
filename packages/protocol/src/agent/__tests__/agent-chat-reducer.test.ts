@@ -222,6 +222,29 @@ describe('Agent Chat reducer', () => {
         expect(snapshot).toEqual({ ...empty(), revision: 4 });
     });
 
+    it("drops the goal's spend with the goal", () => {
+        const goal = {
+            objective: 'ship it',
+            status: 'active' as const,
+            tokensUsed: 0,
+            timeUsedSeconds: 0,
+            updatedAt: 1,
+        };
+        const goalUsage = { objective: 'ship it', requests: 2, totalTokens: 120 };
+        let snapshot = applyAgentChatOperation(empty(), {
+            op: 'state',
+            state: { goal, goalUsage },
+        });
+        snapshot = applyAgentChatOperation(snapshot, {
+            op: 'state',
+            state: { goal: { ...goal, status: 'paused' } },
+        });
+        expect(snapshot.goalUsage).toEqual(goalUsage);
+        snapshot = applyAgentChatOperation(snapshot, { op: 'state', state: { goal: null } });
+        expect('goal' in snapshot).toBe(false);
+        expect('goalUsage' in snapshot).toBe(false);
+    });
+
     it('applies a patch only on its base revision', () => {
         const patch = agentChatPatchSchema.parse({
             terminalId: 'terminal-1',

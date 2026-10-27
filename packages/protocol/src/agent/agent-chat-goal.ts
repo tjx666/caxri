@@ -1,5 +1,7 @@
 import type { AgentChatItem } from './agent-chat-contract.js';
 import type { AgentChatGoal } from './agent-chat-goal-contract.js';
+import type { AgentChatLabelTranslate } from './agent-chat-labels.js';
+import { translateAgentChatLabel } from './agent-chat-labels.js';
 
 /**
  * The command a provider with native goals lists (Codex's `/goal`). Every Client runs goal changes through it, so the
@@ -76,17 +78,34 @@ export function agentChatGoalElapsedSeconds(
 }
 
 /**
- * How long a goal has been worked on, as the Codex app shows it: `45s`, `12m 5s`, `1h 37m 29s`. Unlike a turn's
- * duration, a goal runs for hours, so the hours are spelled out instead of reading `97m`.
+ * A goal's time split into the figures it is written with: hours, minutes, and seconds, the larger units only once they
+ * are reached.
  */
-export function formatAgentChatGoalDuration(seconds: number): string {
+export function agentChatGoalDurationParts(seconds: number): {
+    hours: number;
+    minutes: number;
+    seconds: number;
+} {
     const total = Math.max(0, Math.floor(seconds));
-    const hours = Math.floor(total / 3600);
-    const minutes = Math.floor((total % 3600) / 60);
-    const rest = total % 60;
-    if (hours > 0) return `${hours}h ${minutes}m ${rest}s`;
-    if (minutes > 0) return `${minutes}m ${rest}s`;
-    return `${rest}s`;
+    return {
+        hours: Math.floor(total / 3600),
+        minutes: Math.floor((total % 3600) / 60),
+        seconds: total % 60,
+    };
+}
+
+/**
+ * How long a goal has been worked on, as the Codex app shows it: `45s`, `12m 5s`, `1h 37m 29s` (`1 小时 37 分 29 秒` in
+ * Chinese). Unlike a turn's duration, a goal runs for hours, so the hours are spelled out instead of reading `97m`.
+ */
+export function formatAgentChatGoalDuration(
+    seconds: number,
+    t: AgentChatLabelTranslate = translateAgentChatLabel,
+): string {
+    const parts = agentChatGoalDurationParts(seconds);
+    if (parts.hours > 0) return t('agentChat.fold.durationHoursMinutesSeconds', parts);
+    if (parts.minutes > 0) return t('agentChat.fold.durationMinutesSeconds', parts);
+    return t('agentChat.fold.durationSeconds', parts);
 }
 
 type Notice = Extract<AgentChatItem, { type: 'notice' }>;

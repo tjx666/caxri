@@ -4,6 +4,7 @@ import type { AgentChatActivity, AgentChatQueuedMessage, AgentChatSnapshot } fro
 
 import { useTranslation } from '../../../i18n';
 import { AgentChatGoalBar } from '../activity/agent-chat-goal-bar';
+import type { AgentChatWorkingActivity } from '../activity/agent-chat-goal-row';
 import type { AgentChatPendingMessage } from '../transcript/agent-chat-pending';
 import { AgentChatQueueList } from './agent-chat-queue-list';
 import { AgentChatBackgroundWorkSection } from './strip/agent-chat-background-work-section';
@@ -29,6 +30,7 @@ export function AgentChatComposerStrip({
     activeTurnId,
     activity,
     children,
+    goalActivity,
     isQueuePaused,
     isTurnRunning,
     pendingQueue,
@@ -42,12 +44,19 @@ export function AgentChatComposerStrip({
     activeTurnId: string | undefined;
     activity: AgentChatActivity | undefined;
     children: ReactNode;
+    /**
+     * The running turn's work when the goal row shows it (`agentChatLiveGoalActivity`).
+     */
+    goalActivity: AgentChatWorkingActivity | undefined;
     isQueuePaused: boolean;
     isTurnRunning: boolean;
     pendingQueue: readonly AgentChatPendingMessage[];
     queue: readonly AgentChatQueuedMessage[] | undefined;
     snapshot:
-        | Pick<AgentChatSnapshot, 'goal' | 'plan' | 'queuePauseReason' | 'tasks' | 'turns'>
+        | Pick<
+              AgentChatSnapshot,
+              'goal' | 'goalUsage' | 'plan' | 'queuePauseReason' | 'tasks' | 'turns'
+          >
         | undefined;
     terminalId: string;
     /**
@@ -80,9 +89,11 @@ export function AgentChatComposerStrip({
             </span>
             <div className="max-h-64 overflow-y-auto">
                 <AgentChatGoalBar
-                    activeTurnId={activeTurnId}
                     goal={snapshot?.goal}
+                    goalUsage={snapshot?.goalUsage}
+                    liveActivity={goalActivity}
                     terminalId={terminalId}
+                    turnId={activeTurnId}
                     turns={snapshot?.turns}
                 />
                 {plan && (

@@ -22,6 +22,7 @@ type AgentChatComposerSnapshot = Pick<
     | 'effort'
     | 'fast'
     | 'goal'
+    | 'goalUsage'
     | 'model'
     | 'models'
     | 'permissionMode'
@@ -95,6 +96,7 @@ export function selectAgentChatComposerView(
             effort: snapshot.effort,
             fast: snapshot.fast,
             goal: snapshot.goal,
+            goalUsage: snapshot.goalUsage,
             items: snapshot.items.filter((item) => item.type === 'userMessage'),
             model: snapshot.model,
             models: snapshot.models,

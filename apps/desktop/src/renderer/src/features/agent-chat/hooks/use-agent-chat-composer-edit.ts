@@ -77,7 +77,9 @@ export function useAgentChatComposerEdit({
     isTurnRunning: boolean;
     options: AgentChatComposerEditOptions;
     providerName: string;
-    snapshot: Pick<AgentChatSnapshot, 'activeTurnId' | 'items' | 'planMode' | 'turns'> | undefined;
+    snapshot:
+        | Pick<AgentChatSnapshot, 'activeTurnId' | 'goal' | 'items' | 'planMode' | 'turns'>
+        | undefined;
     submitEdit: ReturnType<typeof useAgentChatSubmit>['submitEdit'];
     terminalId: string;
     setDraft: (update: (current: string) => string) => void;
@@ -164,6 +166,7 @@ export function useAgentChatComposerEdit({
                       isTurnRunning,
                       isBusy,
                       isPlanMode: snapshot?.planMode === true,
+                      isGoalActive: snapshot?.goal?.status === 'active',
                   },
                   providerName,
                   t,

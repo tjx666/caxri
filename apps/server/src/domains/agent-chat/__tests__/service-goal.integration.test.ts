@@ -65,6 +65,13 @@ describe('Agent Chat goals with a fake Codex app-server', () => {
 
         await service.runCommand(terminal.id, 'goal', 'hold the line');
         await until((snapshot) => snapshot.activeTurnId !== undefined);
+        // The goal's spend grows with each model request of the turn that pursues it.
+        const spending = await until((snapshot) => (snapshot.goalUsage?.requests ?? 0) >= 2);
+        const requests = spending.goalUsage?.requests ?? 0;
+        expect(spending.goalUsage).toMatchObject({
+            objective: 'hold the line',
+            totalTokens: requests * 1200,
+        });
         await service.interrupt(terminal.id);
         const stopped = await until(
             (snapshot) => !snapshot.activeTurnId && snapshot.goal?.status === 'paused',
