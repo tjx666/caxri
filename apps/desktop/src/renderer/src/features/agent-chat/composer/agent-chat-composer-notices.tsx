@@ -16,6 +16,7 @@ export function AgentChatComposerNotices({
     activeTurnId,
     activity,
     edit,
+    isActivityInGoalRow,
     isContinuing,
     isEditing,
     notice,
@@ -27,6 +28,10 @@ export function AgentChatComposerNotices({
     activeTurnId: string | undefined;
     activity: AgentChatActivity | undefined;
     edit: AgentChatEditBarProperties | undefined;
+    /**
+     * Whether the goal row shows the running turn's work in place of the status row.
+     */
+    isActivityInGoalRow: boolean;
     isContinuing: boolean;
     isEditing: boolean;
     notice: string | undefined;
@@ -41,6 +46,7 @@ export function AgentChatComposerNotices({
         <>
             <AgentChatActivityBar
                 activity={activity}
+                isInGoalRow={isActivityInGoalRow}
                 notice={notice}
                 terminalId={terminalId}
                 turnId={activeTurnId}

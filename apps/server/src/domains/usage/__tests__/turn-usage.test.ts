@@ -1,3 +1,4 @@
+import type { AgentChatSnapshot } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import type { ChatTurnResponse } from '../turn-usage';
@@ -51,6 +52,53 @@ describe('ChatTurnUsage', () => {
         spend(usage, 'turn-1', claude('msg-1', { input_tokens: 100, output_tokens: 10 }));
         const next = spend(usage, 'turn-2', claude('msg-1', { input_tokens: 7, output_tokens: 3 }));
         expect(next).toMatchObject({ turnId: 'turn-2', requests: 1, totalTokens: 10 });
+    });
+
+    it("carries an active goal's spend across its turns and starts over for another or a cleared goal", () => {
+        const usage = new ChatTurnUsage();
+        const active = {
+            objective: 'ship it',
+            status: 'active' as const,
+            tokensUsed: 0,
+            timeUsedSeconds: 0,
+            updatedAt: 1,
+        };
+        let snapshot: Pick<AgentChatSnapshot, 'goal' | 'goalUsage'> = { goal: active };
+        /**
+         * Applies the goal's spend the way the reducer does, so the next response adds to it.
+         */
+        const goalSpend = (turnId: string, response: ChatTurnResponse | undefined) => {
+            const operation = usage.add(turnId, response, snapshot);
+            const state = operation?.op === 'state' ? operation.state : undefined;
+            if (state?.goalUsage) snapshot = { ...snapshot, goalUsage: state.goalUsage };
+            return state;
+        };
+        goalSpend('turn-1', claude('msg-1', { input_tokens: 100, output_tokens: 10 }));
+        const second = goalSpend('turn-2', claude('msg-2', { input_tokens: 7, output_tokens: 3 }));
+        expect(second?.goalUsage).toMatchObject({
+            objective: 'ship it',
+            requests: 2,
+            totalTokens: 120,
+        });
+        // A paused goal spends nothing, while the turn's own figures still grow.
+        snapshot = { ...snapshot, goal: { ...active, status: 'paused' } };
+        const paused = goalSpend('turn-2', claude('msg-3', { input_tokens: 5, output_tokens: 5 }));
+        expect(paused?.turnUsage).toMatchObject({ requests: 2, totalTokens: 20 });
+        expect(paused).not.toHaveProperty('goalUsage');
+        snapshot = { ...snapshot, goal: active };
+        const resumed = goalSpend('turn-3', claude('msg-4', { input_tokens: 1, output_tokens: 1 }));
+        expect(resumed?.goalUsage).toMatchObject({ requests: 3, totalTokens: 122 });
+        snapshot = { ...snapshot, goal: { ...active, objective: 'next goal' } };
+        const other = goalSpend('turn-3', claude('msg-5', { input_tokens: 2, output_tokens: 2 }));
+        expect(other?.goalUsage).toMatchObject({
+            objective: 'next goal',
+            requests: 1,
+            totalTokens: 4,
+        });
+        // A cleared goal takes its spend along, so the same objective set again counts from zero.
+        snapshot = { goal: { ...active, objective: 'next goal' } };
+        const again = goalSpend('turn-4', claude('msg-6', { input_tokens: 3, output_tokens: 3 }));
+        expect(again?.goalUsage).toMatchObject({ requests: 1, totalTokens: 6 });
     });
 
     it('counts tokens but no cost for a model missing from the price list', () => {

@@ -38,6 +38,7 @@ export const agentChatPatchOperationSchema = z.discriminatedUnion('op', [
                 requests: agentChatSnapshotSchema.shape.requests,
                 plan: agentChatSnapshotSchema.shape.plan.unwrap().nullable(),
                 goal: agentChatSnapshotSchema.shape.goal.unwrap().nullable(),
+                goalUsage: agentChatSnapshotSchema.shape.goalUsage.unwrap().nullable(),
                 model: agentChatSnapshotSchema.shape.model.unwrap().nullable(),
                 effort: agentChatSnapshotSchema.shape.effort.unwrap().nullable(),
                 ultracode: agentChatSnapshotSchema.shape.ultracode.unwrap().nullable(),

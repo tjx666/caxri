@@ -281,6 +281,11 @@ export function agentChatSendAction(
         isTurnRunning: boolean;
         isBusy: boolean;
         isPlanMode?: boolean;
+        /**
+         * Whether an active goal is what the running turn works on: the provider starts the goal's turns on its own, so
+         * a steered message reads as adding to the goal rather than to a turn the user never started.
+         */
+        isGoalActive?: boolean;
     },
     providerName: string,
     t: Translate = translate,
@@ -309,7 +314,11 @@ export function agentChatSendAction(
                 { label: t('agentChat.message.queueTooltip'), shortcut: 'cmd+enter' },
                 { label: t('agentChat.message.stopTurn'), shortcut: 'escape' },
             ],
-            placeholder: t('agentChat.message.steerPlaceholder'),
+            placeholder: t(
+                state.isGoalActive
+                    ? 'agentChat.message.goalSteerPlaceholder'
+                    : 'agentChat.message.steerPlaceholder',
+            ),
         };
     if (state.isBusy)
         return {

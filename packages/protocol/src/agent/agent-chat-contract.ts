@@ -21,7 +21,11 @@ import {
 import { agentChatMcpServerSchema, MAX_AGENT_CHAT_MCP_SERVERS } from './agent-chat-mcp.js';
 import { agentChatPermissionModeSchema } from './agent-chat-permissions.js';
 import { agentChatRequestSchema, MAX_AGENT_CHAT_QUESTIONS } from './agent-chat-requests.js';
-import { agentChatTurnUsageSchema, agentChatUsageSchema } from './agent-chat-usage.js';
+import {
+    agentChatGoalUsageSchema,
+    agentChatTurnUsageSchema,
+    agentChatUsageSchema,
+} from './agent-chat-usage.js';
 import {
     agentChatUsageGuardSchema,
     agentChatUsageLimitSchema,
@@ -440,6 +444,10 @@ export const agentChatSnapshotSchema = z.strictObject({
      * while one is set.
      */
     goal: agentChatGoalSchema.optional(),
+    /**
+     * The goal's spend across its turns (`agentChatGoalUsageSchema`); a Client shows it only beside the goal it names.
+     */
+    goalUsage: agentChatGoalUsageSchema.optional(),
     model: z.string().max(200).optional(),
     /**
      * The reasoning effort the next turn uses, when the provider reports it.

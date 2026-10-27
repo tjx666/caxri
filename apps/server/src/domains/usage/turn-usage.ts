@@ -102,7 +102,10 @@ export function codexTurnResponse(
 /**
  * Sums what the active turn spends as its model responses arrive, for the composer strip. A response is counted once
  * however many times it is reported, and each report adds only its growth. The figures start over when a response
- * arrives for another turn.
+ * arrives for another turn. While a goal is active, the same growth also adds to the snapshot's `goalUsage`, which
+ * carries across turns, since the provider starts the goal's turns on its own and the user follows the goal rather than
+ * any one of them. It starts over for another objective, and the reducer drops it with a cleared goal, so the same
+ * objective set again counts from zero.
  */
 export class ChatTurnUsage {
     private current: AgentChatTurnUsage | undefined;
@@ -115,6 +118,7 @@ export class ChatTurnUsage {
     add(
         turnId: string | undefined,
         response: ChatTurnResponse | undefined,
+        { goal, goalUsage }: Pick<AgentChatSnapshot, 'goal' | 'goalUsage'> = {},
     ): AgentChatPatchOperation | undefined {
         if (!turnId || !response) return undefined;
         if (this.current?.turnId !== turnId) {
@@ -146,13 +150,28 @@ export class ChatTurnUsage {
             : undefined;
         const costUsd =
             cost === undefined ? this.current.costUsd : (this.current.costUsd ?? 0) + cost;
+        const requests = reported ? 0 : 1;
         this.current = {
             turnId,
-            requests: this.current.requests + (reported ? 0 : 1),
+            requests: this.current.requests + requests,
             totalTokens: this.current.totalTokens + tokens,
             ...(costUsd !== undefined && { costUsd }),
         };
-        return { op: 'state', state: { turnUsage: this.current } };
+        if (goal?.status !== 'active') return { op: 'state', state: { turnUsage: this.current } };
+        const spent = goalUsage?.objective === goal.objective ? goalUsage : undefined;
+        const goalCostUsd = cost === undefined ? spent?.costUsd : (spent?.costUsd ?? 0) + cost;
+        return {
+            op: 'state',
+            state: {
+                turnUsage: this.current,
+                goalUsage: {
+                    objective: goal.objective,
+                    requests: (spent?.requests ?? 0) + requests,
+                    totalTokens: (spent?.totalTokens ?? 0) + tokens,
+                    ...(goalCostUsd !== undefined && { costUsd: goalCostUsd }),
+                },
+            },
+        };
     }
 
     /**
@@ -160,12 +179,13 @@ export class ChatTurnUsage {
      */
     record(
         host: {
-            read: () => Pick<AgentChatSnapshot, 'activeTurnId'>;
+            read: () => Pick<AgentChatSnapshot, 'activeTurnId' | 'goal' | 'goalUsage'>;
             apply: (operations: AgentChatPatchOperation[]) => void;
         },
         response: ChatTurnResponse | undefined,
     ): void {
-        const operation = this.add(host.read().activeTurnId, response);
+        const snapshot = host.read();
+        const operation = this.add(snapshot.activeTurnId, response, snapshot);
         if (operation) host.apply([operation]);
     }
 }

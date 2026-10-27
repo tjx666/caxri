@@ -36,6 +36,7 @@ export const agentChatTimeline: TranslatedNamespace<typeof source> = {
     'agentChat.message.steer': '插入本轮',
     'agentChat.message.steerTooltip': '插入本轮',
     'agentChat.message.steerPlaceholder': '补充到本轮',
+    'agentChat.message.goalSteerPlaceholder': '补充到目标',
     'agentChat.message.steerQueuedPlaceholder': '按 Enter 引导第一条排队消息',
     'agentChat.message.stopTurn': '停止本轮',
     'agentChat.message.sendQueuedPlaceholder': '按 Enter 发送排队消息，或输入新消息',

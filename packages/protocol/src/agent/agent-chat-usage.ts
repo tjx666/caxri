@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { MAX_AGENT_CHAT_GOAL_OBJECTIVE_LENGTH } from './agent-chat-goal-contract.js';
 import type { AgentProvider } from './agents.js';
 
 export const MAX_AGENT_CHAT_USAGE_BREAKDOWN = 16;
@@ -70,6 +71,19 @@ export const agentChatTurnUsageSchema = z.strictObject({
 });
 
 export type AgentChatTurnUsage = z.infer<typeof agentChatTurnUsageSchema>;
+
+/**
+ * What the goal has spent across every turn that worked on it while it was active, in the same figures as
+ * {@link agentChatTurnUsageSchema}, so a goal the provider pursues over many turns shows one running total instead of
+ * figures that start over with each turn. `objective` names the goal it belongs to: a Client shows it only beside that
+ * goal, Server Core starts over when another goal is set, and the reducer drops it with a cleared goal. It lives only
+ * in the Chat's snapshot, so it covers the responses since that Chat last started with the goal active.
+ */
+export const agentChatGoalUsageSchema = agentChatTurnUsageSchema.omit({ turnId: true }).extend({
+    objective: z.string().max(MAX_AGENT_CHAT_GOAL_OBJECTIVE_LENGTH),
+});
+
+export type AgentChatGoalUsage = z.infer<typeof agentChatGoalUsageSchema>;
 
 /**
  * The smallest context idle compaction acts on. Compaction trades detail for a cheaper re-read: while the cache holds

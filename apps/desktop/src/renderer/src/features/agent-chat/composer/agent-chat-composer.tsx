@@ -13,6 +13,7 @@ import { useTranslation } from '../../../i18n';
 import { cn } from '../../../lib/utilities';
 import { useTerminal } from '../../../stores/selectors';
 import { usePaneViewSession } from '../../workbench/pane-view-session';
+import { agentChatLiveGoalActivity } from '../activity/agent-chat-goal-row';
 import { AgentChatAttachmentList } from '../attachments/agent-chat-attachment-list';
 import { isAgentChatSkillAttachment } from '../composer-input/agent-chat-drafts';
 import { AgentChatSuggestionMenu } from '../composer-input/agent-chat-suggestion-menu';
@@ -116,6 +117,7 @@ interface AgentChatComposerProperties {
               | 'activeTurnId'
               | 'effort'
               | 'goal'
+              | 'goalUsage'
               | 'items'
               | 'model'
               | 'models'
@@ -251,6 +253,7 @@ export function AgentChatComposer({
         terminalId,
     });
     const { isStopping, stop } = useAgentChatStop({ activeTurnId, terminalId });
+    const goalActivity = agentChatLiveGoalActivity(snapshot?.goal, activity, isStopping);
     const placeholders = useAgentChatImagePlaceholders({ draft, images, inputReference, setDraft });
     const { fileInput, isAttaching, pastePlainText, pathPills } = useAgentChatComposerInput({
         draft,
@@ -356,6 +359,7 @@ export function AgentChatComposer({
                 <AgentChatComposerStrip
                     activeTurnId={activeTurnId}
                     activity={activity}
+                    goalActivity={goalActivity}
                     isQueuePaused={isQueuePaused}
                     isTurnRunning={isTurnRunning}
                     pendingQueue={pendingQueue}
@@ -370,6 +374,7 @@ export function AgentChatComposer({
                         activeTurnId={activeTurnId}
                         activity={activity}
                         edit={edit.bar}
+                        isActivityInGoalRow={goalActivity !== undefined}
                         isContinuing={isContinuing}
                         isEditing={edit.isEditing}
                         notice={

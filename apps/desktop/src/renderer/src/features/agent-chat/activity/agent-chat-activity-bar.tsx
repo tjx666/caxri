@@ -27,11 +27,17 @@ const STARTING_ROW_DELAY_MS = 1000;
  */
 export function AgentChatActivityBar({
     activity,
+    isInGoalRow,
     notice,
     terminalId,
     turnId,
 }: {
     activity: AgentChatActivity | undefined;
+    /**
+     * Whether the goal row shows the turn's work (`agentChatLiveGoalActivity`), so this row stays out of the strip
+     * while its live region still announces the work.
+     */
+    isInGoalRow: boolean;
     /**
      * A short-lived composer message (`useAgentChatComposerNotice`), or a hint that lasts while its draft does.
      */
@@ -63,7 +69,7 @@ export function AgentChatActivityBar({
                 <span aria-live="polite" className="sr-only" role="status">
                     {notice ?? activityText}
                 </span>
-                {rowActivity && (
+                {rowActivity && !isInGoalRow && (
                     <div
                         className="border-0 border-b border-solid border-border"
                         data-agent-chat-composer-strip-row=""

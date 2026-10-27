@@ -38,6 +38,7 @@ export const agentChatTimeline = {
     'agentChat.message.steer': 'Steer message',
     'agentChat.message.steerTooltip': 'Steer',
     'agentChat.message.steerPlaceholder': 'Add to this turn',
+    'agentChat.message.goalSteerPlaceholder': 'Add to the goal',
     'agentChat.message.steerQueuedPlaceholder': 'Enter to steer the first queued message',
     'agentChat.message.stopTurn': 'Stop turn',
     'agentChat.message.sendQueuedPlaceholder':

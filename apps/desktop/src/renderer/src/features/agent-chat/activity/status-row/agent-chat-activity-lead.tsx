@@ -2,12 +2,12 @@ import type { AgentChatActivity } from '@caxri/protocol';
 import { AnimatePresence } from 'motion/react';
 import * as m from 'motion/react-m';
 
-import { AnimatedNumber, AnimatedNumberGroup } from '../../../../components/animated-number';
 import { Spinner } from '../../../../components/ui/spinner';
 import { useTranslation } from '../../../../i18n';
 import { useClockTick } from '../../hooks/use-clock-tick';
 import { stripIndicator, ToolGlyph, useLoadingStyle, WorkingBuddy } from '../../loading';
 import { elapsedTimeFigures } from '../agent-chat-elapsed-time';
+import { AgentChatRollingTime } from '../agent-chat-rolling-time';
 import { STATUS_ROW_SWAP } from './agent-chat-status-row-motion';
 
 /**
@@ -36,45 +36,13 @@ function WorkingIndicatorGlyph({
 }
 
 /**
- * The tens of a seconds count stop at 5, so 59 rolls forward to 00.
- */
-const SECONDS_DIGITS = { 1: { max: 5 } };
-
-/**
  * How long the turn has run, its digits rolling forward like a clock's every second (`elapsedTimeFigures`).
  */
 function ElapsedTime({ startedAt }: { startedAt: number }) {
     const { t } = useTranslation();
     const figures = elapsedTimeFigures(useClockTick('second') - startedAt, t);
     if (!figures) return null;
-    const { minutes, separator, seconds } = figures;
-    const text = `${minutes ? `${minutes.prefix}${minutes.value}${minutes.suffix}` : ''}${separator}${seconds.prefix}${seconds.value}${seconds.suffix}`;
-    return (
-        <span
-            className="shrink-0 whitespace-pre tabular-nums"
-            data-agent-chat-elapsed-time=""
-            data-value={text}
-        >
-            <AnimatedNumberGroup>
-                {minutes && (
-                    <AnimatedNumber
-                        prefix={minutes.prefix}
-                        suffix={minutes.suffix}
-                        trend={1}
-                        value={minutes.value}
-                    />
-                )}
-                {separator}
-                <AnimatedNumber
-                    digits={SECONDS_DIGITS}
-                    prefix={seconds.prefix}
-                    suffix={seconds.suffix}
-                    trend={1}
-                    value={seconds.value}
-                />
-            </AnimatedNumberGroup>
-        </span>
-    );
+    return <AgentChatRollingTime data-agent-chat-elapsed-time="" figures={figures} />;
 }
 
 /**

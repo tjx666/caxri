@@ -6,7 +6,7 @@ import { CircleDollarSign, Coins, Footprints } from 'lucide-react';
 
 import { AnimatedNumber } from '../../../components/animated-number';
 import { Tooltip } from '../../../components/ui/tooltip';
-import type { Translate } from '../../../i18n';
+import type { Translate, TranslationKey } from '../../../i18n';
 import { useTranslation } from '../../../i18n';
 import { cn } from '../../../lib/utilities';
 import type { AgentChatTurnMetric, AgentChatTurnMetricKind } from './agent-chat-turn-metrics';
@@ -18,10 +18,43 @@ const METRIC_ICONS: Record<AgentChatTurnMetricKind, LucideIcon> = {
     cost: CircleDollarSign,
 };
 
-function metricTooltip(metric: AgentChatTurnMetric, t: Translate): string {
-    if (metric.kind === 'steps') return t('agentChat.activity.steps', { count: metric.value });
-    if (metric.kind === 'tokens') return t('agentChat.activity.tokens', { count: metric.value });
-    return t('agentChat.activity.cost', { value: metric.value });
+const METRIC_TOOLTIPS = {
+    turn: {
+        steps: 'agentChat.activity.steps',
+        tokens: 'agentChat.activity.tokens',
+        cost: 'agentChat.activity.cost',
+    },
+    goal: {
+        steps: 'agentChat.goal.steps',
+        tokens: 'agentChat.goal.tokens',
+        cost: 'agentChat.goal.cost',
+    },
+} as const satisfies Record<string, Record<AgentChatTurnMetricKind, TranslationKey>>;
+
+/**
+ * Where each row's figures yield to its width. The goal row also holds the goal's time, a status label once the goal is
+ * not active, and three buttons, so its figures yield sooner than the status row's and the objective keeps its room.
+ */
+const NARROW_CLASSES = {
+    turn: {
+        list: '@max-[360px]:sr-only',
+        divider: '@max-[480px]:hidden',
+        figure: '@max-[480px]:sr-only',
+    },
+    goal: {
+        list: '@max-[440px]:sr-only',
+        divider: '@max-[560px]:hidden',
+        figure: '@max-[560px]:sr-only',
+    },
+} as const satisfies Record<keyof typeof METRIC_TOOLTIPS, Record<string, string>>;
+
+function metricTooltip(
+    metric: AgentChatTurnMetric,
+    scope: keyof typeof METRIC_TOOLTIPS,
+    t: Translate,
+): string {
+    const key = METRIC_TOOLTIPS[scope][metric.kind];
+    return t(key, metric.kind === 'cost' ? { value: metric.value } : { count: metric.value });
 }
 
 /**
@@ -31,30 +64,40 @@ function metricTooltip(metric: AgentChatTurnMetric, t: Translate): string {
  * digits, so a climbing count reads as progress and the row never shifts. The figures yield first when the row runs out
  * of width, because the row's left side says what the turn is doing and the badges stay clickable: a row under 480px
  * keeps only the token count, and one under 360px (a Chat pane around 400px wide) hides the figures, so the activity
- * text and elapsed time stay readable beside both badges. Hidden figures turn `sr-only` rather than leaving the
- * accessibility tree. The rolling digits are hidden from assistive technology, which reads the tooltip's sentence from
- * an `sr-only` copy instead (the figure's raw value, so a screen reader hears the exact count while the eye sees the
- * abbreviated one).
+ * text and elapsed time stay readable beside both badges (the goal row's figures yield sooner, `NARROW_CLASSES`).
+ * Hidden figures turn `sr-only` rather than leaving the accessibility tree. The rolling digits are hidden from
+ * assistive technology, which reads the tooltip's sentence from an `sr-only` copy instead (the figure's raw value, so a
+ * screen reader hears the exact count while the eye sees the abbreviated one).
  */
-export function AgentChatTurnMetricList({ usage }: { usage: AgentChatTurnUsage | undefined }) {
+export function AgentChatTurnMetricList({
+    scope = 'turn',
+    usage,
+}: {
+    /**
+     * Whose spend the figures are, for their tooltips: the running turn's, or the goal's across its turns.
+     */
+    scope?: keyof typeof METRIC_TOOLTIPS;
+    usage: Pick<AgentChatTurnUsage, 'requests' | 'totalTokens' | 'costUsd'> | undefined;
+}) {
     const { t } = useTranslation();
     const metrics = agentChatTurnMetrics(usage);
     if (metrics.length === 0) return null;
+    const narrow = NARROW_CLASSES[scope];
     return (
-        <span className="flex shrink-0 items-center gap-2.5 text-[11px] @max-[360px]:sr-only">
+        <span className={cn('flex shrink-0 items-center gap-2.5 text-[11px]', narrow.list)}>
             {metrics.map((metric, index) => {
                 const Icon = METRIC_ICONS[metric.kind];
                 const isNarrowHidden = metric.kind !== 'tokens';
                 return (
                     <Fragment key={metric.kind}>
                         {index > 0 && (
-                            <span className="h-3 w-px shrink-0 bg-border @max-[480px]:hidden" />
+                            <span className={cn('h-3 w-px shrink-0 bg-border', narrow.divider)} />
                         )}
-                        <Tooltip content={metricTooltip(metric, t)} side="top">
+                        <Tooltip content={metricTooltip(metric, scope, t)} side="top">
                             <span
                                 className={cn(
                                     'inline-flex max-w-16 items-center gap-1 tabular-nums',
-                                    isNarrowHidden && '@max-[480px]:sr-only',
+                                    isNarrowHidden && narrow.figure,
                                 )}
                                 data-agent-chat-turn-metric={metric.kind}
                                 data-value={metric.value}
@@ -67,7 +110,7 @@ export function AgentChatTurnMetricList({ usage }: { usage: AgentChatTurnUsage |
                                         value={metric.figure.value}
                                     />
                                 </span>
-                                <span className="sr-only">{metricTooltip(metric, t)}</span>
+                                <span className="sr-only">{metricTooltip(metric, scope, t)}</span>
                             </span>
                         </Tooltip>
                     </Fragment>
