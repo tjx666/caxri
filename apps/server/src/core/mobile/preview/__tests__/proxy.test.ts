@@ -160,4 +160,40 @@ describe('MobilePreviewProxies', () => {
         target = createServer();
         await new Promise<void>((resolve) => target.listen(0, '127.0.0.1', resolve));
     });
+
+    it('shares one listener between concurrent opens and closes one that binds after clear', async () => {
+        const target = { host: '127.0.0.1', port: targetPort };
+        const [first, second] = await Promise.all([
+            proxies.open(GRANT, '127.0.0.1', target),
+            proxies.open(GRANT, '127.0.0.1', target),
+        ]);
+        expect(new URL(first).port).toBe(new URL(second).port);
+
+        await proxies.clear();
+        const late = proxies.open(GRANT, '127.0.0.1', { ...target, port: targetPort + 1 });
+        await proxies.clear();
+        await expect(late).rejects.toMatchObject({ code: 'UNAVAILABLE' });
+    });
+
+    it('closes the WebSocket tunnel of a device the registry revokes', async () => {
+        await proxies.clear();
+        proxies = new MobilePreviewProxies({
+            authorize: () => isAuthorized,
+            now: () => now,
+            random: tokenSequence(),
+            sweepMs: 20,
+        });
+        const { cookie, origin } = await launch();
+        const socket = new WebSocket(`${origin.replace('http', 'ws')}/hmr`, {
+            headers: { cookie, origin },
+        });
+        await new Promise((resolve, reject) => {
+            socket.once('message', resolve);
+            socket.once('error', reject);
+        });
+        const closed = new Promise((resolve) => socket.once('close', resolve));
+        isAuthorized = false;
+        await closed;
+        expect(socket.readyState).toBe(WebSocket.CLOSED);
+    });
 });

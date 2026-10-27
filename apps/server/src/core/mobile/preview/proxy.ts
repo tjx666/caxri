@@ -10,6 +10,7 @@ import { createServer, request as httpRequest } from 'node:http';
 import type { Socket } from 'node:net';
 import { connect } from 'node:net';
 
+import { CaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
@@ -49,7 +50,10 @@ interface PreviewListener {
     lastActivityAt: number;
     launches: Map<string, MobilePreviewGrant & { expiresAt: number }>;
     listenPort: number;
-    openUpgrades: number;
+    /**
+     * In-flight responses and open upgrade tunnels; a listener with any is never idle.
+     */
+    openStreams: number;
     openedAt: number;
     server: Server;
     sessions: Map<string, MobilePreviewGrant>;
@@ -61,6 +65,10 @@ interface PreviewListener {
         upstreamErrors: number;
     };
     target: { host: string; port: number };
+    /**
+     * Each open upgrade tunnel's close function and the grant that admitted it, so a revoked device loses its tunnels.
+     */
+    tunnels: Map<() => void, MobilePreviewGrant>;
 }
 
 export interface MobilePreviewProxiesOptions {
@@ -72,6 +80,10 @@ export interface MobilePreviewProxiesOptions {
     logger?: Pick<StructuredLogger, 'write'>;
     now?: () => number;
     random: (bytes: number) => Uint8Array;
+    /**
+     * How often idle listeners and revoked devices are swept; tests shorten it.
+     */
+    sweepMs?: number;
 }
 
 const previewToken = (random: (bytes: number) => Uint8Array): string =>
@@ -155,6 +167,14 @@ function forwardedResponseHeaders(
  */
 export class MobilePreviewProxies {
     readonly #listeners = new Map<string, PreviewListener>();
+    /**
+     * Listeners still binding, so concurrent opens of one target share a single listener.
+     */
+    readonly #starting = new Map<string, Promise<PreviewListener>>();
+    /**
+     * Bumped by {@link clear}, so a listener that finishes binding after mobile access stopped closes instead.
+     */
+    #epoch = 0;
     readonly #options: MobilePreviewProxiesOptions;
     readonly #now: () => number;
     #sweep?: ReturnType<typeof setInterval>;
@@ -186,7 +206,7 @@ export class MobilePreviewProxies {
             lastActivityAt: now,
             launches: new Map(),
             listenPort: 0,
-            openUpgrades: 0,
+            openStreams: 0,
             openedAt: now,
             server,
             sessions: new Map(),
@@ -198,6 +218,7 @@ export class MobilePreviewProxies {
                 upstreamErrors: 0,
             },
             target,
+            tunnels: new Map(),
         };
         server.on('connection', (socket) => {
             listener.sockets.add(socket);
@@ -222,12 +243,14 @@ export class MobilePreviewProxies {
             this.#proxy(listener, request, response);
         });
         server.on('upgrade', (request, socket: Socket, head: Buffer) => {
-            if (this.#admit(listener, request)) {
+            const grant = this.#admitted(listener, request);
+            if (!grant) {
                 socket.destroy();
                 return;
             }
-            this.#tunnel(listener, request, socket, head);
+            this.#tunnel(listener, request, socket, head, grant);
         });
+        const epoch = this.#epoch;
         await new Promise<void>((resolve, reject) => {
             server.once('error', reject);
             server.listen(0, address, () => {
@@ -235,10 +258,17 @@ export class MobilePreviewProxies {
                 resolve();
             });
         });
+        if (epoch !== this.#epoch) {
+            await new Promise<void>((resolve) => server.close(() => resolve()));
+            throw new CaxriError('UNAVAILABLE', 'Mobile access stopped while the preview opened');
+        }
         const bound = server.address();
         listener.listenPort = typeof bound === 'object' && bound ? bound.port : 0;
         this.#listeners.set(key, listener);
-        this.#sweep ??= setInterval(() => this.#sweepIdle(), SWEEP_INTERVAL_MS);
+        this.#sweep ??= setInterval(
+            () => this.#sweepIdle(),
+            this.#options.sweepMs ?? SWEEP_INTERVAL_MS,
+        );
         this.#sweep.unref();
         return listener;
     }
@@ -259,6 +289,15 @@ export class MobilePreviewProxies {
             listener.stats.rejected[rejection] += 1;
         else listener.lastActivityAt = this.#now();
         return rejection;
+    }
+
+    /**
+     * The admitting grant of a request whose cookie maps to a device that is still authorized.
+     */
+    #admitted(listener: PreviewListener, request: IncomingMessage): MobilePreviewGrant | undefined {
+        if (this.#admit(listener, request)) return undefined;
+        const token = readCookie(request.headers.cookie, cookieName(listener));
+        return token ? listener.sessions.get(token) : undefined;
     }
 
     #rejection(
@@ -311,6 +350,7 @@ export class MobilePreviewProxies {
 
     #proxy(listener: PreviewListener, request: IncomingMessage, response: ServerResponse): void {
         listener.stats.requests += 1;
+        listener.openStreams += 1;
         const { host, port } = listener.target;
         const upstream = httpRequest(
             {
@@ -331,6 +371,11 @@ export class MobilePreviewProxies {
                     upstreamResponse.statusCode ?? 502,
                     forwardedResponseHeaders(upstreamResponse.headers, port),
                 );
+                // A dev server that dies mid-body would otherwise leave the phone waiting on a response that never ends.
+                upstreamResponse.once('aborted', () => {
+                    listener.stats.upstreamErrors += 1;
+                    response.destroy();
+                });
                 upstreamResponse.pipe(response);
             },
         );
@@ -342,7 +387,11 @@ export class MobilePreviewProxies {
                     .writeHead(502, { 'Content-Type': 'text/plain; charset=utf-8' })
                     .end(`Nothing answered on port ${port} of the computer.`);
         });
-        response.once('close', () => upstream.destroy());
+        response.once('close', () => {
+            listener.openStreams -= 1;
+            listener.lastActivityAt = this.#now();
+            upstream.destroy();
+        });
         request.pipe(upstream);
     }
 
@@ -354,20 +403,23 @@ export class MobilePreviewProxies {
         request: IncomingMessage,
         socket: Socket,
         head: Buffer,
+        grant: MobilePreviewGrant,
     ): void {
         listener.stats.upgrades += 1;
-        listener.openUpgrades += 1;
+        listener.openStreams += 1;
         const { host, port } = listener.target;
         const upstream = connect({ host, port });
         let isClosed = false;
         const close = (): void => {
             if (isClosed) return;
             isClosed = true;
-            listener.openUpgrades -= 1;
+            listener.openStreams -= 1;
+            listener.tunnels.delete(close);
             listener.lastActivityAt = this.#now();
             socket.destroy();
             upstream.destroy();
         };
+        listener.tunnels.set(close, grant);
         upstream.once('connect', () => {
             const headers = forwardedRequestHeaders(
                 request.headers,
@@ -386,21 +438,31 @@ export class MobilePreviewProxies {
             if (head.length > 0) upstream.write(head);
             socket.pipe(upstream).pipe(socket);
         });
-        upstream.once('error', () => {
-            listener.stats.upstreamErrors += 1;
+        // `on`, not `once`: a destroyed socket can still emit a second write error while its pipe drains.
+        upstream.on('error', () => {
+            if (!isClosed) listener.stats.upstreamErrors += 1;
             close();
         });
-        socket.once('error', close);
+        socket.on('error', close);
         upstream.once('close', close);
         socket.once('close', close);
     }
 
+    /**
+     * Closes idle listeners, and drops the cookies and upgrade tunnels of devices the registry no longer authorizes: a
+     * request is checked when it starts, but a hot-reload socket can stay open long after the device was revoked.
+     */
     #sweepIdle(): void {
         const idleMs = this.#options.idleMs ?? MOBILE_PREVIEW_IDLE_MS;
         const now = this.#now();
-        for (const listener of this.#listeners.values())
-            if (listener.openUpgrades === 0 && now - listener.lastActivityAt >= idleMs)
+        for (const listener of this.#listeners.values()) {
+            for (const [token, grant] of listener.sessions)
+                if (!this.#options.authorize(grant)) listener.sessions.delete(token);
+            for (const [close, grant] of listener.tunnels)
+                if (!this.#options.authorize(grant)) close();
+            if (listener.openStreams === 0 && now - listener.lastActivityAt >= idleMs)
                 void this.#close(listener, 'idle');
+        }
     }
 
     async #close(listener: PreviewListener, reason: MobilePreviewCloseReason): Promise<void> {
@@ -438,7 +500,16 @@ export class MobilePreviewProxies {
     ): Promise<string> {
         const key = `${address}|${target.host}|${target.port}`;
         const existing = this.#listeners.get(key);
-        const listener = existing ?? (await this.#start(key, address, target));
+        let listener = existing;
+        if (!listener) {
+            const starting = this.#starting.get(key) ?? this.#start(key, address, target);
+            this.#starting.set(key, starting);
+            try {
+                listener = await starting;
+            } finally {
+                this.#starting.delete(key);
+            }
+        }
         const now = this.#now();
         for (const [token, launch] of listener.launches)
             if (launch.expiresAt <= now) listener.launches.delete(token);
@@ -452,6 +523,7 @@ export class MobilePreviewProxies {
     }
 
     async clear(): Promise<void> {
+        this.#epoch += 1;
         await Promise.all(this.#listeners.values().map((item) => this.#close(item, 'cleared')));
     }
 }
