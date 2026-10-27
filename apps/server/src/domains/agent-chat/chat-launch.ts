@@ -148,12 +148,15 @@ export async function readChatTranscript(
 export function logChatProcessExited(
     options: AgentChatServiceOptions,
     terminalId: string,
+    launchId: string,
     exit: AgentChatExit,
 ): void {
     options.logger.write(
         exit.requested ? 'info' : 'warn',
         logEventCatalog.agentChat.processExited,
         {
+            // A requested stop writes this from the stopping request's context, which does not name the process.
+            context: { agentRunId: launchId },
             fields: {
                 terminalId,
                 reason: exit.end.reason,

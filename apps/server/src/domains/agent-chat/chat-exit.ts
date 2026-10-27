@@ -36,7 +36,7 @@ export function handleChatExit(
     exit: AgentChatExit,
 ): void {
     const { database } = options;
-    logChatProcessExited(options, terminalId, exit);
+    logChatProcessExited(options, terminalId, launchId, exit);
     if (state.launchId !== launchId || isSettling(terminalId)) return;
     options.delegation?.retireLaunch(terminalId, launchId);
     /**

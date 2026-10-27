@@ -198,6 +198,9 @@ describe('Host request log sink', () => {
                 content: 'do-not-log-source',
                 path: '/private/project/secret.ts',
                 sessionId: 'session-1',
+                // Only Server Core mints an Agent Run; a Client cannot claim one, and a Benchmark run is not one.
+                agentRunId: 'client-claimed-run',
+                runId: 'benchmark-run-1',
             },
         };
 

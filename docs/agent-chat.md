@@ -1849,7 +1849,9 @@ matches `agents.longRunningShellCommands` (a dev server) never holds completion;
 `agent_chat.process_started` (closed outcome `ready`, `failed`, or `abandoned` with its reason,
 resume mode, duration; `outcome: refused, reason: capacity` when the Terminal limit stopped a start),
 `agent_chat.process_exited` (closed end reason with lifetime aggregates of turns, server
-requests, rejected requests, and dropped frames), `agent_chat.turn_finished` (status, duration),
+requests, rejected requests, and dropped frames), `agent_chat.turn_finished` (status, duration,
+`turnId`, and `startRequestId`, the `agentChat.send` request that started the turn or `null` when
+the queue or another non-request path did),
 `agent_chat.protocol_rejected` (closed reason, protocol method name), and
 `terminal.surface_switched` (closed outcome, both surfaces, duration), `agent_chat.queue_changed`
 (closed reason and queue depth), `agent_chat.delivery_checked` (request method and closed outcome
@@ -1868,6 +1870,13 @@ level, closed reason `rejected`, `timedOut`, or `stopped` when Codex could not u
 fork it loaded). A refusal names its reason; a driver that lacks file restore although its catalog
 entry offers it logs `failed` with reason `capability`. None of them carries
 message text, command output, provider stderr, or protocol bodies.
+
+Each provider process is one Agent Run with its own `context.agentRunId` (a new one on every start
+or resume). Records written from the process's callbacks (turns, tasks, protocol rejections,
+delivery checks, activity changes) carry that `agentRunId` as their `traceId` too, and drop the
+identities of whichever request happened to start the process. `agent_chat.process_started` keeps
+that request's trace and names the Agent Run, which links the two; `agent_chat.process_exited`
+also names it. Only Server Core mints an Agent Run: request parameters never set `agentRunId`.
 
 ## Testing
 

@@ -66,6 +66,11 @@ export interface ChatState {
      * provider of the same unused Chat is reclaimed too.
      */
     readLeaseAt?: number;
+    /**
+     * The Client request that started the running turn (`null` when no request did), taken by its
+     * `agent_chat.turn_finished` record. Every provider start clears it.
+     */
+    turnStartRequestId?: string | null;
 }
 
 /**

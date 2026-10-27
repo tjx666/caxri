@@ -6,7 +6,9 @@
 export const agentChatLogEvents = {
     /**
      * Provider process start outcome with a closed `outcome`/`reason` (`refused`/`capacity` when the Terminal limit
-     * stopped the start), the resume mode, and the handshake duration.
+     * stopped the start), the resume mode, and the handshake duration. A `ready` record keeps the starting request's
+     * trace and names the process's Agent Run in `context.agentRunId`, which every later record of that process
+     * carries.
      */
     processStarted: 'agent_chat.process_started',
     /**
@@ -15,7 +17,8 @@ export const agentChatLogEvents = {
      */
     processExited: 'agent_chat.process_exited',
     /**
-     * One record per finished turn with its closed status and duration.
+     * One record per finished turn with its closed status, duration, `turnId`, and `startRequestId`: the request that
+     * started the turn, or `null` when the queue or another non-request path did.
      */
     turnFinished: 'agent_chat.turn_finished',
     /**

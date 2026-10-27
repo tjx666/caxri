@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 
 import { agentSessionInstructions, CaxriError } from '@caxri/protocol';
-import type { SingleFlight } from '@caxri/system';
-import { logEventCatalog } from '@caxri/system';
+import type { ObservationContext, SingleFlight } from '@caxri/system';
+import { logEventCatalog, runWithObservationContext } from '@caxri/system';
 
 import type { AgentRunAutonomy } from '../agents';
 import { recordChatTurnMetrics } from '../usage';
@@ -36,6 +36,28 @@ export interface ChatStartHost extends ChatExitHost {
 }
 
 /**
+ * The observation context of one provider process (an Agent Run). Its stream callbacks inherit the context they were
+ * created in, so without this every turn, task, and activity record would carry the request that happened to start the
+ * process, often a `session.create` hours earlier. The request's own identities are cleared explicitly, because
+ * contexts merge and an omitted key would keep the inherited value.
+ */
+function agentRunContext(terminal: ChatTerminal, launchId: string): ObservationContext {
+    return {
+        agentRunId: launchId,
+        traceId: launchId,
+        requestId: undefined,
+        operationId: undefined,
+        projectId: undefined,
+        sessionId: terminal.sessionId,
+        terminalId: terminal.id,
+        bootId: undefined,
+        clientId: undefined,
+        connectionId: undefined,
+        serverId: undefined,
+    };
+}
+
+/**
  * Launches the provider process for one Chat state and publishes its session as soon as it spawns. A start superseded
  * by a newer launch, or a Chat closed, deleted, detached, or archived while preparing, closes what it opened; a failure
  * is recorded in the projection, where every Client sees it.
@@ -65,6 +87,7 @@ async function startChat(
     }
     state.launchId = launchId;
     state.suspending = undefined;
+    state.turnStartRequestId = undefined;
     states.setStatus(terminalId, 'starting');
     states.publish(terminalId);
     options.coordinator.beginTerminalLaunch(terminalId, launchId);
@@ -113,71 +136,75 @@ async function startChat(
             database.caxriBotRows()?.terminalId !== terminalId
                 ? agentSessionInstructions(options.sessionInstructions())
                 : undefined;
-        const logCallbacks = chatSessionLogCallbacks(options, terminalId);
-        session = driver.create({
-            terminalId,
-            cwd,
-            executable,
-            environment,
-            launch,
-            isRealAgentE2E,
-            permission: database.getChatPermission(terminalId) ?? { planMode: false },
-            agentSessionId: database.getTerminal(terminalId)?.agentSessionId,
-            ...(delegated.agentSessionId && { newAgentSessionId: delegated.agentSessionId }),
-            ...(resumeAt !== undefined && { resumeAt }),
-            clientVersion: options.clientVersion,
-            ...(instructions && { instructions }),
-            spawnProcess: options.spawnProcess,
-            processGroups: { terminalId, ledger: chatStateStore(database).processGroups },
-            turnRequestTimeoutMs: options.turnRequestTimeoutMs,
-            longRunningShellCommands: options.longRunningShellCommands,
-            read: () => state.projection.snapshot,
-            apply: (operations) => {
-                if (!isCurrent()) return;
-                states.apply(terminalId, operations);
-                mcpServers.observe(operations);
-            },
-            applyTask: (taskId, operations) => {
-                if (isCurrent()) state.projection.applyTask(taskId, operations);
-            },
-            readTask: (taskId) => state.projection.tasks.get(taskId),
-            observePlanLimits: (reading) => options.usage?.observe(provider, reading),
-            ...chatLifecycleHost(options, {
-                launchId,
-                provider,
+        const logCallbacks = chatSessionLogCallbacks(options, terminalId, state);
+        const runContext = agentRunContext(terminal, launchId);
+        const created = runWithObservationContext(runContext, () =>
+            driver.create({
                 terminalId,
-                isCurrent,
-                onEvent: (event) => {
-                    // The first new turn writes past the resume point, so a later start resumes the newest record again.
-                    if (resumeAt !== undefined && event.phase === 'turnStarted')
-                        chatStateStore(database).setResumeAt(terminalId, undefined);
+                cwd,
+                executable,
+                environment,
+                launch,
+                isRealAgentE2E,
+                permission: database.getChatPermission(terminalId) ?? { planMode: false },
+                agentSessionId: database.getTerminal(terminalId)?.agentSessionId,
+                ...(delegated.agentSessionId && { newAgentSessionId: delegated.agentSessionId }),
+                ...(resumeAt !== undefined && { resumeAt }),
+                clientVersion: options.clientVersion,
+                ...(instructions && { instructions }),
+                spawnProcess: options.spawnProcess,
+                processGroups: { terminalId, ledger: chatStateStore(database).processGroups },
+                turnRequestTimeoutMs: options.turnRequestTimeoutMs,
+                longRunningShellCommands: options.longRunningShellCommands,
+                read: () => state.projection.snapshot,
+                apply: (operations) => {
+                    if (!isCurrent()) return;
+                    states.apply(terminalId, operations);
+                    mcpServers.observe(operations);
                 },
-            }),
-            ...chatReportedStateHost(database, {
-                terminalId,
-                provider,
-                isCurrent,
-                onRebound: () => states.publish(terminalId),
-            }),
-            ...logCallbacks,
-            onTurnFinished: (status, durationMs, turnId) => {
-                logCallbacks.onTurnFinished(status, durationMs, turnId);
-                void recordChatTurnMetrics(
-                    {
-                        apply: (operations) => states.apply(terminalId, operations),
-                        isCurrent,
-                        read: () => state.projection.snapshot,
-                        readThroughput: async () =>
-                            (await options.readThroughput?.(terminalId)) ?? null,
+                applyTask: (taskId, operations) => {
+                    if (isCurrent()) state.projection.applyTask(taskId, operations);
+                },
+                readTask: (taskId) => state.projection.tasks.get(taskId),
+                observePlanLimits: (reading) => options.usage?.observe(provider, reading),
+                ...chatLifecycleHost(options, {
+                    launchId,
+                    provider,
+                    terminalId,
+                    isCurrent,
+                    onEvent: (event) => {
+                        // The first new turn writes past the resume point, so a later start resumes the newest record again.
+                        if (resumeAt !== undefined && event.phase === 'turnStarted')
+                            chatStateStore(database).setResumeAt(terminalId, undefined);
                     },
-                    turnId,
-                );
-            },
-            onExit: (exit) => handleChatExit(host, terminalId, provider, state, launchId, exit),
-            readTranscript: () => readChatTranscript(options, terminalId),
-        });
-        state.session = session;
-        const mode = await session.start();
+                }),
+                ...chatReportedStateHost(database, {
+                    terminalId,
+                    provider,
+                    isCurrent,
+                    onRebound: () => states.publish(terminalId),
+                }),
+                ...logCallbacks,
+                onTurnFinished: (status, durationMs, turnId) => {
+                    logCallbacks.onTurnFinished(status, durationMs, turnId);
+                    void recordChatTurnMetrics(
+                        {
+                            apply: (operations) => states.apply(terminalId, operations),
+                            isCurrent,
+                            read: () => state.projection.snapshot,
+                            readThroughput: async () =>
+                                (await options.readThroughput?.(terminalId)) ?? null,
+                        },
+                        turnId,
+                    );
+                },
+                onExit: (exit) => handleChatExit(host, terminalId, provider, state, launchId, exit),
+                readTranscript: () => readChatTranscript(options, terminalId),
+            }),
+        );
+        session = created;
+        state.session = created;
+        const mode = await runWithObservationContext(runContext, () => created.start());
         if (!isCurrent()) {
             await session.close();
             return;
@@ -188,7 +215,9 @@ async function startChat(
         states.publish(terminalId);
         if (database.getTerminal(terminalId)?.agentSessionId)
             options.coordinator.probeTerminal(terminalId);
+        // Keeps the trace of the request that started it, and names the Agent Run its later records carry.
         logger.write('info', logEventCatalog.agentChat.processStarted, {
+            context: { agentRunId: launchId },
             fields: { terminalId, outcome: 'ready', mode, durationMs: Date.now() - startedAt },
         });
         options.onReady?.(terminalId);
