@@ -19,10 +19,9 @@ const mouseReport = new RegExp(`^(?:${escape}${String.raw`\[<\d+;\d+;\d+m`})+$`,
 /**
  * Codex and other full-screen Agents enable SGR mouse tracking (`?1006h`), so xterm reports every wheel tick and click
  * in the Terminal as `ESC[<button;column;rowM` text on the same onData channel as keys. Reading an Agent's progress is
- * not typing into it: counted as input, a scroll marked a delegated task "Taken over by you" and kept the Agent
- * Commander's completion notices queued as an unsent draft. The legacy X10 encoding already arrives as binary input,
- * which never moves the input epoch. See
- * https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h3-Extended-coordinates.
+ * not typing into it: counted as input, a scroll marked a delegated task "Taken over by you" and kept the Agent Caxri
+ * Bot's completion notices queued as an unsent draft. The legacy X10 encoding already arrives as binary input, which
+ * never moves the input epoch. See https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h3-Extended-coordinates.
  */
 export function isTerminalMouseReport(data: string): boolean {
     return mouseReport.test(data);

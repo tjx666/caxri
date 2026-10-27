@@ -52,23 +52,15 @@ describe('resolveSessionCreator', () => {
         ).toEqual({ kind: 'archived', title: 'Coordinator' });
     });
 
-    it('names the Agent Commander for its own hidden Session', () => {
+    it('names Caxri Bot for its own hidden Session', () => {
         expect(
-            resolveSessionCreator(
-                session('child', { createdBySessionId: 'commander' }),
-                [],
-                'commander',
-            ),
-        ).toEqual({ kind: 'commander' });
+            resolveSessionCreator(session('child', { createdBySessionId: 'bot' }), [], 'bot'),
+        ).toEqual({ kind: 'bot' });
     });
 
     it('shows nothing when the creator is not visible in the Workbench', () => {
         expect(
-            resolveSessionCreator(
-                session('child', { createdBySessionId: 'hidden' }),
-                [],
-                'commander',
-            ),
+            resolveSessionCreator(session('child', { createdBySessionId: 'hidden' }), [], 'bot'),
         ).toBe(undefined);
     });
 });

@@ -65,14 +65,14 @@ describe('agentChatComposerScope', () => {
     const database = (...parameters: Parameters<typeof agentChatComposerScope>) =>
         agentChatAttachmentDatabaseName(agentChatComposerScope(...parameters));
 
-    it('gives each SSH Host and the Commander its own database so windows never prune each other', () => {
+    it('gives each SSH Host and Caxri Bot its own database so windows never prune each other', () => {
         const local = database('workbench', { kind: 'local' });
-        const commander = database('commander', undefined);
+        const bot = database('bot', undefined);
         const devbox = database('workbench', ssh('devbox'));
         expect(database('workbench', undefined)).toBe(local);
         expect(devbox).not.toBe(local);
         expect(devbox).not.toBe(database('workbench', ssh('buildbox')));
-        expect(new Set([local, commander, devbox]).size).toBe(3);
+        expect(new Set([local, bot, devbox]).size).toBe(3);
     });
 
     it("keys an SSH Host by Main's resolved host key, so every alias finds the same unsent state", () => {

@@ -245,7 +245,7 @@ describe('Host request log sink', () => {
 });
 
 describe('delegation request correlation', () => {
-    it('names the delegation a Commander CLI call concerns in ipc.request fields', () => {
+    it('names the delegation a Caxri Bot CLI call concerns in ipc.request fields', () => {
         const writes: ControlRequestLogWrite[] = [];
         const options = {
             logger: { write: (...arguments_: ControlRequestLogWrite) => writes.push(arguments_) },
@@ -440,7 +440,7 @@ describe('operatorContext', () => {
          */
         expect(context.capabilities).toContain('settings.delegation.write');
         expect(context.capabilities).toContain('agents.delegation.access');
-        expect(context.capabilities).toContain('commander');
+        expect(context.capabilities).toContain('bot');
         expect(context.capabilities).toHaveLength(20);
     });
 

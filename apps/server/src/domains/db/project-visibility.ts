@@ -1,7 +1,7 @@
 import type { ProjectRecord, SessionRecord } from '@caxri/protocol';
 import { CaxriError, isTopLevelProject } from '@caxri/protocol';
 
-import { agentCommanderProjectId } from './commander-rows';
+import { caxriBotProjectId } from './bot-rows';
 import type { CaxriDatabaseConnection } from './database-connection';
 import { reconcileOpenSessions } from './open-sessions';
 import {
@@ -50,14 +50,14 @@ export function isRestorableProjectRoot(
 
 /**
  * Projects the Workbench presents. Authorization and root identity still read the full Project list, because a hidden
- * row keeps its root registered for the moment it is added back. The Agent Commander's system Project is never
- * presented: it exists only to host the Commander Terminal in its own window.
+ * row keeps its root registered for the moment it is added back. Caxri Bot's system Project is never presented: it
+ * exists only to host Caxri Bot's Terminal in its own window.
  */
 export function listVisibleProjects(database: CaxriDatabaseConnection): ProjectRecord[] {
-    const commanderProjectId = agentCommanderProjectId(database);
+    const botProjectId = caxriBotProjectId(database);
     return database.projects
         .list()
-        .filter((project) => project.hiddenAt === undefined && project.id !== commanderProjectId);
+        .filter((project) => project.hiddenAt === undefined && project.id !== botProjectId);
 }
 
 /**
@@ -71,8 +71,8 @@ export function listVisibleSessions(database: CaxriDatabaseConnection): SessionR
             .filter((project) => project.hiddenAt !== undefined)
             .map((project) => project.id),
     );
-    const commanderProjectId = agentCommanderProjectId(database);
-    if (commanderProjectId) excludedProjectIds.add(commanderProjectId);
+    const botProjectId = caxriBotProjectId(database);
+    if (botProjectId) excludedProjectIds.add(botProjectId);
     const sessions = database.sessions.list();
     return excludedProjectIds.size === 0
         ? sessions

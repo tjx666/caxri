@@ -20,9 +20,9 @@ export const agentEndpointBeginParamsSchema = z.object({
     permissionClass: agentPermissionClassSchema,
     messaging: agentMessagingCapabilitySchema,
     /**
-     * Set only by domain services for the Agent Commander Terminal they own; it adds the fixed Commander capabilities.
+     * Set only by domain services for the Caxri Bot Terminal they own; it adds the fixed Caxri Bot capabilities.
      */
-    role: z.literal('commander').optional(),
+    role: z.literal('bot').optional(),
 });
 
 export const agentEndpointBeginResultSchema = z.object({

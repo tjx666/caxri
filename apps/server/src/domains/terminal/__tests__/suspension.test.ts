@@ -61,8 +61,8 @@ describe('TerminalSuspensionService', () => {
         expect(harness.suspend).not.toHaveBeenCalled();
     });
 
-    it('never suspends the Agent Commander Terminal, which the Workbench never selects', async () => {
-        const harness = createHarness({ commanderSessionId: 'session-a' });
+    it('never suspends the Caxri Bot Terminal, which the Workbench never selects', async () => {
+        const harness = createHarness({ botSessionId: 'session-a' });
         harness.service.start();
         harness.service.observeLaunch('terminal-a');
         harness.advance(UNTOUCHED_SUSPENSION_DELAY_MS * 2);

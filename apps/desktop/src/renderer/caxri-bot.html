@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <!-- Caxri Bot's Terminal uses the Workbench's xterm addons, so it needs the same narrow WebAssembly and
+             worker allowances as index.html; it renders no file previews, so images stay local. -->
+        <meta
+            http-equiv="Content-Security-Policy"
+            content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: caxri-media:; media-src 'self' caxri-media:; font-src 'self' data:; connect-src __CAXRI_CONNECT_SRC__; worker-src 'self' blob:"
+        />
+        <title>Caxri Bot — Caxri</title>
+    </head>
+    <body>
+        <div id="root"></div>
+        <script type="module" src="/src/caxri-bot-main.tsx"></script>
+    </body>
+</html>

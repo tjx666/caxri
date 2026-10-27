@@ -16,8 +16,8 @@ import { ClampedText } from './agent-chat-request-parts';
 import type { AgentChatTimelineEntry } from './agent-chat-timeline';
 
 /**
- * "Delegated by" and who: a link to a Session the phone lists, or Agent Commander. A source the phone cannot open
- * (archived, deleted, or never recorded) reads as a plain delegated task.
+ * "Delegated by" and who: a link to a Session the phone lists, or Caxri Bot. A source the phone cannot open (archived,
+ * deleted, or never recorded) reads as a plain delegated task.
  */
 function DelegatedTaskSource({
     task,
@@ -34,11 +34,11 @@ function DelegatedTaskSource({
     const by = (
         <Text style={[styles.sourceText, { color: theme.muted }]}>{t('chat.delegated.by')}</Text>
     );
-    if (source?.kind === 'commander')
+    if (source?.kind === 'bot')
         return (
             <>
                 {by}
-                <Text style={[styles.sourceText, { color: theme.text }]}>Agent Commander</Text>
+                <Text style={[styles.sourceText, { color: theme.text }]}>Caxri Bot</Text>
             </>
         );
     const session =

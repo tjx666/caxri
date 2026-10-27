@@ -17,7 +17,7 @@ import {
     delegationCaller,
     delegationPaneCaller,
     delegationRoster,
-    isAgentCommanderCaller,
+    isCaxriBotCaller,
     resolveDelegationAdmission,
 } from './admission';
 import { delegationChildLaunch } from './chat-child';
@@ -364,10 +364,9 @@ export class AgentDelegationService {
                 (pruned) => reclaimPrunedDelegationFiles(this.options.userDataPath, pruned),
             );
             // Before the announcement, so the ledger links the hand-over's task instead of recording a second one.
-            if (continueFromHandover)
-                this.options.commanderHandovers?.consume(continueFromHandover, id);
+            if (continueFromHandover) this.options.botHandovers?.consume(continueFromHandover, id);
             logDelegationRequested(this.options.logger, record.receipt, input, {
-                isCommander: isAgentCommanderCaller(this.options.database, authority),
+                isBot: isCaxriBotCaller(this.options.database, authority),
                 parentDelegationId: previousId,
                 terminalId: authority.callerTerminalId,
             });

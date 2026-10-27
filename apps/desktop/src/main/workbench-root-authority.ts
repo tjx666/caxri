@@ -33,9 +33,9 @@ type OpenTerminalFileLinkParameters = Extract<
     MainRequest,
     { method: 'terminal.openFileLink' }
 >['params'];
-type OpenCommanderFileLinkParameters = Extract<
+type OpenBotFileLinkParameters = Extract<
     MainRequest,
-    { method: 'agentCommander.openFileLink' }
+    { method: 'caxriBot.openFileLink' }
 >['params'];
 type ExternalOpenDecision = 'cancel' | 'open' | 'trust';
 
@@ -52,9 +52,9 @@ interface WorkbenchRootAuthorityOptions {
     logger(): PathBrowserLogger | undefined;
     nextTestRoot(): string | undefined;
     /**
-     * Raises and focuses the Workbench window. Used only by `openCommanderFileLink`, so a native dialog or the opened
-     * editor always lands on the window the user can actually see, even though the request originated in the hidden
-     * Agent Commander window.
+     * Raises and focuses the Workbench window. Used only by `openBotFileLink`, so a native dialog or the opened editor
+     * always lands on the window the user can actually see, even though the request originated in the hidden Caxri
+     * Bot's window.
      */
     focusWindow(): Promise<void>;
 }
@@ -244,8 +244,8 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
 
     /**
      * The first non-archived Session in `state`, preferring whichever one the Workbench currently has selected. Used
-     * only to host an external (outside every Project) file's ephemeral tab for the Agent Commander: such a file has no
-     * owning Project to search for a covering Session, so any live Session is as good as another. `undefined` means the
+     * only to host an external (outside every Project) file's ephemeral tab for Caxri Bot: such a file has no owning
+     * Project to search for a covering Session, so any live Session is as good as another. `undefined` means the
      * Workbench has no Session at all to attach the tab to, which the caller treats as a cancellation.
      */
     function pickAnyVisibleSessionId(state: BootstrapState): string | undefined {
@@ -257,15 +257,15 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
     }
 
     /**
-     * The Session that should receive a file link resolved inside `projectId`, for the Agent Commander only. Unlike
+     * The Session that should receive a file link resolved inside `projectId`, for Caxri Bot only. Unlike
      * `chooseTargetSession`, this never opens the interactive "Choose a Session" dialog: that dialog answers a click
-     * the user just made in a visible pane, but this hand-off starts in the Commander's hidden window, so it always
-     * resolves silently instead of surfacing a modal the user did not ask for. Preference order: the Session the
-     * Commander itself created in this Project (the one an operator watching the Commander most likely means), then the
+     * the user just made in a visible pane, but this hand-off starts in Caxri Bot's hidden window, so it always
+     * resolves silently instead of surfacing a modal the user did not ask for. Preference order: the Session the Caxri
+     * Bot itself created in this Project (the one an operator watching Caxri Bot most likely means), then the
      * Workbench's currently selected Session, then the first. The zero-Session branch mirrors `chooseTargetSession`'s:
      * Server Core will not create a Session inside a worktree Project no live Session is using as its Workbench Root.
      */
-    async function pickCommanderFileLinkSession(
+    async function pickBotFileLinkSession(
         state: BootstrapState,
         projectId: string,
     ): Promise<
@@ -289,34 +289,34 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
         }
         if (sessions.length === 1) return { sessionId: sessions[0].id };
         /**
-         * Best-effort: a failed board read (the Commander not yet initialized) just skips the Commander-created
-         * preference rather than blocking the open.
+         * Best-effort: a failed board read (Caxri Bot not yet initialized) just skips Caxri Bot-created preference
+         * rather than blocking the open.
          */
-        let board: Awaited<ReturnType<typeof server.request<'commander.board'>>> | undefined;
+        let board: Awaited<ReturnType<typeof server.request<'bot.board'>>> | undefined;
         try {
-            board = await server.request('commander.board');
+            board = await server.request('bot.board');
         } catch {
             board = undefined;
         }
-        const commanderSessionIds = new Set(
-            board?.rows.filter((row) => row.commanderSession).map((row) => row.sessionId),
+        const botSessionIds = new Set(
+            board?.rows.filter((row) => row.botSession).map((row) => row.sessionId),
         );
         const preferred =
-            sessions.find((session) => commanderSessionIds.has(session.id)) ??
+            sessions.find((session) => botSessionIds.has(session.id)) ??
             sessions.find((session) => session.id === state.selectedSessionId) ??
             sessions[0];
         return { sessionId: preferred.id };
     }
 
     /**
-     * The Agent Commander's counterpart to `openTerminalFileLink`. The Commander's own cwd is its hidden system
-     * Project, so it must never gain authority over another Project through this hand-off: every branch below resolves
-     * through the same Server-side `terminal.fileLink.resolve` used by every other Terminal (global across all visible
-     * Projects, independent of the source Terminal), and then always substitutes a real, visible Session for the
-     * Commander's own (see `pickCommanderFileLinkSession` and `pickAnyVisibleSessionId`), rather than trusting
-     * `resolved.sourceSessionId`, which would otherwise name the Commander's own invisible Session.
+     * Caxri Bot's counterpart to `openTerminalFileLink`. Caxri Bot's own cwd is its hidden system Project, so it must
+     * never gain authority over another Project through this hand-off: every branch below resolves through the same
+     * Server-side `terminal.fileLink.resolve` used by every other Terminal (global across all visible Projects,
+     * independent of the source Terminal), and then always substitutes a real, visible Session for the Caxri Bot's own
+     * (see `pickBotFileLinkSession` and `pickAnyVisibleSessionId`), rather than trusting `resolved.sourceSessionId`,
+     * which would otherwise name Caxri Bot's own invisible Session.
      */
-    async function openCommanderFileLink(parameters: OpenCommanderFileLinkParameters) {
+    async function openBotFileLink(parameters: OpenBotFileLinkParameters) {
         const server = options.getServer();
         const resolved = await server.request('terminal.fileLink.resolve', {
             terminalId: parameters.terminalId,
@@ -330,7 +330,7 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
             };
         /**
          * Past this point every branch either opens a native dialog or the Workbench editor, so raise the Workbench
-         * first. The ambiguous branch above deliberately skips this: it only returns data for the Commander's own
+         * first. The ambiguous branch above deliberately skips this: it only returns data for Caxri Bot's own
          * already-mounted link picker, and stealing focus for that would be jarring rather than helpful.
          */
         await options.focusWindow();
@@ -351,7 +351,7 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
             };
         }
 
-        const target = await pickCommanderFileLinkSession(state, resolved.projectId);
+        const target = await pickBotFileLinkSession(state, resolved.projectId);
         if (!('sessionId' in target))
             return 'reason' in target
                 ? { canceled: true as const, reason: target.reason }
@@ -475,7 +475,7 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
 
         openTerminalFileLink,
 
-        openCommanderFileLink,
+        openBotFileLink,
 
         pathBrowser,
 

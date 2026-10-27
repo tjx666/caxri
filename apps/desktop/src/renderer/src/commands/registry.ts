@@ -62,7 +62,7 @@ export interface CommandContext {
         resumeSelected(): void;
         selectAdjacent(delta: 1 | -1): void;
         switchMru(invocation?: SessionMruShortcutInvocation): void;
-        takeBackSelectedFromCommander(): void;
+        takeBackSelectedFromBot(): void;
     };
     terminal: {
         create(): void;
@@ -181,12 +181,12 @@ export interface CommandContext {
         openProjectSearch(): void;
         openSessionSearch(): void;
         openKeyboardShortcuts(): void;
-        openCommanderHandover(): void;
+        openBotHandover(): void;
     };
     windows: {
-        openAgentCommander(): void;
+        openCaxriBot(): void;
         openBenchmark(): void;
-        stopAgentCommander(): void;
+        stopCaxriBot(): void;
         openProcessExplorer(): void;
         zoom(step: 'in' | 'out' | 'reset'): void;
     };

@@ -20,8 +20,8 @@ export const mobileSubscriptionMethod = (resource: MobileSubscriptionResource): 
         case 'agentChat': {
             return 'mobile.agentChat.read';
         }
-        case 'commanderInbox': {
-            return 'mobile.commanderInbox.list';
+        case 'botInbox': {
+            return 'mobile.botInbox.list';
         }
         default: {
             return 'mobile.dashboard';
@@ -53,7 +53,7 @@ export async function authorizeMobileSubscriptionResource(
             return;
         }
         case 'dashboard':
-        case 'commanderInbox': {
+        case 'botInbox': {
             return;
         }
         default: {
@@ -74,8 +74,8 @@ export async function isMobileSubscriptionEvent(
     switch (resource.kind) {
         case 'dashboard':
             return event.event === 'state.changed';
-        case 'commanderInbox':
-            return event.event === 'commanderInbox.changed';
+        case 'botInbox':
+            return event.event === 'botInbox.changed';
         case 'terminal':
             return (
                 event.event === 'terminal.output' &&

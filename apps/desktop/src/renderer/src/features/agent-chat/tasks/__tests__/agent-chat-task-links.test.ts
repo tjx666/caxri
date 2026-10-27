@@ -36,7 +36,7 @@ describe('createAgentChatTaskLinks', () => {
     });
 
     it('keeps live task status but offers no openers where the host cannot open beside Chat', () => {
-        // Regression for caxri#1719: the Commander Chat lost `tasksByItem`, so running task rows folded into the
+        // Regression for caxri#1719: Caxri Bot's Chat lost `tasksByItem`, so running task rows folded into the
         // command summary while the task strip still showed them running.
         const links = createAgentChatTaskLinks([runningShell], 'terminal-1', false);
         expect(links.tasksByItem.get('item-1')?.status).toBe('running');

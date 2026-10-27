@@ -359,12 +359,12 @@ export const agentChatLabelsZhCN: TranslatedNamespace<typeof agentChatLabelsEn> 
     'agentChat.permission.description.grok.auto': '由分类器批准安全操作',
     'agentChat.permission.description.grok.fullAccess': '运行所有工具，无需询问',
 
-    // Commander Inbox (`commanderInboxKindLabel`, `commanderInboxReplyState`)
-    'agentCommander.inbox.kind.decision': '决策',
-    'agentCommander.inbox.kind.hands': '待你操作',
-    'agentCommander.inbox.kind.merge': 'Pull Request',
-    'agentCommander.inbox.replyState.read': 'Commander 已读',
-    'agentCommander.inbox.replyState.delivered': '已送达 Commander',
+    // Bot Inbox (`botInboxKindLabel`, `botInboxReplyState`)
+    'caxriBot.inbox.kind.decision': '决策',
+    'caxriBot.inbox.kind.hands': '待你操作',
+    'caxriBot.inbox.kind.merge': 'Pull Request',
+    'caxriBot.inbox.replyState.read': 'Caxri Bot 已读',
+    'caxriBot.inbox.replyState.delivered': '已送达 Caxri Bot',
 
     // Reasoning effort levels (`agentChatEffortLabel`)
     'agentChat.model.effort.none': '无',

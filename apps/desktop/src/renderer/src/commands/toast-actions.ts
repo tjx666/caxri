@@ -11,11 +11,11 @@ import {
     agentChatRedoUnavailableReason,
     redoAgentChatTurn,
 } from '../features/agent-chat/turns/agent-chat-undo-commands';
-import { openCommanderHandover } from '../features/agent-commander/commander-handover-store';
+import { openBotHandover } from '../features/caxri-bot/bot-handover-store';
 import {
-    commanderInboxUndoDismissUnavailableReason,
-    undoCommanderInboxDismissal,
-} from '../features/agent-commander/commander-inbox-commands';
+    botInboxUndoDismissUnavailableReason,
+    undoBotInboxDismissal,
+} from '../features/caxri-bot/bot-inbox-commands';
 import {
     discardedChangesUnavailableReason,
     restoreDiscardedChanges,
@@ -76,17 +76,17 @@ export const toastActionHandlers: ToastActionHandlers = {
         unavailable: reviewCommentRestoreUnavailableReason,
         run: restoreRemovedReviewComment,
     },
-    'agentCommander.open': { run: () => executeCommand('agentCommander.open') },
-    'agentCommander.handBack': {
+    'caxriBot.open': { run: () => executeCommand('caxriBot.open') },
+    'caxriBot.handBack': {
         unavailable: ({ sessionId }) =>
             hasSession(sessionId)
                 ? undefined
                 : translate('toasts.actionUnavailable.missingSession'),
-        run: ({ sessionId }) => openCommanderHandover([sessionId]),
+        run: ({ sessionId }) => openBotHandover([sessionId]),
     },
-    'agentCommander.undoDismiss': {
-        unavailable: ({ itemId }) => commanderInboxUndoDismissUnavailableReason(itemId),
-        run: ({ itemId }) => undoCommanderInboxDismissal(itemId),
+    'caxriBot.undoDismiss': {
+        unavailable: ({ itemId }) => botInboxUndoDismissUnavailableReason(itemId),
+        run: ({ itemId }) => undoBotInboxDismissal(itemId),
     },
     'clipboard.copyCommand': {
         run: ({ text }) => {

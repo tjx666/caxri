@@ -429,14 +429,14 @@ describe('workbench Runtime events', () => {
         },
     );
 
-    it('mirrors the Workbench window fullscreen state and ignores the Agent Commander window', () => {
+    it('mirrors the Workbench window fullscreen state and ignores the Caxri Bot window', () => {
         const unsubscribe = subscribeWorkbenchEvents(eventHandlers());
         expect(useWorkbenchStore.getState().isFullScreen).toBe(false);
 
-        // The Agent Commander window's own state also reaches this Renderer and must not move the Workbench chrome.
+        // The Caxri Bot window's own state also reaches this Renderer and must not move the Workbench chrome.
         for (const [window, isFullScreen, expected] of [
             ['workbench', true, true],
-            ['agentCommander', false, true],
+            ['caxriBot', false, true],
             ['workbench', false, false],
         ] as const) {
             mocks.emit({ event: 'window.fullScreen', payload: { window, isFullScreen } });

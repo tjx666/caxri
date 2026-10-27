@@ -1,0 +1,306 @@
+import type { TranslatedNamespace } from '@caxri/protocol';
+
+import type { caxriBot as source } from '../en/caxri-bot';
+
+export const caxriBot: TranslatedNamespace<typeof source> = {
+    // Window chrome
+    'caxriBot.window.title': 'Caxri Bot',
+    'caxriBot.window.sessionsLabel': '会话',
+    'caxriBot.window.stop': '停止 Caxri Bot',
+    'caxriBot.window.more': '更多',
+    'caxriBot.window.commandPalette': '命令面板…',
+    'caxriBot.window.needsYou': '需要你处理',
+    'caxriBot.window.hideNeedsYou': '隐藏“需要你处理”',
+    'caxriBot.window.showColumn': '显示“{{column}}”',
+    'caxriBot.window.hideColumn': '隐藏“{{column}}”',
+    'caxriBot.window.resizeNeedsYou': '调整“需要你处理”宽度',
+    'caxriBot.window.resizeSessions': '调整“会话”宽度',
+
+    // Caxri Bot's Agent
+    'caxriBot.agent.label': 'Caxri Bot 使用的 Agent：{{agent}}',
+    'caxriBot.agent.tooltip': 'Caxri Bot 正在使用 {{agent}}，点击切换',
+    'caxriBot.agent.menuLabel': 'Caxri Bot 使用的 Agent',
+    'caxriBot.agent.switchTitle': '将 Caxri Bot 切换到 {{agent}}？',
+    'caxriBot.agent.switchMessage':
+        'Caxri Bot 会在 {{agent}} 上开始一段新对话。任务、记忆和“需要你处理”的条目都会保留，它委派的任务也会继续运行。',
+    'caxriBot.agent.switchConfirm': '切换到 {{agent}}',
+    'caxriBot.agent.switchFailed': '无法将 Caxri Bot 切换到 {{agent}}',
+
+    // Command Palette
+    'caxriBot.palette.placeholder': '输入命令或会话名称',
+    'caxriBot.palette.empty': '未找到命令或会话。',
+    'caxriBot.palette.group.bot': 'Caxri Bot',
+    'caxriBot.palette.group.view': '视图',
+    'caxriBot.palette.group.agent': 'Agent',
+    'caxriBot.palette.switchAgent': '将 Caxri Bot 切换到 {{agent}}',
+    'caxriBot.palette.switchAgentKeywords': 'agent model provider change run on 切换 模型 智能体',
+    'caxriBot.palette.handover': '转交给 Caxri Bot…',
+    'caxriBot.palette.handoverKeywords':
+        'handover delegate sessions conversations import 转交 委派 会话 对话 导入',
+    'caxriBot.palette.clearData': '清除 Caxri Bot 数据…',
+    'caxriBot.palette.clearDataKeywords':
+        'clear delete reset forget memory tasks agents.md instructions cleanup 清除 清理 删除 重置 记忆 任务 指令',
+    'caxriBot.palette.openSettings': '打开设置',
+    'caxriBot.palette.stopKeywords': 'quit close exit stop 退出 关闭 停止',
+    'caxriBot.palette.boardKeywords': 'board sidebar sessions column 看板 侧栏 会话',
+    'caxriBot.palette.showBotSessions': '只显示 Caxri Bot 的会话',
+    'caxriBot.palette.showAllSessions': '显示全部会话',
+    'caxriBot.palette.inboxKeywords':
+        'inbox needs you questions pull requests column 收件箱 需要你处理 问题 拉取请求',
+
+    // Clear Caxri Bot Data
+    'caxriBot.clearData.title': '清除 Caxri Bot 数据',
+    'caxriBot.clearData.description':
+        '选择 Caxri Bot 要忘掉的内容。会话、终端和你的仓库都不会受影响。',
+    'caxriBot.clearData.loadFailed': '无法读取 Caxri Bot 保存的数据。',
+    'caxriBot.clearData.loading': '正在读取 Caxri Bot 保存的数据…',
+    'caxriBot.clearData.tasks': '任务',
+    'caxriBot.clearData.tasksDescription':
+        'Caxri Bot 用来跟踪委派工作的任务清单。删除未完成的任务后，Caxri Bot 不再跟进它。',
+    'caxriBot.clearData.tasksMeta': '{{open}} 个进行中 · {{closed}} 个已结束',
+    'caxriBot.clearData.taskChoiceLabel': '要删除的任务',
+    'caxriBot.clearData.taskChoiceClosed': '已结束',
+    'caxriBot.clearData.taskChoiceAll': '全部',
+    'caxriBot.clearData.taskChoiceChosen': '自选…',
+    'caxriBot.clearData.olderTasks':
+        '还有 {{count}} 个较早的任务未列出；选择“已结束”或“全部”即可包含它们。',
+    'caxriBot.clearData.olderTasksOne':
+        '还有 1 个较早的任务未列出；选择“已结束”或“全部”即可包含它。',
+    'caxriBot.clearData.taskStatus.pending': '待处理',
+    'caxriBot.clearData.taskStatus.dispatched': '已委派',
+    'caxriBot.clearData.taskStatus.waiting_user': '等你处理',
+    'caxriBot.clearData.taskStatus.done': '已完成',
+    'caxriBot.clearData.taskStatus.dropped': '已放弃',
+    'caxriBot.clearData.taskFiles': '任务文件',
+    'caxriBot.clearData.taskFilesDescription': 'Caxri Bot 在任务旁保存的任务说明和拉取请求报告。',
+    'caxriBot.clearData.taskFilesMeta': '{{count}} 个文件 · {{size}}',
+    'caxriBot.clearData.taskFilesMetaOne': '1 个文件 · {{size}}',
+    'caxriBot.clearData.inboxDescription': '等你处理的问题和拉取请求，以及已经处理过的条目。',
+    'caxriBot.clearData.inboxMeta': '{{open}} 个待处理 · {{closed}} 个已关闭',
+    'caxriBot.clearData.memory': '记忆',
+    'caxriBot.clearData.memoryDescription':
+        'Caxri Bot 记下的关于你和你的项目的内容恢复为初始模板。',
+    'caxriBot.clearData.memoryLearned': '已有记录',
+    'caxriBot.clearData.memoryEmpty': '尚无记录',
+    'caxriBot.clearData.instructions': '指令',
+    'caxriBot.clearData.instructionsDescription': '按当前模板重写 AGENTS.md，丢弃对它做过的修改。',
+    'caxriBot.clearData.instructionsWithMemory': 'AGENTS.md 承载记忆，重置记忆时会一并重写。',
+    'caxriBot.clearData.conversation': '对话',
+    'caxriBot.clearData.conversationDescription':
+        '开始一段新的 {{agent}} 对话，当前对话的内容不再延续。',
+    'caxriBot.clearData.conversationNone': '尚未开始',
+    'caxriBot.clearData.stillInConversation':
+        '{{agent}} 在这段对话中已经读过旧的记忆和指令。勾选“对话”即可从头开始。',
+    'caxriBot.clearData.submit': '清除数据',
+    'caxriBot.clearData.failed': '无法清除 Caxri Bot 数据',
+    'caxriBot.clearData.outcome.tasks': '{{count}} 个任务',
+    'caxriBot.clearData.outcome.tasksOne': '1 个任务',
+    'caxriBot.clearData.outcome.files': '{{count}} 个任务文件',
+    'caxriBot.clearData.outcome.filesOne': '1 个任务文件',
+    'caxriBot.clearData.outcome.inbox': '{{count}} 个“需要你处理”条目',
+    'caxriBot.clearData.outcome.inboxOne': '1 个“需要你处理”条目',
+    'caxriBot.clearData.outcome.memory': '记忆',
+    'caxriBot.clearData.outcome.instructions': '指令',
+    'caxriBot.clearData.outcome.conversation': '对话',
+    'caxriBot.clearData.outcome.separator': '、',
+    'caxriBot.clearData.outcome.summary': '已清除{{parts}}',
+    'caxriBot.clearData.outcome.nothing': '没有可清除的内容了',
+
+    // Caxri Bot Terminal
+    'caxriBot.terminal.couldNotStart': 'Caxri Bot 无法启动。',
+    'caxriBot.terminal.couldNotStartHint': '请重试。如果仍然失败，下方的详细信息说明了出错原因。',
+    'caxriBot.terminal.failureDetail': '详细信息：{{message}}',
+    'caxriBot.terminal.starting': '正在启动 Caxri Bot…',
+    'caxriBot.terminal.ariaLabel': 'Caxri Bot：{{title}}',
+    'caxriBot.terminal.startFailed': '无法启动 Caxri Bot',
+    'caxriBot.terminal.noLongerSetUp': 'Caxri Bot 已不再处于配置状态。请关闭此窗口后重新打开。',
+
+    // Board
+    'caxriBot.board.loadFailed': '无法加载看板',
+    'caxriBot.board.loading': '正在加载 Agent…',
+    'caxriBot.board.emptyBot':
+        '暂无 Caxri Bot 管理的会话。向 Caxri Bot 描述一个目标，或转交你开始的会话，它们会显示在这里。',
+    'caxriBot.board.emptyAll': '暂无会话。所有项目的会话会在其 Agent 工作时显示在这里。',
+    'caxriBot.board.scopeLabel': '看板范围',
+    'caxriBot.board.scopeBot': 'Caxri Bot',
+    'caxriBot.board.scopeBotLabel': 'Caxri Bot（{{count}}）：Caxri Bot 管理的会话',
+    'caxriBot.board.scopeAll': '全部',
+    'caxriBot.board.scopeAllLabel': '全部（{{count}}）：所有会话',
+    'caxriBot.board.group.attention': '待处理',
+    'caxriBot.board.group.failed': '失败',
+    'caxriBot.board.group.finished': '最近完成',
+    'caxriBot.board.group.idle': '空闲',
+    'caxriBot.board.group.waiting': '等待中',
+    'caxriBot.board.group.working': '工作中',
+    'caxriBot.board.process.exited': '已退出',
+    'caxriBot.board.process.detached': '已分离',
+    'caxriBot.board.process.failed': '启动失败',
+    'caxriBot.board.process.interrupted': '已中断',
+    'caxriBot.board.process.starting': '正在启动',
+    'caxriBot.board.process.suspended': '已挂起',
+    'caxriBot.board.noTerminal': '无终端',
+    'caxriBot.board.shell': 'Shell',
+    'caxriBot.board.unread': '未读。{{state}}',
+    'caxriBot.board.pullRequestOpen': '{{label}} 在浏览器中打开。',
+    'caxriBot.board.ownedSession': '由 Caxri Bot 创建，以便向这里委派任务。',
+    'caxriBot.board.botTask': 'Caxri Bot 任务。{{description}}',
+
+    // Board task status
+    'caxriBot.task.label.answered': '已回答',
+    'caxriBot.task.label.blocked': '受阻',
+    'caxriBot.task.label.failed': '失败',
+    'caxriBot.task.label.running': '运行中',
+    'caxriBot.task.label.starting': '正在启动',
+    'caxriBot.task.label.stopped': '已停止',
+    'caxriBot.task.label.takenOver': '已由你收回',
+    'caxriBot.task.label.waitingAtStartup': '启动时等待',
+    'caxriBot.task.description.answerUnavailable': 'Agent 已完成，但无法读回它的回答。',
+    'caxriBot.task.description.awaitingReady': 'Agent 正在启动，尚未开始该任务。',
+    'caxriBot.task.description.blocked': 'Agent 停下来提问，通常由 Caxri Bot 回答。',
+    'caxriBot.task.description.collecting': 'Agent 已结束本轮，Caxri Bot 正在读取它的回答。',
+    'caxriBot.task.description.completed': 'Agent 已给出最终回答。Caxri Bot 会先验证，再进行汇报。',
+    'caxriBot.task.description.failed': '任务失败。',
+    'caxriBot.task.description.humanIntervened':
+        '任务运行期间你在此会话中输入过内容，因此它现在归你所有。Caxri Bot 不再驱动它，也不会再发送后续指令。',
+    'caxriBot.task.description.interrupted': '任务在 Agent 完成前已停止。',
+    'caxriBot.task.description.launching': 'Caxri Bot 正在为此任务启动 Agent。',
+    'caxriBot.task.description.running': 'Agent 正在处理该任务。',
+    'caxriBot.task.description.submitting': 'Caxri Bot 正在把任务交给 Agent。',
+    'caxriBot.task.waitingAtStartupTitle':
+        '启动时等待。Agent 已运行但尚未开始，通常停在首次运行的提示上，例如文件夹信任或登录。打开该会话进行回应，任务随后会自行继续。',
+    'caxriBot.task.reason': '原因：{{reason}}。',
+    'caxriBot.task.title': '{{label}}。{{description}}{{reason}}',
+
+    // Inbox
+    'caxriBot.inbox.loadFailed': '无法加载收件箱',
+    'caxriBot.inbox.loading': '正在加载收件箱…',
+    'caxriBot.inbox.empty':
+        '暂无需要你处理的事项。当 Caxri Bot 有问题或有可合并的 Pull Request 时，会显示在这里。',
+    'caxriBot.inbox.section.merge': '可合并',
+    'caxriBot.inbox.section.questions': '问题',
+    'caxriBot.inbox.openPullRequest': '在浏览器中打开 Pull Request',
+    'caxriBot.inbox.showSession': '在工作台中显示此会话',
+    'caxriBot.inbox.session': '会话',
+    'caxriBot.inbox.answers': '回答',
+    'caxriBot.inbox.merging': '正在合并…',
+    'caxriBot.inbox.merge': '合并',
+    'caxriBot.inbox.mergeTooltip': '合并 Caxri Bot 已验证的提交',
+    'caxriBot.inbox.reply': '回复',
+
+    // Inbox merge readiness
+    'caxriBot.mergeState.changedSinceVerified': '验证后已变更',
+    'caxriBot.mergeState.changedSinceVerifiedReason':
+        'Caxri Bot 验证此 Pull Request 后又有新提交。合并前它会重新验证。',
+    'caxriBot.mergeState.draft': '草稿',
+    'caxriBot.mergeState.draftReason': '此 Pull Request 仍是草稿。',
+    'caxriBot.mergeState.conflicts': '有冲突',
+    'caxriBot.mergeState.conflictsReason': '此 Pull Request 与其基础分支存在冲突。',
+    'caxriBot.mergeState.unknown': 'GitHub 状态未知',
+    'caxriBot.mergeState.checksFailing': '检查未通过',
+    'caxriBot.mergeState.checksRunning': '检查运行中',
+    'caxriBot.mergeState.blocked': '受阻',
+    'caxriBot.mergeState.behindBase': '落后于基础分支',
+    'caxriBot.mergeState.checksPassed': '检查已通过',
+
+    // Inbox composer
+    'caxriBot.composer.suggestionLabel': '收件箱事项',
+    'caxriBot.composer.replyingTo': '回复',
+    'caxriBot.composer.clearTarget': '清除回复对象',
+    'caxriBot.composer.mentionHint': '输入 @ 选择你要回答的事项。',
+    'caxriBot.composer.inputLabel': '回复 Caxri Bot',
+    'caxriBot.composer.placeholderWithTarget': '你的回答',
+    'caxriBot.composer.placeholder': '@ 一个事项，然后输入你的回答',
+    'caxriBot.composer.sendTooltip': '发送（Enter）',
+    'caxriBot.composer.sendNeedsTarget': '请先用 @ 选择一个事项',
+    'caxriBot.composer.sendNeedsText': '请输入回复',
+    'caxriBot.composer.sendLabel': '发送回复',
+
+    // Inbox commands
+    'caxriBot.inboxCommands.replyFailed': '无法发送回复',
+    'caxriBot.inboxCommands.dismissed': '已忽略',
+    'caxriBot.inboxCommands.dismissUndoExpired': '此忽略已无法撤销',
+    'caxriBot.inboxCommands.dismissFailed': '无法忽略此事项',
+    'caxriBot.inboxCommands.mergeTitle': '合并 {{pullRequest}}？',
+    'caxriBot.inboxCommands.mergeMessage':
+        '将使用仓库首选的合并方式合并 Caxri Bot 已验证的提交 {{sha}}。如果有新提交进入，GitHub 会拒绝合并。',
+    'caxriBot.inboxCommands.mergeFailed': '无法合并此 Pull Request',
+    'caxriBot.inboxCommands.merged': '已合并 {{pullRequest}}',
+
+    // Caxri Bot commands
+    'caxriBot.commands.revealFailed': '无法在工作台中显示此会话',
+    'caxriBot.commands.openSettingsFailed': '无法在工作台中打开设置',
+    'caxriBot.commands.stopFailed': '无法停止 Caxri Bot',
+    'caxriBot.commands.stopAndClose': '停止并关闭',
+    'caxriBot.commands.stopOutcome':
+        '停止 Caxri Bot 会结束当前这一轮并关闭此窗口。它委派的任务会继续运行。',
+    'caxriBot.commands.stopTurnTitle': '停止正在运行的这一轮？',
+    'caxriBot.commands.stopTurnMessage':
+        'Caxri Bot 仍在工作。停止它会结束当前这一轮并关闭其窗口。它委派的任务会继续运行。',
+    // Hand-over
+    'caxriBot.handover.openEllipsis': '转交…',
+    'caxriBot.handover.openTooltip':
+        '把你自己的会话，或在 Caxri 之外开始的 Agent 对话，转交给 Caxri Bot',
+    'caxriBot.handover.title': '转交给 Caxri Bot',
+    'caxriBot.handover.description':
+        'Caxri Bot 会接管你选中的内容，并从每段 Agent 对话停下的地方继续。备注告诉它要做什么。',
+    'caxriBot.handover.sourceLabel': '转交什么',
+    'caxriBot.handover.sessionsTab': '会话',
+    'caxriBot.handover.conversationsTab': 'Caxri 之外',
+    'caxriBot.handover.searchSessions': '搜索会话或项目',
+    'caxriBot.handover.searchConversations': '搜索对话或文件夹',
+    'caxriBot.handover.loadingSessions': '正在加载会话…',
+    'caxriBot.handover.loadingConversations': '正在查找 Claude Code、Codex 和 Grok Build 的对话…',
+    'caxriBot.handover.loadFailed': '无法加载此列表。',
+    'caxriBot.handover.noMatches': '没有符合搜索条件的结果。',
+    'caxriBot.handover.noSessions': '所有会话都已交给 Caxri Bot。',
+    'caxriBot.handover.noConversations': '在 Caxri 之外没有找到最近 30 天的 Agent 对话。',
+    'caxriBot.handover.selectGroup': '全选 {{group}}',
+    'caxriBot.handover.selectCandidate': '选择 {{title}}',
+    'caxriBot.handover.addsProject': '会将此文件夹添加为项目',
+    'caxriBot.handover.mayBeOpen': '可能在别处打开',
+    'caxriBot.handover.mayBeOpenWarning':
+        '你选中的某段对话在几分钟内仍有活动。如果它还在另一个终端里打开，两边会各自继续，形成分叉。',
+    'caxriBot.handover.tooMany': '一次最多转交 {{max}} 个，请取消选择 {{excess}} 个后继续。',
+    'caxriBot.handover.untitledConversation': '未命名对话',
+    'caxriBot.handover.refusedReason': '未转交：{{reason}}',
+    'caxriBot.handover.noteLabel': '给 Caxri Bot 的备注',
+    'caxriBot.handover.notePlaceholder':
+        '可选：Caxri Bot 要做什么，例如“完成迁移并提交 pull request”',
+    'caxriBot.handover.takeBackHint':
+        '在已转交的会话里输入内容，或在其对话中发送消息或停止，会将其收回。',
+    'caxriBot.handover.selectedCount': '已选 {{count}} 项',
+    'caxriBot.handover.submit': '转交',
+    'caxriBot.handover.submitting': '正在转交…',
+    'caxriBot.handover.failed': '无法转交给 Caxri Bot',
+    'caxriBot.handover.noneAccepted': '没有转交任何内容：{{reason}}',
+    'caxriBot.handover.partlyAccepted':
+        '已转交 {{accepted}} 项给 Caxri Bot，{{refused}} 项未能转交',
+    'caxriBot.handover.acceptedOne': '已将 1 个会话转交给 Caxri Bot',
+    'caxriBot.handover.acceptedOther': '已将 {{count}} 个会话转交给 Caxri Bot',
+    'caxriBot.handover.takeBackFailed': '无法收回该会话',
+    'caxriBot.handover.takenBack': '已从 Caxri Bot 收回该会话',
+    'caxriBot.handover.takenBackByInput': '已从 Caxri Bot 收回“{{title}}”',
+    'caxriBot.handover.takenBackByInputUntitled': '已从 Caxri Bot 收回一个会话',
+    'caxriBot.handover.handBack': '交还',
+    'caxriBot.handover.rejection.alreadyManaged': 'Caxri Bot 已在管理它',
+    'caxriBot.handover.rejection.botSession': '它就是 Caxri Bot 自己',
+    'caxriBot.handover.rejection.botUnavailable': 'Caxri Bot 尚未设置',
+    'caxriBot.handover.rejection.conversationBound': '已有 Caxri 终端绑定了这段对话',
+    'caxriBot.handover.rejection.conversationMissing': '对话或其文件夹已不存在',
+    'caxriBot.handover.rejection.duplicate': '重复选择',
+    'caxriBot.handover.rejection.ownershipCapacity': 'Caxri Bot 管理的会话过多',
+    'caxriBot.handover.rejection.projectUnavailable': '其项目已隐藏或不可用',
+    'caxriBot.handover.rejection.sessionArchived': '会话已归档',
+    'caxriBot.handover.rejection.sessionMissing': '会话已不存在',
+    'caxriBot.handover.rejection.taskCapacity': 'Caxri Bot 未完成的任务过多',
+    'caxriBot.board.handoverContinuable':
+        '由你转交。待其 Agent 处于两轮之间时，Caxri Bot 会继续这段对话。',
+    'caxriBot.board.handoverOwnershipOnly':
+        '由你转交。这里没有可继续的 Agent 对话，Caxri Bot 会在这里开始新的工作。',
+
+    // Workbench Session row marker
+    'caxriBot.sessionMarker.managed': '由 Caxri Bot 管理',
+    'caxriBot.sessionMarker.inputTakesBack': '由 Caxri Bot 管理 · 在这里输入会将其收回',
+    'caxriBot.sessionMarker.chatInputTakesBack':
+        '由 Caxri Bot 管理 · 在这里发送消息或停止会将其收回',
+};

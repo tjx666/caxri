@@ -20,7 +20,7 @@ import {
 import { createMobileAgentUsageRequests } from './agent-usage-requests';
 import { invokeMobileAttentionRequest } from './attention-requests';
 import { createMobileAuthorityQueue } from './authority-queue';
-import { invokeMobileCommanderInboxRequest } from './commander-inbox-requests';
+import { invokeMobileBotInboxRequest } from './bot-inbox-requests';
 import { readMobileDashboard, showMobileSession } from './dashboard-requests';
 import { MobileDeviceRegistry } from './device-registry';
 import { invokeMobileFileRequest } from './file-requests';
@@ -493,19 +493,16 @@ export const openMobileAccessController = async (options: {
                 /**
                  * A reply takes the same authority order as an attention answer, so a revoke that lands first wins.
                  */
-                case 'mobile.commanderInbox.list':
-                case 'mobile.commanderInbox.reply': {
+                case 'mobile.botInbox.list':
+                case 'mobile.botInbox.reply': {
                     const invoke = () => {
                         assertOpen();
                         const principal = currentPairedPrincipal(context.principal, request.method);
-                        return invokeMobileCommanderInboxRequest(
-                            request,
-                            principal,
-                            domainService,
-                            () => currentPairedPrincipal(principal, request.method),
+                        return invokeMobileBotInboxRequest(request, principal, domainService, () =>
+                            currentPairedPrincipal(principal, request.method),
                         );
                     };
-                    return request.method === 'mobile.commanderInbox.list'
+                    return request.method === 'mobile.botInbox.list'
                         ? invoke()
                         : withAuthority(invoke);
                 }

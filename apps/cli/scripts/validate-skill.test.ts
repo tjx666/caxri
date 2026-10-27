@@ -21,7 +21,7 @@ describe('caxri-cli skill validation', () => {
 
     it('resolves inline command mentions and ignores capability names', async () => {
         const prose = [
-            'Run `agent dispatch status <id>` or `caxri agent-context` with the `commander` capability,',
+            'Run `agent dispatch status <id>` or `caxri agent-context` with the `bot` capability,',
             'an `agent:control` grant, `settings.write`, `--json`, or `caxri --version`.',
             'Global options may lead: `caxri --json agent dispatch wait <id>`. Placeholders may follow:',
             '`agent message wait --timeout <milliseconds>` or `caxri --timeout <milliseconds> agent message wait`.',

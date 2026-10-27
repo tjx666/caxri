@@ -1,4 +1,4 @@
-import type { CommanderClearData, MethodResult } from '@caxri/protocol';
+import type { BotClearData, MethodResult } from '@caxri/protocol';
 import type { MessageBoxOptions } from 'electron';
 
 import { translateMain as t } from './locale';
@@ -311,33 +311,31 @@ export function revokeMobileDevicePrompt(device: {
 }
 
 /**
- * Clear Agent Commander Data names every kind of data the request removes, in the dialog's order, and states what
- * stays. Projects, Sessions, and the delegations those Sessions hold are never part of it.
+ * Clear Caxri Bot Data names every kind of data the request removes, in the dialog's order, and states what stays.
+ * Projects, Sessions, and the delegations those Sessions hold are never part of it.
  */
-export function clearCommanderDataPrompt(request: CommanderClearData): MessageBoxOptions {
+export function clearBotDataPrompt(request: BotClearData): MessageBoxOptions {
     const items = [
-        request.tasks === 'all' && t('desktop.clearCommanderData.allTasks'),
-        request.tasks === 'closed' && t('desktop.clearCommanderData.closedTasks'),
+        request.tasks === 'all' && t('desktop.clearBotData.allTasks'),
+        request.tasks === 'closed' && t('desktop.clearBotData.closedTasks'),
         Array.isArray(request.tasks) &&
             (request.tasks.length === 1
-                ? t('desktop.clearCommanderData.someTasksOne')
-                : t('desktop.clearCommanderData.someTasks', { count: request.tasks.length })),
-        request.taskFiles && t('desktop.clearCommanderData.taskFiles'),
-        request.inbox && t('desktop.clearCommanderData.inbox'),
-        request.memory && t('desktop.clearCommanderData.memory'),
-        request.instructions && t('desktop.clearCommanderData.instructions'),
-        request.conversation && t('desktop.clearCommanderData.conversation'),
+                ? t('desktop.clearBotData.someTasksOne')
+                : t('desktop.clearBotData.someTasks', { count: request.tasks.length })),
+        request.taskFiles && t('desktop.clearBotData.taskFiles'),
+        request.inbox && t('desktop.clearBotData.inbox'),
+        request.memory && t('desktop.clearBotData.memory'),
+        request.instructions && t('desktop.clearBotData.instructions'),
+        request.conversation && t('desktop.clearBotData.conversation'),
     ].filter((item): item is string => typeof item === 'string');
     return {
         type: 'warning',
-        title: t('desktop.clearCommanderData.title'),
-        message: t('desktop.clearCommanderData.message'),
-        detail: [
-            ...items.map((item) => `• ${item}`),
-            '',
-            t('desktop.clearCommanderData.detail'),
-        ].join('\n'),
-        buttons: [t('desktop.clearCommanderData.confirm'), t('desktop.dialog.cancel')],
+        title: t('desktop.clearBotData.title'),
+        message: t('desktop.clearBotData.message'),
+        detail: [...items.map((item) => `• ${item}`), '', t('desktop.clearBotData.detail')].join(
+            '\n',
+        ),
+        buttons: [t('desktop.clearBotData.confirm'), t('desktop.dialog.cancel')],
         defaultId: 1,
         cancelId: 1,
     };

@@ -49,7 +49,7 @@ can inspect tasks in the selected profile.
 
 ## Start work in a new Session
 
-Creating and talking to another Session is ordinary Agent work, not an Agent Commander privilege.
+Creating and talking to another Session is ordinary Agent work, not a Caxri Bot privilege.
 Any managed Agent can hand a task to a new Agent in its own visible Session, in any Project the user
 added, and the user can open that Session from the sidebar at any time:
 
@@ -72,20 +72,20 @@ caxri agent delegate create --project <project-id> --new-session --title "Fix lo
   unarchived Session, and either this request's new Session or an earlier delegation by the same
   caller Terminal in it. A user's other Sessions are refused, because a task there would fill its
   pane. Reading a task the caller owns is not limited by archiving or hiding.
-- The Agent Commander uses the same flag, and additionally records the Session as its own for its
-  board and archive commands; see [Agent Commander](agent-commander.md).
+- Caxri Bot uses the same flag, and additionally records the Session as its own for its
+  board and archive commands; see [Caxri Bot](caxri-bot.md).
 - The new Session records the caller's Session as its creator (`createdBySessionId`), after Orca's
   worktree lineage, where a workspace an agent creates remembers its parent workspace. The Session
   menu adds "Go to Creating Session" while the creating Session is open; an archived creator or the
-  Agent Commander's hidden Session offers no entry, because navigating there must not silently
+  Caxri Bot's hidden Session offers no entry, because navigating there must not silently
   restore it. The column has no foreign key, so deleting the creating Session or its
   Project clears it in the same transaction
   (`apps/server/src/domains/db/session-creator.ts`).
-- The creating Agent can keep the sidebar tidy without the Commander's board:
+- The creating Agent can keep the sidebar tidy without Caxri Bot's board:
   `caxri agent session rename <session-id> --title <title>`, `agent session archive <session-id>`,
   and `agent session unarchive <session-id>`. Any Agent in the creating Session may manage it,
   because the Session, not one Terminal, created it. Every other Session, including the caller's own
-  and the user's, returns `NOT_FOUND`. The Agent Commander manages only Sessions it still owns, so
+  and the user's, returns `NOT_FOUND`. Caxri Bot manages only Sessions it still owns, so
   Take Back revokes this as well (`apps/server/src/domains/parking-handlers.ts`).
 - Delegation admission also accepts an earlier task's Session created by any Agent in the caller's
   Session, so a sibling Terminal can send it the next task.
@@ -135,7 +135,7 @@ so an edit reaches Agents started afterward. A Terminal Agent receives it as
 `additionalContext` from its first `UserPromptSubmit` hook, so it needs lifecycle hooks enabled. A
 Claude Agent Chat appends it to Claude Code's system prompt; a Codex Agent Chat joins it after the
 user's own `developer_instructions`, read with `config/read`, and adds nothing when Codex cannot
-report them. Grok is not covered yet, and the Agent Commander keeps its own workspace instructions.
+report them. Grok is not covered yet, and Caxri Bot keeps its own workspace instructions.
 
 The request ID is scoped to the authenticated principal and generation. Reusing it with the same
 input returns the existing task; different input conflicts. Wait timeout reports the current receipt
@@ -409,8 +409,8 @@ It can also recover a stopped Terminal. It never resubmits the previous task: th
 new instructions that account for uncertain prior effects. Human takeover or another launch fences
 both continuation operations. Each task retains its own answer and correlation evidence.
 
-`--continue-handover <handover-id>` is the Agent Commander's first task in a Session the user
-[handed over](agent-commander.md#hand-over). Like `--resume` it relaunches the Session's existing
+`--continue-handover <handover-id>` is Caxri Bot's first task in a Session the user
+[handed over](caxri-bot.md#hand-over). Like `--resume` it relaunches the Session's existing
 Agent on its exact native conversation, replacing the user's launch, but it creates the root task
 of a new chain: it takes no provider or preset, refuses a human caller, refuses while the Agent is
 in a turn, and fails as `launch_failed` if human input arrives during the relaunch. An Agent Chat
@@ -425,7 +425,7 @@ the continuation is fenced against is read, in one synchronous step after the la
 task exists, so a message or keystroke during launch verification refuses the request instead of
 being overtaken. It consumes the hand-over, so a second call is refused; later tasks continue the
 chain with `--follow-up`. When dispatch refuses the resume before recording it, the hand-over is
-released again so the Commander can retry.
+released again so Caxri Bot can retry.
 
 After a Caxri restart, selecting a delegated Session restores it the way it was. While one of its
 tasks is still active, only the outer Shell comes back, and that task continues only through the
@@ -461,7 +461,7 @@ while the setting is off, keep the PTY. The setting is read when the task is adm
   task's deferred turn.
 - **How the pointer reads.** The user never typed the pointer, so Desktop and mobile Chat draw it as
   a "Delegated by" bubble instead of a user message: the delegating Session as a link, or Agent
-  Commander, and under it the task the caller wrote, clamped to six lines with Show more. The
+  Caxri Bot, and under it the task the caller wrote, clamped to six lines with Show more. The
   Server resolves both from the delegation record when it projects the message
   (`chat-delegated-task.ts` in `apps/server/src/domains/agent-chat/`), so a follow-up or resume
   shows its own task. A caller that is no Agent Terminal reads as a plain "Delegated task"; a record
@@ -484,7 +484,7 @@ while the setting is off, keep the PTY. The setting is read when the task is adm
   (`ChatDelegationLinks.sendToLaunch`) and never starts a provider, so a launch suspended meanwhile
   reports it undelivered. Every `AgentChatService.send` is human input by default and takes over
   like typing into a PTY: a Client message, a Git review send, a pull request merge notice, or a
-  bug report. Only the delegation pointer, a dispatch prompt, and a Commander completion notice
+  bug report. Only the delegation pointer, a dispatch prompt, and a Caxri Bot completion notice
   (written with `origin: 'delegation'` on a PTY) opt out. Rewinding, running a command,
   interrupting, or sending a queued message from the Chat also takes over; answering an approval
   does not.

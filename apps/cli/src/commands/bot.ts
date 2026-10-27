@@ -1,0 +1,342 @@
+import {
+    botHandoverRequestSchema,
+    botInboxAddSchema,
+    botInboxKindIds,
+    botTaskStatuses,
+    CaxriError,
+    MAX_BOT_INBOX_BODY_LENGTH,
+} from '@caxri/protocol';
+
+import { readBoundedTextFile } from './text-file';
+import type { RemoteCommandDefinition } from './types';
+
+function sessionArchiveParameters(tokens: readonly string[]) {
+    if (tokens.length !== 1 || tokens[0].startsWith('--'))
+        throw new CaxriError('VALIDATION', 'bot session archive requires one <session-id>');
+    return { sessionId: tokens[0] };
+}
+
+async function sessionHandOverParameters(tokens: readonly string[]) {
+    const sessionIds: string[] = [];
+    let notePath: string | undefined;
+    for (let index = 0; index < tokens.length; index += 1) {
+        const token = tokens[index];
+        if (token === '--note-file' && notePath === undefined && tokens[index + 1]) {
+            notePath = tokens[index + 1];
+            index += 1;
+        } else if (token.startsWith('-'))
+            throw new CaxriError('VALIDATION', `Unexpected argument: ${token.split('=', 1)[0]}`);
+        else sessionIds.push(token);
+    }
+    if (sessionIds.length === 0)
+        throw new CaxriError(
+            'VALIDATION',
+            'bot session hand-over requires at least one <session-id>',
+        );
+    return botHandoverRequestSchema.parse({
+        sessionIds,
+        ...(notePath && {
+            note: await readBoundedTextFile(notePath, 8_192, 'Hand-over note'),
+        }),
+    });
+}
+
+function sessionCreateParameters(tokens: readonly string[]) {
+    if (tokens.length !== 2 || tokens[0] !== '--project' || tokens[1].startsWith('--'))
+        throw new CaxriError('VALIDATION', 'bot session create requires one --project <id>');
+    return { projectId: tokens[1] };
+}
+
+const inboxAddFlags = new Set([
+    '--kind',
+    '--key',
+    '--title',
+    '--body-file',
+    '--session',
+    '--delegation',
+    '--pr',
+    '--head',
+]);
+
+/**
+ * `--option` is the one repeatable flag; every other flag appears at most once.
+ */
+async function inboxAddParameters(tokens: readonly string[]) {
+    const values = new Map<string, string>();
+    const options: string[] = [];
+    for (let index = 0; index < tokens.length; index += 2) {
+        const flag = tokens[index];
+        const value = tokens[index + 1];
+        if (!value || value.startsWith('--'))
+            throw new CaxriError('VALIDATION', `${flag} requires a value`);
+        if (flag === '--option') options.push(value);
+        else if (!inboxAddFlags.has(flag) || values.has(flag))
+            throw new CaxriError('VALIDATION', `Unexpected or repeated argument: ${flag}`);
+        else values.set(flag, value);
+    }
+    const url = values.get('--pr');
+    const headSha = values.get('--head');
+    if (Boolean(url) !== Boolean(headSha))
+        throw new CaxriError('VALIDATION', 'Pass --pr and --head together');
+    const bodyFile = values.get('--body-file');
+    return botInboxAddSchema.parse({
+        kind: values.get('--kind'),
+        ...(values.has('--key') && { key: values.get('--key') }),
+        title: values.get('--title'),
+        ...(bodyFile && {
+            body: await readBoundedTextFile(bodyFile, MAX_BOT_INBOX_BODY_LENGTH, 'Inbox body'),
+        }),
+        options,
+        ...(values.has('--session') && { sessionId: values.get('--session') }),
+        ...(values.has('--delegation') && { delegationId: values.get('--delegation') }),
+        ...(url && headSha && { pullRequest: { url, headSha } }),
+    });
+}
+
+function inboxItem(tokens: readonly string[]) {
+    if (tokens.length !== 1 || tokens[0].startsWith('-'))
+        throw new CaxriError('VALIDATION', 'Expected one Inbox item ID');
+    return { id: tokens[0] };
+}
+
+function inboxAcknowledgement(tokens: readonly string[]) {
+    const sequence = Number(tokens[2]);
+    if (
+        tokens.length !== 3 ||
+        tokens[0].startsWith('-') ||
+        tokens[1] !== '--sequence' ||
+        !Number.isSafeInteger(sequence) ||
+        sequence < 1
+    )
+        throw new CaxriError('VALIDATION', 'Expected <item-id> --sequence <n>');
+    return { id: tokens[0], sequence };
+}
+
+/**
+ * Parses `--flag <value>` options and bare `--clear-*` switches for the task ledger commands. A clear switch maps to
+ * `null` for its key, so `update` can distinguish "leave unchanged" from "remove".
+ */
+function taskOptions(
+    tokens: readonly string[],
+    values: Readonly<Record<string, string>>,
+    clears: Readonly<Record<string, string>> = {},
+): Record<string, string | null> {
+    const result: Record<string, string | null> = {};
+    for (let index = 0; index < tokens.length; index += 1) {
+        const flag = tokens[index];
+        const key = values[flag] ?? clears[flag];
+        if (!key) throw new CaxriError('VALIDATION', `Unknown option: ${flag.split('=', 1)[0]}`);
+        if (key in result)
+            throw new CaxriError(
+                'VALIDATION',
+                `${flag} conflicts with another option for the same field`,
+            );
+        if (clears[flag]) {
+            result[key] = null;
+            continue;
+        }
+        const value = tokens[index + 1];
+        if (!value || value.startsWith('--'))
+            throw new CaxriError('VALIDATION', `${flag} requires a value`);
+        result[key] = value;
+        index += 1;
+    }
+    if (
+        typeof result.status === 'string' &&
+        !(botTaskStatuses as readonly string[]).includes(result.status)
+    )
+        throw new CaxriError(
+            'VALIDATION',
+            `--status must be one of: ${botTaskStatuses.join(', ')}`,
+        );
+    return result;
+}
+
+function taskCreateParameters(tokens: readonly string[]) {
+    const options = taskOptions(tokens, {
+        '--title': 'title',
+        '--status': 'status',
+        '--project': 'projectId',
+        '--note': 'note',
+    });
+    if (!options.title) throw new CaxriError('VALIDATION', '--title is required');
+    return options;
+}
+
+function taskUpdateParameters(tokens: readonly string[]) {
+    const [taskId, ...rest] = tokens;
+    if (!taskId || taskId.startsWith('--'))
+        throw new CaxriError('VALIDATION', 'bot task update requires a task ID');
+    const options = taskOptions(
+        rest,
+        {
+            '--title': 'title',
+            '--status': 'status',
+            '--project': 'projectId',
+            '--delegation': 'delegationId',
+            '--note': 'note',
+            '--pr': 'pullRequestUrl',
+        },
+        {
+            '--clear-project': 'projectId',
+            '--clear-delegation': 'delegationId',
+            '--clear-note': 'note',
+            '--clear-pr': 'pullRequestUrl',
+        },
+    );
+    if (Object.keys(options).length === 0)
+        throw new CaxriError('VALIDATION', 'bot task update requires at least one change');
+    return { taskId, ...options };
+}
+
+function taskListParameters(tokens: readonly string[]) {
+    if (tokens.length === 0) return {};
+    if (tokens.length === 1 && tokens[0] === '--all') return { includeClosed: true };
+    throw new CaxriError('VALIDATION', `Unknown option: ${tokens[0].split('=', 1)[0]}`);
+}
+
+/**
+ * Caxri Bot commands. Caxri Bot's own Agent Terminal runs them non-interactively: its Endpoint carries the `bot`
+ * capability, so only a human owner is asked to confirm. See `docs/caxri-bot.md`.
+ */
+export const BOT_COMMANDS: RemoteCommandDefinition[] = [
+    {
+        kind: 'remote',
+        path: ['bot', 'board'],
+        method: 'bot.board',
+        summary: 'Read every visible Project and Session with Agent state and pull requests.',
+        parseParams: (tokens) => {
+            if (tokens.length > 0)
+                throw new CaxriError(
+                    'VALIDATION',
+                    `Unexpected argument: ${tokens[0].split('=', 1)[0]}`,
+                );
+            return {};
+        },
+        quietKey: 'rows',
+        quietIdKey: 'sessionId',
+    },
+    {
+        kind: 'remote',
+        path: ['bot', 'session', 'create'],
+        method: 'bot.session.create',
+        summary: 'Create an empty Session to delegate one task into.',
+        usage: '--project <id>',
+        ownerConfirmation: 'Create an empty Session for Caxri Bot?',
+        parseParams: sessionCreateParameters,
+        quietIdKey: 'sessionId',
+    },
+    {
+        kind: 'remote',
+        path: ['bot', 'session', 'archive'],
+        method: 'bot.session.archive',
+        summary:
+            'Archive a Session Caxri Bot manages; the user can restore it from Archived Sessions.',
+        usage: '<session-id>',
+        ownerConfirmation: 'Archive this Caxri Bot Session?',
+        parseParams: sessionArchiveParameters,
+        quietIdKey: 'sessionId',
+    },
+    {
+        kind: 'remote',
+        path: ['bot', 'session', 'hand-over'],
+        method: 'bot.session.handOver',
+        summary: 'Hand your own Sessions to Caxri Bot; --note-file says what it should do there.',
+        usage: '<session-id>... [--note-file <path>]',
+        ownerConfirmation: 'Hand these Sessions to Caxri Bot?',
+        parseParams: sessionHandOverParameters,
+    },
+    {
+        kind: 'remote',
+        path: ['bot', 'session', 'take-back'],
+        method: 'bot.session.takeBack',
+        summary: 'Take a Session back from Caxri Bot; its Agents keep running.',
+        usage: '<session-id>',
+        ownerConfirmation: 'Take this Session back from Caxri Bot?',
+        parseParams: (tokens) => {
+            if (tokens.length !== 1 || tokens[0].startsWith('-'))
+                throw new CaxriError(
+                    'VALIDATION',
+                    'bot session take-back requires one <session-id>',
+                );
+            return { sessionId: tokens[0] };
+        },
+        quietIdKey: 'sessionId',
+    },
+    {
+        kind: 'remote',
+        path: ['bot', 'task', 'list'],
+        method: 'bot.task.list',
+        summary: 'List open Caxri Bot tasks, oldest first; --all adds recently closed ones.',
+        usage: '[--all]',
+        parseParams: taskListParameters,
+        quietKey: 'tasks',
+    },
+    {
+        kind: 'remote',
+        path: ['bot', 'task', 'add'],
+        method: 'bot.task.create',
+        summary: 'Record a task Caxri Bot was asked to do.',
+        usage: '--title <text> [--status <status>] [--project <id>] [--note <text>]',
+        parseParams: taskCreateParameters,
+    },
+    {
+        kind: 'remote',
+        path: ['bot', 'task', 'update'],
+        method: 'bot.task.update',
+        summary: 'Change a task: status, title, note, Project, linked delegation, or pull request.',
+        usage:
+            '<taskId> [--title <text>] [--status <status>] [--project <id> | --clear-project] ' +
+            '[--delegation <id> | --clear-delegation] [--note <text> | --clear-note] [--pr <url> | --clear-pr]',
+        parseParams: taskUpdateParameters,
+    },
+    {
+        kind: 'remote',
+        path: ['bot', 'inbox', 'add'],
+        method: 'bot.inbox.add',
+        summary:
+            'Raise an item for the user: a decision, a step needing their hands, or a verified pull request to merge. Reusing --key (or the same --pr) updates the open item.',
+        usage: `--kind <${botInboxKindIds.join('|')}> --title <text> [--key <key>] [--body-file <path>] [--option <text>]... [--session <id>] [--delegation <id>] [--pr <url> --head <sha>]`,
+        ownerConfirmation: 'Add this item to Bot Inbox?',
+        parseParams: inboxAddParameters,
+    },
+    {
+        kind: 'remote',
+        path: ['bot', 'inbox', 'list'],
+        method: 'bot.inbox.list',
+        summary: 'List open Inbox items, or with --all the recently closed ones too.',
+        usage: '[--all]',
+        parseParams: (tokens) => {
+            if (tokens.length > 1 || (tokens.length === 1 && tokens[0] !== '--all'))
+                throw new CaxriError('VALIDATION', 'Expected only --all');
+            return { includeClosed: tokens.length === 1 };
+        },
+        quietKey: 'items',
+    },
+    {
+        kind: 'remote',
+        path: ['bot', 'inbox', 'show'],
+        method: 'bot.inbox.show',
+        summary: 'Read one Inbox item with every reply from the user.',
+        usage: '<item-id>',
+        parseParams: inboxItem,
+    },
+    {
+        kind: 'remote',
+        path: ['bot', 'inbox', 'resolve'],
+        method: 'bot.inbox.resolve',
+        summary: 'Close an Inbox item whose matter is settled.',
+        usage: '<item-id>',
+        ownerConfirmation: 'Resolve this Bot Inbox item?',
+        parseParams: inboxItem,
+    },
+    {
+        kind: 'remote',
+        path: ['bot', 'inbox', 'ack'],
+        method: 'bot.inbox.ack',
+        summary:
+            "Record that you read the user's replies up to a sequence, so they are not announced again after a restart.",
+        usage: '<item-id> --sequence <n>',
+        parseParams: inboxAcknowledgement,
+    },
+];

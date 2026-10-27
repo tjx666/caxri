@@ -176,12 +176,12 @@ describe('GPU diagnostics', () => {
         });
 
         harness.diagnostics.recordRendererDiagnostic(contextLoss);
-        harness.diagnostics.recordRendererDiagnostic(contextLoss, 'commander');
+        harness.diagnostics.recordRendererDiagnostic(contextLoss, 'bot');
 
         const windows = harness.write.mock.calls
             .filter(([, event]) => event === logEventCatalog.renderer.terminalRendererStatus)
             .map((call) => call[2]?.fields?.window);
-        expect(windows).toEqual(['workbench', 'commander']);
+        expect(windows).toEqual(['workbench', 'bot']);
     });
 
     it('decodes POSIX Chromium GPU exits and links the last Renderer state', () => {

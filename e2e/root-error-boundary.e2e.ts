@@ -47,7 +47,7 @@ test('Renderer entries recover from a provider render failure', async () => {
         },
         {
             source: 'desktop',
-            event: 'agent_commander.console_error',
+            event: 'caxri_bot.console_error',
             code: 'CONSOLE_ERROR',
             count: 2,
         },
@@ -88,14 +88,12 @@ test('Renderer entries recover from a provider render failure', async () => {
             (page) => expect(page.locator('[data-benchmark-window]')).toBeVisible(),
         );
 
-        await pageRequest(running.page, 'agentCommander.open');
+        await pageRequest(running.page, 'caxriBot.open');
         await expect.poll(() => running.app.windows().length).toBe(3);
-        const commander = running.app
-            .windows()
-            .find((page) => page.url().includes('agent-commander.html'))!;
+        const bot = running.app.windows().find((page) => page.url().includes('caxri-bot.html'))!;
         await failProviderThenReload(
-            commander,
-            { heading: 'Agent Commander stopped rendering', reload: 'Reload Agent Commander' },
+            bot,
+            { heading: 'Caxri Bot stopped rendering', reload: 'Reload Caxri Bot' },
             (page) =>
                 expect(page.locator('.terminal-pane .xterm-rows')).toContainText(
                     'Fake codex ready',

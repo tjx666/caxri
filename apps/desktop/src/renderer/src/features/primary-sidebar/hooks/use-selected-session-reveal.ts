@@ -6,8 +6,8 @@ import { scrollPrimarySidebarRowIntoView } from '../scroll-primary-sidebar-row';
 
 /**
  * Opens the group holding a newly selected Session and scrolls its row into view, wherever the selection came from: a
- * click in the Agent Commander board, a notification, history navigation, or a CLI `session.select`. Without it a
- * Session in a Project the user collapsed by hand is selected with no visible row.
+ * click in the Caxri Bot board, a notification, history navigation, or a CLI `session.select`. Without it a Session in
+ * a Project the user collapsed by hand is selected with no visible row.
  *
  * Runs once per selection change, not on every render: collapsing the selected Session's Project afterwards is the
  * user's decision and stays in effect until a different Session is selected. The selection this sidebar observes at

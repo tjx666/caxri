@@ -5,5 +5,5 @@
 export * from './schema';
 export * from './schema-agent-chat';
 export * from './schema-benchmark';
+export * from './schema-bot';
 export * from './schema-claude-windows';
-export * from './schema-commander';

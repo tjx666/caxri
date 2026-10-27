@@ -21,10 +21,10 @@ import {
     canFocusAgentChatWaiting,
     focusAgentChatWaiting,
 } from '../features/agent-chat/waiting/agent-chat-waiting-focus';
-import { takeBackFromCommander } from '../features/agent-commander/commander-handover-commands';
-import { openCommanderHandover } from '../features/agent-commander/commander-handover-store';
-import { stopCommanderFromWorkbench } from '../features/agent-commander/commander-stop-commands';
 import { openAgentStatusTab } from '../features/agent-status/open-agent-status-tab';
+import { takeBackFromBot } from '../features/caxri-bot/bot-handover-commands';
+import { openBotHandover } from '../features/caxri-bot/bot-handover-store';
+import { stopBotFromWorkbench } from '../features/caxri-bot/bot-stop-commands';
 import { reopenClosedItem } from '../features/closed-items/commands';
 import {
     closeDocumentTabFamily,
@@ -272,9 +272,9 @@ const commandContext: CommandContext = {
         resumeSelected: resumeSelectedSession,
         selectAdjacent: selectAdjacentSession,
         switchMru: switchMruSession,
-        takeBackSelectedFromCommander: () => {
+        takeBackSelectedFromBot: () => {
             const session = getSelectedSession();
-            if (session) takeBackFromCommander(session.id);
+            if (session) takeBackFromBot(session.id);
         },
     },
     terminal: {
@@ -447,11 +447,11 @@ const commandContext: CommandContext = {
         openKeyboardShortcuts: () => useDialogStore.getState().setKeyboardShortcutsOpen(true),
         /**
          * Opens the picker with the selected Session already checked, like its row menu's Hand Over. The picker lists
-         * only Sessions the Commander does not manage, so a managed one stays unchecked.
+         * only Sessions Caxri Bot does not manage, so a managed one stays unchecked.
          */
-        openCommanderHandover: () => {
+        openBotHandover: () => {
             const session = getSelectedSession();
-            openCommanderHandover(session ? [session.id] : []);
+            openBotHandover(session ? [session.id] : []);
         },
         // eslint-disable-next-line no-void -- floating-promise discard: seeding never rejects
         openProjectSearch: () => void openSeededProjectSearch(),
@@ -462,9 +462,9 @@ const commandContext: CommandContext = {
         },
     },
     windows: {
-        openAgentCommander: () => {
-            void tryCommand(translate('core.commands.openAgentCommanderFailed'), () =>
-                caxri.request('agentCommander.open'),
+        openCaxriBot: () => {
+            void tryCommand(translate('core.commands.openCaxriBotFailed'), () =>
+                caxri.request('caxriBot.open'),
             );
         },
         openBenchmark: () => {
@@ -473,7 +473,7 @@ const commandContext: CommandContext = {
             );
         },
         // eslint-disable-next-line no-void -- the stop reports its own failures through toasts
-        stopAgentCommander: () => void stopCommanderFromWorkbench(),
+        stopCaxriBot: () => void stopBotFromWorkbench(),
         openProcessExplorer,
         // eslint-disable-next-line no-void -- floating-promise discard: the step reports failure via its own toast
         zoom: (step) => void stepWindowZoom(step),
@@ -553,8 +553,8 @@ export function executeCommand(
 /**
  * Entry point for shortcuts and the native menu. App-wide commands must not mutate workbench state behind a modal
  * dialog, which is why the guard lives here and not in {@link executeCommand}. A command marked `allowBehindModal`, such
- * as window zoom, still runs: it changes the window, dialog included, and the Agent Commander routes its zoom here
- * while a Workbench dialog it cannot see may be open.
+ * as window zoom, still runs: it changes the window, dialog included, and Caxri Bot routes its zoom here while a
+ * Workbench dialog it cannot see may be open.
  *
  * This is also the single authority for the editable-focus shortcut policy (DESIGN.md Interaction rules) on the native
  * menu path. `useCommandShortcuts` already applies the same gate (using `event.target`) before ever calling

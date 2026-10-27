@@ -23,7 +23,7 @@ export interface CdpConnection {
 
 /**
  * Whether a page is the main window of an unpackaged dev launch: the Vite dev-server root or its `index.html`.
- * Secondary windows load sibling entries (`agent-commander.html`, `process-explorer.html`) from the same server.
+ * Secondary windows load sibling entries (`caxri-bot.html`, `process-explorer.html`) from the same server.
  */
 function isDevelopmentMainPage(url: string): boolean {
     try {

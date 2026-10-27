@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { commanderRunStateSchema } from '../agent/commander/agent-commander-contract.js';
+import { botRunStateSchema } from '../agent/bot/caxri-bot-contract.js';
 import { agentDelegationReceiptSchema } from '../agent/delegation/agent-delegation-contract.js';
 import { agentDelegationSettingsSchema } from '../agent/delegation/agent-delegation-settings.js';
 import { appSettingsSchema } from '../configuration/settings-schema.js';
@@ -264,14 +264,14 @@ const watchHubSnapshotSchema = z.object({
     entries: z.array(watchHubSnapshotEntrySchema).max(64),
 });
 /**
- * Upper bound on the recent Commander tasks a diagnostics snapshot lists.
+ * Upper bound on the recent Caxri Bot tasks a diagnostics snapshot lists.
  */
-export const MAX_DIAGNOSTIC_COMMANDER_DELEGATIONS = 20;
+export const MAX_DIAGNOSTIC_BOT_DELEGATIONS = 20;
 const receiptShape = agentDelegationReceiptSchema.shape;
 /**
- * One recent Commander task as receipt identity and state only: never its prompt, answer, or launch input.
+ * One recent Caxri Bot task as receipt identity and state only: never its prompt, answer, or launch input.
  */
-const commanderDelegationDiagnosticSchema = z.object({
+const botDelegationDiagnosticSchema = z.object({
     delegationId: receiptShape.delegationId,
     sessionId: receiptShape.sessionId,
     provider: receiptShape.provider,
@@ -279,9 +279,9 @@ const commanderDelegationDiagnosticSchema = z.object({
     failure: receiptShape.failure,
     correlationFailure: receiptShape.correlationFailure,
     /**
-     * Whether the current Commander Terminal sent the task, rather than another caller targeting a Commander Session.
+     * Whether the current Caxri Bot Terminal sent the task, rather than another caller targeting a Caxri Bot Session.
      */
-    isCommanderCaller: z.boolean(),
+    isBotCaller: z.boolean(),
     createdAt: receiptShape.createdAt,
     updatedAt: receiptShape.updatedAt,
     /**
@@ -290,14 +290,14 @@ const commanderDelegationDiagnosticSchema = z.object({
     durationMs: z.number().int().nonnegative(),
 });
 /**
- * Completion notice delivery measured from the retained `agent_commander.completion_notice_*` log lines, so it covers
- * only what log rotation still keeps. `waitMs` is how long a batch's oldest notice waited for an idle Commander turn.
+ * Completion notice delivery measured from the retained `caxri_bot.completion_notice_*` log lines, so it covers only
+ * what log rotation still keeps. `waitMs` is how long a batch's oldest notice waited for an idle Caxri Bot turn.
  */
-const commanderCompletionNoticeDiagnosticSchema = z.object({
+const botCompletionNoticeDiagnosticSchema = z.object({
     deliveredBatches: z.number().int().nonnegative(),
     deliveredNotices: z.number().int().nonnegative(),
     /**
-     * Relaunches that started the Commander with the notices it missed, and how many delegation notices they carried.
+     * Relaunches that started Caxri Bot with the notices it missed, and how many delegation notices they carried.
      */
     resumePrompts: z.number().int().nonnegative(),
     resumePromptNotices: z.number().int().nonnegative(),
@@ -313,21 +313,19 @@ const commanderCompletionNoticeDiagnosticSchema = z.object({
     }),
 });
 /**
- * Content-free Agent Commander census: run state, its Terminal's process states, owned Session count, recent task
- * receipts, and completion notice latency. IDs, enums, counters, and durations only.
+ * Content-free Caxri Bot census: run state, its Terminal's process states, owned Session count, recent task receipts,
+ * and completion notice latency. IDs, enums, counters, and durations only.
  */
-export const agentCommanderDiagnosticsSchema = z.object({
-    state: commanderRunStateSchema,
+export const caxriBotDiagnosticsSchema = z.object({
+    state: botRunStateSchema,
     terminalId: identifierSchema.optional(),
     terminalProcessState: terminalRecordSchema.shape.lastProcessState.optional(),
     agentProcessState: terminalRecordSchema.shape.lastAgentProcessState,
     sessionCount: z.number().int().nonnegative(),
-    recentDelegations: z
-        .array(commanderDelegationDiagnosticSchema)
-        .max(MAX_DIAGNOSTIC_COMMANDER_DELEGATIONS),
-    completionNotices: commanderCompletionNoticeDiagnosticSchema,
+    recentDelegations: z.array(botDelegationDiagnosticSchema).max(MAX_DIAGNOSTIC_BOT_DELEGATIONS),
+    completionNotices: botCompletionNoticeDiagnosticSchema,
 });
-export type AgentCommanderDiagnostics = z.infer<typeof agentCommanderDiagnosticsSchema>;
+export type CaxriBotDiagnostics = z.infer<typeof caxriBotDiagnosticsSchema>;
 
 export const diagnosticsSnapshotSchema = z.object({
     appVersion: z.string().min(1).max(100),
@@ -341,7 +339,7 @@ export const diagnosticsSnapshotSchema = z.object({
     recentErrorIds: z.array(z.string().min(1).max(200)).max(5),
     performance: z.array(performanceSummarySchema).max(256),
     watchers: watchHubSnapshotSchema.optional(),
-    agentCommander: agentCommanderDiagnosticsSchema,
+    caxriBot: caxriBotDiagnosticsSchema,
 });
 
 export const businessMethods = {

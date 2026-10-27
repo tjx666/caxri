@@ -61,7 +61,6 @@ export const DIRECTORY_DENSITY_FAMILIES: readonly DirectoryDensityFamily[] = [
     { cap: 27, directory: 'apps/server/src/domains/agent-chat', prefix: 'claude-' },
     { cap: 16, directory: 'apps/server/src/domains/agent-chat', prefix: 'codex-' },
     { cap: 6, directory: 'apps/server/src/domains/agent-chat', prefix: 'grok-' },
-    { cap: 4, directory: 'apps/desktop/src/main', prefix: 'agent-' },
     { cap: 8, directory: 'apps/desktop/src/main', prefix: 'external-' },
     { cap: 5, directory: 'apps/desktop/src/main', prefix: 'desktop-' },
     { cap: 7, directory: 'apps/desktop/src/main', prefix: 'path-' },

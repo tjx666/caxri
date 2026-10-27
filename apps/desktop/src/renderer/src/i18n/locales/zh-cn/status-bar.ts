@@ -88,24 +88,23 @@ export const statusBar: TranslatedNamespace<typeof source> = {
     'statusBar.branch.dialogLabel': '分支',
     'statusBar.branch.switching': '正在切换到 {{branch}}…',
     'statusBar.branch.switchFrom': '从 {{branch}} 切换分支',
-    'statusBar.commander.starting.text': 'Commander 正在启动',
-    'statusBar.commander.starting.description':
-        'Agent Commander 正在启动。关闭其窗口后它仍会继续运行。点击可打开；可通过“视图 > 停止 Agent Commander”停止。',
-    'statusBar.commander.working.text': 'Commander 工作中',
-    'statusBar.commander.working.description':
-        'Agent Commander 正在处理一轮对话。关闭其窗口后它仍会继续运行。点击可打开；可通过“视图 > 停止 Agent Commander”停止。',
-    'statusBar.commander.waiting.text': 'Commander 需要输入',
-    'statusBar.commander.waiting.description':
-        'Agent Commander 正在其窗口中等待你的回答。关闭其窗口后它仍会继续运行。点击可打开；可通过“视图 > 停止 Agent Commander”停止。',
-    'statusBar.commander.idle.text': 'Commander 空闲',
-    'statusBar.commander.idle.description':
-        'Agent Commander 处于空闲状态。关闭其窗口后它仍会继续运行。点击可打开；可通过“视图 > 停止 Agent Commander”停止。',
-    'statusBar.commanderInbox.textOne': '{{count}} 项待你处理',
-    'statusBar.commanderInbox.textOther': '{{count}} 项待你处理',
-    'statusBar.commanderInbox.descriptionOne':
-        '打开收件箱：Agent Commander 有 1 项需要你回答或合并。',
-    'statusBar.commanderInbox.descriptionOther':
-        '打开收件箱：Agent Commander 有 {{count}} 项需要你回答或合并。',
+    'statusBar.bot.starting.text': 'Caxri Bot 正在启动',
+    'statusBar.bot.starting.description':
+        'Caxri Bot 正在启动。关闭其窗口后它仍会继续运行。点击可打开；可通过“视图 > 停止 Caxri Bot”停止。',
+    'statusBar.bot.working.text': 'Caxri Bot 工作中',
+    'statusBar.bot.working.description':
+        'Caxri Bot 正在处理一轮对话。关闭其窗口后它仍会继续运行。点击可打开；可通过“视图 > 停止 Caxri Bot”停止。',
+    'statusBar.bot.waiting.text': 'Caxri Bot 需要输入',
+    'statusBar.bot.waiting.description':
+        'Caxri Bot 正在其窗口中等待你的回答。关闭其窗口后它仍会继续运行。点击可打开；可通过“视图 > 停止 Caxri Bot”停止。',
+    'statusBar.bot.idle.text': 'Caxri Bot 空闲',
+    'statusBar.bot.idle.description':
+        'Caxri Bot 处于空闲状态。关闭其窗口后它仍会继续运行。点击可打开；可通过“视图 > 停止 Caxri Bot”停止。',
+    'statusBar.botInbox.textOne': '{{count}} 项待你处理',
+    'statusBar.botInbox.textOther': '{{count}} 项待你处理',
+    'statusBar.botInbox.descriptionOne': '打开收件箱：Caxri Bot 有 1 项需要你回答或合并。',
+    'statusBar.botInbox.descriptionOther':
+        '打开收件箱：Caxri Bot 有 {{count}} 项需要你回答或合并。',
     'statusBar.listSeparator': '，',
     'statusBar.alsoReferenced': '其他引用',
     'statusBar.source.pullRequest': '来自 Pull Request 描述',

@@ -24,7 +24,7 @@ export function startupDeadlineOutcome(
 }
 
 /**
- * True for a task that relaunches an existing conversation (an exact resume, or the Commander continuing a hand-over)
+ * True for a task that relaunches an existing conversation (an exact resume, or Caxri Bot continuing a hand-over)
  * rather than starting a fresh one.
  */
 function isConversationContinuation(record: StoredAgentDelegation): boolean {

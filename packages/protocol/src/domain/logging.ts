@@ -11,8 +11,8 @@ import {
     agentNotificationsLogEvents,
 } from './logging/logging-agent.js';
 import { agentChatSubagentLogEvents } from './logging/logging-agent-chat-subagents.js';
-import { agentCommanderLogEvents } from './logging/logging-agent-commander.js';
 import { benchmarkLogEvents, benchmarkWindowLogEvents } from './logging/logging-benchmark.js';
+import { caxriBotLogEvents } from './logging/logging-caxri-bot.js';
 import { loginShellLogEvents } from './logging/logging-login-shell.js';
 import { mobileGatewayLogEvents } from './logging/logging-mobile-gateway.js';
 import { pathBrowserLogEvents } from './logging/logging-path-browser.js';
@@ -92,7 +92,7 @@ export const logEventCatalog = {
     pathBrowser: pathBrowserLogEvents,
     process: processLogEvents,
     loginShell: loginShellLogEvents,
-    agentCommander: agentCommanderLogEvents,
+    caxriBot: caxriBotLogEvents,
     agentChatSubagents: agentChatSubagentLogEvents,
     benchmark: benchmarkLogEvents,
     claudeWindow: claudeWindowLogEvents,

@@ -29,27 +29,24 @@ export interface DelegationAuthority {
 }
 
 /**
- * The Agent Commander is recognized by its exact Terminal and system Project, both recorded by domain services when
- * they created it; a capability or Project claim alone never qualifies a caller.
+ * Caxri Bot is recognized by its exact Terminal and system Project, both recorded by domain services when they created
+ * it; a capability or Project claim alone never qualifies a caller.
  */
-export function isAgentCommanderCaller(
-    database: CaxriDatabase,
-    authority: DelegationAuthority,
-): boolean {
-    const commander = database.agentCommanderRows();
+export function isCaxriBotCaller(database: CaxriDatabase, authority: DelegationAuthority): boolean {
+    const bot = database.caxriBotRows();
     return Boolean(
-        commander?.terminalId &&
+        bot?.terminalId &&
         authority.principal.kind === 'agent' &&
-        authority.callerTerminalId === commander.terminalId &&
+        authority.callerTerminalId === bot.terminalId &&
         authority.principal.projectIds.length === 1 &&
-        authority.principal.projectIds[0] === commander.projectId,
+        authority.principal.projectIds[0] === bot.projectId,
     );
 }
 
 /**
  * The Terminal a child pane splits beside and inherits its cwd from: the caller, but only when it lives in the target
- * Session. The Agent Commander keeps `callerTerminalId` for ownership and depth, but delegates from its own window into
- * another Session and, like an external caller, fills that Session's pane instead.
+ * Session. Caxri Bot keeps `callerTerminalId` for ownership and depth, but delegates from its own window into another
+ * Session and, like an external caller, fills that Session's pane instead.
  */
 export function delegationPaneCaller(
     database: CaxriDatabase,
@@ -67,11 +64,10 @@ export function delegationPaneCaller(
 export type DelegationAccess = 'create' | 'existing';
 
 /**
- * Admits a caller to a delegation Session. For the Agent Commander, `existing` access skips the create-only limits
- * below, which decide where new work may go: the task's owner was proven when it was created and `owned` re-checks the
- * caller Terminal, so archiving the Session or hiding its Project must not cut the Commander off from a result it is
- * still waiting for. Any other Agent is held to its own tasks the same way, so `existing` access admits it to a task in
- * any Session.
+ * Admits a caller to a delegation Session. For Caxri Bot, `existing` access skips the create-only limits below, which
+ * decide where new work may go: the task's owner was proven when it was created and `owned` re-checks the caller
+ * Terminal, so archiving the Session or hiding its Project must not cut Caxri Bot off from a result it is still waiting
+ * for. Any other Agent is held to its own tasks the same way, so `existing` access admits it to a task in any Session.
  *
  * `isNewSession` marks the Session `admitDelegationRequest` just created for this request, before any task records that
  * the caller owns work there.
@@ -87,11 +83,11 @@ export function authorizeDelegationSession(
     if (!session || session.projectId !== input.projectId)
         throw new CaxriError('NOT_FOUND', 'Delegation Session is unavailable');
     if (authority.principal.kind === 'human-cli' || authority.principal.kind === 'desktop') return;
-    if (isAgentCommanderCaller(database, authority)) {
+    if (isCaxriBotCaller(database, authority)) {
         if (access === 'existing') return;
         /**
-         * Only Sessions the Commander created itself, in a Project the user can still see: delegating into a busy user
-         * Session would split its active pane, and the Commander never widens into control or dispatch.
+         * Only Sessions Caxri Bot created itself, in a Project the user can still see: delegating into a busy user
+         * Session would split its active pane, and Caxri Bot never widens into control or dispatch.
          */
         const project = database
             .listVisibleProjects()
@@ -100,11 +96,11 @@ export function authorizeDelegationSession(
             !project ||
             !isTopLevelProject(project) ||
             session.archivedAt !== undefined ||
-            !database.agentCommanderRows()?.sessionIds.includes(input.sessionId)
+            !database.caxriBotRows()?.sessionIds.includes(input.sessionId)
         )
             throw new CaxriError(
                 'FORBIDDEN',
-                'The Agent Commander may delegate only into Sessions it created',
+                'Caxri Bot may delegate only into Sessions it created',
             );
         return;
     }
@@ -126,10 +122,10 @@ export function authorizeDelegationSession(
     if (access === 'existing' || caller.sessionId === input.sessionId) return;
     /**
      * Outside its own Session, an Agent may start work only in a Session it created for a task: the one this request
-     * just created, one an Agent of its Session created, or one where it already delegated. The Commander's Session is
-     * excluded from the creator rule: what the Commander created is governed by its current membership, so a Session
-     * the user took back stays out of reach of any other Terminal there. Delegating into a user's busy Session would
-     * fill its pane, so every other Session is refused, and only in a Project the user can still see.
+     * just created, one an Agent of its Session created, or one where it already delegated. Caxri Bot's Session is
+     * excluded from the creator rule: what Caxri Bot created is governed by its current membership, so a Session the
+     * user took back stays out of reach of any other Terminal there. Delegating into a user's busy Session would fill
+     * its pane, so every other Session is refused, and only in a Project the user can still see.
      */
     const project = database
         .listVisibleProjects()
@@ -137,7 +133,7 @@ export function authorizeDelegationSession(
     const isCallerSession =
         isNewSession ||
         (session.createdBySessionId === caller.sessionId &&
-            caller.sessionId !== database.agentCommanderRows()?.sessionId) ||
+            caller.sessionId !== database.caxriBotRows()?.sessionId) ||
         database.agentDelegations
             .receiptsForSessions([input.sessionId])
             .some((receipt) => receipt.callerTerminalId === caller.id);

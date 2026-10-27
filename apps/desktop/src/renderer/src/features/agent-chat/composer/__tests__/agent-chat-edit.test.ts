@@ -143,16 +143,16 @@ describe('Agent Chat edit persistence', () => {
 
     /**
      * Opens one window over the shared `localStorage`: a fresh module graph, as a separate Renderer has, configured as
-     * the Agent Commander or as a Workbench of `environment`.
+     * Caxri Bot or as a Workbench of `environment`.
      */
     async function openWindow(
         storage: Map<string, string>,
-        window: { commander: true } | { environment: EnvironmentState },
+        window: { bot: true } | { environment: EnvironmentState },
     ) {
         const edits = await restart(storage);
         const persistence = await import('../../attachments/agent-chat-attachment-persistence');
         const { useEnvironmentStore } = await import('../../../../stores/environment');
-        if ('commander' in window) persistence.configureAgentChatComposerWindowForCommander();
+        if ('bot' in window) persistence.configureAgentChatComposerWindowForBot();
         else useEnvironmentStore.setState({ state: window.environment });
         return edits;
     }
@@ -166,17 +166,17 @@ describe('Agent Chat edit persistence', () => {
         needsUserAction: false,
     };
 
-    it("keeps the Agent Commander's edit when the Workbench retains its own Chats", async () => {
+    it("keeps Caxri Bot's edit when the Workbench retains its own Chats", async () => {
         const storage = new Map<string, string>();
-        const commander = await openWindow(storage, { commander: true });
-        commander.writeAgentChatEdit('commander-chat', edit);
+        const bot = await openWindow(storage, { bot: true });
+        bot.writeAgentChatEdit('bot-chat', edit);
 
-        // The Workbench snapshot never includes the Commander's Chat.
+        // The Workbench snapshot never includes Caxri Bot's Chat.
         const workbench = await openWindow(storage, { environment: { kind: 'local' } });
         workbench.retainAgentChatEdits(new Set(['workbench-chat']));
 
-        const relaunched = await openWindow(storage, { commander: true });
-        expect(relaunched.readAgentChatEdit('commander-chat')).toEqual(edit);
+        const relaunched = await openWindow(storage, { bot: true });
+        expect(relaunched.readAgentChatEdit('bot-chat')).toEqual(edit);
     });
 
     it("keeps a local Chat's edit when an SSH Host window retains its own Chats", async () => {

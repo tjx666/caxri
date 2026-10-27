@@ -20,10 +20,10 @@ export const mobileSubscriptionResourceSchema = z.discriminatedUnion('kind', [
      */
     z.strictObject({ kind: z.literal('agentChat'), terminalId: identifierSchema }),
     /**
-     * The owner's Commander Inbox. Content-free like the dashboard: each `commanderInbox.changed` asks the phone to
-     * re-read `mobile.commanderInbox.list`.
+     * The owner's Bot Inbox. Content-free like the dashboard: each `botInbox.changed` asks the phone to re-read
+     * `mobile.botInbox.list`.
      */
-    z.strictObject({ kind: z.literal('commanderInbox') }),
+    z.strictObject({ kind: z.literal('botInbox') }),
 ]);
 
 export const mobileSubscribeResultSchema = z.strictObject({ subscriptionId: identifierSchema });
@@ -69,7 +69,7 @@ export const mobileEventPayloadSchema = z.union([
             'conversation.changed',
             'changes.changed',
             'agentChat.changed',
-            'commanderInbox.changed',
+            'botInbox.changed',
         ]),
     }),
     z.strictObject({

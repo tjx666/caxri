@@ -3,8 +3,8 @@ import { CaxriError } from '@caxri/protocol';
 import type { AgentDelegationService } from '../agent-delegation';
 import type { AgentHookManager } from '../agents';
 import type { ConfigService } from '../config';
-import type { AgentCommanderRowReader, CaxriDatabase } from '../db';
-import { agentCommanderTerminal } from '../db';
+import type { CaxriBotRowReader, CaxriDatabase } from '../db';
+import { caxriBotTerminal } from '../db';
 import type { DomainDependencies } from '../domain-services';
 import type { WorkbenchRootService } from '../workbench';
 import * as provenance from '../workbench';
@@ -13,7 +13,7 @@ import type { TerminalManagerOptions } from './manager-types';
 interface LifecycleEnvironmentOptions {
     agentHooks: Pick<AgentHookManager, 'terminalEnvironment'>;
     configuration: Pick<ConfigService, 'getSettings'>;
-    database: Pick<CaxriDatabase, 'getSession'> & AgentCommanderRowReader;
+    database: Pick<CaxriDatabase, 'getSession'> & CaxriBotRowReader;
     /**
      * Late-bound: the delegation service is constructed after the Terminal manager that calls this.
      */
@@ -69,7 +69,7 @@ export function createLifecycleEnvironment({
             session.projectId,
             providerSettings,
             launchId,
-            agentCommanderTerminal(database)?.terminalId === terminal.id ? 'commander' : undefined,
+            caxriBotTerminal(database)?.terminalId === terminal.id ? 'bot' : undefined,
         );
         if (!endpoints.preparedEndpointForTerminal(terminal.id))
             throw new CaxriError(

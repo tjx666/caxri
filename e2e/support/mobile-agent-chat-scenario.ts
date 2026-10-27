@@ -50,6 +50,7 @@ import {
     tapMobileCheckByBounds,
     waitForMobile,
 } from './mobile-android';
+import { executeMobileBotInboxScenario } from './mobile-bot-inbox-scenario';
 import {
     executeMobileChatSendUnknownScenario,
     executeMobileChatUsageGuardScenario,
@@ -540,6 +541,9 @@ export async function executeMobileAgentChatCase(
             return executeMobileAgentUsageScenario(environment, artifacts);
         case 'MOB-CHAT-32':
             return executeMobileChatMultiImagePickScenario(environment, artifacts);
+        case 'MOB-CHAT-33':
+        case 'MOB-CHAT-34':
+            return executeMobileBotInboxScenario(environment, artifacts);
         case 'MOB-CHAT-SEND-UNKNOWN-01':
             return executeMobileChatSendUnknownScenario(environment, artifacts);
         case 'MOB-CHAT-USAGE-GUARD-01':

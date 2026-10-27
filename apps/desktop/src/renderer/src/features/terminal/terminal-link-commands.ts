@@ -23,17 +23,17 @@ export async function openTerminalFileLink(
 }
 
 /**
- * The Agent Commander's counterpart to {@link openTerminalFileLink}: same resolution, but Main hands the opened file to
- * a real, visible Session instead of the Commander's own hidden one. Only the Commander Terminal pane calls this (see
- * `hasWorkbenchLinks` in `terminal-pane-host.ts`); Main independently validates that `terminalId` names the Commander's
- * own Terminal.
+ * Caxri Bot's counterpart to {@link openTerminalFileLink}: same resolution, but Main hands the opened file to a real,
+ * visible Session instead of Caxri Bot's own hidden one. Only the Caxri Bot Terminal pane calls this (see
+ * `hasWorkbenchLinks` in `terminal-pane-host.ts`); Main independently validates that `terminalId` names Caxri Bot's own
+ * Terminal.
  */
-export async function openCommanderFileLink(
+export async function openBotFileLink(
     terminalId: string,
     target: string,
     location?: EditorNavigationTarget,
-): Promise<MethodResult<'agentCommander.openFileLink'>> {
-    return caxri.request('agentCommander.openFileLink', {
+): Promise<MethodResult<'caxriBot.openFileLink'>> {
+    return caxri.request('caxriBot.openFileLink', {
         terminalId,
         target,
         ...(location && { location }),

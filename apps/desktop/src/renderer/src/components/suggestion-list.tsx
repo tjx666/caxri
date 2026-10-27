@@ -19,13 +19,13 @@ function OpenedTime({ openedAt }: { openedAt: number }) {
 const GROUP_HEADING_CLASS_NAME = 'px-2 pt-2 pb-1 text-[11px] leading-4 font-medium text-muted';
 
 /**
- * Suggestions above a text input: the Chat composer's slash-command and skill list and `@` Sessions list, and the
- * Commander Inbox reply box's `@` item list. Focus stays in the input, which drives the list through
- * `aria-activedescendant`; the pointer can pick a row too. Rows match the command palette's density and focus fill,
- * under group headings, each optionally led by a 16px glyph naming what the row is (a command, a skill, a file), and a
- * `meta` footer names the keys as compact keycaps, the way the composer strip below names Enter and Esc. A list with an
- * `emptyText` stays open on no match so a typo reads as a miss, and `notice` explains rows that are still missing or,
- * with a spinner, work in progress.
+ * Suggestions above a text input: the Chat composer's slash-command and skill list and `@` Sessions list, and the Bot
+ * Inbox reply box's `@` item list. Focus stays in the input, which drives the list through `aria-activedescendant`; the
+ * pointer can pick a row too. Rows match the command palette's density and focus fill, under group headings, each
+ * optionally led by a 16px glyph naming what the row is (a command, a skill, a file), and a `meta` footer names the
+ * keys as compact keycaps, the way the composer strip below names Enter and Esc. A list with an `emptyText` stays open
+ * on no match so a typo reads as a miss, and `notice` explains rows that are still missing or, with a spinner, work in
+ * progress.
  *
  * It is not a Base UI popup, because focus has to stay in the textarea while the arrow keys drive it, but it wears the
  * shared overlay surface (`--elevated`, the `--border` ring plus `--shadow` elevation the popover and tooltip use) and

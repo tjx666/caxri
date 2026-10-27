@@ -40,11 +40,11 @@ describe('writeCliLauncher', () => {
 
         expect(launcher).toBe(join(root, 'profile', 'bin', 'caxri'));
         expect((await stat(launcher)).mode & 0o777).toBe(0o755);
-        const { stdout } = await execFileAsync(launcher, ['commander', 'board', "it's"], {
+        const { stdout } = await execFileAsync(launcher, ['bot', 'board', "it's"], {
             env: { PATH: '/usr/bin:/bin' },
         });
         expect(JSON.parse(stdout)).toEqual({
-            args: ['commander', 'board', "it's"],
+            args: ['bot', 'board', "it's"],
             runAsNode: '1',
         });
     });

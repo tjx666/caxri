@@ -14,13 +14,13 @@ import type { CaxriDatabase } from '../db';
 export type DelegatedTaskDetails = Omit<AgentChatDelegatedTask, 'delegationId'>;
 
 /**
- * The task the caller wrote, and who called: the Session whose Agent delegated it, or Agent Commander when the caller
- * was the Commander's own hidden Session. The source is absent when no Agent Terminal called it; both are absent when
- * the record is gone. A follow-up or resume has its own record, so its pointer reads as its own task rather than the
- * first. A task the caller handed off with `/new-session` says so (`handoff`).
+ * The task the caller wrote, and who called: the Session whose Agent delegated it, or Caxri Bot when the caller was
+ * Caxri Bot's own hidden Session. The source is absent when no Agent Terminal called it; both are absent when the
+ * record is gone. A follow-up or resume has its own record, so its pointer reads as its own task rather than the first.
+ * A task the caller handed off with `/new-session` says so (`handoff`).
  */
 export function delegatedTaskDetails(
-    database: Pick<CaxriDatabase, 'agentCommanderRows' | 'agentDelegations' | 'getTerminal'>,
+    database: Pick<CaxriDatabase, 'caxriBotRows' | 'agentDelegations' | 'getTerminal'>,
     delegationId: string,
 ): DelegatedTaskDetails {
     const record = database.agentDelegations.get(delegationId);
@@ -28,8 +28,8 @@ export function delegatedTaskDetails(
     const { callerTerminalId } = record.receipt;
     const sessionId = callerTerminalId && database.getTerminal(callerTerminalId)?.sessionId;
     const source: AgentChatDelegatedTaskSource | undefined = sessionId
-        ? sessionId === database.agentCommanderRows()?.sessionId
-            ? { kind: 'commander' }
+        ? sessionId === database.caxriBotRows()?.sessionId
+            ? { kind: 'bot' }
             : { kind: 'session', sessionId }
         : undefined;
     return {

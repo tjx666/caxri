@@ -58,8 +58,8 @@ interface PanelDividerProperties {
      * Custom property this divider drives directly during a drag, bypassing React state.
      */
     cssVariable:
-        | '--commander-board-width'
-        | '--commander-inbox-width'
+        | '--bot-board-width'
+        | '--bot-inbox-width'
         | '--panel-height'
         | '--primary-sidebar-width'
         | '--secondary-sidebar-width';

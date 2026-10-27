@@ -56,7 +56,7 @@ interface Holdings {
      */
     bySession: Map<string, HeldConversation[]>;
     /**
-     * Conversations held by a Session in a hidden Project (such as the Commander's): never offered as external.
+     * Conversations held by a Session in a hidden Project (such as Caxri Bot's): never offered as external.
      */
     hiddenKeys: Set<string>;
 }

@@ -6,11 +6,11 @@ import type { enResources } from '../en';
 import { agentActions } from './agent-actions';
 import { agentActivity } from './agent-activity';
 import { agentChat } from './agent-chat';
-import { agentCommander } from './agent-commander';
 import { agentInbox } from './agent-inbox';
 import { agentStatus } from './agent-status';
 import { benchmark } from './benchmark';
 import { bugReport } from './bug-report';
+import { caxriBot } from './caxri-bot';
 import { common } from './common';
 import { confirmations } from './confirmations';
 import { core } from './core';
@@ -51,7 +51,7 @@ export const zhCNResources: TranslatedNamespace<typeof enResources> = {
     ...agentActivity,
     ...agentChat,
     ...agentChatLabelsZhCN,
-    ...agentCommander,
+    ...caxriBot,
     ...agentInbox,
     ...agentStatus,
     ...benchmark,

@@ -49,12 +49,12 @@ describe('Renderer CDP target selection', () => {
         ).toBe('ws://dev');
     });
 
-    it('selects the dev main window while a Commander or Process Explorer window is open', () => {
+    it('selects the dev main window while a Caxri Bot or Process Explorer window is open', () => {
         const targets = [
             {
                 type: 'page',
-                url: 'http://localhost:5173/agent-commander.html',
-                webSocketDebuggerUrl: 'ws://commander',
+                url: 'http://localhost:5173/caxri-bot.html',
+                webSocketDebuggerUrl: 'ws://bot',
             },
             { type: 'page', url: 'http://localhost:5173/', webSocketDebuggerUrl: 'ws://main' },
             {
@@ -65,9 +65,7 @@ describe('Renderer CDP target selection', () => {
         ];
 
         expect(selectRendererTarget(targets).webSocketDebuggerUrl).toBe('ws://main');
-        expect(selectRendererTarget(targets, 'agent-commander').webSocketDebuggerUrl).toBe(
-            'ws://commander',
-        );
+        expect(selectRendererTarget(targets, 'caxri-bot').webSocketDebuggerUrl).toBe('ws://bot');
     });
 
     it('treats a dev index.html page as the main window', () => {
@@ -80,8 +78,8 @@ describe('Renderer CDP target selection', () => {
                 },
                 {
                     type: 'page',
-                    url: 'http://localhost:5173/agent-commander.html',
-                    webSocketDebuggerUrl: 'ws://commander',
+                    url: 'http://localhost:5173/caxri-bot.html',
+                    webSocketDebuggerUrl: 'ws://bot',
                 },
             ]).webSocketDebuggerUrl,
         ).toBe('ws://main');

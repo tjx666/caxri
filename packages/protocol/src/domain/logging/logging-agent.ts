@@ -123,8 +123,8 @@ export const agentDelegationLogEvents = {
     admissionRejected: 'agent_delegation.admission_rejected',
     /**
      * A task was admitted. Carries how it targets its Session (`mode`: new, follow-up, or resume; `newSession`),
-     * whether the Agent Commander sent it, and the request's correlation ID, so a delegation can be traced back to the
-     * CLI call that created it. Never the prompt.
+     * whether Caxri Bot sent it, and the request's correlation ID, so a delegation can be traced back to the CLI call
+     * that created it. Never the prompt.
      */
     requested: 'agent_delegation.requested',
     /**

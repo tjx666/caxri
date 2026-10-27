@@ -65,7 +65,7 @@ const terminalFileLinkCanceledSchema = canceledResultSchema.extend({
 
 /**
  * Result of opening a resolved Terminal file link, shared by every caller (the ordinary `terminal.openFileLink` and the
- * Agent Commander's `agentCommander.openFileLink`) so a new opener never redefines this shape.
+ * Caxri Bot's `caxriBot.openFileLink`) so a new opener never redefines this shape.
  */
 export const terminalFileLinkOpenResultSchema = z.union([
     terminalFileLinkCanceledSchema,

@@ -10,7 +10,7 @@ describe('terminal.terminateAll', () => {
         const closeSession = vi.fn<(sessionId: string) => Promise<void>>(() => Promise.resolve());
         const handlers = createTerminateAllHandler({
             agentChat: { closeSession },
-            commanderRestores: { cancelAll: vi.fn() },
+            botRestores: { cancelAll: vi.fn() },
             database: { listTerminals: () => terminals },
             terminalRestores: { cancelAll: vi.fn() },
             terminalSuspension: { terminateAll: () => terminated.promise },

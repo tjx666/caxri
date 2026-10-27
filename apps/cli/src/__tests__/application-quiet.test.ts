@@ -31,7 +31,7 @@ function server(result: unknown, method: string): CliServerClient {
         welcome: {
             protocolVersion: CAXRI_PROTOCOL_VERSION,
             principal: { kind: 'human-cli', id: 'cli-test' },
-            capabilities: ['commander'],
+            capabilities: ['bot'],
             commands: [method],
         } satisfies ProtocolWelcome,
     };
@@ -66,13 +66,13 @@ describe('quiet output', () => {
         const output = io();
         const client = server(
             { projectId: 'project-1', sessionId: 'session-1' },
-            'commander.session.create',
+            'bot.session.create',
         );
 
         await expect(
             runCli(
                 [
-                    'commander',
+                    'bot',
                     'session',
                     'create',
                     '--project',
@@ -163,11 +163,11 @@ describe('quiet output', () => {
         const output = io();
         const client = server(
             { rows: [{ sessionId: 'session-1' }, { sessionId: 'session-2' }] },
-            'commander.board',
+            'bot.board',
         );
 
         await expect(
-            runCli(['commander', 'board', '--quiet'], {
+            runCli(['bot', 'board', '--quiet'], {
                 connect: () => Promise.resolve(client),
                 io: output.io,
             }),

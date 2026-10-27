@@ -9,10 +9,10 @@ const contextFor = (kind: string): CommandExecutionContext =>
 describe('assertOwnerOnlyMethod', () => {
     it('refuses spec-declared owner-only methods for Agent principals', () => {
         for (const method of [
-            'commander.session.handOver',
-            'commander.session.takeBack',
-            'commander.conversations',
-            'commander.managedSessions',
+            'bot.session.handOver',
+            'bot.session.takeBack',
+            'bot.conversations',
+            'bot.managedSessions',
             'session.permissionAutoAllowStatus',
         ])
             expect(() => assertOwnerOnlyMethod(contextFor('agent'), method)).toThrow(/owner/);
@@ -20,10 +20,10 @@ describe('assertOwnerOnlyMethod', () => {
 
     it('allows the owner clients and unrestricted methods', () => {
         expect(() =>
-            assertOwnerOnlyMethod(contextFor('desktop'), 'commander.session.handOver'),
+            assertOwnerOnlyMethod(contextFor('desktop'), 'bot.session.handOver'),
         ).not.toThrow();
         expect(() =>
-            assertOwnerOnlyMethod(contextFor('human-cli'), 'commander.conversations'),
+            assertOwnerOnlyMethod(contextFor('human-cli'), 'bot.conversations'),
         ).not.toThrow();
         expect(() => assertOwnerOnlyMethod(contextFor('agent'), 'agent.list')).not.toThrow();
     });

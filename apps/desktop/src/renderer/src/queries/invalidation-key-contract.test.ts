@@ -161,12 +161,12 @@ describe('invalidation predicates match factory-built query keys', () => {
         expect(isInvalidated(queryClient, overview)).toBe(true);
     });
 
-    it('invalidates the Commander Inbox read behind the status bar chip on commanderInbox.changed', () => {
+    it('invalidates the Bot Inbox read behind the status bar chip on botInbox.changed', () => {
         const queryClient = new QueryClient();
-        const inbox = caxriQueryKey('commander.inbox.list', {});
+        const inbox = caxriQueryKey('bot.inbox.list', {});
         queryClient.setQueryData(inbox, { generatedAt: 0, items: [] });
 
-        emit(queryClient, { event: 'commanderInbox.changed', payload: { itemIds: ['item-a'] } });
+        emit(queryClient, { event: 'botInbox.changed', payload: { itemIds: ['item-a'] } });
 
         expect(isInvalidated(queryClient, inbox)).toBe(true);
     });

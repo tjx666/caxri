@@ -1,13 +1,13 @@
 import type {
     AgentDelegationCreate,
     AgentDelegationReceipt,
-    CommanderHandoverTarget,
+    BotHandoverTarget,
 } from '@caxri/protocol';
 import { CaxriError, isChatTerminal, isDelegationActive } from '@caxri/protocol';
 
 import type { StoredAgentDelegation } from '../db';
 import type { DelegationAuthority } from './admission';
-import { isAgentCommanderCaller } from './admission';
+import { isCaxriBotCaller } from './admission';
 import { canChatCorrelateTask } from './chat-child';
 import { delegationResumeLaunch, prepareDelegationFollowUp } from './launch';
 import type { DelegationResumeRejection } from './rejection';
@@ -155,27 +155,27 @@ export async function resumeTask(
  * validated it, so human input after that step fences the continuation.
  */
 export interface HandoverAdmission {
-    target: CommanderHandoverTarget;
+    target: BotHandoverTarget;
     inputEpoch: number | undefined;
 }
 
 type HandoverRequest = Parameters<typeof handoverTarget>;
 
 /**
- * The conversation a Commander hand-over lets this task continue, refused unless it can be continued right now: the
- * caller is the Commander, the hand-over is unconsumed, and its Agent still holds the conversation, is between turns,
- * and (for a Chat) can correlate the task and is not starting or stopping. Refused before any record exists, so the
- * Commander simply retries once its `ready` notice arrives.
+ * The conversation a Caxri Bot hand-over lets this task continue, refused unless it can be continued right now: the
+ * caller is Caxri Bot, the hand-over is unconsumed, and its Agent still holds the conversation, is between turns, and
+ * (for a Chat) can correlate the task and is not starting or stopping. Refused before any record exists, so the Caxri
+ * Bot simply retries once its `ready` notice arrives.
  */
 export function handoverTarget(
     options: AgentDelegationServiceOptions,
     authority: DelegationAuthority,
     input: AgentDelegationCreate & { continueFromHandover: string },
     hasActiveTask: (terminalId: string) => boolean,
-): CommanderHandoverTarget {
-    const handovers = options.commanderHandovers;
-    if (!handovers || !isAgentCommanderCaller(options.database, authority))
-        throw new CaxriError('FORBIDDEN', 'Only the Agent Commander can continue a hand-over');
+): BotHandoverTarget {
+    const handovers = options.botHandovers;
+    if (!handovers || !isCaxriBotCaller(options.database, authority))
+        throw new CaxriError('FORBIDDEN', 'Only Caxri Bot can continue a hand-over');
     if (!options.dispatch.resume)
         throw new CaxriError('UNAVAILABLE', 'This build cannot resume an Agent conversation');
     const target = handovers.target(input.continueFromHandover, input.sessionId);
@@ -192,7 +192,7 @@ export function handoverTarget(
     if (isChat && !canChatCorrelateTask(target.provider))
         throw new CaxriError(
             'CONFLICT',
-            "Handed-over Agent Chat's provider cannot carry a Commander task; start a new task in the Session instead",
+            "Handed-over Agent Chat's provider cannot carry a Caxri Bot task; start a new task in the Session instead",
         );
     if (hasActiveTask(target.terminalId) || handovers.isBusy(input.sessionId, target.terminalId))
         throw new CaxriError(
@@ -253,9 +253,9 @@ function continueLiveChat(
 }
 
 /**
- * `--continue-handover`: the Commander's first task in a handed-over Session, continuing the Session's own conversation
+ * `--continue-handover`: Caxri Bot's first task in a handed-over Session, continuing the Session's own conversation
  * with the delegation's launch environment, so lifecycle correlation, waits, results, and later follow-ups work as for
- * any Commander task. A PTY Agent, or a Chat whose provider is not live, is resumed exactly; a live Chat takes the
+ * any Caxri Bot task. A PTY Agent, or a Chat whose provider is not live, is resumed exactly; a live Chat takes the
  * pointer as its next message. The task file lives in this delegation's own private directory, which becomes the root
  * of the chain.
  */
@@ -302,15 +302,15 @@ export async function continueHandover(
     } catch (error) {
         /**
          * Dispatch refused the resume before it recorded a receipt (for example a Chat that began starting or stopping
-         * meanwhile), so nothing reached the conversation: hand the hand-over back so the Commander can retry. Human
-         * input since admission took the Session back instead, so it stays consumed.
+         * meanwhile), so nothing reached the conversation: hand the hand-over back so Caxri Bot can retry. Human input
+         * since admission took the Session back instead, so it stays consumed.
          */
         if (
             !options.database.getAgentDispatch(id) &&
             options.inputEpoch?.(terminalId) === inputEpoch
         ) {
             host.save({ ...host.owned(id), hasLostTarget: true });
-            options.commanderHandovers?.release(admission.handoverId, id);
+            options.botHandovers?.release(admission.handoverId, id);
         }
         throw error;
     }

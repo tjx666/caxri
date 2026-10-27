@@ -103,8 +103,8 @@ export const primarySidebar = {
     'primarySidebar.sessionMenu.pin': 'Pin',
     'primarySidebar.sessionMenu.unpin': 'Unpin',
     'primarySidebar.sessionMenu.archive': 'Archive',
-    'primarySidebar.sessionMenu.handOverToCommander': 'Hand Over to Agent Commander…',
-    'primarySidebar.sessionMenu.takeBackFromCommander': 'Take Back from Agent Commander',
+    'primarySidebar.sessionMenu.handOverToBot': 'Hand Over to Caxri Bot…',
+    'primarySidebar.sessionMenu.takeBackFromBot': 'Take Back from Caxri Bot',
     'primarySidebar.sessionMenu.forkSession': 'Fork Session',
     'primarySidebar.sessionMenu.forkNeedsChatReason':
         'Open the Agent as Chat to fork its conversation',

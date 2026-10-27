@@ -6,7 +6,7 @@ import type { BrowserWindow } from 'electron';
 
 import { createDesktopAgentNotifications } from '../agent-notification-runtime';
 import { resolveNotificationAppIconPath } from '../app-icon';
-import { createDesktopCommanderInboxNotifications } from '../commander-inbox-notification-runtime';
+import { createDesktopBotInboxNotifications } from '../bot-inbox-notification-runtime';
 import { createDesktopDeliveryNotifications } from '../delivery-notification-runtime';
 import type { DesktopServerConnection } from '../server-connection';
 import type { NotificationHelperControl } from './agent-notification-delivery';
@@ -41,10 +41,10 @@ export interface DesktopNotifications {
 
 /**
  * Both families of system notification Caxri raises, behind one handle: Agent attention (a Session wants you back), the
- * Commander Inbox (the Agent Commander raised something for you), and delivery failures (CI or a Vercel deployment just
- * broke). They share one delivery, so the native/alerter choice is probed (a `codesign` child process) and its fallback
- * logged once per change rather than once per family, and the composition root should not have to remember to fan
- * `observe` and `dispose` out to each.
+ * Bot Inbox (Caxri Bot raised something for you), and delivery failures (CI or a Vercel deployment just broke). They
+ * share one delivery, so the native/alerter choice is probed (a `codesign` child process) and its fallback logged once
+ * per change rather than once per family, and the composition root should not have to remember to fan `observe` and
+ * `dispose` out to each.
  */
 export function createDesktopNotifications({
     currentDirectory,
@@ -83,7 +83,7 @@ export function createDesktopNotifications({
         handleMainMethod,
         logger,
     });
-    const commanderInbox = createDesktopCommanderInboxNotifications({
+    const botInbox = createDesktopBotInboxNotifications({
         delivery: systemNotifications,
         handleMainMethod,
         logger,
@@ -97,15 +97,15 @@ export function createDesktopNotifications({
         dispose: () => {
             agents.dispose();
             delivery.dispose();
-            commanderInbox.dispose();
+            botInbox.dispose();
         },
         initialize: async () => {
-            await Promise.all([agents.initialize(), commanderInbox.initialize()]);
+            await Promise.all([agents.initialize(), botInbox.initialize()]);
         },
         observe: (event) => {
             agents.observe(event);
             delivery.observe(event);
-            commanderInbox.observe(event);
+            botInbox.observe(event);
         },
     };
 }

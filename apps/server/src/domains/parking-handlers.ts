@@ -2,8 +2,8 @@ import type { FullStateChangeReason, Principal, SessionRestorePlacement } from '
 import { CaxriError, isTopLevelProject } from '@caxri/protocol';
 
 import type { AgentChatService } from './agent-chat';
-import { isAgentCommanderCaller } from './agent-delegation';
-import { requireCommanderSession } from './commander';
+import { isCaxriBotCaller } from './agent-delegation';
+import { requireBotSession } from './bot';
 import type { CaxriDatabase } from './db';
 import type { DomainHandlers } from './domain-services';
 import type { MobileTerminalMutationQueue } from './mobile';
@@ -13,7 +13,7 @@ import type { TerminalRestoreSupervisor, TerminalSuspensionService } from './ter
 export interface SessionParkingOptions {
     database: CaxriDatabase;
     agentChat: Pick<AgentChatService, 'closeSession'>;
-    commanderRestores: Pick<TerminalRestoreSupervisor, 'cancelAll'>;
+    botRestores: Pick<TerminalRestoreSupervisor, 'cancelAll'>;
     mobileTerminalMutations: Pick<MobileTerminalMutationQueue, 'runProject' | 'runSessions'>;
     terminalRestores: Pick<TerminalRestoreSupervisor, 'cancel' | 'cancelAll' | 'settled'>;
     terminalSuspension: Pick<
@@ -64,7 +64,7 @@ function createSessionParkingHandlers(
     options: SessionParkingOptions,
 ): Pick<
     DomainHandlers,
-    | 'commander.session.archive'
+    | 'bot.session.archive'
     | 'session.archive'
     | 'session.detach'
     | 'session.unarchive'
@@ -88,11 +88,10 @@ function createSessionParkingHandlers(
         });
     return {
         /**
-         * The sidebar's archive, admitted only for a Session the Agent Commander created; see
-         * `requireCommanderSession`.
+         * The sidebar's archive, admitted only for a Session Caxri Bot created; see `requireBotSession`.
          */
-        'commander.session.archive': async ({ sessionId }) => {
-            requireCommanderSession(database, sessionId);
+        'bot.session.archive': async ({ sessionId }) => {
+            requireBotSession(database, sessionId);
             await archiveSession(sessionId);
             return { sessionId };
         },
@@ -122,15 +121,15 @@ function createSessionParkingHandlers(
 }
 
 /**
- * Admits an Agent to manage one Session its own Session created. Everything else is `NOT_FOUND`, the way the
- * Commander's other Session-scoped requests treat a Session outside their reach, so an Agent cannot probe which
- * Sessions exist.
+ * Admits an Agent to manage one Session its own Session created. Everything else is `NOT_FOUND`, the way the Caxri
+ * Bot's other Session-scoped requests treat a Session outside their reach, so an Agent cannot probe which Sessions
+ * exist.
  *
- * The Agent Commander is held to `requireCommanderSession`: a Session it created but the user took back, or one the
- * user handed over, is the user's again even though its creator column still names the Commander. That holds for any
- * Terminal in the Commander's Session (a leftover one after the Commander was recreated, say). Any other Agent
- * qualifies through `createdBySessionId` alone, so every Agent in the creating Session shares the right, and a relaunch
- * keeps it. The Project must still be visible: hiding it takes its Sessions out of every Agent's reach.
+ * Caxri Bot is held to `requireBotSession`: a Session it created but the user took back, or one the user handed over,
+ * is the user's again even though its creator column still names Caxri Bot. That holds for any Terminal in Caxri Bot's
+ * Session (a leftover one after Caxri Bot was recreated, say). Any other Agent qualifies through `createdBySessionId`
+ * alone, so every Agent in the creating Session shares the right, and a relaunch keeps it. The Project must still be
+ * visible: hiding it takes its Sessions out of every Agent's reach.
  */
 function authorizeAgentSessionManagement(
     database: CaxriDatabase,
@@ -141,10 +140,10 @@ function authorizeAgentSessionManagement(
     if (!caller || authority.principal.kind !== 'agent')
         throw new CaxriError('FORBIDDEN', 'Session management requires an authorized Agent');
     if (
-        isAgentCommanderCaller(database, authority) ||
-        caller.sessionId === database.agentCommanderRows()?.sessionId
+        isCaxriBotCaller(database, authority) ||
+        caller.sessionId === database.caxriBotRows()?.sessionId
     ) {
-        requireCommanderSession(database, sessionId);
+        requireBotSession(database, sessionId);
         return;
     }
     const session = database.getSession(sessionId);
@@ -202,12 +201,11 @@ export function createSessionHandlers(
 export function createTerminateAllHandler(
     options: SessionParkingOptions,
 ): Pick<DomainHandlers, 'terminal.terminateAll'> {
-    const { agentChat, commanderRestores, database, terminalRestores, terminalSuspension } =
-        options;
+    const { agentChat, botRestores, database, terminalRestores, terminalSuspension } = options;
     return {
         'terminal.terminateAll': async () => {
             terminalRestores.cancelAll();
-            commanderRestores.cancelAll();
+            botRestores.cancelAll();
             await terminalSuspension.terminateAll();
             const sessionIds = new Set(database.listTerminals().map(({ sessionId }) => sessionId));
             await Promise.all(

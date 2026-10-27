@@ -16,7 +16,7 @@ dispatcher also grants only the capabilities for that role.
 | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `view`    | Dashboard, Session, timeline, changes, Terminal preview, Project panel reads, `mobile.agent.actions`, `mobile.files.search`, `mobile.attention.list`, `mobile.agentChat.read`, `mobile.agentChat.readHistory`, `mobile.agentChat.readImage`, `mobile.agentChat.readTask`, `mobile.pullRequest.read`, and `mobile.agentUsage.read` |
 | `reply`   | `session.markRead`, `mobile.agent.submit`, `mobile.image.upload`, `mobile.agentChat.send`, `mobile.agentChat.configure`, `mobile.agentChat.retry`, `mobile.agentChat.{removeQueued,sendQueuedNow,resumeQueue}`, `mobile.agentChat.{takeQueued,readQueued,editQueued}`, and `mobile.agentChat.runCommand`                          |
-| `control` | Agent interrupt, Session management, Terminal control, Project add, `mobile.files.write`, `mobile.attention.answer`, `mobile.agentChat.respond`, `mobile.agentChat.interrupt`, `mobile.agentChat.stopTask`, `mobile.commanderInbox.{list,reply}`, `mobile.host.status`, and `mobile.pullRequest.merge`                            |
+| `control` | Agent interrupt, Session management, Terminal control, Project add, `mobile.files.write`, `mobile.attention.answer`, `mobile.agentChat.respond`, `mobile.agentChat.interrupt`, `mobile.agentChat.stopTask`, `mobile.botInbox.{list,reply}`, `mobile.host.status`, and `mobile.pullRequest.merge`                                  |
 
 `mobile.agentChat.configure` carries one field-level rule: a `reply` device may switch the model,
 effort, and ultracode, but a `permissionMode` or `planMode` change needs `control`, because a
@@ -182,18 +182,18 @@ The implementation lives in [the access controller](../../apps/server/src/core/m
 [Project browse/add handlers](../../apps/server/src/domains/mobile/project-browse.ts), and
 [mobile protocol](../../packages/protocol/src/mobile/mobile-contract.ts).
 
-## Commander Inbox from mobile
+## Bot Inbox from mobile
 
-`mobile.commanderInbox.list` and `mobile.commanderInbox.reply` are `control`-only. The
-[Commander Inbox](../agent-commander.md#commander-inbox) belongs to the owner rather than to one
+`mobile.botInbox.list` and `mobile.botInbox.reply` are `control`-only. The
+[Bot Inbox](../caxri-bot.md#bot-inbox) belongs to the owner rather than to one
 Project, so it would show a narrower `view` or `reply` grant items from Projects it cannot see; the
 `control` role already reaches beyond its grant through `mobile.project.browse`. The list returns
 only open items projected to one gateway frame (questions first, bodies and replies shortened, no
 merge-only fields). A reply runs in the authority queue like an attention answer and is stored with
-source `mobile` through the internal `mobile.commanderInbox.replyInternal`, whose handler rechecks
+source `mobile` through the internal `mobile.botInbox.replyInternal`, whose handler rechecks
 the `control` role. Merge and Dismiss have no mobile method. See
-[the Inbox requests](../../apps/server/src/core/mobile/commander-inbox-requests.ts) and
-[the mobile Inbox contract](../../packages/protocol/src/mobile/mobile-commander-inbox-contract.ts).
+[the Inbox requests](../../apps/server/src/core/mobile/bot-inbox-requests.ts) and
+[the mobile Inbox contract](../../packages/protocol/src/mobile/mobile-bot-inbox-contract.ts).
 
 ## Computer status from mobile
 

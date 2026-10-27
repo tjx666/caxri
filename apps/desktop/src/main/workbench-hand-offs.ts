@@ -18,8 +18,8 @@ export function workbenchCommandDispatcher(
 }
 
 /**
- * The hand-offs an optional window (the Agent Commander) uses to show something in the Workbench, which it cannot
- * render itself: a Session, or Settings. Each raises the Workbench first, reopening it when it was closed.
+ * The hand-offs an optional window (Caxri Bot) uses to show something in the Workbench, which it cannot render itself:
+ * a Session, or Settings. Each raises the Workbench first, reopening it when it was closed.
  */
 export function createWorkbenchHandOffs(options: {
     dispatchWorkbenchCommand: (command: CommandId, isViaAccelerator: boolean) => void;

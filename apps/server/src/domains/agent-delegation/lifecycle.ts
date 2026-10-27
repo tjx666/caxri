@@ -28,8 +28,7 @@ export function canFailDelegation(
 
 /**
  * Whether a save changes what observers of the receipt see. Revision-only saves (transcript offsets, input epochs,
- * fencing marks) do not, and announcing them would reset the Agent Commander board's refresh debounce on every
- * collector poll.
+ * fencing marks) do not, and announcing them would reset Caxri Bot's board refresh debounce on every collector poll.
  */
 export function isReceiptTransition(
     before: AgentDelegationReceipt | undefined,

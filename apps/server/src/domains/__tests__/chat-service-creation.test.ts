@@ -5,8 +5,8 @@ import { join } from 'node:path';
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
 
 import type { AgentDelegationService } from '../agent-delegation';
+import type { BotTerminalHooks } from '../bot';
 import { createAgentChatService } from '../chat-service-creation';
-import type { CommanderTerminalHooks } from '../commander';
 import { CaxriDatabase } from '../db';
 
 type ChatServiceInput = Parameters<typeof createAgentChatService>[0];
@@ -22,17 +22,17 @@ async function compose() {
         database.close();
         await rm(directory, { recursive: true, force: true });
     });
-    const chatInput = vi.fn<CommanderTerminalHooks['chatInput']>();
+    const chatInput = vi.fn<BotTerminalHooks['chatInput']>();
     const interruptTerminal = vi.fn<AgentDelegationService['interruptTerminal']>();
     const service = createAgentChatService({
         agentRuntime: {
             dispatchState: { observe: vi.fn() },
             usageGuards: { subscribe: vi.fn() },
         } as never,
-        commanderHooks: {
+        botHooks: {
             chatInput,
-            chatReady: vi.fn<CommanderTerminalHooks['chatReady']>(),
-            launchArguments: vi.fn<CommanderTerminalHooks['launchArguments']>(() => []),
+            chatReady: vi.fn<BotTerminalHooks['chatReady']>(),
+            launchArguments: vi.fn<BotTerminalHooks['launchArguments']>(() => []),
         },
         configuration: {} as ChatServiceInput['configuration'],
         database,

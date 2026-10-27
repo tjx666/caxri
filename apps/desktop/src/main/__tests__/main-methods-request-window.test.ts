@@ -14,12 +14,12 @@ import type { UpdateService } from '../updates/updates';
 import type { createWorkbenchRootAuthority } from '../workbench-root-authority';
 
 const workbenchWindow = { isDestroyed: () => false } as never;
-const commanderWindow = { isDestroyed: () => false } as never;
+const botWindow = { isDestroyed: () => false } as never;
 const parameters = { providerName: 'Claude', removedTurns: 2 };
 
 function handler(getWindow: () => never | undefined = () => workbenchWindow) {
     return createMainMethodHandler({
-        getAgentCommander: vi.fn(),
+        getCaxriBot: vi.fn(),
         revealSessionInWorkbench: () => Promise.resolve(),
         openSettingsInWorkbench: () => Promise.resolve(),
         getProcessExplorer: () => ({}) as ProcessExplorerWindowController,
@@ -37,17 +37,17 @@ beforeEach(() => {
 });
 
 describe('agentChat.confirmRevertFiles window', () => {
-    it('attaches the confirmation to the Agent Commander window that sent the request', async () => {
+    it('attaches the confirmation to Caxri Bot window that sent the request', async () => {
         electronMock.dialog.showMessageBox.mockResolvedValueOnce({ response: 0 });
         const handle = handler();
 
         await expect(
-            runInRequestWindow(commanderWindow, () =>
+            runInRequestWindow(botWindow, () =>
                 handle({ method: 'agentChat.confirmRevertFiles', params: parameters }),
             ),
         ).resolves.toEqual({ confirmed: true });
         expect(electronMock.dialog.showMessageBox).toHaveBeenCalledWith(
-            commanderWindow,
+            botWindow,
             expect.anything(),
         );
     });
@@ -80,10 +80,10 @@ describe('window.fullScreen.get', () => {
         const handle = handler(
             () => ({ isDestroyed: () => false, isFullScreen: () => false }) as never,
         );
-        const fullScreenCommander = { isDestroyed: () => false, isFullScreen: () => true } as never;
+        const fullScreenBot = { isDestroyed: () => false, isFullScreen: () => true } as never;
 
         await expect(
-            runInRequestWindow(fullScreenCommander, () =>
+            runInRequestWindow(fullScreenBot, () =>
                 handle({ method: 'window.fullScreen.get', params: {} }),
             ),
         ).resolves.toEqual({ isFullScreen: true });

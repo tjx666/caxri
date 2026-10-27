@@ -66,20 +66,20 @@ describe('createWindowZoomController', () => {
 
     it('zooms every window that follows the app zoom, and remembers the level for the next one', async () => {
         const workbench = fakeWindow();
-        const commander = fakeWindow();
+        const bot = fakeWindow();
         let level = 0;
         const controller = createWindowZoomController({
             loadLevel: () => Promise.resolve(level),
-            windows: () => [workbench.window, undefined, commander.window],
+            windows: () => [workbench.window, undefined, bot.window],
         });
         await controller.load();
 
         level = -1;
         controller.refresh();
 
-        await vi.waitFor(() => expect(commander.setZoomLevel).toHaveBeenCalledWith(-1));
+        await vi.waitFor(() => expect(bot.setZoomLevel).toHaveBeenCalledWith(-1));
         expect(workbench.setZoomLevel).toHaveBeenCalledWith(-1);
-        expect(commander.setWindowButtonPosition).toHaveBeenCalledWith(
+        expect(bot.setWindowButtonPosition).toHaveBeenCalledWith(
             trafficLightPositionForZoom(zoomFactorForLevel(-1)),
         );
         expect(controller.level()).toBe(-1);
@@ -103,7 +103,7 @@ describe('publishFullScreenState', () => {
         const window = { isFullScreen: () => isFullScreen, on };
         const emit = (name: string) => listeners.get(name)?.();
         const sendEvent = vi.fn<(event: ServerEvent) => void>();
-        publishFullScreenState(window as unknown as BrowserWindow, 'agentCommander', sendEvent);
+        publishFullScreenState(window as unknown as BrowserWindow, 'caxriBot', sendEvent);
 
         isFullScreen = true;
         emit('enter-full-screen');
@@ -113,7 +113,7 @@ describe('publishFullScreenState', () => {
         expect(sendEvent.mock.calls.map(([event]) => event)).toEqual(
             [true, false].map((value) => ({
                 event: 'window.fullScreen',
-                payload: { window: 'agentCommander', isFullScreen: value },
+                payload: { window: 'caxriBot', isFullScreen: value },
             })),
         );
     });

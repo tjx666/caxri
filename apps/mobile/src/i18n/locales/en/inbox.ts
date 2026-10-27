@@ -12,7 +12,7 @@ export const inbox = {
     'inbox.refreshFailed': 'Unable to refresh. Showing the last known items.',
     'inbox.reply': 'Reply',
     'inbox.replyFailed': 'Unable to send the reply.',
-    'inbox.replyPlaceholder': 'Reply to the Commander',
+    'inbox.replyPlaceholder': 'Reply to Caxri Bot',
     'inbox.replyTo': 'Reply to {{title}}',
     'inbox.send': 'Send',
     'inbox.staleNotice': 'Connection lost. Showing the last known items.',

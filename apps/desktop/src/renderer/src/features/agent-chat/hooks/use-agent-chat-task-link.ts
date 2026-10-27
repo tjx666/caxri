@@ -14,8 +14,8 @@ import { agentChatTaskLinkForItem } from '../tasks/agent-chat-tasks';
  *
  * `tasksByItem` is always present because it drives live task status, not just navigation: a row whose subagent or
  * background shell still runs stays out of the `Ran N commands` summary and shows its elapsed time (issue caxri#1719).
- * The openers are absent in the Agent Commander window, which mounts no pane layout to open a tab in, so its rows offer
- * no Open button and its turns no review while keeping their live status.
+ * The openers are absent in the Caxri Bot window, which mounts no pane layout to open a tab in, so its rows offer no
+ * Open button and its turns no review while keeping their live status.
  */
 export interface AgentChatTaskLinks {
     tasksByItem: ReadonlyMap<string, AgentChatTask>;

@@ -9,7 +9,7 @@ windows, their per-environment Main method policy, and the remote install layout
 Desktop Main
   -> secure BrowserWindow + native dialogs
   -> dedicated Process Explorer window + fixed process sampler
-  -> Agent Commander and Benchmark windows sharing the Desktop connection behind Main admission policies
+  -> Caxri Bot and Benchmark windows sharing the Desktop connection behind Main admission policies
   -> detached Performance Monitor window with its own preload
   -> one window, connection, relay, and IPC transport per SSH Host, routed by sending WebContents
   -> correlated IPC allowlist
@@ -30,7 +30,7 @@ Preload
 Renderer
   -> React, xterm.js, Monaco, shadcn/ui on Base UI
   -> separate Process Explorer entry with a narrow preload (snapshot, theme, language, and `stopTerminal`)
-  -> separate Agent Commander entry (board + Commander Terminal) on the Workbench preload
+  -> separate Caxri Bot entry (board + Caxri Bot Terminal) on the Workbench preload
   -> separate Benchmark entry on the Workbench preload
   -> separate Performance Monitor entry with its own preload
 
@@ -112,9 +112,9 @@ concurrent archive entries are retained. Project roots and user files are never 
 
 The Process Explorer is a singleton Desktop Main-owned window with its own Renderer entry and narrow Preload. Besides the snapshot, theme, language, and error-classifier methods, the Preload offers one action, `stopTerminal(terminalId)`, on a dedicated channel; Main validates the sender and identifier and suspends that one Terminal through `terminal.suspend` (the process tree exits, the Session and Agent conversation stay resumable). It cannot terminate arbitrary processes. While open, it samples a fixed `/bin/ps` argv every two seconds, selects both the Desktop and detached Server process trees, overlays Electron process metrics, and exposes only process name, parent/PID, CPU, and resident memory. Common credential flags are redacted before the snapshot crosses IPC. Apart from `stopTerminal`, it cannot access the workbench request bridge, Terminal output, environment values, source files, or Agent transcripts; closing it never changes Server or PTY lifecycle.
 
-The Agent Commander is a second singleton Desktop Main-owned window (`agent-commander-window.ts`). Unlike the Process Explorer it loads the Workbench preload and shares Main's single Desktop connection, so Main, not the preload, is its authority boundary: `AgentCommanderRendererPolicy` admits a fixed request list plus Terminal requests naming only the Commander Terminal, and routes relay messages per window (durable envelopes to both, Terminal-scoped transient events to the viewing window, the reconnect and pull-request announcements to both, other transient events to the Workbench only). Closing or reloading it detaches the Commander Terminal view without stopping its PTY; closing the main window closes it first. See `docs/agent-commander.md`.
+Caxri Bot is a second singleton Desktop Main-owned window (`caxri-bot-window.ts`). Unlike the Process Explorer it loads the Workbench preload and shares Main's single Desktop connection, so Main, not the preload, is its authority boundary: `CaxriBotRendererPolicy` admits a fixed request list plus Terminal requests naming only the Caxri Bot Terminal, and routes relay messages per window (durable envelopes to both, Terminal-scoped transient events to the viewing window, the reconnect and pull-request announcements to both, other transient events to the Workbench only). Closing or reloading it detaches the Caxri Bot Terminal view without stopping its PTY; closing the main window closes it first. See `docs/caxri-bot.md`.
 
-The Benchmark window is a third singleton Main-owned window (`benchmark-window.ts`). Like the Agent Commander it loads the Workbench preload and shares Main's single Desktop connection, so its authority boundary is Main: `benchmark-window-policy.ts` admits the `benchmark.*` methods plus the few reads the shared Renderer shell and an Attempt's Markdown need, and `workbench-ipc.ts` treats it as a companion sender (`CompanionRendererPolicy`). Anything that edits files, Projects, Sessions, Settings, or a Terminal is absent. Runs belong to the Server, so closing the window stops nothing. See `docs/benchmark.md`.
+The Benchmark window is a third singleton Main-owned window (`benchmark-window.ts`). Like Caxri Bot it loads the Workbench preload and shares Main's single Desktop connection, so its authority boundary is Main: `benchmark-window-policy.ts` admits the `benchmark.*` methods plus the few reads the shared Renderer shell and an Attempt's Markdown need, and `workbench-ipc.ts` treats it as a companion sender (`CompanionRendererPolicy`). Anything that edits files, Projects, Sessions, Settings, or a Terminal is absent. Runs belong to the Server, so closing the window stops nothing. See `docs/benchmark.md`.
 
 The Performance Monitor is a detached Main-owned window (`performance-monitor/window.ts`) with its own `performance-monitor` preload. It measures nothing itself: the monitored Workbench publishes its frame pacing through the Workbench preload's `performanceMonitorHost` bridge and Main relays it, dropping a publish that does not come from the monitored window. The separate window lets the Workbench reload while the monitor times that reload from Main's side, and no `webContents.debugger` attach happens because it would distort frame rate.
 

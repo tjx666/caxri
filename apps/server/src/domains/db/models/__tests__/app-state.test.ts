@@ -20,10 +20,7 @@ describe('parseAppStateValue', () => {
             expect.objectContaining({ code: 'VALIDATION' }) as Error,
         );
         expect(() =>
-            parseAppStateValue(
-                'auxiliaryWindowState',
-                '{"agentCommander":{"wasOpenAtQuit":"yes"}}',
-            ),
+            parseAppStateValue('auxiliaryWindowState', '{"caxriBot":{"wasOpenAtQuit":"yes"}}'),
         ).toThrow(expect.objectContaining({ code: 'VALIDATION' }) as Error);
     });
 
@@ -50,8 +47,8 @@ describe('parseAppStateValue', () => {
         expect(
             parseAppStateValue(
                 'auxiliaryWindowState',
-                '{"agentCommander":{"wasOpenAtQuit":true},"processExplorer":{}}',
+                '{"caxriBot":{"wasOpenAtQuit":true},"processExplorer":{}}',
             ),
-        ).toEqual({ agentCommander: { wasOpenAtQuit: true }, processExplorer: {} });
+        ).toEqual({ caxriBot: { wasOpenAtQuit: true }, processExplorer: {} });
     });
 });

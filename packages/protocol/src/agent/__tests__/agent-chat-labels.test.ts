@@ -24,10 +24,7 @@ import {
     summarizeAgentChatWork,
 } from '../agent-chat-work';
 import { agentToolLabel } from '../agent-tool-presentation';
-import {
-    commanderInboxKindLabel,
-    commanderInboxReplyState,
-} from '../commander/agent-commander-inbox-presentation';
+import { botInboxKindLabel, botInboxReplyState } from '../bot/caxri-bot-inbox-presentation';
 
 const zh: AgentChatLabelTranslate = (key, parameters) =>
     interpolate(agentChatLabelsZhCN[key], parameters);
@@ -61,7 +58,7 @@ describe('agent chat label catalogs', () => {
             'Worked for 2m 1s',
         );
         expect(formatShortDuration(400)).toBe('<1s');
-        expect(commanderInboxKindLabel('decision')).toBe('Decision');
+        expect(botInboxKindLabel('decision')).toBe('Decision');
     });
 });
 
@@ -121,16 +118,16 @@ describe('agent chat labels in Simplified Chinese', () => {
         ).toBe('Codex 意外停止。需要回复权限才能重试。');
     });
 
-    it('translates file changes, permission levels, and Commander Inbox labels', () => {
+    it('translates file changes, permission levels, and Bot Inbox labels', () => {
         expect(agentChatChangeKindLabel('add', zh)).toBe('已添加');
         expect(agentChatEditedFilesTitle([{ kind: 'add', path: '/repo/a.ts' }], zh)).toBe(
             '创建了 a.ts',
         );
         expect(agentChatPermissionModeLabel('acceptEdits', 'codex', zh)).toBe('默认');
         expect(agentChatPermissionModeDescription('claude', 'readOnly', zh)).toBeUndefined();
-        expect(commanderInboxKindLabel('hands', zh)).toBe('待你操作');
+        expect(botInboxKindLabel('hands', zh)).toBe('待你操作');
         expect(
-            commanderInboxReplyState({ acknowledgedSequence: 2, replies: [{ sequence: 2 }] }, zh),
-        ).toEqual({ isRead: true, label: 'Commander 已读' });
+            botInboxReplyState({ acknowledgedSequence: 2, replies: [{ sequence: 2 }] }, zh),
+        ).toEqual({ isRead: true, label: 'Caxri Bot 已读' });
     });
 });

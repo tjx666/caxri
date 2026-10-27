@@ -158,6 +158,10 @@ function initializeSchema(database: Database.Database): void {
                 DROP TABLE IF EXISTS agent_chat_answered_notices;
                 DROP TABLE IF EXISTS agent_chat_process_groups;
                 DROP TABLE IF EXISTS benchmark_runs;
+                DROP TABLE IF EXISTS bot_inbox_replies;
+                DROP TABLE IF EXISTS bot_inbox_items;
+                DROP TABLE IF EXISTS bot_pending_notices;
+                DROP TABLE IF EXISTS bot_tasks;
                 DROP TABLE IF EXISTS commander_inbox_replies;
                 DROP TABLE IF EXISTS commander_inbox_items;
                 DROP TABLE IF EXISTS commander_pending_notices;

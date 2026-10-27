@@ -41,27 +41,27 @@ receipts through `AgentChatServiceOptions.onAgentStateChanged`. Dispatch `start`
 delegation child that `session.openAgentsInChat` opens as a Claude Code or Codex Chat (`agent-delegation/chat-child.ts`;
 see `docs/agent-delegation.md`).
 
-The Agent Commander Endpoint is the one fixed exception to grant-only delegation. Domain services begin
-it with `role: 'commander'`, which adds `commander` and `agents.delegate` while its Project scope stays
-the Commander's system Project. Server Core defers the delegation target check for that principal to the
-delegation domain, which admits only the exact recorded Commander Terminal delegating into a non-archived
-Session it created through `commander.session.create` in a visible top-level Project. It never gains
-dispatch, control, steer, or Settings write authority. See `docs/agent-commander.md`.
+The Caxri Bot Endpoint is the one fixed exception to grant-only delegation. Domain services begin
+it with `role: 'bot'`, which adds `bot` and `agents.delegate` while its Project scope stays
+Caxri Bot's system Project. Server Core defers the delegation target check for that principal to the
+delegation domain, which admits only the exact recorded Caxri Bot Terminal delegating into a non-archived
+Session it created through `bot.session.create` in a visible top-level Project. It never gains
+dispatch, control, steer, or Settings write authority. See `docs/caxri-bot.md`.
 
-A delegation completion notice pushed into the Commander Terminal (`CommanderCompletionNotifier`,
-`apps/server/src/domains/commander/completion-notice.ts`) is a second, narrow exception, distinct
-from the Commander delegation-target exception above and never a relaxation of the peer-message rule:
+A delegation completion notice pushed into the Caxri Bot Terminal (`BotCompletionNotifier`,
+`apps/server/src/domains/bot/completion-notice.ts`) is a second, narrow exception, distinct
+from Caxri Bot delegation-target exception above and never a relaxation of the peer-message rule:
 it does not use the Peer Inbox at all, has no sender Endpoint, and never carries Agent-authored text:
 only Server-generated fields (a delegation ID, a Session ID, a closed status word) in one bounded
 line, exactly like the content-free PTY input metrics Terminal steer already logs. Like peer text, it
 can never grant a permission, change a setting, invoke a slash command, or write a user prompt; unlike
-peer text, its point is to make the Commander act, so it deliberately does reach an idle Commander's
+peer text, its point is to make Caxri Bot act, so it deliberately does reach an idle Caxri Bot's
 PTY input rather than waiting in an Inbox. Delivery is fenced to the exact idle-proof-and-input-epoch
 check `AgentDelegationService` already uses before resuming a follow-up, so a draft the human is
 composing defers it the same way a follow-up defers. Undelivered notices persist in
-`commander_pending_notices`; a relaunched Commander, which has no finished turn to prove idle, receives
+`bot_pending_notices`; a relaunched Caxri Bot, which has no finished turn to prove idle, receives
 them (and a marker for a turn a restart cut off) as its launch prompt instead. See "Completion
-notices" in `docs/agent-commander.md`.
+notices" in `docs/caxri-bot.md`.
 
 Managed launch failure, interruption causes, and content-free transition logs are documented in
 [Agent dispatch receipts](../../../../docs/agent-dispatch-receipts.md).
@@ -86,9 +86,9 @@ version numbers here, since a second copy is how they drift.
 
 Owner-only methods. A method spec may declare `principal: 'owner'` (`ownerOnlyCommandPolicy`); Server Core
 refuses it for every principal except Desktop and the human CLI (`assertOwnerOnlyMethod`), because an
-`agent:control` grant gives an Agent Endpoint the same capabilities. Commander hand-over
-(`commander.session.handOver`, `commander.session.takeBack`, `commander.conversations`) and the Desktop-only
-reads `commander.managedSessions` and `session.permissionAutoAllowStatus` use it: they span every Project and the
+`agent:control` grant gives an Agent Endpoint the same capabilities. Caxri Bot hand-over
+(`bot.session.handOver`, `bot.session.takeBack`, `bot.conversations`) and the Desktop-only
+reads `bot.managedSessions` and `session.permissionAutoAllowStatus` use it: they span every Project and the
 default Agent capabilities (`agents.read`, `sessions.read`) would otherwise expose them without Project scope.
-`packages/protocol/src/agent/__tests__/owner-only-commander-methods.test.ts` requires every `commander.*` control or
+`packages/protocol/src/agent/__tests__/owner-only-bot-methods.test.ts` requires every `bot.*` control or
 write method to be owner-only or listed in an explicit exemption.

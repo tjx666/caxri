@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
 
 import type { AgentDispatchService } from '../../agent-dispatch';
-import { createCommanderSession, discardCommanderSession } from '../../commander';
+import { createBotSession, discardBotSession } from '../../bot';
 import { CaxriDatabase } from '../../db';
 import { createBackgroundSession, discardEmptySession } from '../../session';
 import { AgentDelegationService } from '../service';
@@ -18,16 +18,16 @@ async function fixture() {
         database.close();
         await rm(directory, { recursive: true, force: true });
     });
-    const commanderRoot = join(directory, 'commander');
+    const botRoot = join(directory, 'bot');
     const workRoot = join(directory, 'work');
-    await mkdir(commanderRoot);
+    await mkdir(botRoot);
     await mkdir(workRoot);
-    const commanderProject = database.createProject(commanderRoot);
-    const commander = database.createSession(commanderProject.id, 'codex');
-    database.setAppState('agentCommander', {
-        projectId: commanderProject.id,
-        sessionId: commander.session.id,
-        terminalId: commander.terminal!.id,
+    const botProject = database.createProject(botRoot);
+    const bot = database.createSession(botProject.id, 'codex');
+    database.setAppState('caxriBot', {
+        projectId: botProject.id,
+        sessionId: bot.session.id,
+        terminalId: bot.terminal!.id,
         sessionIds: [],
     });
     const project = database.createProject(workRoot);
@@ -46,27 +46,27 @@ async function fixture() {
         verifyLaunch: () => Promise.resolve(),
         readTranscript: vi.fn().mockResolvedValue(null),
         newSessions: {
-            create: (projectId, title, isCommander, createdBySessionId) =>
-                isCommander
-                    ? createCommanderSession(database, projectId, undefined, title)
+            create: (projectId, title, isBot, createdBySessionId) =>
+                isBot
+                    ? createBotSession(database, projectId, undefined, title)
                     : createBackgroundSession(database, projectId, title, createdBySessionId),
             discard: (sessionId) => {
-                if (database.agentCommanderRows()?.sessionIds.includes(sessionId))
-                    discardCommanderSession(database, sessionId);
+                if (database.caxriBotRows()?.sessionIds.includes(sessionId))
+                    discardBotSession(database, sessionId);
                 else discardEmptySession(database, sessionId);
             },
         },
     });
     onTestFinished(() => service.close());
-    const commanderAuthority = {
+    const botAuthority = {
         principal: {
             kind: 'agent' as const,
-            id: 'commander',
-            endpointId: 'commander',
+            id: 'bot',
+            endpointId: 'bot',
             generation: 1,
-            projectIds: [commanderProject.id],
+            projectIds: [botProject.id],
         },
-        callerTerminalId: commander.terminal!.id,
+        callerTerminalId: bot.terminal!.id,
     };
     const callerRoot = join(directory, 'caller');
     await mkdir(callerRoot);
@@ -92,8 +92,8 @@ async function fixture() {
     return {
         database,
         service,
-        commanderAuthority,
-        commanderSessionId: commander.session.id,
+        botAuthority,
+        botSessionId: bot.session.id,
         agentAuthority,
         callerSessionId: caller.session.id,
         callerTerminalId: caller.terminal!.id,
@@ -103,49 +103,46 @@ async function fixture() {
 }
 
 /**
- * The Commander used to create an empty Session in one command and delegate into it in the next, so the Workbench
- * showed an empty Session for as long as the Commander took to write that second command.
+ * Caxri Bot used to create an empty Session in one command and delegate into it in the next, so the Workbench showed an
+ * empty Session for as long as Caxri Bot took to write that second command.
  */
-describe('Delegation into a new Commander Session', () => {
+describe('Delegation into a new Session for Caxri Bot', () => {
     it('creates the Session together with its task, and a retry reuses it', async () => {
-        const { database, service, commanderAuthority, commanderSessionId, request } =
-            await fixture();
+        const { database, service, botAuthority, botSessionId, request } = await fixture();
         const id = randomUUID();
 
-        const receipt = await service.create(id, commanderAuthority, request);
+        const receipt = await service.create(id, botAuthority, request);
 
-        expect(database.agentCommanderRows()?.sessionIds).toEqual([receipt.sessionId]);
+        expect(database.caxriBotRows()?.sessionIds).toEqual([receipt.sessionId]);
         expect(database.listTerminals(receipt.sessionId)).toHaveLength(1);
-        expect(database.getSession(receipt.sessionId)?.createdBySessionId).toBe(commanderSessionId);
-        // The task file pointer is all automatic naming would see, so the Commander's title is kept as a manual one.
+        expect(database.getSession(receipt.sessionId)?.createdBySessionId).toBe(botSessionId);
+        // The task file pointer is all automatic naming would see, so Caxri Bot's title is kept as a manual one.
         expect(database.getSession(receipt.sessionId)).toMatchObject({
             displayTitle: 'Fix login retry',
             titleMode: 'manual',
         });
-        expect((await service.create(id, commanderAuthority, request)).sessionId).toBe(
-            receipt.sessionId,
-        );
+        expect((await service.create(id, botAuthority, request)).sessionId).toBe(receipt.sessionId);
     });
 
     it('removes the Session a concurrent retry created when both join one task', async () => {
-        const { database, service, commanderAuthority, request } = await fixture();
+        const { database, service, botAuthority, request } = await fixture();
         const id = randomUUID();
 
         const [first, second] = await Promise.all([
-            service.create(id, commanderAuthority, request),
-            service.create(id, commanderAuthority, request),
+            service.create(id, botAuthority, request),
+            service.create(id, botAuthority, request),
         ]);
 
         expect(second.sessionId).toBe(first.sessionId);
-        expect(database.agentCommanderRows()?.sessionIds).toEqual([first.sessionId]);
+        expect(database.caxriBotRows()?.sessionIds).toEqual([first.sessionId]);
     });
 
     it('removes the Session again when admission refuses the task', async () => {
-        const { database, service, commanderAuthority, request } = await fixture();
+        const { database, service, botAuthority, request } = await fixture();
         const sessionsBefore = database.listVisibleSessions().length;
 
         await expect(
-            service.create(randomUUID(), commanderAuthority, {
+            service.create(randomUUID(), botAuthority, {
                 ...request,
                 provider: undefined,
                 preset: 'missing-preset',
@@ -153,7 +150,7 @@ describe('Delegation into a new Commander Session', () => {
         ).rejects.toThrow();
 
         expect(database.listVisibleSessions()).toHaveLength(sessionsBefore);
-        expect(database.agentCommanderRows()?.sessionIds).toEqual([]);
+        expect(database.caxriBotRows()?.sessionIds).toEqual([]);
     });
 
     it('refuses an external delegation identity bound to one Session', async () => {
@@ -183,7 +180,7 @@ describe('Delegation into a new Commander Session', () => {
 });
 
 /**
- * Creating and talking to Sessions is ordinary Agent work, not a Commander privilege: an Agent in any Session, Terminal
+ * Creating and talking to Sessions is ordinary Agent work, not a Caxri Bot privilege: an Agent in any Session, Terminal
  * or Chat, used to be refused here, and was steered toward borrowing the owner's identity instead.
  */
 describe('Delegation into a new Session from an ordinary Agent', () => {
@@ -198,9 +195,9 @@ describe('Delegation into a new Session from an ordinary Agent', () => {
             displayTitle: 'Fix login retry',
             createdBySessionId: callerSessionId,
         });
-        // A plain user-visible Session: the Commander never records it as its own.
+        // A plain user-visible Session: Caxri Bot never records it as its own.
         expect(database.listVisibleSessions().map(({ id }) => id)).toContain(receipt.sessionId);
-        expect(database.agentCommanderRows()?.sessionIds).toEqual([]);
+        expect(database.caxriBotRows()?.sessionIds).toEqual([]);
         // The Agent's own task there admits its next one, without a new Session.
         const second = await service.create(randomUUID(), agentAuthority, {
             projectId: project.id,

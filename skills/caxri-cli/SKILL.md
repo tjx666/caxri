@@ -12,7 +12,7 @@ Inside a Caxri Terminal or Agent Chat, the `CAXRI_CLI` environment variable name
 matches the Server which started you. Run `"${CAXRI_CLI:-caxri}"` wherever this guide writes `caxri`:
 a `caxri` found on `PATH` can belong to another installed version that lacks newer commands.
 
-<!-- caxri-capabilities: agents.control,agents.delegate,agents.dispatch,agents.message,agents.read,commander,diagnostics.read,projects.read,projects.write,sessions.read,settings.read,settings.write,terminals.steer -->
+<!-- caxri-capabilities: agents.control,agents.delegate,agents.dispatch,agents.message,agents.read,bot,diagnostics.read,projects.read,projects.write,sessions.read,settings.read,settings.write,terminals.steer -->
 
 ## Start with live introspection
 
@@ -68,7 +68,7 @@ caxri diagnostics snapshot --json
 
 `projects.read`, `sessions.read`, `settings.read`, and `diagnostics.read` are independent. A
 `debug:read` grant adds bounded diagnostic and Settings reads; it does not permit writes. The Agent
-Commander has no current Project or Session to read: its own are hidden, so both selectors return
+Caxri Bot has no current Project or Session to read: its own are hidden, so both selectors return
 `NOT_FOUND` for it.
 
 Validate a proposed Settings change without writing only when `settings.write` is present. A
@@ -172,7 +172,7 @@ Then write the task to a file and run
   conversation with frozen settings; it never replays the old prompt.
   Human input or another launch prevents automatic continuation. A restarted caller generation
   does not inherit an older caller's ownership; ask the authenticated owner to recover that task.
-  The Agent Commander is the one exception: its tasks stay its own across its restarts.
+  Caxri Bot is the one exception: its tasks stay its own across its restarts.
   Inspect the receipt status: `completed` with an answer is distinct from blocked, interrupted,
   human intervention or missing result evidence. Never treat dispatch idle as task completion.
   `blocked` with `startup_waiting` means the Agent is running but has not started, usually at a
@@ -195,77 +195,77 @@ An Agent needs a bounded `agent:control` grant for dispatch or control. CLI Term
 path for the selected waiting Agent. An Agent Endpoint must not attempt either path. Never infer
 lifecycle completion from Terminal silence or read output to guess Agent state.
 
-## Coordinate work as the Agent Commander
+## Coordinate work as Caxri Bot
 
-Only the Agent Commander Terminal holds the `commander` capability. It reads every visible Project
+Only the Caxri Bot Terminal holds the `bot` capability. It reads every visible Project
 and Session through one board, instead of `project current` or `session current`, and delegates each
 task into a Session it created itself or the user handed it.
 `agent delegate create --new-session --title <title>` (in place of `--session <id>`) creates that Session together with the task, so it never sits empty in the
 Workbench. The required title names the Session after the task's concrete subject, because its
-Agent only ever sees a pointer to the task file. `commander session create` creates an empty one:
+Agent only ever sees a pointer to the task file. `bot session create` creates an empty one:
 
 ```bash
-caxri commander board --json
-caxri commander session create --project project-1 --json
+caxri bot board --json
+caxri bot session create --project project-1 --json
 ```
 
 When the user asks to clean up finished work, archive a Session you manage with
-`commander session archive`. It is reversible: the Session's Agent is parked and the user restores it
+`bot session archive`. It is reversible: the Session's Agent is parked and the user restores it
 from Archived Sessions. Other Sessions are refused:
 
 ```bash
-caxri commander session archive session-1 --json
+caxri bot session archive session-1 --json
 ```
 
-The user can also hand the Commander Sessions they started themselves, or Agent conversations begun
-outside Caxri, from the Workbench or with `commander session hand-over`. Each becomes a Commander
+The user can also hand Caxri Bot Sessions they started themselves, or Agent conversations begun
+outside Caxri, from the Workbench or with `bot session hand-over`. Each becomes a Caxri Bot
 Session with an open ledger task carrying the user's note (`--note-file <path>`), and Caxri
 announces it with a hand-over ID. Continue it with
 `agent delegate create --session <id> --prompt-file <path> --continue-handover <handover-id>`: that
 first task resumes the Session's own Agent conversation instead of starting a fresh one, takes no
 provider or preset, and is refused while the Agent is still in a turn. Later tasks continue that
-delegation as usual. Typing into the handed-over Agent, or `commander session take-back`, returns
+delegation as usual. Typing into the handed-over Agent, or `bot session take-back`, returns
 the Session to the user. Only the user can hand over or take back:
 
 ```bash
-caxri commander session hand-over session-1 session-2 --json
-caxri commander session take-back session-1 --json
+caxri bot session hand-over session-1 session-2 --json
+caxri bot session take-back session-1 --json
 ```
 
-The Commander's task ledger is durable product state, not notes it has to remember to keep. Record
+Caxri Bot's task ledger is durable product state, not notes it has to remember to keep. Record
 a request when it is accepted, link the delegation that carries it, and close it when it settles; a
 delegation started without a task gets one recorded automatically:
 
 ```bash
-caxri commander task add --title login-retry --project project-1 --json
-caxri commander task update task-1 --delegation delegation-1 --json
-caxri commander task update task-1 --status done --pr https://github.com/example/app/pull/1 --json
-caxri commander task list --all --json
+caxri bot task add --title login-retry --project project-1 --json
+caxri bot task update task-1 --delegation delegation-1 --json
+caxri bot task update task-1 --status done --pr https://github.com/example/app/pull/1 --json
+caxri bot task list --all --json
 ```
 
 Board rows carry `group` (`attention`, `working`, `waiting`, `failed`, `finished`, `idle`), the
 primary Agent's process state, and a cached pull request with the snapshot's `pullRequestsRefreshedAt`.
 Pass a returned `projectId` and `sessionId` to `agent delegate create`. Delegation into any other
-Session, including busy user Sessions, is refused; the Commander has no dispatch, control, steer,
+Session, including busy user Sessions, is refused; Caxri Bot has no dispatch, control, steer,
 or Settings write authority.
 
 Raise anything that needs the user (a decision, a step only their hands can do, or a pull request you
-verified and judged ready to merge) in the Commander Inbox instead of only saying it in the
+verified and judged ready to merge) in the Bot Inbox instead of only saying it in the
 Terminal; the user may be away and reads the Inbox from Desktop or their phone. Use
-`commander inbox add --kind merge --title <text> --body-file <path> --pr <url> --head <sha>` for a
+`bot inbox add --kind merge --title <text> --body-file <path> --pr <url> --head <sha>` for a
 pull request, writing the Bug, Cause, Fix, Evidence, and Risk report to the file first. A `merge`
 item is keyed by its pull request and pinned to the head you verified; adding it again with a new
 `--head` replaces the report. A decision takes a stable `--key <key>` and repeated
 `--option <text>` choices; reusing the key updates the open item. The user replies, dismisses, or merges; you never
-can. A `[Caxri notice]` line names the item; read it with `commander inbox show`, then acknowledge
-the highest reply `sequence` you handled with `commander inbox ack`, and `commander inbox resolve`
+can. A `[Caxri notice]` line names the item; read it with `bot inbox show`, then acknowledge
+the highest reply `sequence` you handled with `bot inbox ack`, and `bot inbox resolve`
 an item once its matter is settled:
 
 ```bash
-caxri commander inbox list --json
-caxri commander inbox show item-1 --json
-caxri commander inbox ack item-1 --sequence 1 --json
-caxri commander inbox resolve item-1 --json
+caxri bot inbox list --json
+caxri bot inbox show item-1 --json
+caxri bot inbox ack item-1 --sequence 1 --json
+caxri bot inbox resolve item-1 --json
 ```
 
 ## Inspect the matching skill offline

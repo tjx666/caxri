@@ -39,7 +39,7 @@ function options(overrides: {
     >;
 }) {
     return {
-        getAgentCommander: vi.fn(),
+        getCaxriBot: vi.fn(),
         revealSessionInWorkbench: () => Promise.resolve(),
         openSettingsInWorkbench: () => Promise.resolve(),
         getProcessExplorer: () =>

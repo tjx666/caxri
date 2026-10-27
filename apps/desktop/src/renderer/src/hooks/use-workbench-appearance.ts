@@ -7,8 +7,7 @@ import { useSettings, useTheme } from '../stores/selectors';
 
 /**
  * Publishes the Workbench snapshot's theme and font Settings onto the document root. Every window that renders
- * Workbench components (the Workbench itself and the Agent Commander) calls this, so both follow the same Settings the
- * same way.
+ * Workbench components (the Workbench itself and Caxri Bot) calls this, so both follow the same Settings the same way.
  */
 export function useWorkbenchAppearance(): void {
     const theme = useTheme();

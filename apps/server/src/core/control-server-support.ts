@@ -364,7 +364,7 @@ export function operatorContext(profileId: string): CommandExecutionContext {
             'agents.delegate',
             'agents.delegation.access',
             'agents.grant',
-            'commander',
+            'bot',
             'events.read',
             'host.read',
             'host.stop',

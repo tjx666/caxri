@@ -1,22 +1,21 @@
-import type { AgentCommanderWindowController } from './agent-commander-window';
+import type { CaxriBotWindowController } from './caxri-bot-window';
 import type { ProcessExplorerWindowController } from './process-explorer-window';
 
 /**
- * Reopens the Agent Commander exactly where the app quit if it was open then, restoring its remembered bounds and
- * resuming the Commander via `commander.ensure` (`AgentCommanderWindowController.open`); a closed Commander stays
- * closed. Process Explorer never reopens itself; only its bounds are remembered for the next manual open. Callers run
- * this after Server startup is up and the Workbench window's Renderer has actually finished booting, not merely after
- * `openMainWindow` returns (which only creates the `BrowserWindow` and starts its navigation); otherwise a reopened
- * Commander could appear, and possibly steal focus, before the Workbench has anything to show; see
- * `docs/agent-commander.md`.
+ * Reopens Caxri Bot exactly where the app quit if it was open then, restoring its remembered bounds and resuming Caxri
+ * Bot via `bot.ensure` (`CaxriBotWindowController.open`); a closed Caxri Bot stays closed. Process Explorer never
+ * reopens itself; only its bounds are remembered for the next manual open. Callers run this after Server startup is up
+ * and the Workbench window's Renderer has actually finished booting, not merely after `openMainWindow` returns (which
+ * only creates the `BrowserWindow` and starts its navigation); otherwise a reopened Caxri Bot could appear, and
+ * possibly steal focus, before the Workbench has anything to show; see `docs/caxri-bot.md`.
  */
 export async function reopenAuxiliaryWindowsAtStartup(
-    agentCommander: AgentCommanderWindowController | undefined,
+    caxriBot: CaxriBotWindowController | undefined,
     processExplorer: ProcessExplorerWindowController | undefined,
 ): Promise<void> {
-    const wasCommanderOpenAtQuit = (await agentCommander?.loadPersistedState()) ?? false;
+    const wasBotOpenAtQuit = (await caxriBot?.loadPersistedState()) ?? false;
     await processExplorer?.loadPersistedState();
-    if (wasCommanderOpenAtQuit) agentCommander?.open();
+    if (wasBotOpenAtQuit) caxriBot?.open();
 }
 
 /**

@@ -103,10 +103,10 @@ export interface TerminalRestoreOptions {
 }
 
 /**
- * The Agent Commander Session is never selected, so it restores through its own supervisor: sharing the Workbench's
- * would let the next Session selection abort the Commander's resume.
+ * Caxri Bot's Session is never selected, so it restores through its own supervisor: sharing the Workbench's would let
+ * the next Session selection abort Caxri Bot's resume.
  */
-export function createCommanderTerminalRestorer(
+export function createBotTerminalRestorer(
     options: Omit<InterruptedTerminalRestorerOptions, 'terminalRestores'>,
 ) {
     const supervisor = new TerminalRestoreSupervisor(1);

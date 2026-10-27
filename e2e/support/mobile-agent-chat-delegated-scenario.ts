@@ -1,3 +1,4 @@
+import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { delegatedTaskPointer } from '@caxri/protocol';
@@ -15,6 +16,7 @@ import {
 import { mobileSemantics, tapMobileCheck, waitForMobile } from './mobile-android';
 
 const RECORDED_DELEGATION = `dispatch-${'a'.repeat(64)}`;
+const BOT_DELEGATION = `dispatch-${'b'.repeat(64)}`;
 
 /**
  * Longer than the bubble's six-line clamp on a phone, so the bubble offers Show more.
@@ -31,35 +33,53 @@ const DELEGATED_PROMPT = [
 ].join('\n');
 
 /**
- * Saves the delegation record a real launch would have written for `RECORDED_DELEGATION`, so Server Core names the task
- * the caller wrote when the pointer arrives. A real launch needs a delegated Agent; the bubble only reads the record.
+ * Saves the delegation records a real launch would have written, so Server Core names the task the caller wrote when
+ * each pointer arrives: `RECORDED_DELEGATION` with no caller, and `BOT_DELEGATION` called from Caxri Bot's own
+ * Terminal, whose rows are seeded the way Caxri Bot records them. A real launch needs a delegated Agent; the bubble
+ * only reads the records.
  */
-async function seedDelegationRecord(
-    userData: string,
+async function seedDelegationRecords(
+    testDirectory: string,
     projectId: string,
     sessionId: string,
 ): Promise<void> {
     const { CaxriDatabase } = await import('../../apps/server/src/domains/db');
-    const database = new CaxriDatabase(join(userData, 'caxri.db'));
+    const database = new CaxriDatabase(join(testDirectory, 'user-data', 'caxri.db'));
     try {
-        const now = Date.now();
-        database.agentDelegations.insert({
-            receipt: {
-                delegationId: RECORDED_DELEGATION,
-                projectId,
-                sessionId,
-                provider: 'codex',
-                status: 'completed',
-                revision: 1,
-                createdAt: now,
-                updatedAt: now,
-            },
-            principal: { kind: 'human-cli', id: 'acceptance' },
-            input: { projectId, sessionId, provider: 'codex', prompt: DELEGATED_PROMPT },
-            fingerprint: 'acceptance',
-            promptDigest: '0'.repeat(64),
-            frozenLaunch: { executable: 'codex', args: [] },
+        const botRoot = join(testDirectory, 'bot');
+        await mkdir(botRoot);
+        const botProject = database.createProject(botRoot);
+        const bot = database.createSession(botProject.id, 'codex');
+        database.setAppState('caxriBot', {
+            projectId: botProject.id,
+            sessionId: bot.session.id,
+            terminalId: bot.terminal!.id,
+            sessionIds: [],
         });
+        const now = Date.now();
+        for (const [delegationId, callerTerminalId] of [
+            [RECORDED_DELEGATION, undefined],
+            [BOT_DELEGATION, bot.terminal!.id],
+        ] as const) {
+            database.agentDelegations.insert({
+                receipt: {
+                    delegationId,
+                    projectId,
+                    sessionId,
+                    provider: 'codex',
+                    status: 'completed',
+                    revision: 1,
+                    createdAt: now,
+                    updatedAt: now,
+                    ...(callerTerminalId && { callerTerminalId }),
+                },
+                principal: { kind: 'human-cli', id: 'acceptance' },
+                input: { projectId, sessionId, provider: 'codex', prompt: DELEGATED_PROMPT },
+                fingerprint: 'acceptance',
+                promptDigest: '0'.repeat(64),
+                frozenLaunch: { executable: 'codex', args: [] },
+            });
+        }
     } finally {
         database.close();
     }
@@ -91,7 +111,8 @@ async function scrollUpTo(serial: string, id: string): Promise<void> {
 /**
  * `MOB-CHAT-19`: a delegated task reads as a "Delegated task" bubble, and the Session list labels its groups. With its
  * delegation record, the bubble shows the task the caller wrote, clamped with Show more (#2307); without one, it shows
- * the source-less fallback with the raw instruction collapsed.
+ * the source-less fallback with the raw instruction collapsed. A task Caxri Bot delegated reads "Delegated by Caxri
+ * Bot".
  */
 export async function executeMobileChatDelegatedTaskScenario(
     environment: MobileAgentScenarioEnvironment,
@@ -104,8 +125,8 @@ export async function executeMobileChatDelegatedTaskScenario(
     try {
         const chat = fixture.agentChat;
         if (!chat || !fixture.allowedSessionId) throw new Error('Chat fixture is unavailable');
-        await seedDelegationRecord(
-            join(fixture.testDirectory, 'user-data'),
+        await seedDelegationRecords(
+            fixture.testDirectory,
             fixture.allowedProjectId,
             fixture.allowedSessionId,
         );
@@ -121,6 +142,18 @@ export async function executeMobileChatDelegatedTaskScenario(
                 ),
         );
         await chat.send({
+            text: delegatedTaskPointer('/tmp/caxri-delegation/bot.md', BOT_DELEGATION),
+        });
+        await waitForMobile(
+            () => chat.read(),
+            (value) =>
+                !value.activeTurnId &&
+                value.items.some(
+                    (item) =>
+                        item.type === 'userMessage' && item.delegatedTask?.source?.kind === 'bot',
+                ),
+        );
+        await chat.send({
             text: delegatedTaskPointer('/tmp/caxri-delegation/task.md', 'delegation-synthetic-1'),
         });
         const snapshot = await waitForMobile(
@@ -128,13 +161,17 @@ export async function executeMobileChatDelegatedTaskScenario(
             (value) =>
                 !value.activeTurnId &&
                 value.items.filter((item) => item.type === 'userMessage' && item.delegatedTask)
-                    .length === 2,
+                    .length === 3,
         );
         const delegated = snapshot.items.filter(
             (item): item is Extract<typeof item, { type: 'userMessage' }> =>
                 item.type === 'userMessage' && Boolean(item.delegatedTask),
         );
-        const recorded = delegated.find((item) => item.delegatedTask?.prompt)!;
+        const recorded = delegated.find(
+            (item) => item.delegatedTask?.prompt && !item.delegatedTask.source,
+        )!;
+        const fromBot = delegated.find((item) => item.delegatedTask?.source?.kind === 'bot');
+        if (!fromBot) throw new Error('The Caxri Bot pointer was not stamped with its source');
         const pointer = delegated.find((item) => !item.delegatedTask?.prompt);
         if (!pointer) throw new Error('The unrecorded pointer was stamped with a task');
         await fixture.pair();
@@ -149,6 +186,9 @@ export async function executeMobileChatDelegatedTaskScenario(
         await waitForCheck(environment.serial, `agent-chat-delegated-toggle-${pointer.id}`);
         await capture(environment, 'delegated-expanded', artifacts);
         await tapMobileCheck(environment.serial, `agent-chat-delegated-toggle-${pointer.id}`);
+        // Caxri Bot's task sits between the other two, so the swipe toward the recorded one passes it.
+        await scrollUpTo(environment.serial, `agent-chat-delegated-${fromBot.id}`);
+        await capture(environment, 'delegated-by-bot', artifacts);
         const promptId = `agent-chat-delegated-prompt-${recorded.id}`;
         await scrollUpTo(environment.serial, `${promptId}-toggle`);
         const clamped = await promptHeight(environment.serial, promptId);
@@ -163,6 +203,7 @@ export async function executeMobileChatDelegatedTaskScenario(
         await finish(environment, artifacts, {
             delegatedTask: 'collapsed-and-expanded-visible',
             delegatedPrompt: 'clamped-and-expanded-visible',
+            delegatedBy: 'bot-source-visible',
             source: 'synthetic-pointer-and-record',
         });
     } finally {

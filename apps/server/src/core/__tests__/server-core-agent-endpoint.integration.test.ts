@@ -121,7 +121,7 @@ function createAgentEndpointFixture(paths: AgentFixturePaths): CreateDomainServi
                           projects: [{ id: 'project-1', displayTitle: 'Project' }],
                       },
             'terminal.close': () => null,
-            'commander.conversations': () => ({ conversations: [] }),
+            'bot.conversations': () => ({ conversations: [] }),
             'agent.dispatch.startInternal': ({ dispatchId }) => dispatchReceipt(dispatchId),
             'agent.dispatch.statusInternal': ({ dispatchId }) => dispatchReceipt(dispatchId),
             'agent.dispatch.waitInternal': async ({ waitId }) => {
@@ -343,17 +343,17 @@ describe('Server Core Agent Endpoint', () => {
                 endpoint: { ...endpoint.ref, generation: endpoint.ref.generation + 1 },
             }),
         ).rejects.toMatchObject({ code: 'UNAVAILABLE' });
-        // `agent:control` grants `agents.control`, which must not let an Agent hand Sessions to the Commander.
+        // `agent:control` grants `agents.control`, which must not let an Agent hand Sessions to Caxri Bot.
         await expect(
-            agent.request('commander.session.handOver', { sessionIds: ['session-1'] }),
+            agent.request('bot.session.handOver', { sessionIds: ['session-1'] }),
         ).rejects.toMatchObject({ code: 'FORBIDDEN' });
         await expect(
-            agent.request('commander.session.takeBack', { sessionId: 'session-1' }),
+            agent.request('bot.session.takeBack', { sessionId: 'session-1' }),
         ).rejects.toMatchObject({ code: 'FORBIDDEN' });
-        await expect(agent.request('commander.conversations', {})).rejects.toMatchObject({
+        await expect(agent.request('bot.conversations', {})).rejects.toMatchObject({
             code: 'FORBIDDEN',
         });
-        await expect(operator.request('commander.conversations', {})).resolves.toEqual({
+        await expect(operator.request('bot.conversations', {})).resolves.toEqual({
             conversations: [],
         });
         await expect(

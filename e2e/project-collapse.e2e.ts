@@ -73,7 +73,7 @@ test('selecting a Session from outside the sidebar expands its manually collapse
         await heading.getByRole('button', { name: 'Collapse project' }).click();
         await expect(heading.getByRole('button', { name: 'Expand project' })).toBeVisible();
 
-        // The Agent Commander board, a notification, and history navigation all select through the Server like this.
+        // Caxri Bot board, a notification, and history navigation all select through the Server like this.
         await pageRequest(running.page, 'session.select', { sessionId: firstSessionId });
         await expect(heading.getByRole('button', { name: 'Collapse project' })).toBeVisible();
         await expect(running.page.locator(`[data-row-id="${firstSessionId}"]`)).toBeVisible();

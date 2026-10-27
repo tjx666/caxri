@@ -10,10 +10,10 @@ export const core = {
     'core.errorBoundary.technicalDetails': 'Technical details',
     'core.errorBoundary.copyDetails': 'Copy details',
     'core.errorBoundary.reloadWithoutSession': 'Reload without this Session',
-    'core.errorBoundary.agentCommander.title': 'Agent Commander stopped rendering',
-    'core.errorBoundary.agentCommander.description':
-        'Reload Agent Commander to reconnect to its Terminal. The Commander keeps running meanwhile.',
-    'core.errorBoundary.agentCommander.reload': 'Reload Agent Commander',
+    'core.errorBoundary.caxriBot.title': 'Caxri Bot stopped rendering',
+    'core.errorBoundary.caxriBot.description':
+        'Reload Caxri Bot to reconnect to its Terminal. Caxri Bot keeps running meanwhile.',
+    'core.errorBoundary.caxriBot.reload': 'Reload Caxri Bot',
     'core.errorBoundary.benchmark.title': 'Benchmark stopped rendering',
     'core.errorBoundary.benchmark.description':
         'Reload Benchmark to show your runs again. Runs already started keep going meanwhile.',
@@ -135,7 +135,7 @@ export const core = {
     // commands/execute.ts
     'core.commands.usageNeedsProject': 'Add a Project to open Usage',
     'core.commands.openBenchmarkFailed': 'Unable to open Benchmark',
-    'core.commands.openAgentCommanderFailed': 'Unable to open Agent Commander',
+    'core.commands.openCaxriBotFailed': 'Unable to open Caxri Bot',
     'core.commands.diagnosticsExportFailed': 'Diagnostics export failed',
     'core.commands.diagnosticsExported': 'Diagnostics exported to {{path}}',
     'core.commands.revealExportFailed': 'Unable to show the diagnostics file in Finder',

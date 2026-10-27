@@ -50,14 +50,14 @@ describe('CLI business command catalog', () => {
                 'agent message receipt',
                 'agent message policy',
                 'agent message policy-set',
-                'commander board',
-                'commander session create',
-                'commander session archive',
-                'commander session hand-over',
-                'commander session take-back',
-                'commander task list',
-                'commander task add',
-                'commander task update',
+                'bot board',
+                'bot session create',
+                'bot session archive',
+                'bot session hand-over',
+                'bot session take-back',
+                'bot task list',
+                'bot task add',
+                'bot task update',
                 'terminal send',
                 'skills list',
                 'skills get',
@@ -82,10 +82,10 @@ describe('CLI business command catalog', () => {
         expect(() => add?.parseParams(['a', 'b'])).toThrow(/Unexpected argument: b/u);
     });
 
-    it('archives exactly one Commander Session by ID', () => {
-        const archive = findCliCommand(['commander', 'session', 'archive', 'session-1']);
-        if (archive?.kind !== 'remote') throw new Error('commander session archive is missing');
-        expect(archive.method).toBe('commander.session.archive');
+    it('archives exactly one Caxri Bot Session by ID', () => {
+        const archive = findCliCommand(['bot', 'session', 'archive', 'session-1']);
+        if (archive?.kind !== 'remote') throw new Error('bot session archive is missing');
+        expect(archive.method).toBe('bot.session.archive');
         expect(archive.parseParams(['session-1'])).toEqual({ sessionId: 'session-1' });
         expect(() => archive.parseParams([])).toThrow('requires one <session-id>');
         expect(() => archive.parseParams(['session-1', 'session-2'])).toThrow(
@@ -95,11 +95,11 @@ describe('CLI business command catalog', () => {
     });
 
     it('hands Sessions over and takes one back by ID', async () => {
-        const handOver = findCliCommand(['commander', 'session', 'hand-over', 'session-1']);
-        const takeBack = findCliCommand(['commander', 'session', 'take-back', 'session-1']);
+        const handOver = findCliCommand(['bot', 'session', 'hand-over', 'session-1']);
+        const takeBack = findCliCommand(['bot', 'session', 'take-back', 'session-1']);
         if (handOver?.kind !== 'remote' || takeBack?.kind !== 'remote')
-            throw new Error('commander session hand-over or take-back is missing');
-        expect(handOver.method).toBe('commander.session.handOver');
+            throw new Error('bot session hand-over or take-back is missing');
+        expect(handOver.method).toBe('bot.session.handOver');
         await expect(handOver.parseParams(['session-1', 'session-2'])).resolves.toEqual({
             sessionIds: ['session-1', 'session-2'],
             conversations: [],
@@ -110,7 +110,7 @@ describe('CLI business command catalog', () => {
         await expect(handOver.parseParams(['session-1', '--force'])).rejects.toThrow(
             'Unexpected argument: --force',
         );
-        expect(takeBack.method).toBe('commander.session.takeBack');
+        expect(takeBack.method).toBe('bot.session.takeBack');
         expect(takeBack.parseParams(['session-1'])).toEqual({ sessionId: 'session-1' });
         expect(() => takeBack.parseParams([])).toThrow('requires one <session-id>');
     });
@@ -263,10 +263,10 @@ describe('CLI business command catalog', () => {
                 'agent dispatch start',
                 'agent list',
                 'agent message send',
-                'commander board',
-                'commander session create',
-                'commander session archive',
-                'commander task list',
+                'bot board',
+                'bot session create',
+                'bot session archive',
+                'bot task list',
                 'terminal send',
             ]),
         );

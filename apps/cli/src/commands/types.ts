@@ -12,7 +12,7 @@ export const CLI_GROUPS = [
     { name: 'events', summary: 'Watch recoverable typed Server events.' },
     { name: 'diagnostics', summary: 'Inspect redacted diagnostics.' },
     { name: 'agent', summary: 'Use generation-scoped Agent endpoints.' },
-    { name: 'commander', summary: 'Coordinate Agents across Projects from the Agent Commander.' },
+    { name: 'bot', summary: 'Coordinate Agents across Projects from Caxri Bot.' },
     { name: 'skills', summary: 'Inspect and install Caxri Agent skills.' },
 ] as const;
 

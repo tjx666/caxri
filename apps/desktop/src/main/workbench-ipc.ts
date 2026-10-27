@@ -71,11 +71,11 @@ export interface WorkbenchIpcOptions {
      */
     isWorkbenchSender(sender: WebContents): boolean;
     /**
-     * Finds the companion Renderer a sender belongs to: an optional window (the Agent Commander, the Benchmark window)
-     * that shares the Workbench preload and Main's single Desktop↔Server connection. Each is trusted only for the
-     * requests its own policy admits. The Commander mounts the same Terminal pane, so a companion's Terminal
-     * diagnostics (`TERMINAL_DIAGNOSTIC_KINDS`) are accepted and tagged with its `rendererWindow`; startup-frame,
-     * editor, performance, and Workbench readiness diagnostics stay bound to the main window.
+     * Finds the companion Renderer a sender belongs to: an optional window (Caxri Bot, the Benchmark window) that
+     * shares the Workbench preload and Main's single Desktop↔Server connection. Each is trusted only for the requests
+     * its own policy admits. Caxri Bot mounts the same Terminal pane, so a companion's Terminal diagnostics
+     * (`TERMINAL_DIAGNOSTIC_KINDS`) are accepted and tagged with its `rendererWindow`; startup-frame, editor,
+     * performance, and Workbench readiness diagnostics stay bound to the main window.
      */
     companion?(sender: WebContents): CompanionRendererPolicy | undefined;
     /**
@@ -105,9 +105,9 @@ export interface SshHostRendererRoute {
 
 /**
  * Which window a Renderer diagnostic came from, logged as the closed `window` field so a Terminal failure in the Agent
- * Commander window is told apart from one in the Workbench.
+ * Caxri Bot's window is told apart from one in the Workbench.
  */
-export type RendererWindow = 'benchmark' | 'commander' | 'ssh-host' | 'workbench';
+export type RendererWindow = 'benchmark' | 'bot' | 'ssh-host' | 'workbench';
 
 /**
  * The diagnostics the Terminal pane emits, which both windows mount. Every other kind describes the Workbench itself
@@ -124,7 +124,7 @@ export interface CompanionRendererPolicy {
     /**
      * Tags this window's diagnostics and failures.
      */
-    readonly rendererWindow: 'benchmark' | 'commander';
+    readonly rendererWindow: 'benchmark' | 'bot';
     renderer(): WebContents | undefined;
     /**
      * The window a Main method presents native UI over for this companion's requests, such as its context menu.
@@ -196,7 +196,7 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
         if (role === 'ssh-host' && !TERMINAL_DIAGNOSTIC_KINDS.has(diagnostic.kind)) return;
         const rendererWindow: RendererWindow =
             role === 'companion'
-                ? (options.companion?.(event.sender)?.rendererWindow ?? 'commander')
+                ? (options.companion?.(event.sender)?.rendererWindow ?? 'bot')
                 : role;
         if (diagnostic.kind === 'terminal-renderer') {
             options.onRendererDiagnostic?.(diagnostic, rendererWindow);

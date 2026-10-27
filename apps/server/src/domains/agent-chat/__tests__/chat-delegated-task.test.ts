@@ -12,7 +12,7 @@ const pointer = delegatedTaskPointer(
 
 function database(
     callerSessionId: string | undefined,
-    commanderSessionId = 'commander-session',
+    botSessionId = 'bot-session',
     isHandoff = false,
 ) {
     const input = { prompt: 'Fix the flaky login test', ...(isHandoff && { handoff: true }) };
@@ -27,7 +27,7 @@ function database(
             id === 'caller-terminal' && callerSessionId
                 ? { sessionId: callerSessionId }
                 : undefined,
-        agentCommanderRows: () => ({ sessionId: commanderSessionId }),
+        caxriBotRows: () => ({ sessionId: botSessionId }),
     } as unknown as Parameters<typeof delegatedTaskDetails>[0];
 }
 
@@ -42,15 +42,15 @@ describe('delegated task pointer', () => {
 });
 
 describe('delegatedTaskDetails', () => {
-    it('names the calling Session, or Agent Commander for its hidden Session, with the task it asked', () => {
+    it('names the calling Session, or Caxri Bot for its hidden Session, with the task it asked', () => {
         const prompt = 'Fix the flaky login test';
         expect(delegatedTaskDetails(database('session-a'), DELEGATION_ID)).toEqual({
             prompt,
             source: { kind: 'session', sessionId: 'session-a' },
         });
-        expect(delegatedTaskDetails(database('commander-session'), DELEGATION_ID)).toEqual({
+        expect(delegatedTaskDetails(database('bot-session'), DELEGATION_ID)).toEqual({
             prompt,
-            source: { kind: 'commander' },
+            source: { kind: 'bot' },
         });
         expect(delegatedTaskDetails(database(undefined), DELEGATION_ID)).toEqual({ prompt });
         expect(delegatedTaskDetails(database('session-a'), 'gone')).toEqual({});
@@ -58,7 +58,7 @@ describe('delegatedTaskDetails', () => {
 
     it('marks a task its Session handed off with /new-session', () => {
         expect(
-            delegatedTaskDetails(database('session-a', 'commander-session', true), DELEGATION_ID),
+            delegatedTaskDetails(database('session-a', 'bot-session', true), DELEGATION_ID),
         ).toEqual({
             prompt: 'Fix the flaky login test',
             source: { kind: 'session', sessionId: 'session-a' },
@@ -75,14 +75,14 @@ describe('stampDelegatedTasks', () => {
         ];
         const stamped = stampDelegatedTasks(operations, () => ({
             prompt: 'Fix it',
-            source: { kind: 'commander' },
+            source: { kind: 'bot' },
         }));
         expect(stamped[0]).toMatchObject({
             item: {
                 delegatedTask: {
                     delegationId: DELEGATION_ID,
                     prompt: 'Fix it',
-                    source: { kind: 'commander' },
+                    source: { kind: 'bot' },
                 },
             },
         });

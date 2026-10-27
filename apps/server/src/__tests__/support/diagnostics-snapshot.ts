@@ -19,7 +19,7 @@ export function diagnosticsSnapshotFixture(
         terminalCount: 0,
         recentErrorIds: [],
         performance: [],
-        agentCommander: {
+        caxriBot: {
             state: 'stopped',
             sessionCount: 0,
             recentDelegations: [],

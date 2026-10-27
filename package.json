@@ -173,7 +173,7 @@
                     "src/main/bootstrap.ts",
                     "src/preload/performance-monitor.ts",
                     "src/preload/process-explorer.ts",
-                    "src/renderer/src/agent-commander-main.tsx",
+                    "src/renderer/src/caxri-bot-main.tsx",
                     "src/renderer/src/benchmark-main.tsx",
                     "src/renderer/src/main.tsx",
                     "src/renderer/src/performance-monitor-main.tsx",

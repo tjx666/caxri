@@ -510,7 +510,7 @@ describe('Visible same-Terminal follow-up', () => {
             'target_busy',
         );
         expect(f.write).toHaveBeenCalledTimes(1);
-        // The Commander's completion notice reads the prior status to skip a refusal the create call already returned.
+        // Caxri Bot's completion notice reads the prior status to skip a refusal the create call already returned.
         expect(f.receiptChanges).toHaveBeenCalledWith(
             expect.objectContaining({ status: 'failed', failure: 'target_busy' }),
             expect.objectContaining({ status: 'requested' }),

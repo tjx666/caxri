@@ -5,8 +5,8 @@ import { terminals } from './schema';
 import { closedValues, isOneOf } from './schema-constraints';
 
 /**
- * Agent Chat state that no provider history can rebuild. Kept beside `./schema` like the Commander tables;
- * `./full-schema` joins it for drizzle-kit, the drift guard, and the connection.
+ * Agent Chat state that no provider history can rebuild. Kept beside `./schema` like Caxri Bot tables; `./full-schema`
+ * joins it for drizzle-kit, the drift guard, and the connection.
  */
 
 /**

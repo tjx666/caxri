@@ -10,7 +10,7 @@ import { debounce } from 'es-toolkit';
 import { readLocalStorageJson, writeLocalStorageJson } from '../../../lib/local-storage';
 import {
     agentChatAttachmentDatabaseName,
-    configureAgentChatComposerWindowForCommander,
+    configureAgentChatComposerWindowForBot,
     createAgentChatAttachmentPersistence,
     currentAgentChatComposerScope,
     indexedDatabaseAgentChatAttachmentBackend,
@@ -217,11 +217,11 @@ const attachmentPersistence =
 const attachmentHydration: { started: boolean } = { started: false };
 
 /**
- * Keeps the Agent Commander window's unsent images, text drafts, and "Edit from here" in its own scope (see
+ * Keeps the Caxri Bot window's unsent images, text drafts, and "Edit from here" in its own scope (see
  * `AgentChatComposerWindow`). Called from its entry before the first render, before any composer reads its state.
  */
-export function configureAgentChatAttachmentsForCommander(): void {
-    configureAgentChatComposerWindowForCommander();
+export function configureAgentChatAttachmentsForBot(): void {
+    configureAgentChatComposerWindowForBot();
 }
 
 export function readAgentChatDraft(terminalId: string): string {

@@ -25,7 +25,7 @@ window, and a run that never went quiet is reported as unsettled.
 
 Options:
   --port       CDP port of the dev instance (default ${DEFAULT_PORT}; CAXRI_DEV_CDP_PORT sets it at launch).
-  --url        Substring of the window URL to measure, e.g. "agent-commander" (default: the main window).
+  --url        Substring of the window URL to measure, e.g. "caxri-bot" (default: the main window).
   --label      Scenario name recorded in the report, e.g. "session-switch".
   --click      CSS selector clicked once right after arming, for a single-interaction scenario.
   --within     Component name, e.g. "PrimarySidebar": the table keeps only instances that are that component or render
@@ -46,7 +46,7 @@ export interface RenderCountOptions {
     seconds: number;
     settleMs: number;
     /**
-     * Substring of the CDP target URL, for a secondary window such as the Agent Commander. Absent: the main window.
+     * Substring of the CDP target URL, for a secondary window such as Caxri Bot. Absent: the main window.
      */
     url?: string;
     /**

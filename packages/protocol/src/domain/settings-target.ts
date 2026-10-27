@@ -4,9 +4,9 @@ import { agentProviderSchema } from '../agent/agents.js';
 
 /**
  * A typed request to open Settings scrolled and focused to one specific row, instead of landing on the tab's default
- * view. A companion window (the Agent Commander) hands this to the Workbench, which owns the only Settings surface; see
- * `docs/agent-commander.md`. Extend this union with a new `kind` for the next specific deep link rather than growing an
- * ad hoc parameter bag on `agentCommander.openSettings` or any other caller.
+ * view. A companion window (Caxri Bot) hands this to the Workbench, which owns the only Settings surface; see
+ * `docs/caxri-bot.md`. Extend this union with a new `kind` for the next specific deep link rather than growing an ad
+ * hoc parameter bag on `caxriBot.openSettings` or any other caller.
  */
 export const settingsTargetSchema = z.discriminatedUnion('kind', [
     /**

@@ -2,15 +2,15 @@ import { agentSessionInstructions, isChatTerminal } from '@caxri/protocol';
 
 import type { AgentLifecycleSignal } from '../agents';
 import type { CaxriDatabase } from '../db';
-import { agentCommanderTerminal } from '../db';
+import { caxriBotTerminal } from '../db';
 
 /**
  * Supplies the context a Terminal Agent's first `turnStarted` hook adds to its prompt, once per launch.
  *
  * The text is the current `agents.sessionInstructions`, read when the turn starts so an edit reaches the next launch; a
  * cleared setting adds nothing. Only Claude and Codex read `additionalContext` from `UserPromptSubmit`. An Agent Chat
- * gets the same text through its provider's instructions, and the Agent Commander through its workspace instructions,
- * so both are skipped here.
+ * gets the same text through its provider's instructions, and Caxri Bot through its workspace instructions, so both are
+ * skipped here.
  */
 export class AgentTurnContext {
     /**
@@ -30,7 +30,7 @@ export class AgentTurnContext {
         if (this.delivered.get(signal.terminalId) === signal.launchId) return undefined;
         const terminal = this.database.getTerminal(signal.terminalId);
         if (!terminal || isChatTerminal(terminal)) return undefined;
-        if (agentCommanderTerminal(this.database)?.terminalId === terminal.id) return undefined;
+        if (caxriBotTerminal(this.database)?.terminalId === terminal.id) return undefined;
         this.delivered.set(signal.terminalId, signal.launchId);
         return agentSessionInstructions(this.instructions());
     }

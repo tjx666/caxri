@@ -100,23 +100,21 @@ export const desktop = {
     'desktop.deleteSessions.detail':
         'Only Caxri metadata and snapshots are deleted. The selected folders and their files are never touched.',
 
-    'desktop.clearCommanderData.title': 'Clear Agent Commander Data',
-    'desktop.clearCommanderData.message': 'Clear the selected Agent Commander data?',
-    'desktop.clearCommanderData.allTasks': 'Every task in the task ledger',
-    'desktop.clearCommanderData.closedTasks': 'Every finished task in the task ledger',
-    'desktop.clearCommanderData.someTasks': '{{count}} tasks from the task ledger',
-    'desktop.clearCommanderData.someTasksOne': '1 task from the task ledger',
-    'desktop.clearCommanderData.taskFiles': 'Task briefs and pull request reports',
-    'desktop.clearCommanderData.inbox': 'Every Needs you item and reply',
-    'desktop.clearCommanderData.memory':
+    'desktop.clearBotData.title': 'Clear Caxri Bot Data',
+    'desktop.clearBotData.message': 'Clear the selected Caxri Bot data?',
+    'desktop.clearBotData.allTasks': 'Every task in the task ledger',
+    'desktop.clearBotData.closedTasks': 'Every finished task in the task ledger',
+    'desktop.clearBotData.someTasks': '{{count}} tasks from the task ledger',
+    'desktop.clearBotData.someTasksOne': '1 task from the task ledger',
+    'desktop.clearBotData.taskFiles': 'Task briefs and pull request reports',
+    'desktop.clearBotData.inbox': 'Every Needs you item and reply',
+    'desktop.clearBotData.memory':
         'Long-term memory, reset to the starting notes; AGENTS.md is rewritten to match',
-    'desktop.clearCommanderData.instructions':
-        'AGENTS.md, rewritten from the built-in instructions',
-    'desktop.clearCommanderData.conversation':
-        'The current conversation; the Commander starts over',
-    'desktop.clearCommanderData.detail':
+    'desktop.clearBotData.instructions': 'AGENTS.md, rewritten from the built-in instructions',
+    'desktop.clearBotData.conversation': 'The current conversation; Caxri Bot starts over',
+    'desktop.clearBotData.detail':
         'This cannot be undone. Projects, Sessions, and the work running in them are not affected.',
-    'desktop.clearCommanderData.confirm': 'Clear Data',
+    'desktop.clearBotData.confirm': 'Clear Data',
 
     'desktop.revokeDevice.title': 'Revoke Mobile Device',
     'desktop.revokeDevice.message': "Revoke '{{name}}'?",
@@ -238,8 +236,8 @@ export const desktop = {
     'desktop.notification.agentWaiting': 'Waiting for your input',
     'desktop.notification.agentTurnFinished': 'Turn finished',
     'desktop.notification.agentFinishedIn': 'Finished in {{duration}}',
-    'desktop.notification.commanderInbox.title': 'Commander needs your action',
-    'desktop.notification.commanderInbox.bodyOther': '{{count}} new items in the Inbox',
+    'desktop.notification.botInbox.title': 'Caxri Bot needs your action',
+    'desktop.notification.botInbox.bodyOther': '{{count}} new items in the Inbox',
 
     'desktop.reset.title': "This version of Caxri can't use the existing data",
     'desktop.reset.message':

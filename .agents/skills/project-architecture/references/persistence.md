@@ -23,6 +23,17 @@ keeps the two sentences identical, and
 generated parent rebuild keeps its children and a rebuild that leaves a dangling reference rolls
 back.
 
+Renaming a table makes `drizzle-kit generate` ask, per new table, whether it is created or renamed
+from an old one, and it needs a TTY to ask. An agent shell has none, so drive it through a PTY with
+`expect` and answer each prompt from an explicit old-to-new table mapping, never a fixed key
+sequence. A rename also has to keep every historical migration file and tag unchanged (a
+repository-wide codemod rewrote `0005_commander_inbox` once), and the pre-baseline rebuild's drop
+list in `connection.ts` must drop both the new and the former table names: a pre-baseline database
+still holds the old names, and replaying the chain onto them fails with `table already exists`.
+Add the former names to `RENAMED_TABLES` in
+`apps/server/src/domains/db/__tests__/connection-drop-list.test.ts`, which nothing discovers
+automatically.
+
 Integrity lives in the schema, not only in model code: foreign keys cascade owned worktree Projects (`owner_project_id`) and null a deleted primary Agent Terminal (`primary_agent_terminal_id`), `(session_id, order_index)` is unique, and closed protocol enums carry `CHECK` constraints whose value lists are type-checked against the protocol unions through `schema-constraints.ts` (the drift test above, not that type check, catches a widened list without its rebuilt constraint). Open-ended columns such as `terminals.kind` and `provider` deliberately stay unconstrained so a new Agent provider never forces a table rebuild. Row IDs stored inside `app_state` JSON and the `agent_delegations` / `agent_dispatch_receipts` / `agent_session_usage` ID projections are outside any foreign key by design; `schema.ts` documents which code keeps each one consistent. Query modules use the Drizzle query builder while the raw better-sqlite3 handle remains for pragmas and transactions. The schema contains:
 
 - `projects`: identity, unique root, display title, explicit Primary Sidebar order, timestamps, and the reversible `hidden_at` mark
@@ -39,9 +50,9 @@ Integrity lives in the schema, not only in model code: foreign keys cascade owne
 - `agent_chat_answered_notices`: the `Answered: ...` notices Server Core records in an Agent Chat, which no provider history can rebuild, keyed by Terminal and item with the turn and the item each followed; cascades with the Terminal and is pruned when a history replay no longer holds the turn. `terminals.agent_resume_at` holds a rewound Claude Chat's resume record until its first new turn
 - `agent_chat_subagents`: per-Chat summary of each subagent task (task id, title, agent type, closed status, start and end times) so the sidebar can list them without reading a Chat; cascades with the Terminal, capped at 50 per Chat, running rows become stopped on Server Core start; see [docs/agent-chat.md](../../../../docs/agent-chat.md)
 - `agent_chat_process_groups`: process group IDs of live Agent Chat provider children with the leader's start time, so the next Server Core start can reap the groups a killed one left behind without signaling a reused ID; no foreign key, holds no conversation content
-- `commander_tasks`: the Agent Commander's task ledger (title, closed status, Project and Session that null on deletion, root delegation ID unique per task, note, pull request URL); see [docs/agent-commander.md](../../../../docs/agent-commander.md)
-- `commander_pending_notices`: delegation notices the Commander Terminal has not received yet and the marker for a Commander turn that has not finished, deleted when consumed
-- `commander_inbox_items` and `commander_inbox_replies`: the [Commander Inbox](../../../../docs/agent-commander.md#commander-inbox), what the Agent Commander raised for the owner and the owner's replies; Session and delegation IDs are context without foreign keys, and the tables live in `schema-commander.ts` beside the task ledger
+- `bot_tasks`: Caxri Bot's task ledger (title, closed status, Project and Session that null on deletion, root delegation ID unique per task, note, pull request URL); see [docs/caxri-bot.md](../../../../docs/caxri-bot.md)
+- `bot_pending_notices`: delegation notices the Caxri Bot Terminal has not received yet and the marker for a Caxri Bot turn that has not finished, deleted when consumed
+- `bot_inbox_items` and `bot_inbox_replies`: the [Bot Inbox](../../../../docs/caxri-bot.md#bot-inbox), what Caxri Bot raised for the owner and the owner's replies; Session and delegation IDs are context without foreign keys, and the tables live in `schema-bot.ts` beside the task ledger
 
 Session sidebar order is explicit within each Project. A relative `session.reorder` command moves one
 active Session before or after another active Session in that same Project, inside the structural

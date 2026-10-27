@@ -80,7 +80,7 @@ function delegationIdOf(value: unknown): string | undefined {
 }
 
 /**
- * The `delegationId` an `agent.delegation.*` request concerns, as an `ipc.request` log field, so one Commander CLI call
+ * The `delegationId` an `agent.delegation.*` request concerns, as an `ipc.request` log field, so one Caxri Bot CLI call
  * links to the task it created or read (`caxri logs query` projects `fields`, not the observation context). The request
  * names it for every task-scoped method; `agent.delegation.create` learns it only from its receipt, so a successful
  * result is the fallback. Opaque IDs only: the prompt, answer, and launch input never leave the request.

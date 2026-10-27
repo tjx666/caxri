@@ -29,7 +29,7 @@ import { listSshConfigHosts, RecentSshDestinations } from './ssh-config';
 type SharedMainMethodOptions = Pick<
     MainMethodHandlerOptions,
     | 'allowGpuTestInjection'
-    | 'getAgentCommander'
+    | 'getCaxriBot'
     | 'getProcessExplorer'
     | 'getRemoteDebugging'
     | 'getUpdateService'

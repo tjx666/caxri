@@ -13,7 +13,7 @@ function terminalCopyLabel(keybindings: Keybinding[]): string | undefined {
     const template = buildAppMenuTemplate({
         dispatchCommand: vi.fn(),
         keybindings,
-        openAgentCommander: vi.fn(),
+        openCaxriBot: vi.fn(),
         openBenchmark: vi.fn(),
         openProcessExplorer: vi.fn(),
         workbenchWindow: vi.fn(),

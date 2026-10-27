@@ -122,7 +122,7 @@ describe('Extension work in the ordered and repository lanes', () => {
 
     /**
      * Production (0.0.95) logged a 9.8s `source.snapshot` whose nested Git summary held the Desktop lane, so
-     * `commander.status` and `app.records` queued for the same 9.8s behind a read-only view operation.
+     * `bot.status` and `app.records` queued for the same 9.8s behind a read-only view operation.
      */
     it.each([
         ['badge.snapshot', {}],

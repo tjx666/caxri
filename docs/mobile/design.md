@@ -118,7 +118,7 @@ added without moving screens. Query keys include the same host identity.
 ### In-app browser
 
 Every link the phone renders (Markdown links in Agent replies, pull request, issue, and acceptance
-report cards, the Commander inbox's pull request chip) goes through `openLink`
+report cards, Caxri Bot inbox's pull request chip) goes through `openLink`
 (`apps/mobile/src/lib/open-link.ts`). An `http` or `https` link opens the in-app browser, modeled on
 X's: the page fills the screen and a floating toolbar at the bottom offers Close, a pill naming the
 page (its title, else its host, with a lock for `https`) whose menu copies the link, shares it, or

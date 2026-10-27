@@ -45,7 +45,7 @@ export const LATE_MID_TURN_SIGNAL_WINDOW_MS = 2000;
 /**
  * Whether a signal is a mid-turn signal that arrived within {@link LATE_MID_TURN_SIGNAL_WINDOW_MS} after the interrupt
  * at `interruptedAt`. Past the window a mid-turn signal still proves an Escape only closed a picker and reopens the
- * turn. Shared by terminal suspension and the Commander completion notifier so both read an interrupt the same way.
+ * turn. Shared by terminal suspension and Caxri Bot's completion notifier so both read an interrupt the same way.
  */
 export function isLateMidTurnSignalAfterInterrupt(
     signal: Pick<AgentLifecycleSignal, 'agentId' | 'phase'>,

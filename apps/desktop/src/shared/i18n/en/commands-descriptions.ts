@@ -161,14 +161,14 @@ export const commandDescriptions = {
         'Remove the caxri link that points into a Caxri app bundle',
     'commands.description.pathBrowser.open': 'Browse the selected Project and open a file',
     'commands.description.commandPalette.open': 'Search and run Caxri commands',
-    'commands.description.agentCommander.open':
-        'Open the cross-Project Agent board beside the Commander Agent',
-    'commands.description.agentCommander.stop':
-        'Stop the Agent Commander running in the background; opening it again resumes the same conversation',
-    'commands.description.agentCommander.handOver':
-        'Pick Sessions, or Agent conversations started outside Caxri, for the Agent Commander to take over',
-    'commands.description.agentCommander.takeBack':
-        'End the Agent Commander’s management of the selected Session; its Agents keep running',
+    'commands.description.caxriBot.open':
+        'Open the cross-Project Agent board beside Caxri Bot’s Agent',
+    'commands.description.caxriBot.stop':
+        'Stop Caxri Bot running in the background; opening it again resumes the same conversation',
+    'commands.description.caxriBot.handOver':
+        'Pick Sessions, or Agent conversations started outside Caxri, for Caxri Bot to take over',
+    'commands.description.caxriBot.takeBack':
+        'End Caxri Bot’s management of the selected Session; its Agents keep running',
     'commands.description.help.showKeyboardShortcuts':
         'Show every keyboard shortcut, grouped by category',
     'commands.description.help.openDocumentation':

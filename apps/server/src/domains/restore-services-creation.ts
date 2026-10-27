@@ -3,15 +3,15 @@ import { createBackgroundTasks } from './background-tasks';
 import type { FileService } from './files';
 import type { GitService } from './git';
 import type { TerminalRestoreSupervisor, TerminalSuspensionService } from './terminal';
-import { createCommanderTerminalRestorer, createInterruptedTerminalRestorer } from './terminal';
+import { createBotTerminalRestorer, createInterruptedTerminalRestorer } from './terminal';
 
-type RestorerOptions = Parameters<typeof createCommanderTerminalRestorer>[0];
+type RestorerOptions = Parameters<typeof createBotTerminalRestorer>[0];
 
 /**
  * Owns the Terminal restore slice. Create: the interrupted-Terminal restorers for the user's Sessions and the Agent
- * Commander's, each behind its fire-and-forget background wrapper. Start: registers the suspension service's reselect
- * hook so a reselected suspended Session restores. Close: the composition root closes the returned `commanderRestores`
- * after `terminalRestores`, in its fixed close order.
+ * Caxri Bot's, each behind its fire-and-forget background wrapper. Start: registers the suspension service's reselect
+ * hook so a reselected suspended Session restores. Close: the composition root closes the returned `botRestores` after
+ * `terminalRestores`, in its fixed close order.
  */
 export function createRestoreServices(options: {
     agentChat: Pick<AgentChatService, 'resumeSuspended'>;
@@ -34,17 +34,17 @@ export function createRestoreServices(options: {
             await restoreInterruptedTerminals(sessionId, restoreOptions);
         });
     terminalSuspension.setOnSuspendedSessionReselected(restoreInterruptedTerminalsInBackground);
-    const { restore: restoreCommander, supervisor: commanderRestores } =
-        createCommanderTerminalRestorer(restorerOptions);
-    const restoreCommanderTerminals = createBackgroundTasks(
+    const { restore: restoreBot, supervisor: botRestores } =
+        createBotTerminalRestorer(restorerOptions);
+    const restoreBotTerminals = createBackgroundTasks(
         logger,
         files,
         git,
-        restoreCommander,
+        restoreBot,
     ).restoreInterruptedTerminalsInBackground;
     return {
-        commanderRestores,
-        restoreCommanderTerminals,
+        botRestores,
+        restoreBotTerminals,
         restoreInterruptedTerminalsInBackground,
         watchSessionInBackground,
     };

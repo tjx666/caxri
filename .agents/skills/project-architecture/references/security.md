@@ -36,7 +36,7 @@ Every path that registers a Project is one of these authorities; a new one belon
 - `mobile.project.add` from a paired device with the `control` role. Server Core resolves the typed
   path inside the Server user's home directory, registers the owning root, and grants the new Project
   to that device; see [mobile authorization](../../../../docs/mobile/authorization.md#adding-a-project-from-mobile).
-- The Agent Commander system Project, which Server Core registers for its own `agent-commander`
+- Caxri Bot's system Project, which Server Core registers for its own `caxri-bot`
   workspace inside the profile; no Client supplies that path.
 - The external-caller delegation bootstrap: the profile owner's confirmed
   `caxri agent delegate access create --root <path> --register-project`. Server Core
@@ -51,11 +51,11 @@ Every path that registers a Project is one of these authorities; a new one belon
   forwards it to the SSH Host's own Server without a grant; that Server canonicalizes it. The window's
   account can already read that folder, so the authority is the user's choice in that browser; see
   [SSH Host](../../../../docs/ssh-host.md).
-- Commander hand-over of an Agent conversation started outside Caxri. Server Core adds the
+- Caxri Bot hand-over of an Agent conversation started outside Caxri. Server Core adds the
   conversation's folder as a Project when no visible Project contains it. Only the owner's Desktop and
-  human CLI may call `commander.session.handOver`; Server Core refuses every other principal, including
+  human CLI may call `bot.session.handOver`; Server Core refuses every other principal, including
   an Agent Endpoint holding an `agent:control` grant; see
-  [Agent Commander](../../../../docs/agent-commander.md).
+  [Caxri Bot](../../../../docs/caxri-bot.md).
 - `project.add` (`caxri project add <path>`) from any managed Agent Endpoint or the owner's human CLI,
   through the `projects.write` capability. Server Core canonicalizes the absolute path the CLI
   resolved from its working directory and registers that root as `mobile.project.add` does, without

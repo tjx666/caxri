@@ -287,10 +287,9 @@ test('Process Explorer opens one live Caxri process tree and closes independentl
 });
 
 /**
- * Process Explorer follows the app-wide `window.zoomLevel` the same way the Agent Commander does, and remembers its own
- * bounds across an app restart with the same display-clamped persistence; see
- * `AgentCommanderWindowController.currentWindowState` and `docs/agent-commander.md`. It never reopens itself at
- * startup, unlike the Commander.
+ * Process Explorer follows the app-wide `window.zoomLevel` the same way Caxri Bot does, and remembers its own bounds
+ * across an app restart with the same display-clamped persistence; see `CaxriBotWindowController.currentWindowState`
+ * and `docs/caxri-bot.md`. It never reopens itself at startup, unlike Caxri Bot.
  */
 test('Process Explorer follows the app zoom and remembers its bounds across a restart', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-process-explorer-state-e2e-'));
@@ -343,7 +342,7 @@ test('Process Explorer follows the app zoom and remembers its bounds across a re
 
         await running.app.close();
         running = await launchCaxri({ userDataDir: userData, testRootPath: root });
-        // Process Explorer never reopens itself at startup, unlike the Commander.
+        // Process Explorer never reopens itself at startup, unlike Caxri Bot.
         expect(running.app.windows().length).toBe(1);
 
         await pageRequest(running.page, 'processExplorer.open');

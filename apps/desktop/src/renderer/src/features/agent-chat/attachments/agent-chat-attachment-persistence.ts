@@ -231,17 +231,17 @@ export function createAgentChatAttachmentPersistence({
 const DATABASE_NAME = 'caxri-agent-chat';
 
 /**
- * The Renderer window a store belongs to. The Agent Commander window shows only its own Chat, which the Workbench
- * snapshot excludes, so it needs a scope of its own: otherwise the Workbench would prune the Commander's images and
- * edits as unretained on every launch, and the Commander would hydrate and evict every Workbench Chat's images.
+ * The Renderer window a store belongs to. The Caxri Bot window shows only its own Chat, which the Workbench snapshot
+ * excludes, so it needs a scope of its own: otherwise the Workbench would prune Caxri Bot's images and edits as
+ * unretained on every launch, and Caxri Bot would hydrate and evict every Workbench Chat's images.
  */
-export type AgentChatComposerWindow = 'commander' | 'workbench';
+export type AgentChatComposerWindow = 'bot' | 'workbench';
 
 /**
  * Which device-local composer state (unsent images, text drafts, "Edit from here") one window owns: its window kind and
- * environment. Every window (local or SSH Host Workbench, and the Commander) loads the same `file://` origin and so
- * shares IndexedDB and `localStorage`, while each Workbench retains only its own environment's Chat Terminals; one
- * shared store would let a window delete every other environment's state as unretained. An SSH Host is keyed by Main's
+ * environment. Every window (local or SSH Host Workbench, and Caxri Bot) loads the same `file://` origin and so shares
+ * IndexedDB and `localStorage`, while each Workbench retains only its own environment's Chat Terminals; one shared
+ * store would let a window delete every other environment's state as unretained. An SSH Host is keyed by Main's
  * resolved host key, so every alias of one account (which Main opens as one window) finds the same state after a
  * relaunch, whichever alias reconnected. A Workbench whose environment is not known yet uses the local scope: Main
  * answers the environment before the Server attaches, so a Workbench window knows it before any Chat composer exists.
@@ -250,18 +250,18 @@ export function agentChatComposerScope(
     window: AgentChatComposerWindow,
     environment: EnvironmentState | undefined,
 ): string {
-    if (window === 'commander') return 'commander';
+    if (window === 'bot') return 'bot';
     return environment ? environmentStorageScope(environment) : 'local';
 }
 
 const composerWindow: { kind: AgentChatComposerWindow } = { kind: 'workbench' };
 
 /**
- * Marks this Renderer as the Agent Commander window, which keeps its composer state in its own scope (see
+ * Marks this Renderer as the Caxri Bot window, which keeps its composer state in its own scope (see
  * `AgentChatComposerWindow`). Called from its entry before the first render, before any composer reads its state.
  */
-export function configureAgentChatComposerWindowForCommander(): void {
-    composerWindow.kind = 'commander';
+export function configureAgentChatComposerWindowForBot(): void {
+    composerWindow.kind = 'bot';
 }
 
 /**

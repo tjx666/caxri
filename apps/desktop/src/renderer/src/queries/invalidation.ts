@@ -20,7 +20,7 @@ import {
     PULL_REQUESTS_QUERY_KEY,
 } from './invalidation-delivery';
 import {
-    invalidateCommanderInboxQuery,
+    invalidateBotInboxQuery,
     invalidateGitReviewQueries,
     invalidatePermissionAutoAllowQuery,
 } from './invalidation-event-reads';
@@ -51,10 +51,10 @@ const BADGE_OPERATIONS = new Set<ControlledViewQueryOperation>(['badge.snapshot'
 const CATALOG_QUERY_KEY: readonly [CaxriMethod] = ['viewContainers.catalog'];
 const AGENT_ACTIONS_QUERY_KEY: readonly [CaxriMethod] = ['agentActions.list'];
 /**
- * The Commander's rows are excluded from Workbench records, so no record-scoped change names them; any state change may
- * be the Commander's, and the read is one cheap row lookup.
+ * Caxri Bot's rows are excluded from Workbench records, so no record-scoped change names them; any state change may be
+ * Caxri Bot's, and the read is one cheap row lookup.
  */
-const COMMANDER_STATUS_QUERY_KEY: readonly [CaxriMethod] = ['commander.status'];
+const BOT_STATUS_QUERY_KEY: readonly [CaxriMethod] = ['bot.status'];
 /**
  * Reasons whose Session membership change must refresh the shared pull-request query at once. Typed from the event
  * contract so a renamed reason fails typecheck rather than silently never matching.
@@ -440,7 +440,7 @@ export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () 
             return;
         }
         if (event.event === 'state.changed') {
-            void queryClient.invalidateQueries({ queryKey: COMMANDER_STATUS_QUERY_KEY });
+            void queryClient.invalidateQueries({ queryKey: BOT_STATUS_QUERY_KEY });
             if (event.payload.kind === 'full') invalidateAgentTranscriptQuery(queryClient);
             else {
                 for (const terminalId of event.payload.terminalIds)
@@ -529,8 +529,8 @@ export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () 
             void queryClient.invalidateQueries({ queryKey: ['claudeWindow.status'] });
             return;
         }
-        if (event.event === 'commanderInbox.changed') {
-            invalidateCommanderInboxQuery(queryClient);
+        if (event.event === 'botInbox.changed') {
+            invalidateBotInboxQuery(queryClient);
             return;
         }
         if (event.event !== 'files.changed') return;

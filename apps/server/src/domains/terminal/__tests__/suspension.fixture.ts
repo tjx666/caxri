@@ -54,7 +54,7 @@ function session(id: string, primaryAgentTerminalId: string) {
 export function createHarness(
     options: {
         chats?: ConstructorParameters<typeof TerminalSuspensionService>[0]['chats'];
-        commanderSessionId?: string;
+        botSessionId?: string;
         /**
          * When set, every `terminals.suspend` call pauses instead of resolving immediately, standing in for the real
          * PTY-kill-and-snapshot teardown that `TerminalManager#suspend` awaits. A test drains the queue explicitly with
@@ -108,9 +108,9 @@ export function createHarness(
     const service = new TerminalSuspensionService({
         database: {
             getAppState: () =>
-                options.commanderSessionId && {
+                options.botSessionId && {
                     projectId: 'project-1',
-                    sessionId: options.commanderSessionId,
+                    sessionId: options.botSessionId,
                     sessionIds: [],
                 },
             getProject: () => ({ hiddenAt: undefined }),

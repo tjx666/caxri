@@ -6,8 +6,8 @@ import type { BrowserWindow } from 'electron';
 /**
  * The window whose Renderer sent the request Main is handling. The command dispatcher is transport-neutral and its
  * execution context carries no Electron objects, so a Main method that presents native UI over its caller (the Agent
- * Commander Terminal's context menu) reads the caller here instead of assuming the Workbench window. Requests that run
- * outside `runInRequestWindow`, including every Workbench request, fall back to the Workbench window.
+ * Caxri Bot's Terminal's context menu) reads the caller here instead of assuming the Workbench window. Requests that
+ * run outside `runInRequestWindow`, including every Workbench request, fall back to the Workbench window.
  */
 const requestWindow = new AsyncLocalStorage<BrowserWindow>();
 

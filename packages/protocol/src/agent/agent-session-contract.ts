@@ -22,8 +22,8 @@ export const agentSessionOperationSchema = z.discriminatedUnion('action', [
 /**
  * Lets an Agent tidy up the Sessions its own Session created through `agent delegate create --new-session`: give one a
  * better title, archive it when the work is done, or restore it. Any other Session, including the caller's own and
- * every Session the user created, is `NOT_FOUND`. The Agent Commander is held to the Sessions it still owns, so a
- * Session the user took back or handed over stays out of reach.
+ * every Session the user created, is `NOT_FOUND`. Caxri Bot is held to the Sessions it still owns, so a Session the
+ * user took back or handed over stays out of reach.
  */
 export const agentSessionMethods = {
     'agent.session.rename': {

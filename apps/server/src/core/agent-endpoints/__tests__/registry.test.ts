@@ -45,22 +45,22 @@ describe('AgentEndpointRegistry', () => {
         expect(capabilities).not.toContain('agents.control');
         expect(capabilities).not.toContain('agents.dispatch');
         expect(capabilities).not.toContain('terminals.steer');
-        expect(capabilities).not.toContain('commander');
+        expect(capabilities).not.toContain('bot');
     });
 
-    it('grants the Agent Commander role board and delegation authority without general control', () => {
+    it('grants the Caxri Bot role board and delegation authority without general control', () => {
         const registry = new AgentEndpointRegistry('host-1', { token: () => TOKEN });
-        const commander = begin(registry, { role: 'commander' });
+        const bot = begin(registry, { role: 'bot' });
         const ordinary = begin(registry, { terminalId: 'terminal-2', launchId: 'launch-2' });
-        activate(registry, commander);
+        activate(registry, bot);
         activate(registry, ordinary, 'launch-2');
 
-        const granted = registry.authenticate({ ...commander.ref, token: TOKEN }).capabilities;
-        expect(granted).toEqual(expect.arrayContaining(['agents.delegate', 'commander']));
+        const granted = registry.authenticate({ ...bot.ref, token: TOKEN }).capabilities;
+        expect(granted).toEqual(expect.arrayContaining(['agents.delegate', 'bot']));
         expect(granted).not.toContain('agents.control');
         expect(granted).not.toContain('terminals.steer');
         expect(registry.authenticate({ ...ordinary.ref, token: TOKEN }).capabilities).not.toContain(
-            'commander',
+            'bot',
         );
     });
 

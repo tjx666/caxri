@@ -14,7 +14,7 @@ function handler(
     tearOffSession?: NonNullable<Parameters<typeof createMainMethodHandler>[0]['tearOffSession']>,
 ) {
     return createMainMethodHandler({
-        getAgentCommander: vi.fn(),
+        getCaxriBot: vi.fn(),
         revealSessionInWorkbench: () => Promise.resolve(),
         openSettingsInWorkbench: () => Promise.resolve(),
         getProcessExplorer: () => ({}) as ProcessExplorerWindowController,

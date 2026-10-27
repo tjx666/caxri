@@ -37,8 +37,8 @@ interface CommandMention {
  * when its command path starts with a command word followed by another command word, a `<placeholder>`, or an option,
  * so a bare group (`agent dispatch`) and a shorthand (`stop <id>`) fail because neither names a runnable command, while
  * field prose such as `message = null` is skipped. A lone word is indistinguishable from a capability or field name
- * (`commander`, `status`), so a one-word command is written with the `caxri` prefix. Markdown lets an inline span wrap
- * across lines, so a span may contain newlines.
+ * (`bot`, `status`), so a one-word command is written with the `caxri` prefix. Markdown lets an inline span wrap across
+ * lines, so a span may contain newlines.
  */
 function inlineCommandMentions(skill: string): CommandMention[] {
     const commandWords = new Set<string>(CLI_COMMANDS.flatMap((command) => command.path));

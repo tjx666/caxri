@@ -4,7 +4,7 @@ import { check, index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-cor
 import { closedValues, isOneOf } from './schema-constraints';
 
 /**
- * Benchmark runs. Kept beside `./schema` like the Commander tables; `./full-schema` joins it for drizzle-kit, the drift
+ * Benchmark runs. Kept beside `./schema` like Caxri Bot tables; `./full-schema` joins it for drizzle-kit, the drift
  * guard, and the connection.
  */
 

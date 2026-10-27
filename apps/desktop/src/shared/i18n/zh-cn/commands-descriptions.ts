@@ -124,13 +124,12 @@ export const commandDescriptions: TranslatedNamespace<typeof source> = {
     'commands.description.shellCommand.uninstall': '移除指向 Caxri 应用包的 caxri 链接',
     'commands.description.pathBrowser.open': '浏览所选项目并打开文件',
     'commands.description.commandPalette.open': '搜索并运行 Caxri 命令',
-    'commands.description.agentCommander.open': '打开 Commander Agent 旁的跨项目 Agent 看板',
-    'commands.description.agentCommander.stop':
-        '停止在后台运行的 Agent Commander；再次打开会恢复同一对话',
-    'commands.description.agentCommander.handOver':
-        '选择会话或在 Caxri 之外开始的 Agent 对话，交给 Agent Commander 接手',
-    'commands.description.agentCommander.takeBack':
-        '结束 Agent Commander 对所选会话的管理；会话中的 Agent 继续运行',
+    'commands.description.caxriBot.open': '打开 Caxri Bot 的 Agent 旁的跨项目 Agent 看板',
+    'commands.description.caxriBot.stop': '停止在后台运行的 Caxri Bot；再次打开会恢复同一对话',
+    'commands.description.caxriBot.handOver':
+        '选择会话或在 Caxri 之外开始的 Agent 对话，交给 Caxri Bot 接手',
+    'commands.description.caxriBot.takeBack':
+        '结束 Caxri Bot 对所选会话的管理；会话中的 Agent 继续运行',
     'commands.description.help.showKeyboardShortcuts': '按类别列出所有键盘快捷键',
     'commands.description.help.openDocumentation': '在浏览器中打开 Caxri 入门指南',
     'commands.description.help.openReleaseNotes': '查看每个 Caxri 版本的更新内容',

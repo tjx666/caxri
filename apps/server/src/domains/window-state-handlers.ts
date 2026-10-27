@@ -5,7 +5,7 @@ import type { DomainHandlers } from './domain-services';
 
 const DEFAULT_WINDOW_BOUNDS: PersistedWindowState['bounds'] = { width: 1440, height: 900 };
 const DEFAULT_AUXILIARY_WINDOW_STATE: AuxiliaryWindowState = {
-    agentCommander: { wasOpenAtQuit: false },
+    caxriBot: { wasOpenAtQuit: false },
     processExplorer: {},
 };
 

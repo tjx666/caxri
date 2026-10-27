@@ -13,7 +13,7 @@ import { useWorkbenchStore } from '../../stores/workbench';
 import { revealEditorNavigation } from '../editor/editor-reveal';
 import { openExternalEditorDocument } from '../editor/external-editor-documents';
 import { openTerminalLinkCandidatePicker } from './terminal-link-actions';
-import { openCommanderFileLink, openTerminalFileLink } from './terminal-link-commands';
+import { openBotFileLink, openTerminalFileLink } from './terminal-link-commands';
 
 /**
  * What to say when Main refused a file link on its own. Without these the link reads as broken: the click lands, the
@@ -40,7 +40,7 @@ export async function openTerminalFileTarget(
 ): Promise<void> {
     try {
         /**
-         * The Commander Terminal has no editor of its own, so its opener hands the link to the Workbench through a
+         * The Caxri Bot Terminal has no editor of its own, so its opener hands the link to the Workbench through a
          * separate, Main-validated request instead of `terminal.openFileLink` (see `hasWorkbenchLinks`'s JSDoc).
          *
          * Deliberately an `if`/`else` assigning into an explicitly typed `result`, not a ternary: both calls return the
@@ -55,7 +55,7 @@ export async function openTerminalFileTarget(
         if (hasWorkbenchLinks) {
             result = await openTerminalFileLink(terminalId, target, location);
         } else {
-            result = await openCommanderFileLink(terminalId, target, location);
+            result = await openBotFileLink(terminalId, target, location);
         }
         if ('document' in result) {
             const workbenchProjectId = useWorkbenchStore

@@ -30,8 +30,8 @@ import type Database from 'better-sqlite3';
 import type { AgentLifecycleSignal } from '../agents';
 import { insertAgentDispatchWithTerminal } from './agent-dispatch-terminal';
 import { AgentIdentity } from './agent-identity';
-import type { AgentCommanderRows } from './commander-rows';
-import { agentCommanderRows } from './commander-rows';
+import type { CaxriBotRows } from './bot-rows';
+import { caxriBotRows } from './bot-rows';
 import type { CaxriDatabaseConnectionOptions as CaxriDatabaseOptions } from './database-connection';
 import { CaxriDatabaseConnection as CaxriDatabase_ } from './database-connection';
 import { ensureDelegationContext } from './delegation-context';
@@ -94,9 +94,9 @@ export class CaxriDatabase {
     readonly mobileAgentSubmitReceipts: CaxriDatabase_['mobileAgentSubmitReceipts'];
     readonly agentDelegations: CaxriDatabase_['agentDelegations'];
     readonly agentSessionUsage: CaxriDatabase_['agentSessionUsage'];
-    readonly commanderInbox: CaxriDatabase_['commanderInbox'];
-    readonly commanderTasks: CaxriDatabase_['commanderTasks'];
-    readonly commanderPendingNotices: CaxriDatabase_['commanderPendingNotices'];
+    readonly botInbox: CaxriDatabase_['botInbox'];
+    readonly botTasks: CaxriDatabase_['botTasks'];
+    readonly botPendingNotices: CaxriDatabase_['botPendingNotices'];
     readonly terminalSurfaces: TerminalSurfaces;
     readonly windowOpenSessions: WindowOpenSessionsStore;
 
@@ -107,9 +107,9 @@ export class CaxriDatabase {
         this.mobileAgentSubmitReceipts = this.db.mobileAgentSubmitReceipts;
         this.agentDelegations = this.db.agentDelegations;
         this.agentSessionUsage = this.db.agentSessionUsage;
-        this.commanderInbox = this.db.commanderInbox;
-        this.commanderTasks = this.db.commanderTasks;
-        this.commanderPendingNotices = this.db.commanderPendingNotices;
+        this.botInbox = this.db.botInbox;
+        this.botTasks = this.db.botTasks;
+        this.botPendingNotices = this.db.botPendingNotices;
         this.terminalSurfaces = new TerminalSurfaces(this.db);
         this.windowOpenSessions = new WindowOpenSessionsStore(this.db);
     }
@@ -243,8 +243,8 @@ export class CaxriDatabase {
         return listVisibleSessions(this.db);
     }
 
-    agentCommanderRows(): AgentCommanderRows | undefined {
-        return agentCommanderRows(this.db);
+    caxriBotRows(): CaxriBotRows | undefined {
+        return caxriBotRows(this.db);
     }
 
     listSessions(projectId?: string): SessionRecord[] {

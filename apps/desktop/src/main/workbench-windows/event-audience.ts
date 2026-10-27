@@ -35,7 +35,7 @@ export const EVENT_AUDIENCE = {
     'projectStatus.changed': 'all',
     'projectStatus.alert': 'focused',
     'sessionPullRequests.changed': 'all',
-    'commanderInbox.changed': 'all',
+    'botInbox.changed': 'all',
     'benchmark.changed': 'all',
     'claudeWindow.changed': 'all',
     'gitReview.changed': 'all',
@@ -66,12 +66,12 @@ export const EVENT_AUDIENCE = {
     'command.execute': 'focused',
     'settings.openRequested': 'focused',
     /**
-     * Commander-only: `agent-commander-window.ts` sends these straight to the Commander Renderer and they never pass
-     * through the Workbench broadcast, so the audience is not consulted. `all` is only the closest member of
+     * Caxri Bot-only: `caxri-bot-window.ts` sends these straight to Caxri Bot's Renderer and they never pass through
+     * the Workbench broadcast, so the audience is not consulted. `all` is only the closest member of
      * {@link EventAudience}; no narrower value exists.
      */
-    'agentCommander.inboxRequested': 'all',
-    'agentCommander.commandPaletteRequested': 'all',
+    'caxriBot.inboxRequested': 'all',
+    'caxriBot.commandPaletteRequested': 'all',
 } as const satisfies Record<ServerEvent['event'], EventAudience>;
 
 export function eventAudience(event: ServerEvent): EventAudience {

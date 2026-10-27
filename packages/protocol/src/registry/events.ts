@@ -237,10 +237,10 @@ export const serverEventPayloads = {
      */
     'sessionPullRequests.changed': z.object({ sessionIds: z.array(identifierSchema).max(1_024) }),
     /**
-     * Content-free: the Commander Inbox items that were added, updated, replied to, or closed. Readers re-read
-     * `commander.inbox.list`.
+     * Content-free: the Bot Inbox items that were added, updated, replied to, or closed. Readers re-read
+     * `bot.inbox.list`.
      */
-    'commanderInbox.changed': z.object({ itemIds: z.array(identifierSchema).max(64) }),
+    'botInbox.changed': z.object({ itemIds: z.array(identifierSchema).max(64) }),
     /**
      * The Claude 5-hour window keeper's state changed (a check, a trigger, or a settings change). Content-free; readers
      * re-read `claudeWindow.status`, and Desktop refreshes the background job from it.
@@ -351,11 +351,11 @@ export const serverEventPayloads = {
     ]),
     /**
      * One native window entered or left macOS fullscreen. Durable delivery reaches every Renderer, so `window` names
-     * the window whose state this is: each Renderer applies only its own, since the Workbench, the Agent Commander
-     * window, and the Benchmark window go fullscreen independently.
+     * the window whose state this is: each Renderer applies only its own, since the Workbench, Caxri Bot window, and
+     * the Benchmark window go fullscreen independently.
      */
     'window.fullScreen': z.object({
-        window: z.enum(['workbench', 'agentCommander', 'benchmark']),
+        window: z.enum(['workbench', 'caxriBot', 'benchmark']),
         isFullScreen: z.boolean(),
     }),
     /**
@@ -451,22 +451,22 @@ export const serverEventPayloads = {
     /**
      * Main-originated request to open Settings scrolled to one specific row. `command.execute` cannot carry this: its
      * `CommandId` bus is zero-argument by design (menu items and keyboard shortcuts), so a companion window's targeted
-     * Settings hand-off (see `agentCommander.openSettings`) gets its own event instead of growing a payload onto every
+     * Settings hand-off (see `caxriBot.openSettings`) gets its own event instead of growing a payload onto every
      * command.
      */
     'settings.openRequested': z.object({ target: settingsTargetSchema }),
     /**
-     * Main-originated, Commander-window-only request to open its Inbox and focus the first open item, sent after
-     * `agentCommander.open` with `target: 'inbox'` raised the window. Main holds it until a newly opened window's
-     * Renderer subscribes to events, so a window the request itself opened still receives it.
+     * Main-originated, Caxri Bot-window-only request to open its Inbox and focus the first open item, sent after
+     * `caxriBot.open` with `target: 'inbox'` raised the window. Main holds it until a newly opened window's Renderer
+     * subscribes to events, so a window the request itself opened still receives it.
      */
-    'agentCommander.inboxRequested': z.object({}),
+    'caxriBot.inboxRequested': z.object({}),
     /**
-     * Main-originated, Commander-window-only request to open the window's own Command Palette. The native menu owns the
-     * `commandPalette.open` accelerator, so the chord never reaches the focused Commander Renderer as a keydown; Main
+     * Main-originated, Caxri Bot-window-only request to open the window's own Command Palette. The native menu owns the
+     * `commandPalette.open` accelerator, so the chord never reaches the focused Caxri Bot Renderer as a keydown; Main
      * sends this to that window instead of dropping the shortcut or raising the Workbench.
      */
-    'agentCommander.commandPaletteRequested': z.object({}),
+    'caxriBot.commandPaletteRequested': z.object({}),
 } as const;
 
 type ServerEventName = keyof typeof serverEventPayloads;

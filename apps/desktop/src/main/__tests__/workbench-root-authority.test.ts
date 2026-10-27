@@ -422,7 +422,7 @@ describe('continueInWorktree', () => {
     });
 });
 
-describe('openCommanderFileLink', () => {
+describe('openBotFileLink', () => {
     it('answers an ambiguous resolution without raising the Workbench', async () => {
         const focusWindow = vi.fn(() => Promise.resolve());
         const request = vi.fn((method: string) => {
@@ -444,13 +444,13 @@ describe('openCommanderFileLink', () => {
         const { instance } = authority({ getServer: server(request), focusWindow });
 
         await expect(
-            instance.openCommanderFileLink({ terminalId: 'commander', target: 'notes.md' }),
+            instance.openBotFileLink({ terminalId: 'bot', target: 'notes.md' }),
         ).resolves.toMatchObject({ status: 'ambiguous', truncated: false });
         expect(focusWindow).not.toHaveBeenCalled();
     });
 
-    it("opens an external file under a real, visible Session instead of the Commander's own hidden one", async () => {
-        const externalRoot = await temporaryDirectory('caxri-commander-external-');
+    it("opens an external file under a real, visible Session instead of Caxri Bot's own hidden one", async () => {
+        const externalRoot = await temporaryDirectory('caxri-bot-external-');
         const externalFile = join(externalRoot, 'notes.md');
         await writeFile(externalFile, 'hello\n');
         const focusWindow = vi.fn(() => Promise.resolve());
@@ -459,7 +459,7 @@ describe('openCommanderFileLink', () => {
                 return Promise.resolve({
                     status: 'external',
                     path: externalFile,
-                    sourceSessionId: 'commander-hidden-session',
+                    sourceSessionId: 'bot-hidden-session',
                     trusted: true,
                 });
             if (method === 'app.bootstrap')
@@ -479,7 +479,7 @@ describe('openCommanderFileLink', () => {
         const { instance } = authority({ getServer: server(request), focusWindow });
 
         await expect(
-            instance.openCommanderFileLink({ terminalId: 'commander', target: externalFile }),
+            instance.openBotFileLink({ terminalId: 'bot', target: externalFile }),
         ).resolves.toMatchObject({ opened: true, sessionId: 'workbench-session' });
         expect(focusWindow).toHaveBeenCalledTimes(1);
     });
@@ -493,7 +493,7 @@ describe('openCommanderFileLink', () => {
                 return Promise.resolve({
                     status: 'external',
                     path: externalFile,
-                    sourceSessionId: 'commander-hidden-session',
+                    sourceSessionId: 'bot-hidden-session',
                     trusted: false,
                 });
             if (method === 'app.bootstrap')
@@ -507,12 +507,12 @@ describe('openCommanderFileLink', () => {
         const { instance } = authority({ getServer: server(request), focusWindow });
 
         await expect(
-            instance.openCommanderFileLink({ terminalId: 'commander', target: externalFile }),
+            instance.openBotFileLink({ terminalId: 'bot', target: externalFile }),
         ).resolves.toEqual({ canceled: true });
         expect(focusWindow).toHaveBeenCalledTimes(1);
     });
 
-    it('prefers the Session the Commander itself created when the resolved Project has more than one', async () => {
+    it('prefers the Session Caxri Bot itself created when the resolved Project has more than one', async () => {
         const focusWindow = vi.fn(() => Promise.resolve());
         const request = vi.fn((method: string) => {
             if (method === 'terminal.fileLink.resolve')
@@ -521,7 +521,7 @@ describe('openCommanderFileLink', () => {
                     identity: { rootPath: '/project', revision: 0 },
                     path: '/project/notes.md',
                     projectId: 'project-1',
-                    sourceSessionId: 'commander-hidden-session',
+                    sourceSessionId: 'bot-hidden-session',
                 });
             if (method === 'app.bootstrap')
                 return Promise.resolve({
@@ -532,9 +532,9 @@ describe('openCommanderFileLink', () => {
                     ],
                     selectedSessionId: 'session-a',
                 });
-            if (method === 'commander.board')
+            if (method === 'bot.board')
                 return Promise.resolve({
-                    rows: [{ sessionId: 'session-b', commanderSession: true }],
+                    rows: [{ sessionId: 'session-b', botSession: true }],
                 });
             if (method === 'desktop.openFile') return Promise.resolve(null);
             return Promise.reject(new Error(`Unexpected method: ${method}`));
@@ -542,7 +542,7 @@ describe('openCommanderFileLink', () => {
         const { instance } = authority({ getServer: server(request), focusWindow });
 
         await expect(
-            instance.openCommanderFileLink({ terminalId: 'commander', target: 'notes.md' }),
+            instance.openBotFileLink({ terminalId: 'bot', target: 'notes.md' }),
         ).resolves.toEqual({ opened: true });
         expect(request).toHaveBeenCalledWith(
             'desktop.openFile',
@@ -558,7 +558,7 @@ describe('openCommanderFileLink', () => {
                     identity: { rootPath: '/wt', revision: 0 },
                     path: '/wt/notes.md',
                     projectId: 'worktree-project',
-                    sourceSessionId: 'commander-hidden-session',
+                    sourceSessionId: 'bot-hidden-session',
                 });
             if (method === 'app.bootstrap')
                 return Promise.resolve({
@@ -578,7 +578,7 @@ describe('openCommanderFileLink', () => {
         const { instance } = authority({ getServer: server(request) });
 
         await expect(
-            instance.openCommanderFileLink({ terminalId: 'commander', target: 'notes.md' }),
+            instance.openBotFileLink({ terminalId: 'bot', target: 'notes.md' }),
         ).resolves.toEqual({ canceled: true, reason: 'worktree_project_unbound' });
     });
 });

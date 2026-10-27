@@ -176,10 +176,10 @@ interface TerminalPaneLinkRegistration {
 }
 
 /**
- * The Agent Commander window has no Git view, so a commit link has nowhere to open there. File links are allowed: they
- * hand off to the Workbench through an authorized request instead (see `openFileLink` below).
+ * The Caxri Bot window has no Git view, so a commit link has nowhere to open there. File links are allowed: they hand
+ * off to the Workbench through an authorized request instead (see `openFileLink` below).
  */
-const COMMANDER_LINK_KINDS: ReadonlySet<TerminalLinkMatch['kind']> = new Set(['url', 'file']);
+const BOT_LINK_KINDS: ReadonlySet<TerminalLinkMatch['kind']> = new Set(['url', 'file']);
 
 /**
  * Wires `registerTerminalLinks` to the pane's live state snapshot: link providers are registered once per attach, so
@@ -238,7 +238,7 @@ export function registerTerminalPaneLinks(
     const previews = new TerminalReferencePreviewStore(loadTerminalReferencePreview);
     const { hasWorkbenchLinks } = terminalPaneHost();
     const context: TerminalLinkContext = {
-        ...(!hasWorkbenchLinks && { linkKinds: COMMANDER_LINK_KINDS }),
+        ...(!hasWorkbenchLinks && { linkKinds: BOT_LINK_KINDS }),
         get referenceContext() {
             return latest().referenceContext;
         },

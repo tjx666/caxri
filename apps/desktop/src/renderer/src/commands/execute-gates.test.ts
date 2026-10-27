@@ -126,7 +126,7 @@ describe('runCommand editable-focus gate', () => {
 
 /**
  * A modal dialog blocks commands that would change Workbench state behind it. Window zoom changes the window, dialog
- * included, so it still runs; the Agent Commander sends its zoom here while a Workbench dialog it cannot see is open.
+ * included, so it still runs; Caxri Bot sends its zoom here while a Workbench dialog it cannot see is open.
  */
 describe('runCommand modal gate', () => {
     beforeEach(() => {
