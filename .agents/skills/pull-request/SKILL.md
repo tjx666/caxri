@@ -172,7 +172,11 @@ or cancels the delivery, or a concrete blocker requires their input.
    when nothing qualified; do not pad the list. Before listing an item, fetch `origin/main` and
    check the commits merged since the branch's base, plus open issues and PRs, for the owning file
    or symptom: parallel sessions merge constantly, so a suggested guard may already exist on `main`.
-   Drop an item that is already fixed and link the tracker for one that is already filed. Applying
+   Drop an item that is already fixed and link the tracker for one that is already filed. Then hand
+   the surviving items, with their evidence, to Codex through `dianjiang` (`second-opinion`,
+   read-only) to verify each against the code and existing skills before reporting; report its
+   verdict per item. For example, a proposed `drive-app.ts` seeding step can turn out to be
+   covered by an existing `CAXRI_TEST_ROOT_PATHS` fixture the owning skill never mentions. Applying
    a suggestion follows `AGENTS.md`'s workflow-improvement rule.
 
 ## Fast merge without CI
