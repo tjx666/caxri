@@ -239,12 +239,23 @@ export const logQueryResultSchema = z.object({
     truncated: z.boolean(),
 });
 
+/**
+ * One timing row from the Server's structured logs. `key` splits `ipc.request` by method and `git.command` by operation
+ * (`other` collects unregistered values and the tail beyond the costliest keys); `boundary` tells a relayed request's
+ * client-facing `relay` time from its `handler` time. `firstAt`/`lastAt` bound the window the row covers.
+ */
 const performanceSummarySchema = z.object({
     event: z.string().min(1).max(200),
+    key: z.string().min(1).max(200).optional(),
+    boundary: z.enum(['handler', 'relay']).optional(),
     count: z.number().int().nonnegative(),
     averageMs: z.number().nonnegative(),
     minimumMs: z.number().nonnegative(),
+    p50Ms: z.number().nonnegative(),
+    p95Ms: z.number().nonnegative(),
     maximumMs: z.number().nonnegative(),
+    firstAt: z.string().min(1).max(64),
+    lastAt: z.string().min(1).max(64),
 });
 const watchHubSnapshotEntrySchema = z.object({
     label: z.string().min(1).max(100),

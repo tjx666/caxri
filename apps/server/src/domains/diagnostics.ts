@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import process from 'node:process';
 
 import type { AppSettings } from '@caxri/protocol';
-import { CAXRI_PROTOCOL_VERSION, isLogProcess, logProcesses } from '@caxri/protocol';
+import { CAXRI_PROTOCOL_VERSION, getMethodSpec, isLogProcess, logProcesses } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog, redactLogValue, redactSecrets } from '@caxri/system';
 
@@ -55,19 +55,86 @@ export function diagnosticSettingsFile(settings: AppSettings): string {
     return json(diagnosticSettings(settings));
 }
 
-interface PerformanceAggregate {
-    count: number;
+/**
+ * Where an `ipc.request` duration was measured: `relay` is the control boundary (it carries `principal` and includes
+ * the admission queue, so it is the latency a client saw), `handler` is the domain handler alone. One relayed request
+ * writes both, so they are never merged into one row.
+ */
+type PerformanceBoundary = 'handler' | 'relay';
+
+interface PerformanceKey {
+    boundary?: PerformanceBoundary;
+    event: string;
+    key?: string;
+}
+
+interface PerformanceAggregate extends PerformanceKey {
+    firstAt: string;
+    lastAt: string;
     maximumMs: number;
     minimumMs: number;
+    samples: number[];
     totalMs: number;
 }
 
 export interface PerformanceSummary {
     event: string;
+    key?: string;
+    boundary?: PerformanceBoundary;
     count: number;
     averageMs: number;
     minimumMs: number;
+    p50Ms: number;
+    p95Ms: number;
     maximumMs: number;
+    firstAt: string;
+    lastAt: string;
+}
+
+/**
+ * Bound on summary rows, matching the `diagnostics.snapshot` schema.
+ */
+const MAX_PERFORMANCE_ROWS = 256;
+/**
+ * Keys one grouped event (per boundary) keeps by total time; the rest fold into its `other` row.
+ */
+const MAX_KEYS_PER_GROUPED_EVENT = 32;
+const OTHER_PERFORMANCE_KEY = 'other';
+const GIT_OPERATION_KEY = /^[a-z][a-z-]*(?:\.[a-z-]+)?$/u;
+
+/**
+ * The closed set of events summarized per key, and how each reads its key. Only registered method names and Git
+ * operation names (never a path or ref; see `classifyGitOperation`) become keys; any other value folds into `other`, so
+ * a malformed or dynamic field can never add a row or reach the summary.
+ */
+function performanceKey(
+    event: string,
+    fields: Record<string, unknown>,
+): PerformanceKey | undefined {
+    if (event === 'ipc.request') {
+        // The durable finalizer's record times work its handler record already covers; counting it would double it.
+        if (fields.transaction === 'durable-finalizer') return undefined;
+        const { method } = fields;
+        return {
+            event,
+            key:
+                typeof method === 'string' && getMethodSpec(method)
+                    ? method
+                    : OTHER_PERFORMANCE_KEY,
+            boundary: fields.principal === undefined ? 'handler' : 'relay',
+        };
+    }
+    if (event === 'git.command') {
+        const { operation } = fields;
+        return {
+            event,
+            key:
+                typeof operation === 'string' && GIT_OPERATION_KEY.test(operation)
+                    ? operation
+                    : OTHER_PERFORMANCE_KEY,
+        };
+    }
+    return { event };
 }
 
 interface ErrorIdentifierRecord {
@@ -121,6 +188,31 @@ export function summarizeRecentErrorIds(logs: string, limit = 5): string[] {
     return unique.toReversed();
 }
 
+function addPerformanceSample(
+    aggregates: Map<string, PerformanceAggregate>,
+    group: PerformanceKey,
+    durationMs: number,
+    timestamp: string,
+): void {
+    const id = `${group.event}\u{0}${group.key ?? ''}\u{0}${group.boundary ?? ''}`;
+    const aggregate = aggregates.get(id) ?? {
+        ...group,
+        firstAt: timestamp,
+        lastAt: timestamp,
+        maximumMs: durationMs,
+        minimumMs: durationMs,
+        samples: [],
+        totalMs: 0,
+    };
+    aggregate.samples.push(durationMs);
+    aggregate.totalMs += durationMs;
+    aggregate.maximumMs = Math.max(aggregate.maximumMs, durationMs);
+    aggregate.minimumMs = Math.min(aggregate.minimumMs, durationMs);
+    if (timestamp < aggregate.firstAt) aggregate.firstAt = timestamp;
+    if (timestamp > aggregate.lastAt) aggregate.lastAt = timestamp;
+    aggregates.set(id, aggregate);
+}
+
 function accumulatePerformanceLogLines(
     log: string,
     aggregates: Map<string, PerformanceAggregate>,
@@ -128,41 +220,140 @@ function accumulatePerformanceLogLines(
     for (const line of log.split('\n')) {
         if (!line) continue;
         try {
-            const entry = JSON.parse(line) as { durationMs?: unknown; event?: unknown };
+            const entry = JSON.parse(line) as {
+                durationMs?: unknown;
+                event?: unknown;
+                fields?: unknown;
+                timestamp?: unknown;
+            };
             if (typeof entry.event !== 'string' || typeof entry.durationMs !== 'number') continue;
             if (!Number.isFinite(entry.durationMs) || entry.durationMs < 0) continue;
-            const aggregate = aggregates.get(entry.event) ?? {
-                count: 0,
-                maximumMs: entry.durationMs,
-                minimumMs: entry.durationMs,
-                totalMs: 0,
-            };
-            aggregate.count += 1;
-            aggregate.maximumMs = Math.max(aggregate.maximumMs, entry.durationMs);
-            aggregate.minimumMs = Math.min(aggregate.minimumMs, entry.durationMs);
-            aggregate.totalMs += entry.durationMs;
-            aggregates.set(entry.event, aggregate);
+            // Every logger record is stamped; a line without a time cannot place itself in the summary's window.
+            if (typeof entry.timestamp !== 'string') continue;
+            const fields =
+                entry.fields !== null && typeof entry.fields === 'object'
+                    ? (entry.fields as Record<string, unknown>)
+                    : {};
+            const group = performanceKey(entry.event, fields);
+            if (group) addPerformanceSample(aggregates, group, entry.durationMs, entry.timestamp);
         } catch {
             // Ignore truncated lines left by an interrupted log write.
         }
     }
 }
 
+function mergePerformanceAggregates(
+    group: PerformanceKey,
+    parts: readonly PerformanceAggregate[],
+): PerformanceAggregate {
+    /**
+     * ISO timestamps order lexically; `Math.min` would coerce them to NaN.
+     */
+    const byText = (left: string, right: string) => left.localeCompare(right);
+    const [firstAt] = parts.map((part) => part.firstAt).toSorted(byText);
+    const [lastAt] = parts
+        .map((part) => part.lastAt)
+        .toSorted((left, right) => byText(right, left));
+    return {
+        ...group,
+        firstAt,
+        lastAt,
+        maximumMs: Math.max(...parts.map((part) => part.maximumMs)),
+        minimumMs: Math.min(...parts.map((part) => part.minimumMs)),
+        samples: parts.flatMap((part) => part.samples),
+        totalMs: parts.reduce((total, part) => total + part.totalMs, 0),
+    };
+}
+
 /**
- * Builds a content-free timing summary from already structured operation logs.
+ * Keeps each grouped event's {@link MAX_KEYS_PER_GROUPED_EVENT} costliest keys per boundary and folds the rest, and any
+ * existing `other`, into one `other` row, so a long tail of methods cannot push ungrouped events out of the bound.
+ */
+function foldPerformanceKeyTails(
+    aggregates: readonly PerformanceAggregate[],
+): PerformanceAggregate[] {
+    const groups = new Map<string, PerformanceAggregate[]>();
+    const rows: PerformanceAggregate[] = [];
+    for (const aggregate of aggregates) {
+        if (aggregate.key === undefined) {
+            rows.push(aggregate);
+            continue;
+        }
+        const id = `${aggregate.event}\u{0}${aggregate.boundary ?? ''}`;
+        groups.set(id, [...(groups.get(id) ?? []), aggregate]);
+    }
+    for (const members of groups.values()) {
+        const ranked = members
+            .filter((member) => member.key !== OTHER_PERFORMANCE_KEY)
+            .toSorted((left, right) => right.totalMs - left.totalMs);
+        rows.push(...ranked.slice(0, MAX_KEYS_PER_GROUPED_EVENT));
+        const folded = [
+            ...ranked.slice(MAX_KEYS_PER_GROUPED_EVENT),
+            ...members.filter((member) => member.key === OTHER_PERFORMANCE_KEY),
+        ];
+        if (folded.length > 0) {
+            const [{ event, boundary }] = members;
+            rows.push(
+                mergePerformanceAggregates(
+                    { event, key: OTHER_PERFORMANCE_KEY, ...(boundary && { boundary }) },
+                    folded,
+                ),
+            );
+        }
+    }
+    return rows;
+}
+
+/**
+ * Nearest-rank percentile over ascending samples.
+ */
+function percentile(sorted: readonly number[], fraction: number): number {
+    return sorted[
+        Math.min(sorted.length - 1, Math.max(0, Math.ceil(sorted.length * fraction) - 1))
+    ];
+}
+
+function performanceRow(aggregate: PerformanceAggregate): PerformanceSummary {
+    const sorted = aggregate.samples.toSorted((left, right) => left - right);
+    return {
+        event: aggregate.event,
+        ...(aggregate.key !== undefined && { key: aggregate.key }),
+        ...(aggregate.boundary && { boundary: aggregate.boundary }),
+        count: sorted.length,
+        averageMs: Math.round((aggregate.totalMs / sorted.length) * 100) / 100,
+        minimumMs: aggregate.minimumMs,
+        p50Ms: percentile(sorted, 0.5),
+        p95Ms: percentile(sorted, 0.95),
+        maximumMs: aggregate.maximumMs,
+        firstAt: aggregate.firstAt,
+        lastAt: aggregate.lastAt,
+    };
+}
+
+/**
+ * Builds a content-free timing summary from already structured operation logs, so an Agent can rank where Server time
+ * goes without reading raw logs. `ipc.request` is split by method and boundary and `git.command` by operation; every
+ * other event is one row. Each row carries nearest-rank p50 and p95 and the window it covers. Rows are ordered by total
+ * time, each grouped event's `other` row last, and bounded to {@link MAX_PERFORMANCE_ROWS}: ungrouped events are kept
+ * first, then the costliest keyed rows.
  */
 export function summarizePerformanceLogs(logs: string[]): PerformanceSummary[] {
     const aggregates = new Map<string, PerformanceAggregate>();
     for (const log of logs) accumulatePerformanceLogLines(log, aggregates);
-    return [...aggregates]
-        .toSorted(([left], [right]) => left.localeCompare(right))
-        .map(([event, aggregate]) => ({
-            event,
-            count: aggregate.count,
-            averageMs: Math.round((aggregate.totalMs / aggregate.count) * 100) / 100,
-            minimumMs: aggregate.minimumMs,
-            maximumMs: aggregate.maximumMs,
-        }));
+    const rows = foldPerformanceKeyTails(aggregates.values().toArray());
+    const byTotal = (left: PerformanceAggregate, right: PerformanceAggregate) =>
+        right.totalMs - left.totalMs;
+    const ungrouped = rows.filter((row) => row.key === undefined).toSorted(byTotal);
+    const keyed = rows.filter((row) => row.key !== undefined).toSorted(byTotal);
+    const kept = [
+        ...ungrouped,
+        ...keyed.slice(0, Math.max(0, MAX_PERFORMANCE_ROWS - ungrouped.length)),
+    ].slice(0, MAX_PERFORMANCE_ROWS);
+    const isOther = (row: PerformanceAggregate) => row.key === OTHER_PERFORMANCE_KEY;
+    return [
+        ...kept.filter((row) => !isOther(row)).toSorted(byTotal),
+        ...kept.filter(isOther).toSorted(byTotal),
+    ].map(performanceRow);
 }
 
 export class DiagnosticsService {
@@ -213,7 +404,7 @@ export class DiagnosticsService {
             sessionCount: this.database.listSessions().length,
             terminalCount: this.database.listTerminals().length,
             recentErrorIds: summarizeRecentErrorIds(logs.join('\n')),
-            performance: summarizePerformanceLogs(logs).slice(0, 256),
+            performance: summarizePerformanceLogs(logs),
             ...(this.watchSnapshot && { watchers: this.watchSnapshot() }),
             caxriBot: botDiagnostics(this.database, logs),
         };
