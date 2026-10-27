@@ -316,10 +316,13 @@ export class MobilePreviewProxies {
 
     #launch(listener: PreviewListener, request: IncomingMessage, response: ServerResponse): void {
         const token = (request.url ?? '').slice(LAUNCH_PREFIX.length);
+        // Only a GET spends the token: a HEAD, prefetch, or probe arriving first must not burn the
+        // single-use link before the real navigation.
+        const isGet = request.method === 'GET';
         const launch = listener.launches.get(token);
-        listener.launches.delete(token);
+        if (isGet) listener.launches.delete(token);
         const isValid =
-            request.method === 'GET' &&
+            isGet &&
             launch !== undefined &&
             launch.expiresAt > this.#now() &&
             this.#options.authorize(launch);
