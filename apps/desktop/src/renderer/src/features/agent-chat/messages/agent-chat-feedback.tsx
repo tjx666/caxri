@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 
 import { parseMarkdownBlocks } from '@caxri/markdown';
 import type { AgentChatItem } from '@caxri/protocol';
-import { agentChatNoticeMessage } from '@caxri/protocol';
+import { agentChatNoticeHeading, agentChatNoticeMessage } from '@caxri/protocol';
 import { CircleAlert, SquareTerminal, TriangleAlert } from 'lucide-react';
 
 import { MarkdownBlocks } from '../../../components/markdown/markdown-blocks';
@@ -60,7 +60,11 @@ export function AgentChatFeedback({ item }: { item: Extract<AgentChatItem, { typ
         >
             <Icon className={cn('mt-0.5 shrink-0', tone.size)} />
             <div className="min-w-0 flex-1 select-text">
-                {item.title && <div className="mb-1 font-medium">{item.title}</div>}
+                {item.heading && (
+                    <div className="mb-1 font-medium">
+                        {agentChatNoticeHeading(item.heading, t)}
+                    </div>
+                )}
                 {item.kind === 'error' || item.kind === 'warning' ? (
                     <FeedbackMarkdown text={agentChatNoticeMessage(item, t)} />
                 ) : (

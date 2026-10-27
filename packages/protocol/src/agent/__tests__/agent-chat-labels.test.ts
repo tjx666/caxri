@@ -15,6 +15,7 @@ import {
     agentChatActivity,
     agentChatFailureMessage,
     agentChatItemStatusLabel,
+    agentChatNoticeHeading,
     agentChatWorkingVerb,
 } from '../agent-chat-presentation';
 import { agentChatEditedFilesTitle } from '../agent-chat-turn-artifacts';
@@ -129,5 +130,35 @@ describe('agent chat labels in Simplified Chinese', () => {
         expect(
             botInboxReplyState({ acknowledgedSequence: 2, replies: [{ sequence: 2 }] }, zh),
         ).toEqual({ isRead: true, label: 'Caxri Bot 已读' });
+    });
+
+    it('words provider feedback headings in the reader language and keeps provider names', () => {
+        const hookFailed = {
+            kind: 'hook',
+            outcome: 'failed',
+            hook: 'PreToolUse:Read',
+            session: true,
+            exitCode: 2,
+        } as const;
+        expect(agentChatNoticeHeading(hookFailed)).toBe(
+            'Session Hook "PreToolUse:Read" failed (exit code 2)',
+        );
+        expect(agentChatNoticeHeading(hookFailed, zh)).toBe(
+            '会话 Hook "PreToolUse:Read" 执行失败（退出码 2）',
+        );
+        expect(
+            agentChatNoticeHeading({ kind: 'provider', provider: 'claude', topic: 'warning' }, zh),
+        ).toBe('Claude Code 警告');
+        expect(agentChatNoticeHeading({ kind: 'event', event: 'inputBlocked' }, zh)).toBe(
+            '输入被 Hook 拦截',
+        );
+        expect(agentChatNoticeHeading({ kind: 'command' }, zh)).toBe('命令输出');
+        // Plugin and command names are the provider's own and stay untranslated.
+        expect(
+            agentChatNoticeHeading(
+                { kind: 'command', plugin: 'review-tools', command: 'check' },
+                zh,
+            ),
+        ).toBe('review-tools · /check');
     });
 });

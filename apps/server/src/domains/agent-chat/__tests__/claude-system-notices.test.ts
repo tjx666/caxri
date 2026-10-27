@@ -57,7 +57,13 @@ describe('Claude system output visibility', () => {
             expect.objectContaining({
                 type: 'notice',
                 kind: 'error',
-                title: 'Session Hook "Example" failed (exit code 1)',
+                heading: {
+                    kind: 'hook',
+                    outcome: 'failed',
+                    hook: 'Example',
+                    session: true,
+                    exitCode: 1,
+                },
                 message: 'Raw error diagnostic.',
             }),
         ]);
@@ -88,7 +94,7 @@ describe('Claude system output visibility', () => {
             expect.objectContaining({
                 type: 'notice',
                 kind: 'output',
-                title: 'Command output',
+                heading: { kind: 'command' },
                 message: 'Command result.',
             }),
         ]);

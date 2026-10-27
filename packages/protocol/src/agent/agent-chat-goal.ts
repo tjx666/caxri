@@ -127,12 +127,6 @@ export interface AgentChatGoalReply {
     detail?: string;
 }
 
-/**
- * The title Server Core gives a built-in `/goal` command's output (`claude-feedback.ts`). A plugin's same-named command
- * carries a `plugin · /goal` title and stays plain output.
- */
-export const AGENT_CHAT_GOAL_COMMAND_TITLE = '/goal';
-
 const PREFIXES = [
     ['Goal set: ', 'set'],
     ['Goal cleared: ', 'cleared'],
@@ -146,7 +140,15 @@ const PREFIXES = [
  * command output, since only these replies say what the goal now is.
  */
 export function parseAgentChatGoalReply(item: Notice): AgentChatGoalReply | undefined {
-    if (item.kind !== 'output' || item.title !== AGENT_CHAT_GOAL_COMMAND_TITLE) return undefined;
+    // Only the built-in `/goal` (`claude-feedback.ts` heading); a plugin's same-named command stays plain output.
+    const { heading } = item;
+    if (
+        item.kind !== 'output' ||
+        heading?.kind !== 'command' ||
+        heading.command !== 'goal' ||
+        heading.plugin !== undefined
+    )
+        return undefined;
     const text = item.message?.trim() ?? '';
     if (text === 'No goal set') return { action: 'none', objective: '' };
     for (const [prefix, action] of PREFIXES) {

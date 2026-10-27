@@ -1,8 +1,10 @@
 import { StyleSheet, Text, View } from 'react-native';
 
 import type { AgentChatItem } from '@caxri/protocol';
+import { agentChatNoticeHeading } from '@caxri/protocol';
 import { CircleAlert, SquareTerminal, TriangleAlert } from 'lucide-react-native';
 
+import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 
 const styles = StyleSheet.create({
@@ -29,6 +31,7 @@ export function AgentChatFeedback({
     item: Extract<AgentChatItem, { type: 'notice' }>;
     theme: MobileTheme;
 }) {
+    const { t } = useTranslation();
     // Command output (`/rename` confirming a title) is informative, so it stays neutral like Desktop's.
     const tone =
         item.kind === 'error'
@@ -50,9 +53,9 @@ export function AgentChatFeedback({
         >
             <Icon color={color} size={18} />
             <View style={styles.content}>
-                {item.title && (
+                {item.heading && (
                     <Text selectable style={[styles.title, { color }]}>
-                        {item.title}
+                        {agentChatNoticeHeading(item.heading, t)}
                     </Text>
                 )}
                 <Text selectable style={[styles.body, { color }]}>

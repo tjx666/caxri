@@ -48,7 +48,7 @@ describe('Claude feedback restored from Terminal history', () => {
             expect.objectContaining({
                 type: 'notice',
                 kind: 'output',
-                title: 'example-mod · /display-test',
+                heading: { kind: 'command', plugin: 'example-mod', command: 'display-test' },
                 message: 'example-mod: First line.\nSecond line.',
             }),
         ]);
@@ -109,7 +109,13 @@ it('restores a standalone startup failure without attaching it to an earlier tur
         expect.objectContaining({
             type: 'notice',
             kind: 'error',
-            title: 'Session Hook "SessionStart:startup" failed (exit code 1)',
+            heading: {
+                kind: 'hook',
+                outcome: 'failed',
+                hook: 'SessionStart:startup',
+                session: true,
+                exitCode: 1,
+            },
             message: 'Example configuration could not be read.\nCheck the test configuration file.',
         }),
     ]);

@@ -1,4 +1,4 @@
-import type { AgentChatItem } from '@caxri/protocol';
+import type { AgentChatItem, AgentChatNoticeHeading } from '@caxri/protocol';
 
 import { clip, isRecord, noticeChunks, stringField } from '../chat-items';
 import type { AgentChatSessionHost, ChatProviderNotice } from '../chat-provider';
@@ -50,12 +50,15 @@ const VERIFICATIONS: Partial<Record<string, string>> = {
         'Your conversations have multiple flags for possible cybersecurity risk. Responses may take longer because extra safety checks are on. To get authorized for security work, join the Trusted Access for Cyber program: https://chatgpt.com/cyber',
 };
 
-const WARNING_TITLES: Partial<Record<string, { source: CodexNoticeSource; title: string }>> = {
-    warning: { source: 'warning', title: 'Codex warning' },
-    configWarning: { source: 'configWarning', title: 'Codex configuration warning' },
-    guardianWarning: { source: 'guardianWarning', title: 'Codex warning' },
-    deprecationNotice: { source: 'deprecationNotice', title: 'Codex deprecation notice' },
-};
+type ProviderTopic = Extract<AgentChatNoticeHeading, { kind: 'provider' }>['topic'];
+
+const WARNING_TOPICS: Partial<Record<string, { source: CodexNoticeSource; topic: ProviderTopic }>> =
+    {
+        warning: { source: 'warning', topic: 'warning' },
+        configWarning: { source: 'configWarning', topic: 'configuration' },
+        guardianWarning: { source: 'guardianWarning', topic: 'warning' },
+        deprecationNotice: { source: 'deprecationNotice', topic: 'deprecation' },
+    };
 
 function known(value: string | undefined, values: { has(value: string): boolean }): string | null {
     if (value === undefined) return null;
@@ -86,13 +89,13 @@ function entryText(run: Json, kinds: readonly string[]): string {
  */
 function hookNotice(
     run: Json,
-): { title: string; kind: Notice['kind']; content: string } | undefined {
+): { heading: AgentChatNoticeHeading; kind: Notice['kind']; content: string } | undefined {
     const event = stringField(run.eventName) ?? '';
     const name = clip(event.charAt(0).toUpperCase() + event.slice(1) || 'Unknown', 100);
     switch (run.status) {
         case 'failed': {
             return {
-                title: `Hook "${name}" failed`,
+                heading: { kind: 'hook', outcome: 'failed', hook: name },
                 kind: 'error',
                 content:
                     entryText(run, ['error', 'warning']) || 'No failure details were provided.',
@@ -100,7 +103,7 @@ function hookNotice(
         }
         case 'blocked': {
             return {
-                title: `Hook "${name}" blocked the action`,
+                heading: { kind: 'hook', outcome: 'blocked', hook: name },
                 kind: 'warning',
                 content:
                     entryText(run, ['feedback', 'stop', 'warning']) || 'No reason was provided.',
@@ -108,7 +111,7 @@ function hookNotice(
         }
         case 'stopped': {
             return {
-                title: `Hook "${name}" stopped the turn`,
+                heading: { kind: 'hook', outcome: 'stopped', hook: name },
                 kind: 'warning',
                 content:
                     entryText(run, ['stop', 'feedback', 'warning']) || 'No reason was provided.',
@@ -144,7 +147,7 @@ function mapCodexNotice(
                     ? noticeChunks(`codex-hook:${scope}:${runId}`, notice.content, {
                           ...base,
                           kind: notice.kind,
-                          title: notice.title,
+                          heading: notice.heading,
                       })
                     : [],
                 event: {
@@ -167,7 +170,11 @@ function mapCodexNotice(
                 items: noticeChunks(
                     `codex-reroute:${scope}`,
                     `Codex answered with ${to} instead of ${from} because ${why}.`,
-                    { ...base, kind: 'warning', title: 'Model changed' },
+                    {
+                        ...base,
+                        kind: 'warning',
+                        heading: { kind: 'event', event: 'modelChanged' },
+                    },
                 ),
                 event: {
                     ...event,
@@ -186,7 +193,7 @@ function mapCodexNotice(
                     ? noticeChunks(`codex-verification:${scope}`, content, {
                           ...base,
                           kind: 'warning',
-                          title: 'Account verification needed',
+                          heading: { kind: 'event', event: 'verificationNeeded' },
                       })
                     : [],
                 event: {
@@ -197,7 +204,7 @@ function mapCodexNotice(
             };
         }
         default: {
-            const warning = WARNING_TITLES[method];
+            const warning = WARNING_TOPICS[method];
             if (!warning) return undefined;
             const content = lines(
                 parameters.message ?? parameters.summary,
@@ -208,7 +215,11 @@ function mapCodexNotice(
             const id = `codex-${method}:${scope}:${chatTextDigest(content).slice(0, 16)}`;
             return {
                 items: content
-                    ? noticeChunks(id, content, { ...base, kind: 'warning', title: warning.title })
+                    ? noticeChunks(id, content, {
+                          ...base,
+                          kind: 'warning',
+                          heading: { kind: 'provider', provider: 'codex', topic: warning.topic },
+                      })
                     : [],
                 event: { ...event, source: warning.source },
             };

@@ -21,7 +21,7 @@ describe('real Claude feedback envelopes', () => {
                 type: 'notice',
                 kind: 'output',
                 turnId: 'turn',
-                title: 'example-mod · /display-test',
+                heading: { kind: 'command', plugin: 'example-mod', command: 'display-test' },
                 message: 'Example mod output.\nRead these details.',
             }),
         ]);
@@ -90,7 +90,7 @@ describe('real Claude feedback envelopes', () => {
         ).toEqual([
             expect.objectContaining({
                 kind: 'warning',
-                title: 'Input blocked by Hook',
+                heading: { kind: 'event', event: 'inputBlocked' },
                 message: 'Retry with a smaller range.',
             }),
         ]);
