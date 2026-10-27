@@ -1,3 +1,5 @@
+export { scheduleGitCommand } from './command';
+export { serverGitCommands } from './command-budget';
 export { describeGitFailure, resolveGitLaunch } from './errors';
 export { mergeGitHubPullRequestAt } from './pull-request-merge';
 export { withGitRequestSignal } from './request-signal';

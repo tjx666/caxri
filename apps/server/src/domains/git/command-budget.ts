@@ -89,3 +89,10 @@ export class GitCommandBudget {
         }
     }
 }
+
+/**
+ * The Server's one Git process budget. Source Control, summaries, and topology reads (`GitService`) and the Project
+ * Status probes (`ExternalStatusHub`) all queue here, so a background status poll cannot spawn Git outside the loaded
+ * machine's background cap or ahead of a request the user is waiting on.
+ */
+export const serverGitCommands = new GitCommandBudget();

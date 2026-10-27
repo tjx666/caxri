@@ -287,6 +287,10 @@ can join) always runs as foreground, so a request joining a load a poll started 
 cap. The pollers themselves also skip a round while loaded and retry at their own floor, but each
 source lets one round through after two minutes of deferring, so sustained load slows delivery
 status instead of freezing it. A slow `git.command` record carries `background` with the source that issued it.
+The budget is one Server-wide instance (`serverGitCommands`): Project Status's own `git` probes
+(remote URL, default branch, ahead/behind; `ExternalStatusHub.run`) queue in it too through `scheduleGitCommand` and log the same
+`git.command` record, while keeping their eight-second timeout and their failure records in
+`external_status.command`. They stay outside the `gh`/`vc`/`linear` quota circuit.
 `server_core.load_changed` records each transition: `state: loaded` on entry, and `state: normal`
 on exit with the period's duration, peak load, and how many rounds each source deferred.
 
