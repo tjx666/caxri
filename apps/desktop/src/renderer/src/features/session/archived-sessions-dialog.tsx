@@ -31,7 +31,6 @@ import {
 import { useProjects, useSessions, useTerminals } from '../../stores/selectors';
 import type {
     ArchivedSessionFilters,
-    ArchivedSessionGroup,
     ArchivedSessionItem,
     ArchivedSessionView,
 } from './archived-sessions';
@@ -52,8 +51,8 @@ function archivedTimestamp(value: number): string {
 }
 
 /**
- * Adds or removes a run of Sessions from the selection in one update, so a group header and the "select all" checkbox
- * share the row checkbox's path instead of each keeping their own.
+ * Adds or removes a run of Sessions from the selection in one update, so the "select all" and "select untitled"
+ * controls share the row checkbox's path instead of each keeping their own.
  */
 type ToggleSessions = (sessionIds: readonly string[], isChecked: boolean) => void;
 
@@ -265,7 +264,9 @@ function ArchivedSessionRow({
                     <p className="m-0 truncate text-[12px] font-medium">
                         {sessionTitleForDisplay(item.session.displayTitle, t)}
                     </p>
-                    <p className="m-0 text-[11px] text-muted">
+                    <p className="m-0 truncate text-[11px] text-muted">
+                        {item.project.displayTitle}
+                        {' · '}
                         {resolveAgentIcon(item.agent).label}
                         {' · '}
                         {t('session.archived.archivedAt', {
@@ -300,57 +301,6 @@ function ArchivedSessionRow({
                 </Button>
             </div>
         </div>
-    );
-}
-
-function ArchivedProjectGroup({
-    group,
-    onToggle,
-    selection,
-}: {
-    group: ArchivedSessionGroup;
-    onToggle: ToggleSessions;
-    selection: ReadonlySet<string>;
-}) {
-    const { t } = useTranslation();
-    const headingId = `archived-project-${group.project.id}`;
-    const groupIds = group.sessions.map((item) => item.session.id);
-    const groupSelectedCount = groupIds.filter((sessionId) => selection.has(sessionId)).length;
-    const isGroupSelected = groupSelectedCount === groupIds.length;
-    return (
-        <section
-            aria-labelledby={headingId}
-            className="archived-project-group overflow-hidden rounded border border-border bg-background"
-            data-project-id={group.project.id}
-        >
-            <header className="flex h-9 items-center gap-2 border-b border-border bg-surface px-3">
-                <Checkbox
-                    aria-label={t('session.archived.selectAllInProject', {
-                        project: group.project.displayTitle,
-                    })}
-                    checked={isGroupSelected}
-                    indeterminate={!isGroupSelected && groupSelectedCount > 0}
-                    onCheckedChange={(next) => onToggle(groupIds, next === true)}
-                />
-                <h2
-                    id={headingId}
-                    className="m-0 min-w-0 flex-1 truncate text-[12px] font-semibold"
-                >
-                    {group.project.displayTitle}
-                </h2>
-                <span className="text-[10px] text-muted tabular-nums">{group.sessions.length}</span>
-            </header>
-            <div className="divide-y divide-border">
-                {group.sessions.map((item) => (
-                    <ArchivedSessionRow
-                        key={item.session.id}
-                        isSelected={selection.has(item.session.id)}
-                        item={item}
-                        onToggle={onToggle}
-                    />
-                ))}
-            </div>
-        </section>
     );
 }
 
@@ -471,12 +421,12 @@ function ArchivedSessionsDialogBody() {
                         onClearFilters={clearFilters}
                     />
                 ) : (
-                    <div className="grid gap-4">
-                        {view.groups.map((group) => (
-                            <ArchivedProjectGroup
-                                key={group.project.id}
-                                group={group}
-                                selection={selection}
+                    <div className="archived-session-list divide-y divide-border overflow-hidden rounded border border-border bg-background">
+                        {view.items.map((item) => (
+                            <ArchivedSessionRow
+                                key={item.session.id}
+                                isSelected={selection.has(item.session.id)}
+                                item={item}
                                 onToggle={toggleSessions}
                             />
                         ))}

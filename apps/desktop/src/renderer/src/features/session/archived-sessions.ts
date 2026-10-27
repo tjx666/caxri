@@ -1,6 +1,6 @@
 import type { ProjectRecord, SessionRecord, TerminalKind, TerminalRecord } from '@caxri/protocol';
 import { agentProviderIds, DEFAULT_SESSION_TITLE } from '@caxri/protocol';
-import { groupBy, sortBy, sumBy } from 'es-toolkit';
+import { sortBy } from 'es-toolkit';
 
 export interface ArchivedSessionFilters {
     agent: TerminalKind | 'all';
@@ -14,18 +14,18 @@ export interface ArchivedSessionFilters {
 export interface ArchivedSessionItem {
     agent: TerminalKind;
     archivedAt: number;
+    project: ProjectRecord;
     session: SessionRecord;
     terminal?: TerminalRecord;
 }
 
-export interface ArchivedSessionGroup {
-    project: ProjectRecord;
-    sessions: ArchivedSessionItem[];
-}
-
 export interface ArchivedSessionView {
     agentOptions: TerminalKind[];
-    groups: ArchivedSessionGroup[];
+    /**
+     * Matching Sessions across every Project, newest archive first. The list is deliberately not grouped by Project:
+     * the common visit is "find what I just archived", which must sit at the top regardless of which Project owns it.
+     */
+    items: ArchivedSessionItem[];
     matchingCount: number;
     projectId: string;
     projectOptions: ProjectRecord[];
@@ -53,56 +53,52 @@ export function deriveArchivedSessionView(
         if (!firstTerminalBySession.has(terminal.sessionId))
             firstTerminalBySession.set(terminal.sessionId, terminal);
 
-    const archivedSessions = sessions.filter(
-        (session): session is SessionRecord & { archivedAt: number } =>
-            session.archivedAt !== undefined,
-    );
-    const items: ArchivedSessionItem[] = archivedSessions.map((session) => {
+    const projectById = new Map(projects.map((project) => [project.id, project]));
+    const allItems: ArchivedSessionItem[] = [];
+    for (const session of sessions) {
+        if (session.archivedAt === undefined) continue;
+        // A Session whose Project record is gone has no filter option or label to show under, so it stays hidden.
+        const project = projectById.get(session.projectId);
+        if (!project) continue;
         const terminal =
             (session.primaryAgentTerminalId
                 ? terminalById.get(session.primaryAgentTerminalId)
                 : undefined) ?? firstTerminalBySession.get(session.id);
-        const agent = terminal?.kind ?? 'shell';
-        return { agent, archivedAt: session.archivedAt, session, terminal };
-    });
-    const usedAgentKinds = new Set<TerminalKind>(items.map((item) => item.agent));
-    const sessionsByProject = groupBy(items, (item) => item.session.projectId);
-
-    const orderedProjects = sortBy(projects, ['orderIndex']);
-    const projectOptions = orderedProjects.filter((project) =>
-        Object.hasOwn(sessionsByProject, project.id),
+        allItems.push({
+            agent: terminal?.kind ?? 'shell',
+            archivedAt: session.archivedAt,
+            project,
+            session,
+            terminal,
+        });
+    }
+    const usedAgentKinds = new Set<TerminalKind>(allItems.map((item) => item.agent));
+    const archivedProjectIds = new Set(allItems.map((item) => item.project.id));
+    const projectOptions = sortBy(projects, ['orderIndex']).filter((project) =>
+        archivedProjectIds.has(project.id),
     );
     /**
      * Restore/delete can remove the selected Project's last archived Session. Normalize that stale filter immediately
      * so the control and results both return to the complete archive.
      */
     const projectId =
-        filters.projectId === 'all' ||
-        projectOptions.some((project) => project.id === filters.projectId)
+        filters.projectId === 'all' || archivedProjectIds.has(filters.projectId)
             ? filters.projectId
             : 'all';
 
     const query = filters.query.trim().toLowerCase();
-    const groups: ArchivedSessionGroup[] = [];
-    for (const project of projectOptions) {
-        if (projectId !== 'all' && projectId !== project.id) continue;
-        // `groupBy` types every key as present; `Object.hasOwn` keeps the runtime guard for projects
-        // with no archived sessions without tripping no-unnecessary-condition.
-        if (!Object.hasOwn(sessionsByProject, project.id)) continue;
-        const projectSessions = sessionsByProject[project.id];
-        const matching = projectSessions
-            .filter(
-                (item) =>
-                    (filters.agent === 'all' || filters.agent === item.agent) &&
-                    (!query || item.session.displayTitle.toLowerCase().includes(query)),
-            )
-            .toSorted(
-                (first, second) =>
-                    second.archivedAt - first.archivedAt ||
-                    first.session.id.localeCompare(second.session.id),
-            );
-        if (matching.length > 0) groups.push({ project, sessions: matching });
-    }
+    const items = allItems
+        .filter(
+            (item) =>
+                (projectId === 'all' || projectId === item.project.id) &&
+                (filters.agent === 'all' || filters.agent === item.agent) &&
+                (!query || item.session.displayTitle.toLowerCase().includes(query)),
+        )
+        .toSorted(
+            (first, second) =>
+                second.archivedAt - first.archivedAt ||
+                first.session.id.localeCompare(second.session.id),
+        );
 
     return {
         /**
@@ -111,11 +107,11 @@ export function deriveArchivedSessionView(
          * option at all.
          */
         agentOptions: AGENT_ORDER.filter((kind) => usedAgentKinds.has(kind)),
-        groups,
-        matchingCount: sumBy(groups, (group) => group.sessions.length),
+        items,
+        matchingCount: items.length,
         projectId,
         projectOptions,
-        totalCount: sumBy(Object.values(sessionsByProject), (list) => list.length),
+        totalCount: allItems.length,
     };
 }
 
@@ -128,13 +124,11 @@ function isUntitledArchivedSession(item: ArchivedSessionItem): boolean {
 }
 
 export function visibleArchivedSessionIds(view: ArchivedSessionView): string[] {
-    return view.groups.flatMap((group) => group.sessions.map((item) => item.session.id));
+    return view.items.map((item) => item.session.id);
 }
 
 export function untitledArchivedSessionIds(view: ArchivedSessionView): string[] {
-    return view.groups.flatMap((group) =>
-        group.sessions.filter(isUntitledArchivedSession).map((item) => item.session.id),
-    );
+    return view.items.filter(isUntitledArchivedSession).map((item) => item.session.id);
 }
 
 /**
