@@ -37,6 +37,12 @@ import {
  */
 const MAX_OPTION_ROW_DP = 72;
 
+/**
+ * The shortest a question part may render while its card shares the screen with the keyboard: one line of the question
+ * text. A part the card had to clip to fit comes out shorter.
+ */
+const MIN_TYPING_PART_DP = 20;
+
 const menuRows = (nodes: readonly MobileSemanticNode[]): number =>
     nodes.filter(({ checkId }) => /^agent-chat-command-\d+$/u.test(checkId)).length;
 
@@ -224,6 +230,37 @@ async function executeSkillsAndQuestionFlow(
         // Other opens in place as a text field under the options, then the answer is still a tap away.
         await tapMobileCheckByBounds(serial, 'agent-chat-question-0-other-open');
         await waitForCheck(serial, 'agent-chat-question-0-other');
+        await adbShell(serial, ['input', 'text', 'typed']);
+        // With the keyboard up the card used to shrink below its content and draw the answer field and buttons over
+        // the status row and composer, outside its own background. Every part stays whole inside the card, above the
+        // composer.
+        const typing = await waitForMobile(
+            () => mobileSemantics(serial),
+            (nodes) =>
+                [
+                    'agent-chat-question-0-text',
+                    'agent-chat-question-0-other',
+                    'agent-chat-question-skip',
+                    'agent-chat-question-next',
+                    'agent-chat-composer-input',
+                ].every((id) => hasCheck(nodes, id)),
+        );
+        const typingCard = checkBounds(typing, 'agent-chat-request');
+        const composer = checkBounds(typing, 'agent-chat-composer-input');
+        if (!typingCard || !composer || typingCard.bottom > composer.top)
+            throw new Error('The question card overlaps the composer while typing');
+        for (const id of [
+            'agent-chat-question-0-text',
+            'agent-chat-question-0-other',
+            'agent-chat-question-skip',
+            'agent-chat-question-next',
+        ]) {
+            const bounds = checkBounds(typing, id);
+            if (!bounds || !isInside(bounds, typingCard))
+                throw new Error(`${id} spills outside the question card while typing`);
+            if (((bounds.bottom - bounds.top) * 160) / density < MIN_TYPING_PART_DP)
+                throw new Error(`${id} is cut short inside the question card while typing`);
+        }
         await capture(environment, 'question-other', artifacts);
         await hideChatKeyboard(serial);
         await waitForCheck(serial, 'agent-chat-question-0-option-0');

@@ -57,6 +57,7 @@ import { AgentChatTimelineEntry } from './agent-chat-timeline-entry';
 import { AgentChatUsageGuardBanner } from './agent-chat-usage-guard-banner';
 import type { AgentChatController } from './use-agent-chat';
 import { useAgentChatHistory } from './use-agent-chat-history';
+import { useIsKeyboardShown } from './use-keyboard-shown';
 
 /**
  * About three lines of the timeline, kept visible however much is docked above the composer.
@@ -346,11 +347,16 @@ const AgentChatMessageSheet = ({
 const AgentChatRequests = ({
     blockedReason,
     chat,
+    isExpanded,
     provider,
     theme,
 }: {
     blockedReason: ReturnType<typeof agentChatRequestBlockedReason>;
     chat: AgentChatController;
+    /**
+     * The keyboard is up beside this dock, so the card may take the timeline's whole share of the screen.
+     */
+    isExpanded: boolean;
     provider: string;
     theme: MobileTheme;
 }) => {
@@ -364,6 +370,7 @@ const AgentChatRequests = ({
         <View
             style={[
                 styles.dock,
+                isExpanded && styles.dockExpanded,
                 { borderColor: theme.border },
                 dock.currentId === undefined && styles.hidden,
             ]}
@@ -471,6 +478,16 @@ export const AgentChatView = ({
         () => agentChatRequestBlockedReason({ deviceRole, isConnected }, t),
         [deviceRole, isConnected, t],
     );
+    const isKeyboardShown = useIsKeyboardShown();
+    /**
+     * A request card needs its question, answer field, and buttons beside the keyboard; on a phone the timeline's floor
+     * and the dock's 80% cap left it too short for them, so while both are up the timeline yields its share to the
+     * card.
+     */
+    const isTimelineYielding =
+        isKeyboardShown &&
+        agentChatRequestDock(snapshot?.requests ?? [], chat.pending.answeredRequestIds, t)
+            .currentId !== undefined;
 
     return (
         <View style={styles.root} testID="agent-chat">
@@ -521,7 +538,7 @@ export const AgentChatView = ({
             ) : null}
             {/* Saved-copy and state notices share the top of the segment, as on the Conversation. */}
             <SavedCopyNote savedAt={chat.savedAt} testID="agent-chat-saved" theme={theme} />
-            <View style={styles.body}>
+            <View style={[styles.body, isTimelineYielding && styles.bodyYielding]}>
                 <AgentChatBody
                     canSend={canRetry}
                     chat={chat}
@@ -544,6 +561,7 @@ export const AgentChatView = ({
             <AgentChatRequests
                 blockedReason={blockedReason}
                 chat={chat}
+                isExpanded={isTimelineYielding}
                 provider={provider}
                 theme={theme}
             />
@@ -572,6 +590,7 @@ const styles = StyleSheet.create({
      * readable.
      */
     body: { flex: 1, minHeight: TIMELINE_MIN_HEIGHT },
+    bodyYielding: { minHeight: 0 },
     bannerButton: {
         alignItems: 'center',
         borderRadius: 10,
@@ -584,6 +603,7 @@ const styles = StyleSheet.create({
     status: { alignItems: 'center', flex: 1, gap: 12, justifyContent: 'center', padding: 24 },
     statusText: { fontSize: 15, lineHeight: 21, textAlign: 'center' },
     dock: { borderTopWidth: 1, flexShrink: 1, maxHeight: '80%', padding: 12 },
+    dockExpanded: { maxHeight: '100%' },
     dockCard: { flexShrink: 1 },
     hidden: { display: 'none' },
 });

@@ -3,9 +3,9 @@ import { Keyboard, Platform } from 'react-native';
 
 /**
  * Whether the software keyboard is up. iOS reports the change as it starts (`keyboardWill*`), so a docked card can
- * collapse alongside the keyboard's own animation; Android only reports it once done (`keyboardDid*`). In the Chat the
- * composer is the only text field, so this stands in for "the composer is focused" without threading focus through the
- * Session screen.
+ * collapse alongside the keyboard's own animation; Android only reports it once done (`keyboardDid*`). In the Chat it
+ * stands in for "the composer or a docked question's answer is focused" without threading focus through the Session
+ * screen.
  */
 export const useIsKeyboardShown = (): boolean => {
     const [isShown, setShown] = useState(() => Keyboard.isVisible());
