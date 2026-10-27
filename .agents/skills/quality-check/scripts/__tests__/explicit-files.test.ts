@@ -21,7 +21,7 @@ afterEach(async () => {
 /**
  * A repository on a `feature` branch off `origin/main`, holding every kind of path an explicit argument can name.
  */
-async function fixtureRepo(): Promise<{
+async function fixtureRepo({ hasOriginMain = true } = {}): Promise<{
     check: (...arguments_: string[]) => Promise<void>;
 }> {
     const root = await mkdtemp(join(tmpdir(), 'caxri-check-explicit-'));
@@ -59,6 +59,7 @@ async function fixtureRepo(): Promise<{
     await writeFile(join(root, 'with space.ts'), 'export {};\n');
     await mkdir(join(root, 'src'));
     await writeFile(join(root, 'src', 'inner.ts'), 'export {};\n');
+    if (!hasOriginMain) git('update-ref', '-d', 'refs/remotes/origin/main');
 
     return {
         check: (...arguments_) =>
@@ -90,6 +91,13 @@ describe('assertExplicitFiles', () => {
                 'deleted space.ts',
             ),
         ).resolves.toBeUndefined();
+    });
+
+    it('still rejects a mistyped path where no origin/main exists, as in a pull request CI checkout', async () => {
+        // The CI unit job checks out only the pull request's merge commit, so `merge-base origin/main` has no ref.
+        const { check } = await fixtureRepo({ hasOriginMain: false });
+        await expect(check('kept.tsx')).rejects.toMatchObject({ exitCode: 2 });
+        await expect(check('unstaged-delete.ts')).resolves.toBeUndefined();
     });
 
     it('rejects a mistyped path, naming only the bad argument', async () => {

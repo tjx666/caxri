@@ -559,13 +559,6 @@ jobs:
 
           See the [README install section](https://github.com/tjx666/caxri#install) for more.
 
-          #### From a source checkout
-
-          \`\`\`bash
-          bun run install:caxri                  # Source Map build
-          bun run install:caxri -- --no-sourcemap # smaller no-map build
-          \`\`\`
-
           ### Android (arm64)
 
           1. Download \`${android_filename}\` from **Assets** below on your Android phone.

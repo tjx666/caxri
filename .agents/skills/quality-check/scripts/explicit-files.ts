@@ -19,7 +19,7 @@ type GitCapture = (arguments_: string[]) => Promise<string>;
 /**
  * Paths Git records as deleted: on the branch since the `origin/main` merge base, or not yet committed (staged or not),
  * which also covers a file the branch added and then removed. A rename counts as its deleted source, as it does in
- * changed-file discovery.
+ * changed-file discovery. Without an `origin/main` ref only uncommitted deletions count.
  */
 async function deletedPaths(git: GitCapture): Promise<Set<string>> {
     const deletedSince = async (revision: string): Promise<string[]> =>
@@ -36,8 +36,17 @@ async function deletedPaths(git: GitCapture): Promise<Set<string>> {
         )
             .split('\0')
             .filter(Boolean);
-    const mergeBase = (await git(['merge-base', 'origin/main', 'HEAD'])).trim();
-    const lists = await Promise.all([deletedSince(mergeBase), deletedSince('HEAD')]);
+    let mergeBase: string | undefined;
+    try {
+        mergeBase = (await git(['merge-base', 'origin/main', 'HEAD'])).trim();
+    } catch {
+        // A pull request CI checkout fetches only the merge commit, so no `origin/main` exists; the branch's own
+        // deletions are then unknowable, and uncommitted ones still count.
+    }
+    const lists = await Promise.all([
+        ...(mergeBase ? [deletedSince(mergeBase)] : []),
+        deletedSince('HEAD'),
+    ]);
     return new Set(lists.flat());
 }
 
