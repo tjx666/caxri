@@ -4,6 +4,7 @@ import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scenarios';
 import { capture, finish } from './mobile-agent-actions-scenarios';
 import {
+    checkBounds,
     hideChatKeyboard,
     sendFromPhone,
     waitForCheck,
@@ -12,6 +13,7 @@ import {
 import {
     adbShell,
     mobileNativeControlBounds,
+    mobileSemantics,
     observeMobileNode,
     tapMobileCheck,
     tapMobileCheckByBounds,
@@ -109,7 +111,15 @@ export async function executeMobileChatMessageActionsScenario(
         await waitForCheck(serial, 'conversation-message-select');
         await tapMobileCheckByBounds(serial, 'conversation-message-select');
         await waitForCheck(serial, 'conversation-message-select-text');
-        await tapMobileCheck(serial, 'conversation-message-select-text', { isLongPress: true });
+        // The selectable text is not a clickable node, so the long press goes to its on-screen bounds.
+        const selectable = checkBounds(
+            await mobileSemantics(serial),
+            'conversation-message-select-text',
+        );
+        if (!selectable) throw new Error('The selectable reply is not on screen');
+        const x = String(selectable.left + 60);
+        const y = String(selectable.top + 60);
+        await adbShell(serial, ['input', 'swipe', x, y, x, y, '900']);
         await waitForMobile(
             () => selectionToolbarShown(serial),
             (isShown) => isShown,
