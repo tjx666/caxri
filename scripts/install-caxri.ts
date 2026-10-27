@@ -8,7 +8,10 @@
  * the requested release (latest by default) with resumable retries, verifies its size and SHA-256 checksum, mounts the
  * DMG, replaces /Applications/Caxri.app, and defensively strips any quarantine attribute afterwards.
  *
- * Usage: `bun run install:caxri [-- --tag v0.0.7 --no-sourcemap --skip-checksum]`
+ * Usage: `bun run install:caxri [-- --tag v0.0.7 --no-sourcemap --skip-checksum --detach]`
+ *
+ * `--detach` hands the install to launchd and returns at once; use it whenever the caller runs inside the installed
+ * Caxri, such as an Agent Session, because quitting Caxri ends that caller and the install with it.
  */
 
 import { mkdtemp, rm, stat } from 'node:fs/promises';
@@ -20,6 +23,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { valid as validSemver } from 'semver';
 
 import { execFileAsync } from './exec';
+import { DETACHED_INSTALL_LOG, reopenCaxri, startDetachedInstall } from './install-caxri-detach';
 
 const REPOSITORY = 'tjx666/caxri';
 const INSTALL_PATH = '/Applications/Caxri.app';
@@ -32,10 +36,18 @@ interface InstallOptions {
      */
     skipChecksum?: boolean;
     shouldOmitSourceMaps?: boolean;
+    /**
+     * Hands the install to a one-shot launchd job instead of running it in this process.
+     */
+    shouldDetach?: boolean;
+    /**
+     * Reopens Caxri afterwards, installed or not; set on the detached run, which has no user to reopen it.
+     */
+    shouldRelaunch?: boolean;
     tag?: string;
 }
 
-const USAGE = 'Usage: install-caxri [--tag vX.Y.Z] [--no-sourcemap] [--skip-checksum]';
+const USAGE = 'Usage: install-caxri [--tag vX.Y.Z] [--no-sourcemap] [--skip-checksum] [--detach]';
 
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/install-caxri.test.ts
 export function parseArguments(argv: string[]): InstallOptions {
@@ -54,6 +66,14 @@ export function parseArguments(argv: string[]): InstallOptions {
         }
         if (argument === '--no-sourcemap') {
             options.shouldOmitSourceMaps = true;
+            continue;
+        }
+        if (argument === '--detach') {
+            options.shouldDetach = true;
+            continue;
+        }
+        if (argument === '--relaunch') {
+            options.shouldRelaunch = true;
             continue;
         }
         throw new Error(`Unknown argument: ${argument}. ${USAGE}`);
@@ -469,7 +489,18 @@ async function downloadReleaseAsset(asset: ReleaseAsset, directory: string): Pro
 
 async function main(): Promise<void> {
     if (process.platform !== 'darwin') throw new Error('The Caxri installer is macOS-only.');
-    const options = parseArguments(process.argv.slice(2));
+    const argv = process.argv.slice(2);
+    const options = parseArguments(argv);
+    if (options.shouldDetach) {
+        const label = await startDetachedInstall(
+            join(import.meta.dirname, '..'),
+            argv.filter((argument) => argument !== '--detach'),
+        );
+        console.log(
+            `Started detached install job ${label}; Caxri will quit and reopen. Log: ${DETACHED_INSTALL_LOG}`,
+        );
+        return;
+    }
 
     const downloadDirectory = await mkdtemp(join(tmpdir(), 'caxri-install-'));
     let mountPoint: string | undefined;
@@ -555,6 +586,7 @@ async function main(): Promise<void> {
             // Best-effort unmount; the temporary mount disappears on reboot at worst.
         }
         await rm(downloadDirectory, { force: true, recursive: true });
+        if (options.shouldRelaunch) await reopenCaxri(INSTALL_PATH);
     }
 }
 

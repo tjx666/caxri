@@ -114,12 +114,12 @@ beyond the packaged application itself.
   quit confirmation are detected: `install:caxri` uses the installed version-matched CLI first so
   task shutdown is non-interactive, then applies the exact-path signal fallback before replacement.
 - When the agent itself runs inside the installed Caxri (`CAXRI_MANAGED_AGENT` is set), that quit
-  ends the agent's own Session and every child it started, so a foreground `install:caxri` dies at
-  "Quitting the running Caxri…" and leaves the old version installed. Finish every other step and
-  the report first, then launch the install as the last action, detached into its own session with
-  a relaunch afterwards, for example
-  `nohup perl -MPOSIX -e 'setsid; exec @ARGV' zsh -c 'bun run install:caxri > /tmp/caxri-install.log 2>&1 && open -a /Applications/Caxri.app' >/dev/null 2>&1 &`,
-  and tell the user it will restart Caxri. Verify the installed version in the next turn.
+  ends the agent's Session and everything it started, including `nohup` and `setsid` background
+  jobs, so the install dies at "Quitting the running Caxri…" and the old version stays installed.
+  Finish every other step and the report first, then run `bun run install:caxri -- --detach` as the
+  last action: it hands the install to a one-shot launchd job that reopens Caxri afterwards and
+  prints its log path. Tell the user Caxri will restart, and verify the installed version in the
+  next turn.
 
 ## Existing-release Android backfill
 

@@ -90,6 +90,10 @@ describe('install-caxri', () => {
             tag: 'v0.0.7',
         });
         expect(parseArguments(['--no-sourcemap'])).toEqual({ shouldOmitSourceMaps: true });
+        expect(parseArguments(['--detach', '--relaunch'])).toEqual({
+            shouldDetach: true,
+            shouldRelaunch: true,
+        });
         expect(() => parseArguments(['--nope'])).toThrow('Unknown argument');
         expect(() => parseArguments(['--tag'])).toThrow('Unknown argument');
     });
