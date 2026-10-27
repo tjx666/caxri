@@ -1,4 +1,5 @@
 import type {
+    AgentChatGoal,
     AgentChatImageInput,
     AgentChatItem,
     AgentChatPatchOperation,
@@ -6,7 +7,7 @@ import type {
     AgentChatTaskPatchOperation,
     AgentChatTurn,
 } from '@caxri/protocol';
-import { MAX_AGENT_CHAT_TEXT_LENGTH } from '@caxri/protocol';
+import { MAX_AGENT_CHAT_GOAL_OBJECTIVE_LENGTH, MAX_AGENT_CHAT_TEXT_LENGTH } from '@caxri/protocol';
 
 import { extractVisibleTranscriptMessage } from '../agents';
 import {
@@ -27,6 +28,7 @@ import {
 import { claudeAssistantItems, ClaudeBlockIds, claudeUsageTokens, text } from './claude-items';
 import { claudeCompaction } from './claude-system-notices';
 import { settleClaudeToolItem } from './claude-tool-results';
+import { claudeGoalNotice } from './goals/claude-goals';
 
 /**
  * Rebuilds a resumed Claude Code Chat from its session JSONL transcript. Claude Code's resume returns no history, so
@@ -50,6 +52,61 @@ interface HistoryState {
      * context it measured, and the prompt cache written for it, are gone.
      */
     lastResponse?: { message: Json; at: number };
+    /**
+     * The goal the transcript leaves active, and the index of the first turn opened after it was set: its time is the
+     * sum of those turns' durations.
+     */
+    goal?: { objective: string; sinceTurn: number };
+}
+
+/**
+ * Keeps the active goal across a goal record: a new objective starts its own time, the same one keeps it.
+ */
+function setHistoryGoal(state: HistoryState, condition: string | undefined): void {
+    const objective = clip(condition?.trim() ?? '', MAX_AGENT_CHAT_GOAL_OBJECTIVE_LENGTH);
+    if (!objective) delete state.goal;
+    else if (state.goal?.objective !== objective)
+        state.goal = { objective, sinceTurn: state.turns.length };
+}
+
+/**
+ * Claude Code writes the goal's state to the transcript only, as `goal_status` attachments (verified with Claude Code
+ * 2.1.310): `met: false` when the goal is set (`sentinel`) and after each check that found it unmet (`reason`), and
+ * `met: true` or `failed: true` once it ends.
+ */
+function applyGoalStatus(state: HistoryState, attachment: Json): void {
+    if (attachment.met === true || attachment.failed === true) delete state.goal;
+    else setHistoryGoal(state, stringField(attachment.condition));
+}
+
+/**
+ * Reads the `/goal` replies and the error warning among replayed notices, as the live Chat does.
+ */
+function applyGoalNotices(state: HistoryState, notices: readonly AgentChatItem[]): void {
+    for (const notice of notices) {
+        if (notice.type !== 'notice') continue;
+        const reply = claudeGoalNotice(notice);
+        if (reply === null) delete state.goal;
+        else if (reply) setHistoryGoal(state, reply.objective);
+    }
+}
+
+/**
+ * The goal row for a replayed transcript whose goal is still active. Claude Code has no Pause, and reports no tokens.
+ */
+function historyGoal(state: HistoryState, now: number): AgentChatGoal | undefined {
+    if (!state.goal) return undefined;
+    const workedMs = state.turns
+        .slice(state.goal.sinceTurn)
+        .reduce((total, turn) => total + (turn.durationMs ?? 0), 0);
+    return {
+        objective: state.goal.objective,
+        status: 'active',
+        tokensUsed: 0,
+        timeUsedSeconds: Math.round(workedMs / 1000),
+        updatedAt: now,
+        pausable: false,
+    };
 }
 
 function parseRecord(line: string): Json | undefined {
@@ -87,6 +144,7 @@ function applySystemRecord(state: HistoryState, record: Json): void {
         const feedbackItems = claudeFeedbackItems(record, undefined, scope);
         for (const item of feedbackItems)
             state.items.set(item.id, { ...item, ...recordTime(record) });
+        applyGoalNotices(state, feedbackItems);
         return;
     }
     const current = state.turns.at(-1);
@@ -182,6 +240,14 @@ function applyHistoryRecord(state: HistoryState, record: Json): void {
         applySteeredRecord(state, record.attachment, record);
         return;
     }
+    if (
+        record.type === 'attachment' &&
+        isRecord(record.attachment) &&
+        record.attachment.type === 'goal_status'
+    ) {
+        applyGoalStatus(state, record.attachment);
+        return;
+    }
     if (record.type === 'attachment') {
         const toolUseId = claudeFeedbackToolUseId(record);
         // An unknown id is not ownership evidence: Stop and UserPromptSubmit Hooks use generated ids too.
@@ -193,6 +259,7 @@ function applyHistoryRecord(state: HistoryState, record: Json): void {
             scope,
         );
         for (const item of feedback) state.items.set(item.id, { ...item, ...recordTime(record) });
+        applyGoalNotices(state, feedback);
         return;
     }
     if (record.isMeta === true) return;
@@ -211,6 +278,7 @@ function applyHistoryRecord(state: HistoryState, record: Json): void {
         if (feedback.length > 0) {
             for (const item of feedback)
                 state.items.set(item.id, { ...item, ...recordTime(record) });
+            applyGoalNotices(state, feedback);
             return;
         }
         const mapped = claudeAssistantItems(message, state.turnId, state.ids);
@@ -358,14 +426,17 @@ export function claudeRewindPoint(
  * visible user prompt opens a turn. The whole tail is replayed: what the projection's budget evicts stays in Server
  * Core's history archive, and `truncated` marks a tail that stops short of the transcript's start. Every resumed turn
  * is finished: a resume never re-enters a turn the previous process was running. `resumeAt` ends the history at that
- * record, for the restart right after a rewind.
+ * record, for the restart right after a rewind. A goal the transcript leaves active comes back as the snapshot's
+ * `goal`, since Claude Code streams no goal state of its own.
  */
 export function claudeHistoryOperations(
     transcript: string,
     isTailTruncated: boolean,
     resumeAt?: string,
+    now = Date.now(),
 ): AgentChatPatchOperation[] {
     const state = readHistory(transcript, false, resumeAt);
+    const goal = historyGoal(state, now);
     const { turns, items, plan, lastResponse } = state;
     // A resumed Chat reports no usage until its next reply, so the composer's cache notice would stay hidden exactly
     // when it matters most: reopening a conversation whose prompt cache expired while it sat idle.
@@ -382,6 +453,7 @@ export function claudeHistoryOperations(
             ...(isTailTruncated && { truncated: true }),
             ...(plan && { plan }),
             ...(usage && { usage }),
+            ...(goal && { goal }),
         },
     });
     return operations;

@@ -1507,8 +1507,13 @@ error` warning drop it.
   only printed the goal's status keep it, with the turn's time added to `timeUsedSeconds`.
 - The goal carries `pausable: false`, so no Client offers Pause: Claude Code's `/goal pause` would set
   a goal named `pause`. Clear sends `/goal clear`.
-- A Chat reopened from history shows no goal until the next `/goal` reply, since the replay does not
-  read the transcript's goal records.
+- A Chat reopened from history (a Server Core restart, or a switch from the Terminal) reads the
+  transcript's goal records in order (`claude-history.ts`): a `goal_status` attachment with
+  `met: false` (written when the goal is set and after each check that found it unmet) or a
+  `Goal set:` reply keeps the goal active, while `met: true`, `failed: true`, `Goal cleared:`, and
+  the error warning drop it. A goal still active at the end comes back as the snapshot's `goal`
+  without Pause, its `timeUsedSeconds` summing the `turn_duration` of the turns opened after it was
+  set (0 when the transcript recorded none).
 
 ## Side chat
 
