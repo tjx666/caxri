@@ -239,4 +239,20 @@ describe('Vercel project discovery', () => {
         await expect(findVercelLink(dependencies, 'acme', 'widget')).rejects.toThrow('timed out');
         expect(calls.teams).toBe(2);
     });
+
+    it('re-proves a remembered absence and the team list on a forced refresh', async () => {
+        const { calls, dependencies } = discovery();
+        await findVercelLink(dependencies, 'acme', 'docs');
+        await findVercelLink({ ...dependencies, isForced: true }, 'acme', 'docs');
+        expect(calls).toEqual({ teams: 2, deployments: 4 });
+    });
+
+    it('does not let a discovery that outlived clear() repopulate the cache', async () => {
+        const { calls, dependencies } = discovery();
+        const pending = findVercelLink(dependencies, 'acme', 'docs');
+        dependencies.links.clear();
+        await pending;
+        await findVercelLink(dependencies, 'acme', 'docs');
+        expect(calls.teams).toBe(2);
+    });
 });

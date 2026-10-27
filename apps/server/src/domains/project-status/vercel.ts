@@ -61,6 +61,10 @@ export class VercelLinkCache {
     private readonly unlinked = new Map<string, number>();
     private readonly discovering = new Map<string, Promise<VercelLink | undefined>>();
     private teamList?: { fetchedAt: number; value: Promise<string[]> };
+    /**
+     * Bumped by {@link clear}, so a discovery that was already running cannot write its pre-clear answer back.
+     */
+    private generation = 0;
 
     constructor(private readonly options: VercelLinkCacheOptions = {}) {}
 
@@ -90,11 +94,15 @@ export class VercelLinkCache {
 
     /**
      * The account's team slugs, shared by every discovery inside the TTL. A failed list is not remembered, so the next
-     * discovery asks again.
+     * discovery asks again. `isFresh` (a forced refresh) skips the cached list.
      */
-    teams(load: () => Promise<string[]>): Promise<string[]> {
+    teams(load: () => Promise<string[]>, isFresh = false): Promise<string[]> {
         const cached = this.teamList;
-        if (cached && this.now() - cached.fetchedAt < (this.options.teamsTtlMs ?? TEAMS_TTL_MS))
+        if (
+            !isFresh &&
+            cached &&
+            this.now() - cached.fetchedAt < (this.options.teamsTtlMs ?? TEAMS_TTL_MS)
+        )
             return cached.value;
         const value = load();
         const entry = { fetchedAt: this.now(), value };
@@ -107,11 +115,17 @@ export class VercelLinkCache {
         this.unlinked.clear();
         this.discovering.clear();
         this.teamList = undefined;
+        this.generation += 1;
     }
 
+    /**
+     * `isFresh` (a forced refresh) re-proves a remembered absence, so a repository the user just linked in Vercel shows
+     * up on Refresh instead of after {@link UNLINKED_TTL_MS}. A found link is still reused: it does not go stale.
+     */
     resolve(
         key: string,
         discover: () => Promise<VercelLink | undefined>,
+        isFresh = false,
     ): Promise<VercelLink | undefined> {
         const cached = this.links.get(key);
         if (cached) {
@@ -120,20 +134,23 @@ export class VercelLinkCache {
         }
         const unlinkedAt = this.unlinked.get(key);
         if (
+            !isFresh &&
             unlinkedAt !== undefined &&
             this.now() - unlinkedAt < (this.options.unlinkedTtlMs ?? UNLINKED_TTL_MS)
         )
             return Promise.resolve(undefined);
         const running = this.discovering.get(key);
         if (running) return running;
+        const generation = this.generation;
         const discovery = (async () => {
             try {
                 const link = await discover();
+                if (generation !== this.generation) return link;
                 if (link) this.set(key, link);
                 else rememberBounded(this.unlinked, key, this.now(), VERCEL_LINK_CACHE_LIMIT);
                 return link;
             } finally {
-                this.discovering.delete(key);
+                if (generation === this.generation) this.discovering.delete(key);
             }
         })();
         this.discovering.set(key, discovery);
@@ -146,6 +163,10 @@ export interface VercelDependencies {
      * Shared across refreshes; see {@link VercelLinkCache}.
      */
     links: VercelLinkCache;
+    /**
+     * A user-requested refresh, which re-proves a remembered absence; see {@link VercelLinkCache.resolve}.
+     */
+    isForced?: boolean;
     onParseFailure: (error: unknown) => void;
     run: (arguments_: readonly string[], cwd: string) => Promise<string>;
 }
@@ -223,29 +244,37 @@ export function findVercelLink(
     owner: string,
     repo: string,
 ): Promise<VercelLink | undefined> {
-    return dependencies.links.resolve(`${owner}/${repo}`, async () => {
-        const teams = await dependencies.links.teams(async () => {
-            const teamsJson = await dependencies.run(
-                ['teams', 'ls', '--format', 'json'],
-                homedir(),
-            );
-            const parsed = parseExternalJson(teamsJson, vercelTeamListSchema, 'Vercel team list');
-            return (Array.isArray(parsed) ? parsed : (parsed.teams ?? [])).flatMap((team) =>
-                team.slug ? [team.slug] : [],
-            );
-        });
-        const links = await Promise.all(
-            teams.map(async (team): Promise<VercelLink | undefined> => {
-                const output = await dependencies.run(
-                    vcListArguments(team, { githubOrg: owner, githubRepo: repo }),
+    return dependencies.links.resolve(
+        `${owner}/${repo}`,
+        async () => {
+            const teams = await dependencies.links.teams(async () => {
+                const teamsJson = await dependencies.run(
+                    ['teams', 'ls', '--format', 'json'],
                     homedir(),
                 );
-                const project = parseVercelList(output)[0]?.name;
-                return project ? { team, project } : undefined;
-            }),
-        );
-        return links.find((candidate): candidate is VercelLink => Boolean(candidate));
-    });
+                const parsed = parseExternalJson(
+                    teamsJson,
+                    vercelTeamListSchema,
+                    'Vercel team list',
+                );
+                return (Array.isArray(parsed) ? parsed : (parsed.teams ?? [])).flatMap((team) =>
+                    team.slug ? [team.slug] : [],
+                );
+            }, dependencies.isForced);
+            const links = await Promise.all(
+                teams.map(async (team): Promise<VercelLink | undefined> => {
+                    const output = await dependencies.run(
+                        vcListArguments(team, { githubOrg: owner, githubRepo: repo }),
+                        homedir(),
+                    );
+                    const project = parseVercelList(output)[0]?.name;
+                    return project ? { team, project } : undefined;
+                }),
+            );
+            return links.find((candidate): candidate is VercelLink => Boolean(candidate));
+        },
+        dependencies.isForced,
+    );
 }
 
 /**

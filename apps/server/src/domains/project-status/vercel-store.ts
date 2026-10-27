@@ -130,10 +130,11 @@ export class VercelDeploymentStore {
         context: BranchPublicationContext,
         rootPath: string,
         mergeCommit: string | undefined,
+        isForced: boolean,
         entry: () => { fetchedAt?: number },
     ): Promise<BranchDeployments> {
         const value = await loadVercelDeployments(
-            { ...dependencies, links: this.links },
+            { ...dependencies, isForced, links: this.links },
             context,
             rootPath,
             mergeCommit,
@@ -198,7 +199,14 @@ export class VercelDeploymentStore {
             if (this.now() - stored.fetchedAt < ttl) return stored.value;
         }
         const entry: { fetchedAt?: number; value: Promise<BranchDeployments> } = {
-            value: this.loadBranch(dependencies, context, rootPath, mergeCommit, () => entry),
+            value: this.loadBranch(
+                dependencies,
+                context,
+                rootPath,
+                mergeCommit,
+                isForced,
+                () => entry,
+            ),
         };
         rememberBounded(this.branches, key, entry, MAX_ENTRIES);
         return entry.value;
