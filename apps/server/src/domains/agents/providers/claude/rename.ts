@@ -5,6 +5,7 @@ import {
     assertAgentRenameVersion,
     throwAgentRenameError,
 } from '../../rename';
+import { CAXRI_CLAUDE_ENTRYPOINT } from './entrypoint';
 
 /**
  * Non-interactive `/rename` is the public write boundary. Repeating the same exact-session rename is idempotent on the
@@ -70,7 +71,10 @@ export async function renameClaudeSession(
             ],
             {
                 cwd: context.cwd,
-                env: await agentCommandEnvironment(context.environment),
+                env: {
+                    ...(await agentCommandEnvironment(context.environment)),
+                    CLAUDE_CODE_ENTRYPOINT: CAXRI_CLAUDE_ENTRYPOINT,
+                },
                 maxBuffer: CLAUDE_RENAME_OUTPUT_BYTES,
                 signal: context.signal,
                 timeout: CLAUDE_RENAME_TIMEOUT_MS,

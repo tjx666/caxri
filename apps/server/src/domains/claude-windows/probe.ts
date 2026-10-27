@@ -9,6 +9,7 @@ import type { ClaudeWindowUnavailableReason } from '@caxri/protocol';
 import { CLAUDE_WINDOW_MINUTES } from '@caxri/protocol';
 
 import { claudePlanLimits, withTimeout } from '../agent-chat';
+import { CAXRI_CLAUDE_ENTRYPOINT } from '../agents';
 
 const ACCOUNT_TIMEOUT_MS = 20_000;
 const USAGE_TIMEOUT_MS = 10_000;
@@ -151,6 +152,7 @@ export async function openSdkSession(options: SdkSessionOptions): Promise<Claude
             env: {
                 ...options.environment,
                 CLAUDE_AGENT_SDK_CLIENT_APP: `caxri/${options.clientVersion}`,
+                CLAUDE_CODE_ENTRYPOINT: CAXRI_CLAUDE_ENTRYPOINT,
             },
             abortController: abort,
             persistSession: false,

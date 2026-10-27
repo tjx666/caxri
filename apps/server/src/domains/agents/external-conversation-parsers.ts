@@ -4,6 +4,7 @@ import { readBoundedRegularFileText } from '@caxri/system';
 import Database from 'better-sqlite3';
 
 import type { AgentEnvironment } from './contract';
+import { isHostedClaudeEntrypoint } from './providers/claude/entrypoint';
 import { claudeTranscriptRoot } from './providers/claude/paths';
 import { resolveCodexStateDirectories } from './providers/codex/paths';
 import type { SqliteColumn } from './providers/codex/state-databases';
@@ -275,8 +276,8 @@ async function parseClaudeConversation(
         scanClaudeTitle(record, titles);
         /**
          * The first entry point names how the conversation started. A `--print` run (`sdk-cli`) is a scripted one-shot.
-         * A later `sdk-cli` record does not reclassify a conversation: Caxri runs `/rename` through `claude -p
-         * --resume`, which appends one to an Agent Chat transcript.
+         * A later record does not reclassify a conversation: Caxri runs `/rename` through `claude -p --resume`, which
+         * appends one to an Agent Chat transcript (`caxri` now, `sdk-cli` in transcripts older builds wrote).
          */
         firstEntrypoint ??= stringField(record, 'entrypoint');
         if (firstEntrypoint === 'sdk-cli') return 'scripted';
@@ -338,7 +339,7 @@ async function parseClaudeConversation(
         prompt.prompt,
         head,
     );
-    return typeof conversation !== 'string' && firstEntrypoint?.startsWith('sdk')
+    return typeof conversation !== 'string' && isHostedClaudeEntrypoint(firstEntrypoint)
         ? { ...conversation, isHosted: true }
         : conversation;
 }

@@ -175,6 +175,11 @@ describe('listExternalConversations', () => {
             [claudeUser('claude-hosted', 'Draft a note', { entrypoint: 'sdk-ts' })],
             at,
         );
+        await writeLines(
+            claudePath('claude-caxri'),
+            [claudeUser('claude-caxri', 'Draft a reply', { entrypoint: 'caxri' })],
+            at,
+        );
         await writeLines(subagentPath, [claudeUser('claude-parent', 'Sub task')], at);
         await writeLines(
             claudePath('claude-delegated'),
