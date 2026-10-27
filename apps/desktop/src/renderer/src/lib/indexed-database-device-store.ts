@@ -46,6 +46,7 @@ export function indexedDatabaseDeviceStoreBackend(databaseName: string): DeviceS
     };
     return {
         clear: () => commit('readwrite', (store) => store.clear()),
+        count: async () => requestResult((await objectStore('readonly')).count()),
         list: async () => {
             const entries = (await requestResult(
                 (await objectStore('readonly')).getAll(),
