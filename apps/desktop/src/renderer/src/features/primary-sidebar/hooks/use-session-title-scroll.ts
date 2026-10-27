@@ -2,15 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { useShouldReduceMotion } from '@/hooks/use-should-reduce-motion';
 
-/**
- * Reading speed of the reveal, in pixels per second.
- */
-const SCROLL_SPEED = 35;
-/**
- * Pause before the title starts moving, and hold at its tail, in milliseconds.
- */
-const START_DELAY = 600;
-const END_HOLD = 1200;
+import { sessionTitleScrollTimeline } from '../session-title-scroll';
 
 /**
  * Reveal only clipped titles, at a constant reading speed. Observing while active keeps sidebar resizing and font
@@ -41,9 +33,13 @@ export function useSessionTitleScroll(title: string, isDisabled: boolean) {
             reset();
             const distance = text.scrollWidth - viewport.clientWidth;
             if (distance <= 1) return;
-            const travel = (distance / SCROLL_SPEED) * 1000;
-            const duration = START_DELAY + travel + END_HOLD;
-            const at = (milliseconds: number): number => milliseconds / duration;
+            const fade = fadeHost
+                ? getComputedStyle(fadeHost).getPropertyValue('--overflow-fade-end').trim() || '0px'
+                : '0px';
+            const { duration, slideStart, fadeIn, fadeOut, slideEnd } = sessionTitleScrollTimeline(
+                distance,
+                Number(fade.replace('px', '')) || 0,
+            );
             const timing: KeyframeAnimationOptions = {
                 duration,
                 easing: 'linear',
@@ -54,10 +50,10 @@ export function useSessionTitleScroll(title: string, isDisabled: boolean) {
                 text.animate(
                     [
                         { transform: 'translateX(0)', offset: 0 },
-                        { transform: 'translateX(0)', offset: at(START_DELAY) },
+                        { transform: 'translateX(0)', offset: slideStart },
                         {
                             transform: `translateX(-${distance}px)`,
-                            offset: at(START_DELAY + travel),
+                            offset: slideEnd,
                         },
                         { transform: `translateX(-${distance}px)`, offset: 1 },
                     ],
@@ -65,24 +61,17 @@ export function useSessionTitleScroll(title: string, isDisabled: boolean) {
                 ),
             );
             if (!fadeHost) return;
-            const fade =
-                getComputedStyle(fadeHost).getPropertyValue('--overflow-fade-end').trim() || '0px';
-            const ramp =
-                (Math.min(Number(fade.replace('px', '')) || 0, distance / 2) / SCROLL_SPEED) * 1000;
             const edges = (start: string, end: string, offset: number): Keyframe => ({
                 '--overflow-fade-start': start,
                 '--overflow-fade-end': end,
                 offset,
             });
-            const fadeIn = at(START_DELAY + ramp);
-            const fadeOut = at(START_DELAY + travel - ramp);
-            const tail = at(START_DELAY + travel);
             const keyframes = [
                 edges('0px', fade, 0),
-                edges('0px', fade, at(START_DELAY)),
+                edges('0px', fade, slideStart),
                 edges(fade, fade, fadeIn),
                 edges(fade, fade, fadeOut),
-                edges(fade, '0px', tail),
+                edges(fade, '0px', slideEnd),
                 edges(fade, '0px', 1),
             ];
             animations.push(fadeHost.animate(keyframes, timing));
