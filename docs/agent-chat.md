@@ -501,7 +501,8 @@ diff`, and a work summary whose waits name one subagent reads `waited for Review
   timeline with its title, type, model, status, and Stop; a shell tab shows the command and its
   live output, titled by the command without Codex's login-shell wrapper. Running tasks also appear
   in the composer strip's collapsible Background work section, where each opens or stops on its own, and a
-  header control with the ended count expands the ended ones. The section is live status, not a log: it leaves once the
+  header control with the ended count expands the ended ones; a single running task with no failure is the section's
+  only row, without a header (`agentChatBackgroundWorkSoleTask`). The section is live status, not a log: it leaves once the
   last task ends and its failures were dismissed, since the Agent reports the result in the conversation
   (`agentChatTaskStrip` in `packages/protocol/src/agent/agent-chat-tasks.ts`, whose `agentChatTaskStripView` the
   phone shows; see [Mobile](#mobile)). A finished task stays reachable from its

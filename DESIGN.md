@@ -1368,7 +1368,9 @@ header that folds and unfolds the list under it, remembered per Chat: a glyph, t
 on the right (`2/5`; `1 running · 2 failed` with the failures in `--danger`), and a trailing chevron
 that turns as the list opens. Folded, the Plan header also names the current step and the Background
 work header shows each running kind's glyph with its count (subagents before background shells, so
-one kind never hides the other), so folding never hides that work runs. The plan list scrolls past
+one kind never hides the other), so folding never hides that work runs. With a single running task and no failure,
+Background work drops its header and fold: that task's row is the whole section, with the ended-count control beside
+its Stop, since `1 running` would only repeat the row. The plan list scrolls past
 192px. The Plan section shows while the Chat is busy and after the turn only while the plan is
 unfinished; Background work shows while anything runs or a failure from the latest turn is
 unseen, and its X dismisses those failures. The status row is the one place the turn's live state

@@ -61,6 +61,7 @@ export function AgentChatStripSection({
                     aria-controls={bodyId}
                     aria-expanded={!isCollapsed}
                     aria-label={ariaLabel}
+                    data-agent-chat-strip-fold=""
                     className="flex h-6 min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-1.5 text-left text-muted hover:bg-elevated hover:text-foreground focus-visible:outline focus-visible:outline-accent"
                     type="button"
                     onClick={() => {

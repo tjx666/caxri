@@ -104,6 +104,16 @@ export function agentChatPlanSection({
     return { plan, progress };
 }
 
+/**
+ * The one task the Background work section shows as its whole body, or `undefined` while it needs a header: a single
+ * running task and no failure waiting. A header saying `1 running` above that task's own row would only repeat it.
+ */
+export function agentChatBackgroundWorkSoleTask(
+    work: AgentChatBackgroundWork,
+): AgentChatTask | undefined {
+    return work.running.length === 1 && work.failed.length === 0 ? work.running[0] : undefined;
+}
+
 const RUNNING_KIND_ORDER: ReadonlyArray<AgentChatTask['kind']> = ['agent', 'shell'];
 
 /**
