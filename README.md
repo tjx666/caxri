@@ -1,9 +1,11 @@
 # Caxri
 
-Running several coding agents at once means juggling terminals and missing the moment one stops to
-ask you something. Caxri is a macOS app for developers who already use Claude Code, Codex or Grok
-Build: it keeps each task as a durable Session under a local Project folder, shows which Sessions
-are waiting on you, and lets you read, review and steer them from one window.
+Caxri is an Agent Development Environment (ADE) for macOS: the place where you build software
+through the coding Agents you already use, Claude Code, Codex and Grok Build. It gives those Agents
+one consistent workflow, keeps each task as a durable Session under a local Project folder, handles
+your subscription's limits with automation, and shows only what still needs you: which Session is
+waiting, and what its Agent changed. Agents change quickly, so Caxri ships often and adapts with
+them.
 
 **Works with:** Claude Code, Codex and Grok Build. Caxri runs your own installed Agent CLIs and
 their existing sign-in; it does not bundle an Agent or a subscription. The interface is available
@@ -18,15 +20,24 @@ compatibility commitment explicitly.
 - **Projects and Sessions.** A Project is a folder you authorize. Sessions are durable units of
   work beneath it, each with its own Terminals, layout and workbench state. The shared vocabulary
   lives in [GLOSSARY.md](GLOSSARY.md).
+- **One workflow across Agents.** Sessions, Chat, attention and usage work the same way whichever
+  Agent runs the task. Claude Code and Codex are supported first; when an Agent lacks a capability,
+  that Agent simply goes without it.
 - **Chat first, Terminal always.** An Agent opens as a readable conversation (a Chat) by default,
   and can switch to a genuine terminal without losing the conversation. Shells always run in a
   terminal. See [docs/agent-chat.md](docs/agent-chat.md).
+- **Your subscription, working for you.** Eligible idle Claude Code and Grok Build Chats are
+  compacted before their prompt cache expires, a Chat stopped by a used-up limit resumes on its own
+  when the reset is known and near, and when a plan runs out you can continue the work with another
+  Agent. See [docs/session-compaction.md](docs/session-compaction.md) and
+  [docs/agent-usage-continuation.md](docs/agent-usage-continuation.md).
 - **Attention you can trust.** Each Session reports waiting, completed or failed, so a wall of
   parallel Agents never stalls silently.
-- **A focused workbench.** A narrow editor, file tree, search and an inspection-first Source Control
-  view cover the "glance at what the Agent did" loop without becoming an IDE.
-- **A scriptable CLI.** The `caxri` command drives the same app Server; see
-  [docs/cli.md](docs/cli.md).
+- **Only what you still need to see.** A narrow editor, file tree, search and a review-first Source
+  Control view cover the "glance at what the Agent did" loop without becoming an IDE.
+- **Built for Agents to drive.** The `caxri` command and its bundled skill let Agents drive the
+  same app Server: create Sessions, delegate work and report back. Agents commit; you merge the
+  pull request. See [docs/cli.md](docs/cli.md).
 
 New here? Read [Getting started](docs/getting-started.md) for the model in five minutes.
 
@@ -297,8 +308,10 @@ architecture contracts live in the owning `.agents/skills/` entries. Bundle budg
 
 ## Product boundaries
 
-Caxri treats a user-selected folder as a Project and groups durable Sessions beneath it. It is
-not an agent wrapper, a VS Code fork, or an orchestration platform. Agent CLIs run unmodified,
-through their vendor's structured protocol (a Chat, the primary surface) or in a real PTY (always
-supported). Source Control is an inspection surface: the only Git mutation is switching to an
-existing local branch. The editor intentionally stays narrow.
+Caxri treats a user-selected folder as a Project and groups durable Sessions beneath it. It runs
+your installed Agent CLIs unmodified, through their vendor's structured protocol (a Chat, the core
+surface) or in a real PTY (always supported), and leaves sign-in to the CLIs. Source Control is for
+reviewing Agent work: there is no manual stage or commit, because Agents commit. A person still
+decides the merge, so Caxri offers a pull request merge button. The editor intentionally stays
+narrow, and Caxri is not an IDE or a VS Code fork. The principles behind these boundaries are
+recorded in [ADR 0020](docs/adr/0020-agent-development-environment.md).

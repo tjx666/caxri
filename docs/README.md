@@ -107,6 +107,7 @@ rewritten, only superseded.
 | [0017](adr/0017-per-window-session-presence.md)               | Per-window Open Sessions and presence replace one selected Session |
 | [0018](adr/0018-macos-ssh-hosts.md)                           | macOS on Apple silicon is a supported SSH Host                     |
 | [0019](adr/0019-extension-view-request-scope.md)              | Extension view requests carry their own Session scope              |
+| [0020](adr/0020-agent-development-environment.md)             | Caxri is an ADE: product and development principles                |
 
 ## Historical
 

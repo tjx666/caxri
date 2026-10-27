@@ -66,6 +66,16 @@ reference this file; deviations require updating this spec first.
    inside an already-rendered control or row (a button, chip, picker, `Loading more` row) and for
    a wait whose copy explains something the user should know, such as a process starting.
 
+10. **Show only what a person still needs to see.** A surface earns its place by telling the user
+    something they still need while Agents do the work: which Session needs them, what an Agent
+    changed, whether it worked, or how much plan usage is left. Do not add a panel, column, or status
+    item that only mirrors internal state, or that reproduces a traditional IDE surface without that
+    reason. See [ADR 0020](docs/adr/0020-agent-development-environment.md).
+11. **Leave the work to Agents.** A person's controls review, steer, and decide; they do not redo
+    Agent work. Do not add a manual control for Git work that belongs to Agents, such as staging or
+    committing. The pull request merge button is the deliberate exception, because merging is the
+    decision a person still makes.
+
 `apps/desktop/src/renderer/src/styles/theme.css` is the single Tailwind/default-theme/bootstrap
 source imported by both `styles.css` (main workbench) and `process-explorer.css`. Entry
 files contain only their window-specific rules. `components.json` points shadcn at that shared

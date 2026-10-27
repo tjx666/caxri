@@ -7,6 +7,26 @@ OSI-approved, so keep that legal distinction explicit in licensing claims.
 This file is the always-on standing orders. Task procedures, architecture contracts, and toolchain
 recipes live in `.agents/skills/`: load the owning skill instead of restating it here.
 
+## Product and development principles
+
+Caxri is an Agent Development Environment (ADE). Judge features, surfaces, and contributor practice
+against the principles in [ADR 0020](docs/adr/0020-agent-development-environment.md), and state the
+reason when work departs from one. For example, a Source Control commit button contradicts "built
+for Agents to drive", while a capability only Claude Code and Codex support may ship without
+waiting for Grok Build.
+
+- **Product**: keep pace with the hosted Agents, Claude Code and Codex first; one experience across
+  Agents, where a missing provider capability is a gap rather than a blocker; out-of-the-box
+  subscription automation that does not interrupt the user; attention first, so the interface shows
+  only what a person still needs to see; built for Agents to drive, with no manual commit workflow
+  (the pull request merge button is the exception); Chat as the core mode, with the Terminal surface
+  possibly moving into stable maintenance.
+- **Development**: built entirely by coding Agents (see [Operating model](#operating-model));
+  enough structured logs, metrics, and diagnostics for an Agent to investigate failures and find
+  optimizations autonomously, within the privacy invariants below; Server first, with Desktop, CLI,
+  and Mobile as Clients; no compatibility weight before the first compatibility release; fast,
+  light, consistent, simple, and modern.
+
 ## Repository layout
 
 | Path          | Purpose                                                                                         |
@@ -237,10 +257,12 @@ em-dash-check` enforces this in the `guards` job and the pre-commit hook.
   enum, a per-lifetime aggregate, or a duration, and record a state transition when it happens, not
   only the state itself.
 - Agent Chat is the primary Agent surface: design new Agent-facing features for Chat first, and a
-  feature may ship Chat-only. The PTY Terminal surface is permanent; Chat work must not remove,
-  hide, or regress its launch, input, resume, surface switch, suspension, or restore paths. For
-  example, a Chat-only Fork action is fine, but a shared Agent menu change that breaks
-  `claude --resume` in a PTY is a bug. See [ADR 0015](docs/adr/0015-chat-primary-agent-surface.md).
+  feature may ship Chat-only. The PTY Terminal surface is permanent; it may move into stable
+  maintenance without new Agent features, but Chat work must not remove, hide, or regress its
+  launch, input, resume, surface switch, suspension, or restore paths. For example, a Chat-only Fork
+  action is fine, but a shared Agent menu change that breaks `claude --resume` in a PTY is a bug.
+  See [ADR 0015](docs/adr/0015-chat-primary-agent-surface.md) and
+  [ADR 0020](docs/adr/0020-agent-development-environment.md).
 - Until the owner declares Caxri's first compatibility release, optimize for the current architecture
   instead of preserving compatibility with previous local builds. Do not add protocol adapters,
   legacy Host controls, dual-read/write paths, or migration UI only to keep an unpublished build
