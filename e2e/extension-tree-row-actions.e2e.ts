@@ -18,9 +18,13 @@ const packagedExecutable = process.env.CAXRI_PACKAGED_EXECUTABLE;
 /**
  * Installs a user extension whose single expanded row carries two inline actions, the first behind a confirmation,
  * shaped like the Status panel's pull request row and its Merge action. The confirmed command only bumps a counter
- * shown in the child row, so the spec observes dispatch without any real `gh` call.
+ * shown in the child row, so the spec observes dispatch without any real `gh` call. `richTooltip` adds the row's hover
+ * card; the keyboard spec leaves it off because a focus-opened card would cover the child row it clicks.
  */
-async function writeRowActionsExtension(extensionRoot: string): Promise<void> {
+async function writeRowActionsExtension(
+    extensionRoot: string,
+    { richTooltip = false }: { richTooltip?: boolean } = {},
+): Promise<void> {
     await mkdir(join(extensionRoot, 'dist'), { recursive: true });
     await mkdir(join(extensionRoot, 'media'), { recursive: true });
     const desktopManifestSource = await readFile(
@@ -77,6 +81,7 @@ export function activate(context) {
                 }
                 const item = new TreeItem(label, TreeItemCollapsibleState.Expanded);
                 item.id = 'pull-request';
+                ${richTooltip ? "item.tooltip = { kind: 'rich', title: 'Pull request #7 details', rows: [{ label: 'checks', value: 'passed' }] };" : ''}
                 item.actions = [
                     {
                         command: { command: 'e2e.row-actions.merge', title: 'Merge Fixture' },
@@ -109,6 +114,52 @@ export function activate(context) {
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path fill="currentColor" d="M2 2h12v12H2z"/></svg>',
     );
 }
+
+test('Hovering an inline action shows its tooltip instead of the row hover card', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-extension-row-actions-hover-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    await mkdir(root, { recursive: true });
+    await writeRowActionsExtension(join(userData, 'extensions', 'row-actions'), {
+        richTooltip: true,
+    });
+    const running = await launchCaxri({
+        executablePath: packagedExecutable,
+        userDataDir: userData,
+        testRootPath: root,
+    });
+    try {
+        await stubPackagedProjectDialog(running, root, packagedExecutable);
+        await createShellSession(running.page);
+        await running.page.getByRole('tab', { name: 'Row Actions Fixture', exact: true }).click();
+        const tree = running.page.getByRole('tree', { name: 'Row Actions Tree' });
+        const row = tree.getByRole('treeitem', { name: 'Pull request #7', exact: true });
+        const merge = tree.locator('[data-tree-item-action="e2e.row-actions.merge"]');
+        const card = running.page.locator('.tree-item-rich-tooltip:visible');
+        const actionTooltip = running.page.locator('.tooltip-popup', { hasText: 'Merge Fixture' });
+
+        // The plain icon action is revealed by hovering the row, which starts the card's hover delay; the pointer then
+        // rests on the action. The card's timer started first, so it would already be showing once the action's own
+        // tooltip opens.
+        await row.hover();
+        await merge.hover();
+        await expect(actionTooltip).toBeVisible();
+        await expect(card).toHaveCount(0);
+        await running.page.screenshot({ path: test.info().outputPath('action-hovered.png') });
+
+        // The label still raises the card, and moving onto the action closes it again.
+        await running.page.mouse.move(0, 0);
+        await expect(actionTooltip).toBeHidden();
+        await row.getByText('Pull request #7', { exact: true }).hover();
+        await expect(card).toContainText('Pull request #7 details');
+        await merge.hover();
+        await expect(card).toHaveCount(0);
+        await expect(actionTooltip).toBeVisible();
+    } finally {
+        await running.app.close();
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
 
 test('Extension tree inline actions are reachable and runnable from the keyboard', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-extension-row-actions-e2e-'));

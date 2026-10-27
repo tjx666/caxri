@@ -30,6 +30,10 @@ const badgeToneClassNames: Record<NonNullable<RichTooltip['badge']>['tone'], str
     warning: 'text-warning',
 };
 
+function isRowActionTarget(target: EventTarget): boolean {
+    return target instanceof Element && target.closest('[data-tree-item-actions]') !== null;
+}
+
 function openTooltipUrl(url: string): void {
     void openExternalUrl(url, (message) => pushToast('error', message));
 }
@@ -42,6 +46,7 @@ export function ExtensionTreeTooltip({
     trigger: ReactElement<Record<string, unknown>>;
 }) {
     const latestPointer = useRef<{ x: number; y: number }>(undefined);
+    const isPointerOnRowAction = useRef(false);
     const popupReference = useRef<HTMLDivElement>(null);
     const triggerReference = useRef<HTMLAnchorElement>(null);
     const tooltipId = useId();
@@ -82,6 +87,12 @@ export function ExtensionTreeTooltip({
      */
     const capturePointer = useCallback((event: ReactPointerEvent) => {
         latestPointer.current = { x: event.clientX, y: event.clientY };
+        isPointerOnRowAction.current = isRowActionTarget(event.target);
+        /**
+         * An inline action (Merge) has its own tooltip; the row's card would cover the rows below it and compete with
+         * that tooltip, so moving onto an action closes a card the row itself raised.
+         */
+        if (isPointerOnRowAction.current) setOpen(false);
     }, []);
     /**
      * Base UI gives the rendered element's props precedence over Trigger props. Compose focus opening and the Tab
@@ -100,6 +111,18 @@ export function ExtensionTreeTooltip({
         <HoverCard
             open={open}
             onOpenChange={(nextOpen, details) => {
+                /**
+                 * The hover delay started on the row may expire while the pointer rests on an inline action; that
+                 * action's own tooltip is the one the user asked for.
+                 */
+                if (
+                    nextOpen &&
+                    details.reason === 'trigger-hover' &&
+                    isPointerOnRowAction.current
+                ) {
+                    details.cancel();
+                    return;
+                }
                 /**
                  * PreviewCard closes a focus-opened popup when its trigger blurs, even when the next focus target is
                  * inside the popup. The explicit Tab bridge below moves focus synchronously, so retain the controlled
