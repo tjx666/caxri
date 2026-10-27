@@ -205,6 +205,36 @@ describe('fileToolResult', () => {
         ]);
     });
 
+    it('keeps a line both sides share inside the change as context', async () => {
+        const directory = await project({ 'src/list.txt': FILE });
+        const result = fileToolResult('Edit', {
+            file_path: join(directory, 'src/list.txt'),
+            old_string: 'four\nfive\nsix',
+            new_string: '4\nfive\n6',
+        });
+        expect(result?.structuredPatch).toEqual([
+            {
+                oldStart: 1,
+                oldLines: 9,
+                newStart: 1,
+                newLines: 9,
+                lines: [
+                    ' one',
+                    ' two',
+                    ' three',
+                    '-four',
+                    '+4',
+                    ' five',
+                    '-six',
+                    '+6',
+                    ' seven',
+                    ' eight',
+                    ' nine',
+                ],
+            },
+        ]);
+    });
+
     it('finds the line numbers in a file that already holds the edit', async () => {
         const directory = await project({ 'src/list.txt': FILE.replace('five', '5') });
         const result = fileToolResult('Edit', {

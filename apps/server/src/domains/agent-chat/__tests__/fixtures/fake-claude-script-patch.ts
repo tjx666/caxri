@@ -6,6 +6,9 @@
  */
 import fs from 'node:fs';
 
+import type { StructuredPatchHunk } from 'diff';
+import { structuredPatch } from 'diff';
+
 type Json = Record<string, unknown>;
 
 /**
@@ -18,23 +21,8 @@ const CONTEXT_LINES = 3;
  */
 const MAX_FILE_BYTES = 1_000_000;
 
-interface PatchHunk {
-    oldStart: number;
-    oldLines: number;
-    newStart: number;
-    newLines: number;
-    /**
-     * Context lines start with a space, removed lines with `-`, added lines with `+`.
-     */
-    lines: string[];
-}
-
 function text(value: unknown): string {
     return typeof value === 'string' ? value : '';
-}
-
-function splitLines(content: string): string[] {
-    return content === '' ? [] : content.replace(/\n$/u, '').split('\n');
 }
 
 /**
@@ -51,42 +39,22 @@ function readFile(filePath: string): string | undefined {
 }
 
 /**
- * The one hunk that turns `original` into `next`, like the `diff` package's: the lines both sides share at the start
- * and the end are context (at most three each), and the lines between them are the change. No hunk when nothing
- * changed.
+ * The hunks that turn `original` into `next`, computed by the `diff` package whose hunk shape Claude Code reports, so a
+ * line both sides share inside the change stays context instead of reading as removed and added again. No hunk when
+ * nothing changed.
  */
-function structuredPatch(original: string[], next: string[]): PatchHunk[] {
-    const shortest = Math.min(original.length, next.length);
-    let prefix = 0;
-    while (prefix < shortest && original[prefix] === next[prefix]) prefix += 1;
-    let suffix = 0;
-    while (
-        suffix < shortest - prefix &&
-        original[original.length - 1 - suffix] === next[next.length - 1 - suffix]
-    )
-        suffix += 1;
-    if (prefix === original.length && prefix === next.length) return [];
-    const before = Math.min(CONTEXT_LINES, prefix);
-    const after = Math.min(CONTEXT_LINES, suffix);
-    const removed = original.slice(prefix, original.length - suffix);
-    const added = next.slice(prefix, next.length - suffix);
-    const start = prefix - before + 1;
-    return [
-        {
-            oldStart: start,
-            oldLines: before + removed.length + after,
-            newStart: start,
-            newLines: before + added.length + after,
-            lines: [
-                ...original.slice(prefix - before, prefix).map((line) => ` ${line}`),
-                ...removed.map((line) => `-${line}`),
-                ...added.map((line) => `+${line}`),
-                ...original
-                    .slice(original.length - suffix, original.length - suffix + after)
-                    .map((line) => ` ${line}`),
-            ],
-        },
-    ];
+function patchHunks(filePath: string, original: string, next: string): StructuredPatchHunk[] {
+    return structuredPatch(filePath, filePath, original, next, undefined, undefined, {
+        context: CONTEXT_LINES,
+    }).hunks;
+}
+
+/**
+ * Edit strings standing in for a missing file end without a newline; a file's last line has one, so the patch does not
+ * mark both sides with "No newline at end of file".
+ */
+function asFileText(value: string): string {
+    return value === '' || value.endsWith('\n') ? value : `${value}\n`;
 }
 
 function replaceText(content: string, search: string, replacement: string, isAll: boolean): string {
@@ -111,7 +79,7 @@ function editSides(input: Json, content: string | undefined): [string, string] {
     if (isAfter && (!isBefore || newString.includes(oldString)))
         return [replaceText(content, newString, oldString, isAll), content];
     if (isBefore) return [content, replaceText(content, oldString, newString, isAll)];
-    return [oldString, newString];
+    return [asFileText(oldString), asFileText(newString)];
 }
 
 /**
@@ -128,7 +96,7 @@ export function fileToolResult(name: string, input: Json): Json | undefined {
             filePath,
             oldString: text(input.old_string),
             newString: text(input.new_string),
-            structuredPatch: structuredPatch(splitLines(before), splitLines(after)),
+            structuredPatch: patchHunks(filePath, before, after),
             userModified: false,
             replaceAll: input.replace_all === true,
         };
@@ -147,7 +115,7 @@ export function fileToolResult(name: string, input: Json): Json | undefined {
         type: 'update',
         filePath,
         content: written,
-        structuredPatch: structuredPatch(splitLines(content), splitLines(written)),
+        structuredPatch: patchHunks(filePath, content, written),
         originalFile: content,
     };
 }
