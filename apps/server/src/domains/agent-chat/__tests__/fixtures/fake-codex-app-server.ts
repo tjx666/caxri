@@ -14,7 +14,7 @@
  * - `ask`: a question; the reply quotes the chosen answer.
  * - `slow`: a titled thought, a running command, two token usage reports, and a long streamed reply that `turn/interrupt`
  *   can stop. With `reconnect`, a stream retry notice comes before the reply.
- * - `burststream`: a reply that arrives in a few large deltas 400ms apart, the way a busy provider delivers text.
+ * - `burststream`: a reply arriving in large deltas 400ms apart; `clip` adds a phone window re-read (#2682).
  * - `longstream`: a titled thought, a quiet pause of a few seconds, then a reply of forty numbered paragraphs streamed
  *   over about 30 seconds, which `turn/interrupt` can stop.
  * - `weblink`: a reply that only links the message's first `http(s)` URL; matched before any keyword the URL may hold.
@@ -296,7 +296,7 @@ async function runTurn(turn: FakeTurn, input: FakeInput[], clientId: string | nu
     } else if (text.includes('weblink')) {
         await runWebLink(io, turn, text);
     } else if (text.includes('burststream')) {
-        await runBurstStream(io, turn);
+        await runBurstStream(io, turn, { isClipped: text.includes('clip') });
     } else if (text.includes('longstream')) {
         await runLongStream(io, turn);
     } else if (text.includes('manyagents')) {

@@ -2,11 +2,11 @@
  * Deterministic Codex replies for Chat rendering coverage: `table` streams the transcript's Markdown, `codeblocks`
  * streams fenced code in several languages, `testrun` finishes a multi-step turn whose command fails with a non-zero
  * exit code, `workrows` runs one command of each shell shape the work rows name (a skill read, chained reads, a file
- * search, a test run, a commit and push, and a pull request), `burststream` arrives in a few large deltas, `longstream`
- * thinks quietly and then streams a long reply at a reader's pace, `weblink` answers with a Markdown link to the web
- * page the message names (`weblink inline` with its bare URL after a label), `bigdiff` changes one file by 6,000 lines,
- * and `widediff` changes one file with lines wider than a phone, and `manysteps` runs {@link MANY_STEPS} quick commands
- * before a short reply.
+ * search, a test run, a commit and push, and a pull request), `burststream` arrives in a few large deltas (with `clip`,
+ * past the phone's clip and across a window re-read), `longstream` thinks quietly and then streams a long reply at a
+ * reader's pace, `weblink` answers with a Markdown link to the web page the message names (`weblink inline` with its
+ * bare URL after a label), `bigdiff` changes one file by 6,000 lines, and `widediff` changes one file with lines wider
+ * than a phone, and `manysteps` runs {@link MANY_STEPS} quick commands before a short reply.
  */
 import crypto from 'node:crypto';
 import path from 'node:path';
@@ -256,10 +256,91 @@ const BURST_STREAM_DELTAS = [
 ];
 
 /**
- * The `burststream` turn: {@link BURST_STREAM_DELTAS} 400ms apart.
+ * The `burststream clip` lead-in: 32 numbered lines of about 150 characters, which carry the reply past the phone's
+ * 4,000-character clip before {@link CLIPPED_STREAM_LANDING} arrives.
  */
-export async function runBurstStream(io: FakeCodexIo, turn: FakeTurn) {
-    await io.streamMessage(turn, BURST_STREAM_DELTAS, 400);
+const CLIPPED_STREAM_LEAD_IN = Array.from(
+    { length: 32 },
+    (_, index) =>
+        `Line ${String(index + 1).padStart(2, '0')}: the reply grows past what one phone window keeps, so the phone shows only its newest part behind a marker.\n\n`,
+);
+
+/**
+ * The paragraph that arrives together with the oversized command output, so it is still easing in when the phone
+ * re-reads its window.
+ */
+const CLIPPED_STREAM_LANDING = Array.from(
+    { length: 8 },
+    (_, index) =>
+        `Sentence ${index + 1} of the landing paragraph arrived in the same moment as a command's large output, and keeps typing after the phone re-reads its window. `,
+).join('');
+
+/**
+ * More than a phone frame holds (`MOBILE_AGENT_CHAT_MAX_BYTES`, 48 KiB), so the Gateway sends a content-free change
+ * notice instead of the patch carrying it.
+ */
+const OVERSIZED_COMMAND_OUTPUT = `${'build output line\n'.repeat(3_500)}`;
+
+/**
+ * The `burststream` turn: {@link BURST_STREAM_DELTAS} 400ms apart. With `isClipped` (`burststream clip`, #2682), the
+ * reply first passes the phone's clip; then a command's output too large for one phone frame lands beside a long
+ * paragraph of the reply, so the phone re-reads a window whose clipped reply starts later than the one it shows.
+ */
+export async function runBurstStream(
+    io: FakeCodexIo,
+    turn: FakeTurn,
+    { isClipped }: { isClipped: boolean },
+) {
+    if (!isClipped) {
+        await io.streamMessage(turn, BURST_STREAM_DELTAS, 400);
+        return;
+    }
+    const reply = { type: 'agentMessage', id: crypto.randomUUID(), text: '' };
+    io.startItem(turn, { ...reply });
+    const say = (delta: string) => {
+        reply.text += delta;
+        io.notifyTurn(turn, 'item/agentMessage/delta', {
+            turnId: turn.id,
+            itemId: reply.id,
+            delta,
+        });
+    };
+    for (const line of CLIPPED_STREAM_LEAD_IN) {
+        if (turn.interrupted) return;
+        say(line);
+        // eslint-disable-next-line no-await-in-loop -- chunks stream one at a time on purpose
+        await delay(400);
+    }
+    const command = {
+        type: 'commandExecution',
+        id: crypto.randomUUID(),
+        command: '/bin/zsh -lc "bun run build"',
+        cwd: process.cwd(),
+        status: 'inProgress',
+    };
+    io.startItem(turn, command);
+    io.notifyTurn(turn, 'item/commandExecution/outputDelta', {
+        turnId: turn.id,
+        itemId: command.id,
+        delta: OVERSIZED_COMMAND_OUTPUT,
+    });
+    say(CLIPPED_STREAM_LANDING);
+    await delay(400);
+    io.completeItem(turn, {
+        ...command,
+        status: 'completed',
+        aggregatedOutput: OVERSIZED_COMMAND_OUTPUT,
+        exitCode: 0,
+        durationMs: 400,
+    });
+    const closing = BURST_STREAM_DELTAS.slice(-5);
+    for (const delta of closing) {
+        if (turn.interrupted) return;
+        say(delta);
+        // eslint-disable-next-line no-await-in-loop -- chunks stream one at a time on purpose
+        await delay(400);
+    }
+    io.completeItem(turn, reply);
 }
 
 /**
