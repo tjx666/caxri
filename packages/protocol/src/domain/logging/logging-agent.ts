@@ -119,6 +119,13 @@ export const agentLogEvents = {
     titleSuggestionFinished: 'agent.title_suggestion_finished',
     probeFailed: 'agent.probe_failed',
     processProbeFailed: 'agent.process_probe_failed',
+    /**
+     * One record when the exit watch of a manually started Agent ends (`ShellProcessProbe`), with a closed `reason`
+     * (`agent_exited`, `availability_changed`, `replaced`, `terminal_ended`, `server_closing`), how many process-table
+     * probes it ran and how many failed, its lifetime, and the probes' p95 and maximum duration. Never carries a
+     * command, process list, or PID.
+     */
+    processWatchEnded: 'agent.process_watch_ended',
     sessionActivityChanged: 'agent.session_activity_changed',
 } as const;
 

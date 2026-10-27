@@ -103,7 +103,10 @@ provider, title, and Agent session identity remain attached to the Terminal so a
 start another managed generation. If another Agent Terminal in the same Session is still live, it becomes the
 primary Agent when the current primary exits; without a live successor, the stopped Terminal stays primary so its
 durable identity remains the resume target. A manually launched foreground Agent receives no managed identity or control;
-bounded process probes only publish and later revoke its interactive availability.
+bounded process probes only publish and later revoke its interactive availability. After confirmation, an exit watch
+reads the shared process table once a second and revokes availability after two consecutive misses; it ends when the
+Agent exits, its running availability changes, a newer confirmation replaces it, the Terminal ends, or Server Core
+closes, and retains no process ID or signal authority.
 Long-paste preparation returns an explicit native-paste result for these manually launched Agents before
 saving or summarizing text. Managed Agents retain generation-fenced summaries and file-reference fallback;
 preparation errors never trigger native-paste fallback. Managed startup supports zsh and bash; when the configured platform Shell is

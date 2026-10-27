@@ -31,7 +31,7 @@ describe('ShellProcessProbe', () => {
             isCurrent: () => true,
             isWatchCurrent: () => false,
             onConfirmed: confirmed,
-            onError: vi.fn(),
+            logger: { write: vi.fn() },
             onExhausted: vi.fn(),
             onInactive: vi.fn(),
         });
@@ -71,7 +71,7 @@ describe('ShellProcessProbe', () => {
             isCurrent: () => true,
             isWatchCurrent: () => false,
             onConfirmed: vi.fn(() => true),
-            onError: vi.fn(),
+            logger: { write: vi.fn() },
             onExhausted: exhausted,
             onInactive: vi.fn(),
         });
@@ -113,7 +113,7 @@ describe('ShellProcessProbe', () => {
             isCurrent: () => true,
             isWatchCurrent: () => false,
             onConfirmed: vi.fn(() => true),
-            onError: vi.fn(),
+            logger: { write: vi.fn() },
             onExhausted: exhausted,
             onInactive: vi.fn(),
         });
