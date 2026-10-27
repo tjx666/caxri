@@ -188,6 +188,7 @@ export const effectfulCommandRecovery = {
     'mobile.project.add': 'durable',
     'mobile.files.write': 'memory',
     'mobile.update.prepare': 'memory',
+    'mobile.preview.open': 'memory',
     'desktop.focus': 'durable',
     'desktop.openPath': 'durable',
     'desktop.openProject': 'durable',

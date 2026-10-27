@@ -38,6 +38,7 @@ import {
     mobileImageUploadParametersSchema,
 } from './mobile-image-contract.js';
 import { mobilePanelsMethods } from './mobile-panels-contract.js';
+import { mobilePreviewInternalMethods, mobilePreviewMethods } from './mobile-preview-contract.js';
 import { mobilePullRequestMethods } from './mobile-pull-request-contract.js';
 import { mobileTerminalMethods } from './mobile-terminal-contract.js';
 import {
@@ -59,6 +60,7 @@ export * from './mobile-files-contract.js';
 export * from './mobile-host-status-contract.js';
 export * from './mobile-image-contract.js';
 export * from './mobile-panels-contract.js';
+export * from './mobile-preview-contract.js';
 export * from './mobile-pull-request-contract.js';
 export * from './mobile-terminal-contract.js';
 export * from './mobile-timeline-contract.js';
@@ -450,6 +452,7 @@ export const mobileMethods = {
     ...mobileUpdateMethods,
     ...mobileBotInboxMethods,
     ...mobileHostStatusMethods,
+    ...mobilePreviewMethods,
 } as const satisfies Record<string, MethodSpec>;
 
 /**
@@ -582,6 +585,7 @@ export const mobileInternalMethods = {
         result: mobileProjectAddResultSchema,
     },
     ...mobileFilesInternalMethods,
+    ...mobilePreviewInternalMethods,
     ...mobileBotInboxInternalMethods,
 } as const satisfies Record<string, MethodSpec>;
 

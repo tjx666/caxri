@@ -83,6 +83,7 @@ What/why of current shipped behavior, core modules, protocols, and operator know
 | [mobile/design.md](mobile/design.md)                               | Caxri Mobile design and interaction spec                            |
 | [mobile/host-status.md](mobile/host-status.md)                     | Mobile computer status: CPU, memory, Session load, processes        |
 | [mobile/performance.md](mobile/performance.md)                     | Mobile release performance budgets                                  |
+| [mobile/preview.md](mobile/preview.md)                             | Mobile preview of a Session's local web pages                       |
 | [mobile/transport.md](mobile/transport.md)                         | Mobile gateway transport, pairing, and framing                      |
 | [mobile/update.md](mobile/update.md)                               | Mobile app self-update from Desktop                                 |
 

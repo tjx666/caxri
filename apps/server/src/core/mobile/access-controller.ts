@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { hostname } from 'node:os';
 
 import type { MobileSubscriptionResource } from '@caxri/mobile-transport';
@@ -28,8 +29,9 @@ import { invokeMobileFileRequest } from './file-requests';
 import { MobileGateway } from './gateway';
 import { adoptCurrentPairedPrincipal } from './gateway/principal-grant';
 import { mobileHostDisplayName } from './host-display-name';
-import { HostStatusSampler } from './host-status';
+import { createMobileHostStatusReader } from './host-status';
 import { invokeMobilePanelRequest } from './panel-requests';
+import { createMobilePreviewRequests } from './preview';
 import { createMobilePairing, invokeMobileProjectRequest } from './project-requests';
 import { mergeMobilePullRequest, readMobilePullRequest } from './pull-request-requests';
 import { isMobileGatewayMethodAllowedForRole } from './role-methods';
@@ -78,12 +80,12 @@ export const openMobileAccessController = (options: {
         ...(options.logger && { logger: options.logger }),
     });
     const accessPersistence = createMobileAccessPersistence(registry, options.logger);
-    let hostStatus: HostStatusSampler | undefined;
-    /**
-     * The domain service of the most recent computer status read, so the shared sampler never queries one that a Server
-     * restart replaced.
-     */
-    let hostStatusDomain: ServerDomainService | undefined;
+    const previews = createMobilePreviewRequests({
+        logger: options.logger,
+        random: randomBytes,
+        registry,
+    });
+    const readHostStatus = createMobileHostStatusReader(options.logger);
     let isClosed = false;
     const assertOpen = (): void => {
         if (isClosed) throw new CaxriError('UNAVAILABLE', 'Mobile access is shutting down');
@@ -188,7 +190,7 @@ export const openMobileAccessController = (options: {
             withAuthority(async () => {
                 isClosed = true;
                 abortOperations();
-                await gateway?.close();
+                await Promise.all([gateway?.close(), previews.clear()]);
             }),
         publish: (event) => gateway?.publish(event),
         invokeControl: async (
@@ -231,6 +233,7 @@ export const openMobileAccessController = (options: {
                     return withAuthority(() => {
                         assertOpen();
                         abortOperations();
+                        void previews.clear();
                         return accessPersistence.apply(activeGateway, false);
                     });
                 case 'mobile.device.list':
@@ -499,15 +502,7 @@ export const openMobileAccessController = (options: {
                 case 'mobile.host.status': {
                     assertOpen();
                     currentPairedPrincipal(context.principal, request.method);
-                    hostStatusDomain = domainService;
-                    hostStatus ??= new HostStatusSampler({
-                        logger: options.logger,
-                        terminals: async () => {
-                            const domain = hostStatusDomain ?? domainService;
-                            return (await domain.request('terminal.processes', {})).terminals;
-                        },
-                    });
-                    const status = await hostStatus.status();
+                    const status = await readHostStatus(domainService);
                     currentPairedPrincipal(context.principal, request.method);
                     return status;
                 }
@@ -522,6 +517,17 @@ export const openMobileAccessController = (options: {
                             currentPairedPrincipal(principal, request.method);
                         });
                     });
+                }
+                case 'mobile.preview.list':
+                case 'mobile.preview.open': {
+                    const principal = currentPairedPrincipal(context.principal, request.method);
+                    return previews.invoke(
+                        request,
+                        principal,
+                        domainService,
+                        () => activeGateway.connectionAddress(context),
+                        () => currentPairedPrincipal(principal, request.method),
+                    );
                 }
                 case 'mobile.files.list':
                 case 'mobile.files.read':
