@@ -37,6 +37,29 @@ describe('direct import test selection', () => {
         expect(unrelated).not.toContain('scripts/__tests__/react-compiler-coverage.test.ts');
     });
 
+    it('routes locale sources to the i18n contracts that import only the aggregated resources', async () => {
+        const localeContracts = [
+            'apps/desktop/src/renderer/src/i18n/__tests__/i18n.test.ts',
+            'apps/desktop/src/renderer/src/i18n/__tests__/zh-cn-terminology.test.ts',
+            'apps/desktop/src/renderer/src/i18n/__tests__/english-counterpart-parity.test.ts',
+        ];
+        const selections = await Promise.all(
+            [
+                'apps/desktop/src/renderer/src/i18n/locales/zh-cn/settings-catalog.ts',
+                'apps/desktop/src/shared/i18n/zh-cn/commands.ts',
+                'packages/protocol/src/agent/agent-chat-labels-zh-cn.ts',
+            ].map((source) => selectedTestCandidates(process.cwd(), [source])),
+        );
+        for (const selected of selections) {
+            expect(selected).toEqual(expect.arrayContaining(localeContracts));
+        }
+
+        const unrelated = await selectedTestCandidates(process.cwd(), [
+            'apps/desktop/src/renderer/src/features/files/file-tree-panel.tsx',
+        ]);
+        for (const contract of localeContracts) expect(unrelated).not.toContain(contract);
+    });
+
     it('recognizes direct relative static imports and re-exports without following dynamic imports', () => {
         expect(
             hasDirectSourceImport(
