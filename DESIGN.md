@@ -907,7 +907,13 @@ in it never settles: its running CSS animations are paused and its transitions c
 hides, and the paused ones resume on return (`features/workbench/hidden-session-transitions.ts`; a
 descendant `[hidden] *` CSS rule is not used because it restyles the whole subtree on every switch). See the `performance` skill for how to measure idle cost. The Terminal and Agent Chat find bars fade in (the floating
 Terminal bar also drops 4px) and close instantly; the pane split drop preview fades in once and
-then glides between zones on `--motion-chrome-switch` so the target split stays legible.
+then glides between zones on `--motion-chrome-switch` so the target split stays legible. Sending a
+Chat message flies each attached image from the composer into its tile in the pending message on
+`--motion-image-send` (280ms, `--motion-ease-emphasized`), up to four images and only between
+on-screen ends. Each flies as a detached clone the Web Animations API moves while it follows its
+tile every frame (`features/agent-chat/composer/send/agent-chat-sent-image-flight.ts`), not as a
+View Transition: the browser skips a transition once a captured element stops rendering, and the
+pending row gives way to the accepted message within the flight.
 The Agent Chat composer's attachment row follows its content's height (`useContentHeightTransition`):
 it expands on `--motion-expand` when the first image or file arrives and collapses on `--motion-collapse`
 after the last one leaves, while each attachment fades in from 92% on `--motion-overlay-enter` and, when

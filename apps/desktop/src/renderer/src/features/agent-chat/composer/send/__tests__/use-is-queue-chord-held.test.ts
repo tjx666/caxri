@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { isQueueChordHeldAfter } from './use-is-queue-chord-held';
+import { isQueueChordHeldAfter } from '../use-is-queue-chord-held';
 
 function keyEvent(type: string, modifiers: { ctrlKey?: boolean; metaKey?: boolean }): Event {
     return Object.assign(new Event(type), { ctrlKey: false, metaKey: false, ...modifiers });

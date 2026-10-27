@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { agentChatSubmitterDelivery } from './agent-chat-submitter-delivery';
+import { agentChatSubmitterDelivery } from '../agent-chat-submitter-delivery';
 
 /**
  * A form submitter as the composer sees it: the Send button carries `value`; another submitter may not.

@@ -145,6 +145,7 @@ function MessageImage({
                 <img
                     alt={label}
                     className="h-24 w-auto max-w-48 min-w-12 rounded-md border border-border object-cover"
+                    data-agent-chat-message-image=""
                     src={source}
                 />
                 {firstNumber !== undefined && (

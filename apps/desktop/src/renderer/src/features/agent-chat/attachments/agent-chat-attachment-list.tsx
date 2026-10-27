@@ -78,6 +78,7 @@ function AttachmentThumbnail({
             <img
                 alt={label}
                 className="block size-28 rounded-lg border border-border object-cover"
+                data-agent-chat-composer-image={attachment.id}
                 src={attachment.image.thumbnail}
             />
             {attachment.token !== undefined && (

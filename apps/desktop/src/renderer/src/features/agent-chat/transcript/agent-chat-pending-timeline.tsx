@@ -27,6 +27,7 @@ function AgentChatPendingUserMessage({
             aria-busy="true"
             className="flex flex-col items-end gap-1.5 opacity-60"
             data-agent-chat-pending=""
+            data-agent-chat-pending-id={message.id}
         >
             <AgentChatPathReferenceChips references={references} />
             {handoff && <AgentChatSessionHandoffBubble note={handoff.note} />}
