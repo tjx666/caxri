@@ -1,7 +1,7 @@
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import type { AgentUsageReadout } from '@caxri/protocol';
+import type { AgentUsageReadout, UsageLimit } from '@caxri/protocol';
 
 import { pageRequest } from './helpers';
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
@@ -97,6 +97,12 @@ export async function executeMobilePlanLimitsScenario(
         await tapMobileCheckByBounds(serial, 'agent-chat-plan-pace-dismiss');
         await waitForNoCheck(serial, 'agent-chat-plan-pace');
         await capture(environment, 'pace-dismissed', artifacts);
+        // The notice hides from the phone's cache at once; kill the app only after the Server kept the dismissal.
+        await waitForMobile(
+            () => pageRequest<UsageLimit[]>(fixture.running.page, 'usage.limits', {}),
+            (limits) =>
+                (limits.find((limit) => limit.provider === 'claude')?.paceDismissedAt ?? 0) > 0,
+        );
 
         await coldStartMobileApp(serial);
         await waitForCheck(serial, `session-row-${fixture.allowedSessionId}`, 60_000);
@@ -106,6 +112,8 @@ export async function executeMobilePlanLimitsScenario(
         await tapMobileCheckByBounds(serial, 'agent-chat-model-button');
         await waitForCheck(serial, 'agent-chat-model-sheet');
         await scrollModelSheetToPlanLimits(serial);
+        await waitForCheck(serial, 'agent-chat-plan-limit-300');
+        await capture(environment, 'model-sheet-limits-after-relaunch', artifacts);
         await tapMobileCheckByBounds(serial, 'agent-chat-model-done');
         await waitForNoCheck(serial, 'agent-chat-model-sheet');
         await waitForNoCheck(serial, 'agent-chat-plan-pace');
