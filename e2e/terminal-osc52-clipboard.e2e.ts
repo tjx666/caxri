@@ -55,8 +55,12 @@ const OSC52_BLOCKED_TOASTS = {
 } as const;
 
 test('OSC 52 clipboard writes honor opt-out and remain bounded, write-only, and lifecycle-safe', async () => {
-    // The opt-out asserted below tells the user once that a Terminal program was denied the clipboard.
-    allowE2EErrors([{ source: 'renderer', event: 'toast', code: 'ERROR_TOAST', count: 1 }]);
+    // The opt-out asserted below tells the user once that a Terminal program was denied the clipboard, and both refused
+    // writes fail in Main, where Renderer copies are written.
+    allowE2EErrors([
+        { source: 'renderer', event: 'toast', code: 'ERROR_TOAST', count: 1 },
+        { source: 'desktop', event: 'ipc.request_failed', code: 'INTERNAL', count: 2 },
+    ]);
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-osc52-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -267,12 +271,8 @@ test('OSC 52 clipboard writes honor opt-out and remain bounded, write-only, and 
             running.page.locator(`${VISIBLE_SESSION} .xterm-helper-textarea`),
         ).toBeFocused();
         await running.page.waitForTimeout(1_050);
-        await running.page.evaluate(() => {
-            Object.defineProperty(navigator.clipboard, 'writeText', {
-                configurable: true,
-                value: () => Promise.reject(new DOMException('Denied', 'NotAllowedError')),
-            });
-        });
+        // Renderer copies write through Main's clipboard, so the refusal is injected there.
+        await running.clipboard.refuseTextWrites();
         await typeTerminal(running.page, osc52(encoded('PERMISSION_FIXTURE')));
         const permissionToast = running.page.getByText(
             'A Terminal program could not write to the clipboard. Check diagnostics for details.',
@@ -293,7 +293,7 @@ test('OSC 52 clipboard writes honor opt-out and remain bounded, write-only, and 
             .toBeTruthy();
         expect(clipboardDiagnostic).toMatchObject({
             code: 'TERMINAL_OSC52_CLIPBOARD_WRITE_FAILED',
-            errorCategory: 'not-allowed',
+            errorCategory: 'error',
             terminalId: liveTerminalId,
         });
         expect(['denied', 'granted', 'prompt', 'query-failed']).toContain(
