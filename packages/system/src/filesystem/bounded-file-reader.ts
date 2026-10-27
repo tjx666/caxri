@@ -6,7 +6,7 @@ import { open } from 'node:fs/promises';
 
 import { CaxriError } from '@caxri/protocol';
 
-import { readFileHandleUpTo } from './read-file-handle-up-to';
+import { readFileHandleUpTo } from './read-file-handle-up-to.js';
 
 type OpenRegularFile = (path: string, flags: number) => Promise<FileHandle>;
 
