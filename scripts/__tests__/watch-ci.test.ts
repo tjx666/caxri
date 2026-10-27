@@ -7,6 +7,7 @@ import {
     formatCiNotification,
     formatRunSummary,
     isHeartbeatStale,
+    isRunSettled,
     newlyFailedJobs,
     nextBackoffMs,
     withDeadline,
@@ -187,6 +188,47 @@ describe('watch-ci', () => {
                 status: 'completed',
             }),
         ).toEqual({ title: 'CI failed · run 123', message: 'CI failure' });
+    });
+});
+
+describe('isRunSettled', () => {
+    it('waits for a job GitHub still reports running inside a completed run', () => {
+        const poll = (status: string) =>
+            buildWatchState(
+                '123',
+                {
+                    attempt: 1,
+                    status: 'completed',
+                    conclusion: 'success',
+                    jobs: [
+                        { conclusion: 'success', name: 'lint', status: 'completed' },
+                        {
+                            conclusion: status === 'completed' ? 'success' : '',
+                            name: 'unit (1/3)',
+                            status,
+                        },
+                    ],
+                },
+                undefined,
+                { heartbeatAt: '2026-10-27T14:00:00Z', pollerPid: 100 },
+            );
+
+        expect(isRunSettled(poll('in_progress'))).toBe(false);
+        expect(isRunSettled(poll('completed'))).toBe(true);
+    });
+
+    it('trusts the run status when only a previous job list is known', () => {
+        const previous = sharedState({ jobs: [job('unit (1/3)', 'in_progress', '')] });
+        const state = buildWatchState(
+            '123',
+            { attempt: 1, status: 'completed', conclusion: 'success' },
+            previous,
+            { heartbeatAt: '2026-10-27T14:00:00Z', pollerPid: 100 },
+        );
+
+        expect(state.jobs).toEqual(previous.jobs);
+        expect(isRunSettled(state)).toBe(true);
+        expect(isRunSettled(sharedState({ status: 'in_progress' }))).toBe(false);
     });
 });
 
