@@ -37,7 +37,7 @@ export function UsageRangeCalendar({
     const { t } = useTranslation();
     const [draft, setDraft] = useState<UsageRangeDraft | undefined>(initial);
     const [hovered, setHovered] = useState<string>();
-    const [month, setMonth] = useState((initial?.end ?? today).slice(0, 7));
+    const [month, setMonth] = useState(() => (initial?.end ?? today).slice(0, 7));
     const span = draftSpan(draft, hovered);
     const complete = draft?.end === undefined ? undefined : { start: draft.start, end: draft.end };
     return (
