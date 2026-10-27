@@ -99,6 +99,20 @@ export function prepareServerEventForDelivery(
 }
 
 /**
+ * Records a Terminal Host or Extension Host runtime status change, at `error` once the runtime reports failure.
+ */
+export function logRuntimeStatus(
+    logger: StructuredLogger,
+    payload: Extract<ServerEvent, { event: 'runtime.status' }>['payload'],
+): void {
+    logger.write(
+        payload.status === 'failed' ? 'error' : 'info',
+        logEventCatalog.serverCore.status,
+        { fields: { status: payload.status, restartCount: payload.restartCount } },
+    );
+}
+
+/**
  * Emits content-free recovery timings and outcomes. Command parameters, replies, event payloads, credentials, and
  * environment values are intentionally unrepresentable in these observation types.
  */

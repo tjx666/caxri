@@ -1,6 +1,4 @@
 import type { CommandExecutionContext } from '@caxri/protocol';
-import type { StructuredLogger } from '@caxri/system';
-import { logEventCatalog } from '@caxri/system';
 
 import type { AgentEndpointRegistry } from './agent-endpoints/registry';
 import type { AgentInboxRegistry } from './agent-inbox/registry';
@@ -26,7 +24,6 @@ export interface ServerCoreControlCallbacksDependencies {
     delegationAccess: DelegationAccessRegistry;
     dispatchWaitIds: Map<string, Set<string>>;
     domainService: ServerDomainService;
-    logger: StructuredLogger;
     requestCancellations: RequestCancellationRegistry;
     stop: (reason?: string) => Promise<void>;
 }
@@ -64,10 +61,9 @@ export function createServerCoreControlCallbacks(
                 dependencies.commandStopFallbackReference.current = undefined;
                 try {
                     await dependencies.stop('command');
-                } catch (error) {
-                    dependencies.logger.write('error', logEventCatalog.serverCore.stopFailed, {
-                        fields: { message: error instanceof Error ? error.message : String(error) },
-                    });
+                } catch {
+                    // `stop()` already wrote `server_core.stop_failed` for the failing step; this only keeps the
+                    // rejection from becoming an unhandled one.
                 }
             }
         },

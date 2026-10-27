@@ -379,7 +379,7 @@ export async function createDomainServices(
         workingDirectory: userDataPath,
     });
     let isClosed = false;
-    async function close(): Promise<void> {
+    const close: DomainServices['close'] = async (runStep = (_step, action) => action()) => {
         if (isClosed) return;
         isClosed = true;
         presenceEffects.unsubscribe();
@@ -395,7 +395,7 @@ export async function createDomainServices(
         await coordinator.close();
         longPastes.close();
         unsubscribeTerminalSettings();
-        await terminals.shutdown('orderly');
+        await runStep('terminals', () => terminals.shutdown('orderly'));
         agentCommands.dispatchService.close();
         agentCommands.delegationService.close();
         await workbenchRoots.close();
@@ -407,7 +407,7 @@ export async function createDomainServices(
         await transcripts.close();
         await watchHub.close();
         database.close();
-    }
+    };
     const compaction = new SessionCompaction({
         agentChat,
         database,

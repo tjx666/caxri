@@ -198,7 +198,14 @@ export const serverCoreLogEvents = {
     recoveryReady: 'server_core.recovery_ready',
     socketTerminated: 'server_core.socket_terminated',
     status: 'server_core.status',
+    /**
+     * One `error` record per failed stop, written by `stop()` itself: `step` is the closed `ServerCoreStopStep` that
+     * threw, `durationMs` the time since `stopping`, and `failure` a `shutdown` capsule. No `stopped` follows it.
+     */
     stopFailed: 'server_core.stop_failed',
+    /**
+     * A clean stop: `durationMs` since `stopping`, plus one `<step>Ms` field per `ServerCoreStopStep`.
+     */
     stopped: 'server_core.stopped',
     stopping: 'server_core.stopping',
     uncaughtException: 'server_core.uncaught_exception',

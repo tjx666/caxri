@@ -11,6 +11,7 @@ import {
     serverDesktopLaunchSchema,
     SSH_HOST_PROFILE_IN_USE_MARKER,
 } from '@caxri/protocol';
+import type { CausalCapsule } from '@caxri/system';
 import {
     computeBuildFingerprint,
     installProcessErrorMonitor,
@@ -28,6 +29,7 @@ import { resolveIdleExitThresholdMs } from './idle-exit';
 import { mobileUpdateDirectoryForServer } from './mobile/update-bundle';
 import type { ServerCore, ServerCoreOptions } from './server-core';
 import { startServerCore } from './server-core';
+import { serverCoreStopFailureCapsule } from './server-core-stop-steps';
 
 const userDataPath = process.env.CAXRI_USER_DATA_PATH;
 if (!userDataPath) throw new Error('CAXRI_USER_DATA_PATH is required');
@@ -160,10 +162,13 @@ const processSampler = startProcessObservationSampler({
 {
     let finalizationPromise: Promise<void> | undefined;
     let isSignalReceived = false;
-    const finalizeProcess = (): Promise<void> => {
+    /**
+     * `failure` marks a stop that rejected, so offline diagnostics read the exit as a fault rather than a clean stop.
+     */
+    const finalizeProcess = (failure?: CausalCapsule): Promise<void> => {
         finalizationPromise ??= (async () => {
             processSampler.stop();
-            processManifest.publish('stopped');
+            processManifest.publish(failure ? 'failed' : 'stopped', failure && { failure });
             /**
              * `process.exit()` does not wait for pending filesystem work. Persist the terminal lifecycle state before
              * exiting so offline diagnostics can distinguish an intentional shutdown from a crashed ready process.
@@ -179,11 +184,14 @@ const processSampler = startProcessObservationSampler({
     const stopForSignal = async (signal: NodeJS.Signals): Promise<void> => {
         if (isSignalReceived) return;
         isSignalReceived = true;
+        let failure: CausalCapsule | undefined;
         try {
             await app.stop(signal);
-        } finally {
-            await finalizeProcess();
+        } catch {
+            // `stop()` already logged the failing step as `server_core.stop_failed`; the process still exits 0 below.
+            failure = serverCoreStopFailureCapsule();
         }
+        await finalizeProcess(failure);
     };
     /**
      * Server Core is a daemon that must outlive whatever started it. A Server launched from an SSH login on an SSH Host
@@ -195,16 +203,16 @@ const processSampler = startProcessObservationSampler({
         try {
             await stopForSignal(signal);
         } catch {
-            // stopForSignal already exits the process on success; a rejection here means
-            // shutdown itself failed, which is not actionable from a signal handler.
+            // `stopForSignal` settles a failed stop itself; a rejection here means finalizing the process manifest
+            // failed, which is not actionable from a signal handler.
         }
     });
     process.once('SIGTERM', async (signal) => {
         try {
             await stopForSignal(signal);
         } catch {
-            // stopForSignal already exits the process on success; a rejection here means
-            // shutdown itself failed, which is not actionable from a signal handler.
+            // `stopForSignal` settles a failed stop itself; a rejection here means finalizing the process manifest
+            // failed, which is not actionable from a signal handler.
         }
     });
     /**
