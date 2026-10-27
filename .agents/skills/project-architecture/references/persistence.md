@@ -23,6 +23,13 @@ keeps the two sentences identical, and
 generated parent rebuild keeps its children and a rebuild that leaves a dangling reference rolls
 back.
 
+Each Server Core start writes one `db.opened` record: the closed schema `outcome` (`created`,
+`current`, `migrated`, `rebuilt`), `fromVersion`, `toVersion`, `durationMs`, and how many Terminal
+and Agent process states the unclean-shutdown recovery moved to `interrupted`. An orderly shutdown
+marks them first, so nonzero counts mean the previous Server Core was killed; those and a rebuild
+log at `warn`. `domains/db` stays logger-free and reports through `onOpened`, which
+`root-services.ts` turns into the record.
+
 Renaming a table makes `drizzle-kit generate` ask, per new table, whether it is created or renamed
 from an old one, and it needs a TTY to ask. An agent shell has none, so drive it through a PTY with
 `expect` and answer each prompt from an explicit old-to-new table mapping, never a fixed key

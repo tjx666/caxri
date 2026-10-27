@@ -1,6 +1,6 @@
 import type Database from 'better-sqlite3';
 
-import type { CaxriDrizzleDatabase } from './connection';
+import type { CaxriDrizzleDatabase, DatabaseOpening } from './connection';
 import { markShutdown as markTerminalsShutdown, openDatabase } from './connection';
 import { AgentChatStateModel } from './models/agent-chat-state';
 import { AgentDelegationsModel } from './models/agent-delegations';
@@ -35,6 +35,10 @@ export interface CaxriDatabaseConnectionOptions {
     onSessionStateRevisionAdvanced?: (advance: SessionStateRevisionAdvance) => void;
     onSessionStateStaleWrite?: (staleWrite: SessionStateStaleWrite) => void;
     onTransaction?: (observation: DatabaseTransactionObservation) => void;
+    /**
+     * Called once the database is open, with what opening it did (schema step, unclean-shutdown recovery counts).
+     */
+    onOpened?: (opening: DatabaseOpening) => void;
 }
 
 export interface DatabaseTransactionObservation {
@@ -86,6 +90,7 @@ export class CaxriDatabaseConnection {
 
     constructor(path: string, options: CaxriDatabaseConnectionOptions = {}) {
         const opened = openDatabase(path);
+        options.onOpened?.(opened.opening);
         this.database = opened.database;
         this.db = opened.db;
         this.projects = new ProjectsModel(this.db);
