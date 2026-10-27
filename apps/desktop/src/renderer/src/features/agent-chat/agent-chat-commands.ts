@@ -406,6 +406,14 @@ export function stopAgentChatTask(terminalId: string, taskId: string): void {
 }
 
 /**
+ * Stops several background tasks at once, as Stop on each would: one request per task, so one failing leaves the others
+ * stopping, and a task whose stop is already pending is skipped.
+ */
+export function stopAgentChatTasks(terminalId: string, taskIds: readonly string[]): void {
+    for (const taskId of taskIds) stopAgentChatTask(terminalId, taskId);
+}
+
+/**
  * Removes a queued message and offers Undo in a toast. Server Core keeps the removed message, images included, and Undo
  * puts it back where it was (`restoreAgentChatQueued`).
  */

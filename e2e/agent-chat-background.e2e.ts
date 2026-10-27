@@ -103,6 +103,49 @@ test('a Codex Chat opens a subagent and a background shell beside the Chat', asy
 });
 
 // eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
+test('a Codex Chat stops all of its running background work at once', async ({}, testInfo) => {
+    const { directory, agentMode, userData, root } = await fixture(
+        'caxri-agent-chat-stop-all-',
+        'codex',
+    );
+    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    try {
+        const { page } = running;
+        await createProjectSession(page, 'shell');
+        await openAgentChat(page, 'Codex Chat');
+        const chat = page.locator(VISIBLE_SESSION);
+        const message = chat.getByRole('textbox', { name: 'Message' });
+
+        await message.fill('start a subagent hold');
+        await message.press('Enter');
+        await expect(chat.getByText('A helper is working on it.')).toBeVisible();
+        // A single running task keeps its own Stop and offers no Stop all.
+        const sole = await openBackgroundWork(chat);
+        await expect(
+            sole.getByRole('button', { name: /^Stop Inspect the fixtures/u }),
+        ).toBeVisible();
+        await expect(sole.getByRole('button', { name: 'Stop all' })).toHaveCount(0);
+
+        await message.fill('run it in the background');
+        await message.press('Enter');
+        await expect(chat.getByText('The dev server is running in the background.')).toBeVisible();
+        const strip = await openBackgroundWork(chat);
+        const stopAll = strip.getByRole('button', { name: 'Stop all' });
+        await expect(stopAll).toBeVisible();
+        await expect(strip.getByRole('button', { name: /^Stop / })).toHaveCount(3);
+        await page.screenshot({ path: testInfo.outputPath('codex-stop-all.png') });
+
+        await stopAll.click();
+        await expect(chat.getByRole('button', { name: /^Stop / })).toHaveCount(0);
+        await expect(chat.getByRole('button', { name: 'Stop all' })).toHaveCount(0);
+        await page.screenshot({ path: testInfo.outputPath('codex-stop-all-stopped.png') });
+    } finally {
+        await closeAppQuietly(running.app);
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
 test('a Codex Chat steers Enter into a running turn, queues follow-ups on Cmd+Enter as one turn, and steers the queue on an empty Enter', async ({}, testInfo) => {
     const { directory, agentMode, userData, root } = await fixture(
         'caxri-agent-chat-queue-',
