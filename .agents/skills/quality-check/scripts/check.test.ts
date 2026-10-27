@@ -2,8 +2,11 @@ import { readFileSync } from 'node:fs';
 
 import { describe, expect, it } from 'vitest';
 
+import { DesktopLeaseBusyError } from '../../switch-worktree/scripts/desktop-lease';
+import { CommandError } from '../../switch-worktree/scripts/process';
 import { dirtyLayerReportForFiles } from './changed-file-layers';
 import {
+    checkErrorForDesktopLease,
     ESLINT_CACHE_ARGUMENTS,
     eslintArguments,
     eslintTargets,
@@ -15,7 +18,7 @@ import {
     selectE2ESpecs,
     testCandidatesForFile,
 } from './check';
-import { parseCheckArguments } from './check-arguments';
+import { CheckError, parseCheckArguments } from './check-arguments';
 import { canAffectTypes, shouldRunKnip, shouldTypecheck } from './default-gates';
 
 describe('final lint validation', () => {
@@ -260,6 +263,36 @@ describe('parseCheckArguments', () => {
         expect(() => parseCheckArguments(['--e2e', '--e2e-wait', '1801'])).toThrow(
             '--e2e-wait requires an integer from 1 to 1800 seconds',
         );
+    });
+});
+
+describe('desktop lease errors', () => {
+    it('points a busy desktop lease at --e2e-wait and leaves other lease failures as they are', () => {
+        const busy = new DesktopLeaseBusyError({
+            acquiredAt: new Date().toISOString(),
+            identity: 'identity',
+            label: 'check --e2e',
+            pid: 4242,
+            token: 'token',
+            worktreeId: 'sibling',
+            worktreePath: '/tmp/sibling-worktree',
+        });
+        const hinted = checkErrorForDesktopLease(busy);
+        expect(hinted).toBeInstanceOf(CheckError);
+        expect(hinted).toMatchObject({ exitCode: busy.exitCode });
+        expect((hinted as CheckError).message).toBe(
+            `${busy.message}\nTo wait for it to finish, rerun with --e2e-wait <seconds> (1-1800) instead of retrying in a shell loop.`,
+        );
+
+        const waited = new CommandError(`${busy.message} Waited 30s.`, 3);
+        expect(checkErrorForDesktopLease(waited)).toMatchObject({
+            message: waited.message,
+            exitCode: 3,
+        });
+        expect(checkErrorForDesktopLease(waited)).toBeInstanceOf(CheckError);
+
+        const unexpected = new Error('disk full');
+        expect(checkErrorForDesktopLease(unexpected)).toBe(unexpected);
     });
 });
 

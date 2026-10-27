@@ -37,7 +37,7 @@ export class CheckError extends Error {
  * A sibling session's focused E2E batch (rebuild plus several specs) routinely holds the desktop lease for 10 to 20
  * minutes, so a shorter cap pushed agents into hand-written retry loops around `--e2e`.
  */
-const MAX_E2E_WAIT_SECONDS = 1800;
+export const MAX_E2E_WAIT_SECONDS = 1800;
 
 const usage = `Usage: bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--related] [--e2e] [--e2e-grep <pattern>] [--e2e-wait <seconds>] [--staged]
 

@@ -50,7 +50,10 @@ export interface DesktopLeaseOptions {
     waitMs?: number;
 }
 
-class DesktopLeaseBusyError extends CommandError {
+/**
+ * A live owner holds the lease. Exported so a caller can recognize contention by type and point at its own wait option.
+ */
+export class DesktopLeaseBusyError extends CommandError {
     constructor(current: DesktopLease) {
         const elapsedSeconds = (Date.now() - Date.parse(current.acquiredAt)) / 1000;
         const leaseAge = Number.isFinite(elapsedSeconds)
