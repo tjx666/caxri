@@ -151,7 +151,15 @@ function TurnFoldHeader({
         </button>
     );
     return (
-        <div className="flex min-w-0 items-center gap-1 border-b border-solid border-border pb-1">
+        <div
+            className={cn(
+                'flex min-w-0 items-center gap-1 border-b border-solid border-border pb-1',
+                // Expanded, the row pins to the top of the transcript so a run several screens long can be folded
+                // from wherever the reader stopped (LibreChat's activity groups do the same). Its containing block is
+                // the fold, so it lets go where the fold's last row ends and never covers the final reply.
+                isExpanded && 'sticky top-0 z-10 bg-background',
+            )}
+        >
             {timeTooltip ? (
                 <Tooltip anchorMode="cursor" content={timeTooltip}>
                     {toggleButton}

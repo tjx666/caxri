@@ -1461,7 +1461,10 @@ review` with the skill glyph. A test run (`Ran tests a.test.ts`, flask glyph), a
 step (`Opened PR`, `Merged PR #12`, `Checked PR`) name the step the same way, through wrappers
 such as `rtk`, `bunx`, `cd dir &&`, environment assignments, and `2>&1`; while running they keep
 the command's live glyph. A finished turn folds everything except the prompt, the final reply, and
-notices behind one `Worked for 2m 1s` row with a bottom hairline; a failed or stopped turn's row
+notices behind one `Worked for 2m 1s` row with a bottom hairline. Expanded, the row pins to the
+top of the transcript on `--background` until the fold's last row scrolls past (LibreChat's activity
+groups), so a run several screens long folds from wherever the reader stopped, and folding holds
+the row where it was clicked; a failed or stopped turn's row
 (`Failed after 40s`, `Stopped after 3s`) takes `--danger` or `--warning` with its glyph. A turn
 the user stopped names it (`Stopped by you after 1m 7s`) and keeps the stop glyph in `--muted`,
 since nothing went wrong; a stop another Agent sent reads `Stopped by an Agent`. A stopped turn
