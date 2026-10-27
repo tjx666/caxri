@@ -181,7 +181,7 @@ function WorkspaceSelect({
                     <SelectValue>
                         {project
                             ? t('benchmark.form.workspaceProject', {
-                                  project: project.displayTitle,
+                                  project: project.title,
                               })
                             : t('benchmark.form.workspaceEmpty')}
                     </SelectValue>
@@ -193,7 +193,7 @@ function WorkspaceSelect({
                     {projects.map((candidate) => (
                         <SelectItem key={candidate.id} value={candidate.id}>
                             {t('benchmark.form.workspaceProject', {
-                                project: candidate.displayTitle,
+                                project: candidate.title,
                             })}
                         </SelectItem>
                     ))}
@@ -202,7 +202,7 @@ function WorkspaceSelect({
             <p className="m-0 text-[11px] leading-[1.45] text-muted">
                 {project
                     ? t('benchmark.form.workspaceProjectCaption', {
-                          project: project.displayTitle,
+                          project: project.title,
                       })
                     : t('benchmark.form.workspaceEmptyCaption')}
             </p>

@@ -315,10 +315,10 @@ describe('MobileAccessController role and resource authority', () => {
                         projects:
                             parameters?.query?.mode === 'list'
                                 ? [
-                                      { id: 'project-1', displayTitle: 'Granted empty' },
-                                      { id: 'project-2', displayTitle: 'Other Project' },
+                                      { id: 'project-1', title: 'Granted empty' },
+                                      { id: 'project-2', title: 'Other Project' },
                                   ]
-                                : [{ id: 'project-1', displayTitle: 'Granted empty' }],
+                                : [{ id: 'project-1', title: 'Granted empty' }],
                     });
                 if (method === 'session.queryForPrincipal')
                     return Promise.resolve({
@@ -328,11 +328,11 @@ describe('MobileAccessController role and resource authority', () => {
                                       {
                                           id: 'session-deep',
                                           projectId: 'project-1',
-                                          displayTitle: 'Deep Session',
-                                          lastOpenedAt: 7,
-                                          lastActivityState: 'running',
+                                          title: 'Deep Session',
+                                          lastVisitedAt: 7,
+                                          agentActivityState: 'running',
                                           primaryAgentTerminalId: 'terminal-deep',
-                                          attentionEpoch: 0,
+                                          attentionGeneration: 0,
                                           hasUnread: false,
                                       },
                                   ]
@@ -411,7 +411,7 @@ describe('MobileAccessController role and resource authority', () => {
             expect(dashboard).toMatchObject({
                 hostDisplayName: 'Caxri Test Host',
                 deviceRole: 'control',
-                projects: [{ id: 'project-1', displayTitle: 'Granted empty' }],
+                projects: [{ id: 'project-1', title: 'Granted empty' }],
                 sessions: [],
             });
             await expect(

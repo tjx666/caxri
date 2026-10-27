@@ -62,7 +62,7 @@ describe('createBotCompletionNotifier', () => {
                 botPendingNotices: pendingStore(),
                 getSession: () =>
                     ({
-                        lastActivityState: 'idle',
+                        agentActivityState: 'idle',
                         projectId: 'bot-project',
                     }) as SessionRecord,
                 getTerminal: (id: string) =>

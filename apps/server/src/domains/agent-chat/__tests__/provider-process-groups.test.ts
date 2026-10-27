@@ -16,7 +16,7 @@ import { reapStaleProviderGroups } from '../provider-process-groups';
 const STARTED = 'Tue Oct 20 10:00:00 2026';
 
 function memoryLedger(
-    groups: Array<{ pgid: number; leaderStartedAt: string }>,
+    groups: Array<{ pgid: number; leaderStartToken: string }>,
 ): ProviderGroupLedger & { remaining(): number[] } {
     const rows = new Map<number, ReturnType<ProviderGroupLedger['list']>[number]>(
         groups.map((group) => [group.pgid, { ...group, terminalId: 'terminal' }]),
@@ -25,10 +25,10 @@ function memoryLedger(
         record: (group) => {
             rows.set(group.pgid, group);
         },
-        forget: (pgid, leaderStartedAt) => {
+        forget: (pgid, leaderStartToken) => {
             if (
-                leaderStartedAt === undefined ||
-                rows.get(pgid)?.leaderStartedAt === leaderStartedAt
+                leaderStartToken === undefined ||
+                rows.get(pgid)?.leaderStartToken === leaderStartToken
             )
                 rows.delete(pgid);
         },
@@ -51,7 +51,7 @@ async function sweep(table: ProcessTableEntry[], ledger: ProviderGroupLedger) {
 
 describe('reapStaleProviderGroups with a fake process table', () => {
     it('stops a group whose leader is alive with the recorded start time', async () => {
-        const ledger = memoryLedger([{ pgid: 500, leaderStartedAt: STARTED }]);
+        const ledger = memoryLedger([{ pgid: 500, leaderStartToken: STARTED }]);
         const { reap, write } = await sweep(
             [
                 { pid: 500, pgid: 500, startedAt: STARTED },
@@ -65,7 +65,7 @@ describe('reapStaleProviderGroups with a fake process table', () => {
     });
 
     it('stops the survivors of a group whose leader already exited', async () => {
-        const ledger = memoryLedger([{ pgid: 500, leaderStartedAt: STARTED }]);
+        const ledger = memoryLedger([{ pgid: 500, leaderStartToken: STARTED }]);
         const { reap } = await sweep(
             [{ pid: 777, pgid: 500, startedAt: 'Tue Oct 20 10:00:05 2026' }],
             ledger,
@@ -74,7 +74,7 @@ describe('reapStaleProviderGroups with a fake process table', () => {
     });
 
     it('never signals a reused group ID, whose leader started at another time', async () => {
-        const ledger = memoryLedger([{ pgid: 500, leaderStartedAt: STARTED }]);
+        const ledger = memoryLedger([{ pgid: 500, leaderStartToken: STARTED }]);
         const { reap, write } = await sweep(
             [{ pid: 500, pgid: 500, startedAt: 'Tue Oct 20 11:30:00 2026' }],
             ledger,
@@ -85,7 +85,7 @@ describe('reapStaleProviderGroups with a fake process table', () => {
     });
 
     it('never signals members older than the recorded leader', async () => {
-        const ledger = memoryLedger([{ pgid: 500, leaderStartedAt: STARTED }]);
+        const ledger = memoryLedger([{ pgid: 500, leaderStartToken: STARTED }]);
         const { reap } = await sweep(
             [{ pid: 800, pgid: 500, startedAt: 'Tue Oct 20 09:00:00 2026' }],
             ledger,
@@ -94,7 +94,7 @@ describe('reapStaleProviderGroups with a fake process table', () => {
     });
 
     it('only forgets a group that is already empty', async () => {
-        const ledger = memoryLedger([{ pgid: 500, leaderStartedAt: STARTED }]);
+        const ledger = memoryLedger([{ pgid: 500, leaderStartToken: STARTED }]);
         const { reap, write } = await sweep([{ pid: 1, pgid: 1, startedAt: STARTED }], ledger);
         expect(reap).not.toHaveBeenCalled();
         expect(ledger.remaining()).toEqual([]);
@@ -102,7 +102,7 @@ describe('reapStaleProviderGroups with a fake process table', () => {
     });
 
     it('keeps the records when the process table cannot be read', async () => {
-        const ledger = memoryLedger([{ pgid: 500, leaderStartedAt: STARTED }]);
+        const ledger = memoryLedger([{ pgid: 500, leaderStartToken: STARTED }]);
         const reap = vi.fn<(pgid: number) => Promise<void>>(() => Promise.resolve());
         await reapStaleProviderGroups({
             ledger: () => ledger,
@@ -183,7 +183,7 @@ describe.skipIf(process.platform === 'win32')(
             chatStateStore(database).processGroups.record({
                 pgid,
                 terminalId: 'terminal',
-                leaderStartedAt: 'Mon Jan  1 00:00:00 2024',
+                leaderStartToken: 'Mon Jan  1 00:00:00 2024',
             });
             await reapStaleProviderGroups({
                 ledger: () => chatStateStore(database).processGroups,

@@ -133,10 +133,14 @@ describe('ExtensionService tree children', () => {
     });
 
     it('cancels a tree read when its Session stops resolving while the request is in flight', async () => {
-        let active: { ownerProjectId?: string; sessionId?: string; workbenchProjectId?: string } = {
+        let active: {
+            ownerProjectId?: string;
+            sessionId?: string;
+            workbenchRootProjectId?: string;
+        } = {
             ownerProjectId: 'project-1',
             sessionId: 'session-1',
-            workbenchProjectId: 'project-1',
+            workbenchRootProjectId: 'project-1',
         };
         const service = new ExtensionService({
             ...observationIdentity,
@@ -160,7 +164,11 @@ describe('ExtensionService tree children', () => {
         const pending = service.treeChildren({
             viewId: 'publisher.fixture.tree',
             requestId: 'stale-tree',
-            context: { kind: 'session', sessionId: 'session-1', workbenchProjectId: 'project-1' },
+            context: {
+                kind: 'session',
+                sessionId: 'session-1',
+                workbenchRootProjectId: 'project-1',
+            },
         });
         await vi.waitFor(() =>
             expect(supervisorHarness.requests).toContainEqual(
@@ -170,7 +178,7 @@ describe('ExtensionService tree children', () => {
         active = {
             ownerProjectId: 'project-2',
             sessionId: 'session-2',
-            workbenchProjectId: 'project-2',
+            workbenchRootProjectId: 'project-2',
         };
         supervisorHarness.activation.resolve();
 
@@ -185,13 +193,13 @@ describe('ExtensionService tree children', () => {
                 context: {
                     kind: 'session',
                     sessionId: 'session-2',
-                    workbenchProjectId: 'project-2',
+                    workbenchRootProjectId: 'project-2',
                 },
             }),
         ).resolves.toEqual({ items: [] });
         expect(
             supervisorHarness.requests.find(({ method }) => method === 'treeChildren')?.parameters
                 ?.context,
-        ).toEqual({ kind: 'session', sessionId: 'session-2', workbenchProjectId: 'project-2' });
+        ).toEqual({ kind: 'session', sessionId: 'session-2', workbenchRootProjectId: 'project-2' });
     });
 });

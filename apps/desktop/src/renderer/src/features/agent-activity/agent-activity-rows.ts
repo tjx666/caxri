@@ -66,9 +66,9 @@ export interface AgentActivityGroup {
  */
 export interface AgentActivitySelectionAnchor {
     agentOperation: TerminalRecord['agentOperation'];
-    attentionEpoch: number;
-    lastActivityState: SessionRecord['lastActivityState'];
-    lastSessionActivityAt: number;
+    attentionGeneration: number;
+    agentActivityState: SessionRecord['agentActivityState'];
+    sessionActivityAt: number;
     sessionId: string;
 }
 
@@ -82,9 +82,9 @@ export function agentActivitySelectionAnchor(
     if (!row) return undefined;
     return {
         agentOperation: row.terminal?.agentOperation,
-        attentionEpoch: row.session.attentionEpoch,
-        lastActivityState: row.session.lastActivityState,
-        lastSessionActivityAt: row.session.lastSessionActivityAt,
+        attentionGeneration: row.session.attentionGeneration,
+        agentActivityState: row.session.agentActivityState,
+        sessionActivityAt: row.session.sessionActivityAt,
         sessionId: row.session.id,
     };
 }
@@ -97,9 +97,9 @@ export function isAgentActivitySelectionAnchorCurrent(
     return Boolean(
         session &&
         session.id === anchor.sessionId &&
-        session.attentionEpoch === anchor.attentionEpoch &&
-        session.lastActivityState === anchor.lastActivityState &&
-        session.lastSessionActivityAt === anchor.lastSessionActivityAt &&
+        session.attentionGeneration === anchor.attentionGeneration &&
+        session.agentActivityState === anchor.agentActivityState &&
+        session.sessionActivityAt === anchor.sessionActivityAt &&
         terminal?.agentOperation === anchor.agentOperation,
     );
 }
@@ -203,8 +203,8 @@ function groupForSession(
             hasUnread: status.kind === 'attention',
             isDetached: status.kind === 'detached',
             isRunning: status.kind === 'running',
-            lastActivityState: session.lastActivityState,
-            lastSessionActivityAt: session.lastSessionActivityAt,
+            agentActivityState: session.agentActivityState,
+            sessionActivityAt: session.sessionActivityAt,
         },
         now,
     );
@@ -267,7 +267,7 @@ export function agentActivityGroups({
             session,
             status,
             statusPresentation: sessionActivityPresentation(
-                session.lastActivityState,
+                session.agentActivityState,
                 terminal?.agentOperation,
             ),
             terminal,

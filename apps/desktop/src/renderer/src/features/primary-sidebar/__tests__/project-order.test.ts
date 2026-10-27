@@ -87,13 +87,13 @@ describe('Project ordering', () => {
         });
 
         tracker.set({
-            displayTitle: 'Alpha',
+            title: 'Alpha',
             movedProjectId: 'a',
             projectIds: firstProjectIds,
         });
         const settled = queue.enqueue(firstProjectIds);
         tracker.set({
-            displayTitle: 'Beta',
+            title: 'Beta',
             movedProjectId: 'b',
             projectIds: secondProjectIds,
         });
@@ -110,7 +110,7 @@ describe('Project ordering', () => {
     it('retains an acknowledged keyboard order until the matching snapshot arrives', () => {
         const tracker = createProjectOrderIntentTracker();
         const firstIntent = {
-            displayTitle: 'Alpha',
+            title: 'Alpha',
             movedProjectId: 'a',
             projectIds: ['b', 'a', 'c'],
         };
@@ -136,7 +136,7 @@ describe('Project ordering', () => {
     it('abandons an intent rejected by persistence or invalidated by membership changes', () => {
         const tracker = createProjectOrderIntentTracker();
         const rejected = {
-            displayTitle: 'Alpha',
+            title: 'Alpha',
             movedProjectId: 'a',
             projectIds: ['b', 'a'],
         };

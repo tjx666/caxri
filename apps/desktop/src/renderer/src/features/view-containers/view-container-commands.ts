@@ -187,7 +187,7 @@ export function didExecuteViewCatalogCommand(
         dispatchCoreViewCommand({
             arguments: arguments_,
             commandId,
-            contextKey: `${session.id}:${session.workbenchProjectId}`,
+            contextKey: `${session.id}:${session.workbenchRootProjectId}`,
             role: action.role,
             viewId: owningView.id,
         });

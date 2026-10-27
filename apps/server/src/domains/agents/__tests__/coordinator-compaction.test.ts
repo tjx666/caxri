@@ -141,7 +141,7 @@ describe('AgentCoordinator compaction', () => {
             expect(database.getSession(created.session.id)).toEqual(before);
 
             expect(signal('turnStarted')).toBe('accepted');
-            expect(database.getSession(created.session.id)!.lastActivityState).toBe('running');
+            expect(database.getSession(created.session.id)!.agentActivityState).toBe('running');
         } finally {
             await coordinator.close();
             database.close();

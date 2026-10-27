@@ -13,7 +13,7 @@ import type { SessionStatusSummary } from './session-status';
  * summary (running arc, count, attention dot), which is named the same way.
  */
 export function describeProjectSessionCount(
-    displayTitle: string,
+    title: string,
     sessionCount: number,
     agentSummary?: SessionStatusSummary,
 ): string {
@@ -21,7 +21,7 @@ export function describeProjectSessionCount(
         sessionCount === 1
             ? 'primarySidebar.projectHeading.nameOne'
             : 'primarySidebar.projectHeading.nameOther',
-        { count: sessionCount, title: displayTitle },
+        { count: sessionCount, title },
     );
     const agentStatus = agentSummary && describeProjectAgentStatus(agentSummary);
     return agentStatus

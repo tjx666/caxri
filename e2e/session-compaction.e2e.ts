@@ -92,7 +92,7 @@ process.stdout.write('READY\r\n');
                             id ===
                             current.terminals.find((terminal) => terminal.id === terminalId)
                                 ?.sessionId,
-                    )?.lastActivityState;
+                    )?.agentActivityState;
                 })
                 .toBe('completed');
         }

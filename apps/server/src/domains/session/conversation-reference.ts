@@ -221,7 +221,7 @@ export class SessionConversationReferenceService {
             omittedMessageCount: conversation.omittedMessageCount,
             isTailOnly: conversation.isTailOnly,
             provider: terminal.provider,
-            title: session.displayTitle,
+            title: session.title,
         });
         const now = this.now();
         const filePath = join(
@@ -252,7 +252,7 @@ export class SessionConversationReferenceService {
         });
         return {
             filePath,
-            title: session.displayTitle,
+            title: session.title,
             messageCount: formatted.messageCount,
             omittedMessageCount: formatted.omittedMessageCount,
         };

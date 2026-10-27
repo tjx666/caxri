@@ -101,7 +101,7 @@ describe('Agent dispatch Runtime integration', () => {
                 projectId: project.id,
                 defaultAgent: 'shell',
             });
-            const createdActivityAt = created.session.lastSessionActivityAt;
+            const createdActivityAt = created.session.sessionActivityAt;
             const principal = { kind: 'human-cli' as const, id: 'human-cli:test' };
             const input = {
                 projectId: project.id,
@@ -130,9 +130,9 @@ describe('Agent dispatch Runtime integration', () => {
             const dispatchedSession = (await runtime.handlers['app.bootstrap']({})).sessions.find(
                 (session) => session.id === created.session.id,
             )!;
-            expect(dispatchedSession.lastSessionActivityAt).toBeGreaterThan(createdActivityAt);
-            expect(dispatchedSession.lastSessionActivityReason).toBe('agent_started');
-            expect(dispatchedSession.lastActivityState).toBe('idle');
+            expect(dispatchedSession.sessionActivityAt).toBeGreaterThan(createdActivityAt);
+            expect(dispatchedSession.sessionActivityReason).toBe('agent_started');
+            expect(dispatchedSession.agentActivityState).toBe('idle');
 
             const stale = { ...first.endpoint!, generation: first.endpoint!.generation + 1 };
             expect(() =>
@@ -156,10 +156,10 @@ describe('Agent dispatch Runtime integration', () => {
             const steeredSession = (await runtime.handlers['app.bootstrap']({})).sessions.find(
                 (session) => session.id === created.session.id,
             )!;
-            expect(steeredSession.lastSessionActivityAt).toBeGreaterThan(
-                dispatchedSession.lastSessionActivityAt,
+            expect(steeredSession.sessionActivityAt).toBeGreaterThan(
+                dispatchedSession.sessionActivityAt,
             );
-            expect(steeredSession.lastSessionActivityReason).toBe('user_submission');
+            expect(steeredSession.sessionActivityReason).toBe('user_submission');
         } finally {
             await runtime.close();
         }

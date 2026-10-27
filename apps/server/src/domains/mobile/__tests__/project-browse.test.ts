@@ -89,7 +89,7 @@ describe('createMobileProjectBrowseHandler', () => {
 describe('createMobileProjectAddHandler', () => {
     it('adds a Project after resolving the canonical root inside home', async () => {
         const { home } = await createSandbox();
-        const createProject = vi.fn().mockReturnValue({ id: 'project-1', displayTitle: 'Demo' });
+        const createProject = vi.fn().mockReturnValue({ id: 'project-1', title: 'Demo' });
         const emit = vi.fn();
         const database = { createProject } as unknown as CaxriDatabase;
         const add = createMobileProjectAddHandler({
@@ -98,7 +98,7 @@ describe('createMobileProjectAddHandler', () => {
             homeDirectory: () => Promise.resolve(home),
         });
         const result = await add({ path: 'project-a' });
-        expect(result).toEqual({ project: { id: 'project-1', displayTitle: 'Demo' } });
+        expect(result).toEqual({ project: { id: 'project-1', title: 'Demo' } });
         expect(createProject).toHaveBeenCalledWith(join(home, 'project-a'));
         expect(emit).toHaveBeenCalledWith({
             event: 'state.changed',

@@ -55,7 +55,7 @@ export const emptyMobileSessionGroups = (): Record<
     idle: [],
 });
 
-const labelForState = (state: MobileSession['lastActivityState'], t: Translate): string => {
+const labelForState = (state: MobileSession['agentActivityState'], t: Translate): string => {
     switch (state) {
         case 'waiting':
             return t('sessions.state.waiting');
@@ -82,7 +82,7 @@ const groupForSession = (session: MobileSession, now: number): SessionActivityGr
         {
             ...session,
             isDetached: session.primaryTerminal?.lastProcessState === 'detached',
-            isRunning: session.lastActivityState === 'running',
+            isRunning: session.agentActivityState === 'running',
         },
         now,
     ) ?? 'idle';
@@ -102,7 +102,7 @@ export const buildMobileSessionSections = (
         const item: MobileSessionItem = {
             ...session,
             group,
-            stateLabel: labelForState(session.lastActivityState, t),
+            stateLabel: labelForState(session.agentActivityState, t),
         };
         // Desktop repeats a pinned Session that has news under its status group; the phone lists each Session once
         // (no duplicate entries to the same data), and the row's status glyph still shows the state under Pinned.

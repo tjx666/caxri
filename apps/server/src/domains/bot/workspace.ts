@@ -7,16 +7,14 @@ import { execFileAsync } from '@caxri/system';
 
 import { atomicWrite } from '../atomic-file';
 import { resolveGitLaunch } from '../git';
+import { carryLegacyBotWorkspace } from './legacy-workspace';
 
 /**
  * Directory name of Caxri Bot's workspace inside the profile. The workspace is the working directory of Caxri Bot's
- * Agent and its only writable scratch space; it deliberately contains no product state.
- *
- * It keeps the name it had when the feature was called Agent Commander. The directory is the Bot Project's root and its
- * Agent Terminal's cwd, and Claude Code finds a conversation's transcript by cwd, so renaming it would silently start
- * Caxri Bot on a new conversation and leave the old Project visible. It is a storage identifier, never shown as copy.
+ * Agent and its only writable scratch space; it deliberately contains no product state. It is a storage identifier,
+ * never shown as copy.
  */
-export const BOT_WORKSPACE_DIRECTORY = 'agent-commander';
+export const BOT_WORKSPACE_DIRECTORY = 'caxri-bot';
 
 /**
  * Standing instructions Caxri Bot's Agent reads from the workspace `AGENTS.md`; Codex and Claude Code both load it
@@ -573,6 +571,7 @@ export async function prepareBotWorkspace(
     userDataPath: string,
 ): Promise<{ path: string; repoFailure?: BotWorkspaceRepoFailure }> {
     const workspacePath = botWorkspacePath(userDataPath);
+    await carryLegacyBotWorkspace(userDataPath, workspacePath);
     await mkdir(join(workspacePath, 'tasks'), { recursive: true, mode: 0o700 });
     await atomicWrite(
         join(workspacePath, 'AGENTS.md'),

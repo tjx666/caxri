@@ -48,18 +48,18 @@ const projects = [
     {
         id: 'project-1',
         rootPath: '/private/project-one',
-        displayTitle: 'Project One',
+        title: 'Project One',
         orderIndex: 0,
         createdAt: 1,
-        lastOpenedAt: 1,
+        lastVisitedAt: 1,
     },
     {
         id: 'project-2',
         rootPath: '/private/project-two',
-        displayTitle: 'Project Two',
+        title: 'Project Two',
         orderIndex: 1,
         createdAt: 2,
-        lastOpenedAt: 2,
+        lastVisitedAt: 2,
     },
 ];
 
@@ -85,9 +85,9 @@ describe('@caxri/protocol contract', () => {
         });
         expect(welcome.commands).toContain('app.bootstrap');
         expect(welcome.commands).toContain('project.list');
-        expect(
-            principalProjectionSchemas.project.safeParse({ id: 'p1', displayTitle: 'P' }).success,
-        ).toBe(true);
+        expect(principalProjectionSchemas.project.safeParse({ id: 'p1', title: 'P' }).success).toBe(
+            true,
+        );
         expect(
             serverEventSchema.safeParse({
                 event: 'files.changed',
@@ -101,7 +101,7 @@ describe('@caxri/protocol contract', () => {
                     changes: [],
                     overflow: false,
                     sessionId: 'session-1',
-                    workbenchProjectId: 'project-1',
+                    workbenchRootProjectId: 'project-1',
                 },
             }).success,
         ).toBe(true);
@@ -287,8 +287,7 @@ describe('transport-neutral dispatcher', () => {
     const server: CommandAdapter = {
         invoke: (command) => {
             if (command.method === 'project.list') return { view: 'desktop', projects };
-            if (command.method === 'session.rename')
-                return { renamed: command.params.displayTitle };
+            if (command.method === 'session.rename') return { renamed: command.params.title };
             if (command.method === 'app.health')
                 return { ready: true, pid: 42, startedAt: 1, activePtyCount: 0 };
             return null;
@@ -394,12 +393,12 @@ describe('transport-neutral dispatcher', () => {
                 projects: [
                     {
                         id: 'project-1',
-                        displayTitle: 'Project One',
+                        title: 'Project One',
                         rootPath: '/private/project-one',
                     },
                     {
                         id: 'project-2',
-                        displayTitle: 'Project Two',
+                        title: 'Project Two',
                         rootPath: '/private/project-two',
                     },
                 ],
@@ -411,7 +410,7 @@ describe('transport-neutral dispatcher', () => {
             ok: true,
             result: {
                 view: 'agent',
-                projects: [{ id: 'project-1', displayTitle: 'Project One' }],
+                projects: [{ id: 'project-1', title: 'Project One' }],
             },
         });
         expect(JSON.stringify(agentReply)).not.toContain('/private/');
@@ -420,17 +419,17 @@ describe('transport-neutral dispatcher', () => {
         const projections = [
             principalProjectionSchemas.project.parse({
                 id: 'project-1',
-                displayTitle: 'Project One',
+                title: 'Project One',
                 ...secretFields,
             }),
             principalProjectionSchemas.session.parse({
-                attentionEpoch: 0,
+                attentionGeneration: 0,
                 hasUnread: false,
                 id: 'session-1',
                 projectId: 'project-1',
-                displayTitle: 'Session',
-                lastOpenedAt: 1,
-                lastActivityState: 'running',
+                title: 'Session',
+                lastVisitedAt: 1,
+                agentActivityState: 'running',
                 ...secretFields,
             }),
             principalProjectionSchemas.terminal.parse({
@@ -512,18 +511,18 @@ describe('transport-neutral dispatcher', () => {
                         id: 'session-1',
                         projectId: 'project-1',
                         rootPath: '/private/project-one',
-                        displayTitle: command.params.displayTitle,
+                        title: command.params.title,
                         titleMode: 'manual',
                         createdAt: 1,
-                        lastOpenedAt: 1,
+                        lastVisitedAt: 1,
                         sidebarOrder: 0,
-                        lastSessionActivityAt: 1,
-                        lastSessionActivityReason: 'created',
+                        sessionActivityAt: 1,
+                        sessionActivityReason: 'created',
                         archivedAt: undefined,
                         primaryAgentTerminalId: undefined,
-                        lastActivityState: 'unknown',
-                        attentionEpoch: 0,
-                        readAttentionEpoch: 0,
+                        agentActivityState: 'unknown',
+                        attentionGeneration: 0,
+                        acknowledgedAttentionGeneration: 0,
                         hasUnread: false,
                     };
                 },
@@ -532,14 +531,14 @@ describe('transport-neutral dispatcher', () => {
         const first = dispatch(
             request('same-id', 'session.rename', {
                 sessionId: 'session-1',
-                displayTitle: 'Renamed',
+                title: 'Renamed',
             }),
             desktop,
         );
         const duplicate = dispatch(
             request('same-id', 'session.rename', {
                 sessionId: 'session-1',
-                displayTitle: 'Renamed',
+                title: 'Renamed',
             }),
             desktop,
         );
@@ -551,7 +550,7 @@ describe('transport-neutral dispatcher', () => {
             dispatch(
                 request('same-id', 'session.rename', {
                     sessionId: 'session-1',
-                    displayTitle: 'Different',
+                    title: 'Different',
                 }),
                 desktop,
             ),

@@ -241,16 +241,16 @@ export class DiagnosticsService {
             id: project.id,
             rootPath: normalizeHome(project.rootPath),
             createdAt: project.createdAt,
-            lastOpenedAt: project.lastOpenedAt,
+            lastVisitedAt: project.lastVisitedAt,
         }));
         const sessions = this.database.listSessions().map((session) => ({
             id: session.id,
             projectId: session.projectId,
             createdAt: session.createdAt,
-            lastOpenedAt: session.lastOpenedAt,
-            lastActivityState: session.lastActivityState,
-            attentionEpoch: session.attentionEpoch,
-            readAttentionEpoch: session.readAttentionEpoch,
+            lastVisitedAt: session.lastVisitedAt,
+            agentActivityState: session.agentActivityState,
+            attentionGeneration: session.attentionGeneration,
+            acknowledgedAttentionGeneration: session.acknowledgedAttentionGeneration,
             lastAttentionKind: session.lastAttentionKind,
             hasUnread: session.hasUnread,
         }));

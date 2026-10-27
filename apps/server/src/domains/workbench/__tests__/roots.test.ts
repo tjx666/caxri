@@ -509,7 +509,7 @@ describe('WorkbenchRootService worktree attribution', () => {
             projectId: context.owner.id,
             rootPath: context.worktreeRoot,
         });
-        expect(typeof selected.workbenchProjectId).toBe('string');
+        expect(typeof selected.workbenchRootProjectId).toBe('string');
         await context.service.close();
         context.database.close();
     });
@@ -552,7 +552,7 @@ describe('WorkbenchRootService worktree attribution', () => {
                     ).not.toThrow();
                     expect(
                         context.database.getSession(context.sessions[0].session.id)
-                            ?.workbenchProjectId,
+                            ?.workbenchRootProjectId,
                     ).toBe(context.owner.id);
                     return;
                 }
@@ -653,7 +653,7 @@ describe('WorkbenchRootService worktree attribution', () => {
             expect(project).toBeDefined();
             if (!previouslyAuthorized) expect(project?.ownerProjectId).toBe(context.owner.id);
             expect(
-                context.database.getSession(context.sessions[0].session.id)?.workbenchProjectId,
+                context.database.getSession(context.sessions[0].session.id)?.workbenchRootProjectId,
             ).toBe(project?.id);
             await context.service.close();
             context.database.close();
@@ -677,7 +677,7 @@ describe('WorkbenchRootService worktree attribution', () => {
         ).toBe('accepted');
         await vi.waitFor(() =>
             expect(context.database.getSession(context.sessions[0].session.id)).toMatchObject({
-                workbenchProjectId: worktreeProject.id,
+                workbenchRootProjectId: worktreeProject.id,
             }),
         );
 
@@ -685,11 +685,11 @@ describe('WorkbenchRootService worktree attribution', () => {
         expect(context.service.observeShellToolFinished(shellFinished(context))).toBe('accepted');
         await vi.waitFor(() =>
             expect(context.database.getSession(context.sessions[0].session.id)).toMatchObject({
-                workbenchProjectId: context.owner.id,
+                workbenchRootProjectId: context.owner.id,
             }),
         );
         expect(context.database.getSession(context.sessions[0].session.id)).toMatchObject({
-            workbenchProjectId: context.owner.id,
+            workbenchRootProjectId: context.owner.id,
         });
 
         await beginWorktreeCreation(context, { toolUseId: 'tool-use-2' });
@@ -707,7 +707,7 @@ describe('WorkbenchRootService worktree attribution', () => {
         ).toBe('accepted');
         await vi.waitFor(() =>
             expect(context.database.getSession(context.sessions[0].session.id)).toMatchObject({
-                workbenchProjectId: worktreeProject.id,
+                workbenchRootProjectId: worktreeProject.id,
             }),
         );
         await context.service.close();
@@ -761,14 +761,14 @@ describe('WorkbenchRootService worktree attribution', () => {
             true,
         );
         expect(context.database.getSession(context.sessions[0].session.id)).toMatchObject({
-            workbenchProjectId: context.owner.id,
+            workbenchRootProjectId: context.owner.id,
             rootPath: context.ownerRoot,
         });
         expect(context.events.at(-1)).toMatchObject({
             event: 'workbench.changed',
             payload: {
                 reason: 'fallback',
-                returnedProjectTitle: context.owner.displayTitle,
+                returnedProjectTitle: context.owner.title,
             },
         });
         await context.service.close();

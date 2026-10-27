@@ -19,14 +19,14 @@ import type { CaxriDrizzleDatabase } from '../connection';
 import {
     CURRENT_SESSION_STATE_VERSION,
     sessions,
-    sessionState as sessionStateTable,
+    sessionViews as sessionViewsTable,
     terminals,
 } from '../schema';
 import { didConsumeAttentionReply, didReleaseAttentionReply } from './attention-replies';
 import { sessionActivityUpdate, sidebarTopOrder } from './session-activity';
 import { didWriteAutomaticNaming, readAutomaticNaming } from './session-naming';
 import {
-    effectiveWorkbenchProjectId,
+    effectiveWorkbenchRootProjectId,
     mapSession,
     sessionSelection,
     workbenchProjects,
@@ -52,19 +52,19 @@ import { parseWorkbenchEditorStates, pruneWorkbenchEditorState } from './workben
 
 export interface NewSessionInput {
     projectId: string;
-    displayTitle: string;
+    title: string;
     createdBySessionId?: string;
 }
 
 export interface SessionWorkbenchBinding {
     projectId: string;
-    workbenchProjectId: string;
+    workbenchRootProjectId: string;
     rootDevice?: string;
     rootInode?: string;
 }
 
 /**
- * Pure CRUD over `sessions` and its 1:1 `session_state` child row. Primary-Agent succession, default titles, and
+ * Pure CRUD over `sessions` and its 1:1 `session_views` child row. Primary-Agent succession, default titles, and
  * deletion-fallback selection are decided in `../session-policy.ts` and applied here through plain setters. Session
  * JSON is versioned and schema-validated at this boundary so a corrupt or future row can be repaired without failing
  * the full domain-service composition root.
@@ -119,7 +119,7 @@ export class SessionsModel {
         const session = this.database
             .select({
                 projectId: sessions.projectId,
-                workbenchProjectId: sessions.workbenchProjectId,
+                workbenchRootProjectId: sessions.workbenchRootProjectId,
             })
             .from(sessions)
             .where(eq(sessions.id, sessionId))
@@ -128,7 +128,7 @@ export class SessionsModel {
             sessionId,
             // No stored row to be stale against, so the first write must declare `0`.
             revision: 0,
-            workbenchProjectId: session?.workbenchProjectId ?? session?.projectId ?? '',
+            workbenchRootProjectId: session?.workbenchRootProjectId ?? session?.projectId ?? '',
             desiredSecondarySidebarViewContainerId: 'caxri.files',
             paneLayout: defaultSessionPaneLayout(terminalIds),
         };
@@ -174,7 +174,7 @@ export class SessionsModel {
                   .from(sessions)
                   .innerJoin(
                       workbenchProjects,
-                      eq(workbenchProjects.id, effectiveWorkbenchProjectId),
+                      eq(workbenchProjects.id, effectiveWorkbenchRootProjectId),
                   )
                   .where(eq(sessions.projectId, projectId))
                   .orderBy(asc(sessions.createdAt), asc(sessions.id))
@@ -184,7 +184,7 @@ export class SessionsModel {
                   .from(sessions)
                   .innerJoin(
                       workbenchProjects,
-                      eq(workbenchProjects.id, effectiveWorkbenchProjectId),
+                      eq(workbenchProjects.id, effectiveWorkbenchRootProjectId),
                   )
                   .orderBy(asc(sessions.createdAt), asc(sessions.id))
                   .all();
@@ -195,7 +195,7 @@ export class SessionsModel {
         const row = this.database
             .select(sessionSelection)
             .from(sessions)
-            .innerJoin(workbenchProjects, eq(workbenchProjects.id, effectiveWorkbenchProjectId))
+            .innerJoin(workbenchProjects, eq(workbenchProjects.id, effectiveWorkbenchRootProjectId))
             .where(eq(sessions.id, id))
             .get();
         return row ? mapSession(row) : undefined;
@@ -205,7 +205,7 @@ export class SessionsModel {
         const row = this.database
             .select({
                 projectId: sessions.projectId,
-                workbenchProjectId: sessions.workbenchProjectId,
+                workbenchRootProjectId: sessions.workbenchRootProjectId,
                 rootDevice: sessions.workbenchRootDevice,
                 rootInode: sessions.workbenchRootInode,
             })
@@ -215,7 +215,7 @@ export class SessionsModel {
         if (!row) return undefined;
         return {
             projectId: row.projectId,
-            workbenchProjectId: row.workbenchProjectId ?? row.projectId,
+            workbenchRootProjectId: row.workbenchRootProjectId ?? row.projectId,
             rootDevice: row.rootDevice ?? undefined,
             rootInode: row.rootInode ?? undefined,
         };
@@ -240,7 +240,7 @@ export class SessionsModel {
             this.database
                 .update(sessions)
                 .set({
-                    workbenchProjectId: isAlternate ? projectId : null,
+                    workbenchRootProjectId: isAlternate ? projectId : null,
                     workbenchRootDevice: isAlternate ? (identity?.device ?? null) : null,
                     workbenchRootInode: isAlternate ? (identity?.inode ?? null) : null,
                 })
@@ -253,7 +253,7 @@ export class SessionsModel {
         const ids = this.database
             .select({ id: sessions.id })
             .from(sessions)
-            .where(eq(sessions.workbenchProjectId, projectId))
+            .where(eq(sessions.workbenchRootProjectId, projectId))
             .all();
         return ids.flatMap(({ id }) => {
             const session = this.get(id);
@@ -267,31 +267,31 @@ export class SessionsModel {
     resetWorkbenchProject(projectId: string): string[] {
         const stateRows = this.database
             .select({
-                sessionId: sessionStateTable.sessionId,
-                workbenchStateJson: sessionStateTable.workbenchStateJson,
+                sessionId: sessionViewsTable.sessionId,
+                rootsJson: sessionViewsTable.rootsJson,
             })
-            .from(sessionStateTable)
+            .from(sessionViewsTable)
             .all();
         for (const row of stateRows) {
-            const pruned = pruneWorkbenchEditorState(row.workbenchStateJson, projectId);
+            const pruned = pruneWorkbenchEditorState(row.rootsJson, projectId);
             if (pruned !== undefined)
                 this.revisions.rewriteRootStates(row.sessionId, pruned, 'projectPruned');
         }
         const sessionIds = this.database
             .select({ id: sessions.id })
             .from(sessions)
-            .where(eq(sessions.workbenchProjectId, projectId))
+            .where(eq(sessions.workbenchRootProjectId, projectId))
             .all()
             .map(({ id }) => id);
         if (sessionIds.length > 0)
             this.database
                 .update(sessions)
                 .set({
-                    workbenchProjectId: null,
+                    workbenchRootProjectId: null,
                     workbenchRootDevice: null,
                     workbenchRootInode: null,
                 })
-                .where(eq(sessions.workbenchProjectId, projectId))
+                .where(eq(sessions.workbenchRootProjectId, projectId))
                 .run();
         return sessionIds;
     }
@@ -308,14 +308,14 @@ export class SessionsModel {
                 id,
                 projectId: input.projectId,
                 createdAt: now,
-                lastOpenedAt: now,
+                lastVisitedAt: now,
                 ...sessionActivityUpdate('created', now),
                 primaryAgentTerminalId: null,
-                lastActivityState: 'idle',
-                attentionEpoch: 0,
-                readAttentionEpoch: 0,
+                agentActivityState: 'idle',
+                attentionGeneration: 0,
+                acknowledgedAttentionGeneration: 0,
                 lastAttentionKind: null,
-                displayTitle: input.displayTitle,
+                title: input.title,
                 titleMode: 'automatic',
                 createdBySessionId: input.createdBySessionId ?? null,
             })
@@ -357,9 +357,9 @@ export class SessionsModel {
          * MRU switches can land inside one millisecond. A strictly increasing durable value keeps their ordering from
          * falling back to creation time or UUID order after the optimistic Renderer state settles.
          */
-        const lastOpenedAt = sql<number>`MAX(${now}, COALESCE((SELECT MAX(${sessions.lastOpenedAt}) + 1 FROM ${sessions}), ${now}))`;
+        const lastVisitedAt = sql<number>`MAX(${now}, COALESCE((SELECT MAX(${sessions.lastVisitedAt}) + 1 FROM ${sessions}), ${now}))`;
         return (
-            this.database.update(sessions).set({ lastOpenedAt }).where(eq(sessions.id, id)).run()
+            this.database.update(sessions).set({ lastVisitedAt }).where(eq(sessions.id, id)).run()
                 .changes === 1
         );
     }
@@ -426,25 +426,25 @@ export class SessionsModel {
         id: string,
         patch: {
             primaryAgentTerminalId: string | null;
-            displayTitle: string;
-            lastActivityState: AgentActivityState;
+            title: string;
+            agentActivityState: AgentActivityState;
         },
     ): void {
         this.database
             .update(sessions)
             .set({
                 primaryAgentTerminalId: patch.primaryAgentTerminalId,
-                displayTitle: patch.displayTitle,
-                lastActivityState: patch.lastActivityState,
+                title: patch.title,
+                agentActivityState: patch.agentActivityState,
             })
             .where(eq(sessions.id, id))
             .run();
     }
 
-    setDisplayTitleAndActivity(
+    setTitleAndActivity(
         id: string,
-        displayTitle: string,
-        lastActivityState: AgentActivityState,
+        title: string,
+        agentActivityState: AgentActivityState,
         attentionKind?: SessionAttentionKind,
         activityReason?: SessionActivityReason,
     ): void {
@@ -452,10 +452,10 @@ export class SessionsModel {
         this.database
             .update(sessions)
             .set({
-                displayTitle,
-                lastActivityState,
+                title,
+                agentActivityState,
                 ...(attentionKind && {
-                    attentionEpoch: sql`${sessions.attentionEpoch} + 1`,
+                    attentionGeneration: sql`${sessions.attentionGeneration} + 1`,
                     lastAttentionKind: attentionKind,
                 }),
                 ...(activityReason && sessionActivityUpdate(activityReason, now)),
@@ -467,40 +467,40 @@ export class SessionsModel {
     /**
      * Acknowledges only the generation the Renderer actually displayed.
      */
-    acknowledgeAttention(id: string, attentionEpoch: number): boolean {
+    acknowledgeAttention(id: string, generation: number): boolean {
         return (
             this.database
                 .update(sessions)
-                .set({ readAttentionEpoch: attentionEpoch })
+                .set({ acknowledgedAttentionGeneration: generation })
                 .where(
                     and(
                         eq(sessions.id, id),
-                        eq(sessions.attentionEpoch, attentionEpoch),
-                        lt(sessions.readAttentionEpoch, attentionEpoch),
+                        eq(sessions.attentionGeneration, generation),
+                        lt(sessions.acknowledgedAttentionGeneration, generation),
                     ),
                 )
                 .run().changes === 1
         );
     }
 
-    consumeAttentionReply(id: string, terminalId: string, attentionEpoch: number): boolean {
-        return didConsumeAttentionReply(this.database, id, terminalId, attentionEpoch);
+    consumeAttentionReply(id: string, terminalId: string, generation: number): boolean {
+        return didConsumeAttentionReply(this.database, id, terminalId, generation);
     }
 
     releaseAttentionReply(
         id: string,
         terminalId: string,
-        attentionEpoch: number,
+        generation: number,
         activityAt: number,
     ): boolean {
-        return didReleaseAttentionReply(this.database, id, terminalId, attentionEpoch, activityAt);
+        return didReleaseAttentionReply(this.database, id, terminalId, generation, activityAt);
     }
 
-    rename(id: string, displayTitle: string): boolean {
+    rename(id: string, title: string): boolean {
         return (
             this.database
                 .update(sessions)
-                .set({ displayTitle, titleMode: 'manual' })
+                .set({ title, titleMode: 'manual' })
                 .where(eq(sessions.id, id))
                 .run().changes === 1
         );
@@ -513,14 +513,14 @@ export class SessionsModel {
     setAutomaticNaming(
         id: string,
         value: NonNullable<typeof sessions.$inferSelect.automaticNaming>,
-        displayTitle?: string,
+        title?: string,
     ): boolean {
-        return didWriteAutomaticNaming(this.database, id, value, displayTitle);
+        return didWriteAutomaticNaming(this.database, id, value, title);
     }
 
     setActivityStateByPrimaryTerminal(
         terminalId: string,
-        lastActivityState: AgentActivityState,
+        agentActivityState: AgentActivityState,
         activityReason?: SessionActivityReason,
     ): boolean {
         const now = Date.now();
@@ -528,7 +528,7 @@ export class SessionsModel {
             this.database
                 .update(sessions)
                 .set({
-                    lastActivityState,
+                    agentActivityState,
                     ...(activityReason && sessionActivityUpdate(activityReason, now)),
                 })
                 .where(eq(sessions.primaryAgentTerminalId, terminalId))
@@ -539,18 +539,18 @@ export class SessionsModel {
     getState(sessionId: string): SessionState {
         const row = this.database
             .select({
-                sessionId: sessionStateTable.sessionId,
+                sessionId: sessionViewsTable.sessionId,
                 projectId: sessions.projectId,
-                workbenchProjectId: sessions.workbenchProjectId,
-                revision: sessionStateTable.revision,
-                stateVersion: sessionStateTable.stateVersion,
-                workbenchStateJson: sessionStateTable.workbenchStateJson,
+                workbenchRootProjectId: sessions.workbenchRootProjectId,
+                revision: sessionViewsTable.revision,
+                stateVersion: sessionViewsTable.stateVersion,
+                rootsJson: sessionViewsTable.rootsJson,
                 desiredSecondarySidebarViewContainerId:
-                    sessionStateTable.desiredSecondarySidebarViewContainerId,
+                    sessionViewsTable.desiredSecondarySidebarViewContainerId,
             })
-            .from(sessionStateTable)
-            .innerJoin(sessions, eq(sessions.id, sessionStateTable.sessionId))
-            .where(eq(sessionStateTable.sessionId, sessionId))
+            .from(sessionViewsTable)
+            .innerJoin(sessions, eq(sessions.id, sessionViewsTable.sessionId))
+            .where(eq(sessionViewsTable.sessionId, sessionId))
             .get();
         if (!row) return this.defaultState(sessionId, this.orderedTerminalIds(sessionId));
         return this.readState(row);
@@ -562,17 +562,17 @@ export class SessionsModel {
     listStates(terminalIdsBySession = this.orderedTerminalIdsBySession()): SessionState[] {
         const rows = this.database
             .select({
-                sessionId: sessionStateTable.sessionId,
+                sessionId: sessionViewsTable.sessionId,
                 projectId: sessions.projectId,
-                workbenchProjectId: sessions.workbenchProjectId,
-                revision: sessionStateTable.revision,
-                stateVersion: sessionStateTable.stateVersion,
-                workbenchStateJson: sessionStateTable.workbenchStateJson,
+                workbenchRootProjectId: sessions.workbenchRootProjectId,
+                revision: sessionViewsTable.revision,
+                stateVersion: sessionViewsTable.stateVersion,
+                rootsJson: sessionViewsTable.rootsJson,
                 desiredSecondarySidebarViewContainerId:
-                    sessionStateTable.desiredSecondarySidebarViewContainerId,
+                    sessionViewsTable.desiredSecondarySidebarViewContainerId,
             })
-            .from(sessionStateTable)
-            .innerJoin(sessions, eq(sessions.id, sessionStateTable.sessionId))
+            .from(sessionViewsTable)
+            .innerJoin(sessions, eq(sessions.id, sessionViewsTable.sessionId))
             .orderBy(asc(sessions.createdAt), asc(sessions.id))
             .all();
         return rows.map((row) =>
@@ -586,13 +586,13 @@ export class SessionsModel {
             terminalId ? { kind: 'terminal', terminalId } : undefined,
         );
         this.database
-            .insert(sessionStateTable)
+            .insert(sessionViewsTable)
             .values({
                 sessionId,
                 stateVersion: CURRENT_SESSION_STATE_VERSION,
                 desiredSecondarySidebarViewContainerId: 'caxri.files',
-                workbenchStateJson: JSON.stringify(
-                    binding ? { [binding.workbenchProjectId]: { paneLayout } } : {},
+                rootsJson: JSON.stringify(
+                    binding ? { [binding.workbenchRootProjectId]: { paneLayout } } : {},
                 ),
             })
             .run();
@@ -616,35 +616,33 @@ export class SessionsModel {
     ): number {
         const binding = this.getWorkbenchBinding(state.sessionId);
         if (!binding) throw new CaxriError('NOT_FOUND', 'Session not found');
-        if (binding.workbenchProjectId !== state.workbenchProjectId)
+        if (binding.workbenchRootProjectId !== state.workbenchRootProjectId)
             throw new CaxriError('CONFLICT', 'Session state belongs to a stale Workbench Root');
         const existing = this.database
             .select({
-                revision: sessionStateTable.revision,
-                stateVersion: sessionStateTable.stateVersion,
-                workbenchStateJson: sessionStateTable.workbenchStateJson,
+                revision: sessionViewsTable.revision,
+                stateVersion: sessionViewsTable.stateVersion,
+                rootsJson: sessionViewsTable.rootsJson,
                 desiredSecondarySidebarViewContainerId:
-                    sessionStateTable.desiredSecondarySidebarViewContainerId,
+                    sessionViewsTable.desiredSecondarySidebarViewContainerId,
             })
-            .from(sessionStateTable)
-            .where(eq(sessionStateTable.sessionId, state.sessionId))
+            .from(sessionViewsTable)
+            .where(eq(sessionViewsTable.sessionId, state.sessionId))
             .get();
         // No row yet means nothing can be stale against it, so a first write declares `0`.
         const storedRevision = existing?.revision ?? 0;
         if (state.revision !== storedRevision)
             throw this.revisions.staleWrite(state.sessionId, storedRevision, state.revision);
-        const storedStates = existing
-            ? parseWorkbenchEditorStates(existing.workbenchStateJson)
-            : undefined;
+        const storedStates = existing ? parseWorkbenchEditorStates(existing.rootsJson) : undefined;
         const paneLayout = resolveSessionPaneLayout(
             state.paneLayout,
-            storedStates?.[state.workbenchProjectId]?.paneLayout,
+            storedStates?.[state.workbenchRootProjectId]?.paneLayout,
             terminalIds ?? this.orderedTerminalIds(state.sessionId),
         );
         // Only the selected Root's snapshot is rewritten; every other Root keeps the arrangement it was left in.
         const workbenchStates: WorkbenchEditorStates = {
             ...storedStates,
-            [state.workbenchProjectId]: {
+            [state.workbenchRootProjectId]: {
                 paneLayout,
                 ...(state.extensionTreeViewStates && {
                     extensionTreeViewStates: state.extensionTreeViewStates,
@@ -659,7 +657,7 @@ export class SessionsModel {
         };
         const isUnchanged =
             existing?.stateVersion === CURRENT_SESSION_STATE_VERSION &&
-            existing.workbenchStateJson === JSON.stringify(workbenchStates) &&
+            existing.rootsJson === JSON.stringify(workbenchStates) &&
             existing.desiredSecondarySidebarViewContainerId ===
                 state.desiredSecondarySidebarViewContainerId;
         const values = {
@@ -670,7 +668,7 @@ export class SessionsModel {
              */
             revision: isUnchanged ? storedRevision : storedRevision + 1,
             stateVersion: CURRENT_SESSION_STATE_VERSION,
-            workbenchStateJson: JSON.stringify(workbenchStates),
+            rootsJson: JSON.stringify(workbenchStates),
             desiredSecondarySidebarViewContainerId: state.desiredSecondarySidebarViewContainerId,
         };
         this.stateWrites.total += 1;
@@ -678,20 +676,20 @@ export class SessionsModel {
             this.stateWrites.unchanged += 1;
             this.onStateUnchanged?.({
                 sessionId: state.sessionId,
-                workbenchProjectId: state.workbenchProjectId,
+                workbenchRootProjectId: state.workbenchRootProjectId,
                 unchangedWrites: this.stateWrites.unchanged,
                 totalWrites: this.stateWrites.total,
             });
         }
         this.database
-            .insert(sessionStateTable)
+            .insert(sessionViewsTable)
             .values(values)
             .onConflictDoUpdate({
-                target: sessionStateTable.sessionId,
+                target: sessionViewsTable.sessionId,
                 set: {
                     revision: values.revision,
                     stateVersion: values.stateVersion,
-                    workbenchStateJson: values.workbenchStateJson,
+                    rootsJson: values.rootsJson,
                     desiredSecondarySidebarViewContainerId:
                         values.desiredSecondarySidebarViewContainerId,
                 },

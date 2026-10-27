@@ -35,7 +35,7 @@ const scope: ExtensionTreeScope = {
     extensionGeneration: 1,
     sessionId: 'session-a',
     viewId: 'publisher.tree',
-    workbenchProjectId: 'project-1',
+    workbenchRootProjectId: 'project-1',
 };
 
 function branch(queryClient: QueryClient): void {
@@ -81,7 +81,7 @@ describe('runtime invalidation matches the production key factories', () => {
             scope.viewId,
             'files.list',
             { directory: '/project' },
-            scope.workbenchProjectId,
+            scope.workbenchRootProjectId,
         );
         queryClient.setQueryData(key, []);
         const unsubscribe = subscribeRuntimeQueryInvalidation(queryClient);
@@ -101,7 +101,7 @@ describe('runtime invalidation matches the production key factories', () => {
             scope.viewId,
             operation,
             {},
-            `${scope.sessionId}:${scope.workbenchProjectId}`,
+            `${scope.sessionId}:${scope.workbenchRootProjectId}`,
         );
         queryClient.setQueryData(key, {});
         const unsubscribe = subscribeRuntimeQueryInvalidation(queryClient);
@@ -115,7 +115,7 @@ describe('runtime invalidation matches the production key factories', () => {
                 context: {
                     kind: 'session',
                     sessionId: scope.sessionId,
-                    workbenchProjectId: scope.workbenchProjectId,
+                    workbenchRootProjectId: scope.workbenchRootProjectId,
                 },
                 change: { kind },
             },
@@ -136,7 +136,7 @@ describe('runtime invalidation matches the production key factories', () => {
             scope.viewId,
             'files.list',
             { directory: '/project' },
-            scope.workbenchProjectId,
+            scope.workbenchRootProjectId,
         );
         for (const key of [summary, pullRequests, gitSummary, transcript, agentActions, fileTree])
             queryClient.setQueryData(key, {});
@@ -173,7 +173,7 @@ describe('runtime invalidation matches the production key factories', () => {
             scope.viewId,
             'files.list',
             { directory: '/project' },
-            scope.workbenchProjectId,
+            scope.workbenchRootProjectId,
         );
         for (const key of [list, controlled]) queryClient.setQueryData(key, []);
         const unsubscribe = subscribeRuntimeQueryInvalidation(queryClient);
@@ -182,7 +182,7 @@ describe('runtime invalidation matches the production key factories', () => {
             event: 'files.changed',
             payload: {
                 sessionId: scope.sessionId,
-                workbenchProjectId: scope.workbenchProjectId,
+                workbenchRootProjectId: scope.workbenchRootProjectId,
                 overflow: false,
                 changes: [{ path: '/project/file.ts', kind: 'update' }],
             },

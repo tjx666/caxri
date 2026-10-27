@@ -182,7 +182,7 @@ function workspaceChangeContext(context: ExtensionViewEventScope): WorkspaceChan
     return {
         scopeId:
             context.kind === 'session'
-                ? `${context.sessionId}:${context.workbenchProjectId}`
+                ? `${context.sessionId}:${context.workbenchRootProjectId}`
                 : 'no-session',
     };
 }

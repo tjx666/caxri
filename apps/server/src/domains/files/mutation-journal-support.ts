@@ -11,9 +11,9 @@ import { z } from 'zod';
 
 /**
  * Reads the durable journal. A missing file is a fresh profile. A journal that no longer matches the current schema
- * (for example a record from an older build without `workbenchProjectId`) is never partially trusted, because recovery
- * would act on records of unknown scope. Initialization fails instead, so every file mutation is refused before it
- * touches user files, while Server Core keeps running and the journal file is left in place.
+ * (for example a record from an older build without `workbenchRootProjectId`) is never partially trusted, because
+ * recovery would act on records of unknown scope. Initialization fails instead, so every file mutation is refused
+ * before it touches user files, while Server Core keeps running and the journal file is left in place.
  */
 export async function readJournalRecords(
     path: string,

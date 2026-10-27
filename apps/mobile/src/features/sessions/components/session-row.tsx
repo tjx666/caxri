@@ -60,9 +60,9 @@ export const SessionRow = ({
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
-    const title = sessionTitleForDisplay(session.displayTitle, t);
+    const title = sessionTitleForDisplay(session.title, t);
     const handlePress = useCallback(() => onPress(session.id), [onPress, session.id]);
-    const age = sessionAgeLabel(session.lastSessionActivityAt, now, t);
+    const age = sessionAgeLabel(session.sessionActivityAt, now, t);
     const stateLabel = sessionStateLabel(session.stateLabel, savedAt, now, t);
     return (
         <Pressable

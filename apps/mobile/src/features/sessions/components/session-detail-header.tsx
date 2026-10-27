@@ -255,7 +255,7 @@ export const SessionDetailHeader = ({
                             style={[styles.title, { color: theme.text }]}
                             testID="session-detail-title"
                         >
-                            {sessionTitleForDisplay(session.displayTitle, t)}
+                            {sessionTitleForDisplay(session.title, t)}
                         </Text>
                         <SessionStatusGlyph
                             // The Chat tab's status row already spins for the run, so the title does not spin too.
@@ -337,7 +337,7 @@ export const SessionDetailHeader = ({
                         isAwaitingAnswer={isSegmentAwaitingAnswer({
                             isChat,
                             isSelected: segment === option,
-                            lastActivityState: session.lastActivityState,
+                            agentActivityState: session.agentActivityState,
                             segment: option,
                         })}
                         isChat={isChat}

@@ -83,7 +83,7 @@ test('Activity groups every Project’s Sessions attention-first and clears a re
         for (const [name, sessionId] of sessions) {
             // eslint-disable-next-line no-await-in-loop -- renames must land before the app closes
             await pageRequest(running.page, 'session.rename', {
-                displayTitle: `${name} work`,
+                title: `${name} work`,
                 sessionId,
             });
         }
@@ -96,42 +96,42 @@ test('Activity groups every Project’s Sessions attention-first and clears a re
 
         const database = new Database(join(userData, 'caxri.db'));
         const activityAt = Date.now();
-        database.prepare('UPDATE sessions SET last_session_activity_at = ?').run(activityAt);
+        database.prepare('UPDATE sessions SET session_activity_at = ?').run(activityAt);
         database
             .prepare(
-                'UPDATE projects SET display_title = ? WHERE id = (SELECT project_id FROM sessions WHERE id = ?)',
+                'UPDATE projects SET title = ? WHERE id = (SELECT project_id FROM sessions WHERE id = ?)',
             )
             // Sized so that at the 180px minimum width the name plus its reserved 8px fade buffer (#1173) still fits
             // whole, while the time no longer fits beside it and has to drop out first.
             .run('web-client-portal', sessions.get('beta'));
         database
             .prepare(
-                'UPDATE projects SET display_title = ? WHERE id = (SELECT project_id FROM sessions WHERE id = ?)',
+                'UPDATE projects SET title = ? WHERE id = (SELECT project_id FROM sessions WHERE id = ?)',
             )
             .run('service-integration-platform-workspace', sessions.get('alpha'));
         database
             .prepare(
                 `UPDATE sessions
-                 SET attention_epoch = 1, read_attention_epoch = 0,
-                     last_attention_kind = 'completed', last_activity_state = 'completed'
+                 SET attention_generation = 1, acknowledged_attention_generation = 0,
+                     last_attention_kind = 'completed', agent_activity_state = 'completed'
                  WHERE id = ?`,
             )
             .run(sessions.get('alpha'));
         database
             .prepare(
                 `UPDATE sessions
-                 SET attention_epoch = 1, read_attention_epoch = 0,
-                     last_attention_kind = 'waiting', last_activity_state = 'waiting',
-                     last_session_activity_at = ?
+                 SET attention_generation = 1, acknowledged_attention_generation = 0,
+                     last_attention_kind = 'waiting', agent_activity_state = 'waiting',
+                     session_activity_at = ?
                  WHERE id = ?`,
             )
             .run(activityAt - 1_000, sessions.get('beta'));
         database
             .prepare(
                 `UPDATE sessions
-                 SET attention_epoch = 1, read_attention_epoch = 0,
-                     last_attention_kind = 'completed', last_activity_state = 'completed',
-                     last_session_activity_at = ?
+                 SET attention_generation = 1, acknowledged_attention_generation = 0,
+                     last_attention_kind = 'completed', agent_activity_state = 'completed',
+                     session_activity_at = ?
                  WHERE id = ?`,
             )
             .run(activityAt - 20 * 60_000, sessions.get('stale'));

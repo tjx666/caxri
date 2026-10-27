@@ -50,13 +50,14 @@ export interface AgentExcerptSources {
  */
 export async function readAgentExcerpts(
     sources: AgentExcerptSources,
-    sessions: ReadonlyArray<{ sessionId: string; attentionEpoch: number }>,
+    sessions: ReadonlyArray<{ sessionId: string; attentionGeneration: number }>,
 ): Promise<Record<string, AgentExcerpt>> {
     const entries = await Promise.all(
-        sessions.map(async ({ sessionId, attentionEpoch }) => {
+        sessions.map(async ({ sessionId, attentionGeneration }) => {
             const session = sources.database.getSession(sessionId);
             const terminalId = session?.primaryAgentTerminalId;
-            if (!session || !terminalId || session.attentionEpoch !== attentionEpoch) return;
+            if (!session || !terminalId || session.attentionGeneration !== attentionGeneration)
+                return;
             const request = sources.pendingRequest(terminalId);
             const asked = request && describePendingRequest(request);
             if (asked)

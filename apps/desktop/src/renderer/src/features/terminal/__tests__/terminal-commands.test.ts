@@ -363,7 +363,7 @@ describe('createTerminal', () => {
         mocks.getSelectedSession.mockReturnValue({ id: 'session-1' });
         mocks.getSessionState.mockReturnValue({
             sessionId: 'session-1',
-            workbenchProjectId: 'project-1',
+            workbenchRootProjectId: 'project-1',
             paneLayout,
         });
         mocks.caxriRequest.mockResolvedValue(terminalFixture({ id: 'terminal-new' }));

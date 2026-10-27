@@ -144,7 +144,7 @@ function SessionFilterButton({
 }) {
     const { t } = useTranslation();
     const title = usageSessionFilterTitle(t, {
-        liveTitle: useSessionById(sessionId)?.displayTitle,
+        liveTitle: useSessionById(sessionId)?.title,
         reportRow,
         sessionId,
     });

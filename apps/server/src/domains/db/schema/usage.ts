@@ -92,7 +92,7 @@ export const pullRequestOutcomes = sqliteTable(
         url: text('url').primaryKey(),
         state: text('state').notNull(),
         title: text('title').notNull(),
-        createdAt: integer('created_at'),
+        openedAt: integer('opened_at'),
         mergedAt: integer('merged_at'),
         additions: integer('additions').notNull().default(0),
         deletions: integer('deletions').notNull().default(0),

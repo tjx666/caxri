@@ -113,8 +113,8 @@ export function shutdownOutcome(reason: ShutdownReason): ShutdownOutcome {
 
 export interface PrimaryAgentAssignment {
     primaryAgentTerminalId: string;
-    displayTitle: string;
-    lastActivityState: 'idle';
+    title: string;
+    agentActivityState: 'idle';
 }
 
 /**
@@ -124,21 +124,21 @@ export interface PrimaryAgentAssignment {
  * rule.
  */
 export function choosePrimaryAgentForNewTerminal(
-    session: Pick<SessionRecord, 'displayTitle' | 'primaryAgentTerminalId' | 'titleMode'>,
+    session: Pick<SessionRecord, 'title' | 'primaryAgentTerminalId' | 'titleMode'>,
     terminal: Pick<TerminalRecord, 'id' | 'kind'>,
 ): PrimaryAgentAssignment | undefined {
     if (terminal.kind === 'shell' || session.primaryAgentTerminalId) return undefined;
     return {
         primaryAgentTerminalId: terminal.id,
-        displayTitle: session.displayTitle,
-        lastActivityState: 'idle',
+        title: session.title,
+        agentActivityState: 'idle',
     };
 }
 
 export interface PrimaryAgentSuccession {
     primaryAgentTerminalId: string | null;
-    displayTitle: string;
-    lastActivityState: AgentActivityState;
+    title: string;
+    agentActivityState: AgentActivityState;
 }
 
 /**
@@ -147,13 +147,13 @@ export interface PrimaryAgentSuccession {
  */
 export function choosePrimaryAgentSuccessor(
     remainingTerminals: TerminalRecord[],
-    session: Pick<SessionRecord, 'displayTitle'>,
+    session: Pick<SessionRecord, 'title'>,
 ): PrimaryAgentSuccession {
     const nextAgent = remainingTerminals.find((candidate) => candidate.provider);
     return {
         primaryAgentTerminalId: nextAgent?.id ?? null,
-        displayTitle: session.displayTitle,
-        lastActivityState: nextAgent ? 'unknown' : 'idle',
+        title: session.title,
+        agentActivityState: nextAgent ? 'unknown' : 'idle',
     };
 }
 
@@ -163,7 +163,7 @@ export function choosePrimaryAgentSuccessor(
  */
 export function chooseLivePrimaryAgentSuccessor(
     terminals: TerminalRecord[],
-    session: Pick<SessionRecord, 'displayTitle' | 'primaryAgentTerminalId'>,
+    session: Pick<SessionRecord, 'title' | 'primaryAgentTerminalId'>,
     exitedTerminalId: string,
 ): PrimaryAgentSuccession | undefined {
     if (session.primaryAgentTerminalId !== exitedTerminalId) return undefined;
@@ -177,8 +177,8 @@ export function chooseLivePrimaryAgentSuccessor(
     if (!nextAgent) return undefined;
     return {
         primaryAgentTerminalId: nextAgent.id,
-        displayTitle: session.displayTitle,
-        lastActivityState: 'unknown',
+        title: session.title,
+        agentActivityState: 'unknown',
     };
 }
 
@@ -212,8 +212,8 @@ export interface AgentMetadataDecision {
      */
     sessionPatch?: {
         attentionKind?: SessionAttentionKind;
-        displayTitle: string;
-        lastActivityState: AgentActivityState;
+        title: string;
+        agentActivityState: AgentActivityState;
     };
 }
 
@@ -221,12 +221,12 @@ export interface AgentMetadataDecision {
  * Emits one attention generation per reliable state transition, never for process fallbacks.
  */
 function reliableAttentionTransition(
-    session: Pick<SessionRecord, 'lastActivityState' | 'lastAttentionKind'>,
+    session: Pick<SessionRecord, 'agentActivityState' | 'lastAttentionKind'>,
     status: AgentActivityState,
     kind?: SessionAttentionKind,
 ): SessionAttentionKind | undefined {
     if (!kind || status !== kind) return undefined;
-    if (session.lastActivityState === kind && session.lastAttentionKind === kind) return undefined;
+    if (session.agentActivityState === kind && session.lastAttentionKind === kind) return undefined;
     return kind;
 }
 
@@ -251,25 +251,25 @@ const PROBE_CORRECTABLE_STATES = new Set<AgentActivityState>(['running', 'failed
  * never overwrites the more precise state an explicit hook signal recorded.
  *
  * Persisting an untrusted turn-end state is what made an already-read Session look permanently unattended: the
- * PrimarySidebar's acknowledged-waiting cue keyed off `lastActivityState` alone and never consulted
- * `readAttentionEpoch`, so a probe landing after the user acknowledged a finished turn relit an amber row that no later
- * read could clear. Hook-driven `attentionRequested` signals bypass this because they are explicit.
+ * PrimarySidebar's acknowledged-waiting cue keyed off `agentActivityState` alone and never consulted
+ * `acknowledgedAttentionGeneration`, so a probe landing after the user acknowledged a finished turn relit an amber row
+ * that no later read could clear. Hook-driven `attentionRequested` signals bypass this because they are explicit.
  */
 function metadataActivityState(
-    session: Pick<SessionRecord, 'lastActivityState'>,
+    session: Pick<SessionRecord, 'agentActivityState'>,
     status: AgentActivityState,
 ): AgentActivityState {
     if (
         PROBED_TURN_END_STATES.has(status) &&
-        !PROBE_CORRECTABLE_STATES.has(session.lastActivityState)
+        !PROBE_CORRECTABLE_STATES.has(session.agentActivityState)
     )
-        return session.lastActivityState;
+        return session.agentActivityState;
     return status;
 }
 
 export interface AgentLifecycleDecision {
     attentionKind?: SessionAttentionKind;
-    lastActivityState: AgentActivityState;
+    agentActivityState: AgentActivityState;
     /**
      * Marks the current unread attention generation read because a new turn superseded it.
      *
@@ -298,7 +298,7 @@ export function decideAgentLifecycleUpdate(
     terminal: Pick<TerminalRecord, 'id' | 'provider'>,
     session: Pick<
         SessionRecord,
-        'hasUnread' | 'lastActivityState' | 'lastAttentionKind' | 'primaryAgentTerminalId'
+        'hasUnread' | 'agentActivityState' | 'lastAttentionKind' | 'primaryAgentTerminalId'
     >,
     provider: TerminalRecord['provider'],
     phase: AgentLifecyclePhase,
@@ -320,14 +320,15 @@ export function decideAgentLifecycleUpdate(
          */
         const supersedesUnreadAttention =
             session.hasUnread && session.lastAttentionKind === 'waiting';
-        if (!supersedesUnreadAttention && session.lastActivityState !== 'waiting') return undefined;
+        if (!supersedesUnreadAttention && session.agentActivityState !== 'waiting')
+            return undefined;
         return {
-            lastActivityState:
-                session.lastActivityState === 'waiting' ? 'running' : session.lastActivityState,
+            agentActivityState:
+                session.agentActivityState === 'waiting' ? 'running' : session.agentActivityState,
             ...(supersedesUnreadAttention && { supersedesUnreadAttention }),
         };
     }
-    const lastActivityState: AgentActivityState =
+    const agentActivityState: AgentActivityState =
         phase === 'turnStarted'
             ? 'running'
             : phase === 'turnFailed'
@@ -336,22 +337,22 @@ export function decideAgentLifecycleUpdate(
                 ? 'waiting'
                 : 'completed';
     const requestedAttention = ['attentionRequested', 'turnFinished', 'turnFailed'].includes(phase)
-        ? (lastActivityState as SessionAttentionKind)
+        ? (agentActivityState as SessionAttentionKind)
         : undefined;
     const attentionKind = reliableAttentionTransition(
         session,
-        lastActivityState,
+        agentActivityState,
         requestedAttention,
     );
     const supersedesUnreadAttention = phase === 'turnStarted' && session.hasUnread;
     if (
         !attentionKind &&
         !supersedesUnreadAttention &&
-        session.lastActivityState === lastActivityState
+        session.agentActivityState === agentActivityState
     )
         return undefined;
     return {
-        lastActivityState,
+        agentActivityState,
         ...(attentionKind && { attentionKind }),
         ...(supersedesUnreadAttention && { supersedesUnreadAttention }),
     };
@@ -365,8 +366,8 @@ export function decideAgentMetadataUpdate(
     terminal: Pick<TerminalRecord, 'id' | 'provider' | 'agentSessionId' | 'title'>,
     session: Pick<
         SessionRecord,
-        | 'displayTitle'
-        | 'lastActivityState'
+        | 'title'
+        | 'agentActivityState'
         | 'lastAttentionKind'
         | 'primaryAgentTerminalId'
         | 'titleMode'
@@ -376,9 +377,9 @@ export function decideAgentMetadataUpdate(
     if (!terminal.provider || terminal.provider !== snapshot.provider) return undefined;
     const isPrimaryAgent = terminal.id === session.primaryAgentTerminalId;
     const isManuallyTitled = session.titleMode === 'manual';
-    const displayTitle = isManuallyTitled
-        ? session.displayTitle
-        : agentDisplayTitle(snapshot.title, session.displayTitle);
+    const title = isManuallyTitled
+        ? session.title
+        : agentDisplayTitle(snapshot.title, session.title);
     /**
      * A targeted probe may temporarily miss a hook-bound thread when the provider store has not flushed it yet or its
      * recorded cwd differs from the Terminal cwd. Only launch reset explicitly clears an identity; an empty snapshot
@@ -410,23 +411,22 @@ export function decideAgentMetadataUpdate(
      * owns the name, so falling back to the tab's own title left the tab on the provider name ("Claude") beside a named
      * sidebar row. The primary tab takes the Session's name instead, unless the Session is still unnamed.
      */
-    const hasSessionName = session.displayTitle !== DEFAULT_SESSION_TITLE;
+    const hasSessionName = session.title !== DEFAULT_SESSION_TITLE;
     const preferredTitle =
         isPrimaryAgent && isManuallyTitled
-            ? session.displayTitle
+            ? session.title
             : agentDisplayTitle(
                   snapshot.title,
-                  isPrimaryAgent && hasSessionName ? session.displayTitle : terminal.title,
+                  isPrimaryAgent && hasSessionName ? session.title : terminal.title,
               );
     const terminalTitle = normalizeTerminalTitle(preferredTitle) ?? terminal.title;
-    const lastActivityState = metadataActivityState(session, snapshot.status);
+    const agentActivityState = metadataActivityState(session, snapshot.status);
     const attentionKind = isPrimaryAgent
-        ? reliableAttentionTransition(session, lastActivityState, snapshot.attentionKind)
+        ? reliableAttentionTransition(session, agentActivityState, snapshot.attentionKind)
         : undefined;
     const isNoOp =
         (!isPrimaryAgent ||
-            (session.displayTitle === displayTitle &&
-                session.lastActivityState === lastActivityState)) &&
+            (session.title === title && session.agentActivityState === agentActivityState)) &&
         terminal.agentSessionId === agentSessionId &&
         terminal.title === terminalTitle &&
         !attentionKind;
@@ -436,8 +436,8 @@ export function decideAgentMetadataUpdate(
         ...(terminal.title !== terminalTitle && { terminalTitle }),
         sessionPatch: isPrimaryAgent
             ? {
-                  displayTitle,
-                  lastActivityState,
+                  title,
+                  agentActivityState,
                   ...(attentionKind && { attentionKind }),
               }
             : undefined,

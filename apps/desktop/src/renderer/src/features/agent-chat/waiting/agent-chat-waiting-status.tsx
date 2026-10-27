@@ -20,7 +20,7 @@ export function AgentChatWaitingStatus({ chat }: { chat: AgentChatWaitingChat | 
         chat && request
             ? t(agentChatWaitingAnnouncementKey(request.kind), {
                   provider: provider?.displayName ?? t('agentChat.waiting.agent'),
-                  session: session ? sessionTitleForDisplay(session.displayTitle, t) : '',
+                  session: session ? sessionTitleForDisplay(session.title, t) : '',
               })
             : '';
     return (

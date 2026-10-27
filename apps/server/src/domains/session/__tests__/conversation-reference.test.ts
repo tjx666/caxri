@@ -63,7 +63,7 @@ describe('SessionConversationReferenceService', () => {
         const projects = join(home, '.claude', 'projects', cwd.replaceAll(/[^a-z\d]/gi, '-'));
         await mkdir(projects, { recursive: true });
         transcript = join(projects, `${AGENT_SESSION_ID}.jsonl`);
-        session = { id: 's1', displayTitle: 'Fix login', primaryAgentTerminalId: 't1' };
+        session = { id: 's1', title: 'Fix login', primaryAgentTerminalId: 't1' };
         terminal = { id: 't1', provider: 'claude', agentSessionId: AGENT_SESSION_ID, cwd };
         write = vi.fn<LogWrite>();
     });

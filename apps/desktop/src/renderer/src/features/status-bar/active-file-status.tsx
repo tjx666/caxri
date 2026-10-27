@@ -19,15 +19,15 @@ export function ActiveFileStatus({
     sessionId,
     path,
     tier,
-    workbenchProjectId,
+    workbenchRootProjectId,
 }: {
     sessionId: string;
     path: string;
     tier: Exclude<ActiveFileStatusTier, 'hidden'>;
-    workbenchProjectId: string;
+    workbenchRootProjectId: string;
 }) {
     const { t } = useTranslation();
-    const key = editorStatusKey(sessionViewScope(sessionId, workbenchProjectId), path);
+    const key = editorStatusKey(sessionViewScope(sessionId, workbenchRootProjectId), path);
     const editorStatus = useEditorStatusStore((state) => state.statuses[key]);
     // An external document shows only what its own editor published. A tab whose editor never reported (its file is
     // gone or unreadable) shows nothing rather than a made-up `Ln 1, Col 1` in Plain Text.

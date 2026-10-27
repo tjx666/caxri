@@ -35,7 +35,7 @@ describe('ExtensionService generation lifecycle', () => {
                 () => ({
                     ownerProjectId: 'project-1',
                     sessionId: 'session-1',
-                    workbenchProjectId: 'project-1',
+                    workbenchRootProjectId: 'project-1',
                 }),
                 ['project-1'],
             ),
@@ -56,7 +56,7 @@ describe('ExtensionService generation lifecycle', () => {
             context: {
                 kind: 'session' as const,
                 sessionId: 'session-1',
-                workbenchProjectId: 'project-1',
+                workbenchRootProjectId: 'project-1',
             },
         };
         const first = service.viewOperation({ ...request, requestId: 'badge-1' });
@@ -102,7 +102,7 @@ describe('ExtensionService generation lifecycle', () => {
                 () => ({
                     ownerProjectId: 'project-2',
                     sessionId: 'session-2',
-                    workbenchProjectId: 'project-2',
+                    workbenchRootProjectId: 'project-2',
                 }),
                 ['project-2'],
             ),
@@ -121,7 +121,7 @@ describe('ExtensionService generation lifecycle', () => {
                 context: {
                     kind: 'session',
                     sessionId: 'session-1',
-                    workbenchProjectId: 'project-1',
+                    workbenchRootProjectId: 'project-1',
                 },
             }),
         ).rejects.toMatchObject({ code: 'CANCELLED' });
@@ -136,7 +136,7 @@ describe('ExtensionService generation lifecycle', () => {
             let active = {
                 ownerProjectId: 'project-1',
                 sessionId: 'session-1',
-                workbenchProjectId: 'project-1',
+                workbenchRootProjectId: 'project-1',
             };
             const service = new ExtensionService({
                 ...observationIdentity,
@@ -168,7 +168,7 @@ describe('ExtensionService generation lifecycle', () => {
                 context: {
                     kind: 'session',
                     sessionId: 'session-1',
-                    workbenchProjectId: 'project-1',
+                    workbenchRootProjectId: 'project-1',
                 },
             });
             await vi.waitFor(() =>
@@ -179,7 +179,7 @@ describe('ExtensionService generation lifecycle', () => {
             active = {
                 ownerProjectId: 'project-2',
                 sessionId: 'session-2',
-                workbenchProjectId: 'project-2',
+                workbenchRootProjectId: 'project-2',
             };
             pending.reject(
                 Object.assign(new Error('Active Project changed while the request was running'), {
@@ -208,7 +208,7 @@ describe('ExtensionService generation lifecycle', () => {
                 () => ({
                     ownerProjectId: 'project-1',
                     sessionId: 'session-1',
-                    workbenchProjectId: 'project-1',
+                    workbenchRootProjectId: 'project-1',
                 }),
                 ['project-1'],
             ),
@@ -233,7 +233,7 @@ describe('ExtensionService generation lifecycle', () => {
                 context: {
                     kind: 'session',
                     sessionId: 'session-1',
-                    workbenchProjectId: 'project-1',
+                    workbenchRootProjectId: 'project-1',
                 },
             }),
         ).rejects.toMatchObject({
@@ -255,7 +255,7 @@ describe('ExtensionService generation lifecycle', () => {
                 context: {
                     kind: 'session',
                     sessionId: 'session-1',
-                    workbenchProjectId: 'project-1',
+                    workbenchRootProjectId: 'project-1',
                 },
             }),
         ).rejects.toMatchObject({
@@ -274,7 +274,7 @@ describe('ExtensionService generation lifecycle', () => {
             context: {
                 kind: 'session',
                 sessionId: 'session-1',
-                workbenchProjectId: 'project-1',
+                workbenchRootProjectId: 'project-1',
             },
         });
         await vi.waitFor(() =>

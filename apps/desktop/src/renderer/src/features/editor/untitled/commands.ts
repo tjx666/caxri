@@ -24,8 +24,8 @@ export function openUntitledEditor(): void {
     const session = getSelectedSession();
     const state = session ? sessionStateOf(session.id) : undefined;
     if (!session || !state) return;
-    const workbenchProjectId = state.workbenchProjectId;
-    const cachedPaths = Object.keys(getSessionDocuments(session.id, workbenchProjectId) ?? {});
+    const workbenchRootProjectId = state.workbenchRootProjectId;
+    const cachedPaths = Object.keys(getSessionDocuments(session.id, workbenchRootProjectId) ?? {});
     const path = untitledEditorTabPath(
         nextUntitledIndex([...layoutDocumentPaths(state.paneLayout), ...cachedPaths]),
     );
@@ -33,12 +33,12 @@ export function openUntitledEditor(): void {
     const isCached = view.cacheDocument(
         session.id,
         emptyUntitledDocument(path),
-        workbenchProjectId,
+        workbenchRootProjectId,
     );
     if (!isCached || !didOpenEditorTabForSession(session.id, path)) {
-        view.evictDocument(session.id, path, workbenchProjectId);
+        view.evictDocument(session.id, path, workbenchRootProjectId);
         pushToast('error', translate('editor.untitled.openFailed'));
         return;
     }
-    focusEditor(editorModelPath(sessionViewScope(session.id, workbenchProjectId), path));
+    focusEditor(editorModelPath(sessionViewScope(session.id, workbenchRootProjectId), path));
 }

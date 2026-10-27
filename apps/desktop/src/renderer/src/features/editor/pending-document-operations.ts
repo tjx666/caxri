@@ -7,7 +7,7 @@ export interface PendingDocumentOperation {
     discarded: boolean;
     path: string;
     sessionId: string;
-    workbenchProjectId?: string;
+    workbenchRootProjectId?: string;
 }
 
 /**
@@ -17,10 +17,10 @@ export interface PendingDocumentOperation {
 const pendingDocumentOperations = new Set<PendingDocumentOperation>();
 
 export function trackDocumentOperation(sessionId: string, path: string): PendingDocumentOperation {
-    const workbenchProjectId = getBootstrap()?.sessions.find(
+    const workbenchRootProjectId = getBootstrap()?.sessions.find(
         (session) => session.id === sessionId,
-    )?.workbenchProjectId;
-    const operation = { discarded: false, path, sessionId, workbenchProjectId };
+    )?.workbenchRootProjectId;
+    const operation = { discarded: false, path, sessionId, workbenchRootProjectId };
     pendingDocumentOperations.add(operation);
     return operation;
 }
@@ -31,14 +31,14 @@ export function finishDocumentOperation(operation: PendingDocumentOperation): vo
 
 export function remapPendingDocumentOperations(
     sessionId: string,
-    workbenchProjectId: string,
+    workbenchRootProjectId: string,
     previousPath: string,
     nextPath: string,
 ): void {
     for (const operation of pendingDocumentOperations) {
         if (
             operation.sessionId === sessionId &&
-            operation.workbenchProjectId === workbenchProjectId &&
+            operation.workbenchRootProjectId === workbenchRootProjectId &&
             isPathAtOrBelow(operation.path, previousPath)
         )
             operation.path = remapPath(operation.path, previousPath, nextPath);

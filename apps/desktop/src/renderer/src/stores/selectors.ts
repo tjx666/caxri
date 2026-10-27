@@ -39,8 +39,8 @@ export function selectSelectedWorkbenchProject(
     bootstrap?: BootstrapState,
 ): ProjectRecord | undefined {
     if (!bootstrap) return undefined;
-    const workbenchProjectId = selectSelectedSession(bootstrap)?.workbenchProjectId;
-    return bootstrap.projects.find((project) => project.id === workbenchProjectId);
+    const workbenchRootProjectId = selectSelectedSession(bootstrap)?.workbenchRootProjectId;
+    return bootstrap.projects.find((project) => project.id === workbenchRootProjectId);
 }
 
 function selectSessionState(
@@ -78,11 +78,11 @@ export function getProjectSessionIds(originSessionId: string): string[] {
     const sessions = getBootstrap()?.sessions ?? [];
     const projectId = sessions.find(
         (session) => session.id === originSessionId,
-    )?.workbenchProjectId;
+    )?.workbenchRootProjectId;
     if (!projectId) return [originSessionId];
     const sessionIds: string[] = [];
     for (const session of sessions) {
-        if (session.workbenchProjectId === projectId) sessionIds.push(session.id);
+        if (session.workbenchRootProjectId === projectId) sessionIds.push(session.id);
     }
     return sessionIds;
 }
@@ -91,17 +91,18 @@ export function getProjectSessionIds(originSessionId: string): string[] {
  * Returns Sessions whose current structured requests still resolve against this Workbench Root.
  */
 export function getWorkbenchProjectSessionIds(
-    workbenchProjectId: string,
+    workbenchRootProjectId: string,
     fallbackSessionId?: string,
 ): string[] {
     const sessionIds = (getBootstrap()?.sessions ?? [])
-        .filter((session) => session.workbenchProjectId === workbenchProjectId)
+        .filter((session) => session.workbenchRootProjectId === workbenchRootProjectId)
         .map((session) => session.id);
     return sessionIds.length > 0 ? sessionIds : fallbackSessionId ? [fallbackSessionId] : [];
 }
 
 export function getSessionProjectId(sessionId: string): string | undefined {
-    return getBootstrap()?.sessions.find((session) => session.id === sessionId)?.workbenchProjectId;
+    return getBootstrap()?.sessions.find((session) => session.id === sessionId)
+        ?.workbenchRootProjectId;
 }
 
 export function getSessionState(): SessionState | undefined {
@@ -117,13 +118,13 @@ export function useSelectedSessionId(): string | undefined {
 }
 
 /**
- * `<sessionId>:<workbenchProjectId>` of the selected Session, as one string that only changes when the Session or its
- * Project does.
+ * `<sessionId>:<workbenchRootProjectId>` of the selected Session, as one string that only changes when the Session or
+ * its Project does.
  */
 export function useSelectedSessionScopeKey(): string | undefined {
     return useWorkbenchStore((state) => {
         const session = selectSelectedSession(state.bootstrap);
-        return session ? `${session.id}:${session.workbenchProjectId}` : undefined;
+        return session ? `${session.id}:${session.workbenchRootProjectId}` : undefined;
     });
 }
 
@@ -188,14 +189,14 @@ export function useSessionState(sessionId?: string): SessionState | undefined {
  */
 export function useSessionViewScope(): {
     sessionId?: string;
-    workbenchProjectId?: string;
+    workbenchRootProjectId?: string;
 } {
     return useWorkbenchStore(
         useShallow((state) => {
             const sessionState = selectSessionState(state.bootstrap);
             return {
                 sessionId: sessionState?.sessionId,
-                workbenchProjectId: sessionState?.workbenchProjectId,
+                workbenchRootProjectId: sessionState?.workbenchRootProjectId,
             };
         }),
     );

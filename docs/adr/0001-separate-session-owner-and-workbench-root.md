@@ -24,7 +24,7 @@ the stored root, rejects symbolic-link replacements, and issues the same bounded
 single-use Desktop target used for Session paths. Consumption checks that the Project still exists and
 the root identity is unchanged. It neither creates a Session nor changes selection.
 
-Workbench state and dirty document identity are scoped by `(sessionId, workbenchProjectId)`. The
+Workbench state and dirty document identity are scoped by `(sessionId, workbenchRootProjectId)`. The
 provider hook bridge classifies a bounded Bash command locally and reports only authenticated
 worktree-create intent plus an opaque tool identifier, never its command, path, or output. Server
 Core captures structured Git topology before that exact tool runs and compares it with a forced read after

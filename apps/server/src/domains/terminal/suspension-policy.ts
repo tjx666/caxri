@@ -187,7 +187,7 @@ function decideTerminal(
     if (sample?.turnInFlight || sample?.awaitingUser) return undefined;
     if (
         session.primaryAgentTerminalId === terminal.id &&
-        (session.lastActivityState === 'running' || session.lastActivityState === 'waiting')
+        (session.agentActivityState === 'running' || session.agentActivityState === 'waiting')
     )
         return undefined;
     const sinceDeselected = input.now - deselectedAt;

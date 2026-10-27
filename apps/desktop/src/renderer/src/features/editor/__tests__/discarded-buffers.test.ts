@@ -13,13 +13,13 @@ import {
 } from '../discarded-buffers';
 
 const path = '/project/first.ts';
-const target = { sessionId: 'session-1', workbenchProjectId: 'project-1', paths: [path] };
+const target = { sessionId: 'session-1', workbenchRootProjectId: 'project-1', paths: [path] };
 
-function useWorkbenchRoot(workbenchProjectId: string): void {
+function useWorkbenchRoot(workbenchRootProjectId: string): void {
     useWorkbenchStore.setState({
         bootstrap: {
-            sessions: [{ id: 'session-1', projectId: 'project-1', workbenchProjectId }],
-            sessionStates: [{ sessionId: 'session-1', workbenchProjectId } as SessionState],
+            sessions: [{ id: 'session-1', projectId: 'project-1', workbenchRootProjectId }],
+            sessionStates: [{ sessionId: 'session-1', workbenchRootProjectId } as SessionState],
         } as unknown as BootstrapState,
     });
 }

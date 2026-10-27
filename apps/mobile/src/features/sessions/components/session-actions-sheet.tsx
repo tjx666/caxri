@@ -53,9 +53,9 @@ const SessionActionsBody = ({
 }) => {
     const { t } = useTranslation();
     const [mode, setMode] = useState<'menu' | 'rename'>('menu');
-    const [draft, setDraft] = useState(session.displayTitle);
+    const [draft, setDraft] = useState(session.title);
     const isBusy = management.pending?.sessionId === session.id;
-    const nextTitle = sessionRenameDraft(draft, session.displayTitle);
+    const nextTitle = sessionRenameDraft(draft, session.title);
     const isPinned = isPinnedSession(session);
     const submitRename = async (): Promise<void> => {
         if (nextTitle !== null && (await management.rename(session.id, nextTitle))) onClose();
@@ -72,7 +72,7 @@ const SessionActionsBody = ({
                     <Text numberOfLines={3} style={[styles.title, { color: theme.text }]}>
                         {mode === 'rename'
                             ? t('sessions.actions.renameTitle')
-                            : sessionTitleForDisplay(session.displayTitle, t)}
+                            : sessionTitleForDisplay(session.title, t)}
                     </Text>
                     <Text numberOfLines={1} style={[styles.subtitle, { color: theme.muted }]}>
                         {session.projectTitle}

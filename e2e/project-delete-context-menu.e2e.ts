@@ -23,7 +23,7 @@ test('the Project row menu deletes its own Project even when another Session is 
         const firstSessionId = await createProjectSession(running.page);
         const secondSessionId = await createProjectSession(running.page);
         const state = await pageRequest<{
-            projects: Array<{ id: string; displayTitle: string }>;
+            projects: Array<{ id: string; title: string }>;
             sessions: Array<{ id: string; projectId: string }>;
         }>(running.page, 'app.bootstrap');
         const firstProjectId = state.sessions.find(
@@ -90,7 +90,7 @@ test('the Project row menu deletes its own Project even when another Session is 
                         ).caxriProjectDeleteProbe?.messages[0],
                 ),
             )
-            .toContain(`Delete '${secondProject.displayTitle}'`);
+            .toContain(`Delete '${secondProject.title}'`);
         await expect(secondGroup).toBeVisible();
         await expect(firstGroup).toBeVisible();
 

@@ -27,13 +27,13 @@ import {
 const scope = {
     viewId: 'publisher.fixture.sourceControl',
     sessionId: 'session-1',
-    workbenchProjectId: 'project-1',
+    workbenchRootProjectId: 'project-1',
     extensionGeneration: 3,
 };
 const defaultContext = {
     kind: 'session' as const,
     sessionId: 'session-1',
-    workbenchProjectId: 'project-1',
+    workbenchRootProjectId: 'project-1',
 };
 
 function event(
@@ -101,7 +101,7 @@ describe('view event bridge', () => {
                 event('event-2', {
                     kind: 'session',
                     sessionId: 'session-2',
-                    workbenchProjectId: 'project-1',
+                    workbenchRootProjectId: 'project-1',
                 }),
             );
         for (const listener of mocks.listeners) listener(event('event-3', undefined, 2));
@@ -166,9 +166,9 @@ describe('view event bridge', () => {
             viewEventScopeKey({
                 viewId: scope.viewId,
                 sessionId: scope.sessionId,
-                workbenchProjectId: scope.workbenchProjectId,
+                workbenchRootProjectId: scope.workbenchRootProjectId,
             }),
-        ).toBe(`${scope.viewId}\0${scope.sessionId}\0${scope.workbenchProjectId}`);
+        ).toBe(`${scope.viewId}\0${scope.sessionId}\0${scope.workbenchRootProjectId}`);
     });
 
     it('evicts the oldest pending Session key once the pending-key cap is reached', () => {
@@ -176,14 +176,14 @@ describe('view event bridge', () => {
         const first = event('event-oldest', {
             kind: 'session',
             sessionId: 'session-oldest',
-            workbenchProjectId: 'project-1',
+            workbenchRootProjectId: 'project-1',
         });
         for (const listener of mocks.listeners) listener(first);
         for (let index = 0; index < 64; index += 1) {
             const extra = event(`event-cap-${index}`, {
                 kind: 'session',
                 sessionId: `session-cap-${index}`,
-                workbenchProjectId: 'project-1',
+                workbenchRootProjectId: 'project-1',
             });
             for (const listener of mocks.listeners) listener(extra);
         }
@@ -196,7 +196,7 @@ describe('view event bridge', () => {
             event('event-cap-63', {
                 kind: 'session',
                 sessionId: 'session-cap-63',
-                workbenchProjectId: 'project-1',
+                workbenchRootProjectId: 'project-1',
             }),
         );
     });

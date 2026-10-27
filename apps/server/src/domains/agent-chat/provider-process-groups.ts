@@ -30,13 +30,13 @@ export type ReadProcessTable = () => Promise<ProcessTableEntry[]>;
  * Durable record of the provider process groups the running Server Core owns; see `agentChatProcessGroups`.
  */
 export interface ProviderGroupLedger {
-    record(group: { pgid: number; terminalId: string; leaderStartedAt: string }): void;
+    record(group: { pgid: number; terminalId: string; leaderStartToken: string }): void;
     /**
-     * With `leaderStartedAt`, removes the record only while it still carries that start time, so the startup sweep
+     * With `leaderStartToken`, removes the record only while it still carries that start time, so the startup sweep
      * never deletes the record of a group a newer Chat registered under the same ID meanwhile.
      */
-    forget(pgid: number, leaderStartedAt?: string): void;
-    list(): Array<{ pgid: number; terminalId: string; leaderStartedAt: string }>;
+    forget(pgid: number, leaderStartToken?: string): void;
+    list(): Array<{ pgid: number; terminalId: string; leaderStartToken: string }>;
 }
 
 /**
@@ -90,12 +90,12 @@ export async function registerProviderGroup(
     pgid: number,
 ): Promise<void> {
     try {
-        const leaderStartedAt = await readProcessStart(pgid);
-        if (leaderStartedAt)
+        const leaderStartToken = await readProcessStart(pgid);
+        if (leaderStartToken)
             registration.ledger.record({
                 pgid,
                 terminalId: registration.terminalId,
-                leaderStartedAt,
+                leaderStartToken,
             });
     } catch {
         // Best effort, see above.
@@ -117,13 +117,13 @@ type StaleGroupOutcome = 'gone' | 'reaped' | 'reused';
  */
 function classifyGroup(
     table: readonly ProcessTableEntry[],
-    group: { pgid: number; leaderStartedAt: string },
+    group: { pgid: number; leaderStartToken: string },
 ): StaleGroupOutcome {
     const members = table.filter((entry) => entry.pgid === group.pgid);
     if (members.length === 0) return 'gone';
     const leader = members.find((entry) => entry.pid === group.pgid);
-    if (leader) return leader.startedAt === group.leaderStartedAt ? 'reaped' : 'reused';
-    const recorded = Date.parse(group.leaderStartedAt);
+    if (leader) return leader.startedAt === group.leaderStartToken ? 'reaped' : 'reused';
+    const recorded = Date.parse(group.leaderStartToken);
     if (Number.isNaN(recorded)) return 'reused';
     const isEarlier = members.some((entry) => {
         const startedAt = Date.parse(entry.startedAt);
@@ -160,7 +160,7 @@ export async function reapStaleProviderGroups(options: {
                 const outcome = group.pgid <= 1 ? 'reused' : classifyGroup(table, group);
                 counts[outcome] += 1;
                 if (outcome === 'reaped') await options.reapGroup(group.pgid);
-                ledger.forget(group.pgid, group.leaderStartedAt);
+                ledger.forget(group.pgid, group.leaderStartToken);
             }),
         );
         options.logger.write('info', logEventCatalog.agentChat.staleGroupsReaped, {

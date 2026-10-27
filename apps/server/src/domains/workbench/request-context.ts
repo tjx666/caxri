@@ -12,7 +12,7 @@ export function validateWorkbenchRequestContext(
     context: WorkbenchRequestContext,
 ): void {
     const binding = database.getSessionWorkbenchBinding(context.sessionId);
-    if (!binding || binding.workbenchProjectId !== context.workbenchProjectId)
+    if (!binding || binding.workbenchRootProjectId !== context.workbenchRootProjectId)
         throw new CaxriError(
             'CONFLICT',
             'Workbench Root changed before the extension operation started',

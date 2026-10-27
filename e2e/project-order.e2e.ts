@@ -9,10 +9,16 @@ import { launchCaxri, waitForRuntimeReady } from './support/helpers.ts';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 /**
- * Mirrors `BASELINE_SCHEMA_VERSION`; the manifest itself imports SQL through `?raw`, which Playwright cannot load. A
- * later migration upgrades this seeded database like any other post-baseline install.
+ * Reads `BASELINE_SCHEMA_VERSION` through the app manifest's `CaxriSchemaBaseline`, which `migration-manifest.test.ts`
+ * pins to it: the manifest module imports SQL through `?raw`, which Playwright cannot load, and a hand-written copy
+ * went stale on a baseline bump, so the seeded database was rebuilt empty.
  */
-const BASELINE_SCHEMA_VERSION = 54;
+async function baselineSchemaVersion(): Promise<number> {
+    const manifest = JSON.parse(await readFile(join(projectRoot, 'package.json'), 'utf8')) as {
+        build: { mac: { extendInfo: { CaxriSchemaBaseline: number } } };
+    };
+    return manifest.build.mac.extendInfo.CaxriSchemaBaseline;
+}
 
 async function seedProjects(databasePath: string, roots: string[]): Promise<void> {
     const database = new Database(databasePath);
@@ -27,7 +33,7 @@ async function seedProjects(databasePath: string, roots: string[]): Promise<void
     const fixtureCreatedAt = Date.now();
     const insert = database.prepare(
         `INSERT INTO projects
-         (id, root_path, display_title, order_index, created_at, last_opened_at)
+         (id, root_path, title, order_index, created_at, last_visited_at)
          VALUES (?, ?, ?, ?, ?, ?)`,
     );
     roots.forEach((root, orderIndex) => {
@@ -44,8 +50,8 @@ async function seedProjects(databasePath: string, roots: string[]): Promise<void
     database
         .prepare(
             `INSERT INTO sessions
-             (id, project_id, created_at, last_opened_at, last_session_activity_at, display_title)
-             VALUES (?, ?, ?, ?, ?, ?)`,
+             (id, project_id, created_at, last_visited_at, session_activity_at, session_activity_reason, title)
+             VALUES (?, ?, ?, ?, ?, 'created', ?)`,
         )
         .run(
             'session-0',
@@ -55,7 +61,7 @@ async function seedProjects(databasePath: string, roots: string[]): Promise<void
             fixtureCreatedAt,
             'Alpha Session',
         );
-    database.pragma(`user_version = ${BASELINE_SCHEMA_VERSION}`);
+    database.pragma(`user_version = ${await baselineSchemaVersion()}`);
     database.close();
 }
 

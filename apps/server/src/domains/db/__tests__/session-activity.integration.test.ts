@@ -26,8 +26,8 @@ describe('Session Activity persistence', () => {
 
         expect(database.getTerminal(created.terminal!.id)?.lastProcessState).toBe('running');
         expect(database.getSession(created.session.id)).toMatchObject({
-            lastActivityState: 'idle',
-            lastSessionActivityReason: 'created',
+            agentActivityState: 'idle',
+            sessionActivityReason: 'created',
         });
         database.close();
     });
@@ -41,18 +41,18 @@ describe('Session Activity persistence', () => {
         const second = database.createSession(project.id, 'shell').session;
 
         expect(first).toMatchObject({
-            lastSessionActivityAt: first.createdAt,
-            lastSessionActivityReason: 'created',
+            sessionActivityAt: first.createdAt,
+            sessionActivityReason: 'created',
         });
-        expect(second.lastSessionActivityAt).toBeGreaterThan(first.lastSessionActivityAt);
+        expect(second.sessionActivityAt).toBeGreaterThan(first.sessionActivityAt);
         database.selectSession(first.id, 'main');
         database.renameSession(first.id, 'Renamed without activity');
         database.archiveSession(first.id);
         database.unarchiveSessions([first.id]);
         database.updateSessionState(database.getSessionState(first.id));
         expect(database.getSession(first.id)).toMatchObject({
-            lastSessionActivityAt: first.createdAt,
-            lastSessionActivityReason: 'created',
+            sessionActivityAt: first.createdAt,
+            sessionActivityReason: 'created',
         });
 
         database.touchSessionActivity(first.id, 'user_submission', 1);
@@ -60,12 +60,10 @@ describe('Session Activity persistence', () => {
         database.touchSessionActivity(second.id, 'agent_waiting', 1);
         const secondTouched = database.getSession(second.id)!;
 
-        expect(firstTouched.lastSessionActivityAt).toBeGreaterThan(second.lastSessionActivityAt);
-        expect(firstTouched.lastSessionActivityReason).toBe('user_submission');
-        expect(secondTouched.lastSessionActivityAt).toBeGreaterThan(
-            firstTouched.lastSessionActivityAt,
-        );
-        expect(secondTouched.lastSessionActivityReason).toBe('agent_waiting');
+        expect(firstTouched.sessionActivityAt).toBeGreaterThan(second.sessionActivityAt);
+        expect(firstTouched.sessionActivityReason).toBe('user_submission');
+        expect(secondTouched.sessionActivityAt).toBeGreaterThan(firstTouched.sessionActivityAt);
+        expect(secondTouched.sessionActivityReason).toBe('agent_waiting');
 
         const agent = database.createSession(project.id, 'codex');
         // A probed turn-end state is only trusted once the Session was observed running (see
@@ -88,10 +86,10 @@ describe('Session Activity persistence', () => {
         );
         const unread = database.getSession(agent.session.id)!;
         expect(
-            database.markSessionAttentionRead(agent.session.id, unread.attentionEpoch),
+            database.markSessionAttentionRead(agent.session.id, unread.attentionGeneration),
         ).toMatchObject({ acknowledged: true });
-        expect(database.getSession(agent.session.id)?.lastSessionActivityAt).toBe(
-            unread.lastSessionActivityAt,
+        expect(database.getSession(agent.session.id)?.sessionActivityAt).toBe(
+            unread.sessionActivityAt,
         );
         database.close();
     });
@@ -159,40 +157,40 @@ describe('Session Activity persistence', () => {
             database.consumeSessionAttentionReply(
                 waiting.id,
                 created.terminal!.id,
-                waiting.attentionEpoch,
+                waiting.attentionGeneration,
             ),
         ).toBe(true);
         expect(
             database.consumeSessionAttentionReply(
                 waiting.id,
                 created.terminal!.id,
-                waiting.attentionEpoch,
+                waiting.attentionGeneration,
             ),
         ).toBe(false);
-        expect(database.getSession(waiting.id)?.lastActivityState).toBe('running');
+        expect(database.getSession(waiting.id)?.agentActivityState).toBe('running');
         expect(database.getSession(waiting.id)).toMatchObject({
-            lastSessionActivityAt: waiting.lastSessionActivityAt,
-            lastSessionActivityReason: waiting.lastSessionActivityReason,
+            sessionActivityAt: waiting.sessionActivityAt,
+            sessionActivityReason: waiting.sessionActivityReason,
             sidebarOrder: waiting.sidebarOrder,
         });
         expect(
             database.releaseSessionAttentionReply(
                 waiting.id,
                 created.terminal!.id,
-                waiting.attentionEpoch,
-                waiting.lastSessionActivityAt,
+                waiting.attentionGeneration,
+                waiting.sessionActivityAt,
             ),
         ).toBe(true);
         expect(database.getSession(waiting.id)).toMatchObject({
-            lastActivityState: 'waiting',
-            lastSessionActivityAt: waiting.lastSessionActivityAt,
+            agentActivityState: 'waiting',
+            sessionActivityAt: waiting.sessionActivityAt,
             sidebarOrder: waiting.sidebarOrder,
         });
         expect(
             database.consumeSessionAttentionReply(
                 waiting.id,
                 created.terminal!.id,
-                waiting.attentionEpoch,
+                waiting.attentionGeneration,
             ),
         ).toBe(true);
         database.touchSessionActivity(waiting.id, 'agent_started');
@@ -200,11 +198,11 @@ describe('Session Activity persistence', () => {
             database.releaseSessionAttentionReply(
                 waiting.id,
                 created.terminal!.id,
-                waiting.attentionEpoch,
-                waiting.lastSessionActivityAt,
+                waiting.attentionGeneration,
+                waiting.sessionActivityAt,
             ),
         ).toBe(false);
-        expect(database.getSession(waiting.id)?.lastActivityState).toBe('running');
+        expect(database.getSession(waiting.id)?.agentActivityState).toBe('running');
         database.close();
     });
 });

@@ -66,16 +66,16 @@ describe('Caxri Bot service', () => {
         expect(service.status()).toEqual({ state: 'starting' });
 
         database.updateAgentProcessState(identity.terminalId, 'running');
-        for (const [lastActivityState, state] of [
+        for (const [agentActivityState, state] of [
             ['running', 'working'],
             ['waiting', 'waiting'],
             ['completed', 'idle'],
         ] as const) {
-            activity.mockReturnValue({ ...session, lastActivityState });
+            activity.mockReturnValue({ ...session, agentActivityState });
             expect(service.status()).toEqual({ state });
         }
 
-        activity.mockReturnValue({ ...session, lastActivityState: 'running' });
+        activity.mockReturnValue({ ...session, agentActivityState: 'running' });
         database.updateAgentProcessState(identity.terminalId, 'stopped');
         expect(service.status()).toEqual({ state: 'stopped' });
 

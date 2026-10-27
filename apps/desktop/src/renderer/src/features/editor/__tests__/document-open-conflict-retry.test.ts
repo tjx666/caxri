@@ -22,13 +22,13 @@ function installEmptySession(): void {
         bootstrap: {
             selectedSessionId: 'session-1',
             sessions: [
-                { id: 'session-1', projectId: 'project-1', workbenchProjectId: 'project-1' },
+                { id: 'session-1', projectId: 'project-1', workbenchRootProjectId: 'project-1' },
             ],
             sessionStates: [
                 {
                     sessionId: 'session-1',
                     revision: 0,
-                    workbenchProjectId: 'project-1',
+                    workbenchRootProjectId: 'project-1',
                     desiredSecondarySidebarViewContainerId: 'caxri.files',
                     paneLayout: {
                         root: { type: 'pane', id: 'pane-1', tabs: [] },
@@ -94,14 +94,14 @@ describe('opening a tab after a stale-revision conflict', () => {
                         {
                             id: 'session-1',
                             projectId: 'project-1',
-                            workbenchProjectId: 'project-1',
+                            workbenchRootProjectId: 'project-1',
                         },
                     ],
                     sessionStates: [
                         {
                             sessionId: 'session-1',
                             revision: 1,
-                            workbenchProjectId: 'project-1',
+                            workbenchRootProjectId: 'project-1',
                             desiredSecondarySidebarViewContainerId: 'caxri.files',
                             paneLayout: {
                                 root: { type: 'pane', id: 'pane-1', tabs: [] },
@@ -210,14 +210,14 @@ describe('opening a tab after a stale-revision conflict', () => {
                         {
                             id: 'session-1',
                             projectId: 'project-1',
-                            workbenchProjectId: 'project-1',
+                            workbenchRootProjectId: 'project-1',
                         },
                     ],
                     sessionStates: [
                         {
                             sessionId: 'session-1',
                             revision: 1,
-                            workbenchProjectId: 'project-1',
+                            workbenchRootProjectId: 'project-1',
                             desiredSecondarySidebarViewContainerId: 'caxri.files',
                             paneLayout: {
                                 root: { type: 'pane', id: 'pane-1', tabs: [] },
@@ -268,14 +268,14 @@ describe('opening a tab after a stale-revision conflict', () => {
                         {
                             id: 'session-1',
                             projectId: 'project-2',
-                            workbenchProjectId: 'project-2',
+                            workbenchRootProjectId: 'project-2',
                         },
                     ],
                     sessionStates: [
                         {
                             sessionId: 'session-1',
                             revision: 1,
-                            workbenchProjectId: 'project-2',
+                            workbenchRootProjectId: 'project-2',
                             desiredSecondarySidebarViewContainerId: 'caxri.files',
                             paneLayout: {
                                 root: { type: 'pane', id: 'pane-2', tabs: [] },
@@ -300,8 +300,8 @@ describe('opening a tab after a stale-revision conflict', () => {
 
         // No second `session.updateState` call: the root mismatch stopped the retry before it could open anything.
         expect(updateStateCalls).toBe(1);
-        expect(useWorkbenchStore.getState().bootstrap!.sessionStates[0].workbenchProjectId).toBe(
-            'project-2',
-        );
+        expect(
+            useWorkbenchStore.getState().bootstrap!.sessionStates[0].workbenchRootProjectId,
+        ).toBe('project-2');
     });
 });

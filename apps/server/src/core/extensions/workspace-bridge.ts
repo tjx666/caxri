@@ -18,7 +18,7 @@ export function createExtensionWorkspaceRequest(options: ExtensionWorkspaceBridg
     return async (
         operation: ExtensionWorkspaceOperation,
         parameters: unknown,
-        context: { sessionId: string; workbenchProjectId: string },
+        context: { sessionId: string; workbenchRootProjectId: string },
         signal?: AbortSignal,
     ): Promise<unknown> => {
         if (operation === 'git.discard') {

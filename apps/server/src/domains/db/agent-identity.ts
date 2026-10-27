@@ -95,16 +95,16 @@ export class AgentIdentity {
             if (decision.sessionPatch) {
                 const activityReason =
                     shouldRecordSessionActivity &&
-                    (session.lastActivityState !== decision.sessionPatch.lastActivityState ||
+                    (session.agentActivityState !== decision.sessionPatch.agentActivityState ||
                         decision.sessionPatch.attentionKind)
                         ? sessionActivityReasonForAgentState(
-                              decision.sessionPatch.lastActivityState,
+                              decision.sessionPatch.agentActivityState,
                           )
                         : undefined;
-                this.db.sessions.setDisplayTitleAndActivity(
+                this.db.sessions.setTitleAndActivity(
                     session.id,
-                    decision.sessionPatch.displayTitle,
-                    decision.sessionPatch.lastActivityState,
+                    decision.sessionPatch.title,
+                    decision.sessionPatch.agentActivityState,
                     decision.sessionPatch.attentionKind,
                     activityReason,
                 );
@@ -132,15 +132,15 @@ export class AgentIdentity {
                 signal.phase,
             );
             if (!decision) return false;
-            this.db.sessions.setDisplayTitleAndActivity(
+            this.db.sessions.setTitleAndActivity(
                 session.id,
-                session.displayTitle,
-                decision.lastActivityState,
+                session.title,
+                decision.agentActivityState,
                 decision.attentionKind,
-                sessionActivityReasonForAgentState(decision.lastActivityState),
+                sessionActivityReasonForAgentState(decision.agentActivityState),
             );
             if (decision.supersedesUnreadAttention)
-                this.db.sessions.acknowledgeAttention(session.id, session.attentionEpoch);
+                this.db.sessions.acknowledgeAttention(session.id, session.attentionGeneration);
             return true;
         });
     }
@@ -208,10 +208,10 @@ export class AgentIdentity {
              * The submitted launch command already advanced Session Activity; promotion only binds Agent identity.
              */
             if (decision.sessionPatch)
-                this.db.sessions.setDisplayTitleAndActivity(
+                this.db.sessions.setTitleAndActivity(
                     session.id,
-                    decision.sessionPatch.displayTitle,
-                    decision.sessionPatch.lastActivityState,
+                    decision.sessionPatch.title,
+                    decision.sessionPatch.agentActivityState,
                     decision.sessionPatch.attentionKind,
                 );
             if (decision.terminalTitle !== undefined)

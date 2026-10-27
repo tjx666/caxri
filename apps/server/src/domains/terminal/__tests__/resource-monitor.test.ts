@@ -17,7 +17,7 @@ function createMonitor(table: { current: string }, processId: { current?: number
     const events: ServerEvent[] = [];
     const monitor = new TerminalResourceMonitor({
         database: {
-            getSession: () => ({ displayTitle: 'Tune the timeline' }) as SessionRecord,
+            getSession: () => ({ title: 'Tune the timeline' }) as SessionRecord,
             listTerminals: () => [terminal],
         },
         logger: { write: vi.fn() } as never,
@@ -81,7 +81,7 @@ describe('TerminalResourceMonitor', () => {
         const events: ServerEvent[] = [];
         const monitor = new TerminalResourceMonitor({
             database: {
-                getSession: () => ({ displayTitle: 'Tune the timeline' }) as SessionRecord,
+                getSession: () => ({ title: 'Tune the timeline' }) as SessionRecord,
                 listTerminals: () => [terminal],
             },
             logger: { write: vi.fn() } as never,

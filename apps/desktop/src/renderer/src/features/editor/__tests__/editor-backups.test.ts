@@ -32,7 +32,7 @@ const document = (overrides: Partial<EditorDocument> = {}): EditorDocument => ({
 
 const backup = (overrides: Partial<EditorBackup> = {}): EditorBackup => ({
     sessionId: 'session-1',
-    workbenchProjectId: 'project-1',
+    workbenchRootProjectId: 'project-1',
     path,
     content: 'my edit',
     mtimeMs: 2,
@@ -100,7 +100,7 @@ describe('editor backup changes', () => {
             },
             projectIdOf,
         );
-        expect(changes.save.map(({ backup: saved }) => saved.workbenchProjectId)).toEqual([
+        expect(changes.save.map(({ backup: saved }) => saved.workbenchRootProjectId)).toEqual([
             'project-2',
         ]);
     });
@@ -122,10 +122,14 @@ describe('editor backups across a restart', () => {
         useWorkbenchStore.setState({
             bootstrap: {
                 sessions: [
-                    { id: 'session-1', projectId: 'project-1', workbenchProjectId: 'project-1' },
+                    {
+                        id: 'session-1',
+                        projectId: 'project-1',
+                        workbenchRootProjectId: 'project-1',
+                    },
                 ],
                 sessionStates: [
-                    { sessionId: 'session-1', workbenchProjectId: 'project-1' } as SessionState,
+                    { sessionId: 'session-1', workbenchRootProjectId: 'project-1' } as SessionState,
                 ],
             } as unknown as BootstrapState,
         });
@@ -171,7 +175,7 @@ describe('editor backups across a restart', () => {
         expect(
             discardedChangesUnavailableReason({
                 sessionId: 'session-1',
-                workbenchProjectId: 'project-1',
+                workbenchRootProjectId: 'project-1',
                 paths: [path],
             }),
         ).toBeUndefined();
@@ -201,7 +205,7 @@ describe('editor backups across a restart', () => {
                     sessionStates: [
                         {
                             sessionId: 'session-1',
-                            workbenchProjectId: 'project-1',
+                            workbenchRootProjectId: 'project-1',
                             paneLayout: createPaneLayout(
                                 isTabOpen ? { kind: 'file', path: untitledPath } : undefined,
                             ),

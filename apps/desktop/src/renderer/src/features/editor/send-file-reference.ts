@@ -84,7 +84,7 @@ function activeFileReference(): ActiveFileReference | undefined {
     if (!session || active?.resource.kind !== 'file') return;
     const tabPath = active.resource.path;
     if (isVirtualEditorTabPath(tabPath)) return activeGitDiffReference(session, tabPath);
-    const scope = sessionViewScope(session.id, session.workbenchProjectId);
+    const scope = sessionViewScope(session.id, session.workbenchRootProjectId);
     const status = useEditorStatusStore.getState().statuses[editorStatusKey(scope, tabPath)];
     const line = status?.line ?? 1;
     return {

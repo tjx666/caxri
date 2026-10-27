@@ -58,22 +58,25 @@ export async function openTerminalFileTarget(
             result = await openBotFileLink(terminalId, target, location);
         }
         if ('document' in result) {
-            const workbenchProjectId = useWorkbenchStore
+            const workbenchRootProjectId = useWorkbenchStore
                 .getState()
                 .bootstrap?.sessions.find(
                     (session) => session.id === result.sessionId,
-                )?.workbenchProjectId;
+                )?.workbenchRootProjectId;
             const opened =
-                workbenchProjectId !== undefined &&
+                workbenchRootProjectId !== undefined &&
                 openExternalEditorDocument({
                     document: result.document,
                     sessionId: result.sessionId,
-                    workbenchProjectId,
+                    workbenchRootProjectId,
                 });
             if (!opened) throw new Error(translate('terminal.links.openExternalFileFailed'));
             if (location)
                 revealEditorNavigation(
-                    editorModelPath(sessionViewScope(result.sessionId, workbenchProjectId), opened),
+                    editorModelPath(
+                        sessionViewScope(result.sessionId, workbenchRootProjectId),
+                        opened,
+                    ),
                     location,
                 );
             return;

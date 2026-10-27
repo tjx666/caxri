@@ -66,7 +66,7 @@ function claudeRenameContext(
     return {
         agentSessionId: 'claude-session-rename',
         cwd: '/workspace/project',
-        displayTitle: 'Release readiness',
+        title: 'Release readiness',
         environment: {
             homeDirectory: '/Users/tester',
             variables: {
@@ -190,7 +190,7 @@ process.stdin.on('end', () => {
         });
 
         await expect(renameClaudeSession(claudeRenameContext())).resolves.toEqual({
-            displayTitle: 'Release readiness 2',
+            title: 'Release readiness 2',
         });
         expect(mocks.runExternalCommand).toHaveBeenCalledOnce();
         const [executable, arguments_, options, dependencies] =

@@ -18,7 +18,7 @@ const cases = [
     {
         id: 'write-1',
         method: 'session.rename',
-        params: { sessionId: 'session-1', displayTitle: 'Renamed' },
+        params: { sessionId: 'session-1', title: 'Renamed' },
     },
 ] as const;
 
@@ -33,15 +33,15 @@ function handler(): CommandAdapter {
                     projectId: 'project-1',
                     rootPath: '/project',
                     createdAt: 1,
-                    lastOpenedAt: 2,
+                    lastVisitedAt: 2,
                     sidebarOrder: 0,
-                    lastSessionActivityAt: 1,
-                    lastSessionActivityReason: 'created',
-                    lastActivityState: 'unknown',
-                    attentionEpoch: 0,
-                    readAttentionEpoch: 0,
+                    sessionActivityAt: 1,
+                    sessionActivityReason: 'created',
+                    agentActivityState: 'unknown',
+                    attentionGeneration: 0,
+                    acknowledgedAttentionGeneration: 0,
                     hasUnread: false,
-                    displayTitle: request.params.displayTitle,
+                    title: request.params.title,
                     titleMode: 'manual',
                 };
             return null;

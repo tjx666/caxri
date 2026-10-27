@@ -11,7 +11,7 @@ import { createExtensionTreeState, serializeExtensionTreeState } from '../extens
 
 interface ExtensionTreeStateScope {
     sessionId: string;
-    workbenchProjectId: string;
+    workbenchRootProjectId: string;
     viewId: string;
 }
 
@@ -19,7 +19,7 @@ function persistTreeState(scope: ExtensionTreeStateScope, state: ExtensionTreeSt
     const current = getBootstrap()?.sessionStates.find(
         (candidate) =>
             candidate.sessionId === scope.sessionId &&
-            candidate.workbenchProjectId === scope.workbenchProjectId,
+            candidate.workbenchRootProjectId === scope.workbenchRootProjectId,
     );
     if (!current) return;
     const persisted = serializeExtensionTreeState(state);

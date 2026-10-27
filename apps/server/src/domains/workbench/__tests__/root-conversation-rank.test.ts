@@ -9,7 +9,7 @@ function option(
     return {
         worktreeId: overrides.rootPath,
         authorization: 'authorized',
-        displayTitle: overrides.rootPath,
+        title: overrides.rootPath,
         isMain: false,
         owner: false,
         ...overrides,
@@ -24,8 +24,8 @@ const options = [
     option({ branch: 'feat/delta', rootPath: '/worktrees/delta' }),
 ];
 
-const onMain = { workbenchProjectId: 'repo' } as SessionRecord;
-const onWorktree = { workbenchProjectId: 'alpha' } as SessionRecord;
+const onMain = { workbenchRootProjectId: 'repo' } as SessionRecord;
+const onWorktree = { workbenchRootProjectId: 'alpha' } as SessionRecord;
 
 async function ranks(
     session: SessionRecord,

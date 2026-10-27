@@ -285,9 +285,7 @@ export async function createMobileTerminalAcceptanceFixture(
         const database = new Database(join(userData, 'caxri.db'));
         try {
             const result = database
-                .prepare(
-                    "UPDATE sessions SET display_title = ?, title_mode = 'manual' WHERE id = ?",
-                )
+                .prepare("UPDATE sessions SET title = ?, title_mode = 'manual' WHERE id = ?")
                 .run('\u{200B}', sessionId);
             if (result.changes !== 1)
                 throw new Error('Synthetic Session title could not be hidden');
@@ -306,15 +304,14 @@ export async function createMobileTerminalAcceptanceFixture(
                 await pageRequest(running.page, 'mobile.access.enable');
                 const dashboard = await pageRequest<{
                     hostDisplayName: string;
-                    projects: Array<{ displayTitle: string }>;
-                    sessions: Array<{ displayTitle: string; id: string }>;
+                    projects: Array<{ title: string }>;
+                    sessions: Array<{ title: string; id: string }>;
                 }>(running.page, 'mobile.dashboard');
                 if (
                     dashboard.hostDisplayName !== 'Caxri Test Host' ||
                     dashboard.projects.length !== 1 ||
-                    dashboard.projects[0]?.displayTitle !== 'synthetic-project' ||
-                    dashboard.sessions.find(({ id }) => id === sessionId)?.displayTitle !==
-                        '\u{200B}'
+                    dashboard.projects[0]?.title !== 'synthetic-project' ||
+                    dashboard.sessions.find(({ id }) => id === sessionId)?.title !== '\u{200B}'
                 ) {
                     throw new Error('Mobile Terminal fixture privacy preflight failed');
                 }

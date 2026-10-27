@@ -50,7 +50,7 @@ describe('Git ignored file decorations', () => {
                 subscribe: () => Promise.resolve({ unsubscribe: () => Promise.resolve(undefined) }),
             },
         );
-        await watcher.watchSession({ sessionId: 'session', workbenchProjectId: 'project' });
+        await watcher.watchSession({ sessionId: 'session', workbenchRootProjectId: 'project' });
         await watcher.noteGitIgnoreRulePaths('session', [rulePath]);
         await writeFile(rulePath, 'after\n', 'utf8');
 
@@ -88,7 +88,7 @@ describe('Git ignored file decorations', () => {
             createLogger(join(root, 'logs')),
             { watchHub },
         );
-        await watcher.watchSession({ sessionId: 'session', workbenchProjectId: 'project' });
+        await watcher.watchSession({ sessionId: 'session', workbenchRootProjectId: 'project' });
 
         // Working-tree .gitignore files ride the normal watch event stream; no dedicated rule poller may be registered.
         expect(watchHub.snapshot().entries.some((entry) => entry.label === 'files-git-rules')).toBe(
@@ -131,7 +131,7 @@ describe('Git ignored file decorations', () => {
                 subscribe: () => Promise.reject(new Error('native backend unavailable')),
             },
         );
-        await watcher.watchSession({ sessionId: 'session', workbenchProjectId: 'project' });
+        await watcher.watchSession({ sessionId: 'session', workbenchRootProjectId: 'project' });
         await watcher.noteGitIgnoreRulePaths('session', [rulePath]);
         await writeFile(rulePath, 'after\n', 'utf8');
 

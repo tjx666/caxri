@@ -57,7 +57,7 @@ describe('Agent notification activation', () => {
         });
         const options = vi.mocked(createAgentNotificationCoordinator).mock.calls[0][0];
         const decision = {
-            attentionEpoch: 1,
+            attentionGeneration: 1,
             attentionKind: 'waiting' as const,
             sessionId: 'session-1',
             durationMs: 1_000,

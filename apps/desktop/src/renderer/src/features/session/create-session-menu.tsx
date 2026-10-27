@@ -126,7 +126,7 @@ function SessionCreationMenu({
                     ? cloneElement(trigger, {
                           'aria-label': t('session.create.actionInProject', {
                               action: splitLabel,
-                              project: project.displayTitle,
+                              project: project.title,
                           }),
                       })
                     : trigger
@@ -184,7 +184,7 @@ function SessionCreationMenu({
              * default so the menu still opens under the full-width row that was clicked.
              */}
             <MenuContent
-                aria-label={t('session.create.newInProject', { project: project.displayTitle })}
+                aria-label={t('session.create.newInProject', { project: project.title })}
                 alignOffset={anchor === 'heading' ? -4 : undefined}
                 side={anchor === 'heading' ? 'right' : undefined}
                 sideOffset={anchor === 'heading' ? 12 : undefined}
@@ -238,7 +238,7 @@ export function CreateSessionMenu({ project }: { project: ProjectRecord }) {
                         open && 'pointer-events-auto opacity-100',
                     )}
                     aria-label={t('session.create.newInProject', {
-                        project: project.displayTitle,
+                        project: project.title,
                     })}
                     tabIndex={-1}
                 >
@@ -282,7 +282,7 @@ export function EmptyProjectSessionMenu({
                      * Session" alone would read identically for every one of them.
                      */
                     aria-label={t('session.create.newInProject', {
-                        project: project.displayTitle,
+                        project: project.title,
                     })}
                     aria-level={2}
                     aria-selected={false}

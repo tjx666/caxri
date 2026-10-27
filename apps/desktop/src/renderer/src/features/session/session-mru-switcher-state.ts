@@ -13,7 +13,7 @@ export function sessionMruCandidates(
         .filter((session) => session.archivedAt === undefined && session.id !== selectedSessionId)
         .toSorted(
             (left, right) =>
-                right.lastOpenedAt - left.lastOpenedAt ||
+                right.lastVisitedAt - left.lastVisitedAt ||
                 right.createdAt - left.createdAt ||
                 left.id.localeCompare(right.id),
         );

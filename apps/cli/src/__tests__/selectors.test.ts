@@ -3,9 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { resolveSelector } from '../selectors';
 
 const sessions = [
-    { id: 'session-1', displayTitle: 'Work', projectId: 'project-1' },
-    { id: 'session-2', displayTitle: 'Work', projectId: 'project-2' },
-    { id: 'session-3', displayTitle: 'Unique', projectId: 'project-1' },
+    { id: 'session-1', title: 'Work', projectId: 'project-1' },
+    { id: 'session-2', title: 'Work', projectId: 'project-2' },
+    { id: 'session-3', title: 'Unique', projectId: 'project-1' },
 ];
 
 describe('CLI selectors', () => {
@@ -25,8 +25,8 @@ describe('CLI selectors', () => {
                 code: 'CONFLICT',
                 details: {
                     candidates: [
-                        { id: 'session-1', displayTitle: 'Work', projectId: 'project-1' },
-                        { id: 'session-2', displayTitle: 'Work', projectId: 'project-2' },
+                        { id: 'session-1', title: 'Work', projectId: 'project-1' },
+                        { id: 'session-2', title: 'Work', projectId: 'project-2' },
                     ],
                 },
             }) as Error,

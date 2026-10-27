@@ -249,9 +249,7 @@ describe('ServerDomainService', () => {
         const project = database.createProject('/private/provider-project');
         const created = database.createSession(project.id, 'shell', project.rootPath);
         const identity = database.protocolState.identity();
-        const providerRename = vi.fn((displayTitle: string) =>
-            Promise.resolve(`${displayTitle} (provider)`),
-        );
+        const providerRename = vi.fn((title: string) => Promise.resolve(`${title} (provider)`));
         const service = new ServerDomainService(dependencies(), (domainDependencies) =>
             Promise.resolve({
                 close: () => {
@@ -260,11 +258,11 @@ describe('ServerDomainService', () => {
                 },
                 handlers: handlers({
                     'session.rename': async (
-                        { sessionId, displayTitle }: ServerOperationParameters<'session.rename'>,
+                        { sessionId, title }: ServerOperationParameters<'session.rename'>,
                         _signal: AbortSignal,
                         finalizeDurably?: <Result>(commit: () => Result) => Result,
                     ) => {
-                        const appliedTitle = await providerRename(displayTitle);
+                        const appliedTitle = await providerRename(title);
                         const commit = () => {
                             const updated = database.renameSession(sessionId, appliedTitle);
                             domainDependencies.send({
@@ -296,7 +294,7 @@ describe('ServerDomainService', () => {
                 service.forwardWithDurableFinalizer(
                     {
                         method: 'session.rename',
-                        params: { sessionId: created.session.id, displayTitle: 'Focused work' },
+                        params: { sessionId: created.session.id, title: 'Focused work' },
                     },
                     'rename-rollback',
                     () => {
@@ -306,7 +304,7 @@ describe('ServerDomainService', () => {
             ).rejects.toThrow('receipt write failed');
             expect(providerRename).toHaveBeenCalledOnce();
             expect(database.getSession(created.session.id)).toMatchObject({
-                displayTitle: 'Untitled',
+                title: 'Untitled',
                 titleMode: 'automatic',
             });
             expect(database.protocolState.changefeedBounds(identity.stateEpoch).count).toBe(0);
@@ -315,7 +313,7 @@ describe('ServerDomainService', () => {
             const result = await service.forwardWithDurableFinalizer(
                 {
                     method: 'session.rename',
-                    params: { sessionId: created.session.id, displayTitle: 'Focused work' },
+                    params: { sessionId: created.session.id, title: 'Focused work' },
                 },
                 'rename-commit',
                 (updated) => {
@@ -338,7 +336,7 @@ describe('ServerDomainService', () => {
 
             expect(providerRename).toHaveBeenCalledTimes(2);
             expect(result).toMatchObject({
-                displayTitle: 'Focused work (provider)',
+                title: 'Focused work (provider)',
                 titleMode: 'manual',
             });
             expect(database.protocolState.changefeedBounds(identity.stateEpoch).count).toBe(1);

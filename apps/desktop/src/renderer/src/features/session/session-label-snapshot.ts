@@ -37,17 +37,17 @@ export function labelsFor(
         memo.untitledLabel === untitledLabel
     )
         return memo.labels;
-    const projectTitles = new Map(projects.map((project) => [project.id, project.displayTitle]));
+    const projectTitles = new Map(projects.map((project) => [project.id, project.title]));
     const inputs: SessionLabelInput[] = sessions.map((session) => ({
         agentLabel: resolveAgentIcon(sessionAgentTerminal(session, terminals)?.kind ?? 'shell')
             .label,
         createdAt: session.createdAt,
-        displayTitle: session.displayTitle,
+        title: session.title,
         id: session.id,
         projectId: session.projectId,
         projectTitle: projectTitles.get(session.projectId) ?? '',
         visible: session.archivedAt === undefined,
-        workingLocation: sessionWorktreeProject(session, projects)?.displayTitle,
+        workingLocation: sessionWorktreeProject(session, projects)?.title,
     }));
     const labels = sessionLabels(inputs, untitledLabel);
     memoSlot.current = { labels, projects, sessions, terminals, untitledLabel };

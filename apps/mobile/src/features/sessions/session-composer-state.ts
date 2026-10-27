@@ -96,10 +96,10 @@ export const reconcileStopWithSession = (
     currentEndpoint: PrimaryAgentEndpoint | undefined,
     terminalProcessState:
         NonNullable<MobileSessionItem['primaryTerminal']>['lastProcessState'] | undefined,
-    lastActivityState: MobileSessionItem['lastActivityState'],
+    agentActivityState: MobileSessionItem['agentActivityState'],
 ): ComposerDelivery =>
     delivery.kind === 'stopping' &&
-    (lastActivityState !== 'running' ||
+    (agentActivityState !== 'running' ||
         terminalProcessState !== 'running' ||
         hasStopTargetChanged(delivery.endpoint, currentEndpoint))
         ? { kind: 'stopped' }

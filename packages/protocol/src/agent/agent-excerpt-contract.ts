@@ -29,7 +29,7 @@ export const agentExcerptMethods = {
      * Short excerpts of what the Primary Agent of each Session last said or is waiting on, for the Session hover card
      * and Activity rows. Read-only and cheap by design: it takes the pending request from a Chat that is already live
      * and otherwise the last reply from the on-disk transcript, so it never starts a provider. A Session whose
-     * `attentionEpoch` has moved on since the Renderer asked, or that has nothing to show (no Agent, no transcript
+     * `attentionGeneration` has moved on since the Renderer asked, or that has nothing to show (no Agent, no transcript
      * parser, a Terminal Agent without a pending reply), is simply absent from the answer. The text is user content:
      * the Server never persists, caches, or logs it.
      */
@@ -40,7 +40,7 @@ export const agentExcerptMethods = {
                 .array(
                     z.strictObject({
                         sessionId: identifierSchema,
-                        attentionEpoch: z.number().int().nonnegative(),
+                        attentionGeneration: z.number().int().nonnegative(),
                     }),
                 )
                 .max(AGENT_EXCERPT_MAX_SESSIONS),

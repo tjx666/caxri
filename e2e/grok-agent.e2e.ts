@@ -107,31 +107,27 @@ process.stdout.write('Fake Grok ready\r\n');
             await expect
                 .poll(async () => (await state()).terminals[0]?.agentSessionId)
                 .toBe(switchedSessionId);
-            await expect
-                .poll(async () => (await state()).sessions[0]?.displayTitle)
-                .toBe(initialTitle);
+            await expect.poll(async () => (await state()).sessions[0]?.title).toBe(initialTitle);
             await expect(running.page.getByText(initialTitle).first()).toBeVisible();
             await typeTerminal(running.page, 'retitle');
-            await expect
-                .poll(async () => (await state()).sessions[0]?.displayTitle)
-                .toBe(refreshedTitle);
+            await expect.poll(async () => (await state()).sessions[0]?.title).toBe(refreshedTitle);
             await running.page.screenshot({ path: testInfo.outputPath('grok-title.png') });
             await typeTerminal(running.page, 'work');
             await expect
-                .poll(async () => (await state()).sessions[0]?.lastActivityState)
+                .poll(async () => (await state()).sessions[0]?.agentActivityState)
                 .toBe('running');
             await typeTerminal(running.page, 'old');
             await typeTerminal(running.page, 'shutdown');
-            expect((await state()).sessions[0]?.lastActivityState).toBe('running');
+            expect((await state()).sessions[0]?.agentActivityState).toBe('running');
             await typeTerminal(running.page, 'fail');
             await expect
-                .poll(async () => (await state()).sessions[0]?.lastActivityState)
+                .poll(async () => (await state()).sessions[0]?.agentActivityState)
                 .toBe('failed');
             await running.page.screenshot({ path: testInfo.outputPath('grok-failed.png') });
             await typeTerminal(running.page, 'work');
             await typeTerminal(running.page, 'finish');
             await expect
-                .poll(async () => (await state()).sessions[0]?.lastActivityState)
+                .poll(async () => (await state()).sessions[0]?.agentActivityState)
                 .toBe('completed');
             await running.app.close();
             running = await launchCaxri(launch);

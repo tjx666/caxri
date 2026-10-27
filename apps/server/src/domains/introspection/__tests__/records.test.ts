@@ -10,53 +10,53 @@ const source: RecordQuerySource = {
     projects: () => [
         {
             id: 'project-1',
-            displayTitle: 'Shared',
+            title: 'Shared',
             rootPath: '/Users/test/one',
             orderIndex: 0,
             createdAt: 1,
-            lastOpenedAt: 1,
+            lastVisitedAt: 1,
         },
         {
             id: 'project-2',
-            displayTitle: 'Shared',
+            title: 'Shared',
             rootPath: '/Users/test/two',
             orderIndex: 1,
             createdAt: 2,
-            lastOpenedAt: 2,
+            lastVisitedAt: 2,
         },
     ],
     sessions: () => [
         {
             id: 'session-1',
             projectId: 'project-1',
-            workbenchProjectId: 'project-1',
+            workbenchRootProjectId: 'project-1',
             rootPath: '/Users/test/one',
-            displayTitle: 'First',
+            title: 'First',
             createdAt: 1,
-            lastOpenedAt: 1,
+            lastVisitedAt: 1,
             sidebarOrder: 0,
-            lastSessionActivityAt: 1,
-            lastSessionActivityReason: 'created',
-            lastActivityState: 'unknown',
-            attentionEpoch: 0,
-            readAttentionEpoch: 0,
+            sessionActivityAt: 1,
+            sessionActivityReason: 'created',
+            agentActivityState: 'unknown',
+            attentionGeneration: 0,
+            acknowledgedAttentionGeneration: 0,
             hasUnread: false,
             titleMode: 'automatic',
         },
         {
             id: 'session-2',
             projectId: 'project-2',
-            workbenchProjectId: 'project-2',
+            workbenchRootProjectId: 'project-2',
             rootPath: '/Users/test/two',
-            displayTitle: 'Second',
+            title: 'Second',
             createdAt: 2,
-            lastOpenedAt: 2,
+            lastVisitedAt: 2,
             sidebarOrder: 0,
-            lastSessionActivityAt: 2,
-            lastSessionActivityReason: 'agent_started',
-            lastActivityState: 'running',
-            attentionEpoch: 1,
-            readAttentionEpoch: 0,
+            sessionActivityAt: 2,
+            sessionActivityReason: 'agent_started',
+            agentActivityState: 'running',
+            attentionGeneration: 1,
+            acknowledgedAttentionGeneration: 0,
             hasUnread: true,
             titleMode: 'manual',
         },
@@ -108,11 +108,11 @@ describe('Runtime record queries', () => {
 
         expect(service.project({ mode: 'current' }, human)).toEqual({
             view: 'human-cli',
-            projects: [{ id: 'project-2', displayTitle: 'Shared', rootPath: '$HOME/two' }],
+            projects: [{ id: 'project-2', title: 'Shared', rootPath: '$HOME/two' }],
         });
         expect(service.session({ mode: 'current' }, human)).toMatchObject({
             view: 'human-cli',
-            sessions: [{ id: 'session-2', projectId: 'project-2', displayTitle: 'Second' }],
+            sessions: [{ id: 'session-2', projectId: 'project-2', title: 'Second' }],
         });
     });
 
@@ -128,11 +128,11 @@ describe('Runtime record queries', () => {
                     ...source.projects(),
                     {
                         id: 'project-worktree',
-                        displayTitle: 'Shared',
+                        title: 'Shared',
                         rootPath: '/Users/test/two-worktrees/feature',
                         orderIndex: 2,
                         createdAt: 3,
-                        lastOpenedAt: 3,
+                        lastVisitedAt: 3,
                         ownerProjectId: 'project-2',
                     },
                 ],
@@ -143,7 +143,7 @@ describe('Runtime record queries', () => {
         const result = service.project({ mode: 'list' }, human);
         expect(result.projects.at(-1)).toEqual({
             id: 'project-worktree',
-            displayTitle: 'Shared',
+            title: 'Shared',
             rootPath: '$HOME/two-worktrees/feature',
             ownerProjectId: 'project-2',
         });
@@ -159,11 +159,11 @@ describe('Runtime record queries', () => {
                     ...source.projects(),
                     {
                         id: 'project-worktree',
-                        displayTitle: 'feature',
+                        title: 'feature',
                         rootPath: '/Users/test/two-worktrees/feature',
                         orderIndex: 2,
                         createdAt: 3,
-                        lastOpenedAt: 3,
+                        lastVisitedAt: 3,
                         ownerProjectId: 'project-2',
                     },
                 ],
@@ -180,7 +180,7 @@ describe('Runtime record queries', () => {
         };
 
         expect(service.project({ mode: 'list' }, device).projects).toEqual([
-            { id: 'project-2', displayTitle: 'Shared' },
+            { id: 'project-2', title: 'Shared' },
         ]);
     });
 
@@ -194,11 +194,11 @@ describe('Runtime record queries', () => {
                     ...source.projects(),
                     {
                         id: 'project-external',
-                        displayTitle: 'External Project',
+                        title: 'External Project',
                         rootPath: externalRoot,
                         orderIndex: 2,
                         createdAt: 3,
-                        lastOpenedAt: 3,
+                        lastVisitedAt: 3,
                     },
                 ],
             },
@@ -217,7 +217,7 @@ describe('Runtime record queries', () => {
             projects: [
                 {
                     id: 'project-external',
-                    displayTitle: 'External Project',
+                    title: 'External Project',
                     rootPath: '$PROJECT/project-external',
                 },
             ],
@@ -230,7 +230,7 @@ describe('Runtime record queries', () => {
 
         expect(service.project({ mode: 'show', selector: 'project-1' }, agent)).toEqual({
             view: 'agent',
-            projects: [{ id: 'project-1', displayTitle: 'Shared' }],
+            projects: [{ id: 'project-1', title: 'Shared' }],
         });
         const terminals = service.terminal({ mode: 'list', sessionId: 'session-1' }, agent);
         expect(terminals).toEqual({
@@ -264,8 +264,8 @@ describe('Runtime record queries', () => {
         expect(service.project({ mode: 'list' }, agent)).toEqual({
             view: 'agent',
             projects: [
-                { id: 'project-1', displayTitle: 'Shared' },
-                { id: 'project-2', displayTitle: 'Shared' },
+                { id: 'project-1', title: 'Shared' },
+                { id: 'project-2', title: 'Shared' },
             ],
         });
         expect(

@@ -50,7 +50,7 @@ export const SelectedSessionDetail = ({
     const markRead = useCallback(async (): Promise<void> => {
         await request('session.markRead', {
             sessionId: selected.id,
-            attentionEpoch: selected.attentionEpoch,
+            attentionGeneration: selected.attentionGeneration,
         });
         await refresh();
     }, [refresh, request, selected]);

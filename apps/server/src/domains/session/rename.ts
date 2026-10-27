@@ -126,7 +126,7 @@ export class SessionRenameService {
 
     private async apply(
         sessionId: string,
-        displayTitle: string,
+        title: string,
         signal?: AbortSignal,
         finalizeDurably?: <Result>(commit: () => Result) => Result,
     ): Promise<SessionRecord> {
@@ -139,10 +139,10 @@ export class SessionRenameService {
             const renamed = await this.agents.renameSession(target.provider, {
                 agentSessionId: target.agentSessionId,
                 cwd: target.cwd,
-                displayTitle,
+                title,
                 signal,
             });
-            if (renamed.displayTitle !== displayTitle)
+            if (renamed.title !== title)
                 this.logger.write('warn', logEventCatalog.sessionRename.providerTitleMismatch, {
                     fields: { provider: target.provider, sessionId },
                 });
@@ -162,7 +162,7 @@ export class SessionRenameService {
              * The Session name is the user's exact request. A provider may choose a unique native fallback when the
              * requested name is already held by another live session; that fallback must not become Caxri's title.
              */
-            const renamed = this.database.renameSession(sessionId, displayTitle);
+            const renamed = this.database.renameSession(sessionId, title);
             this.emit({
                 event: 'state.changed',
                 payload: {
@@ -203,7 +203,7 @@ export class SessionRenameService {
     renameAutomatically(
         sessionId: string,
         target: AgentRenameTarget,
-        displayTitle: string,
+        title: string,
         canApply: () => boolean,
         signal: AbortSignal,
         expectedNativeTitle?: string,
@@ -307,7 +307,7 @@ export class SessionRenameService {
             }
             state ??= {
                 ...target,
-                title: displayTitle,
+                title,
                 previousTitle: snapshot.title,
                 status: 'pending',
                 updatedAt: Date.now(),
@@ -319,10 +319,10 @@ export class SessionRenameService {
              */
             const renamed =
                 snapshot.title === state.title
-                    ? { displayTitle: state.title }
+                    ? { title: state.title }
                     : await this.agents.renameSession(target.provider, {
                           ...target,
-                          displayTitle: state.title,
+                          title: state.title,
                           signal,
                       });
             if (!(await isEligible())) return false;
@@ -330,11 +330,11 @@ export class SessionRenameService {
                 sessionId,
                 {
                     ...state,
-                    title: renamed.displayTitle,
+                    title: renamed.title,
                     status: 'complete',
                     updatedAt: Date.now(),
                 },
-                renamed.displayTitle,
+                renamed.title,
             );
             if (applied)
                 this.emit({
@@ -348,11 +348,11 @@ export class SessionRenameService {
 
     rename(
         sessionId: string,
-        displayTitle: string,
+        title: string,
         signal?: AbortSignal,
         finalizeDurably?: <Result>(commit: () => Result) => Result,
     ): Promise<SessionRecord> {
-        const parsedTitle = sessionRenameTitleSchema.safeParse(displayTitle);
+        const parsedTitle = sessionRenameTitleSchema.safeParse(title);
         if (!parsedTitle.success)
             return Promise.reject(
                 new CaxriError(

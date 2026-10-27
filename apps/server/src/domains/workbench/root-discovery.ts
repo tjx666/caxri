@@ -20,7 +20,7 @@ export function unavailableWorkbenchRoot(
         authorization: 'authorized',
         rootPath: project.rootPath,
         isMain: false,
-        displayTitle: project.displayTitle,
+        title: project.title,
         branch: 'No branch',
         owner: project.id === ownerId,
     };
@@ -142,7 +142,7 @@ export async function withConversationRanks(
         session: SessionRecord,
     ) => Promise<{ branches: readonly string[]; directories: readonly string[] }>,
 ): Promise<WorkbenchRootOption[]> {
-    const current = options.find((option) => option.projectId === session.workbenchProjectId);
+    const current = options.find((option) => option.projectId === session.workbenchRootProjectId);
     if (!read || !current?.isMain) return [...options];
     let ranked: Map<string, number>;
     try {
@@ -191,7 +191,7 @@ export async function discoverWorkbenchRoots(
                         ...(project && { projectId: project.id }),
                         authorization: project ? ('authorized' as const) : ('required' as const),
                         rootPath: worktree.rootPath,
-                        displayTitle: project?.displayTitle ?? basename(worktree.rootPath),
+                        title: project?.title ?? basename(worktree.rootPath),
                         branch: worktree.branch,
                         owner: project?.id === ownerId,
                         isMain,

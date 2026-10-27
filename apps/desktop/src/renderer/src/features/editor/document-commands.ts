@@ -74,8 +74,12 @@ interface OpenFileOptions {
     preview?: boolean;
 }
 
-function isDocumentDirty(sessionId: string, path: string, workbenchProjectId?: string): boolean {
-    return getSessionDocuments(sessionId, workbenchProjectId)?.[path]?.dirty === true;
+function isDocumentDirty(
+    sessionId: string,
+    path: string,
+    workbenchRootProjectId?: string,
+): boolean {
+    return getSessionDocuments(sessionId, workbenchRootProjectId)?.[path]?.dirty === true;
 }
 
 /**
@@ -92,7 +96,7 @@ export function didOpenEditorTabForSession(
 ): boolean {
     const current = sessionStateOf(sessionId);
     if (!current) return false;
-    const workbenchProjectId = current.workbenchProjectId;
+    const workbenchRootProjectId = current.workbenchRootProjectId;
     const view = useSessionViewStore.getState();
     const existing = findResourceTabs(current.paneLayout, { kind: 'file', path });
     const wasOpen = existing.length > 0;
@@ -118,17 +122,20 @@ export function didOpenEditorTabForSession(
         ),
     ];
     const replacedDocuments = replacedPaths.flatMap((replaced) => {
-        const document = getSessionDocuments(sessionId, workbenchProjectId)?.[replaced];
+        const document = getSessionDocuments(sessionId, workbenchRootProjectId)?.[replaced];
         return document ? [document] : [];
     });
     if (options.location && (wasOpen || opened !== current.paneLayout)) {
-        const modelPath = editorModelPath(sessionViewScope(sessionId, workbenchProjectId), path);
+        const modelPath = editorModelPath(
+            sessionViewScope(sessionId, workbenchRootProjectId),
+            path,
+        );
         if (wasMounted) revealEditorNavigation(modelPath, options.location);
         else queueEditorNavigation(modelPath, options.location);
     }
     for (const replaced of replacedPaths)
-        view.evictDocument(sessionId, replaced, workbenchProjectId);
-    view.touchDocument(sessionId, path, workbenchProjectId);
+        view.evictDocument(sessionId, replaced, workbenchRootProjectId);
+    view.touchDocument(sessionId, path, workbenchRootProjectId);
     if (opened === current.paneLayout) return true;
     /**
      * Fire-and-forget: the caller already sees this tab optimistically. Persisting continues in the background,
@@ -182,9 +189,10 @@ export async function cacheDocument(
                  * A read only fills a missing document. When the buffer became unsaved while the read was in flight
                  * (typing, a hot-exit restore, or a second read StrictMode started), the buffer is newer than disk.
                  */
-                const isUnsaved = getSessionDocuments(sessionId, operation.workbenchProjectId)?.[
-                    operation.path
-                ]?.dirty;
+                const isUnsaved = getSessionDocuments(
+                    sessionId,
+                    operation.workbenchRootProjectId,
+                )?.[operation.path]?.dirty;
                 if (!isUnsaved && !operation.discarded) {
                     useSessionViewStore.getState().cacheDocument(
                         sessionId,
@@ -193,7 +201,7 @@ export async function cacheDocument(
                             path: operation.path,
                             dirty: false,
                         },
-                        operation.workbenchProjectId,
+                        operation.workbenchRootProjectId,
                     );
                     /**
                      * Admission is budgeted, and a freshly read document is the newest entry rather than a protected
@@ -201,9 +209,10 @@ export async function cacheDocument(
                      * unsaved work than the cache allows. Reporting success then left the editor on a spinner that
                      * nothing re-triggers, which is the state issue #979 exists to remove.
                      */
-                    const cached = getSessionDocuments(sessionId, operation.workbenchProjectId)?.[
-                        operation.path
-                    ];
+                    const cached = getSessionDocuments(
+                        sessionId,
+                        operation.workbenchRootProjectId,
+                    )?.[operation.path];
                     if (!cached)
                         throw new CaxriError('CAPACITY', translate('editor.document.noRoom'));
                 }
@@ -246,12 +255,12 @@ export async function openFile(
 /**
  * Adds a file that just opened as an editor tab to its Workbench Root's recent-files history (see `recent-files.ts`).
  */
-function rememberOpenedFile(session: { workbenchProjectId: string }, path: string): void {
+function rememberOpenedFile(session: { workbenchRootProjectId: string }, path: string): void {
     const root = getBootstrap()?.projects.find(
-        (project) => project.id === session.workbenchProjectId,
+        (project) => project.id === session.workbenchRootProjectId,
     )?.rootPath;
     if (root && isRecordableRecentFile(root, path))
-        rememberRecentFile(session.workbenchProjectId, path);
+        rememberRecentFile(session.workbenchRootProjectId, path);
 }
 
 /**
@@ -300,7 +309,7 @@ export async function openFileForSession(
                 operation.discarded ||
                 !getBootstrap()?.sessions.some((candidate) => candidate.id === session.id) ||
                 getBootstrap()?.sessions.find((candidate) => candidate.id === session.id)
-                    ?.workbenchProjectId !== operation.workbenchProjectId
+                    ?.workbenchRootProjectId !== operation.workbenchRootProjectId
             )
                 return false;
             const currentPath = operation.path;
@@ -320,20 +329,20 @@ export async function openFileForSession(
              */
             if (
                 !wasDirty &&
-                !isDocumentDirty(session.id, currentPath, operation.workbenchProjectId)
+                !isDocumentDirty(session.id, currentPath, operation.workbenchRootProjectId)
             )
                 useSessionViewStore
                     .getState()
                     .cacheDocument(
                         session.id,
                         { ...document, path: currentPath, dirty: false },
-                        operation.workbenchProjectId,
+                        operation.workbenchRootProjectId,
                     );
             const didOpen = didOpenEditorTabForSession(session.id, currentPath, options);
             if (didOpen && options.focus)
                 focusEditor(
                     editorModelPath(
-                        sessionViewScope(session.id, session.workbenchProjectId),
+                        sessionViewScope(session.id, session.workbenchRootProjectId),
                         currentPath,
                     ),
                     options.paneId,
@@ -352,17 +361,17 @@ export async function openFileForSession(
  */
 export function changeDocument(
     sessionId: string,
-    workbenchProjectId: string,
+    workbenchRootProjectId: string,
     path: string,
     content: string,
 ): void {
     const current = sessionStateOf(sessionId);
-    if (current?.workbenchProjectId !== workbenchProjectId) return;
-    const document = getSessionDocuments(sessionId, workbenchProjectId)?.[path];
+    if (current?.workbenchRootProjectId !== workbenchRootProjectId) return;
+    const document = getSessionDocuments(sessionId, workbenchRootProjectId)?.[path];
     if (document?.readOnly) return;
     useSessionViewStore
         .getState()
-        .updateDocumentContent(sessionId, path, content, workbenchProjectId);
+        .updateDocumentContent(sessionId, path, content, workbenchRootProjectId);
     /**
      * An edit pins the preview it was typed into. Only the edited occurrence is pinned: the same document previewed in
      * another pane is a separate tab and keeps its own preview state.
@@ -438,9 +447,10 @@ export async function didSaveDocumentAt(
                 );
                 if (!result) return;
                 if (!operation.discarded) {
-                    const current = getSessionDocuments(sessionId, operation.workbenchProjectId)?.[
-                        operation.path
-                    ];
+                    const current = getSessionDocuments(
+                        sessionId,
+                        operation.workbenchRootProjectId,
+                    )?.[operation.path];
                     if (current) {
                         const isChangedDuringSave = current.content !== document.content;
                         useSessionViewStore.getState().cacheDocument(
@@ -453,7 +463,7 @@ export async function didSaveDocumentAt(
                                 content: isChangedDuringSave ? current.content : result.content,
                                 dirty: isChangedDuringSave,
                             },
-                            operation.workbenchProjectId,
+                            operation.workbenchRootProjectId,
                         );
                     }
                 }
@@ -465,7 +475,7 @@ export async function didSaveDocumentAt(
                     params: {
                         sessionId,
                         tabId: retryTabId,
-                        workbenchProjectId: operation.workbenchProjectId,
+                        workbenchRootProjectId: operation.workbenchRootProjectId,
                     },
                 }),
             },
@@ -563,7 +573,7 @@ export async function closeDocumentTabs(tabIds: readonly string[]): Promise<void
             if (isUntitledEditorTabPath(path))
                 forgetUntitledLanguage(
                     untitledLanguageKey(
-                        sessionViewScope(session.id, session.workbenchProjectId),
+                        sessionViewScope(session.id, session.workbenchRootProjectId),
                         path,
                     ),
                 );

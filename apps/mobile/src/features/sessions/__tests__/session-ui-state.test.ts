@@ -245,13 +245,13 @@ describe('Chat Session tabs', () => {
         const waiting = {
             isChat: true,
             isSelected: false,
-            lastActivityState: 'waiting',
+            agentActivityState: 'waiting',
             segment: 'conversation',
         } as const;
         expect(isSegmentAwaitingAnswer(waiting)).toBe(true);
         expect(isSegmentAwaitingAnswer({ ...waiting, isSelected: true })).toBe(false);
         expect(isSegmentAwaitingAnswer({ ...waiting, isChat: false })).toBe(false);
-        expect(isSegmentAwaitingAnswer({ ...waiting, lastActivityState: 'running' })).toBe(false);
+        expect(isSegmentAwaitingAnswer({ ...waiting, agentActivityState: 'running' })).toBe(false);
         expect(isSegmentAwaitingAnswer({ ...waiting, segment: 'changes' })).toBe(false);
     });
 });

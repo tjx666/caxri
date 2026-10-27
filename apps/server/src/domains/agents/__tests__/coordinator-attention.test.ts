@@ -71,7 +71,7 @@ describe('AgentCoordinator permission attention', () => {
                 provider: 'codex' as const,
                 terminalId: created.terminal!.id,
             };
-            const state = () => database.getSession(created.session.id)?.lastActivityState;
+            const state = () => database.getSession(created.session.id)?.agentActivityState;
             try {
                 coordinator.beginTerminalLaunch(base.terminalId, base.launchId);
                 await coordinator.probeTerminalNow(base.terminalId);
@@ -146,7 +146,7 @@ describe('AgentCoordinator permission attention', () => {
             provider: 'codex' as const,
             terminalId: created.terminal!.id,
         };
-        const state = () => database.getSession(created.session.id)?.lastActivityState;
+        const state = () => database.getSession(created.session.id)?.agentActivityState;
         try {
             coordinator.beginTerminalLaunch(base.terminalId, base.launchId);
             coordinator.observeLifecycleSignal({ ...base, phase: 'turnStarted' });
@@ -232,8 +232,8 @@ describe('AgentCoordinator permission attention', () => {
             });
 
             expect(database.getSession(created.session.id)).toMatchObject({
-                attentionEpoch: 1,
-                lastActivityState: 'waiting',
+                attentionGeneration: 1,
+                agentActivityState: 'waiting',
             });
 
             coordinator.observeLifecycleSignal({
@@ -245,7 +245,7 @@ describe('AgentCoordinator permission attention', () => {
                 ...baseSignal,
                 phase: 'toolBatchFinished',
             });
-            expect(database.getSession(created.session.id)?.lastActivityState).toBe('waiting');
+            expect(database.getSession(created.session.id)?.agentActivityState).toBe('waiting');
 
             coordinator.observeLifecycleSignal({
                 ...baseSignal,
@@ -253,8 +253,8 @@ describe('AgentCoordinator permission attention', () => {
                 phase: 'toolBatchFinished',
             });
             expect(database.getSession(created.session.id)).toMatchObject({
-                attentionEpoch: 1,
-                lastActivityState: 'running',
+                attentionGeneration: 1,
+                agentActivityState: 'running',
             });
 
             coordinator.observeLifecycleSignal({
@@ -262,7 +262,7 @@ describe('AgentCoordinator permission attention', () => {
                 agentId: 'subagent-1',
                 phase: 'toolBatchFinished',
             });
-            expect(database.getSession(created.session.id)?.lastActivityState).toBe('running');
+            expect(database.getSession(created.session.id)?.agentActivityState).toBe('running');
         } finally {
             await coordinator.close();
             database.close();

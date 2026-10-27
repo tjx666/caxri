@@ -39,11 +39,11 @@ interface PinnedSessionGroupProperties {
      */
     hiddenSessionCount: number;
     nextRevealCount: number;
-    onBeginRename: (sessionId: string, displayTitle: string, rowId: string) => void;
+    onBeginRename: (sessionId: string, title: string, rowId: string) => void;
     onBlurRename: () => void;
     onCancelRename: () => void;
     onCommitRename: () => void;
-    onSuggestRename: (sessionId: string, displayTitle: string, rowId: string) => void;
+    onSuggestRename: (sessionId: string, title: string, rowId: string) => void;
     onRenameValueChange: (value: string) => void;
     onRevealMoreSessions: () => void;
     onToggle: () => void;
@@ -215,7 +215,7 @@ export function PinnedSessionGroup({
                                     onCommitRename={onCommitRename}
                                     onSuggestRename={onSuggestRename}
                                     onRenameValueChange={onRenameValueChange}
-                                    projectDisplayTitle={project.displayTitle}
+                                    projectTitle={project.title}
                                     projectIcon={project.icon}
                                     projectId={project.id}
                                     projectRootPath={project.rootPath}

@@ -8,8 +8,8 @@ import type { Translate } from '../../i18n';
  * only at display time. Every other title is the user's or the Agent's own text and is shown unchanged.
  *
  * Pass `t` from `useTranslation()` in components and `translate` outside React. Matching, sorting, and rename requests
- * keep using the stored `displayTitle`.
+ * keep using the stored `title`.
  */
-export function sessionTitleForDisplay(displayTitle: string, t: Translate): string {
-    return displayTitle === DEFAULT_SESSION_TITLE ? t('session.untitled') : displayTitle;
+export function sessionTitleForDisplay(title: string, t: Translate): string {
+    return title === DEFAULT_SESSION_TITLE ? t('session.untitled') : title;
 }

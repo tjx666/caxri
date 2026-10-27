@@ -18,7 +18,7 @@ describe('workbenchMethods', () => {
             worktreeId: 'opaque',
             rootPath: '/worktree',
             branch: 'feature',
-            displayTitle: 'worktree',
+            title: 'worktree',
             isMain: false,
             owner: false,
         };

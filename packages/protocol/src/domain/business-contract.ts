@@ -64,15 +64,15 @@ export const projectQueryResultSchema = z.union([
 const sessionSummarySchema = sessionRecordSchema.pick({
     id: true,
     projectId: true,
-    displayTitle: true,
+    title: true,
     archivedAt: true,
-    lastOpenedAt: true,
-    lastSessionActivityAt: true,
+    lastVisitedAt: true,
+    sessionActivityAt: true,
     pinnedAt: true,
     pinnedOrder: true,
-    lastActivityState: true,
+    agentActivityState: true,
     primaryAgentTerminalId: true,
-    attentionEpoch: true,
+    attentionGeneration: true,
     hasUnread: true,
 });
 export const sessionQueryResultSchema = z.object({

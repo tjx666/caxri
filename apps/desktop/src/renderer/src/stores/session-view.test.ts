@@ -205,14 +205,14 @@ describe('Session document cache', () => {
     });
 
     it('isolates same-path dirty buffers by Session and Workbench Project', () => {
-        const selectRoot = (workbenchProjectId: string): void =>
+        const selectRoot = (workbenchRootProjectId: string): void =>
             useWorkbenchStore.setState({
                 bootstrap: {
                     sessions: [
                         {
                             id: 'session-1',
                             projectId: 'project-owner',
-                            workbenchProjectId,
+                            workbenchRootProjectId,
                         },
                     ],
                 } as unknown as BootstrapState,

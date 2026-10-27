@@ -72,7 +72,7 @@ describe('AgentCoordinator running watchdog', () => {
             });
 
             await expect
-                .poll(() => database.getSession(created.session.id)?.lastActivityState)
+                .poll(() => database.getSession(created.session.id)?.agentActivityState)
                 .toBe('completed');
             expect(snapshot).toHaveBeenCalledWith(
                 expect.objectContaining({
@@ -81,7 +81,7 @@ describe('AgentCoordinator running watchdog', () => {
                 }),
             );
             expect(database.getSession(created.session.id)).toMatchObject({
-                attentionEpoch: 1,
+                attentionGeneration: 1,
                 hasUnread: true,
                 lastAttentionKind: 'completed',
             });
@@ -89,8 +89,8 @@ describe('AgentCoordinator running watchdog', () => {
             coordinator.observeOutput(created.terminal!.id);
             await expect.poll(() => snapshot.mock.calls.length).toBe(2);
             expect(database.getSession(created.session.id)).toMatchObject({
-                attentionEpoch: 1,
-                lastActivityState: 'completed',
+                attentionGeneration: 1,
+                agentActivityState: 'completed',
                 lastAttentionKind: 'completed',
             });
         } finally {
@@ -132,7 +132,7 @@ describe('AgentCoordinator running watchdog', () => {
                 terminalId: created.terminal!.id,
             });
             await expect.poll(() => snapshot.mock.calls.length).toBeGreaterThanOrEqual(2);
-            expect(database.getSession(created.session.id)?.lastActivityState).toBe('running');
+            expect(database.getSession(created.session.id)?.agentActivityState).toBe('running');
 
             coordinator.observeLifecycleSignal({
                 agentTurnId: 'codex-turn-1',
@@ -145,7 +145,7 @@ describe('AgentCoordinator running watchdog', () => {
             await new Promise((resolve) => setTimeout(resolve, 20));
 
             expect(snapshot).toHaveBeenCalledTimes(completedProbeCount);
-            expect(database.getSession(created.session.id)?.lastActivityState).toBe('completed');
+            expect(database.getSession(created.session.id)?.agentActivityState).toBe('completed');
         } finally {
             await coordinator.close();
             database.close();

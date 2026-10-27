@@ -11,9 +11,12 @@ const reply: AgentTimelineItem[] = [
 ];
 
 function sources(options: { request?: AgentChatRequest; items?: AgentTimelineItem[] } = {}) {
-    const sessions: Record<string, { primaryAgentTerminalId?: string; attentionEpoch: number }> = {
-        asked: { primaryAgentTerminalId: 't-asked', attentionEpoch: 4 },
-        bare: { attentionEpoch: 1 },
+    const sessions: Record<
+        string,
+        { primaryAgentTerminalId?: string; attentionGeneration: number }
+    > = {
+        asked: { primaryAgentTerminalId: 't-asked', attentionGeneration: 4 },
+        bare: { attentionGeneration: 1 },
     };
     const read = vi.fn(() =>
         Promise.resolve({ status: 'available', items: options.items ?? reply }),
@@ -48,7 +51,7 @@ describe('readAgentExcerpts', () => {
             },
         });
         await expect(
-            readAgentExcerpts(wired, [{ sessionId: 'asked', attentionEpoch: 4 }]),
+            readAgentExcerpts(wired, [{ sessionId: 'asked', attentionGeneration: 4 }]),
         ).resolves.toEqual({
             asked: { kind: 'request', text: 'Which database should I use?' },
         });
@@ -58,7 +61,7 @@ describe('readAgentExcerpts', () => {
     it('falls back to the last reply from the transcript', async () => {
         const { sources: wired } = sources();
         await expect(
-            readAgentExcerpts(wired, [{ sessionId: 'asked', attentionEpoch: 4 }]),
+            readAgentExcerpts(wired, [{ sessionId: 'asked', attentionGeneration: 4 }]),
         ).resolves.toEqual({ asked: { kind: 'reply', text: 'All done.' } });
     });
 
@@ -66,9 +69,9 @@ describe('readAgentExcerpts', () => {
         const { read, sources: wired } = sources();
         await expect(
             readAgentExcerpts(wired, [
-                { sessionId: 'asked', attentionEpoch: 3 },
-                { sessionId: 'bare', attentionEpoch: 1 },
-                { sessionId: 'missing', attentionEpoch: 0 },
+                { sessionId: 'asked', attentionGeneration: 3 },
+                { sessionId: 'bare', attentionGeneration: 1 },
+                { sessionId: 'missing', attentionGeneration: 0 },
             ]),
         ).resolves.toEqual({});
         expect(read).not.toHaveBeenCalled();

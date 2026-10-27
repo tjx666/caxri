@@ -67,7 +67,7 @@ process.stdout.write('Question fixture ready\r\n');
         const state = async () =>
             (await pageRequest<BootstrapState>(running.page, 'app.bootstrap')).sessions.find(
                 (session) => session.id === sessionId,
-            )?.lastActivityState;
+            )?.agentActivityState;
         const emit = async (name: string, tool?: string, id?: string) => {
             await writeFile(join(config, 'event.next.json'), JSON.stringify({ name, tool, id }));
             await rename(join(config, 'event.next.json'), join(config, 'event.json'));

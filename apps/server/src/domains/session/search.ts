@@ -176,7 +176,7 @@ export class SessionSearchService {
             )
                 return [];
             const primary = conversations[0];
-            const updatedAt = Math.trunc(session.lastSessionActivityAt);
+            const updatedAt = Math.trunc(session.sessionActivityAt);
             if (terms.length === 0)
                 return [
                     {
@@ -185,7 +185,7 @@ export class SessionSearchService {
                     },
                 ];
             const field = metadataMatch(terms, {
-                title: session.displayTitle,
+                title: session.title,
                 cwd: session.rootPath,
                 ids: [session.id, ...conversations.map((held) => held.agentSessionId)],
             });
@@ -338,7 +338,7 @@ function matchOf(hit: IndexedConversationHit): SessionSearchEntry['match'] {
 }
 
 function heldEntry(held: HeldConversation, hit: IndexedConversationHit): RankedEntry {
-    const updatedAt = Math.trunc(Math.max(hit.updatedAt, held.session.lastSessionActivityAt));
+    const updatedAt = Math.trunc(Math.max(hit.updatedAt, held.session.sessionActivityAt));
     return {
         entry: {
             ...sessionEntry(held.session, held, hit.field, updatedAt),
@@ -377,7 +377,7 @@ function sessionEntry(
         key: conversation
             ? conversationKey(conversation.provider, conversation.agentSessionId)
             : `session:${session.id}`,
-        title: bounded(session.displayTitle),
+        title: bounded(session.title),
         status: sessionStatus(session),
         sessionId: session.id,
         projectId: session.projectId,

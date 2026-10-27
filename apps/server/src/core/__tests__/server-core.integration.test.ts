@@ -43,7 +43,7 @@ function createDomainFixture(activePtyCount: number): CreateDomainServices {
                     projects: [
                         {
                             id: 'project-1',
-                            displayTitle: 'Caxri',
+                            title: 'Caxri',
                             rootPath: '$HOME/code/caxri',
                         },
                     ],
@@ -276,7 +276,7 @@ describe('Server Core application', () => {
         expect(health).toMatchObject({ ready: true, activePtyCount: 1 });
         await expect(first.request('project.query', { mode: 'list' })).resolves.toEqual({
             view: 'human-cli',
-            projects: [{ id: 'project-1', displayTitle: 'Caxri', rootPath: '$HOME/code/caxri' }],
+            projects: [{ id: 'project-1', title: 'Caxri', rootPath: '$HOME/code/caxri' }],
         });
         first.close();
 

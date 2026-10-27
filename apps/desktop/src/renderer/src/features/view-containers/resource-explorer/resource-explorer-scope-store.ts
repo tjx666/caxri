@@ -18,15 +18,15 @@ import {
 export interface ResourceExplorerActiveScope {
     projectId: string;
     /**
-     * `sessionId:workbenchProjectId`; keys every per-Session record below.
+     * `sessionId:workbenchRootProjectId`; keys every per-Session record below.
      */
     scopeId: string;
     sessionId: string;
 }
 
 /**
- * Per-Session tree state (`scopeId` is `sessionId:workbenchProjectId`) for the Files view. It lives in a store rather
- * than in the controller's `useState` so each row can subscribe to its own boolean (expanded / selected / focus
+ * Per-Session tree state (`scopeId` is `sessionId:workbenchRootProjectId`) for the Files view. It lives in a store
+ * rather than in the controller's `useState` so each row can subscribe to its own boolean (expanded / selected / focus
  * requested) instead of receiving the whole tree's `Set` and selection as props: with 229 visible rows a single toggle
  * used to re-render every row, and a session switch rebuilt the entire tree.
  *

@@ -53,44 +53,44 @@ describe('createCommandDispatcher receipt capacity', () => {
     });
 
     it('evicts the oldest settled receipt once at capacity instead of rejecting new idempotent commands', async () => {
-        function record(displayTitle: string) {
+        function record(title: string) {
             return {
                 id: 'session-1',
                 projectId: 'project-1',
                 rootPath: '/private/project-one',
-                displayTitle,
+                title,
                 titleMode: 'manual',
                 createdAt: 1,
-                lastOpenedAt: 1,
+                lastVisitedAt: 1,
                 sidebarOrder: 0,
-                lastSessionActivityAt: 1,
-                lastSessionActivityReason: 'created',
+                sessionActivityAt: 1,
+                sessionActivityReason: 'created',
                 archivedAt: undefined,
                 primaryAgentTerminalId: undefined,
-                lastActivityState: 'unknown',
-                attentionEpoch: 0,
-                readAttentionEpoch: 0,
+                agentActivityState: 'unknown',
+                attentionGeneration: 0,
+                acknowledgedAttentionGeneration: 0,
                 hasUnread: false,
-                workbenchProjectId: 'project-1',
+                workbenchRootProjectId: 'project-1',
             };
         }
         const server: CommandAdapter = {
             invoke: (command) => {
                 if (command.method === 'session.rename')
-                    return record((command.params as { displayTitle: string }).displayTitle);
+                    return record((command.params as { title: string }).title);
                 return null;
             },
         };
         const dispatch = createCommandDispatcher({ server, maximumReceipts: 1 });
 
         await dispatch(
-            request('rename-1', 'session.rename', { sessionId: 's1', displayTitle: 'First' }),
+            request('rename-1', 'session.rename', { sessionId: 's1', title: 'First' }),
             desktop,
         );
         // A second distinct idempotent request must still succeed by evicting the settled first receipt.
         await expect(
             dispatch(
-                request('rename-2', 'session.rename', { sessionId: 's1', displayTitle: 'Second' }),
+                request('rename-2', 'session.rename', { sessionId: 's1', title: 'Second' }),
                 desktop,
             ),
         ).resolves.toMatchObject({ ok: true });
@@ -135,7 +135,7 @@ describe('createCommandDispatcher paired-device generations', () => {
                 invoke: () => ({
                     acknowledged: true,
                     sessionId: 'session-1',
-                    attentionEpoch: 3,
+                    attentionGeneration: 3,
                     hasUnread: false,
                 }),
             },
@@ -145,7 +145,7 @@ describe('createCommandDispatcher paired-device generations', () => {
             dispatch(
                 request('mark-read-1', 'session.markRead', {
                     sessionId: 'session-1',
-                    attentionEpoch: 3,
+                    attentionGeneration: 3,
                 }),
                 {
                     capabilities: ['sessions.write'],
@@ -164,7 +164,7 @@ describe('createCommandDispatcher paired-device generations', () => {
             result: {
                 acknowledged: true,
                 sessionId: 'session-1',
-                attentionEpoch: 3,
+                attentionGeneration: 3,
                 hasUnread: false,
             },
         });
@@ -172,25 +172,25 @@ describe('createCommandDispatcher paired-device generations', () => {
 });
 
 describe('createCommandDispatcher durable receipts', () => {
-    function session(displayTitle: string) {
+    function session(title: string) {
         return {
             id: 'session-1',
             projectId: 'project-1',
             rootPath: '/private/project-one',
-            displayTitle,
+            title,
             titleMode: 'manual' as const,
             createdAt: 1,
-            lastOpenedAt: 1,
+            lastVisitedAt: 1,
             sidebarOrder: 0,
-            lastSessionActivityAt: 1,
-            lastSessionActivityReason: 'created' as const,
+            sessionActivityAt: 1,
+            sessionActivityReason: 'created' as const,
             archivedAt: undefined,
             primaryAgentTerminalId: undefined,
-            lastActivityState: 'unknown' as const,
-            attentionEpoch: 0,
-            readAttentionEpoch: 0,
+            agentActivityState: 'unknown' as const,
+            attentionGeneration: 0,
+            acknowledgedAttentionGeneration: 0,
             hasUnread: false,
-            workbenchProjectId: 'project-1',
+            workbenchRootProjectId: 'project-1',
         };
     }
 
@@ -212,7 +212,7 @@ describe('createCommandDispatcher durable receipts', () => {
             ) => {
                 const result =
                     command.method === 'session.rename'
-                        ? session((command.params as { displayTitle: string }).displayTitle)
+                        ? session((command.params as { title: string }).title)
                         : null;
                 invocation.persistDurableResult?.(result);
                 return result;
@@ -220,7 +220,7 @@ describe('createCommandDispatcher durable receipts', () => {
         );
         const command = request('durable-1', 'session.rename', {
             sessionId: 'session-1',
-            displayTitle: 'Persisted',
+            title: 'Persisted',
         });
         const first = createCommandDispatcher({
             durableReceipts,
@@ -239,7 +239,7 @@ describe('createCommandDispatcher durable receipts', () => {
         });
         await expect(replacement(command, durableDesktop)).resolves.toMatchObject({
             ok: true,
-            result: { displayTitle: 'Persisted' },
+            result: { title: 'Persisted' },
         });
         expect(replacementInvoke).not.toHaveBeenCalled();
         expect(
@@ -249,7 +249,7 @@ describe('createCommandDispatcher durable receipts', () => {
             replacement(
                 request('durable-1', 'session.rename', {
                     sessionId: 'session-1',
-                    displayTitle: 'Different input',
+                    title: 'Different input',
                 }),
                 durableDesktop,
             ),

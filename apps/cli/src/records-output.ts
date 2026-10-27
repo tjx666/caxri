@@ -56,7 +56,7 @@ interface RecordKind {
 
 function sessionState(row: Row): string {
     if (typeof row.archivedAt === 'number') return 'archived';
-    return text(row.lastActivityState);
+    return text(row.agentActivityState);
 }
 
 const kinds: Partial<Record<CaxriMethod, RecordKind>> = {
@@ -64,9 +64,9 @@ const kinds: Partial<Record<CaxriMethod, RecordKind>> = {
         empty: 'No projects yet. Add one with `caxri project add .`.',
         key: 'projects',
         headers: ['ID', 'TITLE', 'PATH'],
-        cells: (row) => [text(row.id), text(row.displayTitle), text(row.rootPath)],
+        cells: (row) => [text(row.id), text(row.title), text(row.rootPath)],
         details: (row) => [
-            ['Title', text(row.displayTitle)],
+            ['Title', text(row.title)],
             ['Path', text(row.rootPath)],
             ['ID', text(row.id)],
         ],
@@ -77,14 +77,14 @@ const kinds: Partial<Record<CaxriMethod, RecordKind>> = {
         headers: ['ID', 'TITLE', 'STATE', 'LAST ACTIVE'],
         cells: (row, now) => [
             text(row.id),
-            text(row.displayTitle),
+            text(row.title),
             sessionState(row),
-            formatRelativeTime(Number(row.lastSessionActivityAt), now),
+            formatRelativeTime(Number(row.sessionActivityAt), now),
         ],
         details: (row, now) => [
-            ['Title', text(row.displayTitle)],
+            ['Title', text(row.title)],
             ['State', sessionState(row)],
-            ['Last active', formatRelativeTime(Number(row.lastSessionActivityAt), now)],
+            ['Last active', formatRelativeTime(Number(row.sessionActivityAt), now)],
             ['Project', text(row.projectId)],
             ['ID', text(row.id)],
         ],

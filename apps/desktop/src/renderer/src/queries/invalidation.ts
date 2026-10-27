@@ -92,20 +92,22 @@ function isDirectoryAffected(
 }
 
 /**
- * Controlled-view reads use two context keys: `files.list` is cached per Project (`workbenchProjectId`) so Sessions of
- * the same Project share one tree, while the remaining reads stay Session-scoped
- * (`${sessionId}:${workbenchProjectId}`).
+ * Controlled-view reads use two context keys: `files.list` is cached per Project (`workbenchRootProjectId`) so Sessions
+ * of the same Project share one tree, while the remaining reads stay Session-scoped
+ * (`${sessionId}:${workbenchRootProjectId}`).
  */
 function isControlledContextMatch(
     parameters: Record<string, unknown>,
     sessionIds: ReadonlySet<string> | undefined,
-    workbenchProjectId: string | undefined,
+    workbenchRootProjectId: string | undefined,
 ): boolean {
-    if (!sessionIds || !workbenchProjectId) return true;
+    if (!sessionIds || !workbenchRootProjectId) return true;
     const contextKey = parameters.contextKey;
     if (typeof contextKey !== 'string') return true;
-    if (contextKey === workbenchProjectId) return true;
-    return [...sessionIds].some((sessionId) => contextKey === `${sessionId}:${workbenchProjectId}`);
+    if (contextKey === workbenchRootProjectId) return true;
+    return [...sessionIds].some(
+        (sessionId) => contextKey === `${sessionId}:${workbenchRootProjectId}`,
+    );
 }
 
 function isControlledOperationMatch(
@@ -116,7 +118,7 @@ function isControlledOperationMatch(
         context?: {
             kind: 'session';
             sessionId: string;
-            workbenchProjectId: string;
+            workbenchRootProjectId: string;
         };
         overflow?: boolean;
         viewId?: string;
@@ -137,7 +139,7 @@ function isControlledOperationMatch(
         !isControlledContextMatch(
             parameters,
             options.context ? new Set([options.context.sessionId]) : undefined,
-            options.context?.workbenchProjectId,
+            options.context?.workbenchRootProjectId,
         )
     )
         return false;
@@ -174,7 +176,7 @@ function isControlledOperationMatch(
 function invalidateFileDependentQueries(
     queryClient: QueryClient,
     sessionIds: readonly string[],
-    workbenchProjectId: string,
+    workbenchRootProjectId: string,
     batch: PendingFileChangeBatch,
     refetchType: 'active' | 'none',
 ): void {
@@ -201,20 +203,20 @@ function invalidateFileDependentQueries(
             if (isDirectFileListingMatch) return true;
             /*
              * The Project search overlay is not a controlled view: it caches under the flat
-             * `['files.search', `${sessionId}:${workbenchProjectId}`, options]` key `projectSearchQueryKey` builds.
+             * `['files.search', `${sessionId}:${workbenchRootProjectId}`, options]` key `projectSearchQueryKey` builds.
              * Any write anywhere in the Project can add or drop a hit, so the whole scope is invalidated rather than
              * one directory: an open search would otherwise keep listing matches at paths that no longer hold them.
              */
             if (
                 isQueryMethod(query.queryKey, 'files.search') &&
                 sessionIds.some(
-                    (sessionId) => query.queryKey[1] === `${sessionId}:${workbenchProjectId}`,
+                    (sessionId) => query.queryKey[1] === `${sessionId}:${workbenchRootProjectId}`,
                 )
             )
                 return true;
             return sessionIds.some((sessionId) =>
                 isControlledOperationMatch(query.queryKey, RESOURCE_EXPLORER_READ_OPERATIONS, {
-                    context: { kind: 'session', sessionId, workbenchProjectId },
+                    context: { kind: 'session', sessionId, workbenchRootProjectId },
                     changes,
                     overflow: batch.overflow || batch.gitIgnoreRulesChanged,
                 }),
@@ -395,19 +397,20 @@ export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () 
     const pendingTimers = new Map<string, number>();
     const pendingBatches = new Map<string, PendingFileChangeBatch>();
     const flushFileBatch = (
-        workbenchProjectId: string,
+        workbenchRootProjectId: string,
         batch: PendingFileChangeBatch,
         refetchType: 'active' | 'none',
     ): void =>
         invalidateFileDependentQueries(
             queryClient,
-            getWorkbenchProjectSessionIds(workbenchProjectId, batch.sessionId),
-            workbenchProjectId,
+            getWorkbenchProjectSessionIds(workbenchRootProjectId, batch.sessionId),
+            workbenchRootProjectId,
             batch,
             refetchType,
         );
     const hiddenWindow = createHiddenWindowDeferral({
-        files: (workbenchProjectId, batch) => flushFileBatch(workbenchProjectId, batch, 'active'),
+        files: (workbenchRootProjectId, batch) =>
+            flushFileBatch(workbenchRootProjectId, batch, 'active'),
         git: (sessionIds) => invalidateGitChangedQueries(queryClient, sessionIds, 'active'),
         view: (change) => invalidateViewChange(queryClient, change, 'active'),
     });
@@ -534,9 +537,9 @@ export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () 
             return;
         }
         if (event.event !== 'files.changed') return;
-        const { sessionId, workbenchProjectId } = event.payload;
+        const { sessionId, workbenchRootProjectId } = event.payload;
         const batch =
-            pendingBatches.get(workbenchProjectId) ??
+            pendingBatches.get(workbenchRootProjectId) ??
             ({
                 changes: new Map(),
                 gitIgnoreRulesChanged: false,
@@ -547,19 +550,19 @@ export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () 
         batch.gitIgnoreRulesChanged ||= event.payload.gitIgnoreRulesChanged === true;
         batch.overflow ||= event.payload.overflow;
         batch.sessionId = sessionId;
-        pendingBatches.set(workbenchProjectId, batch);
-        const existing = pendingTimers.get(workbenchProjectId);
+        pendingBatches.set(workbenchRootProjectId, batch);
+        const existing = pendingTimers.get(workbenchRootProjectId);
         if (existing !== undefined) clearTimeout(existing);
         pendingTimers.set(
-            workbenchProjectId,
+            workbenchRootProjectId,
             setTimeout(() => {
-                pendingTimers.delete(workbenchProjectId);
-                const pending = pendingBatches.get(workbenchProjectId);
-                pendingBatches.delete(workbenchProjectId);
+                pendingTimers.delete(workbenchRootProjectId);
+                const pending = pendingBatches.get(workbenchRootProjectId);
+                pendingBatches.delete(workbenchRootProjectId);
                 if (!pending) return;
                 const isHidden = hiddenWindow.isHidden();
-                if (isHidden) hiddenWindow.deferFiles(workbenchProjectId, pending);
-                flushFileBatch(workbenchProjectId, pending, isHidden ? 'none' : 'active');
+                if (isHidden) hiddenWindow.deferFiles(workbenchRootProjectId, pending);
+                flushFileBatch(workbenchRootProjectId, pending, isHidden ? 'none' : 'active');
             }, FILE_CHANGE_INVALIDATION_DEBOUNCE_MS),
         );
     });

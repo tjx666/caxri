@@ -17,8 +17,8 @@ export function sidebarTopOrder() {
  */
 export function sessionActivityUpdate(reason: SessionActivityReason, now = Date.now()) {
     return {
-        lastSessionActivityAt: sql<number>`MAX(${now}, COALESCE((SELECT MAX(${sessions.lastSessionActivityAt}) + 1 FROM ${sessions}), ${now}))`,
-        lastSessionActivityReason: reason,
+        sessionActivityAt: sql<number>`MAX(${now}, COALESCE((SELECT MAX(${sessions.sessionActivityAt}) + 1 FROM ${sessions}), ${now}))`,
+        sessionActivityReason: reason,
         sidebarOrder: sidebarTopOrder(),
     };
 }

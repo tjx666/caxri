@@ -8,7 +8,7 @@ function input(id: string, overrides: Partial<SessionLabelInput> = {}): SessionL
     return {
         agentLabel: 'Claude Code',
         createdAt: Number(id.replaceAll(/\D/g, '')) || 0,
-        displayTitle: DEFAULT_SESSION_TITLE,
+        title: DEFAULT_SESSION_TITLE,
         id,
         projectId: 'p1',
         projectTitle: 'Alpha',
@@ -20,9 +20,7 @@ const UNTITLED = 'Untitled';
 
 describe('sessionLabelTitle', () => {
     it('prefers the stored title, then a prompt snippet, then Project and worktree, then the placeholder', () => {
-        expect(sessionLabelTitle(input('s1', { displayTitle: 'Fix login' }), UNTITLED)).toBe(
-            'Fix login',
-        );
+        expect(sessionLabelTitle(input('s1', { title: 'Fix login' }), UNTITLED)).toBe('Fix login');
         expect(
             sessionLabelTitle(
                 input('s1', { promptSnippet: 'refactor   the very long session store module' }),
@@ -39,7 +37,7 @@ describe('sessionLabelTitle', () => {
 describe('sessionLabels', () => {
     it('adds no suffix when every title is unique', () => {
         const labels = sessionLabels(
-            [input('s1', { displayTitle: 'A' }), input('s2', { displayTitle: 'B' })],
+            [input('s1', { title: 'A' }), input('s2', { title: 'B' })],
             UNTITLED,
         );
         expect(labels.get('s1')).toEqual({ title: 'A' });
@@ -58,9 +56,9 @@ describe('sessionLabels', () => {
     it('uses the Agent kind and worktree inside one Project when they differ', () => {
         const labels = sessionLabels(
             [
-                input('s1', { displayTitle: 'Fix' }),
-                input('s2', { agentLabel: 'Codex', displayTitle: 'Fix' }),
-                input('s3', { displayTitle: 'Fix', workingLocation: 'wt-a' }),
+                input('s1', { title: 'Fix' }),
+                input('s2', { agentLabel: 'Codex', title: 'Fix' }),
+                input('s3', { title: 'Fix', workingLocation: 'wt-a' }),
             ],
             UNTITLED,
         );
@@ -90,7 +88,7 @@ describe('sessionLabels', () => {
 
     it('drops the suffix once only one visible Session carries the title', () => {
         const labels = sessionLabels(
-            [input('s1', { visible: false }), input('s2'), input('s3', { displayTitle: 'X' })],
+            [input('s1', { visible: false }), input('s2'), input('s3', { title: 'X' })],
             UNTITLED,
         );
         expect(labels.get('s2')).toEqual({ title: UNTITLED });
@@ -109,7 +107,7 @@ describe('sessionLabels', () => {
 
     it('matches titles case-insensitively', () => {
         const labels = sessionLabels(
-            [input('s1', { displayTitle: 'Fix' }), input('s2', { displayTitle: 'fix' })],
+            [input('s1', { title: 'Fix' }), input('s2', { title: 'fix' })],
             UNTITLED,
         );
         expect(labels.get('s1')?.suffix).toBe('#1');

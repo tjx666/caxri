@@ -166,7 +166,7 @@ describe('external.open trust wiring', () => {
 describe('session.delete Acceptance confirmation', () => {
     const bootstrap = {
         projects: [],
-        sessions: [{ displayTitle: 'Fixture naming hold', id: 'session-1', projectId: 'p1' }],
+        sessions: [{ title: 'Fixture naming hold', id: 'session-1', projectId: 'p1' }],
     };
 
     function deleteRequest() {

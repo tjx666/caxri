@@ -40,7 +40,7 @@ const groupRank = (session: DashboardSession, isDetached: boolean, now: number):
     if (isPinnedSession(session)) return -1;
     const group =
         sessionActivityGroup(
-            { ...session, isDetached, isRunning: session.lastActivityState === 'running' },
+            { ...session, isDetached, isRunning: session.agentActivityState === 'running' },
             now,
         ) ?? 'idle';
     return SESSION_ACTIVITY_GROUP_ORDER.indexOf(group);
@@ -66,12 +66,12 @@ export const buildMobileDashboard = (input: {
         if (session.archivedAt !== undefined) continue;
         lastActivityByProject.set(
             session.projectId,
-            Math.max(lastActivityByProject.get(session.projectId) ?? 0, session.lastOpenedAt),
+            Math.max(lastActivityByProject.get(session.projectId) ?? 0, session.lastVisitedAt),
         );
     }
     const visibleProjects = input.projects.slice(0, 128).map((project) => ({
         id: project.id,
-        displayTitle: title(project.displayTitle),
+        title: title(project.title),
         ...(lastActivityByProject.has(project.id) && {
             lastActivityAt: lastActivityByProject.get(project.id)!,
         }),
@@ -122,13 +122,13 @@ export const buildMobileDashboard = (input: {
         const candidate: MobileDashboardResult['sessions'][number] = {
             id: session.id,
             projectId: session.projectId,
-            displayTitle: title(session.displayTitle),
-            projectTitle: title(projects.get(session.projectId)?.displayTitle ?? 'Project'),
-            lastOpenedAt: session.lastOpenedAt,
-            lastSessionActivityAt: session.lastSessionActivityAt,
+            title: title(session.title),
+            projectTitle: title(projects.get(session.projectId)?.title ?? 'Project'),
+            lastVisitedAt: session.lastVisitedAt,
+            sessionActivityAt: session.sessionActivityAt,
             ...(session.pinnedAt !== undefined && { pinnedAt: session.pinnedAt }),
             ...(session.pinnedOrder !== undefined && { pinnedOrder: session.pinnedOrder }),
-            lastActivityState: session.lastActivityState,
+            agentActivityState: session.agentActivityState,
             ...(session.primaryAgentTerminalId && {
                 primaryAgentTerminalId: session.primaryAgentTerminalId,
                 ...(input.resolveAgentEndpoint?.(session.primaryAgentTerminalId) && {
@@ -137,7 +137,7 @@ export const buildMobileDashboard = (input: {
                     ),
                 }),
             }),
-            attentionEpoch: session.attentionEpoch,
+            attentionGeneration: session.attentionGeneration,
             hasUnread: session.hasUnread,
             ...(mobileTerminal && { primaryTerminal: mobileTerminal }),
         };
@@ -193,8 +193,8 @@ export const buildMobileArchivedSessions = (input: {
         const candidate: MobileArchivedSessionsResult['sessions'][number] = {
             id: session.id,
             projectId: session.projectId,
-            displayTitle: title(session.displayTitle),
-            projectTitle: title(projects.get(session.projectId)?.displayTitle ?? 'Project'),
+            title: title(session.title),
+            projectTitle: title(projects.get(session.projectId)?.title ?? 'Project'),
             archivedAt: session.archivedAt,
             ...(agentKind && { agentKind }),
         };

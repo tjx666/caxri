@@ -137,14 +137,14 @@ test('auto-collapse protects active, running, unread, and manually expanded Proj
 
         const database = new Database(join(userData, 'caxri.db'));
         const staleAt = Date.now() - 3 * 60 * 60 * 1000;
-        database.prepare('UPDATE projects SET last_opened_at = ?').run(staleAt);
-        database.prepare('UPDATE sessions SET last_opened_at = ?').run(staleAt);
+        database.prepare('UPDATE projects SET last_visited_at = ?').run(staleAt);
+        database.prepare('UPDATE sessions SET last_visited_at = ?').run(staleAt);
         database
-            .prepare("UPDATE sessions SET last_activity_state = 'running' WHERE id = ?")
+            .prepare("UPDATE sessions SET agent_activity_state = 'running' WHERE id = ?")
             .run(sessionIds.get('running'));
         database
             .prepare(
-                "UPDATE sessions SET attention_epoch = 1, read_attention_epoch = 0, last_attention_kind = 'completed' WHERE id = ?",
+                "UPDATE sessions SET attention_generation = 1, acknowledged_attention_generation = 0, last_attention_kind = 'completed' WHERE id = ?",
             )
             .run(sessionIds.get('unread'));
         database.close();

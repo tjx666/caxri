@@ -158,11 +158,11 @@ export async function viewOperation<Result>(
  */
 export function currentViewEventContext(): ExtensionViewEventContext {
     const session = getSelectedSession();
-    return session?.id && session.workbenchProjectId
+    return session?.id && session.workbenchRootProjectId
         ? {
               kind: 'session',
               sessionId: session.id,
-              workbenchProjectId: session.workbenchProjectId,
+              workbenchRootProjectId: session.workbenchRootProjectId,
           }
         : { kind: 'no-session' };
 }

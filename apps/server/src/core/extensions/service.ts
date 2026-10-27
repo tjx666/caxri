@@ -36,6 +36,7 @@ import {
     assertSessionScopeUnchanged,
     assertSessionWithinGrant,
     resolveViewContext,
+    sessionScopeOf,
 } from './session-scope';
 import { ExtensionHostSupervisor } from './supervisor';
 import { requestTreeChildren } from './tree-children';
@@ -75,7 +76,7 @@ export interface ExtensionServiceOptions {
     workspaceRequest(
         operation: ExtensionWorkspaceOperation,
         parameters: unknown,
-        context: { sessionId: string; workbenchProjectId: string },
+        context: { sessionId: string; workbenchRootProjectId: string },
         signal?: AbortSignal,
     ): Promise<unknown>;
 }
@@ -153,10 +154,8 @@ export class ExtensionService extends EventTarget {
     }
 
     private async assertViewContext(context: ExtensionViewEventContext): Promise<void> {
-        assertViewContextCurrent(
-            context,
-            await resolveViewContext(this.readSessionContext, context),
-        );
+        const resolved = await resolveViewContext(this.readSessionContext, context);
+        assertViewContextCurrent(context, resolved);
     }
 
     private async rebuildCatalog(extensionId?: string): Promise<void> {
@@ -225,7 +224,7 @@ export class ExtensionService extends EventTarget {
         if (grant && extension?.source === 'bundled')
             grant.projectIds = new Set(resolved.projectIds);
         assertSessionWithinGrant(resolved, grant?.projectIds);
-        return { sessionId: context.sessionId, workbenchProjectId: context.workbenchProjectId };
+        return sessionScopeOf(context);
     }
 
     private async assertApiScopeCurrent(

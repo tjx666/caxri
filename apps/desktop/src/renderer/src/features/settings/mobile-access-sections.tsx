@@ -209,7 +209,7 @@ const MobileProjectAccessSection = ({
                         >
                             <Checkbox
                                 aria-label={t('settings.mobileAccess.projects.allow', {
-                                    project: project.displayTitle,
+                                    project: project.title,
                                 })}
                                 checked={checked}
                                 disabled={
@@ -220,7 +220,7 @@ const MobileProjectAccessSection = ({
                                 }
                             />
                             <span className="truncate text-[12px] text-foreground">
-                                {project.displayTitle}
+                                {project.title}
                             </span>
                         </label>
                     );

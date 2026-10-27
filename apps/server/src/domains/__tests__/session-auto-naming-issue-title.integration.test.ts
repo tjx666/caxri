@@ -57,9 +57,9 @@ describe('Automatic Session naming from an issue-only request', () => {
                 title: nativeTitle,
                 titleSource: source,
             });
-            const rename = vi.fn(({ displayTitle }: { displayTitle: string }) => {
-                nativeTitle = displayTitle;
-                return Promise.resolve({ displayTitle });
+            const rename = vi.fn(({ title }: { title: string }) => {
+                nativeTitle = title;
+                return Promise.resolve({ title });
             });
             const agents = new AgentService(
                 undefined,
@@ -117,7 +117,7 @@ describe('Automatic Session naming from an issue-only request', () => {
                         expect(database.automaticSessionNaming(sessionId)).toBeDefined(),
                     );
                 await vi.waitFor(() =>
-                    expect(database.getSession(sessionId)?.displayTitle).toBe(expected),
+                    expect(database.getSession(sessionId)?.title).toBe(expected),
                 );
                 expect(generate).toHaveBeenCalledTimes(attempts);
                 if (attempts === 2) expect(generate.mock.calls[1]?.[1].prompt).toContain('<retry>');

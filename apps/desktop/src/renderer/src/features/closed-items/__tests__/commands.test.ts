@@ -39,7 +39,7 @@ describe('reopenClosedItem', () => {
             } as never,
         });
         mocks.sessionStateOf.mockReturnValue({
-            workbenchProjectId: 'project',
+            workbenchRootProjectId: 'project',
             paneLayout: createPaneLayout(undefined, () => 'pane-1'),
         });
         mocks.didSelectSession.mockResolvedValue(true);

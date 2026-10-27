@@ -42,7 +42,7 @@ function session(overrides: Partial<SessionRecord> = {}): SessionRecord {
     return {
         id: 'session-1',
         primaryAgentTerminalId: 'terminal-1',
-        lastActivityState: 'running',
+        agentActivityState: 'running',
         ...overrides,
     } as SessionRecord;
 }
@@ -66,8 +66,8 @@ beforeEach(() => {
 describe('isAgentTurnRunning', () => {
     it.each(['running', 'waiting'] as const)(
         'reads a %s Primary Agent with a live process as mid-turn',
-        (lastActivityState) => {
-            expect(isAgentTurnRunning(agentTerminal(), session({ lastActivityState }))).toBe(true);
+        (agentActivityState) => {
+            expect(isAgentTurnRunning(agentTerminal(), session({ agentActivityState }))).toBe(true);
         },
     );
 
@@ -75,7 +75,7 @@ describe('isAgentTurnRunning', () => {
         {
             name: 'an idle Session',
             terminal: agentTerminal(),
-            state: session({ lastActivityState: 'completed' }),
+            state: session({ agentActivityState: 'completed' }),
         },
         {
             name: 'a secondary Agent',
@@ -94,7 +94,7 @@ describe('isAgentTurnRunning', () => {
 
     it("reads a secondary Chat from its own snapshot, not the Primary Agent's activity", () => {
         const chat = agentTerminal({ id: 'terminal-2', surface: 'chat' });
-        const idleSession = session({ lastActivityState: 'idle' });
+        const idleSession = session({ agentActivityState: 'idle' });
         expect(isAgentTurnRunning(chat, idleSession, { activeTurnId: 'turn-1' })).toBe(true);
         expect(isAgentTurnRunning(chat, session(), {})).toBe(false);
         expect(isAgentTurnRunning(chat, session())).toBe(false);
@@ -118,7 +118,7 @@ describe('isAgentTurnRunning', () => {
 describe('confirmBeforeEndingTurn', () => {
     it('proceeds in the same tick without asking when no turn is running', () => {
         mocks.getBootstrap.mockReturnValue(
-            bootstrapWith(agentTerminal(), session({ lastActivityState: 'idle' })),
+            bootstrapWith(agentTerminal(), session({ agentActivityState: 'idle' })),
         );
         const proceed = vi.fn();
         void confirmBeforeEndingTurn('terminal-1', COPY, proceed);
@@ -164,7 +164,7 @@ describe('confirmBeforeEndingTurn', () => {
         const chat = agentTerminal({ id: 'terminal-2', surface: 'chat' });
         mocks.getBootstrap.mockReturnValue({
             terminals: [agentTerminal(), chat],
-            sessions: [session({ lastActivityState: 'idle' })],
+            sessions: [session({ agentActivityState: 'idle' })],
         } as unknown as BootstrapState);
         mocks.readAgentChatSnapshot.mockResolvedValue({ activeTurnId: 'turn-1' });
         const proceed = vi.fn();

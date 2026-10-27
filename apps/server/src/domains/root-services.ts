@@ -39,7 +39,7 @@ export async function acknowledgeFileMutation(
         throw new CaxriError('PATH_DENIED', 'File operation is outside the selected Project');
     if (operation.phase === 'completed' && operation.kind !== 'create' && operation.result) {
         database.remapWorkbenchEditorState(
-            operation.workbenchProjectId,
+            operation.workbenchRootProjectId,
             operation.id,
             operation.result.previousPath,
             operation.result.path,
@@ -65,12 +65,12 @@ export async function createRootServices({
             }),
         onSessionStateUnchanged: ({
             sessionId,
-            workbenchProjectId,
+            workbenchRootProjectId,
             unchangedWrites,
             totalWrites,
         }) =>
             logger.write('debug', logEventCatalog.database.sessionStateUnchanged, {
-                fields: { sessionId, workbenchProjectId, unchangedWrites, totalWrites },
+                fields: { sessionId, workbenchRootProjectId, unchangedWrites, totalWrites },
             }),
         onSessionStateRevisionAdvanced: ({ reason, revision, sessionId }) =>
             logger.write('info', logEventCatalog.database.sessionStateRevisionAdvanced, {

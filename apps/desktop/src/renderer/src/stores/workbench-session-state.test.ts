@@ -63,7 +63,7 @@ describe('workbench Session state', () => {
         const durableState: SessionState = {
             sessionId: 'session-1',
             revision: 0,
-            workbenchProjectId: 'project-1',
+            workbenchRootProjectId: 'project-1',
             desiredSecondarySidebarViewContainerId: 'caxri.files',
             paneLayout: paneLayout('/project/kept.ts'),
         };
@@ -99,7 +99,7 @@ describe('workbench Session state', () => {
         const durableState: SessionState = {
             sessionId: 'session-1',
             revision: 0,
-            workbenchProjectId: 'project-1',
+            workbenchRootProjectId: 'project-1',
             desiredSecondarySidebarViewContainerId: 'caxri.files',
             paneLayout: paneLayout('/project/kept.ts'),
         };
@@ -127,7 +127,7 @@ describe('workbench Session state', () => {
         const durableState: SessionState = {
             sessionId: 'session-1',
             revision: 0,
-            workbenchProjectId: 'project-1',
+            workbenchRootProjectId: 'project-1',
             desiredSecondarySidebarViewContainerId: 'caxri.files',
             paneLayout: paneLayout('/project/kept.ts'),
         };
@@ -169,7 +169,7 @@ describe('workbench Session state', () => {
         const filesState: SessionState = {
             sessionId: 'session-1',
             revision: 0,
-            workbenchProjectId: 'project-1',
+            workbenchRootProjectId: 'project-1',
             desiredSecondarySidebarViewContainerId: 'caxri.files',
             paneLayout: paneLayout(),
         };
@@ -205,7 +205,7 @@ describe('workbench Session state', () => {
         const filesState: SessionState = {
             sessionId: 'session-1',
             revision: 0,
-            workbenchProjectId: 'project-1',
+            workbenchRootProjectId: 'project-1',
             desiredSecondarySidebarViewContainerId: 'caxri.files',
             paneLayout: paneLayout(),
         };
@@ -261,7 +261,7 @@ describe('workbench Session state', () => {
         const sentState: SessionState = {
             sessionId: 'session-1',
             revision: 0,
-            workbenchProjectId: 'project-1',
+            workbenchRootProjectId: 'project-1',
             desiredSecondarySidebarViewContainerId: 'caxri.files',
             paneLayout: paneLayout('/project/kept.txt', '/project/closed.txt'),
         };
@@ -292,7 +292,7 @@ describe('workbench Session state', () => {
         const filesState: SessionState = {
             sessionId: 'session-1',
             revision: 0,
-            workbenchProjectId: 'project-1',
+            workbenchRootProjectId: 'project-1',
             desiredSecondarySidebarViewContainerId: 'caxri.files',
             paneLayout: paneLayout(),
         };
@@ -325,7 +325,7 @@ describe('workbench Session state', () => {
         const filesState: SessionState = {
             sessionId: 'session-1',
             revision: 0,
-            workbenchProjectId: 'project-1',
+            workbenchRootProjectId: 'project-1',
             desiredSecondarySidebarViewContainerId: 'caxri.files',
             paneLayout: paneLayout(),
         };
@@ -362,7 +362,7 @@ describe('workbench Session state', () => {
         const ownerState: SessionState = {
             sessionId: 'session-1',
             revision: 0,
-            workbenchProjectId: 'project-owner',
+            workbenchRootProjectId: 'project-owner',
             desiredSecondarySidebarViewContainerId: 'caxri.files',
             paneLayout: paneLayout('/owner/first.ts'),
         };
@@ -385,7 +385,7 @@ describe('workbench Session state', () => {
         const worktreeState: SessionState = {
             sessionId: 'session-1',
             revision: 0,
-            workbenchProjectId: 'project-worktree',
+            workbenchRootProjectId: 'project-worktree',
             desiredSecondarySidebarViewContainerId: 'caxri.git',
             paneLayout: paneLayout('/worktree/second.ts'),
         };
@@ -406,7 +406,7 @@ describe('workbench Session state', () => {
         const filesState: SessionState = {
             sessionId: 'session-1',
             revision: 0,
-            workbenchProjectId: 'project-1',
+            workbenchRootProjectId: 'project-1',
             desiredSecondarySidebarViewContainerId: 'caxri.files',
             paneLayout: paneLayout('/project/source.ts'),
         };
@@ -456,7 +456,7 @@ describe('workbench Session state', () => {
         const filesState: SessionState = {
             sessionId: 'session-1',
             revision: 0,
-            workbenchProjectId: 'project-1',
+            workbenchRootProjectId: 'project-1',
             desiredSecondarySidebarViewContainerId: 'caxri.files',
             paneLayout: paneLayout('/project/a.ts', '/project/b.ts'),
         };
@@ -518,7 +518,7 @@ describe('workbench Session state', () => {
         const filesState: SessionState = {
             sessionId: 'session-1',
             revision: 0,
-            workbenchProjectId: 'project-1',
+            workbenchRootProjectId: 'project-1',
             desiredSecondarySidebarViewContainerId: 'caxri.files',
             paneLayout: paneLayout(),
         };
@@ -568,7 +568,7 @@ describe('workbench Session state', () => {
         const filesState: SessionState = {
             sessionId: 'session-1',
             revision: 4,
-            workbenchProjectId: 'project-1',
+            workbenchRootProjectId: 'project-1',
             desiredSecondarySidebarViewContainerId: 'caxri.files',
             paneLayout: paneLayout(),
         };
@@ -625,7 +625,7 @@ describe('workbench Session state', () => {
         const filesState: SessionState = {
             sessionId: 'session-1',
             revision: 0,
-            workbenchProjectId: 'project-1',
+            workbenchRootProjectId: 'project-1',
             desiredSecondarySidebarViewContainerId: 'caxri.files',
             paneLayout: paneLayout('/project/a.ts'),
         };
@@ -649,7 +649,7 @@ describe('workbench Session state', () => {
         const filesState: SessionState = {
             sessionId: 'session-1',
             revision: 0,
-            workbenchProjectId: 'project-1',
+            workbenchRootProjectId: 'project-1',
             desiredSecondarySidebarViewContainerId: 'caxri.files',
             paneLayout: paneLayout('/project/a.ts'),
         };
@@ -670,7 +670,7 @@ describe('workbench Session state', () => {
         const filesState: SessionState = {
             sessionId: 'session-1',
             revision: 0,
-            workbenchProjectId: 'project-1',
+            workbenchRootProjectId: 'project-1',
             desiredSecondarySidebarViewContainerId: 'caxri.files',
             paneLayout: paneLayout(),
         };
@@ -699,7 +699,7 @@ describe('workbench Session state', () => {
         const read: SessionState = {
             sessionId: 'session-1',
             revision: 4,
-            workbenchProjectId: 'project-1',
+            workbenchRootProjectId: 'project-1',
             desiredSecondarySidebarViewContainerId: 'caxri.files',
             paneLayout: paneLayout('/project/read.ts'),
         };
@@ -755,7 +755,7 @@ describe('workbench Session state', () => {
         const stored: SessionState = {
             sessionId: 'session-1',
             revision: 4,
-            workbenchProjectId: 'project-1',
+            workbenchRootProjectId: 'project-1',
             desiredSecondarySidebarViewContainerId: 'caxri.files',
             paneLayout: paneLayout('/project/kept.ts'),
         };

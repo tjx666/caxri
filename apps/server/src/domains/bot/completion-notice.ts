@@ -172,7 +172,7 @@ export class BotCompletionNotifier {
          * because the Caxri Bot window is never a Workbench selection, so it would withhold every notice after the
          * Caxri Bot's first turn.
          */
-        if (!session || session.lastActivityState === 'waiting') return 'awaiting_permission';
+        if (!session || session.agentActivityState === 'waiting') return 'awaiting_permission';
         return { launchId: idle.launchId };
     }
 

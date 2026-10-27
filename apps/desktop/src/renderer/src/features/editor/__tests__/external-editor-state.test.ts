@@ -13,7 +13,7 @@ function sessionState(...paths: string[]): SessionState {
     return {
         sessionId: 'session-1',
         revision: 0,
-        workbenchProjectId: 'project-1',
+        workbenchRootProjectId: 'project-1',
         desiredSecondarySidebarViewContainerId: 'caxri.files',
         paneLayout: {
             root: {

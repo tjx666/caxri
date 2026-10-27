@@ -78,7 +78,7 @@ process.stdout.write('Synthetic caller ready\r\n');
         const callerSessionId = await createProjectSession(running.page, 'codex');
         await pageRequest(running.page, 'session.rename', {
             sessionId: callerSessionId,
-            displayTitle: 'Coordinator',
+            title: 'Coordinator',
         });
         await expect(running.page.locator('.xterm-rows')).toContainText('Synthetic caller ready');
         const context = JSON.parse(await readFile(contextPath, 'utf8')) as {
@@ -113,7 +113,7 @@ process.stdout.write('Synthetic caller ready\r\n');
         };
         const state = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');
         expect(state.sessions.find((session) => session.id === sessionId)).toMatchObject({
-            displayTitle: 'Reviewed README',
+            title: 'Reviewed README',
             createdBySessionId: callerSessionId,
         });
         expect(

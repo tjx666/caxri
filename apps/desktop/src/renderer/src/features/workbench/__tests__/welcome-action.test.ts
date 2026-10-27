@@ -3,14 +3,14 @@ import { describe, expect, it } from 'vitest';
 
 import { selectWelcomeAction } from '../welcome-action';
 
-function project(id: string, lastOpenedAt: number, extra: Partial<ProjectRecord> = {}) {
+function project(id: string, lastVisitedAt: number, extra: Partial<ProjectRecord> = {}) {
     return {
         id,
         rootPath: `/projects/${id}`,
-        displayTitle: id,
+        title: id,
         orderIndex: 0,
         createdAt: 0,
-        lastOpenedAt,
+        lastVisitedAt,
         ...extra,
     };
 }

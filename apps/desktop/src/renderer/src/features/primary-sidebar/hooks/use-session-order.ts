@@ -60,7 +60,7 @@ interface SessionOrderOptions {
  *
  * Returns the controller every row receives apart from the list it orders. The handlers read the records through a
  * latest-value ref instead of closing over them, because the records change on every Session switch: the Server stamps
- * the opened Session's `lastOpenedAt`, which replaces the list. A controller rebuilt from that list would reach every
+ * the opened Session's `lastVisitedAt`, which replaces the list. A controller rebuilt from that list would reach every
  * row as a new prop and render all of them again, when only the two rows whose selection moved have anything new to
  * show (issue #1356).
  */

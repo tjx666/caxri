@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 
 import { describeSessionAutoArchive } from './session-auto-archive-notice';
 
-function bootstrap(displayTitle: string): BootstrapState {
-    return { sessions: [{ id: 's1', displayTitle }] } as unknown as BootstrapState;
+function bootstrap(title: string): BootstrapState {
+    return { sessions: [{ id: 's1', title }] } as unknown as BootstrapState;
 }
 
 describe('describeSessionAutoArchive', () => {

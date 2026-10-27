@@ -550,13 +550,13 @@ test('executes one report-bound Android product scenario', async ({}) => {
                 await waitForMobile(
                     () =>
                         pageRequest<{
-                            sessions: Array<{ id: string; lastActivityState?: string }>;
+                            sessions: Array<{ id: string; agentActivityState?: string }>;
                         }>(fixture.running.page, 'app.bootstrap'),
                     (state) =>
                         state.sessions.some(
                             (session) =>
                                 session.id === fixture.allowedSessionId &&
-                                session.lastActivityState !== 'running',
+                                session.agentActivityState !== 'running',
                         ),
                 );
                 await capture(environment, 'stopped', artifacts);

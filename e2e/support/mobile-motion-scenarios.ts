@@ -194,7 +194,7 @@ async function swipeRows(environment: ScenarioEnvironment, artifacts: string[]) 
             );
             // eslint-disable-next-line no-await-in-loop -- each title follows its own creation.
             await pageRequest(fixture.running.page, 'session.rename', {
-                displayTitle: `Synthetic Session ${String(index).padStart(2, '0')}`,
+                title: `Synthetic Session ${String(index).padStart(2, '0')}`,
                 sessionId: session.id,
             });
             created.push(session.id);

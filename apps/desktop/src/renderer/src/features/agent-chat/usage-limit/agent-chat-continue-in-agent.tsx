@@ -41,7 +41,7 @@ function ContinuedInRow({ continuedIn }: { continuedIn: AgentChatContinuation })
     const { t } = useTranslation();
     const session = useSessions()?.find(({ id }) => id === continuedIn.sessionId);
     const title = session
-        ? sessionTitleForDisplay(session.displayTitle, t)
+        ? sessionTitleForDisplay(session.title, t)
         : resolveAgentIcon(continuedIn.provider).label;
     return (
         <div

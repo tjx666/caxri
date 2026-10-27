@@ -60,9 +60,9 @@ async function fixture() {
         title: nativeTitle,
         titleSource: nativeTitle === 'Analyze image' ? 'automatic' : undefined,
     });
-    const rename = vi.fn(({ displayTitle }: { displayTitle: string }) => {
-        nativeTitle = displayTitle;
-        return Promise.resolve({ displayTitle });
+    const rename = vi.fn(({ title }: { title: string }) => {
+        nativeTitle = title;
+        return Promise.resolve({ title });
     });
     const agents = new AgentService(
         undefined,
@@ -152,11 +152,11 @@ describe('Automatic Session rename synchronization', () => {
             await vi.waitFor(() =>
                 expect(f.database.automaticSessionNaming(f.sessionId)?.status).toBe('stopped'),
             );
-            expect(f.database.getSession(f.sessionId)?.displayTitle).toBe('Fix streaming 404');
+            expect(f.database.getSession(f.sessionId)?.title).toBe('Fix streaming 404');
             expect(generate).not.toHaveBeenCalled();
             f.setNativeTitle('Fix 404 retry');
             f.database.updateAgentMetadata(f.terminalId, f.snapshot());
-            expect(f.database.getSession(f.sessionId)?.displayTitle).toBe('Fix 404 retry');
+            expect(f.database.getSession(f.sessionId)?.title).toBe('Fix 404 retry');
         } finally {
             await service.close();
         }
@@ -275,7 +275,7 @@ describe('Automatic Session rename synchronization', () => {
             service.observe(event);
             expect(generate).toHaveBeenCalledTimes(3);
             await vi.advanceTimersByTimeAsync(60_000);
-            expect(f.database.getSession(f.sessionId)?.displayTitle).toBe('Concrete task title');
+            expect(f.database.getSession(f.sessionId)?.title).toBe('Concrete task title');
             expect(f.rename).toHaveBeenCalledOnce();
             expect(namingOptions().at(-1)).toMatchObject({
                 durationMs: expect.any(Number) as number,
@@ -332,7 +332,7 @@ describe('Automatic Session rename synchronization', () => {
             service.observe({ ...event, phase: 'turnFinished' });
             older.resolve('Obsolete task title');
             await vi.waitFor(() =>
-                expect(f.database.getSession(f.sessionId)?.displayTitle).toBe('Current task title'),
+                expect(f.database.getSession(f.sessionId)?.title).toBe('Current task title'),
             );
             expect(f.rename).toHaveBeenCalledOnce();
         } finally {
@@ -382,7 +382,7 @@ describe('Automatic Session rename synchronization', () => {
             await settled.promise;
             expect(f.rename).toHaveBeenCalledOnce();
             expect(f.database.getSession(f.sessionId)).toMatchObject({
-                displayTitle: 'User chosen name',
+                title: 'User chosen name',
                 titleMode: 'manual',
             });
         } finally {
@@ -473,7 +473,7 @@ describe('Automatic Session rename synchronization', () => {
             ...f.snapshot(),
             title: 'Native follow-up name',
         });
-        expect(f.database.getSession(f.sessionId)?.displayTitle).toBe('Native follow-up name');
+        expect(f.database.getSession(f.sessionId)?.title).toBe('Native follow-up name');
         expect(await f.automatic()).toBe(false);
         expect(f.rename).toHaveBeenCalledOnce();
     });
@@ -505,9 +505,7 @@ describe('Automatic Session rename synchronization', () => {
                     new AbortController().signal,
                 ),
             ).toBe(false);
-            expect(reopened.getSession(f.sessionId)?.displayTitle).toBe(
-                'Session title synchronization',
-            );
+            expect(reopened.getSession(f.sessionId)?.title).toBe('Session title synchronization');
             expect(f.rename).toHaveBeenCalledOnce();
         } finally {
             await coordinator.close();
@@ -533,7 +531,7 @@ describe('Automatic Session rename synchronization', () => {
             observedAt: 1,
         });
         expect(f.database.getSession(f.sessionId)).toMatchObject({
-            displayTitle: 'Session title synchronization',
+            title: 'Session title synchronization',
             titleMode: 'automatic',
         });
     });
@@ -547,7 +545,7 @@ describe('Automatic Session rename synchronization', () => {
             titleSource: 'explicit',
         });
         expect(f.database.getSession(f.sessionId)).toMatchObject({
-            displayTitle: 'User chosen title',
+            title: 'User chosen title',
             titleMode: 'manual',
         });
         expect(await f.automatic()).toBe(false);
@@ -566,21 +564,21 @@ describe('Automatic Session rename synchronization', () => {
         f.setNativeTitle('Recovered title');
         expect(await f.automatic()).toBe(true);
         expect(f.rename).not.toHaveBeenCalled();
-        expect(f.database.getSession(f.sessionId)?.displayTitle).toBe('Recovered title');
+        expect(f.database.getSession(f.sessionId)?.title).toBe('Recovered title');
     });
 
     it('serializes a manual request after an in-flight automatic write and leaves manual ownership', async () => {
         const f = await fixture();
-        const pending = Promise.withResolvers<{ displayTitle: string }>();
+        const pending = Promise.withResolvers<{ title: string }>();
         f.rename.mockImplementationOnce(() => pending.promise);
         const automatic = f.automatic();
         await vi.waitFor(() => expect(f.rename).toHaveBeenCalledOnce());
         const manual = f.renames.rename(f.sessionId, 'Manual final title');
-        pending.resolve({ displayTitle: 'Automatic intermediate title' });
+        pending.resolve({ title: 'Automatic intermediate title' });
         await automatic;
         await manual;
         expect(f.database.getSession(f.sessionId)).toMatchObject({
-            displayTitle: 'Manual final title',
+            title: 'Manual final title',
             titleMode: 'manual',
         });
         f.database.updateAgentMetadata(f.terminalId, {
@@ -588,27 +586,27 @@ describe('Automatic Session rename synchronization', () => {
             title: 'Late provider title',
             titleSource: 'explicit',
         });
-        expect(f.database.getSession(f.sessionId)?.displayTitle).toBe('Manual final title');
+        expect(f.database.getSession(f.sessionId)?.title).toBe('Manual final title');
     });
 
     it('does not follow a rebound primary Agent with a stale generated title', async () => {
         const f = await fixture();
-        const pending = Promise.withResolvers<{ displayTitle: string }>();
+        const pending = Promise.withResolvers<{ title: string }>();
         f.rename.mockImplementationOnce(() => pending.promise);
         const automatic = f.automatic();
         await vi.waitFor(() => expect(f.rename).toHaveBeenCalledOnce());
         f.database.rebindAgentSession(f.terminalId, 'codex', 'different-agent');
-        pending.resolve({ displayTitle: 'Old task title' });
+        pending.resolve({ title: 'Old task title' });
         expect(await automatic).toBe(false);
         expect(f.rename).toHaveBeenCalledOnce();
-        expect(f.database.getSession(f.sessionId)?.displayTitle).not.toBe('Old task title');
+        expect(f.database.getSession(f.sessionId)?.title).not.toBe('Old task title');
         f.database.updateAgentMetadata(f.terminalId, {
             ...f.snapshot(),
             sessionId: 'different-agent',
             title: 'New binding title',
             titleSource: 'automatic',
         });
-        expect(f.database.getSession(f.sessionId)?.displayTitle).toBe('New binding title');
+        expect(f.database.getSession(f.sessionId)?.title).toBe('New binding title');
         expect(f.database.automaticSessionNaming(f.sessionId)?.status).toBe('stopped');
     });
 });

@@ -197,7 +197,7 @@ export class SessionPullRequestService {
             : undefined;
         return JSON.stringify([
             session.rootPath,
-            session.workbenchProjectId,
+            session.workbenchRootProjectId,
             session.primaryAgentTerminalId,
             terminal?.provider,
             terminal?.agentSessionId,

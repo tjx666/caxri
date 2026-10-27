@@ -53,7 +53,7 @@ describe('MobileAccessController Project add, read-only panels, tree, and files'
                 });
             if (method === 'mobile.project.addInternal')
                 return Promise.resolve({
-                    project: { id: 'project-2', displayTitle: 'Added Project' },
+                    project: { id: 'project-2', title: 'Added Project' },
                 });
             throw new Error(`Unexpected method: ${method}`);
         });
@@ -76,7 +76,7 @@ describe('MobileAccessController Project add, read-only panels, tree, and files'
                     context,
                     domainService,
                 ),
-            ).resolves.toEqual({ project: { id: 'project-2', displayTitle: 'Added Project' } });
+            ).resolves.toEqual({ project: { id: 'project-2', title: 'Added Project' } });
             expect(request).toHaveBeenCalledWith('mobile.project.addInternal', {
                 path: 'code/demo',
                 principal,
@@ -349,7 +349,7 @@ describe('MobileAccessController Project add, read-only panels, tree, and files'
                 return Promise.resolve({
                     projectIds: ['project-1'],
                     sessionId: 'session-1',
-                    workbenchProjectId: 'project-1',
+                    workbenchRootProjectId: 'project-1',
                 });
             throw new Error(`Unexpected method: ${method}`);
         });
@@ -432,7 +432,7 @@ describe('MobileAccessController Project add, read-only panels, tree, and files'
                 return Promise.resolve({
                     projectIds: ['project-1'],
                     sessionId: 'session-1',
-                    workbenchProjectId: 'project-1',
+                    workbenchRootProjectId: 'project-1',
                 });
             throw new Error(`Unexpected method: ${method}`);
         });
@@ -475,7 +475,7 @@ describe('MobileAccessController Project add, read-only panels, tree, and files'
                 context: {
                     kind: 'session',
                     sessionId: 'session-1',
-                    workbenchProjectId: 'project-1',
+                    workbenchRootProjectId: 'project-1',
                 },
             });
         } finally {

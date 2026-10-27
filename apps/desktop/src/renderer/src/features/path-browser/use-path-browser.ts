@@ -91,7 +91,11 @@ function toBrowserError(value: unknown, fallback: string): Error {
     return pathBrowserError(value, fallback, isSshHost());
 }
 
-export function usePathBrowser(projectRoot: string, sessionId: string, workbenchProjectId: string) {
+export function usePathBrowser(
+    projectRoot: string,
+    sessionId: string,
+    workbenchRootProjectId: string,
+) {
     const { t } = useTranslation();
     const [snapshot, setSnapshot] = useState<PathBrowserSnapshot>();
     const [inputState, setInputState] = useState<PathBrowserInputState>({
@@ -107,7 +111,7 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
      * Read once per open: the dialog is modal, so the history cannot change under it, and the active file is left out
      * of the list (see `matchRecentFiles`).
      */
-    const [recentPaths, setRecentPaths] = useState(() => readRecentFiles(workbenchProjectId));
+    const [recentPaths, setRecentPaths] = useState(() => readRecentFiles(workbenchRootProjectId));
     const [activeFilePath] = useState(() => selectActiveFilePath(getBootstrap()));
     const debouncedInputState = useDebouncedValue(inputState, PATH_BROWSER_QUERY_DEBOUNCE_MS);
     const inputReference = useRef<HTMLInputElement>(null);
@@ -365,7 +369,7 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
                         document: result.document,
                         focus: true,
                         sessionId,
-                        workbenchProjectId,
+                        workbenchRootProjectId,
                     }),
                 );
             // No `throw` here: React Compiler cannot lower a throw inside a try/catch.
@@ -393,7 +397,7 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
         const opened = await openFileForSession(sessionId, file.path, { focus: true });
         // `openFileForSession` already reported the failure with a toast.
         if (opened === false) {
-            dropRecentFile(workbenchProjectId, file.path);
+            dropRecentFile(workbenchRootProjectId, file.path);
             setRecentPaths((current) => forgetRecentFile(current, file.path));
         } else closePathBrowser();
         setIsNavigating(false);

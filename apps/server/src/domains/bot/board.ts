@@ -59,13 +59,13 @@ export function botBoardGroup(
     now: number,
 ): BotBoardGroupId {
     if (session.hasUnread) return 'attention';
-    if (session.lastActivityState === 'failed') return 'failed';
+    if (session.agentActivityState === 'failed') return 'failed';
     const isAlive = terminal !== undefined && LIVE_PROCESS_STATES.has(rowProcessState(terminal));
-    if (session.lastActivityState === 'running') return isAlive ? 'working' : 'idle';
-    if (session.lastActivityState === 'waiting') return isAlive ? 'waiting' : 'idle';
+    if (session.agentActivityState === 'running') return isAlive ? 'working' : 'idle';
+    if (session.agentActivityState === 'waiting') return isAlive ? 'waiting' : 'idle';
     if (
-        session.lastActivityState === 'completed' &&
-        now - session.lastSessionActivityAt < BOT_FINISHED_RETENTION_MS
+        session.agentActivityState === 'completed' &&
+        now - session.sessionActivityAt < BOT_FINISHED_RETENTION_MS
     )
         return 'finished';
     return 'idle';
@@ -169,13 +169,13 @@ export function botBoard(input: {
                 group:
                     sessionGroup === 'attention' ? sessionGroup : (taskGroup(task) ?? sessionGroup),
                 projectId: project.id,
-                projectTitle: project.displayTitle,
+                projectTitle: project.title,
                 projectRoot: project.rootPath,
                 sessionId: session.id,
-                sessionTitle: session.displayTitle,
-                activityState: session.lastActivityState,
+                sessionTitle: session.title,
+                activityState: session.agentActivityState,
                 hasUnread: session.hasUnread,
-                lastActivityAt: session.lastSessionActivityAt,
+                lastActivityAt: session.sessionActivityAt,
                 agent: terminal
                     ? {
                           terminalId: terminal.id,
@@ -203,7 +203,7 @@ export function botBoard(input: {
         pullRequestsRefreshedAt: input.pullRequests.refreshedAt,
         projects: projects.slice(0, MAX_BOT_BOARD_ROWS).map((project) => ({
             id: project.id,
-            title: project.displayTitle,
+            title: project.title,
             rootPath: project.rootPath,
         })),
         rows: rows.slice(0, MAX_BOT_BOARD_ROWS),

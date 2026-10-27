@@ -145,7 +145,7 @@ export const useWorkbenchStore = createStore<WorkbenchState>('workbench', (set, 
         const previous = bootstrap.sessionStates.find(
             (state) =>
                 state.sessionId === next.sessionId &&
-                state.workbenchProjectId === next.workbenchProjectId,
+                state.workbenchRootProjectId === next.workbenchRootProjectId,
         );
         /**
          * Async UI work may finish after a root switch. Never make that stale root visible or submit a write Server
@@ -161,7 +161,7 @@ export const useWorkbenchStore = createStore<WorkbenchState>('workbench', (set, 
                 ...bootstrap,
                 sessionStates: bootstrap.sessionStates.map((state) =>
                     state.sessionId === next.sessionId &&
-                    state.workbenchProjectId === next.workbenchProjectId
+                    state.workbenchRootProjectId === next.workbenchRootProjectId
                         ? next
                         : state,
                 ),
@@ -262,7 +262,7 @@ export const useWorkbenchStore = createStore<WorkbenchState>('workbench', (set, 
                 (state) => state.sessionId === next.sessionId,
             );
             const isRootIsStillVisible =
-                visibleState?.workbenchProjectId === next.workbenchProjectId;
+                visibleState?.workbenchRootProjectId === next.workbenchRootProjectId;
             if (!isRetainLatest && isLatestAttempt && isRootIsStillVisible) {
                 recordExternalEditorState(previous);
                 set((current) => {
@@ -272,7 +272,7 @@ export const useWorkbenchStore = createStore<WorkbenchState>('workbench', (set, 
                             ...current.bootstrap,
                             sessionStates: current.bootstrap.sessionStates.map((state) =>
                                 state.sessionId === next.sessionId &&
-                                state.workbenchProjectId === next.workbenchProjectId
+                                state.workbenchRootProjectId === next.workbenchRootProjectId
                                     ? previous
                                     : state,
                             ),
@@ -305,7 +305,7 @@ function applySettledSessionState(settled: SessionState): void {
                 ...current.bootstrap,
                 sessionStates: current.bootstrap.sessionStates.map((state) =>
                     state.sessionId === settled.sessionId &&
-                    state.workbenchProjectId === settled.workbenchProjectId
+                    state.workbenchRootProjectId === settled.workbenchRootProjectId
                         ? settled
                         : state,
                 ),
@@ -402,14 +402,14 @@ async function runRecordRefresh(
 /**
  * Shows a Session title before the Server confirms it; see `workbench-session-titles.ts` for how snapshots keep it.
  */
-export function showSessionTitle(sessionId: string, displayTitle: string): void {
+export function showSessionTitle(sessionId: string, title: string): void {
     useWorkbenchStore.setState((current) => {
         if (!current.bootstrap) return current;
         return {
             bootstrap: {
                 ...current.bootstrap,
                 sessions: current.bootstrap.sessions.map((session) =>
-                    session.id === sessionId ? { ...session, displayTitle } : session,
+                    session.id === sessionId ? { ...session, title } : session,
                 ),
             },
         };
@@ -500,7 +500,7 @@ function isSessionStatePersisted(next: SessionState): boolean {
         .bootstrap?.sessionStates.find(
             (state) =>
                 state.sessionId === next.sessionId &&
-                state.workbenchProjectId === next.workbenchProjectId,
+                state.workbenchRootProjectId === next.workbenchRootProjectId,
         );
     return previous !== undefined && isEqual(previous, next);
 }
@@ -543,10 +543,10 @@ export function persistSessionState(
  * Reads the root this Session is currently showing. Called synchronously while handling `workbench.changed` it still
  * observes the pre-change snapshot, because the `state.changed` emitted alongside it only schedules a refresh.
  */
-function currentWorkbenchProjectId(sessionId: string): string | undefined {
+function currentWorkbenchRootProjectId(sessionId: string): string | undefined {
     return useWorkbenchStore
         .getState()
-        .bootstrap?.sessions.find((session) => session.id === sessionId)?.workbenchProjectId;
+        .bootstrap?.sessions.find((session) => session.id === sessionId)?.workbenchRootProjectId;
 }
 
 /**
@@ -632,7 +632,7 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
                 dismissWorkbenchRootCandidate(event.payload.sessionId);
                 reportWorkbenchRootChange(
                     event.payload,
-                    currentWorkbenchProjectId(event.payload.sessionId),
+                    currentWorkbenchRootProjectId(event.payload.sessionId),
                 );
                 return;
             case 'window.fullScreen':

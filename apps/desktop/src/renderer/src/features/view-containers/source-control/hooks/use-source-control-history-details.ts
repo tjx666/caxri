@@ -29,7 +29,7 @@ export function useSourceControlHistoryDetails(
         viewId,
         'source.historyDetails',
         request,
-        session ? `${session.id}:${session.workbenchProjectId}` : undefined,
+        session ? `${session.id}:${session.workbenchRootProjectId}` : undefined,
     );
     useCancelViewContainerQueryWhenHidden(queryKey, isContainerActive);
     return useQuery({

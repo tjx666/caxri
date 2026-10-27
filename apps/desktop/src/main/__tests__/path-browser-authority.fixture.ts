@@ -36,15 +36,15 @@ function server(request: (method: string, parameters?: unknown) => Promise<unkno
 export function bootstrap(ownerRoot: string, workbenchRoot: string) {
     return {
         projects: [
-            { id: 'project-owner', displayTitle: 'Owner', rootPath: ownerRoot },
-            { id: 'project-worktree', displayTitle: 'Worktree', rootPath: workbenchRoot },
+            { id: 'project-owner', title: 'Owner', rootPath: ownerRoot },
+            { id: 'project-worktree', title: 'Worktree', rootPath: workbenchRoot },
         ],
         sessions: [
             {
                 id: 'session-1',
                 archivedAt: undefined,
                 projectId: 'project-owner',
-                workbenchProjectId: 'project-worktree',
+                workbenchRootProjectId: 'project-worktree',
             },
         ],
         selectedSessionId: 'session-1',

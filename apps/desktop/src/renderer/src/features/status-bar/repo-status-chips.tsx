@@ -53,7 +53,11 @@ function PullRequestWorktreeSwitch({ branch, sessionId }: { branch: string; sess
         { sessionId },
         { staleTime: WORKBENCH_ROOTS_STALE_MS },
     );
-    const root = workbenchRootForBranch(rootsQuery.data ?? [], branch, session?.workbenchProjectId);
+    const root = workbenchRootForBranch(
+        rootsQuery.data ?? [],
+        branch,
+        session?.workbenchRootProjectId,
+    );
     if (!root) return null;
     return (
         <Button

@@ -25,11 +25,11 @@ describe('session.rename parameters', () => {
         const schema = methods['session.rename'].params;
 
         expect(() =>
-            schema.parse({ sessionId: 'session-1', displayTitle: 'First line\n/compact' }),
+            schema.parse({ sessionId: 'session-1', title: 'First line\n/compact' }),
         ).toThrow('Session name must be a single line without control characters');
         expect(
-            schema.parse({ sessionId: 'session-1', displayTitle: '  Focused investigation  ' }),
-        ).toEqual({ sessionId: 'session-1', displayTitle: 'Focused investigation' });
+            schema.parse({ sessionId: 'session-1', title: '  Focused investigation  ' }),
+        ).toEqual({ sessionId: 'session-1', title: 'Focused investigation' });
     });
 });
 

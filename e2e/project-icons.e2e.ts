@@ -30,7 +30,7 @@ test('customizes, persists, and clears a controlled Project icon', async () => {
     try {
         await createProjectSession(running.page);
         const initial = await pageRequest<{
-            projects: Array<{ displayTitle: string; id: string; rootPath: string }>;
+            projects: Array<{ title: string; id: string; rootPath: string }>;
         }>(running.page, 'app.bootstrap');
         if (initial.projects.length !== 1)
             throw new Error('Custom Project fixture was not created');
@@ -49,7 +49,7 @@ test('customizes, persists, and clears a controlled Project icon', async () => {
         await expect(running.page.locator('.project-details-card')).toBeVisible();
         await customHeading
             .getByRole('button', {
-                name: `Customize Project Icon for ${customProject.displayTitle}`,
+                name: `Customize Project Icon for ${customProject.title}`,
             })
             .click();
         const dialog = running.page.getByRole('dialog', { name: 'Customize Project Icon' });

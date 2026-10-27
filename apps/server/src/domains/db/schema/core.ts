@@ -107,10 +107,10 @@ export const projects = sqliteTable(
     {
         id: text('id').primaryKey(),
         rootPath: text('root_path').notNull(),
-        displayTitle: text('display_title').notNull(),
+        title: text('title').notNull(),
         orderIndex: integer('order_index').notNull().default(0),
         createdAt: integer('created_at').notNull(),
-        lastOpenedAt: integer('last_opened_at').notNull(),
+        lastVisitedAt: integer('last_visited_at').notNull(),
         iconName: text('icon_name'),
         iconColor: text('icon_color'),
         /**
@@ -132,7 +132,7 @@ export const projects = sqliteTable(
          * `ProjectChatDefaults` JSON: the permission level and plan mode new Chats start with, per provider. Validated
          * on read; an unreadable value counts as none, so new Chats fall back to their launch settings.
          */
-        chatDefaults: text('chat_defaults', { mode: 'json' }),
+        chatDefaults: text('chat_defaults_json', { mode: 'json' }),
     },
     (table) => [
         unique().on(table.rootPath),
@@ -152,7 +152,7 @@ export const sessions = sqliteTable(
          * Null means "use the owning Project"; a non-null value names an alternate authorized root, such as a linked
          * worktree Project.
          */
-        workbenchProjectId: text('workbench_project_id').references(() => projects.id, {
+        workbenchRootProjectId: text('workbench_root_project_id').references(() => projects.id, {
             onDelete: 'set null',
         }),
         /**
@@ -166,18 +166,16 @@ export const sessions = sqliteTable(
          */
         workbenchRootInode: text('workbench_root_inode'),
         createdAt: integer('created_at').notNull(),
-        lastOpenedAt: integer('last_opened_at').notNull(),
+        lastVisitedAt: integer('last_visited_at').notNull(),
         /**
          * Product-owned recency for meaningful Session work; every insert supplies a real value.
          */
-        lastSessionActivityAt: integer('last_session_activity_at').notNull(),
+        sessionActivityAt: integer('session_activity_at').notNull(),
         /**
          * Explicit sidebar position; dragging must never manufacture Session activity.
          */
         sidebarOrder: integer('sidebar_order').notNull().default(0),
-        lastSessionActivityReason: text('last_session_activity_reason')
-            .notNull()
-            .default('created'),
+        sessionActivityReason: text('session_activity_reason').notNull(),
         archivedAt: integer('archived_at'),
         /**
          * Null means not pinned. Pinning is a durable user choice and deliberately writes neither `sidebar_order` nor
@@ -199,12 +197,14 @@ export const sessions = sqliteTable(
             (): AnySQLiteColumn => terminals.id,
             { onDelete: 'set null' },
         ),
-        lastActivityState: text('last_activity_state').notNull().default('idle'),
-        attentionEpoch: integer('attention_epoch').notNull().default(0),
-        readAttentionEpoch: integer('read_attention_epoch').notNull().default(0),
+        agentActivityState: text('agent_activity_state').notNull().default('idle'),
+        attentionGeneration: integer('attention_generation').notNull().default(0),
+        acknowledgedAttentionGeneration: integer('acknowledged_attention_generation')
+            .notNull()
+            .default(0),
         lastAttentionKind: text('last_attention_kind'),
         lastViewedAt: integer('last_viewed_at'),
-        displayTitle: text('display_title').notNull(),
+        title: text('title').notNull(),
         titleMode: text('title_mode').notNull().default('automatic'),
         /**
          * The Session whose Agent created this one through `agent delegate create --new-session` or `bot session
@@ -216,7 +216,7 @@ export const sessions = sqliteTable(
             (): AnySQLiteColumn => sessions.id,
             { onDelete: 'set null' },
         ),
-        automaticNaming: text('automatic_naming', { mode: 'json' }).$type<{
+        automaticNaming: text('automatic_naming_json', { mode: 'json' }).$type<{
             agentSessionId: string;
             terminalId: string;
             provider: string;
@@ -232,20 +232,20 @@ export const sessions = sqliteTable(
          * Matches `SessionsModel.list`'s `created_at, id` order; sidebar and activity ordering are applied in memory.
          */
         index('sessions_project_created').on(table.projectId, table.createdAt, table.id),
-        index('sessions_workbench_project').on(table.workbenchProjectId),
+        index('sessions_workbench_root_project').on(table.workbenchRootProjectId),
         index('sessions_primary_agent_terminal').on(table.primaryAgentTerminalId),
         index('sessions_created_by').on(table.createdBySessionId),
         check(
-            'sessions_last_activity_state',
-            isOneOf(table.lastActivityState, agentActivityStates),
+            'sessions_agent_activity_state',
+            isOneOf(table.agentActivityState, agentActivityStates),
         ),
         check(
             'sessions_last_attention_kind',
             isOneOf(table.lastAttentionKind, sessionAttentionKinds),
         ),
         check(
-            'sessions_last_session_activity_reason',
-            isOneOf(table.lastSessionActivityReason, sessionActivityReasons),
+            'sessions_session_activity_reason',
+            isOneOf(table.sessionActivityReason, sessionActivityReasons),
         ),
         check('sessions_title_mode', isOneOf(table.titleMode, sessionTitleModes)),
     ],
@@ -303,7 +303,7 @@ export const terminals = sqliteTable(
          */
         chatPermissionMode: text('chat_permission_mode'),
         /**
-         * 1 while a Chat's plan mode is on; null or 0 otherwise.
+         * 1 while a Chat's plan mode is on; null otherwise, so "off" has one representation.
          */
         chatPlanMode: integer('chat_plan_mode'),
         /**
@@ -333,7 +333,7 @@ export const terminals = sqliteTable(
             'terminals_chat_permission_mode',
             isOneOf(table.chatPermissionMode, agentChatPermissionModes),
         ),
-        check('terminals_chat_plan_mode', sql`${table.chatPlanMode} IN (0, 1)`),
+        check('terminals_chat_plan_mode', sql`${table.chatPlanMode} = 1`),
     ],
 );
 
@@ -354,11 +354,11 @@ export const terminalSnapshots = sqliteTable('terminal_snapshots', {
  * Renderer-owned JSON is validated through the shared Session-state schema on every read. `state_version` selects the
  * reader/repair path before any blob is decoded.
  */
-export const sessionState = sqliteTable('session_state', {
+export const sessionViews = sqliteTable('session_views', {
     sessionId: text('session_id')
         .primaryKey()
         .references(() => sessions.id, { onDelete: 'cascade' }),
-    stateVersion: integer('state_version').notNull().default(CURRENT_SESSION_STATE_VERSION),
+    stateVersion: integer('state_version').notNull(),
     /**
      * Optimistic-concurrency token, incremented on every write that actually changes this row. Unrelated to
      * `state_version`, which is the storage-schema version and is identical for every row under one schema. A write
@@ -370,7 +370,7 @@ export const sessionState = sqliteTable('session_state', {
      * Root-local Workbench snapshots keyed by authorized Project ID. One unified pane tree per Root holds Terminals and
      * documents alike; Terminal processes themselves stay Session-global.
      */
-    workbenchStateJson: text('workbench_state_json').notNull().default('{}'),
+    rootsJson: text('roots_json').notNull().default('{}'),
     desiredSecondarySidebarViewContainerId: text(
         'desired_secondary_sidebar_view_container_id',
     ).notNull(),
@@ -413,14 +413,13 @@ export const agentDispatchReceipts = sqliteTable(
         updatedAt: integer('updated_at').notNull(),
     },
     (table) => [
-        index('agent_dispatch_project_updated').on(
-            table.projectId,
-            table.updatedAt,
-            table.dispatchId,
-        ),
-        index('agent_dispatch_terminal_updated').on(
+        /**
+         * Matches `forTerminal`'s `created_at, dispatch_id` order. No query filters by Project, so no index leads with
+         * it.
+         */
+        index('agent_dispatch_terminal_created').on(
             table.terminalId,
-            table.updatedAt,
+            table.createdAt,
             table.dispatchId,
         ),
         check('agent_dispatch_operation', isOneOf(table.operation, agentDispatchOperations)),

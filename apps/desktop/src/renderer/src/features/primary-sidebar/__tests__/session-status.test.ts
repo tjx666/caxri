@@ -4,14 +4,14 @@ import { describe, expect, it } from 'vitest';
 import { sessionStatus, summarizeSessionStatuses } from '../session-status';
 
 function sessionSource(
-    lastActivityState: AgentActivityState,
+    agentActivityState: AgentActivityState,
     overrides: Partial<
-        Pick<SessionRecord, 'hasUnread' | 'lastActivityState' | 'lastAttentionKind'>
+        Pick<SessionRecord, 'hasUnread' | 'agentActivityState' | 'lastAttentionKind'>
     > = {},
-): Pick<SessionRecord, 'hasUnread' | 'lastActivityState' | 'lastAttentionKind'> {
+): Pick<SessionRecord, 'hasUnread' | 'agentActivityState' | 'lastAttentionKind'> {
     return {
         hasUnread: false,
-        lastActivityState,
+        agentActivityState,
         lastAttentionKind: undefined,
         ...overrides,
     };
@@ -52,7 +52,7 @@ describe('Session list status', () => {
 
     /**
      * The amber slot is a call to open the Session, so reading it is the only thing that clears it and nothing else may
-     * bring it back. A second static amber state keyed off `lastActivityState` used to outlive acknowledgement, which
+     * bring it back. A second static amber state keyed off `agentActivityState` used to outlive acknowledgement, which
      * left an already-read Session marked for as long as its Agent sat at an empty prompt.
      */
     it.each<AgentActivityState>(['waiting', 'completed', 'failed', 'idle', 'running', 'unknown'])(

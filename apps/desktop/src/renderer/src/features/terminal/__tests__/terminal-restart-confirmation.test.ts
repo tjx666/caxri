@@ -49,7 +49,7 @@ const runningAgent = {
 const runningBootstrap = {
     terminals: [runningAgent],
     sessions: [
-        { id: 'session-1', primaryAgentTerminalId: 'terminal-1', lastActivityState: 'running' },
+        { id: 'session-1', primaryAgentTerminalId: 'terminal-1', agentActivityState: 'running' },
     ],
 } as unknown as BootstrapState;
 

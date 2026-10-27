@@ -82,7 +82,7 @@ describe('AgentCoordinator provider title propagation', () => {
             await expect
                 .poll(() => database.getTerminal(created.terminal!.id)?.agentSessionId)
                 .toBe(claudeSessionId);
-            expect(database.getSession(created.session.id)?.displayTitle).toBe('Untitled');
+            expect(database.getSession(created.session.id)?.title).toBe('Untitled');
         } finally {
             await coordinator.close();
             database.close();
@@ -147,7 +147,7 @@ describe('AgentCoordinator provider title propagation', () => {
             await expect
                 .poll(() => database.getTerminal(created.terminal!.id)?.agentSessionId)
                 .toBe(codexSessionId);
-            expect(database.getSession(created.session.id)?.displayTitle).toBe('Untitled');
+            expect(database.getSession(created.session.id)?.title).toBe('Untitled');
 
             const updatedState = new Database(join(stateDirectory, 'state_1.sqlite'));
             updatedState
@@ -157,10 +157,8 @@ describe('AgentCoordinator provider title propagation', () => {
             coordinator.observeOutput(created.terminal!.id);
 
             await new Promise((resolve) => setTimeout(resolve, 25));
-            expect(database.getSession(created.session.id)?.displayTitle).toBe('Untitled');
-            expect(database.getSession(created.session.id)?.displayTitle).not.toContain(
-                provisionalTitle,
-            );
+            expect(database.getSession(created.session.id)?.title).toBe('Untitled');
+            expect(database.getSession(created.session.id)?.title).not.toContain(provisionalTitle);
 
             const finalState = new Database(join(stateDirectory, 'state_1.sqlite'));
             finalState
@@ -170,7 +168,7 @@ describe('AgentCoordinator provider title propagation', () => {
             coordinator.observeOutput(created.terminal!.id);
 
             await expect
-                .poll(() => database.getSession(created.session.id)?.displayTitle)
+                .poll(() => database.getSession(created.session.id)?.title)
                 .toBe('Refine Session Naming');
         } finally {
             await coordinator.close();

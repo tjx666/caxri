@@ -66,7 +66,7 @@ test('a slow Agent rename shows at once and reverts with a toast when it fails',
     const serverTitle = async (sessionId: string) =>
         (await pageRequest<BootstrapState>(running.page, 'app.bootstrap', {})).sessions.find(
             ({ id }) => id === sessionId,
-        )?.displayTitle;
+        )?.title;
     const rename = async (sessionId: string, title: string) => {
         const card = sessionCard(running.page, sessionId);
         await card.dblclick();

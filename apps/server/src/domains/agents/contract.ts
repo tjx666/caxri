@@ -95,7 +95,7 @@ export interface AgentProbeCacheCounters extends Record<string, number> {
 export interface AgentSessionRenameContext {
     agentSessionId: string;
     cwd: string;
-    displayTitle: string;
+    title: string;
     signal?: AbortSignal;
 }
 
@@ -103,7 +103,7 @@ export interface AgentSessionRenameResult {
     /**
      * The provider-authoritative name. Providers may add a suffix to keep native names unique.
      */
-    displayTitle: string;
+    title: string;
 }
 
 /**

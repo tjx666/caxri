@@ -37,7 +37,7 @@ export function searchSessionReferences(
     currentSessionId: string | undefined,
     query: string,
 ): SessionReferenceCandidate[] {
-    const projectTitles = new Map(projects?.map((project) => [project.id, project.displayTitle]));
+    const projectTitles = new Map(projects?.map((project) => [project.id, project.title]));
     return (sessions ?? [])
         .flatMap((session) => {
             if (
@@ -46,20 +46,20 @@ export function searchSessionReferences(
                 !session.primaryAgentTerminalId
             )
                 return [];
-            const tier = titleMatchTier(session.displayTitle, query.trim());
+            const tier = titleMatchTier(session.title, query.trim());
             return tier === undefined ? [] : [{ session, tier }];
         })
         .toSorted(
             (left, right) =>
                 left.tier - right.tier ||
-                right.session.lastOpenedAt - left.session.lastOpenedAt ||
+                right.session.lastVisitedAt - left.session.lastVisitedAt ||
                 left.session.id.localeCompare(right.session.id),
         )
         .slice(0, MAX_SESSION_REFERENCE_CANDIDATES)
         .map(({ session }) => ({
             projectTitle: projectTitles.get(session.projectId),
             sessionId: session.id,
-            title: session.displayTitle,
+            title: session.title,
         }));
 }
 

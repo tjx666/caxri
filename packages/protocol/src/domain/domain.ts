@@ -65,10 +65,10 @@ export type SessionTitleMode = z.infer<typeof sessionTitleModeSchema>;
 export const projectRecordSchema = z.object({
     id: identifierSchema,
     rootPath: pathSchema,
-    displayTitle: z.string(),
+    title: z.string(),
     orderIndex: z.number().int().nonnegative(),
     createdAt: z.number(),
-    lastOpenedAt: z.number(),
+    lastVisitedAt: z.number(),
     icon: projectIconSchema.optional(),
     /**
      * Present only on a worktree Project Caxri auto-registered on the named owner's behalf. Such a Project keeps every
@@ -109,7 +109,7 @@ export function isTopLevelProject(project: Pick<ProjectRecord, 'ownerProjectId'>
  */
 export const humanProjectSchema = projectRecordSchema.pick({
     id: true,
-    displayTitle: true,
+    title: true,
     ownerProjectId: true,
     rootPath: true,
 });
@@ -117,7 +117,7 @@ export const humanProjectSchema = projectRecordSchema.pick({
 /**
  * What every non-human principal sees: an opaque id and a title, never a path.
  */
-export const scopedProjectSchema = projectRecordSchema.pick({ id: true, displayTitle: true });
+export const scopedProjectSchema = projectRecordSchema.pick({ id: true, title: true });
 
 export const sessionRecordSchema = z.object({
     id: identifierSchema,
@@ -128,23 +128,23 @@ export const sessionRecordSchema = z.object({
     /**
      * Independently authorized Project currently used by Files, Editor, Git, and new Terminal cwd defaults.
      */
-    workbenchProjectId: identifierSchema,
+    workbenchRootProjectId: identifierSchema,
     /**
      * Workbench Project root projected onto the Session read model for path-scoped services.
      */
     rootPath: pathSchema,
     createdAt: z.number(),
-    lastOpenedAt: z.number(),
+    lastVisitedAt: z.number(),
     /**
      * Latest meaningful Session work event. This is independent from both visit history and the Primary Agent's current
-     * `lastActivityState`.
+     * `agentActivityState`.
      */
-    lastSessionActivityAt: z.number(),
+    sessionActivityAt: z.number(),
     /**
      * Ascending sidebar position, changed by dragging or meaningful activity.
      */
     sidebarOrder: z.number().int(),
-    lastSessionActivityReason: sessionActivityReasonSchema,
+    sessionActivityReason: sessionActivityReasonSchema,
     /**
      * Archived Sessions stay durable and keep their Terminals; only active navigation hides them.
      */
@@ -169,15 +169,15 @@ export const sessionRecordSchema = z.object({
      * The first Agent CLI Terminal owns the Session title; Shell-only Sessions leave this empty.
      */
     primaryAgentTerminalId: identifierSchema.optional(),
-    lastActivityState: agentActivityStateSchema,
+    agentActivityState: agentActivityStateSchema,
     /**
      * Monotonic generation of reliable Primary Agent attention events.
      */
-    attentionEpoch: z.number().int().nonnegative(),
+    attentionGeneration: z.number().int().nonnegative(),
     /**
      * Latest generation acknowledged after the Session was visibly focused.
      */
-    readAttentionEpoch: z.number().int().nonnegative(),
+    acknowledgedAttentionGeneration: z.number().int().nonnegative(),
     lastAttentionKind: sessionAttentionKindSchema.optional(),
     /**
      * When the user last stopped looking at this Session in a focused, visible Desktop window, recorded by Server Core
@@ -189,7 +189,7 @@ export const sessionRecordSchema = z.object({
      * Derived read-model field; SQLite stores only the two epochs above.
      */
     hasUnread: z.boolean(),
-    displayTitle: z.string(),
+    title: z.string(),
     /**
      * Automatic titles follow the primary Agent; manual titles are owned by the user.
      */
@@ -239,7 +239,7 @@ export const workbenchRootOptionSchema = z
         rootPath: pathSchema,
         isMain: z.boolean(),
         createdAt: z.number().positive().optional(),
-        displayTitle: z.string().min(1).max(1_024),
+        title: z.string().min(1).max(1_024),
         branch: z.string().min(1).max(1_024),
         owner: z.boolean(),
         /**
@@ -329,7 +329,7 @@ const fileMutationPhaseSchema = z.enum(['pre_stage', 'staged', 'completed', 'fai
 const fileMutationOperationBase = {
     id: identifierSchema,
     sessionId: identifierSchema,
-    workbenchProjectId: identifierSchema,
+    workbenchRootProjectId: identifierSchema,
     phase: fileMutationPhaseSchema,
     startedAt: z.number(),
     updatedAt: z.number(),

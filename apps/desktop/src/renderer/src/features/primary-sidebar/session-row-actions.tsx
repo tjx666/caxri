@@ -38,7 +38,7 @@ export function SessionRowActions({ session }: { session: SessionRecord }) {
                     type="button"
                     className={`${sessionRowActionButton} aria-pressed:text-accent`}
                     aria-label={t('primarySidebar.sessionRow.pinAriaLabel', {
-                        title: sessionTitleForDisplay(session.displayTitle, t),
+                        title: sessionTitleForDisplay(session.title, t),
                     })}
                     aria-pressed={pinned}
                     tabIndex={-1}
@@ -52,7 +52,7 @@ export function SessionRowActions({ session }: { session: SessionRecord }) {
                     type="button"
                     className={sessionRowActionButton}
                     aria-label={t('primarySidebar.sessionRow.archiveAriaLabel', {
-                        title: sessionTitleForDisplay(session.displayTitle, t),
+                        title: sessionTitleForDisplay(session.title, t),
                     })}
                     aria-keyshortcuts="Delete"
                     tabIndex={-1}

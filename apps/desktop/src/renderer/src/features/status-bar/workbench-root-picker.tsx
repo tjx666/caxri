@@ -63,7 +63,7 @@ function WorktreeOption({
         >
             <CommandItem
                 value={root.worktreeId}
-                keywords={[root.branch, root.displayTitle, root.rootPath]}
+                keywords={[root.branch, root.title, root.rootPath]}
                 aria-label={[label, authorization, root.isMain ? mainWorktree : '']
                     .filter(Boolean)
                     .join(t('statusBar.listSeparator'))}
@@ -312,11 +312,11 @@ function WorkbenchRootPickerContent({ branch, sessionId }: WorkbenchRootPickerPr
     const picker = useWorkbenchRootPicker(
         sessionId,
         Boolean(session) && !isWorktree,
-        session?.workbenchProjectId,
+        session?.workbenchRootProjectId,
     );
     if (!session || !workbenchProject) return null;
     const roots = picker.rootsQuery.data ?? [];
-    const current = roots.find((root) => root.projectId === session.workbenchProjectId);
+    const current = roots.find((root) => root.projectId === session.workbenchRootProjectId);
     return (
         <Popover open={picker.open} onOpenChange={picker.changeOpen}>
             <WorkbenchRootTrigger
@@ -325,7 +325,7 @@ function WorkbenchRootPickerContent({ branch, sessionId }: WorkbenchRootPickerPr
                 isSwitching={picker.switching}
                 switchingLabel={picker.switchingLabel}
                 isWorktree={isWorktree}
-                title={workbenchProject.displayTitle}
+                title={workbenchProject.title}
                 rootPath={workbenchProject.rootPath}
                 suggestedBranch={conversationWorkbenchRootSuggestion(roots, isWorktree, t)}
             />
@@ -354,7 +354,7 @@ function WorkbenchRootPickerContent({ branch, sessionId }: WorkbenchRootPickerPr
                         <PickerQueryStatus noun="worktrees" query={picker.rootsQuery} />
                         <WorktreeList
                             roots={roots}
-                            currentProjectId={session.workbenchProjectId}
+                            currentProjectId={session.workbenchRootProjectId}
                             picker={picker}
                         />
                     </CommandList>

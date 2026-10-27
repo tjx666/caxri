@@ -19,13 +19,13 @@ function installTabs(paths: readonly string[], activeIndex: number): void {
             projects: [],
             selectedSessionId: 'session-1',
             sessions: [
-                { id: 'session-1', projectId: 'project-1', workbenchProjectId: 'project-1' },
+                { id: 'session-1', projectId: 'project-1', workbenchRootProjectId: 'project-1' },
             ],
             sessionStates: [
                 {
                     sessionId: 'session-1',
                     revision: 0,
-                    workbenchProjectId: 'project-1',
+                    workbenchRootProjectId: 'project-1',
                     desiredSecondarySidebarViewContainerId: 'caxri.files',
                     paneLayout: {
                         root: {

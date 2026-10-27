@@ -76,11 +76,11 @@ function FileDiffResult({
         : undefined;
     const absolutePath = resolveRepoFilePath(repo?.rootPath, document.path);
     const browseContext =
-        repo && absolutePath && paneSession?.id === sessionId && paneSession.workbenchProjectId
+        repo && absolutePath && paneSession?.id === sessionId && paneSession.workbenchRootProjectId
             ? {
                   absolutePath,
                   projectRoot: repo.rootPath,
-                  workbenchProjectId: paneSession.workbenchProjectId,
+                  workbenchRootProjectId: paneSession.workbenchRootProjectId,
               }
             : undefined;
     return (
@@ -97,7 +97,7 @@ function FileDiffResult({
                         path={browseContext.absolutePath}
                         projectRoot={browseContext.projectRoot}
                         sessionId={sessionId}
-                        workbenchProjectId={browseContext.workbenchProjectId}
+                        workbenchRootProjectId={browseContext.workbenchRootProjectId}
                     />
                 ) : (
                     <EditorPathBreadcrumbs

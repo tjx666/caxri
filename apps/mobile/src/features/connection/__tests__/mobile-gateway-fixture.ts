@@ -112,7 +112,7 @@ export class FakeGatewaySocket extends EventTarget {
                 ok: true,
                 result: {
                     view: 'paired-device',
-                    projects: [{ id: 'project-1', displayTitle: 'Fixture' }],
+                    projects: [{ id: 'project-1', title: 'Fixture' }],
                 },
             },
         });

@@ -172,7 +172,7 @@ test('A Source Control action that loses the race to a background refresh still 
         // click and the action: it advances the provider's model revision while the panel still holds the old one.
         const bootstrap = await pageRequest<{
             selectedSessionId: string;
-            sessions: Array<{ id: string; workbenchProjectId: string }>;
+            sessions: Array<{ id: string; workbenchRootProjectId: string }>;
         }>(page, 'app.bootstrap');
         const session = bootstrap.sessions.find(({ id }) => id === bootstrap.selectedSessionId)!;
         await pageRequest(page, 'viewContainers.viewOperation', {
@@ -183,7 +183,7 @@ test('A Source Control action that loses the race to a background refresh still 
             context: {
                 kind: 'session',
                 sessionId: session.id,
-                workbenchProjectId: session.workbenchProjectId,
+                workbenchRootProjectId: session.workbenchRootProjectId,
             },
         });
         await running.app.evaluate(({ dialog }) => {

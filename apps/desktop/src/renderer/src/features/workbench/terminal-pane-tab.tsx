@@ -65,7 +65,7 @@ export function TerminalPaneTab({
     const isCompacting = terminal.agentOperation === 'compacting';
     const ProgressIcon =
         progress?.kind === 'error' ? CircleAlert : progress?.kind === 'paused' ? Pause : undefined;
-    const displayTitle = terminalDisplayTitle(terminal);
+    const title = terminalDisplayTitle(terminal);
     return (
         <WorkTab
             active={active}
@@ -112,8 +112,8 @@ export function TerminalPaneTab({
             closable={closable}
             closeLabel={t('workbench.tab.closeTerminal')}
             icon={terminal.kind}
-            label={terminalTabLabel(displayTitle)}
-            labelTooltip={terminalTabTooltip(displayTitle, terminal, t)}
+            label={terminalTabLabel(title)}
+            labelTooltip={terminalTabTooltip(title, terminal, t)}
             showActiveAccent={showActiveAccent}
             showTrailingSeparator={showTrailingSeparator}
             tabId={workTabId(tab.id)}

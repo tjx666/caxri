@@ -110,7 +110,7 @@ if (process.argv.includes('--print')) {
                 .poll(
                     async () =>
                         (await pageRequest<BootstrapState>(running.page, 'app.bootstrap', {}))
-                            .sessions[0]?.displayTitle,
+                            .sessions[0]?.title,
                     { timeout: 30_000 },
                 )
                 .toBe('会话标题同步');
@@ -145,13 +145,13 @@ if (process.argv.includes('--print')) {
             }
             await pageRequest(running.page, 'session.rename', {
                 sessionId: session.id,
-                displayTitle: 'Manual task title',
+                title: 'Manual task title',
             });
             await expect
                 .poll(
                     async () =>
                         (await pageRequest<BootstrapState>(running.page, 'app.bootstrap', {}))
-                            .sessions[0]?.displayTitle,
+                            .sessions[0]?.title,
                 )
                 .toBe('Manual task title');
             const receipt: unknown = JSON.parse(

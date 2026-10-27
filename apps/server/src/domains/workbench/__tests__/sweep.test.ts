@@ -6,7 +6,7 @@ import { sweepWorkbenchRoots } from '../sweep';
 
 const binding = (projectId: string) => ({
     projectId,
-    workbenchProjectId: `${projectId}-worktree`,
+    workbenchRootProjectId: `${projectId}-worktree`,
 });
 
 function setup(isClosed: () => boolean) {

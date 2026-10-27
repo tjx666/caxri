@@ -80,7 +80,7 @@ function SessionMruRow({
     session: SessionRecord;
     terminal?: TerminalRecord;
 }) {
-    const lastOpened = useRelativeTime(session.lastOpenedAt);
+    const lastOpened = useRelativeTime(session.lastVisitedAt);
     const { t } = useTranslation();
     return (
         <div
@@ -116,12 +116,12 @@ function SessionMruRow({
                         selected ? 'font-semibold' : 'font-medium',
                     )}
                 >
-                    {sessionTitleForDisplay(session.displayTitle, t)}
+                    {sessionTitleForDisplay(session.title, t)}
                 </strong>
                 <span className="mt-0.5 flex items-center gap-1 text-[11px] text-muted">
                     <ProjectIcon className="flex-none" icon={project?.icon} size={11} />
                     <span className="truncate">
-                        {project?.displayTitle ?? t('session.unknownProject')}
+                        {project?.title ?? t('session.unknownProject')}
                     </span>
                 </span>
             </span>
@@ -225,7 +225,7 @@ function SessionMruSwitcherPanel() {
             />
             <p className="sr-only" aria-atomic="true" role="status">
                 {t('session.mru.selectedStatus', {
-                    title: sessionTitleForDisplay(selected.displayTitle, t),
+                    title: sessionTitleForDisplay(selected.title, t),
                     position: selectedIndex + 1,
                     total: candidates.length,
                 })}

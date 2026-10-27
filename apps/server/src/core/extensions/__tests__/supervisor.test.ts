@@ -145,7 +145,7 @@ describe('ExtensionHostSupervisor message boundary', () => {
                     context: {
                         kind: 'session',
                         sessionId: 'session-1',
-                        workbenchProjectId: 'project-1',
+                        workbenchRootProjectId: 'project-1',
                     },
                 },
             }),
@@ -177,7 +177,7 @@ describe('ExtensionHostSupervisor message boundary', () => {
                     context: {
                         kind: 'session',
                         sessionId: 'session-1',
-                        workbenchProjectId: 'project-1',
+                        workbenchRootProjectId: 'project-1',
                     },
                     change,
                 }),

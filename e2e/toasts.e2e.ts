@@ -126,7 +126,7 @@ test('Sonner notifications expire, dedupe, run actions, and stay keyboard-dismis
                 reason: 'fallback',
                 returnedProjectTitle: 'Fallback Project',
                 sessionId: 'session-e2e',
-                workbenchProjectId: 'project-e2e',
+                workbenchRootProjectId: 'project-e2e',
             },
         });
         await running.page.clock.runFor(1);
@@ -176,7 +176,7 @@ test('Notification center mutes a type, persists preferences, and restores remin
             reason: 'fallback',
             returnedProjectTitle: 'Fallback Project',
             sessionId: 'session-e2e',
-            workbenchProjectId: 'project-e2e',
+            workbenchRootProjectId: 'project-e2e',
         },
     };
     let running = await launchCaxri({ userDataDir: userData, testRootPath: root });

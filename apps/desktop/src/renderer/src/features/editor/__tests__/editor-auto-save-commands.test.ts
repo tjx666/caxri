@@ -26,7 +26,7 @@ function installSession(mode: AppSettings['files.autoSave'], path = '/project/a.
         bootstrap: {
             selectedSessionId: 'session-1',
             sessions: [
-                { id: 'session-1', projectId: 'project-1', workbenchProjectId: 'project-1' },
+                { id: 'session-1', projectId: 'project-1', workbenchRootProjectId: 'project-1' },
             ],
             sessionStates: [],
             terminals: [],

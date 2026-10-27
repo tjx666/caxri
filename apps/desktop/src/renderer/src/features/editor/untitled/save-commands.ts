@@ -31,7 +31,7 @@ export async function saveUntitledDocument(
     const session = getBootstrap()?.sessions.find((candidate) => candidate.id === sessionId);
     const document = getSessionDocuments(sessionId)?.[path];
     if (!session || !document) return 'unavailable';
-    const scope = sessionViewScope(sessionId, session.workbenchProjectId);
+    const scope = sessionViewScope(sessionId, session.workbenchRootProjectId);
     const languageKey = untitledLanguageKey(scope, path);
     const extension = useUntitledLanguageStore.getState().candidates[languageKey]?.[0];
     const fileName = untitledSuggestedFileName(
@@ -48,7 +48,7 @@ export async function saveUntitledDocument(
     const nextPath = isProjectFile
         ? saved.displayPath
         : externalEditorTabPath(saved.id, saved.name);
-    const current = getSessionDocuments(sessionId, session.workbenchProjectId)?.[path];
+    const current = getSessionDocuments(sessionId, session.workbenchRootProjectId)?.[path];
     const nextDocument: EditorDocument = {
         path: nextPath,
         content: current?.content ?? saved.content,
@@ -60,14 +60,14 @@ export async function saveUntitledDocument(
     };
     const view = useSessionViewStore.getState();
     // An external document over the ephemeral budget cannot be cached; keep the untitled buffer rather than lose it.
-    if (!view.cacheDocument(sessionId, nextDocument, session.workbenchProjectId))
+    if (!view.cacheDocument(sessionId, nextDocument, session.workbenchRootProjectId))
         throw new Error(
             translate('editor.untitled.savedButNotReopened', { path: saved.displayPath }),
         );
-    view.evictDocument(sessionId, path, session.workbenchProjectId);
+    view.evictDocument(sessionId, path, session.workbenchRootProjectId);
     forgetUntitledLanguage(languageKey);
     const state = sessionStateOf(sessionId);
-    if (state?.workbenchProjectId === session.workbenchProjectId)
+    if (state?.workbenchRootProjectId === session.workbenchRootProjectId)
         patchSessionState({
             ...state,
             paneLayout: remapPaneLayoutPaths(state.paneLayout, (tabPath) =>

@@ -9,14 +9,14 @@ const NOW = 1_000_000_000;
 
 function session(id: string, overrides: Partial<SessionRecord> = {}): SessionRecord {
     return {
-        attentionEpoch: 0,
-        displayTitle: id,
+        attentionGeneration: 0,
+        title: id,
         hasUnread: false,
         id,
-        lastActivityState: 'idle',
-        lastSessionActivityAt: NOW,
+        agentActivityState: 'idle',
+        sessionActivityAt: NOW,
         projectId: 'alpha',
-        readAttentionEpoch: 0,
+        acknowledgedAttentionGeneration: 0,
         sidebarOrder: 0,
         ...overrides,
     } as SessionRecord;
@@ -33,7 +33,7 @@ function glyphOf(
 ) {
     const groups = agentActivityGroups({
         now: NOW,
-        projects: [{ displayTitle: 'alpha', id: 'alpha' } as ProjectRecord],
+        projects: [{ title: 'alpha', id: 'alpha' } as ProjectRecord],
         selectionAnchor,
         sessions: [record],
         terminals,
@@ -45,27 +45,27 @@ function glyphOf(
 
 describe('agentActivityGlyph', () => {
     it('gives each state its own shape', () => {
-        expect(glyphOf(session('waiting-one', { lastActivityState: 'waiting' })).id).toBe(
+        expect(glyphOf(session('waiting-one', { agentActivityState: 'waiting' })).id).toBe(
             'question',
         );
-        expect(glyphOf(session('failed-one', { lastActivityState: 'failed' })).id).toBe('x');
-        expect(glyphOf(session('running-one', { lastActivityState: 'running' })).id).toBe(
+        expect(glyphOf(session('failed-one', { agentActivityState: 'failed' })).id).toBe('x');
+        expect(glyphOf(session('running-one', { agentActivityState: 'running' })).id).toBe(
             'spinner',
         );
         expect(glyphOf(session('idle-one')).id).toBe('hollow');
-        expect(glyphOf(session('finished-one', { lastActivityState: 'completed' })).id).toBe(
+        expect(glyphOf(session('finished-one', { agentActivityState: 'completed' })).id).toBe(
             'check',
         );
     });
 
     it('tints only the rows that ask the user for something', () => {
         // A read `waiting` row has already been seen, so it is quiet chrome despite its urgent-sounding state.
-        expect(glyphOf(session('waiting-one', { lastActivityState: 'waiting' }))).toMatchObject({
+        expect(glyphOf(session('waiting-one', { agentActivityState: 'waiting' }))).toMatchObject({
             groupId: 'waiting',
             label: 'Waiting for you',
             toneClassName: 'text-muted',
         });
-        expect(glyphOf(session('failed-one', { lastActivityState: 'failed' }))).toMatchObject({
+        expect(glyphOf(session('failed-one', { agentActivityState: 'failed' }))).toMatchObject({
             groupId: 'failed',
             toneClassName: 'text-danger',
         });
@@ -73,7 +73,7 @@ describe('agentActivityGlyph', () => {
     });
 
     it('marks a live turn as progress rather than a loading placeholder', () => {
-        expect(glyphOf(session('running-one', { lastActivityState: 'running' }))).toMatchObject({
+        expect(glyphOf(session('running-one', { agentActivityState: 'running' }))).toMatchObject({
             groupId: 'working',
             id: 'spinner',
             toneClassName: 'text-success',
@@ -89,7 +89,7 @@ describe('agentActivityGlyph', () => {
             sessionId: 'background-one',
         } as TerminalRecord;
         expect(
-            glyphOf(session('background-one', { lastActivityState: 'running' }), [terminal]),
+            glyphOf(session('background-one', { agentActivityState: 'running' }), [terminal]),
         ).toMatchObject({
             groupId: 'working',
             id: 'background',
@@ -107,7 +107,7 @@ describe('agentActivityGlyph', () => {
             glyphOf(
                 session('unread-finished', {
                     hasUnread: true,
-                    lastActivityState: 'completed',
+                    agentActivityState: 'completed',
                     lastAttentionKind: 'completed',
                 }),
             ),
@@ -117,7 +117,7 @@ describe('agentActivityGlyph', () => {
             glyphOf(
                 session('unread-running', {
                     hasUnread: true,
-                    lastActivityState: 'running',
+                    agentActivityState: 'running',
                     lastAttentionKind: 'waiting',
                 }),
             ),
@@ -126,7 +126,7 @@ describe('agentActivityGlyph', () => {
             glyphOf(
                 session('unread-failed', {
                     hasUnread: true,
-                    lastActivityState: 'failed',
+                    agentActivityState: 'failed',
                     lastAttentionKind: 'failed',
                 }),
             ),
@@ -135,17 +135,17 @@ describe('agentActivityGlyph', () => {
 
     it('renders an anchored viewed row with its actual state and neutral tone', () => {
         const viewed = session('viewed', {
-            attentionEpoch: 1,
+            attentionGeneration: 1,
             hasUnread: false,
-            lastActivityState: 'completed',
+            agentActivityState: 'completed',
             lastAttentionKind: 'waiting',
         });
         expect(
             glyphOf(viewed, [], {
                 agentOperation: undefined,
-                attentionEpoch: 1,
-                lastActivityState: 'completed',
-                lastSessionActivityAt: NOW,
+                attentionGeneration: 1,
+                agentActivityState: 'completed',
+                sessionActivityAt: NOW,
                 sessionId: 'viewed',
             }),
         ).toMatchObject({ groupId: 'attention', id: 'check', toneClassName: 'text-muted' });
@@ -153,10 +153,10 @@ describe('agentActivityGlyph', () => {
 
     it('labels a detached Agent as handed over rather than by its frozen state', () => {
         /*
-         * Detaching stops the Terminal without rewriting `lastActivityState`, so this Session still claims to be
+         * Detaching stops the Terminal without rewriting `agentActivityState`, so this Session still claims to be
          * waiting on the user. It is not: it was handed to another client on purpose.
          */
-        const detached = session('detached-one', { lastActivityState: 'waiting' });
+        const detached = session('detached-one', { agentActivityState: 'waiting' });
         const terminal = {
             id: 'terminal-detached-one',
             lastProcessState: 'detached',

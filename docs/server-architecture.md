@@ -279,7 +279,7 @@ it contains no user content.
 
 ### `session.updateState` revisions
 
-One `session_state` row per Session is written by more than one writer today: every Renderer that has
+One `session_views` row per Session is written by more than one writer today: every Renderer that has
 the Session open, plus the Server itself when a Terminal appears in or leaves every Root, or when a
 deauthorized Project is pruned out of the stored arrangements. A write carries the whole arrangement,
 so without a precondition the last write to arrive silently erased whatever landed between the writer's

@@ -14,14 +14,14 @@ const NO_EXCERPTS: Readonly<Partial<Record<string, AgentExcerpt>>> = {};
  * held only in the query cache: nothing here writes them to storage or logs.
  */
 export function useSessionExcerpts(
-    sessions: ReadonlyArray<Pick<SessionRecord, 'attentionEpoch' | 'id'>>,
+    sessions: ReadonlyArray<Pick<SessionRecord, 'attentionGeneration' | 'id'>>,
     isEnabled = true,
 ): Readonly<Partial<Record<string, AgentExcerpt>>> {
     const asked = useMemo(
         () =>
             sessions
                 .slice(0, AGENT_EXCERPT_MAX_SESSIONS)
-                .map(({ attentionEpoch, id }) => ({ attentionEpoch, sessionId: id })),
+                .map(({ attentionGeneration, id }) => ({ attentionGeneration, sessionId: id })),
         [sessions],
     );
     const query = useCaxriQuery(

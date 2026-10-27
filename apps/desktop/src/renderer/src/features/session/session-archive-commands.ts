@@ -30,7 +30,7 @@ async function archiveSessionWithNotice(sessionId: string): Promise<void> {
     );
     if (!archived) return;
     recordClosedSession(sessionId);
-    pushToast('info', describeArchivedSession(archived.displayTitle), {
+    pushToast('info', describeArchivedSession(archived.title), {
         /**
          * The notice outlives the row it describes, and now outlives the toast as well: the offer is still in the
          * notification center after the Session has been deleted or the window navigated elsewhere. `unarchiveSession`
@@ -46,7 +46,7 @@ async function archiveSessionWithNotice(sessionId: string): Promise<void> {
             // Several archived Sessions leave several `Undo` buttons in the history, identical to a screen reader
             // reading the buttons alone. The title says which one this is.
             accessibleLabel: translate('session.notice.undoArchive', {
-                title: sessionTitleForDisplay(archived.displayTitle, translate),
+                title: sessionTitleForDisplay(archived.title, translate),
             }),
         },
     });
@@ -86,8 +86,7 @@ async function didRestoreSessionWithNotice(
      * sidebar, so without this the row reappears somewhere the user cannot see and nothing says so.
      */
     if (!restored) return false;
-    if (placement !== 'unchanged')
-        pushToast('info', describeRestoredSession(restored.displayTitle));
+    if (placement !== 'unchanged') pushToast('info', describeRestoredSession(restored.title));
     return true;
 }
 
@@ -130,7 +129,7 @@ async function unarchiveSessionsWithNotice(sessionIds: readonly string[]): Promi
     // Reports what the Server actually restored rather than what was requested: a stale selection can name a Session
     // that was deleted between opening the dialog and pressing Restore.
     if (!restored || restored.length === 0) return;
-    pushToast('info', describeRestoredSessions(restored.map((session) => session.displayTitle)));
+    pushToast('info', describeRestoredSessions(restored.map((session) => session.title)));
 }
 
 export function unarchiveSessions(sessionIds: readonly string[]): void {

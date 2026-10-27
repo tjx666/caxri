@@ -79,13 +79,13 @@ const feed: {
  */
 export function inputTakeBackNotice(
     takeBack: Pick<BotInputTakeBack, 'sessionId'>,
-    displayTitle: string | undefined,
+    title: string | undefined,
     t: Translate = translate,
 ): { message: string; action: ToastAction } {
     return {
-        message: displayTitle
+        message: title
             ? t('caxriBot.handover.takenBackByInput', {
-                  title: sessionTitleForDisplay(displayTitle, t),
+                  title: sessionTitleForDisplay(title, t),
               })
             : t('caxriBot.handover.takenBackByInputUntitled'),
         action: { id: 'caxriBot.handBack', params: { sessionId: takeBack.sessionId } },
@@ -95,7 +95,7 @@ export function inputTakeBackNotice(
 function announce(takeBack: BotInputTakeBack): void {
     const title = getBootstrap()?.sessions.find(
         (session) => session.id === takeBack.sessionId,
-    )?.displayTitle;
+    )?.title;
     const { action, message } = inputTakeBackNotice(takeBack, title);
     pushToast('info', message, { action });
 }

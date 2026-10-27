@@ -170,7 +170,11 @@ describe('BotCompletionNotifier', () => {
         // Every settled Caxri Bot turn raises `completed` attention on its own Session, and nothing ever marks that
         // Session read: the Caxri Bot window is not a Workbench selection. Gating on `hasUnread` would therefore
         // withhold every notice after Caxri Bot's first turn.
-        f.session = session({ attentionEpoch: 1, hasUnread: true, lastActivityState: 'completed' });
+        f.session = session({
+            attentionGeneration: 1,
+            hasUnread: true,
+            agentActivityState: 'completed',
+        });
         f.notifier.notifyReceiptChanged(receipt({ status: 'completed' }));
         expect(f.writeCalls).toHaveLength(1);
     });
@@ -178,7 +182,7 @@ describe('BotCompletionNotifier', () => {
     it('blocks injection while a permission prompt is pending, and retries once it clears', () => {
         f.startTurn('launch-1');
         f.finishTurn('launch-1', 'turn-1');
-        f.session = session({ lastActivityState: 'waiting' });
+        f.session = session({ agentActivityState: 'waiting' });
         f.notifier.notifyReceiptChanged(receipt({ status: 'completed' }));
         expect(f.writeCalls).toHaveLength(0);
         f.finishTurn('launch-1', 'turn-2');

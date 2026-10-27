@@ -77,10 +77,12 @@ function exportedSession(
     session: SessionRecord,
 ): ProjectTransferSession {
     return {
-        title: session.displayTitle,
+        title: session.title,
         titleMode: session.titleMode,
         pinned: session.pinnedAt !== undefined,
-        ...(session.workbenchProjectId !== project.id && { workbenchRootPath: session.rootPath }),
+        ...(session.workbenchRootProjectId !== project.id && {
+            workbenchRootPath: session.rootPath,
+        }),
         terminals: database
             .listTerminals(session.id)
             .toSorted((left, right) => left.orderIndex - right.orderIndex)
@@ -181,7 +183,7 @@ async function importSession(
     // An automatic title starts as the Session's own, so the Agent's conversation name keeps replacing it.
     const { session } = database.createSession(project.id, null, undefined, {
         selection: 'preserve',
-        ...(exported.titleMode === 'automatic' && { displayTitle: exported.title }),
+        ...(exported.titleMode === 'automatic' && { title: exported.title }),
     });
     let rootPath = project.rootPath;
     if (exported.workbenchRootPath) {

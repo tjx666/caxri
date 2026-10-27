@@ -113,6 +113,6 @@ export function createMobileProjectAddHandler(options: {
         const homeDirectory = await resolveHome();
         const { absolute } = await resolveWithinHome(homeDirectory, path);
         const project = await addProjectFolder(options.database, options.emit, absolute);
-        return { project: { id: project.id, displayTitle: project.displayTitle } };
+        return { project: { id: project.id, title: project.title } };
     };
 }

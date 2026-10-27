@@ -24,7 +24,7 @@ export interface MobileDashboardParityFixture {
     running: RunningCaxri;
     sessionIds: Record<DashboardRole, string>;
     stop(): Promise<void>;
-    triggerRunningToWaiting(): Promise<{ attentionEpoch: number; triggeredAt: number }>;
+    triggerRunningToWaiting(): Promise<{ attentionGeneration: number; triggeredAt: number }>;
 }
 
 const dashboardState = (state: BootstrapState, sessionIds: Record<DashboardRole, string>) =>
@@ -168,8 +168,8 @@ export async function createMobileDashboardParityFixture(
             () => pageRequest<BootstrapState>(running.page, 'app.bootstrap'),
             (state) =>
                 state.sessions.some(
-                    ({ id, lastActivityState }) =>
-                        id === waiting && lastActivityState === 'waiting',
+                    ({ id, agentActivityState }) =>
+                        id === waiting && agentActivityState === 'waiting',
                 ),
         );
         const bootstrap = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');
@@ -185,8 +185,8 @@ export async function createMobileDashboardParityFixture(
             () => pageRequest<BootstrapState>(running.page, 'app.bootstrap'),
             (state) =>
                 state.sessions.some(
-                    ({ id, lastActivityState }) =>
-                        id === runningSession.session.id && lastActivityState === 'running',
+                    ({ id, agentActivityState }) =>
+                        id === runningSession.session.id && agentActivityState === 'running',
                 ),
         );
         const completedSession = await pageRequest<{ session: { id: string } }>(
@@ -209,7 +209,7 @@ export async function createMobileDashboardParityFixture(
         const database = new Database(join(userData, 'caxri.db'));
         try {
             const hideTitle = database.prepare(
-                "UPDATE sessions SET display_title = ?, title_mode = 'manual' WHERE id = ?",
+                "UPDATE sessions SET title = ?, title_mode = 'manual' WHERE id = ?",
             );
             database.transaction(() => {
                 for (const sessionId of Object.values(sessionIds)) {
@@ -225,9 +225,9 @@ export async function createMobileDashboardParityFixture(
             (state) => {
                 const sessions = dashboardState(state, sessionIds);
                 return (
-                    sessions.waiting?.lastActivityState === 'waiting' &&
-                    sessions.running?.lastActivityState === 'running' &&
-                    sessions.completed?.lastActivityState === 'completed'
+                    sessions.waiting?.agentActivityState === 'waiting' &&
+                    sessions.running?.agentActivityState === 'running' &&
+                    sessions.completed?.agentActivityState === 'completed'
                 );
             },
         );
@@ -236,7 +236,7 @@ export async function createMobileDashboardParityFixture(
         if (completed.hasUnread)
             await pageRequest(running.page, 'session.markRead', {
                 sessionId: completed.id,
-                attentionEpoch: completed.attentionEpoch,
+                attentionGeneration: completed.attentionGeneration,
             });
         return {
             projectId,
@@ -246,17 +246,17 @@ export async function createMobileDashboardParityFixture(
                 await pageRequest(running.page, 'mobile.access.enable');
                 const dashboard = await pageRequest<{
                     hostDisplayName: string;
-                    projects: Array<{ displayTitle: string }>;
-                    sessions: Array<{ displayTitle: string; id: string }>;
+                    projects: Array<{ title: string }>;
+                    sessions: Array<{ title: string; id: string }>;
                 }>(running.page, 'mobile.dashboard');
                 if (
                     dashboard.hostDisplayName !== 'Caxri Test Host' ||
                     dashboard.projects.length !== 1 ||
-                    dashboard.projects[0]?.displayTitle !== 'synthetic-project' ||
+                    dashboard.projects[0]?.title !== 'synthetic-project' ||
                     Object.values(sessionIds).some(
                         (id) =>
-                            dashboard.sessions.find((session) => session.id === id)
-                                ?.displayTitle !== '\u{200B}',
+                            dashboard.sessions.find((session) => session.id === id)?.title !==
+                            '\u{200B}',
                     )
                 )
                     throw new Error('Mobile dashboard privacy preflight failed');
@@ -280,11 +280,11 @@ export async function createMobileDashboardParityFixture(
                 const changed = await waitForMobile(
                     () => pageRequest<BootstrapState>(running.page, 'app.bootstrap'),
                     (state) =>
-                        dashboardState(state, sessionIds).running?.lastActivityState === 'waiting',
+                        dashboardState(state, sessionIds).running?.agentActivityState === 'waiting',
                 );
                 const transitioned = dashboardState(changed, sessionIds).running;
                 if (!transitioned) throw new Error('Running synthetic Session is missing');
-                return { attentionEpoch: transitioned.attentionEpoch, triggeredAt };
+                return { attentionGeneration: transitioned.attentionGeneration, triggeredAt };
             },
             stop,
         };

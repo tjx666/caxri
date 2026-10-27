@@ -24,7 +24,7 @@ function installDirtyDocument(path: string): void {
     const sessionState: SessionState = {
         sessionId: 'session-1',
         revision: 0,
-        workbenchProjectId: 'project-1',
+        workbenchRootProjectId: 'project-1',
         desiredSecondarySidebarViewContainerId: 'caxri.files',
         paneLayout: {
             root: {
@@ -43,7 +43,7 @@ function installDirtyDocument(path: string): void {
                 {
                     id: 'session-1',
                     projectId: 'project-1',
-                    workbenchProjectId: 'project-1',
+                    workbenchRootProjectId: 'project-1',
                 },
             ],
             sessionStates: [sessionState],

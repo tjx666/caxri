@@ -26,7 +26,7 @@ describe('CLI machine output', () => {
     });
 
     it('projects object and array IDs in quiet mode and rejects ambiguous output', () => {
-        expect(quietLines({ id: 'session-1', displayTitle: 'Session' })).toEqual(['session-1']);
+        expect(quietLines({ id: 'session-1', title: 'Session' })).toEqual(['session-1']);
         expect(quietLines([{ id: 'one' }, { id: 'two' }])).toEqual(['one', 'two']);
         expect(() => quietLines({ state: 'ready' })).toThrow('has no stable ID');
         expect(quietLines([{ sessionId: 'one' }], 'sessionId')).toEqual(['one']);

@@ -12,11 +12,11 @@ import { translate } from '../../i18n';
  * principle 8).
  */
 export function terminalTabTooltip(
-    displayTitle: string,
+    title: string,
     terminal: Pick<TerminalRecord, 'provider' | 'surface'>,
     t: Translate = translate,
 ): string {
     return terminal.provider && isChatTerminal(terminal)
-        ? t('terminal.tab.chatTooltip', { title: displayTitle })
-        : displayTitle;
+        ? t('terminal.tab.chatTooltip', { title })
+        : title;
 }

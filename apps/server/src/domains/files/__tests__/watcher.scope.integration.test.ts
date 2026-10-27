@@ -31,7 +31,7 @@ afterEach(async () => {
 
 function pendingScope(service: FileService) {
     return Reflect.get(service, 'watcher') as {
-        pendingScope?: { sessionId: string; workbenchProjectId: string };
+        pendingScope?: { sessionId: string; workbenchRootProjectId: string };
     };
 }
 
@@ -120,7 +120,7 @@ describe('File watcher scopes', () => {
         callback!(null, [{ path: canonicalChangedPath, type: 'update' }]);
         await expect
             .poll(() => pendingScope(service).pendingScope, { interval: 1 })
-            .toEqual({ sessionId: first.id, workbenchProjectId: project.id });
+            .toEqual({ sessionId: first.id, workbenchRootProjectId: project.id });
         await service.watchSession(second.id);
         callback!(null, [{ path: canonicalSecondPath, type: 'update' }]);
 
@@ -134,7 +134,7 @@ describe('File watcher scopes', () => {
                 event: 'files.changed',
                 payload: {
                     sessionId: first.id,
-                    workbenchProjectId: project.id,
+                    workbenchRootProjectId: project.id,
                     changes: [{ path: canonicalChangedPath, kind: 'update' }],
                     overflow: false,
                 },
@@ -143,7 +143,7 @@ describe('File watcher scopes', () => {
                 event: 'files.changed',
                 payload: {
                     sessionId: second.id,
-                    workbenchProjectId: project.id,
+                    workbenchRootProjectId: project.id,
                     changes: [{ path: canonicalSecondPath, kind: 'update' }],
                     overflow: false,
                 },
@@ -191,7 +191,7 @@ describe('File watcher scopes', () => {
         callbacks[0](null, [{ path: canonicalFirstPath, type: 'update' }]);
         await expect
             .poll(() => pendingScope(service).pendingScope, { interval: 1 })
-            .toEqual({ sessionId: first.id, workbenchProjectId: firstProject.id });
+            .toEqual({ sessionId: first.id, workbenchRootProjectId: firstProject.id });
         await service.watchSession(second.id);
         callbacks[0]?.(null, [{ path: join(canonicalFirstRoot, 'stale.txt'), type: 'create' }]);
 
@@ -203,7 +203,7 @@ describe('File watcher scopes', () => {
             event: 'files.changed',
             payload: {
                 sessionId: first.id,
-                workbenchProjectId: firstProject.id,
+                workbenchRootProjectId: firstProject.id,
                 changes: [{ path: canonicalFirstPath, kind: 'update' }],
                 overflow: false,
             },
@@ -255,7 +255,7 @@ describe('File watcher scopes', () => {
             event: 'files.changed',
             payload: {
                 sessionId: first.id,
-                workbenchProjectId: firstProject.id,
+                workbenchRootProjectId: firstProject.id,
                 changes: [{ path: canonicalFirstRoot, kind: 'delete' }],
                 overflow: false,
             },

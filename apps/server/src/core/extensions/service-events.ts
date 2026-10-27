@@ -30,13 +30,13 @@ export interface ViewChangedEvent {
 
 export function toExtensionViewEventContext(active: {
     sessionId?: string;
-    workbenchProjectId?: string;
+    workbenchRootProjectId?: string;
 }): ExtensionViewEventContext {
-    return active.sessionId && active.workbenchProjectId
+    return active.sessionId && active.workbenchRootProjectId
         ? {
               kind: 'session',
               sessionId: active.sessionId,
-              workbenchProjectId: active.workbenchProjectId,
+              workbenchRootProjectId: active.workbenchRootProjectId,
           }
         : { kind: 'no-session' };
 }

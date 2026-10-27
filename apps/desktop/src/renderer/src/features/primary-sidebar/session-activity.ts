@@ -87,7 +87,7 @@ export function sessionActivityPresentation(
  * kind; a `shell` kind reads as having no Agent instead of borrowing an Agent's activity wording.
  */
 export function currentSessionActivityPresentation(
-    session: Pick<SessionRecord, 'lastActivityState'>,
+    session: Pick<SessionRecord, 'agentActivityState'>,
     terminal?: SessionStatusTerminal & { kind?: TerminalKind },
 ): SessionActivityPresentation {
     // A Shell Session has no Agent, so its card must not claim one is idle or working.
@@ -106,5 +106,5 @@ export function currentSessionActivityPresentation(
     if (terminal?.lastProcessState === 'suspended') {
         return presentation('suspended', 'neutral', 'text-muted');
     }
-    return sessionActivityPresentation(session.lastActivityState, terminal?.agentOperation);
+    return sessionActivityPresentation(session.agentActivityState, terminal?.agentOperation);
 }

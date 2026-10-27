@@ -6,7 +6,7 @@ import type { SessionRecord } from './domain.js';
  */
 export function compareSessionActivityRecency(left: SessionRecord, right: SessionRecord): number {
     return (
-        right.lastSessionActivityAt - left.lastSessionActivityAt ||
+        right.sessionActivityAt - left.sessionActivityAt ||
         right.createdAt - left.createdAt ||
         (left.id < right.id ? -1 : left.id > right.id ? 1 : 0)
     );

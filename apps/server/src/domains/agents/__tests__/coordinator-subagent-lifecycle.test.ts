@@ -59,11 +59,11 @@ describe('AgentCoordinator subagent lifecycle', () => {
             await coordinator.probeTerminalNow(terminalId);
             await coordinator.probeTerminalNow(terminalId);
             await vi.advanceTimersByTimeAsync(119_999);
-            expect(database.getSession(created.session.id)?.lastActivityState).toBe('running');
+            expect(database.getSession(created.session.id)?.agentActivityState).toBe('running');
             await vi.advanceTimersByTimeAsync(1);
             expect(database.getSession(created.session.id)).toMatchObject({
-                lastActivityState: 'unknown',
-                attentionEpoch: 0,
+                agentActivityState: 'unknown',
+                attentionGeneration: 0,
             });
         } finally {
             await coordinator.close();
@@ -102,9 +102,9 @@ describe('AgentCoordinator subagent lifecycle', () => {
             expect(decision).toBe('subagentUnmatched');
             expect(database.getTerminal(created.terminal!.id)?.agentSessionId).toBeUndefined();
             expect(database.getSession(created.session.id)).toMatchObject({
-                attentionEpoch: 0,
+                attentionGeneration: 0,
                 hasUnread: false,
-                lastActivityState: 'running',
+                agentActivityState: 'running',
                 lastAttentionKind: undefined,
             });
         } finally {
@@ -149,9 +149,9 @@ describe('AgentCoordinator subagent lifecycle', () => {
             });
 
             expect(database.getSession(created.session.id)).toMatchObject({
-                attentionEpoch: 0,
+                attentionGeneration: 0,
                 hasUnread: false,
-                lastActivityState: 'running',
+                agentActivityState: 'running',
             });
 
             coordinator.observeLifecycleSignal({
@@ -162,9 +162,9 @@ describe('AgentCoordinator subagent lifecycle', () => {
                 terminalId,
             });
             expect(database.getSession(created.session.id)).toMatchObject({
-                attentionEpoch: 0,
+                attentionGeneration: 0,
                 hasUnread: false,
-                lastActivityState: 'running',
+                agentActivityState: 'running',
             });
 
             /**
@@ -179,9 +179,9 @@ describe('AgentCoordinator subagent lifecycle', () => {
                 terminalId,
             });
             expect(database.getSession(created.session.id)).toMatchObject({
-                attentionEpoch: 0,
+                attentionGeneration: 0,
                 hasUnread: false,
-                lastActivityState: 'running',
+                agentActivityState: 'running',
             });
 
             coordinator.observeLifecycleSignal({
@@ -197,9 +197,9 @@ describe('AgentCoordinator subagent lifecycle', () => {
                 terminalId,
             });
             expect(database.getSession(created.session.id)).toMatchObject({
-                attentionEpoch: 1,
+                attentionGeneration: 1,
                 hasUnread: true,
-                lastActivityState: 'completed',
+                agentActivityState: 'completed',
                 lastAttentionKind: 'completed',
             });
 
@@ -210,7 +210,7 @@ describe('AgentCoordinator subagent lifecycle', () => {
                 provider: 'claude',
                 terminalId,
             });
-            expect(database.getSession(created.session.id)?.attentionEpoch).toBe(1);
+            expect(database.getSession(created.session.id)?.attentionGeneration).toBe(1);
         } finally {
             await coordinator.close();
             database.close();
@@ -254,8 +254,8 @@ describe('AgentCoordinator subagent lifecycle', () => {
                 expect.objectContaining({ phase: 'turnFinished' }),
             );
             expect(database.getSession(created.session.id)).toMatchObject({
-                attentionEpoch: 0,
-                lastActivityState: 'running',
+                attentionGeneration: 0,
+                agentActivityState: 'running',
             });
             vi.advanceTimersByTime(1);
             expect(applied).toHaveBeenCalledWith(
@@ -265,9 +265,9 @@ describe('AgentCoordinator subagent lifecycle', () => {
                 applied.mock.calls.filter(([event]) => event.phase === 'turnFinished'),
             ).toHaveLength(1);
             expect(database.getSession(created.session.id)).toMatchObject({
-                attentionEpoch: 1,
+                attentionGeneration: 1,
                 hasUnread: true,
-                lastActivityState: 'completed',
+                agentActivityState: 'completed',
                 lastAttentionKind: 'completed',
             });
         } finally {
@@ -306,8 +306,8 @@ describe('AgentCoordinator subagent lifecycle', () => {
             expect(coordinator.agentOperation(terminalId)).toBe('background');
             expect(emitted).toHaveBeenCalled();
             expect(database.getSession(created.session.id)).toMatchObject({
-                attentionEpoch: 0,
-                lastActivityState: 'running',
+                attentionGeneration: 0,
+                agentActivityState: 'running',
             });
 
             emitted.mockClear();
@@ -317,8 +317,8 @@ describe('AgentCoordinator subagent lifecycle', () => {
 
             signal('turnFinished');
             expect(database.getSession(created.session.id)).toMatchObject({
-                attentionEpoch: 1,
-                lastActivityState: 'completed',
+                attentionGeneration: 1,
+                agentActivityState: 'completed',
             });
         } finally {
             vi.useRealTimers();
@@ -373,39 +373,39 @@ describe('AgentCoordinator subagent lifecycle', () => {
 
             await coordinator.probeTerminalNow(terminalId);
             expect(database.getSession(created.session.id)).toMatchObject({
-                attentionEpoch: 0,
+                attentionGeneration: 0,
                 hasUnread: false,
-                lastActivityState: 'running',
+                agentActivityState: 'running',
             });
 
             signal('turnFinished');
             await coordinator.probeTerminalNow(terminalId);
             expect(database.getSession(created.session.id)).toMatchObject({
-                attentionEpoch: 0,
+                attentionGeneration: 0,
                 hasUnread: false,
-                lastActivityState: 'running',
+                agentActivityState: 'running',
             });
 
             signal('turnFinished', 'subagent-1');
             await coordinator.probeTerminalNow(terminalId);
             expect(database.getSession(created.session.id)).toMatchObject({
-                attentionEpoch: 0,
+                attentionGeneration: 0,
                 hasUnread: false,
-                lastActivityState: 'running',
+                agentActivityState: 'running',
             });
 
             signal('turnStarted');
             signal('turnFinished');
             expect(database.getSession(created.session.id)).toMatchObject({
-                attentionEpoch: 1,
+                attentionGeneration: 1,
                 hasUnread: true,
-                lastActivityState: 'completed',
+                agentActivityState: 'completed',
                 lastAttentionKind: 'completed',
             });
             await coordinator.probeTerminalNow(terminalId);
             expect(database.getSession(created.session.id)).toMatchObject({
-                attentionEpoch: 1,
-                lastActivityState: 'completed',
+                attentionGeneration: 1,
+                agentActivityState: 'completed',
             });
         } finally {
             await coordinator.close();
@@ -448,7 +448,7 @@ describe('AgentCoordinator subagent lifecycle', () => {
                     terminalId,
                 });
                 await coordinator.probeTerminalNow(terminalId);
-                expect(database.getSession(created.session.id)?.lastActivityState).toBe('running');
+                expect(database.getSession(created.session.id)?.agentActivityState).toBe('running');
 
                 /**
                  * Neither provider fires `Stop` for a user interrupt, so the standalone Escape is the only evidence
@@ -456,12 +456,12 @@ describe('AgentCoordinator subagent lifecycle', () => {
                  */
                 coordinator.observeInterrupt(terminalId, 'stale-launch');
                 await coordinator.probeTerminalNow(terminalId);
-                expect(database.getSession(created.session.id)?.lastActivityState).toBe('running');
+                expect(database.getSession(created.session.id)?.agentActivityState).toBe('running');
                 if (entry === 'escape') coordinator.observeInput(terminalId, '\u{1B}');
                 else coordinator.observeInterrupt(terminalId, 'launch-1');
-                expect(database.getSession(created.session.id)?.lastActivityState).toBe('running');
+                expect(database.getSession(created.session.id)?.agentActivityState).toBe('running');
                 await coordinator.probeTerminalNow(terminalId);
-                expect(database.getSession(created.session.id)?.lastActivityState).toBe('unknown');
+                expect(database.getSession(created.session.id)?.agentActivityState).toBe('unknown');
                 const probe = vi.spyOn(coordinator, 'probeTerminal');
                 for (let count = 0; count < 20; count += 1)
                     coordinator.observeInput(terminalId, '\u{1B}');
@@ -526,9 +526,9 @@ describe('AgentCoordinator subagent lifecycle', () => {
                 .toBe('claude-session');
             expect(snapshot).toHaveBeenCalledOnce();
             expect(database.getSession(created.session.id)).toMatchObject({
-                attentionEpoch: 0,
+                attentionGeneration: 0,
                 hasUnread: false,
-                lastActivityState: 'running',
+                agentActivityState: 'running',
                 lastAttentionKind: undefined,
             });
         } finally {

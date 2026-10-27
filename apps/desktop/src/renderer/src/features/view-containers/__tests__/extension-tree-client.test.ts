@@ -18,7 +18,7 @@ const scope: ExtensionTreeScope = {
     extensionGeneration: 1,
     sessionId: 'session-1',
     viewId: 'publisher.extension.status',
-    workbenchProjectId: 'project-1',
+    workbenchRootProjectId: 'project-1',
 };
 
 function item(handle: string): TreeItemDto {
@@ -45,9 +45,12 @@ describe('extension tree branch cache', () => {
         cacheTreeChildren(queryClient, { ...scope, sessionId: 'session-2' }, ROOT_HANDLE, [
             item('other-session'),
         ]);
-        cacheTreeChildren(queryClient, { ...scope, workbenchProjectId: 'project-2' }, ROOT_HANDLE, [
-            item('other-project'),
-        ]);
+        cacheTreeChildren(
+            queryClient,
+            { ...scope, workbenchRootProjectId: 'project-2' },
+            ROOT_HANDLE,
+            [item('other-project')],
+        );
         cacheTreeChildren(
             queryClient,
             { ...scope, viewId: 'publisher.extension.other' },

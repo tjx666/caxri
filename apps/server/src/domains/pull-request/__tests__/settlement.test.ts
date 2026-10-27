@@ -22,7 +22,7 @@ function harness(options: {
     const clock = { now: 1_000_000 };
     const session = {
         archivedAt: undefined as number | undefined,
-        lastActivityState: options.agentState ?? 'idle',
+        agentActivityState: options.agentState ?? 'idle',
     };
     const archive = vi.fn(() => Promise.resolve());
     const notifyMerged = vi.fn(() => Promise.resolve(options.notice ?? 'sent'));
@@ -101,12 +101,12 @@ describe('PullRequestSettlement', () => {
         expect(outcomes()).toEqual(['deferred']);
 
         clock.now += 1000;
-        session.lastActivityState = 'running';
+        session.agentActivityState = 'running';
         settlement.observeActivity({ sessionId: 's', from: 'idle', to: 'running' });
         await flush();
         expect(archive).not.toHaveBeenCalled();
 
-        session.lastActivityState = 'completed';
+        session.agentActivityState = 'completed';
         settlement.observeActivity({ sessionId: 's', from: 'running', to: 'completed' });
         await flush();
         expect(archive).toHaveBeenCalledWith('s');
@@ -122,7 +122,7 @@ describe('PullRequestSettlement', () => {
         expect(outcomes()).toEqual(['deferred']);
 
         settlement.forgetSession('s');
-        session.lastActivityState = 'completed';
+        session.agentActivityState = 'completed';
         settlement.observeActivity({ sessionId: 's', from: 'running', to: 'completed' });
         await flush();
 
@@ -159,7 +159,7 @@ describe('PullRequestSettlement', () => {
         await flush();
         expect(archive).not.toHaveBeenCalled();
 
-        session.lastActivityState = 'waiting';
+        session.agentActivityState = 'waiting';
         settlement.observeActivity({ sessionId: 's', from: 'running', to: 'waiting' });
         await flush();
         expect(archive).not.toHaveBeenCalled();
@@ -207,7 +207,7 @@ describe('PullRequestSettlement', () => {
 
         settlement.observePullRequest('s', pullRequest('open'), pullRequest('closed'));
         settlement.observePullRequest('s', pullRequest('closed'), pullRequest('open'));
-        session.lastActivityState = 'completed';
+        session.agentActivityState = 'completed';
         settlement.observeActivity({ sessionId: 's', from: 'running', to: 'completed' });
         await flush();
 

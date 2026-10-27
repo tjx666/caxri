@@ -85,7 +85,7 @@ describe('CLI first-use experience', () => {
     it('renders Project lists as readable tables in human mode only', async () => {
         const result = {
             view: 'human-cli',
-            projects: [{ id: 'p1', displayTitle: 'Demo', rootPath: '/work/demo' }],
+            projects: [{ id: 'p1', title: 'Demo', rootPath: '/work/demo' }],
         };
         const human = io();
         await expect(

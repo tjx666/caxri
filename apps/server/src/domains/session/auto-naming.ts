@@ -428,7 +428,7 @@ export class SessionAutoNamingService {
      * automatic naming state, and returns it without applying it. The caller commits it through `session.rename`, which
      * claims manual ownership so automatic naming never replaces a name the user asked for.
      */
-    async suggestTitle(sessionId: string, signal?: AbortSignal): Promise<{ displayTitle: string }> {
+    async suggestTitle(sessionId: string, signal?: AbortSignal): Promise<{ title: string }> {
         const startedAt = performance.now();
         let provider: string | undefined;
         let reason:
@@ -490,7 +490,7 @@ export class SessionAutoNamingService {
                 );
             }
             reason = 'completed';
-            return { displayTitle: sampled.title };
+            return { title: sampled.title };
         } catch (error) {
             if (signal?.aborted) reason = 'cancelled';
             else if (reason === 'failed') {

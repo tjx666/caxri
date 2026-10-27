@@ -29,7 +29,7 @@ const MAX_DEFERRED_FILE_CHANGES = 2000;
  * Re-invalidates, with an active refetch, what changed while the window was hidden.
  */
 export interface HiddenWindowRevealHandlers {
-    files: (workbenchProjectId: string, batch: PendingFileChangeBatch) => void;
+    files: (workbenchRootProjectId: string, batch: PendingFileChangeBatch) => void;
     git: (sessionIds: readonly string[]) => void;
     view: (change: ViewChange) => void;
 }
@@ -37,7 +37,7 @@ export interface HiddenWindowRevealHandlers {
 export interface HiddenWindowDeferral {
     dispose: () => void;
     isHidden: () => boolean;
-    deferFiles: (workbenchProjectId: string, batch: PendingFileChangeBatch) => void;
+    deferFiles: (workbenchRootProjectId: string, batch: PendingFileChangeBatch) => void;
     deferGit: (sessionIds: readonly string[]) => void;
     deferView: (change: ViewChange) => void;
 }
@@ -70,7 +70,8 @@ export function createHiddenWindowDeferral(
         fileBatches.clear();
         viewChanges.clear();
         if (sessionIds.length > 0) reveal.git(sessionIds);
-        for (const [workbenchProjectId, batch] of batches) reveal.files(workbenchProjectId, batch);
+        for (const [workbenchRootProjectId, batch] of batches)
+            reveal.files(workbenchRootProjectId, batch);
         for (const change of changes) reveal.view(change);
     };
     page?.addEventListener('visibilitychange', handleVisibilityChange);
@@ -82,8 +83,8 @@ export function createHiddenWindowDeferral(
             viewChanges.clear();
         },
         isHidden,
-        deferFiles: (workbenchProjectId, batch) => {
-            const target = fileBatches.get(workbenchProjectId) ?? {
+        deferFiles: (workbenchRootProjectId, batch) => {
+            const target = fileBatches.get(workbenchRootProjectId) ?? {
                 changes: new Map(),
                 gitIgnoreRulesChanged: false,
                 overflow: false,
@@ -98,7 +99,7 @@ export function createHiddenWindowDeferral(
                 target.overflow = true;
                 target.changes.clear();
             }
-            fileBatches.set(workbenchProjectId, target);
+            fileBatches.set(workbenchRootProjectId, target);
         },
         deferGit: (sessionIds) => {
             for (const sessionId of sessionIds) gitSessionIds.add(sessionId);
@@ -106,7 +107,7 @@ export function createHiddenWindowDeferral(
         deferView: (change) => {
             const { context } = change;
             viewChanges.set(
-                `${change.kind}\0${change.viewId}\0${context.sessionId}\0${context.workbenchProjectId}`,
+                `${change.kind}\0${change.viewId}\0${context.sessionId}\0${context.workbenchRootProjectId}`,
                 change,
             );
         },

@@ -48,9 +48,9 @@ function parseClaudeRenameResponse(
         !response.result.startsWith(CLAUDE_RENAME_RESULT_PREFIX)
     )
         throw new Error('Claude rejected the Session rename');
-    const displayTitle = response.result.slice(CLAUDE_RENAME_RESULT_PREFIX.length).trim();
-    if (!displayTitle) throw new Error('Claude returned an empty Session name');
-    return { displayTitle };
+    const title = response.result.slice(CLAUDE_RENAME_RESULT_PREFIX.length).trim();
+    if (!title) throw new Error('Claude returned an empty Session name');
+    return { title };
 }
 
 export async function renameClaudeSession(
@@ -66,7 +66,7 @@ export async function renameClaudeSession(
                 '--print',
                 '--output-format',
                 'json',
-                `/rename ${context.displayTitle}`,
+                `/rename ${context.title}`,
             ],
             {
                 cwd: context.cwd,

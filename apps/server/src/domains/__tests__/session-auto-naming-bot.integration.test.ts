@@ -43,7 +43,7 @@ describe("Automatic Session naming of Caxri Bot's Session", () => {
             createPendingAgentAdapters({
                 codex: {
                     provider: 'codex',
-                    renameSession: ({ displayTitle }) => Promise.resolve({ displayTitle }),
+                    renameSession: ({ title }) => Promise.resolve({ title }),
                     snapshot: (): Promise<AgentSnapshot> =>
                         Promise.resolve({
                             provider: 'codex',

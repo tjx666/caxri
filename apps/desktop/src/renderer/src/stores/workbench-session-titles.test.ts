@@ -7,8 +7,8 @@ import {
     withPendingSessionTitles,
 } from './workbench-session-titles';
 
-function session(id: string, displayTitle: string): SessionRecord {
-    return { id, displayTitle } as SessionRecord;
+function session(id: string, title: string): SessionRecord {
+    return { id, title } as SessionRecord;
 }
 
 describe('pending Session titles', () => {
@@ -16,7 +16,7 @@ describe('pending Session titles', () => {
         const attempt = beginPendingSessionTitle('session-1', 'New', 'Old');
 
         const snapshot = [session('session-1', 'Old'), session('session-2', 'Other')];
-        expect(withPendingSessionTitles(snapshot).map(({ displayTitle }) => displayTitle)).toEqual([
+        expect(withPendingSessionTitles(snapshot).map(({ title }) => title)).toEqual([
             'New',
             'Other',
         ]);
@@ -30,9 +30,7 @@ describe('pending Session titles', () => {
         const second = beginPendingSessionTitle('session-1', 'Second', 'First');
 
         // The first rename committed on the Server while the second is still in flight.
-        expect(withPendingSessionTitles([session('session-1', 'First')])[0]?.displayTitle).toBe(
-            'Second',
-        );
+        expect(withPendingSessionTitles([session('session-1', 'First')])[0]?.title).toBe('Second');
         expect(settlePendingSessionTitle('session-1', first, true)).toBeUndefined();
         expect(settlePendingSessionTitle('session-1', second, false)).toBe('First');
     });

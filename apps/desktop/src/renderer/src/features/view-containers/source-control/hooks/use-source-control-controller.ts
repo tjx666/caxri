@@ -199,8 +199,8 @@ export function useSourceControlController(
     const { configurationDependencies, presentation, providerGeneration, viewId } =
         useControlledView();
     const client = useSourceControlClient();
-    const { sessionId, workbenchProjectId } = useSessionViewScope();
-    const hasSession = sessionId !== undefined && workbenchProjectId !== undefined;
+    const { sessionId, workbenchRootProjectId } = useSessionViewScope();
+    const hasSession = sessionId !== undefined && workbenchRootProjectId !== undefined;
     const settings = useSettings();
     const isContainerActive = useIsViewContainerActive();
     /**
@@ -214,9 +214,9 @@ export function useSourceControlController(
      * key either, for the same remount reason as the active file above.
      */
     const queryScope = navigationScope
-        ? `${navigationScope.sessionId}:${navigationScope.workbenchProjectId}`
+        ? `${navigationScope.sessionId}:${navigationScope.workbenchRootProjectId}`
         : hasSession
-          ? `${sessionId}:${workbenchProjectId}`
+          ? `${sessionId}:${workbenchRootProjectId}`
           : undefined;
     const [fileHistoryExpanded, setFileHistoryExpanded] = useState(false);
     const [refresh, setRefresh] = useState(0);
@@ -289,13 +289,13 @@ export function useSourceControlController(
     ]);
     useEffect(
         () =>
-            sessionId === undefined || workbenchProjectId === undefined
+            sessionId === undefined || workbenchRootProjectId === undefined
                 ? () => {}
                 : subscribeViewEvents(
                       {
                           viewId,
                           sessionId,
-                          workbenchProjectId,
+                          workbenchRootProjectId,
                           extensionGeneration: providerGeneration,
                       },
                       (event) => {
@@ -315,7 +315,7 @@ export function useSourceControlController(
             sessionId,
             updateNavigation,
             viewId,
-            workbenchProjectId,
+            workbenchRootProjectId,
         ],
     );
     const refetchSnapshot = snapshot.refetch;

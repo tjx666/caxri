@@ -236,8 +236,8 @@ Caxri Bot window reads its own rows through `bot.snapshot`. This is a Workbench-
 snapshot scoped to Caxri Bot, so the ordinary Terminal pane runs against it unchanged.
 
 `bot.ensure` is desktop-only and idempotent. It prepares Caxri Bot's workspace directory
-(`<profile>/agent-commander`, a name kept from the feature's former name because the Bot's Project
-root and its Agent's conversation lookup depend on it) for the current profile, including a generated `AGENTS.md` that teaches Caxri Bot its workflow
+(`<profile>/caxri-bot`; a workspace left at the feature's former name, `agent-commander`, is moved
+there with its `memory/` notes) for the current profile, including a generated `AGENTS.md` that teaches Caxri Bot its workflow
 and its CLI commands, and runs `git init` there on every call, which completes a half-written
 repository and never overwrites an existing one. Codex resolves its project root, project
 configuration, hooks, and `AGENTS.md` hierarchy from the nearest `.git` above its working directory,
@@ -378,7 +378,7 @@ A transition only reaches the Terminal once every one of these holds, reusing ex
   Caxri Bot after it went idle, defers delivery instead of risking an unwanted Enter, and the
   `draft_input` deferral logs `inputsSinceTurnStart`, a keystroke count. The injected write itself
   never bumps this epoch;
-- Caxri Bot's own Session has no pending permission prompt (`lastActivityState` is not
+- Caxri Bot's own Session has no pending permission prompt (`agentActivityState` is not
   `waiting`). Its unread flag is deliberately ignored: every settled Caxri Bot turn marks its own
   Session unread, and Caxri Bot window never marks it read.
 

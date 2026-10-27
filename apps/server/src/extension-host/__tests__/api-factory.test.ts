@@ -214,7 +214,7 @@ describe('Extension Host API factory', () => {
             notifyProjectStatusChanged({
                 kind: 'session',
                 sessionId: 'session-1',
-                workbenchProjectId: 'project-1',
+                workbenchRootProjectId: 'project-1',
             }),
         ).toEqual({ notified: 1 });
         expect(contextChanges).toBe(1);
@@ -223,7 +223,7 @@ describe('Extension Host API factory', () => {
             notifyGitChanged({
                 kind: 'session',
                 sessionId: 'session-1',
-                workbenchProjectId: 'project-1',
+                workbenchRootProjectId: 'project-1',
             }),
         ).toEqual({ notified: 1 });
         expect(gitChanges).toBe(1);

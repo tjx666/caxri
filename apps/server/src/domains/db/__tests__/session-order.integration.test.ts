@@ -45,7 +45,7 @@ describe('Session sidebar order', () => {
         expect(order()).toEqual([c.id, b.id, a.id]);
         database.reorderSession(a.id, c.id, 'before');
         expect(order()).toEqual([a.id, c.id, b.id]);
-        expect(database.getSession(a.id)?.lastSessionActivityAt).toBe(a.lastSessionActivityAt);
+        expect(database.getSession(a.id)?.sessionActivityAt).toBe(a.sessionActivityAt);
         expect(database.windowOpenSessions.get('main').activeSessionId).toBe(c.id);
         database.selectSession(b.id, 'main');
         expect(order()).toEqual([a.id, c.id, b.id]);
@@ -109,8 +109,8 @@ describe('Session sidebar order', () => {
         database.unarchiveSessions([a.id]);
         expect(order()).toEqual([a.id, c.id, b.id]);
         expect(database.getSession(a.id)).toMatchObject({
-            lastSessionActivityAt: a.lastSessionActivityAt,
-            lastSessionActivityReason: a.lastSessionActivityReason,
+            sessionActivityAt: a.sessionActivityAt,
+            sessionActivityReason: a.sessionActivityReason,
         });
     });
 

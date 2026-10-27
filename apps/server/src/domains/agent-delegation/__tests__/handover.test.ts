@@ -179,7 +179,7 @@ describe('Delegation continuing a Caxri Bot hand-over', () => {
         const getSession = f.database.getSession.bind(f.database);
         vi.spyOn(f.database, 'getSession').mockImplementation((id) => {
             const current = getSession(id);
-            return current && { ...current, lastActivityState: 'running' };
+            return current && { ...current, agentActivityState: 'running' };
         });
 
         await expect(f.service.create(id, f.botAuthority, f.request)).rejects.toMatchObject({
@@ -267,7 +267,7 @@ describe('Delegation continuing a Caxri Bot hand-over', () => {
         const getSession = f.database.getSession.bind(f.database);
         vi.spyOn(f.database, 'getSession').mockImplementation((sessionId) => {
             const current = getSession(sessionId);
-            return current && { ...current, lastActivityState: 'running' };
+            return current && { ...current, agentActivityState: 'running' };
         });
 
         await expect(f.service.create(id, f.botAuthority, f.request)).rejects.toMatchObject({

@@ -194,13 +194,13 @@ export const observationIdentity = {
  * Session was deleted, hidden, or rebound to another Workbench Root).
  */
 export function sessionContextOf(
-    live: () => { ownerProjectId?: string; sessionId?: string; workbenchProjectId?: string },
+    live: () => { ownerProjectId?: string; sessionId?: string; workbenchRootProjectId?: string },
     projectIds: string[] = [],
 ): (sessionId: string) => Promise<{
     ownerProjectId?: string;
     projectIds: string[];
     sessionId?: string;
-    workbenchProjectId?: string;
+    workbenchRootProjectId?: string;
 }> {
     return (sessionId) => {
         const current = live();

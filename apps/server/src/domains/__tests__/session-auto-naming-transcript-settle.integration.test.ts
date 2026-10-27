@@ -68,9 +68,9 @@ async function fixture() {
         createPendingAgentAdapters({
             codex: {
                 provider: 'codex',
-                renameSession: ({ displayTitle }: { displayTitle: string }) => {
-                    nativeTitle = displayTitle;
-                    return Promise.resolve({ displayTitle });
+                renameSession: ({ title }: { title: string }) => {
+                    nativeTitle = title;
+                    return Promise.resolve({ title });
                 },
                 snapshot: () => Promise.resolve(snapshot()),
             },
@@ -143,9 +143,7 @@ describe('Automatic Session naming while the transcript settles', () => {
         await vi.waitFor(() => expect(read).toHaveBeenCalledOnce());
         expect(generate).not.toHaveBeenCalled();
         await vi.advanceTimersByTimeAsync(500);
-        await vi.waitFor(() =>
-            expect(f.database.getSession(f.sessionId)?.displayTitle).toBe('Greeting'),
-        );
+        await vi.waitFor(() => expect(f.database.getSession(f.sessionId)?.title).toBe('Greeting'));
         expect(read).toHaveBeenCalledTimes(2);
     });
 
@@ -176,9 +174,7 @@ describe('Automatic Session naming when the first turn starts', () => {
         vi.spyOn(agentFunctions, 'readAgentTitleMessages').mockResolvedValue(USER_ONLY);
         const generate = vi.spyOn(f.agents, 'generateTitle').mockResolvedValue('Greeting');
         f.startTurn();
-        await vi.waitFor(() =>
-            expect(f.database.getSession(f.sessionId)?.displayTitle).toBe('Greeting'),
-        );
+        await vi.waitFor(() => expect(f.database.getSession(f.sessionId)?.title).toBe('Greeting'));
         expect(namingReasons(f.log)).toEqual(['turnStarted:completed']);
         // Completed naming state ends naming synchronously, so the finished turn starts no attempt.
         f.finishTurn();
@@ -198,9 +194,7 @@ describe('Automatic Session naming when the first turn starts', () => {
         await vi.waitFor(() => expect(read).toHaveBeenCalledOnce());
         expect(generate).not.toHaveBeenCalled();
         await vi.advanceTimersByTimeAsync(500);
-        await vi.waitFor(() =>
-            expect(f.database.getSession(f.sessionId)?.displayTitle).toBe('Greeting'),
-        );
+        await vi.waitFor(() => expect(f.database.getSession(f.sessionId)?.title).toBe('Greeting'));
         expect(namingReasons(f.log)).toEqual([
             'turnStarted:transcriptPending',
             'turnStarted:completed',
@@ -218,11 +212,9 @@ describe('Automatic Session naming when the first turn starts', () => {
             .mockResolvedValue('Greeting');
         f.startTurn();
         await vi.waitFor(() => expect(namingReasons(f.log)).toEqual(['turnStarted:skipped']));
-        expect(f.database.getSession(f.sessionId)?.displayTitle).not.toBe('Greeting');
+        expect(f.database.getSession(f.sessionId)?.title).not.toBe('Greeting');
         f.finishTurn();
-        await vi.waitFor(() =>
-            expect(f.database.getSession(f.sessionId)?.displayTitle).toBe('Greeting'),
-        );
+        await vi.waitFor(() => expect(f.database.getSession(f.sessionId)?.title).toBe('Greeting'));
         expect(generate).toHaveBeenCalledTimes(2);
         expect(namingReasons(f.log).at(-1)).toBe('turnFinished:completed');
     });
@@ -241,9 +233,7 @@ describe('Automatic Session naming when the first turn starts', () => {
         await vi.waitFor(() => expect(generate).toHaveBeenCalledOnce());
         f.finishTurn();
         opening.resolve('SKIP');
-        await vi.waitFor(() =>
-            expect(f.database.getSession(f.sessionId)?.displayTitle).toBe('Greeting'),
-        );
+        await vi.waitFor(() => expect(f.database.getSession(f.sessionId)?.title).toBe('Greeting'));
         expect(namingReasons(f.log)).toEqual(['turnStarted:skipped', 'turnFinished:completed']);
     });
 
@@ -258,9 +248,7 @@ describe('Automatic Session naming when the first turn starts', () => {
         f.startTurn();
         await vi.waitFor(() => expect(read).toHaveBeenCalledOnce());
         f.finishTurn();
-        await vi.waitFor(() =>
-            expect(f.database.getSession(f.sessionId)?.displayTitle).toBe('Greeting'),
-        );
+        await vi.waitFor(() => expect(f.database.getSession(f.sessionId)?.title).toBe('Greeting'));
         await vi.advanceTimersByTimeAsync(30_000);
         expect(read).toHaveBeenCalledTimes(2);
         expect(namingReasons(f.log)).toEqual([

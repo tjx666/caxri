@@ -33,12 +33,12 @@ export type ProjectListResult = z.infer<typeof projectListResultSchema>;
 const sessionSummarySchema = sessionRecordSchema.pick({
     id: true,
     projectId: true,
-    displayTitle: true,
+    title: true,
     archivedAt: true,
-    lastOpenedAt: true,
-    lastActivityState: true,
+    lastVisitedAt: true,
+    agentActivityState: true,
     primaryAgentTerminalId: true,
-    attentionEpoch: true,
+    attentionGeneration: true,
     hasUnread: true,
 });
 const terminalSummarySchema = terminalRecordSchema.pick({
@@ -104,9 +104,9 @@ export function projectListForPrincipal(value: unknown, principal: Principal): P
     if (principal.kind === 'human-cli') {
         return {
             view: 'human-cli',
-            projects: records.map(({ id, displayTitle, ownerProjectId, rootPath }) => ({
+            projects: records.map(({ id, title, ownerProjectId, rootPath }) => ({
                 id,
-                displayTitle,
+                title,
                 rootPath,
                 // Omitted rather than nulled for a top-level Project, matching `project.query`'s human view.
                 ...(ownerProjectId !== undefined && { ownerProjectId }),
@@ -114,9 +114,9 @@ export function projectListForPrincipal(value: unknown, principal: Principal): P
         };
     }
     const scope = projectScope(principal)!;
-    const projects = [] as Array<{ id: string; displayTitle: string }>;
-    for (const { id, displayTitle } of records) {
-        if (scope.has(id)) projects.push({ id, displayTitle });
+    const projects = [] as Array<{ id: string; title: string }>;
+    for (const { id, title } of records) {
+        if (scope.has(id)) projects.push({ id, title });
     }
     return { view: principal.kind, projects };
 }

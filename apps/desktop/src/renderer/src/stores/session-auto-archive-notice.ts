@@ -19,16 +19,14 @@ export function describeSessionAutoArchive(
     payload: SessionAutoArchivedPayload,
     bootstrap: BootstrapState | undefined,
 ): { action: ToastAction; message: string } {
-    const displayTitle = bootstrap?.sessions.find(
-        (session) => session.id === payload.sessionId,
-    )?.displayTitle;
+    const title = bootstrap?.sessions.find((session) => session.id === payload.sessionId)?.title;
     return {
-        message: describeAutoArchivedSession(displayTitle, payload.pullRequestState),
+        message: describeAutoArchivedSession(title, payload.pullRequestState),
         action: {
             id: 'session.unarchive',
             params: { sessionId: payload.sessionId },
             accessibleLabel: translate('session.notice.undoArchive', {
-                title: sessionTitleForDisplay(displayTitle ?? '', translate),
+                title: sessionTitleForDisplay(title ?? '', translate),
             }),
         },
     };

@@ -204,7 +204,7 @@ describe('WorkbenchRootService reported Agent working directory', () => {
         const sessionId = context.sessions[0].session.id;
         const selected = await context.service.authorizeSelection(sessionId, context.worktreeRoot);
         const binding = context.database.getSessionWorkbenchBinding(sessionId)!;
-        context.database.selectWorkbenchProject(sessionId, selected.workbenchProjectId, {
+        context.database.selectWorkbenchProject(sessionId, selected.workbenchRootProjectId, {
             device: 'device-from-a-previous-boot',
             inode: binding.rootInode!,
         });
@@ -365,7 +365,7 @@ describe('WorkbenchRootService reported Agent working directory', () => {
 
         await vi.waitFor(() =>
             expect(
-                context.database.getSession(context.sessions[0].session.id)?.workbenchProjectId,
+                context.database.getSession(context.sessions[0].session.id)?.workbenchRootProjectId,
             ).toBe(authorized.id),
         );
         expect(context.events.filter((event) => event.event === 'workbench.candidate')).toEqual([]);
@@ -373,7 +373,7 @@ describe('WorkbenchRootService reported Agent working directory', () => {
         expect(
             context.events.findLast((event) => event.event === 'workbench.changed'),
         ).toMatchObject({
-            payload: { reason: 'followed', followedProjectTitle: authorized.displayTitle },
+            payload: { reason: 'followed', followedProjectTitle: authorized.title },
         });
         await context.service.close();
         context.database.close();

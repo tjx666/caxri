@@ -58,19 +58,19 @@ function installParkedSession({ dirty }: { dirty: boolean }): void {
         bootstrap: {
             selectedSessionId: 'session-1',
             sessions: [
-                { id: 'session-1', projectId: 'project-1', workbenchProjectId: 'project-1' },
-                { id: 'session-2', projectId: 'project-1', workbenchProjectId: 'project-2' },
+                { id: 'session-1', projectId: 'project-1', workbenchRootProjectId: 'project-1' },
+                { id: 'session-2', projectId: 'project-1', workbenchRootProjectId: 'project-2' },
             ],
             sessionStates: [
                 {
                     sessionId: 'session-1',
-                    workbenchProjectId: 'project-1',
+                    workbenchRootProjectId: 'project-1',
                     desiredSecondarySidebarViewContainerId: 'caxri.files',
                     paneLayout: paneLayout([TRASHED]),
                 },
                 {
                     sessionId: 'session-2',
-                    workbenchProjectId: 'project-2',
+                    workbenchRootProjectId: 'project-2',
                     desiredSecondarySidebarViewContainerId: 'caxri.files',
                     paneLayout: paneLayout([PARKED_ROOT_FILE]),
                 },
@@ -135,12 +135,16 @@ describe('Trash reconciliation across Workbench Roots', () => {
             bootstrap: {
                 selectedSessionId: 'session-1',
                 sessions: [
-                    { id: 'session-1', projectId: 'project-1', workbenchProjectId: 'project-1' },
+                    {
+                        id: 'session-1',
+                        projectId: 'project-1',
+                        workbenchRootProjectId: 'project-1',
+                    },
                 ],
                 sessionStates: [
                     {
                         sessionId: 'session-1',
-                        workbenchProjectId: 'project-1',
+                        workbenchRootProjectId: 'project-1',
                         desiredSecondarySidebarViewContainerId: 'caxri.files',
                         paneLayout: paneLayout([
                             filePreviewTabPath('/project/docs/manual.pdf'),

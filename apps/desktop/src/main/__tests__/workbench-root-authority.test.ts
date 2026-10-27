@@ -150,13 +150,13 @@ describe('pathBrowser', () => {
         request.mockImplementation((method) => {
             if (method === 'app.bootstrap')
                 return Promise.resolve({
-                    projects: [{ id: 'project-1', displayTitle: 'Project', rootPath: projectRoot }],
+                    projects: [{ id: 'project-1', title: 'Project', rootPath: projectRoot }],
                     sessions: [
                         {
                             id: 'session-1',
                             archivedAt: undefined,
                             projectId: 'project-1',
-                            workbenchProjectId: 'project-1',
+                            workbenchRootProjectId: 'project-1',
                         },
                     ],
                     selectedSessionId: 'session-1',
@@ -469,7 +469,7 @@ describe('openBotFileLink', () => {
                         {
                             id: 'workbench-session',
                             archivedAt: undefined,
-                            workbenchProjectId: 'project-1',
+                            workbenchRootProjectId: 'project-1',
                         },
                     ],
                     selectedSessionId: 'workbench-session',
@@ -525,10 +525,18 @@ describe('openBotFileLink', () => {
                 });
             if (method === 'app.bootstrap')
                 return Promise.resolve({
-                    projects: [{ id: 'project-1', displayTitle: 'Project', rootPath: '/project' }],
+                    projects: [{ id: 'project-1', title: 'Project', rootPath: '/project' }],
                     sessions: [
-                        { id: 'session-a', archivedAt: undefined, workbenchProjectId: 'project-1' },
-                        { id: 'session-b', archivedAt: undefined, workbenchProjectId: 'project-1' },
+                        {
+                            id: 'session-a',
+                            archivedAt: undefined,
+                            workbenchRootProjectId: 'project-1',
+                        },
+                        {
+                            id: 'session-b',
+                            archivedAt: undefined,
+                            workbenchRootProjectId: 'project-1',
+                        },
                     ],
                     selectedSessionId: 'session-a',
                 });
@@ -565,7 +573,7 @@ describe('openBotFileLink', () => {
                     projects: [
                         {
                             id: 'worktree-project',
-                            displayTitle: 'Worktree',
+                            title: 'Worktree',
                             rootPath: '/wt',
                             ownerProjectId: 'project-1',
                         },

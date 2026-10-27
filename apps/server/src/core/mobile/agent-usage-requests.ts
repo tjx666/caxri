@@ -65,7 +65,7 @@ export function throughputSources(input: {
         })
         .toSorted(
             (a, b) =>
-                b.session.lastSessionActivityAt - a.session.lastSessionActivityAt ||
+                b.session.sessionActivityAt - a.session.sessionActivityAt ||
                 Number(b.session.primaryAgentTerminalId === b.terminalId) -
                     Number(a.session.primaryAgentTerminalId === a.terminalId),
         )
@@ -87,7 +87,7 @@ function mobileThroughput(
         lastResponseAt: last.completedAt,
         ...(last.model && { model: last.model }),
         sessionId: session.id,
-        sessionTitle: session.displayTitle.slice(0, SESSION_TITLE_CHARS),
+        sessionTitle: session.title.slice(0, SESSION_TITLE_CHARS),
     };
 }
 

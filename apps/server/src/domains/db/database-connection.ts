@@ -141,11 +141,11 @@ export class CaxriDatabaseConnection {
     }
 
     /**
-     * Durable cross-root editor state spans every Session's `workbenchStateJson`, so it has no single owning CRUD
-     * module; both operations run here, inside one transaction, over the whole `session_state` table.
+     * Durable cross-root editor state spans every Session's `rootsJson`, so it has no single owning CRUD module; both
+     * operations run here, inside one transaction, over the whole `session_views` table.
      */
     remapWorkbenchEditorState(
-        workbenchProjectId: string,
+        workbenchRootProjectId: string,
         operationId: string,
         previousPath: string,
         nextPath: string,
@@ -153,7 +153,7 @@ export class CaxriDatabaseConnection {
         return this.transaction(() =>
             remapWorkbenchEditorState(
                 this.db,
-                workbenchProjectId,
+                workbenchRootProjectId,
                 operationId,
                 previousPath,
                 nextPath,
@@ -161,8 +161,10 @@ export class CaxriDatabaseConnection {
         );
     }
 
-    removeWorkbenchEditorPath(workbenchProjectId: string, path: string): number {
-        return this.transaction(() => removeWorkbenchEditorPath(this.db, workbenchProjectId, path));
+    removeWorkbenchEditorPath(workbenchRootProjectId: string, path: string): number {
+        return this.transaction(() =>
+            removeWorkbenchEditorPath(this.db, workbenchRootProjectId, path),
+        );
     }
 
     markShutdown(reason: ShutdownReason): void {

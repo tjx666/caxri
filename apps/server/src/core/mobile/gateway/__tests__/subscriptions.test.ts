@@ -200,7 +200,7 @@ describe('MobileGatewaySubscriptions', () => {
             event: 'workbench.changed',
             payload: {
                 sessionId: 'session-1',
-                workbenchProjectId: 'project-2',
+                workbenchRootProjectId: 'project-2',
                 reason: 'followed',
             },
         });
@@ -240,7 +240,7 @@ describe('MobileGatewaySubscriptions', () => {
             event: 'workbench.changed',
             payload: {
                 sessionId: 'session-1',
-                workbenchProjectId: 'project-2',
+                workbenchRootProjectId: 'project-2',
                 reason: 'followed',
             },
         });

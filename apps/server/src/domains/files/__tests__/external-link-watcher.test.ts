@@ -27,7 +27,7 @@ it('bounds and coalesces an initial external target probe', async () => {
         fingerprint,
     );
     try {
-        await watcher.reset({ sessionId: 'session', workbenchProjectId: 'project' });
+        await watcher.reset({ sessionId: 'session', workbenchRootProjectId: 'project' });
         const first = watcher.note('session', {
             root,
             path: target,
@@ -83,14 +83,14 @@ it('fences an external target poll that resolves after a same-Project Session sw
         () => {},
     );
     try {
-        await watcher.reset({ sessionId: 'first', workbenchProjectId: 'project' });
+        await watcher.reset({ sessionId: 'first', workbenchRootProjectId: 'project' });
         await watcher.note('first', resolved);
         await writeFile(target, 'after');
         expect(registrations).toHaveBeenCalledOnce();
         const [registration] = registrations.mock.calls[0];
         const pending = registration.pollOnce();
         await entered.promise;
-        await watcher.reset({ sessionId: 'second', workbenchProjectId: 'project' });
+        await watcher.reset({ sessionId: 'second', workbenchRootProjectId: 'project' });
         release.resolve(resolved);
         await pending;
         expect(changed).not.toHaveBeenCalled();
@@ -127,12 +127,12 @@ it('lets a new scope re-authorize an entry while the old scope probe is still hu
     );
     const registrations = vi.spyOn(hub, 'registerPoller');
     try {
-        await watcher.reset({ sessionId: 'first', workbenchProjectId: 'project' });
+        await watcher.reset({ sessionId: 'first', workbenchRootProjectId: 'project' });
         await watcher.note('first', resolved);
         const [registration] = registrations.mock.calls[0];
         const pending = registration.pollOnce();
         await entered.promise;
-        await watcher.reset({ sessionId: 'second', workbenchProjectId: 'project' });
+        await watcher.reset({ sessionId: 'second', workbenchRootProjectId: 'project' });
 
         await expect(watcher.note('second', resolved)).resolves.toBeUndefined();
         release.resolve(resolved);
@@ -166,7 +166,7 @@ it('reports an inaccessible alias without starving the rest of a polling batch',
         () => {},
     );
     try {
-        await watcher.reset({ sessionId: 'session', workbenchProjectId: 'project' });
+        await watcher.reset({ sessionId: 'session', workbenchRootProjectId: 'project' });
         await Promise.all(
             entries.map((workspacePath) =>
                 watcher.note('session', {
@@ -208,7 +208,7 @@ it('bounds a hung alias probe and keeps healthy aliases updating without duplica
     const changed = vi.fn<ConstructorParameters<typeof ExternalLinkWatcher>[3]>();
     const watcher = new ExternalLinkWatcher(resolver, hub, 60_000, changed, () => {});
     try {
-        await watcher.reset({ sessionId: 'session', workbenchProjectId: 'project' });
+        await watcher.reset({ sessionId: 'session', workbenchRootProjectId: 'project' });
         await Promise.all(
             [hungEntry, healthyEntry].map((workspacePath) =>
                 watcher.note('session', {

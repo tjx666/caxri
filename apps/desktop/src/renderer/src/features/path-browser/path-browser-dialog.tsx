@@ -30,7 +30,7 @@ export function PathBrowserDialog() {
                     key={`${session.id}:${project.id}`}
                     projectRoot={project.rootPath}
                     sessionId={session.id}
-                    workbenchProjectId={project.id}
+                    workbenchRootProjectId={project.id}
                 />
             )}
         </Dialog>
@@ -40,11 +40,11 @@ export function PathBrowserDialog() {
 function PathBrowserContent({
     projectRoot,
     sessionId,
-    workbenchProjectId,
+    workbenchRootProjectId,
 }: {
     projectRoot: string;
     sessionId: string;
-    workbenchProjectId: string;
+    workbenchRootProjectId: string;
 }) {
     const {
         activeOptionId,
@@ -68,7 +68,7 @@ function PathBrowserContent({
         selectIndex,
         snapshot,
         updateInput,
-    } = usePathBrowser(projectRoot, sessionId, workbenchProjectId);
+    } = usePathBrowser(projectRoot, sessionId, workbenchRootProjectId);
     const { t } = useTranslation();
     const rootLabel = snapshot?.rootLabel ?? t('pathBrowser.projectRootFallback');
     const createDirectoryLabel = `${rootLabel}/${snapshot?.directoryLabel ?? ''}`;

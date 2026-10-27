@@ -27,7 +27,7 @@ describe('Extension workspace bridge', () => {
         const harness = fixture();
         const parameters = { refresh: 0, sessionId: 'session-1' };
 
-        const context = { sessionId: 'session-1', workbenchProjectId: 'project-1' };
+        const context = { sessionId: 'session-1', workbenchRootProjectId: 'project-1' };
         await expect(harness.workspaceRequest('git.summary', parameters, context)).resolves.toEqual(
             [],
         );
@@ -46,12 +46,12 @@ describe('Extension workspace bridge', () => {
         await expect(
             harness.workspaceRequest('git.discard', parameters, {
                 sessionId: 'session-1',
-                workbenchProjectId: 'project-1',
+                workbenchRootProjectId: 'project-1',
             }),
         ).resolves.toBeNull();
         expect(harness.discard).toHaveBeenCalledWith(parameters, undefined, {
             sessionId: 'session-1',
-            workbenchProjectId: 'project-1',
+            workbenchRootProjectId: 'project-1',
         });
         expect(harness.requestInWorkbenchContext).not.toHaveBeenCalled();
     });
@@ -74,7 +74,7 @@ describe('Extension workspace bridge', () => {
                     scope: { kind: 'all' },
                     sessionId: 'session-1',
                 },
-                { sessionId: 'session-1', workbenchProjectId: 'project-1' },
+                { sessionId: 'session-1', workbenchRootProjectId: 'project-1' },
             ),
         ).rejects.toMatchObject({ code: 'UNAVAILABLE' });
         expect(requestInWorkbenchContext).not.toHaveBeenCalled();

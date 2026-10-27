@@ -20,8 +20,8 @@ piece of shared Session state: content-free evidence that work in the Session me
 
 ## Decision
 
-Server Core persists a strictly monotonic `lastSessionActivityAt` and a closed,
-content-free `lastSessionActivityReason`. A new Session starts with `created`. Successful non-empty
+Server Core persists a strictly monotonic `sessionActivityAt` and a closed,
+content-free `sessionActivityReason`. A new Session starts with `created`. Successful non-empty
 human Terminal submission, explicit Agent start, and real Primary Agent transitions to running,
 waiting, completed, or failed advance the clock. A normal or failed exit of the Primary Agent child
 process therefore advances it, including a restored child that successfully spawns and then really
@@ -37,7 +37,7 @@ process lifecycle updates do not change Agent Activity, and a process-only metad
 View persistence, Terminal structure, output chunks, title-only probes, compaction, empty submit,
 and bracketed-paste editing do not.
 
-The preserving migration backfills legacy Sessions from `createdAt`, never `lastOpenedAt`, because
+The preserving migration backfills legacy Sessions from `createdAt`, never `lastVisitedAt`, because
 creation is the only historical event whose activity meaning is certain.
 
 The Renderer derives Primary Sidebar order from Session Activity, newest first, within each existing
@@ -46,7 +46,7 @@ Project group. Creation time and ID provide deterministic fallbacks. (Later amen
 `compareSessionSidebarOrder`; Pinned Sessions sit in their own group ordered by `pinnedOrder`.) The Sidebar tree, command
 palette, Project default selection, adjacent-Session commands, and Server fallback selection consume
 the same comparison policy. Server storage queries retain their stable creation order. MRU
-navigation continues to use `lastOpenedAt`, and Attention remains a visual signal rather than a
+navigation continues to use `lastVisitedAt`, and Attention remains a visual signal rather than a
 sorting bucket.
 
 ## Consequences

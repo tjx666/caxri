@@ -11,7 +11,7 @@ describe('decideSessionRename', () => {
     it('commits a draft that differs from the title the editor opened with', () => {
         expect(decideSessionRename('  Fix login  ', 'Untitled')).toEqual({
             kind: 'rename',
-            displayTitle: 'Fix login',
+            title: 'Fix login',
         });
     });
 

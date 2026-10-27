@@ -27,7 +27,7 @@ export function ResourceExplorerHeader({ controller }: { controller: ResourceExp
         <PanelHeader
             ref={fileCaptionRef}
             className="group/file-caption"
-            title={project?.displayTitle ?? rootPathCaption}
+            title={project?.title ?? rootPathCaption}
             titleAttribute={session.rootPath}
             actions={
                 <>

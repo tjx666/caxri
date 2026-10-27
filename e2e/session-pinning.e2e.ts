@@ -32,7 +32,7 @@ test('pinning lifts Sessions from several Projects into one group that survives 
         const page = () => running.page;
         await createProjectSession(page());
         const bootstrap = await pageRequest<{
-            projects: Array<{ id: string; displayTitle: string }>;
+            projects: Array<{ id: string; title: string }>;
             sessions: Array<{ id: string }>;
         }>(page(), 'app.bootstrap');
         const alpha = bootstrap.sessions[0];
@@ -40,7 +40,7 @@ test('pinning lifts Sessions from several Projects into one group that survives 
         // The second Project consumes the next one-shot folder grant supplied through CAXRI_TEST_ROOT_PATHS.
         const betaRoot = await pageRequest<string | null>(page(), 'dialog.selectDirectory');
         if (betaRoot !== roots[1]) throw new Error('Second Project root fixture was not granted');
-        const betaProject = await pageRequest<{ id: string; displayTitle: string }>(
+        const betaProject = await pageRequest<{ id: string; title: string }>(
             page(),
             'project.create',
             { rootPath: betaRoot },
@@ -50,8 +50,8 @@ test('pinning lifts Sessions from several Projects into one group that survives 
             'session.create',
             { projectId: betaProject.id, defaultAgent: null },
         );
-        await pageRequest(page(), 'session.rename', { sessionId: alpha.id, displayTitle: 'Alpha' });
-        await pageRequest(page(), 'session.rename', { sessionId: beta.id, displayTitle: 'Beta' });
+        await pageRequest(page(), 'session.rename', { sessionId: alpha.id, title: 'Alpha' });
+        await pageRequest(page(), 'session.rename', { sessionId: beta.id, title: 'Beta' });
 
         // No pinned Session yet, so the group renders nothing at all, not an empty heading.
         await expect(page().locator('.pinned-session-group')).toHaveCount(0);
@@ -78,7 +78,7 @@ test('pinning lifts Sessions from several Projects into one group that survives 
         ).toBeVisible();
         // Pinned rows name their owning Project, which is the only thing telling two Projects' Sessions apart here.
         await expect(page().locator('.pinned-session-group .session-project').first()).toHaveText(
-            alphaProject.displayTitle,
+            alphaProject.title,
         );
         /**
          * The title and the Project name used to shrink in proportion to their own widths, so a long Project name
@@ -88,7 +88,7 @@ test('pinning lifts Sessions from several Projects into one group that survives 
          */
         await pageRequest(page(), 'session.rename', {
             sessionId: alpha.id,
-            displayTitle: 'Alpha Session title long enough to crowd its Project name',
+            title: 'Alpha Session title long enough to crowd its Project name',
         });
         await expect
             .poll(() =>
@@ -106,7 +106,7 @@ test('pinning lifts Sessions from several Projects into one group that survives 
                     }),
             )
             .toBe('ok');
-        await pageRequest(page(), 'session.rename', { sessionId: alpha.id, displayTitle: 'Alpha' });
+        await pageRequest(page(), 'session.rename', { sessionId: alpha.id, title: 'Alpha' });
         /**
          * The pin has no visible mark on the row, so the accessible description is the only thing that says the row is
          * pinned at all.

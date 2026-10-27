@@ -13,25 +13,25 @@ function session(id: string, projectId = 'p'): SessionRecord {
     return {
         id,
         projectId,
-        workbenchProjectId: projectId,
+        workbenchRootProjectId: projectId,
         rootPath: '/fixture',
         createdAt: 0,
-        lastOpenedAt: 0,
-        lastSessionActivityAt: 0,
+        lastVisitedAt: 0,
+        sessionActivityAt: 0,
         sidebarOrder: 0,
-        lastSessionActivityReason: 'created',
-        lastActivityState: 'idle',
-        attentionEpoch: 0,
-        readAttentionEpoch: 0,
+        sessionActivityReason: 'created',
+        agentActivityState: 'idle',
+        attentionGeneration: 0,
+        acknowledgedAttentionGeneration: 0,
         hasUnread: false,
-        displayTitle: id,
+        title: id,
         titleMode: 'automatic',
     };
 }
 
 describe('Session drag order', () => {
     it('freezes positions while retaining fresh status and dropping removed rows', () => {
-        const a = { ...session('a'), lastActivityState: 'waiting' as const };
+        const a = { ...session('a'), agentActivityState: 'waiting' as const };
         const b = session('b');
         expect(frozenSessionOrder([b, a, session('new')], ['a', 'deleted', 'b'])).toEqual([a, b]);
         const rows = [b, a];
@@ -56,12 +56,12 @@ describe('Session drag order', () => {
 
 describe('Session row identity across a Session switch', () => {
     /**
-     * Issue #1356: a switch re-sends the opened Session with a new `lastOpenedAt`, so the list and that record are new
+     * Issue #1356: a switch re-sends the opened Session with a new `lastVisitedAt`, so the list and that record are new
      * objects while no row moved. The key the rows' shared id list is memoized on must not change with them.
      */
     it('keys a list by membership and order, not by record identity', () => {
         const before = [session('a'), session('b')];
-        const after = [{ ...session('a'), lastOpenedAt: 1 }, session('b')];
+        const after = [{ ...session('a'), lastVisitedAt: 1 }, session('b')];
         expect(sessionIdsKey(after)).toBe(sessionIdsKey(before));
         expect(sessionIdsKey([session('b'), session('a')])).not.toBe(sessionIdsKey(before));
         expect(sessionIdsKey([session('a')])).not.toBe(sessionIdsKey(before));
@@ -156,8 +156,8 @@ describe('Keyboard Session reordering', () => {
 
     it('announces a move by the titles the rows had when it started', () => {
         const rows = [
-            { ...session('a'), displayTitle: 'Alpha' },
-            { ...session('b'), displayTitle: 'Beta' },
+            { ...session('a'), title: 'Alpha' },
+            { ...session('b'), title: 'Beta' },
         ];
         expect(
             sessionMoveAnnouncement(rows, 'a', { anchorSessionId: 'b', placement: 'after' }),

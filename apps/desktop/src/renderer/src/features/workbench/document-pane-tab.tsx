@@ -40,7 +40,7 @@ export function DocumentPaneTab({
      * Keep context-menu close actions in sync when other tabs open or close.
      */
     const paneLayout = useSessionState(usePaneViewSessionId())?.paneLayout;
-    const project = useProjectById(session?.workbenchProjectId);
+    const project = useProjectById(session?.workbenchRootProjectId);
     const overviewQuery = useCaxriQuery(
         'git.overview',
         { sessionId: session?.id ?? '' },
@@ -48,7 +48,7 @@ export function DocumentPaneTab({
     );
     const document = useSessionViewStore((state) =>
         session
-            ? state.documents[sessionViewScope(session.id, session.workbenchProjectId)]?.[path]
+            ? state.documents[sessionViewScope(session.id, session.workbenchRootProjectId)]?.[path]
             : undefined,
     );
     const resolution = resolveDocumentTabPath(path, {

@@ -88,7 +88,7 @@ export function useAgentChatSessionMenu({
         ? searchSessionReferences(sessions, projects, currentSessionId, mention.query)
         : [];
     const openedAt = useMemo(
-        () => new Map(sessions?.map((session) => [session.id, session.lastOpenedAt])),
+        () => new Map(sessions?.map((session) => [session.id, session.lastVisitedAt])),
         [sessions],
     );
     const [active, setActive] = useState({ query: mention?.query, index: 0 });

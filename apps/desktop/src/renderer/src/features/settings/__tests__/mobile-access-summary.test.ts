@@ -38,10 +38,10 @@ describe('splitGrantableProjects', () => {
         const result = splitGrantableProjects({
             view: 'desktop',
             projects: [
-                { id: 'project-1', displayTitle: 'Caxri', rootPath: '$HOME/caxri' },
+                { id: 'project-1', title: 'Caxri', rootPath: '$HOME/caxri' },
                 {
                     id: 'project-2',
-                    displayTitle: 'feature',
+                    title: 'feature',
                     rootPath: '$HOME/caxri-worktrees/feature',
                     ownerProjectId: 'project-1',
                 },

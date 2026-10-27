@@ -35,7 +35,7 @@ async function openDatabaseWithTerminal(
     await mkdir(root);
     const database = new CaxriDatabase(join(directory, 'state.db'));
     const project = database.projects.create(root);
-    const session = database.sessions.insert({ projectId: project.id, displayTitle: 'Shell' });
+    const session = database.sessions.insert({ projectId: project.id, title: 'Shell' });
     const terminal = database.terminals.insert({
         sessionId: session.id,
         kind: 'shell',

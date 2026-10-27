@@ -15,7 +15,7 @@ import {
 } from '../session-rename-draft';
 
 export interface SessionRenameController {
-    beginRename: (sessionId: string, displayTitle: string, rowId: string) => void;
+    beginRename: (sessionId: string, title: string, rowId: string) => void;
     blurRename: () => void;
     cancelRename: () => void;
     commitRename: () => void;
@@ -33,7 +33,7 @@ export interface SessionRenameController {
      * Agent conversation and puts it into the editor fully selected (see `landSessionTitleSuggestion`): Enter accepts
      * it, typing edits it, and Escape keeps the old title.
      */
-    suggestRename: (sessionId: string, displayTitle: string, rowId: string) => void;
+    suggestRename: (sessionId: string, title: string, rowId: string) => void;
     /**
      * The tree row currently showing the rename input, not the Session id: a pinned Session has a row in the Pinned
      * group and another under its own Project, and only the one the user started the rename from may swap itself for a
@@ -83,7 +83,7 @@ export function useSessionRename(
     const restoreFocusVisibleReference = useRef(false);
     /**
      * The suggestion path compares its answer with the Session's current title. Read through a ref rather than closed
-     * over: the list is replaced on every Session switch (the Server stamps the opened Session's `lastOpenedAt`), and
+     * over: the list is replaced on every Session switch (the Server stamps the opened Session's `lastVisitedAt`), and
      * handlers rebuilt from it would reach every row as new props and render all of them again (issue #1356).
      */
     const latestSessions = useLatestReference(sessions);
@@ -124,7 +124,7 @@ export function useSessionRename(
     useEffect(() => {
         const sessionId = renamingSessionIdReference.current;
         if (!sessionId) return;
-        const currentTitle = sessions.find((session) => session.id === sessionId)?.displayTitle;
+        const currentTitle = sessions.find((session) => session.id === sessionId)?.title;
         const next = syncUntouchedRenameDraft(
             isRenameDraftEditedReference.current,
             renameBaselineReference.current,
@@ -137,30 +137,26 @@ export function useSessionRename(
         setRenameValue(next);
     }, [sessions]);
 
-    const beginRename = useCallback(
-        (sessionId: string, displayTitle: string, rowId: string): void => {
-            /**
-             * Record how the row was focused before the input replaces it. `focus()` always applies `:focus-visible`,
-             * so restoring focus after a rename started by double-click drew a white ring around a row the user had
-             * only ever clicked: a focus indicator standing for keyboard navigation that never happened.
-             */
-            restoreFocusVisibleReference.current =
-                treeRow(rowId)?.matches(':focus-visible') === true;
-            renamingSessionIdReference.current = sessionId;
-            renamingRowIdReference.current = rowId;
-            /**
-             * The editor starts from the title the row shows, so an unnamed Session opens on the localized `Untitled`
-             * and committing it unchanged is a no-op rather than a rename to the translation.
-             */
-            const shownTitle = sessionTitleForDisplay(displayTitle, translate);
-            renameBaselineReference.current = shownTitle;
-            isRenameDraftEditedReference.current = false;
-            setRenamingRowId(rowId);
-            setRenameValue(shownTitle);
-            setRenameError(undefined);
-        },
-        [],
-    );
+    const beginRename = useCallback((sessionId: string, title: string, rowId: string): void => {
+        /**
+         * Record how the row was focused before the input replaces it. `focus()` always applies `:focus-visible`, so
+         * restoring focus after a rename started by double-click drew a white ring around a row the user had only ever
+         * clicked: a focus indicator standing for keyboard navigation that never happened.
+         */
+        restoreFocusVisibleReference.current = treeRow(rowId)?.matches(':focus-visible') === true;
+        renamingSessionIdReference.current = sessionId;
+        renamingRowIdReference.current = rowId;
+        /**
+         * The editor starts from the title the row shows, so an unnamed Session opens on the localized `Untitled` and
+         * committing it unchanged is a no-op rather than a rename to the translation.
+         */
+        const shownTitle = sessionTitleForDisplay(title, translate);
+        renameBaselineReference.current = shownTitle;
+        isRenameDraftEditedReference.current = false;
+        setRenamingRowId(rowId);
+        setRenameValue(shownTitle);
+        setRenameError(undefined);
+    }, []);
 
     /**
      * Clearing the active id synchronously makes key-repeat submissions no-ops. Blur deliberately skips focus
@@ -201,7 +197,7 @@ export function useSessionRename(
         }
         finishRename(sessionId, true);
         // Fire-and-forget: `didRenameSession` funnels its own failures into a toast.
-        if (decision.kind === 'rename') void didRenameSession(sessionId, decision.displayTitle);
+        if (decision.kind === 'rename') void didRenameSession(sessionId, decision.title);
     }, [renameValue, finishRename]);
 
     const blurRename = useCallback((): void => {
@@ -216,13 +212,12 @@ export function useSessionRename(
          */
         if (suggestionReference.current?.sessionId === sessionId) return;
         // Fire-and-forget: `didRenameSession` funnels its own failures into a toast.
-        if (decision.kind === 'rename') void didRenameSession(sessionId, decision.displayTitle);
+        if (decision.kind === 'rename') void didRenameSession(sessionId, decision.title);
     }, [renameValue, finishRename]);
 
     const suggestRename = useCallback(
-        (sessionId: string, displayTitle: string, rowId: string): void => {
-            if (renamingRowIdReference.current !== rowId)
-                beginRename(sessionId, displayTitle, rowId);
+        (sessionId: string, title: string, rowId: string): void => {
+            if (renamingRowIdReference.current !== rowId) beginRename(sessionId, title, rowId);
             if (suggestionReference.current?.sessionId === sessionId) return;
             const request = { sessionId };
             suggestionReference.current = request;
@@ -245,11 +240,7 @@ export function useSessionRename(
                         (candidate) => candidate.id === sessionId,
                     );
                     if (!session) return;
-                    beginRename(
-                        sessionId,
-                        session.displayTitle,
-                        latestRevealSessionRow.current(session),
-                    );
+                    beginRename(sessionId, session.title, latestRevealSessionRow.current(session));
                 }
                 // Marked as the user's draft so an automatic name landing next does not replace the suggestion.
                 isRenameDraftEditedReference.current = true;
@@ -288,8 +279,8 @@ export function useSessionRename(
             const rowId = latestRevealSessionRow.current(session);
             // `session.renameWithAi` asks for the same suggestion the row's `Shift+Enter` does.
             if (renameRequest.suggest)
-                latestSuggestRename.current(session.id, session.displayTitle, rowId);
-            else latestBeginRename.current(session.id, session.displayTitle, rowId);
+                latestSuggestRename.current(session.id, session.title, rowId);
+            else latestBeginRename.current(session.id, session.title, rowId);
         }
         // Consumed, not just observed. `Cmd+[` unmounts the whole side bar, so a request left standing would run again
         // on the next reveal and drop the row back into an editor nobody asked for. A mount-time revision baseline

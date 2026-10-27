@@ -121,7 +121,7 @@ export class WorkbenchRootService {
         timer?: SweepTimer,
     ): Promise<boolean> {
         const owner = this.options.database.getProject(binding.projectId);
-        const active = this.options.database.getProject(binding.workbenchProjectId);
+        const active = this.options.database.getProject(binding.workbenchRootProjectId);
         let reason = 'valid';
         let drifted: { device: string; inode: string } | undefined;
         try {
@@ -159,7 +159,7 @@ export class WorkbenchRootService {
         )
             return false;
         if (reason === 'valid') {
-            if (drifted) this.rebind(sessionId, binding.workbenchProjectId, drifted);
+            if (drifted) this.rebind(sessionId, binding.workbenchRootProjectId, drifted);
             return false;
         }
         this.fallback(sessionId, reason);
@@ -173,12 +173,12 @@ export class WorkbenchRootService {
      */
     private rebind(
         sessionId: string,
-        workbenchProjectId: string,
+        workbenchRootProjectId: string,
         identity: { device: string; inode: string },
     ): void {
-        this.options.database.selectWorkbenchProject(sessionId, workbenchProjectId, identity);
+        this.options.database.selectWorkbenchProject(sessionId, workbenchRootProjectId, identity);
         this.options.logger.write('info', workbenchRootLogEvents.rebound, {
-            fields: { reason: 'device_drift', sessionId, workbenchProjectId },
+            fields: { reason: 'device_drift', sessionId, workbenchRootProjectId },
         });
     }
 
@@ -236,8 +236,8 @@ export class WorkbenchRootService {
         fallbackReason?: string,
     ): void {
         const owner = this.requireProject(session.projectId);
-        const followed =
-            reason === 'followed' && this.options.database.getProject(session.workbenchProjectId);
+        const root = this.options.database.getProject(session.workbenchRootProjectId);
+        const followed = reason === 'followed' && root;
         this.onRootChanged?.(session.id);
         this.options.emit({
             event: 'state.changed',
@@ -247,10 +247,10 @@ export class WorkbenchRootService {
             event: 'workbench.changed',
             payload: {
                 sessionId: session.id,
-                workbenchProjectId: session.workbenchProjectId,
+                workbenchRootProjectId: session.workbenchRootProjectId,
                 reason,
-                ...(followed && { followedProjectTitle: followed.displayTitle }),
-                ...(reason === 'fallback' && { returnedProjectTitle: owner.displayTitle }),
+                ...(followed && { followedProjectTitle: followed.title }),
+                ...(reason === 'fallback' && { returnedProjectTitle: owner.title }),
             },
         });
         if (fallbackReason)
@@ -388,7 +388,7 @@ export class WorkbenchRootService {
         }
         const startedAt = performance.now();
         const binding = this.options.database.getSessionWorkbenchBinding(input.sessionId);
-        if (!binding || (authorized && binding.workbenchProjectId === authorized.id)) return;
+        if (!binding || (authorized && binding.workbenchRootProjectId === authorized.id)) return;
         const owner = this.requireProject(binding.projectId);
         const topology = await this.loadTopology(owner.rootPath);
         if (
@@ -502,7 +502,7 @@ export class WorkbenchRootService {
         if (!terminal) return 'terminalMissing';
         const session = this.options.database.getSession(terminal.sessionId);
         if (!session) return 'sessionMissing';
-        if (session.workbenchProjectId !== session.projectId)
+        if (session.workbenchRootProjectId !== session.projectId)
             this.deletionValidations.schedule(session.id);
         return 'accepted';
     }
@@ -518,7 +518,7 @@ export class WorkbenchRootService {
         try {
             topology = await this.loadTopology(owner.rootPath);
         } catch {
-            const active = this.options.database.getProject(session.workbenchProjectId);
+            const active = this.options.database.getProject(session.workbenchRootProjectId);
             return unavailableWorkbenchRoots(owner, active);
         }
         const options = await discoverWorkbenchRoots(
@@ -596,11 +596,11 @@ export class WorkbenchRootService {
      * authorized against the root the confirmation was about, which the Session may have left since. Requiring the root
      * to be the Session's owner or its active root keeps a Renderer from naming an unrelated Project's stored layout.
      */
-    forgetEditorPath(sessionId: string, workbenchProjectId: string, path: string): void {
+    forgetEditorPath(sessionId: string, workbenchRootProjectId: string, path: string): void {
         const session = this.requireSession(sessionId);
         if (
-            workbenchProjectId !== session.projectId &&
-            workbenchProjectId !== session.workbenchProjectId
+            workbenchRootProjectId !== session.projectId &&
+            workbenchRootProjectId !== session.workbenchRootProjectId
         )
             throw new CaxriError('PATH_DENIED', 'Workbench Root is not selected by this Session');
         /**
@@ -610,11 +610,11 @@ export class WorkbenchRootService {
          * would let one call clear every stored document tab of the root.
          */
         if (!isAbsolute(path)) throw new CaxriError('VALIDATION', 'Trashed path must be absolute');
-        const nested = relative(this.requireProject(workbenchProjectId).rootPath, path);
+        const nested = relative(this.requireProject(workbenchRootProjectId).rootPath, path);
         if (nested === '')
             throw new CaxriError('PATH_DENIED', 'The Workbench Root itself cannot be trashed');
         assertInsideRoot(nested, 'Trashed path is outside the Workbench Root');
-        this.options.database.removeWorkbenchEditorPath(workbenchProjectId, path);
+        this.options.database.removeWorkbenchEditorPath(workbenchRootProjectId, path);
     }
 
     /**
@@ -712,7 +712,7 @@ export class WorkbenchRootService {
 
     async validateSession(sessionId: string): Promise<boolean> {
         const binding = this.options.database.getSessionWorkbenchBinding(sessionId);
-        if (!binding || binding.workbenchProjectId === binding.projectId) return false;
+        if (!binding || binding.workbenchRootProjectId === binding.projectId) return false;
         return this.validateBinding(sessionId, binding);
     }
 

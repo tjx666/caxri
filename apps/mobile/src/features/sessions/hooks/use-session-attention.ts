@@ -4,7 +4,7 @@ import { useMobileClient } from '../../connection/mobile-client-provider';
 import type { MobileSessionItem } from '../session-model';
 
 export const sessionReadKey = (session: MobileSessionItem): string =>
-    `${session.id}:${session.attentionEpoch}`;
+    `${session.id}:${session.attentionGeneration}`;
 
 export const useSessionAttention = ({
     enabled,
@@ -27,7 +27,7 @@ export const useSessionAttention = ({
             try {
                 await request('session.markRead', {
                     sessionId: session.id,
-                    attentionEpoch: session.attentionEpoch,
+                    attentionGeneration: session.attentionGeneration,
                 });
                 await onRefresh();
             } catch {

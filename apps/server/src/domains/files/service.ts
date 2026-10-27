@@ -138,7 +138,7 @@ export class FileService {
     private mutationOperationScope(sessionId: string): FileMutationOperationScope {
         return {
             sessionId,
-            workbenchProjectId: this.projectRoots.getSessionWorkbenchProjectId(sessionId),
+            workbenchRootProjectId: this.projectRoots.getSessionWorkbenchRootProjectId(sessionId),
         };
     }
 
@@ -216,7 +216,7 @@ export class FileService {
         },
     ): Promise<ServerOperationResult<'files.create'>> {
         const now = Date.now();
-        const workbenchProjectId = this.projectRoots.getSessionWorkbenchProjectId(
+        const workbenchRootProjectId = this.projectRoots.getSessionWorkbenchRootProjectId(
             parameters.sessionId,
         );
         return this.mutationJournal.run(
@@ -224,7 +224,7 @@ export class FileService {
                 id: parameters.operationId ?? randomUUID(),
                 kind: 'create',
                 sessionId: parameters.sessionId,
-                workbenchProjectId,
+                workbenchRootProjectId,
                 phase: 'pre_stage',
                 input: {
                     directory: parameters.directory,
@@ -265,7 +265,7 @@ export class FileService {
         },
     ): Promise<ServerOperationResult<'files.rename'>> {
         const now = Date.now();
-        const workbenchProjectId = this.projectRoots.getSessionWorkbenchProjectId(
+        const workbenchRootProjectId = this.projectRoots.getSessionWorkbenchRootProjectId(
             parameters.sessionId,
         );
         return this.mutationJournal.run(
@@ -273,7 +273,7 @@ export class FileService {
                 id: parameters.operationId ?? randomUUID(),
                 kind: 'rename',
                 sessionId: parameters.sessionId,
-                workbenchProjectId,
+                workbenchRootProjectId,
                 phase: 'pre_stage',
                 input: { name: parameters.name, path: parameters.path },
                 startedAt: now,
@@ -297,7 +297,7 @@ export class FileService {
         },
     ): Promise<ServerOperationResult<'files.move'>> {
         const now = Date.now();
-        const workbenchProjectId = this.projectRoots.getSessionWorkbenchProjectId(
+        const workbenchRootProjectId = this.projectRoots.getSessionWorkbenchRootProjectId(
             parameters.sessionId,
         );
         return this.mutationJournal.run(
@@ -305,7 +305,7 @@ export class FileService {
                 id: parameters.operationId ?? randomUUID(),
                 kind: 'move',
                 sessionId: parameters.sessionId,
-                workbenchProjectId,
+                workbenchRootProjectId,
                 phase: 'pre_stage',
                 input: {
                     conflict: parameters.conflict,
@@ -567,7 +567,8 @@ export class FileService {
             sessionId
                 ? {
                       sessionId,
-                      workbenchProjectId: this.projectRoots.getSessionWorkbenchProjectId(sessionId),
+                      workbenchRootProjectId:
+                          this.projectRoots.getSessionWorkbenchRootProjectId(sessionId),
                   }
                 : undefined,
         );
@@ -580,7 +581,8 @@ export class FileService {
         return this.watcher.watchSession(
             {
                 sessionId,
-                workbenchProjectId: this.projectRoots.getSessionWorkbenchProjectId(sessionId),
+                workbenchRootProjectId:
+                    this.projectRoots.getSessionWorkbenchRootProjectId(sessionId),
             },
             true,
         );

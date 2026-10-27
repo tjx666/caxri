@@ -67,7 +67,7 @@ export function isSameWorkbenchBinding(
 ): boolean {
     return (
         left?.projectId === right?.projectId &&
-        left?.workbenchProjectId === right?.workbenchProjectId &&
+        left?.workbenchRootProjectId === right?.workbenchRootProjectId &&
         left?.rootInode === right?.rootInode
     );
 }

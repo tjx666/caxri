@@ -88,7 +88,7 @@ export async function closeAllEditors(path: string): Promise<void> {
 const sessionState = (sessionId: string, path: string): SessionState => ({
     sessionId,
     revision: 0,
-    workbenchProjectId: 'project-1',
+    workbenchRootProjectId: 'project-1',
     desiredSecondarySidebarViewContainerId: 'caxri.files',
     paneLayout: paneLayout([path]),
 });
@@ -106,12 +106,12 @@ export function installSessions(
                 {
                     id: 'session-1',
                     projectId: 'project-1',
-                    workbenchProjectId: 'project-1',
+                    workbenchRootProjectId: 'project-1',
                 },
                 {
                     id: 'session-2',
                     projectId: 'project-1',
-                    workbenchProjectId: 'project-1',
+                    workbenchRootProjectId: 'project-1',
                 },
             ],
             sessionStates: [
@@ -148,14 +148,14 @@ export function installEmptySession(): void {
                 {
                     id: 'session-1',
                     projectId: 'project-1',
-                    workbenchProjectId: 'project-1',
+                    workbenchRootProjectId: 'project-1',
                 },
             ],
             sessionStates: [
                 {
                     sessionId: 'session-1',
                     revision: 0,
-                    workbenchProjectId: 'project-1',
+                    workbenchRootProjectId: 'project-1',
                     desiredSecondarySidebarViewContainerId: 'caxri.files',
                     paneLayout: paneLayout([]),
                 },

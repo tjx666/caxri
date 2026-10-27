@@ -28,30 +28,30 @@ interface SessionViewState {
      * Records a document as most recently used without caching content, so selecting an already open tab keeps its
      * buffer ahead of the eviction line.
      */
-    touchDocument(sessionId: string, path: string, workbenchProjectId?: string): void;
+    touchDocument(sessionId: string, path: string, workbenchRootProjectId?: string): void;
     cacheDocument(
         sessionId: string,
         document: EditorDocument,
-        workbenchProjectId?: string,
+        workbenchRootProjectId?: string,
     ): boolean;
     cacheDocuments(
         sessionId: string,
         documents: readonly EditorDocument[],
-        workbenchProjectId?: string,
+        workbenchRootProjectId?: string,
     ): void;
     updateDocumentContent(
         sessionId: string,
         path: string,
         content: string,
-        workbenchProjectId: string,
+        workbenchRootProjectId: string,
     ): void;
-    evictDocument(sessionId: string, path: string, workbenchProjectId?: string): void;
-    evictDocumentsUnderPath(sessionId: string, path: string, workbenchProjectId?: string): void;
+    evictDocument(sessionId: string, path: string, workbenchRootProjectId?: string): void;
+    evictDocumentsUnderPath(sessionId: string, path: string, workbenchRootProjectId?: string): void;
     remapDocuments(
         sessionId: string,
         previousPath: string,
         nextPath: string,
-        workbenchProjectId?: string,
+        workbenchRootProjectId?: string,
     ): void;
     dropSessions(sessionIds: readonly string[]): void;
     setDesiredSecondarySidebarViewContainerId(id: ViewContainerId): void;
@@ -61,9 +61,9 @@ interface SessionViewState {
  * Owner-root state keeps its historical Session key; alternate roots add the independently authorized Project ID so
  * dirty buffers with the same path can never collide.
  */
-export function sessionViewScope(sessionId: string, workbenchProjectId?: string): string {
+export function sessionViewScope(sessionId: string, workbenchRootProjectId?: string): string {
     const session = getBootstrap()?.sessions.find((candidate) => candidate.id === sessionId);
-    const rootProjectId = workbenchProjectId ?? session?.workbenchProjectId;
+    const rootProjectId = workbenchRootProjectId ?? session?.workbenchRootProjectId;
     if (!rootProjectId || !session || rootProjectId === session.projectId) return sessionId;
     return `${sessionId}\0${rootProjectId}`;
 }
@@ -206,8 +206,8 @@ export const useSessionViewStore = createStore<SessionViewState>('session-view',
     documents: {},
     recentDocuments: {},
 
-    touchDocument(sessionId, path, workbenchProjectId) {
-        const scope = sessionViewScope(sessionId, workbenchProjectId);
+    touchDocument(sessionId, path, workbenchRootProjectId) {
+        const scope = sessionViewScope(sessionId, workbenchRootProjectId);
         set((state) => ({
             recentDocuments: {
                 ...state.recentDocuments,
@@ -216,8 +216,8 @@ export const useSessionViewStore = createStore<SessionViewState>('session-view',
         }));
     },
 
-    cacheDocument(sessionId, document, workbenchProjectId) {
-        const scope = sessionViewScope(sessionId, workbenchProjectId);
+    cacheDocument(sessionId, document, workbenchRootProjectId) {
+        const scope = sessionViewScope(sessionId, workbenchRootProjectId);
         let didCache = false;
         set((state) => {
             if (document.ephemeral && !canRetainEphemeralDocument(state.documents, scope, document))
@@ -233,9 +233,9 @@ export const useSessionViewStore = createStore<SessionViewState>('session-view',
         return didCache;
     },
 
-    cacheDocuments(sessionId, documents, workbenchProjectId) {
+    cacheDocuments(sessionId, documents, workbenchRootProjectId) {
         if (documents.length === 0) return;
-        const scope = sessionViewScope(sessionId, workbenchProjectId);
+        const scope = sessionViewScope(sessionId, workbenchRootProjectId);
         set((state) => {
             const merged = documents.reduce(
                 (current, document) => setSessionDocument(current, scope, document),
@@ -249,8 +249,8 @@ export const useSessionViewStore = createStore<SessionViewState>('session-view',
         });
     },
 
-    updateDocumentContent(sessionId, path, content, workbenchProjectId) {
-        const existing = getSessionDocuments(sessionId, workbenchProjectId)?.[path];
+    updateDocumentContent(sessionId, path, content, workbenchRootProjectId) {
+        const existing = getSessionDocuments(sessionId, workbenchRootProjectId)?.[path];
         if (!existing || existing.readOnly) return;
         /**
          * An untitled buffer has no file to differ from, so it is unsaved exactly while it holds text: emptying it
@@ -260,15 +260,15 @@ export const useSessionViewStore = createStore<SessionViewState>('session-view',
         get().cacheDocument(
             sessionId,
             { ...existing, content, dirty: isDirty },
-            workbenchProjectId,
+            workbenchRootProjectId,
         );
     },
 
     /**
      * Closing a tab releases its content; the tab itself is owned by the persisted Session state.
      */
-    evictDocument(sessionId, path, workbenchProjectId) {
-        const scope = sessionViewScope(sessionId, workbenchProjectId);
+    evictDocument(sessionId, path, workbenchRootProjectId) {
+        const scope = sessionViewScope(sessionId, workbenchRootProjectId);
         set((state) => {
             const cached = readScopedDocuments(state.documents, scope);
             if (!cached || !Object.hasOwn(cached, path)) return state;
@@ -283,8 +283,8 @@ export const useSessionViewStore = createStore<SessionViewState>('session-view',
         });
     },
 
-    evictDocumentsUnderPath(sessionId, path, workbenchProjectId) {
-        const scope = sessionViewScope(sessionId, workbenchProjectId);
+    evictDocumentsUnderPath(sessionId, path, workbenchRootProjectId) {
+        const scope = sessionViewScope(sessionId, workbenchRootProjectId);
         set((state) => {
             const cached = readScopedDocuments(state.documents, scope);
             if (!cached || Object.keys(cached).every((value) => !isPathAtOrBelow(value, path)))
@@ -307,8 +307,8 @@ export const useSessionViewStore = createStore<SessionViewState>('session-view',
         });
     },
 
-    remapDocuments(sessionId, previousPath, nextPath, workbenchProjectId) {
-        const scope = sessionViewScope(sessionId, workbenchProjectId);
+    remapDocuments(sessionId, previousPath, nextPath, workbenchRootProjectId) {
+        const scope = sessionViewScope(sessionId, workbenchRootProjectId);
         set((state) => {
             const cached = readScopedDocuments(state.documents, scope);
             if (
@@ -365,21 +365,21 @@ export const useSessionViewStore = createStore<SessionViewState>('session-view',
 
 export function getSessionDocuments(
     sessionId: string,
-    workbenchProjectId?: string,
+    workbenchRootProjectId?: string,
 ): Record<string, EditorDocument> | undefined {
     return useSessionViewStore.getState().documents[
-        sessionViewScope(sessionId, workbenchProjectId)
+        sessionViewScope(sessionId, workbenchRootProjectId)
     ];
 }
 
 export function useDocument(
     sessionId: string | undefined,
     path: string | undefined,
-    workbenchProjectId?: string,
+    workbenchRootProjectId?: string,
 ): EditorDocument | undefined {
     return useSessionViewStore((state) =>
         sessionId && path
-            ? state.documents[sessionViewScope(sessionId, workbenchProjectId)]?.[path]
+            ? state.documents[sessionViewScope(sessionId, workbenchRootProjectId)]?.[path]
             : undefined,
     );
 }

@@ -128,7 +128,7 @@ describe('AgentCoordinator', () => {
                     title: `${provider} from Shell`,
                 });
                 expect(database.getSession(created.session.id)).toMatchObject({
-                    displayTitle: `${provider} from Shell`,
+                    title: `${provider} from Shell`,
                     primaryAgentTerminalId: created.terminal!.id,
                 });
             } finally {
@@ -174,7 +174,7 @@ describe('AgentCoordinator', () => {
                 title: 'Codex',
             });
             expect(database.getSession(created.session.id)).toMatchObject({
-                displayTitle: 'Untitled',
+                title: 'Untitled',
                 primaryAgentTerminalId: created.terminal!.id,
             });
         } finally {
@@ -254,7 +254,7 @@ describe('AgentCoordinator', () => {
                 provider: undefined,
             });
             expect(database.getSession(created.session.id)).toMatchObject({
-                displayTitle: 'Untitled',
+                title: 'Untitled',
                 primaryAgentTerminalId: undefined,
             });
         } finally {
@@ -448,7 +448,7 @@ describe('AgentCoordinator', () => {
                     },
                 },
             ]);
-            expect(database.getSession(created.session.id)?.displayTitle).toBe(
+            expect(database.getSession(created.session.id)?.title).toBe(
                 'Repair terminal lifecycle',
             );
 
@@ -472,7 +472,7 @@ describe('AgentCoordinator', () => {
         temporaryDirectories.push(directory);
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const created = database.createSession(database.createProject(directory).id, 'claude');
-        const createdActivityAt = created.session.lastSessionActivityAt;
+        const createdActivityAt = created.session.sessionActivityAt;
         let status: 'running' | 'waiting' = 'waiting';
         const firstSnapshot = Promise.withResolvers<void>();
         let snapshotGate: PromiseWithResolvers<void> | undefined = firstSnapshot;
@@ -505,15 +505,15 @@ describe('AgentCoordinator', () => {
             firstSnapshot.resolve();
             await expect.poll(() => snapshot.mock.calls.length).toBe(2);
             expect(database.getSession(created.session.id)).toMatchObject({
-                attentionEpoch: 0,
+                attentionGeneration: 0,
                 hasUnread: false,
-                lastSessionActivityAt: createdActivityAt,
-                lastSessionActivityReason: 'created',
+                sessionActivityAt: createdActivityAt,
+                sessionActivityReason: 'created',
             });
             status = 'running';
             coordinator.observeOutput(created.terminal!.id);
             await expect
-                .poll(() => database.getSession(created.session.id)?.lastSessionActivityReason)
+                .poll(() => database.getSession(created.session.id)?.sessionActivityReason)
                 .toBe('agent_started');
 
             const transitionSnapshot = Promise.withResolvers<void>();
@@ -524,22 +524,20 @@ describe('AgentCoordinator', () => {
             coordinator.probeTerminal(created.terminal!.id);
             transitionSnapshot.resolve();
             await expect
-                .poll(() => database.getSession(created.session.id)?.attentionEpoch)
+                .poll(() => database.getSession(created.session.id)?.attentionGeneration)
                 .toBe(1);
             expect(database.getSession(created.session.id)).toMatchObject({
                 lastAttentionKind: 'waiting',
                 hasUnread: true,
-                lastSessionActivityReason: 'agent_waiting',
+                sessionActivityReason: 'agent_waiting',
             });
-            const waitingActivityAt = database.getSession(
-                created.session.id,
-            )!.lastSessionActivityAt;
+            const waitingActivityAt = database.getSession(created.session.id)!.sessionActivityAt;
             expect(waitingActivityAt).toBeGreaterThan(createdActivityAt);
 
             coordinator.observeOutput(created.terminal!.id);
             await expect.poll(() => snapshot.mock.calls.length).toBe(6);
-            expect(database.getSession(created.session.id)?.attentionEpoch).toBe(1);
-            expect(database.getSession(created.session.id)?.lastSessionActivityAt).toBe(
+            expect(database.getSession(created.session.id)?.attentionGeneration).toBe(1);
+            expect(database.getSession(created.session.id)?.sessionActivityAt).toBe(
                 waitingActivityAt,
             );
         } finally {
@@ -587,16 +585,16 @@ describe('AgentCoordinator', () => {
             });
 
             expect(database.getSession(created.session.id)).toMatchObject({
-                attentionEpoch: 1,
-                lastActivityState: 'completed',
+                attentionGeneration: 1,
+                agentActivityState: 'completed',
                 lastAttentionKind: 'completed',
             });
 
             coordinator.observeOutput(created.terminal!.id);
             await expect.poll(() => snapshot.mock.calls.length).toBe(1);
             expect(database.getSession(created.session.id)).toMatchObject({
-                attentionEpoch: 1,
-                lastActivityState: 'completed',
+                attentionGeneration: 1,
+                agentActivityState: 'completed',
                 lastAttentionKind: 'completed',
             });
             expect(database.getTerminal(created.terminal!.id)?.agentSessionId).toBe(
@@ -609,7 +607,7 @@ describe('AgentCoordinator', () => {
                 provider: 'codex',
                 terminalId: created.terminal!.id,
             });
-            expect(database.getSession(created.session.id)?.attentionEpoch).toBe(1);
+            expect(database.getSession(created.session.id)?.attentionGeneration).toBe(1);
         } finally {
             await coordinator.close();
             database.close();
@@ -650,11 +648,11 @@ describe('AgentCoordinator', () => {
             coordinator.observeOutput(created.terminal!.id);
 
             await expect
-                .poll(() => database.getSession(created.session.id)?.attentionEpoch)
+                .poll(() => database.getSession(created.session.id)?.attentionGeneration)
                 .toBe(1);
             expect(database.getSession(created.session.id)).toMatchObject({
                 hasUnread: true,
-                lastActivityState: 'completed',
+                agentActivityState: 'completed',
                 lastAttentionKind: 'completed',
             });
         } finally {
@@ -700,7 +698,7 @@ describe('AgentCoordinator', () => {
                 provider: 'codex',
                 terminalId: created.terminal!.id,
             });
-            expect(database.getSession(created.session.id)?.attentionEpoch).toBe(1);
+            expect(database.getSession(created.session.id)?.attentionGeneration).toBe(1);
 
             coordinator.observeLifecycleSignal({
                 launchId: 'launch-1',
@@ -711,11 +709,11 @@ describe('AgentCoordinator', () => {
             coordinator.observeOutput(created.terminal!.id);
 
             await expect
-                .poll(() => database.getSession(created.session.id)?.attentionEpoch)
+                .poll(() => database.getSession(created.session.id)?.attentionGeneration)
                 .toBe(2);
             expect(database.getSession(created.session.id)).toMatchObject({
                 hasUnread: true,
-                lastActivityState: 'completed',
+                agentActivityState: 'completed',
                 lastAttentionKind: 'completed',
             });
         } finally {
@@ -751,7 +749,7 @@ describe('AgentCoordinator', () => {
                 provider: undefined,
             });
             expect(database.getSession(created.session.id)).toMatchObject({
-                attentionEpoch: 0,
+                attentionGeneration: 0,
                 hasUnread: false,
             });
         } finally {
@@ -779,7 +777,7 @@ describe('AgentCoordinator', () => {
         try {
             coordinator.probeSessionPrimaryAgent(created.session.id);
             await expect.poll(() => snapshot.mock.calls.length).toBe(1);
-            expect(database.getSession(created.session.id)?.displayTitle).toBe('Untitled');
+            expect(database.getSession(created.session.id)?.title).toBe('Untitled');
 
             const shellOnly = database.createSession(
                 database.createProject(join(directory, 'other')).id,

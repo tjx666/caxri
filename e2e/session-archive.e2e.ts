@@ -60,7 +60,7 @@ test('Session archive hides active navigation, parks its Terminals, and restores
         const secondSessionId = await selectedSessionId(running.page);
         await pageRequest(running.page, 'session.rename', {
             sessionId: secondSessionId,
-            displayTitle: 'Archived investigation',
+            title: 'Archived investigation',
         });
         await expect(sessionCard(running.page, secondSessionId)).toContainText(
             'Archived investigation',

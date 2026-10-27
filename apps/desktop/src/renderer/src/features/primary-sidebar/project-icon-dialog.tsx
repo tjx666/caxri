@@ -76,7 +76,7 @@ function ProjectIconDialogForm({ close, project }: { close: () => void; project:
                 <DialogTitle>{t('primarySidebar.projectIcon.title')}</DialogTitle>
                 <DialogDescription>
                     {t('primarySidebar.projectIcon.description', {
-                        title: project.displayTitle,
+                        title: project.title,
                     })}
                 </DialogDescription>
             </DialogHeader>

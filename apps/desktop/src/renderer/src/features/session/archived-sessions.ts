@@ -92,7 +92,7 @@ export function deriveArchivedSessionView(
             (item) =>
                 (projectId === 'all' || projectId === item.project.id) &&
                 (filters.agent === 'all' || filters.agent === item.agent) &&
-                (!query || item.session.displayTitle.toLowerCase().includes(query)),
+                (!query || item.session.title.toLowerCase().includes(query)),
         )
         .toSorted(
             (first, second) =>
@@ -120,7 +120,7 @@ export function deriveArchivedSessionView(
  * abandoned launches, so the manager offers them as a one-click bulk selection.
  */
 function isUntitledArchivedSession(item: ArchivedSessionItem): boolean {
-    return item.session.displayTitle === DEFAULT_SESSION_TITLE;
+    return item.session.title === DEFAULT_SESSION_TITLE;
 }
 
 export function visibleArchivedSessionIds(view: ArchivedSessionView): string[] {

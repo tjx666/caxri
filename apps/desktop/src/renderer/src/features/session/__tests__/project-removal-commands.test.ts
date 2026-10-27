@@ -31,7 +31,7 @@ import { deleteProject, hideSelectedProject } from '../project-removal-commands'
 
 function bootstrapWith(projectIds: string[]): BootstrapState {
     return {
-        projects: projectIds.map((id) => ({ id, displayTitle: id, rootPath: `/${id}` })),
+        projects: projectIds.map((id) => ({ id, title: id, rootPath: `/${id}` })),
         sessions: [],
     } as unknown as BootstrapState;
 }

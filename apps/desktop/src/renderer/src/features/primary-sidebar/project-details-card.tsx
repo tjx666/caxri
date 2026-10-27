@@ -74,7 +74,7 @@ export function ProjectDetailsCard({
                     <ProjectIcon className="mt-0.5 flex-none" icon={project.icon} size={17} />
                     <div className="min-w-0 flex-1">
                         <h3 className="m-0 text-[13px] font-semibold wrap-break-word">
-                            {project.displayTitle}
+                            {project.title}
                         </h3>
                         <p className="mt-1 mb-0 flex items-center gap-1.5 text-[11px] text-muted">
                             <MessageCircle aria-hidden="true" className="flex-none" size={13} />

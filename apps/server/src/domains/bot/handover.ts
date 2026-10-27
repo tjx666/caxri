@@ -316,7 +316,7 @@ export class BotHandoverService {
             const reason = ownershipReason(terminal);
             const task = database.botTasks.insert(
                 {
-                    title: session.displayTitle.trim().slice(0, 200) || 'Handed-over Session',
+                    title: session.title.trim().slice(0, 200) || 'Handed-over Session',
                     status: 'pending',
                     projectId: session.projectId,
                     sessionId: session.id,

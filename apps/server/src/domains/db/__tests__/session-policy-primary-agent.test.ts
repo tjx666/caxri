@@ -28,20 +28,20 @@ function session(overrides: Partial<SessionRecord> = {}): SessionRecord {
     return {
         id: 'session-1',
         projectId: 'project-1',
-        workbenchProjectId: 'project-1',
+        workbenchRootProjectId: 'project-1',
         rootPath: '/repo',
         createdAt: 0,
-        lastOpenedAt: 0,
+        lastVisitedAt: 0,
         sidebarOrder: 0,
-        lastSessionActivityAt: 0,
-        lastSessionActivityReason: 'created',
+        sessionActivityAt: 0,
+        sessionActivityReason: 'created',
         primaryAgentTerminalId: undefined,
-        lastActivityState: 'idle',
-        attentionEpoch: 0,
-        readAttentionEpoch: 0,
+        agentActivityState: 'idle',
+        attentionGeneration: 0,
+        acknowledgedAttentionGeneration: 0,
         lastAttentionKind: undefined,
         hasUnread: false,
-        displayTitle: DEFAULT_SESSION_TITLE,
+        title: DEFAULT_SESSION_TITLE,
         titleMode: 'automatic',
         ...overrides,
     };
@@ -65,13 +65,13 @@ describe('chooseLivePrimaryAgentSuccessor', () => {
             expect(
                 chooseLivePrimaryAgentSuccessor(
                     [primary, secondary],
-                    session({ primaryAgentTerminalId: primary.id, displayTitle: 'Existing' }),
+                    session({ primaryAgentTerminalId: primary.id, title: 'Existing' }),
                     primary.id,
                 ),
             ).toEqual({
                 primaryAgentTerminalId: secondary.id,
-                displayTitle: 'Existing',
-                lastActivityState: 'unknown',
+                title: 'Existing',
+                agentActivityState: 'unknown',
             });
         },
     );
@@ -120,7 +120,7 @@ describe('decideAgentMetadataUpdate primary Agent tab title', () => {
         const primary = terminal({ id: 'claude-1', provider: 'claude', title: 'Claude' });
         const decision = decideAgentMetadataUpdate(
             primary,
-            session({ primaryAgentTerminalId: 'claude-1', displayTitle: 'Review the hooks' }),
+            session({ primaryAgentTerminalId: 'claude-1', title: 'Review the hooks' }),
             { provider: 'claude', available: true, observedAt: 0, status: 'running' },
         );
         expect(decision?.terminalTitle).toBe('Review the hooks');
@@ -130,7 +130,7 @@ describe('decideAgentMetadataUpdate primary Agent tab title', () => {
         const secondary = terminal({ id: 'claude-2', provider: 'claude', title: 'Claude' });
         const decision = decideAgentMetadataUpdate(
             secondary,
-            session({ primaryAgentTerminalId: 'claude-1', displayTitle: 'Review the hooks' }),
+            session({ primaryAgentTerminalId: 'claude-1', title: 'Review the hooks' }),
             { provider: 'claude', available: true, observedAt: 0, status: 'running' },
         );
         expect(decision?.terminalTitle).toBeUndefined();

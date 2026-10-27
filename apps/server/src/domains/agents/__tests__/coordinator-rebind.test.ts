@@ -88,7 +88,7 @@ describe('AgentCoordinator session rebinding', () => {
                 ).toBe('providerMismatch');
                 await coordinator.probeTerminalNow(terminalId);
                 expect(database.getTerminal(terminalId)?.provider).toBeUndefined();
-                expect(database.getSession(created.session.id)?.lastActivityState).toBe('idle');
+                expect(database.getSession(created.session.id)?.agentActivityState).toBe('idle');
                 if (retired) coordinator.endTerminalLaunch(terminalId);
                 confirmation.resolve('codex');
                 if (retired) {
@@ -97,7 +97,7 @@ describe('AgentCoordinator session rebinding', () => {
                     expect(database.getTerminal(terminalId)?.provider).toBeUndefined();
                 } else {
                     await expect
-                        .poll(() => database.getSession(created.session.id)?.lastActivityState)
+                        .poll(() => database.getSession(created.session.id)?.agentActivityState)
                         .toBe('running');
                     expect(database.getTerminal(terminalId)?.agentSessionId).toBe('resumed-thread');
                 }
@@ -275,10 +275,10 @@ describe('AgentCoordinator session rebinding', () => {
             );
             await coordinator.probeTerminalNow(created.terminal!.id);
             await expect
-                .poll(() => database.getSession(created.session.id)?.displayTitle)
+                .poll(() => database.getSession(created.session.id)?.title)
                 .toBe('Resumed Codex thread');
             expect(database.getTerminal(created.terminal!.id)?.title).toBe('Resumed Codex thread');
-            expect(database.getSession(created.session.id)?.lastActivityState).toBe('running');
+            expect(database.getSession(created.session.id)?.agentActivityState).toBe('running');
         } finally {
             await coordinator.close();
             database.close();
@@ -334,7 +334,7 @@ describe('AgentCoordinator session rebinding', () => {
             ).toBe('accepted');
 
             expect(database.getTerminal(created.terminal!.id)?.agentSessionId).toBe('main-thread');
-            expect(database.getSession(created.session.id)?.lastActivityState).toBe('running');
+            expect(database.getSession(created.session.id)?.agentActivityState).toBe('running');
 
             coordinator.observeLifecycleSignal({
                 agentSessionId: 'background-thread',
@@ -510,7 +510,7 @@ describe('AgentCoordinator session rebinding', () => {
             await expect
                 .poll(() => database.getTerminal(created.terminal!.id)?.agentSessionId)
                 .toBe('session-a');
-            expect(database.getSession(created.session.id)?.displayTitle).toBe('Original session');
+            expect(database.getSession(created.session.id)?.title).toBe('Original session');
 
             coordinator.beginTerminalLaunch(created.terminal!.id, 'launch-1');
             coordinator.observeLifecycleSignal({
@@ -523,7 +523,7 @@ describe('AgentCoordinator session rebinding', () => {
 
             expect(database.getTerminal(created.terminal!.id)?.agentSessionId).toBe('session-b');
             await expect
-                .poll(() => database.getSession(created.session.id)?.displayTitle)
+                .poll(() => database.getSession(created.session.id)?.title)
                 .toBe('Resumed session');
         } finally {
             await coordinator.close();
@@ -582,11 +582,11 @@ describe('AgentCoordinator session rebinding', () => {
             staleProbeGate.resolve();
 
             await expect
-                .poll(() => database.getSession(created.session.id)?.displayTitle)
+                .poll(() => database.getSession(created.session.id)?.title)
                 .toBe('Resumed session');
             await new Promise((resolve) => setTimeout(resolve, 25));
             expect(database.getTerminal(created.terminal!.id)?.agentSessionId).toBe('session-b');
-            expect(database.getSession(created.session.id)?.displayTitle).toBe('Resumed session');
+            expect(database.getSession(created.session.id)?.title).toBe('Resumed session');
         } finally {
             staleProbeGate.resolve();
             await coordinator.close();
@@ -639,7 +639,7 @@ describe('AgentCoordinator session rebinding', () => {
                 'session-claimed',
             );
             await expect
-                .poll(() => database.getSession(created.session.id)?.displayTitle)
+                .poll(() => database.getSession(created.session.id)?.title)
                 .toBe('Shared resumed session');
         } finally {
             await coordinator.close();

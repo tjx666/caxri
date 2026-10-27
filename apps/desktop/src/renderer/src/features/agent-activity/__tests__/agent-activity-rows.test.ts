@@ -18,19 +18,19 @@ import {
 const NOW = 1_000_000_000;
 
 function project(id: string, overrides: Partial<ProjectRecord> = {}): ProjectRecord {
-    return { displayTitle: id, id, ...overrides } as ProjectRecord;
+    return { title: id, id, ...overrides } as ProjectRecord;
 }
 
 function session(id: string, overrides: Partial<SessionRecord> = {}): SessionRecord {
     return {
-        attentionEpoch: 0,
-        displayTitle: id,
+        attentionGeneration: 0,
+        title: id,
         hasUnread: false,
         id,
-        lastActivityState: 'idle',
-        lastSessionActivityAt: NOW,
+        agentActivityState: 'idle',
+        sessionActivityAt: NOW,
         projectId: 'alpha',
-        readAttentionEpoch: 0,
+        acknowledgedAttentionGeneration: 0,
         sidebarOrder: 0,
         ...overrides,
     } as SessionRecord;
@@ -64,14 +64,14 @@ describe('agentActivityGroups', () => {
         const groups = groupsOf([
             session('idle-pinned', { pinnedAt: 2, pinnedOrder: 1 }),
             session('expired-pinned', {
-                lastActivityState: 'completed',
-                lastSessionActivityAt: NOW - SESSION_FINISHED_RETENTION_MS - 1,
+                agentActivityState: 'completed',
+                sessionActivityAt: NOW - SESSION_FINISHED_RETENTION_MS - 1,
                 pinnedAt: 1,
                 pinnedOrder: 0,
             }),
             session('unread-pinned', {
                 hasUnread: true,
-                lastActivityState: 'completed',
+                agentActivityState: 'completed',
                 pinnedAt: 3,
                 pinnedOrder: 2,
             }),
@@ -98,16 +98,16 @@ describe('agentActivityGroups', () => {
     it('orders groups attention-first and omits the empty ones', () => {
         const groups = groupsOf([
             session('idle-one'),
-            session('running-one', { lastActivityState: 'running' }),
-            session('unread-one', { hasUnread: true, lastActivityState: 'completed' }),
-            session('failed-one', { lastActivityState: 'failed' }),
+            session('running-one', { agentActivityState: 'running' }),
+            session('unread-one', { hasUnread: true, agentActivityState: 'completed' }),
+            session('failed-one', { agentActivityState: 'failed' }),
         ]);
         expect(groups.map((group) => group.id)).toEqual(['attention', 'working', 'failed', 'idle']);
     });
 
     it('puts an unread Session under attention even while its Agent is still running', () => {
         const groups = groupsOf([
-            session('busy', { hasUnread: true, lastActivityState: 'running' }),
+            session('busy', { hasUnread: true, agentActivityState: 'running' }),
         ]);
         expect(groups.map((group) => group.id)).toEqual(['attention']);
         expect(groups[0].rows[0].session.id).toBe('busy');
@@ -115,7 +115,7 @@ describe('agentActivityGroups', () => {
 
     it('leaves the attention group once the Session is read', () => {
         const groups = groupsOf([
-            session('read', { hasUnread: false, lastActivityState: 'waiting' }),
+            session('read', { hasUnread: false, agentActivityState: 'waiting' }),
         ]);
         expect(groups.map((group) => group.id)).toEqual(['waiting']);
     });
@@ -123,20 +123,20 @@ describe('agentActivityGroups', () => {
     it('keeps the selected viewed generation in place without keeping it unread', () => {
         const staleAt = NOW - SESSION_FINISHED_RETENTION_MS - 1;
         const unread = session('selected', {
-            attentionEpoch: 1,
+            attentionGeneration: 1,
             hasUnread: true,
-            lastActivityState: 'completed',
-            lastSessionActivityAt: staleAt,
+            agentActivityState: 'completed',
+            sessionActivityAt: staleAt,
         });
         const other = session('other', {
             hasUnread: true,
-            lastActivityState: 'waiting',
-            lastSessionActivityAt: staleAt - 1,
+            agentActivityState: 'waiting',
+            sessionActivityAt: staleAt - 1,
         });
         const anchor = agentActivitySelectionAnchor(groupsOf([unread, other]), unread.id);
         expect(anchor).toBeDefined();
 
-        const viewed = { ...unread, hasUnread: false, readAttentionEpoch: 1 };
+        const viewed = { ...unread, hasUnread: false, acknowledgedAttentionGeneration: 1 };
         const groups = groupsOf([viewed, other], [], anchor);
         expect(groups[0].rows.map((row) => row.session.id)).toEqual(['selected', 'other']);
         expect(groups[0].rows[0].session.hasUnread).toBe(false);
@@ -157,31 +157,32 @@ describe('agentActivityGroups', () => {
 
     it('releases the viewed position for a new Agent activity or attention generation', () => {
         const unread = session('selected', {
-            attentionEpoch: 1,
+            attentionGeneration: 1,
             hasUnread: true,
-            lastActivityState: 'waiting',
+            agentActivityState: 'waiting',
         });
         const anchor = agentActivitySelectionAnchor(groupsOf([unread]), unread.id);
         expect(anchor).toBeDefined();
         expect(
             groupsOf(
-                [{ ...unread, hasUnread: false, lastActivityState: 'completed' }],
+                [{ ...unread, hasUnread: false, agentActivityState: 'completed' }],
                 [],
                 anchor,
             ).at(0)?.id,
         ).toBe('finished');
         expect(
-            groupsOf([{ ...unread, attentionEpoch: 2, hasUnread: false }], [], anchor).at(0)?.id,
+            groupsOf([{ ...unread, attentionGeneration: 2, hasUnread: false }], [], anchor).at(0)
+                ?.id,
         ).toBe('waiting');
     });
 
     it('keeps a viewed completed Session in place while its Terminal resumes on selection', () => {
         const staleAt = NOW - SESSION_FINISHED_RETENTION_MS - 1;
         const unread = session('selected', {
-            attentionEpoch: 1,
+            attentionGeneration: 1,
             hasUnread: true,
-            lastActivityState: 'completed',
-            lastSessionActivityAt: staleAt,
+            agentActivityState: 'completed',
+            sessionActivityAt: staleAt,
         });
         const anchor = agentActivitySelectionAnchor(
             groupsOf([unread], [terminal('selected', { lastProcessState: 'interrupted' })]),
@@ -189,7 +190,7 @@ describe('agentActivityGroups', () => {
         );
         expect(anchor).toBeDefined();
 
-        const viewed = { ...unread, hasUnread: false, readAttentionEpoch: 1 };
+        const viewed = { ...unread, hasUnread: false, acknowledgedAttentionGeneration: 1 };
         expect(
             isAgentActivitySelectionAnchorCurrent(
                 anchor!,
@@ -250,12 +251,12 @@ describe('agentActivityGroups', () => {
 
     it('keeps a finished Session listed until its retention window closes', () => {
         const justInside = session('fresh', {
-            lastActivityState: 'completed',
-            lastSessionActivityAt: NOW - SESSION_FINISHED_RETENTION_MS + 1,
+            agentActivityState: 'completed',
+            sessionActivityAt: NOW - SESSION_FINISHED_RETENTION_MS + 1,
         });
         const exactlyExpired = session('stale', {
-            lastActivityState: 'completed',
-            lastSessionActivityAt: NOW - SESSION_FINISHED_RETENTION_MS,
+            agentActivityState: 'completed',
+            sessionActivityAt: NOW - SESSION_FINISHED_RETENTION_MS,
         });
         const groups = groupsOf([justInside, exactlyExpired]);
         expect(groups.map((group) => group.id)).toEqual(['finished']);
@@ -265,8 +266,8 @@ describe('agentActivityGroups', () => {
     it('keeps a failed Session listed regardless of age, because nothing else will clear it', () => {
         const groups = groupsOf([
             session('old-failure', {
-                lastActivityState: 'failed',
-                lastSessionActivityAt: NOW - 10 * SESSION_FINISHED_RETENTION_MS,
+                agentActivityState: 'failed',
+                sessionActivityAt: NOW - 10 * SESSION_FINISHED_RETENTION_MS,
             }),
         ]);
         expect(groups.map((group) => group.id)).toEqual(['failed']);
@@ -274,7 +275,7 @@ describe('agentActivityGroups', () => {
 
     it('treats a detached Agent as quiet rather than as work in progress', () => {
         const groups = groupsOf(
-            [session('handed-over', { lastActivityState: 'running' })],
+            [session('handed-over', { agentActivityState: 'running' })],
             [terminal('handed-over', { lastProcessState: 'detached' })],
         );
         expect(groups.map((group) => group.id)).toEqual(['idle']);
@@ -282,16 +283,16 @@ describe('agentActivityGroups', () => {
     });
 
     /**
-     * Detaching rewrites the Terminal's process state and leaves `lastActivityState` frozen, so every group below
+     * Detaching rewrites the Terminal's process state and leaves `agentActivityState` frozen, so every group below
      * `working` reads a value that stopped being true at the hand-over. A row saying "Detached" under a "Waiting"
      * heading is the visible symptom; a detached `completed` Session silently leaving the list once its retention
      * window expires is the invisible one.
      */
     it.each(['waiting', 'completed'] as const)(
         'does not leave a detached Agent in the %s group its frozen activity would claim',
-        (lastActivityState) => {
+        (agentActivityState) => {
             const groups = groupsOf(
-                [session('handed-over', { lastActivityState })],
+                [session('handed-over', { agentActivityState })],
                 [terminal('handed-over', { lastProcessState: 'detached' })],
             );
             expect(groups.map((group) => group.id)).toEqual(['idle']);
@@ -300,7 +301,7 @@ describe('agentActivityGroups', () => {
 
     it('keeps a detached Agent that failed in the failed group, because detaching resolves nothing', () => {
         const groups = groupsOf(
-            [session('handed-over', { lastActivityState: 'failed' })],
+            [session('handed-over', { agentActivityState: 'failed' })],
             [terminal('handed-over', { lastProcessState: 'detached' })],
         );
         expect(groups.map((group) => group.id)).toEqual(['failed']);
@@ -308,7 +309,7 @@ describe('agentActivityGroups', () => {
 
     it('reads compaction as working', () => {
         const groups = groupsOf(
-            [session('compacting', { lastActivityState: 'completed' })],
+            [session('compacting', { agentActivityState: 'completed' })],
             [terminal('compacting', { agentOperation: 'compacting' })],
         );
         expect(groups.map((group) => group.id)).toEqual(['working']);
@@ -324,15 +325,15 @@ describe('agentActivityGroups', () => {
 
     it('orders rows inside a group by Session activity recency', () => {
         const groups = groupsOf([
-            session('older', { hasUnread: true, lastSessionActivityAt: NOW - 5_000 }),
-            session('newer', { hasUnread: true, lastSessionActivityAt: NOW - 1_000 }),
+            session('older', { hasUnread: true, sessionActivityAt: NOW - 5_000 }),
+            session('newer', { hasUnread: true, sessionActivityAt: NOW - 1_000 }),
         ]);
         expect(groups[0].rows.map((row) => row.session.id)).toEqual(['newer', 'older']);
     });
 
     it('names each row with its owning Project', () => {
         const groups = groupsOf([session('one', { hasUnread: true, projectId: 'beta' })]);
-        expect(groups[0].rows[0].project.displayTitle).toBe('beta');
+        expect(groups[0].rows[0].project.title).toBe('beta');
     });
 });
 
@@ -341,7 +342,7 @@ describe('agentActivityRenameRow', () => {
         const groups = groupsOf(
             [
                 session('pinned', { pinnedAt: 1 }),
-                session('waiting', { lastActivityState: 'waiting' }),
+                session('waiting', { agentActivityState: 'waiting' }),
             ],
             [terminal('waiting')],
         );
@@ -353,7 +354,7 @@ describe('agentActivityRenameRow', () => {
 
     it('renames a pinned Session in its Pinned copy only while that copy is rendered', () => {
         const groups = groupsOf(
-            [session('pinned', { lastActivityState: 'waiting', pinnedAt: 1 })],
+            [session('pinned', { agentActivityState: 'waiting', pinnedAt: 1 })],
             [terminal('pinned')],
         );
         expect(agentActivityRenameRow(groups, 'pinned', true)).toEqual({
@@ -389,9 +390,9 @@ describe('isAgentActivityActionable', () => {
 describe('nextAgentAttentionSessionId', () => {
     it('walks the actionable Sessions in list order and wraps', () => {
         const groups = groupsOf([
-            session('unread-a', { hasUnread: true, lastSessionActivityAt: NOW }),
-            session('unread-b', { hasUnread: true, lastSessionActivityAt: NOW - 1 }),
-            session('broken', { lastActivityState: 'failed' }),
+            session('unread-a', { hasUnread: true, sessionActivityAt: NOW }),
+            session('unread-b', { hasUnread: true, sessionActivityAt: NOW - 1 }),
+            session('broken', { agentActivityState: 'failed' }),
             session('quiet'),
         ]);
         expect(nextAgentAttentionSessionId(groups, undefined)).toBe('unread-a');

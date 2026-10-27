@@ -7,34 +7,34 @@ function project(id: string, orderIndex: number): ProjectRecord {
     return {
         id,
         rootPath: `/${id}`,
-        displayTitle: id,
+        title: id,
         orderIndex,
         createdAt: orderIndex,
-        lastOpenedAt: orderIndex,
+        lastVisitedAt: orderIndex,
     };
 }
 
 function session(
     id: string,
     projectId: string,
-    lastSessionActivityAt: number,
+    sessionActivityAt: number,
     overrides: Partial<SessionRecord> = {},
 ): SessionRecord {
     return {
         id,
         projectId,
-        workbenchProjectId: projectId,
+        workbenchRootProjectId: projectId,
         rootPath: `/${projectId}`,
-        createdAt: lastSessionActivityAt,
-        lastOpenedAt: lastSessionActivityAt,
+        createdAt: sessionActivityAt,
+        lastVisitedAt: sessionActivityAt,
         sidebarOrder: 0,
-        lastSessionActivityAt,
-        lastSessionActivityReason: 'created',
-        lastActivityState: 'idle',
-        attentionEpoch: 0,
-        readAttentionEpoch: 0,
+        sessionActivityAt,
+        sessionActivityReason: 'created',
+        agentActivityState: 'idle',
+        attentionGeneration: 0,
+        acknowledgedAttentionGeneration: 0,
         hasUnread: false,
-        displayTitle: id,
+        title: id,
         titleMode: 'automatic',
         ...overrides,
     };

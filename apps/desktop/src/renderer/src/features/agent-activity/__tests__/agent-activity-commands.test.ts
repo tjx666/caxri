@@ -11,19 +11,19 @@ import { useWorkbenchStore } from '../../../stores/workbench';
 import { focusNextAttentionSession } from '../agent-activity-commands';
 
 function project(id: string): ProjectRecord {
-    return { displayTitle: id, id } as ProjectRecord;
+    return { title: id, id } as ProjectRecord;
 }
 
 function session(id: string, overrides: Partial<SessionRecord> = {}): SessionRecord {
     return {
-        attentionEpoch: 0,
-        displayTitle: id,
+        attentionGeneration: 0,
+        title: id,
         hasUnread: false,
         id,
-        lastActivityState: 'idle',
-        lastSessionActivityAt: 1,
+        agentActivityState: 'idle',
+        sessionActivityAt: 1,
         projectId: 'alpha',
-        readAttentionEpoch: 0,
+        acknowledgedAttentionGeneration: 0,
         sidebarOrder: 0,
         ...overrides,
     } as SessionRecord;
@@ -35,8 +35,8 @@ function bootstrap(selectedSessionId: string | undefined): BootstrapState {
         selectedSessionId,
         sessions: [
             session('quiet'),
-            session('older', { hasUnread: true, lastSessionActivityAt: 10 }),
-            session('newer', { hasUnread: true, lastSessionActivityAt: 20 }),
+            session('older', { hasUnread: true, sessionActivityAt: 10 }),
+            session('newer', { hasUnread: true, sessionActivityAt: 20 }),
         ],
         terminals: [],
     } as unknown as BootstrapState;

@@ -14,18 +14,18 @@ describe('buildMobileDashboard', () => {
         const sessions = Array.from({ length: 1_000 }, (_, index) => ({
             id: `session-${index}`,
             projectId: 'project-1',
-            displayTitle: longTitle,
-            lastOpenedAt: index,
-            lastSessionActivityAt: index,
-            lastActivityState: index === 0 ? ('waiting' as const) : ('completed' as const),
+            title: longTitle,
+            lastVisitedAt: index,
+            sessionActivityAt: index,
+            agentActivityState: index === 0 ? ('waiting' as const) : ('completed' as const),
             primaryAgentTerminalId: `terminal-${index}`,
-            attentionEpoch: index === 0 ? 1 : 0,
+            attentionGeneration: index === 0 ? 1 : 0,
             hasUnread: index === 0,
         }));
         const result = buildMobileDashboard({
             hostDisplayName: 'Caxri Host',
             deviceRole: 'view',
-            projects: [{ id: 'project-1', displayTitle: longTitle }],
+            projects: [{ id: 'project-1', title: longTitle }],
             sessions,
             terminals: sessions.map((session, index) => ({
                 id: `terminal-${index}`,
@@ -47,7 +47,7 @@ describe('buildMobileDashboard', () => {
             generation: 1,
         });
         expect(result.projects).toEqual([
-            { id: 'project-1', displayTitle: '🙂'.repeat(25), lastActivityAt: 999 },
+            { id: 'project-1', title: '🙂'.repeat(25), lastActivityAt: 999 },
         ]);
         expect(result.truncated).toBe(true);
         expect(result.total).toBe(1_000);
@@ -59,32 +59,32 @@ describe('buildMobileDashboard', () => {
     it('orders pinned Sessions first, then the shared status groups, then recency', () => {
         const base = {
             projectId: 'project-1',
-            displayTitle: 'Session',
-            lastOpenedAt: 1,
-            attentionEpoch: 0,
+            title: 'Session',
+            lastVisitedAt: 1,
+            attentionGeneration: 0,
             hasUnread: false,
         };
         const result = buildMobileDashboard({
             hostDisplayName: 'Workstation',
             deviceRole: 'control',
             now: 1_000,
-            projects: [{ id: 'project-1', displayTitle: 'Project' }],
+            projects: [{ id: 'project-1', title: 'Project' }],
             sessions: [
-                { ...base, id: 'idle-new', lastSessionActivityAt: 900, lastActivityState: 'idle' },
-                { ...base, id: 'waiting', lastSessionActivityAt: 10, lastActivityState: 'waiting' },
-                { ...base, id: 'working', lastSessionActivityAt: 20, lastActivityState: 'running' },
+                { ...base, id: 'idle-new', sessionActivityAt: 900, agentActivityState: 'idle' },
+                { ...base, id: 'waiting', sessionActivityAt: 10, agentActivityState: 'waiting' },
+                { ...base, id: 'working', sessionActivityAt: 20, agentActivityState: 'running' },
                 {
                     ...base,
                     id: 'pinned',
-                    lastSessionActivityAt: 1,
-                    lastActivityState: 'idle',
+                    sessionActivityAt: 1,
+                    agentActivityState: 'idle',
                     pinnedAt: 5,
                 },
                 {
                     ...base,
                     id: 'unread',
-                    lastSessionActivityAt: 5,
-                    lastActivityState: 'completed',
+                    sessionActivityAt: 5,
+                    agentActivityState: 'completed',
                     hasUnread: true,
                 },
             ],
@@ -97,7 +97,7 @@ describe('buildMobileDashboard', () => {
             'waiting',
             'idle-new',
         ]);
-        expect(result.sessions[0]).toMatchObject({ pinnedAt: 5, lastSessionActivityAt: 1 });
+        expect(result.sessions[0]).toMatchObject({ pinnedAt: 5, sessionActivityAt: 1 });
     });
 
     it('includes empty granted Projects in order and excludes Sessions without a visible Project', () => {
@@ -105,36 +105,36 @@ describe('buildMobileDashboard', () => {
             hostDisplayName: 'Workstation',
             deviceRole: 'control',
             projects: [
-                { id: 'project-2', displayTitle: 'Empty' },
-                { id: 'project-1', displayTitle: 'Active' },
+                { id: 'project-2', title: 'Empty' },
+                { id: 'project-1', title: 'Active' },
             ],
             sessions: [
                 {
                     id: 'session-1',
                     projectId: 'project-1',
-                    displayTitle: 'Visible',
-                    lastOpenedAt: 1,
-                    lastSessionActivityAt: 1,
-                    lastActivityState: 'completed',
-                    attentionEpoch: 0,
+                    title: 'Visible',
+                    lastVisitedAt: 1,
+                    sessionActivityAt: 1,
+                    agentActivityState: 'completed',
+                    attentionGeneration: 0,
                     hasUnread: false,
                 },
                 {
                     id: 'session-2',
                     projectId: 'project-other',
-                    displayTitle: 'Hidden',
-                    lastOpenedAt: 2,
-                    lastSessionActivityAt: 2,
-                    lastActivityState: 'waiting',
-                    attentionEpoch: 1,
+                    title: 'Hidden',
+                    lastVisitedAt: 2,
+                    sessionActivityAt: 2,
+                    agentActivityState: 'waiting',
+                    attentionGeneration: 1,
                     hasUnread: true,
                 },
             ],
             terminals: [],
         });
         expect(result.projects).toEqual([
-            { id: 'project-2', displayTitle: 'Empty' },
-            { id: 'project-1', displayTitle: 'Active', lastActivityAt: 1 },
+            { id: 'project-2', title: 'Empty' },
+            { id: 'project-1', title: 'Active', lastActivityAt: 1 },
         ]);
         expect(result.sessions.map((session) => session.id)).toEqual(['session-1']);
         expect(result.total).toBe(1);
@@ -144,16 +144,16 @@ describe('buildMobileDashboard', () => {
         const result = buildMobileDashboard({
             hostDisplayName: 'Workstation',
             deviceRole: 'view',
-            projects: [{ id: 'project-1', displayTitle: 'Project' }],
+            projects: [{ id: 'project-1', title: 'Project' }],
             sessions: [
                 {
                     id: 'session-1',
                     projectId: 'project-1',
-                    displayTitle: 'Shell Session',
-                    lastOpenedAt: 1,
-                    lastSessionActivityAt: 1,
-                    lastActivityState: 'idle',
-                    attentionEpoch: 0,
+                    title: 'Shell Session',
+                    lastVisitedAt: 1,
+                    sessionActivityAt: 1,
+                    agentActivityState: 'idle',
+                    attentionGeneration: 0,
                     hasUnread: false,
                 },
             ],
@@ -180,17 +180,17 @@ describe('buildMobileArchivedSessions', () => {
         const session = (id: string, projectId: string, archivedAt?: number) => ({
             id,
             projectId,
-            displayTitle: id,
-            lastOpenedAt: 1,
-            lastSessionActivityAt: 1,
-            lastActivityState: 'completed' as const,
+            title: id,
+            lastVisitedAt: 1,
+            sessionActivityAt: 1,
+            agentActivityState: 'completed' as const,
             primaryAgentTerminalId: `terminal-${id}`,
-            attentionEpoch: 0,
+            attentionGeneration: 0,
             hasUnread: false,
             ...(archivedAt !== undefined && { archivedAt }),
         });
         const result = buildMobileArchivedSessions({
-            projects: [{ id: 'project-1', displayTitle: 'Granted' }],
+            projects: [{ id: 'project-1', title: 'Granted' }],
             sessions: [
                 session('active', 'project-1'),
                 session('older', 'project-1', 10),
@@ -212,7 +212,7 @@ describe('buildMobileArchivedSessions', () => {
                 {
                     id: 'newer',
                     projectId: 'project-1',
-                    displayTitle: 'newer',
+                    title: 'newer',
                     projectTitle: 'Granted',
                     archivedAt: 20,
                     agentKind: 'claude',
@@ -220,7 +220,7 @@ describe('buildMobileArchivedSessions', () => {
                 {
                     id: 'older',
                     projectId: 'project-1',
-                    displayTitle: 'older',
+                    title: 'older',
                     projectTitle: 'Granted',
                     archivedAt: 10,
                 },
@@ -232,15 +232,15 @@ describe('buildMobileArchivedSessions', () => {
 
     it('bounds the list to one frame', () => {
         const result = buildMobileArchivedSessions({
-            projects: [{ id: 'project-1', displayTitle: 'Granted' }],
+            projects: [{ id: 'project-1', title: 'Granted' }],
             sessions: Array.from({ length: 500 }, (_, index) => ({
                 id: `session-${index}`,
                 projectId: 'project-1',
-                displayTitle: '🙂'.repeat(1_024),
-                lastOpenedAt: 1,
-                lastSessionActivityAt: 1,
-                lastActivityState: 'completed' as const,
-                attentionEpoch: 0,
+                title: '🙂'.repeat(1_024),
+                lastVisitedAt: 1,
+                sessionActivityAt: 1,
+                agentActivityState: 'completed' as const,
+                attentionGeneration: 0,
                 hasUnread: false,
                 archivedAt: index,
             })),

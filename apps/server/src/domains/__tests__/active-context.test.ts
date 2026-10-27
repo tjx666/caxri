@@ -7,7 +7,7 @@ function database(visibleProjectIds: string[]) {
     const session = {
         id: 'session-1',
         projectId: 'project-owner',
-        workbenchProjectId: 'project-worktree',
+        workbenchRootProjectId: 'project-worktree',
     } as SessionRecord;
     return {
         getSession: (id: string) => (id === session.id ? session : undefined),
@@ -21,7 +21,7 @@ describe('readActiveContext', () => {
             ownerProjectId: 'project-owner',
             projectIds: ['project-owner'],
             sessionId: 'session-1',
-            workbenchProjectId: 'project-worktree',
+            workbenchRootProjectId: 'project-worktree',
         });
     });
 

@@ -151,7 +151,7 @@ describe('local Host transport regressions', () => {
                     context: {
                         kind: 'session',
                         sessionId: 'session-1',
-                        workbenchProjectId: 'project-1',
+                        workbenchRootProjectId: 'project-1',
                     },
                 }),
             );

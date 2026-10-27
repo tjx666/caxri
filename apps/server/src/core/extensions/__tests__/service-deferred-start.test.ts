@@ -19,7 +19,7 @@ import { ExtensionService } from '../service';
 const context = {
     kind: 'session' as const,
     sessionId: 'session-1',
-    workbenchProjectId: 'project-1',
+    workbenchRootProjectId: 'project-1',
 };
 
 function createService(): ExtensionService {
@@ -35,7 +35,7 @@ function createService(): ExtensionService {
             () => ({
                 ownerProjectId: 'project-1',
                 sessionId: 'session-1',
-                workbenchProjectId: 'project-1',
+                workbenchRootProjectId: 'project-1',
             }),
             ['project-1'],
         ),

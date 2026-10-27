@@ -57,7 +57,7 @@ export const sessionStateSchema = z.object({
     /**
      * Scopes every ordinary Editor path in this snapshot to one authorized Workbench Root.
      */
-    workbenchProjectId: identifierSchema,
+    workbenchRootProjectId: identifierSchema,
     /**
      * Last durable file mutation whose editor remap was applied to this atomic Session snapshot.
      */

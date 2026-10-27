@@ -11,12 +11,12 @@ installExtensionFixture();
 const sessionA: ExtensionViewEventScope = {
     kind: 'session',
     sessionId: 'session-a',
-    workbenchProjectId: 'project-1',
+    workbenchRootProjectId: 'project-1',
 };
 const sessionB: ExtensionViewEventScope = {
     kind: 'session',
     sessionId: 'session-b',
-    workbenchProjectId: 'project-1',
+    workbenchRootProjectId: 'project-1',
 };
 
 function readTree(context: ExtensionViewEventScope, parentHandle?: string) {
@@ -100,7 +100,7 @@ describe('Extension Host tree scopes', () => {
             await readTree({
                 kind: 'session',
                 sessionId: `filler-${index}`,
-                workbenchProjectId: 'project-1',
+                workbenchRootProjectId: 'project-1',
             });
 
         // Read B first: re-reading the evicted A creates a fresh scope, which evicts the next oldest one.

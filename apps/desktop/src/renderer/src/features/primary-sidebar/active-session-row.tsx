@@ -33,18 +33,18 @@ interface ActiveSessionRowProperties {
     /**
      * The list's shared handler; the row supplies its own Session and row id, so every row receives the same function.
      */
-    onBeginRename: (sessionId: string, displayTitle: string, rowId: string) => void;
+    onBeginRename: (sessionId: string, title: string, rowId: string) => void;
     onBlurRename: () => void;
     onCancelRename: () => void;
     onCommitRename: () => void;
     onRenameValueChange: (value: string) => void;
-    onSuggestRename: (sessionId: string, displayTitle: string, rowId: string) => void;
+    onSuggestRename: (sessionId: string, title: string, rowId: string) => void;
     /**
      * The owning Project's title, icon, id, and root, passed as fields rather than as its record. The record is
-     * replaced whenever the Project's `lastOpenedAt` moves, which every Session switch inside it does, and a record
+     * replaced whenever the Project's `lastVisitedAt` moves, which every Session switch inside it does, and a record
      * prop would render every row of that Project again for a timestamp no row shows (issue #1356).
      */
-    projectDisplayTitle: string;
+    projectTitle: string;
     projectIcon: ProjectRecord['icon'];
     projectId: string;
     projectRootPath: string;
@@ -120,7 +120,7 @@ export function ActiveSessionRow({
     onCommitRename,
     onRenameValueChange,
     onSuggestRename,
-    projectDisplayTitle,
+    projectTitle,
     projectIcon,
     projectId,
     projectRootPath,
@@ -140,24 +140,24 @@ export function ActiveSessionRow({
     worktreeProject,
 }: ActiveSessionRowProperties) {
     const { t } = useTranslation();
-    const title = sessionTitleForDisplay(session.displayTitle, t);
+    const title = sessionTitleForDisplay(session.title, t);
     // The shared label rule (collision suffix included); `title` above stays the plain stored title for rename and the
     // tree row's accessible name.
     const label = useSessionLabel(session.id);
-    const detail = sessionRowDetail(label.suffix, projectDisplayTitle, showProjectName === true);
+    const detail = sessionRowDetail(label.suffix, projectTitle, showProjectName === true);
     // Read per row as a primitive, so another window's navigation re-renders only the rows it concerns.
     const isOpenElsewhere = useIsSessionOpenElsewhere(session.id);
     const project = {
-        displayTitle: projectDisplayTitle,
+        title: projectTitle,
         icon: projectIcon,
         id: projectId,
         rootPath: projectRootPath,
     };
     const beginRename = (): void => {
-        onBeginRename(session.id, session.displayTitle, rowId ?? session.id);
+        onBeginRename(session.id, session.title, rowId ?? session.id);
     };
     const suggestRename = (): void => {
-        onSuggestRename(session.id, session.displayTitle, rowId ?? session.id);
+        onSuggestRename(session.id, session.title, rowId ?? session.id);
     };
     /**
      * Read here rather than handed down from the sidebar root: the snapshot is refreshed on a timer, and a row that
@@ -243,7 +243,7 @@ export function ActiveSessionRow({
                             aria-hidden="true"
                             className="session-project min-w-0 flex-1 basis-0 overflow-hidden text-[11px] whitespace-nowrap text-muted"
                         >
-                            {projectDisplayTitle}
+                            {projectTitle}
                         </span>
                     )}
                 </span>

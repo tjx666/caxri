@@ -1,7 +1,7 @@
 import { CaxriError } from '@caxri/protocol';
 
 export interface SelectableRecord {
-    displayTitle: string;
+    title: string;
     id: string;
     projectId?: string;
 }
@@ -19,13 +19,13 @@ export function resolveSelector<T extends SelectableRecord>(
         throw new CaxriError('NOT_FOUND', `No current ${options.kind} is available`);
     const byId = scoped.find((record) => record.id === resolvedSelector);
     if (byId) return byId;
-    const matches = scoped.filter((record) => record.displayTitle === resolvedSelector);
+    const matches = scoped.filter((record) => record.title === resolvedSelector);
     if (matches.length === 1) return matches[0];
     if (matches.length > 1)
         throw new CaxriError('CONFLICT', `${options.kind} selector is ambiguous`, {
-            candidates: matches.slice(0, 32).map(({ id, displayTitle, projectId }) => ({
+            candidates: matches.slice(0, 32).map(({ id, title, projectId }) => ({
                 id,
-                displayTitle,
+                title,
                 ...(projectId && { projectId }),
             })),
         });

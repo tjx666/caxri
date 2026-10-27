@@ -450,8 +450,8 @@ export function createServiceHandlers(services: {
             return project;
         },
         'project.add': async ({ path }) => {
-            const { id, displayTitle } = await addProjectFolder(database, emit, path);
-            return { project: { id, displayTitle } };
+            const { id, title } = await addProjectFolder(database, emit, path);
+            return { project: { id, title } };
         },
         'project.setIcon': ({ projectId, icon }) => {
             const project = database.setProjectIcon(projectId, icon);

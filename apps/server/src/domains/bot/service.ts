@@ -519,6 +519,6 @@ export function botRunState(database: CaxriDatabase): BotRunState {
     const agent = terminal.lastAgentProcessState;
     if (shell === 'starting' || agent === 'starting') return 'starting';
     if (agent !== 'running') return 'stopped';
-    const activity = database.getSession(rows.sessionId)?.lastActivityState;
+    const activity = database.getSession(rows.sessionId)?.agentActivityState;
     return (activity && LIVE_ACTIVITY_STATES.get(activity)) ?? 'idle';
 }

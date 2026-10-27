@@ -8,25 +8,25 @@ import { ServerDesktopRouter } from '../desktop-router';
 const project = {
     id: 'project-1',
     rootPath: '/project',
-    displayTitle: 'Project',
+    title: 'Project',
     orderIndex: 0,
     createdAt: 1,
-    lastOpenedAt: 1,
+    lastVisitedAt: 1,
 };
 const session = {
     id: 'session-1',
     projectId: project.id,
     rootPath: project.rootPath,
     createdAt: 1,
-    lastOpenedAt: 1,
+    lastVisitedAt: 1,
     sidebarOrder: 0,
-    lastSessionActivityAt: 1,
-    lastSessionActivityReason: 'created',
-    lastActivityState: 'idle',
-    attentionEpoch: 0,
-    readAttentionEpoch: 0,
+    sessionActivityAt: 1,
+    sessionActivityReason: 'created',
+    agentActivityState: 'idle',
+    attentionGeneration: 0,
+    acknowledgedAttentionGeneration: 0,
     hasUnread: false,
-    displayTitle: 'Session',
+    title: 'Session',
     titleMode: 'automatic',
 };
 const bootstrap = {
@@ -224,7 +224,7 @@ describe('Host Desktop router', () => {
     it('binds Extension native-operation preflights to the attested Workbench Root', async () => {
         const context = {
             sessionId: session.id,
-            workbenchProjectId: 'workbench-project-1',
+            workbenchRootProjectId: 'workbench-project-1',
         };
         const request = vi.fn((method: string) => {
             if (method === 'app.bootstrap') return Promise.resolve(bootstrap);

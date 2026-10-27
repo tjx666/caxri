@@ -91,7 +91,7 @@ test('long Session titles scroll at a readable speed and reset across pointer an
         const sessionId = await selectedSessionId(running.page);
         const longTitle = 'Investigate this very long session title while browsing';
         await pageRequest(running.page, 'session.rename', {
-            displayTitle: longTitle,
+            title: longTitle,
             sessionId,
         });
 
@@ -241,7 +241,7 @@ test('short titles stay still and title scroll recomputes after rename, resize, 
 
         const firstLongTitle = 'Rename this Session while its title is already hovered';
         await pageRequest(running.page, 'session.rename', {
-            displayTitle: firstLongTitle,
+            title: firstLongTitle,
             sessionId,
         });
         const renamedTitle = card.locator('.session-title');
@@ -287,7 +287,7 @@ test('hovering a long Session title keeps the title from painting under Pin and 
         const sessionId = await selectedSessionId(running.page);
         const longTitle = 'Investigate this overflowing session title under the hover actions';
         await pageRequest(running.page, 'session.rename', {
-            displayTitle: longTitle,
+            title: longTitle,
             sessionId,
         });
 

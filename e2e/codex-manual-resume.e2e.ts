@@ -169,7 +169,7 @@ process.stdout.write('Fake Codex ready\r\n');
                             'app.bootstrap',
                         );
                         return {
-                            activity: state.sessions[0]?.lastActivityState,
+                            activity: state.sessions[0]?.agentActivityState,
                             agentSessionId: state.terminals[0]?.agentSessionId,
                         };
                     })

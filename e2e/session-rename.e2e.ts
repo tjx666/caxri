@@ -129,10 +129,10 @@ test('Session inline rename validates input and survives Renderer reload', async
         await expect(card.locator('strong')).toHaveText('Manual investigation');
         await expect(card).toBeFocused();
         const state = await pageRequest<{
-            sessions: Array<{ displayTitle: string; id: string; titleMode: string }>;
+            sessions: Array<{ title: string; id: string; titleMode: string }>;
         }>(running.page, 'app.bootstrap');
         expect(state.sessions.find((session) => session.id === sessionId)).toMatchObject({
-            displayTitle: 'Manual investigation',
+            title: 'Manual investigation',
             titleMode: 'manual',
         });
 

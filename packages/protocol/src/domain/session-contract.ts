@@ -62,7 +62,7 @@ const windowSessionResultSchema = sessionRecordSchema.extend({
 const sessionAttentionReadResult = z.object({
     acknowledged: z.boolean(),
     sessionId: identifierSchema,
-    attentionEpoch: z.number().int().nonnegative(),
+    attentionGeneration: z.number().int().nonnegative(),
     hasUnread: z.boolean(),
 });
 export const sessionMethods = {
@@ -173,7 +173,7 @@ export const sessionMethods = {
         ...commandPolicy('server', 'write', ['sessions.write']),
         params: z.object({
             sessionId: identifierSchema,
-            attentionEpoch: z.number().int().nonnegative(),
+            attentionGeneration: z.number().int().nonnegative(),
         }),
         result: sessionAttentionReadResult,
     },
@@ -181,7 +181,7 @@ export const sessionMethods = {
         ...serverWrite,
         params: z.object({
             sessionId: identifierSchema,
-            displayTitle: sessionRenameTitleSchema,
+            title: sessionRenameTitleSchema,
         }),
         result: sessionRecordSchema,
     },
@@ -192,7 +192,7 @@ export const sessionMethods = {
     'session.suggestTitle': {
         ...commandPolicy('server', 'read'),
         params: z.object({ sessionId: identifierSchema }),
-        result: z.object({ displayTitle: sessionRenameTitleSchema }),
+        result: z.object({ title: sessionRenameTitleSchema }),
     },
     /**
      * Pinning is a durable user choice, not activity: it never touches `sidebarOrder` or the Session Activity clock, so

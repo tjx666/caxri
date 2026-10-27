@@ -205,7 +205,7 @@ describe('Chat Terminal PTY guards', () => {
         const before = f.database.getSession(f.session.id);
         await expect(
             handlers['terminal.sendInternal']({
-                attentionEpoch: 0,
+                attentionGeneration: 0,
                 enter: true,
                 terminalId: f.terminal.id,
                 text: 'reply',

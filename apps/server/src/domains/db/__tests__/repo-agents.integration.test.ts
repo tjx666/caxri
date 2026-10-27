@@ -47,15 +47,15 @@ describe('CaxriDatabase Agent metadata', () => {
             }),
         ).toBe(true);
         expect(database.getSession(created.session.id)).toMatchObject({
-            displayTitle: 'Implement Agent metadata',
-            lastActivityState: 'running',
+            title: 'Implement Agent metadata',
+            agentActivityState: 'running',
         });
         expect(database.getTerminal(created.terminal!.id)).toMatchObject({
             agentSessionId: 'agent-session-1',
         });
 
         database.updateTerminalExitState(created.terminal!.id, 'stopped');
-        expect(database.getSession(created.session.id)?.lastActivityState).toBe('completed');
+        expect(database.getSession(created.session.id)?.agentActivityState).toBe('completed');
 
         const restartedAt = Date.now() + 1;
         database.resetAgentMetadataForStart(created.terminal!.id, restartedAt);
@@ -64,8 +64,8 @@ describe('CaxriDatabase Agent metadata', () => {
             updatedAt: restartedAt,
         });
         expect(database.getSession(created.session.id)).toMatchObject({
-            displayTitle: 'Implement Agent metadata',
-            lastActivityState: 'completed',
+            title: 'Implement Agent metadata',
+            agentActivityState: 'completed',
         });
         database.close();
     });
@@ -77,8 +77,8 @@ describe('CaxriDatabase Agent metadata', () => {
         const created = database.createSession(database.createProject(directory).id, 'claude');
 
         expect(database.getSession(created.session.id)).toMatchObject({
-            attentionEpoch: 0,
-            readAttentionEpoch: 0,
+            attentionGeneration: 0,
+            acknowledgedAttentionGeneration: 0,
             hasUnread: false,
         });
         database.updateAgentMetadata(created.terminal!.id, {
@@ -96,8 +96,8 @@ describe('CaxriDatabase Agent metadata', () => {
             title: 'Needs input',
         });
         expect(database.getSession(created.session.id)).toMatchObject({
-            attentionEpoch: 1,
-            readAttentionEpoch: 0,
+            attentionGeneration: 1,
+            acknowledgedAttentionGeneration: 0,
             lastAttentionKind: 'waiting',
             hasUnread: true,
         });
@@ -110,10 +110,10 @@ describe('CaxriDatabase Agent metadata', () => {
             status: 'waiting',
             title: 'Still needs input',
         });
-        expect(database.getSession(created.session.id)?.attentionEpoch).toBe(1);
+        expect(database.getSession(created.session.id)?.attentionGeneration).toBe(1);
         expect(database.markSessionAttentionRead(created.session.id, 1)).toMatchObject({
             acknowledged: true,
-            session: { hasUnread: false, readAttentionEpoch: 1 },
+            session: { hasUnread: false, acknowledgedAttentionGeneration: 1 },
         });
 
         database.updateAgentMetadata(created.terminal!.id, {
@@ -131,27 +131,35 @@ describe('CaxriDatabase Agent metadata', () => {
         });
         expect(database.markSessionAttentionRead(created.session.id, 1)).toMatchObject({
             acknowledged: false,
-            session: { attentionEpoch: 2, hasUnread: true, readAttentionEpoch: 1 },
+            session: {
+                attentionGeneration: 2,
+                hasUnread: true,
+                acknowledgedAttentionGeneration: 1,
+            },
         });
         expect(database.markSessionAttentionRead(created.session.id, 2)).toMatchObject({
             acknowledged: true,
-            session: { attentionEpoch: 2, hasUnread: false, readAttentionEpoch: 2 },
+            session: {
+                attentionGeneration: 2,
+                hasUnread: false,
+                acknowledgedAttentionGeneration: 2,
+            },
         });
 
         database.updateTerminalState(created.terminal!.id, 'running');
         database.markShutdown('orderly');
         expect(database.getSession(created.session.id)).toMatchObject({
-            attentionEpoch: 2,
+            attentionGeneration: 2,
             hasUnread: false,
-            readAttentionEpoch: 2,
+            acknowledgedAttentionGeneration: 2,
         });
 
         database.archiveSession(created.session.id);
         database.close();
         const reopened = new CaxriDatabase(databasePath);
         expect(reopened.unarchiveSessions([created.session.id])[0]).toMatchObject({
-            attentionEpoch: 2,
-            readAttentionEpoch: 2,
+            attentionGeneration: 2,
+            acknowledgedAttentionGeneration: 2,
             lastAttentionKind: 'completed',
             hasUnread: false,
         });
@@ -173,25 +181,25 @@ describe('CaxriDatabase Agent metadata', () => {
         lifecycle('turnStarted');
         lifecycle('turnFinished');
         expect(database.getSession(created.session.id)).toMatchObject({
-            attentionEpoch: 1,
+            attentionGeneration: 1,
             hasUnread: true,
-            lastActivityState: 'completed',
+            agentActivityState: 'completed',
         });
 
         // A background shell finishing resumes Claude Code without the user opening the Session.
         expect(lifecycle('turnStarted')).toBe(true);
         expect(database.getSession(created.session.id)).toMatchObject({
-            attentionEpoch: 1,
+            attentionGeneration: 1,
             hasUnread: false,
-            lastActivityState: 'running',
-            readAttentionEpoch: 1,
+            agentActivityState: 'running',
+            acknowledgedAttentionGeneration: 1,
         });
 
         lifecycle('turnFinished');
         expect(database.getSession(created.session.id)).toMatchObject({
-            attentionEpoch: 2,
+            attentionGeneration: 2,
             hasUnread: true,
-            lastActivityState: 'completed',
+            agentActivityState: 'completed',
         });
         database.close();
     });
@@ -206,7 +214,7 @@ describe('CaxriDatabase Agent metadata', () => {
         const claude = database.createTerminal(created.session.id, 'claude');
 
         expect(database.getSession(created.session.id)).toMatchObject({
-            displayTitle: 'Untitled',
+            title: 'Untitled',
             primaryAgentTerminalId: codex.id,
         });
         database.updateAgentMetadata(codex.id, {
@@ -217,9 +225,7 @@ describe('CaxriDatabase Agent metadata', () => {
             status: 'running',
             title: 'Run the development server',
         });
-        expect(database.getSession(created.session.id)?.displayTitle).toBe(
-            'Run the development server',
-        );
+        expect(database.getSession(created.session.id)?.title).toBe('Run the development server');
 
         database.updateAgentMetadata(claude.id, {
             provider: 'claude',
@@ -229,9 +235,7 @@ describe('CaxriDatabase Agent metadata', () => {
             status: 'running',
             title: 'Do not replace the first Agent title',
         });
-        expect(database.getSession(created.session.id)?.displayTitle).toBe(
-            'Run the development server',
-        );
+        expect(database.getSession(created.session.id)?.title).toBe('Run the development server');
         // The Session title belongs to the primary Agent alone, but every Agent Terminal's own tab names its own
         // conversation: a secondary Agent must not be left reading "Claude".
         expect(database.getTerminal(claude.id)?.title).toBe('Do not replace the first Agent title');
@@ -371,7 +375,7 @@ describe('CaxriDatabase Agent metadata', () => {
         database.renameSession(created.session.id, 'Trace the router logs');
 
         expect(database.getSession(created.session.id)).toMatchObject({
-            displayTitle: 'Trace the router logs',
+            title: 'Trace the router logs',
             primaryAgentTerminalId: primary.id,
         });
         expect(database.getTerminal(primary.id)?.title).toBe('Trace the router logs');
@@ -393,7 +397,7 @@ describe('CaxriDatabase Agent metadata', () => {
 
         database.renameSession(created.session.id, 'y'.repeat(180));
 
-        expect(database.getSession(created.session.id)?.displayTitle).toBe('y'.repeat(180));
+        expect(database.getSession(created.session.id)?.title).toBe('y'.repeat(180));
         expect(database.getTerminal(primary.id)?.title).toBe('y'.repeat(MAX_TERMINAL_TITLE_LENGTH));
         database.close();
     });
@@ -407,7 +411,7 @@ describe('CaxriDatabase Agent metadata', () => {
         database.closeTerminal(created.terminal!.id);
 
         expect(database.getSession(created.session.id)).toMatchObject({
-            displayTitle: 'Untitled',
+            title: 'Untitled',
             primaryAgentTerminalId: claude.id,
         });
         database.close();

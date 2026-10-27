@@ -56,7 +56,7 @@ describe('Session pinning', () => {
         database.setSessionPinned(b.id, true);
         expect(pinnedOrder()).toEqual([a.id, b.id]);
         expect(sidebarOrder()).toEqual(before);
-        expect(database.getSession(a.id)?.lastSessionActivityAt).toBe(a.lastSessionActivityAt);
+        expect(database.getSession(a.id)?.sessionActivityAt).toBe(a.sessionActivityAt);
     });
 
     it('survives a reopen', async () => {

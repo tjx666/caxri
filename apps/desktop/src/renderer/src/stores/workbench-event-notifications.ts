@@ -23,12 +23,11 @@ function recordAgentNotification(
                 ? 'core.agentNotification.waiting'
                 : 'core.agentNotification.completed',
             {
-                title: session ? sessionTitleForDisplay(session.displayTitle, translate) : 'Agent',
+                title: session ? sessionTitleForDisplay(session.title, translate) : 'Agent',
             },
         ),
         projectId: session?.projectId,
-        projectTitle: bootstrap?.projects.find((item) => item.id === session?.projectId)
-            ?.displayTitle,
+        projectTitle: bootstrap?.projects.find((item) => item.id === session?.projectId)?.title,
     });
 }
 

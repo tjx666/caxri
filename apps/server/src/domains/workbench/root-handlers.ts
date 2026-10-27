@@ -29,8 +29,8 @@ export function createWorkbenchRootHandlers(service: WorkbenchRootService): Work
         'session.workbenchRoots': ({ sessionId }) => service.listOptions(sessionId),
         'session.selectWorkbenchRoot': ({ sessionId, projectId }) =>
             service.select(sessionId, projectId),
-        'session.workbenchRoot.forgetEditorPath': ({ sessionId, workbenchProjectId, path }) => {
-            service.forgetEditorPath(sessionId, workbenchProjectId, path);
+        'session.workbenchRoot.forgetEditorPath': ({ sessionId, workbenchRootProjectId, path }) => {
+            service.forgetEditorPath(sessionId, workbenchRootProjectId, path);
             return null;
         },
         'session.dismissWorkbenchCandidate': ({ sessionId, candidateId }) => {

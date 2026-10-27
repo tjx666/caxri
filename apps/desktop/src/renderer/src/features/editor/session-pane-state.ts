@@ -34,16 +34,16 @@ export async function persistOpenedEditorTab(
     replacedDocuments: EditorDocument[],
     retriesLeft: number,
 ): Promise<void> {
-    const workbenchProjectId = next.workbenchProjectId;
+    const workbenchRootProjectId = next.workbenchRootProjectId;
     let isStale = false;
     const persisted = await useWorkbenchStore.getState().patchSessionState(
         next,
         undefined,
         () => {
             const currentView = useSessionViewStore.getState();
-            if (!wasOpen) currentView.evictDocument(sessionId, path, workbenchProjectId);
+            if (!wasOpen) currentView.evictDocument(sessionId, path, workbenchRootProjectId);
             for (const document of replacedDocuments)
-                currentView.cacheDocument(sessionId, document, workbenchProjectId);
+                currentView.cacheDocument(sessionId, document, workbenchRootProjectId);
         },
         undefined,
         true,
@@ -55,7 +55,7 @@ export async function persistOpenedEditorTab(
     if (persisted || !isStale || retriesLeft <= 0) return;
     await refreshWorkbench();
     const current = sessionStateOf(sessionId);
-    if (!current || current.workbenchProjectId !== workbenchProjectId) return;
+    if (!current || current.workbenchRootProjectId !== workbenchRootProjectId) return;
     // The pinned pane already shows this file; the write that won the race added it, nothing left to persist.
     const alreadyThere = findResourceTabs(current.paneLayout, { kind: 'file', path }).some(
         (occurrence) => occurrence.pane.id === paneId,

@@ -553,7 +553,7 @@ describe('local Host transport', () => {
             event: 'workbench.changed',
             payload: {
                 sessionId: 'session-1',
-                workbenchProjectId: 'workbench-project-1',
+                workbenchRootProjectId: 'workbench-project-1',
                 reason: 'selected',
             },
         });

@@ -362,7 +362,7 @@
         "mac": {
             "category": "public.app-category.developer-tools",
             "extendInfo": {
-                "CaxriSchemaBaseline": 54
+                "CaxriSchemaBaseline": 55
             },
             "icon": "build/icon.icns",
             "target": [

@@ -19,7 +19,7 @@ function secondarySidebarYieldScope(bootstrap: BootstrapState | undefined): stri
         (state) => state.sessionId === session.id,
     )?.paneLayout;
     if (!layout || !hasBesideChatArrangement(layout)) return undefined;
-    return `${session.id}:${session.workbenchProjectId}`;
+    return `${session.id}:${session.workbenchRootProjectId}`;
 }
 
 export function getSecondarySidebarYieldScope(): string | undefined {

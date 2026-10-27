@@ -154,8 +154,8 @@ describe('files.trash', () => {
 });
 
 const bootstrapWith = (
-    projects: Array<{ id: string; displayTitle: string }>,
-    sessions: Array<{ id: string; projectId: string; displayTitle?: string }>,
+    projects: Array<{ id: string; title: string }>,
+    sessions: Array<{ id: string; projectId: string; title?: string }>,
 ) => ({
     projects,
     sessions,
@@ -179,7 +179,7 @@ describe('project.delete', () => {
             if (method === 'app.bootstrap')
                 return Promise.resolve(
                     bootstrapWith(
-                        [{ id: 'project-1', displayTitle: 'Caxri' }],
+                        [{ id: 'project-1', title: 'Caxri' }],
                         [
                             { id: 'session-1', projectId: 'project-1' },
                             { id: 'session-2', projectId: 'project-1' },
@@ -213,9 +213,7 @@ describe('project.delete', () => {
         electronMock.dialog.showMessageBox.mockResolvedValueOnce({ response: 1 });
         const request = vi.fn((method: string) => {
             if (method === 'app.bootstrap')
-                return Promise.resolve(
-                    bootstrapWith([{ id: 'project-1', displayTitle: 'Caxri' }], []),
-                );
+                return Promise.resolve(bootstrapWith([{ id: 'project-1', title: 'Caxri' }], []));
             if (method === 'terminal.runningCount') return Promise.resolve(NOTHING_RUNNING);
             return Promise.reject(new Error(`Unexpected method: ${method}`));
         });
@@ -257,7 +255,7 @@ describe('session.delete', () => {
                 return Promise.resolve(
                     bootstrapWith(
                         [],
-                        [{ id: 'session-1', projectId: 'project-1', displayTitle: 'Feature work' }],
+                        [{ id: 'session-1', projectId: 'project-1', title: 'Feature work' }],
                     ),
                 );
             if (method === 'session.delete') return Promise.resolve({ ok: true });
@@ -352,7 +350,7 @@ describe('session.deleteMany', () => {
                 return Promise.resolve(
                     bootstrapWith(
                         [],
-                        [{ id: 'session-1', projectId: 'project-1', displayTitle: 'Feature work' }],
+                        [{ id: 'session-1', projectId: 'project-1', title: 'Feature work' }],
                     ),
                 );
             if (method === 'session.deleteMany') return Promise.resolve({ ok: true });

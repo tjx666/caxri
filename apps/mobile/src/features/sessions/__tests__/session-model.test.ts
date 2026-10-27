@@ -14,13 +14,13 @@ const terminal: MobileTerminal = {
 const session = (overrides: Partial<MobileSession> = {}): MobileSession => ({
     id: 'session-1',
     projectId: 'project-1',
-    displayTitle: 'Mobile phase one',
+    title: 'Mobile phase one',
     projectTitle: 'Caxri',
-    lastOpenedAt: 100,
-    lastSessionActivityAt: 100,
-    lastActivityState: 'waiting',
+    lastVisitedAt: 100,
+    sessionActivityAt: 100,
+    agentActivityState: 'waiting',
     primaryAgentTerminalId: 'terminal-1',
-    attentionEpoch: 3,
+    attentionGeneration: 3,
     hasUnread: true,
     primaryTerminal: terminal,
     ...overrides,
@@ -35,20 +35,20 @@ describe('mobile session model', () => {
                 session(),
                 session({
                     id: 'session-2',
-                    lastSessionActivityAt: 200,
-                    lastActivityState: 'running',
+                    sessionActivityAt: 200,
+                    agentActivityState: 'running',
                     hasUnread: false,
                 }),
                 session({
                     id: 'session-3',
-                    lastSessionActivityAt: 300,
-                    lastActivityState: 'waiting',
+                    sessionActivityAt: 300,
+                    agentActivityState: 'waiting',
                     hasUnread: false,
                 }),
                 session({
                     id: 'session-4',
-                    lastSessionActivityAt: 400,
-                    lastActivityState: 'waiting',
+                    sessionActivityAt: 400,
+                    agentActivityState: 'waiting',
                     hasUnread: false,
                 }),
             ],
@@ -69,12 +69,12 @@ describe('mobile session model', () => {
                 total: 3,
                 truncated: false,
                 sessions: [
-                    session({ id: 'fresh', lastActivityState: 'completed', hasUnread: false }),
+                    session({ id: 'fresh', agentActivityState: 'completed', hasUnread: false }),
                     session({
                         id: 'stale',
-                        lastActivityState: 'completed',
+                        agentActivityState: 'completed',
                         hasUnread: false,
-                        lastSessionActivityAt: 100 - SESSION_FINISHED_RETENTION_MS,
+                        sessionActivityAt: 100 - SESSION_FINISHED_RETENTION_MS,
                     }),
                     session({
                         id: 'detached',
@@ -101,9 +101,9 @@ describe('mobile session model', () => {
                     id: 'pinned-idle',
                     pinnedAt: 1,
                     hasUnread: false,
-                    lastActivityState: 'idle',
+                    agentActivityState: 'idle',
                 }),
-                session({ id: 'plain', hasUnread: false, lastActivityState: 'idle' }),
+                session({ id: 'plain', hasUnread: false, agentActivityState: 'idle' }),
             ],
         });
 
@@ -141,7 +141,7 @@ describe('mobile session model', () => {
         const sessions = Array.from({ length: 1_000 }, (_, index) =>
             session({
                 id: `session-${index}`,
-                lastSessionActivityAt: index,
+                sessionActivityAt: index,
                 hasUnread: index % 7 === 0,
             }),
         );

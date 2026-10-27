@@ -49,12 +49,12 @@ describe('mobile Agent Chat projection', () => {
         const session = {
             id: 'session-1',
             projectId: 'project-1',
-            displayTitle: 'Fix tests',
+            title: 'Fix tests',
             projectTitle: 'Example',
-            lastOpenedAt: 1,
-            lastSessionActivityAt: 1,
-            lastActivityState: 'idle',
-            attentionEpoch: 0,
+            lastVisitedAt: 1,
+            sessionActivityAt: 1,
+            agentActivityState: 'idle',
+            attentionGeneration: 0,
             hasUnread: false,
             primaryTerminal: {
                 id: 'terminal-1',

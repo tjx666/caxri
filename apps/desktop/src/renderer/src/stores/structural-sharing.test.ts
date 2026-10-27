@@ -60,8 +60,8 @@ describe('mergeStructurally', () => {
         const previous = {
             selectedSessionId: 'session-a',
             sessions: [
-                { id: 'session-a', displayTitle: 'First' },
-                { id: 'session-b', displayTitle: 'Second' },
+                { id: 'session-a', title: 'First' },
+                { id: 'session-b', title: 'Second' },
             ],
             projects: [{ id: 'project-a', name: 'Caxri' }],
             sessionStates: { 'session-a': { status: 'idle' }, 'session-b': { status: 'idle' } },
@@ -81,7 +81,7 @@ describe('mergeStructurally', () => {
     });
 
     /**
-     * Issue #1356: a real Session switch is not the refresh above. Selecting a Session stamps its `lastOpenedAt` and
+     * Issue #1356: a real Session switch is not the refresh above. Selecting a Session stamps its `lastVisitedAt` and
      * its Project's, so `sessions` and `projects` do change reference on every switch: along with the two records whose
      * timestamp moved. Anything a Session row receives therefore cannot be derived from those arrays or records by
      * identity alone: the rows stay quiet only because the handlers read them through refs, the id lists are keyed by
@@ -91,19 +91,19 @@ describe('mergeStructurally', () => {
         const previous = {
             selectedSessionId: 'session-a',
             sessions: [
-                { id: 'session-a', displayTitle: 'First', lastOpenedAt: 1 },
-                { id: 'session-b', displayTitle: 'Second', lastOpenedAt: 1 },
+                { id: 'session-a', title: 'First', lastVisitedAt: 1 },
+                { id: 'session-b', title: 'Second', lastVisitedAt: 1 },
             ],
             projects: [
-                { id: 'project-a', displayTitle: 'Caxri', lastOpenedAt: 1 },
-                { id: 'project-b', displayTitle: 'Docs', lastOpenedAt: 1 },
+                { id: 'project-a', title: 'Caxri', lastVisitedAt: 1 },
+                { id: 'project-b', title: 'Docs', lastVisitedAt: 1 },
             ],
             terminals: [{ id: 'terminal-a', title: 'Shell' }],
         };
         const next = structuredClone(previous);
         next.selectedSessionId = 'session-b';
-        next.sessions[1].lastOpenedAt = 2;
-        next.projects[0].lastOpenedAt = 2;
+        next.sessions[1].lastVisitedAt = 2;
+        next.projects[0].lastVisitedAt = 2;
 
         const merged = mergeStructurally(previous, next);
 

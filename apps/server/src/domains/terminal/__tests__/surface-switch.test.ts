@@ -85,7 +85,7 @@ async function fixture({
     function markPrimaryTurn(state: 'running' | 'waiting' | 'idle') {
         database.database
             .prepare(
-                'UPDATE sessions SET primary_agent_terminal_id = ?, last_activity_state = ? WHERE id = ?',
+                'UPDATE sessions SET primary_agent_terminal_id = ?, agent_activity_state = ? WHERE id = ?',
             )
             .run(terminal.id, state, session.id);
     }

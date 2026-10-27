@@ -22,7 +22,7 @@ function describeSubject(bootstrap: BootstrapState | undefined, sessionId: strin
     const session = bootstrap?.sessions.find((item) => item.id === sessionId);
     const project = bootstrap?.projects.find((item) => item.id === session?.projectId);
     return (
-        [project?.displayTitle, session && sessionTitleForDisplay(session.displayTitle, translate)]
+        [project?.title, session && sessionTitleForDisplay(session.title, translate)]
             .filter(Boolean)
             .join(' / ') || 'Agent'
     );

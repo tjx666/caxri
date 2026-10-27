@@ -67,7 +67,7 @@ describe('AgentCoordinator Session Activity', () => {
         try {
             coordinator.prepareTerminalResume(created.terminal!.id);
             await coordinator.probeTerminalNow(created.terminal!.id);
-            expect(database.getSession(created.session.id)?.lastActivityState).toBe('running');
+            expect(database.getSession(created.session.id)?.agentActivityState).toBe('running');
         } finally {
             await coordinator.close();
             database.close();
@@ -92,7 +92,7 @@ describe('AgentCoordinator Session Activity', () => {
             .prepare('UPDATE terminals SET last_process_state = ? WHERE id IN (?, ?, ?)')
             .run('running', idle.terminal!.id, completed.terminal!.id, staleRunning.terminal!.id);
         database.database
-            .prepare('UPDATE sessions SET last_activity_state = ? WHERE id = ?')
+            .prepare('UPDATE sessions SET agent_activity_state = ? WHERE id = ?')
             .run('running', staleRunning.session.id);
         const snapshot = vi.fn<AgentAdapter['snapshot']>(() =>
             Promise.resolve({
@@ -121,16 +121,16 @@ describe('AgentCoordinator Session Activity', () => {
             coordinator.probeTerminal(staleRunning.terminal!.id);
             await vi.waitFor(() => expect(snapshot).toHaveBeenCalledTimes(3));
             expect(database.getSession(idle.session.id)).toMatchObject({
-                lastActivityState: 'idle',
-                lastSessionActivityReason: 'created',
+                agentActivityState: 'idle',
+                sessionActivityReason: 'created',
             });
             expect(database.getSession(completed.session.id)).toMatchObject({
-                lastActivityState: 'completed',
-                lastSessionActivityReason: 'agent_completed',
+                agentActivityState: 'completed',
+                sessionActivityReason: 'agent_completed',
             });
             expect(database.getSession(staleRunning.session.id)).toMatchObject({
-                lastActivityState: 'unknown',
-                lastSessionActivityReason: 'created',
+                agentActivityState: 'unknown',
+                sessionActivityReason: 'created',
             });
         } finally {
             await coordinator.close();
@@ -198,20 +198,20 @@ describe('AgentCoordinator Session Activity', () => {
             coordinator.probeTerminal(session.terminal!.id);
             await vi.waitFor(() => expect(snapshot).toHaveBeenCalledOnce());
             expect(database.getSession(session.session.id)).toMatchObject({
-                lastActivityState: 'completed',
-                lastSessionActivityReason: 'agent_completed',
+                agentActivityState: 'completed',
+                sessionActivityReason: 'agent_completed',
             });
             coordinator.probeTerminal(session.terminal!.id);
             await vi.waitFor(() => expect(snapshot).toHaveBeenCalledTimes(2));
             expect(database.getSession(session.session.id)).toMatchObject({
-                lastActivityState: 'running',
-                lastSessionActivityReason: 'agent_started',
+                agentActivityState: 'running',
+                sessionActivityReason: 'agent_started',
             });
             coordinator.probeTerminal(claudeSession.terminal!.id);
             await vi.waitFor(() => expect(claudeSnapshot).toHaveBeenCalledOnce());
             expect(database.getSession(claudeSession.session.id)).toMatchObject({
-                lastActivityState: 'running',
-                lastSessionActivityReason: 'created',
+                agentActivityState: 'running',
+                sessionActivityReason: 'created',
             });
         } finally {
             await coordinator.close();

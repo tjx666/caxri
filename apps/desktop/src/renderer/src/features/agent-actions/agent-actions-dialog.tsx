@@ -257,7 +257,7 @@ export function AgentActionsDialog() {
                 <AgentActionTargetNote
                     id={targetDescriptionId}
                     provider={provider}
-                    sessionTitle={session && sessionTitleForDisplay(session.displayTitle, t)}
+                    sessionTitle={session && sessionTitleForDisplay(session.title, t)}
                     terminalTitle={terminal?.title}
                 />
                 <Command

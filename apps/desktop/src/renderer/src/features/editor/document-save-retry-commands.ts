@@ -17,7 +17,7 @@ type SaveRetryTarget = ToastActionParameters['editor.retrySave'];
 function retrySaveTarget(target: SaveRetryTarget): FileTabTarget | undefined {
     const state = sessionStateOf(target.sessionId);
     const tab = state && target.tabId ? findTab(state.paneLayout, target.tabId)?.tab : undefined;
-    return state?.workbenchProjectId === target.workbenchProjectId &&
+    return state?.workbenchRootProjectId === target.workbenchRootProjectId &&
         tab?.resource.kind === 'file' &&
         tab.preview !== true
         ? { path: tab.resource.path }

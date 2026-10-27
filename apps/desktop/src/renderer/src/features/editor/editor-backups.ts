@@ -43,7 +43,7 @@ const DATABASE_NAME = 'caxri-editor-backups';
 
 const editorBackupSchema = z.strictObject({
     sessionId: z.string().min(1),
-    workbenchProjectId: z.string().min(1),
+    workbenchRootProjectId: z.string().min(1),
     path: z.string().min(1),
     content: z.string(),
     /**
@@ -77,12 +77,12 @@ function isBackedUp(document: EditorDocument): boolean {
 function scopeOwner(
     viewScope: string,
     projectIdOf: (sessionId: string) => string | undefined,
-): { sessionId: string; workbenchProjectId: string } | undefined {
+): { sessionId: string; workbenchRootProjectId: string } | undefined {
     const separator = viewScope.indexOf('\0');
     const sessionId = separator === -1 ? viewScope : viewScope.slice(0, separator);
-    const workbenchProjectId =
+    const workbenchRootProjectId =
         separator === -1 ? projectIdOf(sessionId) : viewScope.slice(separator + 1);
-    return sessionId && workbenchProjectId ? { sessionId, workbenchProjectId } : undefined;
+    return sessionId && workbenchRootProjectId ? { sessionId, workbenchRootProjectId } : undefined;
 }
 
 export interface EditorBackupChanges {
@@ -165,7 +165,7 @@ function isUntitledTabOpen(backup: EditorBackup): boolean {
         .bootstrap?.sessionStates.find(
             (candidate) =>
                 candidate.sessionId === backup.sessionId &&
-                candidate.workbenchProjectId === backup.workbenchProjectId,
+                candidate.workbenchRootProjectId === backup.workbenchRootProjectId,
         );
     return Boolean(
         state && findResourceTabs(state.paneLayout, { kind: 'file', path: backup.path }).length > 0,
@@ -180,7 +180,7 @@ function restoredUntitledDocument(backup: EditorBackup): EditorDocument | undefi
     const document = emptyUntitledDocument(backup.path);
     const isCached = useSessionViewStore
         .getState()
-        .cacheDocument(backup.sessionId, document, backup.workbenchProjectId);
+        .cacheDocument(backup.sessionId, document, backup.workbenchRootProjectId);
     return isCached ? document : undefined;
 }
 
@@ -211,7 +211,7 @@ export function createEditorBackups(options: EditorBackupsOptions) {
     const restorable = new Map<string, EditorBackup>();
 
     function restoreOne(name: string, backup: EditorBackup, documents: SessionDocuments): void {
-        const viewScope = sessionViewScope(backup.sessionId, backup.workbenchProjectId);
+        const viewScope = sessionViewScope(backup.sessionId, backup.workbenchRootProjectId);
         const existing = documentAt(documents, viewScope, backup.path);
         // An unsaved document already holds newer typing from this launch; its own backup replaces this one.
         if (existing?.dirty || (!existing && !isUntitledTabOpen(backup))) return;
@@ -227,7 +227,7 @@ export function createEditorBackups(options: EditorBackupsOptions) {
                     backup.sessionId,
                     backup.path,
                     backup.content,
-                    backup.workbenchProjectId,
+                    backup.workbenchRootProjectId,
                 );
             return;
         }
@@ -236,7 +236,7 @@ export function createEditorBackups(options: EditorBackupsOptions) {
          * lives only in memory, so a restart before "Restore My Changes" must not lose the text.
          */
         if (outcome === 'conflict')
-            announceDiscardedBuffers(backup.sessionId, backup.workbenchProjectId, [backup]);
+            announceDiscardedBuffers(backup.sessionId, backup.workbenchRootProjectId, [backup]);
         else store.remove(name);
     }
 

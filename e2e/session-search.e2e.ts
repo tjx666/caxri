@@ -100,7 +100,7 @@ test('Session search finds open, archived, and external conversations and acts o
             sessions[agentSessionId] = created.session.id;
             await pageRequest(running.page, 'session.rename', {
                 sessionId: created.session.id,
-                displayTitle: title,
+                title,
             });
         }
         /* eslint-enable no-await-in-loop */
@@ -179,7 +179,7 @@ test('Session search finds open, archived, and external conversations and acts o
                 const state = await pageRequest<BootstrapState>(page, 'app.bootstrap');
                 const terminal = state.terminals.find((entry) => entry.agentSessionId === EXTERNAL);
                 const session = state.sessions.find((entry) => entry.id === terminal?.sessionId);
-                return session && { projectId: session.projectId, title: session.displayTitle };
+                return session && { projectId: session.projectId, title: session.title };
             })
             .toEqual({ projectId: project.id, title: 'Draft the overdue invoice reminder email' });
         const importedId = (
@@ -226,7 +226,7 @@ test('Session search finds an Agent Chat conversation by message text and opens 
         const sessionId = await selectedSessionId(running.page);
         await pageRequest(running.page, 'session.rename', {
             sessionId,
-            displayTitle: 'Vendor note',
+            title: 'Vendor note',
         });
         const bootstrap = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');
         const cwd = bootstrap.sessions.find((session) => session.id === sessionId)!.rootPath;

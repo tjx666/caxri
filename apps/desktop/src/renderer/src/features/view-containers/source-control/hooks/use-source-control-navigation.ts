@@ -16,7 +16,7 @@ import {
 export interface SourceControlNavigationScope {
     sessionId: string;
     viewId: string;
-    workbenchProjectId: string;
+    workbenchRootProjectId: string;
 }
 
 function persistSourceControlNavigation(
@@ -26,7 +26,7 @@ function persistSourceControlNavigation(
     const current = getBootstrap()?.sessionStates.find(
         (candidate) =>
             candidate.sessionId === scope.sessionId &&
-            candidate.workbenchProjectId === scope.workbenchProjectId,
+            candidate.workbenchRootProjectId === scope.workbenchRootProjectId,
     );
     if (!current) return;
     const persisted = serializeSourceControlViewNavigation(navigation);

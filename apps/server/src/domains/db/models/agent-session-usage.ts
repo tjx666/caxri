@@ -38,7 +38,7 @@ export interface PullRequestOutcomeRow {
     url: string;
     state: UsagePullRequestState;
     title: string;
-    createdAt: number | null;
+    openedAt: number | null;
     mergedAt: number | null;
     additions: number;
     deletions: number;

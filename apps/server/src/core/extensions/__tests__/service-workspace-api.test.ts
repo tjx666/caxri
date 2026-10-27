@@ -116,7 +116,7 @@ const observationIdentity = {
 const defaultApiContext = {
     kind: 'session' as const,
     sessionId: 'session-1',
-    workbenchProjectId: 'project-1',
+    workbenchRootProjectId: 'project-1',
 };
 
 function apiRequest(
@@ -140,7 +140,7 @@ function apiRequest(
 }
 
 describe('ExtensionService Git workspace API authority', () => {
-    let active: { ownerProjectId: string; sessionId: string; workbenchProjectId: string };
+    let active: { ownerProjectId: string; sessionId: string; workbenchRootProjectId: string };
     let projectStatus: ReturnType<
         typeof vi.fn<(sessionId: string) => Promise<{ repositories: []; refreshedAt: number }>>
     >;
@@ -152,7 +152,7 @@ describe('ExtensionService Git workspace API authority', () => {
         active = {
             ownerProjectId: 'project-1',
             sessionId: 'session-1',
-            workbenchProjectId: 'project-1',
+            workbenchRootProjectId: 'project-1',
         };
         projectStatus = vi.fn(() => Promise.resolve({ repositories: [], refreshedAt: 1 }));
         workspaceRequest = vi.fn(() => Promise.resolve({ isRepository: false, repositories: [] }));
@@ -207,7 +207,7 @@ describe('ExtensionService Git workspace API authority', () => {
         expect(workspaceRequest).toHaveBeenCalledWith(
             'git.sync',
             { repositoryId: 'unapproved-repository', sessionId: 'session-1' },
-            { sessionId: 'session-1', workbenchProjectId: 'project-1' },
+            { sessionId: 'session-1', workbenchRootProjectId: 'project-1' },
         );
     });
 
@@ -220,7 +220,7 @@ describe('ExtensionService Git workspace API authority', () => {
         expect(workspaceRequest).toHaveBeenCalledWith(
             'git.summary',
             { refresh: 3, requester: 'extension', sessionId: 'session-1' },
-            { sessionId: 'session-1', workbenchProjectId: 'project-1' },
+            { sessionId: 'session-1', workbenchRootProjectId: 'project-1' },
         );
     });
 
@@ -247,7 +247,7 @@ describe('ExtensionService Git workspace API authority', () => {
         active = {
             ownerProjectId: 'project-2',
             sessionId: 'session-2',
-            workbenchProjectId: 'project-2',
+            workbenchRootProjectId: 'project-2',
         };
         pending.resolve({ isRepository: false, repositories: [] });
 
@@ -281,7 +281,7 @@ describe('ExtensionService Git workspace API authority', () => {
         active = {
             ownerProjectId: 'project-1',
             sessionId: 'session-2',
-            workbenchProjectId: 'project-1',
+            workbenchRootProjectId: 'project-1',
         };
         const registration = await start(['projects.read']);
 
@@ -310,7 +310,7 @@ describe('ExtensionService Git workspace API authority', () => {
                 generation: registration.generation,
                 apiToken: registration.apiToken,
                 method: 'workspace.getProjectStatus',
-                params: { context: { ...defaultApiContext, workbenchProjectId: 'project-2' } },
+                params: { context: { ...defaultApiContext, workbenchRootProjectId: 'project-2' } },
             }),
         ).rejects.toMatchObject({ code: 'CANCELLED' });
         expect(projectStatus).not.toHaveBeenCalled();

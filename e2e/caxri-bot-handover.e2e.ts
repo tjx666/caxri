@@ -107,13 +107,11 @@ test('Caxri Bot hand-over picker hands Sessions and an outside conversation over
         await expect(dialog).toBeHidden();
         await expect(bot.getByText('Handed 3 Sessions to Caxri Bot')).toBeVisible();
 
-        const after = await pageRequest<{ sessions: Array<{ id: string; displayTitle: string }> }>(
+        const after = await pageRequest<{ sessions: Array<{ id: string; title: string }> }>(
             running.page,
             'app.bootstrap',
         );
-        const imported = after.sessions.find(
-            ({ displayTitle }) => displayTitle === CONVERSATION_TITLE,
-        );
+        const imported = after.sessions.find(({ title }) => title === CONVERSATION_TITLE);
         expect(imported).toBeDefined();
         const managed = await pageRequest<{ sessionIds: string[] }>(
             running.page,

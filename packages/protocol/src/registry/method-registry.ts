@@ -551,7 +551,7 @@ export const internalMethods = {
             ownerProjectId: identifierSchema.optional(),
             projectIds: z.array(identifierSchema),
             sessionId: identifierSchema.optional(),
-            workbenchProjectId: identifierSchema.optional(),
+            workbenchRootProjectId: identifierSchema.optional(),
         }),
     },
     /**
@@ -566,7 +566,7 @@ export const internalMethods = {
             ownerProjectId: identifierSchema.optional(),
             projectIds: z.array(identifierSchema),
             sessionId: identifierSchema.optional(),
-            workbenchProjectId: identifierSchema.optional(),
+            workbenchRootProjectId: identifierSchema.optional(),
         }),
     },
     ...windowStateInternalMethods,

@@ -35,10 +35,10 @@ function session(overrides: Partial<SessionRecord> = {}): SessionRecord {
         id: 'session-a',
         projectId: 'project-1',
         title: 'Session A',
-        lastActivityState: 'completed',
+        agentActivityState: 'completed',
         primaryAgentTerminalId: 'terminal-1',
-        attentionEpoch: 0,
-        readAttentionEpoch: 0,
+        attentionGeneration: 0,
+        acknowledgedAttentionGeneration: 0,
         hasUnread: false,
         createdAt: STARTED_AT,
         updatedAt: STARTED_AT,
@@ -144,12 +144,12 @@ describe('decideTerminalSuspensions: untouched rule', () => {
     });
 
     it('protects a primary Agent that is running or waiting for the user, and any Agent mid-turn', () => {
-        for (const lastActivityState of ['running', 'waiting'] as const)
+        for (const agentActivityState of ['running', 'waiting'] as const)
             expect(
                 decide({
                     deselectedAt: glancedAt,
                     sample: untouchedSample,
-                    session: session({ lastActivityState }),
+                    session: session({ agentActivityState }),
                 }),
             ).toEqual([]);
         expect(

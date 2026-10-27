@@ -43,15 +43,15 @@ export const SESSION_FINISHED_RETENTION_MS = 15 * 60 * 1_000;
 /**
  * Whether a finished Session is still recent enough to list as finished.
  *
- * Measured from `lastSessionActivityAt`, the Session's own work clock, rather than from when the user read it, so the
+ * Measured from `sessionActivityAt`, the Session's own work clock, rather than from when the user read it, so the
  * window describes how long ago the work finished and does not restart because the row was looked at.
  */
 export function isWithinSessionFinishedRetention(
-    session: Pick<SessionRecord, 'lastSessionActivityAt'>,
+    session: Pick<SessionRecord, 'sessionActivityAt'>,
     now: number,
     retentionMs = SESSION_FINISHED_RETENTION_MS,
 ): boolean {
-    return now - session.lastSessionActivityAt < retentionMs;
+    return now - session.sessionActivityAt < retentionMs;
 }
 
 /**
@@ -63,7 +63,7 @@ export function isWithinSessionFinishedRetention(
  * reads the Terminal's process state, which the phone mirrors from the fields it receives.
  */
 export function sessionActivityGroup(
-    session: Pick<SessionRecord, 'hasUnread' | 'lastActivityState' | 'lastSessionActivityAt'> & {
+    session: Pick<SessionRecord, 'hasUnread' | 'agentActivityState' | 'sessionActivityAt'> & {
         isDetached: boolean;
         isRunning: boolean;
     },
@@ -75,17 +75,17 @@ export function sessionActivityGroup(
      * anything, and nothing else will ever clear a failed Session, so a detached failure stays in `failed` rather than
      * quietly joining `idle` below.
      */
-    if (session.lastActivityState === 'failed') return 'failed';
+    if (session.agentActivityState === 'failed') return 'failed';
     if (session.isRunning) return 'working';
     /**
-     * Everything below reads `lastActivityState`, which a detached Agent keeps frozen at whatever the last probe
+     * Everything below reads `agentActivityState`, which a detached Agent keeps frozen at whatever the last probe
      * recorded. Without this guard a Session detached mid-turn would keep sitting under "Waiting" (or age out of
      * "Recently finished" and vanish) while its own row reads "Detached". It is not waiting on anybody: it was handed
      * to another client on purpose.
      */
     if (session.isDetached) return 'idle';
-    if (session.lastActivityState === 'waiting') return 'waiting';
-    if (session.lastActivityState === 'completed')
+    if (session.agentActivityState === 'waiting') return 'waiting';
+    if (session.agentActivityState === 'completed')
         return isWithinSessionFinishedRetention(session, now) ? 'finished' : undefined;
     // `idle` and `unknown` land here: neither is asking the user for anything.
     return 'idle';
@@ -96,11 +96,11 @@ export function sessionActivityGroup(
  * top of its group at once.
  */
 export function compareSessionActivityGroupRows(
-    left: Pick<SessionRecord, 'id' | 'lastSessionActivityAt'>,
-    right: Pick<SessionRecord, 'id' | 'lastSessionActivityAt'>,
+    left: Pick<SessionRecord, 'id' | 'sessionActivityAt'>,
+    right: Pick<SessionRecord, 'id' | 'sessionActivityAt'>,
 ): number {
     return (
-        right.lastSessionActivityAt - left.lastSessionActivityAt ||
+        right.sessionActivityAt - left.sessionActivityAt ||
         (left.id < right.id ? -1 : left.id > right.id ? 1 : 0)
     );
 }

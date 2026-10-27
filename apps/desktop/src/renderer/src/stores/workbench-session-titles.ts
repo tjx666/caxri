@@ -51,9 +51,7 @@ export function withPendingSessionTitles(sessions: SessionRecord[]): SessionReco
     return sessions.map((session) => {
         const pending = pendingSessionTitles.get(session.id);
         if (!pending) return session;
-        if (session.displayTitle !== pending.title) pending.confirmedTitle = session.displayTitle;
-        return session.displayTitle === pending.title
-            ? session
-            : { ...session, displayTitle: pending.title };
+        if (session.title !== pending.title) pending.confirmedTitle = session.title;
+        return session.title === pending.title ? session : { ...session, title: pending.title };
     });
 }

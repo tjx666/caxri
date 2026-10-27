@@ -51,7 +51,7 @@ type AgentNotificationOutcome =
     | 'superseded';
 
 export interface AgentNotificationDecision {
-    attentionEpoch: number;
+    attentionGeneration: number;
     attentionKind: SessionRecord['lastAttentionKind'];
     /**
      * Turn duration used for the completion threshold; absent when no turn start was observed.
@@ -218,16 +218,15 @@ export function createAgentNotificationCoordinator(
         previous: SessionRecord | undefined,
     ): number | undefined => {
         const isActivityAdvanced =
-            previous === undefined ||
-            session.lastSessionActivityAt !== previous.lastSessionActivityAt;
+            previous === undefined || session.sessionActivityAt !== previous.sessionActivityAt;
         const isNewTurnStart =
             isActivityAdvanced &&
-            TURN_START_REASONS.has(session.lastSessionActivityReason) &&
-            (session.lastSessionActivityReason === 'agent_started' ||
-                previous?.lastActivityState !== 'running' ||
+            TURN_START_REASONS.has(session.sessionActivityReason) &&
+            (session.sessionActivityReason === 'agent_started' ||
+                previous?.agentActivityState !== 'running' ||
                 !turnStartedAt.has(session.id));
-        if (isNewTurnStart || (!previous && session.lastActivityState === 'running'))
-            turnStartedAt.set(session.id, session.lastSessionActivityAt);
+        if (isNewTurnStart || (!previous && session.agentActivityState === 'running'))
+            turnStartedAt.set(session.id, session.sessionActivityAt);
         return turnStartedAt.get(session.id);
     };
 
@@ -243,19 +242,19 @@ export function createAgentNotificationCoordinator(
         const previous = sessions.get(session.id);
         const startedAt = rememberTurnStart(session, previous);
         sessions.set(session.id, session);
-        if (session.lastActivityState === 'completed' || session.lastActivityState === 'failed')
+        if (session.agentActivityState === 'completed' || session.agentActivityState === 'failed')
             turnStartedAt.delete(session.id);
         const isNewAttention =
-            shouldNotify && session.attentionEpoch > (previous?.attentionEpoch ?? 0);
+            shouldNotify && session.attentionGeneration > (previous?.attentionGeneration ?? 0);
         const durationMs =
-            startedAt === undefined ? undefined : session.lastSessionActivityAt - startedAt;
+            startedAt === undefined ? undefined : session.sessionActivityAt - startedAt;
         const decide = (
             outcome: AgentNotificationOutcome,
             replySummary?: ReplySummaryOutcome,
         ): void => {
             if (!isNewAttention) return;
             options.onDecision?.({
-                attentionEpoch: session.attentionEpoch,
+                attentionGeneration: session.attentionGeneration,
                 attentionKind: session.lastAttentionKind,
                 ...(durationMs !== undefined && { durationMs }),
                 outcome,
@@ -367,9 +366,9 @@ export function createAgentNotificationCoordinator(
                  * unnamed Session is announced by its provider alone rather than by the sidebar's `Untitled`.
                  */
                 title:
-                    session.displayTitle === DEFAULT_SESSION_TITLE
+                    session.title === DEFAULT_SESSION_TITLE
                         ? providerName
-                        : `${providerName} · ${session.displayTitle}`,
+                        : `${providerName} · ${session.title}`,
                 ...(projectTitle !== undefined && { subtitle: projectTitle }),
                 body,
             },
@@ -407,13 +406,13 @@ export function createAgentNotificationCoordinator(
             const reply = replies[index];
             const current = sessions.get(banner.session.id);
             if (
-                current?.attentionEpoch !== banner.session.attentionEpoch ||
+                current?.attentionGeneration !== banner.session.attentionGeneration ||
                 !current.hasUnread ||
                 options.isSessionVisible(current.id) ||
                 !settings?.['agents.notifications.enabled']
             ) {
                 // The previous turn's banner is just as stale as the one being dropped.
-                if (current?.attentionEpoch === banner.session.attentionEpoch)
+                if (current?.attentionGeneration === banner.session.attentionGeneration)
                     closeNotification(banner.session.id);
                 banner.decide('superseded', reply?.outcome);
                 continue;
@@ -429,8 +428,7 @@ export function createAgentNotificationCoordinator(
     ): Array<PendingBanner | undefined> => {
         settings = bootstrap.settings;
         projectTitles.clear();
-        for (const project of bootstrap.projects)
-            projectTitles.set(project.id, project.displayTitle);
+        for (const project of bootstrap.projects) projectTitles.set(project.id, project.title);
         if (!settings['agents.notifications.enabled']) closeAllNotifications();
         terminals.clear();
         for (const terminal of bootstrap.terminals) terminals.set(terminal.id, terminal);
@@ -576,9 +574,9 @@ export function createAgentNotificationCoordinator(
                      * expected to act on it. Only the reloaded `enabled` value decides.
                      *
                      * Turning notifications off clears the banners. Turning them back on deliberately does not replay
-                     * them: `sessions` keeps each Session's `attentionEpoch` while notifications are disabled, so the
-                     * next banner needs a genuinely newer epoch. Re-issuing here would resurface attention the user has
-                     * already seen in the Sidebar's unread state.
+                     * them: `sessions` keeps each Session's `attentionGeneration` while notifications are disabled, so
+                     * the next banner needs a genuinely newer epoch. Re-issuing here would resurface attention the user
+                     * has already seen in the Sidebar's unread state.
                      */
                     if (!next['agents.notifications.enabled']) closeAllNotifications();
                 });

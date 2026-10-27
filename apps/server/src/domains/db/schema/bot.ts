@@ -87,6 +87,13 @@ export const botPendingNotices = sqliteTable(
     (table) => [
         check('bot_pending_notices_kind', isOneOf(table.kind, botNoticeKinds)),
         check('bot_pending_notices_status', isOneOf(table.status, botNoticeStatuses)),
+        /**
+         * A delegation notice is delivered by matching its revision; an interrupted-turn marker carries only its time.
+         */
+        check(
+            'bot_pending_notices_shape',
+            sql`(${table.kind} = 'delegation' AND ${table.delegationId} IS NOT NULL AND ${table.sessionId} IS NOT NULL AND ${table.status} IS NOT NULL AND ${table.revision} IS NOT NULL) OR (${table.kind} = 'interrupted_turn' AND ${table.delegationId} IS NULL AND ${table.sessionId} IS NULL AND ${table.status} IS NULL AND ${table.revision} IS NULL)`,
+        ),
     ],
 );
 
@@ -144,6 +151,13 @@ export const botInboxItems = sqliteTable(
         check('bot_inbox_status', isOneOf(table.status, botInboxStatuses)),
         check('bot_inbox_close_reason', isOneOf(table.closeReason, botInboxCloseReasons)),
         check('bot_inbox_stale_reason', isOneOf(table.staleReason, botInboxStaleReasons)),
+        /**
+         * Closing writes the reason and time together, and the closed list and its pruning order by `closed_at`.
+         */
+        check(
+            'bot_inbox_closed_state',
+            sql`(${table.status} = 'open' AND ${table.closeReason} IS NULL AND ${table.closedAt} IS NULL) OR (${table.status} = 'closed' AND ${table.closeReason} IS NOT NULL AND ${table.closedAt} IS NOT NULL)`,
+        ),
     ],
 );
 

@@ -178,7 +178,7 @@ export function AgentActivityView() {
      * twice the width and buys nothing a queue needs.
      */
     const relativeTimes = useRelativeTimes(
-        useMemo(() => sessionRows.map((row) => row.session.lastSessionActivityAt), [sessionRows]),
+        useMemo(() => sessionRows.map((row) => row.session.sessionActivityAt), [sessionRows]),
         'narrow',
     );
     /**
@@ -237,7 +237,7 @@ export function AgentActivityView() {
         // Fire-and-forget: `tryCommand` turns any rejection into exactly one toast, and the Server keeps the same
         // generation unread so the next focus event can retry it.
         void tryCommand(t('agentActivity.markReadFailed'), () =>
-            markSessionRead(row.session.id, row.session.attentionEpoch),
+            markSessionRead(row.session.id, row.session.attentionGeneration),
         );
         if (focusAfterRead) focusRow(focusAfterRead);
     };

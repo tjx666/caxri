@@ -26,12 +26,12 @@ export function extensionForView(
  */
 export function assertViewContextCurrent(
     expected: ExtensionViewEventContext,
-    resolved: { sessionId?: string; workbenchProjectId?: string },
+    resolved: { sessionId?: string; workbenchRootProjectId?: string },
 ): void {
     if (expected.kind === 'no-session') return;
     if (
         expected.sessionId !== resolved.sessionId ||
-        expected.workbenchProjectId !== resolved.workbenchProjectId
+        expected.workbenchRootProjectId !== resolved.workbenchRootProjectId
     )
         throw new CaxriError('CANCELLED', 'Controlled view scope is no longer current');
 }

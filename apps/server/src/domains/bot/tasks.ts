@@ -55,7 +55,7 @@ export function recordBotDelegation(
     if (!isBotDelegation(database, receipt)) return;
     if (database.botTasks.getByDelegation(receipt.delegationId)) return;
     if (database.botTasks.countOpen() >= MAX_BOT_TASKS) return;
-    const sessionTitle = database.getSession(receipt.sessionId)?.displayTitle.slice(0, 200);
+    const sessionTitle = database.getSession(receipt.sessionId)?.title.slice(0, 200);
     const task = database.botTasks.insert(
         {
             /**

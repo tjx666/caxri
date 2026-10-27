@@ -14,10 +14,10 @@ export function useViewBadges(
         ? {
               kind: 'session' as const,
               sessionId: session.id,
-              workbenchProjectId: session.workbenchProjectId,
+              workbenchRootProjectId: session.workbenchRootProjectId,
           }
         : { kind: 'no-session' as const };
-    const contextKey = session ? `${session.id}:${session.workbenchProjectId}` : 'no-session';
+    const contextKey = session ? `${session.id}:${session.workbenchRootProjectId}` : 'no-session';
     const views = session ? badgeViews(catalog, location) : [];
     const queries = useQueries({
         queries: views.map((view) => ({
