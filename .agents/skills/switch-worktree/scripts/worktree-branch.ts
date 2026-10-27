@@ -34,3 +34,31 @@ export async function assertBranchContainsBase(
         2,
     );
 }
+
+/**
+ * A new branch whose name already exists on `origin` cannot be pushed without overwriting someone else's history, and
+ * `gh pr create --head <branch>` then opens a PR against that stale remote head: a reused name once opened a PR showing
+ * five unrelated commits from a delivery months earlier. `remote.origin.fetch` tracks only `main`, so the check asks
+ * the live remote instead of reading `refs/remotes/origin/*`. A query failure is reported rather than read as
+ * "absent".
+ */
+export async function assertRemoteBranchAbsent(root: string, branch: string): Promise<void> {
+    let output: string;
+    try {
+        output = await runCapture(
+            'git',
+            ['ls-remote', '--heads', 'origin', `refs/heads/${branch}`],
+            root,
+        );
+    } catch (error) {
+        throw new CommandError(
+            `Could not check whether ${branch} already exists on origin: ${(error as Error).message}`,
+        );
+    }
+    if (!output.trim()) return;
+    throw new CommandError(
+        `Branch ${branch} already exists on origin, so pushing a new branch with this name would be rejected or ` +
+            `overwrite it. Choose a new branch name.`,
+        2,
+    );
+}

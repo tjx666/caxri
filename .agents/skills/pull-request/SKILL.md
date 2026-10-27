@@ -61,6 +61,9 @@ or cancels the delivery, or a concrete blocker requires their input.
    For an ordinary non-force push from a linked worktree, make the destination auditable with
    `git push origin HEAD:refs/heads/<branch>` instead of a bare `git push`; the repository's
    default-branch guard cannot safely infer the target of an abbreviated command.
+   Create the PR only after that push exits 0 and `git ls-remote origin refs/heads/<branch>` equals
+   the local `HEAD`: a push rejected against a stale same-named remote branch, followed by
+   `gh pr create` after a `;`, opened a PR showing five unrelated months-old commits.
 5. Create or update the PR with an English title and body that describe observable behavior,
    validation, non-goals, and closing issue links. A ready PR records affected E2E but never starts
    the full suite automatically, and the import graph cannot see which Electron workflows a

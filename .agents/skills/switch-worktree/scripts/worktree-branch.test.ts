@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { runCapture } from './process';
-import { assertBranchContainsBase } from './worktree-branch';
+import { assertBranchContainsBase, assertRemoteBranchAbsent } from './worktree-branch';
 
 const temporaryDirectories: string[] = [];
 
@@ -54,5 +54,30 @@ describe('assertBranchContainsBase', () => {
         await expect(
             assertBranchContainsBase(root, 'fix/stale-name', undefined),
         ).resolves.toBeUndefined();
+    });
+});
+
+describe('assertRemoteBranchAbsent', () => {
+    it('refuses a name that already exists on origin, even when origin only tracks main', async () => {
+        const root = await createRepoWithStaleBranch();
+        const remote = await mkdtemp(join(tmpdir(), 'caxri-worktree-remote-'));
+        temporaryDirectories.push(remote);
+        await git(remote, 'init', '--bare', '-b', 'main');
+        await git(root, 'remote', 'add', 'origin', remote);
+        await git(root, 'push', 'origin', 'main', 'fix/stale-name');
+        await git(root, 'branch', '-D', 'fix/stale-name');
+
+        await expect(assertRemoteBranchAbsent(root, 'fix/stale-name')).rejects.toThrow(
+            'already exists on origin',
+        );
+        await expect(assertRemoteBranchAbsent(root, 'fix/new-name')).resolves.toBeUndefined();
+    });
+
+    it('reports an unreachable origin instead of treating the name as free', async () => {
+        const root = await createRepoWithStaleBranch();
+        await git(root, 'remote', 'add', 'origin', join(root, 'missing.git'));
+        await expect(assertRemoteBranchAbsent(root, 'fix/new-name')).rejects.toThrow(
+            'Could not check whether fix/new-name already exists on origin',
+        );
     });
 });
