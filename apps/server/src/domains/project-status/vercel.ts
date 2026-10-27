@@ -32,12 +32,141 @@ const VERCEL_LINK_CACHE_LIMIT = 256;
  */
 const MAX_BRANCH_DEPLOYMENTS = 10;
 
+/**
+ * A repository Vercel has never heard of answers the same way every time, and proving it costs a team list plus one
+ * deployment query per team. Production (0.0.138) spawned 1,000 to 1,200 `vc` processes an hour, about a second each,
+ * because only a found link was remembered and the Status panel re-proved every unlinked repository each minute.
+ */
+export const UNLINKED_TTL_MS = 30 * 60_000;
+/**
+ * Teams change when the user joins or leaves one, which a half-hour delay does not hide: an unlinked repository is
+ * re-checked on the same schedule.
+ */
+const TEAMS_TTL_MS = 30 * 60_000;
+
+export interface VercelLinkCacheOptions {
+    now?: () => number;
+    teamsTtlMs?: number;
+    unlinkedTtlMs?: number;
+}
+
+/**
+ * `owner/repo` → the Vercel project it is linked to, or the remembered absence of one. Owned by the caller because the
+ * answer holds across refreshes: a found link for the life of the process, an absence and the team list for
+ * {@link UNLINKED_TTL_MS}. Concurrent discoveries of one repository share a single run, so a sweep over many Sessions on
+ * the same repository spawns one team list, not one per Session.
+ */
+export class VercelLinkCache {
+    private readonly links = new Map<string, VercelLink>();
+    private readonly unlinked = new Map<string, number>();
+    private readonly discovering = new Map<string, Promise<VercelLink | undefined>>();
+    private teamList?: { fetchedAt: number; value: Promise<string[]> };
+    /**
+     * Bumped by {@link clear}, so a discovery that was already running cannot write its pre-clear answer back.
+     */
+    private generation = 0;
+
+    constructor(private readonly options: VercelLinkCacheOptions = {}) {}
+
+    private now(): number {
+        return this.options.now?.() ?? Date.now();
+    }
+
+    private async forgetTeamsOnFailure(entry: {
+        fetchedAt: number;
+        value: Promise<string[]>;
+    }): Promise<string[]> {
+        try {
+            return await entry.value;
+        } catch (error) {
+            if (this.teamList === entry) this.teamList = undefined;
+            throw error;
+        }
+    }
+
+    /**
+     * Seeds a known link, as a caller that already resolved one (or a test) would.
+     */
+    set(key: string, link: VercelLink): void {
+        this.unlinked.delete(key);
+        rememberBounded(this.links, key, link, VERCEL_LINK_CACHE_LIMIT);
+    }
+
+    /**
+     * The account's team slugs, shared by every discovery inside the TTL. A failed list is not remembered, so the next
+     * discovery asks again. `isFresh` (a forced refresh) skips the cached list.
+     */
+    teams(load: () => Promise<string[]>, isFresh = false): Promise<string[]> {
+        const cached = this.teamList;
+        if (
+            !isFresh &&
+            cached &&
+            this.now() - cached.fetchedAt < (this.options.teamsTtlMs ?? TEAMS_TTL_MS)
+        )
+            return cached.value;
+        const value = load();
+        const entry = { fetchedAt: this.now(), value };
+        this.teamList = entry;
+        return this.forgetTeamsOnFailure(entry);
+    }
+
+    clear(): void {
+        this.links.clear();
+        this.unlinked.clear();
+        this.discovering.clear();
+        this.teamList = undefined;
+        this.generation += 1;
+    }
+
+    /**
+     * `isFresh` (a forced refresh) re-proves a remembered absence, so a repository the user just linked in Vercel shows
+     * up on Refresh instead of after {@link UNLINKED_TTL_MS}. A found link is still reused: it does not go stale.
+     */
+    resolve(
+        key: string,
+        discover: () => Promise<VercelLink | undefined>,
+        isFresh = false,
+    ): Promise<VercelLink | undefined> {
+        const cached = this.links.get(key);
+        if (cached) {
+            rememberBounded(this.links, key, cached, VERCEL_LINK_CACHE_LIMIT);
+            return Promise.resolve(cached);
+        }
+        const unlinkedAt = this.unlinked.get(key);
+        if (
+            !isFresh &&
+            unlinkedAt !== undefined &&
+            this.now() - unlinkedAt < (this.options.unlinkedTtlMs ?? UNLINKED_TTL_MS)
+        )
+            return Promise.resolve(undefined);
+        const running = this.discovering.get(key);
+        if (running) return running;
+        const generation = this.generation;
+        const discovery = (async () => {
+            try {
+                const link = await discover();
+                if (generation !== this.generation) return link;
+                if (link) this.set(key, link);
+                else rememberBounded(this.unlinked, key, this.now(), VERCEL_LINK_CACHE_LIMIT);
+                return link;
+            } finally {
+                if (generation === this.generation) this.discovering.delete(key);
+            }
+        })();
+        this.discovering.set(key, discovery);
+        return discovery;
+    }
+}
+
 export interface VercelDependencies {
     /**
-     * `owner/repo` → the Vercel project it is linked to. Owned by the caller because the answer holds for the process,
-     * not for one refresh: discovering it costs one `vc teams ls` plus one `vc ls` per team.
+     * Shared across refreshes; see {@link VercelLinkCache}.
      */
-    links: Map<string, VercelLink>;
+    links: VercelLinkCache;
+    /**
+     * A user-requested refresh, which re-proves a remembered absence; see {@link VercelLinkCache.resolve}.
+     */
+    isForced?: boolean;
     onParseFailure: (error: unknown) => void;
     run: (arguments_: readonly string[], cwd: string) => Promise<string>;
 }
@@ -108,37 +237,44 @@ function mapDeploymentCommit(
 /**
  * Which Vercel project serves this GitHub repository. Vercel has no reverse lookup, so the answer is assembled by
  * listing the account's teams and asking each one for a deployment carrying this repository's metadata: expensive
- * enough that the result is cached for the life of the process.
+ * enough that both answers are cached (see {@link VercelLinkCache}).
  */
-export async function findVercelLink(
+export function findVercelLink(
     dependencies: VercelDependencies,
     owner: string,
     repo: string,
 ): Promise<VercelLink | undefined> {
-    const key = `${owner}/${repo}`;
-    const cached = dependencies.links.get(key);
-    if (cached) {
-        rememberBounded(dependencies.links, key, cached, VERCEL_LINK_CACHE_LIMIT);
-        return cached;
-    }
-    const teamsJson = await dependencies.run(['teams', 'ls', '--format', 'json'], homedir());
-    const parsed = parseExternalJson(teamsJson, vercelTeamListSchema, 'Vercel team list');
-    const teams = (Array.isArray(parsed) ? parsed : (parsed.teams ?? [])).flatMap((team) =>
-        team.slug ? [team.slug] : [],
-    );
-    const links = await Promise.all(
-        teams.map(async (team): Promise<VercelLink | undefined> => {
-            const output = await dependencies.run(
-                vcListArguments(team, { githubOrg: owner, githubRepo: repo }),
-                homedir(),
+    return dependencies.links.resolve(
+        `${owner}/${repo}`,
+        async () => {
+            const teams = await dependencies.links.teams(async () => {
+                const teamsJson = await dependencies.run(
+                    ['teams', 'ls', '--format', 'json'],
+                    homedir(),
+                );
+                const parsed = parseExternalJson(
+                    teamsJson,
+                    vercelTeamListSchema,
+                    'Vercel team list',
+                );
+                return (Array.isArray(parsed) ? parsed : (parsed.teams ?? [])).flatMap((team) =>
+                    team.slug ? [team.slug] : [],
+                );
+            }, dependencies.isForced);
+            const links = await Promise.all(
+                teams.map(async (team): Promise<VercelLink | undefined> => {
+                    const output = await dependencies.run(
+                        vcListArguments(team, { githubOrg: owner, githubRepo: repo }),
+                        homedir(),
+                    );
+                    const project = parseVercelList(output)[0]?.name;
+                    return project ? { team, project } : undefined;
+                }),
             );
-            const project = parseVercelList(output)[0]?.name;
-            return project ? { team, project } : undefined;
-        }),
+            return links.find((candidate): candidate is VercelLink => Boolean(candidate));
+        },
+        dependencies.isForced,
     );
-    const link = links.find((candidate): candidate is VercelLink => Boolean(candidate));
-    if (link) rememberBounded(dependencies.links, key, link, VERCEL_LINK_CACHE_LIMIT);
-    return link;
 }
 
 /**

@@ -356,8 +356,10 @@ as `git.switchBranch` or `git.mergePullRequest`) moves on to the connection's re
 those mutations run one at a time, because nothing below serializes an Extension `git pull` against a
 checkout. The all-Session Workbench Root sweep (`session.validateWorkbenchRoots` without a `sessionId`,
 which Desktop sends on every app activation and window focus and ignores the reply of) runs in a
-background lane of its own, and the Server waits for it on close. Every other write holds the ordered
-lane until it settles. A seconds-long pull request merge or a slow sweep therefore no longer delays a
+background lane of its own, and the Server waits for it on close. `session.rename` settles outside the
+ordered lane after admission, because `SessionRenameQueue` serializes each Session's renames and the
+commit re-reads the Session after the provider returns. Every other write holds the ordered lane until it
+settles. A seconds-long pull request merge or a slow sweep therefore no longer delays a
 later `session.select`. The `ipc.request` log records `queueMs` and `queueDepth` for every request and
 `lane: 'repository'` or `lane: 'background'` for those lanes, so a write that still holds the ordered
 lane shows up as queue time on the requests behind it. A slow sweep (200 ms or more) also writes a

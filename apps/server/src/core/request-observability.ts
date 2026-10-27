@@ -1,3 +1,5 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
+
 import type { ServerOperation } from '@caxri/protocol';
 import { isCallerHandledFailure } from '@caxri/protocol';
 
@@ -43,6 +45,26 @@ type RequestLogBoundary = 'control' | 'domain';
 
 export function shouldLogSuccessfulRequest(boundary: RequestLogBoundary, method: string): boolean {
     return !UNLOGGED_SUCCESS_METHODS[boundary].has(method);
+}
+
+/**
+ * The control request whose async context the caller runs in. The control boundary always writes that request's outcome
+ * with its queue wait, lane, and principal, so a successful domain dispatch of the same method adds nothing but a
+ * second line. Production (0.0.138) wrote each control request twice, which made `ipc.request` half of
+ * `server-core.jsonl` and rotated a 20 MB generation every one to three hours.
+ */
+const controlLoggedRequests = new AsyncLocalStorage<string>();
+
+export function runAsControlLoggedRequest<Result>(method: string, action: () => Result): Result {
+    return controlLoggedRequests.run(method, action);
+}
+
+/**
+ * True when `method` is the control request that will log its own outcome. A nested dispatch of a different method, and
+ * any dispatch outside a control request (an Extension Host or Terminal Host call), still logs at the domain.
+ */
+export function isLoggedByControlBoundary(method: string): boolean {
+    return controlLoggedRequests.getStore() === method;
 }
 
 /**

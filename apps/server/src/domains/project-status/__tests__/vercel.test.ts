@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { BranchPublicationContext } from '../branch';
 import type { VercelDependencies } from '../vercel';
-import { loadVercelDeployments } from '../vercel';
+import { findVercelLink, loadVercelDeployments, VercelLinkCache } from '../vercel';
 
 const featureHead = 'a'.repeat(40);
 const defaultHead = 'b'.repeat(40);
@@ -77,9 +77,15 @@ function vercelRunner(productionState = 'READY'): VercelDependencies['run'] {
     });
 }
 
+function linkedCache(): VercelLinkCache {
+    const links = new VercelLinkCache();
+    links.set('acme/widget', link);
+    return links;
+}
+
 function dependencies(productionState = 'READY'): VercelDependencies {
     return {
-        links: new Map([['acme/widget', link]]),
+        links: linkedCache(),
         onParseFailure: (error) => expect.unreachable(`unexpected parse failure: ${String(error)}`),
         run: vercelRunner(productionState),
     };
@@ -170,5 +176,83 @@ describe('Vercel deployments', () => {
             hostname: 'widget-default-production.vercel.app',
             state: 'success',
         });
+    });
+});
+
+describe('Vercel project discovery', () => {
+    /**
+     * Two teams, and only `team-b` deploys `acme/widget`. Counts each kind of `vc` call so a test can assert what a
+     * second lookup spent.
+     */
+    function discovery(options: { failTeams?: boolean } = {}) {
+        let now = 0;
+        const calls = { teams: 0, deployments: 0 };
+        const run = vi.fn<VercelDependencies['run']>((arguments_) => {
+            if (arguments_[0] === 'teams') {
+                calls.teams += 1;
+                if (options.failTeams) return Promise.reject(new Error('timed out'));
+                return Promise.resolve(JSON.stringify([{ slug: 'team-a' }, { slug: 'team-b' }]));
+            }
+            calls.deployments += 1;
+            const query = new URL(arguments_[1] ?? '', 'https://api.vercel.com').searchParams;
+            const deployed =
+                arguments_.includes('team-b') && query.get('meta-githubRepo') === 'widget';
+            return Promise.resolve(JSON.stringify(deployed ? [{ name: 'widget' }] : []));
+        });
+        const dependencies: VercelDependencies = {
+            links: new VercelLinkCache({ now: () => now }),
+            onParseFailure: () => {},
+            run,
+        };
+        return { advance: (ms: number) => (now += ms), calls, dependencies };
+    }
+
+    it('remembers an unlinked repository for half an hour instead of re-proving it each refresh', async () => {
+        const { advance, calls, dependencies } = discovery();
+        await expect(findVercelLink(dependencies, 'acme', 'docs')).resolves.toBeUndefined();
+        expect(calls).toEqual({ teams: 1, deployments: 2 });
+
+        advance(29 * 60_000);
+        await expect(findVercelLink(dependencies, 'acme', 'docs')).resolves.toBeUndefined();
+        expect(calls).toEqual({ teams: 1, deployments: 2 });
+
+        advance(60_000);
+        await findVercelLink(dependencies, 'acme', 'docs');
+        expect(calls).toEqual({ teams: 2, deployments: 4 });
+    });
+
+    it('shares one team list across repositories and one discovery across concurrent readers', async () => {
+        const { calls, dependencies } = discovery();
+        const [first, second] = await Promise.all([
+            findVercelLink(dependencies, 'acme', 'widget'),
+            findVercelLink(dependencies, 'acme', 'widget'),
+        ]);
+        expect(first).toEqual({ team: 'team-b', project: 'widget' });
+        expect(second).toBe(first);
+        await findVercelLink(dependencies, 'acme', 'docs');
+        expect(calls).toEqual({ teams: 1, deployments: 4 });
+    });
+
+    it('does not remember a failed team list as an absence', async () => {
+        const { calls, dependencies } = discovery({ failTeams: true });
+        await expect(findVercelLink(dependencies, 'acme', 'widget')).rejects.toThrow('timed out');
+        await expect(findVercelLink(dependencies, 'acme', 'widget')).rejects.toThrow('timed out');
+        expect(calls.teams).toBe(2);
+    });
+
+    it('re-proves a remembered absence and the team list on a forced refresh', async () => {
+        const { calls, dependencies } = discovery();
+        await findVercelLink(dependencies, 'acme', 'docs');
+        await findVercelLink({ ...dependencies, isForced: true }, 'acme', 'docs');
+        expect(calls).toEqual({ teams: 2, deployments: 4 });
+    });
+
+    it('does not let a discovery that outlived clear() repopulate the cache', async () => {
+        const { calls, dependencies } = discovery();
+        const pending = findVercelLink(dependencies, 'acme', 'docs');
+        dependencies.links.clear();
+        await pending;
+        await findVercelLink(dependencies, 'acme', 'docs');
+        expect(calls.teams).toBe(2);
     });
 });

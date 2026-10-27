@@ -53,6 +53,11 @@ export interface SessionSwitchTiming {
      */
     repliedAt: number;
     /**
+     * The full Workbench snapshot read that converged the switch settled, before the Renderer applied it. Absent when
+     * no read settled between the reply and convergence.
+     */
+    snapshotAt?: number;
+    /**
      * The select gesture reached the Renderer's command.
      */
     startedAt: number;
@@ -258,6 +263,10 @@ export class RendererJankReporter {
                     totalMs: wholeMs(totalMs),
                     requestMs: wholeMs(timing.repliedAt - timing.startedAt),
                     convergeMs: wholeMs(timing.convergedAt - timing.repliedAt),
+                    ...(timing.snapshotAt !== undefined && {
+                        snapshotMs: wholeMs(timing.snapshotAt - timing.repliedAt),
+                        applyMs: wholeMs(timing.convergedAt - timing.snapshotAt),
+                    }),
                     paintMs: wholeMs(timing.paintedAt - timing.convergedAt),
                 },
             },

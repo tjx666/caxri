@@ -14,6 +14,7 @@ import type { DomainHandlers, DomainOperation } from '../domains/domain-services
 import { requestActivity } from '../observability/request-activity';
 import {
     delegationRequestLogFields,
+    isLoggedByControlBoundary,
     requestFailureLogLevel,
     shouldLogSuccessfulRequest,
 } from './request-observability';
@@ -111,7 +112,10 @@ export function createOperationDispatcher(
             }
             if (cancellation.signal.aborted)
                 throw new CaxriError('CANCELLED', 'Runtime request was canceled');
-            if (shouldLogSuccessfulRequest('domain', envelope.method)) {
+            if (
+                shouldLogSuccessfulRequest('domain', envelope.method) &&
+                !isLoggedByControlBoundary(envelope.method)
+            ) {
                 logger.write('debug', logEventCatalog.ipc.request, {
                     correlationId: envelope.id,
                     durationMs: performance.now() - started,

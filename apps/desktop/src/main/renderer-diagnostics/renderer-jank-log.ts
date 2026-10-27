@@ -26,7 +26,11 @@ export function rendererJankLogFields(diagnostic: RendererJankDiagnostic): LogFi
         .toSorted((left, right) => right.totalMs - left.totalMs)
         .map(
             (sample) =>
-                `total=${sample.totalMs},request=${sample.requestMs},converge=${sample.convergeMs},paint=${sample.paintMs},endedAgo=${sample.endedAgoMs}`,
+                `total=${sample.totalMs},request=${sample.requestMs},converge=${sample.convergeMs}${
+                    sample.snapshotMs === undefined
+                        ? ''
+                        : `,snapshot=${sample.snapshotMs},apply=${sample.applyMs ?? 0}`
+                },paint=${sample.paintMs},endedAgo=${sample.endedAgoMs}`,
         );
     const frames = diagnostic.frames
         .toSorted((left, right) => right.durationMs - left.durationMs)

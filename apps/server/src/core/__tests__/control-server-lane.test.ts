@@ -232,7 +232,6 @@ const expectedLanes: Record<string, ControlLane> = {
     'session.importConversation': 'ordered',
     'session.markRead': 'ordered',
     'session.refreshDeliveryOnFocus': 'ordered',
-    'session.rename': 'ordered',
     'session.reopenConversation': 'ordered',
     'session.reorder': 'ordered',
     'session.reorderPinned': 'ordered',
@@ -313,6 +312,7 @@ const expectedLanes: Record<string, ControlLane> = {
     'claudeWindow.tick': 'self-serialized',
     'claudeWindow.update': 'self-serialized',
     'files.copy': 'self-serialized',
+    'session.rename': 'self-serialized',
     'terminal.prepareLongPaste': 'self-serialized',
 };
 

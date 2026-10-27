@@ -17,6 +17,7 @@ import type {
     TerminalStagePerformanceSample,
 } from './aggregation';
 import { summarizeRendererPerformance } from './aggregation';
+import { noteWorkbenchSnapshotSettled } from './jank-monitor';
 
 const maximumScenarioDurationMs = 120_000;
 const maximumReactProfileSamples = 10_000;
@@ -391,7 +392,12 @@ export function recordReactProfile(
  * so every success and failure path can settle the same in-memory sample without adding a general request logger.
  */
 export function beginRendererPerformanceRequest(request: RendererPerformanceRequest): () => void {
-    return controller.beginRequest(request);
+    const finish = controller.beginRequest(request);
+    if (request !== 'app.bootstrap') return finish;
+    return () => {
+        noteWorkbenchSnapshotSettled();
+        finish();
+    };
 }
 
 /**

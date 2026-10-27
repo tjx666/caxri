@@ -5,23 +5,22 @@ import { rememberBounded } from '@caxri/utils';
 
 import type { ExternalStatusRunner } from '../external-status';
 import type { BranchPublicationContext } from './branch';
-import type { VercelLink } from './external';
 import { vcListArguments } from './external';
 import { parseVercelList } from './parse';
 import type { VercelDependencies } from './vercel';
-import { findVercelLink, loadVercelDeployments, mapProjectStatusDeployment } from './vercel';
+import {
+    findVercelLink,
+    loadVercelDeployments,
+    mapProjectStatusDeployment,
+    UNLINKED_TTL_MS,
+    VercelLinkCache,
+} from './vercel';
 
 /**
  * Production moves only when something is merged and rebuilt, so a minute-old answer is still the right one to draw a
  * badge from. The cost being spread is one `vc api` call per repository, shared by every Session pointing at it.
  */
 const PRODUCTION_TTL_MS = 60_000;
-/**
- * A repository Vercel has never heard of answers the same way every time, and proving it costs a team list plus one
- * deployment query per team. Re-asking on every sweep would make a repository that simply is not deployed the most
- * expensive one in the sidebar, so absence is remembered far longer than presence.
- */
-const UNLINKED_TTL_MS = 30 * 60_000;
 /**
  * A build still queued or running changes within seconds, so its answer is reused only briefly; a settled branch keeps
  * the production TTL.
@@ -77,12 +76,17 @@ export class VercelDeploymentStore {
      * Shared with the Status panel's `loadVercelDeployments` so the expensive project discovery is paid once per
      * process rather than once per reader.
      */
-    readonly links = new Map<string, VercelLink>();
+    readonly links: VercelLinkCache;
 
     constructor(
         private readonly run: ExternalStatusRunner,
         private readonly options: VercelDeploymentStoreOptions = {},
-    ) {}
+    ) {
+        this.links = new VercelLinkCache({
+            now: () => this.now(),
+            unlinkedTtlMs: options.unlinkedTtlMs,
+        });
+    }
 
     private now(): number {
         return this.options.now?.() ?? Date.now();
@@ -126,10 +130,11 @@ export class VercelDeploymentStore {
         context: BranchPublicationContext,
         rootPath: string,
         mergeCommit: string | undefined,
+        isForced: boolean,
         entry: () => { fetchedAt?: number },
     ): Promise<BranchDeployments> {
         const value = await loadVercelDeployments(
-            { ...dependencies, links: this.links },
+            { ...dependencies, isForced, links: this.links },
             context,
             rootPath,
             mergeCommit,
@@ -194,7 +199,14 @@ export class VercelDeploymentStore {
             if (this.now() - stored.fetchedAt < ttl) return stored.value;
         }
         const entry: { fetchedAt?: number; value: Promise<BranchDeployments> } = {
-            value: this.loadBranch(dependencies, context, rootPath, mergeCommit, () => entry),
+            value: this.loadBranch(
+                dependencies,
+                context,
+                rootPath,
+                mergeCommit,
+                isForced,
+                () => entry,
+            ),
         };
         rememberBounded(this.branches, key, entry, MAX_ENTRIES);
         return entry.value;

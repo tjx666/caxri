@@ -10,6 +10,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createTestDomainServices } from '../../__tests__/support/domain-services';
 import type { DomainHandlers, DomainOperation } from '../../domains/domain-services';
 import { createOperationDispatcher } from '../operation-dispatcher';
+import { runAsControlLoggedRequest } from '../request-observability';
 
 const loggers: StructuredLogger[] = [];
 const temporaryDirectories: string[] = [];
@@ -312,6 +313,27 @@ describe('createOperationDispatcher', () => {
             fields: { method: 'app.health' },
         });
         expect(records[0].durationMs).toBeTypeOf('number');
+    });
+
+    it("leaves a control request's success to the control boundary but logs a nested different method", async () => {
+        const directory = await temporaryDirectory('caxri-dispatch-control-logged-');
+        const logger = createLogger(join(directory, 'logs'));
+        const health = { ready: true, pid: 123, startedAt: 1, activePtyCount: 0 };
+        const dispatch = createOperationDispatcher(
+            stubHandlers({ 'app.health': () => health }),
+            logger,
+        );
+
+        await runAsControlLoggedRequest('app.health', () =>
+            dispatch({ id: 'control-owned', method: 'app.health', params: {} }),
+        );
+        await runAsControlLoggedRequest('session.select', () =>
+            dispatch({ id: 'nested', method: 'app.health', params: {} }),
+        );
+
+        expect(await logRecords(logger)).toEqual([
+            expect.objectContaining({ event: 'ipc.request', correlationId: 'nested' }),
+        ]);
     });
 
     it('cancels an admitted handler and rejects cancellation that arrived before registration', async () => {

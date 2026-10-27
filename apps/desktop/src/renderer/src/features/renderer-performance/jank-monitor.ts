@@ -1,6 +1,15 @@
 import { RendererJankReporter } from './jank-reporter';
 
 const installation: { reporter?: RendererJankReporter } = {};
+/**
+ * When the latest full Workbench snapshot read (`app.bootstrap`) settled, before the Renderer applied it. A Session
+ * switch converges only after such a read, so this splits `converge` into the Server read and the Renderer's apply.
+ */
+const snapshotRead = { settledAt: undefined as number | undefined };
+
+export function noteWorkbenchSnapshotSettled(): void {
+    snapshotRead.settledAt = performance.now();
+}
 
 /**
  * Starts the always-on, threshold-gated responsiveness log: Long Animation Frames of 100 ms or more and slow Session
@@ -58,6 +67,12 @@ export function beginSessionSwitchTiming(): {
             if (isDone) return;
             isDone = true;
             const convergedAt = performance.now();
+            const { settledAt } = snapshotRead;
+            // A read that settled before the reply belongs to an earlier refresh and explains nothing here.
+            const snapshotAt =
+                settledAt !== undefined && settledAt >= repliedAt && settledAt <= convergedAt
+                    ? settledAt
+                    : undefined;
             // Two frames: the first commits the new Session, the second runs after it was presented.
             requestAnimationFrame(() =>
                 requestAnimationFrame(() =>
@@ -66,6 +81,7 @@ export function beginSessionSwitchTiming(): {
                         repliedAt,
                         convergedAt,
                         paintedAt: performance.now(),
+                        ...(snapshotAt !== undefined && { snapshotAt }),
                     }),
                 ),
             );

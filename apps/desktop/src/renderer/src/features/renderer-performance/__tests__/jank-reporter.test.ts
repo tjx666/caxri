@@ -74,6 +74,27 @@ describe('Renderer jank reporter', () => {
         expect(() => rendererDiagnosticSchema.parse(reports[0])).not.toThrow();
     });
 
+    it('splits convergence into the snapshot read and the apply when the arrival is known', () => {
+        const { reporter, reports, fire, advance } = createReporter();
+
+        reporter.recordSessionSwitch({ ...slowSwitch(9_500, 400), snapshotAt: 9_500 + 300 });
+        advance(100);
+        fire();
+
+        expect(reports[0]?.switches).toEqual([
+            {
+                totalMs: 400,
+                requestMs: 240,
+                convergeMs: 120,
+                snapshotMs: 60,
+                applyMs: 60,
+                paintMs: 40,
+                endedAgoMs: 200,
+            },
+        ]);
+        expect(() => rendererDiagnosticSchema.parse(reports[0])).not.toThrow();
+    });
+
     it('attributes the slowest script and marks a frame that overlapped a switch', () => {
         const { reporter, reports, fire } = createReporter();
 

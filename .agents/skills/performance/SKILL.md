@@ -62,7 +62,7 @@ description: Measure and protect Caxri startup, Server Core responsiveness, Rend
    **Diagnose a reported Session switch lag or frame drop from logs alone.** Every signal below is
    threshold-gated, so a healthy profile writes none of it. Query with `caxri logs query --event <name>`.
 
-   - `renderer.jank` (`info`, `warn` from 1 s): `switches` (`total`, `request`, `converge`, `paint`)
+   - `renderer.jank` (`info`, `warn` from 1 s): `switches` (`total`, `request`, `converge`, `snapshot`, `apply`, `paint`)
      and `frames` (`duration`, `blocking`, `styleLayout`, `duringSwitch`, `topInvoker`,
      `topMs`, `topFile`, `topFunction`), each with `endedAgo`. Answers whether the user waited in the
      Renderer and which script made the frame long. Chromium's throttling of a hidden, occluded or
@@ -87,9 +87,10 @@ description: Measure and protect Caxri startup, Server Core responsiveness, Rend
      [Git status snapshot](../../../docs/git-status-snapshot.md#measurement-contract).
 
    Recipe: (1) Find the `renderer.jank` record near the reported time. `total` splits into `request`
-   (Server round trip), `converge` (state applied in the Renderer), and `paint` (next frame). Large
-   `request` means the Server; large `paint` or a `frames` entry with `duringSwitch=true` means Renderer
-   work, and `topFile`/`topFunction` name the bundle chunk and function that spent the most time.
+   (Server round trip), `converge`, and `paint` (next frame). `converge` is itself a full `app.bootstrap`
+   read (`snapshot`, which includes waiting behind a read already in flight) plus the Renderer's `apply`, so
+   a large `converge` with a large `snapshot` points at the Server, not React. Large `request` means the
+   Server; large `apply`, large `paint`, or a `frames` entry with `duringSwitch=true` means Renderer work, and `topFile`/`topFunction` name the bundle chunk and function that spent the most time.
    (2) For a large `request`, read the `ipc.request` record of that `session.select` by `requestId`.
    `blockedByMethod` names the write that held the lane; check its lane in `docs/server-architecture.md`.
    A long `queueMs` with no `blockedBy*` fields and a `process.event_loop_stall` at the same time means the
