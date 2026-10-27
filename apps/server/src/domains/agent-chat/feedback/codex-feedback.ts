@@ -70,10 +70,11 @@ function lines(...values: unknown[]): string {
 }
 
 function entryText(run: Json, kinds: readonly string[]): string {
+    const wanted = new Set(kinds);
     const entries = Array.isArray(run.entries) ? run.entries.filter(isRecord) : [];
     return lines(
         ...entries
-            .filter((entry) => kinds.includes(stringField(entry.kind) ?? ''))
+            .filter((entry) => wanted.has(stringField(entry.kind) ?? ''))
             .map((entry) => entry.text),
     );
 }
