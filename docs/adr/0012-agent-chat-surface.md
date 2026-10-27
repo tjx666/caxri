@@ -42,7 +42,9 @@ ever attached to a conversation at a time.
   read or message resumes the Agent Session lazily, so restart does not relaunch idle Chats.
 - **The provider's record stays the source of truth.** Caxri keeps a bounded in-memory projection
   of the current conversation and never persists messages, tool output, or reasoning. History comes
-  back from the provider on resume. Streaming updates are transient events that never enter the
+  back from the provider on resume. The one exception is the `Answered: ...` notice Caxri itself
+  adds when the user answers an Agent question: no provider history carries it, so Server Core
+  keeps it in `agent_chat_answered_notices` until a rewind passes it or the Terminal is deleted. Streaming updates are transient events that never enter the
   durable journal, matching Terminal output in [ADR 0006](0006-durable-changefeed-and-streaming-protocol.md).
 - **Authentication stays with the provider.** Caxri never offers a provider login, never reads or
   stores provider credentials, and never routes model traffic. A signed-out CLI reports its own

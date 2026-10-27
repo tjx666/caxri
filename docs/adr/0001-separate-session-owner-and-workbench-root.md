@@ -26,8 +26,8 @@ the root identity is unchanged. It neither creates a Session nor changes selecti
 
 Workbench state and dirty document identity are scoped by `(sessionId, workbenchProjectId)`. The
 provider hook bridge classifies a bounded Bash command locally and reports only authenticated
-worktree-create intent plus an opaque tool identifier, never its command, path, or output. Runtime
-captures structured Git topology before that exact tool runs and compares it with a forced read after
+worktree-create intent plus an opaque tool identifier, never its command, path, or output. Server
+Core captures structured Git topology before that exact tool runs and compares it with a forced read after
 the paired outcome. Only one unique addition can become a candidate. A missing pair, failed tool,
 timeout, or ambiguous concurrent signal/addition is consumed and fails closed. Choosing Continue
 authorizes the exact Server-owned candidate through a single-use Main grant without a folder picker.

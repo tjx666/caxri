@@ -100,11 +100,11 @@ another bootstrap read, so pane and tab identities remain stable before the firs
 
 ## Attachment lease
 
-Hiding a Terminal tab and showing it again detaches one view and attaches another, and Host input
+Hiding a Terminal tab and showing it again detaches one view and attaches another, and Terminal input
 and resize bypass the ordered request queue. A late `detach` or a stale `ResizeObserver` from the old pane can
 therefore land after the new pane attaches and either orphan the view or resize the PTY back to the
-old geometry. `attach`, `input`, `resize`, `detach`, and `output` carry an attachment id; Runtime
-keeps one current lease per Terminal, replaces it atomically, and makes every stale-lease message a
+old geometry. `attach`, `input`, `resize`, `detach`, and `output` carry an attachment id; Terminal
+Host keeps one current lease per Terminal, replaces it atomically, and makes every stale-lease message a
 no-op. This lands before the panes merge, not after.
 
 ## Tab sizing
@@ -129,7 +129,7 @@ handle.
 
 This breaks the wire contract: `SessionState` is shared by `app.bootstrap` and `session.updateState`,
 so the protocol version, the session-state version, and the layout version all step forward together
-and Host, Runtime, Preload, CLI, and fixtures upgrade atomically. Per the pre-public compatibility
+and Host, Runtime, Preload, CLI, and fixtures (the process names before ADR 0004) upgrade atomically. Per the pre-public compatibility
 policy there is no adapter and no dual read or write. A migration (since folded into `0000_baseline.sql`) drops
 `session_state` down to its four surviving columns and hard-resets every row's `state_version` to `2`
 and `workbench_state_json` to `{}`: it does not attempt to convert the old Terminal/Editor trees

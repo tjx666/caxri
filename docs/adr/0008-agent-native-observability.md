@@ -61,6 +61,8 @@ arbitrary action, surface, request, or component labels.
 ## Deferred public surfaces
 
 Liveness, readiness, `caxri doctor --json`, `caxri capabilities --json`, redacted changefeed inspection,
-and authenticated platform export remain later product capabilities. They must consume the same private
+and authenticated platform export remain later product capabilities. The existing offline `caxri
+capabilities --json`, which predates this decision, only lists CLI commands and protocol methods; the
+deferred surface is a Server-reported diagnostic view over the foundation above. They must consume the same private
 foundation and preserve its bounds and exclusions, but this decision does not make them part of the A6
 product surface. Export failure must never block Server work or weaken the privacy boundary.
