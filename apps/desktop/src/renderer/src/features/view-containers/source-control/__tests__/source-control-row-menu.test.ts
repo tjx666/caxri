@@ -20,7 +20,7 @@ function selectProject(rootPath: string | undefined): void {
         bootstrap: rootPath
             ? ({
                   selectedSessionId: 'session-1',
-                  sessions: [{ id: 'session-1', workbenchProjectId: 'project-1' }],
+                  sessions: [{ id: 'session-1', workbenchRootProjectId: 'project-1' }],
                   projects: [{ id: 'project-1', rootPath }],
               } as never)
             : undefined,

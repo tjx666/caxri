@@ -138,7 +138,7 @@ function migrateWithForeignKeysOff(
 interface ProcessGroupRow {
     pgid: number;
     terminal_id: string;
-    leader_started_at: string;
+    leader_start_token: string;
     recorded_at: number;
 }
 
@@ -156,19 +156,34 @@ function dropPreBaselineTables(database: Database.Database): ProcessGroupRow[] {
         .pluck()
         .all() as string[];
     const processGroups = tables.includes('agent_chat_process_groups')
-        ? (database
-              .prepare(
-                  'SELECT pgid, terminal_id, leader_started_at, recorded_at FROM agent_chat_process_groups',
-              )
-              .all() as ProcessGroupRow[])
+        ? readProcessGroups(database)
         : [];
     for (const table of tables) database.exec(`DROP TABLE "${table.replaceAll('"', '""')}"`);
     return processGroups;
 }
 
+/**
+ * Schemas before version 55 name the leader identity `leader_started_at`; later ones name it `leader_start_token`. The
+ * column is read by whichever name the rebuilt table has, so a later baseline bump cannot break the carry.
+ */
+function readProcessGroups(database: Database.Database): ProcessGroupRow[] {
+    const columns = database
+        .prepare("SELECT name FROM pragma_table_info('agent_chat_process_groups')")
+        .pluck()
+        .all() as string[];
+    const leader = columns.includes('leader_start_token')
+        ? 'leader_start_token'
+        : 'leader_started_at';
+    return database
+        .prepare(
+            `SELECT pgid, terminal_id, ${leader} AS leader_start_token, recorded_at FROM agent_chat_process_groups`,
+        )
+        .all() as ProcessGroupRow[];
+}
+
 function restoreProcessGroups(database: Database.Database, rows: readonly ProcessGroupRow[]): void {
     const insert = database.prepare(
-        'INSERT INTO agent_chat_process_groups (pgid, terminal_id, leader_started_at, recorded_at) VALUES (@pgid, @terminal_id, @leader_started_at, @recorded_at)',
+        'INSERT INTO agent_chat_process_groups (pgid, terminal_id, leader_start_token, recorded_at) VALUES (@pgid, @terminal_id, @leader_start_token, @recorded_at)',
     );
     for (const row of rows) insert.run(row);
 }

@@ -54,7 +54,7 @@ describe('Agent Session usage ledger', () => {
             url: 'https://github.com/acme/widgets/pull/1',
             state: 'open' as const,
             title: 'Draft',
-            createdAt: 1,
+            openedAt: 1,
             mergedAt: null,
             additions: 1,
             deletions: 0,

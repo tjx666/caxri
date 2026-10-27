@@ -29,7 +29,7 @@ describe('Session state persistence', () => {
         const databasePath = join(directory, 'state.db');
         const database = new CaxriDatabase(databasePath);
         const project = database.projects.create(directory);
-        const session = database.sessions.insert({ projectId: project.id, displayTitle: 'Shell' });
+        const session = database.sessions.insert({ projectId: project.id, title: 'Shell' });
         const terminal = database.terminals.insert({
             sessionId: session.id,
             kind: 'shell',
@@ -53,8 +53,8 @@ describe('Session state persistence', () => {
         const directory = await temporaryDirectory('caxri-db-extension-tree-state-');
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const project = database.projects.create(directory);
-        const first = database.sessions.insert({ projectId: project.id, displayTitle: 'First' });
-        const second = database.sessions.insert({ projectId: project.id, displayTitle: 'Second' });
+        const first = database.sessions.insert({ projectId: project.id, title: 'First' });
+        const second = database.sessions.insert({ projectId: project.id, title: 'Second' });
         database.sessions.insertInitialState(first.id);
         database.sessions.insertInitialState(second.id);
 
@@ -101,7 +101,7 @@ describe('Session state persistence', () => {
         const directory = await temporaryDirectory('caxri-db-session-state-revision-');
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const project = database.projects.create(directory);
-        const session = database.sessions.insert({ projectId: project.id, displayTitle: 'Shell' });
+        const session = database.sessions.insert({ projectId: project.id, title: 'Shell' });
         database.sessions.insertInitialState(session.id);
 
         // Both clients read the same state, as two windows arranging the same Session would.
@@ -131,7 +131,7 @@ describe('Session state persistence', () => {
         const directory = await temporaryDirectory('caxri-db-session-state-no-op-');
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const project = database.projects.create(directory);
-        const session = database.sessions.insert({ projectId: project.id, displayTitle: 'Shell' });
+        const session = database.sessions.insert({ projectId: project.id, title: 'Shell' });
         database.sessions.insertInitialState(session.id);
 
         const stored = database.sessions.getState(session.id);
@@ -148,7 +148,7 @@ describe('Session state persistence', () => {
         const directory = await temporaryDirectory('caxri-db-session-state-server-edit-');
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const project = database.projects.create(directory);
-        const session = database.sessions.insert({ projectId: project.id, displayTitle: 'Shell' });
+        const session = database.sessions.insert({ projectId: project.id, title: 'Shell' });
         database.sessions.insertInitialState(session.id);
         const read = database.sessions.getState(session.id);
 
@@ -176,10 +176,10 @@ describe('Session state persistence', () => {
         const databasePath = join(directory, 'state.db');
         const database = new CaxriDatabase(databasePath);
         const project = database.projects.create(directory);
-        const session = database.sessions.insert({ projectId: project.id, displayTitle: 'Shell' });
+        const session = database.sessions.insert({ projectId: project.id, title: 'Shell' });
         database.sessions.insertInitialState(session.id);
         database.database
-            .prepare('update session_state set workbench_state_json = ? where session_id = ?')
+            .prepare('update session_views set roots_json = ? where session_id = ?')
             .run('not json', session.id);
 
         // Reading an unparsable row repairs it in place. Returning the revision it read rather than the one the
@@ -196,8 +196,8 @@ describe('Session state persistence', () => {
         const directory = await temporaryDirectory('caxri-db-session-states-');
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const project = database.projects.create(directory);
-        const first = database.sessions.insert({ projectId: project.id, displayTitle: 'First' });
-        const second = database.sessions.insert({ projectId: project.id, displayTitle: 'Second' });
+        const first = database.sessions.insert({ projectId: project.id, title: 'First' });
+        const second = database.sessions.insert({ projectId: project.id, title: 'Second' });
         const insertTerminal = (sessionId: string) =>
             database.terminals.insert({
                 sessionId,

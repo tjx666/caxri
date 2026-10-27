@@ -88,7 +88,7 @@ async function createSession(
     );
     if (!created.terminal) throw new Error(`Session ${session.key} opened no Chat`);
     const sessionId = created.session.id;
-    await pageRequest(page, 'session.rename', { sessionId, displayTitle: session.title });
+    await pageRequest(page, 'session.rename', { sessionId, title: session.title });
     return { scene: session, sessionId, terminalId: created.terminal.id };
 }
 
@@ -105,7 +105,7 @@ async function playSession(running: RunningCaxri, session: CreatedSession): Prom
         `${session.scene.key} to be ${session.scene.expect}`,
         () => pageRequest<BootstrapState>(page, 'app.bootstrap'),
         (state) =>
-            state.sessions.find(({ id }) => id === session.sessionId)?.lastActivityState ===
+            state.sessions.find(({ id }) => id === session.sessionId)?.agentActivityState ===
             session.scene.expect,
     );
 }
@@ -118,7 +118,7 @@ async function acknowledge(running: RunningCaxri, sessions: CreatedSession[]): P
         // eslint-disable-next-line no-await-in-loop -- few Sessions, each acknowledged once
         await pageRequest(running.page, 'session.markRead', {
             sessionId,
-            attentionEpoch: current.attentionEpoch,
+            attentionGeneration: current.attentionGeneration,
         });
     }
 }

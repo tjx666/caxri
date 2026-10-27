@@ -28,7 +28,7 @@ export interface CreateSessionOptions {
     /**
      * An automatic title to start from instead of the default, which a later Agent conversation name still replaces.
      */
-    displayTitle?: string;
+    title?: string;
 }
 
 /**
@@ -52,7 +52,7 @@ export function createSession(
         );
     const session = database.sessions.insert({
         projectId,
-        displayTitle: options.displayTitle ?? DEFAULT_SESSION_TITLE,
+        title: options.title ?? DEFAULT_SESSION_TITLE,
         ...(options.createdBySessionId && { createdBySessionId: options.createdBySessionId }),
     });
     let terminal: TerminalRecord | null = null;

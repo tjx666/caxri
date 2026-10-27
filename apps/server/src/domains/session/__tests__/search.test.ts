@@ -109,7 +109,7 @@ describe('SessionSearchService', () => {
                 status: 'archived',
                 sessionId: f.archived.session.id,
                 agentSessionId: ARCHIVED,
-                title: f.archived.session.displayTitle,
+                title: f.archived.session.title,
             },
         ]);
         expect(result.entries[1].match).toMatchObject({ field: 'content', messageCount: 2 });
@@ -151,7 +151,7 @@ describe('SessionSearchService', () => {
         const session = f.database.getSession(imported.sessionId)!;
         expect(session).toMatchObject({
             projectId: f.open.session.projectId,
-            displayTitle: 'Ship the refund ledger',
+            title: 'Ship the refund ledger',
         });
         const terminal = f.database.listTerminals().find((row) => row.sessionId === session.id)!;
         expect(terminal).toMatchObject({ provider: 'claude', agentSessionId: EXTERNAL });

@@ -171,7 +171,7 @@ test('Agent Commands & Skills stays discoverable, describes its target, and pres
     try {
         await createProjectSession(running.page, 'codex');
         const state = await pageRequest<{
-            sessions: Array<{ id: string; displayTitle: string; projectId: string }>;
+            sessions: Array<{ id: string; title: string; projectId: string }>;
             terminals: Array<{
                 agentSessionId?: string;
                 id: string;
@@ -224,7 +224,7 @@ test('Agent Commands & Skills stays discoverable, describes its target, and pres
         await input.pressSequentially('draft-');
         await pageRequest(running.page, 'session.rename', {
             sessionId: agentSession.id,
-            displayTitle: agentTerminalTitle,
+            title: agentTerminalTitle,
         });
         await running.page.keyboard.press('Meta+Shift+A');
 
@@ -241,7 +241,7 @@ test('Agent Commands & Skills stays discoverable, describes its target, and pres
 
         await pageRequest(running.page, 'session.rename', {
             sessionId: agentSession.id,
-            displayTitle: 'E2E Session Target',
+            title: 'E2E Session Target',
         });
         await expect
             .poll(async () => {

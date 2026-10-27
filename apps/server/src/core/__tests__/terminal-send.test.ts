@@ -8,7 +8,7 @@ const parameters = {
     terminalId: 'terminal-1',
     text: 'reply',
     enter: true,
-    attentionEpoch: 3,
+    attentionGeneration: 3,
 };
 
 function fixture() {

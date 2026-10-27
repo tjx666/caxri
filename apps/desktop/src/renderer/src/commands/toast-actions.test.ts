@@ -66,7 +66,7 @@ vi.mock('../lib/clipboard', () => ({
     writeClipboardText: mocks.writeText,
 }));
 
-const SESSION = { id: 'session-1', workbenchProjectId: 'project-followed' };
+const SESSION = { id: 'session-1', workbenchRootProjectId: 'project-followed' };
 const TERMINAL = { id: 'terminal-1', processId: 4_321 };
 
 beforeEach(() => {
@@ -121,7 +121,11 @@ describe('toast action handlers', () => {
         // `unchanged` keeps Undo an exact inverse: the row returns to where it was archived from.
         expect(mocks.unarchiveSession).toHaveBeenCalledWith('session-1', 'unchanged');
 
-        const save = { sessionId: 'session-1', tabId: 'tab-1', workbenchProjectId: 'project-1' };
+        const save = {
+            sessionId: 'session-1',
+            tabId: 'tab-1',
+            workbenchRootProjectId: 'project-1',
+        };
         expect(runToastAction({ id: 'editor.retrySave', params: save })).toBeUndefined();
         expect(mocks.retrySaveDocument).toHaveBeenCalledWith(save);
 
@@ -179,7 +183,7 @@ describe('toast action handlers', () => {
         // The snapshot only catches up to the followed root after this notice is raised, so the root the undo returns
         // to still counts as "that switch"; refusing here would kill the button for the seconds it is on screen.
         mocks.getBootstrap.mockReturnValue({
-            sessions: [{ ...SESSION, workbenchProjectId: 'project-owner' }],
+            sessions: [{ ...SESSION, workbenchRootProjectId: 'project-owner' }],
             terminals: [],
         });
         expect(
@@ -187,7 +191,7 @@ describe('toast action handlers', () => {
         ).toBeUndefined();
 
         mocks.getBootstrap.mockReturnValue({
-            sessions: [{ ...SESSION, workbenchProjectId: 'project-chosen-later' }],
+            sessions: [{ ...SESSION, workbenchRootProjectId: 'project-chosen-later' }],
             terminals: [],
         });
         expect(runToastAction({ id: 'workbench.undoFollowedRoot', params: parameters })).toBe(

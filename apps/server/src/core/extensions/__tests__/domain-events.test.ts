@@ -31,7 +31,7 @@ describe('generic extension runtime event routing', () => {
                           ownerProjectId: 'project-1',
                           projectIds: ['project-1'],
                           sessionId: parameters.sessionId,
-                          workbenchProjectId: sessions[parameters.sessionId],
+                          workbenchRootProjectId: sessions[parameters.sessionId],
                       }
                     : { projectIds: ['project-1'] },
             ),
@@ -54,13 +54,13 @@ describe('generic extension runtime event routing', () => {
         });
 
         expect(gitChanged.mock.calls).toEqual([
-            [{ kind: 'session', sessionId: 'session-focused', workbenchProjectId: 'root-1' }],
-            [{ kind: 'session', sessionId: 'session-other', workbenchProjectId: 'root-2' }],
+            [{ kind: 'session', sessionId: 'session-focused', workbenchRootProjectId: 'root-1' }],
+            [{ kind: 'session', sessionId: 'session-other', workbenchRootProjectId: 'root-2' }],
         ]);
         expect(projectStatusChanged).toHaveBeenCalledExactlyOnceWith({
             kind: 'session',
             sessionId: 'session-other',
-            workbenchProjectId: 'root-2',
+            workbenchRootProjectId: 'root-2',
         });
         expect(request).toHaveBeenCalledWith('app.sessionContext', {
             sessionId: 'session-deleted',

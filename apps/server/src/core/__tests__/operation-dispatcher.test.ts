@@ -143,7 +143,7 @@ describe('createOperationDispatcher', () => {
 
         await expect(
             dispatch({
-                context: { sessionId: 'session-1', workbenchProjectId: 'project-1' },
+                context: { sessionId: 'session-1', workbenchRootProjectId: 'project-1' },
                 id: 'r-context',
                 method: 'files.list',
                 params: { sessionId: 'session-1' },
@@ -151,7 +151,7 @@ describe('createOperationDispatcher', () => {
         ).rejects.toMatchObject({ code: 'CONFLICT', message: 'Workbench Root changed' });
         expect(validateContext).toHaveBeenCalledWith({
             sessionId: 'session-1',
-            workbenchProjectId: 'project-1',
+            workbenchRootProjectId: 'project-1',
         });
         expect(handler).not.toHaveBeenCalled();
     });

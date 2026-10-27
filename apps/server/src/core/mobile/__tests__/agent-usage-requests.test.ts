@@ -33,9 +33,9 @@ const session = (id: string, overrides: Partial<Session> = {}): Session =>
     ({
         id,
         projectId: 'project-1',
-        displayTitle: `Session ${id}`,
-        lastOpenedAt: 0,
-        lastSessionActivityAt: 0,
+        title: `Session ${id}`,
+        lastVisitedAt: 0,
+        sessionActivityAt: 0,
         ...overrides,
     }) as Session;
 
@@ -122,13 +122,13 @@ describe('mobile Agent usage requests', () => {
         const sources = throughputSources({
             provider: 'claude',
             sessions: [
-                session('old', { lastSessionActivityAt: 10 }),
+                session('old', { sessionActivityAt: 10 }),
                 session('new', {
-                    lastSessionActivityAt: 20,
+                    sessionActivityAt: 20,
                     primaryAgentTerminalId: 'new-primary',
                 }),
-                session('archived', { lastSessionActivityAt: 30, archivedAt: 31 }),
-                session('other-project', { lastSessionActivityAt: 40, projectId: 'project-2' }),
+                session('archived', { sessionActivityAt: 30, archivedAt: 31 }),
+                session('other-project', { sessionActivityAt: 40, projectId: 'project-2' }),
             ],
             terminals: [
                 terminal('old-claude', 'old', 'claude'),
@@ -184,8 +184,8 @@ describe('mobile Agent usage requests', () => {
     it('answers limits, speed, and status per Agent, falling back to an older Agent with a measured speed', async () => {
         const domain = domainFixture({
             sessions: [
-                session('a', { lastSessionActivityAt: 20, displayTitle: 'Fix login' }),
-                session('b', { lastSessionActivityAt: 10, displayTitle: 'Docs' }),
+                session('a', { sessionActivityAt: 20, title: 'Fix login' }),
+                session('b', { sessionActivityAt: 10, title: 'Docs' }),
             ],
             terminals: [terminal('a-claude', 'a', 'claude'), terminal('b-claude', 'b', 'claude')],
             throughputByTerminal: { 'a-claude': null, 'b-claude': throughput() },

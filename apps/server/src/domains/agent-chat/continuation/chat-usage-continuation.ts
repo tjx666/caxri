@@ -348,7 +348,7 @@ export class ChatUsageContinuation {
                 : { kind: 'usageGuard' },
             ...(document?.status === 'generated' && { document: document.text }),
         });
-        const title = `Continued: ${session.displayTitle || agentProviderCatalog[terminal.provider].displayName}`;
+        const title = `Continued: ${session.title || agentProviderCatalog[terminal.provider].displayName}`;
         try {
             const receipt = await this.options.createDelegation(
                 id,

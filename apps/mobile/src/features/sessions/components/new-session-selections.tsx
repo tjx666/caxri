@@ -121,7 +121,7 @@ export const NewSessionSelections = ({
         ? state.projects.filter(
               (project) =>
                   project.id === state.selectedProjectId ||
-                  project.displayTitle.toLocaleLowerCase().includes(needle),
+                  project.title.toLocaleLowerCase().includes(needle),
           )
         : state.projects;
     return (
@@ -177,7 +177,7 @@ export const NewSessionSelections = ({
                 {projects.map((project) => (
                     <NewSessionChoice
                         key={project.id}
-                        label={project.displayTitle}
+                        label={project.title}
                         leading={<Folder color={theme.muted} size={18} />}
                         onPress={() => state.setNewSessionProjectId(project.id)}
                         selected={project.id === state.selectedProjectId}

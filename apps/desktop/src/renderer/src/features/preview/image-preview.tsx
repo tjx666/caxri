@@ -52,11 +52,11 @@ async function readImage(
  */
 function useImageObjectUrl(
     sessionId: string,
-    workbenchProjectId: string | undefined,
+    workbenchRootProjectId: string | undefined,
     path: string,
 ): { state: ImageState; retry: () => void } {
     const [attempt, setAttempt] = useState(0);
-    const revision = usePreviewSourceRevision(workbenchProjectId, path);
+    const revision = usePreviewSourceRevision(workbenchRootProjectId, path);
     const requestKey = `${sessionId}\0${path}\0${attempt}\0${revision}`;
     const [result, setResult] = useState<{ key: string; state: ImageState }>();
 
@@ -92,15 +92,15 @@ export function ImagePreview({
     path,
     sessionId,
     viewStateKey,
-    workbenchProjectId,
+    workbenchRootProjectId,
 }: {
     path: string;
     sessionId: string;
     viewStateKey: string;
-    workbenchProjectId: string | undefined;
+    workbenchRootProjectId: string | undefined;
 }) {
     const { t } = useTranslation();
-    const { state, retry } = useImageObjectUrl(sessionId, workbenchProjectId, path);
+    const { state, retry } = useImageObjectUrl(sessionId, workbenchRootProjectId, path);
     const [size, setSize] = useState<ImageSize | undefined>(undefined);
 
     if (state.status === 'failed')

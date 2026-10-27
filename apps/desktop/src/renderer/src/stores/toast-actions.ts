@@ -70,7 +70,7 @@ export interface ToastActionParameters {
      */
     'editor.restoreDiscardedChanges': {
         sessionId: string;
-        workbenchProjectId: string;
+        workbenchRootProjectId: string;
         paths: string[];
     };
     'editor.retrySave': {
@@ -79,7 +79,7 @@ export interface ToastActionParameters {
          * Undefined while the Session has no Project yet, which still has to compare equal to the Session's current
          * value: a retry is refused because the editor moved, not because both sides were unset.
          */
-        workbenchProjectId?: string;
+        workbenchRootProjectId?: string;
         tabId?: string;
     };
     /**

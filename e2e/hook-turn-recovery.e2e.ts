@@ -101,7 +101,7 @@ process.stdout.write('Hook recovery fixture ready\r\n');
         expect(
             (await pageRequest<BootstrapState>(running.page, 'app.bootstrap')).sessions.find(
                 (session) => session.id === sessionId,
-            )?.lastActivityState,
+            )?.agentActivityState,
         ).toBe('unknown');
         await expect.poll(() => readFile(join(config, 'interrupted'), 'utf8')).toBe('done');
         await writeFile(join(config, 'start-turn'), '');
@@ -112,7 +112,7 @@ process.stdout.write('Hook recovery fixture ready\r\n');
         expect(
             (await pageRequest<BootstrapState>(running.page, 'app.bootstrap')).sessions.find(
                 (session) => session.id === sessionId,
-            )?.lastActivityState,
+            )?.agentActivityState,
         ).toBe('unknown');
         await writeFile(join(config, 'start-turn'), '');
         await expect(status).toHaveAttribute('data-session-status', 'running');
@@ -124,8 +124,8 @@ process.stdout.write('Hook recovery fixture ready\r\n');
         });
         const state = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');
         expect(state.sessions.find((session) => session.id === sessionId)).toMatchObject({
-            lastActivityState: 'unknown',
-            attentionEpoch: 0,
+            agentActivityState: 'unknown',
+            attentionGeneration: 0,
             hasUnread: false,
         });
         const terminalId = state.sessions.find(

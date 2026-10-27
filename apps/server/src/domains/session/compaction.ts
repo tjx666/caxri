@@ -64,7 +64,7 @@ export class SessionCompaction {
             session.primaryAgentTerminalId && database.getTerminal(session.primaryAgentTerminalId);
         if (!terminal || (terminal.provider !== 'claude' && terminal.provider !== 'codex'))
             return 'unsupported';
-        if (!isPtyTerminal(terminal)) return this.chatTarget(terminal, session.lastActivityState);
+        if (!isPtyTerminal(terminal)) return this.chatTarget(terminal, session.agentActivityState);
         const launchId = terminals.agentLaunchId(terminal.id);
         if (
             !launchId ||
@@ -74,7 +74,7 @@ export class SessionCompaction {
             return 'not_running';
         if (
             coordinator.agentOperation(terminal.id) ||
-            !['idle', 'completed'].includes(session.lastActivityState)
+            !['idle', 'completed'].includes(session.agentActivityState)
         )
             return 'busy';
         const proof = readiness.proof(terminal.id);
@@ -93,7 +93,7 @@ export class SessionCompaction {
      */
     private chatTarget(
         terminal: TerminalRecord,
-        activity: SessionRecord['lastActivityState'],
+        activity: SessionRecord['agentActivityState'],
     ): Target | SessionCompactionOutcome {
         if (
             !terminal.agentSessionId ||

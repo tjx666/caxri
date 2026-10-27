@@ -12,8 +12,8 @@ export function createSessionMarkReadHandler(
     send: (event: ServerEvent) => void,
 ): Pick<DomainHandlers, 'session.markRead'> {
     return {
-        'session.markRead': ({ sessionId, attentionEpoch }) => {
-            const result = database.markSessionAttentionRead(sessionId, attentionEpoch);
+        'session.markRead': ({ sessionId, attentionGeneration }) => {
+            const result = database.markSessionAttentionRead(sessionId, attentionGeneration);
             if (result.acknowledged)
                 send({
                     event: 'state.changed',
@@ -22,7 +22,7 @@ export function createSessionMarkReadHandler(
             return {
                 acknowledged: result.acknowledged,
                 sessionId: result.session.id,
-                attentionEpoch: result.session.attentionEpoch,
+                attentionGeneration: result.session.attentionGeneration,
                 hasUnread: result.session.hasUnread,
             };
         },

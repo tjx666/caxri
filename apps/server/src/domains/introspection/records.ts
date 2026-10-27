@@ -79,7 +79,7 @@ function select<T extends SelectableRecord>(
         throw new CaxriError('CONFLICT', `${kind} selector is ambiguous`, {
             candidates: matches.slice(0, 32).map((record) => ({
                 id: record.id,
-                displayTitle: title(record),
+                title: title(record),
                 ...(record.projectId && { projectId: record.projectId }),
             })),
         });
@@ -133,18 +133,18 @@ export class RecordQueryService {
             query.mode === 'list'
                 ? listedProjects(visible, principal)
                 : query.mode === 'show'
-                  ? [select(visible, query.selector, 'Project', ({ displayTitle }) => displayTitle)]
+                  ? [select(visible, query.selector, 'Project', ({ title }) => title)]
                   : [selectCurrent(visible, this.source.currentProjectId(), 'Project')];
         if (scope)
             return {
                 view: principalView(principal) as ScopedPrincipal['kind'],
-                projects: selected.map(({ id, displayTitle }) => ({ id, displayTitle })),
+                projects: selected.map(({ id, title }) => ({ id, title })),
             };
         return {
             view: principalView(principal) as 'desktop' | 'human-cli',
-            projects: selected.map(({ id, displayTitle, ownerProjectId, rootPath }) => ({
+            projects: selected.map(({ id, title, ownerProjectId, rootPath }) => ({
                 id,
-                displayTitle,
+                title,
                 rootPath: this.projectRootIdentity(rootPath, id),
                 // Omitted rather than set to null for a top-level Project, so plain output stays two columns wide.
                 ...(ownerProjectId !== undefined && { ownerProjectId }),
@@ -170,7 +170,7 @@ export class RecordQueryService {
             query.mode === 'list'
                 ? visible
                 : query.mode === 'show'
-                  ? [select(visible, query.selector, 'Session', ({ displayTitle }) => displayTitle)]
+                  ? [select(visible, query.selector, 'Session', ({ title }) => title)]
                   : [selectCurrent(visible, this.source.currentSessionId(), 'Session')];
         return {
             view: principalView(principal),
@@ -178,28 +178,28 @@ export class RecordQueryService {
                 ({
                     id,
                     projectId,
-                    displayTitle,
+                    title,
                     archivedAt,
-                    lastOpenedAt,
-                    lastSessionActivityAt,
+                    lastVisitedAt,
+                    sessionActivityAt,
                     pinnedAt,
                     pinnedOrder,
-                    lastActivityState,
+                    agentActivityState,
                     primaryAgentTerminalId,
-                    attentionEpoch,
+                    attentionGeneration,
                     hasUnread,
                 }) => ({
                     id,
                     projectId,
-                    displayTitle,
+                    title,
                     ...(archivedAt !== undefined && { archivedAt }),
-                    lastOpenedAt,
-                    lastSessionActivityAt,
+                    lastVisitedAt,
+                    sessionActivityAt,
                     ...(pinnedAt !== undefined && { pinnedAt }),
                     ...(pinnedOrder !== undefined && { pinnedOrder }),
-                    lastActivityState,
+                    agentActivityState,
                     ...(primaryAgentTerminalId !== undefined && { primaryAgentTerminalId }),
-                    attentionEpoch,
+                    attentionGeneration,
                     hasUnread,
                 }),
             ),

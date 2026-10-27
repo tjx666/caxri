@@ -118,7 +118,7 @@ describe('Delegation into a new Session for Caxri Bot', () => {
         expect(database.getSession(receipt.sessionId)?.createdBySessionId).toBe(botSessionId);
         // The task file pointer is all automatic naming would see, so Caxri Bot's title is kept as a manual one.
         expect(database.getSession(receipt.sessionId)).toMatchObject({
-            displayTitle: 'Fix login retry',
+            title: 'Fix login retry',
             titleMode: 'manual',
         });
         expect((await service.create(id, botAuthority, request)).sessionId).toBe(receipt.sessionId);
@@ -192,7 +192,7 @@ describe('Delegation into a new Session from an ordinary Agent', () => {
 
         expect(database.getSession(receipt.sessionId)).toMatchObject({
             projectId: project.id,
-            displayTitle: 'Fix login retry',
+            title: 'Fix login retry',
             createdBySessionId: callerSessionId,
         });
         // A plain user-visible Session: Caxri Bot never records it as its own.
@@ -295,7 +295,7 @@ describe('Delegation into a new Session from a Client continuation', () => {
 
         const receipt = await service.create(id, authority, continuation);
         expect(database.getSession(receipt.sessionId)).toMatchObject({
-            displayTitle: 'Continued: Fix login',
+            title: 'Continued: Fix login',
             createdBySessionId: callerSessionId,
         });
         expect(receipt.callerTerminalId).toBe(callerTerminalId);

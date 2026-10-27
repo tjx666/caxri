@@ -8,18 +8,18 @@ const projects = [
     {
         id: 'project-1',
         rootPath: '/private/project-one',
-        displayTitle: 'Project One',
+        title: 'Project One',
         orderIndex: 0,
         createdAt: 1,
-        lastOpenedAt: 1,
+        lastVisitedAt: 1,
     },
     {
         id: 'project-2',
         rootPath: '/private/project-two',
-        displayTitle: 'Project Two',
+        title: 'Project Two',
         orderIndex: 1,
         createdAt: 2,
-        lastOpenedAt: 2,
+        lastVisitedAt: 2,
     },
 ];
 
@@ -39,7 +39,7 @@ describe('projectListForPrincipal', () => {
             }),
         ).toEqual({
             view: 'delegation-client',
-            projects: [{ id: 'project-2', displayTitle: 'Project Two' }],
+            projects: [{ id: 'project-2', title: 'Project Two' }],
         });
     });
     it('returns the full record for a desktop principal', () => {
@@ -47,14 +47,14 @@ describe('projectListForPrincipal', () => {
         expect(projectListForPrincipal(value, desktop)).toEqual({ view: 'desktop', projects });
     });
 
-    it('drops orderIndex/createdAt/lastOpenedAt for a human CLI principal', () => {
+    it('drops orderIndex/createdAt/lastVisitedAt for a human CLI principal', () => {
         const human: Principal = { kind: 'human-cli', id: 'cli-1' };
         const result = projectListForPrincipal(value, human);
         expect(result).toEqual({
             view: 'human-cli',
             projects: [
-                { id: 'project-1', displayTitle: 'Project One', rootPath: '/private/project-one' },
-                { id: 'project-2', displayTitle: 'Project Two', rootPath: '/private/project-two' },
+                { id: 'project-1', title: 'Project One', rootPath: '/private/project-one' },
+                { id: 'project-2', title: 'Project Two', rootPath: '/private/project-two' },
             ],
         });
     });
@@ -74,10 +74,10 @@ describe('projectListForPrincipal', () => {
             human,
         );
         expect(result.projects).toEqual([
-            { id: 'project-1', displayTitle: 'Project One', rootPath: '/private/project-one' },
+            { id: 'project-1', title: 'Project One', rootPath: '/private/project-one' },
             {
                 id: 'project-2',
-                displayTitle: 'Project Two',
+                title: 'Project Two',
                 rootPath: '/private/project-two',
                 ownerProjectId: 'project-1',
             },
@@ -95,7 +95,7 @@ describe('projectListForPrincipal', () => {
         const result = projectListForPrincipal(value, agent);
         expect(result).toEqual({
             view: 'agent',
-            projects: [{ id: 'project-2', displayTitle: 'Project Two' }],
+            projects: [{ id: 'project-2', title: 'Project Two' }],
         });
     });
 
@@ -112,8 +112,8 @@ describe('projectListForPrincipal', () => {
         expect(result).toEqual({
             view: 'paired-device',
             projects: [
-                { id: 'project-1', displayTitle: 'Project One' },
-                { id: 'project-2', displayTitle: 'Project Two' },
+                { id: 'project-1', title: 'Project One' },
+                { id: 'project-2', title: 'Project Two' },
             ],
         });
     });

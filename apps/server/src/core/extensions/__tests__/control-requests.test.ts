@@ -8,7 +8,7 @@ import type { ExtensionService } from '../service';
 const issuedIn = {
     kind: 'session',
     sessionId: 'session-1',
-    workbenchProjectId: 'project-1',
+    workbenchRootProjectId: 'project-1',
 } as const;
 
 function harness() {

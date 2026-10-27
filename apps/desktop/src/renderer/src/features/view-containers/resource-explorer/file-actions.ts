@@ -420,24 +420,24 @@ export async function didTrashFile(
      * `workbench.newWorktreeBehavior: continueAutomatically`, and re-deriving it after the await would clean a
      * different root than the one the user was asked about.
      */
-    const workbenchProjectId = getSessionProjectId(sessionId);
-    if (!workbenchProjectId) return false;
+    const workbenchRootProjectId = getSessionProjectId(sessionId);
+    if (!workbenchRootProjectId) return false;
     /**
      * Checked before the request so Main's confirmation copy can stop promising full recoverability: Trash can only
      * restore the last bytes written to disk, never an unsaved buffer.
      */
-    const hasUnsavedChanges = hasUnsavedChangesUnderPath(workbenchProjectId, path);
+    const hasUnsavedChanges = hasUnsavedChangesUnderPath(workbenchRootProjectId, path);
     const result = await tryCommand(translate('viewContainers.files.trashFailed'), () =>
         client.trash(path, { hasUnsavedChanges }),
     );
     if (!result || 'canceled' in result) return false;
-    closeOpenEditorsUnderPath(workbenchProjectId, result.path);
+    closeOpenEditorsUnderPath(workbenchRootProjectId, result.path);
     /**
      * Only this root's pane layout is in memory, so the call above cannot reach a Session parked on another root. Its
      * layout for this root lives on the Server, and a tab left there reopens stuck on `Loading file…` (issue #909).
      */
     await tryCommand(translate('viewContainers.files.trashCleanupFailed'), () =>
-        client.forgetEditorPath(workbenchProjectId, result.path),
+        client.forgetEditorPath(workbenchRootProjectId, result.path),
     );
     await invalidateDirectory(client, parentDirectoryPath(result.path));
     /**

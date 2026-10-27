@@ -10,14 +10,14 @@ import { sessionStateOf } from './session-pane-state';
 
 function remapOpenEditorsInSession(
     sessionId: string,
-    workbenchProjectId: string,
+    workbenchRootProjectId: string,
     previousPath: string,
     nextPath: string,
     isDurable = false,
     operationId?: string,
 ): Promise<boolean> | undefined {
     const current = sessionStateOf(sessionId);
-    const isRootIsCurrent = current?.workbenchProjectId === workbenchProjectId;
+    const isRootIsCurrent = current?.workbenchRootProjectId === workbenchRootProjectId;
     if (
         isDurable &&
         operationId &&
@@ -29,11 +29,11 @@ function remapOpenEditorsInSession(
             reportFailure: false,
             retainOnFailure: true,
         });
-    remapPendingDocumentOperations(sessionId, workbenchProjectId, previousPath, nextPath);
+    remapPendingDocumentOperations(sessionId, workbenchRootProjectId, previousPath, nextPath);
     if (previousPath === nextPath) return isDurable ? Promise.resolve(true) : undefined;
     useSessionViewStore
         .getState()
-        .remapDocuments(sessionId, previousPath, nextPath, workbenchProjectId);
+        .remapDocuments(sessionId, previousPath, nextPath, workbenchRootProjectId);
     if (!current || !isRootIsCurrent) return isDurable ? Promise.resolve(true) : undefined;
     const nextState = {
         ...current,
@@ -57,14 +57,14 @@ function remapOpenEditorsInSession(
  * Keeps every same-Project Session's normal tabs and dirty buffers attached after a move.
  */
 export function remapOpenEditors(sessionId: string, previousPath: string, nextPath: string): void {
-    const workbenchProjectId = getSessionProjectId(sessionId);
-    if (!workbenchProjectId) return;
+    const workbenchRootProjectId = getSessionProjectId(sessionId);
+    if (!workbenchRootProjectId) return;
     for (const projectSessionId of getProjectSessionIds(sessionId))
         // Fire-and-forget: the non-durable remap only touches in-memory Renderer state and never
         // rejects, so there is nothing for this loop to await or react to.
         void remapOpenEditorsInSession(
             projectSessionId,
-            workbenchProjectId,
+            workbenchRootProjectId,
             previousPath,
             nextPath,
         );
@@ -75,7 +75,7 @@ export function remapOpenEditors(sessionId: string, previousPath: string, nextPa
  */
 export async function remapOpenEditorsDurably(
     sessionId: string,
-    workbenchProjectId: string,
+    workbenchRootProjectId: string,
     operationId: string,
     previousPath: string,
     nextPath: string,
@@ -85,7 +85,7 @@ export async function remapOpenEditorsDurably(
             (projectSessionId) =>
                 remapOpenEditorsInSession(
                     projectSessionId,
-                    workbenchProjectId,
+                    workbenchRootProjectId,
                     previousPath,
                     nextPath,
                     true,

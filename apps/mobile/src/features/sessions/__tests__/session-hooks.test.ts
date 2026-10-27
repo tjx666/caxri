@@ -18,13 +18,13 @@ import { buildMobileSessionSections } from '../session-model';
 const session = (overrides: Partial<MobileSession> = {}): MobileSession => ({
     id: 'session-1',
     projectId: 'project-1',
-    displayTitle: 'Mobile phase one',
+    title: 'Mobile phase one',
     projectTitle: 'Caxri',
-    lastOpenedAt: 100,
-    lastSessionActivityAt: 100,
-    lastActivityState: 'waiting',
+    lastVisitedAt: 100,
+    sessionActivityAt: 100,
+    agentActivityState: 'waiting',
     primaryAgentTerminalId: 'terminal-1',
-    attentionEpoch: 3,
+    attentionGeneration: 3,
     hasUnread: true,
     primaryTerminal: {
         id: 'terminal-1',
@@ -45,8 +45,8 @@ describe('mobile Session hooks', () => {
             session({
                 id: 'session-2',
                 hasUnread: false,
-                lastActivityState: 'running',
-                lastSessionActivityAt: 200,
+                agentActivityState: 'running',
+                sessionActivityAt: 200,
             }),
         ],
     });
@@ -100,6 +100,6 @@ describe('mobile Session hooks', () => {
     it('keys read acknowledgement by Session and attention generation', () => {
         const item = sections.groups.attention[0];
         expect(sessionReadKey(item)).toBe('session-1:3');
-        expect(sessionReadKey({ ...item, attentionEpoch: 4 })).toBe('session-1:4');
+        expect(sessionReadKey({ ...item, attentionGeneration: 4 })).toBe('session-1:4');
     });
 });

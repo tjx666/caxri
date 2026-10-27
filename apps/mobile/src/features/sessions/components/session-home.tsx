@@ -248,7 +248,7 @@ export const SessionHome = ({
                         />
                     </SessionSwipeRow>
                     {/* A pinned waiting Session is listed again under Waiting; its cards show there, once. */}
-                    {item.session.lastActivityState === 'waiting' && item.group !== 'pinned' ? (
+                    {item.session.agentActivityState === 'waiting' && item.group !== 'pinned' ? (
                         <AttentionCards
                             fallbackToTerminal={item.session.primaryTerminal?.provider !== 'claude'}
                             onOpenTerminal={() => openTerminal(item.session.id)}

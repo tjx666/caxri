@@ -108,7 +108,7 @@ describe('Workbench Root discovery', () => {
                 authorization: 'required',
             });
             expect(context.database.findProjectByRootPath(context.worktreeRoot)).toBeUndefined();
-            expect(context.database.getSession(sessionId)?.workbenchProjectId).toBe(
+            expect(context.database.getSession(sessionId)?.workbenchRootProjectId).toBe(
                 context.owner.id,
             );
             expect(context.events.filter((event) => event.event === 'workbench.candidate')).toEqual(

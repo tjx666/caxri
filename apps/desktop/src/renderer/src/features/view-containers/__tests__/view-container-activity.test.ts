@@ -36,13 +36,13 @@ describe('resolveHeldWhileHidden', () => {
     });
 
     it('returns the held reference when a custom comparison treats the inputs as the same', () => {
-        const held = { sessionId: 'session-1', workbenchProjectId: 'project-1' };
-        const live = { sessionId: 'session-1', workbenchProjectId: 'project-1' };
+        const held = { sessionId: 'session-1', workbenchRootProjectId: 'project-1' };
+        const live = { sessionId: 'session-1', workbenchRootProjectId: 'project-1' };
         const isSame = (left: typeof held, right: typeof held) =>
             left.sessionId === right.sessionId &&
-            left.workbenchProjectId === right.workbenchProjectId;
+            left.workbenchRootProjectId === right.workbenchRootProjectId;
         expect(resolveHeldWhileHidden(true, held, live, isSame)).toBe(held);
-        const switched = { sessionId: 'session-2', workbenchProjectId: 'project-1' };
+        const switched = { sessionId: 'session-2', workbenchRootProjectId: 'project-1' };
         expect(resolveHeldWhileHidden(false, held, switched, isSame)).toBe(held);
         expect(resolveHeldWhileHidden(true, held, switched, isSame)).toBe(switched);
     });

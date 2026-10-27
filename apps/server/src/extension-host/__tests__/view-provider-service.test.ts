@@ -72,7 +72,7 @@ describe('controlled view provider runtime', () => {
 
     function snapshot(
         requestId: string,
-        context?: { kind: 'session'; sessionId: string; workbenchProjectId: string },
+        context?: { kind: 'session'; sessionId: string; workbenchRootProjectId: string },
     ): Promise<unknown> {
         return executeViewOperation({
             extensionId: 'publisher.fixture',
@@ -150,7 +150,7 @@ describe('controlled view provider runtime', () => {
                             context: {
                                 kind: 'session',
                                 sessionId: 'session-1',
-                                workbenchProjectId: 'project-1',
+                                workbenchRootProjectId: 'project-1',
                             },
                         },
                     },
@@ -161,7 +161,7 @@ describe('controlled view provider runtime', () => {
             const request = snapshot(`snapshot-session-switch-${code}`, {
                 kind: 'session',
                 sessionId: 'session-1',
-                workbenchProjectId: 'project-1',
+                workbenchRootProjectId: 'project-1',
             });
             await new Promise((resolve) => setTimeout(resolve, 0));
             const issued = sent.find((message) => message.type === 'api-request');
@@ -308,7 +308,7 @@ describe('controlled view provider runtime', () => {
         const context = {
             kind: 'session' as const,
             sessionId: 'session-1',
-            workbenchProjectId: 'project-1',
+            workbenchRootProjectId: 'project-1',
         };
 
         await executeViewOperation({

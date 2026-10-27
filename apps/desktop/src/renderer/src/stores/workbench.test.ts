@@ -344,7 +344,7 @@ describe('workbench Runtime events', () => {
     });
 
     it('patches Agent Session and Terminal metadata through one scoped read', async () => {
-        const session = { id: 'session-1', displayTitle: 'Codex' };
+        const session = { id: 'session-1', title: 'Codex' };
         const terminal = { id: 'terminal-1', sessionId: 'session-1' };
         useWorkbenchStore.setState({
             bootstrap: {
@@ -357,7 +357,7 @@ describe('workbench Runtime events', () => {
         mocks.request.mockImplementation((method: unknown) => {
             if (method === 'app.records')
                 return Promise.resolve({
-                    sessions: [{ ...session, displayTitle: 'Scoped refresh' }],
+                    sessions: [{ ...session, title: 'Scoped refresh' }],
                     terminals: [{ ...terminal, agentSessionId: 'agent-session-1' }],
                 });
             return Promise.reject(new Error(`Unexpected method: ${String(method)}`));
@@ -376,7 +376,7 @@ describe('workbench Runtime events', () => {
         await vi.waitFor(() => expect(mocks.request).toHaveBeenCalledTimes(1));
         expect(mocks.request.mock.calls[0]?.[0]).toBe('app.records');
         expect(useWorkbenchStore.getState().bootstrap).toMatchObject({
-            sessions: [{ id: 'session-1', displayTitle: 'Scoped refresh' }],
+            sessions: [{ id: 'session-1', title: 'Scoped refresh' }],
             terminals: [{ id: 'terminal-1', agentSessionId: 'agent-session-1' }],
         });
         unsubscribe();
@@ -533,7 +533,7 @@ describe('workbench Runtime events', () => {
         useWorkbenchStore.setState({
             bootstrap: {
                 configurationErrors: [],
-                sessions: [{ id: 'session-1', workbenchProjectId: 'project-owner' }],
+                sessions: [{ id: 'session-1', workbenchRootProjectId: 'project-owner' }],
                 sessionStates: [],
                 terminals: [],
             } as unknown as BootstrapState,
@@ -544,7 +544,7 @@ describe('workbench Runtime events', () => {
             event: 'workbench.changed',
             payload: {
                 sessionId: 'session-1',
-                workbenchProjectId: 'project-worktree',
+                workbenchRootProjectId: 'project-worktree',
                 reason: 'followed',
                 followedProjectTitle: 'feature-entered',
             },
@@ -578,7 +578,7 @@ describe('workbench Runtime events', () => {
         useWorkbenchStore.setState({
             bootstrap: {
                 configurationErrors: [],
-                sessions: [{ id: 'session-1', workbenchProjectId: 'project-owner' }],
+                sessions: [{ id: 'session-1', workbenchRootProjectId: 'project-owner' }],
                 sessionStates: [],
                 terminals: [],
             } as unknown as BootstrapState,
@@ -588,7 +588,7 @@ describe('workbench Runtime events', () => {
             event: 'workbench.changed',
             payload: {
                 sessionId: 'session-1',
-                workbenchProjectId: 'project-worktree',
+                workbenchRootProjectId: 'project-worktree',
                 reason: 'followed',
                 followedProjectTitle: 'feature-entered',
             },
@@ -618,7 +618,7 @@ describe('workbench Runtime events', () => {
                 event: 'workbench.changed',
                 payload: {
                     sessionId: 'session-1',
-                    workbenchProjectId: 'project-worktree',
+                    workbenchRootProjectId: 'project-worktree',
                     reason,
                 },
             });
@@ -671,8 +671,8 @@ describe('automatic naming sandbox notices', () => {
                 ],
             }),
             configurationErrors: [],
-            projects: [{ id: 'project-1', displayTitle: 'Fixture' }],
-            sessions: [{ id: sessionId, projectId: 'project-1', displayTitle: 'Session' }],
+            projects: [{ id: 'project-1', title: 'Fixture' }],
+            sessions: [{ id: sessionId, projectId: 'project-1', title: 'Session' }],
             sessionStates: [],
             terminals: [],
         } as unknown as BootstrapState;

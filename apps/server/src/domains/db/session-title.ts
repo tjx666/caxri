@@ -18,9 +18,9 @@ import type { CaxriDatabaseConnection } from './database-connection';
 export function renameSessionWithPrimaryAgentTab(
     database: CaxriDatabaseConnection,
     sessionId: string,
-    displayTitle: string,
+    title: string,
 ): SessionRecord {
-    const normalizedTitle = displayTitle.trim();
+    const normalizedTitle = title.trim();
     if (!normalizedTitle) throw new CaxriError('VALIDATION', 'Session name is required');
     return database.transaction(() => {
         if (!database.sessions.rename(sessionId, normalizedTitle))

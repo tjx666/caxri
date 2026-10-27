@@ -144,7 +144,7 @@ export class AgentCoordinator {
                 return (
                     this.launchIdsByTerminal.get(terminalId) === launchId &&
                     terminal !== undefined &&
-                    this.database.getSession(terminal.sessionId)?.lastActivityState === 'running'
+                    this.database.getSession(terminal.sessionId)?.agentActivityState === 'running'
                 );
             },
         );
@@ -278,7 +278,7 @@ export class AgentCoordinator {
                 this.metadataActivityBaselines,
                 terminal.id,
                 snapshot,
-                currentSession.lastActivityState,
+                currentSession.agentActivityState,
                 isHookOwned,
             );
             if (

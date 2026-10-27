@@ -364,8 +364,8 @@ export async function createMobileAcceptanceFixture(
                         state.sessions.some(
                             (session) =>
                                 session.id === sessionId &&
-                                session.lastActivityState === 'waiting' &&
-                                session.attentionEpoch > 0,
+                                session.agentActivityState === 'waiting' &&
+                                session.attentionGeneration > 0,
                         ),
                     ),
             );

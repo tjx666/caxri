@@ -45,8 +45,8 @@ function fileEntryListing(name: string): unknown[] {
     return [{ name, path: `/anywhere/${name}`, kind: 'file' }];
 }
 
-function session(id: string, projectId: string) {
-    return { id, projectId, workbenchProjectId: projectId };
+function session(id: string, projectId: string, workbenchRootProjectId = projectId) {
+    return { id, projectId, workbenchRootProjectId };
 }
 
 function paneLayout(path: string) {
@@ -67,7 +67,7 @@ function paneLayout(path: string) {
  * client method added later would then be `undefined` here while every call site silently took its failure path and the
  * tests stayed green (issue #909). Requiring every key restores that check without constraining the return types.
  */
-const operationScope = { sessionId: 'session-a', workbenchProjectId: 'project-1' } as const;
+const operationScope = { sessionId: 'session-a', workbenchRootProjectId: 'project-1' } as const;
 
 const client = {
     viewId: 'publisher.files.explorer',
@@ -79,10 +79,10 @@ const client = {
         mocks.request('files.copy', { sessionId: 'session-a', path, directory }),
     create: (options: Parameters<ResourceExplorerClient['create']>[0]) =>
         mocks.request('files.create', { sessionId: 'session-a', ...options }),
-    forgetEditorPath: (workbenchProjectId: string, path: string) =>
+    forgetEditorPath: (workbenchRootProjectId: string, path: string) =>
         mocks.request('session.workbenchRoot.forgetEditorPath', {
             sessionId: 'session-a',
-            workbenchProjectId,
+            workbenchRootProjectId,
             path,
         }),
     getOperation: (operationId: string) => mocks.request('files.operation.get', { operationId }),
@@ -376,9 +376,7 @@ describe('file action lifecycle', () => {
                 bootstrap: {
                     ...state.bootstrap!,
                     // Only the Workbench Root moves; a Session's owner Project is fixed for its lifetime.
-                    sessions: [
-                        { ...session('session-a', 'project-1'), workbenchProjectId: 'project-2' },
-                    ],
+                    sessions: [session('session-a', 'project-1', 'project-2')],
                 } as BootstrapState,
             }));
             return Promise.resolve({

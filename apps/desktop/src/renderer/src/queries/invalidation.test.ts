@@ -103,7 +103,7 @@ describe('subscribeRuntimeQueryInvalidation', () => {
                 context: {
                     kind: 'session',
                     sessionId: 'session-a',
-                    workbenchProjectId: 'project-a',
+                    workbenchRootProjectId: 'project-a',
                 },
                 change: { kind: 'badge' },
             },
@@ -197,7 +197,7 @@ describe('subscribeRuntimeQueryInvalidation', () => {
             event: 'workbench.changed',
             payload: {
                 sessionId: 'session-a',
-                workbenchProjectId: 'project-b',
+                workbenchRootProjectId: 'project-b',
                 reason: 'selected',
             },
         });
@@ -222,9 +222,9 @@ describe('subscribeRuntimeQueryInvalidation', () => {
             bootstrap: {
                 selectedSessionId: 'session-a',
                 sessions: [
-                    { id: 'session-a', workbenchProjectId: 'project-p' },
-                    { id: 'session-b', workbenchProjectId: 'project-other' },
-                    { id: 'session-other', workbenchProjectId: 'project-other' },
+                    { id: 'session-a', workbenchRootProjectId: 'project-p' },
+                    { id: 'session-b', workbenchRootProjectId: 'project-other' },
+                    { id: 'session-other', workbenchRootProjectId: 'project-other' },
                 ],
                 sessionStates: [],
                 terminals: [],
@@ -236,7 +236,7 @@ describe('subscribeRuntimeQueryInvalidation', () => {
             event: 'files.changed',
             payload: {
                 sessionId: 'session-a',
-                workbenchProjectId: 'project-p',
+                workbenchRootProjectId: 'project-p',
                 overflow: false,
                 changes: [{ path: '/project-p/file.ts', kind: 'update' }],
             },
@@ -246,7 +246,7 @@ describe('subscribeRuntimeQueryInvalidation', () => {
                 ...state.bootstrap!,
                 sessions: state.bootstrap!.sessions.map((session) =>
                     session.id === 'session-b'
-                        ? { ...session, workbenchProjectId: 'project-p' }
+                        ? { ...session, workbenchRootProjectId: 'project-p' }
                         : session,
                 ),
             },
@@ -297,9 +297,9 @@ describe('subscribeRuntimeQueryInvalidation', () => {
             bootstrap: {
                 selectedSessionId: 'session-a',
                 sessions: [
-                    { id: 'session-a', workbenchProjectId: 'project-p' },
-                    { id: 'session-b', workbenchProjectId: 'project-p' },
-                    { id: 'session-other', workbenchProjectId: 'project-other' },
+                    { id: 'session-a', workbenchRootProjectId: 'project-p' },
+                    { id: 'session-b', workbenchRootProjectId: 'project-p' },
+                    { id: 'session-other', workbenchRootProjectId: 'project-other' },
                 ],
                 sessionStates: [],
                 terminals: [],
@@ -311,7 +311,7 @@ describe('subscribeRuntimeQueryInvalidation', () => {
             event: 'files.changed',
             payload: {
                 sessionId: 'session-a',
-                workbenchProjectId: 'project-p',
+                workbenchRootProjectId: 'project-p',
                 overflow: true,
                 changes: [{ path: '/project/src/observed.ts', kind: 'update' }],
             },
@@ -389,8 +389,8 @@ describe('subscribeRuntimeQueryInvalidation', () => {
             bootstrap: {
                 selectedSessionId: 'session-a',
                 sessions: [
-                    { id: 'session-a', workbenchProjectId: 'project-p' },
-                    { id: 'session-b', workbenchProjectId: 'project-p' },
+                    { id: 'session-a', workbenchRootProjectId: 'project-p' },
+                    { id: 'session-b', workbenchRootProjectId: 'project-p' },
                 ],
                 sessionStates: [],
                 terminals: [],
@@ -402,7 +402,7 @@ describe('subscribeRuntimeQueryInvalidation', () => {
             event: 'files.changed',
             payload: {
                 sessionId: 'session-b',
-                workbenchProjectId: 'project-p',
+                workbenchRootProjectId: 'project-p',
                 overflow: false,
                 changes: [{ path: '/project/src/index.ts', kind: 'update' }],
             },
@@ -472,7 +472,7 @@ describe('subscribeRuntimeQueryInvalidation', () => {
         useWorkbenchStore.setState({
             bootstrap: {
                 selectedSessionId: 'session-a',
-                sessions: [{ id: 'session-a', workbenchProjectId: 'project-p' }],
+                sessions: [{ id: 'session-a', workbenchRootProjectId: 'project-p' }],
                 sessionStates: [],
                 terminals: [],
             } as unknown as BootstrapState,
@@ -483,7 +483,7 @@ describe('subscribeRuntimeQueryInvalidation', () => {
             event: 'files.changed',
             payload: {
                 sessionId: 'session-a',
-                workbenchProjectId: 'project-p',
+                workbenchRootProjectId: 'project-p',
                 overflow: false,
                 changes: [{ path: '/project/src/index.ts', kind: 'update' }],
             },
@@ -492,7 +492,7 @@ describe('subscribeRuntimeQueryInvalidation', () => {
             event: 'files.changed',
             payload: {
                 sessionId: 'session-a',
-                workbenchProjectId: 'project-p',
+                workbenchRootProjectId: 'project-p',
                 overflow: false,
                 changes: [{ path: '/project/src/other.ts', kind: 'update' }],
             },
@@ -635,7 +635,7 @@ describe('subscribeRuntimeQueryInvalidation', () => {
                 context: {
                     kind: 'session',
                     sessionId: 'session-a',
-                    workbenchProjectId: 'project-p',
+                    workbenchRootProjectId: 'project-p',
                 },
                 change: { kind: 'content' },
             },

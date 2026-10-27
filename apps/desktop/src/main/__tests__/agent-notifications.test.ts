@@ -16,7 +16,7 @@ describe('Agent notification coordinator', () => {
         const test = harness(
             session({
                 id: 'session-1',
-                attentionEpoch: 2,
+                attentionGeneration: 2,
                 hasUnread: true,
                 lastAttentionKind: 'waiting',
             }),
@@ -35,12 +35,12 @@ describe('Agent notification coordinator', () => {
         test.setSession(
             session({
                 id: 'session-1',
-                attentionEpoch: 1,
+                attentionGeneration: 1,
                 hasUnread: true,
-                lastActivityState: 'waiting',
+                agentActivityState: 'waiting',
                 lastAttentionKind: 'waiting',
-                lastSessionActivityAt: 2_000,
-                lastSessionActivityReason: 'agent_waiting',
+                sessionActivityAt: 2_000,
+                sessionActivityReason: 'agent_waiting',
             }),
         );
 
@@ -59,16 +59,16 @@ describe('Agent notification coordinator', () => {
     });
 
     it('announces an unnamed Session by its provider instead of the neutral default', async () => {
-        const test = harness(session({ id: 'session-1', displayTitle: 'Untitled' }));
+        const test = harness(session({ id: 'session-1', title: 'Untitled' }));
         await test.coordinator.initialize();
         test.setSession(
             session({
-                ...session({ id: 'session-1', displayTitle: 'Untitled', attentionEpoch: 1 }),
+                ...session({ id: 'session-1', title: 'Untitled', attentionGeneration: 1 }),
                 hasUnread: true,
-                lastActivityState: 'waiting',
+                agentActivityState: 'waiting',
                 lastAttentionKind: 'waiting',
-                lastSessionActivityAt: 2_000,
-                lastSessionActivityReason: 'agent_waiting',
+                sessionActivityAt: 2_000,
+                sessionActivityReason: 'agent_waiting',
             }),
         );
         test.coordinator.observe(recordsChanged);
@@ -79,9 +79,9 @@ describe('Agent notification coordinator', () => {
     it('only notifies for a completed turn after the configured duration', async () => {
         const running = session({
             id: 'session-1',
-            lastActivityState: 'running',
-            lastSessionActivityAt: 10_000,
-            lastSessionActivityReason: 'agent_started',
+            agentActivityState: 'running',
+            sessionActivityAt: 10_000,
+            sessionActivityReason: 'agent_started',
         });
         const shortTurn = harness(running);
         await shortTurn.coordinator.initialize();
@@ -89,11 +89,11 @@ describe('Agent notification coordinator', () => {
         shortTurn.setSession(
             session({
                 id: 'session-1',
-                attentionEpoch: 1,
+                attentionGeneration: 1,
                 hasUnread: true,
                 lastAttentionKind: 'completed',
-                lastSessionActivityAt: 24_999,
-                lastSessionActivityReason: 'agent_completed',
+                sessionActivityAt: 24_999,
+                sessionActivityReason: 'agent_completed',
             }),
         );
         shortTurn.coordinator.observe(recordsChanged);
@@ -105,11 +105,11 @@ describe('Agent notification coordinator', () => {
         longTurn.setSession(
             session({
                 id: 'session-1',
-                attentionEpoch: 1,
+                attentionGeneration: 1,
                 hasUnread: true,
                 lastAttentionKind: 'completed',
-                lastSessionActivityAt: 25_000,
-                lastSessionActivityReason: 'agent_completed',
+                sessionActivityAt: 25_000,
+                sessionActivityReason: 'agent_completed',
             }),
         );
         longTurn.coordinator.observe(recordsChanged);
@@ -121,18 +121,18 @@ describe('Agent notification coordinator', () => {
     it('uses the latest reply as the completed-turn body and falls back when it is late', async () => {
         const running = session({
             id: 'session-1',
-            lastActivityState: 'running',
-            lastSessionActivityAt: 10_000,
-            lastSessionActivityReason: 'agent_started',
+            agentActivityState: 'running',
+            sessionActivityAt: 10_000,
+            sessionActivityReason: 'agent_started',
         });
-        const completed = (attentionEpoch: number, at: number) =>
+        const completed = (attentionGeneration: number, at: number) =>
             session({
                 id: 'session-1',
-                attentionEpoch,
+                attentionGeneration,
                 hasUnread: true,
                 lastAttentionKind: 'completed',
-                lastSessionActivityAt: at,
-                lastSessionActivityReason: 'agent_completed',
+                sessionActivityAt: at,
+                sessionActivityReason: 'agent_completed',
             });
         const test = harness(running);
         await test.coordinator.initialize();
@@ -149,7 +149,7 @@ describe('Agent notification coordinator', () => {
         vi.useFakeTimers();
         try {
             test.setReplySummary(() => new Promise(() => {}));
-            test.setSession({ ...running, lastSessionActivityAt: 300_000 });
+            test.setSession({ ...running, sessionActivityAt: 300_000 });
             test.coordinator.observe(recordsChanged);
             await vi.advanceTimersByTimeAsync(0);
             test.setSession(completed(2, 425_000));
@@ -166,9 +166,9 @@ describe('Agent notification coordinator', () => {
         const test = harness(
             session({
                 id: 'session-1',
-                lastActivityState: 'running',
-                lastSessionActivityAt: 10_000,
-                lastSessionActivityReason: 'agent_started',
+                agentActivityState: 'running',
+                sessionActivityAt: 10_000,
+                sessionActivityReason: 'agent_started',
             }),
         );
         // Selected but in a background window; the user focuses Caxri while the summary is still loading.
@@ -181,11 +181,11 @@ describe('Agent notification coordinator', () => {
         test.setSession(
             session({
                 id: 'session-1',
-                attentionEpoch: 1,
+                attentionGeneration: 1,
                 hasUnread: true,
                 lastAttentionKind: 'completed',
-                lastSessionActivityAt: 200_000,
-                lastSessionActivityReason: 'agent_completed',
+                sessionActivityAt: 200_000,
+                sessionActivityReason: 'agent_completed',
             }),
         );
         test.coordinator.observe(recordsChanged);
@@ -194,21 +194,21 @@ describe('Agent notification coordinator', () => {
     });
 
     it('closes the previous turn banner when the next one is superseded', async () => {
-        const completed = (attentionEpoch: number, at: number) =>
+        const completed = (attentionGeneration: number, at: number) =>
             session({
                 id: 'session-1',
-                attentionEpoch,
+                attentionGeneration,
                 hasUnread: true,
                 lastAttentionKind: 'completed',
-                lastSessionActivityAt: at,
-                lastSessionActivityReason: 'agent_completed',
+                sessionActivityAt: at,
+                sessionActivityReason: 'agent_completed',
             });
         const running = (at: number) =>
             session({
                 id: 'session-1',
-                lastActivityState: 'running',
-                lastSessionActivityAt: at,
-                lastSessionActivityReason: 'agent_started',
+                agentActivityState: 'running',
+                sessionActivityAt: at,
+                sessionActivityReason: 'agent_started',
             });
         const test = harness(running(10_000));
         test.select('session-1');
@@ -218,7 +218,7 @@ describe('Agent notification coordinator', () => {
         await test.coordinator.flush();
         expect(test.shown).toHaveLength(1);
 
-        test.setSession({ ...running(300_000), attentionEpoch: 1, hasUnread: true });
+        test.setSession({ ...running(300_000), attentionGeneration: 1, hasUnread: true });
         test.coordinator.observe(recordsChanged);
         await test.coordinator.flush();
         test.setReplySummary(() => {
@@ -236,18 +236,18 @@ describe('Agent notification coordinator', () => {
         const test = harness(
             session({
                 id: 'session-1',
-                lastActivityState: 'running',
-                lastSessionActivityAt: 10_000,
-                lastSessionActivityReason: 'agent_started',
+                agentActivityState: 'running',
+                sessionActivityAt: 10_000,
+                sessionActivityReason: 'agent_started',
             }),
         );
         await test.coordinator.initialize();
         test.setSession(
             session({
                 id: 'session-1',
-                lastActivityState: 'running',
-                lastSessionActivityAt: 50_000,
-                lastSessionActivityReason: 'user_submission',
+                agentActivityState: 'running',
+                sessionActivityAt: 50_000,
+                sessionActivityReason: 'user_submission',
             }),
         );
         test.coordinator.observe(recordsChanged);
@@ -256,11 +256,11 @@ describe('Agent notification coordinator', () => {
         test.setSession(
             session({
                 id: 'session-1',
-                attentionEpoch: 1,
+                attentionGeneration: 1,
                 hasUnread: true,
                 lastAttentionKind: 'completed',
-                lastSessionActivityAt: 70_000,
-                lastSessionActivityReason: 'agent_completed',
+                sessionActivityAt: 70_000,
+                sessionActivityReason: 'agent_completed',
             }),
         );
         test.coordinator.observe(recordsChanged);
@@ -277,7 +277,7 @@ describe('Agent notification coordinator', () => {
         test.setSession(
             session({
                 id: 'session-1',
-                attentionEpoch: 1,
+                attentionGeneration: 1,
                 hasUnread: true,
                 lastAttentionKind: 'waiting',
             }),
@@ -293,7 +293,7 @@ describe('Agent notification coordinator', () => {
         test.setSession(
             session({
                 id: 'session-1',
-                attentionEpoch: 2,
+                attentionGeneration: 2,
                 hasUnread: true,
                 lastAttentionKind: 'waiting',
             }),
@@ -313,7 +313,7 @@ describe('Agent notification coordinator', () => {
         test.setSession(
             session({
                 id: 'session-1',
-                attentionEpoch: 1,
+                attentionGeneration: 1,
                 hasUnread: true,
                 lastAttentionKind: 'waiting',
             }),
@@ -329,8 +329,8 @@ describe('Agent notification coordinator', () => {
         test.setSession(
             session({
                 id: 'session-1',
-                attentionEpoch: 1,
-                readAttentionEpoch: 1,
+                attentionGeneration: 1,
+                acknowledgedAttentionGeneration: 1,
                 hasUnread: false,
                 lastAttentionKind: 'waiting',
             }),
@@ -350,7 +350,7 @@ describe('Agent notification coordinator', () => {
         test.setSession(
             session({
                 id: 'session-1',
-                attentionEpoch: 1,
+                attentionGeneration: 1,
                 hasUnread: true,
                 lastAttentionKind: 'waiting',
             }),
@@ -373,7 +373,7 @@ describe('Agent notification coordinator', () => {
         test.setSession(
             session({
                 id: 'session-1',
-                attentionEpoch: 1,
+                attentionGeneration: 1,
                 hasUnread: true,
                 lastAttentionKind: 'waiting',
             }),
@@ -394,14 +394,14 @@ describe('Agent notification coordinator', () => {
 
     /**
      * Re-enabling notifications must not replay attention the user has already seen in the Sidebar. The dedup rule is
-     * the epoch baseline: a banner needs an `attentionEpoch` newer than the one the coordinator already recorded.
+     * the epoch baseline: a banner needs an `attentionGeneration` newer than the one the coordinator already recorded.
      */
     it('does not reissue a banner when notifications are re-enabled on an unchanged epoch', async () => {
         const test = harness(session({ id: 'session-1' }));
         await test.coordinator.initialize();
         const unread = session({
             id: 'session-1',
-            attentionEpoch: 1,
+            attentionGeneration: 1,
             hasUnread: true,
             lastAttentionKind: 'waiting',
         });
@@ -421,7 +421,7 @@ describe('Agent notification coordinator', () => {
         await test.coordinator.flush();
         expect(test.shown).toHaveLength(1);
 
-        test.setSession(session({ ...unread, attentionEpoch: 2 }));
+        test.setSession(session({ ...unread, attentionGeneration: 2 }));
         test.coordinator.observe(recordsChanged);
         await test.coordinator.flush();
         expect(test.shown).toHaveLength(2);
@@ -445,7 +445,7 @@ describe('Agent notification coordinator', () => {
         await coordinator.initialize();
         current = session({
             id: 'session-1',
-            attentionEpoch: 1,
+            attentionGeneration: 1,
             hasUnread: true,
             lastAttentionKind: 'waiting',
         });
@@ -481,7 +481,7 @@ describe('Agent notification coordinator', () => {
         await coordinator.initialize();
         current = session({
             id: 'session-1',
-            attentionEpoch: 1,
+            attentionGeneration: 1,
             hasUnread: true,
             lastAttentionKind: 'waiting',
         });
@@ -507,7 +507,7 @@ describe('Agent notification coordinator', () => {
         const initial = session({ id: 'session-1' });
         const next = session({
             id: 'session-1',
-            attentionEpoch: 1,
+            attentionGeneration: 1,
             hasUnread: true,
             lastAttentionKind: 'waiting',
         });
@@ -543,7 +543,7 @@ describe('Agent notification coordinator', () => {
         const initial = session({ id: 'session-1' });
         const next = session({
             id: 'session-1',
-            attentionEpoch: 1,
+            attentionGeneration: 1,
             hasUnread: true,
             lastAttentionKind: 'waiting',
         });
@@ -585,20 +585,20 @@ describe('Agent notification coordinator', () => {
     it('does not reuse a prior turn start after a disconnected short turn completes', async () => {
         const running = session({
             id: 'session-1',
-            lastActivityState: 'running',
-            lastSessionActivityAt: 10_000,
-            lastSessionActivityReason: 'agent_started',
+            agentActivityState: 'running',
+            sessionActivityAt: 10_000,
+            sessionActivityReason: 'agent_started',
         });
         const test = harness(running);
         await test.coordinator.initialize();
         test.setSession(
             session({
                 id: 'session-1',
-                attentionEpoch: 1,
+                attentionGeneration: 1,
                 hasUnread: true,
                 lastAttentionKind: 'completed',
-                lastSessionActivityAt: 70_000,
-                lastSessionActivityReason: 'agent_completed',
+                sessionActivityAt: 70_000,
+                sessionActivityReason: 'agent_completed',
             }),
         );
         test.coordinator.observe(recordsChanged);
@@ -608,11 +608,11 @@ describe('Agent notification coordinator', () => {
         test.setSession(
             session({
                 id: 'session-1',
-                attentionEpoch: 2,
+                attentionGeneration: 2,
                 hasUnread: true,
                 lastAttentionKind: 'completed',
-                lastSessionActivityAt: 80_000,
-                lastSessionActivityReason: 'agent_completed',
+                sessionActivityAt: 80_000,
+                sessionActivityReason: 'agent_completed',
             }),
         );
         test.coordinator.observe({
@@ -633,7 +633,7 @@ describe('Agent notification coordinator', () => {
         const initial = session({ id: 'session-1' });
         const next = session({
             id: 'session-1',
-            attentionEpoch: 1,
+            attentionGeneration: 1,
             hasUnread: true,
             lastAttentionKind: 'waiting',
         });
@@ -691,7 +691,7 @@ describe('Agent notification coordinator', () => {
         const promoted = session({
             id: 'session-1',
             primaryAgentTerminalId: 'terminal-1',
-            attentionEpoch: 1,
+            attentionGeneration: 1,
             hasUnread: true,
             lastAttentionKind: 'waiting',
         });

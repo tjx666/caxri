@@ -38,7 +38,7 @@ test('typing @ in Agent Chat completes Project files and inserts a Project-relat
         await openAgentChat(page, 'Codex Chat');
         await pageRequest(page, 'session.rename', {
             sessionId: citedId,
-            displayTitle: 'Invoice review plan',
+            title: 'Invoice review plan',
         });
         const bootstrap = await pageRequest<BootstrapState>(page, 'app.bootstrap');
         const projectId = bootstrap.sessions.find((session) => session.id === citedId)?.projectId;

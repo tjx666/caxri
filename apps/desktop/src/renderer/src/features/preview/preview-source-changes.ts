@@ -5,7 +5,7 @@ import { caxri } from '../../lib/caxri';
 type FilesChangedPayload = Extract<ServerEvent, { event: 'files.changed' }>['payload'];
 
 export type PreviewSource =
-    | { workbenchProjectId: string; path: string }
+    | { workbenchRootProjectId: string; path: string }
     /**
      * A file outside every Project, opened as an external document: Main's external-document watcher reports its
      * rewrites as `externalDocument.changed` under the opaque ID it issued (issue #2211).
@@ -28,10 +28,10 @@ const CHANGE_SETTLE_MS = 250;
  */
 export function isPreviewSourceChange(
     payload: FilesChangedPayload,
-    source: Extract<PreviewSource, { workbenchProjectId: string }>,
+    source: Extract<PreviewSource, { workbenchRootProjectId: string }>,
 ): boolean {
     return (
-        payload.workbenchProjectId === source.workbenchProjectId &&
+        payload.workbenchRootProjectId === source.workbenchRootProjectId &&
         payload.changes.some((change) => change.kind !== 'delete' && change.path === source.path)
     );
 }

@@ -243,8 +243,11 @@ export function setSessionPinned(sessionId: string, shouldPin: boolean): void {
  * Acknowledges one attention generation. Rejection is the caller's to handle: the same generation stays unread on the
  * Server, so the next focus or visibility event can retry it without the Renderer tracking anything of its own.
  */
-export async function markSessionRead(sessionId: string, attentionEpoch: number): Promise<void> {
-    await caxri.request('session.markRead', { sessionId, attentionEpoch });
+export async function markSessionRead(
+    sessionId: string,
+    attentionGeneration: number,
+): Promise<void> {
+    await caxri.request('session.markRead', { sessionId, attentionGeneration });
 }
 
 /**
@@ -284,13 +287,13 @@ export function openSelectedSessionPullRequest(): void {
  * The new name shows at once: a Claude rename waits seconds for the provider CLI before the Server commits it. When the
  * newest rename fails, the previous name comes back alongside the failure toast.
  */
-export async function didRenameSession(sessionId: string, displayTitle: string): Promise<boolean> {
-    const currentTitle = getBootstrap()?.sessions.find(({ id }) => id === sessionId)?.displayTitle;
-    const attempt = beginPendingSessionTitle(sessionId, displayTitle, currentTitle ?? displayTitle);
-    showSessionTitle(sessionId, displayTitle);
+export async function didRenameSession(sessionId: string, title: string): Promise<boolean> {
+    const currentTitle = getBootstrap()?.sessions.find(({ id }) => id === sessionId)?.title;
+    const attempt = beginPendingSessionTitle(sessionId, title, currentTitle ?? title);
+    showSessionTitle(sessionId, title);
     const renamed = await tryCommand(
         translate('session.errors.renameFailed'),
-        () => caxri.request('session.rename', { sessionId, displayTitle }),
+        () => caxri.request('session.rename', { sessionId, title }),
         { refresh: refreshWorkbench },
     );
     const restoredTitle = settlePendingSessionTitle(sessionId, attempt, renamed !== undefined);
@@ -326,7 +329,7 @@ export function openProjectInExternalEditor(
         ? bootstrap?.sessions.find((candidate) => candidate.id === sessionId)
         : undefined;
     const workbenchProject = session
-        ? bootstrap?.projects.find((candidate) => candidate.id === session.workbenchProjectId)
+        ? bootstrap?.projects.find((candidate) => candidate.id === session.workbenchRootProjectId)
         : undefined;
     const targetProject = workbenchProject ?? project;
     // Fire-and-forget: `tryCommand` funnels the request's own failure into a toast internally.

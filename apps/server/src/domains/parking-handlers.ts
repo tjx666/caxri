@@ -172,8 +172,8 @@ export function createSessionHandlers(
     const parkingHandlers = createSessionParkingHandlers(parking);
     return {
         ...parkingHandlers,
-        'session.rename': ({ sessionId, displayTitle }, signal, finalizeDurably) =>
-            renames.rename(sessionId, displayTitle, signal, finalizeDurably),
+        'session.rename': ({ sessionId, title }, signal, finalizeDurably) =>
+            renames.rename(sessionId, title, signal, finalizeDurably),
         'agent.session.manageInternal': async (
             { operation, sessionId, ...authority },
             signal,

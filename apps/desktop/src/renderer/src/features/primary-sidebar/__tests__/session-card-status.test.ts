@@ -4,7 +4,7 @@ import { sessionCardStatusLine } from '../session-card-status';
 
 const settled = {
     hasUnread: false,
-    lastActivityState: 'idle',
+    agentActivityState: 'idle',
     lastAttentionKind: undefined,
 } as const;
 
@@ -14,7 +14,9 @@ describe('Session hover card status line', () => {
     });
 
     it('names a running Session', () => {
-        expect(sessionCardStatusLine({ ...settled, lastActivityState: 'running' })).toBe('Working');
+        expect(sessionCardStatusLine({ ...settled, agentActivityState: 'running' })).toBe(
+            'Working',
+        );
     });
 
     it('names unread attention with its kind', () => {
@@ -22,7 +24,7 @@ describe('Session hover card status line', () => {
             sessionCardStatusLine({
                 ...settled,
                 hasUnread: true,
-                lastActivityState: 'waiting',
+                agentActivityState: 'waiting',
                 lastAttentionKind: 'waiting',
             }),
         ).toBe('Unread, waiting for you');

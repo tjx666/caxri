@@ -185,7 +185,7 @@ describe('detachSession', () => {
                 {
                     id: 'session-1',
                     primaryAgentTerminalId: 'terminal-1',
-                    lastActivityState: 'idle',
+                    agentActivityState: 'idle',
                 },
             ],
             terminals: [

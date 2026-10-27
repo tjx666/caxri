@@ -137,7 +137,7 @@ describe('session-scoped file mutation completion', () => {
         const worktreeState: SessionState = {
             sessionId: 'session-1',
             revision: 0,
-            workbenchProjectId: 'project-2',
+            workbenchRootProjectId: 'project-2',
             desiredSecondarySidebarViewContainerId: 'caxri.files',
             paneLayout: paneLayout(['/worktree/keep.ts']),
         };
@@ -147,7 +147,7 @@ describe('session-scoped file mutation completion', () => {
                       ...state.bootstrap,
                       sessions: state.bootstrap.sessions.map((session) => ({
                           ...session,
-                          workbenchProjectId: 'project-2',
+                          workbenchRootProjectId: 'project-2',
                       })),
                       sessionStates: [worktreeState],
                   }
@@ -403,7 +403,7 @@ describe('session-scoped file mutation completion', () => {
         const worktreeState: SessionState = {
             sessionId: 'session-1',
             revision: 0,
-            workbenchProjectId: 'project-2',
+            workbenchRootProjectId: 'project-2',
             desiredSecondarySidebarViewContainerId: 'caxri.files',
             paneLayout: paneLayout(['/worktree/keep.ts']),
         };
@@ -413,7 +413,7 @@ describe('session-scoped file mutation completion', () => {
                       ...state.bootstrap,
                       sessions: state.bootstrap.sessions.map((session) => ({
                           ...session,
-                          workbenchProjectId: 'project-2',
+                          workbenchRootProjectId: 'project-2',
                       })),
                       sessionStates: [worktreeState],
                   }

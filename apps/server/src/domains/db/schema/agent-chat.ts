@@ -37,7 +37,7 @@ export const agentChatAnsweredNotices = sqliteTable(
 /**
  * The process group of each Agent Chat provider child Server Core spawned and has not yet reaped. A SIGKILLed Server
  * Core cannot reap its providers' groups, so the next start reads this table and stops what is left of them (see
- * `reapStaleProviderGroups`). `leader_started_at` is the leader's process start time as `ps` printed it at spawn; with
+ * `reapStaleProviderGroups`). `leader_start_token` is the leader's process start time as `ps` printed it at spawn; with
  * it a reused process group ID is told apart from the original group before anything is signaled. `terminal_id` is
  * context only and carries no foreign key: a row must outlive its Terminal until the group is reaped. Holds no
  * conversation content.
@@ -45,7 +45,7 @@ export const agentChatAnsweredNotices = sqliteTable(
 export const agentChatProcessGroups = sqliteTable('agent_chat_process_groups', {
     pgid: integer('pgid').primaryKey(),
     terminalId: text('terminal_id').notNull(),
-    leaderStartedAt: text('leader_started_at').notNull(),
+    leaderStartToken: text('leader_start_token').notNull(),
     recordedAt: integer('recorded_at').notNull(),
 });
 

@@ -595,7 +595,7 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
             const session = state.sessions.find((candidate) => candidate.id === sessionId);
             if (!session) throw new CaxriError('NOT_FOUND', 'Session not found');
             const project = state.projects.find(
-                (candidate) => candidate.id === session.workbenchProjectId,
+                (candidate) => candidate.id === session.workbenchRootProjectId,
             );
             if (!project) throw new CaxriError('NOT_FOUND', 'Workbench Project not found');
             const root = await directories.root(sessionId, project.rootPath);
@@ -609,7 +609,7 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
                 locatedSuffixes: new Map(),
                 mode: 'project',
                 root,
-                rootLabel: project.displayTitle,
+                rootLabel: project.title,
                 searchedFilters: new Map(),
                 sourceSessionId: sessionId,
             };

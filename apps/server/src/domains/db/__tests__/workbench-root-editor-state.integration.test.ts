@@ -53,11 +53,9 @@ function readStoredRootStates(
     sessionId: string,
 ): Record<string, StoredRootState> {
     const row = database.database
-        .prepare(
-            'SELECT workbench_state_json AS workbenchStateJson FROM session_state WHERE session_id = ?',
-        )
-        .get(sessionId) as { workbenchStateJson: string };
-    return JSON.parse(row.workbenchStateJson) as Record<string, StoredRootState>;
+        .prepare('SELECT roots_json AS rootsJson FROM session_views WHERE session_id = ?')
+        .get(sessionId) as { rootsJson: string };
+    return JSON.parse(row.rootsJson) as Record<string, StoredRootState>;
 }
 
 /**
@@ -124,15 +122,13 @@ describe('CaxriDatabase Workbench Root editor state', () => {
             sourceControlViewStates: worktreeSourceControlState,
         });
         const historicalState = database.database
-            .prepare(
-                'SELECT workbench_state_json AS workbenchStateJson FROM session_state WHERE session_id = ?',
-            )
-            .get(created.session.id) as { workbenchStateJson: string };
+            .prepare('SELECT roots_json AS rootsJson FROM session_views WHERE session_id = ?')
+            .get(created.session.id) as { rootsJson: string };
 
         database.closeTerminal(orphan.id);
         database.database
-            .prepare('UPDATE session_state SET workbench_state_json = ? WHERE session_id = ?')
-            .run(historicalState.workbenchStateJson, created.session.id);
+            .prepare('UPDATE session_views SET roots_json = ? WHERE session_id = ?')
+            .run(historicalState.rootsJson, created.session.id);
 
         const healedWorktree = database.getSessionState(created.session.id);
         expect(listPaneTerminalIds(healedWorktree.paneLayout)).toEqual([created.terminal!.id]);
@@ -204,11 +200,11 @@ describe('CaxriDatabase Workbench Root editor state', () => {
 
         expect(database.getSession(created.session.id)).toMatchObject({
             projectId: owner.id,
-            workbenchProjectId: worktree.id,
+            workbenchRootProjectId: worktree.id,
             rootPath: worktreeRoot,
         });
         const freshWorktreeState = database.getSessionState(created.session.id);
-        expect(freshWorktreeState.workbenchProjectId).toBe(worktree.id);
+        expect(freshWorktreeState.workbenchRootProjectId).toBe(worktree.id);
         // A first visit must persist its layout identity before another bootstrap reads it.
         expect(database.getSessionState(created.session.id).paneLayout).toEqual(
             freshWorktreeState.paneLayout,
@@ -230,7 +226,7 @@ describe('CaxriDatabase Workbench Root editor state', () => {
 
         database.selectWorkbenchProject(created.session.id, owner.id);
         const restoredOwnerState = database.getSessionState(created.session.id);
-        expect(restoredOwnerState.workbenchProjectId).toBe(owner.id);
+        expect(restoredOwnerState.workbenchRootProjectId).toBe(owner.id);
         expect(filePaths(restoredOwnerState.paneLayout)).toEqual([join(ownerRoot, 'owner.ts')]);
         expect(activeFilePath(restoredOwnerState.paneLayout)).toBe(join(ownerRoot, 'owner.ts'));
         // The owner root was already arranged when `laterTerminal` was created on the worktree root, so it
@@ -245,7 +241,7 @@ describe('CaxriDatabase Workbench Root editor state', () => {
             inode: identity.ino.toString(),
         });
         const restoredWorktreeState = database.getSessionState(created.session.id);
-        expect(restoredWorktreeState.workbenchProjectId).toBe(worktree.id);
+        expect(restoredWorktreeState.workbenchRootProjectId).toBe(worktree.id);
         expect(filePaths(restoredWorktreeState.paneLayout)).toEqual([
             join(worktreeRoot, 'worktree.ts'),
         ]);
@@ -261,7 +257,7 @@ describe('CaxriDatabase Workbench Root editor state', () => {
         database.deleteProject(worktree.id);
         expect(database.getSession(created.session.id)).toMatchObject({
             projectId: owner.id,
-            workbenchProjectId: owner.id,
+            workbenchRootProjectId: owner.id,
             rootPath: ownerRoot,
         });
         expect(database.getTerminal(created.terminal!.id)).toMatchObject({
@@ -289,7 +285,7 @@ describe('CaxriDatabase Workbench Root editor state', () => {
             historicalStates[`historical-${index}`] = ownerState;
         historicalStates[deleted.id] = ownerState;
         database.database
-            .prepare('UPDATE session_state SET workbench_state_json = ? WHERE session_id = ?')
+            .prepare('UPDATE session_views SET roots_json = ? WHERE session_id = ?')
             .run(JSON.stringify(historicalStates), created.session.id);
 
         database.deleteProject(deleted.id);
@@ -394,7 +390,7 @@ describe('CaxriDatabase Workbench Root editor state', () => {
             ),
         ).toBe(1);
         const ownerStateAfterRemap = database.getSessionState(created.session.id);
-        expect(ownerStateAfterRemap.workbenchProjectId).toBe(owner.id);
+        expect(ownerStateAfterRemap.workbenchRootProjectId).toBe(owner.id);
         expect(filePaths(ownerStateAfterRemap.paneLayout)).toEqual([]);
 
         database.selectWorkbenchProject(created.session.id, worktree.id, {
@@ -402,7 +398,7 @@ describe('CaxriDatabase Workbench Root editor state', () => {
             inode: identity.ino.toString(),
         });
         const remapped = database.getSessionState(created.session.id);
-        expect(remapped.workbenchProjectId).toBe(worktree.id);
+        expect(remapped.workbenchRootProjectId).toBe(worktree.id);
         expect(filePaths(remapped.paneLayout)).toEqual([gitDiffPath, nextPath]);
         expect(activeFilePath(remapped.paneLayout)).toBe(nextPath);
         expect(remapped.editorRemapOperationId).toBe('operation-1');

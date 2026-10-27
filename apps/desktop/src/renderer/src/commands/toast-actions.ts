@@ -179,7 +179,7 @@ export const toastActionHandlers: ToastActionHandlers = {
         unavailable: ({ followedProjectId, projectId, sessionId }) => {
             const session = getBootstrap()?.sessions.find((entry) => entry.id === sessionId);
             if (!session) return translate('toasts.actionUnavailable.missingSession');
-            const current = session.workbenchProjectId;
+            const current = session.workbenchRootProjectId;
             return current === followedProjectId || current === projectId
                 ? undefined
                 : translate('toasts.actionUnavailable.sessionMovedOn');

@@ -249,7 +249,7 @@ export function useExtensionTreeChildren(
                 event.payload.extensionGeneration !== scope.extensionGeneration ||
                 event.payload.context.kind !== 'session' ||
                 event.payload.context.sessionId !== scope.sessionId ||
-                event.payload.context.workbenchProjectId !== scope.workbenchProjectId
+                event.payload.context.workbenchRootProjectId !== scope.workbenchRootProjectId
             )
                 return;
             if (!event.payload.handles) {

@@ -438,13 +438,13 @@ setInterval(() => {
         expect(attentionLayout.titleWidth).toBe(idleLayout.titleWidth);
 
         const unread = await pageRequest<{
-            sessions: Array<{ attentionEpoch: number; hasUnread: boolean; id: string }>;
+            sessions: Array<{ attentionGeneration: number; hasUnread: boolean; id: string }>;
         }>(running.page, 'app.bootstrap');
         const unreadSession = unread.sessions.find((session) => session.id === sessionId);
         if (!unreadSession?.hasUnread)
             throw new Error('Lifecycle fixture did not create unread attention');
         await pageRequest(running.page, 'session.markRead', {
-            attentionEpoch: unreadSession.attentionEpoch,
+            attentionGeneration: unreadSession.attentionGeneration,
             sessionId,
         });
         await expect(status).toHaveAttribute('data-session-status', 'default');

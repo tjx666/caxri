@@ -68,15 +68,15 @@ test('Session dragging preserves order across restart and yields only to subsequ
         );
         await pageRequest(running.page, 'session.rename', {
             sessionId: a.id,
-            displayTitle: 'Alpha',
+            title: 'Alpha',
         });
         await pageRequest(running.page, 'session.rename', {
             sessionId: b.id,
-            displayTitle: 'Beta',
+            title: 'Beta',
         });
         await pageRequest(running.page, 'session.rename', {
             sessionId: c.id,
-            displayTitle: 'Gamma',
+            title: 'Gamma',
         });
         const order = () =>
             running.page
@@ -107,7 +107,7 @@ test('Session dragging preserves order across restart and yields only to subsequ
                 async () =>
                     (
                         await pageRequest<BootstrapState>(running.page, 'app.bootstrap')
-                    ).sessions.find((row) => row.id === a.id)?.lastSessionActivityReason,
+                    ).sessions.find((row) => row.id === a.id)?.sessionActivityReason,
             )
             .toBe('user_submission');
         expect(await order()).toEqual([c.id, b.id, a.id]);

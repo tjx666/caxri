@@ -8,7 +8,7 @@ import { tryCommand } from '../../stores/toasts';
  */
 export function suggestSessionTitle(sessionId: string): Promise<string | undefined> {
     return tryCommand(translate('session.errors.suggestTitleFailed'), async () => {
-        const { displayTitle } = await caxri.request('session.suggestTitle', { sessionId });
-        return displayTitle;
+        const { title } = await caxri.request('session.suggestTitle', { sessionId });
+        return title;
     });
 }

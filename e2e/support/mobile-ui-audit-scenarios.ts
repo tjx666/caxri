@@ -238,7 +238,7 @@ async function swipeRowLeft(serial: string, rowId: string): Promise<void> {
 
 const sessionTitle = async (fixture: MobileAcceptanceFixture, sessionId: string) => {
     const result = await pageRequest<{
-        sessions: Array<{ archivedAt?: number; displayTitle: string }>;
+        sessions: Array<{ archivedAt?: number; title: string }>;
     }>(fixture.running.page, 'session.query', { mode: 'show', selector: sessionId });
     const session = result.sessions.at(0);
     if (!session) throw new Error('Synthetic Session disappeared');
@@ -266,7 +266,7 @@ async function sessionManagement(
     await tapMobileCheck(serial, 'session-rename-save');
     await waitFor(serial, (nodes) => !hasCheck(nodes, 'session-actions-sheet'));
     const renamed = await sessionTitle(fixture, sessionId);
-    if (renamed.displayTitle !== 'Mobile Renamed')
+    if (renamed.title !== 'Mobile Renamed')
         throw new Error('The Desktop Session title did not change');
 
     await tapMobileCheck(serial, row, { isLongPress: true });

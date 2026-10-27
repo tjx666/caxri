@@ -7,18 +7,18 @@ function session(id: string, overrides: Partial<SessionRecord> = {}): SessionRec
     return {
         id,
         projectId: 'p',
-        workbenchProjectId: 'p',
+        workbenchRootProjectId: 'p',
         rootPath: '/fixture',
         createdAt: 0,
-        lastOpenedAt: 0,
-        lastSessionActivityAt: 0,
+        lastVisitedAt: 0,
+        sessionActivityAt: 0,
         sidebarOrder: 0,
-        lastSessionActivityReason: 'created',
-        lastActivityState: 'idle',
-        attentionEpoch: 0,
-        readAttentionEpoch: 0,
+        sessionActivityReason: 'created',
+        agentActivityState: 'idle',
+        attentionGeneration: 0,
+        acknowledgedAttentionGeneration: 0,
         hasUnread: false,
-        displayTitle: id,
+        title: id,
         titleMode: 'automatic',
         ...overrides,
     };
@@ -32,7 +32,7 @@ describe('resolveSessionCreator', () => {
     });
 
     it('links an open creating Session', () => {
-        const creator = session('caller', { displayTitle: 'Coordinator' });
+        const creator = session('caller', { title: 'Coordinator' });
         expect(
             resolveSessionCreator(
                 session('child', { createdBySessionId: 'caller' }),
@@ -46,7 +46,7 @@ describe('resolveSessionCreator', () => {
         expect(
             resolveSessionCreator(
                 session('child', { createdBySessionId: 'caller' }),
-                [session('caller', { displayTitle: 'Coordinator', archivedAt: 1 })],
+                [session('caller', { title: 'Coordinator', archivedAt: 1 })],
                 undefined,
             ),
         ).toEqual({ kind: 'archived', title: 'Coordinator' });

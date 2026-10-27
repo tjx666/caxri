@@ -40,7 +40,7 @@ describe('Session deletion runtime retirement', () => {
                 });
                 await runtime.handlers['session.rename']({
                     sessionId: session.id,
-                    displayTitle: 'Retirement fixture',
+                    title: 'Retirement fixture',
                 });
                 expect(rename).toHaveBeenCalledOnce();
                 const renames = rename.mock.contexts[0] as SessionRenameService;

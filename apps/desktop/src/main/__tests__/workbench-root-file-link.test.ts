@@ -18,12 +18,12 @@ describe('openTerminalFileLink', () => {
         inode: '20',
         root: { path: '/project', device: '1', inode: '10' },
     };
-    const bootstrap = (sessions: Array<{ id: string; displayTitle: string }>) => ({
-        projects: [{ id: 'project-1', displayTitle: 'Project' }],
+    const bootstrap = (sessions: Array<{ id: string; title: string }>) => ({
+        projects: [{ id: 'project-1', title: 'Project' }],
         sessions: sessions.map((session) => ({
             ...session,
             archivedAt: undefined,
-            workbenchProjectId: 'project-1',
+            workbenchRootProjectId: 'project-1',
         })),
         selectedSessionId: sessions.at(0)?.id,
     });
@@ -40,7 +40,7 @@ describe('openTerminalFileLink', () => {
                     sourceSessionId: 'source-session',
                 });
             if (method === 'app.bootstrap')
-                return Promise.resolve(bootstrap([{ id: 'session-1', displayTitle: 'Session' }]));
+                return Promise.resolve(bootstrap([{ id: 'session-1', title: 'Session' }]));
             if (method === 'desktop.openProject') return Promise.resolve({ state: 'requested' });
             return Promise.reject(new Error(`Unexpected method: ${method}`));
         });
@@ -72,7 +72,7 @@ describe('openTerminalFileLink', () => {
                     sourceSessionId: 'source-session',
                 });
             if (method === 'app.bootstrap')
-                return Promise.resolve(bootstrap([{ id: 'session-1', displayTitle: 'Session' }]));
+                return Promise.resolve(bootstrap([{ id: 'session-1', title: 'Session' }]));
             if (method === 'desktop.openFile') return Promise.resolve({ state: 'requested' });
             return Promise.reject(new Error(`Unexpected method: ${method}`));
         });
@@ -110,10 +110,10 @@ describe('openTerminalFileLink', () => {
                 });
             if (method === 'app.bootstrap')
                 return Promise.resolve({
-                    ...bootstrap([{ id: 'session-1', displayTitle: 'Session' }]),
+                    ...bootstrap([{ id: 'session-1', title: 'Session' }]),
                     projects: [
-                        { id: 'project-1', displayTitle: 'Project' },
-                        { id: 'worktree-1', displayTitle: 'worktree', ownerProjectId: 'project-1' },
+                        { id: 'project-1', title: 'Project' },
+                        { id: 'worktree-1', title: 'worktree', ownerProjectId: 'project-1' },
                     ],
                 });
             return Promise.reject(new Error(`Unexpected method: ${method}`));
@@ -146,7 +146,7 @@ describe('openTerminalFileLink', () => {
                     sourceSessionId: 'source-session',
                 });
             if (method === 'app.bootstrap')
-                return Promise.resolve(bootstrap([{ id: 'session-1', displayTitle: 'Session' }]));
+                return Promise.resolve(bootstrap([{ id: 'session-1', title: 'Session' }]));
             return Promise.reject(new Error(`Unexpected method: ${method}`));
         });
         const { instance } = authority({ getServer: server(request) });
@@ -448,8 +448,8 @@ describe('openTerminalFileLink', () => {
             if (method === 'app.bootstrap')
                 return Promise.resolve({
                     ...bootstrap([
-                        { id: 'session-1', displayTitle: 'First' },
-                        { id: 'session-2', displayTitle: 'Second' },
+                        { id: 'session-1', title: 'First' },
+                        { id: 'session-2', title: 'Second' },
                     ]),
                     selectedSessionId: undefined,
                 });

@@ -26,9 +26,9 @@ describe('New Session choices', () => {
 
     it('sorts granted Projects by server-projected recent use, then title', () => {
         const projects = [
-            { id: 'older', displayTitle: 'Older', lastActivityAt: 100 },
-            { id: 'unused', displayTitle: 'Unused' },
-            { id: 'recent', displayTitle: 'Recent', lastActivityAt: 200 },
+            { id: 'older', title: 'Older', lastActivityAt: 100 },
+            { id: 'unused', title: 'Unused' },
+            { id: 'recent', title: 'Recent', lastActivityAt: 200 },
         ];
         const sorted = sortNewSessionProjects(projects);
         expect(sorted.map(({ id }) => id)).toEqual(['recent', 'older', 'unused']);
@@ -37,14 +37,14 @@ describe('New Session choices', () => {
 
     it('sorts using Project recency even when no Session is in the dashboard', () => {
         const sorted = sortNewSessionProjects([
-            { id: 'visible', displayTitle: 'Visible' },
-            { id: 'hidden', displayTitle: 'Hidden', lastActivityAt: 500 },
+            { id: 'visible', title: 'Visible' },
+            { id: 'hidden', title: 'Hidden', lastActivityAt: 500 },
         ]);
         expect(sorted.map(({ id }) => id)).toEqual(['hidden', 'visible']);
     });
 
     it('keeps a remembered granted Project and rejects a removed grant', () => {
-        const projects = [{ id: 'granted', displayTitle: 'Granted' }];
+        const projects = [{ id: 'granted', title: 'Granted' }];
         expect(selectedNewSessionProject('granted', projects, null)).toBe('granted');
         expect(selectedNewSessionProject('removed', projects, null)).toBe('granted');
         expect(selectedNewSessionProject(null, [], null)).toBeNull();
@@ -53,8 +53,8 @@ describe('New Session choices', () => {
     it('starts in the Project chip the Session list is filtered to, unless a Project was picked', () => {
         // Sorted most recent first: without the chip, + under `caxri` created the Session in `recent`.
         const projects = [
-            { id: 'recent', displayTitle: 'Recent', lastActivityAt: 200 },
-            { id: 'caxri', displayTitle: 'caxri', lastActivityAt: 100 },
+            { id: 'recent', title: 'Recent', lastActivityAt: 200 },
+            { id: 'caxri', title: 'caxri', lastActivityAt: 100 },
         ];
         expect(selectedNewSessionProject(null, projects, 'caxri')).toBe('caxri');
         expect(selectedNewSessionProject('recent', projects, 'caxri')).toBe('recent');

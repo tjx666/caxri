@@ -31,8 +31,8 @@ const discardedBuffers = new Map<string, string>();
  */
 const restoredBuffers = new Set<string>();
 
-function bufferKey(sessionId: string, workbenchProjectId: string, path: string): string {
-    return `${sessionId}\0${workbenchProjectId}\0${path}`;
+function bufferKey(sessionId: string, workbenchRootProjectId: string, path: string): string {
+    return `${sessionId}\0${workbenchRootProjectId}\0${path}`;
 }
 
 /**
@@ -40,11 +40,11 @@ function bufferKey(sessionId: string, workbenchProjectId: string, path: string):
  */
 export function stashDiscardedBuffers(
     sessionId: string,
-    workbenchProjectId: string,
+    workbenchRootProjectId: string,
     documents: ReadonlyArray<Pick<EditorDocument, 'content' | 'path'>>,
 ): void {
     for (const document of documents) {
-        const key = bufferKey(sessionId, workbenchProjectId, document.path);
+        const key = bufferKey(sessionId, workbenchRootProjectId, document.path);
         // Re-inserting moves the entry to the end, so eviction below drops the oldest discard.
         discardedBuffers.delete(key);
         restoredBuffers.delete(key);
@@ -73,10 +73,10 @@ function discardedChangesMessage(names: readonly string[]): string {
  */
 export function announceDiscardedBuffers(
     sessionId: string,
-    workbenchProjectId: string,
+    workbenchRootProjectId: string,
     documents: ReadonlyArray<Pick<EditorDocument, 'content' | 'path'>>,
 ): void {
-    stashDiscardedBuffers(sessionId, workbenchProjectId, documents);
+    stashDiscardedBuffers(sessionId, workbenchRootProjectId, documents);
     if (documents.length === 0) return;
     const name = (document: Pick<EditorDocument, 'path'>) =>
         parseExternalEditorTab(document.path)?.name ?? pathBasename(document.path);
@@ -92,7 +92,7 @@ export function announceDiscardedBuffers(
             id: 'editor.restoreDiscardedChanges',
             params: {
                 sessionId,
-                workbenchProjectId,
+                workbenchRootProjectId,
                 paths: documents.map((document) => document.path),
             },
         },
@@ -105,12 +105,12 @@ export function announceDiscardedBuffers(
  * silently throw away the newer edit, which is the very loss this follow-up exists to undo.
  */
 function restorableBuffers(target: RestoreTarget): Array<{ path: string; content: string }> {
-    if (sessionStateOf(target.sessionId)?.workbenchProjectId !== target.workbenchProjectId)
+    if (sessionStateOf(target.sessionId)?.workbenchRootProjectId !== target.workbenchRootProjectId)
         return [];
-    const cached = getSessionDocuments(target.sessionId, target.workbenchProjectId) ?? {};
+    const cached = getSessionDocuments(target.sessionId, target.workbenchRootProjectId) ?? {};
     return target.paths.flatMap((path) => {
         const content = discardedBuffers.get(
-            bufferKey(target.sessionId, target.workbenchProjectId, path),
+            bufferKey(target.sessionId, target.workbenchRootProjectId, path),
         );
         const current = Object.hasOwn(cached, path) ? cached[path] : undefined;
         return content === undefined || !current || current.dirty || current.readOnly
@@ -131,7 +131,7 @@ export function discardedChangesUnavailableReason(target: RestoreTarget): string
     if (restorableBuffers(target).length > 0) return undefined;
     return translate(
         target.paths.every((path) =>
-            restoredBuffers.has(bufferKey(target.sessionId, target.workbenchProjectId, path)),
+            restoredBuffers.has(bufferKey(target.sessionId, target.workbenchRootProjectId, path)),
         )
             ? 'editor.discarded.alreadyRestored'
             : 'editor.discarded.unavailable',
@@ -144,13 +144,13 @@ export function discardedChangesUnavailableReason(target: RestoreTarget): string
  */
 export function restoreDiscardedChanges(target: RestoreTarget): void {
     for (const { path, content } of restorableBuffers(target)) {
-        const key = bufferKey(target.sessionId, target.workbenchProjectId, path);
+        const key = bufferKey(target.sessionId, target.workbenchRootProjectId, path);
         discardedBuffers.delete(key);
         restoredBuffers.add(key);
         dropOldestRestored();
         useSessionViewStore
             .getState()
-            .updateDocumentContent(target.sessionId, path, content, target.workbenchProjectId);
+            .updateDocumentContent(target.sessionId, path, content, target.workbenchRootProjectId);
     }
 }
 

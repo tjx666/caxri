@@ -105,7 +105,7 @@ export async function executeMobileSessionRefreshScenario(
         const changedAt = Date.now();
         await pageRequest(fixture.running.page, 'session.rename', {
             sessionId,
-            displayTitle: title,
+            title,
         });
         await waitForMobile(
             () =>

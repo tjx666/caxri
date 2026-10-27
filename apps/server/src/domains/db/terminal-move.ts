@@ -30,7 +30,7 @@ export function moveTerminalToNewSession(
 
     const newSession = database.sessions.insert({
         projectId: sourceSession.projectId,
-        displayTitle: DEFAULT_SESSION_TITLE,
+        title: DEFAULT_SESSION_TITLE,
     });
 
     database.terminals.reassignSession(terminalId, newSession.id);

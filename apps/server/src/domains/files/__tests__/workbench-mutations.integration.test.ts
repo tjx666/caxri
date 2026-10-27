@@ -65,7 +65,7 @@ describe('FileService Workbench Root mutations', () => {
 
             await expect(
                 service.getMutationOperation('operation-workbench-root'),
-            ).resolves.toMatchObject({ workbenchProjectId: worktree.id });
+            ).resolves.toMatchObject({ workbenchRootProjectId: worktree.id });
         } finally {
             await service.close();
             database.close();

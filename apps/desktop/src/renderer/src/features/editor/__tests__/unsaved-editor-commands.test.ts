@@ -124,7 +124,7 @@ describe('subscribeUnsavedEditorRequests', () => {
                 selectedSessionId: 'session-1',
                 settings: {},
                 sessions: [
-                    { id: 'session-1', projectId: 'project', workbenchProjectId: 'project' },
+                    { id: 'session-1', projectId: 'project', workbenchRootProjectId: 'project' },
                 ],
             } as never,
         });

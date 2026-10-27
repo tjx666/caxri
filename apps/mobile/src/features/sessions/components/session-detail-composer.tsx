@@ -55,7 +55,7 @@ const SessionComposerInput = ({
             ? mobileAgentDisplayName(kind)
             : t('sessions.composer.genericAgent');
     const placeholder = t(
-        session.lastActivityState === 'running'
+        session.agentActivityState === 'running'
             ? 'sessions.composer.replyWhileWorking'
             : 'sessions.composer.messageAgent',
         { agent: recipient },

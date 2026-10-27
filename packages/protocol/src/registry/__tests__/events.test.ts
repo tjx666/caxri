@@ -38,7 +38,7 @@ describe('serverEventSchema', () => {
                     context: {
                         kind: 'session',
                         sessionId: 'session-1',
-                        workbenchProjectId: 'project-1',
+                        workbenchRootProjectId: 'project-1',
                     },
                     change: { kind: 'refresh' },
                 },
@@ -108,14 +108,14 @@ describe('workbench.changed payload', () => {
         expect(
             serverEventPayloads['workbench.changed'].safeParse({
                 sessionId: 'session-1',
-                workbenchProjectId: 'project-1',
+                workbenchRootProjectId: 'project-1',
                 reason: 'selected',
             }).success,
         ).toBe(true);
         expect(
             serverEventPayloads['workbench.changed'].safeParse({
                 sessionId: 'session-1',
-                workbenchProjectId: 'project-1',
+                workbenchRootProjectId: 'project-1',
                 reason: 'unsupported-reason',
             }).success,
         ).toBe(false);
@@ -125,7 +125,7 @@ describe('workbench.changed payload', () => {
         expect(
             serverEventPayloads['workbench.changed'].safeParse({
                 sessionId: 'session-1',
-                workbenchProjectId: 'project-1',
+                workbenchRootProjectId: 'project-1',
                 reason: 'followed',
                 followedProjectTitle: 'feature-entered',
             }),
@@ -136,7 +136,7 @@ describe('workbench.changed payload', () => {
         expect(
             serverEventPayloads['workbench.changed'].safeParse({
                 sessionId: 'session-1',
-                workbenchProjectId: 'project-1',
+                workbenchRootProjectId: 'project-1',
                 reason: 'followed',
                 followedProjectTitle: '',
             }).success,

@@ -9,7 +9,7 @@ import { agentChatProcessGroups } from '../schema';
 export interface StoredProviderGroup {
     pgid: number;
     terminalId: string;
-    leaderStartedAt: string;
+    leaderStartToken: string;
     recordedAt: number;
 }
 
@@ -28,22 +28,22 @@ export class AgentChatProcessGroupsModel {
                 target: agentChatProcessGroups.pgid,
                 set: {
                     terminalId: group.terminalId,
-                    leaderStartedAt: group.leaderStartedAt,
+                    leaderStartToken: group.leaderStartToken,
                     recordedAt: now,
                 },
             })
             .run();
     }
 
-    forget(pgid: number, leaderStartedAt?: string): void {
+    forget(pgid: number, leaderStartToken?: string): void {
         this.database
             .delete(agentChatProcessGroups)
             .where(
                 and(
                     eq(agentChatProcessGroups.pgid, pgid),
-                    leaderStartedAt === undefined
+                    leaderStartToken === undefined
                         ? undefined
-                        : eq(agentChatProcessGroups.leaderStartedAt, leaderStartedAt),
+                        : eq(agentChatProcessGroups.leaderStartToken, leaderStartToken),
                 ),
             )
             .run();

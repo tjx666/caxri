@@ -42,7 +42,7 @@ const ArchivedRow = ({
             <AgentAvatar kind={session.agentKind} theme={theme} />
             <View style={styles.copy}>
                 <Text numberOfLines={1} style={[styles.title, { color: theme.text }]}>
-                    {sessionTitleForDisplay(session.displayTitle, t)}
+                    {sessionTitleForDisplay(session.title, t)}
                 </Text>
                 <Text numberOfLines={1} style={[styles.meta, { color: theme.muted }]}>
                     {`${session.projectTitle} · ${archivedAgeLabel(session.archivedAt, now, t)}`}
@@ -51,7 +51,7 @@ const ArchivedRow = ({
             {canRestore ? (
                 <Pressable
                     accessibilityLabel={t('sessions.archived.restoreLabel', {
-                        title: sessionTitleForDisplay(session.displayTitle, t),
+                        title: sessionTitleForDisplay(session.title, t),
                     })}
                     accessibilityRole="button"
                     accessibilityState={{ busy: isRestoring, disabled: isRestoring }}

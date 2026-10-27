@@ -76,7 +76,7 @@ export const applyMobileSessionManagement = async (
         case 'mobile.session.rename':
             await domainService.requestWithSignal(
                 'session.rename',
-                { sessionId, displayTitle: request.params.displayTitle },
+                { sessionId, title: request.params.title },
                 signal,
             );
             break;

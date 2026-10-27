@@ -41,12 +41,12 @@ interface ExternalEditorDocumentResult {
  */
 export function openExternalEditorDocument({
     sessionId,
-    workbenchProjectId,
+    workbenchRootProjectId,
     document,
     focus = false,
 }: {
     sessionId: string;
-    workbenchProjectId: string;
+    workbenchRootProjectId: string;
     document: ExternalEditorDocumentResult;
     focus?: boolean;
 }): string | false {
@@ -54,11 +54,12 @@ export function openExternalEditorDocument({
         .getState()
         .bootstrap?.sessionStates.find(
             (state) =>
-                state.sessionId === sessionId && state.workbenchProjectId === workbenchProjectId,
+                state.sessionId === sessionId &&
+                state.workbenchRootProjectId === workbenchRootProjectId,
         );
     if (!sessionState) return false;
     const [existingPath, existing] =
-        Object.entries(getSessionDocuments(sessionId, workbenchProjectId) ?? {}).find(
+        Object.entries(getSessionDocuments(sessionId, workbenchRootProjectId) ?? {}).find(
             ([path, cached]) =>
                 isExternalEditorTabPath(path) &&
                 cached.ephemeral &&
@@ -67,7 +68,7 @@ export function openExternalEditorDocument({
     const focusOpened = (openedPath: string): void => {
         if (focus)
             focusEditor(
-                editorModelPath(sessionViewScope(sessionId, workbenchProjectId), openedPath),
+                editorModelPath(sessionViewScope(sessionId, workbenchRootProjectId), openedPath),
             );
     };
     if (existingPath && existing?.dirty) {
@@ -80,7 +81,7 @@ export function openExternalEditorDocument({
     const didCache = view.cacheDocument(
         sessionId,
         { ...document, path, dirty: false, ephemeral: true },
-        workbenchProjectId,
+        workbenchRootProjectId,
     );
     if (!didCache) return false;
     /**
@@ -90,7 +91,7 @@ export function openExternalEditorDocument({
      */
     const tabPath = shouldOpenAsPreview(document.name) ? filePreviewTabPath(path) : path;
     if (!didOpenEditorTabForSession(sessionId, tabPath)) {
-        view.evictDocument(sessionId, path, workbenchProjectId);
+        view.evictDocument(sessionId, path, workbenchRootProjectId);
         return false;
     }
     if (tabPath === path) focusOpened(path);
@@ -117,7 +118,7 @@ export async function openLinkedExternalDocument(
         );
         const opened = openExternalEditorDocument({
             sessionId: session.id,
-            workbenchProjectId: session.workbenchProjectId,
+            workbenchRootProjectId: session.workbenchRootProjectId,
             document,
         });
         if (!opened) throw new Error(translate('editor.external.openInSessionFailed'));

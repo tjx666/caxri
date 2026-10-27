@@ -289,7 +289,7 @@ describe('Resource Explorer scope store', () => {
         useWorkbenchStore.setState({
             bootstrap: {
                 selectedSessionId: 'session-a',
-                sessions: [{ id: 'session-a', workbenchProjectId: 'project-a' }],
+                sessions: [{ id: 'session-a', workbenchRootProjectId: 'project-a' }],
                 sessionStates: [],
                 terminals: [],
             } as unknown as BootstrapState,

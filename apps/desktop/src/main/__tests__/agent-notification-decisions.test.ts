@@ -16,18 +16,18 @@ function session(patch: Partial<SessionRecord> & Pick<SessionRecord, 'id'>): Ses
     return {
         id,
         projectId: 'project-1',
-        workbenchProjectId: 'project-1',
+        workbenchRootProjectId: 'project-1',
         rootPath: '/project',
         createdAt: 1,
-        lastOpenedAt: 1,
+        lastVisitedAt: 1,
         sidebarOrder: 0,
-        lastSessionActivityAt: 1_000,
-        lastSessionActivityReason: 'created',
-        lastActivityState: 'completed',
-        attentionEpoch: 0,
-        readAttentionEpoch: 0,
+        sessionActivityAt: 1_000,
+        sessionActivityReason: 'created',
+        agentActivityState: 'completed',
+        attentionGeneration: 0,
+        acknowledgedAttentionGeneration: 0,
         hasUnread: false,
-        displayTitle: 'Investigate hooks',
+        title: 'Investigate hooks',
         titleMode: 'automatic',
         primaryAgentTerminalId: 'terminal-1',
         ...overrides,
@@ -100,9 +100,9 @@ describe('Agent notification decisions', () => {
     it('reports one decision per raised attention epoch', async () => {
         const running = session({
             id: 'session-1',
-            lastActivityState: 'running',
-            lastSessionActivityAt: 10_000,
-            lastSessionActivityReason: 'agent_started',
+            agentActivityState: 'running',
+            sessionActivityAt: 10_000,
+            sessionActivityReason: 'agent_started',
         });
         const app = harness(running);
         await app.coordinator.initialize();
@@ -111,17 +111,17 @@ describe('Agent notification decisions', () => {
 
         const completed = session({
             id: 'session-1',
-            attentionEpoch: 1,
+            attentionGeneration: 1,
             hasUnread: true,
             lastAttentionKind: 'completed',
-            lastSessionActivityAt: 24_999,
-            lastSessionActivityReason: 'agent_completed',
+            sessionActivityAt: 24_999,
+            sessionActivityReason: 'agent_completed',
         });
         await app.observe(completed);
         await app.observe(completed);
         expect(app.decisions).toEqual([
             {
-                attentionEpoch: 1,
+                attentionGeneration: 1,
                 attentionKind: 'completed',
                 durationMs: 14_999,
                 outcome: 'belowThreshold',
@@ -132,16 +132,16 @@ describe('Agent notification decisions', () => {
         await app.observe(
             session({
                 id: 'session-1',
-                attentionEpoch: 2,
+                attentionGeneration: 2,
                 hasUnread: true,
-                lastActivityState: 'waiting',
+                agentActivityState: 'waiting',
                 lastAttentionKind: 'waiting',
-                lastSessionActivityAt: 80_000,
-                lastSessionActivityReason: 'agent_waiting',
+                sessionActivityAt: 80_000,
+                sessionActivityReason: 'agent_waiting',
             }),
         );
         expect(app.decisions.at(-1)).toMatchObject({
-            attentionEpoch: 2,
+            attentionGeneration: 2,
             attentionKind: 'waiting',
             outcome: 'shown',
         });
@@ -149,7 +149,7 @@ describe('Agent notification decisions', () => {
     });
 
     it('names the gate that suppressed a raised attention', async () => {
-        const disabled = harness(session({ id: 'session-1', lastActivityState: 'running' }), {
+        const disabled = harness(session({ id: 'session-1', agentActivityState: 'running' }), {
             ...defaultAppSettings,
             'agents.notifications.enabled': false,
         });
@@ -157,14 +157,14 @@ describe('Agent notification decisions', () => {
         await disabled.observe(
             session({
                 id: 'session-1',
-                attentionEpoch: 1,
+                attentionGeneration: 1,
                 hasUnread: true,
-                lastActivityState: 'waiting',
+                agentActivityState: 'waiting',
                 lastAttentionKind: 'waiting',
             }),
         );
         expect(disabled.decisions).toMatchObject([
-            { attentionEpoch: 1, attentionKind: 'waiting', outcome: 'disabled' },
+            { attentionGeneration: 1, attentionKind: 'waiting', outcome: 'disabled' },
         ]);
         expect(disabled.shown).toEqual([]);
     });

@@ -60,10 +60,10 @@ export class ProjectRootResolver {
     /**
      * Captures the authorized root before a durable operation crosses an asynchronous boundary.
      */
-    getSessionWorkbenchProjectId(sessionId: string): string {
+    getSessionWorkbenchRootProjectId(sessionId: string): string {
         const binding = this.database.getSessionWorkbenchBinding(sessionId);
         if (!binding) throw new CaxriError('NOT_FOUND', 'Session not found');
-        return binding.workbenchProjectId;
+        return binding.workbenchRootProjectId;
     }
 
     async resolveSessionPath(
@@ -81,7 +81,7 @@ export class ProjectRootResolver {
             if (rootStats.isSymbolicLink() || !rootStats.isDirectory())
                 throw new CaxriError('PATH_DENIED', 'Project root changed after it was selected');
             if (
-                binding.workbenchProjectId !== binding.projectId &&
+                binding.workbenchRootProjectId !== binding.projectId &&
                 !isSameWorkbenchRootIdentity(binding, { inode: rootStats.ino.toString() })
             )
                 throw new CaxriError('PATH_DENIED', 'Workbench root changed after authorization');
@@ -106,7 +106,7 @@ export class ProjectRootResolver {
              */
             if (
                 (error as NodeJS.ErrnoException).code === 'ENOENT' &&
-                binding.workbenchProjectId !== binding.projectId
+                binding.workbenchRootProjectId !== binding.projectId
             )
                 throw new CaxriError('CANCELLED', 'Workbench root is no longer available');
             throw error;

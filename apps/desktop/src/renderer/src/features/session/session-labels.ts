@@ -16,7 +16,7 @@ export interface SessionLabelInput {
     /**
      * The stored title. The stored placeholder (`DEFAULT_SESSION_TITLE`) means the Session is unnamed.
      */
-    displayTitle: string;
+    title: string;
     id: string;
     projectId: string;
     projectTitle: string;
@@ -55,8 +55,8 @@ const SESSION_LABEL_SNIPPET_LENGTH = 24;
  * sidebar never name a Session differently.
  */
 export function sessionLabelTitle(input: SessionLabelInput, untitledLabel: string): string {
-    const stored = input.displayTitle.trim();
-    if (stored !== '' && stored !== DEFAULT_SESSION_TITLE) return input.displayTitle;
+    const stored = input.title.trim();
+    if (stored !== '' && stored !== DEFAULT_SESSION_TITLE) return input.title;
     const snippet = input.promptSnippet?.trim().replaceAll(/\s+/g, ' ');
     if (snippet) {
         return snippet.length > SESSION_LABEL_SNIPPET_LENGTH

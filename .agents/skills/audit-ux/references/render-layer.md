@@ -234,7 +234,7 @@ Session-switch sample entirely. What remains is tracked rather than unexplained:
   reference". False: `mergeStructurally` keeps every unchanged record's identity. The second wrong
   answer over-corrected: a structural-sharing test that only changed `selectedSessionId` "proved"
   `sessions`/`projects` survive a switch. A real switch does more than that: the Server stamps
-  `lastOpenedAt` on the opened Session and on its Project, so both arrays and those two records
+  `lastVisitedAt` on the opened Session and on its Project, so both arrays and those two records
   arrive as new objects, while every other record and `terminals` keep their identity.
   `stores/structural-sharing.test.ts` now locks that real shape. A synthetic snapshot proves only
   what it contains; compare against the payload the interaction actually produces.
@@ -265,7 +265,7 @@ changed nothing**; its memoization was sound but everything it keyed on still mo
 identities reached every row on each switch:
 
 1. The `useSessionOrder` controller and the rename handlers depended on the `sessions` array, which
-   the `lastOpenedAt` stamp replaces, so the memoized objects were rebuilt anyway.
+   the `lastVisitedAt` stamp replaces, so the memoized objects were rebuilt anyway.
 2. Each row received the whole `project` record, which the same stamp replaces.
 3. Each row received an inline `onBeginRename` closure.
 4. Each row received its own freshly filtered `visibleSessions` array.

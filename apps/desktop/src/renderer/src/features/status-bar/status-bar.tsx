@@ -153,7 +153,7 @@ function ActivePaneStatus({
                 sessionId={session.id}
                 path={activeResource.path}
                 tier={fileStatusTier}
-                workbenchProjectId={session.workbenchProjectId}
+                workbenchRootProjectId={session.workbenchRootProjectId}
             />
         );
     if (activeResource?.kind === 'terminal')
@@ -198,12 +198,12 @@ function StatusBarContext({
                 <StatusItem
                     icon={<Monitor />}
                     ariaLabel={t('statusBar.project.openFiles', {
-                        name: workbenchProject.displayTitle,
+                        name: workbenchProject.title,
                     })}
                     title={workbenchProject.rootPath}
                     onClick={() => showSecondarySidebar('secondarySidebar.showFiles')}
                 >
-                    {workbenchProject.displayTitle}
+                    {workbenchProject.title}
                 </StatusItem>
             )}
             {/*

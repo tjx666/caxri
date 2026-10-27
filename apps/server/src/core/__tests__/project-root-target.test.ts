@@ -26,10 +26,10 @@ async function fixture() {
     const project: ProjectRecord = {
         id: 'project-1',
         rootPath,
-        displayTitle: 'Project',
+        title: 'Project',
         orderIndex: 0,
         createdAt: 1,
-        lastOpenedAt: 1,
+        lastVisitedAt: 1,
     };
     const state = { projects: [project], sessions: [], selectedSessionId: 'unrelated' };
     const request = vi.fn((method: string) => {

@@ -17,14 +17,14 @@ const CONVERSATION_ROOT_POLL_MS = 60_000;
 
 /**
  * `isOnOwnRoot`: the Session is still bound to its Project's root rather than a linked worktree, so the conversation
- * may recommend somewhere else. `workbenchProjectId` finds that root among the answer: the Server ranks a
+ * may recommend somewhere else. `workbenchRootProjectId` finds that root among the answer: the Server ranks a
  * recommendation only while it is the Git main worktree, so once a read shows it is not (a Project added at a linked
  * worktree, or a folder that is not a repository), the closed picker stops polling for a dot that can never appear.
  */
 export function useWorkbenchRootPicker(
     sessionId: string,
     isOnOwnRoot: boolean,
-    workbenchProjectId: string | undefined,
+    workbenchRootProjectId: string | undefined,
 ) {
     const [open, setOpen] = useState(false);
     const [all, setAll] = useState(false);
@@ -54,7 +54,7 @@ export function useWorkbenchRootPicker(
     const roots = rootsQuery.data;
     if (roots) {
         const isCurrentMain =
-            roots.find((root) => root.projectId === workbenchProjectId)?.isMain === true;
+            roots.find((root) => root.projectId === workbenchRootProjectId)?.isMain === true;
         if (canRecommend !== isCurrentMain) setCanRecommend(isCurrentMain);
     }
     const changeOpen = (isOpen: boolean) => {
@@ -71,7 +71,7 @@ export function useWorkbenchRootPicker(
     const select = async (root: WorkbenchRootOption) => {
         if (switching) return;
         setSwitching(true);
-        setSwitchingLabel(root.displayTitle);
+        setSwitchingLabel(root.title);
         setOpen(false);
         const selected = await awaitThenCleanup(selectWorkbenchRoot(sessionId, root), () =>
             setSwitching(false),

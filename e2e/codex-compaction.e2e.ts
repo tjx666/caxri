@@ -174,7 +174,7 @@ process.stdout.write('Compaction Agent ready\r\n');
         ).toMatchObject({ agentOperation: 'compacting' });
         expect(compactingState.sessions.find((session) => session.id === sessionId)).toMatchObject({
             hasUnread: false,
-            lastActivityState: 'running',
+            agentActivityState: 'running',
         });
 
         await expect(sessionCard(running.page, sessionId)).toHaveAccessibleDescription(

@@ -182,7 +182,7 @@ export const SessionDetailBody = ({
     const conversation = (
         <SessionConversationPane
             attention={attention(
-                session.lastActivityState === 'waiting' &&
+                session.agentActivityState === 'waiting' &&
                     session.primaryTerminal?.provider !== 'claude',
                 true,
             )}

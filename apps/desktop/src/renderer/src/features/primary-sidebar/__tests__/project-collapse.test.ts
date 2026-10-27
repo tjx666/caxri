@@ -11,13 +11,13 @@ import {
     reconcileProjectCollapse,
 } from '../project-collapse';
 
-const project = (id: string, lastOpenedAt: number): ProjectRecord => ({
+const project = (id: string, lastVisitedAt: number): ProjectRecord => ({
     id,
     rootPath: `/${id}`,
-    displayTitle: id,
+    title: id,
     orderIndex: 0,
-    createdAt: lastOpenedAt,
-    lastOpenedAt,
+    createdAt: lastVisitedAt,
+    lastVisitedAt,
 });
 
 const session = (
@@ -27,18 +27,18 @@ const session = (
 ): SessionRecord => ({
     id,
     projectId,
-    workbenchProjectId: projectId,
+    workbenchRootProjectId: projectId,
     rootPath: `/${projectId}`,
     createdAt: 1,
-    lastOpenedAt: 1,
+    lastVisitedAt: 1,
     sidebarOrder: 0,
-    lastSessionActivityAt: 1,
-    lastSessionActivityReason: 'created',
-    lastActivityState: 'idle',
-    attentionEpoch: 0,
-    readAttentionEpoch: 0,
+    sessionActivityAt: 1,
+    sessionActivityReason: 'created',
+    agentActivityState: 'idle',
+    attentionGeneration: 0,
+    acknowledgedAttentionGeneration: 0,
     hasUnread: false,
-    displayTitle: id,
+    title: id,
     titleMode: 'automatic',
     ...overrides,
 });
@@ -57,7 +57,7 @@ const policyInput = (overrides: Partial<Parameters<typeof projectCollapseAfterAu
         selectedSessionId: 'active-session',
         sessions: [
             session('active-session', 'active'),
-            session('running-session', 'running', { lastActivityState: 'running' }),
+            session('running-session', 'running', { agentActivityState: 'running' }),
             session('unread-session', 'unread', { hasUnread: true }),
             session('idle-session', 'idle'),
         ],

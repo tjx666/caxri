@@ -75,7 +75,7 @@ describe('Agent Terminal restart', () => {
             const homeDirectory = join(directory, 'home');
             if (provider === 'claude')
                 await writeClaudeTranscript(homeDirectory, canonicalProjectRoot, sessionId);
-            const createdActivityAt = created.session.lastSessionActivityAt;
+            const createdActivityAt = created.session.sessionActivityAt;
             const spawn = vi.fn<typeof spawnPty>(() => createFakePty());
             const logger = new StructuredLogger(join(directory, 'logs'));
             const execution = createTestTerminalExecution(logger, { spawn });
@@ -120,9 +120,9 @@ describe('Agent Terminal restart', () => {
                 const restartedSession = bootstrap.sessions.find(
                     (session) => session.id === created.session.id,
                 )!;
-                expect(restartedSession.lastSessionActivityAt).toBeGreaterThan(createdActivityAt);
-                expect(restartedSession.lastSessionActivityReason).toBe('agent_started');
-                expect(restartedSession.lastActivityState).toBe('idle');
+                expect(restartedSession.sessionActivityAt).toBeGreaterThan(createdActivityAt);
+                expect(restartedSession.sessionActivityReason).toBe('agent_started');
+                expect(restartedSession.agentActivityState).toBe('idle');
                 expect(
                     bootstrap.terminals.find((terminal) => terminal.id === created.terminal!.id),
                 ).toMatchObject({

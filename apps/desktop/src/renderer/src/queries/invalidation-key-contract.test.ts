@@ -38,7 +38,7 @@ const TREE_SCOPE: ExtensionTreeScope = {
     extensionGeneration: 1,
     sessionId: SESSION_ID,
     viewId: 'ext.tree',
-    workbenchProjectId: PROJECT_ID,
+    workbenchRootProjectId: PROJECT_ID,
 };
 
 afterEach(() => {
@@ -50,7 +50,7 @@ function seedWorkbench(): void {
     useWorkbenchStore.setState({
         bootstrap: {
             selectedSessionId: SESSION_ID,
-            sessions: [{ id: SESSION_ID, workbenchProjectId: PROJECT_ID }],
+            sessions: [{ id: SESSION_ID, workbenchRootProjectId: PROJECT_ID }],
             sessionStates: [],
             terminals: [],
         } as unknown as BootstrapState,
@@ -97,7 +97,7 @@ describe('invalidation predicates match factory-built query keys', () => {
                 event: 'files.changed',
                 payload: {
                     sessionId: SESSION_ID,
-                    workbenchProjectId: PROJECT_ID,
+                    workbenchRootProjectId: PROJECT_ID,
                     overflow: false,
                     changes: [{ path: '/project-p/src/file.ts', kind: 'update' }],
                 },
@@ -264,7 +264,7 @@ describe('invalidation predicates match factory-built query keys', () => {
                 context: {
                     kind: 'session',
                     sessionId: SESSION_ID,
-                    workbenchProjectId: PROJECT_ID,
+                    workbenchRootProjectId: PROJECT_ID,
                 },
             },
         } as ServerEvent);

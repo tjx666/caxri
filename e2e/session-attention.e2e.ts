@@ -14,10 +14,10 @@ import {
 } from './support/helpers.ts';
 
 interface SessionSummary {
-    attentionEpoch: number;
+    attentionGeneration: number;
     hasUnread: boolean;
     id: string;
-    lastActivityState: string;
+    agentActivityState: string;
 }
 
 async function writeClaudeMetadata(
@@ -71,13 +71,13 @@ const resumeIndex = process.argv.indexOf('--resume');
 const command = process.argv.at(-1) ?? '';
 if (resumeIndex >= 0 && command.startsWith('/rename ')) {
   const sessionId = process.argv[resumeIndex + 1];
-  const displayTitle = command.slice('/rename '.length);
+  const title = command.slice('/rename '.length);
   const metadataPath = path.join(process.env.CLAUDE_CONFIG_DIR, 'sessions', 'session.json');
   const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf8'));
-  fs.writeFileSync(metadataPath, JSON.stringify({ ...metadata, name: displayTitle }), 'utf8');
+  fs.writeFileSync(metadataPath, JSON.stringify({ ...metadata, name: title }), 'utf8');
   process.stdout.write(JSON.stringify({
     is_error: false,
-    result: 'Session renamed to: ' + displayTitle,
+    result: 'Session renamed to: ' + title,
     session_id: sessionId,
     subtype: 'success',
     type: 'result',
@@ -118,12 +118,12 @@ setInterval(() => {
                     'app.bootstrap',
                 );
                 return state.sessions.find((session) => session.id === firstSession.id)
-                    ?.lastActivityState;
+                    ?.agentActivityState;
             })
             .toBe('running');
         const longTitle = `First Agent ${'with a long explanatory Session title '.repeat(4)}`;
         await pageRequest(running.page, 'session.rename', {
-            displayTitle: longTitle,
+            title: longTitle,
             sessionId: firstSession.id,
         });
 

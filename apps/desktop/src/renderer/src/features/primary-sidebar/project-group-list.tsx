@@ -71,7 +71,7 @@ export function ProjectGroupList({
                 onDragOver={(event) => projectOrder.updateDropTarget(event, project.id)}
                 onDragStart={(event) => projectOrder.startDrag(event, project.id)}
                 onDrop={(event) => projectOrder.drop(event, project.id)}
-                onMove={(delta) => projectOrder.move(project.id, project.displayTitle, delta)}
+                onMove={(delta) => projectOrder.move(project.id, project.title, delta)}
                 onRenameValueChange={sessionRename.onRenameValueChange}
                 onRevealMoreSessions={() => onRevealMoreSessions(sessionWindow)}
                 onToggle={() => onToggleProject(project.id)}

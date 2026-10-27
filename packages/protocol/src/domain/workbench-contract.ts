@@ -35,7 +35,7 @@ export const workbenchMethods = {
         ...commandPolicy('server', 'write'),
         params: z.object({
             sessionId: identifierSchema,
-            workbenchProjectId: identifierSchema,
+            workbenchRootProjectId: identifierSchema,
             path: pathSchema,
         }),
         result: z.null(),

@@ -141,7 +141,7 @@ export class TerminalResourceMonitor {
                 {
                     terminalId: terminal.id,
                     sessionId: terminal.sessionId,
-                    sessionTitle: (session?.displayTitle ?? '').slice(0, MAX_TITLE_LENGTH),
+                    sessionTitle: (session?.title ?? '').slice(0, MAX_TITLE_LENGTH),
                     kind: terminal.kind,
                     provider: terminal.provider,
                     title: terminal.title.slice(0, MAX_TITLE_LENGTH),

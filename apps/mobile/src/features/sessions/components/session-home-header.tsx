@@ -23,7 +23,7 @@ import type { useSessionPolling } from '../hooks/use-session-polling';
 
 type Project = ReturnType<typeof useSessionPolling>['projects'][number];
 interface ProjectChoice {
-    displayTitle: string;
+    title: string;
     id: string | null;
 }
 
@@ -135,7 +135,7 @@ export const SessionHomeHeader = ({
     const menu = usePopoverAnchor(menuAnchor);
     const { close: closeMenu } = menu;
     const projectChoices: ProjectChoice[] = [
-        { id: null, displayTitle: t('sessions.home.allProjects') },
+        { id: null, title: t('sessions.home.allProjects') },
         ...projects,
     ];
     const renderProject = useCallback(
@@ -159,7 +159,7 @@ export const SessionHomeHeader = ({
                             { color: isSelected ? theme.primaryForeground : theme.text },
                         ]}
                     >
-                        {item.displayTitle}
+                        {item.title}
                     </Text>
                 </Pressable>
             );

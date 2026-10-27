@@ -48,30 +48,30 @@ export function hasSessionActivityChanged(
     const after = database.getSession(terminal.sessionId);
     if (
         !after ||
-        (after.lastActivityState === before.lastActivityState &&
-            after.attentionEpoch === before.attentionEpoch &&
-            after.readAttentionEpoch === before.readAttentionEpoch)
+        (after.agentActivityState === before.agentActivityState &&
+            after.attentionGeneration === before.attentionGeneration &&
+            after.acknowledgedAttentionGeneration === before.acknowledgedAttentionGeneration)
     )
         return hasChanged;
     logger.write('info', logEventCatalog.agent.sessionActivityChanged, {
         fields: {
-            attentionEpoch: after.attentionEpoch,
+            attentionGeneration: after.attentionGeneration,
             attentionKind: after.lastAttentionKind ?? null,
-            from: before.lastActivityState,
+            from: before.agentActivityState,
             phase: write.phase ?? null,
             provider: terminal.provider ?? null,
-            readAttentionEpoch: after.readAttentionEpoch,
+            acknowledgedAttentionGeneration: after.acknowledgedAttentionGeneration,
             sessionId: after.id,
             source: write.source,
             terminalId: write.terminalId,
-            to: after.lastActivityState,
+            to: after.agentActivityState,
         },
     });
-    if (after.lastActivityState !== before.lastActivityState)
+    if (after.agentActivityState !== before.agentActivityState)
         onTransition?.({
             sessionId: after.id,
-            from: before.lastActivityState,
-            to: after.lastActivityState,
+            from: before.agentActivityState,
+            to: after.agentActivityState,
         });
     return hasChanged;
 }

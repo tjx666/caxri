@@ -258,7 +258,7 @@ describe('controlled view operation scope', () => {
                 context: {
                     kind: 'session',
                     sessionId: 'session-1',
-                    workbenchProjectId: 'project-1',
+                    workbenchRootProjectId: 'project-1',
                 },
             }).success,
         ).toBe(true);
@@ -279,7 +279,7 @@ describe('controlled view operation scope', () => {
             context: {
                 kind: 'session' as const,
                 sessionId: 'session-1',
-                workbenchProjectId: 'project-1',
+                workbenchRootProjectId: 'project-1',
             },
             operation: 'source.snapshot' as const,
             arguments: { refresh: 0 },
@@ -308,7 +308,7 @@ describe('controlled view operation scope', () => {
             context: {
                 kind: 'session' as const,
                 sessionId: 'session-1',
-                workbenchProjectId: 'project-1',
+                workbenchRootProjectId: 'project-1',
             },
             operation: 'source.historyPage' as const,
             arguments: {

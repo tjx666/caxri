@@ -38,7 +38,7 @@ const MAX_TREE_SCOPES_PER_VIEW = 64;
 
 export function treeScopeKey(context: ExtensionViewEventScope | undefined): string {
     return context?.kind === 'session'
-        ? `${context.sessionId}:${context.workbenchProjectId}`
+        ? `${context.sessionId}:${context.workbenchRootProjectId}`
         : 'no-session';
 }
 

@@ -19,34 +19,35 @@ import { SourceControlContent } from './source-control-content';
  */
 export function SourceControlView() {
     const { viewId } = useControlledView();
-    const { sessionId, workbenchProjectId } = useHeldWhileHidden(
+    const { sessionId, workbenchRootProjectId } = useHeldWhileHidden(
         useSessionViewScope(),
         isSameSessionViewScope,
     );
     const persisted = useSourceControlViewState(viewId);
     const scope = useMemo<SourceControlNavigationScope | undefined>(
         () =>
-            sessionId && workbenchProjectId
+            sessionId && workbenchRootProjectId
                 ? {
                       sessionId,
                       viewId,
-                      workbenchProjectId,
+                      workbenchRootProjectId,
                   }
                 : undefined,
-        [sessionId, viewId, workbenchProjectId],
+        [sessionId, viewId, workbenchRootProjectId],
     );
     const scopeKey = scope
-        ? `${scope.sessionId}\0${scope.workbenchProjectId}\0${scope.viewId}`
+        ? `${scope.sessionId}\0${scope.workbenchRootProjectId}\0${scope.viewId}`
         : `empty\0${viewId}`;
     return <ScopedSourceControlView key={scopeKey} persisted={persisted} scope={scope} />;
 }
 
 function isSameSessionViewScope(
-    left: { sessionId?: string; workbenchProjectId?: string },
-    right: { sessionId?: string; workbenchProjectId?: string },
+    left: { sessionId?: string; workbenchRootProjectId?: string },
+    right: { sessionId?: string; workbenchRootProjectId?: string },
 ): boolean {
     return (
-        left.sessionId === right.sessionId && left.workbenchProjectId === right.workbenchProjectId
+        left.sessionId === right.sessionId &&
+        left.workbenchRootProjectId === right.workbenchRootProjectId
     );
 }
 

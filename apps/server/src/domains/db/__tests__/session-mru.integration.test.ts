@@ -19,11 +19,11 @@ describe('Session MRU persistence', () => {
 
         try {
             database.selectSession(first.id);
-            const firstOpenedAt = database.getSession(first.id)!.lastOpenedAt;
+            const firstOpenedAt = database.getSession(first.id)!.lastVisitedAt;
             database.selectSession(second.id);
-            const secondOpenedAt = database.getSession(second.id)!.lastOpenedAt;
+            const secondOpenedAt = database.getSession(second.id)!.lastVisitedAt;
             database.selectSession(first.id);
-            const reopenedAt = database.getSession(first.id)!.lastOpenedAt;
+            const reopenedAt = database.getSession(first.id)!.lastVisitedAt;
 
             expect(secondOpenedAt).toBeGreaterThan(firstOpenedAt);
             expect(reopenedAt).toBeGreaterThan(secondOpenedAt);

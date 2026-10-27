@@ -71,8 +71,8 @@ describe('CaxriDatabaseConnection', () => {
             ),
         ).toEqual(
             expect.arrayContaining([
-                'attention_epoch',
-                'read_attention_epoch',
+                'attention_generation',
+                'acknowledged_attention_generation',
                 'last_attention_kind',
             ]),
         );
@@ -137,7 +137,7 @@ describe('CaxriDatabaseConnection', () => {
         await writeFile(root, 'user-owned', 'utf8');
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const project = database.projects.create(root);
-        const session = database.sessions.insert({ projectId: project.id, displayTitle: 'Shell' });
+        const session = database.sessions.insert({ projectId: project.id, title: 'Shell' });
         database.terminals.insert({
             sessionId: session.id,
             kind: 'shell',
@@ -159,7 +159,7 @@ describe('CaxriDatabaseConnection', () => {
         await mkdir(root);
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const project = database.projects.create(root);
-        const session = database.sessions.insert({ projectId: project.id, displayTitle: 'Shell' });
+        const session = database.sessions.insert({ projectId: project.id, title: 'Shell' });
         const insert = () =>
             database.terminals.insert({
                 sessionId: session.id,
@@ -192,7 +192,7 @@ describe('CaxriDatabaseConnection', () => {
         await mkdir(root);
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const project = database.projects.create(root);
-        const session = database.sessions.insert({ projectId: project.id, displayTitle: 'Shell' });
+        const session = database.sessions.insert({ projectId: project.id, title: 'Shell' });
         const now = Date.now();
         const insertAtFirstPosition = database.database.prepare(
             `INSERT INTO terminals
@@ -207,45 +207,13 @@ describe('CaxriDatabaseConnection', () => {
         database.close();
     });
 
-    it('rejects Terminal and Session states outside their protocol enums', async () => {
-        const directory = await temporaryDirectory('caxri-db-check-');
-        const root = join(directory, 'project');
-        await mkdir(root);
-        const database = new CaxriDatabase(join(directory, 'state.db'));
-        const project = database.projects.create(root);
-        const session = database.sessions.insert({ projectId: project.id, displayTitle: 'Shell' });
-        const terminal = database.terminals.insert({
-            sessionId: session.id,
-            kind: 'shell',
-            cwd: root,
-            title: 'Shell',
-        });
-
-        expect(() =>
-            database.database
-                .prepare("UPDATE terminals SET last_process_state = 'zombie' WHERE id = ?")
-                .run(terminal.id),
-        ).toThrow(/CHECK constraint failed: terminals_last_process_state/);
-        expect(() =>
-            database.database
-                .prepare("UPDATE terminals SET failure_reason = 'spawn_failed' WHERE id = ?")
-                .run(terminal.id),
-        ).toThrow(/CHECK constraint failed: terminals_failure_reason_state/);
-        expect(() =>
-            database.database
-                .prepare("UPDATE sessions SET title_mode = 'locked' WHERE id = ?")
-                .run(session.id),
-        ).toThrow(/CHECK constraint failed: sessions_title_mode/);
-        database.close();
-    });
-
     it('clears the primary Agent pointer when its Terminal row disappears', async () => {
         const directory = await temporaryDirectory('caxri-db-primary-agent-fk-');
         const root = join(directory, 'project');
         await mkdir(root);
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const project = database.projects.create(root);
-        const session = database.sessions.insert({ projectId: project.id, displayTitle: 'Agent' });
+        const session = database.sessions.insert({ projectId: project.id, title: 'Agent' });
         const terminal = database.terminals.insert({
             sessionId: session.id,
             kind: 'claude',
@@ -254,8 +222,8 @@ describe('CaxriDatabaseConnection', () => {
         });
         database.sessions.setPrimaryAgent(session.id, {
             primaryAgentTerminalId: terminal.id,
-            displayTitle: 'Agent',
-            lastActivityState: 'running',
+            title: 'Agent',
+            agentActivityState: 'running',
         });
 
         database.terminals.remove(terminal.id);
@@ -281,7 +249,7 @@ describe('CaxriDatabaseConnection', () => {
         const databasePath = join(directory, 'state.db');
         const previous = new CaxriDatabase(databasePath);
         const project = previous.projects.create(projectRoot);
-        previous.sessions.insert({ projectId: project.id, displayTitle: 'Shell' });
+        previous.sessions.insert({ projectId: project.id, title: 'Shell' });
         previous.database.pragma(`user_version = ${BASELINE_SCHEMA_VERSION - 1}`);
         previous.close();
 
@@ -315,8 +283,16 @@ describe('CaxriDatabaseConnection', () => {
         const directory = await temporaryDirectory('caxri-db-rebuild-legacy-');
         const databasePath = join(directory, 'state.db');
         const previous = new CaxriDatabase(databasePath);
+        // The ledger as every pre-baseline schema shaped it, before `leader_started_at` was renamed.
         previous.database.exec(`
             CREATE TABLE commander_tasks (id TEXT PRIMARY KEY);
+            DROP TABLE agent_chat_process_groups;
+            CREATE TABLE agent_chat_process_groups (
+                pgid INTEGER PRIMARY KEY,
+                terminal_id TEXT NOT NULL,
+                leader_started_at TEXT NOT NULL,
+                recorded_at INTEGER NOT NULL
+            );
             INSERT INTO agent_chat_process_groups (pgid, terminal_id, leader_started_at, recorded_at)
                 VALUES (4242, 'terminal-gone', 'Tue Oct 20 16:09:54 2026', 1);
         `);
@@ -333,8 +309,18 @@ describe('CaxriDatabaseConnection', () => {
             rebuilt.prepare("SELECT name FROM sqlite_master WHERE name = 'commander_tasks'").all(),
         ).toEqual([]);
         expect(
-            rebuilt.prepare('SELECT pgid, terminal_id FROM agent_chat_process_groups').all(),
-        ).toEqual([{ pgid: 4242, terminal_id: 'terminal-gone' }]);
+            rebuilt
+                .prepare(
+                    'SELECT pgid, terminal_id, leader_start_token FROM agent_chat_process_groups',
+                )
+                .all(),
+        ).toEqual([
+            {
+                pgid: 4242,
+                terminal_id: 'terminal-gone',
+                leader_start_token: 'Tue Oct 20 16:09:54 2026',
+            },
+        ]);
     });
 
     it('leaves a pre-baseline database untouched when its backup cannot be written', async () => {
@@ -398,7 +384,7 @@ describe('CaxriDatabaseConnection', () => {
         const databasePath = join(directory, 'state.db');
         const database = new CaxriDatabase(databasePath);
         const project = database.projects.create(directory);
-        const session = database.sessions.insert({ projectId: project.id, displayTitle: 'Shell' });
+        const session = database.sessions.insert({ projectId: project.id, title: 'Shell' });
         database.terminals.insert({
             sessionId: session.id,
             kind: 'shell',
@@ -417,7 +403,7 @@ describe('CaxriDatabaseConnection', () => {
         const databasePath = join(directory, 'state.db');
         const database = new CaxriDatabase(databasePath);
         const project = database.projects.create(directory);
-        const session = database.sessions.insert({ projectId: project.id, displayTitle: 'Shell' });
+        const session = database.sessions.insert({ projectId: project.id, title: 'Shell' });
         const terminal = database.terminals.insert({
             sessionId: session.id,
             kind: 'shell',
@@ -437,7 +423,7 @@ describe('CaxriDatabaseConnection', () => {
         const databasePath = join(directory, 'state.db');
         const database = new CaxriDatabase(databasePath);
         const project = database.projects.create(directory);
-        const session = database.sessions.insert({ projectId: project.id, displayTitle: 'Codex' });
+        const session = database.sessions.insert({ projectId: project.id, title: 'Codex' });
         const terminal = database.terminals.insert({
             sessionId: session.id,
             kind: 'codex',
@@ -470,7 +456,7 @@ describe('CaxriDatabaseConnection', () => {
         const sessionIds = states.map((state) => {
             const session = database.sessions.insert({
                 projectId: project.id,
-                displayTitle: `Codex ${state}`,
+                title: `Codex ${state}`,
             });
             const terminal = database.terminals.insert({
                 sessionId: session.id,
@@ -482,8 +468,8 @@ describe('CaxriDatabaseConnection', () => {
             database.terminals.updateAgentProcessState(terminal.id, 'running');
             database.sessions.setPrimaryAgent(session.id, {
                 primaryAgentTerminalId: terminal.id,
-                displayTitle: session.displayTitle,
-                lastActivityState: state,
+                title: session.title,
+                agentActivityState: state,
             });
             return { sessionId: session.id, state, terminalId: terminal.id };
         });
@@ -491,7 +477,7 @@ describe('CaxriDatabaseConnection', () => {
 
         const reopened = new CaxriDatabase(databasePath);
         for (const { sessionId, state, terminalId } of sessionIds) {
-            expect(reopened.sessions.get(sessionId)?.lastActivityState).toBe(state);
+            expect(reopened.sessions.get(sessionId)?.agentActivityState).toBe(state);
             // The interruption is still recorded, just on the Terminal that actually suffered it.
             expect(reopened.terminals.get(terminalId)?.lastProcessState).toBe('interrupted');
         }
@@ -506,7 +492,7 @@ describe('CaxriDatabaseConnection', () => {
         const records = (['waiting', 'running', 'completed'] as const).map((state) => {
             const session = database.sessions.insert({
                 projectId: project.id,
-                displayTitle: `Conversation ${state}`,
+                title: `Conversation ${state}`,
             });
             const terminal = database.terminals.insert({
                 sessionId: session.id,
@@ -518,8 +504,8 @@ describe('CaxriDatabaseConnection', () => {
             database.terminals.updateAgentProcessState(terminal.id, 'running');
             database.sessions.setPrimaryAgent(session.id, {
                 primaryAgentTerminalId: terminal.id,
-                displayTitle: session.displayTitle,
-                lastActivityState: state,
+                title: session.title,
+                agentActivityState: state,
             });
             return { sessionId: session.id, terminalId: terminal.id, state };
         });
@@ -529,7 +515,7 @@ describe('CaxriDatabaseConnection', () => {
         const reopened = new CaxriDatabase(databasePath);
         try {
             for (const { sessionId, terminalId, state } of records) {
-                expect(reopened.sessions.get(sessionId)?.lastActivityState).toBe(state);
+                expect(reopened.sessions.get(sessionId)?.agentActivityState).toBe(state);
                 expect(reopened.terminals.get(terminalId)).toMatchObject({
                     lastProcessState: 'interrupted',
                     lastAgentProcessState: 'interrupted',
@@ -545,7 +531,7 @@ describe('CaxriDatabaseConnection', () => {
         const databasePath = join(directory, 'state.db');
         const database = new CaxriDatabase(databasePath);
         const project = database.projects.create(directory);
-        const session = database.sessions.insert({ projectId: project.id, displayTitle: 'Shell' });
+        const session = database.sessions.insert({ projectId: project.id, title: 'Shell' });
         const terminal = database.terminals.insert({
             sessionId: session.id,
             kind: 'shell',

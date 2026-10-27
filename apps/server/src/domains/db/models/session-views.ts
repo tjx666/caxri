@@ -9,8 +9,8 @@ import { sessions } from '../schema';
 /**
  * `sessions.last_viewed_at`: when the user last stopped looking at each Session in a focused, visible Desktop window.
  * Window presence writes it; Clients read it back as `SessionRecord.lastViewedAt`, the "since you last looked" boundary
- * a restarted Renderer starts from. It is deliberately neither the Session Activity clock nor `last_opened_at`: looking
- * is neither work nor a visit, and must not reorder the sidebar or republish the Session.
+ * a restarted Renderer starts from. It is deliberately neither the Session Activity clock nor `last_visited_at`:
+ * looking is neither work nor a visit, and must not reorder the sidebar or republish the Session.
  */
 export class SessionViewsModel {
     private readonly database: CaxriDrizzleDatabase;

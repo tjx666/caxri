@@ -21,8 +21,10 @@ const TREE: Record<string, Array<{ kind: 'directory' | 'file'; name: string }>> 
 function answer(method: string, parameters?: unknown): unknown {
     if (method === 'app.bootstrap')
         return {
-            projects: [{ id: 'project', displayTitle: 'project', rootPath: ROOT }],
-            sessions: [{ id: 'session-1', projectId: 'project', workbenchProjectId: 'project' }],
+            projects: [{ id: 'project', title: 'project', rootPath: ROOT }],
+            sessions: [
+                { id: 'session-1', projectId: 'project', workbenchRootProjectId: 'project' },
+            ],
         };
     const input = parameters as { directory?: string; path?: string };
     if (method === 'files.browse')

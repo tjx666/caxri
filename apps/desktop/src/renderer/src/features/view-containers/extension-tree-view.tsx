@@ -103,19 +103,19 @@ export function ExtensionTreeView({
     viewId: string;
 }) {
     const { t } = useTranslation();
-    const { sessionId, workbenchProjectId } = useSessionViewScope();
+    const { sessionId, workbenchRootProjectId } = useSessionViewScope();
     const persisted = useExtensionTreeViewState(viewId);
     const scope = useMemo(
         () =>
-            sessionId && workbenchProjectId
+            sessionId && workbenchRootProjectId
                 ? {
                       sessionId,
-                      workbenchProjectId,
+                      workbenchRootProjectId,
                       extensionGeneration,
                       viewId,
                   }
                 : undefined,
-        [extensionGeneration, sessionId, viewId, workbenchProjectId],
+        [extensionGeneration, sessionId, viewId, workbenchRootProjectId],
     );
     const refreshAction = actions?.find(({ role }) => role === 'resource.refresh');
     if (!scope)
@@ -137,7 +137,7 @@ export function ExtensionTreeView({
     return (
         <LoadingSkeletonScope>
             <ExtensionTreeViewContent
-                key={`${scope.sessionId}\0${scope.workbenchProjectId}\0${scope.extensionGeneration}\0${viewId}`}
+                key={`${scope.sessionId}\0${scope.workbenchRootProjectId}\0${scope.extensionGeneration}\0${viewId}`}
                 persisted={persisted}
                 refreshAction={refreshAction}
                 scope={scope}
@@ -187,7 +187,7 @@ function ExtensionTreeViewContent({
     refreshAction?: ViewActionDescriptor;
     scope: {
         sessionId: string;
-        workbenchProjectId: string;
+        workbenchRootProjectId: string;
         extensionGeneration: number;
         viewId: string;
     };

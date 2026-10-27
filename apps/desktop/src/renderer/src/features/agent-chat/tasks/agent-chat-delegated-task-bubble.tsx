@@ -36,7 +36,7 @@ function DelegatedTaskSource({ task }: { task: AgentChatDelegatedTask }) {
         source &&
         resolveSessionCreator({ createdBySessionId: source.sessionId }, sessions ?? [], undefined);
     if (creator?.kind === 'session') {
-        const title = sessionTitleForDisplay(creator.session.displayTitle, t);
+        const title = sessionTitleForDisplay(creator.session.title, t);
         return (
             <>
                 {by}

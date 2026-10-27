@@ -37,7 +37,7 @@ export async function sweepWorkbenchRoots(options: SweepOptions): Promise<void> 
     let bindingCount = 0;
     for (const session of sessions) {
         const binding = options.database.getSessionWorkbenchBinding(session.id);
-        if (!binding || binding.workbenchProjectId === binding.projectId) continue;
+        if (!binding || binding.workbenchRootProjectId === binding.projectId) continue;
         const entries = groups.get(binding.projectId) ?? [];
         entries.push({ binding, sessionId: session.id });
         groups.set(binding.projectId, entries);

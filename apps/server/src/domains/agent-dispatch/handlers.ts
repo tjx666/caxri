@@ -106,15 +106,18 @@ export function createAgentCommandHandlers(
         }),
         'agent.control.interruptInternal': ({ endpoint }) => signalAgent(endpoint, 'SIGINT'),
         'agent.control.stopInternal': ({ endpoint }) => signalAgent(endpoint, 'SIGHUP'),
-        'terminal.sendInternal': async ({ attentionEpoch, enter, terminalId, text }, signal) => {
+        'terminal.sendInternal': async (
+            { attentionGeneration, enter, terminalId, text },
+            signal,
+        ) => {
             if (signal?.aborted) throw new CaxriError('CANCELLED', 'Terminal input was canceled');
             // Before an attention reply is consumed: a Chat takes a message and answers through `agentChat.respond`.
             const target = options.database.getTerminal(terminalId);
             if (target && isChatTerminal(target))
-                return sendToChat(options.agentChat, target, { attentionEpoch, enter, text });
+                return sendToChat(options.agentChat, target, { attentionGeneration, enter, text });
             let claimedSessionId: string | undefined;
             let claimedActivityAt: number | undefined;
-            if (attentionEpoch !== undefined) {
+            if (attentionGeneration !== undefined) {
                 const terminal = options.database.getTerminal(terminalId);
                 const session = terminal
                     ? options.database.getSession(terminal.sessionId)
@@ -124,8 +127,8 @@ export function createAgentCommandHandlers(
                     !terminal ||
                     terminal.kind === 'shell' ||
                     session.primaryAgentTerminalId !== terminalId ||
-                    session.lastActivityState !== 'waiting' ||
-                    session.attentionEpoch !== attentionEpoch
+                    session.agentActivityState !== 'waiting' ||
+                    session.attentionGeneration !== attentionGeneration
                 )
                     throw new CaxriError(
                         'CONFLICT',
@@ -135,7 +138,7 @@ export function createAgentCommandHandlers(
                     !options.database.consumeSessionAttentionReply(
                         session.id,
                         terminalId,
-                        attentionEpoch,
+                        attentionGeneration,
                     )
                 )
                     throw new CaxriError(
@@ -143,7 +146,7 @@ export function createAgentCommandHandlers(
                         'Agent attention changed before the reply was accepted',
                     );
                 claimedSessionId = session.id;
-                claimedActivityAt = session.lastSessionActivityAt;
+                claimedActivityAt = session.sessionActivityAt;
             }
             const data = `${text}${enter ? '\r' : ''}`;
             const isRunning = options.terminals.processId(terminalId) !== undefined;
@@ -152,25 +155,25 @@ export function createAgentCommandHandlers(
                 if (signal?.aborted)
                     throw new CaxriError('CANCELLED', 'Terminal input was canceled');
                 didWrite =
-                    attentionEpoch === undefined
+                    attentionGeneration === undefined
                         ? options.terminals.write(terminalId, data)
                         : await options.terminals.writeAgent(terminalId, data, signal);
             } catch (error) {
-                if (claimedSessionId && attentionEpoch !== undefined)
+                if (claimedSessionId && attentionGeneration !== undefined)
                     options.database.releaseSessionAttentionReply(
                         claimedSessionId,
                         terminalId,
-                        attentionEpoch,
+                        attentionGeneration,
                         claimedActivityAt!,
                     );
                 throw error;
             }
             if (!didWrite) {
-                if (claimedSessionId && attentionEpoch !== undefined)
+                if (claimedSessionId && attentionGeneration !== undefined)
                     options.database.releaseSessionAttentionReply(
                         claimedSessionId,
                         terminalId,
-                        attentionEpoch,
+                        attentionGeneration,
                         claimedActivityAt!,
                     );
                 throw new CaxriError('UNAVAILABLE', 'Terminal is no longer running');

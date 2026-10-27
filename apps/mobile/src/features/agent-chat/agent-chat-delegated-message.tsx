@@ -49,7 +49,7 @@ function DelegatedTaskSource({
                 {t('chat.delegated.task')}
             </Text>
         );
-    const title = sessionTitleForDisplay(session.displayTitle, t);
+    const title = sessionTitleForDisplay(session.title, t);
     const open = (): void => {
         sessions.selectSession(session.id);
         const href =

@@ -278,7 +278,7 @@ export class BenchmarkService {
         if (workspace.kind === 'project') {
             const project = this.options.database.getProject(workspace.projectId);
             if (!project) throw new CaxriError('NOT_FOUND', 'Project not found');
-            projectTitle = project.displayTitle.slice(0, 200);
+            projectTitle = project.title.slice(0, 200);
             try {
                 const located = await this.workspaces.locateProject(project.rootPath);
                 baseCommit = located.head;

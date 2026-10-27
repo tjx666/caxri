@@ -147,7 +147,7 @@ describe('Runtime Agent hook integration', () => {
                 projectId: project.id,
                 defaultAgent: 'codex',
             });
-            const backgroundCreatedAt = background.session.lastSessionActivityAt;
+            const backgroundCreatedAt = background.session.sessionActivityAt;
             const selected = await runtime.handlers['session.create']({
                 projectId: project.id,
                 defaultAgent: 'shell',
@@ -205,7 +205,7 @@ describe('Runtime Agent hook integration', () => {
                         sessionIds: [background.session.id],
                         terminalIds: [],
                     })
-                ).sessions[0]?.lastActivityState,
+                ).sessions[0]?.agentActivityState,
             ).toBe('idle');
             await execFileAsync(
                 bridge,
@@ -221,7 +221,7 @@ describe('Runtime Agent hook integration', () => {
                     return { session: records.sessions[0], terminal: records.terminals[0] };
                 })
                 .toMatchObject({
-                    session: { attentionEpoch: 0, hasUnread: false },
+                    session: { attentionGeneration: 0, hasUnread: false },
                     terminal: { agentOperation: 'compacting' },
                 });
             expect(
@@ -270,9 +270,9 @@ describe('Runtime Agent hook integration', () => {
                 })
                 .toMatchObject({
                     hasUnread: true,
-                    lastActivityState: 'completed',
+                    agentActivityState: 'completed',
                     lastAttentionKind: 'completed',
-                    lastSessionActivityReason: 'agent_completed',
+                    sessionActivityReason: 'agent_completed',
                 });
             expect(
                 (
@@ -280,7 +280,7 @@ describe('Runtime Agent hook integration', () => {
                         sessionIds: [background.session.id],
                         terminalIds: [],
                     })
-                ).sessions[0]?.lastSessionActivityAt,
+                ).sessions[0]?.sessionActivityAt,
             ).toBeGreaterThan(backgroundCreatedAt);
 
             /**
@@ -315,7 +315,7 @@ describe('Runtime Agent hook integration', () => {
                         sessionIds: [background.session.id],
                         terminalIds: [],
                     })
-                ).sessions[0]?.lastActivityState,
+                ).sessions[0]?.agentActivityState,
             ).toBe('running');
             await runtime.handlers['terminal.close']({ terminalId: background.terminal!.id });
             const closed = await execFileAsync(
@@ -398,9 +398,9 @@ describe('Runtime Agent hook integration', () => {
                     return records.sessions[0];
                 })
                 .toMatchObject({
-                    attentionEpoch: 0,
+                    attentionGeneration: 0,
                     hasUnread: false,
-                    lastActivityState: 'running',
+                    agentActivityState: 'running',
                 });
 
             const subagentStarted = execFileAsync(
@@ -436,9 +436,9 @@ describe('Runtime Agent hook integration', () => {
             ).toMatchObject({
                 sessions: [
                     {
-                        attentionEpoch: 0,
+                        attentionGeneration: 0,
                         hasUnread: false,
-                        lastActivityState: 'running',
+                        agentActivityState: 'running',
                     },
                 ],
                 terminals: [{ agentSessionId: undefined, agentOperation: 'background' }],
@@ -485,7 +485,9 @@ describe('Runtime Agent hook integration', () => {
                     terminalIds: [],
                 }),
             ).toMatchObject({
-                sessions: [{ attentionEpoch: 0, hasUnread: false, lastActivityState: 'running' }],
+                sessions: [
+                    { attentionGeneration: 0, hasUnread: false, agentActivityState: 'running' },
+                ],
             });
 
             await execFileAsync(
@@ -517,9 +519,9 @@ describe('Runtime Agent hook integration', () => {
                     return records.sessions[0];
                 })
                 .toMatchObject({
-                    attentionEpoch: 1,
+                    attentionGeneration: 1,
                     hasUnread: true,
-                    lastActivityState: 'completed',
+                    agentActivityState: 'completed',
                     lastAttentionKind: 'completed',
                 });
         } finally {

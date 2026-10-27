@@ -54,7 +54,7 @@ function issueSummaryCall(
                 context: {
                     kind: 'session',
                     sessionId: 'session-1',
-                    workbenchProjectId: 'project-1',
+                    workbenchRootProjectId: 'project-1',
                 },
             },
         },
@@ -81,7 +81,7 @@ function expireIssuedCall(sent: ExtensionHostMessage[]): void {
 const viewContext = {
     kind: 'session' as const,
     sessionId: 'session-1',
-    workbenchProjectId: 'project-1',
+    workbenchRootProjectId: 'project-1',
 };
 
 describe('Extension Host failure classification', () => {

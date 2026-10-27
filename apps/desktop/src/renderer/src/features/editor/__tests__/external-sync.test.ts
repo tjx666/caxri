@@ -37,12 +37,12 @@ const nextPath = '/project/new.ts';
 function sessionState(
     sessionId: string,
     path: string,
-    workbenchProjectId = 'project-1',
+    workbenchRootProjectId = 'project-1',
 ): SessionState {
     return {
         sessionId,
         revision: 0,
-        workbenchProjectId,
+        workbenchRootProjectId,
         desiredSecondarySidebarViewContainerId: 'caxri.files',
         paneLayout: {
             root: {
@@ -68,12 +68,12 @@ beforeEach(() => {
                 {
                     id: 'session-1',
                     projectId: 'project-1',
-                    workbenchProjectId: 'project-1',
+                    workbenchRootProjectId: 'project-1',
                 },
                 {
                     id: 'session-2',
                     projectId: 'project-1',
-                    workbenchProjectId: 'project-1',
+                    workbenchRootProjectId: 'project-1',
                 },
             ],
             sessionStates: [
@@ -121,7 +121,7 @@ describe('subscribeExternalDocumentSync', () => {
                 ...state.bootstrap!,
                 sessions: state.bootstrap!.sessions.map((session) =>
                     session.id === 'session-1'
-                        ? { ...session, workbenchProjectId: worktreeProjectId }
+                        ? { ...session, workbenchRootProjectId: worktreeProjectId }
                         : session,
                 ),
                 sessionStates: state.bootstrap!.sessionStates.map((current) =>
@@ -199,7 +199,7 @@ describe('subscribeExternalDocumentSync', () => {
             event: 'files.changed',
             payload: {
                 sessionId: 'session-1',
-                workbenchProjectId: 'project-1',
+                workbenchRootProjectId: 'project-1',
                 overflow: false,
                 changes: [{ kind: 'update', path: '/project/first.ts' }],
             },
@@ -264,7 +264,7 @@ describe('subscribeExternalDocumentSync', () => {
             event: 'files.changed',
             payload: {
                 sessionId: 'session-1',
-                workbenchProjectId: 'project-1',
+                workbenchRootProjectId: 'project-1',
                 overflow: true,
                 changes: [{ kind: 'update', path: paths[0] }],
             },
@@ -310,7 +310,7 @@ describe('subscribeExternalDocumentSync', () => {
             event: 'files.changed',
             payload: {
                 sessionId: 'session-1',
-                workbenchProjectId: 'project-1',
+                workbenchRootProjectId: 'project-1',
                 overflow: false,
                 changes: [{ kind: 'update', path: '/project/first.ts' }],
             },
@@ -329,7 +329,7 @@ describe('subscribeExternalDocumentSync', () => {
         expect(
             discardedChangesUnavailableReason({
                 sessionId: 'session-1',
-                workbenchProjectId: 'project-1',
+                workbenchRootProjectId: 'project-1',
                 paths: ['/project/first.ts'],
             }),
         ).toBeUndefined();
@@ -386,7 +386,7 @@ describe('subscribeExternalDocumentSync', () => {
             event: 'files.changed',
             payload: {
                 sessionId: 'session-1',
-                workbenchProjectId: 'project-1',
+                workbenchRootProjectId: 'project-1',
                 overflow: false,
                 changes: paths.map((path) => ({ kind: 'update', path })),
             },
@@ -454,7 +454,7 @@ describe('subscribeExternalDocumentSync', () => {
             event: 'files.changed',
             payload: {
                 sessionId: 'session-1',
-                workbenchProjectId: 'project-1',
+                workbenchRootProjectId: 'project-1',
                 overflow: false,
                 changes: [{ kind: 'update', path: oldPath }],
             },

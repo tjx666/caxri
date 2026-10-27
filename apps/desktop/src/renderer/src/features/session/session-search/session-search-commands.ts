@@ -40,7 +40,7 @@ export async function runSessionSearchAction(
             { refresh: refreshWorkbench },
         );
         if (!restored) return;
-        pushToast('info', describeRestoredSession(restored.displayTitle));
+        pushToast('info', describeRestoredSession(restored.title));
         openSession(restored.id);
         return;
     }

@@ -157,7 +157,7 @@ export function AgentActivityRowTrigger({
                 if (event.key === 'Enter' && event.shiftKey) {
                     event.preventDefault();
                     if (canSuggest)
-                        sessionRename.suggestRename(session.id, session.displayTitle, row.rowId);
+                        sessionRename.suggestRename(session.id, session.title, row.rowId);
                     return;
                 }
                 if (event.key === 'Enter' || event.key === ' ') {
@@ -202,7 +202,7 @@ export function AgentActivityRowTrigger({
                     sessionId={session.id}
                     sessionRename={sessionRename}
                     textReference={textReference}
-                    title={sessionTitleForDisplay(session.displayTitle, t)}
+                    title={sessionTitleForDisplay(session.title, t)}
                     viewportReference={viewportReference}
                 />
                 <span className="agent-activity-metadata flex h-4 min-w-0 flex-wrap items-start gap-x-1.5 overflow-hidden text-[11px] leading-4 text-muted">
@@ -226,18 +226,16 @@ export function AgentActivityRowTrigger({
                          * to hit the cap still clips at that same edge; this only changes the short-name case.
                          */}
                         <span className="agent-activity-project overflow-fade max-w-[calc(100%-1rem)] min-w-0 shrink-0 pr-2">
-                            {project.displayTitle}
+                            {project.title}
                         </span>
                         {worktreeProject && (
                             <span
                                 className="agent-activity-worktree flex min-w-0 shrink items-center gap-0.5"
-                                data-session-worktree={worktreeProject.displayTitle}
+                                data-session-worktree={worktreeProject.title}
                             >
                                 <FolderTree className="flex-none" size={11} />
                                 {/* Same reserved-padding reasoning as `.agent-activity-project` above. */}
-                                <span className="overflow-fade pr-2">
-                                    {worktreeProject.displayTitle}
-                                </span>
+                                <span className="overflow-fade pr-2">{worktreeProject.title}</span>
                             </span>
                         )}
                     </span>

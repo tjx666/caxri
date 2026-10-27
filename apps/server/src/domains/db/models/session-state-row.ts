@@ -6,16 +6,16 @@ import type { WorkbenchEditorStates } from './workbench-editor-state';
 import { workbenchEditorStatesSchema } from './workbench-editor-state';
 
 /**
- * The stored `session_state` row joined with its Session's Project binding, as every read in
+ * The stored `session_views` row joined with its Session's Project binding, as every read in
  * {@link ../models/sessions.SessionsModel} selects it.
  */
 export interface SessionStateRow {
     sessionId: string;
     projectId: string;
-    workbenchProjectId: string | null;
+    workbenchRootProjectId: string | null;
     revision: number;
     stateVersion: number;
-    workbenchStateJson: string;
+    rootsJson: string;
     desiredSecondarySidebarViewContainerId: string;
 }
 
@@ -37,7 +37,7 @@ export interface SessionStateRepair {
  */
 export interface SessionStateUnchangedWrite {
     sessionId: string;
-    workbenchProjectId: string;
+    workbenchRootProjectId: string;
     unchangedWrites: number;
     totalWrites: number;
 }
@@ -54,21 +54,21 @@ export function parseSessionState(
         return { reason: 'unsupported_version' };
     let workbenchStatesSource: unknown;
     try {
-        workbenchStatesSource = JSON.parse(row.workbenchStateJson) as unknown;
+        workbenchStatesSource = JSON.parse(row.rootsJson) as unknown;
     } catch {
         return { reason: 'invalid_json' };
     }
     const workbenchStates = workbenchEditorStatesSchema.safeParse(workbenchStatesSource);
     if (!workbenchStates.success) return { reason: 'invalid_shape' };
-    const workbenchProjectId = row.workbenchProjectId ?? row.projectId;
+    const workbenchRootProjectId = row.workbenchRootProjectId ?? row.projectId;
     // `z.record`'s inferred value type promises every key is present; cast through the `Partial`
     // alias so the lookup below is correctly typed as possibly missing.
     const states: WorkbenchEditorStates = workbenchStates.data;
-    const rootState = states[workbenchProjectId];
+    const rootState = states[workbenchRootProjectId];
     const candidate: unknown = {
         sessionId: row.sessionId,
         revision: row.revision,
-        workbenchProjectId,
+        workbenchRootProjectId,
         editorRemapOperationId: rootState?.editorRemapOperationId,
         // Availability is presentation state. Keep the desired ID even while its extension is absent or crashed.
         desiredSecondarySidebarViewContainerId: row.desiredSecondarySidebarViewContainerId,

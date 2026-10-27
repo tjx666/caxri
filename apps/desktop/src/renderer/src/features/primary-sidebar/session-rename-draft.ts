@@ -8,7 +8,7 @@ import type { SessionRecord } from '@caxri/protocol';
  * - `empty`: the draft is blank; Enter reports it as an error and blur discards it.
  */
 export type SessionRenameDecision =
-    { kind: 'empty' } | { kind: 'unchanged' } | { kind: 'rename'; displayTitle: string };
+    { kind: 'empty' } | { kind: 'unchanged' } | { kind: 'rename'; title: string };
 
 /**
  * Decides whether a rename draft is a real rename. The draft is compared with the `baseline` (the title the editor was
@@ -17,10 +17,10 @@ export type SessionRenameDecision =
  * back to `Untitled`, which `session.rename` then pinned as a manual title forever.
  */
 export function decideSessionRename(draft: string, baseline: string): SessionRenameDecision {
-    const displayTitle = draft.trim();
-    if (!displayTitle) return { kind: 'empty' };
-    if (displayTitle === baseline.trim()) return { kind: 'unchanged' };
-    return { kind: 'rename', displayTitle };
+    const title = draft.trim();
+    if (!title) return { kind: 'empty' };
+    if (title === baseline.trim()) return { kind: 'unchanged' };
+    return { kind: 'rename', title };
 }
 
 /**

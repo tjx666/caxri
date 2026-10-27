@@ -12,10 +12,10 @@ function project(id: string, orderIndex: number): ProjectRecord {
     return {
         id,
         rootPath: `/projects/${id}`,
-        displayTitle: id.toUpperCase(),
+        title: id.toUpperCase(),
         orderIndex,
         createdAt: 1,
-        lastOpenedAt: 1,
+        lastVisitedAt: 1,
     };
 }
 
@@ -28,20 +28,20 @@ function session(
     return {
         id,
         projectId,
-        workbenchProjectId: projectId,
+        workbenchRootProjectId: projectId,
         rootPath: `/projects/${projectId}`,
         createdAt: 1,
-        lastOpenedAt: 1,
+        lastVisitedAt: 1,
         sidebarOrder: 0,
-        lastSessionActivityAt: 1,
-        lastSessionActivityReason: 'created',
+        sessionActivityAt: 1,
+        sessionActivityReason: 'created',
         archivedAt,
         primaryAgentTerminalId,
-        lastActivityState: 'unknown',
-        attentionEpoch: 0,
-        readAttentionEpoch: 0,
+        agentActivityState: 'unknown',
+        attentionGeneration: 0,
+        acknowledgedAttentionGeneration: 0,
         hasUnread: false,
-        displayTitle: id.replaceAll('-', ' '),
+        title: id.replaceAll('-', ' '),
         titleMode: 'manual',
     };
 }
@@ -169,7 +169,7 @@ describe('archived Session selector', () => {
 describe('archived Session selection', () => {
     const untitled = (id: string, projectId: string, archivedAt: number): SessionRecord => ({
         ...session(id, projectId, archivedAt),
-        displayTitle: 'Untitled',
+        title: 'Untitled',
         titleMode: 'automatic',
     });
     const withUntitled = [

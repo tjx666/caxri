@@ -80,7 +80,7 @@ export function isHandoverTargetBusy(
 ): boolean {
     return (
         terminal?.lastAgentProcessState === 'running' &&
-        (session?.lastActivityState === 'running' || session?.lastActivityState === 'waiting')
+        (session?.agentActivityState === 'running' || session?.agentActivityState === 'waiting')
     );
 }
 

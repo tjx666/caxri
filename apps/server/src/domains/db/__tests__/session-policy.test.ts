@@ -36,20 +36,20 @@ function session(overrides: Partial<SessionRecord> = {}): SessionRecord {
     return {
         id: 'session-1',
         projectId: 'project-1',
-        workbenchProjectId: 'project-1',
+        workbenchRootProjectId: 'project-1',
         rootPath: '/repo',
         createdAt: 0,
-        lastOpenedAt: 0,
+        lastVisitedAt: 0,
         sidebarOrder: 0,
-        lastSessionActivityAt: 0,
-        lastSessionActivityReason: 'created',
+        sessionActivityAt: 0,
+        sessionActivityReason: 'created',
         primaryAgentTerminalId: undefined,
-        lastActivityState: 'idle',
-        attentionEpoch: 0,
-        readAttentionEpoch: 0,
+        agentActivityState: 'idle',
+        attentionGeneration: 0,
+        acknowledgedAttentionGeneration: 0,
         lastAttentionKind: undefined,
         hasUnread: false,
-        displayTitle: DEFAULT_SESSION_TITLE,
+        title: DEFAULT_SESSION_TITLE,
         titleMode: 'automatic',
         ...overrides,
     };
@@ -113,8 +113,8 @@ describe('choosePrimaryAgentForNewTerminal', () => {
         );
         expect(assignment).toEqual({
             primaryAgentTerminalId: 'codex-1',
-            displayTitle: 'Untitled',
-            lastActivityState: 'idle',
+            title: 'Untitled',
+            agentActivityState: 'idle',
         });
     });
 
@@ -140,13 +140,13 @@ describe('choosePrimaryAgentForNewTerminal', () => {
         expect(
             choosePrimaryAgentForNewTerminal(
                 session({
-                    displayTitle: 'My investigation',
+                    title: 'My investigation',
                     primaryAgentTerminalId: undefined,
                     titleMode: 'manual',
                 }),
                 terminal({ id: 'codex-1', kind: 'codex' }),
             ),
-        ).toMatchObject({ displayTitle: 'My investigation' });
+        ).toMatchObject({ title: 'My investigation' });
     });
 });
 
@@ -162,33 +162,29 @@ describe('choosePrimaryAgentSuccessor', () => {
         expect(
             choosePrimaryAgentSuccessor(
                 [terminal({ id: 'shell-1' }), claude],
-                session({ displayTitle: 'Existing' }),
+                session({ title: 'Existing' }),
             ),
         ).toEqual({
             primaryAgentTerminalId: 'claude-1',
-            displayTitle: 'Existing',
-            lastActivityState: 'unknown',
+            title: 'Existing',
+            agentActivityState: 'unknown',
         });
     });
 
     it('keeps the generated Session title when only Shell Terminals remain', () => {
         const shell = terminal({ id: 'shell-1', title: 'Shell' });
-        expect(choosePrimaryAgentSuccessor([shell], session({ displayTitle: 'Existing' }))).toEqual(
-            {
-                primaryAgentTerminalId: null,
-                displayTitle: 'Existing',
-                lastActivityState: 'idle',
-            },
-        );
+        expect(choosePrimaryAgentSuccessor([shell], session({ title: 'Existing' }))).toEqual({
+            primaryAgentTerminalId: null,
+            title: 'Existing',
+            agentActivityState: 'idle',
+        });
     });
 
     it('keeps the generated Session title when no Terminal remains', () => {
-        expect(
-            choosePrimaryAgentSuccessor([], session({ displayTitle: 'Keep this title' })),
-        ).toEqual({
+        expect(choosePrimaryAgentSuccessor([], session({ title: 'Keep this title' }))).toEqual({
             primaryAgentTerminalId: null,
-            displayTitle: 'Keep this title',
-            lastActivityState: 'idle',
+            title: 'Keep this title',
+            agentActivityState: 'idle',
         });
     });
 
@@ -202,9 +198,9 @@ describe('choosePrimaryAgentSuccessor', () => {
         expect(
             choosePrimaryAgentSuccessor(
                 [claude],
-                session({ displayTitle: 'Keep me', titleMode: 'manual' }),
+                session({ title: 'Keep me', titleMode: 'manual' }),
             ),
-        ).toMatchObject({ displayTitle: 'Keep me', primaryAgentTerminalId: 'claude-1' });
+        ).toMatchObject({ title: 'Keep me', primaryAgentTerminalId: 'claude-1' });
     });
 });
 
@@ -225,8 +221,8 @@ describe('decideAgentMetadataUpdate', () => {
             primary,
             session({
                 primaryAgentTerminalId: 'codex-1',
-                displayTitle: 'Codex',
-                lastActivityState: 'idle',
+                title: 'Codex',
+                agentActivityState: 'idle',
             }),
             {
                 provider: 'codex',
@@ -241,8 +237,8 @@ describe('decideAgentMetadataUpdate', () => {
             agentSessionId: 'agent-session-1',
             terminalTitle: 'Run the development server',
             sessionPatch: {
-                displayTitle: 'Run the development server',
-                lastActivityState: 'running',
+                title: 'Run the development server',
+                agentActivityState: 'running',
             },
         });
     });
@@ -256,27 +252,27 @@ describe('decideAgentMetadataUpdate', () => {
         const primary = terminal({ id: 'codex-1', provider: 'codex' });
         const decision = decideAgentMetadataUpdate(
             primary,
-            session({ primaryAgentTerminalId: 'codex-1', displayTitle: DEFAULT_SESSION_TITLE }),
+            session({ primaryAgentTerminalId: 'codex-1', title: DEFAULT_SESSION_TITLE }),
             { provider: 'codex', available: true, observedAt: 0, status: 'running' },
         );
-        expect(decision?.sessionPatch?.displayTitle).toBe(DEFAULT_SESSION_TITLE);
+        expect(decision?.sessionPatch?.title).toBe(DEFAULT_SESSION_TITLE);
     });
 
     it('never replaces a real title when the probe carries no verified title', () => {
         const primary = terminal({ id: 'codex-1', provider: 'codex' });
         const decision = decideAgentMetadataUpdate(
             primary,
-            session({ primaryAgentTerminalId: 'codex-1', displayTitle: 'Investigate hooks' }),
+            session({ primaryAgentTerminalId: 'codex-1', title: 'Investigate hooks' }),
             { provider: 'codex', available: true, observedAt: 0, status: 'running' },
         );
-        expect(decision?.sessionPatch?.displayTitle).toBe('Investigate hooks');
+        expect(decision?.sessionPatch?.title).toBe('Investigate hooks');
     });
 
     it('leaves an Agent Terminal title alone when the probe reports no usable title', () => {
         const primary = terminal({ id: 'claude-1', provider: 'claude', title: '~/code/caxri' });
         const decision = decideAgentMetadataUpdate(
             primary,
-            session({ primaryAgentTerminalId: 'claude-1', lastActivityState: 'idle' }),
+            session({ primaryAgentTerminalId: 'claude-1', agentActivityState: 'idle' }),
             {
                 provider: 'claude',
                 available: true,
@@ -291,14 +287,14 @@ describe('decideAgentMetadataUpdate', () => {
     // Claude Code writes `status: "idle"` at launch before any turn runs; that must not read as "waiting for the user".
     it('keeps the current state when a probe reports waiting for a Session that never ran a turn', () => {
         const primary = terminal({ id: 'c1', provider: 'claude', title: 'Investigate hooks' });
-        for (const lastActivityState of ['idle', 'unknown', 'completed'] as const) {
+        for (const agentActivityState of ['idle', 'unknown', 'completed'] as const) {
             const decision = decideAgentMetadataUpdate(
                 primary,
                 // A real title keeps the provider placeholder out of this attention-only assertion.
                 session({
-                    displayTitle: 'Investigate hooks',
+                    title: 'Investigate hooks',
                     primaryAgentTerminalId: primary.id,
-                    lastActivityState,
+                    agentActivityState,
                 }),
                 {
                     provider: 'claude',
@@ -322,10 +318,10 @@ describe('decideAgentMetadataUpdate', () => {
         const primary = terminal({ id: 'claude-1', provider: 'claude' });
         const acknowledged = session({
             primaryAgentTerminalId: primary.id,
-            lastActivityState: 'completed',
+            agentActivityState: 'completed',
             lastAttentionKind: 'completed',
-            attentionEpoch: 3,
-            readAttentionEpoch: 3,
+            attentionGeneration: 3,
+            acknowledgedAttentionGeneration: 3,
         });
 
         const decision = decideAgentMetadataUpdate(primary, acknowledged, {
@@ -337,7 +333,7 @@ describe('decideAgentMetadataUpdate', () => {
         });
 
         expect(decision?.sessionPatch?.attentionKind).toBeUndefined();
-        expect(decision?.sessionPatch?.lastActivityState).not.toBe('waiting');
+        expect(decision?.sessionPatch?.agentActivityState).not.toBe('waiting');
     });
 
     /**
@@ -350,7 +346,7 @@ describe('decideAgentMetadataUpdate', () => {
         expect(
             decideAgentMetadataUpdate(
                 primary,
-                session({ primaryAgentTerminalId: primary.id, lastActivityState: 'failed' }),
+                session({ primaryAgentTerminalId: primary.id, agentActivityState: 'failed' }),
                 {
                     provider: 'claude',
                     attentionKind: 'completed',
@@ -359,14 +355,14 @@ describe('decideAgentMetadataUpdate', () => {
                     status: 'completed',
                 },
             )?.sessionPatch,
-        ).toMatchObject({ lastActivityState: 'completed' });
+        ).toMatchObject({ agentActivityState: 'completed' });
     });
 
     it('emits only reliable primary-Agent attention state transitions', () => {
         const primary = terminal({ id: 'c1', provider: 'claude', title: 'Investigate hooks' });
         const current = session({
             primaryAgentTerminalId: primary.id,
-            lastActivityState: 'running',
+            agentActivityState: 'running',
         });
 
         expect(
@@ -377,14 +373,14 @@ describe('decideAgentMetadataUpdate', () => {
                 observedAt: 0,
                 status: 'waiting',
             })?.sessionPatch,
-        ).toMatchObject({ attentionKind: 'waiting', lastActivityState: 'waiting' });
+        ).toMatchObject({ attentionKind: 'waiting', agentActivityState: 'waiting' });
         expect(
             decideAgentMetadataUpdate(
                 primary,
                 session({
-                    displayTitle: 'Investigate hooks',
+                    title: 'Investigate hooks',
                     primaryAgentTerminalId: primary.id,
-                    lastActivityState: 'waiting',
+                    agentActivityState: 'waiting',
                     lastAttentionKind: 'waiting',
                 }),
                 {
@@ -399,7 +395,7 @@ describe('decideAgentMetadataUpdate', () => {
         expect(
             decideAgentMetadataUpdate(
                 terminal({ id: 'codex-1', provider: 'codex' }),
-                session({ primaryAgentTerminalId: 'codex-1', lastActivityState: 'running' }),
+                session({ primaryAgentTerminalId: 'codex-1', agentActivityState: 'running' }),
                 {
                     provider: 'codex',
                     available: true,
@@ -414,7 +410,7 @@ describe('decideAgentMetadataUpdate', () => {
         const primary = terminal({ id: 'codex-1', provider: 'codex' });
         const decision = decideAgentMetadataUpdate(
             primary,
-            session({ primaryAgentTerminalId: 'codex-1', displayTitle: 'Codex' }),
+            session({ primaryAgentTerminalId: 'codex-1', title: 'Codex' }),
             {
                 provider: 'codex',
                 available: true,
@@ -423,14 +419,14 @@ describe('decideAgentMetadataUpdate', () => {
                 title: '[Image #1] [Image #27] Fix the terminal startup',
             },
         );
-        expect(decision?.sessionPatch?.displayTitle).toBe('Fix the terminal startup');
+        expect(decision?.sessionPatch?.title).toBe('Fix the terminal startup');
     });
 
     it('keeps the previous title when metadata contains only image placeholders', () => {
         const primary = terminal({ id: 'codex-1', provider: 'codex' });
         const decision = decideAgentMetadataUpdate(
             primary,
-            session({ primaryAgentTerminalId: 'codex-1', displayTitle: 'Codex' }),
+            session({ primaryAgentTerminalId: 'codex-1', title: 'Codex' }),
             {
                 provider: 'codex',
                 available: true,
@@ -439,14 +435,14 @@ describe('decideAgentMetadataUpdate', () => {
                 title: '[image #1]',
             },
         );
-        expect(decision?.sessionPatch?.displayTitle).toBe('Codex');
+        expect(decision?.sessionPatch?.title).toBe('Codex');
     });
 
     it('does not remove image placeholders from the middle of a title', () => {
         const primary = terminal({ id: 'codex-1', provider: 'codex' });
         const decision = decideAgentMetadataUpdate(
             primary,
-            session({ primaryAgentTerminalId: 'codex-1', displayTitle: 'Codex' }),
+            session({ primaryAgentTerminalId: 'codex-1', title: 'Codex' }),
             {
                 provider: 'codex',
                 available: true,
@@ -455,7 +451,7 @@ describe('decideAgentMetadataUpdate', () => {
                 title: 'Explain [Image #1] in the terminal',
             },
         );
-        expect(decision?.sessionPatch?.displayTitle).toBe('Explain [Image #1] in the terminal');
+        expect(decision?.sessionPatch?.title).toBe('Explain [Image #1] in the terminal');
     });
 
     it('retitles a non-primary Agent Terminal without touching the Session title', () => {
@@ -464,8 +460,8 @@ describe('decideAgentMetadataUpdate', () => {
             secondary,
             session({
                 primaryAgentTerminalId: 'codex-1',
-                displayTitle: 'Codex',
-                lastActivityState: 'idle',
+                title: 'Codex',
+                agentActivityState: 'idle',
             }),
             {
                 provider: 'claude',
@@ -492,8 +488,8 @@ describe('decideAgentMetadataUpdate', () => {
         const decision = decideAgentMetadataUpdate(
             terminal({ id: 'codex-1', provider: 'codex', title: 'Codex' }),
             session({
-                displayTitle: 'Manual name',
-                lastActivityState: 'running',
+                title: 'Manual name',
+                agentActivityState: 'running',
                 primaryAgentTerminalId: 'codex-1',
                 titleMode: 'manual',
             }),
@@ -510,7 +506,7 @@ describe('decideAgentMetadataUpdate', () => {
         expect(decision).toEqual({
             agentSessionId: 'agent-session-2',
             terminalTitle: 'Manual name',
-            sessionPatch: { displayTitle: 'Manual name', lastActivityState: 'waiting' },
+            sessionPatch: { title: 'Manual name', agentActivityState: 'waiting' },
         });
     });
 
@@ -519,8 +515,8 @@ describe('decideAgentMetadataUpdate', () => {
         const decision = decideAgentMetadataUpdate(
             terminal({ id: 'codex-2', provider: 'codex', title: 'Codex' }),
             session({
-                displayTitle: 'Manual name',
-                lastActivityState: 'running',
+                title: 'Manual name',
+                agentActivityState: 'running',
                 primaryAgentTerminalId: 'codex-1',
                 titleMode: 'manual',
             }),
@@ -548,8 +544,8 @@ describe('decideAgentMetadataUpdate', () => {
             primary,
             session({
                 primaryAgentTerminalId: 'codex-1',
-                displayTitle: 'Codex',
-                lastActivityState: 'running',
+                title: 'Codex',
+                agentActivityState: 'running',
             }),
             {
                 provider: 'codex',
@@ -575,8 +571,8 @@ describe('decideAgentMetadataUpdate', () => {
             primary,
             session({
                 primaryAgentTerminalId: primary.id,
-                displayTitle: 'Resumed thread',
-                lastActivityState: 'running',
+                title: 'Resumed thread',
+                agentActivityState: 'running',
             }),
             {
                 provider: 'codex',
@@ -598,7 +594,7 @@ describe('decideAgentMetadataUpdate', () => {
 
         const decision = decideAgentMetadataUpdate(
             primary,
-            session({ primaryAgentTerminalId: primary.id, lastActivityState: 'idle' }),
+            session({ primaryAgentTerminalId: primary.id, agentActivityState: 'idle' }),
             {
                 provider: 'codex',
                 available: false,
@@ -609,7 +605,7 @@ describe('decideAgentMetadataUpdate', () => {
 
         expect(decision).toMatchObject({
             agentSessionId: 'resumed-session',
-            sessionPatch: { lastActivityState: 'running' },
+            sessionPatch: { agentActivityState: 'running' },
         });
     });
 });
@@ -619,10 +615,10 @@ describe('firstSelectableProject', () => {
         return {
             id: 'project-1',
             rootPath: '/repo',
-            displayTitle: 'repo',
+            title: 'repo',
             orderIndex: 0,
             createdAt: 0,
-            lastOpenedAt: 0,
+            lastVisitedAt: 0,
             ...overrides,
         };
     }

@@ -217,7 +217,7 @@ test('Caxri Bot switches to Claude in place, with its workspace already trusted'
         const after = await botTerminal();
         expect(after).toMatchObject({ id: before!.id, provider: 'claude' });
 
-        const workspace = await realpath(join(userData, 'agent-commander'));
+        const workspace = await realpath(join(userData, 'caxri-bot'));
         const config = JSON.parse(await readFile(claudeConfig, 'utf8')) as {
             projects: Record<string, { hasTrustDialogAccepted?: boolean }>;
         };

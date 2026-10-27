@@ -6,7 +6,7 @@ import { pinnedSessionDropTarget, pinnedSessions, unpinnedSessions } from '../pi
 function session(id: string, overrides: Partial<SessionRecord> = {}): SessionRecord {
     return {
         createdAt: 0,
-        displayTitle: id,
+        title: id,
         id,
         projectId: 'alpha',
         sidebarOrder: 0,

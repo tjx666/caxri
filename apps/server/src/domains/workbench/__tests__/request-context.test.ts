@@ -9,20 +9,20 @@ describe('validateWorkbenchRequestContext', () => {
             projectId: 'project-owner',
             rootPath: '/project-worktree',
             sessionId: 'session-1',
-            workbenchProjectId: 'project-worktree',
+            workbenchRootProjectId: 'project-worktree',
         }));
         const database = { getSessionWorkbenchBinding } as unknown as CaxriDatabase;
 
         expect(() =>
             validateWorkbenchRequestContext(database, {
                 sessionId: 'session-1',
-                workbenchProjectId: 'project-worktree',
+                workbenchRootProjectId: 'project-worktree',
             }),
         ).not.toThrow();
         expect(() =>
             validateWorkbenchRequestContext(database, {
                 sessionId: 'session-1',
-                workbenchProjectId: 'project-owner',
+                workbenchRootProjectId: 'project-owner',
             }),
         ).toThrow(expect.objectContaining({ code: 'CONFLICT' }));
     });

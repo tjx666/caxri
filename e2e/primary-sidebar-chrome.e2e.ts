@@ -134,7 +134,7 @@ test('Project details move to a hover card and idle Session titles reclaim the e
     try {
         const sessionId = await createProjectSession(running.page);
         const title = 'Production build failed because GitHub account authentication needs review';
-        await pageRequest(running.page, 'session.rename', { sessionId, displayTitle: title });
+        await pageRequest(running.page, 'session.rename', { sessionId, title });
 
         const projectHeading = running.page.locator('.project-heading');
         const projectTitle = projectHeading.locator('.project-select');
@@ -362,7 +362,7 @@ test('Project titles toggle disclosure when no active Session can be selected', 
         await expect(running.page.locator('.project-heading')).toHaveCount(2);
 
         const bootstrap = await pageRequest<{
-            projects: Array<{ displayTitle: string; id: string; rootPath: string }>;
+            projects: Array<{ title: string; id: string; rootPath: string }>;
             sessions: Array<{ archivedAt?: number; id: string; projectId: string }>;
         }>(running.page, 'app.bootstrap');
         const activeProject = bootstrap.projects.find(

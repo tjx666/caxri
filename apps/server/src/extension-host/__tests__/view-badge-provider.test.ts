@@ -15,7 +15,7 @@ const viewId = 'fixture.view';
 const context = {
     kind: 'session' as const,
     sessionId: 'session-a',
-    workbenchProjectId: 'project-a',
+    workbenchRootProjectId: 'project-a',
 };
 const snapshot = (requestId = 'badge') =>
     executeViewOperation({

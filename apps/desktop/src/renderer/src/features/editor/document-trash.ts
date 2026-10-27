@@ -35,7 +35,7 @@ function tabFilePath(path: string): string | undefined {
 
 function closeOpenEditorsUnderPathInSession(
     sessionId: string,
-    workbenchProjectId: string,
+    workbenchRootProjectId: string,
     path: string,
 ): void {
     discardPendingDocumentOperations(sessionId, path);
@@ -43,10 +43,10 @@ function closeOpenEditorsUnderPathInSession(
      * Evicted before the tab check, and for every root-holding Session: a dirty buffer whose tab is already closed is
      * still unsaved content that reopens with the persisted layout, which is the shape that resurrected the file.
      */
-    useSessionViewStore.getState().evictDocumentsUnderPath(sessionId, path, workbenchProjectId);
+    useSessionViewStore.getState().evictDocumentsUnderPath(sessionId, path, workbenchRootProjectId);
     const current = sessionStateOf(sessionId);
     // Only this root's pane layout is in memory; closing tabs from a Session parked elsewhere would close the wrong root.
-    if (!current || current.workbenchProjectId !== workbenchProjectId) return;
+    if (!current || current.workbenchRootProjectId !== workbenchRootProjectId) return;
     const closingIds = listPaneTabs(current.paneLayout).flatMap(({ tab }) => {
         if (tab.resource.kind !== 'file') return [];
         const filePath = tabFilePath(tab.resource.path);
@@ -63,14 +63,14 @@ function closeOpenEditorsUnderPathInSession(
  * Closes matching normal editors and drops matching cached documents in every Session holding state for the trashed
  * path's Workbench Root, after Main confirms Trash.
  *
- * `workbenchProjectId` is the root the caller resolved _before_ it awaited the Trash confirmation. Re-deriving it here
- * would reintroduce the same defect from the other side: a Session can change roots while the dialog is open (an Agent
- * creating a worktree does it without the user touching anything when `workbench.newWorktreeBehavior` is
+ * `workbenchRootProjectId` is the root the caller resolved _before_ it awaited the Trash confirmation. Re-deriving it
+ * here would reintroduce the same defect from the other side: a Session can change roots while the dialog is open (an
+ * Agent creating a worktree does it without the user touching anything when `workbench.newWorktreeBehavior` is
  * `continueAutomatically`) and the cleanup would then miss the root the confirmation was actually about.
  */
-export function closeOpenEditorsUnderPath(workbenchProjectId: string, path: string): void {
+export function closeOpenEditorsUnderPath(workbenchRootProjectId: string, path: string): void {
     for (const rootSessionId of workbenchRootSessionIds())
-        closeOpenEditorsUnderPathInSession(rootSessionId, workbenchProjectId, path);
+        closeOpenEditorsUnderPathInSession(rootSessionId, workbenchRootProjectId, path);
 }
 
 /**
@@ -84,9 +84,9 @@ export function closeOpenEditorsUnderPath(workbenchProjectId: string, path: stri
  * one thing while the cleanup discards another is the defect shape issue #738 reported. A dirty document always has a
  * cache entry, so this still covers every open dirty tab.
  */
-export function hasUnsavedChangesUnderPath(workbenchProjectId: string, path: string): boolean {
+export function hasUnsavedChangesUnderPath(workbenchRootProjectId: string, path: string): boolean {
     return workbenchRootSessionIds().some((rootSessionId) =>
-        Object.entries(getSessionDocuments(rootSessionId, workbenchProjectId) ?? {}).some(
+        Object.entries(getSessionDocuments(rootSessionId, workbenchRootProjectId) ?? {}).some(
             ([candidate, document]) =>
                 document.dirty &&
                 !isVirtualEditorTabPath(candidate) &&

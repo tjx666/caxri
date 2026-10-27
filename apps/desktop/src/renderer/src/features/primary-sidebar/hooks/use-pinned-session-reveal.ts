@@ -34,7 +34,7 @@ export function usePinnedSessionReveal({
         if (!session) return;
         settlePinnedSessionReveal(
             translate('primarySidebar.pinned.pinnedAnnouncement', {
-                title: sessionTitleForDisplay(session.displayTitle, translate),
+                title: sessionTitleForDisplay(session.title, translate),
             }),
         );
         expandPinned();

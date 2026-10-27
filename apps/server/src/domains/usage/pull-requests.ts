@@ -106,7 +106,7 @@ export async function fetchPullRequestOutcomes(
                               ? 'merged'
                               : 'closed',
                     title: view.title.slice(0, 500),
-                    createdAt: timestamp(view.createdAt),
+                    openedAt: timestamp(view.createdAt),
                     mergedAt: timestamp(view.mergedAt),
                     additions: view.additions ?? 0,
                     deletions: view.deletions ?? 0,
@@ -119,7 +119,7 @@ export async function fetchPullRequestOutcomes(
                         url,
                         state: 'missing',
                         title: '',
-                        createdAt: null,
+                        openedAt: null,
                         mergedAt: null,
                         additions: 0,
                         deletions: 0,

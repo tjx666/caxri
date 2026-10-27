@@ -20,6 +20,6 @@ export function readActiveContext(
         ownerProjectId: session.projectId,
         projectIds,
         sessionId: session.id,
-        workbenchProjectId: session.workbenchProjectId,
+        workbenchRootProjectId: session.workbenchRootProjectId,
     };
 }

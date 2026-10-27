@@ -137,7 +137,7 @@ function activeFileEditor(): editor.IStandaloneCodeEditor | undefined {
     const tab = getActivePaneTab();
     if (!session || tab?.resource.kind !== 'file') return undefined;
     if (isVirtualEditorTabPath(tab.resource.path)) return undefined;
-    const scope = sessionViewScope(session.id, session.workbenchProjectId);
+    const scope = sessionViewScope(session.id, session.workbenchRootProjectId);
     return mountedEditor(editorModelPath(scope, tab.resource.path), getActivePaneId());
 }
 

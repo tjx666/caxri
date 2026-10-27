@@ -31,7 +31,7 @@ export function useDocumentTabPresentation(path: string, displayPath: string | u
     const { t } = useTranslation();
     const session = usePaneViewSession();
     const documentScope = session
-        ? sessionViewScope(session.id, session.workbenchProjectId)
+        ? sessionViewScope(session.id, session.workbenchRootProjectId)
         : undefined;
     const transcriptTerminal = useTerminal(parseAgentTranscriptTab(path)?.terminalId ?? '');
     const agentTerminal = useTerminal(

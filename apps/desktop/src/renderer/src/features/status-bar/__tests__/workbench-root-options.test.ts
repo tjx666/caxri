@@ -14,7 +14,7 @@ function option(
     return {
         worktreeId: overrides.rootPath,
         authorization: 'authorized',
-        displayTitle: overrides.rootPath,
+        title: overrides.rootPath,
         isMain: false,
         owner: false,
         ...overrides,

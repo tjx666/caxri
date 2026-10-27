@@ -31,7 +31,7 @@ import {
 const selectedSessionContext = {
     kind: 'session',
     sessionId: 'session-1',
-    workbenchProjectId: 'project-1',
+    workbenchRootProjectId: 'project-1',
 } as const;
 
 function catalog(): ViewCatalogSnapshot {
@@ -95,13 +95,13 @@ beforeEach(() => {
                 {
                     id: 'session-1',
                     projectId: 'project-1',
-                    workbenchProjectId: 'project-1',
+                    workbenchRootProjectId: 'project-1',
                 },
             ],
             sessionStates: [
                 {
                     sessionId: 'session-1',
-                    workbenchProjectId: 'project-1',
+                    workbenchRootProjectId: 'project-1',
                     desiredSecondarySidebarViewContainerId: 'caxri.files',
                     paneLayout: createPaneLayout(undefined, () => 'pane-1'),
                 },
@@ -148,7 +148,7 @@ describe('didExecuteViewCatalogCommand', () => {
         ).toBe('publisher.fixture');
         expect(mocks.request).toHaveBeenCalledExactlyOnceWith('session.updateState', {
             sessionId: 'session-1',
-            workbenchProjectId: 'project-1',
+            workbenchRootProjectId: 'project-1',
             desiredSecondarySidebarViewContainerId: 'publisher.fixture',
             paneLayout: createPaneLayout(undefined, () => 'pane-1'),
         });
@@ -239,7 +239,7 @@ describe('didExecuteViewCatalogCommand', () => {
                 'session.updateState',
                 {
                     sessionId: 'session-1',
-                    workbenchProjectId: 'project-1',
+                    workbenchRootProjectId: 'project-1',
                     desiredSecondarySidebarViewContainerId: 'publisher.fixture',
                     paneLayout: createPaneLayout(undefined, () => 'pane-1'),
                 },

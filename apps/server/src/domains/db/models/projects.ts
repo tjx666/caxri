@@ -136,10 +136,10 @@ export class ProjectsModel {
             .values({
                 id,
                 rootPath,
-                displayTitle: basename(rootPath) || rootPath,
+                title: basename(rootPath) || rootPath,
                 orderIndex,
                 createdAt: now,
-                lastOpenedAt: now,
+                lastVisitedAt: now,
                 ...(ownerProjectId !== undefined && { ownerProjectId }),
             })
             .run();
@@ -212,7 +212,7 @@ export class ProjectsModel {
         return (
             this.database
                 .update(projects)
-                .set({ lastOpenedAt: now })
+                .set({ lastVisitedAt: now })
                 .where(eq(projects.id, id))
                 .run().changes === 1
         );

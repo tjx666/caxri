@@ -50,7 +50,7 @@ async function seedSource(context: Awaited<ReturnType<typeof fixture>>) {
     const archived = source.createSession(project.id, null).session;
     source.archiveSession(archived.id);
     const inWorktree = source.createSession(project.id, null, undefined, {
-        displayTitle: 'Feature branch',
+        title: 'Feature branch',
     }).session;
     const worktreeProject = source.createProject(worktree, project.id);
     source.selectWorkbenchProject(inWorktree.id, worktreeProject.id);
@@ -139,16 +139,16 @@ describe('Project transfer', () => {
             .listSessions(project.id)
             .toSorted((left, right) => left.sidebarOrder - right.sidebarOrder);
         expect(
-            sessions.map(({ displayTitle, titleMode, pinnedAt, rootPath }) => ({
-                displayTitle,
+            sessions.map(({ title, titleMode, pinnedAt, rootPath }) => ({
+                title,
                 titleMode,
                 isPinned: pinnedAt !== undefined,
                 rootPath,
             })),
         ).toEqual([
-            { displayTitle: 'Fix login', titleMode: 'manual', isPinned: true, rootPath: app },
+            { title: 'Fix login', titleMode: 'manual', isPinned: true, rootPath: app },
             {
-                displayTitle: 'Feature branch',
+                title: 'Feature branch',
                 titleMode: 'automatic',
                 isPinned: false,
                 rootPath: worktree,

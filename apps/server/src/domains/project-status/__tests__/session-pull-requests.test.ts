@@ -175,7 +175,7 @@ describe('SessionPullRequestService', () => {
         });
         await service.refresh();
         expect(service.snapshot().pullRequests['session-1']?.number).toBe(42);
-        sessions[0] = session({ rootPath: '/other-project', workbenchProjectId: 'project-2' });
+        sessions[0] = session({ rootPath: '/other-project', workbenchRootProjectId: 'project-2' });
         expect(service.snapshot().pullRequests['session-1']).toBeUndefined();
         await service.refresh();
         expect(service.snapshot().pullRequests['session-1']?.number).toBe(43);
@@ -203,7 +203,7 @@ describe('SessionPullRequestService', () => {
         });
         const refresh = service.refresh();
         await started.promise;
-        sessions[0] = session({ rootPath: '/other-project', workbenchProjectId: 'project-2' });
+        sessions[0] = session({ rootPath: '/other-project', workbenchRootProjectId: 'project-2' });
         release.resolve();
         await refresh;
         expect(service.snapshot().pullRequests).toEqual({});
@@ -263,7 +263,7 @@ describe('SessionPullRequestService', () => {
         hasSecond = true;
         const pending = service.refresh();
         await firstCommitted.promise;
-        sessions[0] = session({ rootPath: '/other-project', workbenchProjectId: 'project-2' });
+        sessions[0] = session({ rootPath: '/other-project', workbenchRootProjectId: 'project-2' });
         expect(service.snapshot().pullRequests['session-1']).toBeUndefined();
         releaseSecond.resolve();
         await pending;

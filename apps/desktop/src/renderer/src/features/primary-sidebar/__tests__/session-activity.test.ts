@@ -69,18 +69,18 @@ describe('Session activity presentation', () => {
 
 describe('current Session activity', () => {
     it('names the current activity, with compaction and detachment overriding the stored state', () => {
-        expect(currentSessionActivityPresentation({ lastActivityState: 'running' }).label).toBe(
+        expect(currentSessionActivityPresentation({ agentActivityState: 'running' }).label).toBe(
             'Working',
         );
         expect(
             currentSessionActivityPresentation(
-                { lastActivityState: 'running' },
+                { agentActivityState: 'running' },
                 { agentOperation: 'compacting' },
             ).label,
         ).toBe('Compacting');
         expect(
             currentSessionActivityPresentation(
-                { lastActivityState: 'running' },
+                { agentActivityState: 'running' },
                 { lastProcessState: 'detached' },
             ).label,
         ).toBe('Detached');
@@ -88,7 +88,7 @@ describe('current Session activity', () => {
 
     it('names a suspended Agent and where automatic suspension is set, instead of its last idle state', () => {
         const activity = currentSessionActivityPresentation(
-            { lastActivityState: 'idle' },
+            { agentActivityState: 'idle' },
             { kind: 'claude', lastProcessState: 'suspended' },
         );
         expect(activity.label).toBe('Suspended');
@@ -97,13 +97,13 @@ describe('current Session activity', () => {
 
     it('describes a Shell Session as having no Agent instead of an idle one', () => {
         const activity = currentSessionActivityPresentation(
-            { lastActivityState: 'idle' },
+            { agentActivityState: 'idle' },
             { kind: 'shell' },
         );
         expect(activity.label).toBe('No Agent');
         expect(activity.ariaLabel).not.toContain('currently idle');
         expect(
-            currentSessionActivityPresentation({ lastActivityState: 'idle' }, { kind: 'codex' })
+            currentSessionActivityPresentation({ agentActivityState: 'idle' }, { kind: 'codex' })
                 .label,
         ).toBe('Idle');
     });

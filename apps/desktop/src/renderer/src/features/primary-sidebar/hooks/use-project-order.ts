@@ -19,7 +19,7 @@ import {
 interface ProjectOrderController {
     draggedProjectId?: string;
     endDrag: () => void;
-    move: (projectId: string, displayTitle: string, delta: -1 | 1) => void;
+    move: (projectId: string, title: string, delta: -1 | 1) => void;
     onListDragOver: (event: DragEvent<HTMLElement>) => void;
     projectDropTarget?: ProjectDropTarget;
     projectOrderAnnouncement: string;
@@ -63,14 +63,14 @@ export function useProjectOrder(projects: ProjectRecord[]): ProjectOrderControll
         setProjectOrderAnnouncement(
             translate('primarySidebar.projectOrder.movedAnnouncement', {
                 position: confirmed.projectIds.indexOf(confirmed.movedProjectId) + 1,
-                title: confirmed.displayTitle,
+                title: confirmed.title,
                 total: confirmed.projectIds.length,
             }),
         );
     }, [projects]);
 
-    const enqueue = (projectIds: string[], movedProjectId: string, displayTitle: string): void => {
-        intentTrackerReference.current?.set({ displayTitle, movedProjectId, projectIds });
+    const enqueue = (projectIds: string[], movedProjectId: string, title: string): void => {
+        intentTrackerReference.current?.set({ title, movedProjectId, projectIds });
         // Fire-and-forget: the queue's async worker persists this order and settles the intent
         // tracker internally; this handler has no UI result to await here.
         void queueReference.current?.enqueue(projectIds);
@@ -79,14 +79,14 @@ export function useProjectOrder(projects: ProjectRecord[]): ProjectOrderControll
     const currentProjectIds = (): string[] =>
         intentTrackerReference.current?.get()?.projectIds ?? projects.map((project) => project.id);
 
-    const commit = (projectIds: string[], movedProjectId: string, displayTitle: string): void => {
+    const commit = (projectIds: string[], movedProjectId: string, title: string): void => {
         const currentIds = currentProjectIds();
         if (
             projectIds.length === currentIds.length &&
             projectIds.every((projectId, index) => projectId === currentIds[index])
         )
             return;
-        enqueue(projectIds, movedProjectId, displayTitle);
+        enqueue(projectIds, movedProjectId, title);
     };
 
     const dropEdge = (
@@ -110,9 +110,9 @@ export function useProjectOrder(projects: ProjectRecord[]): ProjectOrderControll
     return {
         draggedProjectId,
         endDrag,
-        move(projectId, displayTitle, delta) {
+        move(projectId, title, delta) {
             const reordered = adjacentProjectOrder(currentProjectIds(), projectId, delta);
-            if (reordered) enqueue(reordered, projectId, displayTitle);
+            if (reordered) enqueue(reordered, projectId, title);
         },
         onListDragOver(event) {
             const target = event.target;
@@ -155,7 +155,7 @@ export function useProjectOrder(projects: ProjectRecord[]): ProjectOrderControll
                 target.edge,
             );
             const draggedProject = projects.find((project) => project.id === draggedId);
-            if (draggedProject) commit(reordered, draggedProject.id, draggedProject.displayTitle);
+            if (draggedProject) commit(reordered, draggedProject.id, draggedProject.title);
         },
     };
 }

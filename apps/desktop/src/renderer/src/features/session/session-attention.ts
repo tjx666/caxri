@@ -29,7 +29,7 @@ interface AttentionVisibility {
  * already been sent. It counts only for a Chat, because a PTY Terminal has no Chat pane to show and would never clear.
  */
 export function isChatRequestUnseen(
-    session: Pick<SessionRecord, 'lastActivityState' | 'primaryAgentTerminalId'>,
+    session: Pick<SessionRecord, 'agentActivityState' | 'primaryAgentTerminalId'>,
     primaryTerminal: { surface?: TerminalSurface } | undefined,
     waitingTerminalIds: ReadonlySet<string>,
     onScreen: Readonly<Record<string, number>>,
@@ -37,7 +37,8 @@ export function isChatRequestUnseen(
     const terminalId = session.primaryAgentTerminalId;
     if (terminalId === undefined || !primaryTerminal || !isChatTerminal(primaryTerminal))
         return false;
-    const isWaiting = waitingTerminalIds.has(terminalId) || session.lastActivityState === 'waiting';
+    const isWaiting =
+        waitingTerminalIds.has(terminalId) || session.agentActivityState === 'waiting';
     return isWaiting && !isAgentChatOnScreen(onScreen, terminalId);
 }
 
@@ -102,7 +103,7 @@ export function useSessionAttentionAcknowledgement(): void {
         isPendingReference.current = true;
         const acknowledgeAsync = async (): Promise<void> => {
             try {
-                await markSessionRead(session.id, session.attentionEpoch);
+                await markSessionRead(session.id, session.attentionGeneration);
             } catch {
                 /**
                  * Server recovery or the next focus event can safely retry the same generation.

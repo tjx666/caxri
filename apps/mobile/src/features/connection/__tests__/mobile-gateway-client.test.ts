@@ -372,7 +372,7 @@ describe('mobile gateway client', () => {
             const outcome = observeSettlement(
                 paired.connection.request('session.markRead', {
                     sessionId: 'session-1',
-                    attentionEpoch: 1,
+                    attentionGeneration: 1,
                 }),
                 () => {
                     isSettled = true;
@@ -440,7 +440,7 @@ describe('mobile gateway client', () => {
         await expect(paired.connection.request('project.query', { mode: 'list' })).resolves.toEqual(
             {
                 view: 'paired-device',
-                projects: [{ id: 'project-1', displayTitle: 'Fixture' }],
+                projects: [{ id: 'project-1', title: 'Fixture' }],
             },
         );
         paired.connection.close();

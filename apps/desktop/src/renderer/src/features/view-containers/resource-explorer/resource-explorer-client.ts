@@ -55,7 +55,11 @@ export interface ResourceExplorerClient {
      * Drops a trashed path's editor tabs from the Workbench Root's durable snapshot, which is the only copy for the
      * Sessions parked on another root (issue #909).
      */
-    forgetEditorPath(workbenchProjectId: string, path: string, signal?: AbortSignal): Promise<null>;
+    forgetEditorPath(
+        workbenchRootProjectId: string,
+        path: string,
+        signal?: AbortSignal,
+    ): Promise<null>;
 }
 
 /**
@@ -148,10 +152,10 @@ export function createResourceExplorerClient(viewId: string): ResourceExplorerCl
             request('files.move', { sessionId: requireSessionId(), ...options }, signal),
         rename: (options, signal) =>
             request('files.rename', { sessionId: requireSessionId(), ...options }, signal),
-        forgetEditorPath: (workbenchProjectId, path, signal) =>
+        forgetEditorPath: (workbenchRootProjectId, path, signal) =>
             request(
                 'session.workbenchRoot.forgetEditorPath',
-                { sessionId: requireSessionId(), workbenchProjectId, path },
+                { sessionId: requireSessionId(), workbenchRootProjectId, path },
                 signal,
             ),
         trash: (path, options, signal) =>

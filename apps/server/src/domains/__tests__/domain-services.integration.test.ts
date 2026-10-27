@@ -246,7 +246,7 @@ describe('domain-service composition root', () => {
             expect(empty.theme.id).toBe('dracula');
 
             const project = await handlers['project.create']({ rootPath: projectRoot });
-            expect(project).toMatchObject({ displayTitle: 'project' });
+            expect(project).toMatchObject({ title: 'project' });
             const created = await handlers['session.create']({
                 projectId: project.id,
                 defaultAgent: 'shell',
@@ -504,7 +504,7 @@ describe('Session state recovery', () => {
 
         const direct = new CaxriDatabase(join(userDataPath, 'caxri.db'));
         direct.database
-            .prepare('UPDATE session_state SET workbench_state_json = ? WHERE session_id = ?')
+            .prepare('UPDATE session_views SET roots_json = ? WHERE session_id = ?')
             .run('{', created.session.id);
         direct.close();
 

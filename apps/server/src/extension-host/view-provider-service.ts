@@ -172,7 +172,7 @@ async function executeProviderOperation(
     const token = cancellation.token;
     const scopeId =
         context?.kind === 'session'
-            ? `${context.sessionId}:${context.workbenchProjectId}`
+            ? `${context.sessionId}:${context.workbenchRootProjectId}`
             : 'no-session';
     if (operation === 'badge.snapshot') {
         if ('provideBadge' in provider)

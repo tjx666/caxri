@@ -50,37 +50,41 @@ function readCachedDocument<T>(cached: Record<string, T>, path: string): T | und
  */
 function applyExternalDocuments(
     sessionId: string,
-    workbenchProjectId: string,
+    workbenchRootProjectId: string,
     reloaded: readonly FileDocument[],
 ): void {
     const selected = getSelectedSession();
     if (
         reloaded.length === 0 ||
         selected?.id !== sessionId ||
-        selected.workbenchProjectId !== workbenchProjectId
+        selected.workbenchRootProjectId !== workbenchRootProjectId
     )
         return;
-    const cached = getSessionDocuments(sessionId, workbenchProjectId) ?? {};
+    const cached = getSessionDocuments(sessionId, workbenchRootProjectId) ?? {};
     const discardedDirtyDocuments = reloaded.flatMap((document) => {
         const previous = readCachedDocument(cached, document.path);
         return previous?.dirty ? [previous] : [];
     });
     useSessionViewStore
         .getState()
-        .cacheDocuments(sessionId, reloaded.map(replaceWithExternalDocument), workbenchProjectId);
-    announceDiscardedBuffers(sessionId, workbenchProjectId, discardedDirtyDocuments);
+        .cacheDocuments(
+            sessionId,
+            reloaded.map(replaceWithExternalDocument),
+            workbenchRootProjectId,
+        );
+    announceDiscardedBuffers(sessionId, workbenchRootProjectId, discardedDirtyDocuments);
 }
 
 async function syncFilesChanged(sessionId: string, changedPaths: readonly string[]): Promise<void> {
-    const workbenchProjectId = getSelectedSession()?.workbenchProjectId;
-    if (!workbenchProjectId) return;
+    const workbenchRootProjectId = getSelectedSession()?.workbenchRootProjectId;
+    if (!workbenchRootProjectId) return;
     const uniquePaths = uniq(changedPaths);
     if (uniquePaths.length === 0) return;
     const documents = await readDocuments(sessionId, uniquePaths);
-    const cached = getSessionDocuments(sessionId, workbenchProjectId) ?? {};
+    const cached = getSessionDocuments(sessionId, workbenchRootProjectId) ?? {};
     applyExternalDocuments(
         sessionId,
-        workbenchProjectId,
+        workbenchRootProjectId,
         documents.filter((document) => {
             const previous = readCachedDocument(cached, document.path);
             return previous && isChangedOnDisk(previous, document);
@@ -100,14 +104,14 @@ function onFilesChanged(sessionId: string, changedPaths: readonly string[]): voi
  */
 async function syncReconcileSelectedSession(
     sessionId: string,
-    workbenchProjectId: string,
+    workbenchRootProjectId: string,
     cached: Record<string, FileDocument>,
     paths: readonly string[],
 ): Promise<void> {
     const documents = await readDocuments(sessionId, paths);
     applyExternalDocuments(
         sessionId,
-        workbenchProjectId,
+        workbenchRootProjectId,
         documents.filter((document) => {
             const previous = readCachedDocument(cached, document.path);
             return previous && isChangedOnDisk(previous, document);
@@ -118,8 +122,8 @@ async function syncReconcileSelectedSession(
 function reconcileSelectedSession(sessionId: string, shouldPreserveDirty = false): void {
     const selected = getSelectedSession();
     if (selected?.id !== sessionId) return;
-    const workbenchProjectId = selected.workbenchProjectId;
-    const cached = getSessionDocuments(sessionId, workbenchProjectId) ?? {};
+    const workbenchRootProjectId = selected.workbenchRootProjectId;
+    const cached = getSessionDocuments(sessionId, workbenchRootProjectId) ?? {};
     const paths: string[] = [];
     for (const path of openDocumentPaths()) {
         const cachedTab = readCachedDocument(cached, path);
@@ -133,7 +137,7 @@ function reconcileSelectedSession(sessionId: string, shouldPreserveDirty = false
     if (paths.length === 0) return;
     // Fire-and-forget: reconciliation has no synchronous caller waiting on it: a failed read
     // surfaces through the normal request-rejection path, and there is no result to return here.
-    void syncReconcileSelectedSession(sessionId, workbenchProjectId, cached, paths);
+    void syncReconcileSelectedSession(sessionId, workbenchRootProjectId, cached, paths);
 }
 
 /**
@@ -142,7 +146,7 @@ function reconcileSelectedSession(sessionId: string, shouldPreserveDirty = false
 function openExternalDocuments(): Array<{ documentId: string; document: EditorDocument }> {
     const session = getSelectedSession();
     if (!session) return [];
-    const cached = getSessionDocuments(session.id, session.workbenchProjectId) ?? {};
+    const cached = getSessionDocuments(session.id, session.workbenchRootProjectId) ?? {};
     return Object.entries(cached).flatMap(([path, document]) => {
         const external = parseExternalEditorTab(path);
         return external ? [{ documentId: external.documentId, document }] : [];
@@ -176,7 +180,7 @@ async function syncExternalDocuments(
             }
         }),
     );
-    applyExternalDocuments(session.id, session.workbenchProjectId, reloaded.flat());
+    applyExternalDocuments(session.id, session.workbenchRootProjectId, reloaded.flat());
 }
 
 /**
@@ -227,9 +231,10 @@ export function subscribeExternalDocumentSync(): () => void {
         }
         if (event.event !== 'files.changed') return;
         const session = getSelectedSession();
-        if (!session || event.payload.workbenchProjectId !== session.workbenchProjectId) return;
+        if (!session || event.payload.workbenchRootProjectId !== session.workbenchRootProjectId)
+            return;
         const sessionId = session.id;
-        const cached = getSessionDocuments(sessionId, session.workbenchProjectId) ?? {};
+        const cached = getSessionDocuments(sessionId, session.workbenchRootProjectId) ?? {};
         const changedPaths: string[] = [];
         if (event.payload.overflow) {
             for (const path of openDocumentPaths())
@@ -245,13 +250,14 @@ export function subscribeExternalDocumentSync(): () => void {
          * paths after the operation settles instead of reading a path that stopped existing midway through the
          * mutation.
          */
-        if (shouldDeferProject(session.workbenchProjectId)) return;
+        if (shouldDeferProject(session.workbenchRootProjectId)) return;
         onFilesChanged(sessionId, changedPaths);
     });
     const unsubscribeOperations = useFileOperationStore.subscribe((state) => {
         for (const projectId of deferral.flushReady(state.operations)) {
             const selected = getSelectedSession();
-            if (selected?.workbenchProjectId === projectId) reconcileSelectedSession(selected.id);
+            if (selected?.workbenchRootProjectId === projectId)
+                reconcileSelectedSession(selected.id);
         }
     });
     const unsubscribeSelection = useWorkbenchStore.subscribe((state, previous) => {
@@ -261,17 +267,17 @@ export function subscribeExternalDocumentSync(): () => void {
             !session ||
             !previousSession ||
             (session.id === previousSession.id &&
-                session.workbenchProjectId === previousSession.workbenchProjectId)
+                session.workbenchRootProjectId === previousSession.workbenchRootProjectId)
         )
             return;
-        if (shouldDeferProject(session.workbenchProjectId)) return;
+        if (shouldDeferProject(session.workbenchRootProjectId)) return;
         /**
          * Switching roots must reveal that root's retained dirty buffers verbatim. Ordinary Session selection still
          * applies the global external-change-wins policy.
          */
         const shouldPreserveDirty =
             session.id === previousSession.id &&
-            session.workbenchProjectId !== previousSession.workbenchProjectId;
+            session.workbenchRootProjectId !== previousSession.workbenchRootProjectId;
         reconcileSelectedSession(session.id, shouldPreserveDirty);
         // Main watches only the selected Session's external documents, so another Session's may be stale.
         void syncExternalDocuments('all', shouldPreserveDirty);

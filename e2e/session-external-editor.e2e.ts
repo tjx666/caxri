@@ -41,8 +41,9 @@ async function expectWorkbenchRoot(
             const bootstrap = await pageRequest<BootstrapState>(page, 'app.bootstrap');
             const session = bootstrap.sessions.find((candidate) => candidate.id === sessionId);
             return session
-                ? bootstrap.projects.find((project) => project.id === session.workbenchProjectId)
-                      ?.rootPath
+                ? bootstrap.projects.find(
+                      (project) => project.id === session.workbenchRootProjectId,
+                  )?.rootPath
                 : undefined;
         })
         .toBe(rootPath);

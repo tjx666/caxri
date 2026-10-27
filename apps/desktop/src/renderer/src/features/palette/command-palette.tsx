@@ -284,15 +284,15 @@ function CommandPaletteBody() {
     const searchEntries = new Map<string, PaletteSearchEntry>([
         ...projectResults.map((project): [string, PaletteSearchEntry] => [
             `project:${project.id}`,
-            { titles: [project.displayTitle], details: [project.rootPath] },
+            { titles: [project.title], details: [project.rootPath] },
         ]),
         ...sessions.map((session): [string, PaletteSearchEntry] => {
             const project = projects.find((item) => item.id === session.projectId);
             return [
                 `session:${session.id}`,
                 {
-                    titles: [sessionTitleForDisplay(session.displayTitle, t), session.displayTitle],
-                    details: [project?.displayTitle ?? '', project?.rootPath ?? '', session.id],
+                    titles: [sessionTitleForDisplay(session.title, t), session.title],
+                    details: [project?.title ?? '', project?.rootPath ?? '', session.id],
                 },
             ];
         }),
@@ -328,7 +328,7 @@ function CommandPaletteBody() {
                                         selectProject(project.id);
                                     }}
                                 >
-                                    <span>{project.displayTitle}</span>
+                                    <span>{project.title}</span>
                                     <small className={commandItemMetaClassName}>
                                         {t('palette.source.project')}
                                     </small>
@@ -351,11 +351,9 @@ function CommandPaletteBody() {
                                             void didSelectSession(session.id);
                                         }}
                                     >
-                                        <span>
-                                            {sessionTitleForDisplay(session.displayTitle, t)}
-                                        </span>
+                                        <span>{sessionTitleForDisplay(session.title, t)}</span>
                                         <small className={commandItemMetaClassName}>
-                                            {project?.displayTitle ?? t('palette.source.session')}
+                                            {project?.title ?? t('palette.source.session')}
                                         </small>
                                     </CommandItem>
                                 );

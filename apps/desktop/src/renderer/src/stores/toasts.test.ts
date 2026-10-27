@@ -213,7 +213,7 @@ describe('Sonner notification adapter', () => {
             dismissOnSuccess: true,
             action: {
                 id: 'editor.restoreDiscardedChanges' as const,
-                params: { sessionId: 's', workbenchProjectId: 'p', paths: ['README.md'] },
+                params: { sessionId: 's', workbenchRootProjectId: 'p', paths: ['README.md'] },
             },
         };
         pushToast('warning', 'changes replaced', options);

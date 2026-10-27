@@ -10,26 +10,26 @@ import { forgetRecentFile, parseRecentFiles, recordRecentFile } from './recent-f
  */
 const STORAGE_KEY_PREFIX = 'caxri.recent-files.v1';
 
-function storageKey(workbenchProjectId: string): string {
+function storageKey(workbenchRootProjectId: string): string {
     const environment = useEnvironmentStore.getState().state;
     const scope = environment ? environmentStorageScope(environment) : 'local';
-    return `${STORAGE_KEY_PREFIX}:${scope}:${workbenchProjectId}`;
+    return `${STORAGE_KEY_PREFIX}:${scope}:${workbenchRootProjectId}`;
 }
 
-export function readRecentFiles(workbenchProjectId: string): string[] {
-    return parseRecentFiles(readLocalStorageJson(storageKey(workbenchProjectId)));
+export function readRecentFiles(workbenchRootProjectId: string): string[] {
+    return parseRecentFiles(readLocalStorageJson(storageKey(workbenchRootProjectId)));
 }
 
-export function rememberRecentFile(workbenchProjectId: string, path: string): void {
+export function rememberRecentFile(workbenchRootProjectId: string, path: string): void {
     writeLocalStorageJson(
-        storageKey(workbenchProjectId),
-        recordRecentFile(readRecentFiles(workbenchProjectId), path),
+        storageKey(workbenchRootProjectId),
+        recordRecentFile(readRecentFiles(workbenchRootProjectId), path),
     );
 }
 
-export function dropRecentFile(workbenchProjectId: string, path: string): void {
+export function dropRecentFile(workbenchRootProjectId: string, path: string): void {
     writeLocalStorageJson(
-        storageKey(workbenchProjectId),
-        forgetRecentFile(readRecentFiles(workbenchProjectId), path),
+        storageKey(workbenchRootProjectId),
+        forgetRecentFile(readRecentFiles(workbenchRootProjectId), path),
     );
 }

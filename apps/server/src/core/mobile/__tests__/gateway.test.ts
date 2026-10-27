@@ -113,7 +113,7 @@ describe('MobileGateway', () => {
                         return {
                             hostDisplayName: 'Test computer',
                             deviceRole: role,
-                            projects: [{ id: 'project-1', displayTitle: 'Test Project' }],
+                            projects: [{ id: 'project-1', title: 'Test Project' }],
                             sessions: [],
                             total: 0,
                             truncated: false,
@@ -553,7 +553,7 @@ describe('MobileGateway', () => {
             return {
                 hostDisplayName: 'Test computer',
                 deviceRole: 'control',
-                projects: [{ id: 'project-1', displayTitle: 'Test Project' }],
+                projects: [{ id: 'project-1', title: 'Test Project' }],
                 sessions: [],
                 total: 0,
                 truncated: false,
@@ -700,7 +700,7 @@ describe('MobileGateway', () => {
             ok: true,
             result: {
                 hostDisplayName: 'Test computer',
-                projects: [{ id: 'project-1', displayTitle: 'Test Project' }],
+                projects: [{ id: 'project-1', title: 'Test Project' }],
                 sessions: [],
                 total: 0,
                 truncated: false,

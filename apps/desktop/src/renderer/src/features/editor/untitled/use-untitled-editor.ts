@@ -18,14 +18,14 @@ const NO_CANDIDATES: readonly string[] = [];
  * coming from the file name.
  */
 export function useUntitledEditor(
-    session: { id: string; workbenchProjectId?: string } | undefined,
+    session: { id: string; workbenchRootProjectId?: string } | undefined,
     scope: string | undefined,
     path: string,
     document: EditorDocument | undefined,
 ): readonly string[] | undefined {
     const isUntitled = isUntitledEditorTabPath(path);
     const sessionId = session?.id;
-    const workbenchProjectId = session?.workbenchProjectId;
+    const workbenchRootProjectId = session?.workbenchRootProjectId;
     const hasDocument = document !== undefined;
     const content = document?.content;
     const key = scope ? untitledLanguageKey(scope, path) : undefined;
@@ -33,8 +33,8 @@ export function useUntitledEditor(
         if (!isUntitled || !sessionId || hasDocument) return;
         useSessionViewStore
             .getState()
-            .cacheDocument(sessionId, emptyUntitledDocument(path), workbenchProjectId);
-    }, [hasDocument, isUntitled, path, sessionId, workbenchProjectId]);
+            .cacheDocument(sessionId, emptyUntitledDocument(path), workbenchRootProjectId);
+    }, [hasDocument, isUntitled, path, sessionId, workbenchRootProjectId]);
     useEffect(() => {
         if (isUntitled && key && content !== undefined)
             scheduleUntitledLanguageDetection(key, content);

@@ -63,7 +63,7 @@ describe('WorkbenchRootService validation', () => {
         await expect(validation).resolves.toBe(false);
         expect(context.database.getSession(context.sessions[0].session.id)).toMatchObject({
             projectId: context.owner.id,
-            workbenchProjectId: secondProject.id,
+            workbenchRootProjectId: secondProject.id,
             rootPath: secondWorktreeRoot,
         });
         expect(
@@ -72,7 +72,7 @@ describe('WorkbenchRootService validation', () => {
                     event.event === 'workbench.changed' && event.payload.reason === 'fallback',
             ),
         ).toHaveLength(fallbackCount);
-        expect(firstSelection.workbenchProjectId).not.toBe(secondProject.id);
+        expect(firstSelection.workbenchRootProjectId).not.toBe(secondProject.id);
         await context.service.close();
         context.database.close();
     });
@@ -141,7 +141,7 @@ describe('WorkbenchRootService validation', () => {
         const sessionId = context.sessions[0].session.id;
         const selected = await context.service.authorizeSelection(sessionId, context.worktreeRoot);
         const bound = context.database.getSessionWorkbenchBinding(sessionId)!;
-        context.database.selectWorkbenchProject(sessionId, selected.workbenchProjectId, {
+        context.database.selectWorkbenchProject(sessionId, selected.workbenchRootProjectId, {
             device: 'device-from-a-previous-boot',
             inode: bound.rootInode!,
         });
@@ -152,7 +152,7 @@ describe('WorkbenchRootService validation', () => {
         await expect(context.service.validateSession(sessionId)).resolves.toBe(false);
 
         expect(context.database.getSessionWorkbenchBinding(sessionId)).toMatchObject({
-            workbenchProjectId: selected.workbenchProjectId,
+            workbenchRootProjectId: selected.workbenchRootProjectId,
             rootDevice: bound.rootDevice,
             rootInode: bound.rootInode,
         });
@@ -169,7 +169,11 @@ describe('WorkbenchRootService validation', () => {
                 .filter((entry) => entry.event === 'workbench_root.rebound')
                 .map((entry) => entry.fields),
         ).toEqual([
-            { reason: 'device_drift', sessionId, workbenchProjectId: selected.workbenchProjectId },
+            {
+                reason: 'device_drift',
+                sessionId,
+                workbenchRootProjectId: selected.workbenchRootProjectId,
+            },
         ]);
         await context.service.close();
         context.database.close();
@@ -184,7 +188,7 @@ describe('WorkbenchRootService validation', () => {
         const sessionId = context.sessions[0].session.id;
         const selected = await context.service.authorizeSelection(sessionId, context.worktreeRoot);
         const bound = context.database.getSessionWorkbenchBinding(sessionId)!;
-        context.database.selectWorkbenchProject(sessionId, selected.workbenchProjectId, {
+        context.database.selectWorkbenchProject(sessionId, selected.workbenchRootProjectId, {
             device: bound.rootDevice!,
             inode: 'inode-of-a-replaced-directory',
         });
@@ -193,7 +197,7 @@ describe('WorkbenchRootService validation', () => {
 
         expect(context.database.getSessionWorkbenchBinding(sessionId)).toMatchObject({
             projectId: context.owner.id,
-            workbenchProjectId: context.owner.id,
+            workbenchRootProjectId: context.owner.id,
         });
         await context.service.close();
         context.database.close();

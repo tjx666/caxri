@@ -118,7 +118,7 @@ export const terminalSendParametersSchema = z.strictObject({
     /**
      * Optional optimistic fence used by a remote companion replying to one exact attention event.
      */
-    attentionEpoch: z.number().int().nonnegative().optional(),
+    attentionGeneration: z.number().int().nonnegative().optional(),
     text: z
         .string()
         .min(1)

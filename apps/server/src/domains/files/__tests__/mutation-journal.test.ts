@@ -27,7 +27,7 @@ function createOperation(
         id,
         kind: 'create',
         sessionId,
-        workbenchProjectId: 'project-1',
+        workbenchRootProjectId: 'project-1',
         phase: 'pre_stage',
         input: { directory, kind: 'file', name: `${id}.txt` },
         startedAt: now,
@@ -56,7 +56,7 @@ describe('FileMutationJournal', () => {
         await journal.initialize();
         const operation = {
             ...createOperation('operation-scoped', directory, 'session-a'),
-            workbenchProjectId: 'project-a',
+            workbenchRootProjectId: 'project-a',
         };
         await journal.run(operation, async (stage) => {
             const result = {
@@ -70,50 +70,50 @@ describe('FileMutationJournal', () => {
         const scoped = journal as FileMutationJournal & {
             acknowledgeScoped(
                 operationId: string,
-                scope: { sessionId: string; workbenchProjectId: string },
+                scope: { sessionId: string; workbenchRootProjectId: string },
             ): Promise<void>;
             cancelScoped(
                 operationId: string,
-                scope: { sessionId: string; workbenchProjectId: string },
+                scope: { sessionId: string; workbenchRootProjectId: string },
             ): Promise<FileMutationOperation>;
             getScoped(
                 operationId: string,
-                scope: { sessionId: string; workbenchProjectId: string },
+                scope: { sessionId: string; workbenchRootProjectId: string },
             ): Promise<FileMutationOperation | undefined>;
             listScoped(scope: {
                 sessionId: string;
-                workbenchProjectId: string;
+                workbenchRootProjectId: string;
             }): Promise<FileMutationOperation[]>;
         };
 
         await expect(
             scoped.getScoped(operation.id, {
                 sessionId: 'session-b',
-                workbenchProjectId: 'project-b',
+                workbenchRootProjectId: 'project-b',
             }),
         ).resolves.toBeUndefined();
         await expect(
-            scoped.listScoped({ sessionId: 'session-b', workbenchProjectId: 'project-b' }),
+            scoped.listScoped({ sessionId: 'session-b', workbenchRootProjectId: 'project-b' }),
         ).resolves.toEqual([]);
         await expect(
             scoped.cancelScoped(operation.id, {
                 sessionId: 'session-b',
-                workbenchProjectId: 'project-b',
+                workbenchRootProjectId: 'project-b',
             }),
         ).rejects.toMatchObject({ code: 'PATH_DENIED' });
         await expect(
             scoped.acknowledgeScoped(operation.id, {
                 sessionId: 'session-b',
-                workbenchProjectId: 'project-b',
+                workbenchRootProjectId: 'project-b',
             }),
         ).rejects.toMatchObject({ code: 'PATH_DENIED' });
         await expect(
-            scoped.listScoped({ sessionId: 'session-c', workbenchProjectId: 'project-a' }),
+            scoped.listScoped({ sessionId: 'session-c', workbenchRootProjectId: 'project-a' }),
         ).resolves.toEqual([expect.objectContaining({ id: operation.id })]);
         await journal.close();
     });
 
-    it('rejects a persisted record without workbenchProjectId and leaves user files untouched', async () => {
+    it('rejects a persisted record without workbenchRootProjectId and leaves user files untouched', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-file-journal-legacy-'));
         temporaryDirectories.push(directory);
         const journalPath = join(directory, 'operations.json');
@@ -124,7 +124,7 @@ describe('FileMutationJournal', () => {
             'operation-legacy',
             directory,
         );
-        delete legacy.workbenchProjectId;
+        delete legacy.workbenchRootProjectId;
         const journalSource = `${JSON.stringify([legacy])}\n`;
         await writeFile(journalPath, journalSource, 'utf8');
         const journal = new FileMutationJournal(
@@ -223,7 +223,7 @@ describe('FileMutationJournal', () => {
                 id: 'operation-3',
                 kind: 'rename',
                 sessionId: 'session-1',
-                workbenchProjectId: 'project-1',
+                workbenchRootProjectId: 'project-1',
                 phase: 'pre_stage',
                 input: { name: 'target.txt', path: source },
                 startedAt,
@@ -352,7 +352,7 @@ describe('FileMutationJournal', () => {
                 id: 'operation-foreign-target',
                 kind: 'rename',
                 sessionId: 'session-1',
-                workbenchProjectId: 'project-1',
+                workbenchRootProjectId: 'project-1',
                 phase: 'pre_stage',
                 input: { name: 'target.txt', path: source },
                 startedAt: 1,
@@ -433,7 +433,7 @@ describe('FileMutationJournal', () => {
                     id: 'operation-final-retry',
                     kind: 'rename',
                     sessionId: 'session-1',
-                    workbenchProjectId: 'project-1',
+                    workbenchRootProjectId: 'project-1',
                     phase: 'pre_stage',
                     input: { name: 'target.txt', path: source },
                     startedAt,

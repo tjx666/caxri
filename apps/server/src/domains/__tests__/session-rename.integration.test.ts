@@ -69,7 +69,7 @@ describe('Session rename', () => {
             await expect(
                 service.rename(created.session.id, 'Existing title'),
             ).resolves.toMatchObject({
-                displayTitle: 'Existing title',
+                title: 'Existing title',
                 titleMode: 'manual',
             });
             expect(service.revision(created.session.id)).toBe(1);
@@ -106,22 +106,22 @@ describe('Session rename', () => {
             await expect(
                 runtime.handlers['session.rename']({
                     sessionId: created.session.id,
-                    displayTitle: '  Focused investigation  ',
+                    title: '  Focused investigation  ',
                 }),
             ).resolves.toMatchObject({
-                displayTitle: 'Focused investigation',
+                title: 'Focused investigation',
                 titleMode: 'manual',
             });
             await expect(
                 runtime.handlers['session.rename']({
                     sessionId: created.session.id,
-                    displayTitle: ' '.repeat(3),
+                    title: ' '.repeat(3),
                 }),
             ).rejects.toMatchObject({ code: 'VALIDATION' });
             await expect(
                 runtime.handlers['session.rename']({
                     sessionId: created.session.id,
-                    displayTitle: 'First line\n/compact',
+                    title: 'First line\n/compact',
                 }),
             ).rejects.toMatchObject({ code: 'VALIDATION' });
             const cancellation = new AbortController();
@@ -130,7 +130,7 @@ describe('Session rename', () => {
                 runtime.handlers['session.rename'](
                     {
                         sessionId: created.session.id,
-                        displayTitle: 'Must not persist',
+                        title: 'Must not persist',
                     },
                     cancellation.signal,
                 ),
@@ -138,7 +138,7 @@ describe('Session rename', () => {
             const state = await runtime.handlers['app.bootstrap']({});
             expect(
                 state.sessions.find((session) => session.id === created.session.id),
-            ).toMatchObject({ displayTitle: 'Focused investigation', titleMode: 'manual' });
+            ).toMatchObject({ title: 'Focused investigation', titleMode: 'manual' });
         } finally {
             await runtime.close();
         }
@@ -150,7 +150,7 @@ describe('Session rename', () => {
         const projectRoot = join(directory, 'project');
         await mkdir(projectRoot);
         const events: ServerEvent[] = [];
-        const providerAcceptance = Promise.withResolvers<{ displayTitle: string }>();
+        const providerAcceptance = Promise.withResolvers<{ title: string }>();
         const renameSession = vi
             .fn()
             .mockImplementationOnce(() => providerAcceptance.promise)
@@ -190,20 +190,19 @@ describe('Session rename', () => {
 
             const pendingRename = runtime.handlers['session.rename']({
                 sessionId: created.session.id,
-                displayTitle: 'Focused investigation',
+                title: 'Focused investigation',
             });
             await vi.waitFor(() => expect(renameSession).toHaveBeenCalledOnce());
             const pendingState = await runtime.handlers['app.bootstrap']({});
             expect(
                 pendingState.sessions.find((session) => session.id === created.session.id),
-            ).toMatchObject({ displayTitle: 'Untitled', titleMode: 'automatic' });
+            ).toMatchObject({ title: 'Untitled', titleMode: 'automatic' });
 
             providerAcceptance.resolve({
-                displayTitle:
-                    'Focused investigation-tingly-tide ("Focused investigation" is held by another live session on this machine)',
+                title: 'Focused investigation-tingly-tide ("Focused investigation" is held by another live session on this machine)',
             });
             await expect(pendingRename).resolves.toMatchObject({
-                displayTitle: 'Focused investigation',
+                title: 'Focused investigation',
                 titleMode: 'manual',
             });
             expect(log).toHaveBeenCalledWith(
@@ -218,7 +217,7 @@ describe('Session rename', () => {
                 expect.objectContaining({
                     agentSessionId: 'agent-session-1',
                     cwd: project.rootPath,
-                    displayTitle: 'Focused investigation',
+                    title: 'Focused investigation',
                 }),
             );
 
@@ -231,14 +230,14 @@ describe('Session rename', () => {
             await expect(
                 runtime.handlers['session.rename']({
                     sessionId: created.session.id,
-                    displayTitle: 'Must not persist',
+                    title: 'Must not persist',
                 }),
             ).rejects.toMatchObject({ code: 'UNAVAILABLE' });
             const state = await runtime.handlers['app.bootstrap']({});
             expect(
                 state.sessions.find((session) => session.id === created.session.id),
             ).toMatchObject({
-                displayTitle: 'Focused investigation',
+                title: 'Focused investigation',
                 titleMode: 'manual',
             });
             expect(
@@ -266,11 +265,11 @@ describe('Session rename', () => {
             projectRoot,
         );
         database.rebindAgentSession(created.terminal!.id, 'codex', 'agent-session-a');
-        const firstProviderResult = Promise.withResolvers<{ displayTitle: string }>();
+        const firstProviderResult = Promise.withResolvers<{ title: string }>();
         const renameSession = vi.fn(({ agentSessionId }: { agentSessionId: string }) =>
             agentSessionId === 'agent-session-a'
                 ? firstProviderResult.promise
-                : Promise.resolve({ displayTitle: 'Applied to resumed Session' }),
+                : Promise.resolve({ title: 'Applied to resumed Session' }),
         );
         const agents = new AgentService(
             undefined,
@@ -307,10 +306,10 @@ describe('Session rename', () => {
             const pendingRename = service.rename(created.session.id, 'Requested title');
             await vi.waitFor(() => expect(renameSession).toHaveBeenCalledOnce());
             database.rebindAgentSession(created.terminal!.id, 'codex', 'agent-session-b');
-            firstProviderResult.resolve({ displayTitle: 'Applied to old Session' });
+            firstProviderResult.resolve({ title: 'Applied to old Session' });
 
             await expect(pendingRename).resolves.toMatchObject({
-                displayTitle: 'Requested title',
+                title: 'Requested title',
                 titleMode: 'manual',
             });
             expect(renameSession).toHaveBeenNthCalledWith(
@@ -375,9 +374,9 @@ describe('Session rename', () => {
         try {
             await expect(
                 service.rename(created.session.id, 'Untitled no more'),
-            ).resolves.toMatchObject({ displayTitle: 'Untitled no more', titleMode: 'manual' });
+            ).resolves.toMatchObject({ title: 'Untitled no more', titleMode: 'manual' });
             expect(renameSession).not.toHaveBeenCalled();
-            expect(database.getSession(created.session.id)?.displayTitle).toBe('Untitled no more');
+            expect(database.getSession(created.session.id)?.title).toBe('Untitled no more');
             expect(write).toHaveBeenCalledWith(
                 'info',
                 logEventCatalog.sessionRename.providerSyncSkipped,
@@ -431,10 +430,10 @@ describe('Session rename', () => {
         try {
             await expect(
                 service.rename(created.session.id, 'Named by hand'),
-            ).resolves.toMatchObject({ displayTitle: 'Named by hand', titleMode: 'manual' });
+            ).resolves.toMatchObject({ title: 'Named by hand', titleMode: 'manual' });
             expect(renameSession).not.toHaveBeenCalled();
             expect(database.getSession(created.session.id)).toMatchObject({
-                displayTitle: 'Named by hand',
+                title: 'Named by hand',
                 titleMode: 'manual',
             });
             expect(write).toHaveBeenCalledWith(
@@ -460,11 +459,11 @@ describe('Session rename', () => {
             projectRoot,
         );
         database.rebindAgentSession(created.terminal!.id, 'codex', 'agent-session-1');
-        const firstProviderResult = Promise.withResolvers<{ displayTitle: string }>();
+        const firstProviderResult = Promise.withResolvers<{ title: string }>();
         const renameSession = vi
             .fn()
             .mockImplementationOnce(() => firstProviderResult.promise)
-            .mockResolvedValueOnce({ displayTitle: 'Later title' });
+            .mockResolvedValueOnce({ title: 'Later title' });
         const agents = new AgentService(
             undefined,
             createPendingAgentAdapters({
@@ -499,21 +498,21 @@ describe('Session rename', () => {
             const later = service.rename(created.session.id, 'Later title');
             expect(renameSession).toHaveBeenCalledOnce();
 
-            firstProviderResult.resolve({ displayTitle: 'Earlier title' });
-            await expect(earlier).resolves.toMatchObject({ displayTitle: 'Earlier title' });
+            firstProviderResult.resolve({ title: 'Earlier title' });
+            await expect(earlier).resolves.toMatchObject({ title: 'Earlier title' });
             await expect(later).resolves.toMatchObject({
-                displayTitle: 'Later title',
+                title: 'Later title',
                 titleMode: 'manual',
             });
             expect(renameSession).toHaveBeenNthCalledWith(
                 1,
-                expect.objectContaining({ displayTitle: 'Earlier title' }),
+                expect.objectContaining({ title: 'Earlier title' }),
             );
             expect(renameSession).toHaveBeenNthCalledWith(
                 2,
-                expect.objectContaining({ displayTitle: 'Later title' }),
+                expect.objectContaining({ title: 'Later title' }),
             );
-            expect(database.getSession(created.session.id)?.displayTitle).toBe('Later title');
+            expect(database.getSession(created.session.id)?.title).toBe('Later title');
         } finally {
             await coordinator.close();
             database.close();

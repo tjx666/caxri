@@ -9,7 +9,11 @@ describe('badge protocol', () => {
             viewId: 'fixture.view',
             requestId: 'badge-1',
             operation: 'badge.snapshot',
-            context: { kind: 'session', sessionId: 'session-a', workbenchProjectId: 'project-a' },
+            context: {
+                kind: 'session',
+                sessionId: 'session-a',
+                workbenchRootProjectId: 'project-a',
+            },
             arguments: {},
         };
         const schema = methods['viewContainers.viewOperation'].params;

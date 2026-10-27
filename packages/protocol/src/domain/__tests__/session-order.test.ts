@@ -3,16 +3,12 @@ import { describe, expect, it } from 'vitest';
 import type { SessionRecord } from '../domain.js';
 import { compareSessionActivityRecency } from '../session-order.js';
 
-function session(
-    id: string,
-    lastSessionActivityAt: number,
-    overrides: Partial<SessionRecord> = {},
-) {
+function session(id: string, sessionActivityAt: number, overrides: Partial<SessionRecord> = {}) {
     return {
         id,
-        createdAt: lastSessionActivityAt,
-        lastOpenedAt: lastSessionActivityAt,
-        lastSessionActivityAt,
+        createdAt: sessionActivityAt,
+        lastVisitedAt: sessionActivityAt,
+        sessionActivityAt,
         ...overrides,
     } as SessionRecord;
 }
@@ -21,8 +17,8 @@ describe('compareSessionActivityRecency', () => {
     it('orders newest activity first without using last-opened time', () => {
         expect(
             [
-                session('older', 10, { lastOpenedAt: 1_000 }),
-                session('newer', 20, { lastOpenedAt: 1 }),
+                session('older', 10, { lastVisitedAt: 1_000 }),
+                session('newer', 20, { lastVisitedAt: 1 }),
             ]
                 .toSorted(compareSessionActivityRecency)
                 .map(({ id }) => id),

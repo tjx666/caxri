@@ -143,7 +143,7 @@ export class PullRequestSettlement {
         if (!session || session.archivedAt !== undefined)
             return this.cancel(sessionId, 'session-gone');
         const isBusy =
-            session.lastActivityState === 'running' || session.lastActivityState === 'waiting';
+            session.agentActivityState === 'running' || session.agentActivityState === 'waiting';
         const wait = entry.quietUntil - this.now();
         const reason: DeferReason | undefined = isBusy
             ? 'agent-busy'
@@ -156,7 +156,7 @@ export class PullRequestSettlement {
             if (entry.deferredReason !== reason) {
                 entry.deferredReason = reason;
                 this.log(sessionId, 'deferred', {
-                    agentState: session.lastActivityState,
+                    agentState: session.agentActivityState,
                     reason,
                 });
             }

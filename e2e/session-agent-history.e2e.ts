@@ -68,7 +68,7 @@ test("a Session's context menu reopens a closed past conversation", async () => 
         const sessionId = await createProjectSession(running.page);
         await pageRequest(running.page, 'session.rename', {
             sessionId,
-            displayTitle: 'Reconcile the invoice rounding drift across every billing export',
+            title: 'Reconcile the invoice rounding drift across every billing export',
         });
         const bootstrap = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');
         const session = bootstrap.sessions.find(({ id }) => id === sessionId)!;

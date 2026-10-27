@@ -246,10 +246,10 @@ describe('Caxri Bot hand-over', () => {
         const { session, terminal } = f.agentSession();
         f.database.updateAgentProcessState(terminal.id, 'running');
         const getSession = f.database.getSession.bind(f.database);
-        let activity: SessionRecord['lastActivityState'] = 'running';
+        let activity: SessionRecord['agentActivityState'] = 'running';
         vi.spyOn(f.database, 'getSession').mockImplementation((id) => {
             const current = getSession(id);
-            return current && { ...current, lastActivityState: activity };
+            return current && { ...current, agentActivityState: activity };
         });
 
         await f.service.handOver({ sessionIds: [session.id] });
@@ -438,7 +438,7 @@ describe('Caxri Bot hand-over', () => {
         const session = f.database.getSession(accepted.sessionId)!;
         expect(session).toMatchObject({
             projectId: f.userProject.id,
-            displayTitle: 'Tidy the web package',
+            title: 'Tidy the web package',
         });
         const [terminal] = f.database.listTerminals(session.id);
         expect(terminal).toMatchObject({

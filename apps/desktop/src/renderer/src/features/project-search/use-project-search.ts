@@ -149,7 +149,7 @@ export function useProjectSearch(draft: ProjectSearchDraft): ProjectSearchModel 
     const isActive = query.length > 0;
     const isSettled = query === debouncedQuery;
     const sessionId = session?.id;
-    const scopeId = session ? `${session.id}:${session.workbenchProjectId}` : '';
+    const scopeId = session ? `${session.id}:${session.workbenchRootProjectId}` : '';
     const searchOptions = useMemo(
         () => ({
             mode,

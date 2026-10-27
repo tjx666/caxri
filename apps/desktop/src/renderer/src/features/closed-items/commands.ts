@@ -64,7 +64,7 @@ async function didReopenTab(item: ClosedTabItem): Promise<boolean> {
             .cacheDocument(
                 item.sessionId,
                 { ...item.document, dirty: false },
-                before.workbenchProjectId,
+                before.workbenchRootProjectId,
             );
     const isOpened = isVirtualEditorTabPath(item.path)
         ? didOpenEditorTabForSession(item.sessionId, item.path, { paneId })
@@ -82,7 +82,7 @@ async function didReopenTab(item: ClosedTabItem): Promise<boolean> {
     if (!isVirtualEditorTabPath(item.path) || isExternalEditorTabPath(item.path))
         focusEditor(
             editorModelPath(
-                sessionViewScope(item.sessionId, reopened.workbenchProjectId),
+                sessionViewScope(item.sessionId, reopened.workbenchRootProjectId),
                 item.path,
             ),
             occurrence.pane.id,

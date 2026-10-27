@@ -15,7 +15,7 @@ import { useWorkbenchStore } from './workbench';
  * two `selected*Id` pointers are irrelevant to this module, so they are omitted rather than faked in full.
  */
 function bootstrap(overrides: {
-    sessions?: Array<{ id: string; projectId: string; workbenchProjectId: string }>;
+    sessions?: Array<{ id: string; projectId: string; workbenchRootProjectId: string }>;
     projects?: Array<{ id: string }>;
     selectedSessionId?: string;
     selectedProjectId?: string;
@@ -36,7 +36,7 @@ describe('selectSelectedSession', () => {
     it('returns undefined when no Session id is selected', () => {
         const state = bootstrap({
             sessions: [
-                { id: 'session-1', projectId: 'project-1', workbenchProjectId: 'project-1' },
+                { id: 'session-1', projectId: 'project-1', workbenchRootProjectId: 'project-1' },
             ],
         });
 
@@ -46,8 +46,8 @@ describe('selectSelectedSession', () => {
     it('returns the Session matching the selected id', () => {
         const state = bootstrap({
             sessions: [
-                { id: 'session-1', projectId: 'project-1', workbenchProjectId: 'project-1' },
-                { id: 'session-2', projectId: 'project-2', workbenchProjectId: 'project-2' },
+                { id: 'session-1', projectId: 'project-1', workbenchRootProjectId: 'project-1' },
+                { id: 'session-2', projectId: 'project-2', workbenchRootProjectId: 'project-2' },
             ],
             selectedSessionId: 'session-2',
         });
@@ -64,7 +64,11 @@ describe('selectSelectedProject', () => {
     it('follows the selected Session to its owning Project', () => {
         const state = bootstrap({
             sessions: [
-                { id: 'session-1', projectId: 'project-owner', workbenchProjectId: 'project-work' },
+                {
+                    id: 'session-1',
+                    projectId: 'project-owner',
+                    workbenchRootProjectId: 'project-work',
+                },
             ],
             projects: [{ id: 'project-owner' }, { id: 'project-work' }],
             selectedSessionId: 'session-1',
@@ -100,7 +104,7 @@ describe('selectSelectedWorkbenchProject', () => {
                 {
                     id: 'session-1',
                     projectId: 'project-owner',
-                    workbenchProjectId: 'project-worktree',
+                    workbenchRootProjectId: 'project-worktree',
                 },
             ],
             projects: [{ id: 'project-owner' }, { id: 'project-worktree' }],
@@ -119,7 +123,7 @@ describe('getProjectSessionIds', () => {
     it('returns only the origin Session when it has no Workbench Project', () => {
         useWorkbenchStore.setState({
             bootstrap: bootstrap({
-                sessions: [{ id: 'session-1', projectId: 'project-1', workbenchProjectId: '' }],
+                sessions: [{ id: 'session-1', projectId: 'project-1', workbenchRootProjectId: '' }],
             }),
         });
 
@@ -134,9 +138,9 @@ describe('getProjectSessionIds', () => {
         useWorkbenchStore.setState({
             bootstrap: bootstrap({
                 sessions: [
-                    { id: 'session-1', projectId: 'project-a', workbenchProjectId: 'root-1' },
-                    { id: 'session-2', projectId: 'project-b', workbenchProjectId: 'root-1' },
-                    { id: 'session-3', projectId: 'project-c', workbenchProjectId: 'root-2' },
+                    { id: 'session-1', projectId: 'project-a', workbenchRootProjectId: 'root-1' },
+                    { id: 'session-2', projectId: 'project-b', workbenchRootProjectId: 'root-1' },
+                    { id: 'session-3', projectId: 'project-c', workbenchRootProjectId: 'root-2' },
                 ],
             }),
         });
@@ -154,8 +158,8 @@ describe('getWorkbenchProjectSessionIds', () => {
         useWorkbenchStore.setState({
             bootstrap: bootstrap({
                 sessions: [
-                    { id: 'session-1', projectId: 'project-a', workbenchProjectId: 'root-1' },
-                    { id: 'session-2', projectId: 'project-b', workbenchProjectId: 'root-1' },
+                    { id: 'session-1', projectId: 'project-a', workbenchRootProjectId: 'root-1' },
+                    { id: 'session-2', projectId: 'project-b', workbenchRootProjectId: 'root-1' },
                 ],
             }),
         });

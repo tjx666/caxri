@@ -117,7 +117,7 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
         const state = await server.request('app.bootstrap', windowKey ? { windowKey } : {});
         const sessions = state.sessions.filter(
             (session) =>
-                session.archivedAt === undefined && session.workbenchProjectId === projectId,
+                session.archivedAt === undefined && session.workbenchRootProjectId === projectId,
         );
         const selected = sessions.find((session) => session.id === state.selectedSessionId);
         if (selected) return { sessionId: selected.id };
@@ -143,7 +143,7 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
         }
 
         const projectTitle =
-            state.projects.find((project) => project.id === projectId)?.displayTitle ??
+            state.projects.find((project) => project.id === projectId)?.title ??
             translateMain('desktop.chooseSession.fallbackProject');
         const result = await showMessageBox(options.getWindow(), {
             type: 'question',
@@ -153,7 +153,7 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
             buttons: [
                 ...sessions.map(
                     (session, index) =>
-                        `${session.displayTitle || translateMain('desktop.chooseSession.untitled')} (${index + 1})`,
+                        `${session.title || translateMain('desktop.chooseSession.untitled')} (${index + 1})`,
                 ),
                 translateMain('desktop.dialog.cancel'),
             ],
@@ -274,7 +274,7 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
         const server = options.getServer();
         const sessions = state.sessions.filter(
             (session) =>
-                session.archivedAt === undefined && session.workbenchProjectId === projectId,
+                session.archivedAt === undefined && session.workbenchRootProjectId === projectId,
         );
         if (sessions.length === 0) {
             const project = state.projects.find((candidate) => candidate.id === projectId);

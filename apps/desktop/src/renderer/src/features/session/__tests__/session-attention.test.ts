@@ -6,20 +6,20 @@ import { isChatRequestUnseen, shouldAcknowledgeSessionAttention } from '../sessi
 const session: SessionRecord = {
     id: 'session-1',
     projectId: 'project-1',
-    workbenchProjectId: 'project-1',
+    workbenchRootProjectId: 'project-1',
     rootPath: '/project',
     createdAt: 0,
-    lastOpenedAt: 0,
+    lastVisitedAt: 0,
     sidebarOrder: 0,
-    lastSessionActivityAt: 0,
-    lastSessionActivityReason: 'created',
+    sessionActivityAt: 0,
+    sessionActivityReason: 'created',
     primaryAgentTerminalId: 'terminal-1',
-    lastActivityState: 'waiting',
-    attentionEpoch: 2,
-    readAttentionEpoch: 1,
+    agentActivityState: 'waiting',
+    attentionGeneration: 2,
+    acknowledgedAttentionGeneration: 1,
     lastAttentionKind: 'waiting',
     hasUnread: true,
-    displayTitle: 'Needs input',
+    title: 'Needs input',
     titleMode: 'automatic',
 };
 
@@ -45,7 +45,7 @@ describe('Session attention acknowledgement', () => {
         ).toBe(false);
         expect(
             shouldAcknowledgeSessionAttention(
-                { ...session, hasUnread: false, readAttentionEpoch: 2 },
+                { ...session, hasUnread: false, acknowledgedAttentionGeneration: 2 },
                 { documentVisible: true, windowFocused: true },
             ),
         ).toBe(false);
@@ -62,7 +62,7 @@ describe('Session attention with a pending Chat request', () => {
 
     it('treats only an off-screen primary Chat with a request as unseen', () => {
         const chat = { surface: 'chat' as const };
-        const idle = { ...session, lastActivityState: 'idle' as const };
+        const idle = { ...session, agentActivityState: 'idle' as const };
         const waiting = new Set(['terminal-1']);
         expect(isChatRequestUnseen(idle, chat, waiting, {})).toBe(true);
         expect(isChatRequestUnseen(idle, chat, waiting, { 'terminal-1': 1 })).toBe(false);

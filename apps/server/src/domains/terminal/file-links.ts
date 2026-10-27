@@ -257,7 +257,7 @@ async function hasReachedCandidateLimit(
                 path: authorized.path,
                 relativePath: projectRelativePath(authorized.rootPath, authorized.path),
                 projectId: project.id,
-                projectTitle: project.displayTitle,
+                projectTitle: project.title,
             },
             identity: authorized.identity,
         });
@@ -296,10 +296,7 @@ async function searchAuthorizedProjects(
             : fileLinkProjects(database).toSorted((left, right) => {
                   const leftSource = left.id === sourceProjectId ? 0 : 1;
                   const rightSource = right.id === sourceProjectId ? 0 : 1;
-                  return (
-                      leftSource - rightSource ||
-                      left.displayTitle.localeCompare(right.displayTitle)
-                  );
+                  return leftSource - rightSource || left.title.localeCompare(right.title);
               });
     const candidates: ResolvedCandidate[] = [];
     const canonicalPaths = new Set<string>();
@@ -454,7 +451,7 @@ export async function resolveTerminalFileLink(
     const result = await searchAuthorizedProjects(
         database,
         terminal.sessionId,
-        session.workbenchProjectId,
+        session.workbenchRootProjectId,
         search.suffix,
         options.searchProjectFileSuffixes,
         search.scope,

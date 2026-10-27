@@ -36,7 +36,7 @@ test('a restored Session goes to the top while the archive notice Undo puts it b
         const middle = await selectedSessionId(running.page);
         await pageRequest(running.page, 'session.rename', {
             sessionId: middle,
-            displayTitle: 'Middle',
+            title: 'Middle',
         });
         await createAdditionalShellSession(running.page);
         const newest = await selectedSessionId(running.page);

@@ -88,7 +88,7 @@ describe('Extension work in the ordered and repository lanes', () => {
     const viewContext = {
         kind: 'session',
         sessionId: 'session-1',
-        workbenchProjectId: 'project-1',
+        workbenchRootProjectId: 'project-1',
     } as const;
 
     async function connectDesktop(host: CommandAdapter, logger?: ControlServerOptions['logger']) {

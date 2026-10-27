@@ -106,19 +106,19 @@ export const mobileAccessStatusSchema = z.strictObject({
 export const mobileDashboardSessionSchema = z.strictObject({
     id: identifierSchema,
     projectId: identifierSchema,
-    displayTitle: z.string().min(1).max(100),
+    title: z.string().min(1).max(100),
     projectTitle: z.string().min(1).max(100),
-    lastOpenedAt: sessionRecordSchema.shape.lastOpenedAt,
+    lastVisitedAt: sessionRecordSchema.shape.lastVisitedAt,
     /**
      * The Session's work clock, which orders rows inside a group on both Desktop and the phone.
      */
-    lastSessionActivityAt: sessionRecordSchema.shape.lastSessionActivityAt,
+    sessionActivityAt: sessionRecordSchema.shape.sessionActivityAt,
     pinnedAt: sessionRecordSchema.shape.pinnedAt,
     pinnedOrder: sessionRecordSchema.shape.pinnedOrder,
-    lastActivityState: sessionRecordSchema.shape.lastActivityState,
+    agentActivityState: sessionRecordSchema.shape.agentActivityState,
     primaryAgentTerminalId: identifierSchema.optional(),
     primaryAgentEndpoint: agentEndpointReferenceSchema.optional(),
-    attentionEpoch: sessionRecordSchema.shape.attentionEpoch,
+    attentionGeneration: sessionRecordSchema.shape.attentionGeneration,
     hasUnread: sessionRecordSchema.shape.hasUnread,
     primaryTerminal: terminalRecordSchema
         .pick({
@@ -144,7 +144,7 @@ export const mobileDashboardSessionSchema = z.strictObject({
 export const mobileArchivedSessionSchema = z.strictObject({
     id: identifierSchema,
     projectId: identifierSchema,
-    displayTitle: z.string().min(1).max(100),
+    title: z.string().min(1).max(100),
     projectTitle: z.string().min(1).max(100),
     archivedAt: z.number().int().nonnegative(),
     agentKind: terminalKindSchema.optional(),
@@ -399,7 +399,7 @@ export const mobileMethods = {
         ...commandPolicy('server', 'write', ['sessions.write']),
         params: z.strictObject({
             sessionId: identifierSchema,
-            displayTitle: sessionRenameTitleSchema,
+            title: sessionRenameTitleSchema,
         }),
         result: mobileSessionMutationResultSchema,
     },

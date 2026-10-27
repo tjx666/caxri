@@ -10,7 +10,7 @@ import { subscribePreviewSourceChanges } from '../preview-source-changes';
  * Project's.
  */
 export function usePreviewSourceRevision(
-    workbenchProjectId: string | undefined,
+    workbenchRootProjectId: string | undefined,
     path: string,
     externalDocumentId?: string,
 ): number {
@@ -19,8 +19,8 @@ export function usePreviewSourceRevision(
         const bump = (): void => setRevision((value) => value + 1);
         if (externalDocumentId !== undefined)
             return subscribePreviewSourceChanges({ externalDocumentId }, bump);
-        if (!workbenchProjectId) return;
-        return subscribePreviewSourceChanges({ workbenchProjectId, path }, bump);
-    }, [externalDocumentId, path, workbenchProjectId]);
+        if (!workbenchRootProjectId) return;
+        return subscribePreviewSourceChanges({ workbenchRootProjectId, path }, bump);
+    }, [externalDocumentId, path, workbenchRootProjectId]);
     return revision;
 }

@@ -48,7 +48,7 @@ describe('Session state revision bookkeeping', () => {
             'caxri-db-revision-terminal-created-',
         );
         const project = database.projects.create(directory);
-        const session = database.sessions.insert({ projectId: project.id, displayTitle: 'Shell' });
+        const session = database.sessions.insert({ projectId: project.id, title: 'Shell' });
         database.sessions.insertInitialState(session.id);
         const read = database.sessions.getState(session.id);
 
@@ -88,7 +88,7 @@ describe('Session state revision bookkeeping', () => {
             'caxri-db-revision-client-write-',
         );
         const project = database.projects.create(directory);
-        const session = database.sessions.insert({ projectId: project.id, displayTitle: 'Shell' });
+        const session = database.sessions.insert({ projectId: project.id, title: 'Shell' });
         database.sessions.insertInitialState(session.id);
         const read = database.sessions.getState(session.id);
 
@@ -119,7 +119,7 @@ describe('Session state revision bookkeeping', () => {
         const alternateRoot = join(directory, 'alternate');
         await mkdir(alternateRoot);
         const alternate = database.projects.create(alternateRoot);
-        const session = database.sessions.insert({ projectId: project.id, displayTitle: 'Shell' });
+        const session = database.sessions.insert({ projectId: project.id, title: 'Shell' });
         database.sessions.insertInitialState(session.id);
         const reasons = () => advances.map((advance) => advance.reason);
 
@@ -149,7 +149,7 @@ describe('Session state revision bookkeeping', () => {
         expect(reasons().slice(3)).toEqual(['rootFirstVisit', 'projectPruned']);
 
         database.database
-            .prepare('update session_state set workbench_state_json = ? where session_id = ?')
+            .prepare('update session_views set roots_json = ? where session_id = ?')
             .run('not json', session.id);
         const repaired = database.sessions.getState(session.id);
         expect(advances.at(-1)).toEqual({
@@ -166,7 +166,7 @@ describe('Session state revision bookkeeping', () => {
         const project = first.database.projects.create(first.directory);
         const session = first.database.sessions.insert({
             projectId: project.id,
-            displayTitle: 'Shell',
+            title: 'Shell',
         });
         first.database.sessions.insertInitialState(session.id);
         const read = first.database.sessions.getState(session.id);
@@ -195,7 +195,7 @@ describe('Session state revision bookkeeping', () => {
             'caxri-db-revision-repair-token-',
         );
         const project = database.projects.create(directory);
-        const session = database.sessions.insert({ projectId: project.id, displayTitle: 'Shell' });
+        const session = database.sessions.insert({ projectId: project.id, title: 'Shell' });
         database.sessions.insertInitialState(session.id);
         const before = database.sessions.getState(session.id);
 

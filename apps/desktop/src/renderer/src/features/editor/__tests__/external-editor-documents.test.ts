@@ -29,7 +29,7 @@ function installSession(tabCount = 0): void {
     const state: SessionState = {
         sessionId: 'session-1',
         revision: 0,
-        workbenchProjectId: 'project-1',
+        workbenchRootProjectId: 'project-1',
         desiredSecondarySidebarViewContainerId: 'caxri.files',
         paneLayout: {
             root: {
@@ -48,7 +48,7 @@ function installSession(tabCount = 0): void {
                 {
                     id: 'session-1',
                     projectId: 'project-1',
-                    workbenchProjectId: 'project-1',
+                    workbenchRootProjectId: 'project-1',
                 },
             ],
             sessionStates: [state],
@@ -73,7 +73,7 @@ describe('external editor documents', () => {
 
         const path = openExternalEditorDocument({
             sessionId: 'session-1',
-            workbenchProjectId: 'project-1',
+            workbenchRootProjectId: 'project-1',
             document: {
                 id: 'external-1',
                 name: 'doctor.config.jsonc',
@@ -133,14 +133,14 @@ describe('external editor documents', () => {
 
         openExternalEditorDocument({
             sessionId: 'session-1',
-            workbenchProjectId: 'project-1',
+            workbenchRootProjectId: 'project-1',
             document,
         });
         expect(mocks.focusEditor).not.toHaveBeenCalled();
 
         openExternalEditorDocument({
             sessionId: 'session-1',
-            workbenchProjectId: 'project-1',
+            workbenchRootProjectId: 'project-1',
             document,
             focus: true,
         });
@@ -153,7 +153,7 @@ describe('external editor documents', () => {
         installSession();
         const path = openExternalEditorDocument({
             sessionId: 'session-1',
-            workbenchProjectId: 'project-1',
+            workbenchRootProjectId: 'project-1',
             document: {
                 id: 'external-1',
                 name: 'notes.md',
@@ -189,7 +189,7 @@ describe('external editor documents', () => {
         };
         const path = openExternalEditorDocument({
             sessionId: 'session-1',
-            workbenchProjectId: 'project-1',
+            workbenchRootProjectId: 'project-1',
             document,
         });
         if (!path) throw new Error('Expected an external editor path');
@@ -198,7 +198,7 @@ describe('external editor documents', () => {
         expect(
             openExternalEditorDocument({
                 sessionId: 'session-1',
-                workbenchProjectId: 'project-1',
+                workbenchRootProjectId: 'project-1',
                 document: { ...document, id: 'external-2', content: 'from disk' },
             }),
         ).toBe(path);
@@ -213,7 +213,7 @@ describe('external editor documents', () => {
 
         const firstPath = openExternalEditorDocument({
             sessionId: 'session-1',
-            workbenchProjectId: 'project-1',
+            workbenchRootProjectId: 'project-1',
             document: {
                 id: 'external-1',
                 name: 'outside.sql',
@@ -225,7 +225,7 @@ describe('external editor documents', () => {
         });
         const refreshedPath = openExternalEditorDocument({
             sessionId: 'session-1',
-            workbenchProjectId: 'project-1',
+            workbenchRootProjectId: 'project-1',
             document: {
                 id: 'external-2',
                 name: 'outside.sql',
@@ -255,7 +255,7 @@ describe('external editor documents', () => {
         expect(
             openExternalEditorDocument({
                 sessionId: 'session-1',
-                workbenchProjectId: 'project-2',
+                workbenchRootProjectId: 'project-2',
                 document: {
                     id: 'external-1',
                     name: 'outside.ts',
@@ -275,7 +275,7 @@ describe('external editor documents', () => {
         expect(
             openExternalEditorDocument({
                 sessionId: 'session-1',
-                workbenchProjectId: 'project-1',
+                workbenchRootProjectId: 'project-1',
                 document: {
                     id: 'external-full-pane',
                     name: 'outside.ts',

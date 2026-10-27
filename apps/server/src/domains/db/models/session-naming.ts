@@ -20,12 +20,12 @@ export function didWriteAutomaticNaming(
     database: CaxriDrizzleDatabase,
     id: string,
     value: NonNullable<typeof sessions.$inferSelect.automaticNaming>,
-    displayTitle?: string,
+    title?: string,
 ): boolean {
     return (
         database
             .update(sessions)
-            .set({ automaticNaming: value, ...(displayTitle !== undefined && { displayTitle }) })
+            .set({ automaticNaming: value, ...(title !== undefined && { title }) })
             .where(and(eq(sessions.id, id), eq(sessions.titleMode, 'automatic')))
             .run().changes === 1
     );

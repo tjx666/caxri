@@ -87,20 +87,20 @@ describe('Session status on a saved copy', () => {
     });
 
     it('never spins for a running Session read from the saved copy', () => {
-        const running = { hasUnread: false, lastActivityState: 'running' } as const;
+        const running = { hasUnread: false, agentActivityState: 'running' } as const;
         expect(sessionStatusGlyphKind(running, false)).toBe('running');
         expect(sessionStatusGlyphKind(running, true)).toBe('running-saved');
         expect(sessionStatusGlyphKind({ ...running, hasUnread: true }, true)).toBe('attention');
         expect(
-            sessionStatusGlyphKind({ hasUnread: false, lastActivityState: 'failed' }, true),
+            sessionStatusGlyphKind({ hasUnread: false, agentActivityState: 'failed' }, true),
         ).toBe('failed');
         expect(
-            sessionStatusGlyphKind({ hasUnread: false, lastActivityState: 'completed' }, false),
+            sessionStatusGlyphKind({ hasUnread: false, agentActivityState: 'completed' }, false),
         ).toBeNull();
     });
 
     it('leaves a run the screen already shows to it instead of spinning beside the title', () => {
-        const running = { hasUnread: false, lastActivityState: 'running' } as const;
+        const running = { hasUnread: false, agentActivityState: 'running' } as const;
         expect(sessionStatusGlyphKind(running, false, true)).toBeNull();
         expect(sessionStatusGlyphKind(running, true, true)).toBeNull();
         expect(sessionStatusGlyphKind({ ...running, hasUnread: true }, false, true)).toBe(

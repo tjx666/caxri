@@ -159,10 +159,10 @@ setInterval(() => {
         await expect
             .poll(async () => {
                 const state = await pageRequest<{
-                    sessions: Array<{ id: string; lastActivityState: string }>;
+                    sessions: Array<{ id: string; agentActivityState: string }>;
                 }>(running.page, 'app.bootstrap');
                 return state.sessions.find((session) => session.id === sourceSessionId)
-                    ?.lastActivityState;
+                    ?.agentActivityState;
             })
             .toBe('running');
         await createAdditionalShellSession(running.page);
@@ -443,9 +443,9 @@ process.stdout.write('Fake Claude subagent lifecycle ready\r\n');
         expect(
             afterParent.sessions.find((session) => session.id === sourceSessionId),
         ).toMatchObject({
-            attentionEpoch: 0,
+            attentionGeneration: 0,
             hasUnread: false,
-            lastActivityState: 'running',
+            agentActivityState: 'running',
         });
         await expect(sourceStatus).toHaveAttribute('data-session-status', 'running');
         expect(
@@ -472,9 +472,9 @@ process.stdout.write('Fake Claude subagent lifecycle ready\r\n');
         expect(
             afterSubagent.sessions.find((session) => session.id === sourceSessionId),
         ).toMatchObject({
-            attentionEpoch: 0,
+            attentionGeneration: 0,
             hasUnread: false,
-            lastActivityState: 'running',
+            agentActivityState: 'running',
         });
         expect(
             await running.app.evaluate(() => {
@@ -493,9 +493,9 @@ process.stdout.write('Fake Claude subagent lifecycle ready\r\n');
                 return bootstrap.sessions.find((session) => session.id === sourceSessionId);
             })
             .toMatchObject({
-                attentionEpoch: 1,
+                attentionGeneration: 1,
                 hasUnread: true,
-                lastActivityState: 'completed',
+                agentActivityState: 'completed',
                 lastAttentionKind: 'completed',
             });
         await expect(sourceStatus).toHaveAttribute('data-session-status', 'attention');

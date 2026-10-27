@@ -247,9 +247,9 @@ export async function renameCodexSession(
     try {
         await callCodexAppServer(context, 'thread/name/set', {
             threadId: context.agentSessionId,
-            name: context.displayTitle,
+            name: context.title,
         });
-        return { displayTitle: context.displayTitle };
+        return { title: context.title };
     } catch (error) {
         throwAgentRenameError('codex', error, context.signal);
     }

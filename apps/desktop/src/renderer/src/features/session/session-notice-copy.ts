@@ -8,12 +8,12 @@ import { sessionTitleForDisplay } from './session-title';
 const SESSION_NOTICE_TITLE_MAX_LENGTH = 48;
 
 /**
- * The Session as a notice names it: its quoted title, or the bare noun when it has none. An empty `displayTitle` is
+ * The Session as a notice names it: its quoted title, or the bare noun when it has none. An empty `title` is
  * representable in the Session record (a Shell-only Session has no Agent to name it) and quoting nothing reads as a
  * rendering bug.
  */
-function quotedSessionName(displayTitle: string | undefined): string | undefined {
-    const title = sessionTitleForDisplay(displayTitle?.trim() ?? '', translate);
+function quotedSessionName(rawTitle: string | undefined): string | undefined {
+    const title = sessionTitleForDisplay(rawTitle?.trim() ?? '', translate);
     if (title.length === 0) return undefined;
     // Count and cut by code point: an Agent-authored title can end on an emoji, and a UTF-16 cut would leave a lone
     // surrogate that renders as the replacement character.
@@ -28,9 +28,9 @@ function quotedSessionName(displayTitle: string | undefined): string | undefined
  */
 function describeSessionNotice(
     change: 'archived' | 'restored',
-    displayTitle: string | undefined,
+    rawTitle: string | undefined,
 ): string {
-    const title = quotedSessionName(displayTitle);
+    const title = quotedSessionName(rawTitle);
     if (title === undefined) return translate(`session.notice.${change}Untitled`);
     return translate(`session.notice.${change}`, { title });
 }
@@ -40,10 +40,10 @@ function describeSessionNotice(
  * manual archive the user did nothing, so the notice must say why the row vanished.
  */
 export function describeAutoArchivedSession(
-    displayTitle: string | undefined,
+    rawTitle: string | undefined,
     pullRequestState: 'closed' | 'merged',
 ): string {
-    const title = quotedSessionName(displayTitle);
+    const title = quotedSessionName(rawTitle);
     const session =
         title === undefined
             ? translate('session.notice.autoArchivedSession')
@@ -56,8 +56,8 @@ export function describeAutoArchivedSession(
     );
 }
 
-export function describeArchivedSession(displayTitle: string | undefined): string {
-    return describeSessionNotice('archived', displayTitle);
+export function describeArchivedSession(rawTitle: string | undefined): string {
+    return describeSessionNotice('archived', rawTitle);
 }
 
 /**
@@ -65,15 +65,15 @@ export function describeArchivedSession(displayTitle: string | undefined): strin
  * themselves in one shape; a restore that announced nothing was the only Session state change with no record at all,
  * and it happens inside a dialog large enough to cover the PrimarySidebar row it just brought back.
  */
-export function describeRestoredSession(displayTitle: string | undefined): string {
-    return describeSessionNotice('restored', displayTitle);
+export function describeRestoredSession(rawTitle: string | undefined): string {
+    return describeSessionNotice('restored', rawTitle);
 }
 
 /**
  * Copy for a batch restore. Quoting a batch is not possible in a toast's width, so the count carries the record; a
  * single-Session batch still names its Session, because there the title is the useful part.
  */
-export function describeRestoredSessions(displayTitles: ReadonlyArray<string | undefined>): string {
-    if (displayTitles.length === 1) return describeRestoredSession(displayTitles[0]);
-    return translate('session.notice.restoredCount', { count: displayTitles.length });
+export function describeRestoredSessions(titles: ReadonlyArray<string | undefined>): string {
+    if (titles.length === 1) return describeRestoredSession(titles[0]);
+    return translate('session.notice.restoredCount', { count: titles.length });
 }

@@ -99,9 +99,9 @@ export function currentAgentLaunchId(
 export async function sendToChat(
     chats: DispatchChats | undefined,
     terminal: TerminalRecord,
-    input: { attentionEpoch?: number; enter: boolean; text: string },
+    input: { attentionGeneration?: number; enter: boolean; text: string },
 ) {
-    if (input.attentionEpoch !== undefined)
+    if (input.attentionGeneration !== undefined)
         throw new CaxriError(
             'CONFLICT',
             'This Agent runs as a Chat; answer its request in the Chat instead of sending a reply',

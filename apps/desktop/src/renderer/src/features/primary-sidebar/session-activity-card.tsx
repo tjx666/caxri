@@ -50,7 +50,7 @@ function sessionCardDescription(
         activityLabel: string | undefined;
         agentLabel: string;
         inPinnedGroup: boolean | undefined;
-        project: Pick<ProjectRecord, 'displayTitle'>;
+        project: Pick<ProjectRecord, 'title'>;
         pullRequestLabel: string | undefined;
         pullRequestUnavailable: PullRequestUnavailable | undefined;
         worktreeProject: ProjectRecord | undefined;
@@ -60,7 +60,7 @@ function sessionCardDescription(
         // The pin has no visible mark on the row itself (it is the group the row sits in) and a pinned Session is
         // listed only there, so this sentence is the only thing that says the row is pinned at all.
         parts.inPinnedGroup && t('primarySidebar.card.inPinnedGroup'),
-        t('primarySidebar.card.projectSentence', { title: parts.project.displayTitle }),
+        t('primarySidebar.card.projectSentence', { title: parts.project.title }),
         t('primarySidebar.card.agentSentence', { agent: parts.agentLabel }),
         parts.activityLabel,
         !parts.pullRequestUnavailable && parts.pullRequestLabel,
@@ -70,7 +70,7 @@ function sessionCardDescription(
             }),
         parts.worktreeProject &&
             t('primarySidebar.card.worktreeSentence', {
-                title: parts.worktreeProject.displayTitle,
+                title: parts.worktreeProject.title,
             }),
     ]
         .filter(Boolean)
@@ -97,7 +97,7 @@ export function SessionActivityCard({
     /**
      * The owning Project, as the fields the card shows.
      */
-    project: Pick<ProjectRecord, 'displayTitle' | 'icon'>;
+    project: Pick<ProjectRecord, 'title' | 'icon'>;
     pullRequest?: SessionPullRequest;
     pullRequestUnavailable?: PullRequestUnavailable;
     session: SessionRecord;
@@ -162,7 +162,7 @@ export function SessionActivityCard({
             />
             <span id={accessibleDescriptionId} className="sr-only">
                 {accessibleDescription}{' '}
-                <LastActiveText sentence timestamp={session.lastSessionActivityAt} />
+                <LastActiveText sentence timestamp={session.sessionActivityAt} />
                 {unreadSentence ? ` ${unreadSentence}` : undefined}
             </span>
             {/*
@@ -188,18 +188,18 @@ export function SessionActivityCard({
             >
                 <div className="flex min-w-0 items-start gap-1.5">
                     <h3 className="m-0 line-clamp-2 min-w-0 text-[13px] font-medium wrap-break-word">
-                        {sessionTitleForDisplay(session.displayTitle, t)}
+                        {sessionTitleForDisplay(session.title, t)}
                     </h3>
                     <span className="mt-0.5 flex flex-none text-muted">
                         <AgentIdentityIcon identity={agent} size={14} />
                     </span>
                     <span className="session-card-time ml-auto flex-none pl-4 text-[12px] whitespace-nowrap text-muted">
-                        <LastActiveText timestamp={session.lastSessionActivityAt} />
+                        <LastActiveText timestamp={session.sessionActivityAt} />
                     </span>
                 </div>
                 <p className="mt-1 mb-0 flex min-w-0 items-center gap-1.5 text-[12px] text-muted">
                     <ProjectIcon className="flex-none" icon={project.icon} size={13} />
-                    <span className="min-w-0 truncate">{project.displayTitle}</span>
+                    <span className="min-w-0 truncate">{project.title}</span>
                 </p>
                 {statusLine && (
                     <p className="mt-1 mb-0 min-w-0 truncate text-[12px] text-muted">

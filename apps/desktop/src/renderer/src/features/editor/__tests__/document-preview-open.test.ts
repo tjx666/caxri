@@ -21,7 +21,7 @@ function installSession(): void {
     const state: SessionState = {
         sessionId: 'session-1',
         revision: 0,
-        workbenchProjectId: 'project-1',
+        workbenchRootProjectId: 'project-1',
         desiredSecondarySidebarViewContainerId: 'caxri.files',
         paneLayout: {
             root: {
@@ -38,7 +38,7 @@ function installSession(): void {
             projects: [],
             selectedSessionId: 'session-1',
             sessions: [
-                { id: 'session-1', projectId: 'project-1', workbenchProjectId: 'project-1' },
+                { id: 'session-1', projectId: 'project-1', workbenchRootProjectId: 'project-1' },
             ],
             sessionStates: [state],
             terminals: [],

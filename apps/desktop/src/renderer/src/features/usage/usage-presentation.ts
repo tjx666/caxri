@@ -151,7 +151,7 @@ export function usageSessionFilterTitle(
         sessionId,
     }: {
         /**
-         * The `displayTitle` of the Session in the Workbench, when it still exists there.
+         * The `title` of the Session in the Workbench, when it still exists there.
          */
         liveTitle: string | undefined;
         /**

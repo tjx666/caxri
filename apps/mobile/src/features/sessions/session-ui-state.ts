@@ -80,15 +80,15 @@ export const isChatSegmentShown = (segment: SessionSegment, isWideLayout: boolea
 export const isSegmentAwaitingAnswer = ({
     isChat,
     isSelected,
-    lastActivityState,
+    agentActivityState,
     segment,
 }: {
     isChat: boolean;
     isSelected: boolean;
-    lastActivityState: string;
+    agentActivityState: string;
     segment: SessionSegment;
 }): boolean =>
-    isChat && !isSelected && segment === 'conversation' && lastActivityState === 'waiting';
+    isChat && !isSelected && segment === 'conversation' && agentActivityState === 'waiting';
 
 /**
  * Whether the selected Session's detail is on screen. A phone shows it only on its own route; a tablet shows it beside

@@ -266,9 +266,7 @@ export function buildUsageReport(input: UsageReportInput): UsageReport {
         if (!accumulator) {
             accumulator = {
                 projectId,
-                title: isOutside
-                    ? OUTSIDE_CAXRI_TITLE
-                    : (project?.displayTitle ?? REMOVED_PROJECT_TITLE),
+                title: isOutside ? OUTSIDE_CAXRI_TITLE : (project?.title ?? REMOVED_PROJECT_TITLE),
                 isRemoved: !isOutside && project === undefined,
                 isOutsideCaxri: isOutside,
                 costUsd: 0,
@@ -294,7 +292,7 @@ export function buildUsageReport(input: UsageReportInput): UsageReport {
                 sessionId: key,
                 title: isOutside
                     ? folderName(contribution.row.cwd)
-                    : (session?.displayTitle ?? DELETED_SESSION_TITLE),
+                    : (session?.title ?? DELETED_SESSION_TITLE),
                 projectTitle: projectFor(contribution).title,
                 isArchived: session?.archivedAt !== undefined,
                 isDeleted: !isOutside && session === undefined,
@@ -435,7 +433,7 @@ export function buildUsageReport(input: UsageReportInput): UsageReport {
             continue;
         }
         if (outcome.state === 'missing') continue;
-        if (outcome.createdAt !== null && isInRange(clock.at(outcome.createdAt).date))
+        if (outcome.openedAt !== null && isInRange(clock.at(outcome.openedAt).date))
             pullRequestsCreated += 1;
         if (
             outcome.state !== 'merged' ||

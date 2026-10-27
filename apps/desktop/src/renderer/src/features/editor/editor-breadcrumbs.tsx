@@ -25,7 +25,7 @@ export function EditorBreadcrumbs({
     path,
     projectRoot,
     sessionId,
-    workbenchProjectId,
+    workbenchRootProjectId,
 }: {
     accessibilityLabel?: string;
     onEscapeToEditor?: () => void;
@@ -33,7 +33,7 @@ export function EditorBreadcrumbs({
     path: string;
     projectRoot: string;
     sessionId: string;
-    workbenchProjectId: string;
+    workbenchRootProjectId: string;
 }) {
     const { t } = useTranslation();
     const segments = editorBreadcrumbSegments(path, projectRoot);
@@ -50,7 +50,7 @@ export function EditorBreadcrumbs({
      */
     const pressedOpenSegment = useRef(false);
     const segmentReferences = useRef(new Map<string, HTMLButtonElement>());
-    const modelPath = editorModelPath(sessionViewScope(sessionId, workbenchProjectId), path);
+    const modelPath = editorModelPath(sessionViewScope(sessionId, workbenchRootProjectId), path);
     const tabStopPath = segments.some((segment) => segment.path === requestedTabStopPath)
         ? requestedTabStopPath
         : path;

@@ -12,7 +12,7 @@ describe('root service file mutation acknowledgement', () => {
             id: 'operation-1',
             kind: 'move',
             sessionId: 'session-1',
-            workbenchProjectId: 'project-a',
+            workbenchRootProjectId: 'project-a',
             phase: 'completed',
             input: {
                 conflict: 'reject',
@@ -44,7 +44,7 @@ describe('root service file mutation acknowledgement', () => {
         await acknowledgeFileMutation(database, files, operation.sessionId, operation.id);
 
         expect(remapWorkbenchEditorState).toHaveBeenCalledWith(
-            operation.workbenchProjectId,
+            operation.workbenchRootProjectId,
             operation.id,
             operation.result.previousPath,
             operation.result.path,

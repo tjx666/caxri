@@ -14,7 +14,7 @@ single-Session surface: a second window or a phone viewing another Session got i
 the mobile Status tab could only ask the user to open the Session on the computer first.
 
 Every extension view request now names its Session scope (`{ kind: 'session', sessionId,
-workbenchProjectId }`) and Server Core serves it whether or not that Session is Current:
+workbenchRootProjectId }`) and Server Core serves it whether or not that Session is Current:
 
 - **Authorization** resolves the named Session through the internal `app.sessionContext` method and
   rejects the request with `CANCELLED` only when that Session no longer exists or its Workbench Root no

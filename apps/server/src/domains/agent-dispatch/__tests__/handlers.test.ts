@@ -78,17 +78,17 @@ describe('Agent command handlers', () => {
         const session = {
             id: 'session-1',
             primaryAgentTerminalId: 'terminal-1',
-            lastActivityState: 'waiting',
-            attentionEpoch: 3,
+            agentActivityState: 'waiting',
+            attentionGeneration: 3,
         };
         const consumeSessionAttentionReply = vi.fn(
-            (_sessionId: string, _terminalId: string, attentionEpoch: number) => {
+            (_sessionId: string, _terminalId: string, attentionGeneration: number) => {
                 if (
-                    session.lastActivityState !== 'waiting' ||
-                    session.attentionEpoch !== attentionEpoch
+                    session.agentActivityState !== 'waiting' ||
+                    session.attentionGeneration !== attentionGeneration
                 )
                     return false;
-                session.lastActivityState = 'running';
+                session.agentActivityState = 'running';
                 return true;
             },
         );
@@ -119,7 +119,7 @@ describe('Agent command handlers', () => {
 
         const cancellation = new AbortController();
         const accepted = handlers['terminal.sendInternal'](
-            { terminalId: 'terminal-1', text: 'Continue', enter: true, attentionEpoch: 3 },
+            { terminalId: 'terminal-1', text: 'Continue', enter: true, attentionGeneration: 3 },
             cancellation.signal,
         );
         await vi.waitFor(() => expect(writeAgent).toHaveBeenCalledOnce());
@@ -131,7 +131,7 @@ describe('Agent command handlers', () => {
                 terminalId: 'terminal-1',
                 text: 'Stale reply',
                 enter: true,
-                attentionEpoch: 3,
+                attentionGeneration: 3,
             }),
         ).rejects.toThrow('Agent attention changed before the reply was accepted');
         expect(consumeSessionAttentionReply).toHaveBeenCalledOnce();
@@ -158,8 +158,8 @@ describe('Agent command handlers', () => {
                 getSession: vi.fn(() => ({
                     id: 'session-1',
                     primaryAgentTerminalId: 'terminal-1',
-                    lastActivityState: 'waiting',
-                    attentionEpoch: 3,
+                    agentActivityState: 'waiting',
+                    attentionGeneration: 3,
                 })),
                 consumeSessionAttentionReply,
             } as unknown as CaxriDatabase,
@@ -178,7 +178,7 @@ describe('Agent command handlers', () => {
 
         await expect(
             handlers['terminal.sendInternal'](
-                { terminalId: 'terminal-1', text: 'Continue', enter: true, attentionEpoch: 3 },
+                { terminalId: 'terminal-1', text: 'Continue', enter: true, attentionGeneration: 3 },
                 cancellation.signal,
             ),
         ).rejects.toMatchObject({ code: 'CANCELLED' });
@@ -202,9 +202,9 @@ describe('Agent command handlers', () => {
                     getSession: vi.fn(() => ({
                         id: 'session-1',
                         primaryAgentTerminalId: 'terminal-1',
-                        lastActivityState: 'waiting',
-                        attentionEpoch: 3,
-                        lastSessionActivityAt: 40,
+                        agentActivityState: 'waiting',
+                        attentionGeneration: 3,
+                        sessionActivityAt: 40,
                     })),
                     consumeSessionAttentionReply: vi.fn(() => true),
                     releaseSessionAttentionReply,
@@ -230,7 +230,7 @@ describe('Agent command handlers', () => {
                     terminalId: 'terminal-1',
                     text: 'Continue',
                     enter: true,
-                    attentionEpoch: 3,
+                    attentionGeneration: 3,
                 }),
             ).rejects.toThrow(
                 failure === 'throw' ? 'Agent launch ended' : 'Terminal is no longer running',

@@ -47,7 +47,7 @@ export function sessionDropTarget(
 
 /**
  * The rows a list shows, in order, encoded as a memo key. A Session switch replaces records without changing which rows
- * are on screen: the Server stamps the opened Session's `lastOpenedAt`, so the list and that record arrive as new
+ * are on screen: the Server stamps the opened Session's `lastVisitedAt`, so the list and that record arrive as new
  * objects while every row keeps its place. Keyed by this string, a memoized id list keeps its identity through that
  * refresh, and a row holding it has no reason to render again. JSON rather than a joined string, so no id can collide
  * with a separator.
@@ -107,7 +107,7 @@ export function sessionMoveAnnouncement(
     target: SessionDropTarget,
 ): string {
     const titleOf = (id: string): string => {
-        const title = sessions.find((session) => session.id === id)?.displayTitle;
+        const title = sessions.find((session) => session.id === id)?.title;
         return title === undefined
             ? translate('primarySidebar.sessionOrder.fallbackTitle')
             : sessionTitleForDisplay(title, translate);

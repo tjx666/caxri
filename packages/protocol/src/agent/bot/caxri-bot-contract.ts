@@ -69,7 +69,7 @@ export const botBoardRowSchema = z.strictObject({
     projectRoot: pathSchema,
     sessionId: identifierSchema,
     sessionTitle: z.string(),
-    activityState: sessionRecordSchema.shape.lastActivityState,
+    activityState: sessionRecordSchema.shape.agentActivityState,
     hasUnread: z.boolean(),
     lastActivityAt: z.number(),
     /**

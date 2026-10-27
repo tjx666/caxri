@@ -3,7 +3,7 @@ import { CaxriError } from '@caxri/protocol';
 import { eq, sql } from 'drizzle-orm';
 
 import type { CaxriDrizzleDatabase } from '../connection';
-import { sessionState as sessionStateTable } from '../schema';
+import { sessionViews as sessionViewsTable } from '../schema';
 import type { WorkbenchEditorStates } from './workbench-editor-state';
 import { parseWorkbenchEditorStates } from './workbench-editor-state';
 
@@ -75,7 +75,7 @@ export interface SessionStateRevisionObservers {
 const MAX_TRACKED_SESSIONS = 512;
 
 /**
- * Owns the revision bookkeeping of `session_state`: the Server-owned rewrites that advance it outside
+ * Owns the revision bookkeeping of `session_views`: the Server-owned rewrites that advance it outside
  * `SessionsModel.updateState`, the last writer of each Session, and the stale-write rejection.
  *
  * The last writer is in memory only. It answers "who moved this row, and when" for a conflict in the same Server Core
@@ -137,20 +137,20 @@ export class SessionStateRevisions {
         mutate: (paneLayout: SessionState['paneLayout']) => SessionState['paneLayout'],
     ): void {
         const row = this.database
-            .select({ workbenchStateJson: sessionStateTable.workbenchStateJson })
-            .from(sessionStateTable)
-            .where(eq(sessionStateTable.sessionId, sessionId))
+            .select({ rootsJson: sessionViewsTable.rootsJson })
+            .from(sessionViewsTable)
+            .where(eq(sessionViewsTable.sessionId, sessionId))
             .get();
         if (!row) return;
-        const states = parseWorkbenchEditorStates(row.workbenchStateJson);
+        const states = parseWorkbenchEditorStates(row.rootsJson);
         if (!states) return;
         let isChanged = false;
         const nextStates: WorkbenchEditorStates = {};
-        for (const [workbenchProjectId, rootState] of Object.entries(states)) {
+        for (const [workbenchRootProjectId, rootState] of Object.entries(states)) {
             if (!rootState) continue;
             const paneLayout = mutate(rootState.paneLayout);
             if (paneLayout !== rootState.paneLayout) isChanged = true;
-            nextStates[workbenchProjectId] =
+            nextStates[workbenchRootProjectId] =
                 paneLayout === rootState.paneLayout ? rootState : { ...rootState, paneLayout };
         }
         if (!isChanged) return;
@@ -167,7 +167,7 @@ export class SessionStateRevisions {
      */
     rewriteRootStates(
         sessionId: string,
-        workbenchStateJson: string,
+        rootsJson: string,
         reason: Exclude<SessionStateWriteReason, 'clientWrite' | 'serviceWrite'>,
     ): void {
         /**
@@ -175,10 +175,10 @@ export class SessionStateRevisions {
          * always returning one. The primary key bounds this to a single row.
          */
         const written = this.database
-            .update(sessionStateTable)
-            .set({ revision: sql`${sessionStateTable.revision} + 1`, workbenchStateJson })
-            .where(eq(sessionStateTable.sessionId, sessionId))
-            .returning({ revision: sessionStateTable.revision })
+            .update(sessionViewsTable)
+            .set({ revision: sql`${sessionViewsTable.revision} + 1`, rootsJson })
+            .where(eq(sessionViewsTable.sessionId, sessionId))
+            .returning({ revision: sessionViewsTable.revision })
             .all();
         for (const { revision } of written) this.recordWrite(sessionId, reason, revision);
     }

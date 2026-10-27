@@ -52,7 +52,7 @@ function filesChanged(path: string): void {
         event: 'files.changed',
         payload: {
             sessionId: 'session-a',
-            workbenchProjectId: 'project-a',
+            workbenchRootProjectId: 'project-a',
             overflow: false,
             changes: [{ path, kind: 'update' }],
         },
@@ -66,7 +66,11 @@ function badgeChanged(): void {
             viewId: 'git.view',
             eventId: 'badge-change',
             extensionGeneration: 1,
-            context: { kind: 'session', sessionId: 'session-a', workbenchProjectId: 'project-a' },
+            context: {
+                kind: 'session',
+                sessionId: 'session-a',
+                workbenchRootProjectId: 'project-a',
+            },
             change: { kind: 'badge' },
         },
     });
@@ -83,7 +87,7 @@ describe('file and view invalidation while the window is hidden', () => {
         vi.stubGlobal('document', fakeDocument);
         useWorkbenchStore.setState({
             bootstrap: {
-                sessions: [{ id: 'session-a', workbenchProjectId: 'project-a' }],
+                sessions: [{ id: 'session-a', workbenchRootProjectId: 'project-a' }],
                 sessionStates: [],
                 terminals: [],
             } as unknown as BootstrapState,

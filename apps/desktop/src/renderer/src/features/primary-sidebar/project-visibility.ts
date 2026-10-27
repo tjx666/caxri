@@ -19,9 +19,9 @@ export function topLevelProjects(projects: readonly ProjectRecord[]): ProjectRec
  * not in `projects`, so a stale binding renders no marker rather than an unlabeled one.
  */
 export function sessionWorktreeProject(
-    session: { projectId: string; workbenchProjectId: string },
+    session: { projectId: string; workbenchRootProjectId: string },
     projects: readonly ProjectRecord[],
 ): ProjectRecord | undefined {
-    if (session.workbenchProjectId === session.projectId) return undefined;
-    return projects.find((project) => project.id === session.workbenchProjectId);
+    if (session.workbenchRootProjectId === session.projectId) return undefined;
+    return projects.find((project) => project.id === session.workbenchRootProjectId);
 }

@@ -48,7 +48,7 @@ function option(id: string, extra: Partial<WorkbenchRootOption> = {}): Workbench
         worktreeId: id,
         rootPath: `/worktrees/${id}`,
         branch: `feature/${id}`,
-        displayTitle: id,
+        title: id,
         authorization: 'required',
         owner: false,
         isMain: false,

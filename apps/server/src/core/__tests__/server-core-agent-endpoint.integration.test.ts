@@ -111,14 +111,14 @@ function createAgentEndpointFixture(paths: AgentFixturePaths): CreateDomainServi
                           projects: [
                               {
                                   id: 'project-1',
-                                  displayTitle: 'Project',
+                                  title: 'Project',
                                   rootPath: '/projects/fixture',
                               },
                           ],
                       }
                     : {
                           view: principal.kind,
-                          projects: [{ id: 'project-1', displayTitle: 'Project' }],
+                          projects: [{ id: 'project-1', title: 'Project' }],
                       },
             'terminal.close': () => null,
             'bot.conversations': () => ({ conversations: [] }),
@@ -302,7 +302,7 @@ describe('Server Core Agent Endpoint', () => {
         ).rejects.toMatchObject({ code: 'FORBIDDEN' });
         await expect(agent.request('project.query', { mode: 'current' })).resolves.toEqual({
             view: 'agent',
-            projects: [{ id: 'project-1', displayTitle: 'Project' }],
+            projects: [{ id: 'project-1', title: 'Project' }],
         });
 
         const desktop = await connectDesktop(

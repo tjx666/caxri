@@ -1,5 +1,5 @@
 import { Buffer } from 'node:buffer';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -49,5 +49,23 @@ describe('prepareBotWorkspace', () => {
         expect(instructions).toContain('(Truncated: read `memory/lessons.md` for the rest');
         expect(instructions).not.toContain('�');
         expect(Buffer.byteLength(instructions)).toBeLessThan(BOT_PROJECT_DOC_MAX_BYTES);
+    });
+
+    it('moves memory notes kept under the legacy workspace name and leaves an existing workspace alone', async () => {
+        const userData = await profile();
+        const legacy = join(userData, 'agent-commander');
+        await mkdir(join(legacy, 'memory'), { recursive: true });
+        await writeFile(join(legacy, 'memory', 'lessons.md'), '# Lessons\n\n- Keep me\n');
+
+        const { path } = await prepareBotWorkspace(userData);
+
+        expect(await readFile(join(path, 'memory', 'lessons.md'), 'utf8')).toContain('- Keep me');
+        await expect(access(legacy)).rejects.toMatchObject({ code: 'ENOENT' });
+
+        await mkdir(join(legacy, 'memory'), { recursive: true });
+        await writeFile(join(legacy, 'memory', 'lessons.md'), '# Lessons\n\n- Stale\n');
+        await prepareBotWorkspace(userData);
+
+        expect(await readFile(join(path, 'memory', 'lessons.md'), 'utf8')).toContain('- Keep me');
     });
 });

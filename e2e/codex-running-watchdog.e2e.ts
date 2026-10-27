@@ -110,8 +110,8 @@ process.stdout.write('Watchdog Agent ready\r\n');
         await expect(sessionStatus).toHaveAttribute('data-session-status', 'default');
         const bootstrap = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');
         expect(bootstrap.sessions.find((session) => session.id === caxriSessionId)).toMatchObject({
-            attentionEpoch: 1,
-            lastActivityState: 'completed',
+            attentionGeneration: 1,
+            agentActivityState: 'completed',
             lastAttentionKind: 'completed',
         });
         expect(
@@ -293,8 +293,8 @@ process.stdout.write('Start recovery Agent ready\r\n');
         await expect(sessionStatus).toHaveAttribute('data-session-status', 'default');
         const bootstrap = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');
         expect(bootstrap.sessions.find((session) => session.id === caxriSessionId)).toMatchObject({
-            attentionEpoch: 3,
-            lastActivityState: 'completed',
+            attentionGeneration: 3,
+            agentActivityState: 'completed',
             lastAttentionKind: 'completed',
         });
         const log = await readFile(join(userData, 'logs', 'server-core.jsonl'), 'utf8');

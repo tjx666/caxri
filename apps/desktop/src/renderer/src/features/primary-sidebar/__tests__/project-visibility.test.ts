@@ -7,10 +7,10 @@ function project(overrides: Partial<ProjectRecord> = {}): ProjectRecord {
     return {
         id: 'project-owner',
         rootPath: '/repo',
-        displayTitle: 'repo',
+        title: 'repo',
         orderIndex: 0,
         createdAt: 0,
-        lastOpenedAt: 0,
+        lastVisitedAt: 0,
         ...overrides,
     };
 }
@@ -25,7 +25,7 @@ describe('topLevelProjects', () => {
         const worktree = project({
             id: 'project-worktree',
             rootPath: '/repo-feature',
-            displayTitle: 'repo-feature',
+            title: 'repo-feature',
             ownerProjectId: 'project-owner',
         });
 
@@ -36,7 +36,7 @@ describe('topLevelProjects', () => {
         const adopted = project({
             id: 'project-adopted',
             rootPath: '/repo-feature',
-            displayTitle: 'repo-feature',
+            title: 'repo-feature',
         });
 
         expect(topLevelProjects([project(), adopted])).toHaveLength(2);
@@ -55,12 +55,12 @@ describe('topLevelProjects', () => {
 });
 
 describe('sessionWorktreeProject', () => {
-    const worktree = project({ id: 'project-worktree', displayTitle: 'repo-feature' });
+    const worktree = project({ id: 'project-worktree', title: 'repo-feature' });
 
     it('resolves the bound Project when a Session works outside its own root', () => {
         expect(
             sessionWorktreeProject(
-                { projectId: 'project-owner', workbenchProjectId: 'project-worktree' },
+                { projectId: 'project-owner', workbenchRootProjectId: 'project-worktree' },
                 [project(), worktree],
             ),
         ).toBe(worktree);
@@ -69,7 +69,7 @@ describe('sessionWorktreeProject', () => {
     it('marks nothing when the Session works in its own Project', () => {
         expect(
             sessionWorktreeProject(
-                { projectId: 'project-owner', workbenchProjectId: 'project-owner' },
+                { projectId: 'project-owner', workbenchRootProjectId: 'project-owner' },
                 [project(), worktree],
             ),
         ).toBeUndefined();
@@ -78,7 +78,7 @@ describe('sessionWorktreeProject', () => {
     it('marks nothing when the bound Project is no longer present', () => {
         expect(
             sessionWorktreeProject(
-                { projectId: 'project-owner', workbenchProjectId: 'project-removed' },
+                { projectId: 'project-owner', workbenchRootProjectId: 'project-removed' },
                 [project()],
             ),
         ).toBeUndefined();

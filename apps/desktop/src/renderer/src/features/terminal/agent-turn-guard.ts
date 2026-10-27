@@ -19,12 +19,12 @@ import { readAgentChatSnapshot } from '../agent-chat/agent-chat-client';
  */
 export function isAgentTurnRunning(
     terminal: Pick<TerminalRecord, 'id' | 'lastAgentProcessState' | 'surface'>,
-    session: Pick<SessionRecord, 'lastActivityState' | 'primaryAgentTerminalId'> | undefined,
+    session: Pick<SessionRecord, 'agentActivityState' | 'primaryAgentTerminalId'> | undefined,
     chat?: Pick<AgentChatSnapshot, 'activeTurnId'>,
 ): boolean {
     if (session?.primaryAgentTerminalId !== terminal.id)
         return isChatTerminal(terminal) && Boolean(chat?.activeTurnId);
-    if (session.lastActivityState !== 'running' && session.lastActivityState !== 'waiting')
+    if (session.agentActivityState !== 'running' && session.agentActivityState !== 'waiting')
         return false;
     return isChatTerminal(terminal) || terminal.lastAgentProcessState === 'running';
 }

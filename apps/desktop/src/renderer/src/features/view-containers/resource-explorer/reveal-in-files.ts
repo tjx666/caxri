@@ -26,7 +26,7 @@ export function revealDirectoryInFiles(sessionId: string, path: string): void {
         .getState()
         .setDesiredSecondarySidebarViewContainerId(FILES_VIEW_CONTAINER_ID);
     didRevealDirectoryInScope(
-        `${session.id}:${session.workbenchProjectId}`,
+        `${session.id}:${session.workbenchRootProjectId}`,
         session.rootPath,
         path,
     );

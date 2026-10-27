@@ -369,7 +369,7 @@ describe('TerminalManager', () => {
         temporaryDirectories.push(directory);
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const created = database.createSession(database.createProject(directory).id, 'codex');
-        const createdActivityAt = created.session.lastSessionActivityAt;
+        const createdActivityAt = created.session.sessionActivityAt;
         const failed = createFakePty();
         const events: ServerEvent[] = [];
         const manager = createTestTerminalManager(
@@ -390,10 +390,10 @@ describe('TerminalManager', () => {
             expect(database.getTerminal(created.terminal!.id)?.lastProcessState).toBe('dead'),
         );
         expect(database.getSession(created.session.id)).toMatchObject({
-            lastActivityState: 'failed',
-            lastSessionActivityReason: 'agent_failed',
+            agentActivityState: 'failed',
+            sessionActivityReason: 'agent_failed',
         });
-        expect(database.getSession(created.session.id)!.lastSessionActivityAt).toBeGreaterThan(
+        expect(database.getSession(created.session.id)!.sessionActivityAt).toBeGreaterThan(
             createdActivityAt,
         );
         expect(events).toContainEqual({

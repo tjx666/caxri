@@ -60,7 +60,7 @@ describe('Session archive and restore notices', () => {
     });
 
     it('records an archive as an undoable info notice naming the Session', async () => {
-        mocks.caxriRequest.mockResolvedValueOnce({ id: 'session-1', displayTitle: 'api-fix' });
+        mocks.caxriRequest.mockResolvedValueOnce({ id: 'session-1', title: 'api-fix' });
 
         archiveSession('session-1');
         await mocks.tryCommand.mock.results[0]?.value;
@@ -88,7 +88,7 @@ describe('Session archive and restore notices', () => {
      * row has to come back where it was instead of jumping over an order the user arranged by dragging.
      */
     it('restores the archived Session in place when the notice Undo action is used', async () => {
-        mocks.caxriRequest.mockResolvedValueOnce({ id: 'session-1', displayTitle: 'api-fix' });
+        mocks.caxriRequest.mockResolvedValueOnce({ id: 'session-1', title: 'api-fix' });
 
         // What the notification center replays for `session.unarchive`.
         unarchiveSession('session-1', 'unchanged');
@@ -128,7 +128,7 @@ describe('Session archive and restore notices', () => {
 
     it('archives the selected Session through the same notice path', async () => {
         mocks.getSelectedSession.mockReturnValue({ id: 'session-2' });
-        mocks.caxriRequest.mockResolvedValueOnce({ id: 'session-2', displayTitle: 'docs' });
+        mocks.caxriRequest.mockResolvedValueOnce({ id: 'session-2', title: 'docs' });
 
         archiveSelectedSession();
         await mocks.tryCommand.mock.results[0]?.value;
@@ -140,7 +140,7 @@ describe('Session archive and restore notices', () => {
     });
 
     it('records an explicit restore as a named notice, the way an archive is recorded', async () => {
-        mocks.caxriRequest.mockResolvedValueOnce({ id: 'session-1', displayTitle: 'api-fix' });
+        mocks.caxriRequest.mockResolvedValueOnce({ id: 'session-1', title: 'api-fix' });
 
         unarchiveSession('session-1');
         await mocks.tryCommand.mock.results[0]?.value;
@@ -154,7 +154,7 @@ describe('Session archive and restore notices', () => {
     });
 
     it('leaves the archive notice Undo silent, since that notice already named the Session', async () => {
-        mocks.caxriRequest.mockResolvedValueOnce({ id: 'session-1', displayTitle: 'api-fix' });
+        mocks.caxriRequest.mockResolvedValueOnce({ id: 'session-1', title: 'api-fix' });
 
         unarchiveSession('session-1', 'unchanged');
         await mocks.tryCommand.mock.results[0]?.value;
@@ -176,8 +176,8 @@ describe('Session archive and restore notices', () => {
 
     it('counts a batch restore and reports what the Server actually restored', async () => {
         mocks.caxriRequest.mockResolvedValueOnce([
-            { id: 'session-1', displayTitle: 'api-fix' },
-            { id: 'session-2', displayTitle: 'docs' },
+            { id: 'session-1', title: 'api-fix' },
+            { id: 'session-2', title: 'docs' },
         ]);
 
         unarchiveSessions(['session-1', 'session-2', 'session-3']);

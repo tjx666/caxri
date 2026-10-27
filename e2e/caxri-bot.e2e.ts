@@ -300,7 +300,7 @@ test('Caxri Bot restarts under its open window after Server Core restarts', asyn
          * restore launch must trust the workspace exactly like the first one, or Codex would stop at its folder-trust
          * prompt instead of coming back.
          */
-        const workspace = await realpath(join(userData, 'agent-commander'));
+        const workspace = await realpath(join(userData, 'caxri-bot'));
         const trust = `projects={ ${JSON.stringify(workspace)} = { trust_level = "trusted" } }`;
         await expect.poll(readLaunches, { timeout: 30_000 }).toHaveLength(2);
         const launches = await readLaunches();

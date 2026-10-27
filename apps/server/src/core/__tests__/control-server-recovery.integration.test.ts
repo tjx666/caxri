@@ -10,24 +10,24 @@ import { CaxriDatabaseConnection } from '../../domains/db';
 import { ControlServer } from '../control-server';
 import { acquireServerProfile } from '../profile';
 
-function session(displayTitle: string) {
+function session(title: string) {
     return {
         id: 'session-1',
         projectId: 'project-1',
-        workbenchProjectId: 'project-1',
+        workbenchRootProjectId: 'project-1',
         rootPath: '/private/project-one',
-        displayTitle,
+        title,
         titleMode: 'manual' as const,
         createdAt: 1,
-        lastOpenedAt: 1,
+        lastVisitedAt: 1,
         sidebarOrder: 0,
-        lastSessionActivityAt: 1,
-        lastSessionActivityReason: 'created' as const,
+        sessionActivityAt: 1,
+        sessionActivityReason: 'created' as const,
         archivedAt: undefined,
         primaryAgentTerminalId: undefined,
-        lastActivityState: 'unknown' as const,
-        attentionEpoch: 0,
-        readAttentionEpoch: 0,
+        agentActivityState: 'unknown' as const,
+        attentionGeneration: 0,
+        acknowledgedAttentionGeneration: 0,
         hasUnread: false,
     };
 }
@@ -77,7 +77,7 @@ describe('ControlServer durable command recovery', () => {
             await expect(
                 client.requestWithId('rename-reply-loss', 'session.rename', {
                     sessionId: 'session-1',
-                    displayTitle: 'Persisted once',
+                    title: 'Persisted once',
                 }),
             ).rejects.toMatchObject({ code: 'UNAVAILABLE' });
             expect(invoke).toHaveBeenCalledOnce();
@@ -116,9 +116,9 @@ describe('ControlServer durable command recovery', () => {
             await expect(
                 client.requestWithId('rename-reply-loss', 'session.rename', {
                     sessionId: 'session-1',
-                    displayTitle: 'Persisted once',
+                    title: 'Persisted once',
                 }),
-            ).resolves.toMatchObject({ displayTitle: 'Persisted once' });
+            ).resolves.toMatchObject({ title: 'Persisted once' });
             expect(invoke).toHaveBeenCalledOnce();
             expect(database.protocolState.inspect().commandReceipts).toBe(1);
         } finally {

@@ -122,14 +122,14 @@ function ArchivedFilterBar({
                         aria-label={t('session.archived.filterByProject')}
                     >
                         <SelectValue>
-                            {selectedProject?.displayTitle ?? t('session.archived.allProjects')}
+                            {selectedProject?.title ?? t('session.archived.allProjects')}
                         </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                         <SelectItem value="all">{t('session.archived.allProjects')}</SelectItem>
                         {view.projectOptions.map((project) => (
                             <SelectItem key={project.id} value={project.id}>
-                                {project.displayTitle}
+                                {project.title}
                             </SelectItem>
                         ))}
                     </SelectContent>
@@ -253,7 +253,7 @@ function ArchivedSessionRow({
         >
             <Checkbox
                 aria-label={t('session.archived.selectSession', {
-                    title: sessionTitleForDisplay(item.session.displayTitle, t),
+                    title: sessionTitleForDisplay(item.session.title, t),
                 })}
                 checked={isSelected}
                 onCheckedChange={(next) => onToggle([item.session.id], next === true)}
@@ -262,10 +262,10 @@ function ArchivedSessionRow({
                 <AgentIdentityIcon identity={item.agent} size={15} />
                 <div className="min-w-0">
                     <p className="m-0 truncate text-[12px] font-medium">
-                        {sessionTitleForDisplay(item.session.displayTitle, t)}
+                        {sessionTitleForDisplay(item.session.title, t)}
                     </p>
                     <p className="m-0 truncate text-[11px] text-muted">
-                        {item.project.displayTitle}
+                        {item.project.title}
                         {' · '}
                         {resolveAgentIcon(item.agent).label}
                         {' · '}
@@ -278,7 +278,7 @@ function ArchivedSessionRow({
             <div className="flex gap-1">
                 <Button
                     aria-label={t('session.archived.restoreSession', {
-                        title: sessionTitleForDisplay(item.session.displayTitle, t),
+                        title: sessionTitleForDisplay(item.session.title, t),
                     })}
                     size="sm"
                     variant="secondary"
@@ -289,7 +289,7 @@ function ArchivedSessionRow({
                 </Button>
                 <Button
                     aria-label={t('session.archived.deleteSession', {
-                        title: sessionTitleForDisplay(item.session.displayTitle, t),
+                        title: sessionTitleForDisplay(item.session.title, t),
                     })}
                     className="text-danger hover:text-danger"
                     size="sm"

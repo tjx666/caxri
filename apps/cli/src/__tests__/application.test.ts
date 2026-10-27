@@ -290,9 +290,7 @@ describe('CLI application', () => {
         const client = server(
             {
                 view: 'human-cli',
-                projects: [
-                    { id: 'project-1', displayTitle: 'Caxri', rootPath: '$HOME/code/caxri' },
-                ],
+                projects: [{ id: 'project-1', title: 'Caxri', rootPath: '$HOME/code/caxri' }],
             },
             ['project.query'],
         );

@@ -72,7 +72,7 @@ createInterface({ input: process.stdin }).on('line', (line) => {
         context: {
             agentSessionId: 'thread-123',
             cwd: directory,
-            displayTitle: 'Native Codex title',
+            title: 'Native Codex title',
             environment: { homeDirectory: directory, variables: {} },
             executable,
             version: 'codex-cli 0.110.0',
@@ -93,7 +93,7 @@ describe('renameCodexSession', () => {
         const fixture = await createCodexAppServerFixture();
 
         await expect(renameCodexSession(fixture.context)).resolves.toEqual({
-            displayTitle: 'Native Codex title',
+            title: 'Native Codex title',
         });
 
         const messages = (await readFile(fixture.messagesPath, 'utf8'))
@@ -124,7 +124,7 @@ describe('renameCodexSession', () => {
                 renameCodexSession({
                     agentSessionId: 'thread-123',
                     cwd: '/unused',
-                    displayTitle: 'Native Codex title',
+                    title: 'Native Codex title',
                     environment: { homeDirectory: '/unused', variables: {} },
                     executable: '/must-not-run',
                     version,
@@ -149,7 +149,7 @@ describe('renameCodexSession', () => {
         const fixture = await createCodexAppServerFixture('ignore-term');
 
         await expect(renameCodexSession(fixture.context)).resolves.toEqual({
-            displayTitle: 'Native Codex title',
+            title: 'Native Codex title',
         });
 
         const lifecycle = await readFile(fixture.lifecyclePath, 'utf8');

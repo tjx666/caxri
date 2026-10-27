@@ -171,9 +171,11 @@ function FileEditorSurface({ paneId, path }: { paneId: string; path: string }) {
     const { t } = useTranslation();
     const session = usePaneViewSession();
     const sessionId = session?.id;
-    const scope = session ? sessionViewScope(session.id, session.workbenchProjectId) : undefined;
+    const scope = session
+        ? sessionViewScope(session.id, session.workbenchRootProjectId)
+        : undefined;
     const theme = useTheme();
-    const document = useDocument(sessionId, path, session?.workbenchProjectId);
+    const document = useDocument(sessionId, path, session?.workbenchRootProjectId);
     const isExternal = isExternalEditorTabPath(path);
     const isUntitled = isUntitledEditorTabPath(path);
     const languageCandidates = useUntitledEditor(session, scope, path, document);
@@ -235,7 +237,12 @@ function FileEditorSurface({ paneId, path }: { paneId: string; path: string }) {
                     readOnly={document.readOnly}
                     languageCandidates={languageCandidates}
                     onChange={(content) =>
-                        changeDocument(session.id, session.workbenchProjectId, path, content ?? '')
+                        changeDocument(
+                            session.id,
+                            session.workbenchRootProjectId,
+                            path,
+                            content ?? '',
+                        )
                     }
                     onBlur={autoSave}
                 />

@@ -95,7 +95,7 @@ describe('AgentCoordinator provider switch', () => {
                 .poll(() => database.getTerminal(created.terminal!.id)?.agentSessionId)
                 .toBe('claude-session');
             expect(database.getSession(created.session.id)).toMatchObject({
-                displayTitle: 'Claude took over',
+                title: 'Claude took over',
                 primaryAgentTerminalId: created.terminal!.id,
             });
         } finally {
@@ -204,7 +204,7 @@ describe('AgentCoordinator provider switch', () => {
                 kind: 'claude',
             });
             await expect
-                .poll(() => database.getSession(created.session.id)?.displayTitle)
+                .poll(() => database.getSession(created.session.id)?.title)
                 .toBe('Claude confirmed by metadata');
         } finally {
             await coordinator.close();
@@ -706,7 +706,7 @@ describe('AgentCoordinator provider switch', () => {
                 title: 'Claude',
             });
             await expect
-                .poll(() => database.getSession(created.session.id)?.displayTitle)
+                .poll(() => database.getSession(created.session.id)?.title)
                 .toBe('Claude hook launch');
         } finally {
             await coordinator.close();

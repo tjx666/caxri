@@ -15,18 +15,18 @@ function session(patch: Partial<SessionRecord> & Pick<SessionRecord, 'id'>): Ses
     return {
         id,
         projectId: 'project-1',
-        workbenchProjectId: 'project-1',
+        workbenchRootProjectId: 'project-1',
         rootPath: '/project',
         createdAt: 1,
-        lastOpenedAt: 1,
+        lastVisitedAt: 1,
         sidebarOrder: 0,
-        lastSessionActivityAt: 1_000,
-        lastSessionActivityReason: 'created',
-        lastActivityState: 'completed',
-        attentionEpoch: 0,
-        readAttentionEpoch: 0,
+        sessionActivityAt: 1_000,
+        sessionActivityReason: 'created',
+        agentActivityState: 'completed',
+        attentionGeneration: 0,
+        acknowledgedAttentionGeneration: 0,
         hasUnread: false,
-        displayTitle: 'Investigate hooks',
+        title: 'Investigate hooks',
         titleMode: 'automatic',
         primaryAgentTerminalId: 'terminal-1',
         ...overrides,
@@ -82,7 +82,7 @@ describe('Agent notification settings refresh races', () => {
         const initial = session({ id: 'session-1' });
         const next = session({
             id: 'session-1',
-            attentionEpoch: 1,
+            attentionGeneration: 1,
             hasUnread: true,
             lastAttentionKind: 'waiting',
         });
@@ -130,7 +130,7 @@ describe('Agent notification settings refresh races', () => {
         let current = initial;
         const next = session({
             id: 'session-1',
-            attentionEpoch: 1,
+            attentionGeneration: 1,
             hasUnread: true,
             lastAttentionKind: 'waiting',
         });
@@ -180,7 +180,7 @@ describe('Agent notification settings refresh races', () => {
         coordinator.observe(settingsChanged);
         current = session({
             id: 'session-1',
-            attentionEpoch: 2,
+            attentionGeneration: 2,
             hasUnread: true,
             lastAttentionKind: 'waiting',
         });
@@ -201,7 +201,7 @@ describe('Agent notification settings refresh races', () => {
 
         current = session({
             id: 'session-1',
-            attentionEpoch: 3,
+            attentionGeneration: 3,
             hasUnread: true,
             lastAttentionKind: 'waiting',
         });
@@ -213,7 +213,7 @@ describe('Agent notification settings refresh races', () => {
         await coordinator.flush();
         current = session({
             id: 'session-1',
-            attentionEpoch: 4,
+            attentionGeneration: 4,
             hasUnread: true,
             lastAttentionKind: 'waiting',
         });

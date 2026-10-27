@@ -39,8 +39,7 @@ async function fixture() {
         createPendingAgentAdapters({
             codex: {
                 provider: 'codex',
-                renameSession: ({ displayTitle }: { displayTitle: string }) =>
-                    Promise.resolve({ displayTitle }),
+                renameSession: ({ title }: { title: string }) => Promise.resolve({ title }),
                 snapshot: () =>
                     Promise.resolve({
                         provider: 'codex',
@@ -103,10 +102,10 @@ describe('Session title suggestion', () => {
             .mockResolvedValue('Session transcript backup');
 
         await expect(f.service.suggestTitle(f.sessionId)).resolves.toEqual({
-            displayTitle: 'Session transcript backup',
+            title: 'Session transcript backup',
         });
         expect(generate).toHaveBeenCalledOnce();
-        expect(f.database.getSession(f.sessionId)?.displayTitle).toBe('Typed by hand');
+        expect(f.database.getSession(f.sessionId)?.title).toBe('Typed by hand');
         expect(suggestionReasons(f.log)).toEqual(['completed']);
     });
 

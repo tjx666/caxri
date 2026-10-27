@@ -182,7 +182,7 @@ export const serverEventPayloads = {
         /**
          * Stable Project scope lets inactive Sessions sharing this root converge their caches.
          */
-        workbenchProjectId: identifierSchema,
+        workbenchRootProjectId: identifierSchema,
         changes: z.array(fileChangeSchema).max(MAX_FILE_CHANGES_PER_EVENT),
         overflow: z.boolean(),
         gitIgnoreRulesChanged: z.literal(true).optional(),
@@ -194,7 +194,7 @@ export const serverEventPayloads = {
     'files.operationChanged': z.object({
         operationId: identifierSchema,
         sessionId: identifierSchema,
-        workbenchProjectId: identifierSchema.optional(),
+        workbenchRootProjectId: identifierSchema.optional(),
     }),
     /**
      * Repository-identity invalidation signal: every Session whose Git projection includes one of the listed
@@ -298,7 +298,7 @@ export const serverEventPayloads = {
      */
     'workbench.changed': z.object({
         sessionId: identifierSchema,
-        workbenchProjectId: identifierSchema,
+        workbenchRootProjectId: identifierSchema,
         reason: z.enum(['selected', 'authorized', 'followed', 'fallback']),
         followedProjectTitle: z.string().min(1).max(1_024).optional(),
         returnedProjectTitle: z.string().min(1).max(1_024).optional(),

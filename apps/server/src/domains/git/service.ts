@@ -382,9 +382,9 @@ export class GitService {
      * unreferenced snapshots are already released when their last projection retires.
      */
     async observeWatcherAttached(sessionId: string): Promise<void> {
-        const scope = this.paths.getSessionWorkbenchProjectId(sessionId);
+        const scope = this.paths.getSessionWorkbenchRootProjectId(sessionId);
         const { root } = await this.paths.resolveSessionPath(sessionId);
-        if (scope !== this.paths.getSessionWorkbenchProjectId(sessionId)) return;
+        if (scope !== this.paths.getSessionWorkbenchRootProjectId(sessionId)) return;
         const roots = [...this.changeTracker.referencedRoots()].filter(
             (candidate) => !isOutsideRoot(relative(root, candidate)),
         );

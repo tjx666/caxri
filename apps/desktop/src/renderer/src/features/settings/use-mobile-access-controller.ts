@@ -348,9 +348,7 @@ export const useMobileAccessController = () => {
         [state.devices],
     );
     const projectAccessByDevice = useMemo(() => {
-        const projectTitles = new Map(
-            state.projects.map((project) => [project.id, project.displayTitle]),
-        );
+        const projectTitles = new Map(state.projects.map((project) => [project.id, project.title]));
         return new Map(
             activeDevices.map((device) => [
                 device.deviceId,

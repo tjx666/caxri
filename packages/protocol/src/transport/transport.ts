@@ -103,7 +103,7 @@ export const wireErrorSchema = z
  */
 export const workbenchRequestContextSchema = z.object({
     sessionId: identifierSchema,
-    workbenchProjectId: identifierSchema,
+    workbenchRootProjectId: identifierSchema,
 });
 
 export type WorkbenchRequestContext = z.infer<typeof workbenchRequestContextSchema>;

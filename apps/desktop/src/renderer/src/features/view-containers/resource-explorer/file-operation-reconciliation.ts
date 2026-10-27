@@ -208,7 +208,7 @@ async function applyCompletedOperation(
     }
     await remapOpenEditorsDurably(
         operation.sessionId,
-        operation.workbenchProjectId,
+        operation.workbenchRootProjectId,
         operation.id,
         operation.result.previousPath,
         operation.result.path,
@@ -243,7 +243,7 @@ export function reconcileFileMutation(
     if (reconciled.has(operation.id)) return Promise.resolve();
     const existing = reconciling.get(operation.id);
     if (existing) return existing;
-    const projectId = operation.workbenchProjectId;
+    const projectId = operation.workbenchRootProjectId;
     const store = useFileOperationStore.getState();
     store.begin({
         id: operation.id,

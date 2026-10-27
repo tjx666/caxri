@@ -10,8 +10,8 @@ import type { MobileSessionItem } from './session-model';
  * `DEFAULT_SESSION_TITLE` (`Untitled`) because it is data shared with Desktop and the CLI, so the phone translates it
  * only at display time, as Desktop's `sessionTitleForDisplay` does. Rename drafts and search keep the stored title.
  */
-export const sessionTitleForDisplay = (displayTitle: string, t: Translate = translate): string =>
-    displayTitle === DEFAULT_SESSION_TITLE ? t('sessions.untitled') : displayTitle;
+export const sessionTitleForDisplay = (title: string, t: Translate = translate): string =>
+    title === DEFAULT_SESSION_TITLE ? t('sessions.untitled') : title;
 
 export const sessionAgentLabel = (session: MobileSessionItem, t: Translate = translate): string => {
     const kind = session.primaryTerminal?.kind;
@@ -77,15 +77,15 @@ export const sessionStateLabel = (
  * status row, or its `Compacting context…` line), the slot stays empty so the same work does not spin twice.
  */
 export const sessionStatusGlyphKind = (
-    session: Pick<MobileSessionItem, 'hasUnread' | 'lastActivityState'>,
+    session: Pick<MobileSessionItem, 'hasUnread' | 'agentActivityState'>,
     isSaved: boolean,
     isRunShownBelow = false,
 ): 'attention' | 'running' | 'running-saved' | 'failed' | null => {
     if (session.hasUnread) return 'attention';
-    if (session.lastActivityState === 'running') {
+    if (session.agentActivityState === 'running') {
         if (isRunShownBelow) return null;
         return isSaved ? 'running-saved' : 'running';
     }
-    if (session.lastActivityState === 'failed') return 'failed';
+    if (session.agentActivityState === 'failed') return 'failed';
     return null;
 };

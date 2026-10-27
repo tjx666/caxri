@@ -40,11 +40,11 @@ export const useSessionManagement = () => {
         [sessions],
     );
     const rename = useCallback(
-        (sessionId: string, displayTitle: string) =>
+        (sessionId: string, title: string) =>
             run(
                 'rename',
                 sessionId,
-                () => request('mobile.session.rename', { sessionId, displayTitle }),
+                () => request('mobile.session.rename', { sessionId, title }),
                 t('sessions.manage.renameFailed'),
             ),
         [request, run, t],

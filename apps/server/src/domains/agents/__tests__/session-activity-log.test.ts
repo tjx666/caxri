@@ -43,12 +43,12 @@ describe('hasSessionActivityChanged', () => {
             expect(lifecycle('turnStarted')).toBe(true);
             expect(write).toHaveBeenLastCalledWith('info', 'agent.session_activity_changed', {
                 fields: {
-                    attentionEpoch: 0,
+                    attentionGeneration: 0,
                     attentionKind: null,
                     from: 'idle',
                     phase: 'turnStarted',
                     provider: 'claude',
-                    readAttentionEpoch: 0,
+                    acknowledgedAttentionGeneration: 0,
                     sessionId: created.session.id,
                     source: 'hook',
                     terminalId,
@@ -64,7 +64,7 @@ describe('hasSessionActivityChanged', () => {
             expect(write).toHaveBeenCalledTimes(2);
             expect(write.mock.lastCall?.[2]).toMatchObject({
                 fields: {
-                    attentionEpoch: 1,
+                    attentionGeneration: 1,
                     attentionKind: 'completed',
                     from: 'running',
                     source: 'deferredHook',
@@ -77,9 +77,9 @@ describe('hasSessionActivityChanged', () => {
             expect(write).toHaveBeenCalledTimes(3);
             expect(write.mock.lastCall?.[2]).toMatchObject({
                 fields: {
-                    attentionEpoch: 1,
+                    attentionGeneration: 1,
                     from: 'completed',
-                    readAttentionEpoch: 1,
+                    acknowledgedAttentionGeneration: 1,
                     to: 'running',
                 },
             });

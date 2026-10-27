@@ -8,7 +8,7 @@ export interface ResolvedSessionContext {
     ownerProjectId?: string;
     projectIds: string[];
     sessionId?: string;
-    workbenchProjectId?: string;
+    workbenchRootProjectId?: string;
 }
 
 /**
@@ -16,7 +16,14 @@ export interface ResolvedSessionContext {
  */
 export interface SessionScope {
     sessionId: string;
-    workbenchProjectId: string;
+    workbenchRootProjectId: string;
+}
+
+/**
+ * Copies only the Session scope out of a wider view context, so extra context fields never reach the API call.
+ */
+export function sessionScopeOf({ sessionId, workbenchRootProjectId }: SessionScope): SessionScope {
+    return { sessionId, workbenchRootProjectId };
 }
 
 export type SessionContextReader = (sessionId: string) => Promise<ResolvedSessionContext>;
@@ -24,7 +31,7 @@ export type SessionContextReader = (sessionId: string) => Promise<ResolvedSessio
 export async function resolveViewContext(
     readSessionContext: SessionContextReader,
     context: ExtensionViewEventContext,
-): Promise<{ sessionId?: string; workbenchProjectId?: string }> {
+): Promise<{ sessionId?: string; workbenchRootProjectId?: string }> {
     return context.kind === 'session' ? readSessionContext(context.sessionId) : {};
 }
 
@@ -38,7 +45,7 @@ export async function assertSessionScopeUnchanged(
     const current = await readSessionContext(scope.sessionId);
     if (
         current.sessionId !== scope.sessionId ||
-        current.workbenchProjectId !== scope.workbenchProjectId
+        current.workbenchRootProjectId !== scope.workbenchRootProjectId
     )
         throw Object.assign(
             new Error('Session scope changed while the extension request was running'),
@@ -54,7 +61,7 @@ export function assertSessionWithinGrant(
     grantProjectIds: ReadonlySet<string> | undefined,
 ): void {
     const visibleProjectIds = new Set(resolved.projectIds);
-    const scopeProjectIds = [resolved.ownerProjectId, resolved.workbenchProjectId].filter(
+    const scopeProjectIds = [resolved.ownerProjectId, resolved.workbenchRootProjectId].filter(
         (projectId): projectId is string => Boolean(projectId),
     );
     if (

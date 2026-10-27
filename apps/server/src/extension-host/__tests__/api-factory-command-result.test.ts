@@ -21,7 +21,7 @@ async function runCommandReturning(value: unknown): Promise<unknown> {
         generation: 1,
         commandId: 'publisher.fixture.command',
         arguments: [],
-        context: { kind: 'session', sessionId: 'session-1', workbenchProjectId: 'project-1' },
+        context: { kind: 'session', sessionId: 'session-1', workbenchRootProjectId: 'project-1' },
     });
 }
 

@@ -39,7 +39,7 @@ export interface SessionStatusTerminal {
 
 type SessionStatusSource = Pick<
     SessionRecord,
-    'hasUnread' | 'lastActivityState' | 'lastAttentionKind'
+    'hasUnread' | 'agentActivityState' | 'lastAttentionKind'
 >;
 
 /**
@@ -47,22 +47,22 @@ type SessionStatusSource = Pick<
  *
  * The amber attention slot means exactly one thing: an event the user has not opened yet. It is therefore always the
  * animated unread state and always clears once the Session is read; there is deliberately no quieter "still waiting"
- * variant. A second, static amber state keyed off `lastActivityState` alone used to survive acknowledgement, which left
- * read Sessions marked with a cue no amount of reading could clear and made the animated one impossible to trust.
+ * variant. A second, static amber state keyed off `agentActivityState` alone used to survive acknowledgement, which
+ * left read Sessions marked with a cue no amount of reading could clear and made the animated one impossible to trust.
  */
 export function sessionStatus(
     session: SessionStatusSource,
     terminal: SessionStatusTerminal = {},
 ): SessionStatus {
     const { agentOperation } = terminal;
-    const currentActivity = sessionActivityPresentation(session.lastActivityState, agentOperation);
+    const currentActivity = sessionActivityPresentation(session.agentActivityState, agentOperation);
 
     if (session.hasUnread) {
         const attentionActivity = sessionActivityPresentation(
             session.lastAttentionKind ?? 'unknown',
         );
         const currentStatus =
-            agentOperation === 'compacting' || session.lastActivityState === 'running'
+            agentOperation === 'compacting' || session.agentActivityState === 'running'
                 ? translate('primarySidebar.status.currentStatus', {
                       status: currentActivity.label,
                   })
@@ -93,7 +93,7 @@ export function sessionStatus(
         };
     }
 
-    if (agentOperation === 'compacting' || session.lastActivityState === 'running') {
+    if (agentOperation === 'compacting' || session.agentActivityState === 'running') {
         return {
             ariaDescription: currentActivity.description,
             ariaLabel: currentActivity.label,

@@ -87,7 +87,7 @@ export function createDesktopAgentNotifications({
             }
             logger()?.write('info', logEventCatalog.agentNotifications.decided, {
                 fields: {
-                    attentionEpoch: decision.attentionEpoch,
+                    attentionGeneration: decision.attentionGeneration,
                     attentionKind: decision.attentionKind ?? null,
                     durationMs: decision.durationMs ?? null,
                     outcome: decision.outcome,

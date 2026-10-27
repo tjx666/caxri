@@ -14,7 +14,7 @@ import { withViewEventContext } from '../view-event-context';
 const context = {
     kind: 'session' as const,
     sessionId: 'session-1',
-    workbenchProjectId: 'project-1',
+    workbenchRootProjectId: 'project-1',
 };
 
 describe('Extension Host API requests', () => {

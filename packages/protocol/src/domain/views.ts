@@ -96,7 +96,7 @@ export const extensionViewEventContextSchema = z.discriminatedUnion('kind', [
     z.object({
         kind: z.literal('session'),
         sessionId: z.string().min(1).max(200),
-        workbenchProjectId: z.string().min(1).max(200),
+        workbenchRootProjectId: z.string().min(1).max(200),
     }),
     z.object({ kind: z.literal('no-session') }),
 ]);

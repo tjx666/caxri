@@ -27,17 +27,17 @@ describe('human record output', () => {
                     {
                         id: 's1',
                         projectId: 'p1',
-                        displayTitle: 'Fix login',
-                        lastActivityState: 'idle',
-                        lastSessionActivityAt: now - 120_000,
+                        title: 'Fix login',
+                        agentActivityState: 'idle',
+                        sessionActivityAt: now - 120_000,
                     },
                     {
                         id: 's2',
                         projectId: 'p1',
-                        displayTitle: 'Old',
+                        title: 'Old',
                         archivedAt: 1,
-                        lastActivityState: 'idle',
-                        lastSessionActivityAt: now - 3 * 86_400_000,
+                        agentActivityState: 'idle',
+                        sessionActivityAt: now - 3 * 86_400_000,
                     },
                 ],
             },
@@ -53,7 +53,7 @@ describe('human record output', () => {
         const project = renderHumanRecords(
             'project.query',
             'show',
-            { projects: [{ id: 'p1', displayTitle: 'Demo', rootPath: '/work/demo' }] },
+            { projects: [{ id: 'p1', title: 'Demo', rootPath: '/work/demo' }] },
             now,
         );
         expect(project).toBe('Title: Demo\nPath:  /work/demo\nID:    p1\n');

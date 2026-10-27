@@ -53,7 +53,7 @@ export function workbenchRootLabel(
 ) {
     return root.branch === 'detached' ||
         roots.some((other) => other.worktreeId !== root.worktreeId && other.branch === root.branch)
-        ? `${root.branch === 'detached' ? t('statusBar.workbenchRoot.detached') : root.branch} · ${root.displayTitle}`
+        ? `${root.branch === 'detached' ? t('statusBar.workbenchRoot.detached') : root.branch} · ${root.title}`
         : root.branch;
 }
 

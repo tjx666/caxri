@@ -130,7 +130,7 @@ process.stdout.write('Fake Claude background lifecycle ready\r\n');
         const waiting = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');
         expect(waiting.sessions.find((session) => session.id === sessionId)).toMatchObject({
             hasUnread: false,
-            lastActivityState: 'running',
+            agentActivityState: 'running',
         });
         await running.page.screenshot({ path: testInfo.outputPath('background-wait.png') });
 
@@ -141,7 +141,7 @@ process.stdout.write('Fake Claude background lifecycle ready\r\n');
             .poll(async () => {
                 const bootstrap = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');
                 return bootstrap.sessions.find((session) => session.id === sessionId)
-                    ?.lastActivityState;
+                    ?.agentActivityState;
             })
             .toBe('completed');
     } finally {

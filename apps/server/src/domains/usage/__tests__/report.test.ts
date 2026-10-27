@@ -62,18 +62,18 @@ function usage(at: number, input: number, overrides: Partial<UsageRecord> = {}):
 const project = {
     id: 'project-1',
     rootPath: '/work/widgets',
-    displayTitle: 'Widgets',
+    title: 'Widgets',
 } as ProjectRecord;
 const worktree = {
     id: 'project-2',
     rootPath: '/work/widgets-worktrees/fix',
-    displayTitle: 'widgets-worktree',
+    title: 'widgets-worktree',
     ownerProjectId: 'project-1',
 } as ProjectRecord;
 const session = {
     id: 'session-1',
     projectId: 'project-1',
-    displayTitle: 'Fix login',
+    title: 'Fix login',
     createdAt: NOW - 2 * 24 * HOUR,
     archivedAt: NOW - HOUR,
 } as SessionRecord;
@@ -318,7 +318,7 @@ describe('buildUsageReport', () => {
             url: PR_URL,
             state: 'merged',
             title: 'Add widgets',
-            createdAt: NOW - 2 * HOUR,
+            openedAt: NOW - 2 * HOUR,
             mergedAt: NOW - HOUR,
             additions: 12,
             deletions: 3,

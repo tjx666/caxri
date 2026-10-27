@@ -5,7 +5,7 @@ import { workbenchRootNotice } from './workbench-root-notice';
 describe('workbench Root change notices', () => {
     const followed = {
         sessionId: 'session-1',
-        workbenchProjectId: 'project-worktree',
+        workbenchRootProjectId: 'project-worktree',
         reason: 'followed',
         followedProjectTitle: 'feature-entered',
     } as const;
@@ -15,7 +15,7 @@ describe('workbench Root change notices', () => {
         (reason) => {
             expect(
                 workbenchRootNotice(
-                    { sessionId: 'session-1', workbenchProjectId: 'project-worktree', reason },
+                    { sessionId: 'session-1', workbenchRootProjectId: 'project-worktree', reason },
                     'project-owner',
                 ),
             ).toBeUndefined();
@@ -50,7 +50,7 @@ describe('workbench Root change notices', () => {
             workbenchRootNotice(
                 {
                     sessionId: 'session-1',
-                    workbenchProjectId: 'project-worktree',
+                    workbenchRootProjectId: 'project-worktree',
                     reason: 'followed',
                 },
                 'project-owner',
@@ -63,7 +63,7 @@ describe('workbench Root change notices', () => {
             workbenchRootNotice(
                 {
                     sessionId: 'session-1',
-                    workbenchProjectId: 'project-owner',
+                    workbenchRootProjectId: 'project-owner',
                     reason: 'fallback',
                     returnedProjectTitle: 'Owner Project',
                 },

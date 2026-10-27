@@ -12,7 +12,7 @@ import { z } from 'zod';
 
 import { isOutsideRoot, isSameOrInside } from '../../path-security';
 import type { CaxriDrizzleDatabase } from '../connection';
-import { sessionState as sessionStateTable } from '../schema';
+import { sessionViews as sessionViewsTable } from '../schema';
 
 /**
  * One Workbench Root's durable snapshot. Terminal processes are Session-global; only their placement lives here, so
@@ -27,7 +27,7 @@ const workbenchEditorStateSchema = z.object({
 export const workbenchEditorStatesSchema = z
     .record(z.string().min(1).max(200), workbenchEditorStateSchema)
     .refine((states) => Object.keys(states).length <= 1_024, 'Too many Workbench Root states');
-// `Partial` corrects `z.record`'s inferred type: real lookups by workbenchProjectId key can miss
+// `Partial` corrects `z.record`'s inferred type: real lookups by workbenchRootProjectId key can miss
 // (Session-owned root has no state yet), but zod's inference promises every value is present.
 export type WorkbenchEditorStates = Partial<z.infer<typeof workbenchEditorStatesSchema>>;
 
@@ -75,34 +75,34 @@ function remapStoredEditorPath(path: string, previousPath: string, nextPath: str
  */
 function mutateRootStates(
     database: CaxriDrizzleDatabase,
-    workbenchProjectId: string,
+    workbenchRootProjectId: string,
     mutate: (
         state: NonNullable<WorkbenchEditorStates[string]>,
     ) => NonNullable<WorkbenchEditorStates[string]> | undefined,
 ): number {
     const rows = database
         .select({
-            sessionId: sessionStateTable.sessionId,
-            workbenchStateJson: sessionStateTable.workbenchStateJson,
+            sessionId: sessionViewsTable.sessionId,
+            rootsJson: sessionViewsTable.rootsJson,
         })
-        .from(sessionStateTable)
+        .from(sessionViewsTable)
         .all();
     let changedCount = 0;
     for (const row of rows) {
-        const workbenchStates = parseWorkbenchEditorStates(row.workbenchStateJson);
-        const rootState = workbenchStates?.[workbenchProjectId];
+        const workbenchStates = parseWorkbenchEditorStates(row.rootsJson);
+        const rootState = workbenchStates?.[workbenchRootProjectId];
         if (!workbenchStates || !rootState) continue;
         const nextState = mutate(rootState);
         if (!nextState) continue;
         database
-            .update(sessionStateTable)
+            .update(sessionViewsTable)
             .set({
-                workbenchStateJson: JSON.stringify({
+                rootsJson: JSON.stringify({
                     ...workbenchStates,
-                    [workbenchProjectId]: nextState,
+                    [workbenchRootProjectId]: nextState,
                 }),
             })
-            .where(eq(sessionStateTable.sessionId, row.sessionId))
+            .where(eq(sessionViewsTable.sessionId, row.sessionId))
             .run();
         changedCount += 1;
     }
@@ -115,12 +115,12 @@ function mutateRootStates(
  */
 export function remapWorkbenchEditorState(
     database: CaxriDrizzleDatabase,
-    workbenchProjectId: string,
+    workbenchRootProjectId: string,
     operationId: string,
     previousPath: string,
     nextPath: string,
 ): number {
-    return mutateRootStates(database, workbenchProjectId, (rootState) =>
+    return mutateRootStates(database, workbenchRootProjectId, (rootState) =>
         rootState.editorRemapOperationId === operationId
             ? undefined
             : {
@@ -139,15 +139,15 @@ export function remapWorkbenchEditorState(
  *
  * A rename can be applied by the Renderer alone, because a Session parked elsewhere reloads a rewritten path when it
  * returns. A Trash cannot: the Renderer only holds the pane layout of the root each Session is currently showing
- * (`listStates` returns that one row; the rest live in `workbenchStateJson`), so a tab stored for another root would
- * survive and come back as a tab stuck on `Loading file…` for a file that no longer exists (issue #909).
+ * (`listStates` returns that one row; the rest live in `rootsJson`), so a tab stored for another root would survive and
+ * come back as a tab stuck on `Loading file…` for a file that no longer exists (issue #909).
  */
 export function removeWorkbenchEditorPath(
     database: CaxriDrizzleDatabase,
-    workbenchProjectId: string,
+    workbenchRootProjectId: string,
     path: string,
 ): number {
-    return mutateRootStates(database, workbenchProjectId, (rootState) => {
+    return mutateRootStates(database, workbenchRootProjectId, (rootState) => {
         const closingIds = listPaneTabs(rootState.paneLayout).flatMap(({ tab }) =>
             tab.resource.kind === 'file' &&
             !isVirtualEditorTabPath(tab.resource.path) &&

@@ -84,13 +84,13 @@ export const useSessionComposer = ({
             delivery,
             currentEndpoint,
             terminalProcessState,
-            session.lastActivityState,
+            session.agentActivityState,
         );
         if (next !== delivery) sessionComposerDeliveryStore.set(stateKey, next);
-    }, [currentEndpoint, delivery, session.lastActivityState, stateKey, terminalProcessState]);
+    }, [currentEndpoint, delivery, session.agentActivityState, stateKey, terminalProcessState]);
     const isBusy = delivery.kind === 'sending' || delivery.kind === 'stopping';
     const isSending = delivery.kind === 'sending';
-    const isRunning = session.lastActivityState === 'running';
+    const isRunning = session.agentActivityState === 'running';
     const hasPendingAttachment = attachmentWaitReason !== null;
     const isShowStop =
         isRunning &&

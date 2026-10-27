@@ -7,7 +7,7 @@ import type { MobileConnectionStatus } from '../connection/connection-state';
 import type { MobileWriteFailure } from '../connection/mobile-write-failure';
 
 export interface NewSessionProject {
-    displayTitle: string;
+    title: string;
     id: string;
     lastActivityAt?: number;
 }
@@ -59,7 +59,7 @@ export const sortNewSessionProjects = (projects: NewSessionProject[]): NewSessio
         const rightRecent = right.lastActivityAt ?? 0;
         return (
             rightRecent - leftRecent ||
-            left.displayTitle.localeCompare(right.displayTitle) ||
+            left.title.localeCompare(right.title) ||
             left.id.localeCompare(right.id)
         );
     });

@@ -19,7 +19,7 @@ export interface ExtensionTreeScope {
     extensionGeneration: number;
     sessionId: string;
     viewId: string;
-    workbenchProjectId: string;
+    workbenchRootProjectId: string;
 }
 
 interface ExtensionTreeChildrenQueryParameters {
@@ -29,11 +29,11 @@ interface ExtensionTreeChildrenQueryParameters {
 }
 
 /**
- * Extends the `${sessionId}:${workbenchProjectId}` context key that controlled views already use with the Extension
+ * Extends the `${sessionId}:${workbenchRootProjectId}` context key that controlled views already use with the Extension
  * generation, so `removeSessionQueries` keeps matching a deleted Session by its `${sessionId}:` prefix.
  */
 function extensionTreeContextKey(scope: ExtensionTreeScope): string {
-    return `${scope.sessionId}:${scope.workbenchProjectId}:${scope.extensionGeneration}`;
+    return `${scope.sessionId}:${scope.workbenchRootProjectId}:${scope.extensionGeneration}`;
 }
 
 /**
@@ -99,7 +99,7 @@ export function requestTreeChildren(
         context: {
             kind: 'session',
             sessionId: scope.sessionId,
-            workbenchProjectId: scope.workbenchProjectId,
+            workbenchRootProjectId: scope.workbenchRootProjectId,
         },
         ...(parentHandle !== ROOT_HANDLE && { parentHandle }),
     });

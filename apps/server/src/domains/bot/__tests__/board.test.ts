@@ -14,18 +14,18 @@ function session(overrides: Partial<SessionRecord> = {}): SessionRecord {
     return {
         id: 'session-1',
         projectId: 'project-1',
-        workbenchProjectId: 'project-1',
+        workbenchRootProjectId: 'project-1',
         rootPath: '/workspace/project',
         createdAt: 1,
-        lastOpenedAt: 1,
-        lastSessionActivityAt: NOW - 1_000,
+        lastVisitedAt: 1,
+        sessionActivityAt: NOW - 1_000,
         sidebarOrder: 0,
-        lastSessionActivityReason: 'created',
-        lastActivityState: 'idle',
-        attentionEpoch: 0,
-        readAttentionEpoch: 0,
+        sessionActivityReason: 'created',
+        agentActivityState: 'idle',
+        attentionGeneration: 0,
+        acknowledgedAttentionGeneration: 0,
         hasUnread: false,
-        displayTitle: 'Fix the parser',
+        title: 'Fix the parser',
         titleMode: 'automatic',
         ...overrides,
     };
@@ -65,24 +65,24 @@ function task(overrides: Partial<AgentDelegationReceipt>): AgentDelegationReceip
 const project = {
     id: 'project-1',
     rootPath: '/workspace/project',
-    displayTitle: 'project',
+    title: 'project',
     orderIndex: 0,
     createdAt: 1,
-    lastOpenedAt: 1,
+    lastVisitedAt: 1,
 } satisfies ProjectRecord;
 
 describe('Caxri Bot board grouping', () => {
     it.each([
-        [{ hasUnread: true, lastActivityState: 'running' }, 'running', 'attention'],
-        [{ lastActivityState: 'failed' }, 'dead', 'failed'],
-        [{ lastActivityState: 'running' }, 'running', 'working'],
-        [{ lastActivityState: 'running' }, 'dead', 'idle'],
-        [{ lastActivityState: 'waiting' }, 'running', 'waiting'],
-        [{ lastActivityState: 'completed' }, 'running', 'finished'],
+        [{ hasUnread: true, agentActivityState: 'running' }, 'running', 'attention'],
+        [{ agentActivityState: 'failed' }, 'dead', 'failed'],
+        [{ agentActivityState: 'running' }, 'running', 'working'],
+        [{ agentActivityState: 'running' }, 'dead', 'idle'],
+        [{ agentActivityState: 'waiting' }, 'running', 'waiting'],
+        [{ agentActivityState: 'completed' }, 'running', 'finished'],
         [
             {
-                lastActivityState: 'completed',
-                lastSessionActivityAt: NOW - BOT_FINISHED_RETENTION_MS,
+                agentActivityState: 'completed',
+                sessionActivityAt: NOW - BOT_FINISHED_RETENTION_MS,
             },
             'running',
             'idle',
@@ -127,7 +127,7 @@ describe('Caxri Bot board grouping', () => {
                 now: NOW,
                 projects: [project],
                 pullRequests: { pullRequests: {}, refreshedAt: 0 },
-                sessions: [session({ lastActivityState: 'running' })],
+                sessions: [session({ agentActivityState: 'running' })],
                 tasks: [],
                 terminals: [terminal(overrides)],
             });
@@ -155,8 +155,8 @@ describe('Caxri Bot board grouping', () => {
                 refreshedAt: 42,
             },
             sessions: [
-                session({ id: 'session-1', lastSessionActivityAt: NOW - 2_000 }),
-                session({ id: 'session-2', lastSessionActivityAt: NOW - 1_000 }),
+                session({ id: 'session-1', sessionActivityAt: NOW - 2_000 }),
+                session({ id: 'session-2', sessionActivityAt: NOW - 1_000 }),
                 session({ id: 'session-3', hasUnread: true }),
                 session({ id: 'session-4', archivedAt: 1 }),
                 session({ id: 'session-5', projectId: 'worktree' }),
@@ -285,14 +285,14 @@ describe('Caxri Bot board grouping', () => {
         ['answer_unavailable', 'result_missing', 'completed'],
     ] as const)(
         'moves a %s task (%s) to failed over a Session that looks %s',
-        (status, failure, lastActivityState) => {
+        (status, failure, agentActivityState) => {
             const board = botBoard({
                 botTasks: [],
                 botSessionIds: new Set(['session-1']),
                 now: NOW,
                 projects: [project],
                 pullRequests: { pullRequests: {}, refreshedAt: 0 },
-                sessions: [session({ id: 'session-1', lastActivityState })],
+                sessions: [session({ id: 'session-1', agentActivityState })],
                 tasks: [task({ sessionId: 'session-1', status, failure })],
                 terminals: [terminal({ sessionId: 'session-1' })],
             });

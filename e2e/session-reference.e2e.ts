@@ -101,7 +101,7 @@ test('typing @ cites another Session from Agent Chat and from the Agent Commands
         const citedId = cited.session.id;
         await pageRequest(running.page, 'session.rename', {
             sessionId: citedId,
-            displayTitle: CITED_TITLE,
+            title: CITED_TITLE,
         });
         await pageRequest(running.page, 'session.select', { sessionId: shellId });
         const seeded = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');

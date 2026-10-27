@@ -53,12 +53,10 @@ export function AgentChatWaitingCard({
                 <div className="min-w-0 flex-1 leading-4">
                     <p className="m-0 flex min-w-0 items-baseline gap-1.5 text-[13px]">
                         <span className="truncate font-semibold text-foreground">
-                            {session ? sessionTitleForDisplay(session.displayTitle, t) : ''}
+                            {session ? sessionTitleForDisplay(session.title, t) : ''}
                         </span>
                         {project && (
-                            <span className="shrink-0 truncate text-muted">
-                                {project.displayTitle}
-                            </span>
+                            <span className="shrink-0 truncate text-muted">{project.title}</span>
                         )}
                     </p>
                     {/* What the user last asked, as the header's second line: set apart with a quote bar above the

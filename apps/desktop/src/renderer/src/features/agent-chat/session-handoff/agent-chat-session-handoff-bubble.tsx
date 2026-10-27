@@ -17,7 +17,7 @@ function HandoffTargetRow({ sentAt }: { sentAt: number | undefined }) {
     const sourceSessionId = useTerminal(terminalId ?? '')?.sessionId;
     const target = agentChatSessionHandoffTarget(useSessions(), sourceSessionId, sentAt);
     if (!target) return null;
-    const title = sessionTitleForDisplay(target.displayTitle, t);
+    const title = sessionTitleForDisplay(target.title, t);
     return (
         <div className="mt-1.5 flex min-w-0 items-center gap-1.5 border-t border-border pt-1.5 text-[12px] leading-4">
             <span className="flex-none text-muted">{t('agentChat.handoff.continuedIn')}</span>

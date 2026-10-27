@@ -42,7 +42,7 @@ function isPtyTurnRunning(database: CaxriDatabase, terminal: TerminalRecord): bo
     const session = database.getSession(terminal.sessionId);
     return (
         session?.primaryAgentTerminalId === terminal.id &&
-        (session.lastActivityState === 'running' || session.lastActivityState === 'waiting')
+        (session.agentActivityState === 'running' || session.agentActivityState === 'waiting')
     );
 }
 

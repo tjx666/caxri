@@ -17,12 +17,12 @@ vi.mock('../../../lib/caxri', () => ({ caxri: { onEvent: mocks.onEvent } }));
 
 import { isPreviewSourceChange, subscribePreviewSourceChanges } from '../preview-source-changes';
 
-const source = { workbenchProjectId: 'project-1', path: '/p/manual.pdf' };
+const source = { workbenchRootProjectId: 'project-1', path: '/p/manual.pdf' };
 
 function changed(changes: Array<{ kind: 'create' | 'delete' | 'update'; path: string }>) {
     return {
         sessionId: 'session-1',
-        workbenchProjectId: 'project-1',
+        workbenchRootProjectId: 'project-1',
         overflow: false,
         changes,
     };
@@ -51,7 +51,7 @@ describe('isPreviewSourceChange', () => {
             isPreviewSourceChange(
                 {
                     ...changed([{ kind: 'update', path: source.path }]),
-                    workbenchProjectId: 'project-2',
+                    workbenchRootProjectId: 'project-2',
                 },
                 source,
             ),

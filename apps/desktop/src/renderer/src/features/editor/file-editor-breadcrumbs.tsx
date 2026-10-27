@@ -22,7 +22,7 @@ export function FileEditorBreadcrumbs({
 }) {
     const { t } = useTranslation();
     const session = usePaneViewSession();
-    const project = useProjectById(session?.workbenchProjectId);
+    const project = useProjectById(session?.workbenchRootProjectId);
     if (!session || (isExternal && !displayPath)) return null;
     return (
         <div className="flex h-6 shrink-0 items-center overflow-hidden border-b border-border bg-surface">
@@ -39,7 +39,7 @@ export function FileEditorBreadcrumbs({
                     path={path}
                     projectRoot={project.rootPath}
                     sessionId={session.id}
-                    workbenchProjectId={session.workbenchProjectId}
+                    workbenchRootProjectId={session.workbenchRootProjectId}
                 />
             ) : null}
             {readOnly && (

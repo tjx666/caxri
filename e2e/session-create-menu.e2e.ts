@@ -46,7 +46,7 @@ test('the empty-Project New Session row anchors the Terminal menu to itself', as
         const group = running.page.locator(`.project-group[data-project-id="${project.id}"]`);
         const heading = group.locator('.project-heading');
         const pencil = heading.getByRole('button', {
-            name: `New Session in ${project.displayTitle}`,
+            name: `New Session in ${project.title}`,
         });
         const emptyRow = group.locator('.empty-project');
         /**
@@ -108,7 +108,7 @@ test('arrow keys reach the empty-Project New Session row and follow the Session 
          */
         await running.page.keyboard.press('ArrowUp');
         await expect(
-            running.page.getByRole('menu', { name: `New Session in ${project.displayTitle}` }),
+            running.page.getByRole('menu', { name: `New Session in ${project.title}` }),
         ).toHaveCount(0);
         await expect(projectRow).toBeFocused();
         // No children of its own: Left returns to the Project heading, Right does nothing.

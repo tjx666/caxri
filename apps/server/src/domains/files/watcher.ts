@@ -63,7 +63,7 @@ export interface WatcherServiceOptions {
  */
 export interface WatchScope {
     sessionId: string;
-    workbenchProjectId: string;
+    workbenchRootProjectId: string;
 }
 
 /**
@@ -373,7 +373,7 @@ export class WatcherService {
         if (
             this.pendingScope &&
             (this.pendingScope.sessionId !== scope.sessionId ||
-                this.pendingScope.workbenchProjectId !== scope.workbenchProjectId)
+                this.pendingScope.workbenchRootProjectId !== scope.workbenchRootProjectId)
         )
             this.flushPendingBatch();
         this.pendingScope ??= scope;
@@ -399,7 +399,7 @@ export class WatcherService {
             event: 'files.changed',
             payload: {
                 sessionId: scope.sessionId,
-                workbenchProjectId: scope.workbenchProjectId,
+                workbenchRootProjectId: scope.workbenchRootProjectId,
                 changes,
                 overflow: this.droppedEvents > 0 || this.forceRescanOverflow,
                 ...(this.gitIgnoreRulesChanged && { gitIgnoreRulesChanged: true as const }),
@@ -411,7 +411,7 @@ export class WatcherService {
             {
                 fields: {
                     sessionId: scope.sessionId,
-                    workbenchProjectId: scope.workbenchProjectId,
+                    workbenchRootProjectId: scope.workbenchRootProjectId,
                     count: this.pendingEvents.size,
                     droppedEvents: this.droppedEvents,
                     gitIgnoreRulesChanged: this.gitIgnoreRulesChanged,
@@ -699,7 +699,7 @@ export class WatcherService {
         if (
             shouldForce ||
             scope?.sessionId !== this.watchedScope?.sessionId ||
-            scope?.workbenchProjectId !== this.watchedScope?.workbenchProjectId
+            scope?.workbenchRootProjectId !== this.watchedScope?.workbenchRootProjectId
         ) {
             // Reset fences synchronously; hub disposal never rejects and must not delay root setup.
             void this.externalLinks.reset(scope);
@@ -707,7 +707,7 @@ export class WatcherService {
         if (
             scope &&
             !shouldForce &&
-            scope.workbenchProjectId === this.watchedScope?.workbenchProjectId
+            scope.workbenchRootProjectId === this.watchedScope?.workbenchRootProjectId
         ) {
             this.watchedScope = scope;
             await this.watchSetup;

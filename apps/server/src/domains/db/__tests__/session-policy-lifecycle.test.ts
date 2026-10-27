@@ -24,20 +24,20 @@ function session(overrides: Partial<SessionRecord> = {}): SessionRecord {
     return {
         id: 'session-1',
         projectId: 'project-1',
-        workbenchProjectId: 'project-1',
+        workbenchRootProjectId: 'project-1',
         rootPath: '/repo',
         createdAt: 0,
-        lastOpenedAt: 0,
+        lastVisitedAt: 0,
         sidebarOrder: 0,
-        lastSessionActivityAt: 0,
-        lastSessionActivityReason: 'created',
+        sessionActivityAt: 0,
+        sessionActivityReason: 'created',
         primaryAgentTerminalId: undefined,
-        lastActivityState: 'idle',
-        attentionEpoch: 0,
-        readAttentionEpoch: 0,
+        agentActivityState: 'idle',
+        attentionGeneration: 0,
+        acknowledgedAttentionGeneration: 0,
         lastAttentionKind: undefined,
         hasUnread: false,
-        displayTitle: DEFAULT_SESSION_TITLE,
+        title: DEFAULT_SESSION_TITLE,
         titleMode: 'automatic',
         ...overrides,
     };
@@ -50,13 +50,13 @@ describe('decideAgentLifecycleUpdate', () => {
             decideAgentLifecycleUpdate(
                 primary,
                 session({
-                    lastActivityState: 'running',
+                    agentActivityState: 'running',
                     primaryAgentTerminalId: primary.id,
                 }),
                 'grok',
                 'turnFailed',
             ),
-        ).toEqual({ lastActivityState: 'failed', attentionKind: 'failed' });
+        ).toEqual({ agentActivityState: 'failed', attentionKind: 'failed' });
     });
     it('resumes only a primary Agent that was waiting after its tool batch finishes', () => {
         const primary = terminal({ id: 'claude-1', provider: 'claude' });
@@ -65,18 +65,18 @@ describe('decideAgentLifecycleUpdate', () => {
             decideAgentLifecycleUpdate(
                 primary,
                 session({
-                    lastActivityState: 'waiting',
+                    agentActivityState: 'waiting',
                     primaryAgentTerminalId: primary.id,
                 }),
                 'claude',
                 'toolBatchFinished',
             ),
-        ).toEqual({ lastActivityState: 'running' });
+        ).toEqual({ agentActivityState: 'running' });
         expect(
             decideAgentLifecycleUpdate(
                 primary,
                 session({
-                    lastActivityState: 'running',
+                    agentActivityState: 'running',
                     primaryAgentTerminalId: primary.id,
                 }),
                 'claude',
@@ -87,7 +87,7 @@ describe('decideAgentLifecycleUpdate', () => {
             decideAgentLifecycleUpdate(
                 primary,
                 session({
-                    lastActivityState: 'completed',
+                    agentActivityState: 'completed',
                     primaryAgentTerminalId: primary.id,
                 }),
                 'claude',
@@ -98,24 +98,24 @@ describe('decideAgentLifecycleUpdate', () => {
     it('supersedes unread attention when a new turn starts, even without a state change', () => {
         const primary = terminal({ id: 'claude-1', provider: 'claude' });
         const unreadCompleted = session({
-            attentionEpoch: 1,
+            attentionGeneration: 1,
             hasUnread: true,
-            lastActivityState: 'completed',
+            agentActivityState: 'completed',
             lastAttentionKind: 'completed',
             primaryAgentTerminalId: primary.id,
         });
 
         expect(
             decideAgentLifecycleUpdate(primary, unreadCompleted, 'claude', 'turnStarted'),
-        ).toEqual({ lastActivityState: 'running', supersedesUnreadAttention: true });
+        ).toEqual({ agentActivityState: 'running', supersedesUnreadAttention: true });
         expect(
             decideAgentLifecycleUpdate(
                 primary,
-                { ...unreadCompleted, lastActivityState: 'running' },
+                { ...unreadCompleted, agentActivityState: 'running' },
                 'claude',
                 'turnStarted',
             ),
-        ).toEqual({ lastActivityState: 'running', supersedesUnreadAttention: true });
+        ).toEqual({ agentActivityState: 'running', supersedesUnreadAttention: true });
         expect(
             decideAgentLifecycleUpdate(
                 primary,
@@ -123,7 +123,7 @@ describe('decideAgentLifecycleUpdate', () => {
                 'claude',
                 'turnStarted',
             ),
-        ).toEqual({ lastActivityState: 'running' });
+        ).toEqual({ agentActivityState: 'running' });
     });
     describe('answered attention', () => {
         const primary = terminal({ id: 'claude-1', provider: 'claude' });
@@ -132,9 +132,9 @@ describe('decideAgentLifecycleUpdate', () => {
             state: 'waiting' | 'completed' | 'running',
         ) =>
             session({
-                attentionEpoch: 1,
+                attentionGeneration: 1,
                 hasUnread: true,
-                lastActivityState: state,
+                agentActivityState: state,
                 lastAttentionKind: kind,
                 primaryAgentTerminalId: primary.id,
             });
@@ -148,7 +148,7 @@ describe('decideAgentLifecycleUpdate', () => {
                         'claude',
                         phase,
                     ),
-                ).toEqual({ lastActivityState: 'running', supersedesUnreadAttention: true });
+                ).toEqual({ agentActivityState: 'running', supersedesUnreadAttention: true });
         });
 
         it('supersedes a stale unread waiting notice even when the state already moved on', () => {
@@ -159,7 +159,7 @@ describe('decideAgentLifecycleUpdate', () => {
                     'claude',
                     'attentionResolved',
                 ),
-            ).toEqual({ lastActivityState: 'running', supersedesUnreadAttention: true });
+            ).toEqual({ agentActivityState: 'running', supersedesUnreadAttention: true });
         });
 
         it('leaves an unread result untouched', () => {
@@ -175,15 +175,15 @@ describe('decideAgentLifecycleUpdate', () => {
 
         it('raises the result notice when the turn finishes after the answer', () => {
             const answered = session({
-                attentionEpoch: 1,
-                readAttentionEpoch: 1,
+                attentionGeneration: 1,
+                acknowledgedAttentionGeneration: 1,
                 hasUnread: false,
-                lastActivityState: 'running',
+                agentActivityState: 'running',
                 lastAttentionKind: 'waiting',
                 primaryAgentTerminalId: primary.id,
             });
             expect(decideAgentLifecycleUpdate(primary, answered, 'claude', 'turnFinished')).toEqual(
-                { lastActivityState: 'completed', attentionKind: 'completed' },
+                { agentActivityState: 'completed', attentionKind: 'completed' },
             );
         });
     });

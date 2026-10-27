@@ -41,8 +41,8 @@ describe('Session last viewed boundary', () => {
 
         const after = database.getSession(session.id)!;
         expect(after.lastViewedAt).toBe(2000);
-        expect(after.lastSessionActivityAt).toBe(session.lastSessionActivityAt);
-        expect(after.lastOpenedAt).toBe(session.lastOpenedAt);
+        expect(after.sessionActivityAt).toBe(session.sessionActivityAt);
+        expect(after.lastVisitedAt).toBe(session.lastVisitedAt);
         expect(after.sidebarOrder).toBe(session.sidebarOrder);
     });
 });

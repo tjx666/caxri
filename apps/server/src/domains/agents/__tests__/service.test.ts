@@ -388,11 +388,11 @@ describe('Agent adapter fallback', () => {
         const context = {
             agentSessionId: 'codex-session-1',
             cwd: '/project',
-            displayTitle: 'Requested title',
+            title: 'Requested title',
             signal,
         };
         const renameSession = vi.fn<AgentAdapter['renameSession']>(() =>
-            Promise.resolve({ displayTitle: 'Provider title' }),
+            Promise.resolve({ title: 'Provider title' }),
         );
         const claudeRenameSession = vi.fn<AgentAdapter['renameSession']>();
         const snapshot = vi.fn<AgentAdapter['snapshot']>();
@@ -402,7 +402,7 @@ describe('Agent adapter fallback', () => {
         });
 
         await expect(service.renameSession('codex', context)).resolves.toEqual({
-            displayTitle: 'Provider title',
+            title: 'Provider title',
         });
         expect(renameSession).toHaveBeenCalledOnce();
         expect(renameSession).toHaveBeenCalledWith(context);
@@ -423,7 +423,7 @@ describe('Agent adapter fallback', () => {
             service.renameSession('claude', {
                 agentSessionId: 'claude-session-1',
                 cwd: '/project',
-                displayTitle: 'Requested title',
+                title: 'Requested title',
             }),
         ).rejects.toBe(error);
     });

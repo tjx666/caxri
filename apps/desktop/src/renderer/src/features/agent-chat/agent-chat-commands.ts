@@ -164,7 +164,7 @@ export async function forkAgentChat(
         pushToast(
             'success',
             agentChatForkSuccessMessage(
-                session && sessionTitleForDisplay(session.displayTitle, translate),
+                session && sessionTitleForDisplay(session.title, translate),
             ),
         );
     });

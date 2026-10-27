@@ -62,8 +62,7 @@ export function AgentActivityRowItem({
     const { t } = useTranslation();
     const { project, session, terminal } = row;
     const isRenaming = sessionRename.renamingRowId === row.rowId;
-    const beginRename = () =>
-        sessionRename.beginRename(session.id, session.displayTitle, row.rowId);
+    const beginRename = () => sessionRename.beginRename(session.id, session.title, row.rowId);
     const canMarkRead = session.hasUnread;
     const { pullRequest, unavailable: pullRequestUnavailable } = useSessionPullRequest(session.id);
     const visiblePullRequest = pullRequestUnavailable ? undefined : pullRequest;
@@ -76,7 +75,7 @@ export function AgentActivityRowItem({
     // titles may scroll solely to reveal their text"), so a clipped title behaves the same in either body of the side
     // bar. Called here because `AgentActivityRowTrigger` is invoked as a plain function and cannot own hooks.
     const titleScroll = useSessionTitleScroll(
-        sessionTitleForDisplay(session.displayTitle, t),
+        sessionTitleForDisplay(session.title, t),
         isRenaming || menuOpen,
     );
     const trigger = AgentActivityRowTrigger({
@@ -100,7 +99,7 @@ export function AgentActivityRowItem({
         <SessionRowMenu
             onBeginRename={beginRename}
             onSuggestRename={() =>
-                sessionRename.suggestRename(session.id, session.displayTitle, row.rowId)
+                sessionRename.suggestRename(session.id, session.title, row.rowId)
             }
             onMarkRead={canMarkRead ? onMarkRead : undefined}
             onOpenChange={setMenuOpen}
@@ -122,7 +121,7 @@ export function AgentActivityRowItem({
                 />
                 {canMarkRead && !isRenaming && (
                     <AgentActivityMarkReadButton
-                        sessionTitle={sessionTitleForDisplay(session.displayTitle, t)}
+                        sessionTitle={sessionTitleForDisplay(session.title, t)}
                         onMarkRead={onMarkRead}
                     />
                 )}

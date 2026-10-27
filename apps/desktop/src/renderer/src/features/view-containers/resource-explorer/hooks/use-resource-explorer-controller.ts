@@ -200,9 +200,9 @@ export function useResourceExplorerController(): ResourceExplorerController | un
     const session = useSelectedSession();
     const project = useSelectedWorkbenchProject();
     const sessionRootPath = session?.rootPath;
-    const scopeId = session ? `${session.id}:${session.workbenchProjectId}` : undefined;
+    const scopeId = session ? `${session.id}:${session.workbenchRootProjectId}` : undefined;
     const clipboard = useFileClipboardStore((state) => state.entry);
-    const selectedProjectId = project?.id ?? session?.workbenchProjectId;
+    const selectedProjectId = project?.id ?? session?.workbenchRootProjectId;
     const operations = useFileOperationStore((state) => state.operations);
     // Memoized explicitly: React Compiler leaves this call uncached, and a fresh array here would otherwise churn the
     // controller object (and everything keyed on it) on every render.
@@ -236,7 +236,7 @@ export function useResourceExplorerController(): ResourceExplorerController | un
         setResourceExplorerActiveScope(
             session && scopeId
                 ? {
-                      projectId: selectedProjectId ?? session.workbenchProjectId,
+                      projectId: selectedProjectId ?? session.workbenchRootProjectId,
                       scopeId,
                       sessionId: session.id,
                   }
@@ -295,7 +295,7 @@ export function useResourceExplorerController(): ResourceExplorerController | un
 
     if (!session || !scopeId) return undefined;
 
-    const projectId = selectedProjectId ?? session.workbenchProjectId;
+    const projectId = selectedProjectId ?? session.workbenchRootProjectId;
     const editing = editingState?.scopeId === scopeId ? editingState.request : undefined;
     /**
      * These two reach the tree as props, so they read the scope from the store instead of capturing it. Capturing

@@ -16,8 +16,8 @@ import { createReconciliationQueue, reconcileFileMutation } from '../file-operat
 import { useFileOperationStore } from '../file-operation-state';
 import type { ResourceExplorerClient } from '../resource-explorer-client';
 
-function session(id: string, workbenchProjectId = 'project-1', projectId = 'project-1') {
-    return { id, projectId, workbenchProjectId };
+function session(id: string, workbenchRootProjectId = 'project-1', projectId = 'project-1') {
+    return { id, projectId, workbenchRootProjectId };
 }
 
 /**
@@ -115,7 +115,7 @@ describe('file mutation reconciliation', () => {
                 sessionStates: [
                     {
                         sessionId: 'session-a',
-                        workbenchProjectId: currentProjectId,
+                        workbenchRootProjectId: currentProjectId,
                         desiredSecondarySidebarViewContainerId: 'caxri.files' as const,
                         paneLayout: paneLayout([currentPath]),
                     },
@@ -149,7 +149,7 @@ describe('file mutation reconciliation', () => {
             id: 'operation-root-a-move',
             kind: 'move',
             sessionId: 'session-a',
-            workbenchProjectId: operationProjectId,
+            workbenchRootProjectId: operationProjectId,
             phase: 'completed',
             input: {
                 path: previousPath,
@@ -164,7 +164,7 @@ describe('file mutation reconciliation', () => {
             },
             startedAt: 1,
             updatedAt: 2,
-        } as FileMutationOperation & { workbenchProjectId: string };
+        } as FileMutationOperation & { workbenchRootProjectId: string };
 
         await reconcileFileMutation(client, operation);
 
@@ -179,7 +179,7 @@ describe('file mutation reconciliation', () => {
             content: 'root B draft',
             dirty: true,
         });
-        expect(sessionStates()[0]?.workbenchProjectId).toBe(currentProjectId);
+        expect(sessionStates()[0]?.workbenchRootProjectId).toBe(currentProjectId);
         expect(paneTabPaths(sessionStates()[0])).toEqual([currentPath]);
         expect(activePaneTabPath(sessionStates()[0])).toBe(currentPath);
         expect(mocks.request).not.toHaveBeenCalledWith('session.updateState', expect.anything());
@@ -200,7 +200,7 @@ describe('file mutation reconciliation', () => {
                 sessions: [session('session-a'), session('session-b')],
                 sessionStates: ['session-a', 'session-b'].map((sessionId) => ({
                     sessionId,
-                    workbenchProjectId: 'project-1',
+                    workbenchRootProjectId: 'project-1',
                     desiredSecondarySidebarViewContainerId: 'caxri.files' as const,
                     paneLayout: paneLayout([previousPath]),
                 })),
@@ -230,7 +230,7 @@ describe('file mutation reconciliation', () => {
             id: 'operation-late-move',
             kind: 'move',
             sessionId: 'session-a',
-            workbenchProjectId: 'project-1',
+            workbenchRootProjectId: 'project-1',
             phase: 'completed',
             input: {
                 path: previousPath,
@@ -318,7 +318,7 @@ describe('file mutation reconciliation', () => {
                 sessions: [session('session-a'), session('session-b')],
                 sessionStates: ['session-a', 'session-b'].map((sessionId) => ({
                     sessionId,
-                    workbenchProjectId: 'project-1',
+                    workbenchRootProjectId: 'project-1',
                     desiredSecondarySidebarViewContainerId: 'caxri.files' as const,
                     paneLayout: paneLayout([previousPath]),
                 })),
@@ -338,7 +338,7 @@ describe('file mutation reconciliation', () => {
             id: 'operation-retry-move',
             kind: 'move',
             sessionId: 'session-a',
-            workbenchProjectId: 'project-1',
+            workbenchRootProjectId: 'project-1',
             phase: 'completed',
             input: {
                 path: previousPath,
@@ -445,7 +445,7 @@ describe('file mutation reconciliation', () => {
                 sessionStates: [
                     {
                         sessionId: 'session-a',
-                        workbenchProjectId: 'project-1',
+                        workbenchRootProjectId: 'project-1',
                         desiredSecondarySidebarViewContainerId: 'caxri.files',
                         paneLayout: paneLayout([nextPath, previousPath], 1),
                         editorRemapOperationId: operationId,
@@ -473,7 +473,7 @@ describe('file mutation reconciliation', () => {
             id: operationId,
             kind: 'move',
             sessionId: 'session-a',
-            workbenchProjectId: 'project-1',
+            workbenchRootProjectId: 'project-1',
             phase: 'completed',
             input: {
                 path: previousPath,
@@ -524,7 +524,7 @@ describe('file mutation reconciliation', () => {
             id: 'operation-ack-retry',
             kind: 'move',
             sessionId: 'session-a',
-            workbenchProjectId: 'project-1',
+            workbenchRootProjectId: 'project-1',
             phase: 'completed',
             input: {
                 path: previousPath,
@@ -554,7 +554,7 @@ describe('file mutation reconciliation', () => {
                 sessionStates: [
                     {
                         sessionId: 'session-a',
-                        workbenchProjectId: 'project-1',
+                        workbenchRootProjectId: 'project-1',
                         desiredSecondarySidebarViewContainerId: 'caxri.files',
                         paneLayout: paneLayout([]),
                     },

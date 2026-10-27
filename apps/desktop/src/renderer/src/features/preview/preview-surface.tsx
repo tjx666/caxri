@@ -49,20 +49,20 @@ const PdfPreview = lazy(async () => {
  */
 function TextPreviewSurface({
     sessionId,
-    workbenchProjectId,
+    workbenchRootProjectId,
     path,
     children,
 }: {
     sessionId: string;
-    workbenchProjectId: string | undefined;
+    workbenchRootProjectId: string | undefined;
     path: string;
     children: (document: EditorDocument) => ReactNode;
 }) {
     const { t } = useTranslation();
-    const document = useDocument(sessionId, path, workbenchProjectId);
+    const document = useDocument(sessionId, path, workbenchRootProjectId);
     const load = useCallback(() => cacheDocument(sessionId, path), [path, sessionId]);
     const { failure, retry } = useResourceLoad({
-        target: `${sessionViewScope(sessionId, workbenchProjectId)}\u{0}${path}`,
+        target: `${sessionViewScope(sessionId, workbenchRootProjectId)}\u{0}${path}`,
         enabled: !document,
         load,
     });
@@ -103,7 +103,7 @@ function TextPreviewSurface({
 export function PreviewSurface({ paneId, tab }: { paneId: string; tab: FilePreviewTab }) {
     const { t } = useTranslation();
     const session = usePaneViewSession();
-    const project = useProjectById(session?.workbenchProjectId);
+    const project = useProjectById(session?.workbenchRootProjectId);
     const theme = useTheme();
     /**
      * The Session, its Project, and the theme arrive with the Workbench bootstrap. Until then the tab draws the same
@@ -134,7 +134,7 @@ export function PreviewSurface({ paneId, tab }: { paneId: string; tab: FilePrevi
     const textSurface = (render: (document: EditorDocument) => ReactNode) => (
         <TextPreviewSurface
             sessionId={session.id}
-            workbenchProjectId={session.workbenchProjectId}
+            workbenchRootProjectId={session.workbenchRootProjectId}
             path={tab.path}
         >
             {render}
@@ -147,7 +147,7 @@ export function PreviewSurface({ paneId, tab }: { paneId: string; tab: FilePrevi
                     path={tab.path}
                     sessionId={session.id}
                     viewStateKey={viewStateKey}
-                    workbenchProjectId={session.workbenchProjectId}
+                    workbenchRootProjectId={session.workbenchRootProjectId}
                 />
             );
         }
@@ -234,7 +234,7 @@ export function PreviewSurface({ paneId, tab }: { paneId: string; tab: FilePrevi
                                   path={tab.path}
                                   sessionId={session.id}
                                   viewStateKey={viewStateKey}
-                                  workbenchProjectId={session.workbenchProjectId}
+                                  workbenchRootProjectId={session.workbenchRootProjectId}
                                   external={{
                                       documentId: external.documentId,
                                       displayPath: document.displayPath,
@@ -253,7 +253,7 @@ export function PreviewSurface({ paneId, tab }: { paneId: string; tab: FilePrevi
                     path={tab.path}
                     sessionId={session.id}
                     viewStateKey={viewStateKey}
-                    workbenchProjectId={session.workbenchProjectId}
+                    workbenchRootProjectId={session.workbenchRootProjectId}
                 />,
             );
         }

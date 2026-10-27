@@ -48,8 +48,8 @@ export function deleteProjectMetadata(database: CaxriDatabaseConnection, project
     const cascadedProjectIds = deletedProjectIds(database, projectId);
     /**
      * Foreign keys cascade the owned worktree Projects and every Session they own, and null
-     * `sessions.workbench_project_id`. The Workbench root identity columns and the per-root JSON state are beyond any
-     * foreign key, so each deleted root is cleared from them first.
+     * `sessions.workbench_root_project_id`. The Workbench root identity columns and the per-root JSON state are beyond
+     * any foreign key, so each deleted root is cleared from them first.
      */
     for (const cascadedProjectId of cascadedProjectIds)
         database.sessions.resetWorkbenchProject(cascadedProjectId);

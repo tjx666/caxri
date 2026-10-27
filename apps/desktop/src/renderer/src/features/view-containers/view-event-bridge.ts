@@ -11,7 +11,7 @@ type ViewChangedEvent = Extract<ServerEvent, { event: 'viewContainers.viewChange
 export interface ViewEventScope {
     viewId: string;
     sessionId: string;
-    workbenchProjectId: string;
+    workbenchRootProjectId: string;
     extensionGeneration: number;
 }
 
@@ -23,9 +23,9 @@ const seenEventIds = new Set<string>();
 const bridgeState: { unsubscribe?: () => void } = {};
 
 export function viewEventScopeKey(
-    scope: Pick<ViewEventScope, 'viewId' | 'sessionId' | 'workbenchProjectId'>,
+    scope: Pick<ViewEventScope, 'viewId' | 'sessionId' | 'workbenchRootProjectId'>,
 ): string {
-    return `${scope.viewId}\0${scope.sessionId}\0${scope.workbenchProjectId}`;
+    return `${scope.viewId}\0${scope.sessionId}\0${scope.workbenchRootProjectId}`;
 }
 
 function eventKey(event: ViewChangedEvent): string | undefined {
@@ -34,7 +34,7 @@ function eventKey(event: ViewChangedEvent): string | undefined {
     return viewEventScopeKey({
         viewId: event.payload.viewId,
         sessionId: context.sessionId,
-        workbenchProjectId: context.workbenchProjectId,
+        workbenchRootProjectId: context.workbenchRootProjectId,
     });
 }
 

@@ -94,7 +94,7 @@ The service, reducer, and pane do not change.
 - The Agent-facing control paths drive a Chat through `AgentChatService` instead
   (`apps/server/src/domains/agent-dispatch/chat-target.ts`). `terminal.sendInternal` (`caxri
 terminal send`) delivers its text as one Chat message, queued behind a running turn; every
-  message submits, so `--enter` changes nothing. An attention reply (`attentionEpoch`) is refused
+  message submits, so `--enter` changes nothing. An attention reply (`attentionGeneration`) is refused
   with `CONFLICT`, because a Chat answers its requests through `agentChat.respond`. Interrupt
   stops the running turn, and stop ends the provider process but keeps the Terminal and its
   conversation (`AgentChatService.stopProvider`); the next read or message starts it again.
@@ -1794,7 +1794,7 @@ the provider, a "Clear Project default" row below it removes that default (`chat
 new Chats follow the launch settings again; Chats that already copied it keep their choice. While the level is Custom it stays
 visible but disabled with `Choose a level to save it as the default`, since a default must name a
 level. Caxri Bot window omits the row (`AgentChatHostCapabilities`). The default is stored
-(`projects.chat_defaults`, `project.setChatDefault`). A new Chat copies it at creation, except a
+(`projects.chat_defaults_json`, `project.setChatDefault`). A new Chat copies it at creation, except a
 "Fork from here" Chat, which inherits its source Chat's stored choice and falls back to the default
 only when the source stored none. A Terminal switched to Chat for the first time copies the default
 too; a Chat that already has a

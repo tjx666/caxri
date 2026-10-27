@@ -29,7 +29,7 @@ type StageMutation = (expectedResult: FileMutationExpectedResult) => Promise<voi
 
 export interface FileMutationOperationScope {
     sessionId: string;
-    workbenchProjectId: string;
+    workbenchRootProjectId: string;
 }
 
 export interface FileMutationJournalOptions {
@@ -384,7 +384,7 @@ export class FileMutationJournal {
         operation: FileMutationOperation,
         scope: FileMutationOperationScope,
     ): boolean {
-        return operation.workbenchProjectId === scope.workbenchProjectId;
+        return operation.workbenchRootProjectId === scope.workbenchRootProjectId;
     }
 
     private requireOperationInScope(
@@ -564,7 +564,7 @@ export class FileMutationJournal {
             payload: {
                 operationId: snapshot.id,
                 sessionId: snapshot.sessionId,
-                workbenchProjectId: snapshot.workbenchProjectId,
+                workbenchRootProjectId: snapshot.workbenchRootProjectId,
             },
         });
         this.logger.write(

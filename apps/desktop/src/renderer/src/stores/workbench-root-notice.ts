@@ -23,7 +23,7 @@ export type WorkbenchRootNotice = { message: string; projectId: string; projectT
  */
 export function workbenchRootNotice(
     payload: WorkbenchChangedPayload,
-    previousWorkbenchProjectId: string | undefined,
+    previousWorkbenchRootProjectId: string | undefined,
 ): WorkbenchRootNotice | undefined {
     if (payload.reason === 'fallback')
         return payload.returnedProjectTitle
@@ -32,7 +32,7 @@ export function workbenchRootNotice(
                   message: translate('core.workbenchRoot.fallback', {
                       title: payload.returnedProjectTitle,
                   }),
-                  projectId: payload.workbenchProjectId,
+                  projectId: payload.workbenchRootProjectId,
                   projectTitle: payload.returnedProjectTitle,
               }
             : undefined;
@@ -42,12 +42,12 @@ export function workbenchRootNotice(
         message: payload.followedProjectTitle
             ? translate('core.workbenchRoot.followedNamed', { title: payload.followedProjectTitle })
             : translate('core.workbenchRoot.followed'),
-        projectId: payload.workbenchProjectId,
+        projectId: payload.workbenchRootProjectId,
         ...(payload.followedProjectTitle && { projectTitle: payload.followedProjectTitle }),
         // Undo is offered only when a different, still-known root can actually be restored.
-        ...(previousWorkbenchProjectId &&
-            previousWorkbenchProjectId !== payload.workbenchProjectId && {
-                undoProjectId: previousWorkbenchProjectId,
+        ...(previousWorkbenchRootProjectId &&
+            previousWorkbenchRootProjectId !== payload.workbenchRootProjectId && {
+                undoProjectId: previousWorkbenchRootProjectId,
             }),
     };
 }
@@ -65,13 +65,13 @@ export function undoFollowedWorkbenchRoot(sessionId: string, projectId: string):
 }
 
 /**
- * `previousWorkbenchProjectId` must be captured before the change is applied; it cannot be re-derived afterwards.
+ * `previousWorkbenchRootProjectId` must be captured before the change is applied; it cannot be re-derived afterwards.
  */
 export function reportWorkbenchRootChange(
     payload: WorkbenchChangedPayload,
-    previousWorkbenchProjectId: string | undefined,
+    previousWorkbenchRootProjectId: string | undefined,
 ): void {
-    const notice = workbenchRootNotice(payload, previousWorkbenchProjectId);
+    const notice = workbenchRootNotice(payload, previousWorkbenchRootProjectId);
     if (!notice) return;
     const undoProjectId = notice.kind === 'followed' ? notice.undoProjectId : undefined;
     pushToast('info', notice.message, {
@@ -84,7 +84,7 @@ export function reportWorkbenchRootChange(
                 params: {
                     sessionId: payload.sessionId,
                     projectId: undoProjectId,
-                    followedProjectId: payload.workbenchProjectId,
+                    followedProjectId: payload.workbenchRootProjectId,
                 },
                 accessibleLabel: notice.projectTitle
                     ? translate('core.workbenchRoot.undoNamed', { title: notice.projectTitle })

@@ -1,4 +1,5 @@
 import type { ClaudeWindowOutcome } from '@caxri/protocol';
+import { sql } from 'drizzle-orm';
 import { check, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
 import { closedValues, isOneOf } from './constraints';
@@ -43,5 +44,8 @@ export const claudeWindowSchedules = sqliteTable(
         missedPlannedAt: integer('missed_planned_at'),
         updatedAt: integer('updated_at').notNull(),
     },
-    (table) => [check('claude_window_schedules_outcome', isOneOf(table.lastOutcome, outcomes))],
+    (table) => [
+        check('claude_window_schedules_outcome', isOneOf(table.lastOutcome, outcomes)),
+        check('claude_window_schedules_keep_rolling', sql`${table.keepRolling} IN (0, 1)`),
+    ],
 );

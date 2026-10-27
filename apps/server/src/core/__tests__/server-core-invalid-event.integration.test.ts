@@ -42,7 +42,7 @@ function createInvalidEventFixture(): CreateDomainServices {
                         event: 'files.changed',
                         payload: {
                             sessionId: 'session-1',
-                            workbenchProjectId: 'project-1',
+                            workbenchRootProjectId: 'project-1',
                             changes: Array.from({ length: 513 }, (_, index) => ({
                                 path: `/private/source-${index}.txt`,
                                 kind: 'update' as const,

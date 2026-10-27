@@ -37,8 +37,8 @@ function hasPaneLayoutRoot(state: SessionState): boolean {
     return Boolean((state as { paneLayout?: { root?: unknown } }).paneLayout?.root);
 }
 
-function stateKey(state: Pick<SessionState, 'sessionId' | 'workbenchProjectId'>): string {
-    return `${state.sessionId}\0${state.workbenchProjectId}`;
+function stateKey(state: Pick<SessionState, 'sessionId' | 'workbenchRootProjectId'>): string {
+    return `${state.sessionId}\0${state.workbenchRootProjectId}`;
 }
 
 function replacePane(node: PaneLayoutNode, paneId: string, replacement: PaneNode): PaneLayoutNode {

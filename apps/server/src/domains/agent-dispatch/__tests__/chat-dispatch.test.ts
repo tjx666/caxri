@@ -117,7 +117,7 @@ describe('Agent dispatch to a Chat', () => {
 
         await expect(
             handlers['terminal.sendInternal']({
-                attentionEpoch: 3,
+                attentionGeneration: 3,
                 enter: true,
                 terminalId: f.terminal.id,
                 text: 'yes',

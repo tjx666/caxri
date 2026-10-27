@@ -38,10 +38,10 @@ const open = async () => {
         {
             id: 'session-granted',
             projectId: 'project-1',
-            displayTitle: 'Granted',
-            lastOpenedAt: 1,
-            lastActivityState: 'completed',
-            attentionEpoch: 0,
+            title: 'Granted',
+            lastVisitedAt: 1,
+            agentActivityState: 'completed',
+            attentionGeneration: 0,
             hasUnread: false,
             archivedAt: 5,
         },
@@ -51,8 +51,8 @@ const open = async () => {
             if (method === 'project.queryForPrincipal')
                 return Promise.resolve({
                     projects: [
-                        { id: 'project-1', displayTitle: 'Granted Project' },
-                        { id: 'project-2', displayTitle: 'Other Project' },
+                        { id: 'project-1', title: 'Granted Project' },
+                        { id: 'project-2', title: 'Other Project' },
                     ],
                 });
             if (method === 'session.queryForPrincipal')
@@ -82,7 +82,7 @@ describe('MobileAccessController Session management', () => {
                 controller.invokeControl(
                     {
                         method: 'mobile.session.rename',
-                        params: { sessionId: 'session-granted', displayTitle: 'Renamed' },
+                        params: { sessionId: 'session-granted', title: 'Renamed' },
                     },
                     context,
                     domainService,
@@ -109,7 +109,7 @@ describe('MobileAccessController Session management', () => {
             expect(
                 requestWithSignal.mock.calls.map(([method, parameters]) => [method, parameters]),
             ).toEqual([
-                ['session.rename', { sessionId: 'session-granted', displayTitle: 'Renamed' }],
+                ['session.rename', { sessionId: 'session-granted', title: 'Renamed' }],
                 ['session.archive', { sessionId: 'session-granted' }],
                 ['session.unarchive', { sessionId: 'session-granted', placement: 'top' }],
                 ['session.setPinned', { sessionId: 'session-granted', pinned: true }],
@@ -149,7 +149,7 @@ describe('MobileAccessController Session management', () => {
                     {
                         id: 'session-granted',
                         projectId: 'project-1',
-                        displayTitle: 'Granted',
+                        title: 'Granted',
                         projectTitle: 'Granted Project',
                         archivedAt: 5,
                     },

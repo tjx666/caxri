@@ -291,21 +291,21 @@ export class CaxriDatabase {
     consumeSessionAttentionReply(
         sessionId: string,
         terminalId: string,
-        attentionEpoch: number,
+        generation: number,
     ): boolean {
-        return this.db.sessions.consumeAttentionReply(sessionId, terminalId, attentionEpoch);
+        return this.db.sessions.consumeAttentionReply(sessionId, terminalId, generation);
     }
 
     releaseSessionAttentionReply(
         sessionId: string,
         terminalId: string,
-        attentionEpoch: number,
+        generation: number,
         activityAt: number,
     ): boolean {
         return this.db.sessions.releaseAttentionReply(
             sessionId,
             terminalId,
-            attentionEpoch,
+            generation,
             activityAt,
         );
     }
@@ -335,8 +335,8 @@ export class CaxriDatabase {
         });
     }
 
-    renameSession(sessionId: string, displayTitle: string): SessionRecord {
-        return renameSessionWithPrimaryAgentTab(this.db, sessionId, displayTitle);
+    renameSession(sessionId: string, title: string): SessionRecord {
+        return renameSessionWithPrimaryAgentTab(this.db, sessionId, title);
     }
 
     automaticSessionNaming(sessionId: string) {
@@ -346,9 +346,9 @@ export class CaxriDatabase {
     setAutomaticSessionNaming(
         sessionId: string,
         value: NonNullable<ReturnType<CaxriDatabase['automaticSessionNaming']>>,
-        displayTitle?: string,
+        title?: string,
     ): boolean {
-        return this.db.sessions.setAutomaticNaming(sessionId, value, displayTitle);
+        return this.db.sessions.setAutomaticNaming(sessionId, value, title);
     }
 
     updateAgentMetadata(
@@ -464,12 +464,12 @@ export class CaxriDatabase {
 
     markSessionAttentionRead(
         sessionId: string,
-        attentionEpoch: number,
+        generation: number,
     ): { acknowledged: boolean; session: SessionRecord } {
         return this.db.transaction(() => {
             if (!this.db.sessions.get(sessionId))
                 throw new CaxriError('NOT_FOUND', 'Session not found');
-            const isAcknowledged = this.db.sessions.acknowledgeAttention(sessionId, attentionEpoch);
+            const isAcknowledged = this.db.sessions.acknowledgeAttention(sessionId, generation);
             return { acknowledged: isAcknowledged, session: this.db.sessions.get(sessionId)! };
         });
     }
@@ -659,8 +659,8 @@ export class CaxriDatabase {
         return this.db.remapWorkbenchEditorState(...arguments_);
     }
 
-    removeWorkbenchEditorPath(workbenchProjectId: string, path: string): number {
-        return this.db.removeWorkbenchEditorPath(workbenchProjectId, path);
+    removeWorkbenchEditorPath(workbenchRootProjectId: string, path: string): number {
+        return this.db.removeWorkbenchEditorPath(workbenchRootProjectId, path);
     }
 
     getAppState<K extends AppStateKey>(key: K): AppStateValue<K> | undefined {

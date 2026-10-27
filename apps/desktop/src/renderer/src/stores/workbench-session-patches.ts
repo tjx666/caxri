@@ -76,9 +76,9 @@ export function resetSessionPatchesForTests(): void {
 }
 
 export function sessionPatchKey(
-    state: Pick<SessionState, 'sessionId' | 'workbenchProjectId'>,
+    state: Pick<SessionState, 'sessionId' | 'workbenchRootProjectId'>,
 ): string {
-    return `${state.sessionId}\0${state.workbenchProjectId}`;
+    return `${state.sessionId}\0${state.workbenchRootProjectId}`;
 }
 
 /**
@@ -107,7 +107,7 @@ export function settledSessionState(sent: SessionState, answer: unknown): Sessio
     const stored = answer as SessionState | undefined;
     if (
         stored?.sessionId !== sent.sessionId ||
-        stored.workbenchProjectId !== sent.workbenchProjectId
+        stored.workbenchRootProjectId !== sent.workbenchRootProjectId
     )
         return sent;
     const visible = mergeExternalEditorTabs(stored);

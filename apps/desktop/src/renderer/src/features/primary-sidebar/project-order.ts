@@ -12,7 +12,7 @@ export interface LatestProjectOrderQueue {
 }
 
 interface ProjectOrderIntent {
-    displayTitle: string;
+    title: string;
     movedProjectId: string;
     projectIds: string[];
 }

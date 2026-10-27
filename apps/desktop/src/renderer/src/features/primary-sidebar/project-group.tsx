@@ -53,11 +53,11 @@ interface ProjectGroupProperties {
      * Sessions the reveal row promises to add, so its label never overstates the final step.
      */
     nextRevealCount: number;
-    onBeginRename: (sessionId: string, displayTitle: string, rowId: string) => void;
+    onBeginRename: (sessionId: string, title: string, rowId: string) => void;
     onBlurRename: () => void;
     onCancelRename: () => void;
     onCommitRename: () => void;
-    onSuggestRename: (sessionId: string, displayTitle: string, rowId: string) => void;
+    onSuggestRename: (sessionId: string, title: string, rowId: string) => void;
     onDragEnd: () => void;
     onDragOver: (event: DragEvent<HTMLElement>) => void;
     onDragStart: (event: DragEvent<HTMLElement>) => void;
@@ -143,7 +143,7 @@ export function ProjectGroup({
     const disclosureLabel = t(
         expanded ? 'primarySidebar.project.collapse' : 'primarySidebar.project.expand',
         {
-            title: project.displayTitle,
+            title: project.title,
         },
     );
     /**
@@ -237,7 +237,7 @@ export function ProjectGroup({
                                 // The count moved into the detail card visually but stays in the treeitem's name so
                                 // collapsed Projects remain equally informative to assistive technology.
                                 aria-label={describeProjectSessionCount(
-                                    project.displayTitle,
+                                    project.title,
                                     projectSessions.length,
                                     agentSummary,
                                 )}
@@ -283,7 +283,7 @@ export function ProjectGroup({
                                     icon={project.icon}
                                 />
                                 <strong className="overflow-fade min-w-0 flex-1 text-[13px] font-medium [--overflow-fade-size:16px]">
-                                    {project.displayTitle}
+                                    {project.title}
                                 </strong>
                                 {agentSummary && <ProjectAgentSummary summary={agentSummary} />}
                             </button>
@@ -305,7 +305,7 @@ export function ProjectGroup({
                                 type="button"
                                 className={`${sessionRowActionButton} pointer-events-none opacity-0 transition-opacity group-hover/project-heading:pointer-events-auto group-hover/project-heading:opacity-100 group-has-focus-visible/project-heading:pointer-events-auto group-has-focus-visible/project-heading:opacity-100`}
                                 aria-label={t('primarySidebar.project.customizeIconAriaLabel', {
-                                    title: project.displayTitle,
+                                    title: project.title,
                                 })}
                                 tabIndex={-1}
                                 onClick={() =>
@@ -326,9 +326,7 @@ export function ProjectGroup({
                 className="project-drag-preview pointer-events-none fixed -top-[1000px] left-0 flex h-7 items-center gap-2 rounded-md bg-elevated px-2 text-foreground shadow-[0_8px_24px_var(--shadow)]"
             >
                 <ProjectIcon icon={project.icon} />
-                <span className="max-w-48 truncate text-[13px] font-medium">
-                    {project.displayTitle}
-                </span>
+                <span className="max-w-48 truncate text-[13px] font-medium">{project.title}</span>
             </div>
             <DisclosureMotion
                 animate={animateProject}
@@ -341,7 +339,7 @@ export function ProjectGroup({
                 {() => (
                     <div
                         aria-label={t('primarySidebar.project.sessionsAriaLabel', {
-                            title: project.displayTitle,
+                            title: project.title,
                         })}
                         className="session-list pb-1 pl-4"
                         role="group"
@@ -358,7 +356,7 @@ export function ProjectGroup({
                                 onCommitRename={onCommitRename}
                                 onSuggestRename={onSuggestRename}
                                 onRenameValueChange={onRenameValueChange}
-                                projectDisplayTitle={project.displayTitle}
+                                projectTitle={project.title}
                                 projectIcon={project.icon}
                                 projectId={project.id}
                                 projectRootPath={project.rootPath}
@@ -378,7 +376,7 @@ export function ProjectGroup({
                         {hiddenSessionCount > 0 && (
                             <SessionRevealRow
                                 count={nextRevealCount}
-                                projectTitle={project.displayTitle}
+                                projectTitle={project.title}
                                 roving={revealRowId === rovingRowId}
                                 rowId={revealRowId}
                                 onReveal={onRevealMoreSessions}

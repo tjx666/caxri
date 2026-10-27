@@ -43,7 +43,7 @@ export function CreateSessionDialog() {
     // the dialog previews the same title the created Project will get.
     const contextLabel = pendingRoot
         ? pathBasename(pendingRoot)
-        : projects?.find((project) => project.id === pendingProjectId)?.displayTitle;
+        : projects?.find((project) => project.id === pendingProjectId)?.title;
     return (
         <Dialog open={isOpen} onOpenChange={(nextOpen) => !nextOpen && cancelPendingSession()}>
             <DialogContent className="w-[min(480px,calc(100vw-32px))]">

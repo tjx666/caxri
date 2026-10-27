@@ -140,7 +140,7 @@ async function seedProfile(userData: string, seed: ProfileSeed): Promise<void> {
         );
         database.transaction(() => {
             const project = database.prepare(
-                'INSERT INTO projects (id, root_path, display_title, order_index, created_at, last_opened_at) VALUES (?, ?, ?, ?, ?, ?)',
+                'INSERT INTO projects (id, root_path, title, order_index, created_at, last_visited_at) VALUES (?, ?, ?, ?, ?, ?)',
             );
             for (const [index, id] of projectIds.entries())
                 project.run(
@@ -152,10 +152,10 @@ async function seedProfile(userData: string, seed: ProfileSeed): Promise<void> {
                     now,
                 );
             const session = database.prepare(
-                'INSERT INTO sessions (id, project_id, created_at, last_opened_at, last_session_activity_at, sidebar_order, archived_at, display_title, title_mode) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                'INSERT INTO sessions (id, project_id, created_at, last_visited_at, session_activity_at, sidebar_order, archived_at, title, title_mode) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
             );
             const state = database.prepare(
-                "INSERT INTO session_state (session_id, desired_secondary_sidebar_view_container_id) VALUES (?, 'caxri.files')",
+                "INSERT INTO session_views (session_id, desired_secondary_sidebar_view_container_id) VALUES (?, 'caxri.files')",
             );
             const terminal = database.prepare(
                 "INSERT INTO terminals (id, session_id, kind, cwd, title, icon, order_index, last_process_state, created_at, updated_at) VALUES (?, ?, 'shell', ?, 'zsh', 'terminal', ?, 'stopped', ?, ?)",

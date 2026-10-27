@@ -68,7 +68,7 @@ function protectedProjectIds(
     for (const session of sessions) {
         if (
             session.id === selectedSessionId ||
-            session.lastActivityState === 'running' ||
+            session.agentActivityState === 'running' ||
             session.hasUnread
         )
             protectedIds.add(session.projectId);
@@ -168,7 +168,7 @@ export function projectCollapseAfterAutoPass(
     const protectedIds = protectedProjectIds(input.sessions, input.selectedSessionId);
     for (const project of input.projects) {
         if (
-            project.lastOpenedAt <= cutoff &&
+            project.lastVisitedAt <= cutoff &&
             !protectedIds.has(project.id) &&
             next[project.id] === undefined
         )

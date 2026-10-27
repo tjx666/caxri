@@ -49,7 +49,7 @@ describe('Session Activity domain integration', () => {
                 projectId: project.id,
                 defaultAgent: 'codex',
             });
-            const initialActivityAt = created.session.lastSessionActivityAt;
+            const initialActivityAt = created.session.sessionActivityAt;
             expect(created.terminal).toMatchObject({
                 kind: 'codex',
                 lastAgentProcessState: 'running',
@@ -64,7 +64,7 @@ describe('Session Activity domain integration', () => {
                 data: 'echo pending',
             });
             expect(
-                (await runtime.handlers['app.bootstrap']({})).sessions[0]?.lastSessionActivityAt,
+                (await runtime.handlers['app.bootstrap']({})).sessions[0]?.sessionActivityAt,
             ).toBe(initialActivityAt);
 
             await runtime.handlers['terminal.input']({
@@ -72,7 +72,7 @@ describe('Session Activity domain integration', () => {
                 data: '\u{15}\r',
             });
             expect(
-                (await runtime.handlers['app.bootstrap']({})).sessions[0]?.lastSessionActivityAt,
+                (await runtime.handlers['app.bootstrap']({})).sessions[0]?.sessionActivityAt,
             ).toBe(initialActivityAt);
 
             await runtime.handlers['terminal.input']({
@@ -80,7 +80,7 @@ describe('Session Activity domain integration', () => {
                 data: '\u{1B}[200~echo pasted\necho pending\u{1B}[201~',
             });
             expect(
-                (await runtime.handlers['app.bootstrap']({})).sessions[0]?.lastSessionActivityAt,
+                (await runtime.handlers['app.bootstrap']({})).sessions[0]?.sessionActivityAt,
             ).toBe(initialActivityAt);
 
             await runtime.handlers['terminal.input']({
@@ -88,10 +88,10 @@ describe('Session Activity domain integration', () => {
                 data: '\r',
             });
             expect((await runtime.handlers['app.bootstrap']({})).sessions[0]).toMatchObject({
-                lastSessionActivityReason: 'user_submission',
+                sessionActivityReason: 'user_submission',
             });
             expect(
-                (await runtime.handlers['app.bootstrap']({})).sessions[0]?.lastSessionActivityAt,
+                (await runtime.handlers['app.bootstrap']({})).sessions[0]?.sessionActivityAt,
             ).toBeGreaterThan(initialActivityAt);
             expect(events).toContainEqual({
                 event: 'state.changed',
@@ -136,7 +136,7 @@ describe('Session Activity domain integration', () => {
             });
 
             expect((await runtime.handlers['app.bootstrap']({})).sessions[0]).toMatchObject({
-                lastSessionActivityReason: 'user_submission',
+                sessionActivityReason: 'user_submission',
             });
         } finally {
             await runtime.close();

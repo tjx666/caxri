@@ -58,7 +58,7 @@ describe('CaxriDatabase', () => {
             const created = database.createSession(database.createProject(directory).id, kind);
 
             expect(created.session).toMatchObject({
-                displayTitle: 'Untitled',
+                title: 'Untitled',
                 titleMode: 'automatic',
             });
             expect(created.terminal!.title).toBe(terminalTitle);
@@ -73,7 +73,7 @@ describe('CaxriDatabase', () => {
 
         expect(created.terminal).toBeNull();
         expect(created.session).toMatchObject({
-            displayTitle: 'Untitled',
+            title: 'Untitled',
             primaryAgentTerminalId: undefined,
         });
         expect(
@@ -202,16 +202,16 @@ describe('CaxriDatabase', () => {
         database.createSession(secondProject.id, 'shell', undefined, inMain);
 
         database.database
-            .prepare('UPDATE projects SET created_at = ?, last_opened_at = ? WHERE id = ?')
+            .prepare('UPDATE projects SET created_at = ?, last_visited_at = ? WHERE id = ?')
             .run(1, 1, firstProject.id);
         database.database
-            .prepare('UPDATE projects SET created_at = ?, last_opened_at = ? WHERE id = ?')
+            .prepare('UPDATE projects SET created_at = ?, last_visited_at = ? WHERE id = ?')
             .run(2, 2, secondProject.id);
         database.database
-            .prepare('UPDATE sessions SET created_at = ?, last_opened_at = ? WHERE id = ?')
+            .prepare('UPDATE sessions SET created_at = ?, last_visited_at = ? WHERE id = ?')
             .run(1, 1, firstSession.session.id);
         database.database
-            .prepare('UPDATE sessions SET created_at = ?, last_opened_at = ? WHERE id = ?')
+            .prepare('UPDATE sessions SET created_at = ?, last_visited_at = ? WHERE id = ?')
             .run(2, 2, secondSession.session.id);
 
         const projectOrder = database.listProjects().map((project) => project.id);
@@ -568,13 +568,13 @@ describe('CaxriDatabase', () => {
         expect(unchanged).toEqual([
             {
                 sessionId: created.session.id,
-                workbenchProjectId: state.workbenchProjectId,
+                workbenchRootProjectId: state.workbenchRootProjectId,
                 unchangedWrites: 1,
                 totalWrites: 1,
             },
             {
                 sessionId: created.session.id,
-                workbenchProjectId: state.workbenchProjectId,
+                workbenchRootProjectId: state.workbenchRootProjectId,
                 unchangedWrites: 2,
                 totalWrites: 2,
             },
@@ -630,7 +630,7 @@ describe('CaxriDatabase', () => {
         });
         expect(moved.session).toMatchObject({
             projectId: project.id,
-            displayTitle: 'Untitled',
+            title: 'Untitled',
             primaryAgentTerminalId: created.terminal!.id,
         });
         expect(activeIn(database)).toBe(moved.session.id);
@@ -645,7 +645,7 @@ describe('CaxriDatabase', () => {
 
         expect(database.getSession(created.session.id)).toMatchObject({
             primaryAgentTerminalId: undefined,
-            lastActivityState: 'idle',
+            agentActivityState: 'idle',
         });
         expect(database.getTerminal(shell.id)).toMatchObject({ sessionId: created.session.id });
         database.close();

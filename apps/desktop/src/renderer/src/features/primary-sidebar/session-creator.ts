@@ -23,5 +23,5 @@ export function resolveSessionCreator(
     if (!creator) return undefined;
     return creator.archivedAt === undefined
         ? { kind: 'session', session: creator }
-        : { kind: 'archived', title: creator.displayTitle };
+        : { kind: 'archived', title: creator.title };
 }
