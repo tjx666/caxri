@@ -25,6 +25,9 @@
  * - `background`: a background Bash command that prints a tick every 100 ms until `stop_task`.
  * - Anything else: thinking, a todo list, and a streamed reply quoting the message.
  *
+ * Under `FAKE_CLAUDE_SCRIPT`, a JSON file of scripted turns (`fake-claude-script.ts`), a message equal to a turn's
+ * prompt plays that turn and wins over every keyword above; the file's `model` renames the default model.
+ *
  * A message with images is answered with how many it received. `/compact` compacts the conversation, reporting `status:
  * compacting` first; `/compact break` fails with a compaction error and `/compact crash` exits mid-compaction. The CLI
  * reports `/compact`, `/review`, the built-in `/goal`, and the terminal-bound `/exit` as its commands. A message
@@ -56,19 +59,20 @@ import readline from 'node:readline';
 
 import { didRunApprovalScenario } from './fake-claude-approvals.ts';
 import { didRunCompactingTurn, runCompactCommand } from './fake-claude-compaction.ts';
-import type { FakeClaudeIo, QueuedTurn } from './fake-claude-io.ts';
+import type { FakeClaudeIo, FakeClaudeUsage, QueuedTurn } from './fake-claude-io.ts';
 import { queuedTurn } from './fake-claude-io.ts';
 import {
     FAKE_CLAUDE_COMMANDS,
-    FAKE_CLAUDE_MODEL,
-    FAKE_CLAUDE_MODELS,
     fakeClaudeFastMode,
+    fakeClaudeModels,
     fakeClaudeSessionAnswer,
     hookCallbackIds,
     hookCallbackRequest,
+    resolveFakeClaudeModel,
 } from './fake-claude-models.ts';
 import { streamBrowserSteps, streamPacedReply, streamPlannedReply } from './fake-claude-replies.ts';
 import { resumedLeaf, rewindFiles } from './fake-claude-rewind.ts';
+import { loadFakeClaudeScriptOrExit } from './fake-claude-script.ts';
 import { answerSideQuestion } from './fake-claude-side.ts';
 import { didStartBackgroundTask, runSubagent, taskControl } from './fake-claude-tasks.ts';
 import { didRunUsageLimitScenario } from './fake-claude-usage-limit.ts';
@@ -115,6 +119,8 @@ if (resumeId && !fs.existsSync(transcriptPath)) {
     exitProcess(1);
 }
 
+const script = loadFakeClaudeScriptOrExit();
+const { models, defaultModel } = fakeClaudeModels(script?.model);
 const state: {
     nextRequestId: number;
     lastUuid: string | null;
@@ -138,13 +144,17 @@ const state: {
      * Callback ids the SDK registered per hook event in `initialize`.
      */
     hooks: Record<string, string[]>;
+    /**
+     * What a scripted response reported; it also sets the context `get_context_usage` reports.
+     */
+    usage?: FakeClaudeUsage;
 } = {
     nextRequestId: 1,
     lastUuid: null,
     interrupted: false,
     turnRunning: false,
     queued: [],
-    model: FAKE_CLAUDE_MODEL,
+    model: defaultModel,
     ultracode: false,
     fastMode: false,
     permissionMode: argument('--permission-mode') ?? 'default',
@@ -209,8 +219,11 @@ function sessionState(value: 'idle' | 'running') {
     if (isEmittingSessionState) system('session_state_changed', { state: value });
 }
 
-function turnCacheReadTokens(): number {
-    return state.isLargeContextTurn ? 140_000 : 800;
+function turnUsage(): FakeClaudeUsage {
+    const cached = state.isLargeContextTurn ? 140_000 : 800;
+    return (
+        state.usage ?? { input_tokens: 1200, cache_read_input_tokens: cached, output_tokens: 40 }
+    );
 }
 
 function assistant(messageId: string, block: Json) {
@@ -218,14 +231,10 @@ function assistant(messageId: string, block: Json) {
         id: messageId,
         type: 'message',
         role: 'assistant',
-        model: FAKE_CLAUDE_MODEL,
+        model: defaultModel,
         content: [block],
         stop_reason: null,
-        usage: {
-            input_tokens: 1200,
-            cache_read_input_tokens: turnCacheReadTokens(),
-            output_tokens: 40,
-        },
+        usage: turnUsage(),
     };
     send(frame({ type: 'assistant', message }));
     record({ type: 'assistant', message });
@@ -297,12 +306,8 @@ function result(startedAt: number, text: string, isError = false) {
             num_turns: 1,
             stop_reason: 'end_turn',
             total_cost_usd: 0,
-            usage: {
-                input_tokens: 1200,
-                cache_read_input_tokens: turnCacheReadTokens(),
-                output_tokens: 40,
-            },
-            modelUsage: { [FAKE_CLAUDE_MODEL]: { contextWindow: 200_000 } },
+            usage: turnUsage(),
+            modelUsage: { [defaultModel]: { contextWindow: 200_000 } },
             permission_denials: [],
             queued_turn_count: state.queued.length,
             ...fakeClaudeFastMode(state),
@@ -337,6 +342,9 @@ const scenarioIo: FakeClaudeIo = {
     isInterrupted,
     markInterrupted: () => {
         state.interrupted = true;
+    },
+    setUsage: (usage) => {
+        state.usage = usage;
     },
     exitPlanMode: (mode = 'default') => {
         if (state.permissionMode !== 'plan') return;
@@ -384,6 +392,8 @@ async function runTurn({ text, content, priority, uuid, isAuto = false }: Queued
         return;
     }
     await fireHook('UserPromptSubmit', { prompt: text });
+    if (await script?.didRunTurn(scenarioIo, startedAt, text, isControlled)) return;
+    state.usage = undefined;
     if (text.trimStart().startsWith('/compact')) {
         system('status', { status: 'compacting' });
         if (text.includes('crash')) exitProcess(1);
@@ -542,9 +552,7 @@ lines.on('line', (line) => {
         if (request.subtype === 'interrupt') state.interrupted = true;
         else if (request.subtype === 'initialize') state.hooks = hookCallbackIds(request.hooks);
         if (request.subtype === 'set_model' && typeof request.model === 'string')
-            state.model =
-                FAKE_CLAUDE_MODELS.find((model) => model.value === request.model)?.resolvedModel ??
-                request.model;
+            state.model = resolveFakeClaudeModel(models, request.model);
         const flags = request.subtype === 'apply_flag_settings' ? (request.settings as Json) : {};
         if (typeof flags.effortLevel === 'string') {
             // Like the real CLI, moving the effort without an `ultracode` key turns ultracode off.
@@ -574,7 +582,10 @@ lines.on('line', (line) => {
             response: {
                 subtype: 'success',
                 request_id: message.request_id,
-                response: fakeClaudeSessionAnswer(request.subtype, state) ?? answer.response ?? {},
+                response:
+                    fakeClaudeSessionAnswer(request.subtype, { ...state, models }) ??
+                    answer.response ??
+                    {},
             },
         });
         return;

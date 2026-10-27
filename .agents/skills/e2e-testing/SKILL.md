@@ -113,6 +113,9 @@ Use the launch helpers instead of the developer's real profile:
   of `fake-codex-app-server.ts`, `fake-claude-cli.ts`, and `fake-grok-acp.ts` under
   `apps/server/src/domains/agent-chat/__tests__/fixtures/`. Check free-form message text against
   that list: "It fails on CI" contains `fail`, so the fake Codex turn fails instead of replying.
+  A spec that needs a specific multi-step turn instead passes a scripted-turn file through the
+  fixtures' `scriptPath` option (`fake-claude-script.ts`, `fake-codex-script.ts`); a message equal
+  to a scripted prompt bypasses the keywords.
 - A fault-injection environment flag must reach the process that owns the seam. Cover Desktop to
   Server forwarding with a boundary test and verify the controlled delay or failure occurs before
   interpreting the product assertion; setting the launcher environment alone is not proof.

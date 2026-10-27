@@ -1863,6 +1863,14 @@ checks the request and the history a later resume reads. The Codex and Grok fake
 transcript, so `service-fork.integration.test.ts` resumes each fork and reads its history. Unit, integration, and fake-mode E2E tests drive them; no test launches the
 real CLI or calls a model.
 
+The Claude and Codex fakes also play scripted turns: `FAKE_CLAUDE_SCRIPT` and `FAKE_CODEX_SCRIPT`
+name a JSON file whose turns play when the sent message equals a turn's prompt, with a chosen model
+name, thinking or reasoning, todos or a plan, tool calls and file diffs, an approval, a held running
+turn, or a failure. A matched prompt bypasses the keyword scenarios; any other message keeps them.
+`fake-claude-script.ts` and `fake-codex-script.ts` define the formats, and the fixtures'
+`scriptPath` option sets the variable. The `promo-images` skill drives them to stage believable
+Sessions for promotional captures.
+
 Streaming Markdown has a machine-independent CI gate in
 `packages/markdown/src/__tests__/streaming-parser.test.ts`: the incremental parse must equal a full
 parse at every character of boundary-sensitive sources and at every delta of a long reply, parse

@@ -17,19 +17,28 @@ const FAKE_GROK_ACP = join(import.meta.dirname, 'fake-grok-acp.ts');
  * A fake `claude` speaking the Claude Agent SDK's stream-json protocol. Transcripts land under `CLAUDE_CONFIG_DIR`,
  * which the isolated Agent environment already points at a fixture-owned directory; `claudeConfigDirectory` overrides
  * it for tests that read the transcript from a known path. `controlDirectory` is where a test drops the files that turn
- * on the fake's injected failures (see `FAKE_CLAUDE_CONTROL_DIR` in `fake-claude-cli.ts`).
+ * on the fake's injected failures (see `FAKE_CLAUDE_CONTROL_DIR` in `fake-claude-cli.ts`). `scriptPath` is a JSON file
+ * of scripted turns the fake plays for matching messages (`FAKE_CLAUDE_SCRIPT`, see `fake-claude-script.ts`), for a
+ * believable conversation instead of canned replies; use an absolute path, and the fake refuses to start when the file
+ * is malformed.
  */
 export function fakeClaudeChatExecutableSource(
-    options: { claudeConfigDirectory?: string; controlDirectory?: string } = {},
+    options: {
+        claudeConfigDirectory?: string;
+        controlDirectory?: string;
+        scriptPath?: string;
+    } = {},
 ): string {
     return `#!${process.execPath}
-${options.claudeConfigDirectory ? `process.env.CLAUDE_CONFIG_DIR = ${JSON.stringify(options.claudeConfigDirectory)};\n` : ''}${options.controlDirectory ? `process.env.FAKE_CLAUDE_CONTROL_DIR = ${JSON.stringify(options.controlDirectory)};\n` : ''}import(${JSON.stringify(pathToFileURL(FAKE_CLAUDE_CLI).href)});
+${options.claudeConfigDirectory ? `process.env.CLAUDE_CONFIG_DIR = ${JSON.stringify(options.claudeConfigDirectory)};\n` : ''}${options.controlDirectory ? `process.env.FAKE_CLAUDE_CONTROL_DIR = ${JSON.stringify(options.controlDirectory)};\n` : ''}${options.scriptPath ? `process.env.FAKE_CLAUDE_SCRIPT = ${JSON.stringify(options.scriptPath)};\n` : ''}import(${JSON.stringify(pathToFileURL(FAKE_CLAUDE_CLI).href)});
 `;
 }
 
 /**
  * A fake `codex` whose `app-server` is the JSON-RPC fixture. Threads persist under `stateDirectory`, so a resumed Chat
- * reads real history.
+ * reads real history. `scriptPath` names a JSON file of scripted turns that replace the canned replies for the prompts
+ * it lists (`FAKE_CODEX_SCRIPT`, see `fake-codex-script.ts`), and `controlDirectory` is where its `hold` steps look for
+ * their files (`FAKE_CODEX_CONTROL_DIR`).
  */
 export function fakeCodexChatExecutableSource(options: {
     stateDirectory: string;
@@ -41,6 +50,14 @@ export function fakeCodexChatExecutableSource(options: {
      * Also writes each user message to a rollout under the inherited `CODEX_HOME`, where the Server reads it back.
      */
     shouldWriteRollouts?: boolean;
+    /**
+     * Absolute path of the scripted turns JSON; sets `FAKE_CODEX_SCRIPT`.
+     */
+    scriptPath?: string;
+    /**
+     * Directory whose files the script's `hold` steps wait on; sets `FAKE_CODEX_CONTROL_DIR`.
+     */
+    controlDirectory?: string;
 }): string {
     return String.raw`#!${process.execPath}
 if (process.argv.includes('--version')) {
@@ -49,7 +66,7 @@ if (process.argv.includes('--version')) {
 }
 process.env.FAKE_CODEX_STATE_DIR = ${JSON.stringify(options.stateDirectory)};
 process.env.FAKE_CODEX_NATIVE_USAGE_HOME = ${JSON.stringify(options.nativeUsageHome ?? '')};
-${options.shouldWriteRollouts ? 'process.env.FAKE_CODEX_SESSIONS_DIR = `${process.env.CODEX_HOME}/sessions`;\n' : ''}import(${JSON.stringify(pathToFileURL(FAKE_CODEX_APP_SERVER).href)});
+${options.scriptPath ? `process.env.FAKE_CODEX_SCRIPT = ${JSON.stringify(options.scriptPath)};\n` : ''}${options.controlDirectory ? `process.env.FAKE_CODEX_CONTROL_DIR = ${JSON.stringify(options.controlDirectory)};\n` : ''}${options.shouldWriteRollouts ? 'process.env.FAKE_CODEX_SESSIONS_DIR = `${process.env.CODEX_HOME}/sessions`;\n' : ''}import(${JSON.stringify(pathToFileURL(FAKE_CODEX_APP_SERVER).href)});
 `;
 }
 
