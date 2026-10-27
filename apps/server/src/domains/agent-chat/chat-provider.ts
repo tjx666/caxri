@@ -465,9 +465,10 @@ export interface AgentChatProviderSession {
      */
     continueAfterUsageLimit?(): Promise<void>;
     /**
-     * The account's plan rate limits as the running provider process reports them, for the status bar's usage chip.
-     * Undefined when the plan has none (an API key) or the process does not answer. Providers that report limits only
-     * through their transcript omit it.
+     * The account's plan rate limits as the running provider process reports them: for the status bar's usage chip
+     * (Claude Code, whose transcript records none) and for the check right before an automatic continuation that the
+     * used-up window has reset (`ChatUsageLimitWaits`). Undefined when the plan has none (an API key) or the process
+     * does not answer. Providers that cannot be asked omit it.
      */
     readPlanLimits?(): Promise<Omit<UsageLimit, 'provider'> | undefined>;
     /**

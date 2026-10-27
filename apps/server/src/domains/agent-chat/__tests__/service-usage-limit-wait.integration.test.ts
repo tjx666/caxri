@@ -98,6 +98,39 @@ describe('AgentChatService automatic continuation after a usage limit', () => {
         expect(continued.items.filter((item) => item.type === 'userMessage')).toHaveLength(1);
     });
 
+    it('moves a Codex wait to the later reset when the window is still used up at the reported one', async () => {
+        const { clock, usageLimitWaits } = waitsFactory();
+        const chat = await fixture({ provider: 'codex', usageLimitWaits });
+        await chat.service.send(chat.terminal.id, { text: 'usage exhausted, reset moved' });
+        const failed = await chat.until((current) => current.turns.at(-1)?.status === 'failed');
+        const turnId = failed.turns.at(-1)!.id;
+        const reported = usageLimitNotice(failed, turnId)!.resetsAt!;
+
+        clock.offset = 2 * HOUR_MS + 60_000;
+        await chat.usageLimitWaits!.sweep();
+        // No turn ran into the still used-up window; the wait now ends three hours past the reported reset.
+        await expect
+            .poll(() => {
+                const moved = usageLimitNotice(chat.client(), turnId)?.autoContinue;
+                return moved?.status === 'waiting' && moved.at - reported;
+            })
+            .toBe(3 * HOUR_MS + 30_000);
+        expect(chat.client().turns).toHaveLength(1);
+        expect(chat.logWrite).toHaveBeenCalledWith('info', 'usage.auto_continue', {
+            fields: expect.objectContaining({
+                provider: 'codex',
+                window: 'session',
+                outcome: 'rescheduled',
+            }) as unknown,
+        });
+
+        clock.offset = 5 * HOUR_MS + 60_000;
+        await chat.usageLimitWaits!.sweep();
+        await chat.until(
+            (current) => current.turns.length === 2 && current.turns[1].status === 'completed',
+        );
+    });
+
     it('ends the wait on Cancel', async () => {
         const { clock, usageLimitWaits } = waitsFactory();
         const chat = await fixture({ provider: 'claude', usageLimitWaits });

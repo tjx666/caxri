@@ -466,6 +466,12 @@ class CodexChatSession implements AgentChatProviderSession {
      * does: Codex runs the model on the thread as it stands, so the timeline gains no user message. A timeout is not
      * retried: the turn may have started.
      */
+    readPlanLimits() {
+        return this.usageLimits.read((method, parameters, timeoutMs) =>
+            this.requireConnection().request(method, parameters, timeoutMs),
+        );
+    }
+
     async continueAfterUsageLimit(): Promise<void> {
         const connection = this.requireConnection();
         const result = await this.models.startTurn(

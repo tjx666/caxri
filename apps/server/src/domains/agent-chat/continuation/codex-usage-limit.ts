@@ -2,6 +2,7 @@ import type {
     AgentChatSnapshot,
     AgentChatUsageLimit,
     AgentUsageLimitWindow,
+    UsageLimit,
 } from '@caxri/protocol';
 
 import { isRecord, stringField } from '../chat-items';
@@ -43,6 +44,28 @@ export function isCodexUsageLimitError(error: unknown): boolean {
 }
 
 /**
+ * How long the continuation waits for `account/rateLimits/read` before it gives up and continues: the read asks Codex's
+ * backend, and an unanswered read must not hold the turn the user was promised.
+ */
+const RATE_LIMITS_READ_TIMEOUT_MS = 10_000;
+
+type CodexRequest = (method: string, parameters: Json, timeoutMs?: number) => Promise<unknown>;
+
+/**
+ * The general limit's entry in an `account/rateLimits/read` answer: the multi-bucket view's `codex`, or the
+ * single-bucket `rateLimits` when that is the general limit.
+ */
+function generalLimits(result: unknown): Json | undefined {
+    if (!isRecord(result)) return undefined;
+    const byLimitId = isRecord(result.rateLimitsByLimitId) ? result.rateLimitsByLimitId : {};
+    const general = byLimitId[CODEX_GENERAL_LIMIT_ID];
+    if (isRecord(general)) return general;
+    const single = isRecord(result.rateLimits) ? result.rateLimits : undefined;
+    const limitId = stringField(single?.limitId) ?? CODEX_GENERAL_LIMIT_ID;
+    return limitId === CODEX_GENERAL_LIMIT_ID ? single : undefined;
+}
+
+/**
  * The general limit's windows from Codex's `account/rateLimits/updated`, which the error that fails a turn does not
  * repeat: they tell which window is used up and when it resets. Codex rounds these percentages to whole numbers, so
  * they only ever say "used up" here; the weekly usage guard reads the unrounded figures from the rollout instead.
@@ -75,6 +98,42 @@ export class CodexUsageLimits {
             ];
         }
         return true;
+    }
+
+    /**
+     * Asks Codex for the general limit's windows now (`account/rateLimits/read`, verified against the codex-cli 0.165
+     * app-server schema) and keeps them as the latest reading. Read right before an automatic continuation, so a reset
+     * Codex reported early moves the wait instead of failing a turn into a window that is still used up. Undefined when
+     * the answer names no general limit.
+     */
+    async read(
+        request: CodexRequest,
+        now: number = Date.now(),
+    ): Promise<Omit<UsageLimit, 'provider'> | undefined> {
+        const limits = generalLimits(
+            await request(
+                'account/rateLimits/read',
+                { excludeResetCreditDetails: true },
+                RATE_LIMITS_READ_TIMEOUT_MS,
+            ),
+        );
+        if (!limits) return undefined;
+        this.onNotification('account/rateLimits/updated', { rateLimits: limits });
+        const windows: UsageLimit['windows'] = [];
+        for (const candidate of [limits.primary, limits.secondary]) {
+            if (!isRecord(candidate) || typeof candidate.usedPercent !== 'number') continue;
+            const minutes = candidate.windowDurationMins;
+            const scope = codexWindow(minutes);
+            windows.push({
+                windowMinutes: typeof minutes === 'number' && minutes > 0 ? Math.round(minutes) : 0,
+                usedPercent: Math.min(100, Math.max(0, candidate.usedPercent)),
+                ...(typeof candidate.resetsAt === 'number' &&
+                    candidate.resetsAt > 0 && { resetsAt: Math.round(candidate.resetsAt * 1000) }),
+                ...(scope !== 'unknown' && { scope }),
+            });
+        }
+        const planType = stringField(limits.planType)?.slice(0, 64);
+        return { observedAt: now, ...(planType && { planType }), windows };
     }
 
     /**
