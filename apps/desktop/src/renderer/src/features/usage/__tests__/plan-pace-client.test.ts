@@ -34,4 +34,23 @@ describe('dismissPlanPace', () => {
         expect(isPlanPaceDismissed(cached?.limit, Date.now())).toBe(true);
         expect(mocks.request).toHaveBeenCalledWith('usage.dismissPlanPace', { provider: 'claude' });
     });
+
+    it('keeps the dismissal when a poll that started before it resolves afterwards', async () => {
+        const key = caxriQueryKey('terminal.agentUsage', { terminalId: 'terminal-1' });
+        queryClient.setQueryData(key, readout);
+        mocks.request.mockResolvedValue(null);
+        const pollResult = Promise.withResolvers<AgentUsageReadout>();
+        const poll = queryClient.query({
+            queryKey: key,
+            staleTime: 0,
+            queryFn: () => pollResult.promise,
+        });
+
+        await dismissPlanPace('terminal-1', 'claude');
+        pollResult.resolve(readout);
+        await Promise.allSettled([poll]);
+
+        const cached = queryClient.getQueryData<AgentUsageReadout>(key);
+        expect(isPlanPaceDismissed(cached?.limit, Date.now())).toBe(true);
+    });
 });

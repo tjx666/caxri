@@ -10,12 +10,13 @@ import { caxriQueryKey, queryClient } from '../../queries/client';
  * and a failed request leaves that poll to bring the reminder back.
  */
 export async function dismissPlanPace(terminalId: string, provider: AgentProvider): Promise<void> {
-    queryClient.setQueryData<AgentUsageReadout | null>(
-        caxriQueryKey('terminal.agentUsage', { terminalId }),
-        (readout) =>
-            readout?.limit
-                ? { ...readout, limit: { ...readout.limit, paceDismissedAt: Date.now() } }
-                : readout,
+    const queryKey = caxriQueryKey('terminal.agentUsage', { terminalId });
+    // A poll already in flight would otherwise land a pre-dismissal readout and flash the row back.
+    await queryClient.cancelQueries({ queryKey });
+    queryClient.setQueryData<AgentUsageReadout | null>(queryKey, (readout) =>
+        readout?.limit
+            ? { ...readout, limit: { ...readout.limit, paceDismissedAt: Date.now() } }
+            : readout,
     );
     try {
         await caxri.request('usage.dismissPlanPace', { provider });

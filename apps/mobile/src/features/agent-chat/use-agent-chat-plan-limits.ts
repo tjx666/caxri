@@ -43,9 +43,11 @@ export const useDismissAgentChatPlanPace = (terminalId: string) => {
     const { connectionScopeKey, request } = useMobileClient();
     const queryClient = useQueryClient();
     return useCallback(async (): Promise<void> => {
-        queryClient.setQueryData<UsageLimit | null>(
-            planLimitsKey(connectionScopeKey, terminalId),
-            (limit) => (limit ? { ...limit, paceDismissedAt: Date.now() } : limit),
+        const queryKey = planLimitsKey(connectionScopeKey, terminalId);
+        // A read already in flight would otherwise land a pre-dismissal limit and bring the notice back.
+        await queryClient.cancelQueries({ queryKey });
+        queryClient.setQueryData<UsageLimit | null>(queryKey, (limit) =>
+            limit ? { ...limit, paceDismissedAt: Date.now() } : limit,
         );
         try {
             await request('mobile.agentChat.dismissPlanPace', { terminalId });
