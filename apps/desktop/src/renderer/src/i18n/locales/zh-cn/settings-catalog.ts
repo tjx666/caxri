@@ -310,9 +310,9 @@ export const settingsCatalog: TranslatedNamespace<typeof source> = {
     'settings.agents.longRunningShellCommands.description':
         '本来就会一直运行的命令，例如开发服务器。判断 Agent 这一轮是否结束时，Caxri 不会等它们退出',
 
-    'settings.agents.sessionInstructions.title': 'Session 说明',
+    'settings.agents.sessionInstructions.title': '会话说明',
     'settings.agents.sessionInstructions.description':
-        'Agent 启动时追加在它自己的系统提示词之后，让它知道自己运行在 Caxri 中，以及如何在另一个 Session 中开始工作。清空则不追加任何内容；修改只对之后启动的 Agent 生效',
+        'Agent 启动时追加在它自己的系统提示词之后，让它知道自己运行在 Caxri 中，以及如何在另一个会话中开始工作。清空则不追加任何内容；修改只对之后启动的 Agent 生效',
 
     'settings.agents.delegation.title': 'Agent 委派',
     'settings.agents.delegation.description': '命名的委派预设、调用方绑定和最大委派深度',
