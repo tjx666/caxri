@@ -53,6 +53,8 @@
  * newest items with when each started. `model/list` offers two models, and a `turn/start` that names a model, effort,
  * or service tier saves it on the thread, as Codex does, so a resumed thread reports the last choice.
  *
+ * With `FAKE_CODEX_SCRIPT`, a message equal to a scripted turn's prompt plays that turn (`fake-codex-script.ts`).
+ *
  * Threads persist to `FAKE_CODEX_STATE_DIR` (or the OS temp directory) so `thread/resume` returns real history. Each
  * thread open also appends its method, sandbox, and approval policy to `thread-opens.jsonl` there, so tests can assert
  * the configuration Caxri asked for (`fake-codex-threads.ts`). A `<threadId>.writer-held` file there makes resuming
@@ -109,6 +111,7 @@ import {
     runWorkRowCommands,
 } from './fake-codex-replies.ts';
 import { forkThread, revertThread, unsubscribeThread } from './fake-codex-rewind.ts';
+import { fakeCodexScript, findScriptedTurn, playScriptedTurn } from './fake-codex-script.ts';
 import { didHandleSideRequest } from './fake-codex-side.ts';
 import { runSlow } from './fake-codex-slow.ts';
 import { answerSteeredMessage } from './fake-codex-steer.ts';
@@ -146,6 +149,11 @@ if (process.argv.includes('--version')) {
  * How long a `stall` message's `turn/start` or `turn/steer` answer is held back.
  */
 const STALL_MS = 1_000;
+
+/**
+ * The scripted turns `FAKE_CODEX_SCRIPT` names; a malformed script ends the process here, at startup.
+ */
+const script = fakeCodexScript();
 
 const pendingServerRequests = new Map<number, (result: unknown) => void>();
 
@@ -270,6 +278,12 @@ async function runTurn(turn: FakeTurn, input: FakeInput[], clientId: string | nu
     startItem(turn, user);
     completeItem(turn, user);
     recordRolloutUserMessage(currentThread().id, turn.id, user);
+    const scripted = findScriptedTurn(script, said);
+    if (scripted) {
+        await playScriptedTurn(io, turn, scripted);
+        finishTurn(turn);
+        return;
+    }
     if (text.includes('crash')) {
         // Codex records a turn's user message as the turn starts, so a thread resumed after the crash still holds it,
         // in a turn that never completed.
@@ -466,7 +480,9 @@ function handle(message: RpcMessage) {
         }
         case 'turn/start': {
             const input = (parameters.input ?? []) as FakeInput[];
-            const text = input.map((entry) => entry.text ?? '').join('\n');
+            const said = input.map((entry) => entry.text ?? '').join('\n');
+            // A scripted prompt bypasses the keyword scenarios, so "Install" never trips `stall`.
+            const text = findScriptedTurn(script, said) ? '' : said;
             if (text.includes('lost')) return;
             const clientId =
                 typeof parameters.clientUserMessageId === 'string' && !text.includes('unpaired')

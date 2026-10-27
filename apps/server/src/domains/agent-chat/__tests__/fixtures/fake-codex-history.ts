@@ -5,6 +5,7 @@
 import process from 'node:process';
 
 import type { FakeThread, FakeTurn } from './fake-codex-io.ts';
+import { DEFAULT_MODEL_ID } from './fake-codex-models.ts';
 
 type Json = Record<string, unknown>;
 
@@ -38,14 +39,14 @@ export function threadResponse(thread: FakeThread): Json {
             cwd: process.cwd(),
             turns: thread.turns.map((turn) => wireTurn(turn)),
         },
-        model: thread.model ?? 'fake-codex-model',
+        model: thread.model ?? DEFAULT_MODEL_ID,
         reasoningEffort: thread.effort ?? null,
         serviceTier: thread.serviceTier ?? null,
         collaborationMode: thread.collaborationMode
             ? {
                   mode: thread.collaborationMode,
                   settings: {
-                      model: thread.model ?? 'fake-codex-model',
+                      model: thread.model ?? DEFAULT_MODEL_ID,
                       reasoning_effort: thread.effort ?? null,
                       developer_instructions: null,
                   },

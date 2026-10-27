@@ -2,13 +2,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 
+import type { FakeClaudeUsage } from './fake-claude-io.ts';
 import { fakeClaudeWindowAccount, fakeClaudeWindowUsage } from './fake-claude-window.ts';
 
 /**
  * The models the fake Claude Code CLI's `initialize` lists: a default with three efforts, an `opus` alias that resolves
  * to a full model ID, and a model without effort control. Only the first two support Fast mode.
  */
-export const FAKE_CLAUDE_MODEL = 'fake-claude-model';
+const FAKE_CLAUDE_MODEL = 'fake-claude-model';
 
 export const FAKE_CLAUDE_MODELS = [
     {
@@ -30,6 +31,30 @@ export const FAKE_CLAUDE_MODELS = [
     },
     { value: 'fake-claude-haiku', displayName: 'Fake Haiku', description: 'No effort control' },
 ];
+
+/**
+ * The models the fake lists, with the default one renamed (its description becomes its display name) when a script
+ * (`fake-claude-script.ts`) names its own; its other fields stay. `defaultModel` is the value the init message,
+ * assistant messages, and results report.
+ */
+export function fakeClaudeModels(override?: { value: string; displayName: string }): {
+    models: typeof FAKE_CLAUDE_MODELS;
+    defaultModel: string;
+} {
+    const models = FAKE_CLAUDE_MODELS.map((model, index) =>
+        index === 0 && override
+            ? { ...model, ...override, description: override.displayName }
+            : model,
+    );
+    return { models, defaultModel: override?.value ?? FAKE_CLAUDE_MODEL };
+}
+
+/**
+ * The model a `set_model` request switches to: an alias resolves to its full model ID, any other value is used as is.
+ */
+export function resolveFakeClaudeModel(models: typeof FAKE_CLAUDE_MODELS, value: string): string {
+    return models.find((model) => model.value === value)?.resolvedModel ?? value;
+}
 
 /**
  * The fake CLI's `get_context_usage` answer: two rows that fill the window, free space and a deferred tool schema the
@@ -119,8 +144,16 @@ export const FAKE_CLAUDE_COMMANDS = [
  * The effort the real CLI's `get_settings` reports as `applied.effort`: the session's level, the model default
  * (`medium`) when none was set, and `null` for a model without effort control.
  */
-function appliedEffort({ model, effort }: { model: string; effort?: string }): string | null {
-    const listed = FAKE_CLAUDE_MODELS.find(
+function appliedEffort({
+    model,
+    effort,
+    models = FAKE_CLAUDE_MODELS,
+}: {
+    model: string;
+    effort?: string;
+    models?: typeof FAKE_CLAUDE_MODELS;
+}): string | null {
+    const listed = models.find(
         (candidate) => candidate.resolvedModel === model || candidate.value === model,
     );
     return listed?.supportsEffort === false ? null : (effort ?? 'medium');
@@ -168,10 +201,22 @@ function fakeClaudeUsage(): Record<string, unknown> {
 }
 
 /**
+ * Every token a response read, wrote, or replied with: the context the Server's meter shows after it.
+ */
+function contextTokens(usage: FakeClaudeUsage): number {
+    return (
+        usage.input_tokens +
+        usage.output_tokens +
+        (usage.cache_creation_input_tokens ?? 0) +
+        (usage.cache_read_input_tokens ?? 0)
+    );
+}
+
+/**
  * The answer to a control request that depends only on the session's model, effort, and ultracode (`initialize`,
  * `get_context_usage`, `get_usage`, `get_settings`); `undefined` for every other request. Like Claude Code 2.1.296,
  * `get_settings` reports `ultracodeAvailable` and the applied `ultracode`, offering it only on a model with effort
- * control.
+ * control. A session with a scripted `usage` reports the context that usage fills, in place of the fixed total.
  */
 export function fakeClaudeSessionAnswer(
     subtype: unknown,
@@ -181,14 +226,23 @@ export function fakeClaudeSessionAnswer(
         ultracode?: boolean;
         fastMode?: boolean;
         isLargeContextTurn?: boolean;
+        /**
+         * The models to list, with the first as the default; `FAKE_CLAUDE_MODELS` when omitted.
+         */
+        models?: typeof FAKE_CLAUDE_MODELS;
+        /**
+         * The usage of the latest scripted response, whose tokens are the context `get_context_usage` reports.
+         */
+        usage?: FakeClaudeUsage;
     },
 ): Record<string, unknown> | undefined {
+    const models = session.models ?? FAKE_CLAUDE_MODELS;
     switch (subtype) {
         case 'initialize': {
             return {
                 commands: FAKE_CLAUDE_COMMANDS,
                 agents: [],
-                models: FAKE_CLAUDE_MODELS,
+                models,
                 account: fakeClaudeWindowAccount() ?? {},
                 output_style: 'default',
                 available_output_styles: ['default'],
@@ -196,19 +250,24 @@ export function fakeClaudeSessionAnswer(
             };
         }
         case 'get_context_usage': {
-            if (!session.isLargeContextTurn) return FAKE_CLAUDE_CONTEXT_USAGE;
-            const totalTokens = 141_240;
+            const report = { ...FAKE_CLAUDE_CONTEXT_USAGE, model: models[0].value };
+            const totalTokens = session.usage
+                ? contextTokens(session.usage)
+                : session.isLargeContextTurn
+                  ? 141_240
+                  : undefined;
+            if (totalTokens === undefined) return report;
             return {
-                ...FAKE_CLAUDE_CONTEXT_USAGE,
+                ...report,
                 totalTokens,
-                percentage: 88,
-                categories: FAKE_CLAUDE_CONTEXT_USAGE.categories.map((category) => ({
+                percentage: Math.round((totalTokens / report.rawMaxTokens) * 100),
+                categories: report.categories.map((category) => ({
                     ...category,
                     tokens:
                         category.name === 'Messages'
                             ? totalTokens - 1500
                             : category.kind === 'free'
-                              ? 160_000 - totalTokens
+                              ? report.rawMaxTokens - totalTokens
                               : category.tokens,
                 })),
             };
@@ -218,7 +277,7 @@ export function fakeClaudeSessionAnswer(
         }
         case 'get_settings': {
             const isUltracodeAvailable =
-                FAKE_CLAUDE_MODELS.find(
+                models.find(
                     (candidate) =>
                         candidate.resolvedModel === session.model ||
                         candidate.value === session.model,

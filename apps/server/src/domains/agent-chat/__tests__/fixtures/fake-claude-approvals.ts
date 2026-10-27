@@ -26,12 +26,48 @@ export const FAKE_CLAUDE_PLAN = [
     '8. Save the summary beside the notes.',
 ].join('\n');
 
-async function wasToolAllowed(
+/**
+ * Reports a tool call's result as Claude Code does: the `tool_result` block and, when the tool has one, its structured
+ * output (`tool_use_result` on the live frame, `toolUseResult` in the transcript), which carries a file edit's patch.
+ */
+export function sendToolResult(
+    io: FakeClaudeIo,
+    toolUseId: string,
+    result: { content: string; structured?: Json; isError?: boolean },
+) {
+    const block = {
+        type: 'tool_result',
+        tool_use_id: toolUseId,
+        content: result.content,
+        ...(result.isError && { is_error: true }),
+    };
+    const message = { role: 'user', content: [block] };
+    io.send(
+        io.frame({
+            type: 'user',
+            message,
+            ...(result.structured && { tool_use_result: result.structured }),
+        }),
+    );
+    io.record({
+        type: 'user',
+        message,
+        ...(result.structured && { toolUseResult: result.structured }),
+    });
+}
+
+/**
+ * Asks to run a tool through `can_use_tool` and, once answered, reports `run`'s result or the decline. Returns whether
+ * it was allowed. `decisionReason` is the line the approval card shows under the command; `null` sends none, as a
+ * scripted turn does so a capture never reads "Fake".
+ */
+export async function wasToolAllowed(
     io: FakeClaudeIo,
     name: string,
     input: Json,
     run: (input: Json) => { content: string; structured?: Json },
     onAllowed?: (decision: Json) => void,
+    decisionReason: string | null = `Fake ${name} approval`,
 ): Promise<boolean> {
     const toolUseId = `toolu_${crypto.randomUUID()}`;
     io.assistant(`msg_${crypto.randomUUID()}`, { type: 'tool_use', id: toolUseId, name, input });
@@ -48,7 +84,7 @@ async function wasToolAllowed(
                 destination: 'session',
             },
         ],
-        decision_reason: `Fake ${name} approval`,
+        ...(decisionReason !== null && { decision_reason: decisionReason }),
     });
     const isAllowed = decision.behavior === 'allow';
     if (isAllowed) onAllowed?.(decision);
@@ -56,25 +92,7 @@ async function wasToolAllowed(
     const result = isAllowed
         ? run(updatedInput)
         : { content: typeof decision.message === 'string' ? decision.message : 'Denied' };
-    const block = {
-        type: 'tool_result',
-        tool_use_id: toolUseId,
-        content: result.content,
-        ...(!isAllowed && { is_error: true }),
-    };
-    const message = { role: 'user', content: [block] };
-    io.send(
-        io.frame({
-            type: 'user',
-            message,
-            ...(result.structured && { tool_use_result: result.structured }),
-        }),
-    );
-    io.record({
-        type: 'user',
-        message,
-        ...(result.structured && { toolUseResult: result.structured }),
-    });
+    sendToolResult(io, toolUseId, { ...result, isError: !isAllowed });
     if (decision.interrupt === true) io.markInterrupted();
     return isAllowed;
 }
