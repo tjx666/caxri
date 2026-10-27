@@ -256,3 +256,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 ## monocode (MIT)
 
 - **Worktree glyph**: A folder-tree icon (two folders joined by a tree line) for a linked worktree, replacing the VS Code `worktree` codicon. Evidence: `apps/desktop/src/renderer/src/features/status-bar/workbench-root-picker.tsx`.
+
+## Linear (closed product reference)
+
+- **Chat code block folding**: A long fenced block folds to its first lines under a fade, with a centered `Expand (N lines)` pill and a `Collapse` pill below the expanded block. Evidence: `apps/desktop/src/renderer/src/components/markdown/code-collapse.ts`; `apps/desktop/src/renderer/src/components/markdown/code-collapse-toggle.tsx`; `DESIGN.md` (transcript blocks).

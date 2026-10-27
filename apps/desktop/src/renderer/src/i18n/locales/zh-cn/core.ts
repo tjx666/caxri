@@ -44,6 +44,8 @@ export const core: TranslatedNamespace<typeof source> = {
     'core.codeView.disableWordWrap': '停用自动换行',
     'core.codeView.plainText': '文本',
     'core.codeView.runInTerminal': '在终端中运行',
+    'core.codeView.expand': '展开（{{count}} 行）',
+    'core.codeView.collapse': '收起',
     'core.markdown.openFile': '打开 {{file}}',
     'core.markdown.taskDone': '已完成：',
     'core.markdown.taskTodo': '待办：',

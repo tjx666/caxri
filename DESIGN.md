@@ -1406,8 +1406,12 @@ copy for code, copy for a table, copy source for a diagram, then View Full Scree
 path: they fade in on hover or keyboard focus, as a header cluster on code and diagrams and as a
 small floating pill at a table's top-right corner. View Full Screen opens the block in a dialog
 inset 32px from the window with the same actions in its header: code at 12px, a table at 13px, and
-a diagram at its natural size inside the preview zoom frame (wheel to zoom, drag to pan). All follow
-the Codex app's Dracula transcript; fullscreen follows ChatGPT and Claude.ai's block expansion. A path the
+a diagram at its natural size inside the preview zoom frame (wheel to zoom, drag to pan). A Markdown
+code block over 20 lines folds to its first 15 under a fade into `--elevated`, with a centered
+`Expand (N lines)` pill; expanded, a `Collapse` pill sits below the last line, and collapsing scrolls
+the block's top back into view. Copy and full screen always carry the whole code. Tool output keeps
+its own height cap instead. All follow the Codex app's Dracula transcript; fullscreen follows ChatGPT
+and Claude.ai's block expansion, and folding follows Linear's documents. A path the
 Agent writes as plain prose (`src/app.ts:12`, an absolute path) is a file link like a cited one;
 in the user's bubble a path or URL takes the same `--accent` with no underline until hover, so a
 link reads the same on both sides of the transcript. A user message longer than 12 lines clamps with

@@ -8,6 +8,8 @@ import { cn } from '../../lib/utilities';
 import { writeToClipboardWithFeedback } from '../copy-feedback';
 import { Tooltip } from '../ui/tooltip';
 import { BlockFullscreenButton, BlockFullscreenDialog } from './block-fullscreen-dialog';
+import { COLLAPSED_CODE_LINES, useCodeCollapse } from './code-collapse';
+import { CodeCollapseToggle } from './code-collapse-toggle';
 import { CopyIconButton } from './copy-icon-button';
 import { useBlockFullscreen } from './use-block-fullscreen';
 import { useColorizedCode } from './use-colorized-code';
@@ -19,12 +21,14 @@ import { useColorizedCode } from './use-colorized-code';
  * inside it, so a transcript of code blocks is not lined with icons; they stay reachable by Tab, which reveals them.
  * Full screen shows the same code at the window's width with the same toggles. Markdown fences, Agent Chat tool output,
  * and a background shell's output share it so they read the same, set in the `meta` tier DESIGN.md gives every
- * monospace preview and diff.
+ * monospace preview and diff. A collapsible block folds a long body to its first lines behind an Expand pill; Copy and
+ * full screen always carry the whole code.
  */
 export function CodeView({
     className,
     code,
     defaultWrapped = false,
+    isCollapsible = false,
     isPaintable = true,
     label,
     language,
@@ -39,6 +43,11 @@ export function CodeView({
      * Starts soft-wrapped, for text that reads as prose; the toggle still switches it.
      */
     defaultWrapped?: boolean;
+    /**
+     * Folds a long body until the reader expands it, for code inline with prose. Callers that already cap the body's
+     * height leave it off.
+     */
+    isCollapsible?: boolean;
     /**
      * False while the code is still streaming: it is painted once complete.
      */
@@ -59,6 +68,7 @@ export function CodeView({
     const { t } = useTranslation();
     const [isWrapped, setWrapped] = useState(defaultWrapped);
     const fullscreen = useBlockFullscreen();
+    const { collapse, frameReference } = useCodeCollapse(code, isCollapsible);
     const { html, languageName } = useColorizedCode(code, language, isPaintable);
     const title = label ?? languageName ?? language ?? t('core.codeView.plainText');
     const actions = (
@@ -82,7 +92,22 @@ export function CodeView({
                     <BlockFullscreenButton onOpen={fullscreen.open} />
                 </div>
             </div>
-            <CodeBody className={className} code={code} html={html} isWrapped={isWrapped} />
+            <div ref={frameReference} className="relative">
+                <CodeBody
+                    className={className}
+                    code={code}
+                    html={html}
+                    isFolded={collapse !== undefined && !collapse.isExpanded}
+                    isWrapped={isWrapped}
+                />
+                {collapse && (
+                    <CodeCollapseToggle
+                        isExpanded={collapse.isExpanded}
+                        lineCount={collapse.lineCount}
+                        onToggle={collapse.toggle}
+                    />
+                )}
+            </div>
             <BlockFullscreenDialog
                 actions={actions}
                 bodyClassName="bg-elevated"
@@ -145,11 +170,16 @@ function CodeBody({
     className,
     code,
     html,
+    isFolded = false,
     isWrapped,
 }: {
     className?: string;
     code: string;
     html: string | undefined;
+    /**
+     * Cuts the body to its first `COLLAPSED_CODE_LINES` lines; the collapse pill's fade covers the cut.
+     */
+    isFolded?: boolean;
     isWrapped: boolean;
 }) {
     return (
@@ -157,8 +187,13 @@ function CodeBody({
             className={cn(
                 'my-0 overflow-x-auto px-3 pt-1 pb-2.5 font-mono text-[11px] leading-[1.5] text-foreground',
                 isWrapped && 'wrap-anywhere whitespace-pre-wrap',
+                isFolded && 'overflow-y-hidden',
                 className,
             )}
+            // `lh` is the line height, so the cut lands on a line boundary at any font size; 0.25rem is the top padding.
+            style={
+                isFolded ? { maxHeight: `calc(${COLLAPSED_CODE_LINES}lh + 0.25rem)` } : undefined
+            }
         >
             {html ? (
                 /**
