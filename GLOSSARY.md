@@ -1,7 +1,8 @@
 # Caxri
 
-Caxri organizes development work around independently deployed Servers, the Clients that connect to
-them, and durable Projects, Sessions, Terminals, and Agent activity.
+Caxri is an Agent Development Environment (ADE): it organizes development work done through coding
+Agents around independently deployed Servers, the Clients that connect to them, and durable
+Projects, Sessions, Terminals, and Agent activity.
 
 This glossary defines the current language after the architecture cutover. `_Avoid_` constrains new
 design and code. It does not rename frozen public compatibility identifiers such as `host.status`;

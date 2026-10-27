@@ -8,6 +8,7 @@ status: accepted
 - Date: 2026-10-13
 - Refs: [#2074](https://github.com/tjx666/caxri/issues/2074)
 - Amends: [ADR 0012](0012-agent-chat-surface.md)
+- Amended by: [ADR 0020](0020-agent-development-environment.md) (Terminal may enter stable maintenance)
 
 [ADR 0012](0012-agent-chat-surface.md) added the Chat surface beside the PTY without ranking them,
 while the README still called Caxri "terminal-native". Since then nearly every new Agent capability

@@ -1,6 +1,7 @@
 # Competitor and adjacent-product references
 
-Products in or near Caxri's space (terminal-native workbenches for AI coding agents). Consult
+Products in or near Caxri's space (Agent development environments and workbenches for AI coding
+agents). Consult
 them for design and implementation ideas (how they solve theming, agent-state detection, session
 persistence, worktree isolation, or multi-agent orchestration) before inventing a new approach.
 Never copy code without checking the license.

@@ -4,7 +4,7 @@
     "private": true,
     "author": "Caxri contributors",
     "license": "SEE LICENSE IN LICENSE",
-    "description": "A project-first, terminal-native local development workbench for macOS.",
+    "description": "An Agent Development Environment (ADE) for macOS.",
     "type": "module",
     "scripts": {
         "dev": "bun run build:workspaces && bun run electron:install && bun run scripts/development.ts",
