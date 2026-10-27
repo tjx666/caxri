@@ -235,6 +235,11 @@
      * popping in, the popover changing section). Longer than feedback so the old and new content visibly trade places.
      */
     --motion-status-swap: 240ms;
+    /*
+     * A sent image flying from the composer into its pending message (`agent-chat-sent-image-flight.ts`). It
+     * crosses most of the Chat, so it runs longer than a chrome switch to stay legible over that distance.
+     */
+    --motion-image-send: 280ms;
     /* Decelerating "settle" curve for spatial reveals (disclosures, the chrome tab indicator). */
     --motion-ease-emphasized: cubic-bezier(0.25, 1, 0.5, 1);
     /*
@@ -259,6 +264,19 @@
 :root {
     --default-transition-duration: var(--motion-feedback);
     --default-transition-timing-function: var(--motion-ease-enter);
+}
+
+/*
+ * A sent image flying from the composer into its pending message: a detached clone the Web Animations API moves
+ * (`features/agent-chat/composer/send/agent-chat-sent-image-flight.ts`), cropped like both tiles as its box changes.
+ */
+.agent-chat-image-flight {
+    position: fixed;
+    z-index: 50;
+    margin: 0;
+    border: 1px solid var(--border);
+    object-fit: cover;
+    pointer-events: none;
 }
 
 @keyframes compaction-pulse {

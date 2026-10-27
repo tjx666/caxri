@@ -17,6 +17,7 @@ import {
 } from '../agent-chat-commands';
 import { agentChatTextWithSentImageNumbers } from '../attachments/agent-chat-image-placeholders';
 import { retainAgentChatSentImageOriginals } from '../attachments/agent-chat-sent-image-originals';
+import { sendWithAgentChatImageFlight } from '../composer/send/agent-chat-sent-image-flight';
 import type { AgentChatAttachment } from '../composer-input/agent-chat-drafts';
 import {
     didDeliverAgentChatComposerInput,
@@ -166,14 +167,21 @@ export function useAgentChatSubmit({
         const sentAttachments = attachments;
         const message = agentChatMessageInput(composed, sentAttachments, providerName);
         const snapshot = cachedAgentChatSnapshot(terminalId);
-        const pendingId = showAgentChatPendingMessage(terminalId, snapshot, {
-            text: message.text,
-            images: (message.images ?? []).map(({ thumbnail }) => ({ thumbnail })),
-            delivery,
-        });
+        // The composer's thumbnails fly into the pending row's tiles as the one replaces the other.
+        const pendingId = sendWithAgentChatImageFlight(
+            sentAttachments.filter(isAgentChatImageAttachment).map(({ id }) => id),
+            () => {
+                const id = showAgentChatPendingMessage(terminalId, snapshot, {
+                    text: message.text,
+                    images: (message.images ?? []).map(({ thumbnail }) => ({ thumbnail })),
+                    delivery,
+                });
+                setDraft((current) => draftAfterSend(current, sent));
+                clearSent(sentAttachments);
+                return id;
+            },
+        );
         retainAgentChatSentImageOriginals(message.images ?? []);
-        setDraft((current) => draftAfterSend(current, sent));
-        clearSent(sentAttachments);
         onSent?.();
         const isSent = await didSendAgentChatMessage(terminalId, message, delivery);
         if (isSent) {
