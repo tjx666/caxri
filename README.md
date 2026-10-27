@@ -213,9 +213,8 @@ worktrees start through `$switch-worktree` so each checkout gets its own profile
 
 Desktop, Server Core, Terminal Host, and Extension Host logs are written beneath the active
 profile's `<userData>/logs/` directory. Unsigned development packages are written beneath
-`release.noindex/`. Install or upgrade the default Source Map release with
-`bun run install:caxri`: terminal downloads skip the Gatekeeper quarantine that makes
-browser-downloaded unsigned apps report as "damaged" (see [RELEASING.md](RELEASING.md)).
+`release.noindex/`. Install a published release from its DMG (see [Install](#install)); later
+versions arrive through the in-app updater.
 
 Caxri's Server Core-owned native ESM extension model and ViewContainer contribution contract are
 described in [docs/extensions.md](docs/extensions.md).

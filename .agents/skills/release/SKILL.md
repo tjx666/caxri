@@ -106,9 +106,7 @@ beyond the packaged application itself.
   the merge triggers the remote release. After the merge, `bun run scripts/watch-ci.ts --sha <merge commit>`
   follows the CI run and the Release run it triggers to completion in one watcher.
 - Do not install a published release locally. The owner updates through the in-app updater, so the
-  release ends with the Release URL and its assets in the report. Run `install:caxri` only on the
-  user's explicit request, and never from an Agent Session inside the installed Caxri: quitting
-  Caxri ends that Session together with the install it started, leaving the old version in place.
+  release ends with the Release URL and its assets in the report.
 
 ## Existing-release Android backfill
 
