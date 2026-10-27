@@ -12,6 +12,8 @@ export const settingsClaudeWindows: TranslatedNamespace<typeof source> = {
     'settings.claudeWindows.keepRolling': '保持 5 小时窗口滚动',
     'settings.claudeWindows.keepRollingDescription':
         '上一个 5 小时窗口重置时，用一次最小请求开启下一个窗口，让当天第一个窗口在上班时重置。Pro 默认开启，Max 默认关闭。为了在 Caxri 关闭时也能工作，它会向 macOS 注册一个后台任务（显示在“登录项”中）；关闭此功能会将其移除。',
+    'settings.claudeWindows.defaultNotice':
+        'Caxri 会保持你的 Claude 5 小时窗口滚动：每个窗口重置时，向 Claude 发送一次最小请求开启下一个窗口，Caxri 关闭时也会继续。Claude Pro 默认开启。',
     'settings.claudeWindows.firstWorkdayReset': '上班后首次重置时间',
     'settings.claudeWindows.warmUpNote':
         'Caxri 会提前五小时在 {{warmUp}} 开启预热窗口，使其在 {{reset}} 重置。',

@@ -15,6 +15,15 @@ The keeper lives in Settings › Agents › Claude as **Keep 5-hour windows roll
 for a Pro account and off for Max and every other plan; the user's choice is kept per account
 across restarts and plan changes.
 
+Because the default sends requests on the user's behalf before they ever open the setting, the
+Workbench tells a Pro account once, per account on each device, with an `info` notice held until
+dismissed: it states what the keeper sends and when, and offers `Turn off` and `Open Settings`
+(which scrolls to the row). It appears only while the switch still follows the plan default; an
+account whose user chose either way never sees it. The told accounts are remembered in the
+Renderer's local storage by their anonymous key, and the notice stays in the notification center
+afterwards. The logic lives in
+`apps/desktop/src/renderer/src/features/settings/claude-windows/claude-windows-default-notice.ts`.
+
 ## Schedule
 
 - **Morning anchor**: `First workday reset at` minus five hours, in the local time zone. The

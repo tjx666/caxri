@@ -52,6 +52,11 @@ export interface ToastActionParameters {
     /**
      * Copies a shell command the notice asks the user to run elsewhere, such as raising a limit on an SSH Host.
      */
+    /**
+     * Turns the Claude 5-hour window keeper off for the account the notice was about. Carries only the anonymous
+     * account key, so Server Core can refuse the write once another Claude account signed in.
+     */
+    'claudeWindows.turnOff': { accountKey: string };
     'clipboard.copyCommand': { text: string };
     'diagnostics.copyFailure': { text: string };
     /**
@@ -86,6 +91,7 @@ export interface ToastActionParameters {
     'settings.open': undefined;
     'settings.openNotifications': undefined;
     'settings.openSource': undefined;
+    'settings.openClaudeWindows': undefined;
     'settings.openHardwareAcceleration': undefined;
     'settings.turnOffHardwareAcceleration': undefined;
     'terminal.create': {
@@ -161,6 +167,7 @@ export const toastActionLabelKeys: Record<ToastActionId, TranslationKey> = {
     'caxriBot.open': 'toasts.action.openCaxriBot',
     'caxriBot.handBack': 'caxriBot.handover.handBack',
     'caxriBot.undoDismiss': 'toasts.action.undo',
+    'claudeWindows.turnOff': 'toasts.action.turnOff',
     'clipboard.copyCommand': 'toasts.action.copyCommand',
     'diagnostics.copyFailure': 'toasts.action.copyDetails',
     'diagnostics.revealExport': 'toasts.action.revealInFinder',
@@ -172,6 +179,7 @@ export const toastActionLabelKeys: Record<ToastActionId, TranslationKey> = {
     'settings.open': 'toasts.action.openSettings',
     'settings.openNotifications': 'toasts.action.openSettings',
     'settings.openSource': 'toasts.action.openSettingsFile',
+    'settings.openClaudeWindows': 'toasts.action.openSettings',
     'settings.openHardwareAcceleration': 'toasts.action.openSettings',
     'settings.turnOffHardwareAcceleration': 'toasts.action.turnOffHardwareAcceleration',
     'terminal.create': 'common.retry',

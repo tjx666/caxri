@@ -13,7 +13,8 @@ export type SettingsView =
     | 'remote-debugging'
     | 'notifications'
     | 'git-exclusions'
-    | 'agent-suspension';
+    | 'agent-suspension'
+    | 'claude-windows';
 
 /**
  * Which control the open Session-creation menu belongs under. The Project heading's New Session button and the
