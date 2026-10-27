@@ -397,6 +397,21 @@ const AgentChatRequests = ({
 };
 
 /**
+ * Whether a request card waits in the dock while the keyboard is up. The card needs its question, answer field, and
+ * buttons beside the keyboard; on a phone the timeline's floor and the dock's 80% cap left it too short for them, so
+ * meanwhile the timeline yields its share to the card.
+ */
+const useIsRequestBesideKeyboard = (chat: AgentChatController): boolean => {
+    const { t } = useTranslation();
+    const isKeyboardShown = useIsKeyboardShown();
+    if (!isKeyboardShown) return false;
+    const requests = chat.snapshot?.requests ?? [];
+    return (
+        agentChatRequestDock(requests, chat.pending.answeredRequestIds, t).currentId !== undefined
+    );
+};
+
+/**
  * The phone's Chat: Desktop's Chat timeline in the Conversation's list (Markdown replies, work rows and summaries, each
  * finished turn folded behind its `Worked for` row with its artifacts under the reply), with the Chat's own states,
  * pending requests, plan, and activity docked above the composer.
@@ -478,16 +493,7 @@ export const AgentChatView = ({
         () => agentChatRequestBlockedReason({ deviceRole, isConnected }, t),
         [deviceRole, isConnected, t],
     );
-    const isKeyboardShown = useIsKeyboardShown();
-    /**
-     * A request card needs its question, answer field, and buttons beside the keyboard; on a phone the timeline's floor
-     * and the dock's 80% cap left it too short for them, so while both are up the timeline yields its share to the
-     * card.
-     */
-    const isTimelineYielding =
-        isKeyboardShown &&
-        agentChatRequestDock(snapshot?.requests ?? [], chat.pending.answeredRequestIds, t)
-            .currentId !== undefined;
+    const isTimelineYielding = useIsRequestBesideKeyboard(chat);
 
     return (
         <View style={styles.root} testID="agent-chat">
