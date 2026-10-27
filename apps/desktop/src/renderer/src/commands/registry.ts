@@ -197,6 +197,7 @@ export interface CommandContext {
         toggleScreencastMode(): void;
     };
     diagnostics: { export(): void };
+    projectTransfer: { export(): void; import(): void };
     help: {
         open(page: 'documentation' | 'releaseNotes' | 'reportIssue'): void;
         revealLogs(): void;

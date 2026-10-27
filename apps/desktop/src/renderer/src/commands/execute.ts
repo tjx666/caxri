@@ -1,12 +1,7 @@
 import './definitions';
 
 import type { CommandId } from '@caxri/protocol';
-import {
-    errorMessage,
-    listPaneTerminalIds,
-    paneSplitBlockedReason,
-    paneTabIdsToClose,
-} from '@caxri/protocol';
+import { listPaneTerminalIds, paneSplitBlockedReason, paneTabIdsToClose } from '@caxri/protocol';
 
 import { focusNextAttentionSession } from '../features/agent-activity/agent-activity-commands';
 import {
@@ -50,7 +45,7 @@ import {
     sendActiveFileReference,
 } from '../features/editor/send-file-reference';
 import { openUntitledEditor } from '../features/editor/untitled/commands';
-import { openHelpPage, revealLogs } from '../features/help/help-commands';
+import { exportDiagnostics, openHelpPage, revealLogs } from '../features/help/help-commands';
 import {
     openPerformanceMonitorWindow,
     togglePerformanceMonitor,
@@ -63,6 +58,10 @@ import {
 import { focusPrimarySidebar } from '../features/primary-sidebar/primary-sidebar-focus';
 import { openProcessExplorer } from '../features/process-explorer/process-explorer-commands';
 import { openSeededProjectSearch } from '../features/project-search/project-search-seed';
+import {
+    exportProjectsAndSessions,
+    importProjectsAndSessions,
+} from '../features/project-transfer/project-transfer-commands';
 import { toggleScreencastMode } from '../features/screencast/screencast';
 import {
     revealSecondarySidebar,
@@ -484,31 +483,12 @@ const commandContext: CommandContext = {
         togglePerformanceMonitor,
         toggleScreencastMode,
     },
-    diagnostics: {
-        export: () => {
-            void tryCommand(
-                translate('core.commands.diagnosticsExportFailed'),
-                async () => {
-                    const result = await caxri.request('diagnostics.export');
-                    if (result)
-                        pushToast(
-                            'success',
-                            translate('core.commands.diagnosticsExported', { path: result.path }),
-                            { persist: true, action: { id: 'diagnostics.revealExport' } },
-                        );
-                },
-                {
-                    recovery: (error) => ({
-                        id: 'diagnostics.copyFailure',
-                        params: {
-                            text: errorMessage(error, 'Unknown diagnostics export error'),
-                        },
-                    }),
-                },
-            );
-        },
-    },
+    diagnostics: { export: exportDiagnostics },
     help: { open: openHelpPage, revealLogs },
+    projectTransfer: {
+        export: exportProjectsAndSessions,
+        import: importProjectsAndSessions,
+    },
     updates: { check: checkForUpdates },
     shellCommand: { install: installShellCommand, uninstall: uninstallShellCommand },
     sshHost: {

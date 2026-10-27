@@ -507,13 +507,10 @@ if (ownsProfileInstance) {
             updateService = createDesktopUpdateService({
                 currentVersion: caxriVersion,
                 logger: () => mainLogger,
-                restartToUpdate: async () => {
-                    quitIntent.set('update');
-                    const outcome = await requestAppQuit(); // A pending ordinary quit may answer instead.
-                    if (outcome !== 'stopped' && quitIntent.current() === 'update')
-                        quitIntent.set('user');
-                },
+                quitIntent,
+                requestAppQuit,
                 sendEvent,
+                server: () => supervisor,
                 userDataPath,
             });
             const connectionOptions = resolveServerConnectionOptions({

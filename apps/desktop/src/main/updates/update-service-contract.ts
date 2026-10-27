@@ -5,6 +5,14 @@ import type { SourceMapFlavor } from '../source-map-flavor';
 export type UpdateFetch = (input: string, init?: RequestInit) => Promise<Response>;
 
 /**
+ * How a verified installer installs; see `installMode` and `resetsData` on the `ready` state.
+ */
+export interface PreparedInstall {
+    installMode: 'manual' | 'restart';
+    resetsData?: true;
+}
+
+/**
  * Supplies a fixed release in place of the GitHub request for one declared Acceptance case. It never exposes a download
  * URL, so a service built with it can announce an update but can never download or install one.
  */
@@ -19,6 +27,12 @@ export interface UpdateServiceOptions {
      * the real release service.
      */
     acceptanceDiscovery?: AcceptanceUpdateDiscovery;
+    /**
+     * Asks before restarting into an update whose `ready` state sets `resetsData`, offering to export Projects and
+     * Sessions first. Resolves `true` only when the user chose to install anyway; absent, such an update never installs
+     * in place.
+     */
+    confirmDataReset?(version: string): Promise<boolean>;
     currentVersion: string;
     downloadDirectory: string;
     /**
@@ -28,7 +42,8 @@ export interface UpdateServiceOptions {
     fetch?: UpdateFetch;
     /**
      * Replaces the installed bundle with the staged one once Main exits, reopening Caxri when `relaunch` is set. Only
-     * called for a `ready` state whose `installMode` is `restart`.
+     * called for a `ready` state whose `installMode` is `restart`, and for one that resets data only after
+     * {@link UpdateServiceOptions.confirmDataReset} accepted that exact version.
      */
     launchInstall?(input: { relaunch: boolean; version: string }): Promise<void>;
     now?: () => number;
@@ -38,7 +53,7 @@ export interface UpdateServiceOptions {
      * Unpacks a verified installer for the in-place install and reports which install it allows. Absent (tests,
      * Acceptance), every update installs manually from the DMG.
      */
-    prepareInstall?(input: { dmgPath: string; version: string }): Promise<'manual' | 'restart'>;
+    prepareInstall?(input: { dmgPath: string; version: string }): Promise<PreparedInstall>;
     /**
      * Runs the quit flow that ends with {@link UpdateServiceOptions.launchInstall}; resolves only when the user
      * cancelled, because a confirmed restart exits Main.

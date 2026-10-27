@@ -26,6 +26,8 @@ export const commands: TranslatedNamespace<typeof source> = {
     'commands.project.hide': '隐藏项目',
     'commands.project.openInEditor': '在外部编辑器中打开项目',
     'commands.project.customizeIcon': '自定义项目图标…',
+    'commands.projectTransfer.export': '导出项目和会话…',
+    'commands.projectTransfer.import': '导入项目和会话…',
     'commands.session.create': '新建会话',
     'commands.session.rename': '重命名会话',
     'commands.session.renameWithAi': '用 AI 重命名会话',

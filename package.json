@@ -361,6 +361,9 @@
         ],
         "mac": {
             "category": "public.app-category.developer-tools",
+            "extendInfo": {
+                "CaxriSchemaBaseline": 39
+            },
             "icon": "build/icon.icns",
             "target": [
                 "dir"

@@ -116,6 +116,16 @@ export const core: TranslatedNamespace<typeof source> = {
     'core.commands.openCaxriBotFailed': '无法打开 Caxri Bot',
     'core.commands.diagnosticsExportFailed': '诊断信息导出失败',
     'core.commands.diagnosticsExported': '诊断信息已导出到 {{path}}',
+    'core.projectTransfer.exportFailed': '项目和会话导出失败',
+    'core.projectTransfer.exported':
+        '已将 {{projects}} 个项目和 {{sessions}} 个会话导出到 {{path}}',
+    'core.projectTransfer.importFailed': '项目和会话导入失败',
+    'core.projectTransfer.imported': '已导入 {{projects}} 个项目和 {{sessions}} 个会话',
+    'core.projectTransfer.skippedMissing': '已跳过 {{path}}：文件夹已不存在',
+    'core.projectTransfer.skippedExists': '已跳过 {{path}}：已经是项目',
+    'core.projectTransfer.worktreeMissing':
+        'Worktree {{path}} 已不存在，它的会话将在项目文件夹中打开',
+    'core.projectTransfer.moreSkipped': '另有 {{count}} 项',
     'core.commands.revealExportFailed': '无法在访达中显示诊断文件',
     'core.commands.revealLogsFailed': '无法在访达中显示日志文件夹',
 

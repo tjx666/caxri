@@ -140,6 +140,16 @@ export const core = {
     'core.commands.openCaxriBotFailed': 'Unable to open Caxri Bot',
     'core.commands.diagnosticsExportFailed': 'Diagnostics export failed',
     'core.commands.diagnosticsExported': 'Diagnostics exported to {{path}}',
+    'core.projectTransfer.exportFailed': 'Projects and Sessions export failed',
+    'core.projectTransfer.exported':
+        'Exported {{projects}} Projects and {{sessions}} Sessions to {{path}}',
+    'core.projectTransfer.importFailed': 'Projects and Sessions import failed',
+    'core.projectTransfer.imported': 'Imported {{projects}} Projects and {{sessions}} Sessions',
+    'core.projectTransfer.skippedMissing': 'Skipped {{path}}: the folder no longer exists',
+    'core.projectTransfer.skippedExists': 'Skipped {{path}}: already a Project',
+    'core.projectTransfer.worktreeMissing':
+        'Worktree {{path}} no longer exists; its Session opens in the Project folder',
+    'core.projectTransfer.moreSkipped': 'And {{count}} more',
     'core.commands.revealExportFailed': 'Unable to show the diagnostics file in Finder',
     'core.commands.revealLogsFailed': 'Unable to show the log folder in Finder',
 

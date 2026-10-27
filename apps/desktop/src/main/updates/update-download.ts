@@ -11,7 +11,7 @@ import {
     isResumedResponse,
     removeStaleUpdateFiles,
 } from './update-download-files';
-import type { UpdateFetch } from './update-service-contract';
+import type { PreparedInstall, UpdateFetch } from './update-service-contract';
 import {
     assertSuccessfulResponse,
     isAbortError,
@@ -52,7 +52,7 @@ export interface DownloadHost {
      * Records the verified installer and decides how it installs, unpacking it ahead of the restart when Caxri can
      * replace its own bundle. Never rejects: a failed unpack only downgrades the install to `manual`.
      */
-    prepareReady(path: string): Promise<'manual' | 'restart'>;
+    prepareReady(path: string): Promise<PreparedInstall>;
     publish(state: UpdateState): UpdateState;
 }
 
@@ -77,11 +77,11 @@ export async function downloadVerifiedUpdate(
         currentVersion: host.currentVersion,
         ...releaseFields,
     });
-    const readyState = (installMode: 'manual' | 'restart'): UpdateState => ({
+    const readyState = (prepared: PreparedInstall): UpdateState => ({
         status: 'ready',
         currentVersion: host.currentVersion,
         ...releaseFields,
-        installMode,
+        ...prepared,
     });
     host.publish({
         status: 'downloading',

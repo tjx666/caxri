@@ -129,6 +129,26 @@ export const commandDefinitions: CommandDefinition[] = [
         description: 'Choose a controlled icon and color for the selected Project',
         nativeMenu: { menu: 'project', group: 1, order: 1 },
     },
+    {
+        id: 'projectTransfer.export',
+        title: 'Export Projects and Sessions…',
+        category: 'Project',
+        description:
+            'Save your Projects and unarchived Sessions to a file you can import into another Caxri',
+        keywords: ['backup', 'migrate', 'transfer'],
+        nativeMenu: { menu: 'project', group: 3, order: 0 },
+        when: 'localMachine',
+    },
+    {
+        id: 'projectTransfer.import',
+        title: 'Import Projects and Sessions…',
+        category: 'Project',
+        description:
+            'Add the Projects and Sessions from an export file, resuming their Agent conversations',
+        keywords: ['restore', 'migrate', 'transfer'],
+        nativeMenu: { menu: 'project', group: 3, order: 1 },
+        when: 'localMachine',
+    },
     ...sessionCommandDefinitions,
     {
         id: 'agentActions.open',

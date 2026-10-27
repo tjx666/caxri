@@ -15,6 +15,7 @@ const {
     launchInPlaceInstall,
     resolveInPlaceInstallTarget,
     stageUpdateBundle,
+    willStagedUpdateResetData,
 } = await import('../update-install');
 
 const directories: string[] = [];
@@ -214,6 +215,55 @@ describe('stageUpdateBundle', () => {
                 }).run,
             }),
         ).rejects.toThrow('different app');
+    });
+});
+
+describe('willStagedUpdateResetData', () => {
+    /**
+     * Answers `CaxriSchemaBaseline` per bundle; `undefined` makes PlistBuddy fail the way a missing key does.
+     */
+    function baselineRunner(baselines: { installed?: string; staged?: string }) {
+        return vi.fn((_file: string, arguments_: readonly string[]) => {
+            const value = arguments_[2].includes('staged') ? baselines.staged : baselines.installed;
+            return value === undefined
+                ? Promise.reject(new Error('Print: Entry, ":CaxriSchemaBaseline", Does Not Exist'))
+                : Promise.resolve(`${value}\n`);
+        });
+    }
+
+    const paths = {
+        bundlePath: '/Applications/Caxri.app',
+        stagedPath: '/profile/updates/staged/Caxri.app',
+    };
+
+    it('flags only an update whose database baseline is newer', async () => {
+        await expect(
+            willStagedUpdateResetData({
+                ...paths,
+                run: baselineRunner({ installed: '39', staged: '39' }),
+            }),
+        ).resolves.toBe(false);
+        await expect(
+            willStagedUpdateResetData({
+                ...paths,
+                run: baselineRunner({ installed: '39', staged: '54' }),
+            }),
+        ).resolves.toBe(true);
+    });
+
+    it('treats an unreadable or malformed baseline as a reset', async () => {
+        await expect(
+            willStagedUpdateResetData({ ...paths, run: baselineRunner({ installed: '39' }) }),
+        ).resolves.toBe(true);
+        await expect(
+            willStagedUpdateResetData({ ...paths, run: baselineRunner({ staged: '39' }) }),
+        ).resolves.toBe(true);
+        await expect(
+            willStagedUpdateResetData({
+                ...paths,
+                run: baselineRunner({ installed: '39', staged: 'x' }),
+            }),
+        ).resolves.toBe(true);
     });
 });
 

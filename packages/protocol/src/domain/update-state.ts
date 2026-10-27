@@ -94,6 +94,13 @@ export const updateStateSchema = z.discriminatedUnion('status', [
          * opens the DMG and drags the app, as before.
          */
         installMode: z.enum(['restart', 'manual']),
+        /**
+         * Set when the staged update starts from a newer database baseline than this build, so installing it clears the
+         * Project and Session list (the clean-install cutoff; Project folders and user files are untouched). Main then
+         * never installs it on an ordinary quit and asks before `Restart to Update`, offering an export first. Only a
+         * `restart` install can be inspected ahead of time; a `manual` one never carries it.
+         */
+        resetsData: z.literal(true).optional(),
     }),
     z.object({
         status: z.literal('error'),

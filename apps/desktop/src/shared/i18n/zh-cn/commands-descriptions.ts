@@ -8,6 +8,10 @@ export const commandDescriptions: TranslatedNamespace<typeof source> = {
     'commands.description.project.hide': '隐藏所选项目并保留其会话；再次添加同一文件夹即可恢复',
     'commands.description.project.openInEditor': '在配置的外部编辑器中打开所选项目的根目录',
     'commands.description.project.customizeIcon': '为所选项目选择图标和颜色',
+    'commands.description.projectTransfer.export':
+        '把项目和未归档的会话保存到一个文件，可导入到另一个 Caxri',
+    'commands.description.projectTransfer.import':
+        '从导出文件添加项目和会话，并恢复它们的 Agent 对话',
     'commands.description.session.create': '在所选项目中新建会话',
     'commands.description.session.rename': '在主侧边栏中重命名所选会话',
     'commands.description.session.renameWithAi':

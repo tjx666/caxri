@@ -218,6 +218,18 @@ export const desktop: TranslatedNamespace<typeof source> = {
     'desktop.diagnosticsExport.title': '导出诊断信息',
     'desktop.untitledSave.title': '另存为',
     'desktop.diagnosticsExport.zipArchive': 'ZIP 压缩包',
+    'desktop.projectTransfer.exportTitle': '导出项目和会话',
+    'desktop.projectTransfer.importTitle': '导入项目和会话',
+    'desktop.projectTransfer.jsonFile': 'Caxri 导出文件',
+    'desktop.updateDataReset.message': 'Caxri {{version}} 会清空你的项目和会话',
+    'desktop.updateDataReset.detail':
+        '这次更新会使用新的数据库，重启后项目和会话列表将为空。项目文件夹、文件和 Agent 对话不受影响，旧数据库会在原位置保留一份副本。\n\n请先导出项目和会话，更新后再导入该文件即可恢复。',
+    'desktop.updateDataReset.exported':
+        '已导出到 {{path}}。\n\n更新后，在“项目”菜单中选择“导入项目和会话…”，然后选择这个文件。',
+    'desktop.updateDataReset.exportFailed': '导出失败：{{message}}',
+    'desktop.updateDataReset.export': '导出…',
+    'desktop.updateDataReset.update': '仍然更新',
+    'desktop.updateDataReset.cancel': '取消',
     'desktop.benchmarkShare.title': '保存分享图片',
     'desktop.benchmarkShare.pngImage': 'PNG 图片',
     'desktop.chooseProjectFolder': '选择项目文件夹',

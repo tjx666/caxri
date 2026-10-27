@@ -81,6 +81,19 @@ describe('resolveReadyAnnouncement', () => {
         });
     });
 
+    it('warns that a data-resetting update clears Projects and Sessions everywhere it is offered', () => {
+        const resetting: UpdateState = { ...ready, resetsData: true };
+        expect(resolveReadyAnnouncement(resetting)?.message).toBe(
+            'Caxri 1.1.0 is ready. It clears your Projects and Sessions, so export them before restarting to update.',
+        );
+        expect(describeUpdateChip(resetting, '1.1.0')?.description).toBe(
+            'Caxri 1.1.0 is ready and clears your Projects and Sessions. Click to export them and update.',
+        );
+        expect(describeUpdateStatus(resetting).description).toMatch(
+            /clears the Project and Session list.*quitting Caxri does not install it/u,
+        );
+    });
+
     it('announces once per process and only for a ready update', () => {
         expect(resolveReadyAnnouncement({ ...ready, announced: true })).toBeUndefined();
         expect(resolveReadyAnnouncement(available)).toBeUndefined();

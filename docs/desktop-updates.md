@@ -28,8 +28,33 @@ shows the state and asks for the next step.
    prompt. There is no keep-running choice: Server Core is stopped, because a Server from the old
    build would be replaced on the next launch anyway.
 5. **Install on quit.** An ordinary quit that stops Server Core also installs a staged update, so
-   the next launch is the new version. A quit that keeps tasks running in the background does not
+   the next launch is the new version, unless the update clears data (see
+   [Updates that clear data](#updates-that-clear-data)). A quit that keeps tasks running in the background does not
    install, since the old Server keeps running from the old bundle.
+
+## Updates that clear data
+
+A release that moves the database baseline (the clean-install cutoff in
+`apps/server/src/domains/db/connection.ts`) rebuilds an older database empty on its first launch,
+so the Project and Session list disappears. Project folders, files, and the Agents' own
+conversation stores are untouched, and Server Core keeps a `VACUUM INTO` snapshot of the old
+database beside it (`<database>.v<version>-<timestamp>.bak`) before rebuilding; if that copy
+cannot be written and reopened, it refuses to rebuild.
+
+Every packaged build stamps its baseline into `Info.plist` as `CaxriSchemaBaseline`
+(`build.mac.extendInfo` in the root `package.json`, kept equal to `BASELINE_SCHEMA_VERSION` by
+`migration-manifest.test.ts`). After staging, Main compares the staged and installed values; a
+newer staged baseline, or one it cannot read, marks the `ready` state `resetsData`. Such an update:
+
+- is never installed by an ordinary quit, shutdown, or relaunch;
+- shows a warning in the notification, the status bar chip, and the update dialog;
+- installs only after **Restart to Update** shows **Caxri X will clear your Projects and
+  Sessions**, which offers **Export…** (see [Project transfer](project-transfer.md)) and installs
+  only on **Update Anyway** for that exact version.
+
+A `manual` install (opening the DMG by hand) cannot be inspected ahead of time and carries no
+warning. A build older than the one that introduced this check also cannot warn, so a baseline
+move must ship after a release that already has it.
 
 ## In-place install
 
@@ -57,10 +82,10 @@ notice; the restart flow does not need it.
 `updates.state` logs every state except download progress. `updates.install` logs each install
 phase with a closed `outcome`:
 
-| `phase`  | `outcome`                                                                                   |
-| -------- | ------------------------------------------------------------------------------------------- |
-| `stage`  | `staged`, `stage-failed`, `previous-install-failed`, or the unavailable reason              |
-| `launch` | `restart` or `quit`                                                                         |
-| `apply`  | `installed`, `missing`, `move-in-failed`, `move-out-failed`, or `timeout`, with `from`/`to` |
+| `phase`  | `outcome`                                                                                            |
+| -------- | ---------------------------------------------------------------------------------------------------- |
+| `stage`  | `staged`, `staged-resets-data`, `stage-failed`, `previous-install-failed`, or the unavailable reason |
+| `launch` | `restart` or `quit`                                                                                  |
+| `apply`  | `installed`, `missing`, `move-in-failed`, `move-out-failed`, or `timeout`, with `from`/`to`          |
 
 `stage` also records `durationMs`. An `apply` outcome other than `installed` is logged as an error.

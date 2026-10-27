@@ -1,5 +1,6 @@
+import type { ProjectTransferExportResult } from '@caxri/protocol';
 import { themeImportExtensions } from '@caxri/protocol';
-import type { OpenDialogOptions, SaveDialogOptions } from 'electron';
+import type { BrowserWindow, Dialog, OpenDialogOptions, SaveDialogOptions } from 'electron';
 
 import { translateMain } from './locale';
 
@@ -41,6 +42,28 @@ export function diagnosticsExportDialogOptions(now: Date): SaveDialogOptions {
     };
 }
 
+function projectTransferExportDialogOptions(now: Date): SaveDialogOptions {
+    return {
+        title: translateMain('desktop.projectTransfer.exportTitle'),
+        defaultPath: `caxri-projects-${now.toISOString().slice(0, 10)}.json`,
+        properties: ['createDirectory', 'showOverwriteConfirmation'],
+        filters: [
+            { name: translateMain('desktop.projectTransfer.jsonFile'), extensions: ['json'] },
+        ],
+    };
+}
+
+export function projectTransferImportDialogOptions(): OpenDialogOptions {
+    return {
+        title: translateMain('desktop.projectTransfer.importTitle'),
+        properties: ['openFile'],
+        filters: [
+            { name: translateMain('desktop.projectTransfer.jsonFile'), extensions: ['json'] },
+            { name: translateMain('desktop.fileFilter.allFiles'), extensions: ['*'] },
+        ],
+    };
+}
+
 /**
  * Save dialog for a Benchmark share card; `fileName` is the suggested name, already reduced to a base name by the
  * caller.
@@ -63,4 +86,21 @@ export function untitledEditorSaveDialogOptions(defaultPath: string): SaveDialog
         defaultPath,
         properties: ['createDirectory', 'showOverwriteConfirmation'],
     };
+}
+
+/**
+ * Asks where to save a Projects and Sessions export and has Server Core write it there. Shared by the Project menu
+ * command and the data-reset update prompt; resolves `null` when the user cancels the save panel.
+ */
+export async function exportProjectsAndSessions(input: {
+    dialog: Pick<Dialog, 'showSaveDialog'>;
+    exportPath(destination: string): Promise<ProjectTransferExportResult>;
+    window: BrowserWindow | undefined;
+}): Promise<ProjectTransferExportResult | null> {
+    const options = projectTransferExportDialogOptions(new Date());
+    const result = await (input.window
+        ? input.dialog.showSaveDialog(input.window, options)
+        : input.dialog.showSaveDialog(options));
+    if (result.canceled || !result.filePath) return null;
+    return input.exportPath(result.filePath);
 }

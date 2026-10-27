@@ -58,6 +58,7 @@ import { linkPreviewDesktopMethods } from '../desktop/link-preview-contract.js';
 import { logsDesktopMethods } from '../desktop/logs-contract.js';
 import { notificationHelperDesktopMethods } from '../desktop/notification-helper.js';
 import { pathBrowserContractMethods } from '../desktop/path-browser-contract.js';
+import * as projectTransfer from '../desktop/project-transfer-contract.js';
 import { shellCommandDesktopMethods } from '../desktop/shell-command-contract.js';
 import { sshHostDesktopMethods } from '../desktop/ssh-host-contract.js';
 import {
@@ -181,6 +182,7 @@ export const methods = {
     ...claudeWindowMethods,
     ...benchmarkMethods,
     ...benchmarkShareMethods,
+    ...projectTransfer.projectTransferDesktopMethods,
     ...clipboardMethods,
     ...bugReportMethods,
     ...mobileMethods,
@@ -536,6 +538,7 @@ export const internalMethods = {
     ...businessInternalMethods,
     ...gitInternalMethods,
     ...mobileInternalMethods,
+    ...projectTransfer.projectTransferInternalMethods,
     ...workbenchInternalMethods,
     /**
      * The current Session's identities and the visible Project IDs: the slice of `app.bootstrap` the Extension bridge

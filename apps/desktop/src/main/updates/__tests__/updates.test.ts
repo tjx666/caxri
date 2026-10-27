@@ -11,7 +11,8 @@ import {
     removeTemporaryDirectories,
     temporaryDirectory,
 } from '../../__tests__/support/update-service-harness';
-import { shouldStartAutomaticUpdateCheck, UpdateService, updateStateLogFields } from '../updates';
+import { updateStateLogFields } from '../update-state-log';
+import { shouldStartAutomaticUpdateCheck, UpdateService } from '../updates';
 
 afterEach(removeTemporaryDirectories);
 
@@ -175,7 +176,7 @@ describe('UpdateService', () => {
 
     it('unpacks the verified download for Restart to Update and installs it on exit', async () => {
         const directory = await temporaryDirectory();
-        const prepareInstall = vi.fn(() => Promise.resolve('restart' as const));
+        const prepareInstall = vi.fn(() => Promise.resolve({ installMode: 'restart' as const }));
         const launchInstall = vi.fn(() => Promise.resolve());
         const restartToUpdate = vi.fn(() => Promise.resolve());
         const service = new UpdateService({

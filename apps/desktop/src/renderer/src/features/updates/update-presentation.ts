@@ -113,9 +113,11 @@ export function describeUpdateStatus(
             return {
                 title: t('updates.status.ready.title', { version: state.version }),
                 description: t(
-                    state.installMode === 'restart'
-                        ? 'updates.status.ready.restartDescription'
-                        : 'updates.status.ready.description',
+                    state.resetsData
+                        ? 'updates.status.ready.resetsDataDescription'
+                        : state.installMode === 'restart'
+                          ? 'updates.status.ready.restartDescription'
+                          : 'updates.status.ready.description',
                 ),
             };
         case 'error':
@@ -236,9 +238,11 @@ export function describeUpdateChip(
         return {
             label: t(isRestart ? 'updates.chip.ready.restartLabel' : 'updates.chip.ready.label'),
             description: t(
-                isRestart
-                    ? 'updates.chip.ready.restartDescription'
-                    : 'updates.chip.ready.description',
+                state.resetsData
+                    ? 'updates.chip.ready.resetsDataDescription'
+                    : isRestart
+                      ? 'updates.chip.ready.restartDescription'
+                      : 'updates.chip.ready.description',
                 { version: state.version },
             ),
             kind: 'ready',
@@ -296,9 +300,11 @@ export function resolveReadyAnnouncement(
         version: state.version,
         mode: state.installMode,
         message: translate(
-            state.installMode === 'restart'
-                ? 'updates.ready.message'
-                : 'updates.ready.manualMessage',
+            state.resetsData
+                ? 'updates.ready.resetsDataMessage'
+                : state.installMode === 'restart'
+                  ? 'updates.ready.message'
+                  : 'updates.ready.manualMessage',
             { version: state.version },
         ),
     };

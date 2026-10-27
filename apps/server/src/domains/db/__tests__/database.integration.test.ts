@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -292,6 +292,53 @@ describe('CaxriDatabaseConnection', () => {
         expect(rebuilt.sessions.list()).toEqual([]);
         expect(await readFile(projectRoot, 'utf8')).toBe('user-owned');
         rebuilt.close();
+
+        // The dropped rows survive in a private snapshot beside the database, WAL contents included.
+        const backups = (await readdir(directory)).filter((name) => name.endsWith('.bak'));
+        expect(backups).toEqual([
+            expect.stringMatching(
+                new RegExp(
+                    String.raw`^state\.db\.v${BASELINE_SCHEMA_VERSION - 1}-\d{8}T\d{6}Z\.bak$`,
+                    'u',
+                ),
+            ),
+        ]);
+        const backupPath = join(directory, backups[0]);
+        expect((await stat(backupPath)).mode & 0o777).toBe(0o600);
+        const backup = new Database(backupPath, { readonly: true });
+        expect(backup.prepare('SELECT root_path AS rootPath FROM projects').all()).toEqual([
+            { rootPath: projectRoot },
+        ]);
+        backup.close();
+    });
+
+    it('leaves a pre-baseline database untouched when its backup cannot be written', async () => {
+        const directory = await temporaryDirectory('caxri-db-rebuild-backup-');
+        const databasePath = join(directory, 'state.db');
+        const previous = new CaxriDatabase(databasePath);
+        previous.projects.create(join(directory, 'project'));
+        previous.database.pragma(`user_version = ${BASELINE_SCHEMA_VERSION - 1}`);
+        previous.close();
+        vi.useFakeTimers({ now: new Date('2026-10-27T08:00:00.000Z'), toFake: ['Date'] });
+        try {
+            // An existing file at the backup path makes `VACUUM INTO` refuse, so the rebuild must not proceed.
+            await writeFile(
+                join(directory, `state.db.v${BASELINE_SCHEMA_VERSION - 1}-20261027T080000Z.bak`),
+                'taken',
+            );
+            expect(() => new CaxriDatabase(databasePath)).toThrow();
+        } finally {
+            vi.useRealTimers();
+        }
+
+        const untouched = new Database(databasePath, { readonly: true });
+        expect(untouched.pragma('user_version', { simple: true })).toBe(
+            BASELINE_SCHEMA_VERSION - 1,
+        );
+        expect(untouched.prepare('SELECT count(*) AS count FROM projects').get()).toEqual({
+            count: 1,
+        });
+        untouched.close();
     });
 
     it('records worktree ownership on automatic registration and clears it on a manual add', async () => {
