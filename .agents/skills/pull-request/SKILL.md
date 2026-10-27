@@ -91,7 +91,10 @@ or cancels the delivery, or a concrete blocker requires their input.
    `waived: <reason>`; a row left `PENDING` is unproven, not passing. Use `--json` when scripting
    the body instead of reading it by eye. After the final PR title and body are assembled but before
    creating or updating the PR, Call the Skill tool with "oss-confidentiality" and review that
-   metadata, its links, and its referenced artifacts as public content. Read back the resulting PR.
+   metadata, its links, and its referenced artifacts as public content. For every embedded,
+   attached, or linked image, the acting Agent must complete that skill's original-and-final visual
+   review; do not create or update the PR until each image is confirmed safe or removed, and never
+   hand routine screenshot review to the maintainer. Read back the resulting PR.
    GitHub ignores negation around a closing keyword: "This PR does not close #2574" closed #2574
    on merge. Mention an issue that must stay open without a `close`/`fix`/`resolve` verb before
    its number ("#2574 stays open"), and confirm `gh pr view --json closingIssuesReferences` lists

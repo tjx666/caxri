@@ -116,6 +116,9 @@ to load-bearing ones; broad file inventories go stale.
 - Before creating, editing, or commenting on an issue, Call the Skill tool with
   "oss-confidentiality" and review the title, body, comment, links, and attached artifacts as public
   content. Describe a removed private value generically instead of repeating it in the issue.
+- For every embedded, attached, or linked image, the acting Agent must complete
+  `oss-confidentiality`'s original-and-final visual review. Do not create, edit, or comment until
+  each image is confirmed safe or removed; never hand routine screenshot review to the maintainer.
 - Write the title, section headings, body prose, and follow-up issue comments in Simplified
   Chinese. Keep code, identifiers, paths, commands, enum values, and quoted upstream errors in
   English. This applies to every issue comment, not only comments created during filing.
