@@ -357,7 +357,11 @@ export const useAgentChat = ({
     const editing = editRecord?.terminalId === terminalId ? editRecord.edit : undefined;
     const setEditing = useCallback(
         (edit: AgentChatMessageEdit | undefined): void => {
-            setEditRecord(edit && terminalId !== null ? { terminalId, edit } : null);
+            // Ending an edit leaves another Chat's alone: a rewind that settles after the reader moved on must not clear it.
+            setEditRecord((current) => {
+                if (edit) return terminalId === null ? current : { terminalId, edit };
+                return current?.terminalId === terminalId ? null : current;
+            });
         },
         [terminalId],
     );

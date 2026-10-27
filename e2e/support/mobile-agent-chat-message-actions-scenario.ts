@@ -133,6 +133,21 @@ export async function executeMobileChatMessageActionsScenario(
         await hideChatKeyboard(serial);
         await capture(environment, 'edit-cancelled', artifacts);
 
+        // Leaving the Chat mid-edit ends the edit the way Cancel does, so the message never lingers as a plain draft.
+        await tapMobileCheck(serial, `conversation-user-bubble-${firstMessage.id}`, {
+            isLongPress: true,
+        });
+        await waitForCheck(serial, 'conversation-message-edit');
+        await tapMobileCheckByBounds(serial, 'conversation-message-edit');
+        await waitForCheck(serial, 'agent-chat-edit-banner');
+        await hideChatKeyboard(serial);
+        await adbShell(serial, ['input', 'keyevent', 'KEYCODE_BACK']);
+        await waitForCheck(serial, `session-row-${fixture.allowedSessionId}`);
+        await tapMobileCheck(serial, `session-row-${fixture.allowedSessionId}`);
+        await waitForCheck(serial, 'agent-chat-composer-input');
+        await composerReads(serial, reply.text);
+        await waitForNoCheck(serial, 'agent-chat-edit-banner');
+
         // Edit from Here, sent: the Chat rewinds to the first message and answers the edited one in its place.
         await tapMobileCheck(serial, `conversation-user-bubble-${firstMessage.id}`, {
             isLongPress: true,
@@ -162,6 +177,7 @@ export async function executeMobileChatMessageActionsScenario(
             copiedCharacters: reply.text.length,
             copyMessage: 'whole-reply-pasted',
             editCancel: 'draft-restored',
+            editLeft: 'draft-restored',
             editSend: 'rewound-and-replaced',
             selectText: 'selection-toolbar-shown',
             status: 'passed',
