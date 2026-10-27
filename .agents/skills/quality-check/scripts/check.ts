@@ -22,6 +22,7 @@ import { CheckError, MAX_E2E_WAIT_SECONDS, parseCheckArguments } from './check-a
 import { contractTestCandidates } from './contract-test-candidates';
 import { shouldRunKnip, shouldTypecheck } from './default-gates';
 import { assertExplicitFiles } from './explicit-files';
+import { reportStaleLocaleCopy } from './locale-e2e-assertions';
 import {
     directImportTestCandidates,
     githubConfigReaderTestCandidates,
@@ -575,6 +576,7 @@ async function main(): Promise<void> {
     );
     if (consumerE2ESpecs.length > 0)
         console.log(`Related E2E specs (run explicitly): ${consumerE2ESpecs.join(', ')}`);
+    await reportStaleLocaleCopy(root, files, options.isStaged);
 }
 
 const currentFile = fileURLToPath(import.meta.url);

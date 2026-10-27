@@ -78,7 +78,8 @@ bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--related
   `--e2e-wait`. Add `--e2e-wait <seconds>` for a bounded atomic retry (1–1800 seconds), otherwise
   contention fails immediately; use it instead of a hand-written retry loop, and run a long wait in
   the background. It never infers E2E specs from Git changes or launches the full suite. The
-  check summary lists related consumer specs for explicit selection. The real-Agent and intentional
+  check summary lists related consumer specs for explicit selection, and warns (never fails) with
+  `spec:line` when an E2E spec still asserts English locale copy that the change edited or removed. The real-Agent and intentional
   failure-isolation specs retain their dedicated guarded entrypoints.
 - `--e2e-grep '<pattern>'` narrows `--e2e` to one Playwright test-title pattern.
 - The checker's `--e2e` path rebuilds only when the build receipt (`scripts/build-receipt.ts`) no

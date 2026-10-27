@@ -286,7 +286,7 @@ async function sourceBarrelContents(
     return barrels;
 }
 
-async function walkMatchingFiles(
+export async function walkMatchingFiles(
     root: string,
     directory: string,
     pattern: RegExp,
