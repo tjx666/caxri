@@ -93,6 +93,10 @@ export async function executeMobileChatMessageActionsScenario(
         await capture(environment, 'reply-sheet', artifacts);
         await tapMobileCheckByBounds(serial, 'conversation-message-copy');
         await waitForNoCheck(serial, 'conversation-message-sheet');
+        // Android shows its clipboard preview over the composer after a copy; a touch elsewhere dismisses it, and a
+        // tap on the timeline does nothing in the Chat.
+        await adbShell(serial, ['input', 'tap', '540', '1000']);
+        await new Promise((resolve) => setTimeout(resolve, 1000));
         await tapMobileCheckByBounds(serial, 'agent-chat-composer-input');
         await adbShell(serial, ['input', 'keyevent', 'KEYCODE_PASTE']);
         await composerReads(serial, reply.text);
