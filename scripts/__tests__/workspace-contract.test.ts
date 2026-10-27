@@ -186,28 +186,17 @@ describe('pnpm workspace contract', () => {
         const legacyRoots = ['src', 'apps/server/src/host', 'apps/server/src/runtime'];
         expect(legacyRoots.filter((path) => existsSync(join(root, path)))).toEqual([]);
 
-        const localControlSources = [
+        // `caxri/architecture-boundaries` owns which files may import `node:net`; this scan covers text an import rule cannot.
+        const legacyControlTransport = [
             ...productionTypeScriptFiles(join(root, 'apps/server/src/core')),
             ...productionTypeScriptFiles(join(root, 'packages/client/src/supervise')),
-        ];
-        // The Mobile gateway owns the only TCP listener; its options and admission modules share the `Socket` type with it.
-        // The Mobile preview proxy serves on the gateway address and relays WebSocket upgrades to a loopback dev server. The
-        // Linux profile lock binds an abstract socket only as a kernel-owned mutex and never accepts a control connection.
-        const mobileGatewayNetSources = new Set([
-            'apps/server/src/core/mobile/gateway/gateway.ts',
-            'apps/server/src/core/mobile/gateway/gateway-options.ts',
-            'apps/server/src/core/mobile/gateway/admission.ts',
-            'apps/server/src/core/mobile/preview/proxy.ts',
-            'apps/server/src/core/linux-profile-lock.ts',
-        ]);
-        const legacyControlTransport = localControlSources
-            .map((path) => ({ path: relative(root, path), source: readFileSync(path, 'utf8') }))
-            .filter(
-                ({ path, source }) =>
-                    /\b(?:host|runtime)\.sock\b|unix domain socket|\bUDS\b/iu.test(source) ||
-                    (!mobileGatewayNetSources.has(path) && /from\s+['"]node:net['"]/u.test(source)),
+        ]
+            .filter((path) =>
+                /\b(?:host|runtime)\.sock\b|unix domain socket|\bUDS\b/iu.test(
+                    readFileSync(path, 'utf8'),
+                ),
             )
-            .map(({ path }) => path);
+            .map((path) => relative(root, path));
         expect(legacyControlTransport).toEqual([]);
     });
 

@@ -176,6 +176,23 @@ export const transitionalImportAllowances: readonly TransitionalImportAllowance[
 
 export const transitionalCycleAllowances: readonly TransitionalCycleAllowance[] = [];
 
+/**
+ * Server Core and the Client supervisor talk to their processes over stdio and the Server's control connection, never a
+ * local TCP or Unix-domain control socket. Only these files may import `node:net`: the Mobile gateway owns the one TCP
+ * listener (its options and admission modules share its `Socket` type), the Mobile preview proxy serves on the gateway
+ * address and relays WebSocket upgrades to a loopback dev server, and the Linux profile lock binds an abstract socket
+ * only as a kernel-owned mutex that never accepts a control connection.
+ */
+export const netSocketRoots = ['apps/server/src/core', 'packages/client/src/supervise'] as const;
+
+export const netSocketImporters: readonly string[] = [
+    'apps/server/src/core/linux-profile-lock.ts',
+    'apps/server/src/core/mobile/gateway/admission.ts',
+    'apps/server/src/core/mobile/gateway/gateway-options.ts',
+    'apps/server/src/core/mobile/gateway/gateway.ts',
+    'apps/server/src/core/mobile/preview/proxy.ts',
+];
+
 export const browserUnsafeImports = [
     'electron',
     'node-pty',

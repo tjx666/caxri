@@ -6,19 +6,17 @@ import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 
 import { writeJsonAtomic } from '../../../../scripts/atomic-json';
-import { acceptanceAgentFixtureIds } from './agent-fixture-ids';
 import { validateAgentFixtureEvidence } from './agent-fixture-lifecycle';
 import type { StateIsolation } from './case-lifecycle';
 import {
     caseLifecycleReceiptSchema,
     lifecycleEvidencePath,
     repairCaseLifecycle,
-    stateIsolationSchema,
 } from './case-lifecycle';
 import { verifyTerminalFixturePreflightReceipt } from './fixture-preflight';
 import { validateReportMediaEvidence } from './media-integrity';
-import { mobileDeviceSchema, validateMobileCaseEvidence } from './mobile-report';
-import { planFixtureFields, validatePlanFixtureDeclarations } from './plan-fixtures';
+import { validateMobileCaseEvidence } from './mobile-report';
+import { validatePlanFixtureDeclarations } from './plan-fixtures';
 import { changedPathsBetween } from './rebind-delta';
 import {
     BLOCKED_REASONS,
@@ -38,74 +36,20 @@ import {
     validateExistingReportDirectory,
     writeJsonAtomically,
 } from './report-paths';
+import type { REQUIRED_EVIDENCE_TYPES } from './report-plan-schema';
+import { MEDIA_SOURCES, planItemSchema, PRODUCT_SURFACES } from './report-plan-schema';
 import { assertRequiredEvidence } from './report-required-evidence';
 import { validateCaseVisualizations, visualizationCaseSchema } from './report-visualizations';
-import { assertUniqueAcceptanceCaseIds, isAcceptanceCaseId } from './runtime-state';
+import { assertUniqueAcceptanceCaseIds } from './runtime-state';
 import { validateHumanText, validateReportLanguage } from './validate-report';
 
 export type { RebindReportHeadInput } from './report-head';
 const CASE_STATUSES = ['pass', 'fail', 'blocked'] as const;
-const PRODUCT_SURFACES = ['cli', 'desktop', 'mobile'] as const;
 const DEFAULT_CONCLUSIONS = {
     fail: '当前 PR 头提交未满足全部计划中的验收项。',
     partial: '当前 PR 头提交的验收尚未全部完成。',
     pass: '当前 PR 头提交满足全部计划中的验收项。',
 } as const;
-const REQUIRED_EVIDENCE_TYPES = [
-    'screenshot',
-    'gif',
-    'video',
-    'text',
-    'markdown',
-    'dom_snapshot',
-] as const;
-const MEDIA_SOURCES = [
-    'android-framebuffer',
-    'ios-simulator-framebuffer',
-    'isolated-desktop-renderer',
-] as const;
-const requiredEvidenceSchema = z.union([
-    z.enum(REQUIRED_EVIDENCE_TYPES),
-    z.object({
-        hint: z.string().optional(),
-        source: z.enum(MEDIA_SOURCES).optional(),
-        type: z.enum(REQUIRED_EVIDENCE_TYPES),
-    }),
-]);
-const planItemSchema = z
-    .looseObject({
-        agentFixture: z.enum(acceptanceAgentFixtureIds).optional(),
-        category: z.string().min(1),
-        expected: z.string().min(1),
-        fixturePreflight: z.literal('terminal').optional(),
-        id: z.string().min(1).refine(isAcceptanceCaseId, {
-            message: 'Acceptance case id must use ASCII letters, numbers, and hyphens',
-        }),
-        method: z.string().min(1),
-        mobileDevice: mobileDeviceSchema.optional(),
-        requiredEvidence: z.array(requiredEvidenceSchema).min(1),
-        stateIsolation: stateIsolationSchema.default({ mode: 'isolated' }),
-        surface: z.enum(PRODUCT_SURFACES).default('desktop'),
-        title: z.string().min(1),
-        verifier: z.enum(['agent', 'program', 'llm']).default('agent'),
-        ...planFixtureFields,
-    })
-    .superRefine((item, context) => {
-        if (item.surface === 'mobile' && !item.mobileDevice) {
-            context.addIssue({
-                code: 'custom',
-                message: 'A mobile Acceptance case must declare mobileDevice',
-                path: ['mobileDevice'],
-            });
-        }
-        if (item.surface !== 'mobile' && item.mobileDevice) {
-            context.addIssue({
-                code: 'custom',
-                message: `A ${item.surface} Acceptance case cannot declare mobileDevice`,
-                path: ['mobileDevice'],
-            });
-        }
-    });
 /**
  * Every cited file needs a reviewer-facing description; a bare filename conveys no observation.
  */
