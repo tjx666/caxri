@@ -121,6 +121,8 @@ export const androidChatCases = {
         scenario: 'agent-chat-delegated-task',
     },
     'MOB-CHAT-20': {
+        // Chinese, so the capture shows the feedback headings worded in the reader's language (#2252).
+        appLocale: 'zh-CN',
         desktopProfile: 'managed-by-isolated-e2e',
         media: ['screenshot'],
         recordingOwner: 'scenario',
