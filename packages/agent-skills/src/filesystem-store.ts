@@ -1,6 +1,7 @@
-import { constants as fsConstants } from 'node:fs';
-import { lstat, open, opendir } from 'node:fs/promises';
+import { lstat, opendir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
+
+import { readBoundedRegularFileText } from '@caxri/system';
 
 export const LAYOUT_FILE = '.caxri-layout.json';
 const LAYOUT_SCHEMA = 1;
@@ -116,15 +117,13 @@ function isOwnedRecord(source: string, name: string): boolean {
 }
 
 async function boundedRegularFile(path: string): Promise<string> {
-    const handle = await open(path, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
-    try {
-        const metadata = await handle.stat({ bigint: true });
-        if (!metadata.isFile() || metadata.size > BigInt(MAX_FILE_BYTES))
-            throw new Error('Managed skill file is missing or exceeds its size limit');
-        return await handle.readFile({ encoding: 'utf8' });
-    } finally {
-        await handle.close();
-    }
+    // The shared reader opens with `O_NONBLOCK`, so a FIFO planted at the path is rejected instead of parking the open.
+    const message = 'Managed skill file is missing or exceeds its size limit';
+    return readBoundedRegularFileText(path, MAX_FILE_BYTES, {
+        capacityMessage: message,
+        notRegularFileMessage: message,
+        symlinks: 'nofollow',
+    });
 }
 
 async function boundedEntries(directory: string): Promise<string[]> {

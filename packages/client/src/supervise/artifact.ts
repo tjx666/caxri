@@ -1,10 +1,10 @@
-import { constants } from 'node:fs';
-import { lstat, open, realpath } from 'node:fs/promises';
+import { lstat, realpath } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve } from 'node:path';
 import process from 'node:process';
 
 import type { ServerArtifactManifest } from '@caxri/protocol';
 import { CaxriError, serverArtifactManifestSchema } from '@caxri/protocol';
+import { readBoundedRegularFileText } from '@caxri/system';
 
 const MAX_MANIFEST_BYTES = 1024 * 1024;
 
@@ -30,17 +30,19 @@ function resolveInside(root: string, path: string): string {
 }
 
 async function readManifest(path: string): Promise<unknown> {
-    const file = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+    const message = 'Server artifact manifest must be a bounded regular file';
     try {
-        const metadata = await file.stat();
-        if (!metadata.isFile() || metadata.size > MAX_MANIFEST_BYTES) {
-            throw new Error('Server artifact manifest must be a bounded regular file');
-        }
-        // eslint-disable-next-line unicorn/consistent-json-file-read -- the opened O_NOFOLLOW handle is the security boundary
-        const source = await file.readFile({ encoding: 'utf8' });
+        // The shared reader opens `O_NONBLOCK`, so a FIFO planted as the manifest is rejected instead of hanging discovery.
+        const source = await readBoundedRegularFileText(path, MAX_MANIFEST_BYTES, {
+            capacityMessage: message,
+            notRegularFileMessage: message,
+            symlinks: 'nofollow',
+        });
         return JSON.parse(source) as unknown;
-    } finally {
-        await file.close();
+    } catch (error) {
+        // `resolveServerArtifact` passes a `CaxriError` through untouched; a malformed manifest must still surface as
+        // UNAVAILABLE, so hand it a plain error it wraps.
+        throw error instanceof CaxriError ? new Error(error.message) : error;
     }
 }
 

@@ -1,7 +1,9 @@
+import { execFile } from 'node:child_process';
 import { chmod, mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import process from 'node:process';
+import { promisify } from 'node:util';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
@@ -88,4 +90,26 @@ describe('Server artifact discovery', () => {
 
         await expect(resolveServerArtifact(root)).rejects.toThrow('Server artifact manifest');
     });
+
+    it.skipIf(process.platform === 'win32')(
+        'rejects a FIFO planted as the manifest instead of blocking on open',
+        async () => {
+            const root = await mkdtemp(join(tmpdir(), 'caxri-server-descriptor-fifo-'));
+            temporaryDirectories.push(root);
+            await mkdir(join(root, 'metadata'), { recursive: true });
+            await promisify(execFile)('mkfifo', [join(root, 'metadata', 'manifest.json')]);
+
+            let timer: NodeJS.Timeout | undefined;
+            const timeout = new Promise<never>((_resolve, reject) => {
+                timer = setTimeout(() => reject(new Error('manifest read blocked')), 2_000);
+            });
+            try {
+                await expect(Promise.race([resolveServerArtifact(root), timeout])).rejects.toThrow(
+                    'Server artifact manifest is invalid',
+                );
+            } finally {
+                clearTimeout(timer);
+            }
+        },
+    );
 });

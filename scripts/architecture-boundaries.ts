@@ -86,7 +86,7 @@ export const appBoundaries: readonly AppBoundary[] = [
         id: 'cli',
         root: 'apps/cli',
         packageNames: ['@caxri/cli'],
-        allowedPackages: ['agent-skills', 'client', 'protocol', 'utils'],
+        allowedPackages: ['agent-skills', 'client', 'protocol', 'system', 'utils'],
     },
 ];
 
@@ -101,7 +101,7 @@ export const packageBoundaries: readonly PackageBoundary[] = [
         publicSubpaths: ['.', './testing'],
         testOnlySubpaths: ['./testing'],
         browserSafe: false,
-        allowedPackages: ['protocol'],
+        allowedPackages: ['protocol', 'system'],
     },
     {
         id: 'client',
@@ -109,7 +109,7 @@ export const packageBoundaries: readonly PackageBoundary[] = [
         packageNames: ['@caxri/client'],
         publicSubpaths: ['.', './connection', './state', './supervise'],
         browserSafe: true,
-        allowedPackages: ['protocol', 'utils'],
+        allowedPackages: ['protocol', 'system', 'utils'],
         browserUnsafeSourceRoots: ['packages/client/src/supervise'],
     },
     {

@@ -37,6 +37,7 @@
     },
     "dependencies": {
         "@caxri/protocol": "workspace:*",
+        "@caxri/system": "workspace:*",
         "@caxri/utils": "workspace:*",
         "ws": "catalog:"
     },

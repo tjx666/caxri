@@ -307,6 +307,9 @@ importers:
       '@caxri/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
+      '@caxri/system':
+        specifier: workspace:*
+        version: link:../../packages/system
       jsonc-parser:
         specifier: ^3.3.1
         version: 3.3.1
@@ -751,12 +754,18 @@ importers:
       '@caxri/protocol':
         specifier: workspace:*
         version: link:../protocol
+      '@caxri/system':
+        specifier: workspace:*
+        version: link:../system
 
   packages/client:
     dependencies:
       '@caxri/protocol':
         specifier: workspace:*
         version: link:../protocol
+      '@caxri/system':
+        specifier: workspace:*
+        version: link:../system
       '@caxri/utils':
         specifier: workspace:*
         version: link:../utils

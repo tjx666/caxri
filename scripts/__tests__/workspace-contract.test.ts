@@ -355,6 +355,7 @@ describe('pnpm workspace contract', () => {
             '@caxri/agent-skills': 'workspace:*',
             '@caxri/client': 'workspace:*',
             '@caxri/protocol': 'workspace:*',
+            '@caxri/system': 'workspace:*',
             'jsonc-parser': '^3.3.1',
             'zod': 'catalog:',
         });
