@@ -11,7 +11,7 @@ status: accepted
 
 Caxri uses one shared, Host-owned Node Extension Host for declarative ViewContainer, View, and
 Command contributions. The Host is the sole catalog, supervision, grant, and Runtime-projection
-authority. The child owns extension JavaScript objects and providers but never SQLite, Projects,
+authority; since [ADR 0004](0004-independently-deployable-server.md) that role belongs to Server Core. The child owns extension JavaScript objects and providers but never SQLite, Projects,
 Sessions, PTYs, Desktop IPC, or React components.
 
 Extensions are native ESM. The physical workspace package named `caxri` is ESM-only, and a narrow
@@ -21,7 +21,7 @@ CommonJS loader interceptor or anonymous fallback API. Unowned API imports, Comm
 and extension-owned Electron imports fail with stable errors.
 
 The process model deliberately chooses one Extension Host rather than a process per extension. It
-keeps lifecycle and packaged startup small while providing failure isolation from Runtime and PTYs.
+keeps lifecycle and packaged startup small while providing failure isolation from Server Core and the PTYs in Terminal Host.
 Opaque API tokens and generation fences isolate normal extension API state inside the shared child;
 this is not an OS sandbox against malicious trusted Node code. A future untrusted-extension policy
 would require a materially different process and platform sandbox design.
