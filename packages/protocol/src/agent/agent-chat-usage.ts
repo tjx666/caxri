@@ -73,12 +73,13 @@ export type AgentChatTurnUsage = z.infer<typeof agentChatTurnUsageSchema>;
 
 /**
  * The smallest context idle compaction acts on. Compaction trades detail for a cheaper re-read: while the cache holds
- * it reads the context at the cache-read rate and writes a summary (typically 15k to 20k output tokens), where an
- * expired cache rewrites the whole context at the one-hour cache-write rate (twice the input price). That breaks even
- * near four times the summary, about 60k tokens; the floor adds headroom for a Chat the user never returns to.
+ * it reads the context at the cache-read rate and writes a summary of a few thousand output tokens, and the next
+ * message writes the compacted context (about 35k with the system prompt and tools) into the cache. An expired cache
+ * instead rewrites the whole context at the one-hour cache-write rate (twice the input price). On Claude's prices that
+ * breaks even near 50k tokens; the floor adds headroom for a Chat the user never returns to.
  *
- * Claude Code's own default (`CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS`, 200k) is not used: Claude Code compacts on its own
- * near 167k of a 200K window, so a Chat would almost never reach it.
+ * Claude Code's own default (`CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS`, 200k) is not used: on a 200K window Claude Code
+ * compacts on its own near 167k, so such a Chat never reached it.
  *
  * @see https://github.com/tjx666/caxri/issues/2691
  */
