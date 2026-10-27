@@ -346,3 +346,15 @@ artifact must be deleted and recaptured.
 
 **Works:** Close the dialog through its own control (`Done`), wait until the overlay is unmounted in
 the DOM snapshot, then send the shortcut.
+
+## Tapping the composer right after an Android copy
+
+**Situation:** A case copies text on Android 13 or later, then taps the composer and pastes to prove
+what reached the clipboard.
+
+**Does not work:** Tapping the composer at once. Android's clipboard preview sits over the bottom of
+the screen, so the tap lands on the preview and opens Quick Share instead of focusing the field.
+
+**Works:** Tap a spot that does nothing in the product (the Chat timeline), wait about a second for
+the preview to dismiss, then tap the composer and assert the pasted text through the sanitized
+observer (`MOB-CHAT-35`).
