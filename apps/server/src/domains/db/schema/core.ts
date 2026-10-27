@@ -24,7 +24,7 @@ import {
     uniqueIndex,
 } from 'drizzle-orm/sqlite-core';
 
-import { closedValues, isOneOf } from './schema-constraints';
+import { closedValues, isOneOf } from './constraints';
 
 export const CURRENT_SESSION_STATE_VERSION = 2;
 

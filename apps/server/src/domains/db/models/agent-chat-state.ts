@@ -2,7 +2,7 @@ import type Database from 'better-sqlite3';
 import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 
-import * as schema from '../full-schema';
+import * as schema from '../schema';
 import { terminals } from '../schema';
 import { AgentChatAnsweredNoticesModel } from './agent-chat-answered-notices';
 import { AgentChatProcessGroupsModel } from './agent-chat-process-groups';

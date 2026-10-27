@@ -5,8 +5,8 @@ import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 
 import type { CaxriDrizzleDatabase } from '../connection';
-import * as schema from '../full-schema';
-import { claudeWindowSchedules } from '../schema-claude-windows';
+import * as schema from '../schema';
+import { claudeWindowSchedules } from '../schema';
 
 export interface ClaudeWindowSchedule {
     accountHash: string;

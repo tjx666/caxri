@@ -65,7 +65,7 @@ export class CaxriDatabaseConnection {
      */
     readonly database: Database.Database;
     /**
-     * Drizzle query-builder instance bound to `./schema`; used by every CRUD module below.
+     * Drizzle query-builder instance bound to `./schema` (every table); used by every CRUD module below.
      */
     readonly db: CaxriDrizzleDatabase;
     readonly projects: ProjectsModel;

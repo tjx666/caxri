@@ -1,7 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 
 import type { CaxriDrizzleDatabase } from '../connection';
-import { agentChatProcessGroups } from '../schema-agent-chat';
+import { agentChatProcessGroups } from '../schema';
 
 /**
  * A provider process group Server Core spawned and has not reaped.

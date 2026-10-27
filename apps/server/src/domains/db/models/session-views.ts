@@ -3,7 +3,7 @@ import { and, eq, isNull, lt, or } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 
 import type { CaxriDrizzleDatabase } from '../connection';
-import * as schema from '../full-schema';
+import * as schema from '../schema';
 import { sessions } from '../schema';
 
 /**

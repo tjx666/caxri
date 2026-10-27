@@ -22,7 +22,7 @@ import { and, asc, desc, eq, inArray, notInArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
 import type { CaxriDrizzleDatabase } from '../connection';
-import { botInboxItems, botInboxReplies } from '../schema-bot';
+import { botInboxItems, botInboxReplies } from '../schema';
 
 /**
  * An Inbox item as stored: everything but GitHub's live view of a `merge` item's pull request, which the service keeps

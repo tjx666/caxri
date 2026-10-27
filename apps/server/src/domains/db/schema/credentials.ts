@@ -1,7 +1,7 @@
 import type { MobileDeviceRole } from '@caxri/protocol';
 import { check, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
-import { closedValues, isOneOf } from './schema-constraints';
+import { closedValues, isOneOf } from './constraints';
 
 /**
  * Server Core's durable external identities: paired phones and delegation clients. Server Core keeps the authoritative
@@ -39,7 +39,7 @@ export const mobileDevices = sqliteTable(
 
 /**
  * One row per delegation client the owner CLI minted. Only the SHA-256 digest of the bearer token is stored.
- * `caller_provider` stays open-ended like every other provider column (see `./schema-constraints`).
+ * `caller_provider` stays open-ended like every other provider column (see `./constraints`).
  */
 export const delegationClients = sqliteTable('delegation_clients', {
     clientId: text('client_id').primaryKey(),

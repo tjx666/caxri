@@ -2,7 +2,7 @@ import { CaxriError } from '@caxri/protocol';
 import type Database from 'better-sqlite3';
 
 import type { CaxriDrizzleDatabase } from '../connection';
-import { delegationClients, mobileDevices } from '../schema-credentials';
+import { delegationClients, mobileDevices } from '../schema';
 import type { AppStateModel } from './app-state';
 
 /**

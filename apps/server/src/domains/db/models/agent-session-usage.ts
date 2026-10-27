@@ -2,8 +2,13 @@ import type { AgentProvider, UsagePullRequestState } from '@caxri/protocol';
 import { and, eq, isNotNull, sql } from 'drizzle-orm';
 
 import type { CaxriDrizzleDatabase } from '../connection';
-import { sessions, terminals } from '../schema';
-import { agentSessionUsage, externalAgentUsage, pullRequestOutcomes } from '../schema-usage';
+import {
+    agentSessionUsage,
+    externalAgentUsage,
+    pullRequestOutcomes,
+    sessions,
+    terminals,
+} from '../schema';
 
 export interface AgentSessionUsageRow {
     provider: AgentProvider;

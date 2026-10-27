@@ -6,7 +6,6 @@ import { inArray } from 'drizzle-orm';
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 
-import * as schema from './full-schema';
 import {
     BASELINE_SCHEMA_VERSION,
     CURRENT_SCHEMA_VERSION,
@@ -14,6 +13,7 @@ import {
     migrationsAfterBaseline,
 } from './migrations/manifest';
 import { backupBeforeRebuild } from './rebuild-backup';
+import * as schema from './schema';
 import { terminals } from './schema';
 import type { ShutdownReason } from './session-policy';
 import { shutdownOutcome } from './session-policy';
@@ -233,7 +233,7 @@ export interface OpenedDatabase {
      */
     database: Database.Database;
     /**
-     * Drizzle query-builder instance bound to the same connection and to `./schema`.
+     * Drizzle query-builder instance bound to the same connection and to `./schema` (every table).
      */
     db: CaxriDrizzleDatabase;
 }

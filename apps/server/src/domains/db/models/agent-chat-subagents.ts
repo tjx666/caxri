@@ -3,7 +3,7 @@ import { MAX_TERMINAL_SUBAGENT_SUMMARIES } from '@caxri/protocol';
 import { and, eq } from 'drizzle-orm';
 
 import type { CaxriDrizzleDatabase } from '../connection';
-import { agentChatSubagents } from '../schema-agent-chat';
+import { agentChatSubagents } from '../schema';
 
 /**
  * A subagent as the Chat task list reports it; `startedAt` is optional because a provider may not report it, in which

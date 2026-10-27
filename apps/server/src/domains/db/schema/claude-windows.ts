@@ -1,11 +1,10 @@
 import type { ClaudeWindowOutcome } from '@caxri/protocol';
 import { check, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
-import { closedValues, isOneOf } from './schema-constraints';
+import { closedValues, isOneOf } from './constraints';
 
 /**
- * The Claude 5-hour window keeper's per-account settings and schedule. Kept beside `./schema` like the Benchmark
- * tables; `./full-schema` joins it for drizzle-kit, the drift guard, and the connection.
+ * The Claude 5-hour window keeper's per-account settings and schedule.
  */
 
 const outcomes = closedValues<ClaudeWindowOutcome>()([

@@ -1,12 +1,11 @@
 import type { UsagePullRequestState } from '@caxri/protocol';
 import { check, index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
-import { closedValues, isOneOf } from './schema-constraints';
+import { closedValues, isOneOf } from './constraints';
 
 /**
  * The Usage page's tables: the ledger of Agent Sessions Caxri hosted, the scan cache for transcripts found elsewhere,
- * and the pull request outcomes they produced. `./full-schema` joins them for drizzle-kit, the drift guard, and the
- * connection.
+ * and the pull request outcomes they produced.
  */
 
 const pullRequestOutcomeStates = closedValues<UsagePullRequestState>()([
