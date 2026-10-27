@@ -162,7 +162,9 @@ The exports include `CAXRI_E2E=1`; without it the fake executables are ignored w
 `CODEX_HOME` still applies, so the real Codex CLI starts at its login screen. Before using the Agent,
 confirm with `ps` that the Agent process is the fake `e2e-agents/bin/<provider>`. `CAXRI_TEST_ROOT_PATH`
 points at `/tmp/<task>/project`, so Add Project (`Cmd+O`) uses the existing test-root grant without a
-native folder picker. A new Agent opens as a Terminal unless `session.openAgentsInChat` is on; the
+native folder picker. For a second Project, export `CAXRI_TEST_ROOT_PATHS='["/tmp/<task>/a","/tmp/<task>/b"]'`
+before `dev`: each `Cmd+O` consumes the next folder. A raw `project.create` over CDP always fails
+`PATH_DENIED`, because only that picker path mints the grant. A new Agent opens as a Terminal unless `session.openAgentsInChat` is on; the
 tab bar's Chat toggle switches an open one. Run the repeated Caxri steps through
 `.agents/skills/debug/scripts/drive-app.ts` instead of hand-writing Playwright: `language en`
 (English labels for the E2E helpers), `open-chat <claude|codex|grok>` to add the test-root Project
