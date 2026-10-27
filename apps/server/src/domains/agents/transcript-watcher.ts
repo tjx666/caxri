@@ -135,16 +135,23 @@ export class AgentTranscriptWatcher {
             return;
         }
         const completeEntry = entry as TranscriptWatchEntry;
+        /**
+         * Read before the entry is published: the next discovery tick finds the entry installed and ends discovery,
+         * possibly while the check below is still awaiting `stat`, which would otherwise skip the notification.
+         */
+        const isLateDiscovery = this.mobileDiscovery.has(terminalId);
         this.entries.set(terminalId, completeEntry);
         const initialSignature = entry.signature;
         await this.detectChange(completeEntry);
         /**
          * A mobile reader may have received `missing` before the Agent bound its transcript. An empty transcript is
-         * already available, so its first late-discovery install must invalidate that read too.
+         * already available, so its first late-discovery install must invalidate that read too, unless that reader
+         * left.
          */
         if (
             initialSignature !== 'missing' &&
-            this.mobileDiscovery.has(terminalId) &&
+            isLateDiscovery &&
+            this.mobileUsers.has(terminalId) &&
             completeEntry.signature === initialSignature
         )
             this.emitChange(completeEntry);
