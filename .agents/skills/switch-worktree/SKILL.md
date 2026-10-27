@@ -20,8 +20,7 @@ profile cannot disturb the primary checkout or sibling agent sessions. That isol
 when the user asks to switch to a worktree to get work done (e.g. "切 worktree 处理 issue #123"
 or "切 worktree 做一下"), they are delegating the entire development loop, including commit,
 push, PR creation, CI, merge, issue closeout, and primary-checkout synchronization. This applies
-equally when the request arrives midway through an existing conversation. A run under the `go`
-workflow follows `go`'s own orchestration instead. Inspection, listing, and dev-launch-only requests
+equally when the request arrives midway through an existing conversation. Inspection, listing, and dev-launch-only requests
 do not activate this delivery flow. Run it end to end without pausing for permission between stages:
 
 Reuse an existing related worktree and branch for follow-up implementation, bug reports, and

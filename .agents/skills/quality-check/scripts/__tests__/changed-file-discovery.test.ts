@@ -170,9 +170,6 @@ describe('GitHub config reader test selection', () => {
         const workflowReaders = await selectedTestCandidates(process.cwd(), [
             '.github/workflows/ci.yml',
         ]);
-        expect(workflowReaders).toContain(
-            '.agents/skills/go/scripts/__tests__/ci-fallback.test.ts',
-        );
         expect(workflowReaders).toContain('scripts/__tests__/ci-workflow-contract.test.ts');
 
         await expect(

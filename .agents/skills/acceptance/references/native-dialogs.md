@@ -7,7 +7,7 @@ default.
 ## Default policy: hand native UI to the user
 
 An agent must not trigger, inspect, select within, click, record, or retry a native macOS dialog.
-This applies to routine regression tests, visual Acceptance, `$go`, broad "test everything" requests,
+This applies to routine regression tests, visual Acceptance, broad "test everything" requests,
 and complete-real-path wording. None of those requests authorizes taking the user's focus or driving
 system UI.
 

@@ -34,12 +34,10 @@ const programCases = {
             'wrong-source-commit-rejected',
             'wrong-lifecycle-binding-rejected',
             'wrong-media-hash-rejected',
-            'incomplete-publication-readback-rejected',
         ],
         testFiles: [
             '.agents/skills/acceptance/scripts/report-mobile.test.ts',
             '.agents/skills/acceptance/scripts/media-integrity.test.ts',
-            '.agents/skills/go/scripts/__tests__/acceptance-publication-mobile.test.ts',
         ],
     },
     'MOB-SEC-01': {

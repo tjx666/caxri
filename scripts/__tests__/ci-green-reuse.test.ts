@@ -21,7 +21,7 @@ const eligible: GreenReusePolicyInput = {
         workflowPath: '.github/workflows/ci.yml',
     },
     changedFiles: [
-        '.agents/skills/go/scripts/state.ts',
+        '.agents/skills/acceptance/scripts/report.ts',
         '.agents/skills/acceptance/SKILL.md',
         'docs/testing.md',
     ],
@@ -35,16 +35,16 @@ const eligible: GreenReusePolicyInput = {
 };
 
 describe('CI ancestor green reuse', () => {
-    it('reuses a same-PR ancestor only for Go, Acceptance, and documentation deltas', () => {
+    it('reuses a same-PR ancestor only for Acceptance and documentation deltas', () => {
         expect(evaluateGreenReusePolicy(eligible)).toEqual({
             eligible: true,
             reason: 'ancestor run 123 fully validated the unchanged product and E2E tree',
         });
 
         for (const path of [
-            '.agents/skills/go/SKILL.md',
+            '.agents/skills/acceptance/SKILL.md',
             '.agents/skills/acceptance/scripts/report.ts',
-            '.claude/skills/go/references/ci.md',
+            '.claude/skills/acceptance/references/report.md',
             'README.md',
             'docs/testing.md',
         ]) {

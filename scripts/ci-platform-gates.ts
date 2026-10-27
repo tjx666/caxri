@@ -13,12 +13,11 @@ export type PlatformNeutralCIGateId =
     | 'typescript'
     | 'vitest';
 
-export interface PlatformCheckDefinition {
+interface PlatformCheckDefinition {
     arguments: (environment: NodeJS.ProcessEnv) => string[];
     command: string;
     id: PlatformNeutralCIGateId;
     label: string;
-    receiptCommand: string;
     /**
      * The gate cannot run on a Linux runner; see {@link MACOS_ONLY_CI_GATE_IDS}.
      */
@@ -36,7 +35,7 @@ export interface PlatformCheckOptions {
     includeNodePtyPreparation?: boolean;
     /**
      * Gates another job owns. Hosted CI skips `vitest` (the sharded `unit` job), `eslint` (the Linux `lint` job), and
-     * `bundle-budget` (the macOS `bundle-budget` job); local fallbacks and the hosted full-E2E route keep every gate.
+     * `bundle-budget` (the macOS `bundle-budget` job); the hosted full-E2E route keeps every gate.
      */
     skipGates?: readonly PlatformNeutralCIGateId[];
 }
@@ -51,8 +50,6 @@ interface DirectGateSpec {
 interface MetricGateSpec extends DirectGateSpec {
     extraArguments?: (environment: NodeJS.ProcessEnv) => string[];
     metricLabel: (environment: NodeJS.ProcessEnv) => string;
-    receiptLabel: string;
-    receiptMode?: 'direct' | 'metric';
 }
 
 const metricArguments = (label: string, command: string[]): string[] => [
@@ -74,7 +71,6 @@ const directGate = ({
     command: 'bun',
     id,
     label,
-    receiptCommand: `bun run ${script}`,
     ...(requiresMacOS && { requiresMacOS }),
 });
 
@@ -83,8 +79,6 @@ const metricGate = ({
     id,
     label,
     metricLabel,
-    receiptLabel,
-    receiptMode = 'metric',
     requiresMacOS,
     script,
 }: MetricGateSpec): PlatformCheckDefinition => ({
@@ -98,18 +92,13 @@ const metricGate = ({
     command: 'bun',
     id,
     label,
-    receiptCommand:
-        receiptMode === 'direct'
-            ? `bun run ${script}`
-            : `bun run scripts/ci-metrics.ts --label "${receiptLabel}" -- bun run ${script}`,
     ...(requiresMacOS && { requiresMacOS }),
 });
 
 /**
- * This manifest is the single semantic authority for full platform checks. Stable IDs support diagnostics while
- * receiptCommand preserves the exact shell contract used by Go's local CI fallback.
+ * This manifest is the single semantic authority for full platform checks. Stable IDs support diagnostics.
  */
-export const PLATFORM_NEUTRAL_CI_GATES = [
+const PLATFORM_NEUTRAL_CI_GATES = [
     directGate({
         id: 'gitleaks',
         label: 'gitleaks',
@@ -121,15 +110,12 @@ export const PLATFORM_NEUTRAL_CI_GATES = [
         label: 'ESLint',
         metricLabel: (environment) =>
             `ESLint concurrency=${environment.ESLINT_CONCURRENCY ?? 'off'}`,
-        receiptLabel: '',
-        receiptMode: 'direct',
         script: 'lint',
     }),
     metricGate({
         id: 'oxlint-type-aware',
         label: 'oxlint type-aware',
         metricLabel: () => 'oxlint type-aware',
-        receiptLabel: 'oxlint type-aware',
         script: 'lint:type-aware',
     }),
     directGate({
@@ -180,8 +166,6 @@ export const PLATFORM_NEUTRAL_CI_GATES = [
             const workers = environment.CAXRI_VITEST_MAX_WORKERS ?? '2';
             return `Vitest full suite partition=${partition} workers=${workers}`;
         },
-        receiptLabel:
-            'Vitest full suite partition=${CAXRI_VITEST_PARTITION} workers=${CAXRI_VITEST_MAX_WORKERS}',
         requiresMacOS: true,
         script: 'test',
     }),
@@ -189,15 +173,10 @@ export const PLATFORM_NEUTRAL_CI_GATES = [
         id: 'bundle-budget',
         label: 'bundle budget',
         metricLabel: () => 'Bundle budget gate',
-        receiptLabel: 'Bundle budget gate',
         requiresMacOS: true,
         script: 'scripts/ci-bundle-budget.ts',
     }),
 ] as const satisfies readonly PlatformCheckDefinition[];
-
-export const PLATFORM_NEUTRAL_CI_COMMANDS: readonly string[] = Object.freeze(
-    PLATFORM_NEUTRAL_CI_GATES.map(({ receiptCommand }) => receiptCommand),
-);
 
 /**
  * Gates that need the darwin `node-pty` layout or an `electron-builder --mac` package. The Linux full-scope `checks`

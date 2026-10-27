@@ -1,6 +1,0 @@
-interface:
-  display_name: 'Go'
-  short_description: 'Run an autonomous multi-issue delivery loop'
-  default_prompt: 'Use $go to turn these requirements into an approved, continuously executing delivery goal.'
-policy:
-  allow_implicit_invocation: false

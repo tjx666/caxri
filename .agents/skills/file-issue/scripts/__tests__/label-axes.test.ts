@@ -21,13 +21,13 @@ function axisSection(heading: string): string {
  * Every label an axis declares, read from the leading code span of each of its bullets or table rows.
  *
  * A per-label `toContain` of one table cell proves only that the string exists somewhere in the file: it never says
- * which axis owns it, and it cannot notice a label that was added or removed. That is how the hand-written list in the
- * `go` Acceptance contract test kept naming the pre-#812 labels long after four Surface labels shipped, leaving that
- * whole dimension contractually empty (issue #820). Comparing a parsed set against an explicit expected set fails in
- * both directions, so adding a label to the skill without teaching this test about it is red too.
+ * which axis owns it, and it cannot notice a label that was added or removed. That is how an earlier hand-written list
+ * kept naming the pre-#812 labels long after four Surface labels shipped, leaving that whole dimension contractually
+ * empty (issue #820). Comparing a parsed set against an explicit expected set fails in both directions, so adding a
+ * label to the skill without teaching this test about it is red too.
  *
- * This lives beside the skill it describes rather than under `go`, so an agent editing the label tables sees it fail by
- * running this skill's own tests.
+ * This lives beside the skill it describes, so an agent editing the label tables sees it fail by running this skill's
+ * own tests.
  */
 function axisLabels(heading: string): string[] {
     return axisSection(heading)

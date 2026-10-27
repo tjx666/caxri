@@ -710,16 +710,6 @@ export const evaluateCaxriAcceptanceCommand = ({
         };
     }
 
-    if (
-        /\.agents\/skills\/go\/scripts\/state\.ts\s+acceptance(?:\s|$)/u.test(command) &&
-        /(?:^|\s)--round(?:=|\s|$)/u.test(command)
-    ) {
-        return {
-            ruleId: 'caxri-acceptance-manual-round',
-            reason: 'The ordinary Acceptance status command cannot advance rounds. Use state.ts acceptance-publish; use acceptance-reconcile-round only to repair recorded ledger drift.',
-        };
-    }
-
     return null;
 };
 

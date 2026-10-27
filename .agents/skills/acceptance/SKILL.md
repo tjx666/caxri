@@ -49,9 +49,8 @@ own subagent controls and keep it read-only: it never launches Electron, never a
 and never holds the desktop lease. If delegation or required media inspection is unavailable,
 disclose the missing review and unverified claims rather than claiming independent acceptance.
 
-Inside Go the plan stage is already owned by `acceptance_plan_tester`, so do not run both: Go's
-tester is the plan gate, and the acceptance-checker runs only the final evidence stage before the
-first round is published. Standalone Acceptance runs both stages with the acceptance-checker.
+The acceptance-checker runs both stages: the plan gate before execution and the final evidence
+stage before the first round is published.
 
 ## Programmatic gates are not acceptance checks
 
@@ -109,7 +108,7 @@ accept/reject on this?_
   retry one. Stub Main's dialog result for automated coverage and hand dialog-specific checks to
   the user. Only a current user request that explicitly asks the agent to verify a native dialog
   permits the fail-closed exception in
-  [references/native-dialogs.md](references/native-dialogs.md); general Acceptance, `$go`, or
+  [references/native-dialogs.md](references/native-dialogs.md); general Acceptance or
   complete-real-path wording does not.
 - Read every screenshot or recording before citing it. A file existing is not evidence that the
   expected UI rendered.
@@ -140,7 +139,7 @@ accept/reject on this?_
    ingest. Caxri reports are Simplified Chinese, so stop and report a mismatch when the locale is
    not `zh-CN`. Pass that language to any subagent you delegate to, including the
    acceptance-checker. On a CLI without `preflight`, fall back to `lh whoami --json`; do not guess
-   an `auth status` subcommand. The Go intake snapshot runs the `whoami` probe automatically.
+   an `auth status` subcommand.
 3. Resolve the immutable one-sentence business requirement for the whole acceptance. Write it in
    Simplified Chinese. The scaffold freezes it in the acceptance root so every later round must
    reuse the exact same requirement.
@@ -169,12 +168,10 @@ accept/reject on this?_
    graph during planning following [references/flow.md](references/flow.md); it is optional and
    never replaces evidence or human review.
 5. Gate the first round's plan through an independent reviewer before executing: the
-   acceptance-checker standalone, or Go's `acceptance_plan_tester` inside Go. Freeze the agreed
-   plan after resolving its material findings. That decision is the plan gate; do not ask the user
+   acceptance-checker. Freeze the agreed plan after resolving its material findings. That decision is the plan gate; do not ask the user
    to approve the plan.
 6. Run the report scaffold's `init` command with the frozen plan. It creates a fresh round
-   directory containing case placeholders, `report.md`, `proposal.md`, and `assets/`. Inside Go use
-   `.records/go/<run-id>/acceptance/round-<n>/`; for standalone verification use
+   directory containing case placeholders, `report.md`, `proposal.md`, and `assets/` under
    `.records/acceptance/<timestamp>/round-<n>/`. Replace the `proposal.md` placeholder with this
    round's note to the reviewer: ingest posts it into the acceptance discussion, and `finalize`
    refuses the untouched placeholder.
@@ -286,11 +283,6 @@ If publication reports `storage_quota` (in `recovery.reason` or `failedEvidence[
 keep the local evidence, report the coverage that actually uploaded, and give the user both
 recovery options. Never delete user data automatically or re-ingest the whole round.
 
-Inside Go, never call raw `lh acceptance run ingest`. Use the Go `acceptance-publish` command
-so later rounds are forced onto the frozen Acceptance id and publication is recorded only after
-the server readback matches the exact head, round index, stable check ids, and verdict. Record an
-accidental standalone with `acceptance-orphan`; immutable remote history is never deleted.
-
 ## Repair loop
 
 Before every follow-up, read current server state and actionable feedback using the commands in
@@ -347,9 +339,6 @@ chat client only linkifies plain text, and a code block makes it unclickable:
 
 Acceptance: <https://app.lobehub.com/acceptance/ACCEPTANCE_ID> (the placeholder is the id ingest printed; it stays inside the URL)
 Coverage: 2/2 criteria, all required evidence uploaded
-
-When Go owns the delivery, return the published round to Go; the Go ledger, not the Acceptance
-report, owns the compact workflow-observation summary shown beside that URL.
 
 ## Reference map
 

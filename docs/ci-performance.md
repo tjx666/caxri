@@ -381,8 +381,8 @@ cold Android Gradle build that only started after the Linux natives finished. Th
   count against the macOS concurrency limit. Locally a full lint took 93 s serially and 41 s with
   four workers. The job restores a main-seeded ESLint cache keyed on the lockfile,
   `eslint.config.ts`, and `scripts/eslint-rules/**`. ESLint has no type-aware rules, so the
-  content-hashed cache stays sound. The hosted full-E2E route and Go's local fallback still run
-  ESLint inside the platform checks.
+  content-hashed cache stays sound. The hosted full-E2E route still runs ESLint inside the
+  platform checks.
 - `@yutengjing/no-declare-implicit-any-var` is replaced by the local `caxri/no-declare-implicit-any-var`.
   Upstream probed four Vue packages through `local-pkg` once per linted file, which was 46% of ESLint
   time; dropping the probe cut a `packages` plus `apps/server` lint from 88 s to 35 s locally.

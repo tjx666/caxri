@@ -7,7 +7,6 @@ starts, and model-invoked disciplines that another skill or ordinary coding task
 
 <!-- explicit-only-skills:start -->
 
-- `go`
 - `grill-me`
 - `grill-with-docs`
 

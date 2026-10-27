@@ -30,6 +30,5 @@ failed" or "noted in the PR":
   lookup fails, give scope-specific guidance without links.
 - Preserve the local round, its assets, and the returned retry instructions. Stop retrying until
   the user has addressed storage. For a partially ingested round, retry only the failed artifacts
-  with `failedEvidence[].retryArgs` or `retryCommand`, never the whole ingest; inside Go, route the
-  retry through `acceptance-publish`. Supplementing evidence does not change recorded verdicts:
+  with `failedEvidence[].retryArgs` or `retryCommand`, never the whole ingest. Supplementing evidence does not change recorded verdicts:
   read back coverage, and do not claim the delivery is complete while required evidence is missing.

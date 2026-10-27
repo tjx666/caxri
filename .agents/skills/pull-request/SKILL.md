@@ -158,7 +158,7 @@ or cancels the delivery, or a concrete blocker requires their input.
    diff, the never-run list, and the waiver evidence to an independent reviewer (a subagent, or
    another harness through `dianjiang`), then adjudicate between merging and exactly one CI rerun,
    and record the verdict in the PR.
-7. Merge only when explicitly authorized by the user or an active workflow such as `go`. When a run
+7. Merge only when explicitly authorized by the user or an active workflow such as `switch-worktree`'s delivery flow. When a run
    has finished, gate the merge on its `conclusion` read explicitly in the same command
    (`gh api repos/<owner>/<repo>/actions/runs/<id> --jq .conclusion` equals `success`) or on a
    recorded waiver. Never pipe the watcher into `tail` and trust the exit status: without

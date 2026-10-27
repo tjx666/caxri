@@ -178,7 +178,7 @@ off, refusing unless every changed path is under `.agents/`. It drops the
 round's `summary`, so the round cannot be published before you re-run
 `finalize`. A free-text `--reason` never substitutes for that check.
 
-Publication is recorded in the Go ledger, not in `result.json`, so this command
+Publication is recorded remotely, not in `result.json`, so this command
 cannot detect it; `--allow-finalized` is you stating the round is unpublished.
 Never rebind a published immutable round, and a product-affecting repair always
 requires a fresh round with fresh product-surface evidence.
@@ -423,7 +423,7 @@ fi
 
 `--requirement` records the durable goal of the whole acceptance on the first
 ingest only; it is immutable afterwards. `--source agent-testing` is already the
-default and stays explicit here so the Go readback can match it. Do not pass
+default and stays explicit here so later readback can match it. Do not pass
 `--subject`: Caxri rounds are standalone, and a subject is only for a Task,
 Topic, or Document the caller explicitly named. The command uploads cases,
 evidence, `report.md`, and `proposal.md`, and prints `/acceptance/<acceptanceId>`
@@ -438,27 +438,8 @@ lh acceptance run ingest "$REPORT_DIR" \
   --json
 ```
 
-When Go owns the delivery, replace both raw ingest commands with the fail-closed
-wrapper after `finalize`:
-
-```bash
-bun run .agents/skills/go/scripts/state.ts acceptance-publish \
-  --state "$STATE" --report-dir "$REPORT_DIR" --head-sha "$HEAD_SHA"
-```
-
-The wrapper persists `acceptanceId`, stable URL, immutable run id, round index,
-exact head, check ids, and verdict only after `lh acceptance view` returns
-the same lineage. Empty stdout, network interruption, wrong id/index/head/checks,
-or verdict mismatch leaves the ledger unpublished. If ingest returns an immutable
-run before readback fails, resume stores that attempt and retries only `view`; it
-never ingests the same local round twice. If a round was accidentally created as
-a separate standalone, preserve it in the audit trail:
-
-```bash
-bun run .agents/skills/go/scripts/state.ts acceptance-orphan \
-  --state "$STATE" --acceptance-id "$ORPHAN_ID" \
-  --verify-run-id "$ORPHAN_RUN_ID" --reason "误建 standalone，保留不可变历史。"
-```
+Never overwrite or delete a published round. If a round was accidentally created as a separate
+standalone Acceptance, leave it in place and publish the corrected round into the intended id.
 
 Before a repair, read only the decision fields needed for routing, then fetch
 actionable feedback. Avoid loading the full aggregate into chat context because

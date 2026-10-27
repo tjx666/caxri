@@ -112,10 +112,6 @@
                     ".agents/skills/design-prototype/scripts/build-runtime.ts",
                     ".agents/skills/design-prototype/scripts/verify-prototype.ts",
                     ".agents/skills/debug/scripts/collect-macos-gpu-logs.ts",
-                    ".agents/skills/go/scripts/start.ts",
-                    ".agents/skills/go/scripts/state.ts",
-                    ".agents/skills/go/scripts/validation-artifact-benchmark.ts",
-                    ".agents/skills/go/scripts/xterm-beta-line.ts",
                     ".agents/skills/promo-images/scripts/promo.ts",
                     ".agents/skills/promo-images/scripts/promo-capture.pw.ts",
                     ".agents/skills/promo-images/scripts/promo-compose.ts",
@@ -165,6 +161,7 @@
                 ],
                 "ignoreDependencies": [
                     "@babel/plugin-syntax-typescript",
+                    "@caxri/utils",
                     "react-scan",
                     "tailwindcss",
                     "tw-animate-css",

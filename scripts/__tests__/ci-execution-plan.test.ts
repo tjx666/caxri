@@ -159,12 +159,12 @@ describe('CI execution plan', () => {
             evaluateCIExecutionPlan({
                 changedFiles: [
                     'apps/server/src/domains/index.ts',
-                    '.agents/skills/go/scripts/state.ts',
+                    '.agents/skills/acceptance/scripts/report.ts',
                 ],
                 eventName: 'pull_request',
                 pullRequestDraft: false,
                 reusableGreenRun: {
-                    changedFiles: ['.agents/skills/go/scripts/state.ts'],
+                    changedFiles: ['.agents/skills/acceptance/scripts/report.ts'],
                     headSha: 'a'.repeat(40),
                     runId: 123,
                 },
@@ -236,7 +236,7 @@ describe('CI execution plan', () => {
     it('keeps every automatic main push free of full E2E', () => {
         expect(
             evaluateCIExecutionPlan({
-                changedFiles: ['docs/quality-toolchain.md', '.agents/skills/go/SKILL.md'],
+                changedFiles: ['docs/quality-toolchain.md', '.agents/skills/acceptance/SKILL.md'],
                 eventName: 'push',
                 isVerifiedReleaseCommit: false,
             }),
