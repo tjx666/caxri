@@ -11,7 +11,11 @@ import { createFakeAgentMode } from './agent-fixture';
 // Synthetic provider executables for the Mobile Acceptance fixture: each stands in for a real Agent CLI so a phone
 // scenario never discovers or launches a host provider.
 
-export async function fakeChatAgent(userDataDirectory: string, testDirectory: string) {
+export async function fakeChatAgent(
+    userDataDirectory: string,
+    testDirectory: string,
+    claudeScriptPath?: string,
+) {
     return createFakeAgentMode({
         userDataDir: userDataDirectory,
         providers: {
@@ -19,6 +23,7 @@ export async function fakeChatAgent(userDataDirectory: string, testDirectory: st
                 // Transcripts stay under the fake agent home, where the Server reads history and image originals back.
                 executableSource: fakeClaudeChatExecutableSource({
                     controlDirectory: testDirectory,
+                    scriptPath: claudeScriptPath,
                 }),
             },
             codex: {

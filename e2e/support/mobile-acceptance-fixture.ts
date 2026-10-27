@@ -6,6 +6,7 @@ import process from 'node:process';
 
 import type { AppSettings, BootstrapState, MobileTimelineReadResult } from '@caxri/protocol';
 
+import type { FakeClaudeScript } from '../../apps/server/src/domains/agent-chat/__tests__/fixtures/fake-claude-script.ts';
 import type { RunningCaxri } from './helpers';
 import { createProjectSession, launchCaxri, pageRequest, sessionCard } from './helpers';
 import {
@@ -88,6 +89,10 @@ interface CreateMobileAcceptanceFixtureInput {
      */
     chatProvider?: 'claude' | 'codex';
     /**
+     * Scripted turns for the fake Claude (`fake-claude-script.ts`), played when the Chat sends a turn's prompt.
+     */
+    claudeScript?: FakeClaudeScript;
+    /**
      * Writes synthetic files into the allowed Project root before Caxri launches, such as `seedMobileChangesFixture`
      * for Changes.
      */
@@ -111,6 +116,10 @@ export async function createMobileAcceptanceFixture(
     const allowedRoot = join(testDirectory, 'allowed-project');
     const deniedRoot = join(testDirectory, 'denied-project');
     const inputCapture = join(testDirectory, 'agent-input.bin');
+    const claudeScriptPath = input.claudeScript
+        ? join(testDirectory, 'claude-script.json')
+        : undefined;
+    if (claudeScriptPath) await writeFile(claudeScriptPath, JSON.stringify(input.claudeScript));
     const menuStatePath =
         input.mode === 'journey' ? join(testDirectory, 'codex-menu-state.json') : undefined;
     const conversationMenuStatePath =
@@ -159,7 +168,7 @@ export async function createMobileAcceptanceFixture(
               : input.mode === 'launch-failure'
                 ? await fakeFailingAgent(userData)
                 : input.mode === 'agent-chat'
-                  ? await fakeChatAgent(userData, testDirectory)
+                  ? await fakeChatAgent(userData, testDirectory, claudeScriptPath)
                   : (conversationAgentMode ?? ({ mode: 'blocked' } as const));
     let running: RunningCaxri;
     try {

@@ -114,7 +114,11 @@ export const QuestionPrompt = ({
             </Text>
         ) : null}
         {isKeyboardVisible ? (
-            <Text numberOfLines={2} style={[styles.questionText, { color: theme.text }]}>
+            <Text
+                numberOfLines={2}
+                style={[styles.questionText, { color: theme.text }]}
+                testID={`agent-chat-question-${index}-text`}
+            >
                 {question.question}
             </Text>
         ) : (

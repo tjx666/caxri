@@ -114,6 +114,36 @@ export async function hideChatKeyboard(serial: string): Promise<void> {
 }
 
 /**
+ * Runs `step` with the emulator's own keyboard on screen instead of the Acceptance fixture IME, which draws none, so a
+ * layout claim about the keyboard taking half the screen is judged with that half taken. `ime list -s` lists only
+ * enabled input methods; the fixture is selected again afterwards, and the guarded runner still restores the emulator's
+ * default in its cleanup. Without the fixture selected, the keyboard is already a real one.
+ */
+export async function withVisibleKeyboard(
+    serial: string,
+    step: () => Promise<void>,
+): Promise<void> {
+    const current = await adbShell(serial, ['settings', 'get', 'secure', 'default_input_method']);
+    if (current.trim() !== MOBILE_FIXTURE_IME_ID) {
+        await step();
+        await hideChatKeyboard(serial);
+        return;
+    }
+    const keyboard = (await adbShell(serial, ['ime', 'list', '-s']))
+        .split(/\r?\n/u)
+        .map((line) => line.trim())
+        .find((id) => id !== '' && id !== MOBILE_FIXTURE_IME_ID);
+    if (!keyboard) throw new Error('The emulator has no keyboard besides the fixture IME');
+    await adbShell(serial, ['ime', 'set', keyboard]);
+    try {
+        await step();
+        await hideChatKeyboard(serial);
+    } finally {
+        await adbShell(serial, ['ime', 'set', MOBILE_FIXTURE_IME_ID]);
+    }
+}
+
+/**
  * The Chat timeline's on-screen frame, read once while the screen is still so a gesture during streaming needs no
  * UIAutomator dump.
  */

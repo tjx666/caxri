@@ -1,8 +1,13 @@
-import type { AgentChatOlderHistory, AgentChatSnapshot } from '@caxri/protocol';
+import type {
+    AgentChatHistoryPage,
+    AgentChatOlderHistory,
+    AgentChatSnapshot,
+} from '@caxri/protocol';
 import {
     emptyAgentChatOlderHistory,
     hasOlderAgentChatHistory,
     retainEvictedAgentChatItems,
+    shouldReadOlderAgentChatHistoryPage,
 } from '@caxri/protocol';
 
 /**
@@ -31,6 +36,22 @@ export function canLoadOlderAgentChatHistory(
     snapshot: AgentChatSnapshot | undefined,
 ): boolean {
     return snapshot?.historyId !== undefined && hasOlderAgentChatHistory(history, snapshot);
+}
+
+/**
+ * Whether one load reads another page after `page`. A scroll-back reads on until the turn's request
+ * (`shouldReadOlderAgentChatHistoryPage`); a fill stops after one page, since the list asks again only while its rows
+ * still leave the viewport short. Reading on landed several pages in a row above an opened Chat that followed its end,
+ * and each one shifted the rows before the list returned to the end.
+ */
+export function shouldContinueAgentChatHistoryLoad(
+    isFill: boolean,
+    page: Pick<AgentChatHistoryPage, 'items'>,
+    previous: AgentChatOlderHistory,
+    next: AgentChatOlderHistory,
+    pagesRead: number,
+): boolean {
+    return !isFill && shouldReadOlderAgentChatHistoryPage(page, previous, next, pagesRead);
 }
 
 /**

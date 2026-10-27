@@ -235,9 +235,17 @@ export const AgentChatRequestCard = ({
 const styles = StyleSheet.create({
     /**
      * The card shrinks inside the dock's height cap; its scroll area (options or approval text) gives way first, so the
-     * title and buttons stay on screen.
+     * title and buttons stay on screen. It clips what still does not fit: Yoga shrinks a card below its content and
+     * draws the overflow unclipped, so the answer field and buttons used to spill over the status row and composer.
      */
-    card: { borderRadius: 14, borderWidth: 1, flexShrink: 1, gap: 8, padding: 12 },
+    card: {
+        borderRadius: 14,
+        borderWidth: 1,
+        flexShrink: 1,
+        gap: 8,
+        overflow: 'hidden',
+        padding: 12,
+    },
     titleRow: { alignItems: 'center', flexDirection: 'row', gap: 8 },
     title: { flexShrink: 1, fontSize: 15, fontWeight: '700' },
     position: { fontSize: 12, fontVariant: ['tabular-nums'], marginLeft: 'auto' },

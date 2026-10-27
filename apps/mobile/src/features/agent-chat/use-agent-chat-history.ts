@@ -5,15 +5,18 @@ import {
     agentChatHistoryCursor,
     emptyAgentChatOlderHistory,
     prependAgentChatHistoryPage,
-    shouldReadOlderAgentChatHistoryPage,
 } from '@caxri/protocol';
 
 import { useTranslation } from '../../i18n';
 import { useMobileClient } from '../connection/mobile-client-provider';
-import type { ConversationTimelineState } from '../conversation/use-conversation-timeline';
+import type {
+    ConversationLoadOlderOptions,
+    ConversationPagedTimeline,
+} from '../conversation/use-conversation-timeline';
 import {
     canLoadOlderAgentChatHistory,
     mergeAgentChatOlderHistory,
+    shouldContinueAgentChatHistoryLoad,
     syncAgentChatOlderHistory,
 } from './agent-chat-older-history';
 
@@ -79,55 +82,64 @@ export const useAgentChatHistory = (
     const canLoad = isLive && canLoadOlderAgentChatHistory(history, snapshot);
     const olderCursor = canLoad ? agentChatHistoryCursor(history, snapshot) : undefined;
 
-    const loadOlder = useCallback(async (): Promise<void> => {
-        const base = latest.current;
-        const terminalId = base.snapshot?.terminalId;
-        const beforeItemId = agentChatHistoryCursor(base.history, base.snapshot);
-        if (!terminalId || !beforeItemId || inFlight.current) return;
-        if (!canLoadOlderAgentChatHistory(base.history, base.snapshot)) return;
-        inFlight.current = true;
-        const { historyId } = base.history;
-        const update = (next: (value: AgentChatOlderHistory) => AgentChatOlderHistory) =>
-            setRecord((value) =>
-                value.scope === base.scope && value.history.historyId === historyId
-                    ? { ...value, history: next(value.history) }
-                    : value,
-            );
-        update((value) => ({ ...value, status: 'loading' }));
-        try {
-            /**
-             * The pages read so far over the history this load started from, which tells the next cursor and whether to
-             * go on. Items the window evicts meanwhile only append to the end, so the front matches the committed
-             * state.
-             */
-            let read = base.history;
-            let cursor = beforeItemId;
-            for (let pagesRead = 1; ; pagesRead += 1) {
-                // eslint-disable-next-line no-await-in-loop -- each page reads before the oldest item the previous one brought
-                const page = await request('mobile.agentChat.readHistory', {
-                    terminalId,
-                    beforeItemId: cursor,
-                });
-                const live = latest.current.snapshot?.items ?? [];
-                const next = prependAgentChatHistoryPage(read, page, live);
-                const continues = shouldReadOlderAgentChatHistoryPage(page, read, next, pagesRead);
-                // A page for a replaced conversation is dropped by `prependAgentChatHistoryPage` itself. `loading`
-                // between pages keeps retention from trimming the front the next page reads before.
-                update((value) => ({
-                    ...prependAgentChatHistoryPage(value, page, live),
-                    status: continues ? 'loading' : 'idle',
-                }));
-                read = next;
-                if (!continues) break;
-                // A page that continues added entries, so the history it left has a first item.
-                cursor = next.items[0].id;
+    const loadOlder = useCallback(
+        async (options?: ConversationLoadOlderOptions): Promise<void> => {
+            const base = latest.current;
+            const terminalId = base.snapshot?.terminalId;
+            const beforeItemId = agentChatHistoryCursor(base.history, base.snapshot);
+            if (!terminalId || !beforeItemId || inFlight.current) return;
+            if (!canLoadOlderAgentChatHistory(base.history, base.snapshot)) return;
+            inFlight.current = true;
+            const { historyId } = base.history;
+            const update = (next: (value: AgentChatOlderHistory) => AgentChatOlderHistory) =>
+                setRecord((value) =>
+                    value.scope === base.scope && value.history.historyId === historyId
+                        ? { ...value, history: next(value.history) }
+                        : value,
+                );
+            update((value) => ({ ...value, status: 'loading' }));
+            try {
+                /**
+                 * The pages read so far over the history this load started from, which tells the next cursor and
+                 * whether to go on. Items the window evicts meanwhile only append to the end, so the front matches the
+                 * committed state.
+                 */
+                let read = base.history;
+                let cursor = beforeItemId;
+                for (let pagesRead = 1; ; pagesRead += 1) {
+                    // eslint-disable-next-line no-await-in-loop -- each page reads before the oldest item the previous one brought
+                    const page = await request('mobile.agentChat.readHistory', {
+                        terminalId,
+                        beforeItemId: cursor,
+                    });
+                    const live = latest.current.snapshot?.items ?? [];
+                    const next = prependAgentChatHistoryPage(read, page, live);
+                    const continues = shouldContinueAgentChatHistoryLoad(
+                        options?.isFill === true,
+                        page,
+                        read,
+                        next,
+                        pagesRead,
+                    );
+                    // A page for a replaced conversation is dropped by `prependAgentChatHistoryPage` itself. `loading`
+                    // between pages keeps retention from trimming the front the next page reads before.
+                    update((value) => ({
+                        ...prependAgentChatHistoryPage(value, page, live),
+                        status: continues ? 'loading' : 'idle',
+                    }));
+                    read = next;
+                    if (!continues) break;
+                    // A page that continues added entries, so the history it left has a first item.
+                    cursor = next.items[0].id;
+                }
+            } catch {
+                update((value) => ({ ...value, status: 'failed' }));
+            } finally {
+                inFlight.current = false;
             }
-        } catch {
-            update((value) => ({ ...value, status: 'failed' }));
-        } finally {
-            inFlight.current = false;
-        }
-    }, [request]);
+        },
+        [request],
+    );
 
     const merged = useMemo(
         () => (snapshot ? mergeAgentChatOlderHistory(snapshot, history) : undefined),
@@ -142,7 +154,7 @@ export const useAgentChatHistory = (
     const needsConnectionForOlder =
         !isLive && snapshot !== undefined && canLoadOlderAgentChatHistory(history, snapshot);
     const truncated = !canLoad && !needsConnectionForOlder && (merged?.truncated ?? false);
-    const timeline = useMemo<ConversationTimelineState & { loadOlder: () => Promise<void> }>(
+    const timeline = useMemo<ConversationPagedTimeline>(
         () => ({
             error,
             historyExpired: false,

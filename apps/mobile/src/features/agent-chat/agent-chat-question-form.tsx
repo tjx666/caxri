@@ -1,6 +1,6 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import type { ReactNode } from 'react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import {
@@ -19,27 +19,10 @@ import { QuestionPrompt } from './agent-chat-question-prompt';
 import { agentChatQuestionAdvance, agentChatQuestionFooter } from './agent-chat-request-flow';
 import type { RequestActions } from './agent-chat-request-parts';
 import { ActionButton } from './agent-chat-request-parts';
+import { useIsKeyboardShown } from './use-keyboard-shown';
 
 const withoutKey = <T,>(record: Readonly<Record<string, T>>, key: string): Record<string, T> =>
     Object.fromEntries(Object.entries(record).filter(([entry]) => entry !== key));
-
-/**
- * Whether the software keyboard is up. The dock shares the screen with the keyboard and the composer, so the question
- * card drops its header and clamps the question while the keyboard is up, keeping its answer row and buttons on
- * screen.
- */
-const useIsKeyboardVisible = (): boolean => {
-    const [isVisible, setVisible] = useState(() => Keyboard.isVisible());
-    useEffect(() => {
-        const show = Keyboard.addListener('keyboardDidShow', () => setVisible(true));
-        const hide = Keyboard.addListener('keyboardDidHide', () => setVisible(false));
-        return () => {
-            show.remove();
-            hide.remove();
-        };
-    }, []);
-    return isVisible;
-};
 
 /**
  * One compact answer row: a radio glyph (a checkbox for a `multiSelect` question), the option, and at most two lines of
@@ -351,7 +334,7 @@ export const AgentChatQuestionForm = ({
     request: QuestionRequest;
     theme: MobileTheme;
 }) => {
-    const isKeyboardVisible = useIsKeyboardVisible();
+    const isKeyboardVisible = useIsKeyboardShown();
     const [selected, setSelected] = useState(() => agentChatQuestionDefaults(request));
     /**
      * The ticked options of each `multiSelect` question, starting on its recommended option as Desktop does.
@@ -432,18 +415,29 @@ export const AgentChatQuestionForm = ({
     };
     const isTyping = typingQuestionId === question.id;
     const isOptionsShown = !(isKeyboardVisible && isTyping) && hasOptions;
+    const prompt = (
+        <QuestionPrompt
+            answers={answers}
+            index={questionIndex}
+            isKeyboardVisible={isKeyboardVisible}
+            question={question}
+            request={request}
+            seen={seen}
+            setIndex={openQuestion}
+            theme={theme}
+        />
+    );
     return (
         <>
-            <QuestionPrompt
-                answers={answers}
-                index={questionIndex}
-                isKeyboardVisible={isKeyboardVisible}
-                question={question}
-                request={request}
-                seen={seen}
-                setIndex={openQuestion}
-                theme={theme}
-            />
+            {/* Without options in view nothing else can give way, so on a short screen the prompt scrolls inside the
+                card and the typed answer and the buttons stay on it. */}
+            {isOptionsShown ? (
+                prompt
+            ) : (
+                <ScrollView keyboardShouldPersistTaps="handled" style={styles.scroll}>
+                    {prompt}
+                </ScrollView>
+            )}
             {isOptionsShown ? (
                 <QuestionOptions
                     isSelected={(label) =>
