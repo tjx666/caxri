@@ -48,8 +48,12 @@ export interface DownloadHost {
     downloadDirectory: string;
     fetch: UpdateFetch;
     now(): number;
+    /**
+     * Records the verified installer and decides how it installs, unpacking it ahead of the restart when Caxri can
+     * replace its own bundle. Never rejects: a failed unpack only downgrades the install to `manual`.
+     */
+    prepareReady(path: string): Promise<'manual' | 'restart'>;
     publish(state: UpdateState): UpdateState;
-    setReadyPath(path: string): void;
 }
 
 /**
@@ -73,10 +77,11 @@ export async function downloadVerifiedUpdate(
         currentVersion: host.currentVersion,
         ...releaseFields,
     });
-    const readyState = (): UpdateState => ({
+    const readyState = (installMode: 'manual' | 'restart'): UpdateState => ({
         status: 'ready',
         currentVersion: host.currentVersion,
         ...releaseFields,
+        installMode,
     });
     host.publish({
         status: 'downloading',
@@ -109,8 +114,7 @@ export async function downloadVerifiedUpdate(
                 existing.hash.digest('hex') === checksum &&
                 (!release.expectedBytes || existing.bytes === release.expectedBytes)
             ) {
-                host.setReadyPath(finalPath);
-                return host.publish(readyState());
+                return host.publish(readyState(await host.prepareReady(finalPath)));
             }
             await rm(finalPath, { force: true });
         }
@@ -190,8 +194,7 @@ export async function downloadVerifiedUpdate(
 
         await rm(finalPath, { force: true });
         await rename(temporaryPath, finalPath);
-        host.setReadyPath(finalPath);
-        return host.publish(readyState());
+        return host.publish(readyState(await host.prepareReady(finalPath)));
     } catch (error) {
         // An interrupted transfer keeps its `.part` file so the next attempt can resume it; only bytes that failed
         // verification (or a size contract) are known-bad and must not be resumed.

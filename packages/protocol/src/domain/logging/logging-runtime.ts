@@ -199,5 +199,6 @@ export const serverCoreLogEvents = {
 } as const;
 
 export const updatesLogEvents = {
+    install: 'updates.install',
     state: 'updates.state',
 } as const;

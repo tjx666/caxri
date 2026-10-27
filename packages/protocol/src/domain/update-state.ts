@@ -20,6 +20,15 @@ const releaseUrlField = { releaseUrl: z.url().max(2_048).optional() };
 const updatedFromField = { updatedFrom: z.string().min(1).max(64).optional() };
 
 /**
+ * `true` once this app process has already offered this version to a window: the Renderer calls `updates.acknowledge`
+ * as soon as it raises the notification or opens the update dialog. It exists so a window reload, or a download the
+ * user cancelled back to `available`, re-reads the same state without producing a second prompt, while the next launch
+ * starts over. Nothing here is persisted: that is what separates `Close` ("not now", this process only) from `Skip this
+ * version` (`updates.skippedVersion`).
+ */
+const announcedField = { announced: z.boolean().optional() };
+
+/**
  * Main-owned update state exposed to the Renderer without leaking download paths or URLs.
  */
 export const updateStateSchema = z.discriminatedUnion('status', [
@@ -62,14 +71,7 @@ export const updateStateSchema = z.discriminatedUnion('status', [
         ...updateVersionFields,
         ...releaseUrlField,
         ...updatedFromField,
-        /**
-         * `true` once this app process has already offered this version to a window: the Renderer calls
-         * `updates.acknowledge` as soon as it raises the notification or opens the update dialog. It exists so a window
-         * reload, or a download the user cancelled back to `available`, re-reads the same state without producing a
-         * second prompt, while the next launch starts over. Nothing here is persisted: that is what separates `Close`
-         * ("not now", this process only) from `Skip this version` (`updates.skippedVersion`).
-         */
-        announced: z.boolean().optional(),
+        ...announcedField,
     }),
     z.object({
         status: z.literal('downloading'),
@@ -84,12 +86,20 @@ export const updateStateSchema = z.discriminatedUnion('status', [
         ...updateVersionFields,
         ...releaseUrlField,
         ...updatedFromField,
+        ...announcedField,
+        /**
+         * How this verified update reaches the disk. `restart`: Main already unpacked the new app next to the profile
+         * and replaces the installed bundle itself on the next restart or quit. `manual`: this install cannot be
+         * replaced in place (not in a writable folder, running from a disk image, or unpacking failed), so the user
+         * opens the DMG and drags the app, as before.
+         */
+        installMode: z.enum(['restart', 'manual']),
     }),
     z.object({
         status: z.literal('error'),
         currentVersion: updateVersionFields.currentVersion,
         ...updatedFromField,
-        action: z.enum(['check', 'download', 'open']),
+        action: z.enum(['check', 'download', 'install', 'open']),
         failureKind: z.enum(['network', 'integrity', 'other']),
         message: z.string().min(1).max(2_048),
         version: updateVersionFields.version.optional(),

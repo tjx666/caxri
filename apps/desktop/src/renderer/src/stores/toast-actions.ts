@@ -114,6 +114,10 @@ export interface ToastActionParameters {
     };
     'updates.show': undefined;
     /**
+     * Restarts Caxri into the update Main already downloaded, verified, and unpacked.
+     */
+    'updates.install': undefined;
+    /**
      * Opens the release page of the version Caxri just updated to.
      */
     'updates.releaseNotes': { version: string; releaseUrl?: string };
@@ -175,6 +179,7 @@ export const toastActionLabelKeys: Record<ToastActionId, TranslationKey> = {
     'terminal.restart': 'common.retry',
     'terminal.stopRunaway': 'toasts.action.stop',
     'updates.show': 'toasts.action.showUpdate',
+    'updates.install': 'updates.action.restartToUpdate',
     'updates.releaseNotes': 'updates.toast.releaseNotes',
     'workbench.undoFollowedRoot': 'toasts.action.undo',
 };

@@ -192,6 +192,14 @@ export const desktop = {
     'desktop.quit.stopFailureDetail':
         'Caxri will quit now. Reopen Caxri to stop any remaining tasks before resuming their Agent conversations in another tool.',
 
+    'desktop.updateRestart.title': 'Restart to Update?',
+    'desktop.updateRestart.messageOne': 'Restart Caxri to update while {{running}} is running?',
+    'desktop.updateRestart.messageOther': 'Restart Caxri to update while {{running}} are running?',
+    'desktop.updateRestart.messageIdle': 'Restart Caxri to update?',
+    'desktop.updateRestart.detail':
+        'Restarting stops every running Terminal and Agent process and releases Agent conversations so they can be resumed, then reopens Caxri on the new version.',
+    'desktop.updateRestart.restart': 'Restart and Update',
+
     'desktop.windowClose.title': 'Close this window?',
     'desktop.windowClose.messageOne': 'Close this window while {{running}} is running?',
     'desktop.windowClose.messageOther': 'Close this window while {{running}} are running?',

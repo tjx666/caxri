@@ -498,6 +498,8 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                 return options.getUpdateService().cancel();
             case 'updates.open':
                 return options.getUpdateService().open();
+            case 'updates.install':
+                return options.getUpdateService().install();
             case 'app.relaunch':
                 if (!options.relaunch)
                     throw new CaxriError('UNAVAILABLE', 'Relaunching is not available here');

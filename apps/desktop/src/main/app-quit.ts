@@ -9,7 +9,11 @@ import type { DesktopServerConnection } from './server-connection';
 
 export type AppQuitDecision = 'cancel' | 'keep-running' | 'stop';
 export type AppQuitOutcome = 'cancelled' | 'kept-running' | 'stop-failed' | 'stopped';
-export type AppQuitIntent = 'relaunch' | 'system-shutdown' | 'user';
+/**
+ * `update` is the `Restart to Update` quit: it asks only about what the restart ends, always stops Server Core (the
+ * bundle it runs from is about to be replaced), and reopens Caxri on the new version.
+ */
+export type AppQuitIntent = 'relaunch' | 'system-shutdown' | 'update' | 'user';
 /**
  * Termination signals Main treats as an already accepted quit; see {@link resolveSignalQuit}.
  */
@@ -22,7 +26,8 @@ type AppQuitFailureStage =
     | 'persist'
     | 'reviewComments'
     | 'status'
-    | 'stop';
+    | 'stop'
+    | 'update';
 
 export interface AppQuitImpact {
     /**
@@ -39,8 +44,20 @@ export interface AppQuitImpact {
 
 export interface AppQuitOptions {
     acceptQuit: () => void;
+    /**
+     * Starts the in-place install of a staged update, if one is waiting, after Server Core stopped and right before
+     * Main exits. Runs for every quit that stopped Server Core: `Restart to Update` reopens the app (`relaunch`), an
+     * ordinary quit installs silently so the next launch is the new version. A quit that keeps tasks running never
+     * installs, because Server Core is still running from the bundle that would be replaced.
+     */
+    applyUpdate: (options: { relaunch: boolean }) => Promise<unknown>;
     closeDesktop: () => Promise<void>;
     confirm: (impact: AppQuitImpact) => Promise<AppQuitDecision>;
+    /**
+     * The `Restart to Update` confirmation, asked only when the restart would end running work, disconnect another
+     * client, or lose unsent review comments.
+     */
+    confirmUpdateRestart: (impact: AppQuitImpact) => Promise<'cancel' | 'restart'>;
     /**
      * Only asked when {@link AppQuitOptions.readPendingReviewComments} reports at least one pending comment and nothing
      * is running (or running work cannot be read); otherwise the comments are summarized inside
@@ -147,6 +164,66 @@ export function appQuitPrompt(impact: AppQuitImpact): AppQuitPrompt {
     };
 }
 
+/**
+ * Shown before `Restart to Update` ends something. Unlike {@link appQuitPrompt} there is no "keep tasks running" choice:
+ * the restart replaces the bundle Server Core runs from, so the only answers are to restart now or not at all.
+ */
+export function updateRestartPrompt(
+    impact: AppQuitImpact,
+): Omit<AppQuitPrompt, 'buttons'> & { buttons: [string, string] } {
+    const { otherClientCount, pendingReviewComments, running } = impact;
+    const runningTotal = runningWorkTotal(running);
+    const reviewCount = pendingReviewComments?.count ?? 0;
+    const extras = [
+        otherClientCount === 0
+            ? ''
+            : t(
+                  otherClientCount === 1
+                      ? 'desktop.quit.otherClientsOne'
+                      : 'desktop.quit.otherClientsOther',
+                  { count: otherClientCount },
+              ),
+        reviewCount === 0
+            ? ''
+            : t(reviewCount === 1 ? 'desktop.quit.reviewLossOne' : 'desktop.quit.reviewLossOther', {
+                  count: reviewCount,
+              }),
+    ].filter(Boolean);
+    return {
+        type: 'warning',
+        title: t('desktop.updateRestart.title'),
+        message:
+            runningTotal === 0
+                ? t('desktop.updateRestart.messageIdle')
+                : t(
+                      runningTotal === 1
+                          ? 'desktop.updateRestart.messageOne'
+                          : 'desktop.updateRestart.messageOther',
+                      { running: runningWorkPhrase(running) },
+                  ),
+        detail: [t('desktop.updateRestart.detail'), ...extras].join('\n\n'),
+        buttons: [t('desktop.updateRestart.restart'), t('desktop.dialog.cancel')],
+        /**
+         * Cancel is the default for the same reason as in `appQuitPrompt`: a mistaken Enter must not end running work.
+         */
+        defaultId: 1,
+        cancelId: 1,
+    };
+}
+
+async function confirmUpdateRestart(
+    dialog: Dialog,
+    window: BrowserWindow | undefined,
+    impact: AppQuitImpact,
+): Promise<'cancel' | 'restart'> {
+    const prompt = updateRestartPrompt(impact);
+    const result =
+        window && !window.isDestroyed()
+            ? await dialog.showMessageBox(window, prompt)
+            : await dialog.showMessageBox(prompt);
+    return result.response === 0 ? 'restart' : 'cancel';
+}
+
 export async function confirmAppQuit(
     dialog: Dialog,
     window: BrowserWindow | undefined,
@@ -225,9 +302,13 @@ export async function confirmPendingReviewCommentsQuit(
 export function createAppQuitPromptOptions(
     dialog: Dialog,
     getWindow: () => BrowserWindow | undefined,
-): Pick<AppQuitOptions, 'confirm' | 'confirmPendingReviewComments' | 'notifyStopFailure'> {
+): Pick<
+    AppQuitOptions,
+    'confirm' | 'confirmPendingReviewComments' | 'confirmUpdateRestart' | 'notifyStopFailure'
+> {
     return {
         confirm: (impact) => confirmAppQuit(dialog, getWindow(), impact),
+        confirmUpdateRestart: (impact) => confirmUpdateRestart(dialog, getWindow(), impact),
         confirmPendingReviewComments: (summary) =>
             confirmPendingReviewCommentsQuit(dialog, getWindow(), summary),
         notifyStopFailure: () => notifyAppQuitStopFailure(dialog, getWindow()),
@@ -326,10 +407,41 @@ async function confirmReviewOnly(
 }
 
 /**
+ * The `Restart to Update` decision: after the unsaved-Editor question, one {@link updateRestartPrompt} when the restart
+ * would end anything, otherwise none. It never keeps Server Core running. A failing dialog cancels rather than
+ * restarts: unlike a quit, nothing traps the user, who can simply ask again.
+ */
+async function decideUpdateRestart(options: AppQuitOptions): Promise<AppQuitDecision> {
+    if ((await options.decideUnsavedEditors()) === 'cancel') return 'cancel';
+    const [pendingReviewComments, status] = await Promise.all([
+        readPendingReviewSummary(options),
+        readQuitStatus(options),
+    ]);
+    const impact: AppQuitImpact = {
+        running: status?.running ?? { terminals: 0, chats: 0 },
+        otherClientCount: Math.max(0, (status?.clientCount ?? 1) - 1),
+        ...(pendingReviewComments && { pendingReviewComments }),
+    };
+    if (
+        !pendingReviewComments &&
+        impact.otherClientCount === 0 &&
+        runningWorkTotal(impact.running) === 0
+    )
+        return 'stop';
+    try {
+        return (await options.confirmUpdateRestart(impact)) === 'restart' ? 'stop' : 'cancel';
+    } catch (error) {
+        reportFailure(options, 'decision', error);
+        return 'cancel';
+    }
+}
+
+/**
  * Shows at most one confirmation after the unsaved-Editor decision: running work and unsent review comments share
  * {@link appQuitPrompt}, and the review-only prompt appears only when nothing is running to ask about.
  */
 async function decideAppQuit(options: AppQuitOptions): Promise<AppQuitDecision> {
+    if (options.quitIntent() === 'update') return decideUpdateRestart(options);
     if (options.quitIntent() !== 'user') return 'keep-running';
 
     if ((await options.decideUnsavedEditors()) === 'cancel') return 'cancel';
@@ -378,6 +490,10 @@ export async function resolveAppQuit(options: AppQuitOptions): Promise<AppQuitOu
         const stopFailure = await attempt(options, 'stop', options.stopServer);
         if (stopFailure) await attempt(options, 'notification', options.notifyStopFailure);
         await attempt(options, 'disconnect', options.closeDesktop);
+        // After a failed stop the installer still runs: the next launch replaces a Server Core left on the old build.
+        await attempt(options, 'update', () =>
+            options.applyUpdate({ relaunch: options.quitIntent() === 'update' }),
+        );
         options.exit();
         return stopFailure ? 'stop-failed' : 'stopped';
     }

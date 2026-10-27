@@ -314,6 +314,7 @@ export const methods = {
     'updates.download': { ...desktopWrite, params: noParameters, result: updateStateSchema },
     'updates.cancel': { ...desktopControl, params: noParameters, result: updateStateSchema },
     'updates.open': { ...desktopControl, params: noParameters, result: updateStateSchema },
+    'updates.install': { ...desktopControl, params: noParameters, result: updateStateSchema },
     'project.create': {
         ...desktopWrite,
         params: z.object({

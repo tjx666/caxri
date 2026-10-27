@@ -16,6 +16,11 @@ import { readWindowState } from './window-placement';
 interface MainQuitWiringOptions {
     caxriBot(): CaxriBotWindowController | undefined;
     /**
+     * Starts a staged in-place update right before Main exits; see `AppQuitOptions.applyUpdate`. Resolves whether the
+     * installer started.
+     */
+    applyUpdate(options: { relaunch: boolean }): Promise<boolean>;
+    /**
      * The window a quit prompt attaches to.
      */
     focusedWindow: () => BrowserWindow | undefined;
@@ -36,6 +41,20 @@ interface MainQuitWiringOptions {
 }
 
 /**
+ * What the next quit is for: `user` until a flow that starts a quit (a relaunch, Restart to Update, a system shutdown)
+ * marks it, and back to `user` when that flow's quit is cancelled.
+ */
+export function createQuitIntent() {
+    let intent: AppQuitIntent = 'user';
+    return {
+        current: (): AppQuitIntent => intent,
+        set: (next: AppQuitIntent): void => {
+            intent = next;
+        },
+    };
+}
+
+/**
  * Composes Main's quit handler from the live window and connection state the composition root owns.
  */
 export function createMainQuitHandler(options: MainQuitWiringOptions) {
@@ -44,6 +63,16 @@ export function createMainQuitHandler(options: MainQuitWiringOptions) {
      */
     const server = (): DesktopServerConnection => options.supervisor()!;
     return createAppQuitHandler({
+        applyUpdate: async (update) => {
+            let isInstalling = false;
+            try {
+                isInstalling = await options.applyUpdate(update);
+            } finally {
+                // The installer reopens Caxri itself. Without one, a confirmed restart must still reopen the old build
+                // rather than leave the user with no app; the failure itself is reported by the quit flow.
+                if (!isInstalling && update.relaunch) app.relaunch();
+            }
+        },
         acceptQuit: () => {
             options.onAccepted();
             options.supervisor()?.markQuitting();

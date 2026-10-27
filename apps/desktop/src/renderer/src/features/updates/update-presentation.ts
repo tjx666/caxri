@@ -112,19 +112,25 @@ export function describeUpdateStatus(
         case 'ready':
             return {
                 title: t('updates.status.ready.title', { version: state.version }),
-                description: t('updates.status.ready.description'),
+                description: t(
+                    state.installMode === 'restart'
+                        ? 'updates.status.ready.restartDescription'
+                        : 'updates.status.ready.description',
+                ),
             };
         case 'error':
             return {
                 title: t('updates.status.error.title'),
                 description: t(
-                    state.failureKind === 'network'
-                        ? 'updates.status.error.network'
-                        : state.failureKind === 'integrity'
-                          ? 'updates.status.error.integrity'
-                          : state.action === 'open'
-                            ? 'updates.status.error.open'
-                            : 'updates.status.error.generic',
+                    state.action === 'install'
+                        ? 'updates.status.error.install'
+                        : state.failureKind === 'network'
+                          ? 'updates.status.error.network'
+                          : state.failureKind === 'integrity'
+                            ? 'updates.status.error.integrity'
+                            : state.action === 'open'
+                              ? 'updates.status.error.open'
+                              : 'updates.status.error.generic',
                 ),
             };
     }
@@ -192,17 +198,24 @@ export function describeUpdateChip(
             kind: 'downloading',
         };
     }
-    if (state.status === 'ready')
+    if (state.status === 'ready') {
+        const isRestart = state.installMode === 'restart';
         return {
-            label: t('updates.chip.ready.label'),
-            description: t('updates.chip.ready.description', { version: state.version }),
+            label: t(isRestart ? 'updates.chip.ready.restartLabel' : 'updates.chip.ready.label'),
+            description: t(
+                isRestart
+                    ? 'updates.chip.ready.restartDescription'
+                    : 'updates.chip.ready.description',
+                { version: state.version },
+            ),
             kind: 'ready',
         };
+    }
     if (state.status === 'error' && state.action !== 'check' && state.version)
         return {
             label: t('updates.chip.failed.label'),
             description: t(
-                state.action === 'open'
+                state.action === 'open' || state.action === 'install'
                     ? 'updates.chip.failed.installDescription'
                     : 'updates.chip.failed.downloadDescription',
                 { version: state.version },
@@ -212,49 +225,63 @@ export function describeUpdateChip(
     return undefined;
 }
 
-export interface UpdateAnnouncement {
-    version: string;
-    message: string;
-}
-
 /**
- * Whether automatic discovery may interrupt, and with what.
+ * The release automatic discovery may start downloading on its own, or `undefined`.
  *
- * Caxri is a tool people open while already doing something else, so a release found on its own raises a notification
- * and nothing more; the modal dialog is reserved for a user who explicitly asked. Three conditions have to hold, and
- * each maps to a way this feature used to nag:
+ * Caxri is a tool people open while already doing something else, so a release found on its own is fetched quietly in
+ * the background and the user hears about it once, when it is ready to install (`resolveReadyAnnouncement`); the modal
+ * dialog is reserved for a user who explicitly asked. Three conditions have to hold, and each maps to a way this
+ * feature used to nag:
  *
  * - The state is `available`. A download cancelled back to `available` is republished, which is why the check below is
  *   not "did the status change".
- * - This process has not offered the version yet (`announced`). That is what makes a window reload, and that same
- *   cancelled download, silent, and what keeps `Close` meaning "not now" rather than "never".
+ * - This process has not offered the version yet (`announced`). That is what keeps a cancelled download cancelled and a
+ *   window reload from starting a second one.
  * - The version is not covered by `updates.skippedVersion`, which outlives the process on purpose.
  */
-export function resolveUpdateAnnouncement(
+export function resolveAutomaticDownload(
     state: UpdateState | undefined,
     skippedVersion?: string | null,
-): UpdateAnnouncement | undefined {
+): string | undefined {
     if (state?.status !== 'available') return undefined;
     if (state.announced === true) return undefined;
     if (isUpdateVersionSkipped(state.version, skippedVersion)) return undefined;
+    return state.version;
+}
+
+/**
+ * The notification for a verified update, raised once per version and process (`announced`). A restart-ready update
+ * offers `Restart to Update` directly; a manual one opens the dialog, whose DMG instructions do not fit a notification.
+ * The skip is not consulted: a `ready` update is one the user or the automatic download already chose to fetch, and the
+ * dialog's own skip covers only `available`.
+ */
+export function resolveReadyAnnouncement(
+    state: UpdateState | undefined,
+): { message: string; mode: 'manual' | 'restart'; version: string } | undefined {
+    if (state?.status !== 'ready' || state.announced === true) return undefined;
     return {
         version: state.version,
-        message: translate('updates.announcement.message', {
-            version: state.version,
-            currentVersion: state.currentVersion,
-        }),
+        mode: state.installMode,
+        message: translate(
+            state.installMode === 'restart'
+                ? 'updates.ready.message'
+                : 'updates.ready.manualMessage',
+            { version: state.version },
+        ),
     };
 }
 
 /**
  * Whether the unsigned-install notice belongs on screen. It explains what the user has to do with a downloaded DMG, so
- * it appears exactly while a specific release is in play (including a failed download, where the file may still be on
- * disk) and never while Caxri is merely checking or already current.
+ * it appears only once replacing the app by hand is actually the next step: a verified update that cannot restart into
+ * itself (`installMode: 'manual'`), or a failure with a release in play, where the DMG is the fallback. While the
+ * update is still downloading Caxri does not know yet, and most installs never need the notice: `Restart to Update`
+ * replaces the app without any macOS prompt.
  */
 export function shouldExplainUnsignedInstall(state: UpdateState | undefined): boolean {
     if (!state) return false;
-    if (state.status === 'error') return Boolean(state.version);
-    return ['available', 'downloading', 'ready'].includes(state.status);
+    if (state.status === 'error') return Boolean(state.version) && state.action !== 'check';
+    return state.status === 'ready' && state.installMode === 'manual';
 }
 
 const RELEASES_URL = 'https://github.com/tjx666/caxri/releases';

@@ -113,8 +113,11 @@ Agents start with full access: they can edit files and run commands without aski
 ## Updating
 
 Caxri checks GitHub for a new release when it launches and every few hours afterwards. You can also
-choose **Caxri → Check for Updates…** at any time. Finish your running tasks and quit Caxri before
-replacing the app. Updating does not delete your profile or Project folders. Contributor release
+choose **Caxri → Check for Updates…** at any time. A new version downloads in the background; when it
+is ready, choose **Restart to Update**, or simply quit Caxri and the next launch is the new version.
+If Caxri cannot replace itself (for example, it runs from the disk image), the dialog explains how to
+install the downloaded disk image by hand. Updating does not delete your profile or Project folders.
+See [Desktop updates](docs/desktop-updates.md). Contributor release
 options are in [RELEASING.md](RELEASING.md).
 
 ## Command line for app users

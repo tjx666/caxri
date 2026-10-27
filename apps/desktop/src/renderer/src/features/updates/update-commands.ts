@@ -8,7 +8,8 @@ import { pushToast, tryCommand } from '../../stores/toasts';
 import { useWorkbenchStore } from '../../stores/workbench';
 import {
     releaseNotesUrl,
-    resolveUpdateAnnouncement,
+    resolveAutomaticDownload,
+    resolveReadyAnnouncement,
     resolveUpdatedNotice,
 } from './update-presentation';
 
@@ -53,11 +54,12 @@ async function recordAcknowledgement(): Promise<void> {
 }
 
 /**
- * Tells Main this process has already offered the available version to the user, so a window reload (or a download
- * cancelled back to `available`) re-reads the same release without prompting again.
+ * Tells Main this process has already offered the available or ready version to the user, so a window reload (or a
+ * download cancelled back to `available`) re-reads the same release without prompting again.
  */
 function acknowledgeAvailableUpdate(): void {
-    if (useUpdateStore.getState().state?.status !== 'available') return;
+    const status = useUpdateStore.getState().state?.status;
+    if (status !== 'available' && status !== 'ready') return;
     void recordAcknowledgement();
 }
 
@@ -104,6 +106,14 @@ export function cancelUpdateDownload(): void {
 
 export function openDownloadedUpdate(): void {
     void requestState(translate('updates.error.open'), () => caxri.request('updates.open'));
+}
+
+/**
+ * `Restart to Update`. Main asks about running work first; a confirmed restart exits the app before this request
+ * settles, so only a cancel (or a failure) ever comes back.
+ */
+export function installUpdate(): void {
+    void requestState(translate('updates.error.install'), () => caxri.request('updates.install'));
 }
 
 /**
@@ -166,27 +176,57 @@ function announceUpdatedVersion(state: UpdateState | undefined): void {
     void recordAcknowledgement();
 }
 
-function announceAvailableUpdate(state: UpdateState | undefined): void {
-    const announcement = resolveUpdateAnnouncement(state, skippedVersion());
-    if (!announcement) return;
-    pushToast('info', announcement.message, {
-        action: {
-            id: 'updates.show',
-            accessibleLabel: translate('updates.announcement.showLabel', {
-                version: announcement.version,
-            }),
-        },
-    });
+/**
+ * Starts the background download of a release found on its own. Acknowledging first is what keeps a reload, or a
+ * download the user cancels from the dialog, from starting it again in this process. While the dialog is open the user
+ * is already deciding (Download, Skip, Close), so the release is only acknowledged.
+ */
+function downloadAvailableUpdate(state: UpdateState | undefined): void {
+    if (!resolveAutomaticDownload(state, skippedVersion())) return;
     acknowledgeAvailableUpdate();
+    if (!useUpdateStore.getState().open) downloadUpdate();
 }
 
 /**
- * Keeps the update surfaces synchronized with Main-owned check and download state, and raises the notification that
- * replaced the automatic modal.
+ * Raises the one notification the update lifecycle allows itself: the verified release is ready. The dialog, when it is
+ * open, already shows the same state and action, so the release is only acknowledged then.
+ */
+function announceReadyUpdate(state: UpdateState | undefined): void {
+    const announcement = resolveReadyAnnouncement(state);
+    if (!announcement) return;
+    if (!useUpdateStore.getState().open)
+        pushToast('info', announcement.message, {
+            action:
+                announcement.mode === 'restart'
+                    ? {
+                          id: 'updates.install',
+                          accessibleLabel: translate('updates.ready.restartLabel', {
+                              version: announcement.version,
+                          }),
+                      }
+                    : {
+                          id: 'updates.show',
+                          accessibleLabel: translate('updates.announcement.showLabel', {
+                              version: announcement.version,
+                          }),
+                      },
+        });
+    acknowledgeAvailableUpdate();
+}
+
+function announceUpdateState(state: UpdateState | undefined): void {
+    announceUpdatedVersion(state);
+    downloadAvailableUpdate(state);
+    announceReadyUpdate(state);
+}
+
+/**
+ * Keeps the update surfaces synchronized with Main-owned check and download state, downloads a release found on its own
+ * in the background, and raises the one notification once it is ready to install.
  *
  * The announcement waits for the Server snapshot that carries `updates.skippedVersion`. Main answers `updates.getState`
  * from memory while the snapshot is still in flight, so announcing immediately would treat "the skip is not loaded yet"
- * as "nothing is skipped" and prompt for exactly the release the user told Caxri to stop offering, most visibly right
+ * as "nothing is skipped" and download exactly the release the user told Caxri to stop offering, most visibly right
  * after a window reload, which is when both reads race.
  */
 export function subscribeUpdateState(): () => void {
@@ -200,8 +240,7 @@ export function subscribeUpdateState(): () => void {
             return;
         }
         isAnnouncementDeferred = false;
-        announceUpdatedVersion(state);
-        announceAvailableUpdate(state);
+        announceUpdateState(state);
     }
 
     async function loadState(): Promise<void> {
@@ -222,9 +261,7 @@ export function subscribeUpdateState(): () => void {
         if (!isActive || !isAnnouncementDeferred || workbench.bootstrap === undefined) return;
         isAnnouncementDeferred = false;
         // Re-read rather than replaying the held state: a newer one may have landed while the snapshot was in flight.
-        const { state } = useUpdateStore.getState();
-        announceUpdatedVersion(state);
-        announceAvailableUpdate(state);
+        announceUpdateState(useUpdateStore.getState().state);
     });
     return () => {
         isActive = false;

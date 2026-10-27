@@ -32,7 +32,11 @@ import { openProcessExplorer } from '../features/process-explorer/process-explor
 import { unarchiveSession } from '../features/session/session-archive-commands';
 import { createTerminalForSession } from '../features/terminal/terminal-commands';
 import { terminalToastActionHandlers } from '../features/terminal/terminal-toast-actions';
-import { openReleaseNotes, showUpdateDialog } from '../features/updates/update-commands';
+import {
+    installUpdate,
+    openReleaseNotes,
+    showUpdateDialog,
+} from '../features/updates/update-commands';
 import { translate } from '../i18n';
 import { caxri } from '../lib/caxri';
 import { openExternalUrl } from '../lib/external-link';
@@ -151,6 +155,7 @@ export const toastActionHandlers: ToastActionHandlers = {
     },
     ...terminalToastActionHandlers,
     'updates.show': { run: showUpdateDialog },
+    'updates.install': { run: installUpdate },
     'updates.releaseNotes': { run: openReleaseNotes },
     'workbench.undoFollowedRoot': {
         /**

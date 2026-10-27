@@ -2,14 +2,21 @@ import { CaxriError } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { AppQuitOptions, AppQuitStatus } from '../app-quit';
-import { createAppQuitHandler, readAppQuitStatus, resolveAppQuit } from '../app-quit';
+import {
+    createAppQuitHandler,
+    readAppQuitStatus,
+    resolveAppQuit,
+    updateRestartPrompt,
+} from '../app-quit';
 
 function options(overrides: Partial<AppQuitOptions> = {}): AppQuitOptions {
     return {
         acceptQuit: vi.fn(),
+        applyUpdate: vi.fn().mockResolvedValue(false),
         closeDesktop: vi.fn().mockResolvedValue(undefined),
         confirm: vi.fn().mockResolvedValue('keep-running'),
         confirmPendingReviewComments: vi.fn().mockResolvedValue('discard'),
+        confirmUpdateRestart: vi.fn().mockResolvedValue('restart'),
         decideUnsavedEditors: vi.fn().mockResolvedValue('continue'),
         detachAll: vi.fn().mockResolvedValue(undefined),
         exit: vi.fn(),
@@ -325,6 +332,127 @@ describe('resolveAppQuit', () => {
         expect(target.logFailure).toHaveBeenNthCalledWith(2, 'error', 'stop', 'stop failed');
         expect(target.notifyStopFailure).toHaveBeenCalledOnce();
         expect(target.exit).toHaveBeenCalledOnce();
+    });
+});
+
+describe('resolveAppQuit installs a staged update', () => {
+    it('installs silently after an ordinary quit that stopped Server Core', async () => {
+        const calls: string[] = [];
+        const target = options({
+            stopServer: () => {
+                calls.push('stop');
+                return Promise.resolve();
+            },
+            applyUpdate: (update) => {
+                calls.push(`apply:${update.relaunch}`);
+                return Promise.resolve(true);
+            },
+            exit: () => calls.push('exit'),
+        });
+
+        await expect(resolveAppQuit(target)).resolves.toBe('stopped');
+
+        expect(calls).toEqual(['stop', 'apply:false', 'exit']);
+    });
+
+    it('never installs when the quit keeps tasks running, because Server Core still runs from the bundle', async () => {
+        const target = options({
+            readStatus: vi
+                .fn()
+                .mockResolvedValue({ running: { terminals: 1, chats: 0 }, clientCount: 1 }),
+        });
+
+        await expect(resolveAppQuit(target)).resolves.toBe('kept-running');
+
+        expect(target.applyUpdate).not.toHaveBeenCalled();
+    });
+});
+
+describe('resolveAppQuit for Restart to Update', () => {
+    it('restarts without a prompt when nothing would be ended', async () => {
+        const target = options({ quitIntent: () => 'update' });
+
+        await expect(resolveAppQuit(target)).resolves.toBe('stopped');
+
+        expect(target.confirmUpdateRestart).not.toHaveBeenCalled();
+        expect(target.confirm).not.toHaveBeenCalled();
+        expect(target.stopServer).toHaveBeenCalledOnce();
+        expect(target.applyUpdate).toHaveBeenCalledWith({ relaunch: true });
+        expect(target.exit).toHaveBeenCalledOnce();
+    });
+
+    it('asks before ending running work and stops Server Core once the user agrees', async () => {
+        const target = options({
+            quitIntent: () => 'update',
+            readStatus: vi
+                .fn()
+                .mockResolvedValue({ running: { terminals: 1, chats: 2 }, clientCount: 1 }),
+        });
+
+        await expect(resolveAppQuit(target)).resolves.toBe('stopped');
+
+        expect(target.confirmUpdateRestart).toHaveBeenCalledWith({
+            running: { terminals: 1, chats: 2 },
+            otherClientCount: 0,
+        });
+        expect(target.confirm).not.toHaveBeenCalled();
+        expect(target.detachAll).not.toHaveBeenCalled();
+        expect(target.applyUpdate).toHaveBeenCalledWith({ relaunch: true });
+    });
+
+    it('does nothing when the user cancels the restart', async () => {
+        const target = options({
+            quitIntent: () => 'update',
+            confirmUpdateRestart: vi.fn().mockResolvedValue('cancel'),
+            readStatus: vi
+                .fn()
+                .mockResolvedValue({ running: { terminals: 0, chats: 0 }, clientCount: 2 }),
+        });
+
+        await expect(resolveAppQuit(target)).resolves.toBe('cancelled');
+
+        expect(target.acceptQuit).not.toHaveBeenCalled();
+        expect(target.stopServer).not.toHaveBeenCalled();
+        expect(target.applyUpdate).not.toHaveBeenCalled();
+        expect(target.exit).not.toHaveBeenCalled();
+    });
+
+    it('cancels instead of restarting when the confirmation itself fails', async () => {
+        const target = options({
+            quitIntent: () => 'update',
+            confirmUpdateRestart: vi.fn().mockRejectedValue(new Error('dialog failed')),
+            readStatus: vi
+                .fn()
+                .mockResolvedValue({ running: { terminals: 1, chats: 0 }, clientCount: 1 }),
+        });
+
+        await expect(resolveAppQuit(target)).resolves.toBe('cancelled');
+
+        expect(target.exit).not.toHaveBeenCalled();
+    });
+
+    it('keeps unsaved Editor buffers ahead of the restart', async () => {
+        const target = options({
+            quitIntent: () => 'update',
+            decideUnsavedEditors: vi.fn().mockResolvedValue('cancel'),
+        });
+
+        await expect(resolveAppQuit(target)).resolves.toBe('cancelled');
+
+        expect(target.stopServer).not.toHaveBeenCalled();
+    });
+
+    it('words the prompt around the restart and defaults to Cancel', () => {
+        const prompt = updateRestartPrompt({
+            running: { terminals: 1, chats: 0 },
+            otherClientCount: 1,
+        });
+
+        expect(prompt.buttons).toEqual(['Restart and Update', 'Cancel']);
+        expect(prompt.defaultId).toBe(1);
+        expect(prompt.cancelId).toBe(1);
+        expect(prompt.message).toContain('Restart Caxri to update');
+        expect(prompt.detail).toContain('disconnect');
     });
 });
 

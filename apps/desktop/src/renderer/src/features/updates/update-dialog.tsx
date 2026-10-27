@@ -2,7 +2,15 @@ import { useEffect } from 'react';
 
 import type { UpdateState } from '@caxri/protocol';
 import { isUpdateVersionSkipped } from '@caxri/protocol';
-import { CheckCircle2, Download, ExternalLink, FolderOpen, RefreshCw, XCircle } from 'lucide-react';
+import {
+    CheckCircle2,
+    Download,
+    ExternalLink,
+    FolderOpen,
+    RefreshCw,
+    RotateCw,
+    XCircle,
+} from 'lucide-react';
 
 import { Alert } from '../../components/ui/alert';
 import { Button } from '../../components/ui/button';
@@ -23,6 +31,7 @@ import {
     clearSkippedUpdateVersion,
     closeUpdateDialog,
     downloadUpdate,
+    installUpdate,
     openDownloadedUpdate,
     openReleaseNotes,
     skipUpdateVersion,
@@ -71,6 +80,20 @@ function UpdateActions({
         return (
             <Button variant="secondary" onClick={cancelUpdateDownload}>
                 {t('updates.action.cancelDownload')}
+            </Button>
+        );
+    if (state.status === 'ready' && state.installMode === 'restart')
+        return (
+            <Button onClick={installUpdate}>
+                <RotateCw aria-hidden="true" size={14} />
+                {t('updates.action.restartToUpdate')}
+            </Button>
+        );
+    if (state.status === 'error' && state.action === 'install')
+        return (
+            <Button onClick={installUpdate}>
+                <RotateCw aria-hidden="true" size={14} />
+                {t('updates.action.retryInstall')}
             </Button>
         );
     if (state.status === 'ready' || (state.status === 'error' && state.action === 'open'))
@@ -134,7 +157,7 @@ export function UpdateDialog() {
                     <DialogTitle>{t('updates.dialog.title')}</DialogTitle>
                     <DialogDescription>{t('updates.dialog.description')}</DialogDescription>
                 </DialogHeader>
-                <div className="space-y-4 p-4">
+                <div className="flex flex-col gap-4 p-4">
                     <div className="flex items-start gap-3">
                         <UpdateStatusIcon state={state} />
                         <div className="min-w-0">

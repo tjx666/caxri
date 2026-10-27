@@ -16,7 +16,6 @@ import { app, dialog, Menu, powerMonitor, screen } from 'electron';
 
 import { installAgentChatMediaProtocol } from './agent-chat/media-protocol';
 import { applyDevelopmentAppIdentity } from './app-icon';
-import type { AppQuitIntent } from './app-quit';
 import { installBeforeQuitTrigger, installSignalQuitTriggers } from './app-quit-triggers';
 import { updateArgvConfig } from './argv-config';
 import { reopenAuxiliaryWindowsAtStartup } from './auxiliary-window-lifecycle';
@@ -44,7 +43,7 @@ import {
     createSshHostWindowMenu,
 } from './local-workbench-environment';
 import { createMainMethodHandler } from './main-methods';
-import { createMainQuitHandler } from './main-quit-wiring';
+import { createMainQuitHandler, createQuitIntent } from './main-quit-wiring';
 import { buildAppMenuTemplate } from './menu';
 import { createMenuRefreshController, createMenuStateLoader } from './menu-refresh';
 import type { DesktopNotifications } from './notifications/desktop-notifications';
@@ -148,7 +147,7 @@ if (ownsProfileInstance) {
      */
     let sshHostEnvironments: SshHostEnvironments | undefined;
     let isQuitStarted = false;
-    let quitIntent: AppQuitIntent = 'user';
+    const quitIntent = createQuitIntent();
     const grantedRoots = new ProjectRootGrants();
     const rendererReadiness = new RendererReadiness();
     const e2eWindowMode = resolveE2EWindowMode(process.env);
@@ -213,9 +212,7 @@ if (ownsProfileInstance) {
     }
     const startupFailure = createStartupFailureWiring({
         logDirectory: desktopProfile.logDirectory,
-        prepareRelaunch: () => {
-            quitIntent = 'relaunch';
-        },
+        prepareRelaunch: () => quitIntent.set('relaunch'),
         readSystemNotificationsEnabled: async () =>
             (await supervisor.request('settings.get')).value['agents.notifications.enabled'],
         userDataPath: desktopProfile.userDataPath,
@@ -234,9 +231,7 @@ if (ownsProfileInstance) {
         isE2E: process.env.CAXRI_E2E === '1',
         isQuitting: () => isQuitStarted,
         logger: () => mainLogger,
-        prepareRelaunch: () => {
-            quitIntent = 'relaunch';
-        },
+        prepareRelaunch: () => quitIntent.set('relaunch'),
         sendEvent,
         updateArgvConfig: (changes) => updateArgvConfig(desktopProfile.userDataPath, changes),
     });
@@ -249,6 +244,9 @@ if (ownsProfileInstance) {
     });
     const requestAppQuit = createMainQuitHandler({
         caxriBot: () => caxriBot,
+        // `updateService` is assigned on ready, and a quit can arrive before that, when nothing can have been staged yet.
+        applyUpdate: async (update) =>
+            (updateService as UpdateService | undefined)?.applyOnExit(update) ?? false,
         focusedWindow: () => workbenchWindows.focusedOrPrimary(),
         logger: () => mainLogger,
         mainWindow: () => mainWindow,
@@ -258,7 +256,7 @@ if (ownsProfileInstance) {
             notifications?.dispose();
         },
         processExplorer: () => processExplorer,
-        quitIntent: () => quitIntent,
+        quitIntent: quitIntent.current,
         sshHostEnvironments: () => sshHostEnvironments,
         // Unset before ready.
         supervisor: () => supervisor,
@@ -312,12 +310,8 @@ if (ownsProfileInstance) {
                 subscribeResume: (onResume) => powerMonitor.on('resume', onResume),
             });
             void offerMoveToApps({
-                prepareRelaunch: () => {
-                    quitIntent = 'relaunch';
-                },
-                restoreQuitIntent: () => {
-                    quitIntent = 'user';
-                },
+                prepareRelaunch: () => quitIntent.set('relaunch'),
+                restoreQuitIntent: () => quitIntent.set('user'),
                 userDataPath: desktopProfile.userDataPath,
             });
         },
@@ -513,6 +507,12 @@ if (ownsProfileInstance) {
             updateService = createDesktopUpdateService({
                 currentVersion: caxriVersion,
                 logger: () => mainLogger,
+                restartToUpdate: async () => {
+                    quitIntent.set('update');
+                    const outcome = await requestAppQuit(); // A pending ordinary quit may answer instead.
+                    if (outcome !== 'stopped' && quitIntent.current() === 'update')
+                        quitIntent.set('user');
+                },
                 sendEvent,
                 userDataPath,
             });
@@ -558,7 +558,7 @@ if (ownsProfileInstance) {
                     zoomLevel: () => windowZoom.level(),
                 }));
             supervisor.onEvent(sendEvent);
-            wirePowerWake(powerMonitor, () => (quitIntent = 'system-shutdown'), supervisor);
+            wirePowerWake(powerMonitor, () => quitIntent.set('system-shutdown'), supervisor);
             installSignalQuitTriggers(quitTriggers);
             const attaching = startupFailure.startServer(supervisor, mainLogger);
             // The window loads while Server Core starts; its IPC waits on `serverReady`, and it shows once placed.
