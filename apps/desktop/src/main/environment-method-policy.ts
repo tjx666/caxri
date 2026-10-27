@@ -38,6 +38,10 @@ const environmentMethodScopes = {
      */
     'benchmark.shareImage.copy': 'local-only',
     'benchmark.shareImage.save': 'local-only',
+    /**
+     * Copied text lands on the clipboard of the Mac showing the window, whichever Server the window talks to.
+     */
+    'clipboard.write': 'any',
     'bugReport.captureScreenshot': 'local-only',
     'bugReport.saveScreenshot': 'local-only',
     /**

@@ -3,6 +3,7 @@ import { useEffect, useId, useRef } from 'react';
 import { Workflow } from 'lucide-react';
 
 import { useTranslation } from '../../i18n';
+import { textClipboard } from '../../lib/clipboard';
 import { writeToClipboardWithFeedback } from '../copy-feedback';
 import { BlockFullscreenButton, BlockFullscreenDialog } from './block-fullscreen-dialog';
 import { CopyIconButton } from './copy-icon-button';
@@ -52,7 +53,7 @@ export function DiagramBlock({
     const title = t('core.block.diagram');
     const copy = (
         <CopyIconButton
-            copy={() => writeToClipboardWithFeedback(navigator.clipboard, source)}
+            copy={() => writeToClipboardWithFeedback(textClipboard, source)}
             label={t('core.copy.diagramSource')}
         />
     );

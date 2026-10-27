@@ -100,8 +100,8 @@ export const desktopExclusiveSpecs: Readonly<Record<string, DesktopExclusiveClas
         why: 'Asserts an approved command row shows no duration, i.e. the approval round trip stays under one real second.',
     },
     'e2e/agent-chat-selection.e2e.ts': {
-        reasons: ['wall-clock'],
-        why: 'Asserts the "Selection copied" toast before its real 4s auto-dismissal.',
+        reasons: ['clipboard', 'wall-clock'],
+        why: 'Requests the system pasteboard (clipboard: true) and asserts the "Selection copied" toast before its real 4s auto-dismissal.',
     },
     'e2e/agent-chat-surface-switch.e2e.ts': {
         reasons: ['clipboard'],

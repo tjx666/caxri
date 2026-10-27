@@ -4,6 +4,7 @@ import { notifyListeners } from '@caxri/utils';
 
 import type { CopyFeedbackStatus } from '../components/copy-feedback';
 import { COPY_FEEDBACK_RESET_MS, writeToClipboardWithFeedback } from '../components/copy-feedback';
+import { textClipboard } from '../lib/clipboard';
 import type { ToastAction, ToastActionId } from './toast-actions';
 
 /**
@@ -57,7 +58,7 @@ function publish(key: string, status: CopyFeedbackStatus): void {
 export async function copyWithToastFeedback(
     key: string,
     text: string,
-    clipboard: Pick<Clipboard, 'writeText'> = navigator.clipboard,
+    clipboard: Pick<Clipboard, 'writeText'> = textClipboard,
 ): Promise<CopyFeedbackStatus> {
     const status = await writeToClipboardWithFeedback(clipboard, text);
     clearTimeout(timers.get(key));

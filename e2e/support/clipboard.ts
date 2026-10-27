@@ -32,6 +32,11 @@ export interface ClipboardCapability {
     claimImage: () => Promise<void>;
     claimText: (expectedText: string) => Promise<void>;
     hasImage: () => Promise<boolean>;
+    /**
+     * Makes Main reject every later plain-text clipboard write, the path all Renderer copies take, so a spec can
+     * exercise a copy failure without touching the system clipboard.
+     */
+    refuseTextWrites: () => Promise<void>;
     restoreOutcome: () => Promise<ClipboardRestoreOutcome | undefined>;
     textEquals: (expectedText: string) => Promise<boolean>;
     writePngBase64: (value: string) => Promise<void>;
@@ -505,6 +510,11 @@ export function createClipboardCapability(
                 return items.some((item) => item.types.some((type) => type.startsWith('image/')));
             }),
         metadata: snapshot.metadata,
+        refuseTextWrites: () =>
+            app.evaluate(({ clipboard }) => {
+                clipboard.writeText = () =>
+                    Promise.reject(new Error('Clipboard write refused by the E2E fixture'));
+            }),
         restoreOutcome: () => snapshot.restoreOutcome(),
         textEquals: (expectedText) =>
             app.evaluate(

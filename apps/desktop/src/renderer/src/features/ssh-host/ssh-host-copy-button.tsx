@@ -8,6 +8,7 @@ import {
 } from '../../components/copy-feedback';
 import { Button } from '../../components/ui/button';
 import { useTranslation } from '../../i18n';
+import { textClipboard } from '../../lib/clipboard';
 
 /**
  * A secondary button that copies `text` and says "Copied" (or that copying failed) in its own label for a moment. The
@@ -26,7 +27,7 @@ export function SshHostCopyButton({ label, text }: { label: string; text: string
             variant="secondary"
             onClick={async () => {
                 // Resolves to a status and never rejects.
-                setStatus(await writeToClipboardWithFeedback(navigator.clipboard, text));
+                setStatus(await writeToClipboardWithFeedback(textClipboard, text));
             }}
         >
             {copyButtonLabel(status, label, t)}

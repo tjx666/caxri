@@ -3,6 +3,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { dismissToast, getToasts } from '../stores/toasts';
 import { copyFileName, copyFilePath, relativePathRoot } from './copy-file-path';
 
+const clipboard = vi.hoisted(() => ({
+    writeText: vi.fn<(text: string) => Promise<void>>(),
+}));
+vi.mock('./clipboard', () => ({
+    textClipboard: { writeText: (text: string) => clipboard.writeText(text) },
+    writeClipboardText: (text: string) => clipboard.writeText(text),
+}));
+
 describe('relativePathRoot', () => {
     it.each([
         { basis: 'a plain file', path: '/project/src/index.ts' },
@@ -30,7 +38,7 @@ describe('copyFilePath', () => {
 
     it('copies absolute and Project-relative paths with matching success messages', async () => {
         const writeText = vi.fn<(value: string) => Promise<void>>().mockResolvedValue(undefined);
-        vi.stubGlobal('navigator', { clipboard: { writeText } });
+        clipboard.writeText = writeText;
 
         await copyFilePath('/project/src/index.ts');
         expect(writeText).toHaveBeenLastCalledWith('/project/src/index.ts');
@@ -43,7 +51,7 @@ describe('copyFilePath', () => {
 
     it('reports a path outside the selected Project without writing it', async () => {
         const writeText = vi.fn<(value: string) => Promise<void>>().mockResolvedValue(undefined);
-        vi.stubGlobal('navigator', { clipboard: { writeText } });
+        clipboard.writeText = writeText;
 
         await copyFilePath('/other/index.ts', '/project');
 
@@ -61,7 +69,7 @@ describe('copyFileName', () => {
 
     it('copies only the final path segment', async () => {
         const writeText = vi.fn<(value: string) => Promise<void>>().mockResolvedValue(undefined);
-        vi.stubGlobal('navigator', { clipboard: { writeText } });
+        clipboard.writeText = writeText;
 
         await copyFileName('/project/src/notes.ts');
 

@@ -1,4 +1,5 @@
 import { translate } from '../../../i18n';
+import { writeClipboardText } from '../../../lib/clipboard';
 import { pushToast, tryCommand } from '../../../stores/toasts';
 import { appendToAgentChatDraft } from '../composer-input/agent-chat-drafts';
 import { revealAgentChat } from '../tasks/agent-chat-task-opener';
@@ -24,7 +25,7 @@ export function agentChatSelectionInside(container: HTMLElement | null): string 
  */
 export function copyAgentChatMessageFromMenu(value: string, isSelection: boolean): void {
     void tryCommand(translate('agentChat.userMenu.copyFailed'), async () => {
-        await navigator.clipboard.writeText(value);
+        await writeClipboardText(value);
         pushToast(
             'success',
             translate(

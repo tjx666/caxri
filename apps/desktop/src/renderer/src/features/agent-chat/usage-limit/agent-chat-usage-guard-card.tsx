@@ -11,6 +11,7 @@ import { Spinner } from '../../../components/ui/spinner';
 import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
 import { resolveAgentIcon } from '../../../icons/agents/agent-icon-registry';
+import { textClipboard } from '../../../lib/clipboard';
 import { localizedLimitReset } from '../../../lib/usage-format';
 import { useClockTick } from '../hooks/use-clock-tick';
 import { agentChatUsageGuardOffer } from './agent-chat-continuation';
@@ -45,7 +46,7 @@ function HandoffDocument({ document }: { document: AgentChatHandoff }) {
                 <FileText aria-hidden className="size-3.5 shrink-0" />
                 <span className="flex-1 truncate">{t('agentChat.usageGuard.document')}</span>
                 <CopyIconButton
-                    copy={() => writeToClipboardWithFeedback(navigator.clipboard, document.text)}
+                    copy={() => writeToClipboardWithFeedback(textClipboard, document.text)}
                     label={t('agentChat.usageGuard.copy')}
                 />
             </div>

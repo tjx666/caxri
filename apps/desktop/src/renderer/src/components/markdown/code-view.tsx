@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { CodeXml, Play, WrapText } from 'lucide-react';
 
 import { useTranslation } from '../../i18n';
+import { textClipboard } from '../../lib/clipboard';
 import { cn } from '../../lib/utilities';
 import { writeToClipboardWithFeedback } from '../copy-feedback';
 import { Tooltip } from '../ui/tooltip';
@@ -65,7 +66,7 @@ export function CodeView({
             <WrapToggle isWrapped={isWrapped} onToggle={() => setWrapped((value) => !value)} />
             {onRun && <RunButton onRun={onRun} />}
             <CopyIconButton
-                copy={() => writeToClipboardWithFeedback(navigator.clipboard, code)}
+                copy={() => writeToClipboardWithFeedback(textClipboard, code)}
                 label={t('core.copy.code')}
             />
         </>

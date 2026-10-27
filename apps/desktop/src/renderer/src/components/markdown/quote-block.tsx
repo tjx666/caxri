@@ -4,6 +4,7 @@ import type { MarkdownBlock } from '@caxri/markdown';
 import { blocksPlainText } from '@caxri/markdown';
 
 import { useTranslation } from '../../i18n';
+import { textClipboard } from '../../lib/clipboard';
 import { writeToClipboardWithFeedback } from '../copy-feedback';
 import { CopyIconButton } from './copy-icon-button';
 import { useMarkdownContext } from './markdown-context';
@@ -30,10 +31,7 @@ export function QuoteBlock({ block, children }: { block: QuoteBlockNode; childre
             <CopyIconButton
                 className="absolute top-0 right-0 bg-background opacity-0 transition-opacity group-focus-within/quote:opacity-100 group-hover/quote:opacity-100"
                 copy={() =>
-                    writeToClipboardWithFeedback(
-                        navigator.clipboard,
-                        blocksPlainText(block.children),
-                    )
+                    writeToClipboardWithFeedback(textClipboard, blocksPlainText(block.children))
                 }
                 label={t('core.copy.quote')}
             />

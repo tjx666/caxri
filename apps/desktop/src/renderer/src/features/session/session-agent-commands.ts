@@ -3,6 +3,7 @@ import { isChatTerminal } from '@caxri/protocol';
 
 import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
+import { writeClipboardText } from '../../lib/clipboard';
 import { copyFilePath } from '../../lib/copy-file-path';
 import { getBootstrap, getSelectedSession } from '../../stores/selectors';
 import { pushToast, tryCommand } from '../../stores/toasts';
@@ -111,7 +112,7 @@ export function resumeSelectedSession(): void {
 export function copyAgentSessionId(agentSessionId: string): void {
     // Fire-and-forget: `tryCommand` funnels the failure into a toast internally.
     void tryCommand(translate('session.errors.copyConversationIdFailed'), async () => {
-        await navigator.clipboard.writeText(agentSessionId);
+        await writeClipboardText(agentSessionId);
         pushToast('success', translate('session.agent.conversationIdCopied'));
     });
 }

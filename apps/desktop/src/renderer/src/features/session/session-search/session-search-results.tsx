@@ -14,6 +14,7 @@ import type { Translate } from '../../../i18n';
 import { useTranslation } from '../../../i18n';
 import { resolveAgentIcon } from '../../../icons/agents/agent-icon-registry';
 import { AgentIdentityIcon } from '../../../icons/agents/agent-identity-icon';
+import { textClipboard } from '../../../lib/clipboard';
 import { cn } from '../../../lib/utilities';
 import { sessionTitleForDisplay } from '../session-title';
 import { runSessionSearchAction } from './session-search-commands';
@@ -111,7 +112,7 @@ function CopyIdButton({ id }: { id: string }) {
                 type="button"
                 onClick={async (event) => {
                     event.stopPropagation();
-                    const status = await writeToClipboardWithFeedback(navigator.clipboard, id);
+                    const status = await writeToClipboardWithFeedback(textClipboard, id);
                     if (status !== 'copied') return;
                     setCopied(true);
                     setTimeout(() => setCopied(false), COPY_FEEDBACK_RESET_MS);

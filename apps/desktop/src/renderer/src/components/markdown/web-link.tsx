@@ -5,6 +5,7 @@ import { BookMarked, CircleDot, ExternalLink, GitPullRequest, MessagesSquare } f
 
 import { useTranslation } from '../../i18n';
 import { LinearStatusIcon } from '../../icons/linear/linear-status-icon';
+import { textClipboard } from '../../lib/clipboard';
 import type { LinkSummary } from '../../lib/link-summary';
 import { pullRequestLinkState } from '../../lib/link-summary';
 import { cn } from '../../lib/utilities';
@@ -110,7 +111,7 @@ export function WebLink({
                     </span>
                     <CopyIconButton
                         className="shrink-0"
-                        copy={() => writeToClipboardWithFeedback(navigator.clipboard, href)}
+                        copy={() => writeToClipboardWithFeedback(textClipboard, href)}
                         label={t('agentChat.link.copy')}
                     />
                     <button

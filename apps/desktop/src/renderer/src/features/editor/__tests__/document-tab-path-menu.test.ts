@@ -6,6 +6,14 @@ import { serializeContextMenu } from '../../../lib/context-menu';
 import { useEnvironmentStore } from '../../../stores/environment';
 import { documentTabPathMenu } from '../document-tab-path-menu';
 
+const clipboard = vi.hoisted(() => ({
+    writeText: vi.fn<(text: string) => Promise<void>>(),
+}));
+vi.mock('../../../lib/clipboard', () => ({
+    textClipboard: { writeText: (text: string) => clipboard.writeText(text) },
+    writeClipboardText: (text: string) => clipboard.writeText(text),
+}));
+
 function item(entries: ReturnType<typeof documentTabPathMenu>, label: string) {
     const { actions, items } = serializeContextMenu(entries);
     const match = items.find(
@@ -26,7 +34,7 @@ describe('documentTabPathMenu', () => {
 
     it('copies the file name of a Project file and of an external document', async () => {
         const writeText = vi.fn<(value: string) => Promise<void>>().mockResolvedValue(undefined);
-        vi.stubGlobal('navigator', { clipboard: { writeText } });
+        clipboard.writeText = writeText;
 
         await item(
             documentTabPathMenu({

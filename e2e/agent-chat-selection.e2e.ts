@@ -24,7 +24,12 @@ test('a Chat selects only message text and offers Copy and Add to message', asyn
     const root = join(directory, 'project');
     await mkdir(root, { recursive: true });
     const agentMode = await fakeCodexChatAgentMode(directory, userData);
-    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    const running = await launchCaxri({
+        agentMode,
+        clipboard: true,
+        userDataDir: userData,
+        testRootPath: root,
+    });
     try {
         const { page } = running;
         await createProjectSession(page, 'shell');
@@ -80,20 +85,11 @@ test('a Chat selects only message text and offers Copy and Add to message', asyn
         expect(await entrance).toBe(1);
         await page.screenshot({ path: testInfo.outputPath('agent-chat-selection-toolbar.png') });
 
-        // Copy writes through a stubbed clipboard, so the run never overwrites the developer's system clipboard.
-        await page.evaluate(() => {
-            const target = globalThis as typeof globalThis & { __copiedText?: string };
-            navigator.clipboard.writeText = (text) => {
-                target.__copiedText = text;
-                return Promise.resolve();
-            };
-        });
+        // The clipboard fixture restores the developer's system clipboard after the run.
         await toolbar.getByRole('button', { name: 'Copy' }).click();
         await expect(toolbar.getByRole('button', { name: 'Copied' })).toBeVisible();
-        const copied = await page.evaluate(
-            () => (globalThis as typeof globalThis & { __copiedText?: string }).__copiedText,
-        );
-        expect(copied).toBe(selected.trimEnd());
+        await expect.poll(() => running.clipboard.textEquals(selected.trimEnd())).toBe(true);
+        await running.clipboard.claimText(selected.trimEnd());
         await expect(page.locator('[data-sonner-toast]')).toHaveCount(0);
 
         await toolbar.getByRole('button', { name: 'Add to message' }).click();

@@ -1,4 +1,4 @@
-import type { TerminalRecord, TerminalSurface } from '@caxri/protocol';
+import type { AgentProvider, TerminalRecord, TerminalSurface } from '@caxri/protocol';
 import {
     agentProviderCatalog,
     agentResumeCommandLine,
@@ -9,11 +9,13 @@ import {
 import type { TranslationKey } from '../../i18n';
 import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
+import { writeClipboardText } from '../../lib/clipboard';
 import type { ContextMenuEntry } from '../../lib/context-menu';
 import { readCommandShortcut } from '../../lib/keybindings';
 import { getBootstrap } from '../../stores/selectors';
 import { pushToast, tryCommand } from '../../stores/toasts';
 import { refreshWorkbench } from '../../stores/workbench';
+import { getSettings } from '../settings/settings-client';
 import type { TerminalSurfaceSwitchRegistry } from './terminal-surface-switch-pending';
 import { terminalSurfaceSwitches } from './terminal-surface-switch-pending';
 
@@ -189,13 +191,23 @@ export function agentResumeCommandMenuEntry(
         onSelect: () =>
             provider &&
             agentSessionId &&
-            copyAgentResumeCommand(agentResumeCommandLine(provider, agentSessionId, terminal.cwd)),
+            copyAgentResumeCommand(provider, agentSessionId, terminal.cwd),
     };
 }
 
-function copyAgentResumeCommand(command: string): Promise<unknown> {
+/**
+ * Reads Settings at copy time rather than from a render-time snapshot, so the command carries the launch arguments the
+ * user has now, including a YOLO switch flipped since the menu was built.
+ */
+function copyAgentResumeCommand(
+    provider: AgentProvider,
+    agentSessionId: string,
+    cwd: string,
+): Promise<unknown> {
     return tryCommand(translate('terminal.resumeCommand.copyFailed'), async () => {
-        await navigator.clipboard.writeText(command);
+        const { value: settings } = await getSettings();
+        const launch = settings['agents.providers'][provider].launch;
+        await writeClipboardText(agentResumeCommandLine(provider, agentSessionId, cwd, launch));
         pushToast('success', translate('terminal.resumeCommand.copied'));
     });
 }

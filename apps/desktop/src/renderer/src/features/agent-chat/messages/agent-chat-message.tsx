@@ -15,6 +15,7 @@ import { writeToClipboardWithFeedback } from '../../../components/copy-feedback'
 import { CopyIconButton } from '../../../components/markdown/copy-icon-button';
 import { MarkdownBlocks } from '../../../components/markdown/markdown-blocks';
 import { useTranslation } from '../../../i18n';
+import { textClipboard } from '../../../lib/clipboard';
 import { cn } from '../../../lib/utilities';
 import { AgentChatGoalNotice } from '../activity/agent-chat-goal-notice';
 import { useAgentChatDiagrams } from '../hooks/use-agent-chat-diagrams';
@@ -119,7 +120,7 @@ export function AgentChatReply({
               <>
                   <CopyIconButton
                       className="-ml-1"
-                      copy={() => writeToClipboardWithFeedback(navigator.clipboard, item.text)}
+                      copy={() => writeToClipboardWithFeedback(textClipboard, item.text)}
                       label={t('agentChat.message.copy')}
                   />
                   {item.createdAt !== undefined && (

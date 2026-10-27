@@ -8,6 +8,7 @@ import { CopyIconButton } from '../../../components/markdown/copy-icon-button';
 import { WebLink } from '../../../components/markdown/web-link';
 import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
+import { textClipboard } from '../../../lib/clipboard';
 import { linkSummary } from '../../../lib/link-summary';
 import { cn } from '../../../lib/utilities';
 import {
@@ -107,7 +108,7 @@ export function AgentChatUserMessage({
                     className="-mr-1"
                     copy={() =>
                         writeToClipboardWithFeedback(
-                            navigator.clipboard,
+                            textClipboard,
                             agentChatTextWithSessionMentions(words),
                         )
                     }

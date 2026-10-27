@@ -7,6 +7,7 @@ import type { ITerminalAddon } from '@xterm/xterm';
 import { Terminal } from '@xterm/xterm';
 
 import { translate } from '../../i18n';
+import { writeClipboardText } from '../../lib/clipboard';
 import { pushToast } from '../../stores/toasts';
 import { beginRendererPerformanceTerminalStage } from '../renderer-performance/controller';
 import { ControlledOsc52Clipboard } from './terminal-osc52-clipboard';
@@ -111,7 +112,7 @@ export function createTerminalPaneXterm({
             onError(translate('terminal.osc52.writeFailed'));
             reportTerminalOsc52ClipboardWriteFailure(error, container, latest().terminalId);
         },
-        writeClipboard: (text) => navigator.clipboard.writeText(text),
+        writeClipboard: (text) => writeClipboardText(text),
     });
     const clipboard = new ClipboardAddon(osc52Clipboard, osc52Clipboard);
     const progress = new ProgressAddon();

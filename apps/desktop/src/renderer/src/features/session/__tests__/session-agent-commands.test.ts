@@ -57,9 +57,13 @@ import {
     sessionForkBlocker,
 } from '../session-agent-commands';
 
+vi.mock('../../../lib/clipboard', () => ({
+    textClipboard: { writeText: mocks.writeText },
+    writeClipboardText: mocks.writeText,
+}));
+
 describe('Agent identifier copy', () => {
     beforeEach(() => {
-        vi.stubGlobal('navigator', { clipboard: { writeText: mocks.writeText } });
         mocks.caxriRequest.mockClear();
         mocks.copyFilePath.mockClear();
         mocks.pushToast.mockClear();

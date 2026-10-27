@@ -176,10 +176,11 @@ if (process.argv.includes('app-server')) {
         expect((await codexTerminal(page)).surface).toBeUndefined();
         await page.screenshot({ path: testInfo.outputPath('surface-switch-terminal.png') });
 
-        // The resume command continues the same thread in the user's own terminal.
+        // The resume command continues the same thread in the user's own terminal, with the launch arguments Settings
+        // gives Codex (its default YOLO flag included).
         await tab.click({ button: 'right' });
         await chooseContextMenuItem(app, 'Copy Resume Command');
-        const resumeCommand = `cd ${await realpath(root)} && codex resume ${thread}`;
+        const resumeCommand = `cd ${await realpath(root)} && codex --dangerously-bypass-approvals-and-sandbox resume ${thread}`;
         await expect.poll(() => running.clipboard.textEquals(resumeCommand)).toBe(true);
         await running.clipboard.claimText(resumeCommand);
 

@@ -2,6 +2,7 @@ import type { MouseEvent } from 'react';
 
 import { useContextMenu } from '../../hooks/use-context-menu';
 import { translate } from '../../i18n';
+import { writeClipboardText } from '../../lib/clipboard';
 import type { ContextMenuEntries } from '../../lib/context-menu';
 import { pushToast, tryCommand } from '../../stores/toasts';
 
@@ -28,7 +29,7 @@ export function linkContextMenu({
  */
 function copyLinkFromMenu(url: string): void {
     void tryCommand(translate('agentChat.link.copyFailed'), async () => {
-        await navigator.clipboard.writeText(url);
+        await writeClipboardText(url);
         pushToast('success', translate('agentChat.link.copied'));
     });
 }

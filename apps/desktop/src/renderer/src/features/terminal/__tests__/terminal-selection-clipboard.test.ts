@@ -14,7 +14,7 @@ describe('TerminalSelectionClipboard', () => {
             await pending;
             clipboard = value;
         });
-        const selectionClipboard = new TerminalSelectionClipboard(writeText, () => {});
+        const selectionClipboard = new TerminalSelectionClipboard(() => {}, writeText);
 
         const settled = selectionClipboard.copy('first');
         // Both intermediate copies are intentionally left unawaited: the test asserts that only the
@@ -32,7 +32,7 @@ describe('TerminalSelectionClipboard', () => {
 
     it('does not write an empty selection', async () => {
         const writeText = vi.fn(() => Promise.resolve());
-        const selectionClipboard = new TerminalSelectionClipboard(writeText, () => {});
+        const selectionClipboard = new TerminalSelectionClipboard(() => {}, writeText);
 
         await selectionClipboard.copy('');
 

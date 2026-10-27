@@ -88,18 +88,44 @@ describe('defaultAgentProviderSettings', () => {
 });
 
 describe('agentResumeCommandLine', () => {
+    const bare = (provider: 'claude' | 'codex') => ({ executable: provider, args: [] });
+
     it("continues each provider's session from the Terminal's folder", () => {
-        expect(agentResumeCommandLine('claude', 'a1b2-c3', '/work/app')).toBe(
+        expect(agentResumeCommandLine('claude', 'a1b2-c3', '/work/app', bare('claude'))).toBe(
             'cd /work/app && claude --resume a1b2-c3',
         );
-        expect(agentResumeCommandLine('codex', 'thread-1', '/work/app')).toBe(
+        expect(agentResumeCommandLine('codex', 'thread-1', '/work/app', bare('codex'))).toBe(
             'cd /work/app && codex resume thread-1',
         );
     });
 
-    it('quotes a folder the shell would otherwise split or expand', () => {
-        expect(agentResumeCommandLine('claude', 'id', "/work/it's my app")).toBe(
-            String.raw`cd '/work/it'\''s my app' && claude --resume id`,
+    it('launches with the configured executable and arguments, autonomy included, before the resume tokens', () => {
+        expect(
+            agentResumeCommandLine('claude', 'id', '/work/app', {
+                executable: '/opt/bin/claude',
+                args: ['--dangerously-skip-permissions', '--model opus'],
+            }),
+        ).toBe(
+            'cd /work/app && /opt/bin/claude --dangerously-skip-permissions --model opus --resume id',
+        );
+        expect(
+            agentResumeCommandLine(
+                'codex',
+                'thread-1',
+                '/work/app',
+                defaultAgentProviderSettings.codex.launch,
+            ),
+        ).toBe('cd /work/app && codex --dangerously-bypass-approvals-and-sandbox resume thread-1');
+    });
+
+    it('quotes a folder or argument the shell would otherwise split or expand', () => {
+        expect(
+            agentResumeCommandLine('claude', 'id', "/work/it's my app", {
+                executable: 'claude',
+                args: ['--append-system-prompt', 'be brief'],
+            }),
+        ).toBe(
+            String.raw`cd '/work/it'\''s my app' && claude --append-system-prompt 'be brief' --resume id`,
         );
     });
 });

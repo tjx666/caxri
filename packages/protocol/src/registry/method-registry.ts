@@ -40,6 +40,7 @@ import { MAX_TRUSTED_FOLDER_LENGTH } from '../configuration/trusted-folders.js';
 import { agentProviderStatusDesktopMethods } from '../desktop/agent-provider-status-contract.js';
 import { argvDesktopMethods } from '../desktop/argv-config.js';
 import { benchmarkShareMethods } from '../desktop/benchmark-share-contract.js';
+import { clipboardMethods } from '../desktop/clipboard-contract.js';
 import { contextMenuDesktopMethods } from '../desktop/context-menu-contract.js';
 import {
     desktopHostMethods,
@@ -180,6 +181,7 @@ export const methods = {
     ...claudeWindowMethods,
     ...benchmarkMethods,
     ...benchmarkShareMethods,
+    ...clipboardMethods,
     ...bugReportMethods,
     ...mobileMethods,
     ...workbenchMethods,

@@ -2,6 +2,7 @@ import { projectRelativePath } from '@caxri/protocol';
 
 import { translate } from '../i18n';
 import { pushToast, tryCommand } from '../stores/toasts';
+import { writeClipboardText } from './clipboard';
 
 /**
  * Base directory `Copy Relative Path` measures from when a resource has more than one candidate root, which today is
@@ -36,7 +37,7 @@ export function copyFilePath(path: string, projectRoot?: string): Promise<void |
     return tryCommand(translate('core.files.copyPathFailed'), async () => {
         const value = projectRoot ? projectRelativePath(path, projectRoot) : path;
         if (value === undefined) throw new Error(translate('core.files.pathOutsideProject'));
-        await navigator.clipboard.writeText(value);
+        await writeClipboardText(value);
         pushToast(
             'success',
             translate(projectRoot ? 'core.files.relativePathCopied' : 'core.files.pathCopied'),
@@ -50,7 +51,7 @@ export function copyFilePath(path: string, projectRoot?: string): Promise<void |
  */
 export function copyFileName(path: string): Promise<void | undefined> {
     return tryCommand(translate('core.files.copyPathFailed'), async () => {
-        await navigator.clipboard.writeText(path.slice(path.lastIndexOf('/') + 1));
+        await writeClipboardText(path.slice(path.lastIndexOf('/') + 1));
         pushToast('success', translate('core.files.nameCopied'));
     });
 }

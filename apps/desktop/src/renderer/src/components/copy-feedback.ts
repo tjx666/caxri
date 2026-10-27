@@ -7,6 +7,7 @@
 
 import type { Translate } from '../i18n';
 import { translate } from '../i18n';
+import type { ClipboardContent } from '../lib/clipboard';
 
 export type CopyFeedbackStatus = 'idle' | 'copied' | 'failed';
 
@@ -37,16 +38,11 @@ export async function writeToClipboardWithFeedback(
  * status like {@link writeToClipboardWithFeedback}.
  */
 export async function writeRichToClipboardWithFeedback(
-    clipboard: Pick<Clipboard, 'write'>,
-    content: { text: string; html: string },
+    write: (content: ClipboardContent) => Promise<void>,
+    content: Required<ClipboardContent>,
 ): Promise<CopyFeedbackStatus> {
     try {
-        await clipboard.write([
-            new ClipboardItem({
-                'text/plain': new Blob([content.text], { type: 'text/plain' }),
-                'text/html': new Blob([content.html], { type: 'text/html' }),
-            }),
-        ]);
+        await write(content);
         return 'copied';
     } catch {
         return 'failed';

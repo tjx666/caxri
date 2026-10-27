@@ -12,6 +12,7 @@ import {
 import { StructuredTooltip } from '../../components/structured-tooltip';
 import { Button } from '../../components/ui/button';
 import { useTranslation } from '../../i18n';
+import { textClipboard } from '../../lib/clipboard';
 import { useCaxriQuery } from '../../queries/client';
 import { useSelectedSession } from '../../stores/selectors';
 import { AcceptanceStatus } from './acceptance-status';
@@ -98,7 +99,7 @@ function PullRequestUnavailableHint({
                     className="mt-2 w-full"
                     onClick={async () => {
                         // Resolves to a status and never rejects.
-                        setStatus(await writeToClipboardWithFeedback(navigator.clipboard, command));
+                        setStatus(await writeToClipboardWithFeedback(textClipboard, command));
                     }}
                 >
                     {copyButtonLabel(

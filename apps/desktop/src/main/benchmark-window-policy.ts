@@ -20,6 +20,7 @@ const ADMITTED_METHODS = new Set<string>([
     'benchmark.shareImage.copy',
     'benchmark.shareImage.save',
     'benchmark.start',
+    'clipboard.write',
     'events.recover',
     'external.open',
     'links.favicon',

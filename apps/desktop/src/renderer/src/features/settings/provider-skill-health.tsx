@@ -4,6 +4,7 @@ import { agentProviderCatalog } from '@caxri/protocol';
 import { writeToClipboardWithFeedback } from '../../components/copy-feedback';
 import { CopyIconButton } from '../../components/markdown/copy-icon-button';
 import { useTranslation } from '../../i18n';
+import { textClipboard } from '../../lib/clipboard';
 import { cn } from '../../lib/utilities';
 import { skillScopeHealth, skillScopeSummary, skillScopeTone } from './provider-health';
 
@@ -82,7 +83,7 @@ export function ProviderSkillHealth({ provider, agentSkillHealth }: ProviderSkil
                                     label={t('settings.providerHealth.skill.copyCommand')}
                                     copy={() =>
                                         writeToClipboardWithFeedback(
-                                            navigator.clipboard,
+                                            textClipboard,
                                             installation.repairCommand ?? '',
                                         )
                                     }
