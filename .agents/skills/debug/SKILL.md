@@ -51,6 +51,10 @@ clears a reported stale-state failure, continue tracing the missing invalidation
 reproduce it with the narrowest fixture, and repair the confirmed cause and directly related paths.
 Do not end at a workaround when the next diagnostic or repair step is known and authorized; stop
 only for an explicit scope limit or a concrete blocker requiring the user's decision or authority.
+When an upgrade or restart makes the symptom disappear before its cause is pinned, still deliver the
+confirmed amplifiers and diagnostic gaps the investigation found without asking first: a phone that
+reconnected without backoff into the Server admission limit, and a disconnect log with no cause,
+shipped once the user updated the app.
 
 ## CI watcher diagnosis
 
