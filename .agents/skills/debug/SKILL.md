@@ -160,7 +160,9 @@ bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts dev --user-dat
 
 The exports include `CAXRI_E2E=1`; without it the fake executables are ignored while the isolated
 `CODEX_HOME` still applies, so the real Codex CLI starts at its login screen. Before using the Agent,
-confirm with `ps` that the Agent process is the fake `e2e-agents/bin/<provider>`. `CAXRI_TEST_ROOT_PATH`
+confirm with `ps` that the Agent process is the fake `e2e-agents/bin/<provider>`. For a reply with exact
+content (a long code block, a specific table), add `--script <absolute path>` to replay scripted turns from
+`fake-claude-script.ts` or `fake-codex-script.ts`; exporting `FAKE_CLAUDE_SCRIPT` in the shell has no effect. `CAXRI_TEST_ROOT_PATH`
 points at `/tmp/<task>/project`, so Add Project (`Cmd+O`) uses the existing test-root grant without a
 native folder picker. For a second Project, export `CAXRI_TEST_ROOT_PATHS='["/tmp/<task>/a","/tmp/<task>/b"]'`
 before `dev`: each `Cmd+O` consumes the next folder. A raw `project.create` over CDP always fails

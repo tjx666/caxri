@@ -10,7 +10,7 @@
  *
  * - `language <en|zh-CN|system>`: sets `workbench.language`, so English-label E2E helpers match.
  * - `open-chat <claude|codex|grok>`: adds the fixture's test-root Project (`Cmd+O`) and opens that Agent in Chat.
- * - `send <text>`: types into the visible Agent Chat message box and presses Enter.
+ * - `send <text>`: inserts the text into the visible Agent Chat message box, newlines included, and presses Enter once.
  * - `paste-image [count]`: pastes that many synthetic PNGs (default 1) into the visible Agent Chat message box, as a
  *   screenshot paste would, without touching the system clipboard.
  * - `search <query>`: opens Session search and types the query.
@@ -449,7 +449,8 @@ async function runStep(page: Page, command: DriveCommand): Promise<void> {
         case 'send': {
             // The message box is CodeMirror, which exposes no textbox role to fill.
             await page.locator('.cm-content').filter({ visible: true }).last().click();
-            await page.keyboard.type(argument);
+            // `type` presses Enter for each newline, which would send every line as its own message.
+            await page.keyboard.insertText(argument);
             await page.keyboard.press('Enter');
             return;
         }
