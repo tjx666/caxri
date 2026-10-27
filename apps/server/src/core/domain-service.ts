@@ -23,7 +23,11 @@ import {
 
 import { createDomainServices } from '../domains/create-domain-services';
 import type { ServerCredentialStores } from '../domains/db';
-import type { DomainDependencies, DomainServices } from '../domains/domain-services';
+import type {
+    DomainDependencies,
+    DomainServices,
+    DomainShutdownStepRunner,
+} from '../domains/domain-services';
 import type { ProtocolRecoveryState } from '../domains/protocol-recovery';
 import { isAtomicStructuralMethod } from './atomic-structural-methods';
 import type { DomainOperationDispatcher } from './operation-dispatcher';
@@ -438,13 +442,13 @@ export class ServerDomainService extends EventTarget {
         );
     }
 
-    async shutdown(): Promise<void> {
+    async shutdown(runStep?: DomainShutdownStepRunner): Promise<void> {
         if (this.stopped) return;
         this.stopped = true;
         for (const [requestId] of this.pending) this.cancelRequest(requestId);
         const services = this.services;
         this.services = undefined;
         this.dispatch = undefined;
-        if (services) await services.close();
+        if (services) await services.close(runStep);
     }
 }

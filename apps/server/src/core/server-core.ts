@@ -53,12 +53,14 @@ import { createServerRecoveryJournal, serverRecoverySnapshot } from './recovery-
 import {
     logDurableReceipt,
     logDurableRecovery,
+    logRuntimeStatus,
     prepareServerEventForDelivery,
 } from './recovery-observability';
 import { principalRequestKey, RequestCancellationRegistry } from './request-cancellation';
 import type { ServerCore, ServerCoreOptions } from './server-core-contract';
 import type { CommandStopFallbackReference } from './server-core-control-callbacks';
 import { createServerCoreControlCallbacks } from './server-core-control-callbacks';
+import { createServerCoreStopSteps } from './server-core-stop-steps';
 import { createServerCredentialAccess } from './server-credential-access';
 import { createTerminalExecution } from './terminal-host/create-execution';
 import { invokeTerminalSend } from './terminal-send';
@@ -139,17 +141,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         const event = prepareServerEventForDelivery(logger, candidate);
         if (event.event === 'terminal.exit')
             agentEndpoints.retireTerminal(event.payload.terminalId);
-        else if (event.event === 'runtime.status')
-            logger.write(
-                event.payload.status === 'failed' ? 'error' : 'info',
-                logEventCatalog.serverCore.status,
-                {
-                    fields: {
-                        status: event.payload.status,
-                        restartCount: event.payload.restartCount,
-                    },
-                },
-            );
+        else if (event.event === 'runtime.status') logRuntimeStatus(logger, event.payload);
         /**
          * Skip refreshes emitted after the Extension Host enters teardown.
          */
@@ -181,7 +173,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         // Same race for the Extension Host, which is shut down last: its signal-driven exit must not restart it.
         extensionService?.markCoreStopping();
         stopPromise ??= (async () => {
-            logger.write('info', logEventCatalog.serverCore.stopping, { fields: { reason } });
+            const steps = createServerCoreStopSteps(logger, reason);
             eventLoopMonitor.stop();
             // Yields once so `stopPromise` is assigned below before a synchronous domain-shutdown side effect (e.g. a
             // state.changed emit) can hit `deliver`'s `if (!stopPromise)` extension-refresh branch.
@@ -189,14 +181,14 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
             // Captures every live Terminal's snapshot via `host.shutdown` first: the Extension Host's own graceful
             // shutdown can wait up to 5s for its child to exit, and under the previous ordering that delay let an
             // OS-initiated SIGTERM beat Core's `host.shutdown` request to Terminal Host.
-            await domainService.shutdown();
-            await credentials.close();
-            await server?.close();
-            agentInbox.close();
-            await providerMessaging.close();
-            await extensionService?.shutdown();
-            await lease.release();
-            logger.write('info', logEventCatalog.serverCore.stopped, { fields: { reason } });
+            await steps.run('domainServices', () => domainService.shutdown(steps.run));
+            await steps.run('mobileAccess', () => credentials.close());
+            await steps.run('controlServer', () => server?.close());
+            await steps.run('agentInbox', () => agentInbox.close());
+            await steps.run('providerMessaging', () => providerMessaging.close());
+            await steps.run('extensionHost', () => extensionService?.shutdown());
+            await steps.run('lease', () => lease.release());
+            steps.stopped();
             resolveStopped();
         })();
         return stopPromise;
@@ -434,7 +426,6 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                         {
                             commandStopFallbackReference,
                             domainService,
-                            logger,
                             mutationAdmission,
                             stop,
                         },
@@ -609,7 +600,6 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                 delegationAccess: credentials.delegation(),
                 dispatchWaitIds,
                 domainService,
-                logger,
                 requestCancellations,
                 stop,
             }),

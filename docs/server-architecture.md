@@ -150,6 +150,13 @@ explicit confirmation to override, so a Server whose Sessions still own live PTY
 already covers a Desktop lease expiring, with no separate lease check, and why the threshold is an internal seam,
 never a user setting.
 
+Every stop path (signal, `host.stop`, idle exit) runs the same ordered steps in `stop()`, which owns the stop's log
+records. A clean stop ends with `server_core.stopped` carrying the total `durationMs` and one `<step>Ms` field per step,
+so a slow stop is attributable. A failing step writes exactly one `server_core.stop_failed` naming the closed step
+(`terminals` for the orderly Terminal snapshot pass inside `domainServices`), the time since `server_core.stopping`,
+and a `shutdown` failure capsule, and no `stopped` follows. A signal-driven stop that failed publishes the process
+manifest as `failed` instead of `stopped`, so offline fault diagnostics treat it as a fault; the exit code stays 0.
+
 ### Terminal Host
 
 The Terminal Host owns PTY masters, Shell and Agent processes, bounded output buffers, screen state,

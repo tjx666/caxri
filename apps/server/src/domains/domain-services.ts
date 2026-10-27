@@ -75,6 +75,15 @@ export interface DomainDependencies {
     agentEndpoints?: AgentEndpointLifecycle;
 }
 
+/**
+ * Runs one named domain shutdown step for Server Core's stop log; `terminals` is the orderly Terminal snapshot pass,
+ * named apart because a failure there is what loses Terminal history across a restart.
+ */
+export type DomainShutdownStepRunner = (
+    step: 'terminals',
+    action: () => Promise<void>,
+) => Promise<void>;
+
 export interface DomainServices {
     handlers: DomainHandlers;
     protocolRecovery: ProtocolRecoveryState;
@@ -83,9 +92,10 @@ export interface DomainServices {
      */
     credentials: ServerCredentialStores;
     /**
-     * Releases every owned resource: schedulers, PTYs, watchers, and the database.
+     * Releases every owned resource: schedulers, PTYs, watchers, and the database. `runStep` lets Server Core time and
+     * name the steps worth telling apart in its shutdown log.
      */
-    close(): Promise<void>;
+    close(runStep?: DomainShutdownStepRunner): Promise<void>;
     /**
      * Subscribes to a change of the Session the user is in (see `WindowPresence.currentSessionId`), which has no
      * `state.changed` event of its own because moving window focus must not make every Renderer re-read the Workbench.

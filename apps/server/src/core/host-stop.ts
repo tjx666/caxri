@@ -1,6 +1,4 @@
 import { CaxriError } from '@caxri/protocol';
-import type { StructuredLogger } from '@caxri/system';
-import { logEventCatalog } from '@caxri/system';
 
 import type { ServerDomainService } from './domain-service';
 import type { MutationAdmission } from './mutation-admission';
@@ -9,7 +7,6 @@ import type { CommandStopFallbackReference } from './server-core-control-callbac
 export interface HostStopDependencies {
     commandStopFallbackReference: CommandStopFallbackReference;
     domainService: ServerDomainService;
-    logger: StructuredLogger;
     mutationAdmission: MutationAdmission;
     stop: (reason?: string) => Promise<void>;
 }
@@ -24,8 +21,7 @@ export async function acceptHostStop(
     dependencies: HostStopDependencies,
     parameters: { confirmLivePtys: boolean },
 ): Promise<{ stopping: true; activePtyCount: number }> {
-    const { commandStopFallbackReference, domainService, logger, mutationAdmission, stop } =
-        dependencies;
+    const { commandStopFallbackReference, domainService, mutationAdmission, stop } = dependencies;
     if (mutationAdmission.isClosed)
         throw new CaxriError('CONFLICT', 'Host stop is already in progress');
     mutationAdmission.close();
@@ -45,10 +41,9 @@ export async function acceptHostStop(
         commandStopFallbackReference.current ??= setImmediate(async () => {
             try {
                 await stop('command');
-            } catch (error) {
-                logger.write('error', logEventCatalog.serverCore.stopFailed, {
-                    fields: { message: error instanceof Error ? error.message : String(error) },
-                });
+            } catch {
+                // `stop()` already wrote `server_core.stop_failed` for the failing step; this only keeps the rejection
+                // from becoming an unhandled one.
             }
         });
         commandStopFallbackReference.current.unref();
