@@ -20,7 +20,7 @@ import {
     worktreeIdentity,
     writeJsonAtomic,
 } from './repo';
-import { assertBranchContainsBase, hasBranch } from './worktree-branch';
+import { assertBranchContainsBase, assertRemoteBranchAbsent, hasBranch } from './worktree-branch';
 import { explicitCdpPort, resolveWorktreeCdpPort } from './worktree-cdp-port';
 import type {
     DevelopmentLaunchOptions,
@@ -333,6 +333,7 @@ export async function createWorktree(options: CreateOptions): Promise<WorktreeSt
         if (isExists) {
             await runCapture('git', ['worktree', 'add', path, options.branch], context.root);
         } else {
+            await assertRemoteBranchAbsent(context.root, options.branch);
             const base = options.base ?? 'origin/main';
             if (!options.base)
                 await runCapture('git', ['fetch', '--quiet', 'origin', 'main'], context.root);

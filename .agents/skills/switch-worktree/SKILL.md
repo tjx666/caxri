@@ -107,7 +107,8 @@ bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts create feat/ex
 ```
 
 Use `--base <ref>` only when the task explicitly requires another baseline. Allowed new-branch
-prefixes are `feat/`, `fix/`, `refactor/`, `perf/`, `docs/`, `test/`, and `chore/`.
+prefixes are `feat/`, `fix/`, `refactor/`, `perf/`, `docs/`, `test/`, and `chore/`. A new name that already
+exists on `origin` is refused, since its push would be rejected or overwrite that branch.
 
 Resolve an existing branch or worktree path with:
 
@@ -121,7 +122,8 @@ checked out elsewhere, reuse the reported path.
 
 After a completed PR has merged, a genuinely new delivery may reuse the same clean linked
 worktree on a fresh branch. Fetch `origin/main`, then target that worktree explicitly with
-`git -C <absolute-worktree-path> switch -c <branch> origin/main`. The primary-checkout
+`git -C <absolute-worktree-path> switch -c <branch> origin/main`. That path bypasses `create`'s
+remote-name check, so first confirm `git ls-remote --heads origin refs/heads/<branch>` prints nothing. The primary-checkout
 guard resolves the target from the command; a bare `git switch` can be misclassified as a
 primary-checkout mutation even when the command runner's working directory is the linked worktree.
 Never switch branches in the primary checkout.
