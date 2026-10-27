@@ -124,7 +124,7 @@ export function launchCaxriApp(
 export function launchCaxriApp(options: LaunchCaxriOptions): Promise<RunningCaxri>;
 export async function launchCaxriApp(options: LaunchCaxriOptions): Promise<RunningCaxri> {
     const markStage = createE2ELaunchTimer(options.onLaunchStage);
-    await assertE2EBuildIsFresh();
+    await assertE2EBuildIsFresh(options.executablePath);
     markStage('freshnessMs');
     const {
         userDataDir,

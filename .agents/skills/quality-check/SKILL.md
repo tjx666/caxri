@@ -82,8 +82,11 @@ bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--related
   check summary lists related consumer specs for explicit selection. The real-Agent and intentional
   failure-isolation specs retain their dedicated guarded entrypoints.
 - `--e2e-grep '<pattern>'` narrows `--e2e` to one Playwright test-title pattern.
-- Rebuild before focused Electron E2E whenever relevant `src/` files changed after the previous
-  build; the checker's `--e2e` path performs that rebuild automatically.
+- The checker's `--e2e` path rebuilds only when the build receipt (`scripts/build-receipt.ts`) no
+  longer matches the current inputs and outputs, and reports `build reused` otherwise. Edits under
+  `e2e/`, `docs/`, `.agents/`, and `.github/` never force a rebuild; a build of another flavor (for
+  example `CAXRI_REACT_PROFILING=1`) does. Direct Playwright and Acceptance launches accept any
+  flavor of current sources.
 - Finish `--lint` before starting a build or Electron E2E. Its automatic fixes mutate source;
   running both concurrently invalidates the build-freshness receipt before Electron can launch.
   The same holds for the whole `--e2e` run, background runs included: an edit, a `git commit`

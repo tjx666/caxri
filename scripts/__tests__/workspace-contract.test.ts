@@ -327,7 +327,7 @@ describe('pnpm workspace contract', () => {
             'bun run electron:install && bun run scripts/development.ts',
         );
         expect(rootManifest.scripts?.build).toBe(
-            'bun run build:workspaces && bun run build:desktop',
+            'bun run scripts/build-receipt.ts begin && bun run build:workspaces && bun run build:desktop && bun run scripts/build-receipt.ts record',
         );
         expect(desktopManifest).toMatchObject({
             main: '../../out/main/index.js',
