@@ -109,6 +109,26 @@ describe('directory density contract selection', () => {
     });
 });
 
+describe('E2E pool contract selection', () => {
+    it('runs the pool contract for a changed or removed top-level spec only', async () => {
+        const contract = 'scripts/__tests__/e2e-pools.test.ts';
+
+        await expect(
+            selectedTestCandidates(process.cwd(), ['e2e/agent-chat-selection.e2e.ts']),
+        ).resolves.toContain(contract);
+        await expect(
+            selectedTestCandidates(
+                process.cwd(),
+                ['apps/server/src/domains/theme.ts'],
+                ['e2e/removed-workflow.e2e.ts'],
+            ),
+        ).resolves.toContain(contract);
+        await expect(
+            selectedTestCandidates(process.cwd(), ['e2e/support/clipboard.ts']),
+        ).resolves.not.toContain(contract);
+    });
+});
+
 describe('dependency manifest contract selection', () => {
     it('runs the manifest-reading contracts when a root dependency manifest changes', async () => {
         const contract = 'scripts/__tests__/workspace-dependency-contract.test.ts';

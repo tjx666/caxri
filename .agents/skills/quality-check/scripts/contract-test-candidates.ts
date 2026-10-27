@@ -27,6 +27,7 @@ export function contractTestCandidates(
         ...dependencyManifestContractTestCandidates(files),
         ...directoryDensityContractTestCandidates(files, removedFiles),
         ...localeContractTestCandidates(files, removedFiles),
+        ...e2ePoolContractTestCandidates(files, removedFiles),
     ];
 }
 
@@ -146,6 +147,22 @@ function directoryDensityContractTestCandidates(
         isDirectoryDensityPath(file.replaceAll('\\', '/')),
     )
         ? [DIRECTORY_DENSITY_TEST]
+        : [];
+}
+
+/**
+ * The E2E pool contract reads every top-level spec's source to require a `clipboard`, `gpu`, or `visible-window` entry
+ * in `e2e/support/pools.ts`, so the import graph never links it to a spec. A spec switched to `clipboard: true` once
+ * passed every local gate and failed first in the hosted unit shard.
+ */
+function e2ePoolContractTestCandidates(
+    files: readonly string[],
+    removedFiles: readonly string[],
+): string[] {
+    return [...files, ...removedFiles].some((file) =>
+        /^e2e\/[^/]+\.e2e\.ts$/u.test(file.replaceAll('\\', '/')),
+    )
+        ? ['scripts/__tests__/e2e-pools.test.ts']
         : [];
 }
 

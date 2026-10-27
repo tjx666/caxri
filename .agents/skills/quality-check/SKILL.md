@@ -53,6 +53,8 @@ bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--related
   `workspace-dependency-contract`), which assert scripts and ranges without importing source.
   A changed or removed path inside a directory `scripts/directory-density-baseline.ts`
   guards runs `scripts/__tests__/directory-density-ratchet.test.ts`, which counts files on disk.
+  A changed or removed top-level `e2e/*.e2e.ts` spec runs `scripts/__tests__/e2e-pools.test.ts`,
+  which reads every spec's launch options to check its pool classification.
   A locale catalog, Desktop-shared i18n copy, or protocol Agent Chat label file runs the three
   Renderer i18n contracts (`i18n`, `zh-cn-terminology`, `english-counterpart-parity`), which reach
   those sources only through the aggregated locale resources.
