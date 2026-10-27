@@ -26,7 +26,7 @@ import { ChatMobileWatchers } from './chat-mobile-watchers';
 import { ChatPermissionSwitches } from './chat-permission-switch';
 import type { AgentChatProviderSession, ChatSideExchange } from './chat-provider';
 import * as queueActions from './chat-queue-actions';
-import { saveChatDefaults } from './chat-session-logs';
+import { saveChatDefaults, sendStartingTurn } from './chat-session-logs';
 import type { ChatStartHost } from './chat-start';
 import { ensureChatStarted } from './chat-start';
 import type { ChatState, ChatStateDelivery, ChatStopper } from './chat-states';
@@ -285,7 +285,7 @@ export class AgentChatService {
                 state.followUps.add({ id: randomUUID(), kind: 'message', message });
                 return;
             }
-            await session.send(message);
+            await sendStartingTurn(session, state, message);
         });
     }
 

@@ -212,12 +212,6 @@ export function observationContextForRequest(
         projectId: typeof parameters.projectId === 'string' ? parameters.projectId : undefined,
         sessionId: typeof parameters.sessionId === 'string' ? parameters.sessionId : undefined,
         terminalId: typeof parameters.terminalId === 'string' ? parameters.terminalId : undefined,
-        agentRunId:
-            typeof parameters.agentRunId === 'string'
-                ? parameters.agentRunId
-                : typeof parameters.runId === 'string'
-                  ? parameters.runId
-                  : undefined,
         ...(connection && {
             bootId: connection.bootId,
             clientId: connection.clientId,

@@ -1,9 +1,24 @@
-import type { AgentChatModelChange, AgentProvider } from '@caxri/protocol';
-import { logEventCatalog } from '@caxri/system';
+import type { AgentChatMessageInput, AgentChatModelChange, AgentProvider } from '@caxri/protocol';
+import { currentObservationContext, logEventCatalog } from '@caxri/system';
 
 import { requireChatTerminal } from './chat-launch';
 import type { AgentChatProviderSession, AgentChatSessionHost } from './chat-provider';
+import type { ChatState } from './chat-states';
 import type { AgentChatServiceOptions } from './service-options';
+
+/**
+ * Starts a turn and remembers the Client request that started it, so `agent_chat.turn_finished` can point back to that
+ * request after the provider's own records have long left its trace. A send outside a request (queue dispatch,
+ * automatic continuation) records `null`.
+ */
+export function sendStartingTurn(
+    session: Pick<AgentChatProviderSession, 'send'>,
+    state: Pick<ChatState, 'turnStartRequestId'>,
+    message: Omit<AgentChatMessageInput, 'delivery'>,
+): Promise<void> {
+    state.turnStartRequestId = currentObservationContext().requestId ?? null;
+    return session.send(message);
+}
 
 /**
  * The provider session callbacks that only write a log event for one Chat Terminal: finished turns, rejected protocol
@@ -12,15 +27,25 @@ import type { AgentChatServiceOptions } from './service-options';
 export function chatSessionLogCallbacks(
     { logger }: Pick<AgentChatServiceOptions, 'logger'>,
     terminalId: string,
+    state: Pick<ChatState, 'turnStartRequestId'>,
 ): Pick<
     AgentChatSessionHost,
     'onDeliveryChecked' | 'onForkReleaseFailed' | 'onProtocolRejected' | 'onTurnFinished'
 > {
     return {
-        onTurnFinished: (status, durationMs) =>
+        onTurnFinished: (status, durationMs, turnId) => {
+            const startRequestId = state.turnStartRequestId ?? null;
+            state.turnStartRequestId = undefined;
             logger.write('info', logEventCatalog.agentChat.turnFinished, {
-                fields: { terminalId, status, durationMs: durationMs ?? null },
-            }),
+                fields: {
+                    terminalId,
+                    status,
+                    durationMs: durationMs ?? null,
+                    turnId,
+                    startRequestId,
+                },
+            });
+        },
         onProtocolRejected: (reason, method) =>
             logger.write('warn', logEventCatalog.agentChat.protocolRejected, {
                 fields: { terminalId, reason, method: method.slice(0, 100) },
