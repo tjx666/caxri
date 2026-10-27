@@ -23,6 +23,17 @@ keeps the two sentences identical, and
 generated parent rebuild keeps its children and a rebuild that leaves a dangling reference rolls
 back.
 
+Renaming a table makes `drizzle-kit generate` ask, per new table, whether it is created or renamed
+from an old one, and it needs a TTY to ask. An agent shell has none, so drive it through a PTY with
+`expect` and answer each prompt from an explicit old-to-new table mapping, never a fixed key
+sequence. A rename also has to keep every historical migration file and tag unchanged (a
+repository-wide codemod rewrote `0005_commander_inbox` once), and the pre-baseline rebuild's drop
+list in `connection.ts` must drop both the new and the former table names: a pre-baseline database
+still holds the old names, and replaying the chain onto them fails with `table already exists`.
+Add the former names to `RENAMED_TABLES` in
+`apps/server/src/domains/db/__tests__/connection-drop-list.test.ts`, which nothing discovers
+automatically.
+
 Integrity lives in the schema, not only in model code: foreign keys cascade owned worktree Projects (`owner_project_id`) and null a deleted primary Agent Terminal (`primary_agent_terminal_id`), `(session_id, order_index)` is unique, and closed protocol enums carry `CHECK` constraints whose value lists are type-checked against the protocol unions through `schema-constraints.ts` (the drift test above, not that type check, catches a widened list without its rebuilt constraint). Open-ended columns such as `terminals.kind` and `provider` deliberately stay unconstrained so a new Agent provider never forces a table rebuild. Row IDs stored inside `app_state` JSON and the `agent_delegations` / `agent_dispatch_receipts` / `agent_session_usage` ID projections are outside any foreign key by design; `schema.ts` documents which code keeps each one consistent. Query modules use the Drizzle query builder while the raw better-sqlite3 handle remains for pragmas and transactions. The schema contains:
 
 - `projects`: identity, unique root, display title, explicit Primary Sidebar order, timestamps, and the reversible `hidden_at` mark
