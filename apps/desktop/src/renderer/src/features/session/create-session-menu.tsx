@@ -177,8 +177,17 @@ function SessionCreationMenu({
             }}
         >
             {triggerWithTooltip}
+            {/**
+             * The heading's list opens beside the side bar, where the Session hover card sits, instead of dropping over the
+             * Sessions below. The pencil sits `right-1` inside a 28px row and is 20px tall, so these offsets put the menu at the
+             * row's top edge and 8px past its trailing edge, the hover card's exact placement. The empty-Project row keeps the
+             * default so the menu still opens under the full-width row that was clicked.
+             */}
             <MenuContent
                 aria-label={t('session.create.newInProject', { project: project.displayTitle })}
+                alignOffset={anchor === 'heading' ? -4 : undefined}
+                side={anchor === 'heading' ? 'right' : undefined}
+                sideOffset={anchor === 'heading' ? 12 : undefined}
             >
                 <AgentChoiceMenuItems
                     defaultAgent={defaultAgent}
