@@ -70,6 +70,11 @@ export class ClaudeTasks {
      */
     private readonly inLevel = new Set<string>();
 
+    /**
+     * A subagent frame's `parent_tool_use_id` to the listed task it belongs to, when they differ (a resumed subagent).
+     */
+    private readonly childRoutes = new Map<string, string>();
+
     private readonly shellOutput: ClaudeShellOutput;
 
     constructor(
@@ -385,6 +390,24 @@ export class ClaudeTasks {
     }
 
     /**
+     * The listed task a subagent frame belongs to. A resumed subagent (`SendMessage` to a finished or orphaned one) is
+     * listed under the resuming call, but its frames still name the original `Agent` call as `parent_tool_use_id`;
+     * keying by that alone left a phantom task running forever. Assistant and user frames carry the subagent's
+     * `agent_id` (its unchanging `task_id`), which names the run actually listed; `stream_event` frames carry none, so
+     * they follow the route an earlier frame of the same parent established.
+     */
+    private childTaskId(message: Json, parent: string): string {
+        const agentId = stringField(message.agent_id);
+        const listed = agentId === undefined ? undefined : this.listedId(agentId);
+        if (listed) {
+            if (listed === parent) this.childRoutes.delete(parent);
+            else this.childRoutes.set(parent, listed);
+            return listed;
+        }
+        return this.childRoutes.get(parent) ?? parent;
+    }
+
+    /**
      * The command line of a listed background shell, read from the Bash row that started it. A shell whose row is not
      * in the parent timeline has no known command, even when the Agent named it.
      */
@@ -421,13 +444,15 @@ export class ClaudeTasks {
     }
 
     /**
-     * Routes one frame of a subagent's own conversation into the task projection of the tool call that spawned it.
+     * Routes one frame of a subagent's own conversation into the task projection of the run it belongs to.
      */
     onChildMessage(message: Json): void {
         const parent = stringField(message.parent_tool_use_id);
         if (!parent) return;
-        const taskId = clip(parent, 200);
+        const taskId = this.childTaskId(message, clip(parent, 200));
         if (!this.list.get(taskId)) {
+            // A partial frame names no `agent_id`, so it cannot tell a resumed run from a new one; its full frame follows.
+            if (message.type === 'stream_event') return;
             const row = this.options.host.read().items.find((item) => item.id === taskId);
             this.list.upsert(taskId, {
                 kind: 'agent',
