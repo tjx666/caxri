@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { agentChatIdleCompactionAt } from '../agent-chat-usage';
 
 const respondedAt = 1_000_000;
-const usage = { totalTokens: 200_000, cacheTtlMinutes: 60, lastResponseAt: respondedAt };
+const usage = { totalTokens: 80_000, cacheTtlMinutes: 60, lastResponseAt: respondedAt };
 
 describe('agentChatIdleCompactionAt', () => {
     it('is 54 minutes into a one-hour cache for a large Claude or Grok Build context', () => {
@@ -18,7 +18,7 @@ describe('agentChatIdleCompactionAt', () => {
             agentChatIdleCompactionAt({ ...usage, cacheTtlMinutes: 5 }, 'claude'),
         ).toBeUndefined();
         expect(
-            agentChatIdleCompactionAt({ ...usage, totalTokens: 199_999 }, 'claude'),
+            agentChatIdleCompactionAt({ ...usage, totalTokens: 79_999 }, 'claude'),
         ).toBeUndefined();
         expect(
             agentChatIdleCompactionAt({ totalTokens: 250_000, cacheTtlMinutes: 60 }, 'claude'),
