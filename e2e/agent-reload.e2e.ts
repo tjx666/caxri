@@ -114,6 +114,13 @@ test('Restart Agent resumes the same conversation in the approval mode it launch
             }),
         });
 
+        // The binding above can come from the fake's session metadata alone; the confirmation below needs the turn its
+        // `UserPromptSubmit` hook started, so wait for that hook to land too.
+        await expect(row.locator('.session-status')).toHaveAttribute(
+            'data-session-status',
+            'running',
+            { timeout: 30_000 },
+        );
         await row.click({ button: 'right' });
         // Sits in the Agent group, directly before the Session's other Agent process entry.
         const rowLabels = await contextMenuLabels(app);

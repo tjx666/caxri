@@ -8,6 +8,7 @@ import { promisify } from 'node:util';
 import type { AppSettings, BootstrapState } from '@caxri/protocol';
 
 import { createFakeAgentMode } from './support/agent-fixture.ts';
+import { runnerCliEnvironment } from './support/cli-environment.ts';
 import { expect, test } from './support/fixtures.ts';
 import {
     createAdditionalShellSession,
@@ -221,8 +222,10 @@ process.stdout.write('Compaction Agent ready\r\n');
         await terminalInput.press('c');
         await expect(tabOperation).toHaveText('Compacting');
         await createAdditionalShellSession(running.page);
-        await running.page.keyboard.down('Meta');
-        await running.page.keyboard.press('Backquote');
+        // Holds the default `Ctrl+Alt+Tab` Session MRU modifiers so the switcher stays open.
+        await running.page.keyboard.down('Control');
+        await running.page.keyboard.down('Alt');
+        await running.page.keyboard.press('Tab');
         const switcherRow = running.page
             .getByRole('listbox', { name: 'Recently used Sessions' })
             .locator(`[data-session-id="${sessionId}"] .session-status`);
@@ -232,7 +235,8 @@ process.stdout.write('Compaction Agent ready\r\n');
         await expect(switcherRow).toHaveAccessibleDescription(
             'The Agent is summarizing earlier context before continuing.',
         );
-        await running.page.keyboard.up('Meta');
+        await running.page.keyboard.up('Alt');
+        await running.page.keyboard.up('Control');
         await expect.poll(() => selectedSessionId(running.page)).toBe(sessionId);
         const endpoint = await readFile(
             join(userData, 'e2e-agents', 'codex', 'endpoint-ref'),
@@ -251,7 +255,7 @@ process.stdout.write('Compaction Agent ready\r\n');
                 '--yes',
                 '--json',
             ],
-            { timeout: 10_000 },
+            { env: runnerCliEnvironment(), timeout: 10_000 },
         );
         await expect(running.page.locator(`${VISIBLE_SESSION} .xterm-rows`)).toContainText(
             'SIGINT received',

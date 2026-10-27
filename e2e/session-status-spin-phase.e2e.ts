@@ -233,11 +233,13 @@ process.stdout.write('Fake Claude spin phase ready\r\n');
             .toBe(false);
         await expectRingsInPhase(page, arcs);
 
-        // The slower background ring keeps its own 3 s period and its own shared phase.
+        // The slower background ring keeps its own 3 s period and its own shared phase. Both fake Claude processes watch
+        // the same trigger, so either Session may be the one whose turn finishes first.
         await fireHook(config, 'finished-with-background');
-        await expect(firstStatus.locator('[data-session-status-background]')).toBeVisible();
+        await expect(page.locator(backgroundRings)).toHaveCount(1);
         await waitForRingToAdvance(page, backgroundRings, 1500);
         await fireHook(config, 'finished-with-background');
+        await expect(firstStatus.locator('[data-session-status-background]')).toBeVisible();
         await expect(secondStatus.locator('[data-session-status-background]')).toBeVisible();
         expect(
             await page.evaluate(

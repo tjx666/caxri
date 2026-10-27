@@ -87,7 +87,7 @@ async function fixture(at: string) {
     const send = vi.fn();
     let database = new CaxriDatabase(join(directory, 'state.db'));
     const services: ClaudeWindowService[] = [];
-    const start = ({ isTimerEnabled = false } = {}) => {
+    const start = ({ isTimerEnabled = false, isProbeEnabled = true } = {}) => {
         const service = new ClaudeWindowService({
             database,
             logger: { write } as unknown as StructuredLogger,
@@ -99,6 +99,7 @@ async function fixture(at: string) {
                 return Promise.resolve();
             },
             isTimerEnabled,
+            isProbeEnabled,
         });
         services.push(service);
         return service;
@@ -157,6 +158,17 @@ describe('ClaudeWindowService', () => {
         });
         expect(state.account?.key).toBe(IDENTITY.slice(0, 16));
         expect(test.send).toHaveBeenCalledWith({ event: 'claudeWindow.changed', payload: {} });
+    });
+
+    it('never starts Claude Code when probing is disabled, as in E2E', async () => {
+        const test = await fixture('2026-01-05T08:00:00+08:00');
+        const service = test.start({ isProbeEnabled: false });
+        await expect(service.status(false)).resolves.toMatchObject({
+            status: 'unavailable',
+            reason: 'claudeNotFound',
+        });
+        await expect(service.status(true)).resolves.toMatchObject({ reason: 'claudeNotFound' });
+        expect(test.account.opened).toBe(0);
     });
 
     it('is off by default for Max until the user turns it on, and keeps the explicit choice', async () => {
