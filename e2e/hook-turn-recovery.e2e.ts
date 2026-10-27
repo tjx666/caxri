@@ -8,6 +8,7 @@ import { promisify } from 'node:util';
 import type { BootstrapState } from '@caxri/protocol';
 
 import { createFakeAgentMode } from './support/agent-fixture.ts';
+import { runnerCliEnvironment } from './support/cli-environment.ts';
 import { expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
 
@@ -95,7 +96,7 @@ process.stdout.write('Hook recovery fixture ready\r\n');
                 '--yes',
                 '--json',
             ],
-            { timeout: 10_000 },
+            { env: runnerCliEnvironment(), timeout: 10_000 },
         );
         await expect(status).toHaveAttribute('data-session-status', 'default');
         expect(

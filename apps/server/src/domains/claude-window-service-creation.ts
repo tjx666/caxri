@@ -13,8 +13,8 @@ import type { DomainDependencies } from './domain-services';
 
 /**
  * Composes the Claude 5-hour window keeper with the same Claude executable, launch settings, and Agent environment a
- * Claude Chat uses, so it checks and starts windows for the account the user's Chats run as. E2E never runs its timer:
- * a spec drives checks explicitly against the fake Claude CLI.
+ * Claude Chat uses, so it checks and starts windows for the account the user's Chats run as. E2E never runs its timer
+ * and never starts Claude for a check, since its `claude` is the fake Agent whose launches specs assert.
  */
 export function createClaudeWindowService({
     agentRuntime,
@@ -39,6 +39,7 @@ export function createClaudeWindowService({
         logger,
         send,
         isTimerEnabled: process.env.CAXRI_E2E !== '1',
+        isProbeEnabled: process.env.CAXRI_E2E !== '1',
         openSession: async () => {
             const prepared = await prepareChatLaunch(
                 {

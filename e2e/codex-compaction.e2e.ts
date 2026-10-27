@@ -8,6 +8,7 @@ import { promisify } from 'node:util';
 import type { AppSettings, BootstrapState } from '@caxri/protocol';
 
 import { createFakeAgentMode } from './support/agent-fixture.ts';
+import { runnerCliEnvironment } from './support/cli-environment.ts';
 import { expect, test } from './support/fixtures.ts';
 import {
     createAdditionalShellSession,
@@ -251,7 +252,7 @@ process.stdout.write('Compaction Agent ready\r\n');
                 '--yes',
                 '--json',
             ],
-            { timeout: 10_000 },
+            { env: runnerCliEnvironment(), timeout: 10_000 },
         );
         await expect(running.page.locator(`${VISIBLE_SESSION} .xterm-rows`)).toContainText(
             'SIGINT received',

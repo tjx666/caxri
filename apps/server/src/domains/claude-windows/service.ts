@@ -58,6 +58,12 @@ export interface ClaudeWindowServiceOptions {
      * Runs the startup check and the in-process timer. Off in E2E and unit tests, which drive checks explicitly.
      */
     isTimerEnabled: boolean;
+    /**
+     * Whether a check may start Claude Code at all; when false every check reads `claudeNotFound` without starting it.
+     * Off in E2E, where `claude` is the fake Agent: the Renderer reads the keeper's state at startup, and a probe
+     * launch would be recorded as the Session's own launch (issue #2684). Defaults to true.
+     */
+    isProbeEnabled?: boolean;
 }
 
 /**
@@ -115,6 +121,8 @@ export class ClaudeWindowService {
         let session: ClaudeWindowSession | undefined;
         let result: CheckResult;
         try {
+            if (this.options.isProbeEnabled === false)
+                throw new AgentChatStartError('executable_not_found', 'Probing Claude is disabled');
             session = await this.options.openSession();
             result = await this.decideAndAct(session, source !== 'status');
         } catch (error) {

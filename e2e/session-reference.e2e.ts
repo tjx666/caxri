@@ -197,12 +197,18 @@ test('typing @ cites another Session from Agent Chat and from the Agent Commands
         await page.keyboard.press('Enter');
         await expect(picker).not.toBeVisible();
         let terminalReference = '';
-        await expect
-            .poll(async () => {
-                terminalReference = await capturedInput(capture);
-                return REFERENCE.test(terminalReference);
-            })
-            .toBe(true);
+        try {
+            await expect
+                .poll(async () => {
+                    terminalReference = await capturedInput(capture);
+                    return REFERENCE.test(terminalReference);
+                })
+                .toBe(true);
+        } catch (error) {
+            // The fixture's capture directory is gone after the run, so keep what the fake Agent actually received.
+            await testInfo.attach('captured-terminal-input.txt', { body: terminalReference });
+            throw error;
+        }
         // The reference is typed, not submitted: the user finishes the prompt.
         expect(terminalReference).not.toContain('\r');
         await expectCondensedConversation(REFERENCE.exec(terminalReference)![1]);
