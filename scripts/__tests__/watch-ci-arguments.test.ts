@@ -6,7 +6,7 @@ import process from 'node:process';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { parseArguments } from '../watch-ci';
+import { parseArguments } from '../watch-ci-arguments';
 
 const SCRIPT = join(import.meta.dirname, '..', 'watch-ci.ts');
 const VALUE_FLAGS = ['--run', '--branch', '--pr', '--workflow'];

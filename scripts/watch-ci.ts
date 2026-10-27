@@ -42,6 +42,8 @@ import { fileURLToPath } from 'node:url';
 
 import { writeJsonAtomic } from './atomic-json';
 import { execFileAsync } from './exec';
+import type { CliOptions } from './watch-ci-arguments';
+import { parseArguments } from './watch-ci-arguments';
 import { resolvePrRuns } from './watch-ci-pr';
 import { followAndReport, isSuccessfulConclusion } from './watch-ci-sha';
 
@@ -91,6 +93,11 @@ export interface WatchState {
     conclusion: string;
     displayTitle?: string;
     heartbeatAt: string;
+    /**
+     * Whether `jobs` came from this attempt's latest poll. The status-only fallback in `fetchRun` keeps the previous
+     * job list for display, and that list cannot prove the jobs finished.
+     */
+    isJobListCurrent?: boolean;
     jobs: WatchedJob[];
     notifiedFailedJobs: string[];
     pollerPid: number;
@@ -155,6 +162,19 @@ export function canFollowSharedState(
         state.attempt >= observedAttempt &&
         !isHeartbeatStale(state.heartbeatAt, nowMs)
     );
+}
+
+/**
+ * Whether the run is over. GitHub can report a run `completed` with a successful conclusion while one of its jobs is
+ * still `in_progress` (PR 2798's run 40516588063 did, with `unit (1/3)` running), so a current job list must also show
+ * every job completed. Without one, the run status is the only evidence left.
+ */
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/watch-ci.test.ts
+export function isRunSettled(
+    state: Pick<WatchState, 'isJobListCurrent' | 'jobs' | 'status'>,
+): boolean {
+    if (state.status !== 'completed') return false;
+    return !state.isJobListCurrent || state.jobs.every((job) => job.status === 'completed');
 }
 
 /**
@@ -380,86 +400,6 @@ async function resolveRunId(branchOverride: string | undefined): Promise<string>
     return runId;
 }
 
-interface CliOptions {
-    branch?: string;
-    pr?: string;
-    quiet: boolean;
-    run?: string;
-    /**
-     * Follow every workflow run of this commit, full or abbreviated SHA, including `workflow_run` downstreams.
-     */
-    sha?: string;
-    /**
-     * With `--pr`, watch only the runs of this workflow, such as `Guards`, the one check `main` requires.
-     */
-    workflow?: string;
-}
-
-const VALUE_FLAGS = new Set(['--run', '--workflow', '--pr', '--branch', '--sha']);
-
-/**
- * Returns the operand of a value flag, or throws when it is missing, blank, or another flag. Failing open here would
- * let `--branch` with no value silently watch the current branch, so every value flag shares this one check.
- */
-function readOperand(flag: string, value: string | undefined): string {
-    if (value === undefined || value.trim() === '' || value.startsWith('-')) {
-        throw new Error(`${flag} requires a value`);
-    }
-    return value;
-}
-
-/**
- * Applies one CLI argument and returns how many argv slots it consumed.
- */
-function applyArgument(options: CliOptions, argument: string, value: string | undefined): number {
-    if (argument === '--quiet') {
-        options.quiet = true;
-        return 1;
-    }
-    if (!VALUE_FLAGS.has(argument)) throw new Error(`unknown argument: ${argument}`);
-    const operand = readOperand(argument, value);
-    switch (argument) {
-        case '--run': {
-            options.run = operand;
-            break;
-        }
-        case '--workflow': {
-            options.workflow = operand;
-            break;
-        }
-        case '--pr': {
-            options.pr = operand;
-            break;
-        }
-        case '--sha': {
-            if (!/^[0-9a-f]{7,40}$/iu.test(operand)) {
-                throw new Error(`--sha requires a 7 to 40 character hexadecimal commit SHA`);
-            }
-            options.sha = operand;
-            break;
-        }
-        default:
-            options.branch = operand;
-    }
-    return 2;
-}
-
-/**
- * Parses argv without touching Git, GitHub, or any process, so an invalid command line is rejected before any call.
- */
-// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/watch-ci-arguments.test.ts
-export function parseArguments(argv: string[]): CliOptions {
-    const options: CliOptions = { quiet: false };
-    let index = 0;
-    while (index < argv.length) {
-        index += applyArgument(options, argv[index], argv[index + 1]);
-    }
-    if (options.sha && (options.pr || options.run || options.branch || options.workflow)) {
-        throw new Error('--sha cannot be combined with --pr, --run, --branch, or --workflow');
-    }
-    return options;
-}
-
 /**
  * Folds one `gh run view` result into the shared state this process is about to publish as poller.
  */
@@ -490,6 +430,7 @@ export function buildWatchState(
         conclusion: view.conclusion ?? '',
         displayTitle: view.displayTitle ?? previous?.displayTitle,
         heartbeatAt: poller.heartbeatAt,
+        isJobListCurrent: view.jobs !== undefined,
         jobs,
         notifiedFailedJobs: isSameAttempt ? previous.notifiedFailedJobs : [],
         pollerPid: poller.pollerPid,
@@ -555,7 +496,7 @@ async function didRunSucceed(
             console.log(summary);
             lastPrinted = summary;
         }
-        if (state.status === 'completed') {
+        if (isRunSettled(state)) {
             // eslint-disable-next-line no-await-in-loop -- terminal notification; the loop exits right after
             await notify(formatCiNotification(state), state.url);
             return isSkippedSuccess

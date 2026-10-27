@@ -256,7 +256,7 @@ Full audit 2026-10-26 @ `c23b63b9d` revalidated all seven as still present; its 
 ### AD-tooling-watch-ci-operands: [RESOLVED · Confirmed defect · S]
 
 - **Summary:** `watch-ci` value flags accepted a missing, empty, or flag-like operand and fell through to Git and GitHub calls, sometimes silently watching the current branch.
-- **Evidence:** `scripts/watch-ci.ts` validates every value flag in one operand reader; `scripts/__tests__/watch-ci-arguments.test.ts` asserts zero external calls for twelve invalid forms.
+- **Evidence:** `scripts/watch-ci-arguments.ts` validates every value flag in one operand reader; `scripts/__tests__/watch-ci-arguments.test.ts` asserts zero external calls for twelve invalid forms.
 - **First seen:** 2026-10-21 @ 403f8de9a · **Last verified:** 2026-10-21 with the fix
 - **Resolved:** 2026-10-21 via [PR caxri#2264](https://github.com/tjx666/caxri/pull/2264).
 - **Remediation target / Acceptance:** Invalid operands fail before any process call.

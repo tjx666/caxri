@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { parse } from 'yaml';
 
-import { parseArguments } from '../watch-ci';
+import { parseArguments } from '../watch-ci-arguments';
 import type { CommitRun } from '../watch-ci-sha';
 import {
     DOWNSTREAM_GRACE_MS,
