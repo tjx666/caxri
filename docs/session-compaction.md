@@ -99,8 +99,8 @@ returns a time and that time has passed:
 - the provider is Claude Code or Grok Build; Codex is excluded because a ChatGPT sign-in keeps its cache
   with no expiry, and its API-key cache is cheap to rebuild;
 - the context holds at least 80,000 tokens, where a summary is cheaper than rewriting an expired cache
-  (Claude Code's own 200,000 default sits above its 167k autocompact point, so a Chat would almost never
-  reach it), and the cache lifetime is at least 60 minutes (Claude's observed lifetime; Grok Build uses a
+  (Claude Code's own 200,000 default sits above its 167k autocompact point on a 200K window, so such a
+  Chat never reached it), and the cache lifetime is at least 60 minutes (Claude's observed lifetime; Grok Build uses a
   60-minute estimate because xAI publishes none);
 - 90% of the lifetime has passed since the latest response (54 minutes of a one-hour cache).
 
