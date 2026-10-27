@@ -156,7 +156,7 @@ describe('ChatIdleCompaction', () => {
         ["a Chat that is not its Session's primary Agent", { primaryAgentTerminalId: 'other' }],
         [
             'a small context',
-            { usage: { totalTokens: 150_000, cacheTtlMinutes: 60, lastResponseAt: respondedAt } },
+            { usage: { totalTokens: 60_000, cacheTtlMinutes: 60, lastResponseAt: respondedAt } },
         ],
         [
             'a five-minute cache',

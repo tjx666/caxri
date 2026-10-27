@@ -29,10 +29,10 @@ const CACHE_NOTICE_MIN_TOKENS = 40_000;
 
 /**
  * The share of the context limit a cache notice needs. A conversation filling a small part of the window re-reads about
- * as much as any ordinary turn does once a conversation grows, so a notice about it is noise. On a 1M window this lands
- * near idle compaction's floor (`AGENT_CHAT_IDLE_COMPACTION_MIN_TOKENS`): a larger Chat is compacted before its cache
- * expires and a smaller one is not worth interrupting about. On a 200k window it stays below the cost floor above, so
- * nothing changes there.
+ * as much as any ordinary turn does once a conversation grows, so a notice about it is noise. On a 1M window this keeps
+ * a Chat under 200k quiet; one above idle compaction's floor (`AGENT_CHAT_IDLE_COMPACTION_MIN_TOKENS`) is normally
+ * compacted before its cache expires anyway. On a 200k window it stays below the cost floor above, so nothing changes
+ * there.
  */
 const CACHE_NOTICE_MIN_SHARE = 0.2;
 
