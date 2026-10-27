@@ -274,6 +274,29 @@ describe('CI workflow contract', () => {
         for (const id of MACOS_ONLY_CI_GATE_IDS) expect(skipped).toContain(id);
     });
 
+    it('scopes gitleaks to the introduced revision range in focused and full CI checks', () => {
+        const document = parse(workflow) as {
+            jobs: {
+                checks: {
+                    steps: Array<{
+                        env?: Record<string, string>;
+                        name?: string;
+                    }>;
+                };
+            };
+        };
+        for (const name of ['Run gitleaks', 'Run full platform checks']) {
+            const environment = document.jobs.checks.steps.find((step) => step.name === name)?.env;
+            expect(environment?.GITLEAKS_BASE_REVISION).toContain(
+                'github.event.pull_request.base.sha',
+            );
+            expect(environment?.GITLEAKS_BASE_REVISION).toContain('github.event.before');
+            expect(environment?.GITLEAKS_HEAD_REVISION).toBe(
+                '${{ github.event.pull_request.head.sha || github.sha }}',
+            );
+        }
+    });
+
     it('keeps the stable gate aware of every explicit route', () => {
         const gate = workflow.match(/\n {2}ci:\n([\s\S]*)$/u)?.[1] ?? '';
 

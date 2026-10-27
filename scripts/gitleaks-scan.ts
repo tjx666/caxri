@@ -4,10 +4,10 @@
  * Runs gitleaks against this repository with `.gitleaks.toml`, in one of three modes:
  *
  * - `--staged` (pre-commit hook): scans the Git index, the same diff a commit is about to create.
- * - Default, `GITLEAKS_BASE_REVISION`/`GITLEAKS_HEAD_REVISION` set (focused CI checks): scans only the commits the
- *   triggering push or pull request actually introduced.
- * - Default, no base revision (full CI platform checks, manual dispatch, or a bare local invocation): scans the entire
- *   commit history, matching the "full" gate's complete-not-diffed semantics.
+ * - Default, `GITLEAKS_BASE_REVISION`/`GITLEAKS_HEAD_REVISION` set (all push and pull-request CI checks): scans only the
+ *   commits the triggering push or pull request actually introduced.
+ * - Default, no base revision (manual dispatch or a bare local invocation): scans the entire commit history as an
+ *   intentional audit.
  */
 
 import { resolve } from 'node:path';

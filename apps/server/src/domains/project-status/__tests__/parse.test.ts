@@ -17,7 +17,7 @@ describe('Vercel deployment details', () => {
                             uid: 'dpl_Deployment123',
                             name: 'project',
                             state,
-                            url: 'project-alias-team.vercel.app',
+                            url: 'app-alias.example.vercel.app',
                             created: 1_700_000_000_000,
                         },
                     ],
@@ -41,7 +41,7 @@ describe('Vercel deployment details', () => {
                         name: 'project',
                         state: 'READY',
                         target: 'production',
-                        url: 'project-ready-team.vercel.app',
+                        url: 'app-ready.example.vercel.app',
                         inspectorUrl: 'https://vercel.com/team/project/provider-details',
                         created: 3,
                     },
@@ -58,7 +58,7 @@ describe('Vercel deployment details', () => {
                         name: 'project',
                         state: 'READY',
                         target: 'staging',
-                        url: 'project-staging-team.vercel.app',
+                        url: 'app-staging.example.vercel.app',
                         created: 1,
                     },
                 ],
@@ -75,7 +75,7 @@ describe('Vercel deployment details', () => {
         expect(mapped).toEqual([
             expect.objectContaining({
                 environment: 'production',
-                hostname: 'project-ready-team.vercel.app',
+                hostname: 'app-ready.example.vercel.app',
                 inspectorUrl: 'https://vercel.com/team/project/provider-details',
             }),
         ]);
@@ -90,7 +90,7 @@ describe('Vercel deployment details', () => {
                 {
                     uid: 'dpl_Fallback123',
                     state: 'READY',
-                    url: 'project-fallback-team.vercel.app',
+                    url: 'app-fallback.example.vercel.app',
                     inspectorUrl: 'https://example.com/untrusted',
                 },
                 'preview',
@@ -110,7 +110,7 @@ describe('Vercel deployment details', () => {
                     {
                         uid: 'dpl_State123',
                         readyState,
-                        url: 'project-state-team.vercel.app',
+                        url: 'app-state.example.vercel.app',
                     },
                 ],
             }),
@@ -131,7 +131,7 @@ describe('Vercel deployment details', () => {
                     {
                         uid: 'dpl_Commit123',
                         state: 'READY',
-                        url: 'project-commit-team.vercel.app',
+                        url: 'app-commit.example.vercel.app',
                         meta: {
                             githubCommitAuthorLogin: 'octocat',
                             githubCommitMessage: 'fix: stop the timeout\n\nLong body nobody reads.',
@@ -160,7 +160,7 @@ describe('Vercel deployment details', () => {
 
         expect(
             mapProjectStatusDeployment(
-                { uid: 'dpl_Cli123', state: 'READY', url: 'project-cli-team.vercel.app' },
+                { uid: 'dpl_Cli123', state: 'READY', url: 'app-cli.example.vercel.app' },
                 'preview',
                 link,
             )?.commit,
@@ -170,7 +170,7 @@ describe('Vercel deployment details', () => {
                 {
                     uid: 'dpl_Path123',
                     state: 'READY',
-                    url: 'project-path-team.vercel.app',
+                    url: 'app-path.example.vercel.app',
                     meta: {
                         githubCommitOrg: '../evil',
                         githubCommitRepo: 'web',

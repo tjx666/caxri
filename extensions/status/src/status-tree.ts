@@ -329,9 +329,9 @@ function buildRepoChildren(
             nodes.push(
                 item(`${prefix}:${deployment.environment}`, label, {
                     /**
-                     * No trailing text: neither the alias (`project-next-i06ixdxlq-team.vercel.app`) nor the short
-                     * commit SHA tells a reader anything the commit subject does not, and both spent the row's width on
-                     * a hash. The alias and SHA stay on the hover card, which opens the deployment, and the alias stays
+                     * No trailing text: neither the alias (`app-git-branch.example.vercel.app`) nor the short commit
+                     * SHA tells a reader anything the commit subject does not, and both spent the row's width on a
+                     * hash. The alias and SHA stay on the hover card, which opens the deployment, and the alias stays
                      * in the accessible name.
                      */
                     accessibilityLabel: deploymentAccessibilityLabel(label, stateLabel, deployment),

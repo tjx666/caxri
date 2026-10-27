@@ -106,8 +106,8 @@ describe('mcpServerSiteOrigins', () => {
     });
 
     it("does not take a hosting platform's or public suffix's icon for a server hosted under it", () => {
-        expect(mcpServerSiteOrigins(undefined, 'https://my-tool.vercel.app/mcp')).toEqual([
-            'https://my-tool.vercel.app',
+        expect(mcpServerSiteOrigins(undefined, 'https://tool.example.vercel.app/mcp')).toEqual([
+            'https://tool.example.vercel.app',
         ]);
         expect(mcpServerSiteOrigins(undefined, 'https://tools.example.co.uk/mcp')).toEqual([
             'https://tools.example.co.uk',

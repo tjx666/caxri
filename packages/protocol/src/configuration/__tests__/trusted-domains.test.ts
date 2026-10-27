@@ -190,6 +190,6 @@ describe('trustableParentHostname', () => {
          * @see https://github.com/tjx666/caxri/issues/801
          */
         expect(trustableParentHostname(new URL('https://tjx666.github.io'))).toBe('github.io');
-        expect(trustableParentHostname(new URL('https://myapp.vercel.app'))).toBe('vercel.app');
+        expect(trustableParentHostname(new URL('https://example.vercel.app'))).toBe('vercel.app');
     });
 });

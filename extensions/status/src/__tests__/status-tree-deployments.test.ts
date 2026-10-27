@@ -12,9 +12,9 @@ describe('Status extension Deployments row', () => {
     it('marks a branch row "Latest" and drops its summary twin when Production and Preview overlap branchDeployments', () => {
         const production = {
             environment: 'production' as const,
-            hostname: 'caxri.vercel.app',
+            hostname: 'app.example.vercel.app',
             state: 'success' as const,
-            url: 'https://caxri.vercel.app',
+            url: 'https://app.example.vercel.app',
             commit: {
                 sha: 'c8c65abfeed00000000000000000000000000000',
                 message: 'fix(workspace-seats) tighten the seat check',
@@ -22,9 +22,9 @@ describe('Status extension Deployments row', () => {
         };
         const preview = {
             environment: 'preview' as const,
-            hostname: 'caxri-preview.vercel.app',
+            hostname: 'app-git-preview.example.vercel.app',
             state: 'success' as const,
-            url: 'https://caxri-preview.vercel.app',
+            url: 'https://app-git-preview.example.vercel.app',
             commit: {
                 sha: 'f722d1cfeed00000000000000000000000000000',
                 message: 'refactor(ui) simplify the status tree',
@@ -32,9 +32,9 @@ describe('Status extension Deployments row', () => {
         };
         const olderProductionDeployment = {
             environment: 'production' as const,
-            hostname: 'caxri-older.vercel.app',
+            hostname: 'app-git-older.example.vercel.app',
             state: 'success' as const,
-            url: 'https://caxri-older.vercel.app',
+            url: 'https://app-git-older.example.vercel.app',
         };
         const root = buildRepoNode({
             id: 'fixture',
@@ -76,17 +76,17 @@ describe('Status extension Deployments row', () => {
     it('keeps a Production/Preview summary row that branchDeployments does not already carry', () => {
         const branchDeployment = {
             environment: 'preview' as const,
-            hostname: 'caxri-branch.vercel.app',
+            hostname: 'app-git-branch.example.vercel.app',
             state: 'success' as const,
-            url: 'https://caxri-branch.vercel.app',
+            url: 'https://app-git-branch.example.vercel.app',
         };
         // A merge-commit Production build (`mergeCommit` in `project-status/vercel.ts`) can land outside this
         // branch's own `branchDeployments` history entirely, so it stays a real, non-duplicate fact worth its own row.
         const production = {
             environment: 'production' as const,
-            hostname: 'caxri-production.vercel.app',
+            hostname: 'app-production.example.vercel.app',
             state: 'success' as const,
-            url: 'https://caxri-production.vercel.app',
+            url: 'https://app-production.example.vercel.app',
         };
         const root = buildRepoNode({
             id: 'fixture',
@@ -132,9 +132,9 @@ describe('Status extension Deployments row', () => {
     it('drops the empty detached "Deployments" row even when a separate Production summary still applies', () => {
         const production = {
             environment: 'production' as const,
-            hostname: 'caxri.vercel.app',
+            hostname: 'app.example.vercel.app',
             state: 'success' as const,
-            url: 'https://caxri.vercel.app',
+            url: 'https://app.example.vercel.app',
         };
         const root = buildRepoNode({
             id: 'fixture',
@@ -157,9 +157,9 @@ describe('Status extension Deployments row', () => {
     it('drops a branch row leading gitmoji rather than stacking it on the state icon', () => {
         const deployment = {
             environment: 'preview' as const,
-            hostname: 'caxri.vercel.app',
+            hostname: 'app.example.vercel.app',
             state: 'success' as const,
-            url: 'https://caxri.vercel.app',
+            url: 'https://app.example.vercel.app',
             commit: {
                 sha: 'c8c65abfeed00000000000000000000000000000',
                 message: '✨ feat: add the status rollup',
@@ -190,9 +190,9 @@ describe('Status extension Deployments row', () => {
     it('offers Fix on a failed deployment and not on a running one', () => {
         const failed = {
             environment: 'production' as const,
-            hostname: 'caxri-failed.vercel.app',
+            hostname: 'app-git-failed.example.vercel.app',
             state: 'failure' as const,
-            url: 'https://caxri-failed.vercel.app',
+            url: 'https://app-git-failed.example.vercel.app',
             inspectorUrl: 'https://vercel.com/example/caxri/abc',
             commit: {
                 sha: 'c8c65abfeed00000000000000000000000000000',
@@ -201,7 +201,7 @@ describe('Status extension Deployments row', () => {
         };
         const running = {
             ...failed,
-            hostname: 'caxri-running.vercel.app',
+            hostname: 'app-git-running.example.vercel.app',
             state: 'pending' as const,
         };
         const tree = (production: typeof failed | typeof running) =>

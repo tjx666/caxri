@@ -169,8 +169,8 @@ function httpsOrigin(value: unknown): URL | undefined {
 
 /**
  * Host labels that name a service under the vendor's own domain (`mcp.exa.ai`), so the parent domain is that vendor's
- * site. Any other first label (`my-tool.vercel.app`, `foo.co.uk`) may sit under a hosting platform or a public suffix,
- * whose icon is not the server's.
+ * site. Any other first label (`tool.example.vercel.app`, `foo.co.uk`) may sit under a hosting platform or a public
+ * suffix, whose icon is not the server's.
  */
 const SERVICE_HOST_LABELS = new Set(['api', 'mcp', 'server']);
 

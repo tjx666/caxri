@@ -13,6 +13,9 @@ be able to pick it up without this conversation's context.
 
 - Simplified Chinese, outcome-oriented, and ≤ 70 characters: “移除遮挡 Terminal 的恢复浮层”, not
   “Bug：浮层有问题” or “正在修复浮层”.
+- For confidentiality or public-content cleanup, name the benign end state without advertising the
+  sensitive category, prior exposure, or a guard's exact blind spot in the public issue list. Keep
+  the body actionable with synthetic, non-identifying descriptions.
 - No `[Bug]` / `feat:` prefixes: labels carry the classification.
 - Use the repo's domain vocabulary with its capitalization: Project, Session, Terminal, Agent,
   Runtime, Renderer.

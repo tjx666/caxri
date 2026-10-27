@@ -310,7 +310,7 @@ describe('Sonner notification adapter', () => {
         ['ENOSPC', 'The disk is full.'],
         ['EEXIST', 'A file with that name already exists.'],
     ])('turns %s into a human-readable reason', (code, reason) => {
-        const error = Object.assign(new Error(`${code}: open '/Users/jing/project/note.txt'`), {
+        const error = Object.assign(new Error(`${code}: open '/Users/me/project/note.txt'`), {
             code,
         });
         expect(describeFailure(error, 'Save failed')).toBe(`Save failed. ${reason}`);
@@ -321,19 +321,19 @@ describe('Sonner notification adapter', () => {
             describeFailure(
                 new CaxriError(
                     'IO',
-                    String.raw`Could not open '/Users/jing/private/note.txt' or C:\Users\jing\private\note.txt`,
+                    String.raw`Could not open '/Users/me/private/note.txt' or C:\Users\me\private\note.txt`,
                 ),
                 'Save failed',
             ),
         ).toBe('Save failed. Could not open a file or a file.');
         expect(
             describeFailure(
-                new Error('Failed at file:///Users/jing/private/note.txt'),
+                new Error('Failed at file:///Users/me/private/note.txt'),
                 'Save failed',
             ),
         ).toBe('Save failed. Failed at a file.');
         expect(
-            describeFailure(new Error('Access denied'), 'Open /Users/jing/private/note.txt failed'),
+            describeFailure(new Error('Access denied'), 'Open /Users/me/private/note.txt failed'),
         ).toBe('Open a file failed. Access denied.');
     });
 

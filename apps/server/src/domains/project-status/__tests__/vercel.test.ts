@@ -24,7 +24,7 @@ const fixtures: Fixture[] = [
         sha: defaultHead,
         target: 'production',
         uid: 'dpl_default_production',
-        url: 'widget-default-production.vercel.app',
+        url: 'app-production.example.vercel.app',
     },
     {
         readyState: 'READY',
@@ -32,7 +32,7 @@ const fixtures: Fixture[] = [
         sha: featureHead,
         target: 'preview',
         uid: 'dpl_feature_preview',
-        url: 'widget-feature-preview.vercel.app',
+        url: 'app-git-feature.example.vercel.app',
     },
 ];
 
@@ -158,7 +158,7 @@ describe('Vercel deployments', () => {
         expect(deployments?.production).toBeUndefined();
         expect(deployments?.preview).toMatchObject({
             environment: 'preview',
-            hostname: 'widget-feature-preview.vercel.app',
+            hostname: 'app-git-feature.example.vercel.app',
             state: 'success',
         });
         expect(deployments?.branchDeployments).toHaveLength(1);
@@ -173,7 +173,7 @@ describe('Vercel deployments', () => {
 
         expect(deployments?.production).toMatchObject({
             environment: 'production',
-            hostname: 'widget-default-production.vercel.app',
+            hostname: 'app-production.example.vercel.app',
             state: 'success',
         });
     });

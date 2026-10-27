@@ -38,9 +38,9 @@ const PUBLICATION_STATES = [
 function deployment(state: ProjectStatusState): ProjectStatusDeployment {
     return {
         environment: 'preview',
-        hostname: 'fixture.vercel.app',
+        hostname: 'fixture.example.vercel.app',
         state,
-        url: 'https://fixture.vercel.app',
+        url: 'https://fixture.example.vercel.app',
         inspectorUrl: 'https://vercel.example/inspect',
     };
 }
