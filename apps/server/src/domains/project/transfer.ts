@@ -252,17 +252,18 @@ async function importProjectTransfer(
             result.projectCount += 1;
             const imported: Array<{ session: SessionRecord; pinned: boolean }> = [];
             for (const session of exported.sessions.toReversed()) {
-                imported.push({
-                    // eslint-disable-next-line no-await-in-loop -- each new Session takes the top of its Project, so creation order is the sidebar order
-                    session: await importSession(
-                        database,
-                        chatState,
-                        project,
-                        session,
-                        result.missingWorkbenchRoots,
-                    ),
-                    pinned: session.pinned,
-                });
+                // Each new Session takes the top of its Project, so creation order is the sidebar order.
+                /* eslint-disable no-await-in-loop -- see above */
+                // react-doctor-disable-next-line react-doctor/async-await-in-loop -- see above
+                const created = await importSession(
+                    database,
+                    chatState,
+                    project,
+                    session,
+                    result.missingWorkbenchRoots,
+                );
+                /* eslint-enable no-await-in-loop */
+                imported.push({ session: created, pinned: session.pinned });
                 result.sessionCount += 1;
             }
             for (const entry of imported.toReversed()) if (entry.pinned) pinned.push(entry.session);
