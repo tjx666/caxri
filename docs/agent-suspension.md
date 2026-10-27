@@ -108,6 +108,9 @@ resuming`, and its tooltip names the same setting. Neither claims the idle rule 
 because the record does not say whether the idle rule, an archive, or a Process Explorer stop
 parked it.
 
+[Airplane Mode](airplane-mode.md) detaches every live Agent at once before the user goes offline and
+holds new Agent launches until the user picks which Sessions to resume.
+
 ## Logging
 
 Both transitions are logged without any Terminal or transcript content:

@@ -21,6 +21,9 @@ The notification reports submitted requests and skipped or unconfirmed outcomes.
 proof of finished compaction; the native Agent window shows its progress. Results remain in notification
 history. One failed Session does not prevent the remaining Sessions from being checked.
 
+[Airplane Mode](airplane-mode.md) runs the same batch before it stops every Agent, and waits for the
+submitted compactions to finish.
+
 ## Cache estimates
 
 Server Core reads a bounded, provider-authorized native transcript tail. It uses the latest request's

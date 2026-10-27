@@ -15,6 +15,7 @@ import {
     sessionRestorePlacementSchema,
     sessionStateSchema,
 } from './session.js';
+import { airplaneModeStateSchema } from './session/session-airplane-mode.js';
 import {
     sessionAgentHistoryResultSchema,
     sessionReopenConversationParametersSchema,
@@ -70,6 +71,37 @@ export const sessionMethods = {
         ...commandPolicy('server', 'control'),
         params: z.object({}),
         result: sessionCompactionResultSchema,
+    },
+    /**
+     * Airplane Mode (docs/airplane-mode.md): compacts eligible Sessions, then stops every Agent until the user resumes.
+     * Entering returns at once with the `compacting` phase; progress arrives as `session.airplaneModeChanged`.
+     */
+    'session.enterAirplaneMode': {
+        ...commandPolicy('server', 'control'),
+        params: z.object({}),
+        result: airplaneModeStateSchema,
+    },
+    /**
+     * Stops waiting for the submitted compactions and parks every Agent now.
+     */
+    'session.skipAirplaneModeCompaction': {
+        ...commandPolicy('server', 'control'),
+        params: z.object({}),
+        result: airplaneModeStateSchema,
+    },
+    /**
+     * Leaves Airplane Mode and relaunches the Agents of `sessionIds`, which must be among the parked Sessions. The rest
+     * stay detached and resume individually through `session.resume`.
+     */
+    'session.exitAirplaneMode': {
+        ...commandPolicy('server', 'control'),
+        params: z.object({ sessionIds: z.array(identifierSchema).max(1_000) }),
+        result: airplaneModeStateSchema,
+    },
+    'session.airplaneModeStatus': {
+        ...commandPolicy('server', 'read'),
+        params: z.object({}),
+        result: airplaneModeStateSchema,
     },
     /**
      * Finds Agent conversations across every provider's history on this machine, open, archived, or never in Caxri, by

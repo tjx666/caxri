@@ -154,6 +154,32 @@ describe('TerminalSuspensionService', () => {
         expect(harness.suspend).toHaveBeenCalledTimes(2);
     });
 
+    it('hands over every Agent launch while Airplane Mode holds, and notes its Session', async () => {
+        const harness = createHarness({ selected: 'session-a' });
+        let isHolding = true;
+        const parked = vi.fn<(sessionId: string) => void>();
+        harness.service.setAirplaneFence({ holds: () => isHolding, parked });
+        const agent = terminal('agent-late', 'session-b');
+        const shell = terminal('shell-late', 'session-b', { kind: 'shell', provider: undefined });
+        for (const record of [agent, shell]) {
+            harness.terminals.set(record.id, record);
+            harness.live.add(record.id);
+        }
+        await harness.service.parkLaunch(agent);
+        await harness.service.parkLaunch(shell);
+        expect(harness.suspend).toHaveBeenCalledExactlyOnceWith(
+            'agent-late',
+            'detached',
+            undefined,
+        );
+        expect(parked).toHaveBeenCalledExactlyOnceWith('session-b');
+
+        isHolding = false;
+        harness.live.add('agent-late');
+        await harness.service.parkLaunch(agent);
+        expect(harness.suspend).toHaveBeenCalledTimes(1);
+    });
+
     it('stops every live Terminal for terminateAll, including a launch that lands meanwhile', async () => {
         const harness = createHarness({ controlledSuspend: true });
         harness.live.delete('terminal-b');

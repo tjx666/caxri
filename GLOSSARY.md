@@ -140,6 +140,12 @@ short Peer Messages (`caxri agent message`). A message the user must approve is 
 decides on it from the Desktop; a message is never typed into a Terminal.
 _Avoid_: Caxri Inbox, Agent Inbox, Bot Inbox, chat
 
+**Airplane Mode**:
+A Workbench-wide state the user enters before going offline: Caxri compacts the conversations worth
+compacting, stops every Agent, and keeps Agents stopped until the user picks which of those
+Sessions to resume. Shell tabs keep running.
+_Avoid_: offline mode, flight mode, pause all
+
 **Unread Attention**:
 Attention whose current generation has not been acknowledged by any Client. Visibly focusing the
 Session is one acknowledgement path, a hook-reported new Agent turn superseding it is another, and

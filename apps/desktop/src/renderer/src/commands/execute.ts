@@ -67,6 +67,7 @@ import {
     revealSecondarySidebar,
     toggleSecondarySidebar,
 } from '../features/secondary-sidebar/secondary-sidebar-visibility';
+import { enterAirplaneMode } from '../features/session/airplane-mode/airplane-mode-commands';
 import { deleteProject, hideSelectedProject } from '../features/session/project-removal-commands';
 import {
     detachSelectedSession,
@@ -258,6 +259,7 @@ const commandContext: CommandContext = {
         },
         archiveSelected: archiveSelectedSession,
         compactWarm: compactWarmSessions,
+        enterAirplaneMode,
         canNavigateHistory: canNavigateSessionHistory,
         deleteSelected: deleteSelectedSession,
         detachSelected: detachSelectedSession,

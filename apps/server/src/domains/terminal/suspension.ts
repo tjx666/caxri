@@ -11,44 +11,12 @@ import { isPtyTerminal } from '../pty-guard';
 import type { WatchHandle, WatchHub } from '../watch';
 import type { TerminalExecutionPort } from './execution-port';
 import type { TerminalManager } from './manager';
-import type { TerminalLifecycleCause } from './manager-types';
-import type { TerminalActivitySample, TerminalSuspensionReason } from './suspension-policy';
+import type { ParkReason, ResumeReason } from './suspension-park-states';
+import { PARKED_AS, PARKED_STATES } from './suspension-park-states';
+import type { TerminalActivitySample } from './suspension-policy';
 import { decideTerminalSuspensions, lastActiveAt } from './suspension-policy';
 
 const TERMINAL_SUSPENSION_SWEEP_INTERVAL_MS = 15_000;
-
-type ParkReason = TerminalSuspensionReason | 'archived' | 'detached' | 'requested' | 'terminated';
-
-/**
- * Why a resumed Terminal was parked: the park reason this process recorded, or `beforeRestart` for a Terminal an
- * earlier Server Core left `suspended` or `detached`, whose reason and park time died with that process.
- */
-type ResumeReason = ParkReason | 'beforeRestart';
-
-/**
- * The durable states a later Agent launch resumes from; `stopped` is final and never restored.
- */
-const PARKED_STATES: ReadonlySet<TerminalRecord['lastProcessState']> = new Set([
-    'detached',
-    'suspended',
-]);
-
-/**
- * The durable state and lifecycle cause each park writes. Only a terminate is final: `stopped` is never restored, while
- * `suspended` resumes on selection and `detached` on `session.resume`.
- */
-const PARKED_AS: Record<
-    ParkReason,
-    { state: 'detached' | 'stopped' | 'suspended'; cause?: TerminalLifecycleCause }
-> = {
-    archived: { state: 'suspended', cause: 'sessionArchived' },
-    detached: { state: 'detached' },
-    idle: { state: 'suspended', cause: 'idleSuspended' },
-    observation: { state: 'suspended', cause: 'observationExpired' },
-    requested: { state: 'suspended' },
-    terminated: { state: 'stopped', cause: 'userTerminated' },
-    untouched: { state: 'suspended', cause: 'untouchedSuspended' },
-};
 
 interface TerminalSuspensionServiceOptions {
     database: CaxriDatabase;
@@ -110,6 +78,11 @@ export class TerminalSuspensionService {
      * `terminateAll` calls still running; every launch that lands meanwhile is stopped too.
      */
     private terminating = 0;
+    /**
+     * Airplane Mode's fence: while it holds, every Agent launch that lands is parked as `detached` and reported back,
+     * so nothing (a dispatch, Caxri Bot, a restart) brings an Agent online while the user is offline.
+     */
+    private airplaneFence?: { holds(): boolean; parked(sessionId: string): void };
     /**
      * `parkLaunch` teardowns in flight. A Session park that reaches the same Terminal joins one instead of sending a
      * second Host stop for a process whose first stop is still pending.
@@ -306,11 +279,15 @@ export class TerminalSuspensionService {
 
     /**
      * The park a launch that just landed still owes: a running `terminateAll` stops it, a running detach of its Session
-     * hands over its Agent, and a Session that left the Workbench (archived, or its Project hidden) parks it.
+     * or Airplane Mode hands over its Agent, and a Session that left the Workbench (archived, or its Project hidden)
+     * parks it.
      */
     private launchParkReason(record: TerminalRecord): ParkReason | undefined {
         if (this.terminating > 0) return 'terminated';
-        if (record.provider !== undefined && this.detaching.has(record.sessionId))
+        if (
+            record.provider !== undefined &&
+            (this.detaching.has(record.sessionId) || this.airplaneFence?.holds())
+        )
             return 'detached';
         const { database } = this.options;
         const session = database.getSession(record.sessionId);
@@ -319,6 +296,10 @@ export class TerminalSuspensionService {
             database.getProject(session.projectId)?.hiddenAt !== undefined
             ? 'archived'
             : undefined;
+    }
+
+    setAirplaneFence(fence: { holds(): boolean; parked(sessionId: string): void }): void {
+        this.airplaneFence = fence;
     }
 
     /**
@@ -526,6 +507,8 @@ export class TerminalSuspensionService {
     async parkLaunch(record: TerminalRecord): Promise<void> {
         const reason = this.launchParkReason(record);
         if (!reason) return;
+        if (reason === 'detached' && this.airplaneFence?.holds())
+            this.airplaneFence.parked(record.sessionId);
         const parking = this.suspendTerminal(record.id, reason);
         this.launchParkings.set(record.id, parking);
         try {

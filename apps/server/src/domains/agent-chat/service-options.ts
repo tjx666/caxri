@@ -91,6 +91,11 @@ export interface AgentChatServiceOptions {
      */
     delegation?: ChatDelegationHooks;
     /**
+     * Airplane Mode's fence: while it holds, no Chat provider starts, whichever path (a read, a send, a dispatch, Caxri
+     * Bot) asks. Optional so a test can omit it.
+     */
+    isStartFenced?(): boolean;
+    /**
      * The weekly usage guard and cross-Agent continuation (issues #2580, #2581). Optional so a test can build the
      * service without it.
      */

@@ -140,6 +140,29 @@ export const session: TranslatedNamespace<typeof source> = {
     'session.compaction.outcome.failed': '{{count}} 个发送失败',
     'session.compaction.outcome.delivery_unknown': '{{count}} 个发送未确认',
 
+    // Airplane Mode
+    'session.airplaneMode.enterFailed': '无法进入飞行模式',
+    'session.airplaneMode.exitFailed': '无法退出飞行模式',
+    'session.airplaneMode.title.busy': '正在进入飞行模式',
+    'session.airplaneMode.title.on': '已进入飞行模式',
+    'session.airplaneMode.description.compacting':
+        '先压缩空闲的对话，恢复时只需读取简短摘要。压缩完成后会停止所有 Agent。',
+    'session.airplaneMode.description.parking': '正在停止所有 Agent，对话会保留。',
+    'session.airplaneMode.description.on':
+        '所有 Agent 都已停止，离线期间不会反复重试请求。联网后，选择要恢复的会话。',
+    'session.airplaneMode.description.resuming': '正在恢复你选择的会话。',
+    'session.airplaneMode.progress.compacting': '正在检查哪些会话需要压缩…',
+    'session.airplaneMode.progress.parking': '正在停止 Agent…',
+    'session.airplaneMode.progress.resuming': '正在恢复…',
+    'session.airplaneMode.compactionPending': '还有 {{pending}}/{{submitted}} 个压缩在进行…',
+    'session.airplaneMode.skipCompaction': '立即停止 Agent',
+    'session.airplaneMode.listLabel': '要恢复的会话',
+    'session.airplaneMode.none': '没有正在运行的 Agent，无需恢复。',
+    'session.airplaneMode.unlisted': '不在侧边栏中的会话',
+    'session.airplaneMode.resumeOne': '恢复 {{count}} 个会话',
+    'session.airplaneMode.resumeOther': '恢复 {{count}} 个会话',
+    'session.airplaneMode.exitWithoutResume': '退出，不恢复',
+
     // Command failure toasts
     'session.errors.selectFailed': '选择会话失败',
     'session.errors.reorderProjectFailed': '项目排序失败',

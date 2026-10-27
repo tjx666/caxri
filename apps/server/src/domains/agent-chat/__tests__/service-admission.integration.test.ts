@@ -228,4 +228,18 @@ describe('Agent Chat detach', () => {
         await service.closeSession(terminal.sessionId, 'detached');
         expect(database.getTerminal(terminal.id)?.lastProcessState).not.toBe('detached');
     });
+
+    it('refuses to start a Chat while Airplane Mode holds Agents down', async () => {
+        let isFenced = true;
+        const { service, spawnProcess, terminal } = await fixture({
+            isStartFenced: () => isFenced,
+        });
+        await expect(service.send(terminal.id, { text: 'hi' })).rejects.toMatchObject({
+            code: 'CONFLICT',
+        });
+        expect(spawnProcess).not.toHaveBeenCalled();
+        isFenced = false;
+        await service.send(terminal.id, { text: 'hi' });
+        expect(spawnProcess).toHaveBeenCalledTimes(1);
+    });
 });

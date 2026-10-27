@@ -61,6 +61,7 @@ export const EVENT_AUDIENCE = {
     'session.autoArchived': 'focused',
     'agent.automaticNamingUnavailable': 'focused',
     'agent.permissionAutoAllowChanged': 'all',
+    'session.airplaneModeChanged': 'all',
     'gpu.recoveryRequested': 'focused',
     'desktop.openRequested': 'focused',
     'command.execute': 'focused',

@@ -37,6 +37,7 @@ import {
     updatesLogEvents,
 } from './logging/logging-runtime.js';
 import {
+    sessionAirplaneModeLogEvents,
     sessionCompactionLogEvents,
     sessionContextLogEvents,
     sessionPullRequestsLogEvents,
@@ -103,6 +104,7 @@ export const logEventCatalog = {
     performanceMonitor: performanceMonitorLogEvents,
     processExplorer: processExplorerLogEvents,
     projectStatus: projectStatusLogEvents,
+    sessionAirplaneMode: sessionAirplaneModeLogEvents,
     sessionCompaction: sessionCompactionLogEvents,
     sessionContext: sessionContextLogEvents,
     sessionSearch: sessionSearchLogEvents,

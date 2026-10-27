@@ -51,6 +51,14 @@ export const sessionCommandDefinitions: CommandDefinition[] = [
         keywords: ['warm cache', 'prompt cache', 'compact', 'context'],
     },
     {
+        id: 'session.enterAirplaneMode',
+        title: 'Enter Airplane Mode',
+        category: 'Session',
+        description:
+            'Compact idle Agent conversations, then stop every Agent until you resume them, so none retries requests while offline',
+        keywords: ['offline', 'flight', 'network', 'stop agents', 'compact'],
+    },
+    {
         id: 'session.detach',
         title: 'Detach Agent',
         category: 'Session',

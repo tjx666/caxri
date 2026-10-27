@@ -40,6 +40,7 @@ export function recordingContext(): { calls: string[]; context: CommandContext }
             session: {
                 archiveSelected: record('session.archive'),
                 compactWarm: record('session.compactWarm'),
+                enterAirplaneMode: record('session.enterAirplaneMode'),
                 canNavigateHistory: () => true,
                 create: record('session.create'),
                 focusNextAttention: record('session.focusNextAttention'),

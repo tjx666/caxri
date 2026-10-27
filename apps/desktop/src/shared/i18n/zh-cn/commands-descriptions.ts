@@ -20,6 +20,8 @@ export const commandDescriptions: TranslatedNamespace<typeof source> = {
     'commands.description.session.archive': '将所选会话移出侧边栏并暂存其终端',
     'commands.description.session.compactWarm':
         '趁压缩成本仍低时，压缩最近进入空闲的会话中的 Agent 对话',
+    'commands.description.session.enterAirplaneMode':
+        '先压缩空闲的 Agent 对话，再停止所有 Agent，直到你恢复它们，离线时不会有 Agent 反复重试请求',
     'commands.description.session.detach': '停止所选会话的 Agent 终端，以便其他客户端恢复同一对话',
     'commands.description.session.resume': '重新启动所选会话中已分离的 Agent 终端并恢复其对话',
     'commands.description.session.openPullRequest':

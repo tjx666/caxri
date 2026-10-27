@@ -245,6 +245,8 @@ export async function ensureChatStarted(
     shouldKeepAgentAutonomy: boolean,
 ): Promise<AgentChatProviderSession> {
     const terminal = host.states.admit(terminalId, state);
+    if (host.options.isStartFenced?.())
+        throw new CaxriError('CONFLICT', 'Airplane Mode is on; exit it to start Agents');
     /**
      * `start()` publishes its session as soon as the process spawns, before the thread exists, so an open session alone
      * does not mean it can take a turn. Join an in-flight start instead of sending into it early.

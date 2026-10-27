@@ -20,7 +20,7 @@ import type { ConfigService } from './config';
 import type { CaxriDatabase } from './db';
 import type { DomainDependencies } from './domain-services';
 import { reapGroup } from './process-group';
-import { discardEmptySession } from './session';
+import { discardEmptySession, isAirplaneModeHolding } from './session';
 
 /**
  * Composes the Chat service with the domain root's launch settings and, when Agent Endpoints exist, Caxri Bot Endpoint
@@ -108,6 +108,7 @@ export function createAgentChatService({
         launchSettings,
         usage,
         usageLimitWaits,
+        isStartFenced: () => isAirplaneModeHolding(database.getAppState('airplaneMode')),
         longRunningShellCommands: () =>
             configuration.getSettings().value['agents.longRunningShellCommands'],
         sessionInstructions: () => configuration.getSettings().value['agents.sessionInstructions'],

@@ -61,6 +61,14 @@ export const sessionCompactionLogEvents = {
     maintenanceEnded: 'session.compaction_maintenance_ended',
 } as const;
 
+/**
+ * Airplane Mode (`docs/airplane-mode.md`). One record per phase transition with a closed `reason`, Session and
+ * compaction counts, and how long the previous phase lasted: never a title or Session content.
+ */
+export const sessionAirplaneModeLogEvents = {
+    changed: 'session.airplane_mode_changed',
+} as const;
+
 export const sessionRenameLogEvents = {
     providerSyncSkipped: 'session_rename.provider_sync_skipped',
     providerTitleMismatch: 'session_rename.provider_title_mismatch',

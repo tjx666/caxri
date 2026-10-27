@@ -21,6 +21,7 @@ import { DiagnosticsService } from './diagnostics';
 import type { DomainDependencies, DomainHandlers, DomainServices } from './domain-services';
 import { createGitReviewHandlers } from './git-review';
 import { createIntrospectionServices } from './introspection';
+import { createSessionMaintenanceServices } from './maintenance-services-creation';
 import { createMobileDomainHandlers, MobileTerminalMutationQueue } from './mobile';
 import { createOrderingHandlers } from './ordering-handlers';
 import { createSessionHandlers, createTerminateAllHandler } from './parking-handlers';
@@ -40,7 +41,6 @@ import {
     createSessionMarkReadHandler,
     createSessionRuntimeForgetter,
     createSessionSelectionHandlers,
-    SessionCompaction,
 } from './session';
 import { createStatusServices } from './status-service-creation';
 import { createTerminalSupervision } from './supervision-services-creation';
@@ -378,11 +378,19 @@ export async function createDomainServices(
         terminals,
         workingDirectory: userDataPath,
     });
+    const sessionMaintenance = createSessionMaintenanceServices({
+        agentChat,
+        compactionReadiness,
+        parking: sessionParking,
+        restorerOptions,
+        terminalSuspension,
+    });
     let isClosed = false;
     const close: DomainServices['close'] = async (runStep = (_step, action) => action()) => {
         if (isClosed) return;
         isClosed = true;
         presenceEffects.unsubscribe();
+        sessionMaintenance.close();
         statusServices.dispose();
         settlementWiring.dispose();
         terminalRestores.close();
@@ -408,15 +416,6 @@ export async function createDomainServices(
         await watchHub.close();
         database.close();
     };
-    const compaction = new SessionCompaction({
-        agentChat,
-        database,
-        coordinator,
-        terminals,
-        logger,
-        readiness: compactionReadiness,
-        environment: agentEnvironment,
-    });
     const terminalInputs = createTerminalInputHandlers({ coordinator, database, send, terminals });
     const terminalInput = terminalInputs['terminal.input'];
     const relaunchHandlers = createRelaunchHandlers({
@@ -426,7 +425,7 @@ export async function createDomainServices(
     });
     const handlers: DomainHandlers = {
         ...coreRoutedHandlers,
-        'session.compactWarm': (_parameters, signal) => compaction.run(signal),
+        ...sessionMaintenance.handlers,
         ...agentCommands.handlers,
         'app.bootstrap': ({ windowKey }) => snapshots.bootstrap(windowKey),
         'app.activeContext': () => readActiveContext(database, () => presence.currentSessionId()),
@@ -585,6 +584,7 @@ export async function createDomainServices(
         }),
     };
     terminalSupervision.start();
+    sessionMaintenance.start();
     // No presence exists until Desktop Main reports its windows, so nothing is watched, polled, or restored here:
     // `observeVisibleSessions` does that for the Sessions the first reports show.
     return {

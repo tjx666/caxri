@@ -42,6 +42,7 @@ export type TransientServerEvent = Extract<
             | 'gitReview.changed'
             | 'projectStatus.alert'
             | 'projectStatus.changed'
+            | 'session.airplaneModeChanged'
             | 'session.autoArchived'
             | 'sessionPullRequests.changed'
             | 'settings.openRequested'
@@ -70,6 +71,10 @@ const TRANSIENT_SERVER_EVENT_NAMES = new Set<ServerEvent['event']>([
     'session.autoArchived',
     'agent.automaticNamingUnavailable',
     'agent.permissionAutoAllowChanged',
+    /**
+     * A reconnecting client reads `session.airplaneModeStatus`, so a replay would only repeat stale progress.
+     */
+    'session.airplaneModeChanged',
     'terminal.output',
     'terminal.outputRecovery',
     /**
