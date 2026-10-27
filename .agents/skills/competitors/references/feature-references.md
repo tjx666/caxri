@@ -248,3 +248,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 ## Chromium and LobeHub
 
 - **Performance Monitor**: Chromium's "Frame Rate" HUD (fps, per-frame bars, GPU raster, GPU memory) and LobeHub's dev dock that reloads the window and times it. Evidence: `docs/performance-monitor.md`.
+
+## monocode (MIT)
+
+- **Worktree glyph**: A folder-tree icon (two folders joined by a tree line) for a linked worktree, replacing the VS Code `worktree` codicon. Evidence: `apps/desktop/src/renderer/src/features/status-bar/workbench-root-picker.tsx`.
