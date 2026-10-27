@@ -12,15 +12,29 @@ negative-fixture contract tests keep the wiring from silently rotting.
 
 ## Tool ownership matrix
 
-| Concern                                                                   | Owning tool                                                                                                                                                                                     | Command                                 |
-| ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
-| Code formatting (JS/TS/CSS/JSON/YAML/HTML)                                | Prettier (`@yutengjing/prettier-config`)                                                                                                                                                        | `bun run format` / `format:check`       |
-| Markdown formatting                                                       | Prettier (`prettier --write "**/*.md"`)                                                                                                                                                         | `bun run format:md` / `format:md:check` |
-| Markdown lint semantics (headings, links, lists)                          | markdownlint-cli2 (`.markdownlint-cli2.jsonc`)                                                                                                                                                  | `bun run lint:markdown`                 |
-| Syntactic JS/TS rules, import boundaries, local custom rules              | ESLint (`eslint.config.ts`), deliberately runs without typed linting (`projectService`)                                                                                                         | `bun run lint`                          |
-| Type-aware JS/TS rules (`typescript/*`, plus `node/no-sync`)              | oxlint + tsgolint (`.oxlintrc.json`)                                                                                                                                                            | `bun run lint:type-aware`               |
-| Directory/domain/naming contracts too structural for a single ESLint rule | Vitest repository-contract tests (`scripts/__tests__/*.test.ts`, `apps/server/src/domains/__tests__/structure.test.ts`, `apps/desktop/src/renderer/__tests__/renderer-design-contract.test.ts`) | `bun run test`                          |
-| Type correctness                                                          | `tsc --noEmit` (`tsconfig.node.json` / `tsconfig.web.json`) plus workspace `typecheck`                                                                                                          | `bun run typecheck`                     |
+| Concern                                                                           | Owning tool                                                                                                                                                                                     | Command                                 |
+| --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| Code formatting (JS/TS/CSS/JSON/YAML/HTML/TOML)                                   | `bun fmt` with `bunfig.toml` `[fmt]` (Prettier-compatible output, built-in Tailwind class sorting)                                                                                              | `bun run format` / `format:check`       |
+| Markdown formatting                                                               | `bun fmt` (`bun fmt --no-config --no-script "**/*.md"`)                                                                                                                                         | `bun run format:md` / `format:md:check` |
+| Markdown lint semantics (headings, links, lists)                                  | markdownlint-cli2 (`.markdownlint-cli2.jsonc`)                                                                                                                                                  | `bun run lint:markdown`                 |
+| Syntactic JS/TS rules, import boundaries, local custom rules                      | ESLint (`eslint.config.ts`), deliberately runs without typed linting (`projectService`)                                                                                                         | `bun run lint`                          |
+| Type-aware JS/TS rules (`typescript/*`, plus `node/no-sync`)                      | oxlint + tsgolint (`.oxlintrc.json`)                                                                                                                                                            | `bun run lint:type-aware`               |
+| Directory/domain/naming contracts too structural for a single ESLint rule         | Vitest repository-contract tests (`scripts/__tests__/*.test.ts`, `apps/server/src/domains/__tests__/structure.test.ts`, `apps/desktop/src/renderer/__tests__/renderer-design-contract.test.ts`) | `bun run test`                          |
+| Type correctness                                                                  | `bun check` (Bun's TypeScript 7 checker) on `tsconfig.node.json` / `tsconfig.web.json` plus workspace `typecheck`                                                                               | `bun run typecheck`                     |
+| JSDoc text (capitalization, 120-column wrap, tag order and spelling, blank lines) | ESLint `caxri/jsdoc-format` (`scripts/eslint-rules/jsdoc-format/`), a port of `prettier-plugin-jsdoc` the formatter cannot load                                                                 | `bun run lint`                          |
+
+`bun fmt` loads no Prettier plugins, so JSDoc text formatting lives in `caxri/jsdoc-format`, which
+reproduces `prettier-plugin-jsdoc` 1.8.1 output for the former configuration (verified byte for
+byte against the plugin on mutated repository comments). The formatter only re-indents block
+comments and never edits their text, so the two cannot undo each other; the rule wraps against a
+comment's final indentation, so the lint-staged and `bun run check --lint` pipelines format before
+ESLint. Embedded `@example` code, fenced code, tables, and tag types are formatted by calling
+`bun fmt` itself. Deliberate differences from the plugin: a single-line comment that no longer fits
+expands to a block instead of being split across `/** ... */` lines, and ESLint repeats fixes to a
+fixed point, where the plugin could need a second format pass. Every formatter invocation passes
+`--no-config`, which keeps a Prettier config in a parent directory of the checkout from switching
+`bun fmt` into Prettier-compatibility mode; `bunfig.toml` is then the only source of options. XML
+files are no longer formatted, and TOML files now are.
 
 ESLint owns anything expressible as a syntactic rule over a single file; every rule that needs
 type information runs through `oxlint --type-aware` instead (see
@@ -69,7 +83,7 @@ expression (for example an arrow body `() => void run()`) stays banned, so prefe
 
 | Convention                                                                                                                      | Enforcement                                                                                                                                                               |
 | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Class methods have a blank line on either side; consecutive fields and overload signatures may pack                             | `eslint.config.ts` `@stylistic/lines-between-class-members` (Prettier never inserts these blank lines)                                                                    |
+| Class methods have a blank line on either side; consecutive fields and overload signatures may pack                             | `eslint.config.ts` `@stylistic/lines-between-class-members` (the formatter never inserts these blank lines)                                                               |
 | Renderer server reads go through React Query, a `*-client.ts`, or a `*-commands.ts` module, never straight into component state | Local `caxri/server-reads-through-query` ESLint rule (`scripts/eslint-rules/server-reads-through-query.ts`), scoped to all of `apps/desktop/src/renderer/src/features/**` |
 
 Flat ESLint config objects replace, rather than merge, a later matching object's same-named rule

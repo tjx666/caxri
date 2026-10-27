@@ -1,7 +1,12 @@
 import type { LogQueryRecord } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { filterLogRecords, isLogFilterMatch, logRecordHaystack, parseLogFilter } from './log-filter';
+import {
+    filterLogRecords,
+    isLogFilterMatch,
+    logRecordHaystack,
+    parseLogFilter,
+} from './log-filter';
 
 const record: LogQueryRecord = {
     id: 'a'.repeat(24),

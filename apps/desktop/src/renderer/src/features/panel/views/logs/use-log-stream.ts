@@ -12,8 +12,8 @@ export interface LogStream {
      */
     gap: boolean;
     /**
-     * Generation counter for `gap`; see `log-stream.ts`'s `LogStreamState` doc comment. The panel compares this
-     * against the epoch it was dismissed at to decide whether the gap banner should still show.
+     * Generation counter for `gap`; see `log-stream.ts`'s `LogStreamState` doc comment. The panel compares this against
+     * the epoch it was dismissed at to decide whether the gap banner should still show.
      */
     gapEpoch: number;
     isLoading: boolean;

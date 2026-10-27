@@ -1,12 +1,12 @@
 out/
 dist/
-release/
-release.noindex/
+/release/
+/release.noindex/
 node_modules/
 apps/mobile/.expo/
 apps/mobile/android/
 apps/mobile/ios/
-logs/
+/logs/
 test-results/
 playwright-report/
 pnpm-lock.yaml

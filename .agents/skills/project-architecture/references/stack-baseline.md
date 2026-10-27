@@ -52,10 +52,10 @@ Keep these compatibility exceptions:
   for it, and `@expo/require-utils` looks for `transpileModule` to load `app.config.ts`, rejecting
   TypeScript 7, which does not ship it. Unlike the root `@typescript/typescript6` alias (bin
   `tsc6`), this package installs its own `tsc`, which shadows the root TypeScript 7 CLI on
-  `PATH`. The mobile `typecheck` script therefore addresses the root CLI by path
-  (`../../node_modules/.bin/tsc`), so `apps/mobile` still typechecks with TypeScript 7: the
-  TypeScript 6 compiler took about three times as long and reported nothing TypeScript 7 missed.
-  `scripts/__tests__/toolchain-contract.test.ts` asserts both the package major and the compiler.
+  `PATH`. Type checking does not use either bin: every `typecheck` script, the mobile one
+  included, runs `bun check`, Bun's built-in TypeScript 7 checker, so `apps/mobile` still
+  typechecks with TypeScript 7. `scripts/__tests__/toolchain-contract.test.ts` asserts both the
+  package major and the checker command.
 - Expo-managed mobile runtime dependencies and React types: SDK-recommended exact or tilde ranges.
   This includes React, React Native, Metro, FlashList, Reanimated, Worklets, and native addons.
 - Corrective `overrides`: exact known-good versions, with the compatibility reason documented next

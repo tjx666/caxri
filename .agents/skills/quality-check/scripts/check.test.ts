@@ -11,6 +11,7 @@ import {
     eslintArguments,
     eslintTargets,
     formatCheckSummary,
+    FORMATTER_ARGUMENTS,
     lintBucketsForFiles,
     lintPipelineForFile,
     playwrightArguments,
@@ -32,11 +33,13 @@ describe('final lint validation', () => {
         };
         await expect(runLint('/fixture', ['source.ts'], run)).rejects.toThrow('exceeds max-lines');
         expect(calls.map(({ executable }) => executable)).toEqual([
+            'bun',
             'eslint',
             'oxlint',
-            'prettier',
+            'bun',
             'eslint',
         ]);
+        expect(calls[0]?.arguments).toEqual([...FORMATTER_ARGUMENTS, 'source.ts']);
         expect(calls.at(-1)?.arguments).toEqual([
             ...ESLINT_CACHE_ARGUMENTS,
             '--no-warn-ignored',
@@ -430,7 +433,7 @@ describe('eslintTargets', () => {
      * ESLint lints fenced JS/TS blocks in Markdown, so a doc snippet can fail the repository-wide `lint` gate. Skipping
      * `.md` here let exactly that pass a focused check and fail CI.
      */
-    it('lints Markdown alongside code, and leaves other formatted files to Prettier', () => {
+    it('lints Markdown alongside code, and leaves other formatted files to the formatter', () => {
         expect(
             eslintTargets(
                 lintBucketsForFiles([
@@ -447,7 +450,7 @@ describe('eslintTargets', () => {
 });
 
 describe('lintBucketsForFiles', () => {
-    it('separates Markdown into its own bucket so it can run markdownlint before Prettier', () => {
+    it('separates Markdown into its own bucket so it can run markdownlint before the formatter', () => {
         expect(
             lintBucketsForFiles([
                 'apps/desktop/src/main/index.ts',

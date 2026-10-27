@@ -18,7 +18,7 @@
     "scripts": {
         "build": "tsc -p tsconfig.build.json",
         "test": "vitest run --root ../.. --project mobile-transport",
-        "typecheck": "tsc --noEmit -p tsconfig.json --incremental --tsBuildInfoFile ../../.cache/tsc/packages-mobile-transport.tsbuildinfo"
+        "typecheck": "bun check --no-script -p tsconfig.json"
     },
     "dependencies": {
         "@noble/ciphers": "^2.4.0",

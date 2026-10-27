@@ -33,7 +33,16 @@ import {
 const MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
 const execFileAsync = promisify(execFile);
 const CODE_EXTENSIONS = new Set(['.cjs', '.cts', '.js', '.jsx', '.mjs', '.mts', '.ts', '.tsx']);
-const FORMAT_EXTENSIONS = new Set(['.css', '.html', '.json', '.jsonc', '.md', '.yaml', '.yml']);
+const FORMAT_EXTENSIONS = new Set([
+    '.css',
+    '.html',
+    '.json',
+    '.jsonc',
+    '.md',
+    '.toml',
+    '.yaml',
+    '.yml',
+]);
 
 export function formatCheckSummary(input: {
     changedFileCount: number;
@@ -126,8 +135,8 @@ function repoHarnessTestCandidates(file: string): string[] {
 
 /**
  * Splits changed files into the three pipelines this gate runs, so `.md` files match CI's tool ownership split:
- * markdownlint owns Markdown semantics, Prettier owns formatting for every `FORMAT_EXTENSIONS` file (including `.md`),
- * and ESLint + Prettier own `CODE_EXTENSIONS`. ESLint additionally lints the fenced code blocks of the Markdown bucket
+ * markdownlint owns Markdown semantics, `bun fmt` owns formatting for every `FORMAT_EXTENSIONS` file (including `.md`),
+ * and ESLint + `bun fmt` own `CODE_EXTENSIONS`. ESLint additionally lints the fenced code blocks of the Markdown bucket
  * (see `eslintTargets`).
  */
 export function lintBucketsForFiles(files: string[]): LintBuckets {
@@ -275,11 +284,13 @@ async function runTool(
     arguments_: string[],
     environment?: NodeJS.ProcessEnv,
 ): Promise<void> {
-    await runCapture(join(root, 'node_modules', '.bin', executable), arguments_, root, environment);
+    const command =
+        executable === 'bun' ? process.execPath : join(root, 'node_modules', '.bin', executable);
+    await runCapture(command, arguments_, root, environment);
 }
 
 /**
- * The same cache the `lint` script writes. `runLint` lints every file twice (autofix, then the post-Prettier
+ * The same cache the `lint` script writes. `runLint` lints every file twice (autofix, then the post-format
  * verification), and parallel Agent sessions re-run the check after each edit, so an uncached pass re-lints unchanged
  * files every time. The content strategy keys entries on file bytes rather than mtime, which a checkout or formatter
  * rewrite would otherwise invalidate.
@@ -305,7 +316,7 @@ export function eslintArguments(files: string[]): string[] {
 }
 
 /**
- * Markdown belongs to the ESLint pass as well, not only to markdownlint and Prettier: `markdownProcessorConfig` in
+ * Markdown belongs to the ESLint pass as well, not only to markdownlint and the formatter: `markdownProcessorConfig` in
  * `eslint.config.ts` turns fenced JS/TS blocks into virtual files, so a doc whose snippet breaks a lint rule fails the
  * repository-wide `lint` gate. Leaving `.md` out let a documentation change pass this focused check and then fail CI:
  * the one outcome the gate exists to prevent.
@@ -314,15 +325,27 @@ export function eslintTargets({ codeFiles, markdownFiles }: LintBuckets): string
     return [...codeFiles, ...markdownFiles];
 }
 
+/**
+ * The repository formatter, as `bun run format` invokes it. `--no-config` keeps a Prettier config in a parent directory
+ * of the checkout from switching `bun fmt` away from `bunfig.toml`; `--no-script` keeps it from running a package
+ * script of the same name.
+ */
+export const FORMATTER_ARGUMENTS = ['fmt', '--no-config', '--no-script'];
+
 export async function runLint(root: string, files: string[], run = runTool): Promise<number> {
     const buckets = lintBucketsForFiles(files);
     const { codeFiles, markdownFiles, otherFormatFiles } = buckets;
 
+    /**
+     * Format code before ESLint: `caxri/jsdoc-format` wraps comments against their final indentation, so linting
+     * unformatted code could wrap a comment for an indentation the formatter then changes.
+     */
+    if (codeFiles.length > 0) await run(root, 'bun', [...FORMATTER_ARGUMENTS, ...codeFiles]);
     const eslintFiles = eslintTargets(buckets);
     if (eslintFiles.length > 0) await run(root, 'eslint', eslintArguments(eslintFiles));
     if (codeFiles.length > 0) {
         // ESLint is syntactic-only in this repository; type-aware rules run through oxlint/tsgolint
-        // (see .oxlintrc.json). Run it before Prettier so its autofixes get reformatted.
+        // (see .oxlintrc.json). Run it before the formatter so its autofixes get reformatted.
         const typeAwareFiles = codeFiles.filter((file) =>
             TYPE_AWARE_EXTENSIONS.has(extname(file).toLowerCase()),
         );
@@ -339,21 +362,16 @@ export async function runLint(root: string, files: string[], run = runTool): Pro
                 ...typeAwareFiles,
             ]);
         }
-        await run(root, 'prettier', ['--write', ...codeFiles]);
+        await run(root, 'bun', [...FORMATTER_ARGUMENTS, ...codeFiles]);
     }
     if (markdownFiles.length > 0) {
-        // markdownlint owns Markdown semantics; run its autofix before Prettier reformats the
+        // markdownlint owns Markdown semantics; run its autofix before the formatter reformats the
         // same files, since a semantic fix (e.g. wrapping a bare URL) can change line width that
-        // Prettier still needs to reflow.
+        // the formatter still needs to reflow.
         await run(root, 'markdownlint-cli2', ['--fix', ...markdownFiles]);
     }
     if (markdownFiles.length > 0 || otherFormatFiles.length > 0) {
-        await run(root, 'prettier', [
-            '--write',
-            '--no-error-on-unmatched-pattern',
-            ...markdownFiles,
-            ...otherFormatFiles,
-        ]);
+        await run(root, 'bun', [...FORMATTER_ARGUMENTS, ...markdownFiles, ...otherFormatFiles]);
     }
     /**
      * Formatting can expand a previously valid file past max-lines. Validate the final bytes, not only the pre-format

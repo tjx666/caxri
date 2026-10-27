@@ -95,7 +95,6 @@ describe('pnpm dependency contract', () => {
             '@types/semver',
             '@types/ws',
             '@yutengjing/eslint-config-typescript',
-            '@yutengjing/prettier-config',
             'eslint-plugin-import-x',
             'expo-file-system',
             'expo-image-manipulator',
@@ -106,7 +105,6 @@ describe('pnpm dependency contract', () => {
             'markdownlint-cli2',
             'oxlint',
             'oxlint-tsgolint',
-            'prettier-plugin-tailwindcss',
             'prism-react-renderer',
             'react-qr-code',
             'react-scan',
@@ -171,8 +169,15 @@ describe('pnpm dependency contract', () => {
         // files whose bytes changed since the last check.
         const stagedEslint =
             'eslint --fix --cache --cache-strategy content --cache-location .cache/eslint/.eslintcache --no-warn-ignored --max-warnings=0';
-        expect(rootManifest['lint-staged']?.['*.{js,jsx,mjs,cjs}']?.[0]).toBe(stagedEslint);
-        expect(rootManifest['lint-staged']?.['*.{ts,tsx,mts,cts}']?.[0]).toBe(stagedEslint);
+        // The formatter runs first because `caxri/jsdoc-format` wraps comments against their final indentation.
+        const stagedFormat = 'bun fmt --no-config --no-script';
+        for (const pattern of ['*.{js,jsx,mjs,cjs}', '*.{ts,tsx,mts,cts}']) {
+            expect(rootManifest['lint-staged']?.[pattern]?.slice(0, 2)).toEqual([
+                stagedFormat,
+                stagedEslint,
+            ]);
+            expect(rootManifest['lint-staged']?.[pattern]?.at(-1)).toBe(stagedFormat);
+        }
         // Every worktree shares one Git stash stack, so lint-staged's default stash backup can pop a sibling
         // session's entry into this checkout. A broad revert once dropped the flag unnoticed.
         expect(rootManifest.scripts?.['lint:staged']).toBe('lint-staged --no-stash');

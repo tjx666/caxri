@@ -8,8 +8,6 @@ import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { createZstdDecompress } from 'node:zlib';
 
-import { format, resolveConfig } from 'prettier';
-
 import type { DevelopmentUsageSummary, JsonRecord } from './development-usage';
 import {
     CodexLedger,
@@ -20,6 +18,7 @@ import {
     timestamp,
     updateDevelopmentUsageReadme,
 } from './development-usage';
+import { formatSource } from './format-source';
 
 /**
  * Personal archive locations are relative to the runtime home, never a maintainer's absolute path.
@@ -317,10 +316,7 @@ async function main(): Promise<void> {
             throw new Error('No attributable usage found; README was not changed.');
         const path = fileURLToPath(new URL('../README.md', import.meta.url));
         const readme = await readFile(path, 'utf8');
-        const block = await format(renderDevelopmentUsage(summary), {
-            ...(await resolveConfig(path)),
-            filepath: path,
-        });
+        const block = await formatSource(renderDevelopmentUsage(summary), path);
         await writeFile(path, updateDevelopmentUsageReadme(readme, summary, block.trimEnd()));
     }
     console.log(isJson ? JSON.stringify(summary, null, 2) : renderDevelopmentUsage(summary));

@@ -141,12 +141,11 @@ export function updateVersionSource(
     const currentDeclaration = `export const ${constant} = '${currentVersion}';`;
     const matches = source.split(currentDeclaration).length - 1;
     if (matches !== 1) {
-        throw new Error(`${path} must contain exactly one ${constant} declaration for ${currentVersion}`);
+        throw new Error(
+            `${path} must contain exactly one ${constant} declaration for ${currentVersion}`,
+        );
     }
-    return source.replace(
-        currentDeclaration,
-        () => `export const ${constant} = '${version}';`,
-    );
+    return source.replace(currentDeclaration, () => `export const ${constant} = '${version}';`);
 }
 
 export async function discoverReleaseManifestPaths(cwd: string): Promise<string[]> {
@@ -194,26 +193,21 @@ export async function isExactReleasePreparationDelta(
     const root = resolve(cwd);
     try {
         const manifestPaths = await discoverReleaseManifestPaths(root);
-        const sourcePaths = [
-            ...manifestPaths,
-            ...VERSION_SOURCES.map(({ path }) => path),
-        ];
+        const sourcePaths = [...manifestPaths, ...VERSION_SOURCES.map(({ path }) => path)];
         if (!hasExactPathSet(changedPaths, sourcePaths)) return false;
 
         const currentSources = new Map(
             await Promise.all(
-                sourcePaths.map(async (path) => [
-                    path,
-                    await readFile(join(root, path), 'utf8'),
-                ] as const),
+                sourcePaths.map(
+                    async (path) => [path, await readFile(join(root, path), 'utf8')] as const,
+                ),
             ),
         );
         const previousSources = new Map(
             await Promise.all(
-                sourcePaths.map(async (path) => [
-                    path,
-                    await readPreviousSource(path, root),
-                ] as const),
+                sourcePaths.map(
+                    async (path) => [path, await readPreviousSource(path, root)] as const,
+                ),
             ),
         );
         const currentVersion = parseManifest(
@@ -237,7 +231,8 @@ export async function isExactReleasePreparationDelta(
             if (
                 currentSource === undefined ||
                 previousSource === undefined ||
-                currentSource !== updateManifest(previousSource, path, previousVersion, currentVersion)
+                currentSource !==
+                    updateManifest(previousSource, path, previousVersion, currentVersion)
             )
                 return false;
         }

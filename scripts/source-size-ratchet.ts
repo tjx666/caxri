@@ -61,8 +61,8 @@ export const RATCHET_SOURCE_ROOTS = [
  *   extensions and roots this ratchet never scans anyway (e.g. `**\/*.{sh,swift}`, `competitors/**`, which sit outside
  *   `RATCHET_SOURCE_ROOTS`), and a static list avoids paying ESLint's module-graph load cost on every ratchet run.
  *   Re-check this subset by hand against `eslint.config.ts`'s `globalIgnores` array when either changes.
- * - Mechanically generated data manifests that ESLint still lints (they are ordinary, Prettier-formatted TypeScript), but
- *   whose growth this ratchet's own remedy -- "split it by responsibility" -- cannot act on: the whole file is one
+ * - Mechanically generated data manifests that ESLint still lints (they are ordinary, `bun fmt`-formatted TypeScript),
+ *   but whose growth this ratchet's own remedy -- "split it by responsibility" -- cannot act on: the whole file is one
  *   generated `Record<string, string>` export, regenerated in full by its owning build script from a curated name list.
  *   Its size tracks that list's length, not hand-maintained complexity.
  */

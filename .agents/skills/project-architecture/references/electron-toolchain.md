@@ -102,7 +102,7 @@ Vite 8 requires `electron-vite@6`, the first stable line that declares Vite 8 su
 
 TypeScript 7 is the registry latest but does not ship a JavaScript API. Caxri follows the official side-by-side layout: `@typescript/native` supplies the TypeScript 7 `tsc` binary, while the `typescript` package name aliases `@typescript/typescript6` so typed ESLint rules continue to receive the supported TypeScript 6 API. Re-evaluate the alias after TypeScript 7.1 and native typed-lint support ship.
 
-`apps/mobile` is the one exception. Expo tooling expects the `typescript` JavaScript API from the app itself (the Expo CLI TypeScript prerequisite, and `@expo/require-utils`, which looks for `transpileModule` to load `app.config.ts` and rejects TypeScript 7), so that workspace declares the plain TypeScript 6 package. Its `tsc` bin shadows the root TypeScript 7 CLI on `PATH`, so the mobile `typecheck` script calls the root CLI by path and still compiles with TypeScript 7; [stack-baseline.md](stack-baseline.md) records the exception and the toolchain contract test pins both the package major and the compiler.
+`apps/mobile` is the one exception. Expo tooling expects the `typescript` JavaScript API from the app itself (the Expo CLI TypeScript prerequisite, and `@expo/require-utils`, which looks for `transpileModule` to load `app.config.ts` and rejects TypeScript 7), so that workspace declares the plain TypeScript 6 package. Its `tsc` bin shadows the root TypeScript 7 CLI on `PATH`, which no longer matters for type checking: every workspace `typecheck` script runs `bun check`, Bun's built-in TypeScript 7 checker; [stack-baseline.md](stack-baseline.md) records the exception and the toolchain contract test pins both the package major and the compiler.
 
 `@parcel/watcher`, `better-sqlite3`, and `node-pty` are Server application dependencies. The artifact
 builder copies only their selected runtime inputs and compatible prebuilds, preserves executable helper
@@ -134,7 +134,7 @@ unarmed until enough same-image GitHub-hosted samples support recalibration.
 The repository-local `setup-caxri-job` composite action owns common toolchain setup. CI reads exact
 Node and pnpm versions from `mise.toml`, installs them through `actions/setup-node` and `pnpm/setup`,
 and pins Bun through `.bun-version`, without changing the user's interactive installations. Hosted
-jobs install Bun explicitly and keep pnpm, Electron, Playwright, ESLint, and Prettier state below
+jobs install Bun explicitly and keep pnpm, Electron, Playwright, and ESLint state below
 `RUNNER_TEMP`; they never require a prewarmed `RUNNER_TOOL_CACHE/caxri/bun` or persistent
 runner-owned tool and cache locations.
 Jobs that exercise capture or media-analysis contracts install FFmpeg on disposable hosted runners

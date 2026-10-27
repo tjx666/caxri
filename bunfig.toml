@@ -1,0 +1,24 @@
+[fmt]
+printWidth = 100
+tabWidth = 4
+semi = true
+singleQuote = true
+quoteProps = "consistent"
+trailingComma = "all"
+ignorePatterns = ["e2e/support/mobile-ime/**/*.xml"]
+
+[fmt.sortTailwindcss]
+functions = ["cn", "cva"]
+stylesheet = "./apps/desktop/src/renderer/src/styles/theme.css"
+
+[[fmt.overrides]]
+files = ["*.{yml,yaml,md}"]
+options = { tabWidth = 2 }
+
+[[fmt.overrides]]
+files = ["*.svg"]
+options = { parser = "html" }
+
+[[fmt.overrides]]
+files = ["*.code-snippets"]
+options = { parser = "jsonc" }

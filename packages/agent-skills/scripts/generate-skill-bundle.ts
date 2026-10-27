@@ -1,6 +1,6 @@
 import { readFile, writeFile } from 'node:fs/promises';
 
-import { format, resolveConfig } from 'prettier';
+import { formatSource } from '../../../scripts/format-source';
 
 interface FileSystemError extends Error {
     code?: string;
@@ -36,11 +36,7 @@ async function generateSkillBundle(): Promise<void> {
  */
 export const CAXRI_SKILL_FILES = ${JSON.stringify(files, null, 4)} as const;
 `;
-    const config = (await resolveConfig(outputUrl.pathname)) ?? {};
-    await didWriteFileIfChanged(
-        outputUrl,
-        await format(source, { ...config, filepath: outputUrl.pathname }),
-    );
+    await didWriteFileIfChanged(outputUrl, await formatSource(source, outputUrl.pathname));
 }
 
 if (import.meta.main) await generateSkillBundle();

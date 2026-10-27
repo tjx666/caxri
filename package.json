@@ -10,10 +10,10 @@
         "dev": "bun run build:workspaces && bun run electron:install && bun run scripts/development.ts",
         "dev:desktop": "bun run electron:install && bun run scripts/development.ts",
         "electron:install": "install-electron",
-        "format": "prettier --write .",
-        "format:check": "prettier --check . --cache --cache-strategy content --cache-location .cache/prettier",
-        "format:md": "prettier --write \"**/*.md\"",
-        "format:md:check": "prettier --check \"**/*.md\"",
+        "format": "bun fmt --no-config --no-script .",
+        "format:check": "bun fmt --no-config --no-script --check .",
+        "format:md": "bun fmt --no-config --no-script \"**/*.md\"",
+        "format:md:check": "bun fmt --no-config --no-script --check \"**/*.md\"",
         "check": "bun run .agents/skills/quality-check/scripts/check.ts",
         "lint": "eslint . --max-warnings=0 --cache --cache-strategy content --cache-location .cache/eslint/.eslintcache",
         "lint:type-aware": "oxlint -c .oxlintrc.json --type-aware .",
@@ -26,7 +26,7 @@
         "knip": "knip",
         "doctor": "react-doctor --no-score --blocking warning",
         "doctor:changed": "bun run scripts/doctor-changed.ts",
-        "typecheck": "bun run typecheck:workspaces && tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+        "typecheck": "bun run typecheck:workspaces && bun check --no-script -p tsconfig.node.json && bun check --no-script -p tsconfig.web.json",
         "typecheck:workspaces": "pnpm --recursive --filter './apps/*' --filter './packages/*' --filter './extensions/*' run typecheck",
         "typecheck:api": "pnpm --filter caxri run typecheck",
         "typecheck:protocol": "pnpm --filter @caxri/protocol run typecheck",
@@ -82,23 +82,28 @@
     },
     "lint-staged": {
         "*.{js,jsx,mjs,cjs}": [
+            "bun fmt --no-config --no-script",
             "eslint --fix --cache --cache-strategy content --cache-location .cache/eslint/.eslintcache --no-warn-ignored --max-warnings=0",
-            "prettier --write"
+            "bun fmt --no-config --no-script"
         ],
         "*.{ts,tsx,mts,cts}": [
+            "bun fmt --no-config --no-script",
             "eslint --fix --cache --cache-strategy content --cache-location .cache/eslint/.eslintcache --no-warn-ignored --max-warnings=0",
             "oxlint -c .oxlintrc.json --type-aware --fix --no-error-on-unmatched-pattern",
-            "prettier --write"
+            "bun fmt --no-config --no-script"
         ],
         "*.md": [
             "markdownlint-cli2 --fix",
-            "prettier --write --no-error-on-unmatched-pattern"
+            "bun fmt --no-config --no-script"
         ],
-        "*.{css,html,json,jsonc,yaml,yml}": [
-            "prettier --write --no-error-on-unmatched-pattern"
+        "*.{css,html,json,jsonc,yaml,yml,toml}": [
+            "bun fmt --no-config --no-script"
         ]
     },
     "knip": {
+        "ignoreBinaries": [
+            "fmt"
+        ],
         "workspaces": {
             ".": {
                 "entry": [
@@ -248,6 +253,7 @@
         "@types/babel__core": "^7.20.5",
         "@types/better-sqlite3": "^9.6.0",
         "@types/estree": "^1.0.9",
+        "@types/mdast": "^4.0.4",
         "@types/node": "^24.19.2",
         "@types/react": "^19.3.0",
         "@types/react-dom": "^19.3.0",
@@ -255,13 +261,13 @@
         "@typescript/native": "npm:typescript@7.0.2",
         "@vitejs/plugin-react": "^6.1.2",
         "@yutengjing/eslint-config-typescript": "catalog:",
-        "@yutengjing/prettier-config": "catalog:",
         "babel-plugin-react-compiler": "^1.0.0",
         "better-sqlite3": "^13.0.3",
         "caxri": "workspace:*",
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
         "cmdk": "^1.1.1",
+        "comment-parser": "^1.4.9",
         "drizzle-kit": "^0.31.11",
         "electron": "45.0.0-beta.6",
         "electron-builder": "^26.15.3",
@@ -276,13 +282,12 @@
         "lucide-react": "^1.59.0",
         "markdownlint": "catalog:",
         "markdownlint-cli2": "catalog:",
+        "mdast-util-from-markdown": "^2.1.0",
         "motion": "^14.4.0",
         "node-pty": "^1.1.0",
         "oxlint": "catalog:",
         "oxlint-tsgolint": "catalog:",
         "playwright": "^1.64.1",
-        "prettier": "^3.9.10",
-        "prettier-plugin-tailwindcss": "catalog:",
         "react": "^19.3.1",
         "react-doctor": "^0.9.18",
         "react-dom": "^19.3.1",

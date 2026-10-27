@@ -118,5 +118,5 @@ a docs change. It validates frontmatter enums, `docs/README.md` index completene
 Markdown link targets and their `#heading` anchors (same-document ones included), backticked
 repository paths (`apps/`, `packages/`, `extensions/`, `e2e/`, `scripts/`, `.agents/`, `docs/`,
 `build/`, `skills/`, optionally with `:line`), and backticked TypeScript filenames written without
-a root (`branch.ts`, `.../branch.ts`), which must still match the end of some repository file. Follow it with `markdownlint-cli2` and `prettier --check` on the changed files; call the
+a root (`branch.ts`, `.../branch.ts`), which must still match the end of some repository file. Follow it with `markdownlint-cli2` and `bun run format:md:check`; call the
 Skill tool with "quality-check" for the full changed-file gate.

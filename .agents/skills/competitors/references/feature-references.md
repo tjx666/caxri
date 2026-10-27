@@ -261,3 +261,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 ## Linear (closed product reference)
 
 - **Chat code block folding**: A long fenced block folds to its first lines under a fade, with a centered `Expand (N lines)` pill and a `Collapse` pill below the expanded block. Evidence: `apps/desktop/src/renderer/src/components/markdown/code-collapse.ts`; `apps/desktop/src/renderer/src/components/markdown/code-collapse-toggle.tsx`; `DESIGN.md` (transcript blocks).
+
+## prettier-plugin-jsdoc (MIT)
+
+- **JSDoc text formatting rule**: `caxri/jsdoc-format` reproduces the plugin's 1.8.1 output for capitalization, whitespace collapse, 120-column wrapping, tag synonyms and order, Markdown lists, and embedded code. Borrowed: the formatting algorithm and tag tables, ported as code. Evidence: `scripts/eslint-rules/jsdoc-format/description.ts`; `scripts/eslint-rules/jsdoc-format/tags.ts`; `docs/quality-toolchain.md`; `THIRD_PARTY_NOTICES.md`.

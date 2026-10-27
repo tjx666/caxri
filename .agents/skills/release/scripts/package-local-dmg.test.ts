@@ -4,11 +4,8 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import type {CommandExecutor, CommandResult} from './package-local-dmg';
-import {
-    packageLocalDmg,
-    parseLocalDmgArguments
-} from './package-local-dmg';
+import type { CommandExecutor, CommandResult } from './package-local-dmg';
+import { packageLocalDmg, parseLocalDmgArguments } from './package-local-dmg';
 
 const temporaryDirectories: string[] = [];
 
@@ -60,11 +57,7 @@ function fakeExecutor(cwd: string, shouldPackageFail = false) {
                 const app = join(cwd, 'release.noindex', 'mac-arm64', 'Caxri.app');
                 await mkdir(join(app, 'Contents', 'MacOS'), { recursive: true });
                 await Promise.all([
-                    writeFile(
-                        join(cwd, 'release.noindex', 'Caxri-0.0.7-arm64.dmg'),
-                        'dmg',
-                        'utf8',
-                    ),
+                    writeFile(join(cwd, 'release.noindex', 'Caxri-0.0.7-arm64.dmg'), 'dmg', 'utf8'),
                     writeFile(join(app, 'Contents', 'Info.plist'), 'plist', 'utf8'),
                     writeFile(join(app, 'Contents', 'MacOS', 'Caxri'), 'binary', 'utf8'),
                 ]);
@@ -114,9 +107,7 @@ describe('local DMG packaging', () => {
         expect(result.sha256).toMatch(/^[a-f0-9]{64}$/);
         expect(await readFile(join(cwd, 'package.json'), 'utf8')).toBe(packageSource);
         expect(await readFile(join(cwd, 'pnpm-lock.yaml'), 'utf8')).toBe(lockSource);
-        expect(calls).toContain(
-            'pnpm version 0.0.7 --no-git-tag-version --no-git-checks',
-        );
+        expect(calls).toContain('pnpm version 0.0.7 --no-git-tag-version --no-git-checks');
         expect(calls).toContain('bun run package:dmg');
     });
 
@@ -143,7 +134,11 @@ describe('local DMG packaging', () => {
         const { executor } = fakeExecutor(cwd);
         const dirtyExecutor: CommandExecutor = {
             async run(command, arguments_, options) {
-                if (command === 'git' && arguments_[0] === 'status' && arguments_.includes('--untracked-files=all')) {
+                if (
+                    command === 'git' &&
+                    arguments_[0] === 'status' &&
+                    arguments_.includes('--untracked-files=all')
+                ) {
                     return success(' M src/example.ts\n');
                 }
                 return executor.run(command, arguments_, options);

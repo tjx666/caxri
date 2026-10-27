@@ -81,9 +81,9 @@ function assertVersion(value: string): string {
 }
 
 /**
- * Applies a single CLI argument to `options` and reports how many extra `arguments_` entries it
- * consumed (e.g. `--version <semver>`). Extracted out of the parsing loop so the `switch` cases
- * can `return` instead of nesting `break` inside a loop.
+ * Applies a single CLI argument to `options` and reports how many extra `arguments_` entries it consumed (e.g.
+ * `--version <semver>`). Extracted out of the parsing loop so the `switch` cases can `return` instead of nesting
+ * `break` inside a loop.
  */
 function applyLocalDmgArgument(
     argument: string,
@@ -148,7 +148,9 @@ function packageVersion(source: string, label: string): string {
 }
 
 async function sha256(path: string): Promise<string> {
-    return createHash('sha256').update(await readFile(path)).digest('hex');
+    return createHash('sha256')
+        .update(await readFile(path))
+        .digest('hex');
 }
 
 async function restoreFileAtomic(path: string, source: string): Promise<void> {
@@ -161,7 +163,7 @@ function signingField(source: string, name: string): string | null {
 }
 
 /**
-Temporarily updates pnpm-owned version metadata and restores the exact original bytes.
+ * Temporarily updates pnpm-owned version metadata and restores the exact original bytes.
  */
 async function buildVersionedDmg(
     options: LocalDmgOptions,
@@ -200,7 +202,7 @@ async function buildVersionedDmg(
     let restoreError: Error | undefined;
     let isVersionChanged = false;
     /**
-    Keep the parent alive long enough to restore manifests when an interactive build is stopped.
+     * Keep the parent alive long enough to restore manifests when an interactive build is stopped.
      */
     const onInterrupt = (): void => {
         interruptedSignal = 'SIGINT';
@@ -216,12 +218,7 @@ async function buildVersionedDmg(
             await runRequired(
                 executor,
                 'pnpm',
-                [
-                    'version',
-                    options.version,
-                    '--no-git-tag-version',
-                    '--no-git-checks',
-                ],
+                ['version', options.version, '--no-git-tag-version', '--no-git-checks'],
                 cwd,
             );
             const versionedPackage = await readFile(packagePath, 'utf8');
@@ -250,9 +247,12 @@ async function buildVersionedDmg(
                     );
                 }
             } catch (error) {
-                restoreError = new Error('Failed to restore package manifests after local packaging', {
-                    cause: error,
-                });
+                restoreError = new Error(
+                    'Failed to restore package manifests after local packaging',
+                    {
+                        cause: error,
+                    },
+                );
             }
         }
         process.removeListener('SIGINT', onInterrupt);
@@ -337,9 +337,7 @@ export async function packageLocalDmg(
         sha256: await sha256(artifactPath),
         source: {
             dirtyAllowed: options.allowDirty,
-            headSha: (
-                await runRequired(executor, 'git', ['rev-parse', 'HEAD'], cwd)
-            ).stdout.trim(),
+            headSha: (await runRequired(executor, 'git', ['rev-parse', 'HEAD'], cwd)).stdout.trim(),
         },
         verifiedAt,
         version,

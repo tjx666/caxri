@@ -5,7 +5,12 @@ import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import type { GitReader } from './prepare-release';
-import { assertMainCiHealthy, assertReleaseSource, prepareRelease, runPrepareRelease } from './prepare-release';
+import {
+    assertMainCiHealthy,
+    assertReleaseSource,
+    prepareRelease,
+    runPrepareRelease,
+} from './prepare-release';
 import type { ReleaseSourceReader } from './release-sources';
 import {
     discoverReleaseSourcePaths,
@@ -38,8 +43,7 @@ async function fixture(overrides: Record<string, string> = {}): Promise<string> 
     temporaryDirectories.push(cwd);
     const sources: Record<string, string> = {
         'apps/cli/src/version.ts': "export const CLI_VERSION = '0.0.24';\n",
-        'packages/agent-skills/src/version.ts':
-            "export const SKILL_BUNDLE_VERSION = '0.0.24';\n",
+        'packages/agent-skills/src/version.ts': "export const SKILL_BUNDLE_VERSION = '0.0.24';\n",
     };
     for (const path of manifests) {
         sources[path] = `${JSON.stringify(
@@ -84,7 +88,8 @@ function cleanReleaseGit(overrides: Record<string, string> = {}): GitReader {
     };
 }
 
-const greenMainCi = async () => JSON.stringify([{ conclusion: 'success', displayTitle: 'fix: x', headSha: 'a'.repeat(40) }]);
+const greenMainCi = async () =>
+    JSON.stringify([{ conclusion: 'success', displayTitle: 'fix: x', headSha: 'a'.repeat(40) }]);
 
 describe('release version preparation', () => {
     it('compares strict SemVer without runtime dependencies in the pre-install CI boundary', () => {
@@ -101,10 +106,9 @@ describe('release version preparation', () => {
         const sourcePaths = await discoverReleaseSourcePaths(cwd);
         const previousSources = new Map(
             await Promise.all(
-                sourcePaths.map(async (path) => [
-                    path,
-                    await readFile(join(cwd, path), 'utf8'),
-                ] as const),
+                sourcePaths.map(
+                    async (path) => [path, await readFile(join(cwd, path), 'utf8')] as const,
+                ),
             ),
         );
         const readPreviousSource: ReleaseSourceReader = async (path) => {
@@ -209,10 +213,14 @@ describe('release version preparation', () => {
             ),
         ).rejects.toThrow('match origin/main');
 
-        await expect(runPrepareRelease(['0.0.25'], cwd, cleanReleaseGit(), greenMainCi)).resolves.toMatchObject({
+        await expect(
+            runPrepareRelease(['0.0.25'], cwd, cleanReleaseGit(), greenMainCi),
+        ).resolves.toMatchObject({
             version: '0.0.25',
         });
-        await expect(runPrepareRelease([], cwd, cleanReleaseGit(), greenMainCi)).rejects.toThrow('Usage');
+        await expect(runPrepareRelease([], cwd, cleanReleaseGit(), greenMainCi)).rejects.toThrow(
+            'Usage',
+        );
     });
 
     it('rejects malformed, unchanged, and older explicit versions', async () => {
@@ -237,7 +245,10 @@ describe('assertMainCiHealthy', () => {
     it('refuses when the latest non-release run failed, even behind a green release run', async () => {
         await expect(
             assertMainCiHealthy(async () =>
-                JSON.stringify([run('success', 'release: v0.0.122'), run('failure', 'feat: x (#2313)')]),
+                JSON.stringify([
+                    run('success', 'release: v0.0.122'),
+                    run('failure', 'feat: x (#2313)'),
+                ]),
             ),
         ).rejects.toThrow('failed');
     });

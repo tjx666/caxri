@@ -48,9 +48,7 @@ description = "Bare platform suffixes and example-labeled deployment placeholder
 targetRules = ["identifying-deployment-host"]
 regexTarget = "match"
 condition = "OR"
-regexes = [
-    '''(?i)^(?:(?:[a-z0-9-]+\.)*example\.)?(?:vercel\.app|netlify\.app|pages\.dev)$''',
-]
+regexes = ['''(?i)^(?:(?:[a-z0-9-]+\.)*example\.)?(?:vercel\.app|netlify\.app|pages\.dev)$''']
 
 # `generic-api-key` fires on any `<key-like-word>: '<token>'` assignment above a modest entropy
 # floor. Caxri's keybinding domain model and its fixtures spell keyboard shortcuts as

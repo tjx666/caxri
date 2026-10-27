@@ -9,7 +9,7 @@
         "build": "bun run --cwd ../.. build:workspaces && bun run --cwd ../.. build:desktop",
         "dev": "bun run --cwd ../.. build:workspaces && bun run --cwd ../.. dev:desktop",
         "test": "vitest run --root ../.. --project desktop-parallel apps/desktop/src",
-        "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json"
+        "typecheck": "bun check --no-script -p tsconfig.node.json && bun check --no-script -p tsconfig.web.json"
     },
     "dependencies": {
         "@base-ui/react": "^1.9.0",

@@ -3,6 +3,7 @@ import type { ESLint } from 'eslint';
 import architectureBoundaries from './architecture-boundaries';
 import featureDirectoryStructure from './feature-directory-structure';
 import filenameExportMapping from './filename-export-mapping';
+import jsdocFormat from './jsdoc-format';
 import listenerFanoutIsolation from './listener-fanout-isolation';
 import nativeTitle from './native-title';
 import noDeclareImplicitAnyVariable from './no-declare-implicit-any-variable';
@@ -19,6 +20,7 @@ const caxriEslintPlugin: ESLint.Plugin = {
         'architecture-boundaries': architectureBoundaries,
         'feature-directory-structure': featureDirectoryStructure,
         'filename-export-mapping': filenameExportMapping,
+        'jsdoc-format': jsdocFormat,
         'listener-fanout-isolation': listenerFanoutIsolation,
         'native-title': nativeTitle,
         'no-declare-implicit-any-var': noDeclareImplicitAnyVariable,
