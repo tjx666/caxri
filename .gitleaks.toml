@@ -20,10 +20,12 @@ useDefault = true
 
 # Public fixtures must not carry a real local account name. The rule accepts both raw and escaped
 # Windows separators because gitleaks scans source text rather than evaluated string literals.
+# It matches the account segment itself, so a bare home folder (`/Users/<name>` at the end of a
+# string, or followed by a space or quote) is checked like a path that continues below it.
 [[rules]]
 id = "identifying-home-path"
 description = "Non-placeholder macOS or Windows home path"
-regex = '''(?:/Users/[A-Za-z0-9._-]+/|(?i:C:\\{1,2}Users\\{1,2}[a-z0-9._-]+\\{1,2}))'''
+regex = '''(?:/Users/[A-Za-z0-9._-]+|(?i:C:\\{1,2}Users\\{1,2}[a-z0-9._-]+))'''
 
 [[allowlists]]
 description = "Explicit synthetic account names used by public path fixtures"
@@ -31,7 +33,7 @@ targetRules = ["identifying-home-path"]
 regexTarget = "match"
 condition = "OR"
 regexes = [
-    '''^(?:/Users/(?:me|example|user|test|runner|dev|private|someone|u|x|you)/|(?i:C:\\{1,2}Users\\{1,2}(?:me|example|user|test|runner|dev|private|someone|u|x|you)\\{1,2}))$''',
+    '''^(?:/Users/(?:me|example|user|test|runner|dev|private|someone|u|x|you)|(?i:C:\\{1,2}Users\\{1,2}(?:me|example|user|test|runner|dev|private|someone|u|x|you)))$''',
 ]
 
 # Hosting-platform subdomains can identify a real project, team, or deployment. Bare platform

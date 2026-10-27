@@ -68,7 +68,7 @@ function claudeRenameContext(
         cwd: '/workspace/project',
         title: 'Release readiness',
         environment: {
-            homeDirectory: '/Users/tester',
+            homeDirectory: '/Users/test',
             variables: {
                 CLAUDE_CONFIG_DIR: '/tmp/claude-test-config',
                 PATH: '/opt/claude/bin:/usr/bin',
@@ -212,7 +212,7 @@ process.stdin.on('end', () => {
         });
         expect(options.env).toMatchObject({
             CLAUDE_CONFIG_DIR: '/tmp/claude-test-config',
-            HOME: '/Users/tester',
+            HOME: '/Users/test',
             // The caller's own `/opt/claude/bin:/usr/bin` is deliberately overridden: a GUI-launched Server only has
             // launchd's PATH, which cannot start a CLI shim that `exec node`.
             PATH: mocks.loginPath,
