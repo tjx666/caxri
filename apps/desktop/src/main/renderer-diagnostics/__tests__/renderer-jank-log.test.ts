@@ -11,7 +11,15 @@ const diagnostic: RendererJankDiagnostic = {
     omittedSwitchCount: 0,
     switches: [
         { totalMs: 150, requestMs: 100, convergeMs: 30, paintMs: 20, endedAgoMs: 50 },
-        { totalMs: 400, requestMs: 300, convergeMs: 60, paintMs: 40, endedAgoMs: 900 },
+        {
+            totalMs: 400,
+            requestMs: 300,
+            convergeMs: 60,
+            snapshotMs: 45,
+            applyMs: 15,
+            paintMs: 40,
+            endedAgoMs: 900,
+        },
     ],
     frames: [
         {
@@ -43,7 +51,10 @@ describe('Renderer jank log', () => {
             omittedFrameCount: 1,
         });
         expect(String(fields.switches).split(';', 1)[0]).toBe(
-            'total=400,request=300,converge=60,paint=40,endedAgo=900',
+            'total=400,request=300,converge=60,snapshot=45,apply=15,paint=40,endedAgo=900',
+        );
+        expect(String(fields.switches).split(';', 2)[1]).toBe(
+            'total=150,request=100,converge=30,paint=20,endedAgo=50',
         );
         expect(fields.frames).toBe(
             'duration=180,blocking=130,styleLayout=40,scripts=2,duringSwitch=true,endedAgo=20,topInvoker=user-callback,topMs=95,topForcedLayoutMs=30,topFile=index-ab12.js,topFunction=-',
