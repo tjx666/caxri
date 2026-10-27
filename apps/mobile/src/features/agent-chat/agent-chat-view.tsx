@@ -39,8 +39,7 @@ import {
 } from './agent-chat-model';
 import { AgentChatPlanCard } from './agent-chat-plan-card';
 import { AgentChatQueueList } from './agent-chat-queue-list';
-import { AgentChatRequestCard } from './agent-chat-request-card';
-import { agentChatRequestDock } from './agent-chat-request-flow';
+import { AgentChatRequests } from './agent-chat-request-dock';
 import { createAgentChatEntryStabilizer } from './agent-chat-stable-entries';
 import { AgentChatStatusRow } from './agent-chat-status-row';
 import type { AgentChatTimelineEntry as TimelineEntry } from './agent-chat-timeline';
@@ -57,7 +56,7 @@ import { AgentChatTimelineEntry } from './agent-chat-timeline-entry';
 import { AgentChatUsageGuardBanner } from './agent-chat-usage-guard-banner';
 import type { AgentChatController } from './use-agent-chat';
 import { useAgentChatHistory } from './use-agent-chat-history';
-import { useIsKeyboardShown } from './use-keyboard-shown';
+import { useIsRequestBesideKeyboard } from './use-request-beside-keyboard';
 
 /**
  * About three lines of the timeline, kept visible however much is docked above the composer.
@@ -336,82 +335,6 @@ const AgentChatMessageSheet = ({
 };
 
 /**
- * The pending requests docked above the composer, one card at a time (`agentChatRequestDock`), so a phone never scrolls
- * several whole cards as one block and loses a question's title. The dock is capped at 80% of the Chat, like the Chat's
- * sheets, so the timeline keeps the sent message in view; inside it the card's options or approval text scroll while
- * its title and buttons stay put. A 60% cap left a two-option question on a phone with one and a sliver of rows.
- *
- * Every request's card stays mounted, the ones not shown hidden: an answered card waits hidden while its answer is on
- * its way, so a refused answer brings it back with its choices and the card's own error instead of a blank card.
- */
-const AgentChatRequests = ({
-    blockedReason,
-    chat,
-    isExpanded,
-    provider,
-    theme,
-}: {
-    blockedReason: ReturnType<typeof agentChatRequestBlockedReason>;
-    chat: AgentChatController;
-    /**
-     * The keyboard is up beside this dock, so the card may take the timeline's whole share of the screen.
-     */
-    isExpanded: boolean;
-    provider: string;
-    theme: MobileTheme;
-}) => {
-    const { t } = useTranslation();
-    const { pending, respond, snapshot } = chat;
-    const { answeredRequestIds } = pending;
-    const requests = snapshot?.requests ?? [];
-    if (requests.length === 0) return null;
-    const dock = agentChatRequestDock(requests, answeredRequestIds, t);
-    return (
-        <View
-            style={[
-                styles.dock,
-                isExpanded && styles.dockExpanded,
-                { borderColor: theme.border },
-                dock.currentId === undefined && styles.hidden,
-            ]}
-            testID="agent-chat-requests"
-        >
-            {requests.map((request) => (
-                <View
-                    key={request.id}
-                    style={request.id === dock.currentId ? styles.dockCard : styles.hidden}
-                >
-                    <AgentChatRequestCard
-                        blockedReason={blockedReason}
-                        items={snapshot?.items ?? []}
-                        onRespond={respond}
-                        positionLabel={dock.positionLabel}
-                        provider={provider}
-                        request={request}
-                        theme={theme}
-                    />
-                </View>
-            ))}
-        </View>
-    );
-};
-
-/**
- * Whether a request card waits in the dock while the keyboard is up. The card needs its question, answer field, and
- * buttons beside the keyboard; on a phone the timeline's floor and the dock's 80% cap left it too short for them, so
- * meanwhile the timeline yields its share to the card.
- */
-const useIsRequestBesideKeyboard = (chat: AgentChatController): boolean => {
-    const { t } = useTranslation();
-    const isKeyboardShown = useIsKeyboardShown();
-    if (!isKeyboardShown) return false;
-    const requests = chat.snapshot?.requests ?? [];
-    return (
-        agentChatRequestDock(requests, chat.pending.answeredRequestIds, t).currentId !== undefined
-    );
-};
-
-/**
  * The phone's Chat: Desktop's Chat timeline in the Conversation's list (Markdown replies, work rows and summaries, each
  * finished turn folded behind its `Worked for` row with its artifacts under the reply), with the Chat's own states,
  * pending requests, plan, and activity docked above the composer.
@@ -608,9 +531,5 @@ const styles = StyleSheet.create({
     bannerButtonText: { fontSize: 14, fontWeight: '700' },
     status: { alignItems: 'center', flex: 1, gap: 12, justifyContent: 'center', padding: 24 },
     statusText: { fontSize: 15, lineHeight: 21, textAlign: 'center' },
-    dock: { borderTopWidth: 1, flexShrink: 1, maxHeight: '80%', padding: 12 },
-    dockExpanded: { maxHeight: '100%' },
-    dockCard: { flexShrink: 1 },
-    hidden: { display: 'none' },
 });
 /* eslint-enable no-use-before-define, @typescript-eslint/no-use-before-define */
