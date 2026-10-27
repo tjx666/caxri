@@ -14,6 +14,7 @@ import {
     typeChatDraft,
     waitForCheck,
     waitForNoCheck,
+    withVisibleKeyboard,
 } from './mobile-agent-chat-helpers';
 import type { MobileSemanticNode } from './mobile-android';
 import {
@@ -227,52 +228,49 @@ async function executeSkillsAndQuestionFlow(
             throw new Error('The question options are not compact rows');
         await capture(environment, 'question', artifacts);
 
-        // Other opens in place as a text field under the options, then the answer is still a tap away.
-        await tapMobileCheckByBounds(serial, 'agent-chat-question-0-other-open');
-        await waitForCheck(serial, 'agent-chat-question-0-other');
-        await adbShell(serial, ['input', 'text', 'typed']);
-        // With the keyboard up the card used to shrink below its content and draw the answer field and buttons over
-        // the status row and composer, outside its own background. Every part stays whole inside the card, above the
-        // composer.
-        const typing = await waitForMobile(
-            () => mobileSemantics(serial),
-            (nodes) =>
-                [
-                    'agent-chat-question-0-text',
-                    'agent-chat-question-0-other',
-                    'agent-chat-question-skip',
-                    'agent-chat-question-next',
-                    'agent-chat-activity',
-                    'agent-chat-model-button',
-                    'agent-chat-composer-input',
-                ].every((id) => hasCheck(nodes, id)),
-        );
-        const typingCard = checkBounds(typing, 'agent-chat-request');
-        if (!typingCard) throw new Error('The question card is not laid out while typing');
-        // The card ends above the waiting status row, the access and model row, and the composer input below it.
-        for (const id of [
-            'agent-chat-activity',
-            'agent-chat-model-button',
-            'agent-chat-composer-input',
-        ]) {
-            const below = checkBounds(typing, id);
-            if (!below || typingCard.bottom > below.top)
-                throw new Error(`The question card overlaps ${id} while typing`);
-        }
-        for (const id of [
-            'agent-chat-question-0-text',
-            'agent-chat-question-0-other',
-            'agent-chat-question-skip',
-            'agent-chat-question-next',
-        ]) {
-            const bounds = checkBounds(typing, id);
-            if (!bounds || !isInside(bounds, typingCard))
-                throw new Error(`${id} spills outside the question card while typing`);
-            if (((bounds.bottom - bounds.top) * 160) / density < MIN_TYPING_PART_DP)
-                throw new Error(`${id} is cut short inside the question card while typing`);
-        }
-        await capture(environment, 'question-other', artifacts);
-        await hideChatKeyboard(serial);
+        // The fixture IME draws no keyboard, so the emulator's own keyboard takes its half of the screen here.
+        await withVisibleKeyboard(serial, async () => {
+            // Other opens in place as a text field under the options, then the answer is still a tap away.
+            await tapMobileCheckByBounds(serial, 'agent-chat-question-0-other-open');
+            await waitForCheck(serial, 'agent-chat-question-0-other');
+            await adbShell(serial, ['input', 'text', 'typed']);
+            // With the keyboard up the card used to shrink below its content and draw the answer field and buttons over
+            // the status row and composer, outside its own background. Every part stays whole inside the card, above the
+            // composer.
+            const typing = await waitForMobile(
+                () => mobileSemantics(serial),
+                (nodes) =>
+                    // The form hides the options while the keyboard is up; the bounds below judge everything else.
+                    !hasCheck(nodes, 'agent-chat-question-0-option-0') &&
+                    hasCheck(nodes, 'agent-chat-question-0-other') &&
+                    hasCheck(nodes, 'agent-chat-request'),
+            );
+            const typingCard = checkBounds(typing, 'agent-chat-request');
+            if (!typingCard) throw new Error('The question card is not laid out while typing');
+            // The card ends above the waiting status row, the access and model row, and the composer input below it.
+            for (const id of [
+                'agent-chat-activity',
+                'agent-chat-model-button',
+                'agent-chat-composer-input',
+            ]) {
+                const below = checkBounds(typing, id);
+                if (!below || typingCard.bottom > below.top)
+                    throw new Error(`The question card overlaps ${id} while typing`);
+            }
+            for (const id of [
+                'agent-chat-question-0-text',
+                'agent-chat-question-0-other',
+                'agent-chat-question-skip',
+                'agent-chat-question-next',
+            ]) {
+                const bounds = checkBounds(typing, id);
+                if (!bounds || !isInside(bounds, typingCard))
+                    throw new Error(`${id} spills outside the question card while typing`);
+                if (((bounds.bottom - bounds.top) * 160) / density < MIN_TYPING_PART_DP)
+                    throw new Error(`${id} is cut short inside the question card while typing`);
+            }
+            await capture(environment, 'question-other', artifacts);
+        });
         await waitForCheck(serial, 'agent-chat-question-0-option-0');
 
         // A tap answers and moves to the next question; answering the last one sends the card.
