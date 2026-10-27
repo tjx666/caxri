@@ -463,16 +463,19 @@ collection is best-effort, non-overlapping, and unable to fail product work.
 The following current graph means “may import” and is enforced by ESLint:
 
 ```text
-agent-skills  -> protocol
-client        -> protocol, utils
+agent-skills  -> protocol, system
+client        -> protocol, system, utils
 protocol      -> utils
 extension-api -> no workspace dependencies
 system        -> protocol, utils
 server        -> agent-skills, extension-api, protocol, system, utils
 desktop       -> client, protocol, system, utils
-cli           -> agent-skills, client, protocol, utils
+cli           -> agent-skills, client, protocol, system, utils
 extensions    -> extension-api
 ```
+
+`@caxri/agent-skills` and `@caxri/client/supervise` may depend on the Node-only `@caxri/system` for
+bounded filesystem reads; the browser-safe Client entries must not reach it.
 
 Packages never import applications. Applications never import another application's source. Server
 processes communicate through their composition root and internal protocol rather than deep-importing
