@@ -82,6 +82,8 @@ export const chat: TranslatedNamespace<typeof source> = {
     'chat.emptyHandedOff': '没有可显示的消息。',
     'chat.emptyReady': '还没有消息。发送一条消息，开始与 {{provider}} 协作。',
     'chat.goal.clear': '清除目标',
+    'chat.goal.clearConfirmBody': 'Agent 将不再继续推进它，可以用 /goal 重新设定目标。',
+    'chat.goal.clearConfirmTitle': '清除这个目标？',
     'chat.goal.collapse': '收起目标',
     'chat.goal.expand': '展开完整目标',
     'chat.goal.pause': '暂停目标',

@@ -13,6 +13,7 @@ import {
     executeMobileChatPreviewScenario,
 } from './mobile-agent-chat-error-scenario';
 import { executeMobileChatFeedbackScenario } from './mobile-agent-chat-feedback-scenario';
+import { executeMobileChatGoalScenario } from './mobile-agent-chat-goal-scenario';
 import {
     agentText,
     hasCheck,
@@ -556,6 +557,8 @@ export async function executeMobileAgentChatCase(
             return executeMobileChatInlineLinkScenario(environment, artifacts);
         case 'MOB-CHAT-CLIP-REREAD-01':
             return executeMobileChatBurstStreamScenario(environment, artifacts, 'clipped');
+        case 'MOB-CHAT-GOAL-01':
+            return executeMobileChatGoalScenario(environment, artifacts);
         case 'MOB-CHAT-RUNNING-OPEN-01':
             return executeMobileChatRunningTurnScenario(environment, artifacts);
         case 'MOB-CHAT-SEND-UNKNOWN-01':

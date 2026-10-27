@@ -10,6 +10,10 @@ export interface MobileAgentChatDriver {
     interrupt(): Promise<void>;
     read(): Promise<AgentChatSnapshot>;
     /**
+     * Runs a provider command such as `/goal` through the paired Desktop's public Chat action.
+     */
+    runCommand(command: { name: string; arguments?: string }): Promise<void>;
+    /**
      * Submits Desktop-side messages, including synthetic image input.
      */
     send(message: AgentChatMessageInput): Promise<void>;
@@ -23,6 +27,8 @@ export function createMobileAgentChatDriver(page: Page, terminalId: string): Mob
     return {
         interrupt: () => pageRequest<void>(page, 'agentChat.interrupt', { terminalId }),
         read: () => pageRequest<AgentChatSnapshot>(page, 'agentChat.read', { terminalId }),
+        runCommand: (command) =>
+            pageRequest<void>(page, 'agentChat.runCommand', { terminalId, ...command }),
         send: (message) => pageRequest<void>(page, 'agentChat.send', { terminalId, ...message }),
         terminalId,
     };

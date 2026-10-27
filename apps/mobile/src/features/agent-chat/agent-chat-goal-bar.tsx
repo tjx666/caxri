@@ -1,6 +1,6 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AGENT_CHAT_GOAL_COMMAND, agentChatGoalArguments } from '@caxri/protocol';
 import { Goal, Maximize2, Minimize2, Pause, Play, Trash2 } from 'lucide-react-native';
@@ -14,9 +14,9 @@ import { useAgentChatTaskClock } from './use-agent-chat-task-detail';
 
 /**
  * The goal row above the phone's composer, after Desktop's: where the provider's goal stands, the objective, and how
- * long it has been worked on, with Clear and Pause or Resume. Those run `/goal pause|resume|clear` through
- * `mobile.agentChat.runCommand`, the command Desktop's row runs. Tapping the objective shows all of it. A device that
- * cannot message the Chat sees the goal without the buttons.
+ * long it has been worked on, with Clear, Pause or Resume, and Expand in Desktop's order. Clear and Pause or Resume run
+ * `/goal clear|pause|resume` through `mobile.agentChat.runCommand`, the command Desktop's row runs. Expand, or tapping
+ * the objective, shows all of it. A device that cannot message the Chat sees the goal and Expand only.
  */
 export const AgentChatGoalBar = ({
     canAct,
@@ -77,11 +77,6 @@ export const AgentChatGoalBar = ({
                         {view.objective}
                     </Text>
                     <Text style={[styles.elapsed, { color: theme.muted }]}>{view.elapsed}</Text>
-                    {isExpanded ? (
-                        <Minimize2 color={theme.muted} size={14} />
-                    ) : (
-                        <Maximize2 color={theme.muted} size={14} />
-                    )}
                 </Pressable>
                 {canAct ? (
                     <AgentChatGoalActions
@@ -93,6 +88,16 @@ export const AgentChatGoalBar = ({
                         toggle={view.toggle}
                     />
                 ) : null}
+                <IconButton
+                    accessibilityLabel={t(isExpanded ? 'chat.goal.collapse' : 'chat.goal.expand')}
+                    color={theme.muted}
+                    expanded={isExpanded}
+                    icon={isExpanded ? Minimize2 : Maximize2}
+                    onPress={() => setExpanded((current) => !current)}
+                    size={16}
+                    testID="agent-chat-goal-expand"
+                    theme={theme}
+                />
             </View>
             {isExpanded ? (
                 <Text
@@ -117,7 +122,9 @@ export const AgentChatGoalBar = ({
 };
 
 /**
- * Pause or Resume when the goal allows it, then Clear.
+ * Clear, then Pause or Resume when the goal allows it, as Desktop orders them, so Clear never sits beside Expand at the
+ * row's end where a thumb lands. Clearing cannot be undone from the phone, so it asks first; Desktop's pointer does not
+ * miss its target the way a thumb does.
  */
 const AgentChatGoalActions = ({
     isBusy,
@@ -131,8 +138,24 @@ const AgentChatGoalActions = ({
     toggle: 'pause' | 'resume' | undefined;
 }) => {
     const { t } = useTranslation();
+    const confirmClear = (): void => {
+        Alert.alert(t('chat.goal.clearConfirmTitle'), t('chat.goal.clearConfirmBody'), [
+            { text: t('common.cancel'), style: 'cancel' },
+            { text: t('chat.goal.clear'), style: 'destructive', onPress: () => onRun('clear') },
+        ]);
+    };
     return (
         <>
+            <IconButton
+                accessibilityLabel={t('chat.goal.clear')}
+                color={theme.muted}
+                disabled={isBusy}
+                icon={Trash2}
+                onPress={confirmClear}
+                size={18}
+                testID="agent-chat-goal-clear"
+                theme={theme}
+            />
             {toggle ? (
                 <IconButton
                     accessibilityLabel={t(
@@ -147,16 +170,6 @@ const AgentChatGoalActions = ({
                     theme={theme}
                 />
             ) : null}
-            <IconButton
-                accessibilityLabel={t('chat.goal.clear')}
-                color={theme.muted}
-                disabled={isBusy}
-                icon={Trash2}
-                onPress={() => onRun('clear')}
-                size={18}
-                testID="agent-chat-goal-clear"
-                theme={theme}
-            />
         </>
     );
 };

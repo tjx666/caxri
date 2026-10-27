@@ -111,13 +111,28 @@ export function agentChatRunningKinds(running: readonly AgentChatTask[]): AgentC
 }
 
 /**
- * What leads the status row once the turn ended but background work still runs, as Desktop's row says it: the one
- * running task by title, or a count of several.
+ * What leads the status row once the turn ended but background work still runs. Beside the running kinds' glyphs, as
+ * Desktop's Background work header shows them, the row names the one running task by its title alone, or says
+ * `Background work` for several, since the glyphs already count them. The spoken label keeps the whole sentence, which
+ * the glyphs cannot say aloud.
  */
-export function agentChatTaskLeadText(pill: AgentChatTaskPill, t: Translate = translate): string {
-    return pill.running.length === 1
-        ? t('chat.tasks.leadOne', { title: agentChatTaskRow(pill.running[0], 0, t).title })
-        : t('chat.tasks.leadMany', { count: pill.running.length });
+export function agentChatTaskLead(
+    pill: AgentChatTaskPill,
+    t: Translate = translate,
+): { text: string; isCommandTitle: boolean; accessibilityLabel: string } {
+    if (pill.running.length === 1) {
+        const row = agentChatTaskRow(pill.running[0], 0, t);
+        return {
+            text: row.title,
+            isCommandTitle: row.isCommandTitle,
+            accessibilityLabel: t('chat.tasks.leadOne', { title: row.title }),
+        };
+    }
+    return {
+        text: t('chat.tasks.backgroundWork'),
+        isCommandTitle: false,
+        accessibilityLabel: t('chat.tasks.leadMany', { count: pill.running.length }),
+    };
 }
 
 const STATUS_LABELS = {
@@ -252,8 +267,8 @@ export function agentChatTaskDetailContent(
 /**
  * What the status row above the composer shows, as Desktop's single row lays it out: the turn's activity leads while it
  * runs, with a badge counting the running background work beside it; once the turn ended, the running work itself leads
- * (`agentChatTaskLeadText`). Work that has only ended shows nothing, as on Desktop; its rows in the timeline still open
- * it. Undefined when there is nothing to say.
+ * (`agentChatTaskLead`) behind the same kind glyphs. Work that has only ended shows nothing, as on Desktop; its rows in
+ * the timeline still open it. Undefined when there is nothing to say.
  */
 export function agentChatStatusRow(
     activity: AgentChatActivity | undefined,
@@ -261,5 +276,7 @@ export function agentChatStatusRow(
 ): { lead: 'activity' | 'tasks'; badge: AgentChatRunningKind[] } | undefined {
     const running = pill?.running ?? [];
     if (activity) return { lead: 'activity', badge: agentChatRunningKinds(running) };
-    return running.length > 0 ? { lead: 'tasks', badge: [] } : undefined;
+    return running.length > 0
+        ? { lead: 'tasks', badge: agentChatRunningKinds(running) }
+        : undefined;
 }
