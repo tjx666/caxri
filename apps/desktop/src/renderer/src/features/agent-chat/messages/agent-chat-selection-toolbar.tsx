@@ -14,6 +14,7 @@ import {
     SelectionToolbar,
 } from '../../../components/selection-toolbar';
 import { useTranslation } from '../../../i18n';
+import { textClipboard } from '../../../lib/clipboard';
 import { cn } from '../../../lib/utilities';
 import { useAgentChatSelectionToolbar } from '../hooks/use-agent-chat-selection-toolbar';
 import { quoteAgentChatMessageFromMenu } from './agent-chat-message-menu-actions';
@@ -70,7 +71,7 @@ export function AgentChatSelectionToolbar({
                 type="button"
                 onClick={async () => {
                     const status = await writeToClipboardWithFeedback(
-                        navigator.clipboard,
+                        textClipboard,
                         selection.text,
                     );
                     setCopied({ selection, status });

@@ -1,5 +1,6 @@
 export * from './agent-provider-status-contract.js';
 export * from './argv-config.js';
+export * from './clipboard-contract.js';
 export * from './context-menu-contract.js';
 export * from './debug-launch.js';
 export * from './desktop-contract.js';

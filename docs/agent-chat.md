@@ -137,10 +137,14 @@ tab, title, and Primary Agent election stay; only the process is replaced.
   per-Terminal turn state, so it switches like a restart).
 - Each request logs `terminal.surface_switched` with a closed outcome (`switched`, `startedNew`,
   `turnRunning`, `failed`), both surfaces, the provider, and the duration.
-- "Copy Resume Command" in the tab menu (Copy › Resume Command in the Session row menu) copies `cd <cwd> && <provider resume
-command> <id>` (`agentResumeCommandLine`, from the provider catalog's `resumeArgs`) to continue
-  the bound conversation in the provider's own TUI outside Caxri. It is disabled until the Agent
-  has a conversation.
+- "Copy Resume Command" in the tab menu (Copy › Resume Command in the Session row menu) copies
+  `cd <cwd> && <executable> <launch arguments> <resume tokens> <id>` (`agentResumeCommandLine`) to
+  continue the bound conversation in the provider's own TUI outside Caxri. The executable and
+  launch arguments come from the provider's Settings at copy time, so the YOLO switch and any
+  model or permission flags carry over; the resume tokens are the provider catalog's `resumeArgs`.
+  It is disabled until the Agent has a conversation. Like every Renderer copy, it writes through
+  Main's `clipboard.write`, because `navigator.clipboard` rejects while the document lacks focus,
+  as it can right after a native menu closes.
 
 ## Process lifecycle
 

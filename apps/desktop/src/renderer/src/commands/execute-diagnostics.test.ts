@@ -20,6 +20,14 @@ import { dismissToast, getToasts } from '../stores/toasts';
 import { executeCommand } from './execute';
 import { toastActionHandlers } from './toast-actions';
 
+const clipboard = vi.hoisted(() => ({
+    writeText: vi.fn<(text: string) => Promise<void>>(),
+}));
+vi.mock('../lib/clipboard', () => ({
+    textClipboard: { writeText: (text: string) => clipboard.writeText(text) },
+    writeClipboardText: (text: string) => clipboard.writeText(text),
+}));
+
 // The window installs these once at startup; a toast's button carries only the name of its follow-up, so without the
 // table the click below would report the follow-up as gone instead of running it.
 configureToastActions(toastActionHandlers);
@@ -40,7 +48,7 @@ describe('diagnostics export recovery', () => {
     it('keeps the export label in the toast and copies the captured error on request', async () => {
         const failure = new Error("EACCES: open '/read-only/report.zip'");
         const writeText = vi.fn(() => Promise.resolve());
-        vi.stubGlobal('navigator', { clipboard: { writeText } });
+        clipboard.writeText = writeText;
         mocks.request.mockRejectedValueOnce(failure);
 
         executeCommand('diagnostics.export');

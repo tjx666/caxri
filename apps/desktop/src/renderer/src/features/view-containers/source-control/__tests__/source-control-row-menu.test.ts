@@ -7,6 +7,14 @@ import { serializeContextMenu } from '../../../../lib/context-menu';
 import { useWorkbenchStore } from '../../../../stores/workbench';
 import { sourceControlResourcePathMenu } from '../source-control-row-menu';
 
+const clipboard = vi.hoisted(() => ({
+    writeText: vi.fn<(text: string) => Promise<void>>(),
+}));
+vi.mock('../../../../lib/clipboard', () => ({
+    textClipboard: { writeText: (text: string) => clipboard.writeText(text) },
+    writeClipboardText: (text: string) => clipboard.writeText(text),
+}));
+
 function selectProject(rootPath: string | undefined): void {
     useWorkbenchStore.setState({
         bootstrap: rootPath
@@ -34,7 +42,7 @@ describe('sourceControlResourcePathMenu', () => {
 
     it('copies the absolute path, the Project-relative path, and the file name', async () => {
         const writeText = vi.fn<(value: string) => Promise<void>>().mockResolvedValue(undefined);
-        vi.stubGlobal('navigator', { clipboard: { writeText } });
+        clipboard.writeText = writeText;
         selectProject('/project');
 
         const items = selectableItems(
@@ -58,7 +66,7 @@ describe('sourceControlResourcePathMenu', () => {
 
     it('measures a linked repository outside the Project from its own root', async () => {
         const writeText = vi.fn<(value: string) => Promise<void>>().mockResolvedValue(undefined);
-        vi.stubGlobal('navigator', { clipboard: { writeText } });
+        clipboard.writeText = writeText;
         selectProject('/project');
 
         const relative = selectableItems(

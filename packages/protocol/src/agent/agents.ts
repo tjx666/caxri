@@ -1,3 +1,4 @@
+import { expandLaunchArguments } from '@caxri/utils';
 import { z } from 'zod';
 
 import type { AgentActionsSettings } from './agent-action-settings.js';
@@ -247,16 +248,24 @@ function shellWord(value: string): string {
 /**
  * A command a person pastes into their own terminal to continue one Agent Session in the provider's TUI, outside Caxri.
  * It starts with `cd` into the Terminal's folder because Claude Code only finds a session under the folder it was
- * started in. It uses the bare executable name and none of the user's launch arguments: it is a hand-off, not a
- * reproduction of Caxri's launch.
+ * started in. It launches with the user's configured executable and arguments, in Server Core's order (launch
+ * arguments, then `resumeArgs`), so the resumed conversation keeps the model, permission mode, and YOLO switch the user
+ * chose in Settings; Caxri's own managed arguments (hook settings, injected prompts) stay out.
  */
 export function agentResumeCommandLine(
     provider: AgentProvider,
     agentSessionId: string,
     cwd: string,
+    launch: AgentLaunchSettings,
 ): string {
-    const { executableName, resumeArgs } = agentProviderCatalog[provider];
-    return `cd ${shellWord(cwd)} && ${[executableName, ...resumeArgs, agentSessionId].map(shellWord).join(' ')}`;
+    const { resumeArgs } = agentProviderCatalog[provider];
+    const words = [
+        launch.executable,
+        ...expandLaunchArguments(launch.args),
+        ...resumeArgs,
+        agentSessionId,
+    ];
+    return `cd ${shellWord(cwd)} && ${words.map(shellWord).join(' ')}`;
 }
 
 /**

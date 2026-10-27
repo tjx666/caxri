@@ -61,6 +61,11 @@ import {
 } from '../stores/toast-actions';
 import { toastActionHandlers } from './toast-actions';
 
+vi.mock('../lib/clipboard', () => ({
+    textClipboard: { writeText: mocks.writeText },
+    writeClipboardText: mocks.writeText,
+}));
+
 const SESSION = { id: 'session-1', workbenchProjectId: 'project-followed' };
 const TERMINAL = { id: 'terminal-1', processId: 4_321 };
 
@@ -68,7 +73,6 @@ beforeEach(() => {
     for (const mock of Object.values(mocks)) mock.mockReset();
     mocks.getBootstrap.mockReturnValue({ sessions: [SESSION], terminals: [TERMINAL] });
     mocks.tryCommand.mockImplementation((_label: string, run: () => unknown) => run());
-    vi.stubGlobal('navigator', { clipboard: { writeText: mocks.writeText } });
     configureToastActions(toastActionHandlers);
 });
 

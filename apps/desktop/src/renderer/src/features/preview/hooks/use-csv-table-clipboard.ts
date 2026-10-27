@@ -4,13 +4,14 @@ import { useRef } from 'react';
 import { useContextMenu } from '../../../hooks/use-context-menu';
 import type { Translate } from '../../../i18n';
 import { useTranslation } from '../../../i18n';
+import { writeClipboardText } from '../../../lib/clipboard';
 import { tryCommand } from '../../../stores/toasts';
 import type { DelimitedTable } from '../csv-table';
 import type { TableCellPosition, TableSelection } from '../csv-table-selection';
 import { serializeTsv, tableSelectionText } from '../csv-table-selection';
 
 async function copyTableText(text: string, t: Translate): Promise<void> {
-    await tryCommand(t('preview.table.copyFailed'), () => navigator.clipboard.writeText(text));
+    await tryCommand(t('preview.table.copyFailed'), () => writeClipboardText(text));
 }
 
 /**

@@ -2,6 +2,7 @@ import type { MarkdownBlock } from '@caxri/markdown';
 import { tableToHtml, tableToMarkdown } from '@caxri/markdown';
 
 import { useTranslation } from '../../i18n';
+import { writeClipboardContent } from '../../lib/clipboard';
 import { cn } from '../../lib/utilities';
 import { writeRichToClipboardWithFeedback } from '../copy-feedback';
 import { BlockFullscreenButton, BlockFullscreenDialog } from './block-fullscreen-dialog';
@@ -33,7 +34,7 @@ export function TableBlock({ block }: { block: TableBlockNode }) {
     const copy = (
         <CopyIconButton
             copy={() =>
-                writeRichToClipboardWithFeedback(navigator.clipboard, {
+                writeRichToClipboardWithFeedback(writeClipboardContent, {
                     text: tableToMarkdown(block),
                     html: tableToHtml(block),
                 })

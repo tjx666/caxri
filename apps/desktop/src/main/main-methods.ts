@@ -11,7 +11,7 @@ import { CaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { createAgentProviderStatus, createE2EStatusPageFetch } from '@caxri/system';
 import type { BrowserWindow } from 'electron';
-import { dialog, net, shell } from 'electron';
+import { clipboard, ClipboardItem, dialog, net, shell } from 'electron';
 
 import { createAcceptanceExternalOpenFixture } from './acceptance-external-open';
 import { createAcceptanceSessionDeleteFixture } from './acceptance-session-delete';
@@ -215,6 +215,15 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                     remoteDebugging: options.getRemoteDebugging(),
                     value: await readArgvConfig(options.getUserDataPath()),
                 };
+            case 'clipboard.write': {
+                const { html, text } = request.params;
+                await (html === undefined
+                    ? clipboard.writeText(text)
+                    : clipboard.write([
+                          new ClipboardItem({ 'text/plain': text, 'text/html': html }),
+                      ]));
+                return null;
+            }
             case 'window.fullScreen.get':
                 return { isFullScreen: requestWindowOr(mainWindow).isFullScreen() };
             case 'argv.update':

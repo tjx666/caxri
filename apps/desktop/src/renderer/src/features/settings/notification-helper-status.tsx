@@ -11,6 +11,7 @@ import {
 import { Button } from '../../components/ui/button';
 import { FieldDescription } from '../../components/ui/field';
 import { useTranslation } from '../../i18n';
+import { textClipboard } from '../../lib/clipboard';
 import { caxriQueryKey, queryClient, useCaxriQuery } from '../../queries/client';
 import { tryCommand } from '../../stores/toasts';
 import {
@@ -96,7 +97,7 @@ export function NotificationHelperStatus() {
                             // Resolves to a status and never rejects.
                             setCopyStatus(
                                 await writeToClipboardWithFeedback(
-                                    navigator.clipboard,
+                                    textClipboard,
                                     NOTIFICATION_HELPER_INSTALL_COMMAND,
                                 ),
                             );

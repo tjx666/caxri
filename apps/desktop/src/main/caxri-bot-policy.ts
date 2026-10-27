@@ -44,6 +44,7 @@ const ADMITTED_METHODS = new Set<string>([
     'bot.snapshot',
     'bot.switchAgent',
     'contextMenu.show',
+    'clipboard.write',
     'events.recover',
     'external.open',
     'keybindings.get',

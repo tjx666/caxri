@@ -109,6 +109,7 @@ const expectedLanes: Record<string, ControlLane> = {
     'bot.switchAgent': 'ordered',
     'bot.task.create': 'ordered',
     'bot.task.update': 'ordered',
+    'clipboard.write': 'ordered',
     'contextMenu.show': 'ordered',
     'desktop.focus': 'ordered',
     'desktop.openFile': 'ordered',

@@ -371,14 +371,11 @@ export function useTerminalPaneRuntime({
             longPasteRuntime.expectedAgentLaunchId,
         );
         let isClipboardFailureReported = false;
-        const selectionClipboard = new TerminalSelectionClipboard(
-            (value) => navigator.clipboard.writeText(value),
-            (error) => {
-                if (isClipboardFailureReported) return;
-                isClipboardFailureReported = true;
-                onError(describeFailure(error, translate('terminal.errors.copyFailed')));
-            },
-        );
+        const selectionClipboard = new TerminalSelectionClipboard((error) => {
+            if (isClipboardFailureReported) return;
+            isClipboardFailureReported = true;
+            onError(describeFailure(error, translate('terminal.errors.copyFailed')));
+        });
         const selectionDisposable = xterm.onSelectionChange(() => {
             /**
              * SearchAddon represents the active match as a selection; it must not overwrite the system clipboard when

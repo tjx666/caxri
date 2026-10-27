@@ -39,7 +39,22 @@ vi.mock('../../../stores/toasts', () => ({
     tryCommand: mocks.tryCommand,
 }));
 vi.mock('../../../lib/keybindings', () => ({ readCommandShortcut: () => mocks.shortcut }));
-vi.stubGlobal('navigator', { clipboard: { writeText: mocks.writeText } });
+vi.mock('../../../lib/clipboard', () => ({ writeClipboardText: mocks.writeText }));
+vi.mock('../../settings/settings-client', () => ({
+    getSettings: () =>
+        Promise.resolve({
+            value: {
+                'agents.providers': {
+                    codex: {
+                        launch: {
+                            executable: 'codex',
+                            args: ['--dangerously-bypass-approvals-and-sandbox', '--model gpt-5'],
+                        },
+                    },
+                },
+            },
+        }),
+}));
 vi.mock('../../../stores/workbench', () => ({ refreshWorkbench: mocks.refreshWorkbench }));
 
 import {
@@ -155,12 +170,14 @@ describe('switchTerminalSurfaceTo', () => {
 });
 
 describe('agentResumeCommandMenuEntry', () => {
-    it("copies the command that continues the Agent's conversation in its own TUI", async () => {
+    it("copies the command that continues the Agent's conversation with the configured launch arguments", async () => {
         const entry = agentResumeCommandMenuEntry(agentTerminal('codex'), true);
         expect(entry).toMatchObject({ label: 'Copy Resume Command', disabled: false });
         if (entry.type === 'separator' || entry.type === 'submenu') throw new Error('item');
         await entry.onSelect();
-        expect(mocks.writeText).toHaveBeenCalledWith('cd /work/app && codex resume thread-1');
+        expect(mocks.writeText).toHaveBeenCalledWith(
+            'cd /work/app && codex --dangerously-bypass-approvals-and-sandbox --model gpt-5 resume thread-1',
+        );
         expect(mocks.pushToast).toHaveBeenCalledWith('success', 'Resume command copied');
     });
 

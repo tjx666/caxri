@@ -5,6 +5,7 @@ import { Check, X } from 'lucide-react';
 
 import type { TranslationKey } from '../i18n';
 import { translate } from '../i18n';
+import { textClipboard } from '../lib/clipboard';
 import type { CopyFeedbackStatus } from './copy-feedback';
 import {
     COPY_FEEDBACK_RESET_MS,
@@ -119,7 +120,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProperties, ErrorBound
     private handleCopy = (): void => {
         if (this.copyResetTimeout !== undefined) clearTimeout(this.copyResetTimeout);
         const text = formatErrorDetails(this.state.error, this.state.componentStack);
-        void writeToClipboardWithFeedback(navigator.clipboard, text).then((status) => {
+        void writeToClipboardWithFeedback(textClipboard, text).then((status) => {
             this.setState({ copyStatus: status });
             this.copyResetTimeout = setTimeout(() => {
                 this.setState({ copyStatus: 'idle' });

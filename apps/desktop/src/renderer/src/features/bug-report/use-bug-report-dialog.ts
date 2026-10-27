@@ -7,6 +7,7 @@ import { pathBasename } from '@caxri/utils';
 import { translate, useTranslation } from '../../i18n';
 import { awaitThenCleanup } from '../../lib/await-then-cleanup';
 import { caxri } from '../../lib/caxri';
+import { writeClipboardText } from '../../lib/clipboard';
 import { openExternalUrl } from '../../lib/external-link';
 import { setBugReportOpen } from '../../stores/dialogs';
 import { getBootstrap } from '../../stores/selectors';
@@ -464,7 +465,7 @@ export function useBugReportDialog() {
     const copyReport = async (): Promise<void> => {
         if (!report) return;
         try {
-            await navigator.clipboard.writeText(report);
+            await writeClipboardText(report);
             pushToast('success', t('bugReport.flow.copied'));
         } catch (error) {
             updateState({ sendError: errorMessage(error, t('bugReport.flow.copyFailed')) });
@@ -479,7 +480,7 @@ export function useBugReportDialog() {
     const openGithubIssue = async (): Promise<void> => {
         if (!report) return;
         await copyThenOpenGithubIssue(report, {
-            copy: (text) => navigator.clipboard.writeText(text),
+            copy: (text) => writeClipboardText(text),
             onCopied: () => pushToast('success', t('bugReport.flow.copiedForIssue')),
             onCopyError: (error) =>
                 updateState({ sendError: errorMessage(error, t('bugReport.flow.copyFailed')) }),

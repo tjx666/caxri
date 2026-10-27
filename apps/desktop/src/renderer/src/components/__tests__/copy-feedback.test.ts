@@ -21,27 +21,17 @@ describe('writeToClipboardWithFeedback', () => {
 });
 
 describe('writeRichToClipboardWithFeedback', () => {
-    it('writes one item carrying both the text and the HTML flavor', async () => {
-        vi.stubGlobal(
-            'ClipboardItem',
-            class {
-                constructor(readonly items: Record<string, Blob>) {}
-            },
-        );
+    it('hands the text and the HTML flavor to the writer together', async () => {
         const write = vi.fn(() => Promise.resolve());
-        await expect(
-            writeRichToClipboardWithFeedback({ write }, { text: '| a |', html: '<table></table>' }),
-        ).resolves.toBe('copied');
-        const [[item]] = write.mock.calls[0] as unknown as [[{ items: Record<string, Blob> }]];
-        expect(Object.keys(item.items)).toEqual(['text/plain', 'text/html']);
-        await expect(item.items['text/html']?.text()).resolves.toBe('<table></table>');
-        vi.unstubAllGlobals();
+        const content = { text: '| a |', html: '<table></table>' };
+        await expect(writeRichToClipboardWithFeedback(write, content)).resolves.toBe('copied');
+        expect(write).toHaveBeenCalledWith(content);
     });
 
     it('resolves to failed when the clipboard refuses the write', async () => {
         const write = () => Promise.reject(new Error('denied'));
         await expect(
-            writeRichToClipboardWithFeedback({ write }, { text: 'a', html: 'a' }),
+            writeRichToClipboardWithFeedback(write, { text: 'a', html: 'a' }),
         ).resolves.toBe('failed');
     });
 });

@@ -225,6 +225,10 @@ export const effectfulCommandRecovery = {
     'performanceMonitor.window': 'none',
     'benchmark.shareImage.copy': 'memory',
     'benchmark.shareImage.save': 'memory',
+    /**
+     * A copy answers one gesture; replaying it after a reconnect would overwrite whatever the user copied since.
+     */
+    'clipboard.write': 'none',
     'caxriBot.clearData': 'durable',
     'caxriBot.open': 'durable',
     'caxriBot.openFileLink': 'memory',

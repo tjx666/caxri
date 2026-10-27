@@ -1,3 +1,5 @@
+import { writeClipboardText } from '../../lib/clipboard';
+
 /**
  * Serializes clipboard writes so a slow, older xterm selection cannot replace the latest one.
  */
@@ -6,8 +8,8 @@ export class TerminalSelectionClipboard {
     private running: Promise<void> | undefined;
 
     constructor(
-        private readonly writeText: (value: string) => Promise<void>,
         private readonly onFailure: (error: unknown) => void,
+        private readonly writeText: (value: string) => Promise<void> = writeClipboardText,
     ) {}
 
     private async drain(): Promise<void> {

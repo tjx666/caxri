@@ -7,6 +7,7 @@ import {
     writeToClipboardWithFeedback,
 } from '../../components/copy-feedback';
 import { translate } from '../../i18n';
+import { textClipboard } from '../../lib/clipboard';
 import { colorizeCode } from '../../lib/code-colorize';
 
 /**
@@ -43,7 +44,7 @@ function attachCopyButton(element: HTMLElement, code: string, signal: AbortSigna
     button.innerHTML = COPY_GLYPH;
     const state = { reset: undefined as ReturnType<typeof setTimeout> | undefined };
     const copy = async (): Promise<void> => {
-        const status = await writeToClipboardWithFeedback(navigator.clipboard, code);
+        const status = await writeToClipboardWithFeedback(textClipboard, code);
         button.innerHTML = status === 'copied' ? CHECK_GLYPH : COPY_GLYPH;
         button.title = copyButtonLabel(status, translate('common.copy'));
         button.dataset.state = status;

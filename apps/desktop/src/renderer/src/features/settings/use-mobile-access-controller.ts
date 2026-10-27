@@ -6,6 +6,7 @@ import { MOBILE_MAX_PROJECT_GRANTS } from '@caxri/protocol';
 import { executeCommand } from '../../commands/execute';
 import type { TranslationKey } from '../../i18n';
 import { translate, useTranslation } from '../../i18n';
+import { writeClipboardText } from '../../lib/clipboard';
 import { showConfirm } from '../../stores/confirmations';
 import { pushToast } from '../../stores/toasts';
 import {
@@ -334,7 +335,7 @@ export const useMobileAccessController = () => {
     const copyPairingLink = async (): Promise<void> => {
         if (!state.pairing || state.pairing.expiresAt <= Date.now()) return;
         try {
-            await navigator.clipboard.writeText(state.pairing.pairingLink);
+            await writeClipboardText(state.pairing.pairingLink);
             dispatch({ copied: true, type: 'set-copied' });
             dispatch({ error: undefined, type: 'set-error' });
         } catch {
