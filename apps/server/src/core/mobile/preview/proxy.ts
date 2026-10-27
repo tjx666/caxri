@@ -22,6 +22,15 @@ const SWEEP_INTERVAL_MS = 60_000;
 const MAXIMUM_LISTENERS = 8;
 const TOKEN_BYTES = 32;
 const LAUNCH_PREFIX = '/__caxri_preview__/';
+
+/**
+ * Whether the browser marked this request as a speculative prefetch rather than a navigation. See
+ * https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Sec-Purpose.
+ */
+const isPrefetch = ({ headers }: IncomingMessage): boolean =>
+    [headers['sec-purpose'], headers.purpose].some(
+        (value) => typeof value === 'string' && value.toLowerCase().includes('prefetch'),
+    );
 const LOCAL_HOSTNAMES = new Set(['localhost', '127.0.0.1', '[::1]']);
 const HOP_BY_HOP_HEADERS = ['connection', 'keep-alive', 'proxy-connection', 'transfer-encoding'];
 
@@ -316,13 +325,14 @@ export class MobilePreviewProxies {
 
     #launch(listener: PreviewListener, request: IncomingMessage, response: ServerResponse): void {
         const token = (request.url ?? '').slice(LAUNCH_PREFIX.length);
-        // Only a GET spends the token: a HEAD, prefetch, or probe arriving first must not burn the
-        // single-use link before the real navigation.
-        const isGet = request.method === 'GET';
+        // Only a real navigation spends the token: a HEAD, a probe, or a browser prefetch (a GET
+        // marked by `Sec-Purpose` or the older `Purpose` header) arriving first must not burn the
+        // single-use link before the page load.
+        const isNavigation = request.method === 'GET' && !isPrefetch(request);
         const launch = listener.launches.get(token);
-        if (isGet) listener.launches.delete(token);
+        if (isNavigation) listener.launches.delete(token);
         const isValid =
-            isGet &&
+            isNavigation &&
             launch !== undefined &&
             launch.expiresAt > this.#now() &&
             this.#options.authorize(launch);
