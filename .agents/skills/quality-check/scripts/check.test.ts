@@ -124,7 +124,10 @@ describe('dirty layer report', () => {
 
     it('classifies contributor skills and non-code documentation independently', () => {
         expect(
-            dirtyLayerReportForFiles(['.agents/skills/go/SKILL.md', 'docs/architecture.md'], true),
+            dirtyLayerReportForFiles(
+                ['.agents/skills/acceptance/SKILL.md', 'docs/architecture.md'],
+                true,
+            ),
         ).toEqual({
             layers: ['skills', 'docs'],
             suggestedGates: [],
@@ -477,7 +480,7 @@ describe('testCandidatesForFile', () => {
         expect(testCandidatesForFile('.codex/hooks.json')).toContain(
             '.agents/skills/acceptance/scripts/project-hook.test.ts',
         );
-        expect(testCandidatesForFile('.agents/skills/go/scripts/state.ts')).not.toContain(
+        expect(testCandidatesForFile('.agents/skills/acceptance/scripts/report.ts')).not.toContain(
             'scripts/__tests__/skill-invocation.test.ts',
         );
     });

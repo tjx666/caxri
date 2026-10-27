@@ -50,5 +50,5 @@ Validate the smallest observable behavior below the Electron desktop boundary.
 7. Leave the full `bun run test` suite to CI; it refuses to run locally unless the user sets
    `CAXRI_FULL_SUITE_AUTHORIZED=1` (see `quality-check`).
 
-This skill does not own Playwright, Electron desktop lifecycle, real PTYs, window focus, remote
-full E2E, or the guarded Go fallback. Call the Skill tool with "e2e-testing" for those surfaces.
+This skill does not own Playwright, Electron desktop lifecycle, real PTYs, window focus, or
+remote full E2E. Call the Skill tool with "e2e-testing" for those surfaces.

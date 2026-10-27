@@ -4,9 +4,9 @@ import { validateHumanText } from './validate-report';
 
 export interface RebindReportHeadInput {
     /**
-     * Explicit `--allow-finalized`. Publication is recorded in the Go ledger, not in `result.json`, so this command
-     * cannot see it; the flag makes the caller state that this round has not been ingested, and keeps an
-     * already-published round from being moved by an unaware caller.
+     * Explicit `--allow-finalized`. Publication is recorded remotely, not in `result.json`, so this command cannot see
+     * it; the flag makes the caller state that this round has not been ingested, and keeps an already-published round
+     * from being moved by an unaware caller.
      */
     allowFinalized?: boolean;
     /**

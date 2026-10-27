@@ -1,9 +1,9 @@
 /**
  * Canonical expected `PLATFORM_NEUTRAL_CI_GATES` id/label snapshot, shared by every test that pins its exact order and
- * membership: `scripts/ci-platform-gates.ts`'s gate list, `.agents/skills/go/scripts/platform-neutral-gates.ts`'s
- * re-export of it, and `platformCheckCommands`'s wrapper around it all assert against this same literal. Kept as a
- * hand-written literal, independent of `ci-platform-gates.ts` itself, so a test failure here still means "the
- * production gate list actually changed" rather than "the fixture updated itself alongside it".
+ * membership: `scripts/ci-platform-gates.ts`'s gate list and `platformCheckCommands`'s wrapper around it both assert
+ * against this same literal. Kept as a hand-written literal, independent of `ci-platform-gates.ts` itself, so a test
+ * failure here still means "the production gate list actually changed" rather than "the fixture updated itself
+ * alongside it".
  */
 export const EXPECTED_PLATFORM_NEUTRAL_GATE_IDS = [
     'gitleaks',

@@ -107,7 +107,7 @@ describe('Caxri Acceptance project hook', () => {
     test('blocks every raw screenshot while an owned Acceptance runtime is active', () => {
         expect(
             evaluate(
-                'agent-browser --cdp 9326 screenshot .records/go/run/acceptance/round-1/assets/result.png',
+                'agent-browser --cdp 9326 screenshot .records/acceptance/run/round-1/assets/result.png',
             ),
         ).toMatchObject({ ruleId: 'caxri-acceptance-raw-screenshot' });
         expect(evaluate('agent-browser --cdp 9326 screenshot "$ARTIFACT_PATH"')).toMatchObject({
@@ -168,7 +168,7 @@ describe('Caxri Acceptance project hook', () => {
         ).toBeNull();
         expect(
             evaluate(
-                'bun run .agents/skills/acceptance/scripts/capture-renderer.ts screenshot --output .records/go/run/acceptance/round-1/assets/result.png',
+                'bun run .agents/skills/acceptance/scripts/capture-renderer.ts screenshot --output .records/acceptance/run/round-1/assets/result.png',
             ),
         ).toBeNull();
     });
@@ -227,25 +227,6 @@ describe('Caxri Acceptance project hook', () => {
         } finally {
             await rm(directory, { recursive: true });
         }
-    });
-
-    test('blocks manual Go Acceptance round advancement', async () => {
-        const command =
-            'bun run .agents/skills/go/scripts/state.ts acceptance --state run/state.json --status running --round 1';
-        expect(evaluate(command)).toMatchObject({ ruleId: 'caxri-acceptance-manual-round' });
-
-        const output = await runPreToolUse({
-            cwd: path.resolve(import.meta.dirname, '../../../..'),
-            hook_event_name: 'PreToolUse',
-            tool_name: 'Bash',
-            tool_input: { command },
-        });
-        expect(JSON.parse(output)).toMatchObject({
-            hookSpecificOutput: {
-                hookEventName: 'PreToolUse',
-                permissionDecision: 'deny',
-            },
-        });
     });
 
     test('exposes a harmless command that proves the project hook is active', () => {

@@ -12,8 +12,7 @@ draft folds into that draft, so the graph and the round stay one round.
 
 Do not use `flow record` or `flow complete` (steps 5–6) inside Caxri: they write
 per-check verdicts straight to the server and would bypass `finalize`, which is
-the only thing that proves a verdict against its receipts. Inside Go, publication
-still goes through `acceptance-publish`, never a raw ingest.
+the only thing that proves a verdict against its receipts.
 
 Write flow titles, node titles, and expected outcomes in Simplified Chinese;
 keep node and edge UUIDs, ids, and commands in English.

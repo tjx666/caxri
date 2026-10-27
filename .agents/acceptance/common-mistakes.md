@@ -247,9 +247,7 @@ reviewer sees.
 **Works:** Keep the plan item strictly about the outcome a person judges, and put the supporting-test
 explanation in `report.md`. Reject the plan before execution if its title, category, or method still
 describes a unit test, lint gate, type-check, build, or CI result. If an invalid round was already
-published, retain it with `state.ts acceptance-orphan` and republish the corrected round; never
-delete remote history. See the canonical
-[Go Acceptance loop](../skills/go/references/acceptance-loop.md).
+published, keep it and publish the corrected round as a new one; never delete remote history.
 
 ## Recovering a case whose launcher never completed its receipt
 
@@ -286,20 +284,6 @@ as a selector and leave no usable evidence.
 option removes the ambiguity and the helper verifies the owned Acceptance
 runtime and Renderer target. See the canonical
 [agent-browser workflow](../skills/acceptance/references/agent-browser.md).
-
-## Advancing an Acceptance round through the status command
-
-**Situation:** The Go ledger needs to record that desktop Acceptance is running
-or pending.
-
-**Does not work:** Adding `--round` to `state.ts acceptance`. A round number is
-publication lineage, not ordinary status, and advancing it early makes the
-ledger disagree with the immutable remote history.
-
-**Works:** Record status without a round. Let `state.ts acceptance-publish`
-advance the round only after exact remote readback; reserve
-`acceptance-reconcile-round` for an explicitly documented ledger repair. See the
-canonical [Go Acceptance loop](../skills/go/references/acceptance-loop.md).
 
 ## Treating a development client or stale native install as current mobile evidence
 

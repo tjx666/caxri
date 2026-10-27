@@ -48,7 +48,7 @@ change, state that explicitly instead of inventing a visual claim.
   macOS Electron path, fixture or failure injection, expected observable result, and evidence
   needed for human review. Prefer screenshots for settled UI and GIF/video for behavior over time.
   Use DOM, structured logs, or text evidence only when the claim cannot be shown faithfully in the UI.
-  Give every Go-owned check a stable id, and explain a non-visual check instead of fabricating
+  Give every check a stable id, and explain a non-visual check instead of fabricating
   desktop evidence.
 
 `验收标准` defines what must be true. `Acceptance 方案` defines how the final reviewer will see or
@@ -266,8 +266,7 @@ When work starts later, flip it in the same turn you start, before writing code,
 `Done` only once the PR is merged; a PR that is merely open leaves the issue `In Progress`.
 
 **`Backlog` means the owner does not want this done yet.** Never start work on a `Backlog` issue,
-even when it is routed to you, including through the `go` skill's issue queue, which does not
-filter by Status. Skip it and say why. The only thing that overrides this is the owner explicitly
+even when it is routed to you. Skip it and say why. The only thing that overrides this is the owner explicitly
 asking for that issue by name in the current conversation; a general "clear the queue" does not.
 
 ### Priority (assess, never default)

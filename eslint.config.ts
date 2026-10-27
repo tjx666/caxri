@@ -118,7 +118,7 @@ export default defineConfig(
         'apps/mobile/android/**',
         'apps/mobile/ios/**',
         /**
-         * Generated Go and Acceptance evidence can contain temporary TypeScript outside tsconfig.
+         * Generated Acceptance evidence can contain temporary TypeScript outside tsconfig.
          */
         '.records/**',
         'test-results',

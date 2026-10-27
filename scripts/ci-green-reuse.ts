@@ -31,7 +31,7 @@ export interface GreenReusePolicyDecision {
 }
 
 export function isReusableGreenSkillPath(path: string): boolean {
-    return /^(?:\.agents|\.claude)\/skills\/(?:acceptance|go)\//u.test(path);
+    return /^(?:\.agents|\.claude)\/skills\/acceptance\//u.test(path);
 }
 
 export function isReusableGreenDeltaPath(path: string): boolean {

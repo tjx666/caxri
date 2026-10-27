@@ -387,7 +387,7 @@ export async function relatedE2ESpecs(root: string, sourceFiles: string[]): Prom
 
 /**
  * Workflow and composite-action contracts read `.github/**` as text at runtime, so import discovery never selects them:
- * splitting `checks` once passed the focused check and failed CI because `ci-fallback.test.ts` asserted the old
+ * splitting `checks` once passed the focused check and failed CI because a workflow contract test asserted the old
  * `ci.yml` steps. A changed workflow selects every Vitest file that names its path, and a changed composite action
  * every file that names its directory.
  */

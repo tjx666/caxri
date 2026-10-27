@@ -12,7 +12,7 @@ const CANONICAL_INSTRUCTIONS = join(PROJECT_ROOT, 'AGENTS.md');
 const CLAUDE_INSTRUCTIONS = join(PROJECT_ROOT, 'CLAUDE.md');
 const CLAUDE_SKILLS = join(PROJECT_ROOT, '.claude', 'skills');
 
-const EXPLICIT_ONLY_SKILLS = ['go', 'grill-me', 'grill-with-docs'] as const;
+const EXPLICIT_ONLY_SKILLS = ['grill-me', 'grill-with-docs'] as const;
 
 interface SkillDocument {
     body: string;
@@ -208,18 +208,6 @@ describe('contributor skill invocation contract', () => {
                 ).not.toMatch(legacyEntryCall);
             }
         }
-    });
-
-    it('keeps routed Go references on the same invocation contract', async () => {
-        const intake = await readFile(join(SKILLS_ROOT, 'go', 'references', 'intake.md'), 'utf8');
-        const acceptanceLoop = await readFile(
-            join(SKILLS_ROOT, 'go', 'references', 'acceptance-loop.md'),
-            'utf8',
-        );
-        expect(intake).toContain('Call the Skill tool with "competitors"');
-        expect(intake).toContain('a separate explicit `$release` workflow');
-        expect(intake).not.toMatch(/invoke the project `release` skill/iu);
-        expect(acceptanceLoop).toContain('Call the Skill tool with "acceptance"');
     });
 
     it('uses Skill tool calls instead of legacy slash-session prose', async () => {

@@ -1,6 +1,6 @@
 ---
 name: e2e-testing
-description: Validate Caxri through focused Playwright Electron workflows, real PTY and IPC boundaries, native window lifecycle, E2E fixtures, production-build parity, error artifacts, and explicit full-suite CI routes. Use after changing user-visible Electron behavior, E2E infrastructure, Agent launch fixtures, desktop leases, or packaging-facing runtime behavior; when diagnosing a CI-only Electron failure; or when an explicit Go run needs its guarded exact-head fallback. Do not use as the default Vitest workflow.
+description: Validate Caxri through focused Playwright Electron workflows, real PTY and IPC boundaries, native window lifecycle, E2E fixtures, production-build parity, error artifacts, and explicit full-suite CI routes. Use after changing user-visible Electron behavior, E2E infrastructure, Agent launch fixtures, desktop leases, or packaging-facing runtime behavior, or when diagnosing a CI-only Electron failure. Do not use as the default Vitest workflow.
 ---
 
 # E2E Testing
@@ -368,14 +368,3 @@ Release smokes that do not request clipboard access use the fail-closed
 disposable runner. Local focused runs still preserve the clipboard. A future smoke that needs
 clipboard access must remove that override and declare the capability. Keep implementation
 subagents scoped to explicit specs and test names; never delegate the full `bun run test:e2e` gate.
-
-## Guarded Go fallback
-
-Use a local full-suite substitution only inside an explicit Go run after a current-head Actions job
-is verified to have failed before execution for an eligible external GitHub Actions infrastructure
-reason and the user separately authorizes the substitution. The Go ledger must record the exact
-frozen head, failure URL/job/detail, authorization, platform-check commands, and one `bun run
-test:e2e` result. A changed head invalidates the admission. Code/test failures, missing
-authorization, releases, and deployment are never eligible, and the Actions check remains
-externally failed rather than being relabeled green. This generic fallback does not authorize a
-`hosted-full` dispatch or retry; each of those still needs fresh maintainer authorization.
