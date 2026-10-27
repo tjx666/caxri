@@ -74,7 +74,7 @@ export function AgentChatFeedback({ item }: { item: Extract<AgentChatItem, { typ
 }
 
 function FeedbackMarkdown({ text }: { text: string }) {
-    const blocks = useMemo(() => parseMarkdownBlocks(text), [text]);
+    const blocks = useMemo(() => parseMarkdownBlocks(text, { breaks: true }), [text]);
     return (
         <div className="flex flex-col gap-1.5 wrap-anywhere whitespace-pre-line">
             <MarkdownBlocks blocks={blocks} variant="transcript" onOpenUrl={openAgentChatLink} />

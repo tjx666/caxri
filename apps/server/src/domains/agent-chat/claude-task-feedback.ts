@@ -2,7 +2,7 @@ import type { AgentChatItem } from '@caxri/protocol';
 
 import { clip, isRecord, stringField } from './chat-items';
 import type { AgentChatSessionHost } from './chat-provider';
-import { claudeFeedbackItems, claudeFeedbackToolUseId } from './claude-feedback';
+import { claudeFeedbackItems, claudeFeedbackToolUseId } from './feedback/claude-feedback';
 
 type Json = Record<string, unknown>;
 type FeedbackItem = Extract<AgentChatItem, { type: 'notice' }>;

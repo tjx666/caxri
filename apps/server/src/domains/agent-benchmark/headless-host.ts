@@ -71,6 +71,7 @@ export function createHeadlessHost(
         onPermissionChanged: () => {},
         onProtocolRejected: () => {},
         onDeliveryChecked: () => {},
+        onProviderNotice: () => {},
         onForkReleaseFailed: () => {},
         onExit: (exit) => events.exited?.(exit),
         readTranscript: () => Promise.resolve(undefined),

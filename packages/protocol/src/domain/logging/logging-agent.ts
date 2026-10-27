@@ -37,6 +37,13 @@ export const agentChatLogEvents = {
      */
     deliveryChecked: 'agent_chat.delivery_checked',
     /**
+     * Provider feedback shown in a Chat as a notice, with the provider notification's closed `source` (Codex `hook`,
+     * `warning`, `configWarning`, `guardianWarning`, `deprecationNotice`, `modelRerouted`, `modelVerification`), and
+     * when it applies the Hook's `hookEvent` and `hookStatus` and the reroute or verification `reason`. Never carries
+     * the feedback text or a path.
+     */
+    providerNotice: 'agent_chat.provider_notice',
+    /**
      * A subagent or background shell reached a final status, with its `kind`, closed `status`, and duration.
      */
     taskFinished: 'agent_chat.task_finished',

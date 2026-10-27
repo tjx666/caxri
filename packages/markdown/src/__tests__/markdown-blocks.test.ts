@@ -122,6 +122,28 @@ describe('parseMarkdownBlocks', () => {
         expect(parseMarkdownBlocks(source)).toEqual([]);
     });
 
+    it('keeps single line breaks only when asked', () => {
+        const source = 'Force pushes are not allowed.\nOpen a pull request.';
+        expect(parseMarkdownBlocks(source, { breaks: true })).toEqual([
+            {
+                type: 'paragraph',
+                children: [
+                    { type: 'text', value: 'Force pushes are not allowed.' },
+                    { type: 'break' },
+                    { type: 'text', value: 'Open a pull request.' },
+                ],
+            },
+        ]);
+        expect(parseMarkdownBlocks(source)).toEqual([
+            {
+                type: 'paragraph',
+                children: [
+                    { type: 'text', value: 'Force pushes are not allowed. Open a pull request.' },
+                ],
+            },
+        ]);
+    });
+
     it('keeps heading levels, an ordered list start, and task markers', () => {
         const text = (value: string) => [{ type: 'text', value }];
         expect(

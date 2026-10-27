@@ -18,7 +18,6 @@ import {
     stringField,
 } from './chat-items';
 import { claudeResponseUsage } from './claude-context';
-import { claudeFeedbackItems, claudeFeedbackToolUseId } from './claude-feedback';
 import {
     claudeUserImageCount,
     isClaudeCompactCommand,
@@ -28,6 +27,7 @@ import {
 import { claudeAssistantItems, ClaudeBlockIds, claudeUsageTokens, text } from './claude-items';
 import { claudeCompaction } from './claude-system-notices';
 import { settleClaudeToolItem } from './claude-tool-results';
+import { claudeFeedbackItems, claudeFeedbackToolUseId } from './feedback/claude-feedback';
 import { claudeGoalNotice } from './goals/claude-goals';
 
 /**

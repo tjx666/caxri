@@ -232,6 +232,10 @@ export interface AgentChatSessionHost {
     onPermissionChanged(permission: AgentChatPermission): void;
     onProtocolRejected(reason: 'unsupportedRequest' | 'unkeyedRequest', method: string): void;
     /**
+     * The provider's own feedback (a Hook that failed, a runtime warning) was shown in the Chat.
+     */
+    onProviderNotice(notice: ChatProviderNotice): void;
+    /**
      * A turn request timed out and the session checked whether the provider recorded the input anyway.
      */
     onDeliveryChecked(method: string, outcome: 'delivered' | 'unknown'): void;
@@ -245,6 +249,18 @@ export interface AgentChatSessionHost {
      * itself. `undefined` when the transcript is missing or unreadable.
      */
     readTranscript(): Promise<AgentChatTranscript | undefined>;
+}
+
+/**
+ * The content-free description of provider feedback shown in a Chat, for `agent_chat.provider_notice`: which provider
+ * notification it came from and the closed values it carried (`other` for a value this build does not know). Never
+ * carries the feedback text or a path.
+ */
+export interface ChatProviderNotice {
+    source: string;
+    hookEvent: string | null;
+    hookStatus: string | null;
+    reason: string | null;
 }
 
 /**
