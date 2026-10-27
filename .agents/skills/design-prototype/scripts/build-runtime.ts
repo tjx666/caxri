@@ -12,7 +12,7 @@
  * `assets/` by exact version, so only the first build per machine needs network access.
  */
 import { Buffer } from 'node:buffer';
-import { copyFile, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 
@@ -20,6 +20,7 @@ import { execFileAsync } from '@caxri/system';
 
 import { inlineThemeCss } from './inline-theme-css';
 import { readImportedCss } from './renderer-stylesheets';
+import { resolveEsbuild, WORKSPACE_SOURCE_CONDITIONS } from './runtime-esbuild';
 
 const skillDirectory = path.resolve(import.meta.dirname, '..');
 const repoRoot = path.resolve(skillDirectory, '../../..');
@@ -34,25 +35,6 @@ async function isNonEmptyFile(filePath: string): Promise<boolean> {
     }
 }
 
-/**
- * Esbuild ships as a transitive dependency (vite); pick the newest copy in the pnpm store.
- */
-async function resolveEsbuild(): Promise<string> {
-    const store = path.join(repoRoot, 'node_modules/.pnpm');
-    let entries: string[];
-    try {
-        entries = await readdir(store);
-    } catch {
-        throw new Error(`pnpm store not found at ${store}: run \`ni\` first`);
-    }
-    const copies = entries
-        .filter((name) => /^esbuild@\d/.test(name))
-        .toSorted((a, b) => a.localeCompare(b, 'en', { numeric: true }));
-    const newest = copies.at(-1);
-    if (!newest) throw new Error('esbuild not found in the pnpm store: run `ni` first');
-    return path.join(store, newest, 'node_modules/esbuild/bin/esbuild');
-}
-
 async function buildRuntime(): Promise<void> {
     const esbuild = await resolveEsbuild();
     await execFileAsync(
@@ -63,6 +45,7 @@ async function buildRuntime(): Promise<void> {
             '--format=iife',
             '--global-name=__CAXRI_PROTO_NS__',
             '--platform=browser',
+            WORKSPACE_SOURCE_CONDITIONS,
             '--define:process.env.NODE_ENV="production"',
             '--minify',
             // Renderer .tsx compiles with the automatic JSX runtime (no React imports).

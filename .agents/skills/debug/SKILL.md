@@ -222,6 +222,13 @@ auto-attach/resume behavior can invalidate that experiment. Retain owned-port an
 When an isolated provider HOME also covers a dev build, pass the verified pinned Node executable
 through `CAXRI_SERVER_RUNTIME_EXECUTABLE`; runtime discovery must not fall back to that empty HOME.
 
+Measure the visible instance, never the first match. The Workbench keeps one subtree per kept-alive
+Session and hides the others with `content-visibility: hidden`, so a global `querySelector` can
+return a hidden Session's copy of a per-Session control: a hidden Terminal | Chat toggle once read as
+a thumb stuck mid-slide while the visible one was correct. Scope the query to the selected Session's
+non-`[hidden]` Workbench (and the target pane in a split), filter with `checkVisibility()`, and
+assert exactly one match before reading geometry or style.
+
 Packaged (production) builds expose CDP at the fixed `127.0.0.1:9224` (`CAXRI_DEV_CDP_PORT`
 overrides it). A production-build issue can usually be inspected by connecting to the running
 installed app there directly; whether that suffices or a dev relaunch is still needed depends on
