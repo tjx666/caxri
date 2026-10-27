@@ -6,6 +6,21 @@ import crypto from 'node:crypto';
 
 import type { FakeCodexIo, FakeTurn } from './fake-codex-io.ts';
 
+/**
+ * The reply to a `longreply` message: a first and a last line around eighty numbered paragraphs, about 4,800
+ * characters, past the phone's 4,000-character window so the phone holds only its tail and a whole-message copy must
+ * read the rest from Core.
+ */
+const LONG_REPLY_TEXT = [
+    'Long reply first line.',
+    ...Array.from(
+        { length: 80 },
+        (_, index) =>
+            `Paragraph ${String(index + 1).padStart(2, '0')}: the phone keeps only the end of this reply.`,
+    ),
+    'Long reply last line.',
+].join('\n\n');
+
 export async function runDefaultReply(io: FakeCodexIo, turn: FakeTurn, said: string) {
     const reasoning = { type: 'reasoning', id: crypto.randomUUID(), summary: [], content: [] };
     io.startItem(turn, { ...reasoning });
@@ -35,7 +50,10 @@ export async function runDefaultReply(io: FakeCodexIo, turn: FakeTurn, said: str
             { step: 'Reply', status: 'inProgress' },
         ],
     });
-    await io.streamMessage(turn, `Hello from fake Codex. You said: ${said}`, 0);
+    const reply = said.includes('longreply')
+        ? LONG_REPLY_TEXT
+        : `Hello from fake Codex. You said: ${said}`;
+    await io.streamMessage(turn, reply, 0);
     io.notifyTurn(turn, 'thread/tokenUsage/updated', {
         turnId: turn.id,
         tokenUsage: {
