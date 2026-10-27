@@ -156,6 +156,10 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 - **Window presence**: Stable per-window key and per-client visible and focused tracking. Reference: Superset. Evidence: `docs/adr/0017-per-window-session-presence.md`; `apps/desktop/src/main/window-presence-registry.ts`.
 - **Mobile computer status sort**: CPU and memory sort toggle for top processes; poll only while the view is visible. Reference: Superset (also cmux). Evidence: `apps/mobile/src/features/host-status/host-status-model.ts`.
 
+## LibreChat (MIT)
+
+- **Pinned turn fold row**: An expanded activity group's header pins to the top of the transcript until its own rows end. Evidence: `apps/desktop/src/renderer/src/features/agent-chat/turns/agent-chat-turn-fold.tsx` (`TurnFoldHeader`); `DESIGN.md` (turn fold).
+
 ## Streaming Markdown references
 
 - **Streaming Markdown parser**: Re-parse only the tail with per-block reuse; count-based CI gate. Reference: Streamdown, LobeHub, assistant-ui. Evidence: `packages/markdown/src/streaming-parser.ts`; `chat-markdown-rendering.md`.
