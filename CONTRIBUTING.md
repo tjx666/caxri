@@ -31,12 +31,13 @@ Public upstream dependencies may be named when their public source has been veri
 
 ## Development workflow
 
-To run Caxri from source, follow [Run from source](README.md#run-from-source) in the README
-(Node.js 24+, Bun 1.3+, Xcode Command Line Tools, and `ni`). Then install dependencies with
-`ni` and use the repository-owned changed-file check:
+Building from source needs macOS 13 or newer (Apple Silicon or Intel), Node.js 24+, Bun 1.3+,
+Xcode Command Line Tools, and `ni`. Install dependencies, start the app, and run the
+repository-owned changed-file check:
 
 ```bash
 ni
+bun run dev
 bun run --silent check [files...]
 ```
 
