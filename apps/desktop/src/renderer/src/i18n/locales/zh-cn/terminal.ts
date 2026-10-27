@@ -56,6 +56,18 @@ export const terminal: TranslatedNamespace<typeof source> = {
     'terminal.recovery.restart': '重启',
     'terminal.recovery.startNewConversation': '开始新对话',
     'terminal.recovery.newConversation': '新对话',
+    'terminal.hookSuggestion.suggest':
+        '开启生命周期 Hook 后，可以看到 {{provider}} 是否在工作，并在完成时收到通知。',
+    'terminal.hookSuggestion.suggestDetail':
+        'Caxri 会在 {{provider}} 的用户配置里添加一条 Hook。它在 Caxri 之外不做任何事，可随时在设置中关闭。',
+    'terminal.hookSuggestion.restart': '生命周期 Hook 已开启，重启 Agent 后生效。',
+    'terminal.hookSuggestion.required': '{{provider}} 需要开启生命周期 Hook 才能在终端中运行。',
+    'terminal.hookSuggestion.enable': '开启 Hook',
+    'terminal.hookSuggestion.enableAndRestart': '开启 Hook 并重启',
+    'terminal.hookSuggestion.dontAskAgain': '不再提示',
+    'terminal.hookSuggestion.dismiss': '关闭',
+    'terminal.hookSuggestion.enableFailed': '无法开启生命周期 Hook',
+    'terminal.hookSuggestion.dontAskAgainFailed': '无法保存生命周期 Hook 提示设置',
     'terminal.contextMenu.paste': '粘贴',
     'terminal.contextMenu.openDetectedLink': '打开检测到的链接…',
     'terminal.mobileSizeOwnership': '终端尺寸由手机控制',

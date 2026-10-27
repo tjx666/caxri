@@ -278,6 +278,10 @@ export class TerminalLaunchPlanner {
                         failureDetail:
                             'Managed Agent Terminals require zsh or bash shell integration.',
                     }),
+                ...(isCaxriError(error) &&
+                    error.details?.reason === 'lifecycle_hooks_required' && {
+                        failureDetail: error.message,
+                    }),
                 failureReason:
                     isCaxriError(error) && error.details?.reason === 'agent_session_unavailable'
                         ? 'agent_session_unavailable'

@@ -182,6 +182,7 @@ const settingsProjection: SettingsProjection = {
      * Free text written for an Agent: support learns only whether it is Caxri's preset, never the user's wording.
      */
     'agents.sessionInstructions': (value) => (value === null ? 'default' : redactText(value)),
+    'agents.suggestLifecycleHooks': exportAsIs,
     'agents.notifications.enabled': exportAsIs,
     'agents.notifications.completionThresholdSeconds': exportAsIs,
     'git.fetchGitHubAvatars': exportAsIs,

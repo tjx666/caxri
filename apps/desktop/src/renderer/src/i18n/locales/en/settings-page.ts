@@ -90,7 +90,7 @@ export const settingsPage = {
         'Actions and skills are unavailable for {{provider}}.',
     'settings.row.providerHooks.title': 'Lifecycle hooks',
     'settings.row.providerHooks.description':
-        'Keeps background Session unread state accurate. Caxri adds only its own marked entries to ~/.claude/settings.json, ~/.codex/hooks.json, and ~/.grok/hooks/caxri.json, and turning this off removes them. It only receives lifecycle phases, never prompt or response content. Restart Agent Terminals opened before lifecycle hooks were enabled.',
+        'Off by default. Agents running in Terminals use them to keep background Session state, unread marks, and notifications accurate; Grok Build needs them to run in a Terminal, and Chats never use them. Caxri adds only its own marked entries to ~/.claude/settings.json, ~/.codex/hooks.json, and ~/.grok/hooks/caxri.json, and turning this off removes them. It only receives lifecycle phases, never prompt or response content. Restart Agent Terminals opened before lifecycle hooks were enabled.',
     'settings.row.providerHooks.label': '{{provider}} lifecycle hooks',
     'settings.row.providerMessaging.title': 'Peer messaging',
     'settings.row.providerMessaging.description':

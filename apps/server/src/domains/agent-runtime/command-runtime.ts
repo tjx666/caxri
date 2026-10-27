@@ -37,7 +37,10 @@ export function createAgentCommandRuntime(
          * follow-ups, stops, and answer go through it.
          */
         agentChat?: DelegationChats;
-        settings(): Pick<AppSettings, 'agents.delegation' | 'session.openAgentsInChat'>;
+        settings(): Pick<
+            AppSettings,
+            'agents.delegation' | 'agents.providers' | 'session.openAgentsInChat'
+        >;
         /**
          * Refuses a dispatch or delegation launch while its provider's account is at the weekly usage guard (issue
          * #2580). Optional so a unit test can construct this runtime without one.
@@ -70,6 +73,8 @@ export function createAgentCommandRuntime(
         delegationSettings: () => options.settings()['agents.delegation'],
         opensAgentsInChat: () =>
             options.agentChat !== undefined && options.settings()['session.openAgentsInChat'],
+        hasLifecycleHooks: (provider) =>
+            options.settings()['agents.providers'][provider].hooks.enabled,
         isChatTerminal: (terminalId) => chatOf(terminalId) !== undefined,
         isChatLive: (terminalId) => chatOf(terminalId)?.isLive(terminalId) === true,
         readChatTurn: (terminalId, turnId) =>

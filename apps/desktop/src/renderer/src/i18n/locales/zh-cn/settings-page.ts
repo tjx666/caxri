@@ -87,7 +87,7 @@ export const settingsPage: TranslatedNamespace<typeof source> = {
     'settings.row.providerActions.unavailable': '{{provider}} 不支持命令和 Skill。',
     'settings.row.providerHooks.title': '生命周期 Hook',
     'settings.row.providerHooks.description':
-        '让后台会话的未读状态保持准确。Caxri 只会向 ~/.claude/settings.json、~/.codex/hooks.json 和 ~/.grok/hooks/caxri.json 添加带有 Caxri 标记的条目，关闭开关后会将其移除。它只接收生命周期阶段，从不接收提示词或回复内容。请重启在启用生命周期 Hook 之前打开的 Agent 终端。',
+        '默认关闭。在终端中运行的 Agent 依靠它让后台会话的状态、未读标记和通知保持准确；Grok Build 需要它才能在终端中运行，对话从不使用。Caxri 只会向 ~/.claude/settings.json、~/.codex/hooks.json 和 ~/.grok/hooks/caxri.json 添加带有 Caxri 标记的条目，关闭开关后会将其移除。它只接收生命周期阶段，从不接收提示词或回复内容。请重启在启用生命周期 Hook 之前打开的 Agent 终端。',
     'settings.row.providerHooks.label': '{{provider}} 生命周期 Hook',
     'settings.row.providerMessaging.title': '对等消息',
     'settings.row.providerMessaging.description':

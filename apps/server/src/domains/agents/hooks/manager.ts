@@ -11,7 +11,6 @@ import type {
 import {
     agentProviderCatalog,
     agentProviderIds,
-    CaxriError,
     errorMessage,
     isCaxriError,
 } from '@caxri/protocol';
@@ -35,7 +34,12 @@ import type {
     DesiredHookInstall,
 } from './contract';
 import { gateHookSettingsOnExecutables } from './executable-gate';
-import { defaultHookHealth, hookHealthFor } from './health';
+import {
+    assertTerminalLaunchHooks,
+    defaultHookHealth,
+    hookHealthFor,
+    isHookLaunchReady,
+} from './health';
 import { withAgentHookInstallLock } from './install-lock';
 import { HookLaunchRegistry } from './launch-registry';
 import type { AgentHookManagerOptions } from './manager-options';
@@ -636,23 +640,17 @@ export class AgentHookManager {
         return this.reconcileQueue.run(() => this.reconcileNow(settings));
     }
 
+    isLaunchReady(provider: AgentProvider): boolean {
+        if (!this.server || !this.bridgePath) return false;
+        return isHookLaunchReady(this.launchSettings?.[provider], this.health[provider]);
+    }
+
     terminalEnvironment(
         terminalId: string,
         provider?: AgentProvider,
         launchId: string = randomUUID(),
     ): NodeJS.ProcessEnv {
-        if (
-            provider &&
-            agentProviders[provider].requiresLifecycleHooks &&
-            (!this.server ||
-                !this.bridgePath ||
-                !this.launchSettings?.[provider].hooks.enabled ||
-                !['active', 'installedPending'].includes(this.health[provider].kind))
-        )
-            throw new CaxriError(
-                'UNAVAILABLE',
-                `${agentProviderCatalog[provider].displayName} requires installed lifecycle hooks for reliable Session identity`,
-            );
+        if (provider) assertTerminalLaunchHooks(provider, this.isLaunchReady(provider));
         if (!this.server || !this.bridgePath || !this.anyLaunchEnabled()) return {};
         return this.launchEnvironment(
             terminalId,

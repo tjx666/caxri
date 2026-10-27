@@ -138,7 +138,7 @@ describe('parseConfigSource', () => {
             "'Fira Code', 'JetBrains Mono', 'Caxri JetBrains Mono', monospace",
         );
         expect(result.value['agents.providers'].claude.launch.executable).toBe('claude');
-        expect(result.value['agents.providers'].claude.hooks.enabled).toBe(true);
+        expect(result.value['agents.providers'].claude.hooks.enabled).toBe(false);
     });
 
     it('rejects unsupported Terminal GPU acceleration values', () => {

@@ -246,7 +246,6 @@ describe('AgentHookManager', () => {
             expect(Object.values(registry.profiles).flatMap((entry) => entry.providers)).toEqual([
                 'claude',
                 'codex',
-                'grok',
             ]);
         } finally {
             await manager.close();

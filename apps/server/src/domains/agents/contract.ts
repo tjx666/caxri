@@ -181,10 +181,6 @@ export function defaultAgentEnvironment(
  */
 export interface AgentProviderDescriptor {
     /**
-     * Providers without a live-session metadata probe require installed hooks before managed launch.
-     */
-    requiresLifecycleHooks?: boolean;
-    /**
      * Provider-owned arguments applied to every managed Agent Terminal launch, including custom settings and resume.
      */
     managedLaunchArguments?: readonly string[];

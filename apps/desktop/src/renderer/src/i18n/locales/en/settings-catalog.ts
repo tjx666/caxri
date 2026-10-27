@@ -336,6 +336,9 @@ export const settingsCatalog = {
     'settings.agents.sessionInstructions.title': 'Session instructions',
     'settings.agents.sessionInstructions.description':
         "Added after each Agent's own system prompt when it starts, so it knows it runs inside Caxri and how to start work in another Session. Clear it to add nothing; changes apply to Agents started afterward",
+    'settings.agents.suggestLifecycleHooks.title': 'Suggest lifecycle hooks',
+    'settings.agents.suggestLifecycleHooks.description':
+        "Offer to turn on a provider's lifecycle hooks when its Agent runs in a Terminal without them. Chats never need them",
 
     'settings.agents.delegation.title': 'Agent delegation',
     'settings.agents.delegation.description':

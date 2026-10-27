@@ -35,6 +35,7 @@ import { useTerminalPaneRuntime } from './hooks/use-terminal-pane-runtime';
 import { activateTerminal, restartTerminal, startNewAgentSession } from './terminal-commands';
 import { getTerminalExitPresentation } from './terminal-exit-presentation';
 import { terminalFontFamily } from './terminal-fonts';
+import { TerminalHookSuggestion } from './terminal-hook-suggestion';
 import { openTerminalLinkPicker } from './terminal-link-actions';
 import { TerminalLinkPicker } from './terminal-link-picker';
 import {
@@ -506,6 +507,7 @@ export function TerminalPane({
                     <Spinner size={14} /> {t('terminal.longPaste.saving')}
                 </div>
             )}
+            <TerminalHookSuggestion provider={provider} settings={settings} terminal={terminal} />
             <TerminalRecoveryBar
                 cwd={terminal?.cwd}
                 failureDetail={terminal?.failureDetail}

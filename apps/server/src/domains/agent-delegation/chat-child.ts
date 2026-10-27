@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 
-import type { AgentLaunchSettings, AgentProvider } from '@caxri/protocol';
-import { canUseAgentChat } from '@caxri/protocol';
+import type { AgentDelegationReceipt, AgentLaunchSettings, AgentProvider } from '@caxri/protocol';
+import { canUseAgentChat, CaxriError, isCaxriError } from '@caxri/protocol';
 
 import type { AgentDispatchStartOptions } from '../agent-dispatch';
 import type { DelegationCompletion } from '../agents';
@@ -44,7 +44,10 @@ export type DelegationChatTurn =
  * presets the conversation id the task was admitted with. Every other child keeps the PTY launch unchanged.
  */
 export function delegationChildLaunch(
-    options: Pick<AgentDelegationServiceOptions, 'opensAgentsInChat' | 'userDataPath'>,
+    options: Pick<
+        AgentDelegationServiceOptions,
+        'hasLifecycleHooks' | 'opensAgentsInChat' | 'userDataPath'
+    >,
     record: StoredAgentDelegation,
     prepared: {
         launch: AgentLaunchSettings;
@@ -61,18 +64,50 @@ export function delegationChildLaunch(
         !options.opensAgentsInChat?.() ||
         !canChatCorrelateTask(provider) ||
         !canUseAgentChat(provider)
-    )
+    ) {
+        assertTerminalChildHooks(options, provider);
         return {
             launch: prepared.launch,
             initialPrompt: prepared.initialPrompt,
             assignedAgentSessionId: prepared.assignedAgentSessionId,
         };
+    }
     return {
         surface: 'chat',
         launch: delegationResumeLaunch(record, options.userDataPath),
         initialPrompt: prepared.pointer,
         assignedAgentSessionId: record.providerSessionId,
     };
+}
+
+/**
+ * Throws for a Terminal child whose provider's lifecycle hooks are off, checked before the launch and again on its
+ * `environment` once it has one. A Terminal child reports its prompt digest and turn end only through those hooks, and
+ * a hook token does not prove they are on: any enabled provider gives every Agent launch credentials, while signals of
+ * a disabled provider are ignored, so the task would wait forever. A Chat child reports through its provider protocol
+ * and never needs them.
+ */
+export function assertTerminalChildHooks(
+    options: Pick<AgentDelegationServiceOptions, 'hasLifecycleHooks'>,
+    provider: AgentProvider | undefined,
+    environment?: NodeJS.ProcessEnv,
+): void {
+    if (
+        (environment && !environment.CAXRI_HOOK_TOKEN) ||
+        (provider && options.hasLifecycleHooks?.(provider) === false)
+    )
+        throw new CaxriError('UNAVAILABLE', 'Visible delegation requires active lifecycle hooks', {
+            reason: 'lifecycle_hooks_required',
+        });
+}
+
+/**
+ * The receipt failure for a child launch that threw: `hooks_required` names the one cause the caller can fix.
+ */
+export function childLaunchFailure(error: unknown): AgentDelegationReceipt['failure'] {
+    return isCaxriError(error) && error.details?.reason === 'lifecycle_hooks_required'
+        ? 'hooks_required'
+        : 'launch_failed';
 }
 
 /**

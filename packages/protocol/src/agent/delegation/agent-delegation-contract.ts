@@ -51,6 +51,11 @@ export const agentDelegationFailureSchema = z.enum([
     'result_missing',
     'payload_overflow',
     'launch_failed',
+    /**
+     * A visible child that runs in a Terminal needs its provider's lifecycle hooks to report the task, and they are off
+     * (`agents.providers.<provider>.hooks.enabled`). Nothing was launched.
+     */
+    'hooks_required',
     'correlation_missing',
     'quota_exhausted',
     'caller_stopped',

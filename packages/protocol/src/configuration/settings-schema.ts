@@ -65,9 +65,13 @@ export const agentLaunchSettingsSchema = z.object({
     args: z.array(z.string().max(4_096)).max(64),
 });
 
+/**
+ * Off by default: enabling writes Caxri-marked entries into each provider CLI's global config, and only PTY Terminal
+ * Agents need them (Chat reports through its own SDK callbacks). Terminal panes suggest enabling them instead.
+ */
 const agentHooksSettingsSchema = z
-    .object({ enabled: z.boolean().default(true) })
-    .default({ enabled: true });
+    .object({ enabled: z.boolean().default(false) })
+    .default({ enabled: false });
 const agentMessagingSettingsSchema = z
     .object({ enabled: z.boolean().default(true) })
     .default({ enabled: true });
@@ -211,6 +215,7 @@ export const appSettingsSchema = z.object({
         .max(spec['agents.sessionInstructions'].maxLength)
         .nullable()
         .default(spec['agents.sessionInstructions'].default),
+    'agents.suggestLifecycleHooks': booleanField(spec['agents.suggestLifecycleHooks']),
     'agents.notifications.enabled': booleanField(spec['agents.notifications.enabled']),
     'agents.notifications.completionThresholdSeconds': integerField(
         spec['agents.notifications.completionThresholdSeconds'],

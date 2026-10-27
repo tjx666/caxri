@@ -105,18 +105,17 @@ test('Settings keeps actions visible and provides highlighted editors and live T
         // through the table of contents before asserting on its rows.
         await revealSettingsSection(settingsTab, 'Claude');
         await expect(settingsTab.getByLabel('Claude executable')).toHaveValue('claude');
-        // Lifecycle hooks default to enabled. E2E launches with Agent discovery `blocked`, so the
-        // CLI is deliberately absent: the hook waits instead of installing, and the caption appends
-        // the Server's own reason once instead of restating a generic install hint.
+        // Lifecycle hooks are off by default, so Caxri writes nothing to a provider's user settings
+        // until the user turns them on.
         await expect(
             settingsTab.getByRole('switch', { name: 'Claude lifecycle hooks' }),
-        ).toBeChecked();
+        ).not.toBeChecked();
         await expect(
             settingsTab.getByRole('switch', { name: 'Claude peer messaging' }),
         ).toBeChecked();
         await expect(
             settingsTab.locator('[data-setting-row="agents.claude.hooks"]').getByRole('status'),
-        ).toContainText('Not in effect — Lifecycle hook installation is unavailable in this mode.');
+        ).toHaveText('Installation: Disabled');
         await expect(settingsTab.getByLabel('Claude initial arguments')).toBeVisible();
         await expect(
             settingsTab.locator('[data-agent-provider="claude"] [data-agent-icon="claude"]'),
@@ -126,7 +125,7 @@ test('Settings keeps actions visible and provides highlighted editors and live T
         await expect(settingsTab.getByLabel('Codex executable')).toHaveValue('codex');
         await expect(
             settingsTab.getByRole('switch', { name: 'Codex lifecycle hooks' }),
-        ).toBeChecked();
+        ).not.toBeChecked();
         await expect(
             settingsTab.getByRole('switch', { name: 'Codex peer messaging' }),
         ).toBeChecked();
@@ -150,12 +149,8 @@ test('Settings keeps actions visible and provides highlighted editors and live T
 
         await settingsTab.getByRole('spinbutton', { name: 'Terminal Font size' }).fill('14');
         await revealSettingsSection(settingsTab, 'Claude');
-        // The toggle starts enabled, so round-trip it off and back on to exercise the write path
-        // in each direction.
-        await settingsTab.getByRole('switch', { name: 'Claude lifecycle hooks' }).uncheck();
-        await expect(
-            settingsTab.locator('[data-setting-row="agents.claude.hooks"]').getByRole('status'),
-        ).toHaveText('Installation: Disabled');
+        // Turning the hooks on exercises the write path. E2E launches with Agent discovery
+        // `blocked`, so the CLI is deliberately absent: the hook waits instead of installing.
         await settingsTab.getByRole('switch', { name: 'Claude lifecycle hooks' }).check();
         await expect(settingsTab.locator('[data-setting-row="agents.claude.hooks"]')).toContainText(
             'Restart Agent Terminals opened before lifecycle hooks were enabled.',

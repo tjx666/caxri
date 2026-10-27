@@ -32,7 +32,9 @@ start. Concurrent Terminals can therefore share a Project without sharing an ID.
 
 ## Identity and activity
 
-Lifecycle hooks are required for managed launches. Caxri maintains only its own
+Lifecycle hooks are required for managed Terminal launches. They are off by default, so a Grok
+Terminal fails to start until the user turns on **Grok Build lifecycle hooks**; its Terminal pane
+offers to turn them on and restart. A Grok Chat does not use them. Caxri maintains only its own
 entries in `$GROK_HOME/hooks/caxri.json` (default home: `~/.grok`). The hook command
 uses the existing Caxri Node bridge. It forwards bounded identifiers and event
 metadata, never prompts, responses, transcripts, or Terminal output.

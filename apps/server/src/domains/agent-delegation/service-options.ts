@@ -34,6 +34,14 @@ export interface AgentDelegationServiceOptions extends DelegationTranscriptReade
      */
     opensAgentsInChat?(): boolean;
     /**
+     * Whether the user turned `provider`'s lifecycle hooks on in settings. A visible PTY child needs them to correlate
+     * its task, so a child whose provider has them off fails as `hooks_required` before anything launches. This reads
+     * the configured setting, the same condition that makes the hook manager ignore a provider's signals, not install
+     * health: a reconcile in progress or a drifted config file still delivers signals through the launch token.
+     * Optional so a unit test can construct this service without the hook manager.
+     */
+    hasLifecycleHooks?: (provider: AgentProvider) => boolean;
+    /**
      * Whether a Terminal runs its Agent as a Chat. A property, so restart recovery can take it unbound.
      */
     isChatTerminal?: (terminalId: string) => boolean;

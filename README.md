@@ -129,10 +129,14 @@ The full manual is [docs/cli.md](docs/cli.md).
 
 ## What Caxri changes on your Mac
 
-- **Agent hook entries.** To learn when an Agent starts, waits or finishes, Caxri adds lifecycle
-  hook entries to your Agent configs (for example `~/.claude/settings.json` and the Codex hook
-  config). Hooks receive lifecycle phases, never prompt or response content. Turn them off per
-  Agent in **Settings → Agents**, which removes Caxri's entries; your own hooks stay.
+- **Agent hook entries (off by default).** Caxri does not touch your Agent configs unless you turn
+  on lifecycle hooks. Chats never need them. An Agent running in a Terminal uses them to report
+  when it starts, waits or finishes, so its Session status, unread marks and notifications stay
+  accurate; Grok Build needs them to run in a Terminal at all. A Terminal Agent without them offers
+  to turn them on. When on, Caxri adds only its own marked entries to `~/.claude/settings.json`,
+  `~/.codex/hooks.json` or `~/.grok/hooks/caxri.json`. Outside Caxri those entries exit
+  immediately, and they receive lifecycle phases, never prompt or response content. Turn them off
+  per Agent in **Settings → Agents**, which removes Caxri's entries; your own hooks stay.
 - **A background job for Claude windows (Claude Pro).** **Keep 5-hour windows rolling** (Settings → Agents → Claude)
   is on by default for a Claude Pro account and off for Max. When on, Caxri registers a per-user
   launchd job under `~/Library/LaunchAgents` (names start with `com.caxri.app.claude-windows`;

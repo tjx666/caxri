@@ -415,8 +415,10 @@ describe('Caxri uninstaller', () => {
         // CLAUDE_CONFIG_DIR relocates the Claude config relative to the home directory.
         const claudeSettings = join(home, 'claude-config', 'settings.json');
         const codexHooks = join(home, '.codex', 'hooks.json');
+        const grokHooks = join(home, '.grok', 'hooks', 'caxri.json');
         await mkdir(join(home, 'claude-config'), { recursive: true });
         await mkdir(join(home, '.codex'), { recursive: true });
+        await mkdir(join(home, '.grok', 'hooks'), { recursive: true });
         await writeFile(
             claudeSettings,
             `${JSON.stringify(
@@ -471,6 +473,24 @@ describe('Caxri uninstaller', () => {
             })}\n`,
             'utf8',
         );
+        await writeFile(
+            grokHooks,
+            `${JSON.stringify({
+                hooks: {
+                    Stop: [
+                        {
+                            hooks: [
+                                {
+                                    type: 'command',
+                                    command: `${bridge} --source caxri --provider grok --phase turnFinished --schema 2`,
+                                },
+                            ],
+                        },
+                    ],
+                },
+            })}\n`,
+            'utf8',
+        );
         const withHooks = {
             ...options,
             environmentVariables: { CLAUDE_CONFIG_DIR: 'claude-config' },
@@ -483,7 +503,7 @@ describe('Caxri uninstaller', () => {
         expect(preview).toMatchObject({
             applied: false,
             cleanedHookConfigs: [],
-            hookConfigs: [claudeSettings, codexHooks],
+            hookConfigs: [claudeSettings, codexHooks, grokHooks],
         });
         expect(JSON.parse(await readFile(claudeSettings, 'utf8'))).toHaveProperty('hooks.Stop');
 
@@ -492,9 +512,9 @@ describe('Caxri uninstaller', () => {
             { inspectPathOwner: () => Promise.resolve(undefined) },
         );
         expect(result).toMatchObject({
-            cleanedHookConfigs: [claudeSettings, codexHooks],
+            cleanedHookConfigs: [claudeSettings, codexHooks, grokHooks],
             failedTargets: [],
-            hookConfigs: [claudeSettings, codexHooks],
+            hookConfigs: [claudeSettings, codexHooks, grokHooks],
         });
         // The newer-schema guard the running manager honours does not stop an explicit uninstall (schema 99 above).
         expect(JSON.parse(await readFile(claudeSettings, 'utf8'))).toEqual({
@@ -510,6 +530,7 @@ describe('Caxri uninstaller', () => {
         });
         expect((await lstat(claudeSettings)).mode & 0o777).toBe(0o644);
         expect(JSON.parse(await readFile(codexHooks, 'utf8'))).toEqual({});
+        expect(JSON.parse(await readFile(grokHooks, 'utf8'))).toEqual({});
     });
 
     it('leaves provider configs without Caxri hooks untouched', async () => {

@@ -111,7 +111,7 @@ Options:
 
 The newest successful non-empty archive and its original-path manifest are kept in
 caxri-uninstall-archives beside the primary Caxri checkout. Caxri-owned Agent hook entries are
-removed from the Claude Code and Codex hook
+removed from the Claude Code, Codex, and Grok hook
 configs so archived bridges are not left referenced; foreign hooks are preserved. Without --yes the
 command is a verified dry run. Project folders and user files are never targets.`;
 }

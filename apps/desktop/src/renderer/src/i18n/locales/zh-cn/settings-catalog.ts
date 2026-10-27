@@ -313,6 +313,9 @@ export const settingsCatalog: TranslatedNamespace<typeof source> = {
     'settings.agents.sessionInstructions.title': '会话说明',
     'settings.agents.sessionInstructions.description':
         'Agent 启动时追加在它自己的系统提示词之后，让它知道自己运行在 Caxri 中，以及如何在另一个会话中开始工作。清空则不追加任何内容；修改只对之后启动的 Agent 生效',
+    'settings.agents.suggestLifecycleHooks.title': '建议启用生命周期 Hook',
+    'settings.agents.suggestLifecycleHooks.description':
+        '提供方的 Agent 在终端中运行但未启用生命周期 Hook 时，提示启用。对话从不需要',
 
     'settings.agents.delegation.title': 'Agent 委派',
     'settings.agents.delegation.description': '命名的委派预设、调用方绑定和最大委派深度',

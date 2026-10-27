@@ -178,8 +178,10 @@ Then write the task to a file and run
   `blocked` with `startup_waiting` means the Agent is running but has not started, usually at a
   first-run prompt such as folder trust or sign-in: ask the user to answer it in that Session. The
   task continues on its own afterwards; do not resend it.
-  Grok requires explicitly enabled Caxri lifecycle hooks. If they are unavailable, ask the owner
-  to configure them; never install global hooks or relax a Provider sandbox yourself.
+  A child that runs in a Terminal (always for Grok; for Claude and Codex when Agents do not open
+  in Chat) needs its provider's Caxri lifecycle hooks, which are off by default. Without them the
+  task fails as `hooks_required` before anything launches: ask the owner to turn them on in
+  Settings, then retry. Never install global hooks or relax a Provider sandbox yourself.
   Provider usage is optional: omitted counters are unknown. Grok's `provider-task` scope may include
   native children; Claude and Codex report `main-thread` scope.
 
