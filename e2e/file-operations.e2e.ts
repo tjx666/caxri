@@ -143,8 +143,13 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
         await expect(createdRow).toBeFocused();
 
         // Auto-reveal can leave `destination` expanded later in the workflow, so bind root files by
-        // their document identity instead of a display name that may also appear in that directory.
-        const draftRow = fileList.getByTitle(join(root, 'draft.txt'), { exact: true });
+        // their tree level instead of a display name alone, which may also appear in that directory.
+        // The row shows its path in a hover tooltip, not a native `title`, so `getByTitle` cannot match it.
+        const draftRow = fileList.getByRole('treeitem', {
+            name: 'draft.txt',
+            exact: true,
+            level: 1,
+        });
         const destinationRow = fileList.getByRole('treeitem', {
             name: 'destination',
             exact: true,
@@ -330,7 +335,11 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
         // Keep Both: even though Replace is offered for this file-over-file collision too, choosing
         // Keep Both auto-suffixes the moved file instead, leaving the destination's original entry
         // untouched, the same guarantee the old flat rejection used to promise before this dialog.
-        const draftCopyRow = fileList.getByTitle(join(root, 'draft copy.txt'), { exact: true });
+        const draftCopyRow = fileList.getByRole('treeitem', {
+            name: 'draft copy.txt',
+            exact: true,
+            level: 1,
+        });
         await draftCopyRow.dragTo(destinationRow);
         await expect(conflictDialog).toBeVisible();
         await conflictDialog.getByRole('button', { name: 'Keep Both' }).click();
@@ -383,7 +392,11 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
             })
             .toBe(true);
         await expect(destinationRow).toHaveAttribute('aria-expanded', 'true');
-        const movedRow = fileList.getByTitle(movedPath, { exact: true });
+        const movedRow = fileList.getByRole('treeitem', {
+            name: 'renamed.txt',
+            exact: true,
+            level: 2,
+        });
         await expect(movedRow).toBeVisible();
 
         await renamedTab.click();
