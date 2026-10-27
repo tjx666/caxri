@@ -296,7 +296,7 @@ em-dash-check` enforces this in the `guards` job and the pre-commit hook.
 | Focused lint / type / test / knip; formatting             | `quality-check`        |
 | Vitest unit/integration regressions                       | `unit-testing`         |
 | Playwright Electron workflows                             | `e2e-testing`          |
-| Terminal interaction reports, CDP, owned process stop     | `debug`                |
+| Product failures (UI, Terminal), CDP, owned process stop  | `debug`                |
 | Public-content confidentiality review                     | `oss-confidentiality`  |
 | Isolated worktrees and desktop lease                      | `switch-worktree`      |
 | GitHub issues                                             | `file-issue`           |
