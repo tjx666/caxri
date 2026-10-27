@@ -1,4 +1,4 @@
-import { MOBILE_GATEWAY_MAX_WIRE_BYTES } from '@caxri/mobile-transport';
+import { MOBILE_GATEWAY_MAX_WIRE_BYTES, mobileClientCloseReasons } from '@caxri/mobile-transport';
 
 import { MobileConnectionClosedError } from './mobile-gateway-errors';
 import { MobileSocketReaderBudget } from './socket-reader-budget';
@@ -19,6 +19,9 @@ export const createSocketReader = (socket: WebSocket): SocketReader => {
     const waiting: Array<{ reject(error: Error): void; resolve(value: unknown): void }> = [];
     const budget = new MobileSocketReaderBudget();
     let isClosed = false;
+    const closeForProtocolError = (): void => {
+        socket.close(mobileClientCloseReasons['protocol-error'], 'protocol-error');
+    };
 
     /**
      * A peer close may follow a final authenticated frame before the owner advances to its steady-state reader. Keep
@@ -38,12 +41,12 @@ export const createSocketReader = (socket: WebSocket): SocketReader => {
     socket.addEventListener('message', (event) => {
         if (isClosed) return;
         if (typeof event.data !== 'string') {
-            socket.close();
+            closeForProtocolError();
             rejectAll(true);
             return;
         }
         if (event.data.length > MOBILE_GATEWAY_MAX_WIRE_BYTES) {
-            socket.close();
+            closeForProtocolError();
             rejectAll(true);
             return;
         }
@@ -51,7 +54,7 @@ export const createSocketReader = (socket: WebSocket): SocketReader => {
         const byteLength = event.data.length;
         const release = budget.tryAcquire(byteLength);
         if (!release) {
-            socket.close();
+            closeForProtocolError();
             rejectAll(true);
             return;
         }
@@ -60,7 +63,7 @@ export const createSocketReader = (socket: WebSocket): SocketReader => {
             value = JSON.parse(event.data) as unknown;
         } catch {
             release();
-            socket.close();
+            closeForProtocolError();
             rejectAll(true);
             return;
         }

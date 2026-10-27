@@ -286,7 +286,12 @@ describe('MobileGateway diagnostics', () => {
             // server has finished its `remove()` cleanup (and the `connectionEnded` write) yet.
             await vi.waitFor(() => {
                 expect(write).toHaveBeenCalledWith('info', 'mobile_gateway.connection_ended', {
-                    fields: { deviceId: record.deviceId, durationMs: 4_000 },
+                    fields: {
+                        deviceId: record.deviceId,
+                        durationMs: 4_000,
+                        cause: 'peer-closed',
+                        closeCode: 1_005,
+                    },
                 });
             });
         } finally {
@@ -433,8 +438,15 @@ describe('MobileGateway diagnostics', () => {
             'binaryFrame',
             'inboundCapacity',
             'transportError',
+            'heartbeatIdle',
+            'sendFailed',
+            'outboundCapacity',
             'applicationClosed',
             'versionMismatch',
+            'cause',
+            'failureReason',
+            'closeCode',
+            'clientReason',
             'total',
             'capacity',
             'generationChanged',

@@ -1,3 +1,4 @@
+import type { MobileClientCloseReason } from '@caxri/mobile-transport';
 import type { MobilePairingOutcomeReason } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
@@ -18,11 +19,49 @@ const emptyCounts = () => ({
     binaryFrame: 0,
     inboundCapacity: 0,
     transportError: 0,
+    heartbeatIdle: 0,
+    sendFailed: 0,
+    outboundCapacity: 0,
     applicationClosed: 0,
     versionMismatch: 0,
 });
 
 export type MobileGatewayFailureReason = keyof ReturnType<typeof emptyCounts>;
+
+/**
+ * Failures that are a normal end of a connection rather than a fault: a phone in the background stops its heartbeat and
+ * the Server closes the idle socket. They are still counted, but never raise the first-occurrence warning.
+ */
+const expectedFailures: ReadonlySet<MobileGatewayFailureReason> = new Set(['heartbeatIdle']);
+
+/**
+ * Who ended an established connection. Close codes alone cannot tell a Server `terminate()` from a lost network (both
+ * read 1006 on the Server), so the Server records its own decision before the socket closes and the close code only
+ * classifies endings the peer started.
+ */
+type MobileConnectionEndCause =
+    | 'gateway-disabled'
+    | 'heartbeat-idle'
+    | 'peer-closed'
+    | 'peer-dropped'
+    | 'revoked'
+    | 'server-terminated';
+
+export interface MobileConnectionEnd {
+    cause: MobileConnectionEndCause;
+    /**
+     * The WebSocket close code, written only when the peer ended the connection.
+     */
+    closeCode?: number;
+    /**
+     * The phone's own reason, decoded from a private-range close code it sent.
+     */
+    clientReason?: MobileClientCloseReason;
+    /**
+     * The Server's failure reason when it terminated the connection.
+     */
+    failureReason?: MobileGatewayFailureReason;
+}
 export type MobileTerminalResyncReason =
     'capacity' | 'generation-changed' | 'source-gap' | 'resize';
 
@@ -91,7 +130,7 @@ export class MobileGatewayDiagnostics {
     failure(reason: MobileGatewayFailureReason): void {
         this.#counts[reason] += 1;
         this.#total += 1;
-        if (this.#counts[reason] === 1)
+        if (this.#counts[reason] === 1 && !expectedFailures.has(reason))
             this.logger?.write('warn', logEventCatalog.mobileGateway.failure, {
                 fields: { reason },
             });
@@ -153,11 +192,19 @@ export class MobileGatewayDiagnostics {
     }
 
     /**
-     * A `durationMs` on the close record is what makes a session's lifetime knowable without logging its content.
+     * A `durationMs` on the close record is what makes a session's lifetime knowable without logging its content, and
+     * the closed `cause` is what tells a phone in the background from one that hit an error.
      */
-    connectionEnded(deviceId: string, durationMs: number): void {
+    connectionEnded(deviceId: string, durationMs: number, end: MobileConnectionEnd): void {
         this.logger?.write('info', logEventCatalog.mobileGateway.connectionEnded, {
-            fields: { deviceId, durationMs },
+            fields: {
+                deviceId,
+                durationMs,
+                cause: end.cause,
+                ...(end.failureReason !== undefined && { failureReason: end.failureReason }),
+                ...(end.closeCode !== undefined && { closeCode: end.closeCode }),
+                ...(end.clientReason !== undefined && { clientReason: end.clientReason }),
+            },
         });
     }
 

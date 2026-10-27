@@ -54,6 +54,10 @@ export class FakeGatewaySocket extends EventTarget {
     isClosed = false;
     heartbeatCount = 0;
     requestCount = 0;
+    /**
+     * Every close code this socket was closed with, in order; `undefined` for a close without one.
+     */
+    readonly closeCodes: Array<number | undefined> = [];
 
     constructor(
         shouldRevokeAfterPair = false,
@@ -118,7 +122,8 @@ export class FakeGatewaySocket extends EventTarget {
         });
     }
 
-    close(): void {
+    close(code?: number): void {
+        this.closeCodes.push(code);
         this.isClosed = true;
         this.dispatchEvent(new Event('close'));
     }

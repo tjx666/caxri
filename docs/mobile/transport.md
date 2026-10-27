@@ -147,6 +147,20 @@ repeated failures increment fixed counters. A cumulative summary is emitted on t
 after a minute, and pending counts are flushed when access is disabled. This bounds log volume
 without hiding repeated admission, authentication, frame, or capacity failures.
 
+Every `mobile_gateway.connection_ended` record carries a closed `cause`: `peer-closed` (the phone
+sent a close frame), `peer-dropped` (the socket ended with no close frame), `heartbeat-idle` (no
+client frame for 12 seconds, usually a phone in the background), `server-terminated` (with the
+Server's `failureReason`), `revoked`, or `gateway-disabled`. The Server records its own decision
+before the socket closes, because its `terminate()` and a lost network both reach the close handler
+as code 1006. `heartbeat-idle` is counted as `heartbeatIdle` in the failure summary but never
+raises the first-occurrence warning, since a backgrounded phone is expected to go quiet.
+
+The phone has no structured-log sink, so it states its own reason in the close frame: a
+private-range close code from `mobileClientCloseReasons` in `@caxri/mobile-transport` (for example
+4001 `heartbeat-timeout`, 4004 `protocol-error`, 4010 `unmounted`). A `peer-closed` record carries
+the numeric `closeCode` and, when it is one of these, the decoded `clientReason`. A close without a
+code reads as 1005.
+
 The [Conversation guide](conversation.md) covers the authorized timeline snapshot, cursor recovery,
 and native mobile rendering behind the content-free hints.
 The [Changes guide](changes.md) covers authorized Git snapshots, bounded diffs, and the

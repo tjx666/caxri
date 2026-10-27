@@ -1,5 +1,7 @@
+import type { MobileClientCloseReason } from '@caxri/mobile-transport';
+
 export interface ClosableMobileConnection {
-    close(): void;
+    close(reason: MobileClientCloseReason): void;
 }
 
 export interface TerminableMobileConnection<Reason> extends ClosableMobileConnection {
@@ -26,6 +28,22 @@ export const reconnectWaitForAttempt = (
     retryAttempt: number,
     delay: (attempt: number) => number,
 ) => (retryAttempt === 0 ? 0 : delay(retryAttempt - 1));
+
+/**
+ * How long a connection must have lived before its end counts as a fresh failure rather than part of a loop.
+ */
+export const STABLE_CONNECTION_MS = 10_000;
+
+/**
+ * The reconnect attempt after an established connection ended. A stable connection reconnects at once, but one that
+ * ended soon after it was adopted keeps backing off: a screen that closes the connection on open would otherwise
+ * reconnect without delay until the Server's per-source admission limit locks the phone out for about a minute.
+ */
+export const retryAttemptAfterConnectionEnded = (
+    retryAttempt: number,
+    connectedAt: number,
+    now: number,
+): number => (now - connectedAt >= STABLE_CONNECTION_MS ? 0 : retryAttempt + 1);
 
 export const foregroundRecoveryAction = ({
     backgroundedAt,
@@ -58,7 +76,7 @@ export const runReconnectAttempt = async <Connection extends ClosableMobileConne
     try {
         const connection = await connect();
         if (!isActive()) {
-            connection.close();
+            connection.close('superseded');
             return;
         }
         onConnected(connection);

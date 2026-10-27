@@ -36,6 +36,11 @@ export const mobileGatewayLogEvents = {
      */
     accessPersistence: 'mobile_gateway.access_persistence',
     connectionEstablished: 'mobile_gateway.connection_established',
+    /**
+     * An established connection ended, with its `durationMs` and a closed `cause` (`peer-closed`, `peer-dropped`,
+     * `heartbeat-idle`, `server-terminated` with `failureReason`, `revoked`, `gateway-disabled`). A `peer-closed`
+     * record adds the numeric `closeCode` and, for a phone's private-range code, the decoded `clientReason`.
+     */
     connectionEnded: 'mobile_gateway.connection_ended',
     pairingOutcome: 'mobile_gateway.pairing_outcome',
     pairingSummary: 'mobile_gateway.pairing_summary',

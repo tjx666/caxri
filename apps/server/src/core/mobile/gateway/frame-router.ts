@@ -22,7 +22,11 @@ import {
 } from '@caxri/protocol';
 
 import type { TerminalExecutionPort, TerminalObserverEvent } from '../../../domains/terminal';
-import type { MobileTerminalResyncReason, MobileTerminalTeardownReason } from './diagnostics';
+import type {
+    MobileGatewayFailureReason,
+    MobileTerminalResyncReason,
+    MobileTerminalTeardownReason,
+} from './diagnostics';
 import { boundedMobileReply, forbiddenMobileReply } from './reply';
 import { MobileGatewaySubscriptions } from './subscriptions';
 
@@ -79,7 +83,7 @@ export interface MobileAppOptions {
     reportTerminalTeardownFailure?: (reason: MobileTerminalTeardownReason) => void;
     reportHumanSteer?: (terminalId: string) => void;
     send: (payload: MobileServerPayload) => Promise<void>;
-    terminate: () => void;
+    terminate: (reason?: MobileGatewayFailureReason) => void;
     terminalExecution?: TerminalExecutionPort;
 }
 
@@ -118,7 +122,7 @@ export class MobileGatewayFrameRouter {
         });
         this.#timer = setInterval(() => {
             if (this.#options.now() - this.#lastClientFrameAt >= HEARTBEAT_IDLE_MS)
-                this.#options.terminate();
+                this.#options.terminate('heartbeatIdle');
         }, HEARTBEAT_CHECK_MS);
         this.#timer.unref();
     }
@@ -235,7 +239,7 @@ export class MobileGatewayFrameRouter {
         afterReply?: () => void,
     ): void {
         if (this.#activeIds.has(id)) {
-            this.#options.terminate();
+            this.#options.terminate('invalidFrame');
             return;
         }
         if (this.#activeIds.size >= MAXIMUM_ACTIVE_OPERATIONS) {
@@ -260,7 +264,7 @@ export class MobileGatewayFrameRouter {
                         const sent = await this.#reply(reply);
                         if (sent && reply.ok) afterReply?.();
                     } catch {
-                        this.#options.terminate();
+                        this.#options.terminate('sendFailed');
                     }
                 }
             } finally {
@@ -273,7 +277,7 @@ export class MobileGatewayFrameRouter {
         try {
             await this.#options.send({ type: 'heartbeat-ack', nonce });
         } catch {
-            this.#options.terminate();
+            this.#options.terminate('sendFailed');
         }
     }
 
@@ -282,7 +286,7 @@ export class MobileGatewayFrameRouter {
             await this.#options.send({ type: 'reply', reply });
             return true;
         } catch {
-            this.#options.terminate();
+            this.#options.terminate('sendFailed');
             return false;
         }
     }

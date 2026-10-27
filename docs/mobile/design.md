@@ -71,6 +71,10 @@ The implemented encrypted frame, subscription, and heartbeat contract is documen
   app was in the background for more than 10 seconds or the probe fails, open a new connection at
   once instead of waiting for the backoff timer. Android vendors such as HyperOS cut background
   sockets aggressively, so foreground recovery is the primary path, not an edge case.
+- A connection that ends after staying up at least 10 seconds reconnects at once. One that ends
+  sooner keeps the backoff count growing instead of resetting it, so a screen that closes every
+  connection right after it opens backs off instead of reconnecting until Server's per-source
+  admission limit (`admissionRate`) locks the phone out for about a minute.
 - While in the background, stop all polling and subscriptions.
 - A connection becomes stale after five seconds without a valid server observation. Stale content
   stays visible; every mutation is disabled with its reason. Remove the stale banner as soon as a
