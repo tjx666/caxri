@@ -62,9 +62,12 @@ describe('Git diff stall watch', () => {
     });
 
     it('records a stalled diff with the Worker round-trip that explains it', async () => {
-        const { reported, watch } = createWatch();
+        // A controlled clock: a 5 ms timer can fire when `Date.now()` has advanced only 4 ms.
+        let clock = 0;
+        const { reported, watch } = createWatch({ now: () => clock });
 
         watch.observe({ waitForDiff: () => new Promise(() => {}), readModels: models });
+        clock = 5;
         await vi.waitFor(() => expect(reported).toHaveLength(1));
 
         expect(reported[0]).toMatchObject({
@@ -88,8 +91,8 @@ describe('Git diff stall watch', () => {
             editorWorkersStarted: 3,
             editorWorkersStartupStalled: 0,
             editorWorkersStartupStalledNow: 0,
+            waitMs: 5,
         });
-        expect(reported[0]?.waitMs).toBeGreaterThanOrEqual(5);
     });
 
     it('names a Worker that never started, so the surface can offer the recovery that matches it', async () => {
