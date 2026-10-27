@@ -19,8 +19,8 @@ import {
     collectInPlaceInstallReport,
     launchInPlaceInstall,
     resolveInPlaceInstallTarget,
+    stagedUpdateResetReason,
     stageUpdateBundle,
-    willStagedUpdateResetData,
 } from './update-install';
 import { recordLaunchVersion } from './update-launch-version';
 import { updateStateLogFields } from './update-state-log';
@@ -151,17 +151,18 @@ export function createDesktopUpdateService(options: {
                     stagingDirectory: join(downloadDirectory, 'staged'),
                     version,
                 });
-                const resetsData = await willStagedUpdateResetData({
+                const resetReason = await stagedUpdateResetReason({
                     bundlePath: target.bundlePath,
                     stagedPath,
                 });
                 logInstall('info', {
                     phase: 'stage',
-                    outcome: resetsData ? 'staged-resets-data' : 'staged',
+                    outcome: resetReason ? 'staged-resets-data' : 'staged',
+                    ...(resetReason && { resetReason }),
                     version,
                     durationMs: Date.now() - startedAt,
                 });
-                return resetsData
+                return resetReason
                     ? { installMode: 'restart', resetsData: true }
                     : { installMode: 'restart' };
             } catch (error) {

@@ -123,6 +123,7 @@ export const core: TranslatedNamespace<typeof source> = {
     'core.projectTransfer.imported': '已导入 {{projects}} 个项目和 {{sessions}} 个会话',
     'core.projectTransfer.skippedMissing': '已跳过 {{path}}：文件夹已不存在',
     'core.projectTransfer.skippedExists': '已跳过 {{path}}：已经是项目',
+    'core.projectTransfer.restored': '已重新添加 {{path}}，恢复其原有会话，未重复导入',
     'core.projectTransfer.worktreeMissing':
         'Worktree {{path}} 已不存在，它的会话将在项目文件夹中打开',
     'core.projectTransfer.moreSkipped': '另有 {{count}} 项',

@@ -198,21 +198,31 @@ async function readSchemaBaseline(
 }
 
 /**
+ * Why installing the staged bundle clears the Project and Session list, or `undefined` when it does not. Only
+ * `baseline-bumped` is a real database baseline upgrade; the unreadable reasons are the fail-safe that keeps a damaged
+ * or unexpected bundle from installing silently, named apart so the install log can tell them from a real reset.
+ */
+export type StagedUpdateResetReason =
+    'baseline-bumped' | 'installed-unreadable' | 'staged-unreadable';
+
+/**
  * Whether installing the staged bundle clears the Project and Session list: its database baseline is newer than the
  * installed one's. A baseline that cannot be read on either side counts as a reset, so a damaged or unexpected bundle
  * never installs silently.
  */
-export async function willStagedUpdateResetData(input: {
+export async function stagedUpdateResetReason(input: {
     bundlePath: string;
     run?: InstallCommandRunner;
     stagedPath: string;
-}): Promise<boolean> {
+}): Promise<StagedUpdateResetReason | undefined> {
     const run = input.run ?? runInstallCommand;
     const [staged, installed] = await Promise.all([
         readSchemaBaseline(run, input.stagedPath),
         readSchemaBaseline(run, input.bundlePath),
     ]);
-    return staged === undefined || installed === undefined || staged > installed;
+    if (staged === undefined) return 'staged-unreadable';
+    if (installed === undefined) return 'installed-unreadable';
+    return staged > installed ? 'baseline-bumped' : undefined;
 }
 
 /**

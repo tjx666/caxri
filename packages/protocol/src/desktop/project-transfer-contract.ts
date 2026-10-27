@@ -66,9 +66,11 @@ export const projectTransferDocumentSchema = z.strictObject({
 });
 
 /**
- * Why a Project or worktree in the file was not imported. `exists` keeps a repeated import from duplicating Sessions.
+ * Why a Project or worktree in the file was not imported. `exists` keeps a repeated import from duplicating Sessions;
+ * `restored` is a Project the user had removed from the sidebar, brought back with its own earlier Sessions instead of
+ * the file's copies of them.
  */
-export const projectTransferSkipReasonSchema = z.enum(['missing', 'exists']);
+export const projectTransferSkipReasonSchema = z.enum(['missing', 'exists', 'restored']);
 
 export const projectTransferImportResultSchema = z.strictObject({
     projectCount: z.number().int().nonnegative(),

@@ -1,3 +1,6 @@
+import type { ProjectTransferImportResult } from '@caxri/protocol';
+
+import type { TranslationKey } from '../../i18n';
 import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import { pushToast, tryCommand } from '../../stores/toasts';
@@ -6,6 +9,15 @@ import { pushToast, tryCommand } from '../../stores/toasts';
  * Skipped folders listed by name in the toast; the rest collapse into a count so a large import stays readable.
  */
 const MAX_LISTED_SKIPS = 5;
+
+const skipMessages: Record<
+    ProjectTransferImportResult['skipped'][number]['reason'],
+    TranslationKey
+> = {
+    missing: 'core.projectTransfer.skippedMissing',
+    exists: 'core.projectTransfer.skippedExists',
+    restored: 'core.projectTransfer.restored',
+};
 
 /**
  * Saves the user's Projects and unarchived Sessions through Main's save dialog. Dismissing the dialog is silent.
@@ -34,36 +46,42 @@ export function importProjectsAndSessions(): void {
     void tryCommand(translate('core.projectTransfer.importFailed'), async () => {
         const result = await caxri.request('projectTransfer.import');
         if (!result) return;
-        const skipped = [
+        const notes = [
             ...result.skipped.map(({ rootPath, reason }) =>
-                translate(
-                    reason === 'missing'
-                        ? 'core.projectTransfer.skippedMissing'
-                        : 'core.projectTransfer.skippedExists',
-                    { path: rootPath },
-                ),
+                translate(skipMessages[reason], { path: rootPath }),
             ),
             ...result.missingWorkbenchRoots.map((path) =>
                 translate('core.projectTransfer.worktreeMissing', { path }),
             ),
         ];
-        pushToast(
-            skipped.length > 0 ? 'warning' : 'success',
-            [
-                translate('core.projectTransfer.imported', {
-                    projects: result.projectCount,
-                    sessions: result.sessionCount,
-                }),
-                ...skipped.slice(0, MAX_LISTED_SKIPS),
-                ...(skipped.length > MAX_LISTED_SKIPS
-                    ? [
-                          translate('core.projectTransfer.moreSkipped', {
-                              count: skipped.length - MAX_LISTED_SKIPS,
-                          }),
-                      ]
-                    : []),
-            ].join('\n'),
-            { persist: skipped.length > 0 },
-        );
+        /**
+         * A restored Project is a success the user asked for, not something the import missed, and an import that only
+         * restored Projects has no imported count worth reading.
+         */
+        const isIncomplete =
+            result.missingWorkbenchRoots.length > 0 ||
+            result.skipped.some(({ reason }) => reason !== 'restored');
+        const hasImported = result.projectCount > 0 || result.sessionCount > 0;
+        const lines = [
+            ...(hasImported || notes.length === 0
+                ? [
+                      translate('core.projectTransfer.imported', {
+                          projects: result.projectCount,
+                          sessions: result.sessionCount,
+                      }),
+                  ]
+                : []),
+            ...notes.slice(0, MAX_LISTED_SKIPS),
+            ...(notes.length > MAX_LISTED_SKIPS
+                ? [
+                      translate('core.projectTransfer.moreSkipped', {
+                          count: notes.length - MAX_LISTED_SKIPS,
+                      }),
+                  ]
+                : []),
+        ];
+        pushToast(isIncomplete ? 'warning' : 'success', lines.join('\n'), {
+            persist: notes.length > 0,
+        });
     });
 }

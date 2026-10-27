@@ -31,8 +31,11 @@ type TransferDatabase = Pick<
     | 'createProject'
     | 'createSession'
     | 'createTerminal'
+    | 'deleteProject'
+    | 'deleteSession'
     | 'findProjectByRootPath'
     | 'getSession'
+    | 'isRestorableProjectRoot'
     | 'listSessions'
     | 'listTerminals'
     | 'listVisibleProjects'
@@ -219,9 +222,50 @@ async function importSession(
 }
 
 /**
- * Recreates the exported Projects and Sessions with new IDs. A Project whose folder is gone, or that is already
- * present, is skipped as a whole, so importing the same file twice never duplicates Sessions. Sessions are created
- * bottom-up because each new Session takes the top of its Project, and pins are applied in export order afterward.
+ * Imports one Project's Sessions, all or none. A failure removes what this import wrote, so importing the same file
+ * again finds the Project absent and brings in every Session instead of skipping it as already present. A Project row
+ * that existed before (a hidden one with nothing left to restore, or a worktree Project being promoted) keeps its row
+ * and loses only the Sessions this import created.
+ */
+async function importProjectSessions(
+    database: TransferDatabase,
+    chatState: TransferChatState,
+    rootPath: string,
+    exported: ProjectTransferDocument['projects'][number],
+    missingWorkbenchRoots: string[],
+): Promise<Array<{ session: SessionRecord; pinned: boolean }>> {
+    const isNewProject = database.findProjectByRootPath(rootPath) === undefined;
+    const project = database.createProject(rootPath);
+    const imported: Array<{ session: SessionRecord; pinned: boolean }> = [];
+    try {
+        for (const session of exported.sessions.toReversed()) {
+            // Each new Session takes the top of its Project, so creation order is the sidebar order.
+            /* eslint-disable no-await-in-loop -- Sessions are created one at a time, in sidebar order */
+            // react-doctor-disable-next-line react-doctor/async-await-in-loop -- Sessions are created in sidebar order
+            const created = await importSession(
+                database,
+                chatState,
+                project,
+                session,
+                missingWorkbenchRoots,
+            );
+            /* eslint-enable no-await-in-loop */
+            imported.push({ session: created, pinned: session.pinned });
+        }
+    } catch (error) {
+        if (isNewProject) database.deleteProject(project.id);
+        else for (const { session } of imported) database.deleteSession(session.id);
+        throw error;
+    }
+    return imported;
+}
+
+/**
+ * Recreates the exported Projects and Sessions with new IDs. A Project whose folder is gone, or that is already in the
+ * sidebar, is skipped as a whole, so importing the same file twice never duplicates Sessions. A Project the user
+ * removed from the sidebar comes back with its own earlier Sessions instead of a second copy of them from the file.
+ * Sessions are created bottom-up because each new Session takes the top of its Project, and pins are applied in export
+ * order afterward.
  */
 async function importProjectTransfer(
     database: TransferDatabase,
@@ -236,6 +280,7 @@ async function importProjectTransfer(
         missingWorkbenchRoots: [],
     };
     const pinned: SessionRecord[] = [];
+    let isRestored = false;
     try {
         for (const exported of document.projects) {
             let rootPath: string;
@@ -246,33 +291,33 @@ async function importProjectTransfer(
                 result.skipped.push({ rootPath: exported.rootPath, reason: 'missing' });
                 continue;
             }
-            if (database.findProjectByRootPath(rootPath)) {
+            const existing = database.findProjectByRootPath(rootPath);
+            if (existing && isTopLevelProject(existing) && existing.hiddenAt === undefined) {
                 result.skipped.push({ rootPath: exported.rootPath, reason: 'exists' });
                 continue;
             }
-            const project = database.createProject(rootPath);
-            result.projectCount += 1;
-            const imported: Array<{ session: SessionRecord; pinned: boolean }> = [];
-            for (const session of exported.sessions.toReversed()) {
-                // Each new Session takes the top of its Project, so creation order is the sidebar order.
-                /* eslint-disable no-await-in-loop -- see above */
-                // react-doctor-disable-next-line react-doctor/async-await-in-loop -- see above
-                const created = await importSession(
-                    database,
-                    chatState,
-                    project,
-                    session,
-                    result.missingWorkbenchRoots,
-                );
-                /* eslint-enable no-await-in-loop */
-                imported.push({ session: created, pinned: session.pinned });
-                result.sessionCount += 1;
+            if (database.isRestorableProjectRoot(rootPath)) {
+                // Adding the root back un-hides the Project with its Sessions, as Open Folder does.
+                database.createProject(rootPath);
+                isRestored = true;
+                result.skipped.push({ rootPath: exported.rootPath, reason: 'restored' });
+                continue;
             }
+            // eslint-disable-next-line no-await-in-loop -- see above
+            const imported = await importProjectSessions(
+                database,
+                chatState,
+                rootPath,
+                exported,
+                result.missingWorkbenchRoots,
+            );
+            result.projectCount += 1;
+            result.sessionCount += imported.length;
             for (const entry of imported.toReversed()) if (entry.pinned) pinned.push(entry.session);
         }
         for (const session of pinned) database.setSessionPinned(session.id, true);
     } finally {
-        if (result.projectCount > 0)
+        if (isRestored || result.projectCount > 0)
             emit({ event: 'state.changed', payload: { kind: 'full', reason: 'project.import' } });
     }
     return result;

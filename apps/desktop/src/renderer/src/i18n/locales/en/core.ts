@@ -147,6 +147,8 @@ export const core = {
     'core.projectTransfer.imported': 'Imported {{projects}} Projects and {{sessions}} Sessions',
     'core.projectTransfer.skippedMissing': 'Skipped {{path}}: the folder no longer exists',
     'core.projectTransfer.skippedExists': 'Skipped {{path}}: already a Project',
+    'core.projectTransfer.restored':
+        'Added {{path}} back with its earlier Sessions instead of importing them again',
     'core.projectTransfer.worktreeMissing':
         'Worktree {{path}} no longer exists; its Session opens in the Project folder',
     'core.projectTransfer.moreSkipped': 'And {{count}} more',

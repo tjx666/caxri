@@ -89,4 +89,7 @@ phase with a closed `outcome`:
 | `launch` | `restart` or `quit`                                                                                  |
 | `apply`  | `installed`, `missing`, `move-in-failed`, `move-out-failed`, or `timeout`, with `from`/`to`          |
 
-`stage` also records `durationMs`. An `apply` outcome other than `installed` is logged as an error.
+`stage` also records `durationMs`. `staged-resets-data` carries a closed `resetReason`:
+`baseline-bumped` for a real database baseline upgrade, or `staged-unreadable` / `installed-unreadable`
+when a bundle's `CaxriSchemaBaseline` could not be read and the prompt appears as a fail-safe. An
+`apply` outcome other than `installed` is logged as an error.
