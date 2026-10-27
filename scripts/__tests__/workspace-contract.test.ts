@@ -190,11 +190,14 @@ describe('pnpm workspace contract', () => {
             ...productionTypeScriptFiles(join(root, 'apps/server/src/core')),
             ...productionTypeScriptFiles(join(root, 'packages/client/src/supervise')),
         ];
-        // The Mobile gateway owns the only TCP listener; its options module shares the `Socket` type with it. The Linux
-        // profile lock binds an abstract socket only as a kernel-owned mutex and never accepts a control connection.
+        // The Mobile gateway owns the only TCP listener; its options and admission modules share the `Socket` type with it.
+        // The Mobile preview proxy serves on the gateway address and relays WebSocket upgrades to a loopback dev server. The
+        // Linux profile lock binds an abstract socket only as a kernel-owned mutex and never accepts a control connection.
         const mobileGatewayNetSources = new Set([
             'apps/server/src/core/mobile/gateway/gateway.ts',
             'apps/server/src/core/mobile/gateway/gateway-options.ts',
+            'apps/server/src/core/mobile/gateway/admission.ts',
+            'apps/server/src/core/mobile/preview/proxy.ts',
             'apps/server/src/core/linux-profile-lock.ts',
         ]);
         const legacyControlTransport = localControlSources
