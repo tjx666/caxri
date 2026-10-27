@@ -49,7 +49,6 @@ export const session = {
     'session.archived.archivedAt': 'Archived {{time}}',
     'session.archived.restoreSession': 'Restore {{title}}',
     'session.archived.deleteSession': 'Delete {{title}}',
-    'session.archived.selectAllInProject': 'Select all archived Sessions in {{project}}',
     'session.archived.noMatches': 'No archived Sessions match these filters',
     'session.archived.clearFilters': 'Clear Filters',
     'session.archived.emptyTitle': 'No archived Sessions yet',

@@ -49,7 +49,6 @@ export const session: TranslatedNamespace<typeof source> = {
     'session.archived.archivedAt': '归档于 {{time}}',
     'session.archived.restoreSession': '恢复 {{title}}',
     'session.archived.deleteSession': '删除 {{title}}',
-    'session.archived.selectAllInProject': '全选 {{project}} 中的已归档会话',
     'session.archived.noMatches': '没有符合这些筛选条件的已归档会话',
     'session.archived.clearFilters': '清除筛选',
     'session.archived.emptyTitle': '暂无已归档会话',

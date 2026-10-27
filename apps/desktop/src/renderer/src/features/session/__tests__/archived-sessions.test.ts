@@ -81,7 +81,7 @@ const terminals = [
 ];
 
 describe('archived Session selector', () => {
-    it('groups by Project order and sorts each group by newest archive first', () => {
+    it('lists every Project in one newest-archive-first order regardless of Project order', () => {
         const view = deriveArchivedSessionView(projects, sessions, terminals, {
             agent: 'all',
             projectId: 'all',
@@ -90,13 +90,22 @@ describe('archived Session selector', () => {
 
         expect(view.totalCount).toBe(3);
         expect(view.matchingCount).toBe(3);
-        expect(view.groups.map((group) => group.project.id)).toEqual(['alpha', 'beta']);
-        expect(view.groups[0]?.sessions.map((item) => item.session.id)).toEqual([
-            'alpha-review',
-            'alpha-old',
+        expect(view.items.map((item) => [item.session.id, item.project.id, item.agent])).toEqual([
+            ['alpha-review', 'alpha', 'codex'],
+            ['beta-review', 'beta', 'claude'],
+            ['alpha-old', 'alpha', 'shell'],
         ]);
-        expect(view.groups[0]?.sessions[0]?.agent).toBe('codex');
-        expect(view.groups[1]?.sessions[0]?.agent).toBe('claude');
+    });
+
+    it('puts the latest archive from a later Project above older archives in the first Project', () => {
+        const view = deriveArchivedSessionView(
+            projects,
+            [...sessions, session('beta-latest', 'beta', 50)],
+            terminals,
+            { agent: 'all', projectId: 'all', query: '' },
+        );
+
+        expect(view.items[0]?.session.id).toBe('beta-latest');
     });
 
     it('filters archived Sessions by title, Project, and Agent independently', () => {
@@ -105,7 +114,7 @@ describe('archived Session selector', () => {
                 agent: 'all',
                 projectId: 'all',
                 query: 'BETA REVIEW',
-            }).groups[0]?.sessions.map((item) => item.session.id),
+            }).items.map((item) => item.session.id),
         ).toEqual(['beta-review']);
         expect(
             deriveArchivedSessionView(projects, sessions, terminals, {
@@ -119,7 +128,7 @@ describe('archived Session selector', () => {
                 agent: 'shell',
                 projectId: 'all',
                 query: '',
-            }).groups[0]?.sessions.map((item) => item.session.id),
+            }).items.map((item) => item.session.id),
         ).toEqual(['alpha-old']);
     });
 
@@ -142,7 +151,7 @@ describe('archived Session selector', () => {
         expect(afterRestore.totalCount).toBe(1);
         expect(afterRestore.matchingCount).toBe(1);
         expect(afterRestore.projectId).toBe('all');
-        expect(afterRestore.groups.map((group) => group.project.id)).toEqual(['beta']);
+        expect(afterRestore.items.map((item) => item.project.id)).toEqual(['beta']);
         expect(afterRestore.projectOptions.map((item) => item.id)).toEqual(['beta']);
     });
 
@@ -177,8 +186,8 @@ describe('archived Session selection', () => {
         expect(visibleArchivedSessionIds(view)).toEqual([
             'alpha-blank',
             'alpha-review',
-            'alpha-old',
             'beta-review',
+            'alpha-old',
             'beta-blank',
         ]);
         expect(untitledArchivedSessionIds(view)).toEqual(['alpha-blank', 'beta-blank']);
