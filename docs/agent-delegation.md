@@ -126,7 +126,12 @@ An Agent learns this without the `caxri-cli` skill installed. Caxri adds one sho
 context of every ordinary Claude and Codex Agent, once per launch: it says the Agent runs inside
 Caxri and, when the user asks to start or hand off work in another Session or Project, tells it to
 read `"$CAXRI_CLI" skills get caxri-cli --full` and follow this flow
-(`apps/server/src/domains/agents/session-discovery.ts`). A Terminal Agent receives it as
+(`packages/protocol/src/configuration/agent-session-instructions.ts`). The text is the
+`agents.sessionInstructions` setting (Settings › Agents › Session instructions), whose default is
+that preset: the user can rewrite it, clear it to add nothing, or reset it to the preset. The
+preset is stored as `null` rather than as its text, because `settings.jsonc` holds every default
+and would otherwise freeze the first preset it saw; `null` follows the installed version's preset. Each launch reads the current value,
+so an edit reaches Agents started afterward. A Terminal Agent receives it as
 `additionalContext` from its first `UserPromptSubmit` hook, so it needs lifecycle hooks enabled. A
 Claude Agent Chat appends it to Claude Code's system prompt; a Codex Agent Chat joins it after the
 user's own `developer_instructions`, read with `config/read`, and adds nothing when Codex cannot

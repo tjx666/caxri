@@ -1,8 +1,8 @@
 import type { TerminalRecord } from '@caxri/protocol';
+import { DEFAULT_AGENT_SESSION_INSTRUCTIONS } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import type { AgentLifecycleSignal } from '../../agents';
-import { AGENT_SESSION_DISCOVERY_CONTEXT } from '../../agents';
 import type { CaxriDatabase } from '../../db';
 import { AgentTurnContext } from '../turn-context';
 
@@ -36,21 +36,42 @@ function signal(overrides: Partial<AgentLifecycleSignal> = {}): AgentLifecycleSi
     };
 }
 
-describe('AgentTurnContext', () => {
-    it('adds the context to the first turn of each launch', () => {
-        const context = new AgentTurnContext(database());
+const preset = () => null;
 
-        expect(context.for(signal())).toBe(AGENT_SESSION_DISCOVERY_CONTEXT);
+describe('AgentTurnContext', () => {
+    it('adds the instructions the user wrote in Settings, read at each launch', () => {
+        let instructions: string | null = 'Reply in haiku.';
+        const context = new AgentTurnContext(database(), () => instructions);
+
+        expect(context.for(signal())).toBe('Reply in haiku.');
+        instructions = '  Answer in French.\n';
+        expect(context.for(signal({ launchId: 'launch-2' }))).toBe('Answer in French.');
+        instructions = null;
+        expect(context.for(signal({ launchId: 'launch-3' }))).toBe(
+            DEFAULT_AGENT_SESSION_INSTRUCTIONS,
+        );
+    });
+
+    it('adds nothing when the user cleared the instructions', () => {
+        expect(new AgentTurnContext(database(), () => ' \n ').for(signal())).toBeUndefined();
+    });
+
+    it('adds the context to the first turn of each launch', () => {
+        const context = new AgentTurnContext(database(), preset);
+
+        expect(context.for(signal())).toBe(DEFAULT_AGENT_SESSION_INSTRUCTIONS);
         expect(context.for(signal())).toBeUndefined();
-        expect(context.for(signal({ launchId: 'launch-2' }))).toBe(AGENT_SESSION_DISCOVERY_CONTEXT);
+        expect(context.for(signal({ launchId: 'launch-2' }))).toBe(
+            DEFAULT_AGENT_SESSION_INSTRUCTIONS,
+        );
     });
 
     it('delivers it again after the launch is forgotten', () => {
-        const context = new AgentTurnContext(database());
+        const context = new AgentTurnContext(database(), preset);
         context.for(signal());
         context.forget('agent');
 
-        expect(context.for(signal())).toBe(AGENT_SESSION_DISCOVERY_CONTEXT);
+        expect(context.for(signal())).toBe(DEFAULT_AGENT_SESSION_INSTRUCTIONS);
     });
 
     it.each([
@@ -61,6 +82,6 @@ describe('AgentTurnContext', () => {
         ['the Agent Commander', { terminalId: 'commander' }],
         ['an unknown Terminal', { terminalId: 'missing' }],
     ])('adds nothing for %s', (_label, overrides) => {
-        expect(new AgentTurnContext(database()).for(signal(overrides))).toBeUndefined();
+        expect(new AgentTurnContext(database(), preset).for(signal(overrides))).toBeUndefined();
     });
 });

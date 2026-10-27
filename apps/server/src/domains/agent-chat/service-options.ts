@@ -41,6 +41,10 @@ export interface AgentChatServiceOptions {
      */
     longRunningShellCommands?: () => readonly string[];
     /**
+     * The current `agents.sessionInstructions`, read when each Chat starts. Omitted, a Chat adds no instructions.
+     */
+    sessionInstructions?: () => string | null;
+    /**
      * Runs once a Chat's provider is ready, after its state is persisted as running. The Agent Commander uses it to
      * send what a restart cut off, the Chat equivalent of a PTY launch prompt.
      */

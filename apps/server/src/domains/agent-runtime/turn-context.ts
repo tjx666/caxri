@@ -1,15 +1,16 @@
-import { isChatTerminal } from '@caxri/protocol';
+import { agentSessionInstructions, isChatTerminal } from '@caxri/protocol';
 
 import type { AgentLifecycleSignal } from '../agents';
-import { AGENT_SESSION_DISCOVERY_CONTEXT } from '../agents';
 import type { CaxriDatabase } from '../db';
 import { agentCommanderTerminal } from '../db';
 
 /**
  * Supplies the context a Terminal Agent's first `turnStarted` hook adds to its prompt, once per launch.
  *
- * Only Claude and Codex read `additionalContext` from `UserPromptSubmit`. An Agent Chat gets the same text through its
- * provider's instructions, and the Agent Commander through its workspace instructions, so both are skipped here.
+ * The text is the current `agents.sessionInstructions`, read when the turn starts so an edit reaches the next launch; a
+ * cleared setting adds nothing. Only Claude and Codex read `additionalContext` from `UserPromptSubmit`. An Agent Chat
+ * gets the same text through its provider's instructions, and the Agent Commander through its workspace instructions,
+ * so both are skipped here.
  */
 export class AgentTurnContext {
     /**
@@ -18,7 +19,10 @@ export class AgentTurnContext {
      */
     private readonly delivered = new Map<string, string>();
 
-    constructor(private readonly database: CaxriDatabase) {}
+    constructor(
+        private readonly database: CaxriDatabase,
+        private readonly instructions: () => string | null,
+    ) {}
 
     for(signal: AgentLifecycleSignal): string | undefined {
         if (signal.phase !== 'turnStarted' || signal.agentId) return undefined;
@@ -28,7 +32,7 @@ export class AgentTurnContext {
         if (!terminal || isChatTerminal(terminal)) return undefined;
         if (agentCommanderTerminal(this.database)?.terminalId === terminal.id) return undefined;
         this.delivered.set(signal.terminalId, signal.launchId);
-        return AGENT_SESSION_DISCOVERY_CONTEXT;
+        return agentSessionInstructions(this.instructions());
     }
 
     forget(terminalId: string): void {

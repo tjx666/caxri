@@ -3,6 +3,11 @@ import { describe, expect, it } from 'vitest';
 
 import { defaultAgentProviderSettings } from '../../agent/agents.js';
 import {
+    agentSessionInstructions,
+    DEFAULT_AGENT_SESSION_INSTRUCTIONS,
+    MAX_AGENT_SESSION_INSTRUCTIONS_LENGTH,
+} from '../agent-session-instructions.js';
+import {
     appSettingsFileSchema,
     appSettingsSchema,
     DEFAULT_FILES_EXCLUDE,
@@ -22,6 +27,25 @@ describe('settings spec and schema agreement', () => {
                 'terminal.wordSeparators'
             ],
         ).toBe(' ,');
+    });
+
+    it("defaults Agent session instructions to Caxri's preset and keeps a user's text verbatim", () => {
+        // `null` stands for the preset, so a profile keeps following a newer Caxri's text.
+        expect(appSettingsFileSchema.parse({})['agents.sessionInstructions']).toBeNull();
+        expect(agentSessionInstructions(null)).toBe(DEFAULT_AGENT_SESSION_INSTRUCTIONS);
+        expect(agentSessionInstructions(' \n ')).toBeUndefined();
+        for (const value of ['Line one.\n\nLine two.\n', '']) {
+            expect(
+                appSettingsFileSchema.parse({ 'agents.sessionInstructions': value })[
+                    'agents.sessionInstructions'
+                ],
+            ).toBe(value);
+        }
+        expect(
+            appSettingsSchema.safeParse({
+                'agents.sessionInstructions': 'x'.repeat(MAX_AGENT_SESSION_INSTRUCTIONS_LENGTH + 1),
+            }).success,
+        ).toBe(false);
     });
 
     it('allows replacing Git diff exclusions without changing file-tree defaults', () => {

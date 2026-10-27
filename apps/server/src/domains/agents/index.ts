@@ -69,7 +69,6 @@ export { readAgentReplySummary, summarizeLatestAgentReply } from './reply-summar
 export { AgentRunAutonomy } from './run-autonomy';
 export { type AgentAdapter, AgentService, createLocalAgentAdapters } from './service';
 export { type SessionActivityTransition } from './session-activity-log';
-export { AGENT_SESSION_DISCOVERY_CONTEXT } from './session-discovery';
 export {
     compareHits,
     conversationKey,

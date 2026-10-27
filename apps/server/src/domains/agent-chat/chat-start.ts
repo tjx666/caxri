@@ -1,11 +1,10 @@
 import { randomUUID } from 'node:crypto';
 
-import { CaxriError } from '@caxri/protocol';
+import { agentSessionInstructions, CaxriError } from '@caxri/protocol';
 import type { SingleFlight } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
 import type { AgentRunAutonomy } from '../agents';
-import { AGENT_SESSION_DISCOVERY_CONTEXT } from '../agents';
 import { recordChatTurnMetrics } from '../usage';
 import type { ChatDelegationLinks } from './chat-delegation';
 import { agentChatDrivers } from './chat-drivers';
@@ -108,6 +107,12 @@ async function startChat(
         delegation.bindLaunch(terminalId, launchId, delegated.delegationId);
         // Stored by a rewind, so it survives a Server Core restart before the first new turn.
         const resumeAt = chatStateStore(database).resumeAt(terminalId);
+        const instructions =
+            options.sessionInstructions &&
+            environment.CAXRI_CLI &&
+            database.agentCommanderRows()?.terminalId !== terminalId
+                ? agentSessionInstructions(options.sessionInstructions())
+                : undefined;
         const logCallbacks = chatSessionLogCallbacks(options, terminalId);
         session = driver.create({
             terminalId,
@@ -121,10 +126,7 @@ async function startChat(
             ...(delegated.agentSessionId && { newAgentSessionId: delegated.agentSessionId }),
             ...(resumeAt !== undefined && { resumeAt }),
             clientVersion: options.clientVersion,
-            ...(environment.CAXRI_CLI &&
-                database.agentCommanderRows()?.terminalId !== terminalId && {
-                    instructions: AGENT_SESSION_DISCOVERY_CONTEXT,
-                }),
+            ...(instructions && { instructions }),
             spawnProcess: options.spawnProcess,
             processGroups: { terminalId, ledger: chatStateStore(database).processGroups },
             turnRequestTimeoutMs: options.turnRequestTimeoutMs,
