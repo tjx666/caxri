@@ -35,7 +35,13 @@ import type { GitService } from './git';
 import { withGitRequestSignal } from './git';
 import type { createIntrospectionServices } from './introspection';
 import { createAgentAvailabilityHandler } from './mobile';
-import { addProjectFolder, resolveOwnerProjectRoot, resolveProjectRoot } from './project';
+import {
+    addProjectFolder,
+    importProjectTransferFile,
+    resolveOwnerProjectRoot,
+    resolveProjectRoot,
+    writeProjectTransfer,
+} from './project';
 import type { ProjectStatusService, VercelDeploymentStore } from './project-status';
 import { SessionPullRequestService } from './project-status';
 import type { PullRequestMergeNoticeOptions, PullRequestSettlementWiring } from './pull-request';
@@ -166,6 +172,8 @@ type ServiceHandlerMethods =
     | 'theme.update'
     | 'theme.importPath'
     | 'diagnostics.exportPath'
+    | 'projectTransfer.exportPath'
+    | 'projectTransfer.importPath'
     | 'diagnostics.snapshot'
     | 'logs.query';
 
@@ -580,6 +588,9 @@ export function createServiceHandlers(services: {
             return result;
         },
         'diagnostics.exportPath': ({ destination }) => diagnostics.export(destination),
+        'projectTransfer.exportPath': ({ destination }) =>
+            writeProjectTransfer(database, destination),
+        'projectTransfer.importPath': ({ path }) => importProjectTransferFile(database, path, emit),
         'diagnostics.snapshot': () => diagnostics.snapshot(),
         'logs.query': (parameters) => introspection.logs.query(parameters),
     };

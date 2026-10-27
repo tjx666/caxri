@@ -140,6 +140,11 @@ const environmentMethodScopes = {
      */
     'theme.import': 'local-only',
     /**
+     * Server Core writes and reads the file the native dialog chose on this Mac.
+     */
+    'projectTransfer.export': 'local-only',
+    'projectTransfer.import': 'local-only',
+    /**
      * Reads the calling window's own fullscreen state, so its title bar restores the right chrome after a reload.
      */
     'window.fullScreen.get': 'any',

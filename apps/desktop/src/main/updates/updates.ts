@@ -15,6 +15,7 @@ import {
 } from './update-github-release';
 import type {
     AcceptanceUpdateDiscovery,
+    PreparedInstall,
     UpdateFetch,
     UpdateServiceOptions,
 } from './update-service-contract';
@@ -79,32 +80,6 @@ export function shouldRunBackgroundCheck(input: BackgroundCheckInput): boolean {
 }
 
 /**
- * Structured-log fields for an `updates.state` transition. Error and unavailable states carry their diagnostic context
- * (`action`/`message`/`reason`); without them the log record degrades to an undiagnosable `{"status":"error"}` (#244).
- */
-export function updateStateLogFields(state: UpdateState): Record<string, string | null> {
-    return {
-        status: state.status,
-        ...('version' in state && { version: state.version ?? null }),
-        ...(state.status === 'error' && {
-            action: state.action,
-            failureKind: state.failureKind,
-            message: state.message,
-        }),
-        ...(state.status === 'unavailable' && {
-            reason: state.reason,
-            /**
-             * A rate-limited `unavailable` is a wait, not a fault, and the two are indistinguishable in a log record
-             * that only carries the prose `reason`. Recording the deadline as well is what makes "how long was update
-             * discovery actually paused" answerable from logs nobody filed a bug about.
-             */
-            rateLimited: String(state.rateLimited === true),
-            retryAt: state.retryAt === undefined ? null : new Date(state.retryAt).toISOString(),
-        }),
-    };
-}
-
-/**
  * Message for the one `unavailable` cause a manual check can still get past. It deliberately stops at the fact; the
  * Renderer owns the clock time and the "checking now bypasses the wait" half, because the deadline has to be compared
  * against the reader's current time rather than the moment the state was published.
@@ -120,7 +95,11 @@ export class UpdateService {
     /**
      * How the verified installer at {@link readyPath} installs; see `installMode` on the `ready` state.
      */
-    private installMode: 'manual' | 'restart' = 'manual';
+    private prepared: PreparedInstall = { installMode: 'manual' };
+    /**
+     * The data-resetting version the user agreed to install from `confirmDataReset`; nothing else may install it.
+     */
+    private dataResetConfirmedFor: string | undefined;
     private checkPromise: Promise<UpdateState> | undefined;
     private downloadPromise: Promise<UpdateState> | undefined;
     private downloadController: AbortController | undefined;
@@ -377,20 +356,22 @@ export class UpdateService {
             version: release.version,
             fileName: release.fileName,
             ...(release.releaseUrl && { releaseUrl: release.releaseUrl }),
-            installMode: this.installMode,
+            ...this.prepared,
         };
     }
 
-    private async prepareReady(path: string, version: string): Promise<'manual' | 'restart'> {
+    private async prepareReady(path: string, version: string): Promise<PreparedInstall> {
         this.readyPath = path;
-        let mode: 'manual' | 'restart' = 'manual';
+        this.dataResetConfirmedFor = undefined;
+        let prepared: PreparedInstall = { installMode: 'manual' };
         try {
-            mode = (await this.options.prepareInstall?.({ dmgPath: path, version })) ?? 'manual';
+            prepared =
+                (await this.options.prepareInstall?.({ dmgPath: path, version })) ?? prepared;
         } catch {
             // `prepareInstall` reports its own failures; any escape still leaves the DMG to open by hand.
         }
-        this.installMode = mode;
-        return mode;
+        this.prepared = prepared;
+        return prepared;
     }
 
     private isRestartReady(): boolean {
@@ -639,18 +620,27 @@ export class UpdateService {
                 message: 'Download and verify the update before restarting to install it.',
                 ...(release && { version: release.version, fileName: release.fileName }),
             });
+        if (this.state.status === 'ready' && this.state.resetsData) {
+            if (!(await this.options.confirmDataReset?.(release.version))) return this.state;
+            this.dataResetConfirmedFor = release.version;
+        }
         await this.options.restartToUpdate();
+        // Resolving means the restart was cancelled; a later ordinary quit must ask again.
+        this.dataResetConfirmedFor = undefined;
         return this.state;
     }
 
     /**
      * Called by the quit flow once Server Core has stopped and Main is about to exit. Starts the in-place install when
-     * a staged update is waiting, so an ordinary quit installs it too and the next launch is the new version. Resolves
-     * `false` when there was nothing to install.
+     * a staged update is waiting, so an ordinary quit installs it too and the next launch is the new version. An update
+     * that resets data installs only after the user confirmed that version through `install()`. Resolves `false` when
+     * there was nothing to install.
      */
     async applyOnExit(options: { relaunch: boolean }): Promise<boolean> {
         const release = this.release;
         if (!release || !this.isRestartReady()) return false;
+        if (this.prepared.resetsData && this.dataResetConfirmedFor !== release.version)
+            return false;
         await this.options.launchInstall!({ relaunch: options.relaunch, version: release.version });
         return true;
     }

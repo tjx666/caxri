@@ -233,6 +233,18 @@ export const desktop = {
     'desktop.diagnosticsExport.title': 'Export Diagnostics',
     'desktop.untitledSave.title': 'Save As',
     'desktop.diagnosticsExport.zipArchive': 'ZIP Archive',
+    'desktop.projectTransfer.exportTitle': 'Export Projects and Sessions',
+    'desktop.projectTransfer.importTitle': 'Import Projects and Sessions',
+    'desktop.projectTransfer.jsonFile': 'Caxri Export',
+    'desktop.updateDataReset.message': 'Caxri {{version}} will clear your Projects and Sessions',
+    'desktop.updateDataReset.detail':
+        'This update starts from a new database, so the Project and Session list will be empty after it restarts. Project folders, files, and Agent conversations are not touched, and a copy of the old database is kept next to it.\n\nExport your Projects and Sessions first, then import the file after the update to bring them back.',
+    'desktop.updateDataReset.exported':
+        'Exported to {{path}}.\n\nAfter the update, choose Import Projects and Sessions… from the Project menu and pick this file.',
+    'desktop.updateDataReset.exportFailed': 'The export failed: {{message}}',
+    'desktop.updateDataReset.export': 'Export…',
+    'desktop.updateDataReset.update': 'Update Anyway',
+    'desktop.updateDataReset.cancel': 'Cancel',
     'desktop.benchmarkShare.title': 'Save Share Image',
     'desktop.benchmarkShare.pngImage': 'PNG Image',
     'desktop.chooseProjectFolder': 'Choose a Project folder',

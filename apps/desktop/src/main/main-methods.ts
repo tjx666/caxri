@@ -55,7 +55,12 @@ import type { MainLogState } from './main-log-methods';
 import { handleLogRequest, isLogRequest } from './main-log-methods';
 import type { MainWindowMethodOptions } from './main-window-methods';
 import { handleWindowRequest, isWindowRequest } from './main-window-methods';
-import { diagnosticsExportDialogOptions, themeImportDialogOptions } from './native-file-dialogs';
+import {
+    diagnosticsExportDialogOptions,
+    exportProjectsAndSessions,
+    projectTransferImportDialogOptions,
+    themeImportDialogOptions,
+} from './native-file-dialogs';
 import { netRequestFetch, netResolveHost } from './net-request-fetch';
 import type { MainNotificationMethodOptions } from './notifications/main-notification-methods';
 import {
@@ -494,6 +499,23 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                 );
                 logState.lastDiagnosticsExportPath = exported.path;
                 return exported;
+            }
+            case 'projectTransfer.export':
+                return exportProjectsAndSessions({
+                    dialog,
+                    exportPath: (destination) =>
+                        supervisor.request('projectTransfer.exportPath', { destination }),
+                    window: mainWindow,
+                });
+            case 'projectTransfer.import': {
+                const result = await dialog.showOpenDialog(
+                    mainWindow!,
+                    projectTransferImportDialogOptions(),
+                );
+                const path = result.filePaths[0];
+                return !path || result.canceled
+                    ? null
+                    : supervisor.request('projectTransfer.importPath', { path }, 60_000);
             }
             case 'updates.getState':
                 return options.getUpdateService().getState();

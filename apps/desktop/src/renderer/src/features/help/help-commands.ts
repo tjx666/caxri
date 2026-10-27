@@ -1,3 +1,5 @@
+import { errorMessage } from '@caxri/protocol';
+
 import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import { openExternalUrl } from '../../lib/external-link';
@@ -28,5 +30,29 @@ export function openHelpPage(page: keyof typeof HELP_URLS): void {
 export function revealLogs(): void {
     void tryCommand(translate('core.commands.revealLogsFailed'), () =>
         caxri.request('logs.reveal'),
+    );
+}
+
+/**
+ * Writes a privacy-safe diagnostics bundle through Main's save dialog and offers to reveal it.
+ */
+export function exportDiagnostics(): void {
+    void tryCommand(
+        translate('core.commands.diagnosticsExportFailed'),
+        async () => {
+            const result = await caxri.request('diagnostics.export');
+            if (result)
+                pushToast(
+                    'success',
+                    translate('core.commands.diagnosticsExported', { path: result.path }),
+                    { persist: true, action: { id: 'diagnostics.revealExport' } },
+                );
+        },
+        {
+            recovery: (error) => ({
+                id: 'diagnostics.copyFailure',
+                params: { text: errorMessage(error, 'Unknown diagnostics export error') },
+            }),
+        },
     );
 }

@@ -36,6 +36,8 @@ export const desktopServerOperationIds = [
     'window.reportPresence',
     'window.seedPresence',
     'theme.importPath',
+    'projectTransfer.exportPath',
+    'projectTransfer.importPath',
     'project.create',
     'project.delete',
     'session.delete',

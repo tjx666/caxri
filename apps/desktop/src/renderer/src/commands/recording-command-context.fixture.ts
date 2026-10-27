@@ -148,6 +148,10 @@ export function recordingContext(): { calls: string[]; context: CommandContext }
                 toggleScreencastMode: record('developer.toggleScreencastMode'),
             },
             diagnostics: { export: record('diagnostics.export') },
+            projectTransfer: {
+                export: record('projectTransfer.export'),
+                import: record('projectTransfer.import'),
+            },
             help: { open: record('help.open'), revealLogs: record('help.revealLogs') },
             updates: { check: record('updates.check') },
             shellCommand: {

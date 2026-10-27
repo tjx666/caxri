@@ -29,6 +29,8 @@ export const commands = {
     'commands.project.hide': 'Hide Project',
     'commands.project.openInEditor': 'Open Project in External Editor',
     'commands.project.customizeIcon': 'Customize Project Icon…',
+    'commands.projectTransfer.export': 'Export Projects and Sessions…',
+    'commands.projectTransfer.import': 'Import Projects and Sessions…',
     'commands.session.create': 'New Session',
     'commands.session.rename': 'Rename Session',
     'commands.session.renameWithAi': 'Rename Session with AI',

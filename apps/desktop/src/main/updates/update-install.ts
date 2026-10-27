@@ -180,6 +180,42 @@ export async function stageUpdateBundle(input: StageUpdateBundleInput): Promise<
 }
 
 /**
+ * The Info.plist key carrying the database baseline a build starts from (`BASELINE_SCHEMA_VERSION`). A database older
+ * than an update's baseline is rebuilt empty on its first launch, which is why the updater compares the two bundles.
+ */
+const SCHEMA_BASELINE_PLIST_KEY = 'CaxriSchemaBaseline';
+
+async function readSchemaBaseline(
+    run: InstallCommandRunner,
+    bundlePath: string,
+): Promise<number | undefined> {
+    try {
+        const value = Number(await readPlistString(run, bundlePath, SCHEMA_BASELINE_PLIST_KEY));
+        return Number.isSafeInteger(value) && value > 0 ? value : undefined;
+    } catch {
+        return undefined;
+    }
+}
+
+/**
+ * Whether installing the staged bundle clears the Project and Session list: its database baseline is newer than the
+ * installed one's. A baseline that cannot be read on either side counts as a reset, so a damaged or unexpected bundle
+ * never installs silently.
+ */
+export async function willStagedUpdateResetData(input: {
+    bundlePath: string;
+    run?: InstallCommandRunner;
+    stagedPath: string;
+}): Promise<boolean> {
+    const run = input.run ?? runInstallCommand;
+    const [staged, installed] = await Promise.all([
+        readSchemaBaseline(run, input.stagedPath),
+        readSchemaBaseline(run, input.bundlePath),
+    ]);
+    return staged === undefined || installed === undefined || staged > installed;
+}
+
+/**
  * Closed outcomes the installer script records; `missing` is a pending install whose script never wrote a result.
  */
 type InPlaceInstallOutcome =

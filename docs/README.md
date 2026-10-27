@@ -40,6 +40,7 @@ What/why of current shipped behavior, core modules, protocols, and operator know
 | [client-local-data.md](client-local-data.md)                       | Device store, Editor hot exit, drafts, offline decisions            |
 | [cli.md](cli.md)                                                   | The `caxri` CLI manual                                              |
 | [desktop-updates.md](desktop-updates.md)                           | Background download, Restart to Update, in-place install            |
+| [project-transfer.md](project-transfer.md)                         | Export and import of Projects and Sessions                          |
 | [editor-imports.md](editor-imports.md)                             | Editor import navigation                                            |
 | [editor-worker-stalls.md](editor-worker-stalls.md)                 | Editor Worker stall diagnostics                                     |
 | [extensions.md](extensions.md)                                     | Extension Host process and view contributions                       |

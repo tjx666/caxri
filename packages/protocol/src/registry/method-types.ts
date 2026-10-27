@@ -249,6 +249,8 @@ export const effectfulCommandRecovery = {
     'externalDocument.openWithDefaultApp': 'durable',
     'externalDocument.openInTerminal': 'memory',
     'diagnostics.export': 'memory',
+    'projectTransfer.export': 'memory',
+    'projectTransfer.import': 'memory',
     'bugReport.captureScreenshot': 'memory',
     'bugReport.saveScreenshot': 'memory',
     'bugReport.send': 'durable',

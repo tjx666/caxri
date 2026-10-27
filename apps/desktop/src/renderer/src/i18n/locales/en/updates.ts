@@ -29,6 +29,8 @@ export const updates = {
     'updates.skipped':
         'Caxri will not offer {{version}} again until a newer version is released. Settings can undo this.',
     'updates.ready.message': 'Caxri {{version}} is ready. Restart to finish updating.',
+    'updates.ready.resetsDataMessage':
+        'Caxri {{version}} is ready. It clears your Projects and Sessions, so export them before restarting to update.',
     'updates.ready.manualMessage': 'Caxri {{version}} is downloaded and verified.',
     'updates.ready.restartLabel': 'Restart to install Caxri {{version}}',
     'updates.updated.message': 'Updated to Caxri {{version}}',
@@ -61,6 +63,8 @@ export const updates = {
     'updates.status.ready.description': 'Downloaded and verified.',
     'updates.status.ready.restartDescription':
         'Downloaded and verified. Caxri restarts to finish installing; running Terminals and Agents are stopped. Quitting Caxri installs it too.',
+    'updates.status.ready.resetsDataDescription':
+        'Downloaded and verified. This update clears the Project and Session list; Project folders, files, and Agent conversations stay. Restart to Update offers an export first, and quitting Caxri does not install it.',
     'updates.status.error.install':
         'Caxri could not restart to install the update. Try again, or open the DMG and replace the app by hand.',
     'updates.status.error.title': 'Update failed',
@@ -86,6 +90,8 @@ export const updates = {
         'Caxri {{version}} is downloaded and verified. Click to continue.',
     'updates.chip.ready.restartDescription':
         'Caxri {{version}} is ready. Click to restart and finish updating.',
+    'updates.chip.ready.resetsDataDescription':
+        'Caxri {{version}} is ready and clears your Projects and Sessions. Click to export them and update.',
     'updates.chip.failed.label': 'Update failed',
     'updates.chip.failed.installDescription':
         'Caxri {{version}} could not be installed. Click to see why and try again.',

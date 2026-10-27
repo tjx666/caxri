@@ -506,6 +506,12 @@ export const commandDefinitions: CommandDefinition[] = [
     fromCatalog('diagnostics.export', (context) => context.diagnostics.export(), {
         when: (context) => context.sshHost.isLocalOnlyAvailable(),
     }),
+    fromCatalog('projectTransfer.export', (context) => context.projectTransfer.export(), {
+        when: (context) => context.sshHost.isLocalOnlyAvailable(),
+    }),
+    fromCatalog('projectTransfer.import', (context) => context.projectTransfer.import(), {
+        when: (context) => context.sshHost.isLocalOnlyAvailable(),
+    }),
     fromCatalog('sshHost.connect', (context) => context.sshHost.connect(), {
         allowInEditable: true,
     }),

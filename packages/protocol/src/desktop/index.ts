@@ -19,6 +19,7 @@ export * from './logs-contract.js';
 export * from './notification-helper.js';
 export * from './path-browser-contract.js';
 export * from './performance-monitor-metrics.js';
+export * from './project-transfer-contract.js';
 export * from './shell-command-contract.js';
 export * from './ssh-host-contract.js';
 export * from './window-state-contract.js';

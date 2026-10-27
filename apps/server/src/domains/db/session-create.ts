@@ -25,6 +25,10 @@ export interface CreateSessionOptions {
      * only an Agent-created Session carries a creator.
      */
     createdBySessionId?: string;
+    /**
+     * An automatic title to start from instead of the default, which a later Agent conversation name still replaces.
+     */
+    displayTitle?: string;
 }
 
 /**
@@ -48,7 +52,7 @@ export function createSession(
         );
     const session = database.sessions.insert({
         projectId,
-        displayTitle: DEFAULT_SESSION_TITLE,
+        displayTitle: options.displayTitle ?? DEFAULT_SESSION_TITLE,
         ...(options.createdBySessionId && { createdBySessionId: options.createdBySessionId }),
     });
     let terminal: TerminalRecord | null = null;

@@ -1,12 +1,18 @@
 import { basename, join } from 'node:path';
 import process from 'node:process';
 
-import type { ServerEvent } from '@caxri/protocol';
+import type { ProjectTransferExportResult, ServerEvent } from '@caxri/protocol';
+import { errorMessage } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
-import { app, shell } from 'electron';
+import type { MessageBoxOptions } from 'electron';
+import { app, BrowserWindow, dialog, shell } from 'electron';
 
 import { createAcceptanceUpdateFixture } from '../acceptance-update';
+import { translateMain } from '../locale';
+import type { createMainQuitHandler, createQuitIntent } from '../main-quit-wiring';
+import { exportProjectsAndSessions } from '../native-file-dialogs';
+import type { DesktopServerConnection } from '../server-connection';
 import { packagedSourceMapFlavor } from '../source-map-flavor';
 import type { InPlaceInstallTarget } from './update-install';
 import {
@@ -14,20 +20,75 @@ import {
     launchInPlaceInstall,
     resolveInPlaceInstallTarget,
     stageUpdateBundle,
+    willStagedUpdateResetData,
 } from './update-install';
 import { recordLaunchVersion } from './update-launch-version';
-import { UpdateService, updateStateLogFields } from './updates';
+import { updateStateLogFields } from './update-state-log';
+import { UpdateService } from './updates';
+
+const EXPORT_BUTTON = 0;
+const UPDATE_BUTTON = 1;
+const CANCEL_BUTTON = 2;
+
+/**
+ * Warns before restarting into an update that clears the Project and Session list, and offers the export that lets the
+ * user bring them back. Exporting returns to the same prompt with the saved path, so the user still decides whether to
+ * update; resolves `true` only for `Update Anyway`.
+ */
+export async function shouldInstallDataResettingUpdate(input: {
+    exportProjects(): Promise<ProjectTransferExportResult | null>;
+    showMessageBox(options: MessageBoxOptions): Promise<{ response: number }>;
+    version: string;
+}): Promise<boolean> {
+    let detail = translateMain('desktop.updateDataReset.detail');
+    let isExported = false;
+    for (;;) {
+        // eslint-disable-next-line no-await-in-loop -- one modal prompt at a time; each answer decides whether to ask again
+        const { response } = await input.showMessageBox({
+            type: 'warning',
+            message: translateMain('desktop.updateDataReset.message', { version: input.version }),
+            detail,
+            buttons: [
+                translateMain('desktop.updateDataReset.export'),
+                translateMain('desktop.updateDataReset.update'),
+                translateMain('desktop.updateDataReset.cancel'),
+            ],
+            defaultId: isExported ? UPDATE_BUTTON : EXPORT_BUTTON,
+            cancelId: CANCEL_BUTTON,
+        });
+        if (response === UPDATE_BUTTON) return true;
+        if (response !== EXPORT_BUTTON) return false;
+        try {
+            // eslint-disable-next-line no-await-in-loop -- the prompt reopens only after the export finished
+            const result = await input.exportProjects();
+            if (result) {
+                isExported = true;
+                detail = translateMain('desktop.updateDataReset.exported', { path: result.path });
+            }
+        } catch (error) {
+            detail = translateMain('desktop.updateDataReset.exportFailed', {
+                message: errorMessage(error, String(error)),
+            });
+        }
+    }
+}
 
 /**
  * Builds the app's update service: enabled only when packaged, downloading into the profile, logging every state but
  * download progress, and publishing each state to the Workbench as `updates.state`. On macOS it also stages each
- * verified release for the in-place install that `Restart to Update` and an ordinary quit perform.
+ * verified release for the in-place install that `Restart to Update` and an ordinary quit perform, and asks before
+ * installing one that would clear the Project and Session list.
  */
 export function createDesktopUpdateService(options: {
     currentVersion: string;
     logger: () => StructuredLogger | undefined;
-    restartToUpdate: () => Promise<void>;
+    quitIntent: ReturnType<typeof createQuitIntent>;
+    requestAppQuit: ReturnType<typeof createMainQuitHandler>;
     sendEvent: (event: ServerEvent) => void;
+    /**
+     * Read only once a data-resetting update is confirmed, long after Server Core attached.
+     */
+    server: () => Pick<DesktopServerConnection, 'request'>;
     userDataPath: string;
 }): UpdateService {
     const { userDataPath } = options;
@@ -54,6 +115,18 @@ export function createDesktopUpdateService(options: {
             isPackaged: app.isPackaged,
             userDataPath,
         }),
+        confirmDataReset: (version) =>
+            shouldInstallDataResettingUpdate({
+                exportProjects: () =>
+                    exportProjectsAndSessions({
+                        dialog,
+                        exportPath: (destination) =>
+                            options.server().request('projectTransfer.exportPath', { destination }),
+                        window: BrowserWindow.getFocusedWindow() ?? undefined,
+                    }),
+                showMessageBox: (box) => dialog.showMessageBox(box),
+                version,
+            }),
         currentVersion: options.currentVersion,
         downloadDirectory,
         enabled: app.isPackaged,
@@ -68,7 +141,7 @@ export function createDesktopUpdateService(options: {
                         target.kind === 'unavailable' ? target.reason : 'previous-install-failed',
                     version,
                 });
-                return 'manual';
+                return { installMode: 'manual' };
             }
             const startedAt = Date.now();
             try {
@@ -78,13 +151,19 @@ export function createDesktopUpdateService(options: {
                     stagingDirectory: join(downloadDirectory, 'staged'),
                     version,
                 });
+                const resetsData = await willStagedUpdateResetData({
+                    bundlePath: target.bundlePath,
+                    stagedPath,
+                });
                 logInstall('info', {
                     phase: 'stage',
-                    outcome: 'staged',
+                    outcome: resetsData ? 'staged-resets-data' : 'staged',
                     version,
                     durationMs: Date.now() - startedAt,
                 });
-                return 'restart';
+                return resetsData
+                    ? { installMode: 'restart', resetsData: true }
+                    : { installMode: 'restart' };
             } catch (error) {
                 logInstall('error', {
                     phase: 'stage',
@@ -93,7 +172,7 @@ export function createDesktopUpdateService(options: {
                     durationMs: Date.now() - startedAt,
                     error: error instanceof Error ? error.message : String(error),
                 });
-                return 'manual';
+                return { installMode: 'manual' };
             }
         },
         launchInstall: async ({ relaunch, version }) => {
@@ -114,7 +193,12 @@ export function createDesktopUpdateService(options: {
                 updatesDirectory: downloadDirectory,
             });
         },
-        restartToUpdate: options.restartToUpdate,
+        restartToUpdate: async () => {
+            options.quitIntent.set('update');
+            const outcome = await options.requestAppQuit(); // A pending ordinary quit may answer instead.
+            if (outcome !== 'stopped' && options.quitIntent.current() === 'update')
+                options.quitIntent.set('user');
+        },
         sourceMapFlavor: packagedSourceMapFlavor(),
         onState: (state) => {
             if (state.status !== 'downloading')

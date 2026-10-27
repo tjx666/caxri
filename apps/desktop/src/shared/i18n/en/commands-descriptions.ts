@@ -12,6 +12,10 @@ export const commandDescriptions = {
         'Open the selected Project root in the configured external editor',
     'commands.description.project.customizeIcon':
         'Choose a controlled icon and color for the selected Project',
+    'commands.description.projectTransfer.export':
+        'Save your Projects and unarchived Sessions to a file you can import into another Caxri',
+    'commands.description.projectTransfer.import':
+        'Add the Projects and Sessions from an export file, resuming their Agent conversations',
     'commands.description.session.create': 'Create a Session in the selected Project',
     'commands.description.session.rename': 'Rename the selected Session in the Primary Side Bar',
     'commands.description.session.renameWithAi':

@@ -32,6 +32,8 @@ export const updates: TranslatedNamespace<typeof source> = {
     'updates.error.stopSkipping': '无法取消跳过此版本',
     'updates.skipped': '在发布更新的版本之前，Caxri 不会再提示 {{version}}。可在设置中撤销。',
     'updates.ready.message': 'Caxri {{version}} 已就绪，重启即可完成更新。',
+    'updates.ready.resetsDataMessage':
+        'Caxri {{version}} 已就绪。它会清空你的项目和会话，请在重启更新前先导出。',
     'updates.ready.manualMessage': 'Caxri {{version}} 已下载并通过验证。',
     'updates.ready.restartLabel': '重启以更新到 Caxri {{version}}',
     'updates.updated.message': '已更新到 Caxri {{version}}',
@@ -63,6 +65,8 @@ export const updates: TranslatedNamespace<typeof source> = {
     'updates.status.ready.description': '已下载并验证。',
     'updates.status.ready.restartDescription':
         '已下载并验证。Caxri 会重启以完成安装，正在运行的终端和 Agent 将被停止。直接退出 Caxri 也会完成安装。',
+    'updates.status.ready.resetsDataDescription':
+        '已下载并验证。这次更新会清空项目和会话列表，项目文件夹、文件和 Agent 对话不受影响。点击“重启以更新”时会先提示导出，直接退出 Caxri 不会安装它。',
     'updates.status.error.install': 'Caxri 无法重启以安装更新。请重试，或打开 DMG 手动替换应用。',
     'updates.status.error.title': '更新失败',
     'updates.status.error.network': '更新连接已中断。请检查网络后重试。',
@@ -80,6 +84,8 @@ export const updates: TranslatedNamespace<typeof source> = {
     'updates.chip.ready.restartLabel': '重启以更新',
     'updates.chip.ready.description': 'Caxri {{version}} 已下载并通过验证。点击继续。',
     'updates.chip.ready.restartDescription': 'Caxri {{version}} 已就绪。点击重启并完成更新。',
+    'updates.chip.ready.resetsDataDescription':
+        'Caxri {{version}} 已就绪，会清空你的项目和会话。点击导出并更新。',
     'updates.chip.failed.label': '更新失败',
     'updates.chip.failed.installDescription': 'Caxri {{version}} 安装失败。点击查看原因并重试。',
     'updates.chip.failed.downloadDescription': 'Caxri {{version}} 下载失败。点击查看原因并重试。',

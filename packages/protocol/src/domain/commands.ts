@@ -130,6 +130,8 @@ export const commandIds = [
     'developer.openPerformanceMonitorWindow',
     'developer.reportBug',
     'diagnostics.export',
+    'projectTransfer.export',
+    'projectTransfer.import',
     'sshHost.connect',
     'sshHost.reconnect',
     'sshHost.stopServer',
