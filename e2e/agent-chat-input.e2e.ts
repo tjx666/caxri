@@ -161,6 +161,9 @@ test('a Codex Chat sends pasted and dropped images, restores their previews on r
         await bubble.getByRole('button', { name: /^Preview Image 2/u }).click();
         const preview = page.getByRole('dialog', { name: 'Image 2' });
         await expect(preview.locator('img')).toHaveAttribute('src', /^data:image\/png;base64,/u);
+        // Left and Right step through the message's images.
+        await page.keyboard.press('ArrowRight');
+        await expect(page.getByRole('dialog', { name: 'Image 3' })).toContainText('3 / 3');
         await page.keyboard.press('Escape');
 
         // A resumed thread knows only how many images the message had; each preview is read back from the rollout.

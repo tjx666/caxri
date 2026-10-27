@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 
 import { ImageIcon } from 'lucide-react';
 
@@ -6,28 +6,21 @@ import {
     LOADING_SKELETON_DELAY_MS,
     scheduleLoadingSkeletonReveal,
 } from '../../../components/loading-skeleton-delay';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../../components/ui/dialog';
 import { Skeleton } from '../../../components/ui/skeleton';
 import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
 import { cn } from '../../../lib/utilities';
-import {
-    useAgentChatImageOriginal,
-    useAgentChatImageThumbnail,
-} from '../hooks/use-agent-chat-image-thumbnail';
-import {
-    agentChatSentImageOriginal,
-    hasAgentChatSentImageOriginal,
-} from './agent-chat-sent-image-originals';
+import { useAgentChatImageThumbnail } from '../hooks/use-agent-chat-image-thumbnail';
+import { AgentChatImagePreviewDialog } from './image-preview/agent-chat-image-preview-dialog';
 
 /**
  * Images a sent message carried. A resumed conversation knows an image was there but not its preview; when `message`
  * names where the message lives, each such image is read back from the provider's record and previewed, and a
  * placeholder tile holds its place until then, or for good when the record no longer has it. Clicking a preview opens
- * it larger, read at full size from the record when it still has it. Each is named Image N by its place, the number the
- * message's `[Image #N]` placeholders use; when the text uses them (`firstNumber`, see `agentChatFirstImageNumber`),
- * each tile wears its `#N` too. The tiles sit inside the message's bubble, under its text, so they read as part of the
- * message rather than a separate one.
+ * the message's images larger (`AgentChatImagePreviewDialog`), read at full size from the record when it still has
+ * them. Each is named Image N by its place, the number the message's `[Image #N]` placeholders use; when the text uses
+ * them (`firstNumber`, see `agentChatFirstImageNumber`), each tile wears its `#N` too. The tiles sit inside the
+ * message's bubble, under its text, so they read as part of the message rather than a separate one.
  */
 export function AgentChatMessageImages({
     className,
@@ -43,6 +36,13 @@ export function AgentChatMessageImages({
     firstNumber?: number;
     message?: { terminalId: string; itemId: string };
 }) {
+    const { t } = useTranslation();
+    // The index outlives a close, so the closing preview keeps showing its image while it fades out.
+    // `visits` counts every image shown, so each one opens at Fit even when the user steps back to it.
+    const [preview, setPreview] = useState({ index: 0, isOpen: false, visits: 0 });
+    const viewStateKey = `agent-chat-image-preview:${useId()}:${preview.visits}`;
+    const labelFor = (index: number) =>
+        t('agentChat.attachments.imageNumber', { number: (firstNumber ?? 1) + index });
     return (
         <div className={cn('flex flex-wrap gap-1.5', className)}>
             {images.map((image, index) => (
@@ -51,10 +51,31 @@ export function AgentChatMessageImages({
                     index={index}
                     // react-doctor-disable-next-line react-doctor/no-array-index-as-key -- a sent message's images never reorder, so position is their identity.
                     key={index}
+                    label={labelFor(index)}
                     message={message}
                     thumbnail={image.thumbnail}
+                    onOpen={() =>
+                        setPreview(({ visits }) => ({ index, isOpen: true, visits: visits + 1 }))
+                    }
                 />
             ))}
+            <AgentChatImagePreviewDialog
+                count={images.length}
+                index={preview.index}
+                isOpen={preview.isOpen}
+                labelFor={labelFor}
+                message={message}
+                thumbnails={images.map(({ thumbnail }) => thumbnail)}
+                viewStateKey={viewStateKey}
+                onIndexChange={(index) =>
+                    setPreview((current) =>
+                        index === current.index
+                            ? current
+                            : { ...current, index, visits: current.visits + 1 },
+                    )
+                }
+                onOpenChange={(isOpen) => setPreview((current) => ({ ...current, isOpen }))}
+            />
         </div>
     );
 }
@@ -88,24 +109,21 @@ function ImageLoadingTile({ label }: { label: string }) {
 function MessageImage({
     firstNumber,
     index,
+    label,
     message,
     thumbnail,
+    onOpen,
 }: {
     firstNumber: number | undefined;
     index: number;
+    label: string;
     message: { terminalId: string; itemId: string } | undefined;
     thumbnail: string | undefined;
+    onOpen: () => void;
 }) {
     const { t } = useTranslation();
-    const [isPreviewOpen, setPreviewOpen] = useState(false);
     const record = message && { ...message, index };
     const restored = useAgentChatImageThumbnail(thumbnail ? undefined : record);
-    // The data URL is megabytes long, so it is built only while the preview shows it.
-    const sent = isPreviewOpen ? agentChatSentImageOriginal(thumbnail) : undefined;
-    const original = useAgentChatImageOriginal(record, {
-        isEnabled: isPreviewOpen && !hasAgentChatSentImageOriginal(thumbnail),
-    });
-    const label = t('agentChat.attachments.imageNumber', { number: (firstNumber ?? 1) + index });
     const source = thumbnail ?? restored.thumbnail;
     if (!source) {
         if (restored.status === 'unavailable') {
@@ -135,42 +153,26 @@ function MessageImage({
         );
     }
     return (
-        <>
-            <button
-                aria-label={t('agentChat.message.previewImage', { label })}
-                className="relative cursor-zoom-in rounded-md border-0 bg-transparent p-0 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-foreground"
-                type="button"
-                onClick={() => setPreviewOpen(true)}
-            >
-                <img
-                    alt={label}
-                    className="h-24 w-auto max-w-48 min-w-12 rounded-md border border-border object-cover"
-                    data-agent-chat-message-image=""
-                    src={source}
-                />
-                {firstNumber !== undefined && (
-                    <span
-                        aria-hidden="true"
-                        className="pointer-events-none absolute top-1 left-1 rounded-sm bg-background/85 px-1 text-[11px] leading-4 font-medium text-foreground tabular-nums"
-                    >
-                        #{firstNumber + index}
-                    </span>
-                )}
-            </button>
-            <Dialog open={isPreviewOpen} onOpenChange={setPreviewOpen}>
-                <DialogContent className="w-auto max-w-[calc(100vw-32px)]">
-                    <DialogHeader>
-                        <DialogTitle>{label}</DialogTitle>
-                    </DialogHeader>
-                    <div className="flex justify-center p-4">
-                        <img
-                            alt={label}
-                            className="max-h-[calc(100vh-160px)] max-w-full rounded-md object-contain"
-                            src={sent ?? original ?? source}
-                        />
-                    </div>
-                </DialogContent>
-            </Dialog>
-        </>
+        <button
+            aria-label={t('agentChat.message.previewImage', { label })}
+            className="relative cursor-zoom-in rounded-md border-0 bg-transparent p-0 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-foreground"
+            type="button"
+            onClick={onOpen}
+        >
+            <img
+                alt={label}
+                className="h-24 w-auto max-w-48 min-w-12 rounded-md border border-border object-cover"
+                data-agent-chat-message-image=""
+                src={source}
+            />
+            {firstNumber !== undefined && (
+                <span
+                    aria-hidden="true"
+                    className="pointer-events-none absolute top-1 left-1 rounded-sm bg-background/85 px-1 text-[11px] leading-4 font-medium text-foreground tabular-nums"
+                >
+                    #{firstNumber + index}
+                </span>
+            )}
+        </button>
     );
 }
