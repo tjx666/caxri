@@ -308,8 +308,9 @@ export const useImageAttachments = (
         ]);
         let failure: unknown;
         for (const { id, image } of pending) {
-            // eslint-disable-next-line no-await-in-loop -- Each image is checked against the ones prepared before it.
-            const error = await attach(id, image);
+            // Each image is checked against the ones prepared before it, so the uploads are sequential by design.
+            // react-doctor-disable-next-line react-doctor/async-await-in-loop -- see above
+            const error = await attach(id, image); // eslint-disable-line no-await-in-loop -- see above
             failure ??= error;
         }
         if (failure !== undefined)
