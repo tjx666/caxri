@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { AgentChatTimelineEntry } from '../agent-chat-timeline';
 import {
+    agentChatTurnStartId,
     agentChatTurnTimeTooltip,
     agentChatTurnTone,
     buildAgentChatTimeline,
@@ -467,5 +468,27 @@ describe('isAgentChatAwaitingReplyInTimeline', () => {
         expect(
             isAgentChatAwaitingReplyInTimeline({ ...running, operation: 'compacting' }, [prompt]),
         ).toBe(false);
+    });
+});
+
+describe('agentChatTurnStartId', () => {
+    const startIds = (entries: readonly AgentChatTimelineEntry[]): unknown =>
+        entries.map((entry, index) => agentChatTurnStartId(entry, entries[index - 1]));
+    const done = (id: string): AgentChatTurn => ({ id, status: 'completed' });
+
+    it('marks the first entry of each turn, including a turn no prompt opened', () => {
+        const timeline = buildAgentChatTimeline(
+            [
+                user('u1', 't1'),
+                command('c1', 't1'),
+                reply('r1', 't1'),
+                command('c2', 't2'),
+                thought('h2', 't2'),
+                reply('r2', 't2'),
+            ],
+            [done('t1'), done('t2')],
+            undefined,
+        );
+        expect(startIds(timeline)).toEqual(['t1', undefined, undefined, 't2', undefined]);
     });
 });

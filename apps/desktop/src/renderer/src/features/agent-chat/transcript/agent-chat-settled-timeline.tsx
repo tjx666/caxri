@@ -9,7 +9,11 @@ import {
 import type { AgentChatSettledChunk } from './agent-chat-settled-chunks';
 import { agentChatDayBreaks } from './agent-chat-time';
 import type { AgentChatTimelineEntry } from './agent-chat-timeline';
-import { agentChatTimelineEntryKey } from './agent-chat-timeline';
+import {
+    AGENT_CHAT_TURN_START_ATTRIBUTE,
+    agentChatTimelineEntryKey,
+    agentChatTurnStartId,
+} from './agent-chat-timeline';
 import { AgentChatTimelineEntryView } from './agent-chat-timeline-entry-view';
 
 interface SettledChunkProperties {
@@ -32,12 +36,18 @@ const SettledChunk = memo(
         );
         return (
             <div className="flex flex-col gap-3">
-                {entries.map((entry) => {
+                {entries.map((entry, index) => {
                     const key = agentChatTimelineEntryKey(entry);
                     const dayBreak = dayBreaks.get(key);
                     return (
                         <div
-                            {...{ [AGENT_CHAT_SETTLED_ENTRY_ATTRIBUTE]: '' }}
+                            {...{
+                                [AGENT_CHAT_SETTLED_ENTRY_ATTRIBUTE]: '',
+                                [AGENT_CHAT_TURN_START_ATTRIBUTE]: agentChatTurnStartId(
+                                    entry,
+                                    entries[index - 1],
+                                ),
+                            }}
                             className="flex flex-col gap-3 [contain-intrinsic-size:auto_80px] [content-visibility:auto]"
                             key={key}
                         >

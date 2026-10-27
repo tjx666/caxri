@@ -339,6 +339,33 @@ export function buildAgentChatTimeline(
 }
 
 /**
+ * Marks the first rendered entry of each turn with that turn's id, so a jump can land where a turn begins even when no
+ * prompt opens it (a turn a background task or `/goal` started). A turn split across lists is marked in each; the
+ * earliest match in document order is where it begins.
+ */
+export const AGENT_CHAT_TURN_START_ATTRIBUTE = 'data-agent-chat-turn-start';
+
+/**
+ * The turn `entry` belongs to, or `undefined` when it carries no item to tell (a stopped turn's empty fold row).
+ */
+function agentChatTimelineEntryTurnId(entry: AgentChatTimelineEntry): string | undefined {
+    return entry.kind === 'artifacts' ? entry.artifacts.turnId : firstItem(entry)?.turnId;
+}
+
+/**
+ * The turn `entry` opens in its list (`AGENT_CHAT_TURN_START_ATTRIBUTE`), or `undefined` when it continues the turn of
+ * the entry before it.
+ */
+export function agentChatTurnStartId(
+    entry: AgentChatTimelineEntry,
+    previous: AgentChatTimelineEntry | undefined,
+): string | undefined {
+    const turnId = agentChatTimelineEntryTurnId(entry);
+    if (turnId === undefined) return undefined;
+    return previous && agentChatTimelineEntryTurnId(previous) === turnId ? undefined : turnId;
+}
+
+/**
  * The stable React key of one timeline entry.
  */
 export function agentChatTimelineEntryKey(entry: AgentChatTimelineEntry): string {

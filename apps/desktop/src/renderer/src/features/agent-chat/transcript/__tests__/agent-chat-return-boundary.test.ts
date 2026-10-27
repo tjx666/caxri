@@ -2,7 +2,7 @@ import type { AgentChatItem, AgentChatTurn } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import {
-    agentChatReturnAnchorId,
+    agentChatReturnAnchorTurnId,
     isAgentChatReturnAnchorAbove,
     isAgentChatReturnHintShown,
     turnsFinishedDuringAbsence,
@@ -37,21 +37,29 @@ describe('turnsFinishedDuringAbsence', () => {
     });
 });
 
-describe('agentChatReturnAnchorId', () => {
-    const items = [
-        { id: 'u1', type: 'userMessage', turnId: 't1' },
-        { id: 'u2', type: 'userMessage', turnId: 't2' },
-    ] as AgentChatItem[];
+describe('agentChatReturnAnchorTurnId', () => {
+    const turns = [turn('t1', 100, 100), turn('t2', 1100, 100)];
 
-    it('points at the prompt of the first missed turn', () => {
-        expect(
-            agentChatReturnAnchorId(items, [turn('t1', 100, 100), turn('t2', 1100, 100)], window),
-        ).toBe('u2');
+    it('points at the first missed turn when its prompt is loaded', () => {
+        const items = [
+            { id: 'u1', type: 'userMessage', turnId: 't1' },
+            { id: 'u2', type: 'userMessage', turnId: 't2' },
+        ] as AgentChatItem[];
+        expect(agentChatReturnAnchorTurnId(items, turns, window)).toBe('t2');
     });
 
-    it('is undefined when nothing was missed or the prompt is not loaded', () => {
-        expect(agentChatReturnAnchorId(items, [turn('t1', 100, 100)], window)).toBeUndefined();
-        expect(agentChatReturnAnchorId([], [turn('t2', 1100, 100)], window)).toBeUndefined();
+    it('points at a missed turn no prompt opened, as one a background task started', () => {
+        const items = [
+            { id: 'u1', type: 'userMessage', turnId: 't1' },
+            { id: 'r2', type: 'agentMessage', turnId: 't2', text: 'done', streaming: false },
+        ] as AgentChatItem[];
+        expect(agentChatReturnAnchorTurnId(items, turns, window)).toBe('t2');
+    });
+
+    it('is undefined when nothing was missed or the missed turn is not loaded', () => {
+        const items = [{ id: 'u1', type: 'userMessage', turnId: 't1' }] as AgentChatItem[];
+        expect(agentChatReturnAnchorTurnId(items, [turn('t1', 100, 100)], window)).toBeUndefined();
+        expect(agentChatReturnAnchorTurnId(items, turns, window)).toBeUndefined();
     });
 });
 
