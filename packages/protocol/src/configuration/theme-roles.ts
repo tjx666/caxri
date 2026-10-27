@@ -125,11 +125,13 @@ const CUSTOM_THEME_ROLE_LITERAL = {
  * chrome. Recovering the preset's own value keeps identity and contrast intact. A genuinely custom theme has no catalog
  * entry to recover from and borrows the nearest role it already carries (see {@link CUSTOM_THEME_ROLE_SOURCE}).
  *
- * A built-in snapshot missing any of these roles gets its whole `colors` block replaced by the catalog's, not just the
- * absent keys. Such a file was written by an older build, so a value that now differs is drift from that build rather
- * than a deliberate edit, and backfilling only the new keys would leave the preset failing `findMatchingBuiltinTheme`,
- * silently downgrading the user to `custom-*` and pinning them to the old colors. The escape hatch closes on its own:
- * once rewritten, the snapshot carries every role and takes the branch below.
+ * A built-in theme follows the app's catalog when a release adds a color role: a `source: 'builtin'` snapshot missing
+ * any of these roles gets its whole `colors` block replaced by the catalog's, not just the absent keys. Settings save a
+ * full snapshot of the chosen preset, and a release that adds a role often retunes existing ones too; backfilling only
+ * the new keys would leave the preset failing `findMatchingBuiltinTheme`, silently downgrading the user to `custom-*`
+ * and pinning them to the old colors. This is a standing product behavior, not a compatibility path for unpublished
+ * builds (issue #2604): it fires again on every release that adds a role. A retune that adds no role is not followed;
+ * that snapshot is demoted to `custom-*` by `normalizeBuiltinTheme`.
  *
  * Anything that is not a theme-shaped object passes through untouched so the schema still owns rejection.
  */
