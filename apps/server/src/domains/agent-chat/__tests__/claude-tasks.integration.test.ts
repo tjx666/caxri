@@ -270,6 +270,32 @@ describe('Claude Code background work in Agent Chat', () => {
         });
     });
 
+    it('ends a subagent resumed after a restart instead of leaving its original call running', async () => {
+        const { service, terminal, until } = await fixture({ provider: 'claude' });
+        await service.send(terminal.id, { text: 'resume the audit' });
+        const done = await until(
+            (snapshot) =>
+                snapshot.tasks?.[0]?.status === 'completed' &&
+                snapshot.turns.length === 2 &&
+                !snapshot.activeTurnId,
+        );
+        const row = done.items.find(
+            (item) => item.type === 'toolCall' && item.name === 'SendMessage',
+        );
+        // The resumed subagent's frames name its original Agent call; they belong to the resumed run, not a new task.
+        expect(done.tasks).toEqual([
+            expect.objectContaining({
+                id: row?.id,
+                kind: 'agent',
+                title: 'Audit the storage layer',
+                status: 'completed',
+                isBackground: true,
+            }),
+        ]);
+        const task = await service.readTask(terminal.id, row?.id ?? '');
+        expect(task.items.at(-1)).toMatchObject({ text: 'Resuming the audit.' });
+    });
+
     it('stops a running workflow', async () => {
         const { service, terminal, until } = await fixture({ provider: 'claude' });
         await service.send(terminal.id, { text: 'start a workflow' });
