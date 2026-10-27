@@ -29,6 +29,11 @@ export interface WorktreeRecord {
     detached: boolean;
     head: string;
     path: string;
+    /**
+     * Git's reason for offering to prune this registration, typically a directory that no longer exists. Present only
+     * on such a record; `git worktree prune` removes it.
+     */
+    prunable?: string;
 }
 
 interface LockOwner {
@@ -96,6 +101,7 @@ function parseWorktreePorcelain(value: string): WorktreeRecord[] {
                 const separator = line.indexOf(' ');
                 if (separator === -1) {
                     if (line === 'detached') isDetached = true;
+                    else if (line === 'prunable') fields.set('prunable', '');
                     continue;
                 }
                 fields.set(line.slice(0, separator), line.slice(separator + 1));
@@ -104,11 +110,13 @@ function parseWorktreePorcelain(value: string): WorktreeRecord[] {
             const head = fields.get('HEAD');
             if (!path || !head) throw new CommandError('Invalid git worktree porcelain output');
             const branchReference = fields.get('branch');
+            const prunable = fields.get('prunable');
             return {
                 branch: branchReference?.replace(/^refs\/heads\//, ''),
                 detached: isDetached,
                 head,
                 path,
+                ...(prunable !== undefined && { prunable: prunable || 'prunable' }),
             };
         });
 }

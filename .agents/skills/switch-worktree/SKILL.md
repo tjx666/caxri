@@ -141,7 +141,9 @@ bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts doctor [branch
 
 Treat a symlinked `node_modules`, missing profile, or missing dependencies as blocking. `list`
 reports Git status, ahead/behind counts, dependency state, isolated profile, dev process identity,
-orphaned processes, and the repository-wide desktop lease.
+orphaned processes, and the repository-wide desktop lease. A registered worktree whose directory is
+gone still appears, with Git's reason in `prunable` and no probe results; `git worktree prune`
+removes it.
 
 `orphanProcesses` lists processes running out of a checkout whose parent chain ends at launchd
 (PPID 1) without a live `dev` launcher, `Playwright`, shell, or agent above them, typically a
