@@ -21,9 +21,8 @@ in an isolated profile, so a refreshed image is one command and every run looks 
 ## Prerequisites
 
 1. A fresh desktop build: `bun run build`. The capture refuses a stale build.
-2. The release APK, rebuilt after mobile changes:
-   `bun run --cwd apps/mobile prebuild:android -- --clean`, then
-   `bun run --cwd apps/mobile android -- --build-only --variant release`.
+2. A release APK built from the current mobile sources. The run refuses a missing or older APK;
+   add `--build-apk` to build it first (a few minutes).
 3. The Chromium headless shell for composing: `bunx playwright install chromium-headless-shell`.
 4. A disposable emulator on a free even port. The run reinstalls Caxri there and clears its data:
 
@@ -40,8 +39,9 @@ bun run .agents/skills/promo-images/scripts/promo.ts \
     --android-serial emulator-5596 --out docs/assets/readme-hero.png
 ```
 
-`promo.ts` validates the scene, prepares the emulator (no animations, demo-mode status bar), runs
-`promo-capture.pw.ts`, then composes with `promo-image.ts`. The capture and composition steps:
+`promo.ts` validates the scene, checks the APK, prepares the emulator (no animations, demo-mode
+status bar), runs `promo-capture.pw.ts`, then composes with `promo-image.ts`. The capture and
+composition steps:
 
 1. Seed each Project as a Git repository under `/tmp/caxri-promo-*` with an invented author and
    fixed dates, then apply its uncommitted `changes`.

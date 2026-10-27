@@ -9,12 +9,12 @@
  *     --android-serial emulator-5560 --out docs/assets/readme-hero.png
  * ```
  *
- * Needs a fresh `bun run build`, the release APK, and a running disposable emulator: the run reinstalls Caxri there and
- * clears its data before and after. The captures, the layout document and Playwright's output stay under
- * `.records/promo-images/<scene>-<time>/`; only `--out` is meant to be published, and it is replaced only when the new
- * image passes its checks.
+ * Needs a fresh `bun run build`, a release APK built from the current mobile sources (`--build-apk` builds it), and a
+ * running disposable emulator: the run reinstalls Caxri there and clears its data before and after. The captures, the
+ * layout document and Playwright's output stay under `.records/promo-images/<scene>-<time>/`; only `--out` is meant to
+ * be published, and it is replaced only when the new image passes its checks.
  */
-import { access, mkdir } from 'node:fs/promises';
+import { mkdir } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import process from 'node:process';
@@ -22,15 +22,12 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 
 import { execFileAsync, runChildProcess } from '../../../../scripts/exec';
+import { assertReleaseApkFresh, buildReleaseApk, RELEASE_APK } from './promo-apk';
 import { composePromoImage } from './promo-image';
 import { DESKTOP_CAPTURE_SCALE, loadPromoScene } from './promo-scene';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
 const adb = join(homedir(), 'Library', 'Android', 'sdk', 'platform-tools', 'adb');
-const releaseApk = join(
-    repoRoot,
-    'apps/mobile/android/app/build/outputs/apk/release/app-release.apk',
-);
 const MOBILE_PACKAGE = 'com.caxri.mobile';
 const ANIMATION_SCALES = [
     'window_animation_scale',
@@ -99,13 +96,19 @@ async function main(): Promise<void> {
             'scene': { type: 'string' },
             'android-serial': { type: 'string' },
             'out': { type: 'string' },
+            'build-apk': { type: 'boolean', default: false },
         },
         strict: true,
     });
-    const { 'scene': scenePath, 'android-serial': serial, out } = values;
+    const {
+        'scene': scenePath,
+        'android-serial': serial,
+        out,
+        'build-apk': shouldBuildApk,
+    } = values;
     if (!scenePath || !serial || !out)
         throw new Error(
-            'Required options: --scene <json> --android-serial <emulator-N> --out <png>',
+            'Required options: --scene <json> --android-serial <emulator-N> --out <png> [--build-apk]',
         );
     if (!/^emulator-\d+$/u.test(serial)) {
         throw new Error(
@@ -114,21 +117,15 @@ async function main(): Promise<void> {
     }
     // A broken scene fails here, before anything is launched.
     const { scene } = await loadPromoScene(scenePath);
-    try {
-        await access(releaseApk);
-    } catch (error) {
-        throw new Error(
-            'The release APK is missing; build it with `bun run --cwd apps/mobile android -- --build-only --variant release`',
-            { cause: error },
-        );
-    }
+    if (shouldBuildApk) await buildReleaseApk(repoRoot);
+    await assertReleaseApkFresh(repoRoot);
     const stamp = new Date().toISOString().replaceAll(/[:.]/gu, '-');
     const runDirectory = join(repoRoot, '.records', 'promo-images', `${scene.name}-${stamp}`);
     await mkdir(runDirectory, { recursive: true });
 
     const run = device(serial);
     try {
-        await run(['install', '-r', releaseApk]);
+        await run(['install', '-r', join(repoRoot, RELEASE_APK)]);
         await run(['shell', 'pm', 'clear', MOBILE_PACKAGE]);
         await prepareAndroid(run);
         const code = await runChildProcess(
