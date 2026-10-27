@@ -32,6 +32,7 @@ import {
     checkForUpdates,
     clearSkippedUpdateVersion,
     downloadUpdate,
+    installUpdate,
     openDownloadedUpdate,
     showUpdateDialog,
     skipUpdateVersion,
@@ -47,6 +48,19 @@ const availableState: UpdateState = {
 };
 const announcedState: UpdateState = { ...availableState, announced: true };
 const idleState: UpdateState = { status: 'idle', currentVersion: '1.0.0' };
+const readyState: UpdateState = {
+    status: 'ready',
+    currentVersion: '1.0.0',
+    version: '1.1.0',
+    fileName: 'caxri-1.1.0.dmg',
+    installMode: 'restart',
+};
+
+function downloadRequests(): number {
+    return mocks.caxriRequest.mock.calls.filter(
+        (call) => (call as unknown[])[0] === 'updates.download',
+    ).length;
+}
 
 type UpdateEventListener = (event: { event: string; payload: UpdateState }) => void;
 
@@ -136,6 +150,17 @@ describe('checkForUpdates / downloadUpdate / cancelUpdateDownload / openDownload
         expect(mocks.caxriRequest).toHaveBeenLastCalledWith('updates.open');
     });
 
+    it('wires installUpdate to updates.install with its own label', async () => {
+        installUpdate();
+
+        expect(mocks.tryCommand).toHaveBeenCalledWith(
+            'Unable to restart to update',
+            expect.any(Function),
+        );
+        await mocks.tryCommand.mock.results[0]?.value;
+        expect(mocks.caxriRequest).toHaveBeenCalledWith('updates.install');
+    });
+
     it('does not force the dialog open when a background download resolves to available', async () => {
         resetStore(); // open: false
         mocks.caxriRequest.mockResolvedValueOnce(availableState);
@@ -160,33 +185,56 @@ describe('checkForUpdates / downloadUpdate / cancelUpdateDownload / openDownload
 });
 
 describe('automatic discovery', () => {
-    it('raises a Show Update notification instead of opening the modal dialog', async () => {
+    it('downloads a release found on its own in the background instead of interrupting', async () => {
         setSkippedVersion(null);
         mocks.caxriRequest.mockResolvedValueOnce(availableState);
 
         const unsubscribe = subscribeUpdateState();
-        await vi.waitFor(() => expect(useUpdateStore.getState().state).toEqual(availableState));
+        await vi.waitFor(() => expect(downloadRequests()).toBe(1));
 
+        expect(mocks.caxriRequest).toHaveBeenCalledWith('updates.acknowledge');
+        expect(mocks.pushToast).not.toHaveBeenCalled();
         expect(useUpdateStore.getState().open).toBe(false);
-        const [kind, message, options] = mocks.pushToast.mock.calls[0] ?? [];
-        expect(kind).toBe('info');
-        expect(message).toBe('Caxri 1.1.0 is available. You are running 1.0.0.');
-        // Recorded as a name plus the version it announces, so the notification center can still offer this route
-        // after the toast expired, and a screen reader hears which release three `Show Update` buttons each mean.
-        expect(options?.action).toEqual({
-            id: 'updates.show',
-            accessibleLabel: 'Show Update for Caxri 1.1.0',
-        });
         unsubscribe();
     });
 
-    it('leaves the dialog closed until that follow-up is taken', async () => {
+    it('raises one Restart to Update notification once the verified update is ready', async () => {
         setSkippedVersion(null);
-        mocks.caxriRequest.mockResolvedValueOnce(availableState);
+        mocks.caxriRequest.mockResolvedValueOnce(idleState);
+        const listener = captureEventListener();
+
+        const unsubscribe = subscribeUpdateState();
+        await vi.waitFor(() => expect(useUpdateStore.getState().state).toEqual(idleState));
+
+        listener()?.({ event: 'updates.state', payload: readyState });
+        const [kind, message, options] = mocks.pushToast.mock.calls[0] ?? [];
+        expect(kind).toBe('info');
+        expect(message).toBe('Caxri 1.1.0 is ready. Restart to finish updating.');
+        // Recorded as a name plus the version it installs, so the notification center can still offer this route after
+        // the toast expired, and a screen reader hears which release the button restarts into.
+        expect(options?.action).toEqual({
+            id: 'updates.install',
+            accessibleLabel: 'Restart to install Caxri 1.1.0',
+        });
+        expect(mocks.caxriRequest).toHaveBeenCalledWith('updates.acknowledge');
+
+        // Main stamps `announced` once acknowledged, so a reload re-reads it silently.
+        listener()?.({ event: 'updates.state', payload: { ...readyState, announced: true } });
+        expect(mocks.pushToast).toHaveBeenCalledOnce();
+        unsubscribe();
+    });
+
+    it('sends a manual install to the dialog, whose DMG instructions do not fit a notification', async () => {
+        setSkippedVersion(null);
+        mocks.caxriRequest.mockResolvedValueOnce({ ...readyState, installMode: 'manual' });
 
         const unsubscribe = subscribeUpdateState();
         await vi.waitFor(() => expect(mocks.pushToast).toHaveBeenCalled());
 
+        expect(mocks.pushToast.mock.calls[0]?.[2]?.action).toEqual({
+            id: 'updates.show',
+            accessibleLabel: 'Show Update for Caxri 1.1.0',
+        });
         expect(useUpdateStore.getState().open).toBe(false);
         // What `updates.show` runs; the handler table pairs the id above with exactly this entry point.
         showUpdateDialog();
@@ -194,55 +242,73 @@ describe('automatic discovery', () => {
         unsubscribe();
     });
 
-    it('stays silent for a release this process already announced', async () => {
+    it('leaves the decision to an open dialog instead of downloading or notifying behind it', async () => {
+        setSkippedVersion(null);
+        useUpdateStore.setState({ open: true });
+        mocks.caxriRequest.mockResolvedValueOnce(idleState);
+        const listener = captureEventListener();
+
+        const unsubscribe = subscribeUpdateState();
+        await vi.waitFor(() => expect(useUpdateStore.getState().state).toEqual(idleState));
+
+        listener()?.({ event: 'updates.state', payload: availableState });
+        listener()?.({ event: 'updates.state', payload: readyState });
+
+        expect(downloadRequests()).toBe(0);
+        expect(mocks.pushToast).not.toHaveBeenCalled();
+        expect(mocks.caxriRequest).toHaveBeenCalledWith('updates.acknowledge');
+        unsubscribe();
+    });
+
+    it('leaves a release this process already offered alone', async () => {
         setSkippedVersion(null);
         mocks.caxriRequest.mockResolvedValueOnce(announcedState);
 
         const unsubscribe = subscribeUpdateState();
         await vi.waitFor(() => expect(useUpdateStore.getState().state).toEqual(announcedState));
 
+        expect(downloadRequests()).toBe(0);
         expect(mocks.pushToast).not.toHaveBeenCalled();
-        expect(useUpdateStore.getState().open).toBe(false);
         unsubscribe();
     });
 
-    it('stays silent for a skipped version', async () => {
+    it('never downloads a skipped version', async () => {
         setSkippedVersion('1.1.0');
         mocks.caxriRequest.mockResolvedValueOnce(availableState);
 
         const unsubscribe = subscribeUpdateState();
         await vi.waitFor(() => expect(useUpdateStore.getState().state).toEqual(availableState));
 
-        expect(mocks.pushToast).not.toHaveBeenCalled();
+        expect(downloadRequests()).toBe(0);
         unsubscribe();
     });
 
-    it('holds the announcement until the snapshot that carries the skip has arrived', async () => {
+    it('holds the download until the snapshot that carries the skip has arrived', async () => {
         // No bootstrap yet: `updates.getState` is answered from Main's memory while the Server snapshot is in flight.
         mocks.caxriRequest.mockResolvedValueOnce(availableState);
 
         const unsubscribe = subscribeUpdateState();
         await vi.waitFor(() => expect(useUpdateStore.getState().state).toEqual(availableState));
-        expect(mocks.pushToast).not.toHaveBeenCalled();
+        expect(downloadRequests()).toBe(0);
 
         setSkippedVersion('1.1.0');
-        expect(mocks.pushToast).not.toHaveBeenCalled();
+        expect(downloadRequests()).toBe(0);
         unsubscribe();
     });
 
-    it('announces once the snapshot arrives and nothing is skipped', async () => {
+    it('downloads once the snapshot arrives and nothing is skipped', async () => {
         mocks.caxriRequest.mockResolvedValueOnce(availableState);
 
         const unsubscribe = subscribeUpdateState();
         await vi.waitFor(() => expect(useUpdateStore.getState().state).toEqual(availableState));
-        expect(mocks.pushToast).not.toHaveBeenCalled();
+        expect(downloadRequests()).toBe(0);
 
         setSkippedVersion(null);
-        expect(mocks.pushToast).toHaveBeenCalledOnce();
+        expect(downloadRequests()).toBe(1);
         unsubscribe();
     });
 
-    it('does not re-prompt when a cancelled download republishes the same available release', async () => {
+    it('does not restart a download the user cancelled back to the same available release', async () => {
         setSkippedVersion(null);
         mocks.caxriRequest.mockResolvedValueOnce(idleState);
         const listener = captureEventListener();
@@ -251,9 +317,8 @@ describe('automatic discovery', () => {
         await vi.waitFor(() => expect(useUpdateStore.getState().state).toEqual(idleState));
 
         listener()?.({ event: 'updates.state', payload: availableState });
-        expect(mocks.pushToast).toHaveBeenCalledOnce();
+        expect(downloadRequests()).toBe(1);
 
-        // Main stamps `announced` onto the state it republishes after an abort.
         listener()?.({
             event: 'updates.state',
             payload: {
@@ -264,9 +329,11 @@ describe('automatic discovery', () => {
                 receivedBytes: 10,
             },
         });
+        // Main stamps `announced` onto the state it republishes after an abort.
         listener()?.({ event: 'updates.state', payload: announcedState });
 
-        expect(mocks.pushToast).toHaveBeenCalledOnce();
+        expect(downloadRequests()).toBe(1);
+        expect(mocks.pushToast).not.toHaveBeenCalled();
         expect(useUpdateStore.getState().open).toBe(false);
         unsubscribe();
     });

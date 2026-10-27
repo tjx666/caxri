@@ -58,10 +58,11 @@ export function admitAcceptanceUpdateFixture(
 /**
  * Replaces only release discovery for a declared Acceptance case: the update service still publishes `checking` and
  * `available` through its normal state stream, and the Renderer still decides whether to announce it. No release URL
- * exists, so download and install stay disabled. The fixture is served at most once per launch and appends one receipt
- * line naming the case, so the evidence can prove the notification came from this fixture rather than from GitHub. A
- * rejected Acceptance request returns a discovery that always fails, so the update surfaces show an error instead of
- * silently falling back to the ordinary unpackaged state.
+ * exists, so the download completes at once without an installer and opening or installing it stays disabled. The
+ * fixture is served at most once per launch and appends one receipt line naming the case, so the evidence can prove the
+ * notification came from this fixture rather than from GitHub. A rejected Acceptance request returns a discovery that
+ * always fails, so the update surfaces show an error instead of silently falling back to the ordinary unpackaged
+ * state.
  */
 export function createAcceptanceUpdateFixture(options: {
     environment: NodeJS.ProcessEnv;

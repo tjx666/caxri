@@ -77,8 +77,9 @@ Android, and iOS Simulator product surfaces.
   (`apps/desktop/src/main/acceptance-update.ts`) replaces only GitHub release discovery with the
   fixed release `999.0.0`. The launch check then publishes it through the real update state path,
   so the Renderer's notification and **Check for Updates** dialog render normally. The fixture is
-  served once per launch; later checks re-read that state. Download and install stay disabled and
-  report an error if clicked. A packaged build or a launch outside the Acceptance and E2E gates
+  served once per launch; later checks re-read that state. The Renderer's background download
+  completes at once without a network request, so the case shows the `ready` notification for the
+  manual install; opening or installing it stays disabled and reports an error if clicked. A packaged build or a launch outside the Acceptance and E2E gates
   ignores the variable; inside Acceptance any other value shows a check error. Main appends the
   served case to `acceptance-update-receipt.jsonl` in the owned `userDataDir`; copy it into the
   case assets as proof the update was the fixture, not a real release.

@@ -7,8 +7,10 @@ import {
     describeUpdateStatus,
     releaseNotesTarget,
     releaseNotesUrl,
-    resolveUpdateAnnouncement,
+    resolveAutomaticDownload,
+    resolveReadyAnnouncement,
     resolveUpdatedNotice,
+    resolveUpdatePrimaryAction,
     shouldExplainUnsignedInstall,
     updateRetryTimeLabel,
 } from './update-presentation';
@@ -20,57 +22,69 @@ const available: UpdateState = {
     fileName: 'Caxri-1.1.0-arm64.dmg',
 };
 
-describe('resolveUpdateAnnouncement', () => {
-    it('announces a release this process has not offered yet', () => {
-        expect(resolveUpdateAnnouncement(available, null)).toEqual({
-            version: '1.1.0',
-            message: 'Caxri 1.1.0 is available. You are running 1.0.0.',
-        });
+const ready: UpdateState = {
+    status: 'ready',
+    currentVersion: '1.0.0',
+    version: '1.1.0',
+    fileName: 'Caxri-1.1.0-arm64.dmg',
+    installMode: 'restart',
+};
+
+describe('resolveAutomaticDownload', () => {
+    it('downloads a release this process has not offered yet', () => {
+        expect(resolveAutomaticDownload(available, null)).toBe('1.1.0');
     });
 
-    it('stays silent once this process has announced the release', () => {
-        expect(resolveUpdateAnnouncement({ ...available, announced: true }, null)).toBeUndefined();
+    it('stays put once this process has offered the release, so a cancelled download stays cancelled', () => {
+        expect(resolveAutomaticDownload({ ...available, announced: true }, null)).toBeUndefined();
     });
 
-    it('stays silent for the skipped version and for anything it already covers', () => {
-        expect(resolveUpdateAnnouncement(available, '1.1.0')).toBeUndefined();
-        expect(resolveUpdateAnnouncement(available, '1.2.0')).toBeUndefined();
+    it('never downloads the skipped version or anything it already covers', () => {
+        expect(resolveAutomaticDownload(available, '1.1.0')).toBeUndefined();
+        expect(resolveAutomaticDownload(available, '1.2.0')).toBeUndefined();
     });
 
-    it('announces again once a version newer than the skipped one appears', () => {
-        expect(resolveUpdateAnnouncement({ ...available, version: '1.2.0' }, '1.1.0')).toEqual({
-            version: '1.2.0',
-            message: 'Caxri 1.2.0 is available. You are running 1.0.0.',
-        });
+    it('downloads again once a version newer than the skipped one appears', () => {
+        expect(resolveAutomaticDownload({ ...available, version: '1.2.0' }, '1.1.0')).toBe('1.2.0');
     });
 
     it('falls back to exact matching for a hand-edited skip it cannot parse', () => {
-        expect(resolveUpdateAnnouncement(available, 'not-a-version')).toEqual({
-            version: '1.1.0',
-            message: 'Caxri 1.1.0 is available. You are running 1.0.0.',
-        });
+        expect(resolveAutomaticDownload(available, 'not-a-version')).toBe('1.1.0');
         expect(
-            resolveUpdateAnnouncement({ ...available, version: 'nightly' }, 'nightly'),
+            resolveAutomaticDownload({ ...available, version: 'nightly' }, 'nightly'),
         ).toBeUndefined();
     });
 
-    it('never announces a status other than available', () => {
+    it('acts on nothing but an available release', () => {
         expect(
-            resolveUpdateAnnouncement({ status: 'up-to-date', currentVersion: '1.0.0' }, null),
+            resolveAutomaticDownload({ status: 'up-to-date', currentVersion: '1.0.0' }, null),
         ).toBeUndefined();
-        expect(
-            resolveUpdateAnnouncement(
-                {
-                    status: 'downloading',
-                    currentVersion: '1.0.0',
-                    version: '1.1.0',
-                    fileName: 'Caxri-1.1.0-arm64.dmg',
-                    receivedBytes: 1,
-                },
-                null,
-            ),
-        ).toBeUndefined();
-        expect(resolveUpdateAnnouncement(undefined, null)).toBeUndefined();
+        expect(resolveAutomaticDownload(ready, null)).toBeUndefined();
+        expect(resolveAutomaticDownload(undefined, null)).toBeUndefined();
+    });
+});
+
+describe('resolveReadyAnnouncement', () => {
+    it('offers the restart for an update Main has unpacked', () => {
+        expect(resolveReadyAnnouncement(ready)).toEqual({
+            version: '1.1.0',
+            mode: 'restart',
+            message: 'Caxri 1.1.0 is ready. Restart to finish updating.',
+        });
+    });
+
+    it('points a manual install at the dialog instead', () => {
+        expect(resolveReadyAnnouncement({ ...ready, installMode: 'manual' })).toEqual({
+            version: '1.1.0',
+            mode: 'manual',
+            message: 'Caxri 1.1.0 is downloaded and verified.',
+        });
+    });
+
+    it('announces once per process and only for a ready update', () => {
+        expect(resolveReadyAnnouncement({ ...ready, announced: true })).toBeUndefined();
+        expect(resolveReadyAnnouncement(available)).toBeUndefined();
+        expect(resolveReadyAnnouncement(undefined)).toBeUndefined();
     });
 });
 
@@ -178,19 +192,14 @@ describe('describeUpdateChip', () => {
                 '1.1.0',
             )?.kind,
         ).toBe('downloading');
-        expect(
-            describeUpdateChip(
-                {
-                    status: 'ready',
-                    currentVersion: '1.0.0',
-                    version: '1.1.0',
-                    fileName: 'Caxri-1.1.0-arm64.dmg',
-                },
-                '1.1.0',
-            ),
-        ).toEqual({
+        expect(describeUpdateChip({ ...ready, installMode: 'manual' }, '1.1.0')).toEqual({
             label: 'Update ready',
             description: 'Caxri 1.1.0 is downloaded and verified. Click to continue.',
+            kind: 'ready',
+        });
+        expect(describeUpdateChip(ready, '1.1.0')).toEqual({
+            label: 'Restart to update',
+            description: 'Caxri 1.1.0 is ready. Click to restart and finish updating.',
             kind: 'ready',
         });
     });
@@ -286,6 +295,36 @@ describe('describeUpdateStatus', () => {
     });
 });
 
+describe('resolveUpdatePrimaryAction', () => {
+    const failed = (action: 'check' | 'download' | 'install' | 'open'): UpdateState => ({
+        status: 'error',
+        failureKind: 'other',
+        currentVersion: '1.0.0',
+        action,
+        message: 'Failed.',
+    });
+
+    it('offers Restart to Update only for a staged update and the DMG otherwise', () => {
+        expect(resolveUpdatePrimaryAction(ready, false)).toBe('install');
+        expect(resolveUpdatePrimaryAction({ ...ready, installMode: 'manual' }, false)).toBe(
+            'openDmg',
+        );
+    });
+
+    it('retries the step that failed', () => {
+        expect(resolveUpdatePrimaryAction(failed('install'), false)).toBe('retryInstall');
+        expect(resolveUpdatePrimaryAction(failed('open'), false)).toBe('openDmg');
+        expect(resolveUpdatePrimaryAction(failed('download'), false)).toBe('retryDownload');
+        expect(resolveUpdatePrimaryAction(failed('check'), false)).toBe('check');
+    });
+
+    it('lets a skipped release be un-skipped instead of downloaded', () => {
+        expect(resolveUpdatePrimaryAction(available, true)).toBe('stopSkipping');
+        expect(resolveUpdatePrimaryAction(available, false)).toBe('download');
+        expect(resolveUpdatePrimaryAction(undefined, false)).toBe('checking');
+    });
+});
+
 describe('canRetryUpdateCheck', () => {
     it('keeps the action live under a rate limit, because a manual check bypasses the window', () => {
         expect(
@@ -310,19 +349,9 @@ describe('canRetryUpdateCheck', () => {
 });
 
 describe('shouldExplainUnsignedInstall', () => {
-    it('explains the manual install exactly while a release is in play', () => {
-        expect(shouldExplainUnsignedInstall(available)).toBe(true);
-        expect(
-            shouldExplainUnsignedInstall({
-                status: 'downloading',
-                currentVersion: '1.0.0',
-                version: '1.1.0',
-                fileName: 'Caxri-1.1.0-arm64.dmg',
-                receivedBytes: 1,
-                totalBytes: 2,
-            }),
-        ).toBe(true);
-        // A failed download may still have left the file on disk, so the instructions stay useful.
+    it('explains the manual install once replacing the app by hand is the next step', () => {
+        expect(shouldExplainUnsignedInstall({ ...ready, installMode: 'manual' })).toBe(true);
+        // A failed download or restart leaves the DMG as the fallback, so the instructions stay useful.
         expect(
             shouldExplainUnsignedInstall({
                 status: 'error',
@@ -333,6 +362,21 @@ describe('shouldExplainUnsignedInstall', () => {
                 message: 'Download interrupted.',
             }),
         ).toBe(true);
+    });
+
+    it('stays out of the way while the update can still restart into itself', () => {
+        expect(shouldExplainUnsignedInstall(available)).toBe(false);
+        expect(
+            shouldExplainUnsignedInstall({
+                status: 'downloading',
+                currentVersion: '1.0.0',
+                version: '1.1.0',
+                fileName: 'Caxri-1.1.0-arm64.dmg',
+                receivedBytes: 1,
+                totalBytes: 2,
+            }),
+        ).toBe(false);
+        expect(shouldExplainUnsignedInstall(ready)).toBe(false);
     });
 
     it('stays quiet when there is nothing to install', () => {

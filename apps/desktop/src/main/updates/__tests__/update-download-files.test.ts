@@ -13,13 +13,9 @@ import {
     isResumedResponse,
     selectStaleUpdateFiles,
 } from '../update-download-files';
+import { releasePageUrl } from '../update-github-release';
 import { detectVersionChange, recordLaunchVersion } from '../update-launch-version';
-import {
-    releasePageUrl,
-    RESUME_CHECK_MIN_GAP_MS,
-    shouldRunBackgroundCheck,
-    UpdateService,
-} from '../updates';
+import { RESUME_CHECK_MIN_GAP_MS, shouldRunBackgroundCheck, UpdateService } from '../updates';
 
 describe('selectStaleUpdateFiles', () => {
     it('keeps the current installer and its partial, drops other installers and partials', () => {

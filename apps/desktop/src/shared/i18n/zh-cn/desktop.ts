@@ -179,6 +179,14 @@ export const desktop: TranslatedNamespace<typeof source> = {
     'desktop.quit.stopFailureDetail':
         'Caxri 即将退出。请重新打开 Caxri 停止剩余任务，再在其他工具中恢复它们的 Agent 对话。',
 
+    'desktop.updateRestart.title': '重启以更新？',
+    'desktop.updateRestart.messageOne': '有 {{running}}正在运行，要重启 Caxri 完成更新吗？',
+    'desktop.updateRestart.messageOther': '有 {{running}}正在运行，要重启 Caxri 完成更新吗？',
+    'desktop.updateRestart.messageIdle': '要重启 Caxri 完成更新吗？',
+    'desktop.updateRestart.detail':
+        '重启会结束所有正在运行的终端和 Agent 进程，释放 Agent 对话以便之后恢复，然后以新版本重新打开 Caxri。',
+    'desktop.updateRestart.restart': '重启并更新',
+
     'desktop.windowClose.title': '关闭此窗口？',
     'desktop.windowClose.messageOne': '有 {{running}}正在运行，要关闭此窗口吗？',
     'desktop.windowClose.messageOther': '有 {{running}}正在运行，要关闭此窗口吗？',

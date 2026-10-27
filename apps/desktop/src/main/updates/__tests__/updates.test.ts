@@ -150,6 +150,108 @@ describe('UpdateService', () => {
         expect(onState).toHaveBeenCalledWith(expect.objectContaining({ status: 'downloading' }));
     });
 
+    it('marks an update without an in-place installer as manual, so the DMG stays the way in', async () => {
+        const directory = await temporaryDirectory();
+        const service = new UpdateService({
+            currentVersion: '0.0.3',
+            downloadDirectory: directory,
+            enabled: true,
+            fetch: releaseFetch('0.0.4', new TextEncoder().encode('dmg')),
+            openPath: vi.fn(() => Promise.resolve('')),
+        });
+
+        await service.check();
+        await expect(service.download()).resolves.toMatchObject({
+            status: 'ready',
+            installMode: 'manual',
+        });
+        await expect(service.applyOnExit({ relaunch: false })).resolves.toBe(false);
+        await expect(service.install()).resolves.toMatchObject({
+            status: 'error',
+            action: 'install',
+            version: '0.0.4',
+        });
+    });
+
+    it('unpacks the verified download for Restart to Update and installs it on exit', async () => {
+        const directory = await temporaryDirectory();
+        const prepareInstall = vi.fn(() => Promise.resolve('restart' as const));
+        const launchInstall = vi.fn(() => Promise.resolve());
+        const restartToUpdate = vi.fn(() => Promise.resolve());
+        const service = new UpdateService({
+            currentVersion: '0.0.3',
+            downloadDirectory: directory,
+            enabled: true,
+            fetch: releaseFetch('0.0.4', new TextEncoder().encode('dmg')),
+            launchInstall,
+            openPath: vi.fn(() => Promise.resolve('')),
+            prepareInstall,
+            restartToUpdate,
+        });
+
+        await service.check();
+        await expect(service.download()).resolves.toMatchObject({
+            status: 'ready',
+            installMode: 'restart',
+        });
+        expect(prepareInstall).toHaveBeenCalledWith({
+            dmgPath: join(directory, 'Caxri-0.0.4-arm64.dmg'),
+            version: '0.0.4',
+        });
+
+        // `install` hands over to the quit flow; it only returns when the user cancelled.
+        await expect(service.install()).resolves.toMatchObject({ status: 'ready' });
+        expect(restartToUpdate).toHaveBeenCalledOnce();
+        expect(launchInstall).not.toHaveBeenCalled();
+
+        // A check while the restart is being confirmed must not replace the staged update with a fresh `available`.
+        await expect(service.check({ manual: true })).resolves.toMatchObject({ status: 'ready' });
+
+        await expect(service.applyOnExit({ relaunch: true })).resolves.toBe(true);
+        expect(launchInstall).toHaveBeenCalledWith({ relaunch: true, version: '0.0.4' });
+    });
+
+    it('falls back to the manual install when unpacking throws', async () => {
+        const directory = await temporaryDirectory();
+        const service = new UpdateService({
+            currentVersion: '0.0.3',
+            downloadDirectory: directory,
+            enabled: true,
+            fetch: releaseFetch('0.0.4', new TextEncoder().encode('dmg')),
+            launchInstall: vi.fn(() => Promise.resolve()),
+            openPath: vi.fn(() => Promise.resolve('')),
+            prepareInstall: vi.fn(() => Promise.reject(new Error('hdiutil failed'))),
+        });
+
+        await service.check();
+        await expect(service.download()).resolves.toMatchObject({ installMode: 'manual' });
+        await expect(service.applyOnExit({ relaunch: false })).resolves.toBe(false);
+    });
+
+    it('acknowledges the ready offer separately from the available one', async () => {
+        const directory = await temporaryDirectory();
+        const service = new UpdateService({
+            currentVersion: '0.0.3',
+            downloadDirectory: directory,
+            enabled: true,
+            fetch: releaseFetch('0.0.4', new TextEncoder().encode('dmg')),
+            openPath: vi.fn(() => Promise.resolve('')),
+        });
+
+        await service.check();
+        await expect(service.acknowledge()).resolves.toMatchObject({ announced: true });
+        // Offering the download did not offer the restart.
+        await expect(service.download()).resolves.toMatchObject({
+            status: 'ready',
+            announced: false,
+        });
+        await expect(service.acknowledge()).resolves.toMatchObject({
+            status: 'ready',
+            announced: true,
+        });
+        expect(service.getState()).toMatchObject({ status: 'ready', announced: true });
+    });
+
     it('deletes the partial download when checksum verification fails', async () => {
         const directory = await temporaryDirectory();
         const dmg = new TextEncoder().encode('tampered dmg fixture');

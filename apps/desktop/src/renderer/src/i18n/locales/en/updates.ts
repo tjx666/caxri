@@ -11,6 +11,8 @@ export const updates = {
     'updates.action.download': 'Download Update',
     'updates.action.cancelDownload': 'Cancel Download',
     'updates.action.openDmg': 'Open DMG',
+    'updates.action.restartToUpdate': 'Restart to Update',
+    'updates.action.retryInstall': 'Try Again',
     'updates.action.retryDownload': 'Retry Download',
     'updates.action.checkAgain': 'Check Again',
     'updates.action.releaseNotes': 'View Release Notes',
@@ -21,12 +23,14 @@ export const updates = {
     'updates.error.download': 'Unable to download the update',
     'updates.error.cancel': 'Unable to cancel the update download',
     'updates.error.open': 'Unable to open the update',
+    'updates.error.install': 'Unable to restart to update',
     'updates.error.skip': 'Unable to skip this version',
     'updates.error.stopSkipping': 'Unable to stop skipping this version',
     'updates.skipped':
         'Caxri will not offer {{version}} again until a newer version is released. Settings can undo this.',
-    'updates.announcement.message':
-        'Caxri {{version}} is available. You are running {{currentVersion}}.',
+    'updates.ready.message': 'Caxri {{version}} is ready. Restart to finish updating.',
+    'updates.ready.manualMessage': 'Caxri {{version}} is downloaded and verified.',
+    'updates.ready.restartLabel': 'Restart to install Caxri {{version}}',
     'updates.updated.message': 'Updated to Caxri {{version}}',
     'updates.updated.releaseNotesLabel': 'Release Notes for Caxri {{version}}',
     'updates.announcement.showLabel': 'Show Update for Caxri {{version}}',
@@ -55,6 +59,10 @@ export const updates = {
     'updates.status.downloading.received': '{{received}} downloaded',
     'updates.status.ready.title': 'Caxri {{version}} is ready to install',
     'updates.status.ready.description': 'Downloaded and verified.',
+    'updates.status.ready.restartDescription':
+        'Downloaded and verified. Caxri restarts to finish installing; running Terminals and Agents are stopped. Quitting Caxri installs it too.',
+    'updates.status.error.install':
+        'Caxri could not restart to install the update. Try again, or open the DMG and replace the app by hand.',
     'updates.status.error.title': 'Update failed',
     'updates.status.error.network':
         'The update connection was interrupted. Check your network and try again.',
@@ -73,8 +81,11 @@ export const updates = {
     'updates.chip.downloading.description':
         'Downloading Caxri {{version}}. Click to show the download.',
     'updates.chip.ready.label': 'Update ready',
+    'updates.chip.ready.restartLabel': 'Restart to update',
     'updates.chip.ready.description':
         'Caxri {{version}} is downloaded and verified. Click to continue.',
+    'updates.chip.ready.restartDescription':
+        'Caxri {{version}} is ready. Click to restart and finish updating.',
     'updates.chip.failed.label': 'Update failed',
     'updates.chip.failed.installDescription':
         'Caxri {{version}} could not be installed. Click to see why and try again.',

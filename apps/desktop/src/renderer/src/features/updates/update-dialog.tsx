@@ -2,7 +2,15 @@ import { useEffect } from 'react';
 
 import type { UpdateState } from '@caxri/protocol';
 import { isUpdateVersionSkipped } from '@caxri/protocol';
-import { CheckCircle2, Download, ExternalLink, FolderOpen, RefreshCw, XCircle } from 'lucide-react';
+import {
+    CheckCircle2,
+    Download,
+    ExternalLink,
+    FolderOpen,
+    RefreshCw,
+    RotateCw,
+    XCircle,
+} from 'lucide-react';
 
 import { Alert } from '../../components/ui/alert';
 import { Button } from '../../components/ui/button';
@@ -23,6 +31,7 @@ import {
     clearSkippedUpdateVersion,
     closeUpdateDialog,
     downloadUpdate,
+    installUpdate,
     openDownloadedUpdate,
     openReleaseNotes,
     skipUpdateVersion,
@@ -33,6 +42,7 @@ import {
     canRetryUpdateCheck,
     describeUpdateStatus,
     releaseNotesTarget,
+    resolveUpdatePrimaryAction,
     shouldExplainUnsignedInstall,
 } from './update-presentation';
 
@@ -44,55 +54,71 @@ function UpdateActions({
     isSkipped: boolean;
 }) {
     const { t } = useTranslation();
-    if (!state || state.status === 'checking')
-        return (
-            <Button disabled>
-                <Spinner aria-hidden="true" className="size-3.5" />
-                {t('updates.action.checking')}
-            </Button>
-        );
-    if (state.status === 'available')
-        return isSkipped ? (
-            <Button
-                onClick={() => {
-                    void clearSkippedUpdateVersion();
-                }}
-            >
-                <RefreshCw aria-hidden="true" size={14} />
-                {t('updates.action.stopSkipping')}
-            </Button>
-        ) : (
-            <Button onClick={downloadUpdate}>
-                <Download aria-hidden="true" size={14} />
-                {t('updates.action.download')}
-            </Button>
-        );
-    if (state.status === 'downloading')
-        return (
-            <Button variant="secondary" onClick={cancelUpdateDownload}>
-                {t('updates.action.cancelDownload')}
-            </Button>
-        );
-    if (state.status === 'ready' || (state.status === 'error' && state.action === 'open'))
-        return (
-            <Button onClick={openDownloadedUpdate}>
-                <FolderOpen aria-hidden="true" size={14} />
-                {t('updates.action.openDmg')}
-            </Button>
-        );
-    if (state.status === 'error' && state.action === 'download')
-        return (
-            <Button onClick={downloadUpdate}>
-                <Download aria-hidden="true" size={14} />
-                {t('updates.action.retryDownload')}
-            </Button>
-        );
-    return (
-        <Button onClick={checkForUpdates} disabled={!canRetryUpdateCheck(state)}>
-            <RefreshCw aria-hidden="true" size={14} />
-            {t(state.status === 'error' ? 'common.retry' : 'updates.action.checkAgain')}
-        </Button>
-    );
+    const action = resolveUpdatePrimaryAction(state, isSkipped);
+    switch (action) {
+        case 'checking':
+            return (
+                <Button disabled>
+                    <Spinner aria-hidden="true" className="size-3.5" />
+                    {t('updates.action.checking')}
+                </Button>
+            );
+        case 'stopSkipping':
+            return (
+                <Button
+                    onClick={() => {
+                        void clearSkippedUpdateVersion();
+                    }}
+                >
+                    <RefreshCw aria-hidden="true" size={14} />
+                    {t('updates.action.stopSkipping')}
+                </Button>
+            );
+        case 'download':
+        case 'retryDownload':
+            return (
+                <Button onClick={downloadUpdate}>
+                    <Download aria-hidden="true" size={14} />
+                    {t(
+                        action === 'download'
+                            ? 'updates.action.download'
+                            : 'updates.action.retryDownload',
+                    )}
+                </Button>
+            );
+        case 'cancelDownload':
+            return (
+                <Button variant="secondary" onClick={cancelUpdateDownload}>
+                    {t('updates.action.cancelDownload')}
+                </Button>
+            );
+        case 'install':
+        case 'retryInstall':
+            return (
+                <Button onClick={installUpdate}>
+                    <RotateCw aria-hidden="true" size={14} />
+                    {t(
+                        action === 'install'
+                            ? 'updates.action.restartToUpdate'
+                            : 'updates.action.retryInstall',
+                    )}
+                </Button>
+            );
+        case 'openDmg':
+            return (
+                <Button onClick={openDownloadedUpdate}>
+                    <FolderOpen aria-hidden="true" size={14} />
+                    {t('updates.action.openDmg')}
+                </Button>
+            );
+        case 'check':
+            return (
+                <Button onClick={checkForUpdates} disabled={!canRetryUpdateCheck(state)}>
+                    <RefreshCw aria-hidden="true" size={14} />
+                    {t(state?.status === 'error' ? 'common.retry' : 'updates.action.checkAgain')}
+                </Button>
+            );
+    }
 }
 
 const STATUS_ICON = { 'aria-hidden': true, 'className': 'mt-0.5 shrink-0', 'size': 18 } as const;
@@ -134,7 +160,7 @@ export function UpdateDialog() {
                     <DialogTitle>{t('updates.dialog.title')}</DialogTitle>
                     <DialogDescription>{t('updates.dialog.description')}</DialogDescription>
                 </DialogHeader>
-                <div className="space-y-4 p-4">
+                <div className="flex flex-col gap-4 p-4">
                     <div className="flex items-start gap-3">
                         <UpdateStatusIcon state={state} />
                         <div className="min-w-0">

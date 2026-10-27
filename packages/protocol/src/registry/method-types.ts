@@ -252,6 +252,7 @@ export const effectfulCommandRecovery = {
     'updates.download': 'memory',
     'updates.cancel': 'memory',
     'updates.open': 'memory',
+    'updates.install': 'memory',
     'shellCommand.install': 'memory',
     /**
      * Opening or reconnecting an SSH Host window is idempotent per destination; a replay only refocuses it.

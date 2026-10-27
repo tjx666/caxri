@@ -42,6 +42,7 @@ vi.mock('../features/terminal/terminal-commands', () => ({
 }));
 vi.mock('../lib/caxri', () => ({ caxri: { request: mocks.request } }));
 vi.mock('../features/updates/update-commands', () => ({
+    installUpdate: vi.fn(),
     openReleaseNotes: mocks.openReleaseNotes,
     showUpdateDialog: mocks.showUpdateDialog,
 }));

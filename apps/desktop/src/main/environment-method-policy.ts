@@ -118,6 +118,7 @@ const environmentMethodScopes = {
     'updates.download': 'any',
     'updates.cancel': 'any',
     'updates.open': 'any',
+    'updates.install': 'any',
     'project.create': 'remote-override',
     'project.cancelCreate': 'remote-override',
     'project.delete': 'any',

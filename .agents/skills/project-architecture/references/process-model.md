@@ -59,7 +59,9 @@ its window. The typed Desktop lease remains defense in depth for non-Electron Cl
 recovery. Desktop Main is otherwise replaceable: closing a window revokes its lease and detaches views
 without stopping Server Core, Terminal Host, or PTYs. Explicit application quit inspects Server impact:
 an idle Server owned only by Desktop stops directly, while live PTYs require a native choice to terminate
-tasks, keep them attached in the background, or cancel. A Renderer reload attaches to the same Server
+tasks, keep them attached in the background, or cancel. Restart to Update uses the `update` quit intent, which
+always stops Server Core and installs the staged bundle on exit; see [Desktop updates](../../../../docs/desktop-updates.md).
+A Renderer reload attaches to the same Server
 state and bounded Terminal snapshots. A Server Core crash causes its coupled Terminal
 Host and live PTYs to be retired; supervision restarts Server Core with capped exponential backoff and
 persisted Terminals become `dead`, never silently restored processes. Server Core must remain ready for

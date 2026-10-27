@@ -53,46 +53,17 @@ builds are not currently supported.
 
 ## Install
 
-1. **Prepare your Agent.** Install and sign in to your Agent CLI following its vendor's
-   instructions, and confirm it works in Terminal.
-2. **Install the notification helper (optional).** Caxri uses the
-   [`alerter` CLI](https://github.com/vjeantet/alerter) to show macOS banners when an Agent
-   finishes or needs you:
+Paste this into your coding agent (Claude Code, Codex, Grok Build, or similar):
 
-   ```bash
-   brew install vjeantet/tap/alerter
-   ```
+```text
+Install Caxri for me by following https://raw.githubusercontent.com/tjx666/caxri/main/docs/install.md
+```
 
-   Install it before launching Caxri, or fully quit and reopen Caxri afterwards. Without it,
-   system notifications may not appear. **Settings → Notifications → System notifications** shows
-   the helper's status.
-
-3. **Download and verify the app.** Open the
-   [latest release](https://github.com/tjx666/caxri/releases/latest) and download
-   `Caxri-VERSION-arm64.dmg` and its matching `Caxri-VERSION-arm64.dmg.sha256` file into the same
-   folder. In Terminal, replacing `VERSION` with the version in the filenames:
-
-   ```bash
-   cd ~/Downloads
-   shasum -a 256 -c Caxri-VERSION-arm64.dmg.sha256
-   ```
-
-   Continue only when the result is `OK`. The `-arm64-nosourcemap.dmg` asset is a smaller
-   alternative without diagnostic Source Maps.
-
-4. **Install and open Caxri.** Open the DMG, drag **Caxri** into **Applications**, then launch it.
-   The app is unsigned and unnotarized, so macOS may block it the first time:
-   - If macOS says Caxri is **"damaged"**, after verifying the download above, run this and open
-     it again:
-
-     ```bash
-     xattr -dr com.apple.quarantine /Applications/Caxri.app
-     ```
-
-   - If macOS says it cannot verify the developer, open **System Settings → Privacy & Security**,
-     scroll to the message about Caxri, click **Open Anyway**, and confirm.
-
-   More help: [Troubleshooting](docs/troubleshooting.md).
+The agent checks your Mac, downloads and verifies the latest release, installs it, and offers
+optional setup: notification banners, the `caxri` command, and initial settings such as language,
+default Agent, and font sizes. To install by hand, follow the same page:
+[docs/install.md](docs/install.md). If macOS blocks the app, see
+[Troubleshooting](docs/troubleshooting.md).
 
 ### Install on Android
 
@@ -113,8 +84,11 @@ Agents start with full access: they can edit files and run commands without aski
 ## Updating
 
 Caxri checks GitHub for a new release when it launches and every few hours afterwards. You can also
-choose **Caxri → Check for Updates…** at any time. Finish your running tasks and quit Caxri before
-replacing the app. Updating does not delete your profile or Project folders. Contributor release
+choose **Caxri → Check for Updates…** at any time. A new version downloads in the background; when it
+is ready, choose **Restart to Update**, or simply quit Caxri and the next launch is the new version.
+If Caxri cannot replace itself (for example, it runs from the disk image), the dialog explains how to
+install the downloaded disk image by hand. Updating does not delete your profile or Project folders.
+See [Desktop updates](docs/desktop-updates.md). Contributor release
 options are in [RELEASING.md](RELEASING.md).
 
 ## Command line for app users

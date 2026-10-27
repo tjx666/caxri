@@ -1,10 +1,18 @@
 import type { UpdateState } from '@caxri/protocol';
 import { compareStableVersions } from '@caxri/protocol';
-import { z } from 'zod';
 
 import { releaseDmgFileName } from '../source-map-flavor';
 import type { AvailableRelease } from './update-download';
 import { downloadVerifiedUpdate } from './update-download';
+import {
+    assertStableVersion,
+    isExactReleaseAssetUrl,
+    isRateLimitedStatus,
+    LATEST_RELEASE_URL,
+    rateLimitResumeAt,
+    releasePageUrl,
+    releaseSchema,
+} from './update-github-release';
 import type {
     AcceptanceUpdateDiscovery,
     UpdateFetch,
@@ -22,7 +30,6 @@ import {
     updateFailureKind,
 } from './update-transport';
 
-const LATEST_RELEASE_URL = 'https://api.github.com/repos/tjx666/caxri/releases/latest';
 const CHECK_TIMEOUT_MS = 15_000;
 /**
  * How often a long-running Caxri asks again. Six hours keeps a Mac that stays open for days current while spending a
@@ -34,20 +41,6 @@ const BACKGROUND_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1_000;
  * does not turn into a request per wake.
  */
 export const RESUME_CHECK_MIN_GAP_MS = 30 * 60 * 1_000;
-
-const releaseAssetSchema = z.object({
-    name: z.string(),
-    size: z.number().int().nonnegative(),
-    browser_download_url: z.url(),
-});
-
-const releaseSchema = z.object({
-    tag_name: z.string(),
-    html_url: z.string().optional(),
-    draft: z.boolean(),
-    prerelease: z.boolean(),
-    assets: z.array(releaseAssetSchema),
-});
 
 interface AutomaticUpdateCheckOptions {
     alreadyStarted: boolean;
@@ -64,33 +57,6 @@ interface AutomaticUpdateCheckOptions {
 export function shouldStartAutomaticUpdateCheck(options: AutomaticUpdateCheckOptions): boolean {
     if (options.alreadyStarted) return false;
     return options.hasAcceptanceDiscovery === true || (options.isPackaged && !options.isE2E);
-}
-
-/**
- * Rejects a release tag Caxri cannot order. Shares `compareStableVersions`' parser so the shape Main accepts here and
- * the shape the Renderer can compare a skipped version against can never drift apart.
- */
-function assertStableVersion(version: string): void {
-    compareStableVersions(version, version);
-}
-
-/**
- * The release page to link to, or `undefined` when GitHub's `html_url` is missing or does not point at this
- * repository's releases. The value reaches `shell.openExternal` through the Renderer, so it is pinned to the project
- * rather than trusted because it arrived in a GitHub response.
- */
-export function releasePageUrl(htmlUrl: string | undefined): string | undefined {
-    if (!htmlUrl) return undefined;
-    try {
-        const parsed = new URL(htmlUrl);
-        return parsed.protocol === 'https:' &&
-            parsed.hostname === 'github.com' &&
-            parsed.pathname.startsWith('/tjx666/caxri/releases')
-            ? parsed.href
-            : undefined;
-    } catch {
-        return undefined;
-    }
 }
 
 interface BackgroundCheckInput {
@@ -110,47 +76,6 @@ export function shouldRunBackgroundCheck(input: BackgroundCheckInput): boolean {
     if (input.isCheckInFlight) return false;
     if (input.status === 'downloading' || input.status === 'ready') return false;
     return input.lastAttemptAt === undefined || input.now - input.lastAttemptAt >= input.minGapMs;
-}
-
-/**
- * `true` for both GitHub's primary (403, once the anonymous per-hour quota is exhausted) and secondary (429, once
- * requests arrive too quickly) rate limits on the release check. Both are expected, temporary conditions rather than a
- * Caxri defect, so they degrade to `unavailable` the same way the pre-release 404 case does (#244) instead of surfacing
- * a permanent, retried-every-launch `error`.
- */
-function isRateLimitedStatus(status: number): boolean {
-    return status === 403 || status === 429;
-}
-
-/**
- * Reads GitHub's rate-limit reset hint from the response so the next automatic check can skip the network call entirely
- * until the limit clears, instead of hammering an endpoint that is already rejecting requests. `retry-after` is a
- * relative delay in seconds (used for secondary/abuse limits); `x-ratelimit-reset` is an absolute Unix epoch in seconds
- * (used for the primary hourly limit). Returns `undefined` when neither header is present, in which case the caller
- * does not open a skip window.
- */
-function rateLimitResumeAt(response: Response, now: number): number | undefined {
-    const retryAfterSeconds = Number(response.headers.get('retry-after'));
-    if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0)
-        return now + retryAfterSeconds * 1_000;
-    const resetEpochSeconds = Number(response.headers.get('x-ratelimit-reset'));
-    if (Number.isFinite(resetEpochSeconds) && resetEpochSeconds > 0)
-        return resetEpochSeconds * 1_000;
-    return undefined;
-}
-
-function isExactReleaseAssetUrl(url: string, version: string, fileName: string): boolean {
-    try {
-        const parsed = new URL(url);
-        return (
-            parsed.protocol === 'https:' &&
-            parsed.hostname === 'github.com' &&
-            decodeURIComponent(parsed.pathname) ===
-                `/tjx666/caxri/releases/download/v${version}/${fileName}`
-        );
-    } catch {
-        return false;
-    }
 }
 
 /**
@@ -192,6 +117,10 @@ export class UpdateService {
     private state: UpdateState;
     private release: AvailableRelease | undefined;
     private readyPath: string | undefined;
+    /**
+     * How the verified installer at {@link readyPath} installs; see `installMode` on the `ready` state.
+     */
+    private installMode: 'manual' | 'restart' = 'manual';
     private checkPromise: Promise<UpdateState> | undefined;
     private downloadPromise: Promise<UpdateState> | undefined;
     private downloadController: AbortController | undefined;
@@ -201,11 +130,12 @@ export class UpdateService {
      */
     private rateLimitedUntil: number | undefined;
     /**
-     * The version a window has already offered the user in this app process, recorded by `acknowledge()`. Memory-only
-     * on purpose: it is the storage that makes `Close` mean "not now" for this run, where `updates.skippedVersion`
-     * makes `Skip this version` outlast the process.
+     * The `status:version` pairs a window has already offered the user in this app process, recorded by
+     * `acknowledge()`. Keyed by status as well because `available` and `ready` are separate offers: the first asks
+     * whether to download, the second whether to restart. Memory-only on purpose: it is the storage that makes `Close`
+     * mean "not now" for this run, where `updates.skippedVersion` makes `Skip this version` outlast the process.
      */
-    private announcedVersion: string | undefined;
+    private readonly announcedOffers = new Set<string>();
     /**
      * The release the Acceptance fixture served in this launch. The fixture serves once, so every later check (
      * including one after the disabled download left an error) republishes this instead of consuming it again.
@@ -236,8 +166,11 @@ export class UpdateService {
      */
     private publish(state: UpdateState): UpdateState {
         const stamped: UpdateState =
-            state.status === 'available'
-                ? { ...state, announced: this.announcedVersion === state.version }
+            state.status === 'available' || state.status === 'ready'
+                ? {
+                      ...state,
+                      announced: this.announcedOffers.has(`${state.status}:${state.version}`),
+                  }
                 : state;
         const launchStamped = this.stampLaunch(stamped);
         this.state = launchStamped;
@@ -435,6 +368,40 @@ export class UpdateService {
         }
     }
 
+    private readyState(
+        release: Pick<AvailableRelease, 'fileName' | 'releaseUrl' | 'version'>,
+    ): UpdateState {
+        return {
+            status: 'ready',
+            currentVersion: this.options.currentVersion,
+            version: release.version,
+            fileName: release.fileName,
+            ...(release.releaseUrl && { releaseUrl: release.releaseUrl }),
+            installMode: this.installMode,
+        };
+    }
+
+    private async prepareReady(path: string, version: string): Promise<'manual' | 'restart'> {
+        this.readyPath = path;
+        let mode: 'manual' | 'restart' = 'manual';
+        try {
+            mode = (await this.options.prepareInstall?.({ dmgPath: path, version })) ?? 'manual';
+        } catch {
+            // `prepareInstall` reports its own failures; any escape still leaves the DMG to open by hand.
+        }
+        this.installMode = mode;
+        return mode;
+    }
+
+    private isRestartReady(): boolean {
+        return (
+            this.state.status === 'ready' &&
+            this.state.installMode === 'restart' &&
+            this.readyPath !== undefined &&
+            this.options.launchInstall !== undefined
+        );
+    }
+
     /**
      * Records the version this launch replaced (read from the profile after startup) and republishes the current state
      * stamped with it, so the Renderer raises the one-time "Updated to" notice.
@@ -454,6 +421,9 @@ export class UpdateService {
      * cancelled download returning to `available`, or a second window never produce a second prompt for the same
      * release. Nothing is written to disk: the next launch offers it again unless the user skipped it.
      *
+     * The same holds for `ready`, whose notification offers the restart. Acknowledging a version as `available` does
+     * not silence its later `ready` notification: each status is a separate offer.
+     *
      * A no-op for every other status, including an `available` state that has since been superseded.
      */
     acknowledge(): Promise<UpdateState> {
@@ -464,8 +434,9 @@ export class UpdateService {
             delete next.updatedFrom;
             this.state = next;
         }
-        if (this.state.status !== 'available') return Promise.resolve(this.state);
-        this.announcedVersion = this.state.version;
+        if (this.state.status !== 'available' && this.state.status !== 'ready')
+            return Promise.resolve(this.state);
+        this.announcedOffers.add(`${this.state.status}:${this.state.version}`);
         // Stored rather than published: nothing about the release changed, and broadcasting `updates.state` here would
         // hand the acknowledging window back the state it just acted on.
         this.state = { ...this.state, announced: true };
@@ -479,6 +450,9 @@ export class UpdateService {
     check(options: { background?: boolean; manual?: boolean } = {}): Promise<UpdateState> {
         if (this.checkPromise) return this.checkPromise;
         if (this.downloadPromise) return Promise.resolve(this.state);
+        // A staged update stays put until the restart or quit that installs it: a re-check would replace `ready` and
+        // leave a confirmed Restart to Update with nothing to install.
+        if (this.isRestartReady()) return Promise.resolve(this.state);
         // A download or open failure is still on screen; a silent re-check must not replace it with `available`.
         // A failed check is different: re-checking is how it recovers, so it stays eligible.
         if (options.background && this.state.status === 'error' && this.state.action !== 'check')
@@ -486,7 +460,7 @@ export class UpdateService {
         const { acceptanceDiscovery } = this.options;
         if (acceptanceDiscovery && this.acceptanceRelease)
             return Promise.resolve(
-                this.state.status === 'available'
+                this.state.status === 'available' || this.state.status === 'ready'
                     ? this.state
                     : this.publishAcceptanceRelease(this.acceptanceRelease),
             );
@@ -581,20 +555,10 @@ export class UpdateService {
 
     download(): Promise<UpdateState> {
         if (this.downloadPromise) return this.downloadPromise;
-        if (this.options.acceptanceDiscovery)
-            return Promise.resolve(
-                this.publish({
-                    status: 'error',
-                    failureKind: 'other',
-                    currentVersion: this.options.currentVersion,
-                    action: 'download',
-                    message: 'Update downloads are disabled in Acceptance launches.',
-                    ...(this.state.status === 'available' && {
-                        version: this.state.version,
-                        fileName: this.state.fileName,
-                    }),
-                }),
-            );
+        // The fixture has no installer to fetch, so its download completes at once: Acceptance sees the notification a
+        // real background download raises, while opening or installing it stays disabled (no `readyPath`).
+        if (this.options.acceptanceDiscovery && this.acceptanceRelease)
+            return Promise.resolve(this.publish(this.readyState(this.acceptanceRelease)));
         const release = this.release;
         if (!release)
             return Promise.resolve(
@@ -616,10 +580,8 @@ export class UpdateService {
                 downloadDirectory: this.options.downloadDirectory,
                 fetch: this.fetch,
                 now: this.now,
+                prepareReady: (path) => this.prepareReady(path, release.version),
                 publish: (state) => this.publish(state),
-                setReadyPath: (path) => {
-                    this.readyPath = path;
-                },
             },
             release,
             this.downloadController.signal,
@@ -659,12 +621,37 @@ export class UpdateService {
                 version: release.version,
                 fileName: release.fileName,
             });
-        return this.publish({
-            status: 'ready',
-            currentVersion: this.options.currentVersion,
-            version: release.version,
-            fileName: release.fileName,
-            ...(release.releaseUrl && { releaseUrl: release.releaseUrl }),
-        });
+        return this.publish(this.readyState(release));
+    }
+
+    /**
+     * `updates.install`: restarts into the staged update through the ordinary quit confirmations. Resolves with the
+     * unchanged state when the user cancels; a confirmed restart exits Main before this settles.
+     */
+    async install(): Promise<UpdateState> {
+        const release = this.release;
+        if (!release || !this.isRestartReady() || !this.options.restartToUpdate)
+            return this.publish({
+                status: 'error',
+                failureKind: 'other',
+                currentVersion: this.options.currentVersion,
+                action: 'install',
+                message: 'Download and verify the update before restarting to install it.',
+                ...(release && { version: release.version, fileName: release.fileName }),
+            });
+        await this.options.restartToUpdate();
+        return this.state;
+    }
+
+    /**
+     * Called by the quit flow once Server Core has stopped and Main is about to exit. Starts the in-place install when
+     * a staged update is waiting, so an ordinary quit installs it too and the next launch is the new version. Resolves
+     * `false` when there was nothing to install.
+     */
+    async applyOnExit(options: { relaunch: boolean }): Promise<boolean> {
+        const release = this.release;
+        if (!release || !this.isRestartReady()) return false;
+        await this.options.launchInstall!({ relaunch: options.relaunch, version: release.version });
+        return true;
     }
 }
