@@ -34,6 +34,12 @@ describe('Claude transcript history', () => {
                     timestamp: 'not a time',
                     message: { id: 'm2', content: [{ type: 'text', text: 'Again' }] },
                 },
+                {
+                    type: 'system',
+                    subtype: 'compact_boundary',
+                    uuid: 'c1',
+                    timestamp: '2026-10-11T10:01:00.000Z',
+                },
             ]),
             false,
         );
@@ -44,6 +50,7 @@ describe('Claude transcript history', () => {
             ['userMessage', Date.parse('2026-10-11T09:59:00.000Z')],
             ['agentMessage', Date.parse('2026-10-11T10:00:00.000Z')],
             ['agentMessage', undefined],
+            ['notice', Date.parse('2026-10-11T10:01:00.000Z')],
         ]);
     });
 

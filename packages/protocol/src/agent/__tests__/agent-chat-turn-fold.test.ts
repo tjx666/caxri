@@ -93,6 +93,48 @@ describe('foldAgentChatTurn', () => {
             'a2',
         ]);
     });
+    it('splits the fold at each compaction so its notice stays between the work before and after it', () => {
+        const secondCompaction: AgentChatItem = { ...compacted, id: 'n3' };
+        const items = [
+            user,
+            command,
+            compacted,
+            reasoning,
+            commentary,
+            { ...command, id: 'c2' },
+            secondCompaction,
+            { ...command, id: 'c3' },
+            reply,
+        ];
+
+        expect(shape(foldAgentChatTurn(items, 'a2'))).toEqual([
+            'u1',
+            'fold(c1)',
+            'n2',
+            'fold(r1,a1,c2)',
+            'n3',
+            'fold(c3)',
+            'a2',
+        ]);
+    });
+
+    it('keeps no reply in view for a segment that ends at a compaction', () => {
+        expect(shape(foldAgentChatTurn([user, commentary, compacted, reply], 'a2'))).toEqual([
+            'u1',
+            'fold(a1)',
+            'n2',
+            'a2',
+        ]);
+    });
+
+    it('keeps the final reply in view when the turn compacts right after it', () => {
+        expect(shape(foldAgentChatTurn([user, command, reply, compacted], 'a2'))).toEqual([
+            'u1',
+            'fold(c1)',
+            'a2',
+            'n2',
+        ]);
+    });
 });
 
 describe('agentChatFoldTiming', () => {
@@ -119,6 +161,14 @@ describe('agentChatFoldTiming', () => {
         expect(folds([user, command, commentary, steer, { ...command, id: 'c2' }, reply])).toEqual([
             { durationMs: 3_000, startedAt: 1_000, endedAt: 4_000 },
             { durationMs: 6_000, startedAt: 4_000, endedAt: 10_000 },
+        ]);
+    });
+
+    it('times each segment a compaction opens from its notice', () => {
+        const timedCompaction: AgentChatItem = { ...compacted, createdAt: 6_000 };
+        expect(folds([user, command, timedCompaction, { ...command, id: 'c2' }, reply])).toEqual([
+            { durationMs: 5_000, startedAt: 1_000, endedAt: 6_000 },
+            { durationMs: 4_000, startedAt: 6_000, endedAt: 10_000 },
         ]);
     });
 

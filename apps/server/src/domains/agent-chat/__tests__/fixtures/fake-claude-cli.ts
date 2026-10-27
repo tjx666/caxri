@@ -55,6 +55,7 @@ import process from 'node:process';
 import readline from 'node:readline';
 
 import { didRunApprovalScenario } from './fake-claude-approvals.ts';
+import { didRunCompactingTurn, runCompactCommand } from './fake-claude-compaction.ts';
 import type { FakeClaudeIo, QueuedTurn } from './fake-claude-io.ts';
 import { queuedTurn } from './fake-claude-io.ts';
 import {
@@ -386,20 +387,7 @@ async function runTurn({ text, content, priority, uuid, isAuto = false }: Queued
     if (text.trimStart().startsWith('/compact')) {
         system('status', { status: 'compacting' });
         if (text.includes('crash')) exitProcess(1);
-        await delay(300);
-        if (text.includes('break')) {
-            system('status', {
-                status: null,
-                compact_result: 'failed',
-                compact_error: 'Not enough messages to compact.',
-            });
-            result(startedAt, 'Compaction failed.', true);
-            return;
-        }
-        system('compact_boundary');
-        record({ type: 'system', subtype: 'compact_boundary' });
-        system('status', { status: null, compact_result: 'success' });
-        result(startedAt, 'Compacted.');
+        await runCompactCommand(scenarioIo, startedAt, text);
         return;
     }
     const imageCount = Array.isArray(content)
@@ -450,6 +438,7 @@ async function runTurn({ text, content, priority, uuid, isAuto = false }: Queued
         result(startedAt, 'done');
         return;
     }
+    if (await didRunCompactingTurn(scenarioIo, startedAt, text)) return;
     if (text.includes('use chrome')) {
         await streamBrowserSteps(scenarioIo);
         result(startedAt, 'done');
