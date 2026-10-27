@@ -110,6 +110,7 @@ export const agentChatChanges = {
     'agentChat.tasks.stop': 'Stop',
     'agentChat.tasks.stopping': 'Stopping…',
     'agentChat.tasks.stopTask': 'Stop {{title}}',
+    'agentChat.tasks.stopAll': 'Stop all',
     'agentChat.tasks.backgroundWork': 'Background work',
     'agentChat.tasks.runningCount': '{{count}} running',
     'agentChat.tasks.endedCount': '{{count}} ended',

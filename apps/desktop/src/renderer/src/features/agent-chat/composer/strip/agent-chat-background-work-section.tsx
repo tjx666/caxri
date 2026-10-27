@@ -1,13 +1,20 @@
 import { useId, useState } from 'react';
 
 import type { AgentChatTask } from '@caxri/protocol';
-import { History, X } from 'lucide-react';
+import { canStopAgentChatTask } from '@caxri/protocol';
+import { History, Square, X } from 'lucide-react';
 
 import { DisclosureMotion } from '../../../../components/disclosure-motion';
 import { Button } from '../../../../components/ui/button';
+import { Spinner } from '../../../../components/ui/spinner';
 import { Tooltip } from '../../../../components/ui/tooltip';
 import { useTranslation } from '../../../../i18n';
 import { cn } from '../../../../lib/utilities';
+import {
+    agentChatTaskKey,
+    stopAgentChatTasks,
+    useAgentChatTaskStopStore,
+} from '../../agent-chat-commands';
 import { AgentChatTaskEntry } from '../../tasks/agent-chat-task-entry';
 import { AgentChatTaskGlyph } from '../../tasks/agent-chat-task-glyph';
 import { markAgentChatFailuresSeen } from './agent-chat-seen-failures';
@@ -79,6 +86,43 @@ function EndedTasksToggle({
                 {count}
             </Button>
         </Tooltip>
+    );
+}
+
+/**
+ * Stops every running task that can be stopped, shown once there are at least two (one task has its own Stop). No
+ * confirmation, the same as each task's Stop. While every stop is pending it spins and refuses clicks; `aria-disabled`
+ * rather than `disabled` keeps a keyboard user's focus on it.
+ */
+function StopAllTasksButton({
+    taskIds,
+    terminalId,
+}: {
+    taskIds: readonly string[];
+    terminalId: string;
+}) {
+    const { t } = useTranslation();
+    const isStopping = useAgentChatTaskStopStore(({ stopping }) =>
+        taskIds.every((taskId) => stopping.has(agentChatTaskKey(terminalId, taskId))),
+    );
+    return (
+        <Button
+            aria-busy={isStopping || undefined}
+            aria-disabled={isStopping || undefined}
+            className="h-6 shrink-0 gap-1 px-1.5 text-[11px] text-muted hover:text-foreground aria-busy:cursor-progress"
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+                if (!isStopping) stopAgentChatTasks(terminalId, taskIds);
+            }}
+        >
+            {isStopping ? (
+                <Spinner className="size-3" role="presentation" />
+            ) : (
+                <Square aria-hidden="true" className="size-2 fill-current" />
+            )}
+            {t('agentChat.tasks.stopAll')}
+        </Button>
     );
 }
 
@@ -179,10 +223,10 @@ function SoleTaskSection({
 /**
  * Background work as a collapsible list in the composer strip (`agentChatBackgroundWork`): failures from the latest
  * turn first so one is never buried, then each running subagent and background shell with its elapsed time, opened in
- * its side tab on click where the host can open one and stoppable on its own. Ended work is counted by a header control
- * that reveals it. Failures stay until the user dismisses them, which files them under the ended tasks; the section
- * leaves once nothing runs and no failure waits. A single running task with no failure drops the header
- * (`SoleTaskSection`).
+ * its side tab on click where the host can open one and stoppable on its own or, with two or more running, all at once
+ * from the header. Ended work is counted by a header control that reveals it. Failures stay until the user dismisses
+ * them, which files them under the ended tasks; the section leaves once nothing runs and no failure waits. A single
+ * running task with no failure drops the header (`SoleTaskSection`).
  */
 export function AgentChatBackgroundWorkSection({
     terminalId,
@@ -225,6 +269,7 @@ function FoldableSection({
     const { t } = useTranslation();
     const { running, failed, ended } = work;
     const counts = agentChatBackgroundWorkCounts(work, t);
+    const stoppableIds = running.filter(canStopAgentChatTask).map(({ id }) => id);
     const isCollapsed = useIsAgentChatStripSectionCollapsed(terminalId, 'tasks');
     const [isShowingEnded, setShowingEnded] = useState(false);
     const endedListId = useId();
@@ -232,6 +277,9 @@ function FoldableSection({
         <AgentChatStripSection
             actions={
                 <>
+                    {stoppableIds.length >= 2 && (
+                        <StopAllTasksButton taskIds={stoppableIds} terminalId={terminalId} />
+                    )}
                     {ended.length > 0 && (
                         <EndedTasksToggle
                             count={ended.length}
