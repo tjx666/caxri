@@ -1,5 +1,5 @@
 import type { UsageLimit } from '@caxri/protocol';
-import { currentLimitWindows, remainingLimitPercent } from '@caxri/protocol';
+import { currentLimitWindows, LIMIT_WARNING_PERCENT, remainingLimitPercent } from '@caxri/protocol';
 
 import type { Translate } from '../../i18n';
 import { translate } from '../../i18n';
@@ -9,11 +9,6 @@ import { translate } from '../../i18n';
  * minute, and Codex writes a new reading with each turn, so a faster poll would only repeat the same figures.
  */
 export const AGENT_CHAT_PLAN_LIMITS_POLL_MS = 30_000;
-
-/**
- * The share used at which a window reads in the warning tone, Desktop's `LIMIT_WARNING_PERCENT`.
- */
-const LIMIT_WARNING_PERCENT = 90;
 
 export interface AgentChatPlanLimitRow {
     key: string;

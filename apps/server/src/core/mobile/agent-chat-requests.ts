@@ -342,6 +342,15 @@ export async function invokeMobileAgentChatRequest(
             reauthorize();
             return readout?.limit ?? null;
         }
+        case 'mobile.agentChat.dismissPlanPace': {
+            if (!terminal.provider)
+                throw new CaxriError('CONFLICT', 'This Chat has no Agent provider yet');
+            await forward({
+                method: 'usage.dismissPlanPace',
+                params: { provider: terminal.provider },
+            });
+            return null;
+        }
         case 'mobile.agentChat.stopTask': {
             await forward({
                 method: 'agentChat.stopTask',

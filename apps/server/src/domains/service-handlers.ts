@@ -162,6 +162,7 @@ type ServiceHandlerMethods =
     | 'agentHooks.get'
     | 'agentSkills.get'
     | 'usage.limits'
+    | 'usage.dismissPlanPace'
     | 'usage.report'
     | 'settings.update'
     | 'settings.trustDomain'
@@ -554,6 +555,7 @@ export function createServiceHandlers(services: {
         'agentHooks.get': () => agentHooks.getHealth(),
         'agentSkills.get': agentSkillHealthReader(database, agentEnvironment, userDataPath),
         'usage.limits': () => usage.readLimits(),
+        'usage.dismissPlanPace': ({ provider }) => usage.dismissPlanPace(provider),
         'usage.report': (parameters) => usage.report(parameters),
         'terminal.agentUsage': ({ terminalId }) => usage.readTerminal(terminalId),
         'terminal.agentTaskUsage': ({ terminalId, taskId }) =>

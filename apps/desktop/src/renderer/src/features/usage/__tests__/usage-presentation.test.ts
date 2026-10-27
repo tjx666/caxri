@@ -1,10 +1,10 @@
+import { LIMIT_WARNING_PERCENT } from '@caxri/protocol';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { translate } from '../../../i18n';
 import { useLocaleStore } from '../../../i18n/locale-store';
 import {
     canFilterUsageToSession,
-    LIMIT_WARNING_PERCENT,
     limitBarTone,
     pullRequestTileDetail,
     usageRowStatusLabel,

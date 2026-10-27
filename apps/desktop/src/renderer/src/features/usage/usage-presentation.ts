@@ -1,5 +1,5 @@
 import type { UsageReport, UsageSessionRow } from '@caxri/protocol';
-import { formatPercent } from '@caxri/protocol';
+import { formatPercent, LIMIT_WARNING_PERCENT } from '@caxri/protocol';
 
 import type { Translate } from '../../i18n';
 import { formatCount } from '../../lib/locale-format';
@@ -10,14 +10,8 @@ import { sessionTitleForDisplay } from '../session/session-title';
  * muted rows. Kept apart from `usage-metrics.ts`, which owns the report's derived figures and wording.
  */
 /**
- * A plan-limit window at or above this share of its allowance is drawn in `--warning`: close enough to the cap that the
- * next long turn may hit it.
- */
-export const LIMIT_WARNING_PERCENT = 90;
-
-/**
  * The fill role of a plan-limit bar. A limit bar is a quantity (`--chart`), not the screen's focus (`--accent`), and it
- * turns `--warning` once the window is nearly spent.
+ * turns `--warning` at `LIMIT_WARNING_PERCENT`, close enough to the cap that the next long turn may hit it.
  */
 export function limitBarTone(usedPercent: number): 'chart' | 'warning' {
     return usedPercent >= LIMIT_WARNING_PERCENT ? 'warning' : 'chart';

@@ -2,6 +2,8 @@ import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { UsageLimit } from '@caxri/protocol';
+
 import { fakeClaudeChatAgentMode } from './support/agent-chat-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
 import {
@@ -9,6 +11,7 @@ import {
     closeAppQuietly,
     createProjectSession,
     launchCaxri,
+    pageRequest,
     VISIBLE_SESSION,
 } from './support/helpers.ts';
 
@@ -68,6 +71,20 @@ test("a running Claude Chat reports its plan's 5-hour and weekly limits and warn
         await expect(usageChip).not.toHaveClass(/text-warning/u);
         await expect(usageChip).not.toHaveAttribute('data-status-urgent', '');
         await expect(usageChip).toContainText('wk 39% left');
+
+        // The Server keeps the dismissal, so the next poll does not bring the row back and a reloaded Renderer (as after
+        // a restart, or another Client) reads it hidden too.
+        await expect
+            .poll(async () => {
+                const limits = await pageRequest<UsageLimit[]>(page, 'usage.limits', {});
+                return limits.find((limit) => limit.provider === 'claude')?.paceDismissedAt;
+            })
+            .toBeGreaterThan(0);
+        await page.reload();
+        await expect(usageChip).toContainText('wk 39% left');
+        await expect(usageChip).not.toHaveClass(/text-warning/u);
+        await expect(chat.getByRole('textbox', { name: 'Message' })).toBeVisible();
+        await expect(pace).toHaveCount(0);
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });

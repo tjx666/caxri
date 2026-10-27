@@ -401,6 +401,16 @@ export const mobileAgentChatMethods = {
         params: z.strictObject(terminalTarget),
         result: usageLimitSchema.nullable(),
     },
+    /**
+     * The phone's pace reminder close button: `usage.dismissPlanPace` for the Chat's provider, so the reminder stays
+     * hidden for the day on this phone after a relaunch and on Desktop too. It only hides a reminder, so every role
+     * that may read the limit may dismiss it.
+     */
+    'mobile.agentChat.dismissPlanPace': {
+        ...commandPolicy('server', 'write', ['sessions.read']),
+        params: z.strictObject(terminalTarget),
+        result: z.null(),
+    },
     'mobile.agentChat.interrupt': {
         ...commandPolicy('server', 'control', ['terminals.steer']),
         params: z.strictObject(terminalTarget),

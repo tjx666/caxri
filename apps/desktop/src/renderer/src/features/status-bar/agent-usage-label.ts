@@ -3,6 +3,7 @@ import {
     currentLimitWindows,
     formatTokens,
     formatUsd,
+    LIMIT_WARNING_PERCENT,
     limitPaceShortfall,
     remainingLimitPercent,
 } from '@caxri/protocol';
@@ -14,7 +15,6 @@ import {
     localizedLimitWindowName,
     localizedShortLimitWindowName,
 } from '../../lib/usage-format';
-import { LIMIT_WARNING_PERCENT } from '../usage/usage-presentation';
 
 /**
  * How the conversation's estimated cost reads: undefined while every model is unpriced (`$0.00` would read as free),

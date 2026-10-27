@@ -83,6 +83,11 @@ const appStateValueSchemas = {
         )
         .max(8),
     /**
+     * When the user last dismissed each provider's plan pace reminder, from any Client, so the reminder stays hidden
+     * for the rest of the day on Desktop and the phone alike. See `usage/plan-pace-dismissals.ts`.
+     */
+    planPaceDismissals: z.partialRecord(agentProviderSchema, z.number().int().positive()),
+    /**
      * Each Chat's automatic continuation after its latest used-up plan limit (issue #2220), so a wait survives a Server
      * Core restart and its notice comes back after a history replay that lacks it. At most one per Chat Terminal; see
      * `agent-chat/continuation/chat-usage-limit-waits.ts`.
