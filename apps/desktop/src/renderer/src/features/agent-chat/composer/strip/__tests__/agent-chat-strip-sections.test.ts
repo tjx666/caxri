@@ -5,6 +5,7 @@ import { translate } from '../../../../../i18n';
 import {
     agentChatBackgroundWork,
     agentChatBackgroundWorkCounts,
+    agentChatBackgroundWorkSoleTask,
     agentChatLatestTurnStart,
     agentChatPlanProgressLabel,
     agentChatPlanSection,
@@ -184,5 +185,29 @@ describe('agentChatRunningKinds', () => {
         ]);
         expect(agentChatRunningKinds([shell])).toEqual([{ kind: 'shell', count: 1 }]);
         expect(agentChatRunningKinds([])).toEqual([]);
+    });
+});
+
+describe('agentChatBackgroundWorkSoleTask', () => {
+    function soleTask(tasks: AgentChatTask[]): AgentChatTask | undefined {
+        const work = agentChatBackgroundWork({
+            latestTurnStartedAt: 100,
+            seenFailureIds: NONE,
+            tasks,
+        });
+        return work && agentChatBackgroundWorkSoleTask(work);
+    }
+
+    it('returns the only running task, whatever ended before it', () => {
+        const sole = task('sole', 'running', 300);
+        expect(soleTask([task('done', 'completed', 200), sole])).toBe(sole);
+    });
+
+    it('keeps the header while several tasks run or a failure waits', () => {
+        const running = [task('a', 'running', 300), task('b', 'running', 310)];
+        const failed = task('failed', 'failed', 200);
+        expect(soleTask(running)).toBeUndefined();
+        expect(soleTask([running[0], failed])).toBeUndefined();
+        expect(soleTask([failed])).toBeUndefined();
     });
 });
