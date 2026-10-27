@@ -35,6 +35,24 @@ export function gitleaksLogOptions(
     return `${base}..${headRevision}`;
 }
 
+/**
+ * Verifies an explicit revision range before handing it to gitleaks. Gitleaks 8.30.1 logs Git's invalid-range error but
+ * still exits successfully after scanning zero commits, so the wrapper must fail closed on Git's own result.
+ */
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/gitleaks-scan.test.ts
+export async function isGitleaksRevisionRangeValid(
+    repoRoot: string,
+    logOptions: string | undefined,
+    run: typeof runChildProcess = runChildProcess,
+): Promise<boolean> {
+    if (!logOptions) return true;
+    const result = await run('git', ['rev-list', '--max-count=0', logOptions, '--'], {
+        cwd: repoRoot,
+        stdio: 'ignore',
+    });
+    return result === 0;
+}
+
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/gitleaks-scan.test.ts
 export interface GitleaksScanArguments {
     binaryPath: string;
@@ -43,6 +61,27 @@ export interface GitleaksScanArguments {
     repoRoot: string;
     staged: boolean;
 }
+
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/gitleaks-scan.test.ts
+export interface GitleaksScanOptions {
+    baseRevision?: string;
+    cacheRoot: string;
+    headRevision: string;
+    repoRoot: string;
+    staged: boolean;
+}
+
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/gitleaks-scan.test.ts
+export interface GitleaksScanDependencies {
+    resolveBinary?: typeof resolveGitleaksBinary;
+    run?: typeof runChildProcess;
+}
+
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/gitleaks-scan.test.ts
+export type GitleaksScanResult =
+    | { exitCode: 0; status: 'passed' }
+    | { exitCode: 1; status: 'invalid-revision-range' }
+    | { exitCode: number; status: 'scan-failed' };
 
 /**
  * Builds the full gitleaks argv. `--redact` keeps a real secret out of CI logs and terminal scrollback even when the
@@ -68,36 +107,60 @@ export function gitleaksArguments({
     ];
 }
 
+/**
+ * Runs the complete scan orchestration so tests can prove an invalid range stops before binary resolution or launch.
+ */
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/gitleaks-scan.test.ts
+export async function runGitleaksScan(
+    options: GitleaksScanOptions,
+    dependencies: GitleaksScanDependencies = {},
+): Promise<GitleaksScanResult> {
+    const run = dependencies.run ?? runChildProcess;
+    const logOptions = options.staged
+        ? undefined
+        : gitleaksLogOptions(options.baseRevision, options.headRevision);
+    if (!(await isGitleaksRevisionRangeValid(options.repoRoot, logOptions, run))) {
+        return { exitCode: 1, status: 'invalid-revision-range' };
+    }
+
+    const resolveBinary = dependencies.resolveBinary ?? resolveGitleaksBinary;
+    const binaryPath = await resolveBinary({ cacheRoot: options.cacheRoot });
+    const arguments_ = gitleaksArguments({
+        configPath: resolve(options.repoRoot, '.gitleaks.toml'),
+        logOptions,
+        repoRoot: options.repoRoot,
+        staged: options.staged,
+    });
+    const exitCode = await run(binaryPath, arguments_, {
+        cwd: options.repoRoot,
+        stdio: 'inherit',
+    });
+    return exitCode === 0 ? { exitCode: 0, status: 'passed' } : { exitCode, status: 'scan-failed' };
+}
+
 async function main(): Promise<void> {
-    const staged = process.argv.includes('--staged');
     const cacheRoot = process.env.RUNNER_TOOL_CACHE
         ? resolve(process.env.RUNNER_TOOL_CACHE, 'caxri')
         : resolve(projectRoot, '.cache', 'tool-cache');
-    const binaryPath = await resolveGitleaksBinary({ cacheRoot });
-    const logOptions = staged
-        ? undefined
-        : gitleaksLogOptions(
-              process.env.GITLEAKS_BASE_REVISION,
-              process.env.GITLEAKS_HEAD_REVISION ?? 'HEAD',
-          );
-
-    const arguments_ = gitleaksArguments({
-        configPath: resolve(projectRoot, '.gitleaks.toml'),
-        logOptions,
+    const result = await runGitleaksScan({
+        baseRevision: process.env.GITLEAKS_BASE_REVISION,
+        cacheRoot,
+        headRevision: process.env.GITLEAKS_HEAD_REVISION ?? 'HEAD',
         repoRoot: projectRoot,
-        staged,
+        staged: process.argv.includes('--staged'),
     });
-    const result = await runChildProcess(binaryPath, arguments_, {
-        cwd: projectRoot,
-        stdio: 'inherit',
-    });
-    if (result !== 0) {
+    if (result.status === 'invalid-revision-range') {
+        console.error(
+            'The configured gitleaks revision range cannot be resolved. Fetch both revisions or fix' +
+                ' GITLEAKS_BASE_REVISION/GITLEAKS_HEAD_REVISION before retrying.',
+        );
+    } else if (result.status === 'scan-failed') {
         console.error(
             'gitleaks reported a potential secret above (values redacted). Fix or, for a verified' +
                 ' false positive, extend .gitleaks.toml with a narrowly scoped allowlist entry.',
         );
-        process.exitCode = result;
     }
+    process.exitCode = result.exitCode;
 }
 
 if (import.meta.main) await main();
