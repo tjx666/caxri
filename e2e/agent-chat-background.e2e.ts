@@ -160,10 +160,16 @@ test('a Codex Chat steers Enter into a running turn, queues follow-ups on Cmd+En
         await queue.getByRole('button', { name: 'Edit queued message' }).last().click();
         await expectComposerValue(message, 'hello edit');
         await expect(queue.getByText('hello edit')).toHaveCount(0);
+        // Into an empty composer, Delete moves a text message back instead of discarding it, and says so.
         await message.fill('');
-        await queue.getByRole('button', { name: 'Delete queued message' }).last().click();
+        await queue
+            .getByRole('button', { name: 'Move queued message back to the composer' })
+            .last()
+            .click();
+        await expectComposerValue(message, 'hello third');
         await expect(queue.getByText('hello third')).toHaveCount(0);
-        // Undo in the toast puts the deleted message back where it was, not at the end.
+        // With a draft in the composer, Delete discards the message, and Undo in the toast puts it back where it was,
+        // not at the end.
         await queue.getByRole('button', { name: 'Delete queued message' }).first().click();
         await expect(queue.getByText('hello after this')).toHaveCount(0);
         await page.screenshot({
@@ -209,7 +215,7 @@ test('a Codex Chat steers Enter into a running turn, queues follow-ups on Cmd+En
         await expect(fourthRow.getByRole('button', { name: 'Steer now' })).toBeVisible();
         await expect(fourthRow.getByRole('button', { name: 'Edit queued message' })).toBeVisible();
         await expect(
-            fourthRow.getByRole('button', { name: 'Delete queued message' }),
+            fourthRow.getByRole('button', { name: 'Move queued message back to the composer' }),
         ).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('codex-queue-empty-enter.png') });
         await message.press('Enter');
