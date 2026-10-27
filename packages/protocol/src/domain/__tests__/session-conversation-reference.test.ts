@@ -30,7 +30,7 @@ describe('agentChatSessionReferenceRanges', () => {
     it('round-trips every reference the formatter writes, including quotes, spaces, and Chinese', () => {
         const references = [
             { filePath: '/tmp/refs/session-1.md', title: 'Fix login' },
-            { filePath: '/Users/a b/refs/session-2.md', title: '修复 "登录" 问题' },
+            { filePath: '/Users/x b/refs/session-2.md', title: '修复 "登录" 问题' },
             { filePath: '/tmp/refs/session-3.md', title: String.raw`back\slash` },
             { filePath: '/tmp/refs/session-4.md', title: '' },
         ];

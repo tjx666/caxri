@@ -24,9 +24,9 @@ describe('botLaunchArguments', () => {
     });
 
     it('quotes a path that needs escaping as one TOML key', () => {
-        expect(botTrustArguments(String.raw`/Users/a "b"\c/caxri-bot`)).toEqual([
+        expect(botTrustArguments(String.raw`/Users/x "b"\c/caxri-bot`)).toEqual([
             '-c',
-            String.raw`projects={ "/Users/a \"b\"\\c/caxri-bot" = { trust_level = "trusted" } }`,
+            String.raw`projects={ "/Users/x \"b\"\\c/caxri-bot" = { trust_level = "trusted" } }`,
         ]);
     });
 });
