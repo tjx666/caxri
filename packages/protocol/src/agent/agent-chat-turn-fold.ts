@@ -2,10 +2,10 @@ import type { AgentChatItem, AgentChatTurn } from './agent-chat-contract.js';
 import { isAgentChatItemVisible } from './agent-chat-presentation.js';
 
 /**
- * Where one fold sits in its turn. A message steered into a running turn starts a new segment, so a turn the user
- * steered twice folds into three segments. `startedAt` is when the segment's steered message arrived and `endedAt` when
- * the next one did; the first segment starts with the turn and the last ends with it, so those bounds come from the
- * turn instead (`agentChatFoldTiming`).
+ * Where one fold sits in its turn. A message steered into a running turn starts a new segment, and so does a
+ * compaction, so a turn the user steered twice folds into three segments. `startedAt` is when the segment's steered
+ * message or compaction notice arrived and `endedAt` when the next one did; the first segment starts with the turn and
+ * the last ends with it, so those bounds come from the turn instead (`agentChatFoldTiming`).
  */
 export interface AgentChatTurnFoldSegment {
     index: number;
@@ -37,14 +37,36 @@ export function agentChatFinalReplyId(items: readonly AgentChatItem[]): string |
 }
 
 /**
- * Splits a turn's visible items where a message was steered into it: every user message after the first item opens a
- * new segment. A turn nobody steered is one segment.
+ * Splits a turn's visible items where a message was steered into it or the conversation was compacted: each such item
+ * after the first opens a new segment. A compaction with no work after it (one that ended the turn, or came right
+ * before the final reply) stays in its segment, since splitting there would fold nothing and only cost the segment
+ * before it the turn's timing and outcome. A turn with neither is one segment.
  */
-function steeredSegments(visible: readonly AgentChatItem[]): AgentChatItem[][] {
+function turnSegments(
+    visible: readonly AgentChatItem[],
+    finalReplyId: string | undefined,
+): AgentChatItem[][] {
+    /**
+     * Whether anything foldable follows `index` before the next steered message.
+     */
+    const isWorkAhead = (index: number): boolean => {
+        for (let next = index + 1; next < visible.length; next += 1) {
+            const later = visible[next];
+            if (later.type === 'userMessage') return false;
+            if (later.id === finalReplyId) continue;
+            if (later.type === 'notice' && later.kind !== 'retrying') continue;
+            return true;
+        }
+        return false;
+    };
     const segments: AgentChatItem[][] = [];
     for (const [index, item] of visible.entries()) {
         const current = segments.at(-1);
-        if (!current || (index > 0 && item.type === 'userMessage')) segments.push([item]);
+        const isOpener =
+            index > 0 &&
+            (item.type === 'userMessage' ||
+                (item.type === 'notice' && item.kind === 'compacted' && isWorkAhead(index)));
+        if (!current || isOpener) segments.push([item]);
         else current.push(item);
     }
     return segments;
@@ -59,18 +81,29 @@ function steeredSegments(visible: readonly AgentChatItem[]): AgentChatItem[][] {
  * A message steered into the running turn splits it, as a steer ends a run in T3 Code: each segment folds its own work
  * and keeps its last Agent message in view as the reply to that steer. One fold for the whole turn would leave the
  * steered messages stacked together and hide every reply but the last.
+ *
+ * A compaction splits it the same way, so its notice stays between the work done before and after it. A long turn
+ * compacted twice otherwise showed both notices back to back below one fold, reading as one compaction repeated. A
+ * segment that ends at a compaction keeps no reply in view (its last Agent message is commentary, not an answer) unless
+ * it holds the final reply, as when the turn compacted right after answering.
  */
 export function foldAgentChatTurn(
     visible: readonly AgentChatItem[],
     finalReplyId: string | undefined,
 ): AgentChatTurnFoldPart[] {
-    const segments = steeredSegments(visible);
+    const segments = turnSegments(visible, finalReplyId);
     return segments.flatMap((items, index) => {
         const isClosesTurn = index === segments.length - 1;
-        const replyId = isClosesTurn ? finalReplyId : agentChatFinalReplyId(items);
+        const next = isClosesTurn ? undefined : segments[index + 1][0];
+        const replyId = isClosesTurn
+            ? finalReplyId
+            : next?.type === 'userMessage'
+              ? agentChatFinalReplyId(items)
+              : undefined;
         const isKept = (item: AgentChatItem): boolean =>
             item.type === 'userMessage' ||
             (replyId !== undefined && item.id === replyId) ||
+            (finalReplyId !== undefined && item.id === finalReplyId) ||
             (item.type === 'notice' && item.kind !== 'retrying');
         const folded = items.filter((item) => !isKept(item));
         const segment: AgentChatTurnFoldSegment = {
@@ -79,10 +112,7 @@ export function foldAgentChatTurn(
             closesTurn: isClosesTurn,
             ...(index > 0 &&
                 items[0]?.createdAt !== undefined && { startedAt: items[0].createdAt }),
-            ...(!isClosesTurn &&
-                segments[index + 1]?.[0]?.createdAt !== undefined && {
-                    endedAt: segments[index + 1]?.[0]?.createdAt,
-                }),
+            ...(next?.createdAt !== undefined && { endedAt: next.createdAt }),
         };
         const parts: AgentChatTurnFoldPart[] = [];
         let hasFold = false;
@@ -100,9 +130,10 @@ export function foldAgentChatTurn(
 }
 
 /**
- * How long one fold's segment ran, for its `Worked for` row. A turn nobody steered keeps the turn's own timing. A
- * segment takes the turn's start or end where it opens or closes the turn, and the steered messages' arrival times in
- * between; a bound the provider never recorded leaves the duration unknown, so the row says `Worked` without one.
+ * How long one fold's segment ran, for its `Worked for` row. A turn nobody steered or compacted keeps the turn's own
+ * timing. A segment takes the turn's start or end where it opens or closes the turn, and the arrival times of the
+ * steered messages and compaction notices in between; a bound the provider never recorded leaves the duration unknown,
+ * so the row says `Worked` without one.
  */
 export function agentChatFoldTiming(
     segment: AgentChatTurnFoldSegment,
