@@ -50,8 +50,8 @@ New here? Read [Getting started](docs/getting-started.md) for the model in five 
   that it works in Terminal first. Shell Sessions work without one.
 - [Homebrew](https://brew.sh/), only to install the optional notification helper.
 
-Intel Macs can run from source (see [Run from source](#run-from-source)); Windows and Linux desktop
-builds are not currently supported.
+Release builds are Apple Silicon only. Intel Macs can build Caxri from source (see
+[CONTRIBUTING.md](CONTRIBUTING.md)); Windows and Linux desktop builds are not currently supported.
 
 ## Install
 
@@ -187,77 +187,6 @@ The script reads session files without changing them. Default backup paths use `
 Pricing sources: [OpenAI](https://developers.openai.com/api/docs/pricing), [Anthropic](https://platform.claude.com/docs/en/about-claude/pricing).
 
 <!-- development-usage:end -->
-
-## Run from source
-
-### Development requirements
-
-- macOS 13 or newer (Apple Silicon or Intel for development from source)
-- Node.js 24 or newer
-- Bun 1.3 or newer
-- Xcode Command Line Tools
-- [`ni`](https://github.com/antfu-collective/ni)
-
-### Development quick start
-
-Clone this repository and open its directory, then run:
-
-```bash
-ni
-bun run dev
-```
-
-`bun run dev` is the first-clone path in this checkout. Coding-agent sessions and parallel
-worktrees start through `$switch-worktree` so each checkout gets its own profile; see
-[AGENTS.md](AGENTS.md).
-
-Desktop, Server Core, Terminal Host, and Extension Host logs are written beneath the active
-profile's `<userData>/logs/` directory. Unsigned development packages are written beneath
-`release.noindex/`. Install a published release from its DMG (see [Install](#install)); later
-versions arrive through the in-app updater.
-
-Caxri's Server Core-owned native ESM extension model and ViewContainer contribution contract are
-described in [docs/extensions.md](docs/extensions.md).
-
-Caxri's own diagnostics and reporting paths do not collect or upload source contents, Terminal
-output, or Agent transcripts. Caxri runs separately installed third-party Agent CLIs; their network
-behavior and data handling are governed by their respective vendors' terms and privacy policies.
-
-### Build the CLI from source
-
-```bash
-bun run build:cli
-node apps/cli/dist/caxri.cjs --help
-```
-
-The `caxri` CLI is a standalone Node.js 24+ bundle that talks only to the authenticated Server:
-never directly to Caxri's database, settings, or logs. It covers Projects, Sessions, Terminals,
-settings, logs, diagnostics, events, desktop window control, and Agent automation, and embeds the
-version-matched `caxri-cli` Agent skill. The full manual, including output modes, mutation safety,
-and command authority boundaries, is in [docs/cli.md](docs/cli.md).
-
-## Development
-
-Validation gates, from focused to exhaustive:
-
-```bash
-bun run --silent check [files...]   # changed-file lint / type / test routing
-bun run lint && bun run lint:type-aware
-bun run typecheck
-bun run test
-bun run test:e2e                    # Playwright Electron workflows
-bun run build && bun run package
-```
-
-Git hooks live in the repository-owned `.githooks` directory (`core.hooksPath` is configured on
-install); pre-commit runs `lint-staged`. Startup performance is gated by
-`CAXRI_BENCHMARK_PROJECT_ROOT=/path/to/large/repository bun run benchmark:startup`, which requires
-Server Core, Terminal, file tree, and Git to become usable within three seconds. Native
-compatibility probes: `bun run spike:native`, `spike:pty`, `spike:agents`.
-
-[AGENTS.md](AGENTS.md) is the always-on standing orders. Isolated worktrees, CI watching, and
-architecture contracts live in the owning `.agents/skills/` entries. Bundle budgets live in
-[docs/bundle-size.md](docs/bundle-size.md).
 
 ## Documentation
 
