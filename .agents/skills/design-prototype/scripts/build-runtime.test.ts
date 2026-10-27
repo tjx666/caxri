@@ -1,10 +1,13 @@
-import { readdir, readFile } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 
+import { execFileAsync } from '@caxri/system';
 import { describe, expect, it } from 'vitest';
 
 import { inlineThemeCss } from './inline-theme-css';
 import { readImportedCss } from './renderer-stylesheets';
+import { resolveEsbuild, WORKSPACE_SOURCE_CONDITIONS } from './runtime-esbuild';
 
 const skillDirectory = path.resolve(import.meta.dirname, '..');
 const repoRoot = path.resolve(skillDirectory, '../../..');
@@ -30,6 +33,42 @@ describe('design-prototype runtime manifest', () => {
             expect(entry, `add '${specifier}' to assets/entry.mjs and rebuild`).toContain(
                 `'${specifier}'`,
             );
+        }
+    });
+});
+
+describe('design-prototype runtime bundling', () => {
+    /**
+     * A checkout whose gitignored `packages/protocol/dist` predates a new export once failed the runtime build; the
+     * bundle must read workspace packages from source, never from whatever `dist/` happens to exist.
+     */
+    it('bundles workspace packages from their source, not their built dist', async () => {
+        const directory = await mkdtemp(path.join(tmpdir(), 'design-prototype-'));
+        try {
+            const entry = path.join(directory, 'entry.ts');
+            const metafile = path.join(directory, 'meta.json');
+            await writeFile(entry, "export { formatCpuPercent } from '@caxri/protocol';\n");
+            await execFileAsync(
+                await resolveEsbuild(),
+                [
+                    entry,
+                    '--bundle',
+                    '--format=esm',
+                    '--platform=browser',
+                    WORKSPACE_SOURCE_CONDITIONS,
+                    `--metafile=${metafile}`,
+                    `--outfile=${path.join(directory, 'out.js')}`,
+                ],
+                // Resolve from the Renderer, as `assets/entry.mjs`'s `@/` imports do.
+                { cwd: path.join(repoRoot, 'apps/desktop/src/renderer/src') },
+            );
+            const inputs = Object.keys(
+                (JSON.parse(await readFile(metafile, 'utf8')) as { inputs: object }).inputs,
+            );
+            expect(inputs.some((input) => input.includes('packages/protocol/src/'))).toBe(true);
+            expect(inputs.filter((input) => input.includes('packages/protocol/dist/'))).toEqual([]);
+        } finally {
+            await rm(directory, { recursive: true, force: true });
         }
     });
 });
