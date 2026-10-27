@@ -141,6 +141,14 @@ queued message remains. An unbound Chat is never parked, because it has no conve
 A Chat a paired phone has open (an `agentChat` subscription) counts as viewed, like a phone-watched
 Conversation, so a reply sent from the phone never finds its provider stopped.
 
+The idle rule also leaves a Chat running while its idle compaction is pending
+(`ChatIdleCompaction.isPending`, see [Idle Chat compaction](session-compaction.md#idle-chat-compaction)):
+a primary Claude Code or Grok Build Chat over the compaction threshold stays up until the compaction
+is attempted near the end of its prompt cache lifetime (minute 54 of a one-hour cache) or the cache
+expires, and the next sweep parks it. Without that hold a suspension window shorter than 54 minutes
+stops the Chat first, and the compaction never runs, since a suspended Chat is never started for it.
+The observation lease is unaffected.
+
 A Chat whose provider only a read started also holds an observation lease
 (`AgentChatService.readLeaseAt`): it is parked with reason `observation` two minutes
 (`CHAT_OBSERVATION_LEASE_MS`) after its Session is left, even with idle suspension off, so browsing

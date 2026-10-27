@@ -152,7 +152,7 @@ export const settingsCatalog: TranslatedNamespace<typeof source> = {
 
     'settings.terminal.idleSuspension.afterMinutes.title': '空闲 Agent 挂起时间',
     'settings.terminal.idleSuspension.afterMinutes.description':
-        'Agent 在你未查看的会话中等待多久后被挂起。仅在“在后台挂起空闲的 Agent”开启时生效。',
+        'Agent 在你未查看的会话中等待多久后被挂起。仅在“在后台挂起空闲的 Agent”开启时生效。即将为空闲生成摘要的较长对话会等摘要完成后再挂起。',
 
     'settings.agentChat.idleCompaction.enabled.title': '自动总结空闲的对话，保持回复迅速',
     'settings.agentChat.idleCompaction.enabled.description':

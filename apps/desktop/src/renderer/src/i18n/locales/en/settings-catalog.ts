@@ -160,7 +160,7 @@ export const settingsCatalog = {
 
     'settings.terminal.idleSuspension.afterMinutes.title': 'Suspend idle Agents after',
     'settings.terminal.idleSuspension.afterMinutes.description':
-        'How long an Agent waits, in a Session you are not viewing, before it is suspended. Used only while Suspend idle Agents in the background is on.',
+        'How long an Agent waits, in a Session you are not viewing, before it is suspended. Used only while Suspend idle Agents in the background is on. A long Chat that is about to be summarized while idle keeps running until the summary is done.',
 
     'settings.agentChat.idleCompaction.enabled.title': 'Summarize idle Chats to keep replies fast',
     'settings.agentChat.idleCompaction.enabled.description':

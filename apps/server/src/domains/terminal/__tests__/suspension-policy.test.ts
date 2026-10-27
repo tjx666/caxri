@@ -50,6 +50,7 @@ interface Scenario {
     deselectedAt?: number;
     chatReadLeaseAt?: number;
     isChatSuspendable?: boolean;
+    isChatCompactionPending?: boolean;
     isObservedRemotely?: boolean;
     sample?: TerminalActivitySample;
     selectedSessionId?: string;
@@ -65,6 +66,7 @@ function decide(scenario: Scenario = {}) {
         chatReadLeaseAt: () => scenario.chatReadLeaseAt,
         deselectedAt: () => scenario.deselectedAt,
         isChatSuspendable: () => scenario.isChatSuspendable ?? false,
+        isChatCompactionPending: () => scenario.isChatCompactionPending ?? false,
         isObservedRemotely: () => scenario.isObservedRemotely ?? false,
         now: NOW,
         sample: () => scenario.sample,
@@ -259,6 +261,31 @@ describe('decideTerminalSuspensions: idle rule', () => {
         ).toEqual([]);
     });
 
+    it('keeps an idle background Chat running while its idle compaction is pending', () => {
+        const chat = terminal({ kind: 'claude', provider: 'claude', surface: 'chat' });
+        const idleChat = {
+            deselectedAt: NOW - halfHour,
+            sample: idleSample,
+            settings: idleOn,
+            terminal: chat,
+            isChatSuspendable: true,
+        };
+
+        expect(decide({ ...idleChat, isChatCompactionPending: true })).toEqual([]);
+        expect(decide({ ...idleChat, isChatCompactionPending: false })).toEqual([
+            { reason: 'idle', terminalId: 'terminal-1' },
+        ]);
+        // Only a Chat compacts; a PTY Agent's idle suspension is unchanged.
+        expect(
+            decide({
+                deselectedAt: NOW - halfHour,
+                sample: idleSample,
+                settings: idleOn,
+                isChatCompactionPending: true,
+            }),
+        ).toEqual([{ reason: 'idle', terminalId: 'terminal-1' }]);
+    });
+
     it('is off by default and honors any configured window, down to one minute', () => {
         expect(decide({ deselectedAt: NOW - 4 * halfHour, sample: idleSample })).toEqual([]);
         expect(
@@ -400,6 +427,16 @@ describe('decideTerminalSuspensions: Chat observation lease', () => {
         expect(decide({ ...leased, isObservedRemotely: true })).toEqual([]);
         expect(decide({ ...leased, isChatSuspendable: false })).toEqual([]);
         expect(decide({ ...leased, chatReadLeaseAt: undefined })).toEqual([]);
+    });
+
+    it('reclaims an expired lease even while the idle compaction is pending', () => {
+        expect(
+            decide({
+                ...leased,
+                isChatCompactionPending: true,
+                settings: { 'terminal.idleSuspension.enabled': true },
+            }),
+        ).toEqual([{ reason: 'observation', terminalId: 'terminal-1' }]);
     });
 
     it('never applies a lease to a PTY Terminal', () => {

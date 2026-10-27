@@ -43,6 +43,14 @@ export function createTerminalSupervision({
     terminals: TerminalManager;
 }) {
     const { logger, send } = dependencies;
+    const idleCompaction = new ChatIdleCompaction({
+        agentChat,
+        database,
+        maintenanceTurns: coordinator.maintenanceTurns,
+        logger,
+        settings: () => configuration.getSettings().value,
+        watchHub,
+    });
     const terminalSuspension = new TerminalSuspensionService({
         database,
         logger,
@@ -54,17 +62,10 @@ export function createTerminalSupervision({
         remoteObservers: [dependencies.terminalExecution, transcripts, agentChat],
         terminals,
         chats: agentChat,
+        isChatCompactionPending: (terminalId) => idleCompaction.isPending(terminalId),
         watchHub,
     });
     suspensionState.service = terminalSuspension;
-    const idleCompaction = new ChatIdleCompaction({
-        agentChat,
-        database,
-        maintenanceTurns: coordinator.maintenanceTurns,
-        logger,
-        settings: () => configuration.getSettings().value,
-        watchHub,
-    });
     const resourceMonitor = new TerminalResourceMonitor({
         database,
         logger,

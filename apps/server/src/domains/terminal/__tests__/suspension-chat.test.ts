@@ -46,6 +46,44 @@ describe('TerminalSuspensionService: Agent Chats', () => {
         expect(await harness.service.sweep()).toEqual([]);
     });
 
+    it('parks an idle background Chat on the sweep after its pending idle compaction ends', async () => {
+        const chats = {
+            isSuspendable: vi.fn(() => true),
+            readLeaseAt: vi.fn((): number | undefined => undefined),
+            suspendIdle: vi.fn((terminalId: string) =>
+                Promise.resolve(
+                    terminal(terminalId, 'session-a', {
+                        lastProcessState: 'suspended',
+                        surface: 'chat',
+                    }),
+                ),
+            ),
+        };
+        const isChatCompactionPending = vi.fn(() => true);
+        const harness = createHarness({
+            chats,
+            isChatCompactionPending,
+            settings: idleAfterThirtyMinutes,
+        });
+        harness.terminals.set(
+            'terminal-a',
+            terminal('terminal-a', 'session-a', {
+                kind: 'claude',
+                provider: 'claude',
+                surface: 'chat',
+            }),
+        );
+        harness.service.start();
+        harness.advance(31 * 60_000);
+        expect(await harness.service.sweep()).toEqual([]);
+        expect(isChatCompactionPending).toHaveBeenCalledWith('terminal-a');
+
+        isChatCompactionPending.mockReturnValue(false);
+        harness.advance(15_000);
+        expect(await harness.service.sweep()).toEqual(['terminal-a']);
+        expect(chats.suspendIdle).toHaveBeenCalledWith('terminal-a', 'idle');
+    });
+
     it('reclaims a Chat provider that only a read started by default, but not one used since', async () => {
         const chats = {
             isSuspendable: vi.fn(() => true),
