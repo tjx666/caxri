@@ -1,4 +1,7 @@
 import type { AgentProvider } from '@caxri/protocol';
+import { errorMessage } from '@caxri/protocol';
+import type { StructuredLogger } from '@caxri/system';
+import { logEventCatalog } from '@caxri/system';
 
 import type { ShellPromotionCandidate } from './shell-promotion';
 
@@ -21,6 +24,17 @@ const MAX_DIRECT_AGENT_PROCESS_PROBES = 10;
 const MAX_PROCESS_PROBE_BACKOFF = 8;
 const MISSES_TO_CONFIRM_EXIT = 2;
 const PROCESS_PROBE_INTERVAL_MS = 1_000;
+/**
+ * Probe durations a watch keeps for its p95: the last fifteen minutes at the production interval, so an hours-long
+ * watch reports its recent cost in bounded memory. The maximum covers the whole watch.
+ */
+const MAX_WATCH_PROBE_SAMPLES = 900;
+
+/**
+ * Why an Agent exit watch ended, recorded once per watch as `agent.process_watch_ended`.
+ */
+type ProcessWatchEndReason =
+    'agent_exited' | 'availability_changed' | 'replaced' | 'server_closing' | 'terminal_ended';
 
 /**
  * Hook-opened and unknown-command candidates stay on the fast-retry cap: a hook can come from a nested Agent tool-call,
@@ -47,21 +61,35 @@ interface ShellProcessProbeOptions {
     intervalMs?: number;
     isCurrent: (terminalId: string, candidate: ShellPromotionCandidate) => boolean;
     isWatchCurrent: (terminalId: string, provider: AgentProvider) => boolean;
+    logger: Pick<StructuredLogger, 'write'>;
     onConfirmed: (
         terminalId: string,
         provider: AgentProvider,
         candidate: ShellPromotionCandidate,
     ) => boolean;
-    onError: (terminalId: string, error: unknown) => void;
     onExhausted: (terminalId: string, candidate: ShellPromotionCandidate) => void;
     onInactive: (terminalId: string, provider: AgentProvider) => void;
 }
 
 interface ForegroundAgentWatch {
+    failures: number;
+    maxProbeMs: number;
     misses: number;
+    probes: number;
+    /**
+     * The latest {@link MAX_WATCH_PROBE_SAMPLES} probe durations, oldest overwritten first.
+     */
+    probeSamples: number[];
     provider: AgentProvider;
     shellPid: number;
+    startedAt: number;
     timer?: NodeJS.Timeout;
+}
+
+function percentile95(samples: readonly number[]): number {
+    if (samples.length === 0) return 0;
+    const sorted = samples.toSorted((left, right) => left - right);
+    return sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * 0.95) - 1)];
 }
 
 /**
@@ -121,7 +149,7 @@ export class ShellProcessProbe {
                 this.schedule(terminalId, shellPid, candidate);
             }
         } catch (error) {
-            this.options.onError(terminalId, error);
+            this.logProbeFailure(terminalId, error);
             if (this.options.isCurrent(terminalId, candidate))
                 this.schedule(terminalId, shellPid, candidate);
         } finally {
@@ -129,24 +157,67 @@ export class ShellProcessProbe {
         }
     }
 
+    private logProbeFailure(terminalId: string, error: unknown): void {
+        this.options.logger.write('warn', logEventCatalog.agent.processProbeFailed, {
+            fields: { terminalId, error: errorMessage(error, 'unknown') },
+        });
+    }
+
     /**
      * Keeps only interactive availability in sync for an unmanaged foreground Agent. Two consecutive identity misses
      * avoid revoking availability during a transient process-list race; no process ID or signal authority is retained.
+     * The watch probes once a second for as long as the Agent runs, so its cost is recorded when it ends.
      */
     private watch(terminalId: string, shellPid: number, provider: AgentProvider): void {
         const existing = this.watches.get(terminalId);
-        if (existing?.timer) clearTimeout(existing.timer);
-        const watch: ForegroundAgentWatch = { misses: 0, provider, shellPid };
+        if (existing) this.endWatch(terminalId, existing, 'replaced');
+        const watch: ForegroundAgentWatch = {
+            failures: 0,
+            maxProbeMs: 0,
+            misses: 0,
+            probes: 0,
+            probeSamples: [],
+            provider,
+            shellPid,
+            startedAt: Date.now(),
+        };
         this.watches.set(terminalId, watch);
         this.scheduleWatch(terminalId, watch);
     }
 
+    private endWatch(
+        terminalId: string,
+        watch: ForegroundAgentWatch,
+        reason: ProcessWatchEndReason,
+    ): void {
+        if (watch.timer) clearTimeout(watch.timer);
+        watch.timer = undefined;
+        if (this.watches.get(terminalId) === watch) this.watches.delete(terminalId);
+        this.options.logger.write('info', logEventCatalog.agent.processWatchEnded, {
+            durationMs: Date.now() - watch.startedAt,
+            fields: {
+                terminalId,
+                provider: watch.provider,
+                reason,
+                probes: watch.probes,
+                failures: watch.failures,
+                probeP95Ms: Math.round(percentile95(watch.probeSamples)),
+                probeMaxMs: Math.round(watch.maxProbeMs),
+            },
+        });
+    }
+
+    private recordProbe(watch: ForegroundAgentWatch, startedAt: number): void {
+        const elapsed = performance.now() - startedAt;
+        watch.probeSamples[watch.probes % MAX_WATCH_PROBE_SAMPLES] = elapsed;
+        watch.probes += 1;
+        watch.maxProbeMs = Math.max(watch.maxProbeMs, elapsed);
+    }
+
     private scheduleWatch(terminalId: string, watch: ForegroundAgentWatch): void {
-        if (
-            this.watches.get(terminalId) !== watch ||
-            !this.options.isWatchCurrent(terminalId, watch.provider)
-        ) {
-            this.watches.delete(terminalId);
+        if (this.watches.get(terminalId) !== watch) return;
+        if (!this.options.isWatchCurrent(terminalId, watch.provider)) {
+            this.endWatch(terminalId, watch, 'availability_changed');
             return;
         }
         const timer = setTimeout(() => {
@@ -159,17 +230,21 @@ export class ShellProcessProbe {
     }
 
     private async inspectWatch(terminalId: string, watch: ForegroundAgentWatch): Promise<void> {
+        const startedAt = performance.now();
         try {
             const provider = await this.options.detect(watch.shellPid);
+            this.recordProbe(watch, startedAt);
             if (this.watches.get(terminalId) !== watch) return;
             watch.misses = provider === watch.provider ? 0 : watch.misses + 1;
             if (watch.misses >= MISSES_TO_CONFIRM_EXIT) {
-                this.watches.delete(terminalId);
+                this.endWatch(terminalId, watch, 'agent_exited');
                 this.options.onInactive(terminalId, watch.provider);
                 return;
             }
         } catch (error) {
-            this.options.onError(terminalId, error);
+            this.recordProbe(watch, startedAt);
+            watch.failures += 1;
+            this.logProbeFailure(terminalId, error);
             if (this.watches.get(terminalId) !== watch) return;
         }
         this.scheduleWatch(terminalId, watch);
@@ -205,15 +280,14 @@ export class ShellProcessProbe {
         this.timers.delete(terminalId);
         this.inFlight.delete(terminalId);
         const watch = this.watches.get(terminalId);
-        if (watch?.timer) clearTimeout(watch.timer);
-        this.watches.delete(terminalId);
+        if (watch) this.endWatch(terminalId, watch, 'terminal_ended');
     }
 
     close(): void {
         for (const { timer } of this.timers.values()) clearTimeout(timer);
         this.timers.clear();
         this.inFlight.clear();
-        for (const watch of this.watches.values()) if (watch.timer) clearTimeout(watch.timer);
-        this.watches.clear();
+        for (const [terminalId, watch] of this.watches)
+            this.endWatch(terminalId, watch, 'server_closing');
     }
 }

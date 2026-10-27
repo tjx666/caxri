@@ -87,6 +87,7 @@ export class AgentCoordinator {
         this.shellProcessProbe = new ShellProcessProbe({
             detect: options.detectForegroundAgent ?? detectForegroundAgentProvider,
             intervalMs: options.shellProcessProbeIntervalMs,
+            logger,
             isCurrent: (terminalId, candidate) =>
                 this.shellPromotionCandidates.get(terminalId) === candidate &&
                 candidate.expiresAt >= Date.now(),
@@ -100,10 +101,6 @@ export class AgentCoordinator {
             },
             onConfirmed: (terminalId, provider, candidate) =>
                 this.confirmShellPromotion(terminalId, provider, candidate),
-            onError: (terminalId, error) =>
-                this.logger.write('warn', logEventCatalog.agent.processProbeFailed, {
-                    fields: { terminalId, error: errorMessage(error, 'unknown') },
-                }),
             /**
              * Provider-bearing candidates stay until expiry for hook dedupe and Shell or switch metadata fallback.
              */

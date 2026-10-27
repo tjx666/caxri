@@ -6,8 +6,8 @@ import type { AgentProvider } from '@caxri/protocol';
 import { agentProviderCatalog, agentProviderIds } from '@caxri/protocol';
 import { execFileAsync, mapWithConcurrency } from '@caxri/system';
 
-const PROCESS_QUERY_TIMEOUT_MS = 2_000;
-const PROCESS_QUERY_MAX_BUFFER_BYTES = 2 * 1024 * 1024;
+import { foregroundProcessList, readMachineProcessList } from './process-list';
+
 const OPEN_FILE_QUERY_TIMEOUT_MS = 1_000;
 const OPEN_FILE_QUERY_MAX_BUFFER_BYTES = 512 * 1024;
 const MAX_FOREGROUND_AGENT_PROCESSES = 64;
@@ -176,17 +176,13 @@ export function agentProcessIdsFromProcessList(output: string, provider: AgentPr
 }
 
 /**
- * Reads process identity only; the output is never logged, persisted, or sent to the Renderer.
+ * Reads process identity only, from the shared table (see `SharedProcessList`); the output is never logged, persisted,
+ * or sent to the Renderer.
  */
 export async function detectForegroundAgentProvider(
     shellPid: number,
 ): Promise<AgentProvider | undefined> {
-    const result = await execFileAsync('/bin/ps', ['-axo', 'pid=,ppid=,pgid=,tpgid=,command='], {
-        encoding: 'utf8',
-        maxBuffer: PROCESS_QUERY_MAX_BUFFER_BYTES,
-        timeout: PROCESS_QUERY_TIMEOUT_MS,
-    });
-    return foregroundAgentProviderFromProcessList(result.stdout, shellPid);
+    return foregroundAgentProviderFromProcessList(await foregroundProcessList.read(), shellPid);
 }
 
 /**
@@ -288,31 +284,19 @@ export async function detectForegroundAgentOpenFiles(
     provider: AgentProvider,
 ): Promise<ProcessOpenFile[]> {
     if (process.platform !== 'darwin' && process.platform !== 'linux') return [];
-    let processList: { stdout: string };
+    let processList: string;
     try {
-        processList = await execFileAsync('/bin/ps', ['-axo', 'pid=,ppid=,pgid=,tpgid=,command='], {
-            encoding: 'utf8',
-            maxBuffer: PROCESS_QUERY_MAX_BUFFER_BYTES,
-            timeout: PROCESS_QUERY_TIMEOUT_MS,
-        });
+        // A fresh read: these one-off binding probes keep their own timing instead of the shared exit-watch table.
+        processList = await readMachineProcessList();
     } catch {
         return [];
     }
-    const pids = foregroundAgentProcessIdsFromProcessList(processList.stdout, shellPid, provider);
+    const pids = foregroundAgentProcessIdsFromProcessList(processList, shellPid, provider);
     if (!pids || pids.length === 0) return [];
     try {
         const openFiles = await readOpenFiles(pids);
-        const currentProcessList = await execFileAsync(
-            '/bin/ps',
-            ['-axo', 'pid=,ppid=,pgid=,tpgid=,command='],
-            {
-                encoding: 'utf8',
-                maxBuffer: PROCESS_QUERY_MAX_BUFFER_BYTES,
-                timeout: PROCESS_QUERY_TIMEOUT_MS,
-            },
-        );
         const currentPids = foregroundAgentProcessIdsFromProcessList(
-            currentProcessList.stdout,
+            await readMachineProcessList(),
             shellPid,
             provider,
         );
@@ -397,17 +381,13 @@ async function lsofOpenFiles(pids: readonly number[]): Promise<ProcessOpenFile[]
 export async function detectAgentOpenFiles(provider: AgentProvider): Promise<AgentOpenFilesProbe> {
     if (process.platform !== 'darwin' && process.platform !== 'linux')
         return { ok: false, reason: 'unsupported_platform' };
-    let processList: { stdout: string };
+    let processList: string;
     try {
-        processList = await execFileAsync('/bin/ps', ['-axo', 'pid=,ppid=,pgid=,tpgid=,command='], {
-            encoding: 'utf8',
-            maxBuffer: PROCESS_QUERY_MAX_BUFFER_BYTES,
-            timeout: PROCESS_QUERY_TIMEOUT_MS,
-        });
+        processList = await readMachineProcessList();
     } catch {
         return { ok: false, reason: 'process_list_failed' };
     }
-    const pids = agentProcessIdsFromProcessList(processList.stdout, provider);
+    const pids = agentProcessIdsFromProcessList(processList, provider);
     if (pids.length === 0) return { ok: true, files: [] };
     if (pids.length > MAX_MACHINE_AGENT_PROCESSES)
         return { ok: false, reason: 'too_many_processes' };
