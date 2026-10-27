@@ -34,15 +34,20 @@ import {
     MAX_REPLY_DEPTH,
     MAX_WAITING_PER_ENDPOINT,
     PENDING_MESSAGE_STATES,
+    pushQueued,
+    removeQueued,
     resolvePullReceiver,
     resolveSender,
 } from './rules';
+import type { AgentMessageTransitionReason } from './transition-log';
+import { logMessageTransition } from './transition-log';
 import type {
     AgentInboxRegistryOptions,
     AgentMessageSendInput,
     DeliveryReservation,
     DuplicateReceipt,
     IdempotencyReceipt,
+    MessageAdmission,
     MessageWaiter,
     StoredMessage,
 } from './types';
@@ -102,7 +107,7 @@ export class AgentInboxRegistry {
                 referencesEqual(message.receipt.to, reference) &&
                 PENDING_MESSAGE_STATES.includes(message.state)
             )
-                this.finish(message, 'unavailable');
+                this.finish(message, 'unavailable', 'delivery_disabled');
         }
     }
 
@@ -154,36 +159,32 @@ export class AgentInboxRegistry {
 
         const createdAt = this.now();
         const messageId = this.id();
+        const admission: MessageAdmission = {
+            canonicalDigest,
+            createdAt,
+            fingerprint,
+            from,
+            idempotencyMapKey,
+            input,
+            messageId,
+        };
         const baseExpiresAt = createdAt + input.ttlMs;
         let to: AgentEndpointSummary | undefined;
         try {
             to = this.endpoints.resolve(input.to);
         } catch {
             return this.storeTerminal(
-                from,
-                input,
-                messageId,
-                createdAt,
+                admission,
                 baseExpiresAt,
                 'unavailable',
-                fingerprint,
-                canonicalDigest,
-                idempotencyMapKey,
+                'target_unavailable',
             );
         }
-        if (to.projectId !== from.projectId || to.messaging.deliveryMode === 'unavailable')
-            return this.storeTerminal(
-                from,
-                input,
-                messageId,
-                createdAt,
-                Math.min(baseExpiresAt, to.expiresAt),
-                'unavailable',
-                fingerprint,
-                canonicalDigest,
-                idempotencyMapKey,
-                to,
-            );
+        const targetExpiresAt = Math.min(baseExpiresAt, to.expiresAt);
+        if (to.projectId !== from.projectId || to.messaging.deliveryMode === 'unavailable') {
+            const reason = to.projectId === from.projectId ? 'target_unavailable' : 'cross_project';
+            return this.storeTerminal(admission, targetExpiresAt, 'unavailable', reason, to);
+        }
 
         let depth = 0;
         if (input.replyTo) {
@@ -200,15 +201,10 @@ export class AgentInboxRegistry {
             depth = parent.depth + 1;
             if (depth > MAX_REPLY_DEPTH)
                 return this.storeTerminal(
-                    from,
-                    input,
-                    messageId,
-                    createdAt,
-                    Math.min(baseExpiresAt, to.expiresAt),
+                    admission,
+                    targetExpiresAt,
                     'capacity',
-                    fingerprint,
-                    canonicalDigest,
-                    idempotencyMapKey,
+                    'reply_depth_exceeded',
                     to,
                     depth,
                 );
@@ -216,15 +212,10 @@ export class AgentInboxRegistry {
 
         if (!this.admitPairTraffic(from.ref, to.ref, createdAt))
             return this.storeTerminal(
-                from,
-                input,
-                messageId,
-                createdAt,
-                Math.min(baseExpiresAt, to.expiresAt),
+                admission,
+                targetExpiresAt,
                 'capacity',
-                fingerprint,
-                canonicalDigest,
-                idempotencyMapKey,
+                'pair_rate_limited',
                 to,
                 depth,
             );
@@ -248,42 +239,21 @@ export class AgentInboxRegistry {
                       status === 'held' ? createdAt + AGENT_MESSAGE_APPROVAL_TTL_MS : to.expiresAt,
                   );
         if (status === 'refused')
-            return this.storeTerminal(
-                from,
-                input,
-                messageId,
-                createdAt,
-                expiresAt,
-                'refused',
-                fingerprint,
-                canonicalDigest,
-                idempotencyMapKey,
-                to,
-                depth,
-            );
+            return this.storeTerminal(admission, expiresAt, 'refused', 'policy_refused', to, depth);
 
         const receiverKey = endpointKey(to.ref);
         const queue = status === 'held' ? this.held : this.waiting;
         const limit = status === 'held' ? MAX_HELD_PER_ENDPOINT : MAX_WAITING_PER_ENDPOINT;
         const byteLength = Buffer.byteLength(input.body, 'utf8');
+        const isQueueFull = (queue.get(receiverKey)?.length ?? 0) >= limit;
         if (
-            (queue.get(receiverKey)?.length ?? 0) >= limit ||
+            isQueueFull ||
             this.pendingMessages >= MAX_PENDING_MESSAGES ||
             this.pendingBytes + byteLength > MAX_PENDING_BYTES
-        )
-            return this.storeTerminal(
-                from,
-                input,
-                messageId,
-                createdAt,
-                expiresAt,
-                'capacity',
-                fingerprint,
-                canonicalDigest,
-                idempotencyMapKey,
-                to,
-                depth,
-            );
+        ) {
+            const reason = isQueueFull ? 'queue_full' : 'pending_limit_reached';
+            return this.storeTerminal(admission, expiresAt, 'capacity', reason, to, depth);
+        }
 
         const receipt = this.newReceipt(from.ref, input, messageId, createdAt, expiresAt, status);
         const message: StoredMessage = {
@@ -300,8 +270,9 @@ export class AgentInboxRegistry {
         this.store(message, canonicalDigest);
         this.pendingMessages += 1;
         this.pendingBytes += byteLength;
-        this.pushQueued(queue, receiverKey, messageId);
+        pushQueued(queue, receiverKey, messageId);
         this.scheduleExpiry(message);
+        this.logTransition(message, null, 'admitted');
         this.emitReceipt(message);
         if (status === 'held') this.options.emitHeld?.(heldMessageProjection(message));
         else this.satisfyWaiter(receiverKey);
@@ -309,15 +280,18 @@ export class AgentInboxRegistry {
     }
 
     private storeTerminal(
-        from: AgentEndpointSummary,
-        input: AgentMessageSendInput,
-        messageId: string,
-        createdAt: number,
+        {
+            canonicalDigest,
+            createdAt,
+            fingerprint,
+            from,
+            idempotencyMapKey,
+            input,
+            messageId,
+        }: MessageAdmission,
         expiresAt: number,
         status: Extract<AgentMessageReceipt['status'], 'capacity' | 'refused' | 'unavailable'>,
-        fingerprint: string,
-        canonicalDigest: string,
-        idempotencyMapKey: string,
+        reason: AgentMessageTransitionReason,
         to?: AgentEndpointSummary,
         depth = 0,
     ): AgentMessageReceipt {
@@ -333,6 +307,7 @@ export class AgentInboxRegistry {
             to,
         };
         this.store(message, canonicalDigest);
+        this.logTransition(message, null, reason);
         this.emitReceipt(message);
         return receipt;
     }
@@ -455,12 +430,14 @@ export class AgentInboxRegistry {
             AgentMessageReceipt['status'],
             'capacity' | 'delivered' | 'expired' | 'refused' | 'unavailable'
         >,
+        reason: AgentMessageTransitionReason,
     ): void {
         if (!PENDING_MESSAGE_STATES.includes(message.state)) return;
+        const previousStatus = message.receipt.status;
         if (message.to) {
             const key = endpointKey(message.to.ref);
-            this.removeQueued(this.waiting, key, message.receipt.messageId);
-            this.removeQueued(this.held, key, message.receipt.messageId);
+            removeQueued(this.waiting, key, message.receipt.messageId);
+            removeQueued(this.held, key, message.receipt.messageId);
         }
         if (message.timer) clearTimeout(message.timer);
         message.timer = undefined;
@@ -470,7 +447,32 @@ export class AgentInboxRegistry {
         message.byteLength = 0;
         message.state = status;
         message.receipt = { ...message.receipt, status, updatedAt: this.now() };
+        this.logTransition(message, previousStatus, reason);
         this.emitReceipt(message);
+    }
+
+    /**
+     * Ends a pending message whose lifetime ran out, naming whether it ran out in the approval window or the queue.
+     */
+    private expire(message: StoredMessage): void {
+        this.finish(message, 'expired', message.state === 'held' ? 'held_expired' : 'ttl_elapsed');
+    }
+
+    private logTransition(
+        message: StoredMessage,
+        previousStatus: AgentMessageReceipt['status'] | null,
+        reason: AgentMessageTransitionReason,
+    ): void {
+        const key = endpointKey(message.receipt.to);
+        const queueDepth = (this.waiting.get(key)?.length ?? 0) + (this.held.get(key)?.length ?? 0);
+        logMessageTransition(
+            this.options.logger,
+            message,
+            previousStatus,
+            reason,
+            queueDepth,
+            this.now(),
+        );
     }
 
     private emitReceipt(message: StoredMessage): void {
@@ -479,7 +481,7 @@ export class AgentInboxRegistry {
 
     private scheduleExpiry(message: StoredMessage): void {
         message.timer = setTimeout(
-            () => this.finish(message, 'expired'),
+            () => this.expire(message),
             Math.max(1, message.receipt.expiresAt - this.now()),
         );
         message.timer.unref();
@@ -509,7 +511,7 @@ export class AgentInboxRegistry {
         const now = this.now();
         for (const message of this.messages.values()) {
             if (message.receipt.expiresAt <= now && PENDING_MESSAGE_STATES.includes(message.state))
-                this.finish(message, 'expired');
+                this.expire(message);
         }
         for (const [fingerprint, record] of this.duplicates) {
             if (record.expiresAt <= now) this.duplicates.delete(fingerprint);
@@ -519,20 +521,6 @@ export class AgentInboxRegistry {
             if (recent.length > 0) this.pairTraffic.set(key, recent);
             else this.pairTraffic.delete(key);
         }
-    }
-
-    private pushQueued(map: Map<string, string[]>, key: string, messageId: string): void {
-        const queue = map.get(key) ?? [];
-        queue.push(messageId);
-        map.set(key, queue);
-    }
-
-    private removeQueued(map: Map<string, string[]>, key: string, messageId: string): void {
-        const queue = map.get(key);
-        if (!queue) return;
-        const index = queue.indexOf(messageId);
-        if (index !== -1) queue.splice(index, 1);
-        if (queue.length === 0) map.delete(key);
     }
 
     send(
@@ -622,17 +610,18 @@ export class AgentInboxRegistry {
         this.endpoints.resolve(message.to.ref);
         const receiverKey = endpointKey(message.to.ref);
         if ((this.waiting.get(receiverKey)?.length ?? 0) >= MAX_WAITING_PER_ENDPOINT) {
-            this.finish(message, 'capacity');
+            this.finish(message, 'capacity', 'queue_full');
             return message.receipt;
         }
-        this.removeQueued(this.held, endpointKey(message.to.ref), messageId);
+        removeQueued(this.held, endpointKey(message.to.ref), messageId);
         message.state = 'waiting';
         message.receipt = {
             ...message.receipt,
             status: 'waiting',
             updatedAt: this.now(),
         };
-        this.pushQueued(this.waiting, receiverKey, messageId);
+        pushQueued(this.waiting, receiverKey, messageId);
+        this.logTransition(message, 'held', 'user_approved');
         this.emitReceipt(message);
         this.satisfyWaiter(receiverKey);
         return message.receipt;
@@ -643,7 +632,7 @@ export class AgentInboxRegistry {
         const message = this.messages.get(messageId);
         if (!message) throw new CaxriError('NOT_FOUND', 'Held Agent message was not found');
         if (message.state !== 'held') return message.receipt;
-        this.finish(message, 'refused');
+        this.finish(message, 'refused', 'user_denied');
         return message.receipt;
     }
 
@@ -712,7 +701,7 @@ export class AgentInboxRegistry {
         if (endpointKey(receiver.ref) !== reservation.endpointKey) return;
         this.reservations.delete(requestId);
         const message = this.messages.get(reservation.messageId);
-        if (message?.state === 'delivering') this.finish(message, 'delivered');
+        if (message?.state === 'delivering') this.finish(message, 'delivered', 'pulled');
     }
 
     /**
@@ -732,13 +721,13 @@ export class AgentInboxRegistry {
         const message = this.messages.get(reservation.messageId);
         if (message?.state !== 'delivering') return;
         if (message.receipt.expiresAt <= this.now()) {
-            this.finish(message, 'expired');
+            this.expire(message);
             return;
         }
         try {
             this.endpoints.resolve(message.receipt.to);
         } catch {
-            this.finish(message, 'expired');
+            this.finish(message, 'expired', 'endpoint_retired');
             return;
         }
         message.state = 'waiting';
@@ -765,7 +754,8 @@ export class AgentInboxRegistry {
             // A retired generation can never satisfy its fingerprints again; releasing them keeps
             // retirement consistent with receipt eviction and close.
             this.releaseDuplicate(message);
-            if (PENDING_MESSAGE_STATES.includes(message.state)) this.finish(message, 'expired');
+            if (PENDING_MESSAGE_STATES.includes(message.state))
+                this.finish(message, 'expired', 'endpoint_retired');
         }
         this.policies.delete(key);
         this.waiting.delete(key);

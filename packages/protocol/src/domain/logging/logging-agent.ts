@@ -147,6 +147,20 @@ export const agentDispatchLogEvents = {
     transitioned: 'agent_dispatch.transitioned',
 } as const;
 
+/**
+ * Peer Inbox messages between Agent Endpoints (`caxri agent message`).
+ */
+export const agentMessageLogEvents = {
+    /**
+     * A Peer Message receipt changed status: admitted as `waiting` or `held`, approved, delivered by a pull, or ended
+     * as `refused`, `expired`, `unavailable`, or `capacity`. Carries `messageId`, `previousStatus` (`null` when
+     * admitted), `status`, a closed `reason` (`AgentMessageTransitionReason`), `durationMs` since the message was
+     * created, the receiver's `queueDepth` (waiting plus held), `replyDepth`, `hasReplyTo`, and the opaque
+     * `fromEndpointId` and `toEndpointId`. Never the body, a preview, a token, or a working directory.
+     */
+    transitioned: 'agent_message.transitioned',
+} as const;
+
 export const agentEndpointLogEvents = {
     messagingChangedListenerFailed: 'agent_endpoint.messaging_changed_listener_failed',
     retireFailed: 'agent_endpoint.retire_failed',

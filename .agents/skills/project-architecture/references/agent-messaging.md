@@ -25,7 +25,11 @@ before that boundary requeues the message at the FIFO front. The held-message li
 only a bounded preview; Desktop fetches the selected full in-memory body on demand and cannot approve
 until that fetch succeeds. Approval moves only one held message into the receiver Inbox. Peer text
 carries `origin: peer` and can never grant a permission,
-change settings, invoke a slash command, wake an Agent, or write a user prompt.
+change settings, invoke a slash command, wake an Agent, or write a user prompt. Every receipt status
+change writes one content-free `agent_message.transitioned` record with a closed `reason` (for
+example `held_expired` versus `ttl_elapsed`, or `user_denied` versus `policy_refused`) and the time
+since creation, like the dispatch transitions in
+[Agent dispatch receipts](../../../../docs/agent-dispatch-receipts.md).
 
 Agent dispatch/control and human Terminal steer are separate command domains rather than Peer Inbox
 fallbacks. A default Agent Endpoint can read same-Project dispatch receipts, but `agent:control` is a

@@ -127,12 +127,15 @@ export class AgentEndpointRegistry {
     private readonly byEndpoint = new Map<string, StoredEndpoint>();
     private readonly byTerminal = new Map<string, StoredEndpoint>();
     private readonly generations = new Map<string, GenerationRecord>();
-    private readonly logger?: StructuredLogger;
     private readonly messagingChangedListeners = new Set<AgentEndpointMessagingChangedListener>();
     private readonly retiredListeners = new Set<AgentEndpointRetiredListener>();
     private readonly retired = new Map<string, AgentEndpointSummary>();
     private readonly now: () => number;
     private readonly token: () => string;
+    /**
+     * Server Core's logger, which the Peer Inbox built on these endpoints shares.
+     */
+    readonly logger?: StructuredLogger;
 
     constructor(
         private readonly hostId: string,
