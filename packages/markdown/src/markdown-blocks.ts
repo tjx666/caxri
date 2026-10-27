@@ -69,6 +69,11 @@ export interface MarkdownBlockOptions {
      * in.
      */
     fileLinks?: boolean;
+    /**
+     * Keep a single line break as a break instead of joining the lines with a space. Off by default, as CommonMark
+     * reads prose; on for text written as lines, such as a Hook's stderr.
+     */
+    breaks?: boolean;
 }
 
 /**
@@ -119,7 +124,7 @@ function inlineLeaf(token: Token, options: MarkdownBlockOptions): MarkdownInline
             return { type: 'code', value: token.content, ...(file && { file }) };
         }
         case 'softbreak': {
-            return { type: 'text', value: ' ' };
+            return options.breaks ? { type: 'break' } : { type: 'text', value: ' ' };
         }
         case 'hardbreak': {
             return { type: 'break' };
