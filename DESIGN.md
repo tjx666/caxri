@@ -1307,7 +1307,7 @@ at 60% of the pane and scrolls past it. Above everything in the dock, a recovery
 continue: a provider failure in a `--danger` bordered card with Retry (a conversation the provider
 could not resume adds a body naming the cause and Open as Terminal), or a hand-over to another
 client in a neutral `--border` card with the PTY recovery bar's unplugged glyph, its Detached label,
-and Resume; while either shows, Send is disabled. Running subagents and background shells, and the Agent's plan, live in the composer strip (below)
+and Resume. The card is inset 12px like the composer strip so the two share edges; while either shows, Send is disabled. Running subagents and background shells, and the Agent's plan, live in the composer strip (below)
 as collapsible sections rather than cards or popovers. The Background work section lists failed then running
 tasks with elapsed time and their own Stop, and a header control (a history glyph with the ended count, so ended work
 takes no row of its own) expands the ended tasks, most recent first, with how each ended; a shell is named by the Agent's
