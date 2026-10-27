@@ -22,6 +22,7 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 
 import { execFileAsync, runChildProcess } from '../../../../scripts/exec';
+import { playwrightReporterArgument } from '../../../../scripts/reporters/public-e2e-reporter-policy';
 import { showDemoStatusBar } from './promo-android';
 import { assertReleaseApkFresh, buildReleaseApk, RELEASE_APK } from './promo-apk';
 import { composePromoImage } from './promo-image';
@@ -121,6 +122,7 @@ async function main(): Promise<void> {
                 'test',
                 '--config',
                 join(import.meta.dirname, 'promo-playwright.config.ts'),
+                playwrightReporterArgument(),
             ],
             {
                 cwd: repoRoot,

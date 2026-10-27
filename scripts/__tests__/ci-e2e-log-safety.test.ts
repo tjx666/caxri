@@ -185,6 +185,8 @@ describe('public Actions E2E log boundary', () => {
                 .map(({ path }) => path)
                 .toSorted((left, right) => left.localeCompare(right)),
         ).toEqual([
+            // Starts the local promo capture with the reporter policy below.
+            '.agents/skills/promo-images/scripts/promo.ts',
             '.agents/skills/quality-check/scripts/full-suite-authorization.ts',
             '.github/workflows/release.yml',
             'package.json',
@@ -193,7 +195,10 @@ describe('public Actions E2E log boundary', () => {
             'scripts/run-e2e-census-fixture.ts',
         ]);
         for (const { path, source } of alternateConfigOwners) {
-            if (path === 'scripts/run-e2e-census-fixture.ts') {
+            if (
+                path === 'scripts/run-e2e-census-fixture.ts' ||
+                path === '.agents/skills/promo-images/scripts/promo.ts'
+            ) {
                 expect(source).toContain('playwrightReporterArgument');
             } else if (path === 'scripts/mobile-android-acceptance.ts') {
                 expect(source.match(/--config|['"`]-c['"`]/gu)).toEqual(["'-c'"]);
