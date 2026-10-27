@@ -75,7 +75,6 @@ function terminalFixture(overrides: Partial<TerminalRecord> = {}): TerminalRecor
         kind: 'shell',
         cwd: '/repo',
         title: 'Shell',
-        icon: 'terminal',
         orderIndex: 0,
         lastProcessState: 'running',
         createdAt: 0,

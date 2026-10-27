@@ -60,7 +60,6 @@ import {
 import { archiveOneSession, restoreArchivedSessions } from './session-archive';
 import type { CreateSessionOptions } from './session-create';
 import { createSession as createSessionRow } from './session-create';
-import { clearDeletedSessionCreators } from './session-creator';
 import {
     reorderPinnedSession,
     reorderSessionInProject,
@@ -91,6 +90,7 @@ export class CaxriDatabase {
     private readonly db: CaxriDatabase_;
     private readonly agentIdentity: AgentIdentity;
     readonly protocolState: CaxriDatabase_['protocolState'];
+    readonly credentials: CaxriDatabase_['credentials'];
     readonly mobileAgentSubmitReceipts: CaxriDatabase_['mobileAgentSubmitReceipts'];
     readonly agentDelegations: CaxriDatabase_['agentDelegations'];
     readonly agentSessionUsage: CaxriDatabase_['agentSessionUsage'];
@@ -104,6 +104,7 @@ export class CaxriDatabase {
         this.db = new CaxriDatabase_(path, options);
         this.agentIdentity = new AgentIdentity(this.db);
         this.protocolState = this.db.protocolState;
+        this.credentials = this.db.credentials;
         this.mobileAgentSubmitReceipts = this.db.mobileAgentSubmitReceipts;
         this.agentDelegations = this.db.agentDelegations;
         this.agentSessionUsage = this.db.agentSessionUsage;
@@ -477,7 +478,6 @@ export class CaxriDatabase {
         this.db.transaction(() => {
             if (!this.db.sessions.remove(sessionId))
                 throw new CaxriError('NOT_FOUND', 'Session not found');
-            clearDeletedSessionCreators(this.db);
             const projectId = this.db.appState.get('lastSelectedProjectId') ?? null;
             const sessions = projectId
                 ? this.db.sessions.list(projectId)

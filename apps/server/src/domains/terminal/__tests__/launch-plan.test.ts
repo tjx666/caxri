@@ -15,7 +15,6 @@ const record: TerminalRecord = {
     kind: 'codex',
     provider: 'codex',
     title: 'Codex',
-    icon: 'terminal',
     orderIndex: 0,
     cwd: process.cwd(),
     createdAt: 1,

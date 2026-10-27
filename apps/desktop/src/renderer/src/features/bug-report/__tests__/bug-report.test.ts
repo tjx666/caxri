@@ -23,7 +23,6 @@ function terminal(id: string, overrides: Partial<TerminalRecord> = {}): Terminal
         provider: 'claude',
         cwd: '/private/project',
         title: id,
-        icon: 'terminal',
         orderIndex: 0,
         lastProcessState: 'running',
         lastAgentProcessState: 'running',

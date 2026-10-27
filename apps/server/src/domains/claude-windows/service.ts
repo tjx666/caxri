@@ -188,10 +188,10 @@ export class ClaudeWindowService {
                   ? decision.naturalFor?.plannedAt
                   : undefined;
         if (decision.kind === 'active' && decision.naturalFor) {
-            schedule.processedThrough = decision.naturalFor.plannedAt;
+            schedule.processedThroughAt = decision.naturalFor.plannedAt;
             this.record(schedule, 'natural_window_started', decision.naturalFor.plannedAt);
         } else if (decision.kind === 'skipRenewal') {
-            schedule.processedThrough = decision.due.plannedAt;
+            schedule.processedThroughAt = decision.due.plannedAt;
             this.record(schedule, 'renewal_skipped', decision.due.plannedAt);
         } else if (canTrigger && decision.kind === 'weeklyLimit') {
             this.record(schedule, 'weekly_limit', decision.due.plannedAt);
@@ -221,7 +221,7 @@ export class ClaudeWindowService {
         reading: ClaudeAccountReading,
         due: Extract<KeeperDecision, { kind: 'trigger' }>['due'],
     ): Promise<CheckResult> {
-        schedule.processedThrough = due.plannedAt;
+        schedule.processedThroughAt = due.plannedAt;
         this.schedules.save(schedule);
         this.isTriggering = true;
         this.state = this.stateOf(schedule, reading, 'triggering');

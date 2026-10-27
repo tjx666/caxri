@@ -33,11 +33,7 @@ import { ControlServer } from './control-server';
 import type { CoreForwardedMethod } from './core-methods';
 import { createAgentMessaging } from './create-agent-messaging';
 import { createServerDomainService } from './create-domain-service';
-import {
-    invokeDelegationAccess,
-    isDelegationAccessRequest,
-    openDelegationAccess,
-} from './delegation-access';
+import { invokeDelegationAccess, isDelegationAccessRequest } from './delegation-access';
 import { ServerDesktopRouter } from './desktop-router';
 import {
     invokeExtensionControlRequest,
@@ -49,11 +45,7 @@ import type { ExtensionService } from './extensions/service';
 import { createDomainOperationForwarder } from './forward-domain-operation';
 import { acceptHostStop } from './host-stop';
 import { createIdleExitConnectionTracker, createIdleExitMonitor } from './idle-exit';
-import {
-    isMobileControlRequest,
-    openMobileAccessController,
-    resolveMobileAgentEndpoint,
-} from './mobile';
+import { isMobileControlRequest, resolveMobileAgentEndpoint } from './mobile';
 import { MutationAdmission } from './mutation-admission';
 import { assertOwnerOnlyMethod, projectScope } from './principal-project-scope';
 import { acquireServerProfile } from './profile';
@@ -67,6 +59,7 @@ import { principalRequestKey, RequestCancellationRegistry } from './request-canc
 import type { ServerCore, ServerCoreOptions } from './server-core-contract';
 import type { CommandStopFallbackReference } from './server-core-control-callbacks';
 import { createServerCoreControlCallbacks } from './server-core-control-callbacks';
+import { createServerCredentialAccess } from './server-credential-access';
 import { createTerminalExecution } from './terminal-host/create-execution';
 import { invokeTerminalSend } from './terminal-send';
 import { withRequestOrigin } from './with-request-origin';
@@ -86,23 +79,10 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         userDataPath: options.userDataPath,
         version: options.version,
     });
-    const releaseStartup = async () => {
-        eventLoopMonitor.stop();
-        await lease.release();
-    };
     // Fed by `ControlServer` and `MobileGateway` below into one aggregate for `docs/adr/0010-server-core-idle-exit.md`.
     const idleExitConnections = createIdleExitConnectionTracker();
-    const mobileAccess = await openMobileAccessController({
-        logger,
-        directory: lease.paths.directory,
-        ...(options.mobileHostDisplayName && { hostDisplayName: options.mobileHostDisplayName }),
-        onConnectionCountChanged: (count) => idleExitConnections.updateMobileCount(count),
-        registryPath: lease.paths.mobileDevices,
-        ...(options.mobileUpdateDirectory && { updateDirectory: options.mobileUpdateDirectory }),
-        onOpenError: releaseStartup,
-    });
+    const credentials = createServerCredentialAccess();
     logger.updateBaseContext({ bootId: lease.identity.processIdentity, buildId: options.buildId });
-    const delegationAccess = await openDelegationAccess(lease.paths.directory, releaseStartup);
     const agentEndpoints = new AgentEndpointRegistry(lease.identity.processIdentity, { logger });
     let server: ControlServer | undefined;
     const { providerMessaging, agentInbox } = createAgentMessaging(agentEndpoints, () => server);
@@ -119,7 +99,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         userDataPath: lease.paths.userDataPath,
     });
     const domainService = createServerDomainService({
-        hasMobileAttentionRecipient: (projectId) => mobileAccess.hasAttentionRecipient(projectId),
+        hasMobileAttentionRecipient: credentials.hasAttentionRecipient,
         agentEndpointControl: endpointControl,
         agentHooksPath: options.agentHooksPath,
         createServices: options.createDomainServices,
@@ -184,7 +164,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
             const envelope = persistedEnvelope ?? recoveryJournal.publish(event);
             if (envelope) server?.broadcast(envelope);
         }
-        mobileAccess.publish(event);
+        credentials.publish(event);
     };
     domainService.onEvent(deliver);
     domainService.onActiveContextChanged(() => {
@@ -210,7 +190,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
             // shutdown can wait up to 5s for its child to exit, and under the previous ordering that delay let an
             // OS-initiated SIGTERM beat Core's `host.shutdown` request to Terminal Host.
             await domainService.shutdown();
-            await mobileAccess.close();
+            await credentials.close();
             await server?.close();
             agentInbox.close();
             await providerMessaging.close();
@@ -230,25 +210,29 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                     `Host received a desktop-owned method: ${request.method}`,
                 );
             if (isMobileControlRequest(request))
-                return mobileAccess.invokeControl(
-                    request,
-                    context,
-                    domainService,
-                    (terminalId) => resolveMobileAgentEndpoint(agentEndpoints, terminalId),
-                    forwardDomainOperation,
-                );
+                return credentials
+                    .mobile()
+                    .invokeControl(
+                        request,
+                        context,
+                        domainService,
+                        (terminalId) => resolveMobileAgentEndpoint(agentEndpoints, terminalId),
+                        forwardDomainOperation,
+                    );
             if (isDelegationAccessRequest(request))
                 return invokeDelegationAccess(
                     request,
                     context,
-                    delegationAccess,
+                    credentials.delegation(),
                     forwardDomainOperation,
                 );
             if (
                 context.principal.kind === 'paired-device' &&
                 (request.method === 'terminal.preview' || request.method === 'session.markRead')
             )
-                await mobileAccess.validatePairedDeviceRequest(request, context, domainService);
+                await credentials
+                    .mobile()
+                    .validatePairedDeviceRequest(request, context, domainService);
             if (isExtensionControlRequest(request))
                 return invokeExtensionControlRequest(request, extensionService, mutationAdmission);
             assertOwnerOnlyMethod(context, request.method);
@@ -334,7 +318,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                 case 'agent.control.interrupt':
                 case 'agent.control.stop':
                     return forwardDomainOperation(
-                        agentControlRequest(request, context, agentEndpoints, mobileAccess),
+                        agentControlRequest(request, context, agentEndpoints, credentials.mobile()),
                     );
                 case 'agent.session.rename':
                 case 'agent.session.archive':
@@ -509,14 +493,26 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         await domainService.start();
         const protocolRecovery = await domainService.recoveryState();
         const protocolIdentity = protocolRecovery.identity();
-        mobileAccess.attach(
-            serverAdapter,
-            lease.identity.processIdentity,
-            protocolIdentity,
-            domainService,
-            terminalExecution,
-            () => extensionService,
-        );
+        await credentials.open(domainService, lease.paths.directory, {
+            logger,
+            ...(options.mobileHostDisplayName && {
+                hostDisplayName: options.mobileHostDisplayName,
+            }),
+            onConnectionCountChanged: (count) => idleExitConnections.updateMobileCount(count),
+            ...(options.mobileUpdateDirectory && {
+                updateDirectory: options.mobileUpdateDirectory,
+            }),
+        });
+        credentials
+            .mobile()
+            .attach(
+                serverAdapter,
+                lease.identity.processIdentity,
+                protocolIdentity,
+                domainService,
+                terminalExecution,
+                () => extensionService,
+            );
         logger.updateBaseContext({ serverId: protocolIdentity.serverId });
         recoveryJournal.initialize(protocolIdentity, protocolRecovery);
         logger.write('info', logEventCatalog.serverCore.recoveryReady, {
@@ -569,7 +565,8 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                 server: serverAdapter,
             },
             authenticateAgent: (credential) => agentEndpoints.authenticate(credential),
-            authenticateDelegation: (credential) => delegationAccess.authenticate(credential),
+            authenticateDelegation: (credential) =>
+                credentials.delegation().authenticate(credential),
             consumeDesktopTarget: (targetId, generation) => {
                 if (!desktopRouter)
                     throw new CaxriError('UNAVAILABLE', 'Desktop routing is unavailable');
@@ -578,7 +575,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
             desktopCredential: lease.desktopCredential,
             invokeDesktopOperation: (request) =>
                 request.method === 'mobile.device.revoke.apply'
-                    ? mobileAccess.invokeDesktopOperation(request)
+                    ? credentials.mobile().invokeDesktopOperation(request)
                     : forwardDomainOperation(request),
             logger,
             identity: lease.identity,
@@ -609,7 +606,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                 agentEndpoints,
                 agentInbox,
                 commandStopFallbackReference,
-                delegationAccess,
+                delegationAccess: credentials.delegation(),
                 dispatchWaitIds,
                 domainService,
                 logger,

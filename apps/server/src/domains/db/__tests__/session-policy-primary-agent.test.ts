@@ -15,7 +15,6 @@ function terminal(overrides: Partial<TerminalRecord> = {}): TerminalRecord {
         provider: undefined,
         cwd: '/repo',
         title: 'Shell',
-        icon: 'shell',
         orderIndex: 0,
         agentSessionId: undefined,
         lastProcessState: 'running',

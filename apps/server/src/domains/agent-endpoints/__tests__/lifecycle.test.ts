@@ -29,7 +29,6 @@ function terminal(
         cwd: '/project',
         title: kind === 'shell' ? 'Shell' : 'Codex',
         ptyTitle: 'dynamic PTY title',
-        icon: 'terminal',
         orderIndex: 0,
         lastProcessState: 'starting',
         createdAt: 1,

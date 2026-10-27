@@ -134,7 +134,7 @@ Full audit 2026-10-26 @ `c23b63b9d` revalidated all seven as still present; its 
 ### AD-test-migration-relative-fixtures: [RESOLVED · Coverage or observability gap · M]
 
 - **Summary:** Upgrade tests built their starting database as "current version minus k" or by dropping a hand-kept list of later tables, so every new migration broke unrelated old tests.
-- **Evidence:** `apps/server/src/domains/db/__tests__/pre-migration.fixture.ts` builds a database just before a named migration tag through the runner's own `executableMigrationSql`; the seven upgrade tests (`agent-chat-subagents`, `agent-chat-persistence-migration`, `session-creator`, `chat-permission-migration`, `agent-session-usage`, `terminal-surface-migration`, and `bot/__tests__/inbox`) anchor on tags. `persistence.md` states the rule.
+- **Evidence:** `apps/server/src/domains/db/__tests__/pre-migration.fixture.ts` builds a database just before a named migration tag through the runner's own `executableMigrationSql`; the seven upgrade tests (`agent-chat-subagents`, `agent-chat-persistence-migration`, `session-creator`, `chat-permission-migration`, `agent-session-usage`, `terminal-surface-migration`, and `bot/__tests__/inbox`) anchor on tags. `persistence.md` states the rule. The schema-54 baseline folded every one of those migrations, so the fixture and its upgrade tests were retired with them; the `caxri/no-schema-version-offset` rule keeps the tag-anchoring requirement for the next migration.
 - **First seen:** 2026-10-26 @ c23b63b9d · **Last verified:** 2026-10-26 with the fix
 - **Resolved:** 2026-10-26 via [issue caxri#2601](https://github.com/tjx666/caxri/issues/2601).
 
@@ -190,7 +190,7 @@ Full audit 2026-10-26 @ `c23b63b9d` revalidated all seven as still present; its 
 ### AD-persist-delegation-cap-and-repair-guards: [RESOLVED · Confirmed defect · M]
 
 - **Summary:** Agent delegation records hit the 1024 cap permanently and rejected new tasks; the terminal-tab repair write path and the database drop list had no regression guard.
-- **Evidence:** `AgentDelegationsModel.insert` prunes the oldest settled, answer-less, unlinked records before admitting a new one and removes their task directories (`reclaimPrunedDelegationFiles`), keeping the `CAPACITY` error as backstop (`docs/agent-delegation.md`); new tests pin the revision/CONFLICT behavior after a `terminalTabRepair` read and that the drop list matches the current schema tables.
+- **Evidence:** `AgentDelegationsModel.insert` prunes the oldest settled, answer-less, unlinked records before admitting a new one and removes their task directories (`reclaimPrunedDelegationFiles`), keeping the `CAPACITY` error as backstop (`docs/agent-delegation.md`); new tests pin the revision/CONFLICT behavior after a `terminalTabRepair` read and that the drop list matches the current schema tables. The schema-54 baseline replaced that list with dropping every table found in `sqlite_master`, so the list and its guard are gone.
 - **First seen:** 2026-10-21 @ d0e5f01fc · **Last verified:** 2026-10-21 with the fix
 - **Resolved:** 2026-10-21 via [issue caxri#2332](https://github.com/tjx666/caxri/issues/2332).
 

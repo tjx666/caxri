@@ -8,14 +8,12 @@ import { expect, it, onTestFinished, vi } from 'vitest';
 import { ControlServer } from '../control-server';
 import { DelegationAccessRegistry } from '../delegation-access-registry';
 import { acquireServerProfile } from '../profile';
+import { createMemoryDelegationClientStore } from './credential-stores.fixture';
 
 it('authenticates a scoped external client and rechecks revocation before cached replies', async () => {
     const userDataPath = await mkdtemp(join(tmpdir(), 'caxri-external-transport-'));
     const lease = await acquireServerProfile({ userDataPath, version: '1.0.0' });
-    const registry = await DelegationAccessRegistry.open(
-        lease.paths.directory,
-        join(lease.paths.directory, 'clients.json'),
-    );
+    const registry = DelegationAccessRegistry.open(createMemoryDelegationClientStore());
     const issued = await registry.create(
         { projectId: 'project', sessionId: 'session', callerProvider: 'codex' },
         60_000,
@@ -70,10 +68,7 @@ it('authenticates a scoped external client and rechecks revocation before cached
 it('withholds an admitted response when access is revoked while waiting', async () => {
     const userDataPath = await mkdtemp(join(tmpdir(), 'caxri-external-wait-'));
     const lease = await acquireServerProfile({ userDataPath, version: '1.0.0' });
-    const registry = await DelegationAccessRegistry.open(
-        lease.paths.directory,
-        join(lease.paths.directory, 'clients.json'),
-    );
+    const registry = DelegationAccessRegistry.open(createMemoryDelegationClientStore());
     const issued = await registry.create(
         { projectId: 'project', sessionId: 'session', callerProvider: 'codex' },
         60_000,
@@ -143,10 +138,7 @@ it('withholds an admitted response when access is revoked while waiting', async 
 it("returns the Server's wait timeout instead of racing it with the client deadline", async () => {
     const userDataPath = await mkdtemp(join(tmpdir(), 'caxri-external-wait-timeout-'));
     const lease = await acquireServerProfile({ userDataPath, version: '1.0.0' });
-    const registry = await DelegationAccessRegistry.open(
-        lease.paths.directory,
-        join(lease.paths.directory, 'clients.json'),
-    );
+    const registry = DelegationAccessRegistry.open(createMemoryDelegationClientStore());
     const issued = await registry.create(
         { projectId: 'project', sessionId: 'session', callerProvider: 'codex' },
         60_000,

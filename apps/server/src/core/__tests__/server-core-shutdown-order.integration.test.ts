@@ -9,6 +9,7 @@ import type { DomainHandlers } from '../../domains/domain-services';
 import * as extensionServiceFactory from '../extensions/create-service';
 import type { ServerCore } from '../server-core';
 import { startServerCore } from '../server-core';
+import { createMemoryCredentialStores } from './credential-stores.fixture';
 
 function fixtureHandlers(overrides: Partial<DomainHandlers>): DomainHandlers {
     return overrides as DomainHandlers;
@@ -49,6 +50,7 @@ describe('Server Core application', () => {
                 Promise.resolve({
                     close: record('domainService.shutdown'),
                     handlers: fixtureHandlers({}),
+                    credentials: createMemoryCredentialStores(),
                     protocolRecovery: createTestProtocolRecoveryState(),
                     validateRequestContext: () => {},
                 }),

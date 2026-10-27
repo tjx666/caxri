@@ -28,19 +28,13 @@ import type WebSocket from 'ws';
 import type { MobileDeviceRecord } from '../device-registry';
 import { MobileGateway } from '../gateway';
 import { readMobileUpdateSource } from '../update-bundle';
-import {
-    cleanupRegistryDirectories,
-    nextMessage,
-    openSocket,
-    registryFixture,
-} from './gateway-client.fixture';
+import { nextMessage, openSocket, registryFixture } from './gateway-client.fixture';
 
 const SERVER_ID = 'a'.repeat(32);
 const APK_BYTES = new TextEncoder().encode('fake-apk-bytes');
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
-    await cleanupRegistryDirectories();
     const paths = [...temporaryDirectories];
     temporaryDirectories.length = 0;
     await Promise.all(paths.map((path) => rm(path, { recursive: true, force: true })));
@@ -63,7 +57,7 @@ const bundleDirectory = async (): Promise<string> => {
 };
 
 const openGateway = async ({ withBundle = true }: { withBundle?: boolean } = {}) => {
-    const registry = await registryFixture();
+    const registry = registryFixture();
     const record: MobileDeviceRecord = registry.preparePair({
         displayName: 'Test phone',
         platform: 'android',

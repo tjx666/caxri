@@ -5,7 +5,7 @@ import type { CommandExecutionContext, Principal } from '@caxri/protocol';
 import { CaxriError, delegationProviderSchema } from '@caxri/protocol';
 import { z } from 'zod';
 
-import { fileSystemCode, readPrivateJsonFile, replacePrivateJsonFile } from './private-json-store';
+import type { DelegationClientStore } from '../domains/db';
 
 const accessRecordSchema = z.strictObject({
     clientId: z.uuid(),
@@ -18,10 +18,7 @@ const accessRecordSchema = z.strictObject({
     expiresAt: z.number().int().positive(),
     revokedAt: z.number().int().positive().optional(),
 });
-const storeSchema = z.strictObject({
-    version: z.literal(1),
-    clients: z.array(accessRecordSchema).max(128),
-});
+const accessRecordsSchema = z.array(accessRecordSchema).max(128);
 type AccessRecord = z.infer<typeof accessRecordSchema>;
 type AccessBinding = Pick<AccessRecord, 'projectId' | 'sessionId' | 'callerProvider'>;
 type ExternalPrincipal = Extract<Principal, { kind: 'delegation-client' }>;
@@ -38,35 +35,18 @@ function summary(record: AccessRecord) {
  * Durable, revocable external identities; no profile-owner secret or synthetic managed Terminal is borrowed.
  */
 export class DelegationAccessRegistry {
-    static async open(directory: string, path: string, now: () => number = Date.now) {
-        let records: AccessRecord[] = [];
-        try {
-            const value = await readPrivateJsonFile({
-                path,
-                maxBytes: 131_072,
-                messages: {
-                    malformed: 'Delegation access registry is malformed',
-                    notPrivate: 'Delegation access registry must be private',
-                    oversized: 'Delegation access registry exceeds its limit',
-                    wrongOwner: 'Delegation access registry belongs to another user',
-                },
-            });
-            const parsed = storeSchema.safeParse(value);
-            if (!parsed.success)
-                throw new CaxriError('VALIDATION', 'Delegation access registry is malformed');
-            records = parsed.data.clients;
-        } catch (error) {
-            if (fileSystemCode(error) !== 'ENOENT') throw error;
-        }
-        return new DelegationAccessRegistry(directory, path, records, now);
+    static open(store: DelegationClientStore, now: () => number = Date.now) {
+        const parsed = accessRecordsSchema.safeParse(store.load());
+        if (!parsed.success)
+            throw new CaxriError('VALIDATION', 'Delegation access registry is malformed');
+        return new DelegationAccessRegistry(store, parsed.data, now);
     }
 
     private records: Map<string, AccessRecord>;
     private writeTail = Promise.resolve();
 
     private constructor(
-        private readonly directory: string,
-        private readonly path: string,
+        private readonly store: DelegationClientStore,
         records: AccessRecord[],
         private readonly now: () => number,
     ) {
@@ -81,12 +61,7 @@ export class DelegationAccessRegistry {
             await previous;
             const records = new Map(this.records);
             const result = change(records);
-            await replacePrivateJsonFile({
-                directory: this.directory,
-                path: this.path,
-                temporaryPrefix: '.delegation-access-',
-                value: storeSchema.parse({ version: 1, clients: records.values().toArray() }),
-            });
+            this.store.write(accessRecordsSchema.parse(records.values().toArray()));
             this.records = records;
             return result;
         })();
@@ -95,7 +70,7 @@ export class DelegationAccessRegistry {
                 await operation;
             } catch {
                 /*
-                A failed atomic write must release subsequent mutations.
+                A failed write must release subsequent mutations.
                 */
             }
         })();

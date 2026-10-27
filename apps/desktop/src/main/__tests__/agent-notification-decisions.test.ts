@@ -41,7 +41,6 @@ const terminal: TerminalRecord = {
     provider: 'claude',
     cwd: '/project',
     title: 'Claude Code',
-    icon: 'claude',
     orderIndex: 0,
     lastProcessState: 'running',
     createdAt: 1,

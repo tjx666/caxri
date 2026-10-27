@@ -45,7 +45,6 @@ export interface ServerProfilePaths {
     hostLease: string;
     lock: string;
     manifest: string;
-    mobileDevices: string;
     profileId: string;
     userDataPath: string;
 }
@@ -85,7 +84,6 @@ export async function resolveServerProfilePaths(userDataPath: string): Promise<S
         hostLease: join(directory, 'host-lease.json'),
         lock: join(directory, 'owner.lock'),
         manifest: join(directory, 'manifest.json'),
-        mobileDevices: join(directory, 'mobile-devices.json'),
         profileId,
         userDataPath: canonicalUserDataPath,
     };

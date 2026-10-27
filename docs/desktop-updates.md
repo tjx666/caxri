@@ -36,7 +36,8 @@ shows the state and asks for the next step.
 
 A release that moves the database baseline (the clean-install cutoff in
 `apps/server/src/domains/db/connection.ts`) rebuilds an older database empty on its first launch,
-so the Project and Session list disappears. Project folders, files, and the Agents' own
+so the Project and Session list disappears. Paired phones and delegation clients live in that
+database too, so phones pair again and delegation clients are minted again. Project folders, files, and the Agents' own
 conversation stores are untouched, and Server Core keeps a `VACUUM INTO` snapshot of the old
 database beside it (`<database>.v<version>-<timestamp>.bak`) before rebuilding; if that copy
 cannot be written and reopened, it refuses to rebuild.

@@ -59,6 +59,14 @@ const appStateValueSchemas = {
      */
     botHandovers: z.array(botHandoverSchema).max(1_000),
     /**
+     * Mobile gateway preferences beside `mobile_devices`: the owner left access on (the next Server start reopens the
+     * gateway without another click) and the last port it listened on.
+     */
+    mobileGateway: z.strictObject({
+        accessEnabled: z.literal(true).optional(),
+        preferredPort: z.number().int().min(1).max(65_535).optional(),
+    }),
+    /**
      * Each provider account's weekly usage guard, so a restart neither lifts it early nor grants a second hand-off in
      * the same window. See `usage/usage-guard.ts`.
      */

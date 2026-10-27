@@ -41,7 +41,7 @@ afterEach(async () => {
 
 /**
  * Exiting one agent and launching another inside the same PTY must move the durable Terminal identity
- * (kind/provider/title/icon) to the new provider, confirmed by the independent foreground-process probe.
+ * (kind/provider/title) to the new provider, confirmed by the independent foreground-process probe.
  */
 describe('AgentCoordinator provider switch', () => {
     it('switches a bound Agent Terminal after a direct different-provider command is confirmed', async () => {
@@ -88,7 +88,6 @@ describe('AgentCoordinator provider switch', () => {
                 .toBe('claude');
             expect(detectForegroundAgent).toHaveBeenCalledWith(4242);
             expect(database.getTerminal(created.terminal!.id)).toMatchObject({
-                icon: 'claude',
                 kind: 'claude',
                 title: 'Claude',
             });
@@ -149,7 +148,6 @@ describe('AgentCoordinator provider switch', () => {
                 .poll(() => database.getTerminal(created.terminal!.id)?.provider)
                 .toBe('claude');
             expect(database.getTerminal(created.terminal!.id)).toMatchObject({
-                icon: 'claude',
                 kind: 'claude',
             });
         } finally {
@@ -203,7 +201,6 @@ describe('AgentCoordinator provider switch', () => {
                 .toBe('claude');
             expect(database.getTerminal(created.terminal!.id)).toMatchObject({
                 agentSessionId: 'claude-metadata-session',
-                icon: 'claude',
                 kind: 'claude',
             });
             await expect
@@ -243,7 +240,6 @@ describe('AgentCoordinator provider switch', () => {
             await vi.waitFor(() => expect(detectForegroundAgent).toHaveBeenCalled());
             await new Promise((resolve) => setTimeout(resolve, 20));
             expect(database.getTerminal(created.terminal!.id)).toMatchObject({
-                icon: 'codex',
                 kind: 'codex',
                 provider: 'codex',
                 title: 'Codex',
@@ -291,7 +287,6 @@ describe('AgentCoordinator provider switch', () => {
                 expect(detectForegroundAgent).toHaveBeenCalledWith(4242);
                 expect(database.getTerminal(created.terminal!.id)).toMatchObject({
                     agentSessionId: 'existing-session',
-                    icon: 'claude',
                     kind: 'claude',
                     provider: 'claude',
                 });
@@ -707,7 +702,6 @@ describe('AgentCoordinator provider switch', () => {
              */
             expect(database.getTerminal(created.terminal!.id)).toMatchObject({
                 agentSessionId: 'claude-hook-session',
-                icon: 'claude',
                 kind: 'claude',
                 title: 'Claude',
             });

@@ -82,7 +82,6 @@ export const terminalRecordSchema = z.object({
      * Optional live Shell display title reported by the PTY through OSC 0/2. Agent bindings discard this signal.
      */
     ptyTitle: z.string().optional(),
-    icon: z.string(),
     orderIndex: z.number(),
     agentSessionId: z.string().optional(),
     /**

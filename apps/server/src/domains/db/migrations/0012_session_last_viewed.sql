@@ -1,1 +1,0 @@
-ALTER TABLE `sessions` ADD `last_viewed_at` integer;

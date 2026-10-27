@@ -37,7 +37,7 @@ export class AgentChatStateModel {
     resumeAt(terminalId: string): string | undefined {
         return (
             this.database
-                .select({ resumeAt: terminals.agentResumeAt })
+                .select({ resumeAt: terminals.chatResumeRecordId })
                 .from(terminals)
                 .where(eq(terminals.id, terminalId))
                 .get()?.resumeAt ?? undefined
@@ -47,7 +47,7 @@ export class AgentChatStateModel {
     setResumeAt(terminalId: string, resumeAt: string | undefined): void {
         this.database
             .update(terminals)
-            .set({ agentResumeAt: resumeAt ?? null })
+            .set({ chatResumeRecordId: resumeAt ?? null })
             .where(eq(terminals.id, terminalId))
             .run();
     }

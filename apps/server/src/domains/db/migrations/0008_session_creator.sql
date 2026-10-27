@@ -1,1 +1,0 @@
-ALTER TABLE `sessions` ADD `created_by_session_id` text;

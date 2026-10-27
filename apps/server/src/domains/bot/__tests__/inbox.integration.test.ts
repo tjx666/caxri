@@ -5,12 +5,9 @@ import { join } from 'node:path';
 import type { ServerEvent } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import Database from 'better-sqlite3';
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
 
 import { CaxriDatabase } from '../../db';
-import { createDatabaseBeforeMigration } from '../../db/__tests__/pre-migration.fixture';
-import { CURRENT_SCHEMA_VERSION } from '../../db/connection';
 import { ExternalStatusCliError } from '../../external-status';
 import { BotInboxService } from '../inbox';
 
@@ -349,20 +346,5 @@ describe('BotInboxService', () => {
         const kept = service.show(item.id);
         expect(kept.status).toBe('open');
         expect(kept.pullRequestLive).toBeUndefined();
-    });
-});
-
-describe('bot inbox migration', () => {
-    it('creates the Inbox tables when upgrading across 0005_commander_inbox', async () => {
-        const { path: databasePath } = await createDatabaseBeforeMigration('0005_commander_inbox');
-
-        const upgraded = new CaxriDatabase(databasePath);
-        onTestFinished(() => upgraded.close());
-        expect(upgraded.botInbox.list(true)).toEqual([]);
-        const check = new Database(databasePath, { readonly: true });
-        onTestFinished(() => {
-            check.close();
-        });
-        expect(check.pragma('user_version', { simple: true })).toBe(CURRENT_SCHEMA_VERSION);
     });
 });

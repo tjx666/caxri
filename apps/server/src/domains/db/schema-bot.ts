@@ -60,6 +60,8 @@ export const botTasks = sqliteTable(
     },
     (table) => [
         index('bot_tasks_status').on(table.status),
+        index('bot_tasks_project').on(table.projectId),
+        index('bot_tasks_session').on(table.sessionId),
         uniqueIndex('bot_tasks_delegation').on(table.delegationId),
         check('bot_tasks_status', isOneOf(table.status, botTaskStatuses)),
     ],

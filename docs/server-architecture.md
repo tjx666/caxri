@@ -217,12 +217,13 @@ semantics. Those product behaviors do not change as part of A0–A7.
 
 Server domain state and Client presentation state are deliberately separate:
 
-| Owner        | State                                                                                    |
-| ------------ | ---------------------------------------------------------------------------------------- |
-| Server       | Project, Session, active Workbench Root, Terminal, Draft, Agent Run, Activity, Attention |
-| Session View | pane layout, open resources, active pane, view state, optional Workbench Root override   |
-| Connection   | subscriptions, attachment identity, flow control, transient focus                        |
-| Window       | Open Session, viewed Session, focus and visibility (see ADR 0017)                        |
+| Owner        | State                                                                                  |
+| ------------ | -------------------------------------------------------------------------------------- |
+| Server       | Project, Session, active Workbench Root, Terminal, Agent Run, Activity, Attention      |
+| Session View | pane layout, open resources, active pane, view state, optional Workbench Root override |
+| Connection   | subscriptions, attachment identity, flow control, transient focus                      |
+| Window       | Open Session, viewed Session, focus and visibility (see ADR 0017)                      |
+| Device       | Drafts: unsaved Editor content and its hot-exit backups                                |
 
 A Session View is persisted by the Server under `(Client ID, Session)`, but only that Client writes it.
 It does not participate in shared domain revision conflicts. A View may override the active Workbench
@@ -230,19 +231,13 @@ Root for that Client; without an override it follows the shared Session value, i
 worktree changes. File and Git commands carry the active authorized Project ID, never a root path.
 Terminal records are shared, while each Session View places them independently.
 
-Draft bodies are durable Server state keyed by Session, Workbench Root, and path. They carry revisions,
-record their base disk identity, and remain distinct from clean disk content. Edits require the expected
-Draft revision; save requires both the Draft revision and base disk identity. A watcher-detected external
-change emits content-free `draft.diskChanged` metadata, and a mismatched base returns a structured
-conflict for diff, reload, or explicit resolution rather than silently replacing either side. Caxri does
-not provide simultaneous collaborative editing, a Draft writer lease, CRDT, or operational
-transformation.
-
-Draft bodies never enter changefeed payloads, command receipts, logs, metrics, diagnostics, crash
-capsules, or remote observability export. Metadata is bounded to identity, revision, byte count, and
-content-free lifecycle state. Per-Draft and aggregate byte budgets apply. Save or explicit discard
-removes the body; Session deletion, Project deletion or deauthorization, Workbench Root removal, and
-Server reset apply deterministic bounded cleanup without deleting user files.
+Drafts are not Server state. Unsaved Editor content lives in the Renderer, and its hot-exit backup
+stays in that device's IndexedDB (`apps/desktop/src/renderer/src/features/editor/editor-backups.ts`),
+because an SSH Host or a phone may be the Server: the device that typed the text keeps it. External
+changes follow ADR 0013 (disk wins for a clean or unchanged buffer; a changed file offers the backup
+back). Caxri does not provide simultaneous collaborative editing, a Draft writer lease, CRDT, or
+operational transformation. Draft bodies never enter changefeed payloads, command receipts, logs,
+metrics, diagnostics, crash capsules, or remote observability export.
 
 Attention acknowledgement is shared: once any Client visibly acknowledges an Attention generation, all
 Clients clear that generation. A Client may still have local notification presentation state, but not a

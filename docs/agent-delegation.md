@@ -78,9 +78,8 @@ caxri agent delegate create --project <project-id> --new-session --title "Fix lo
   worktree lineage, where a workspace an agent creates remembers its parent workspace. The Session
   menu adds "Go to Creating Session" while the creating Session is open; an archived creator or the
   Caxri Bot's hidden Session offers no entry, because navigating there must not silently
-  restore it. The column has no foreign key, so deleting the creating Session or its
-  Project clears it in the same transaction
-  (`apps/server/src/domains/db/session-creator.ts`).
+  restore it. The column references `sessions.id` with `ON DELETE SET NULL`, so deleting the creating
+  Session or its Project clears it.
 - The creating Agent can keep the sidebar tidy without Caxri Bot's board:
   `caxri agent session rename <session-id> --title <title>`, `agent session archive <session-id>`,
   and `agent session unarchive <session-id>`. Any Agent in the creating Session may manage it,

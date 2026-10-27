@@ -665,7 +665,7 @@ active branch from the newest record and drops a sibling branch only where the a
 continues with a new user prompt, because parallel tool calls branch the file too. Editing the
 first message has no earlier record to resume at, so the Chat starts a new Claude Code session.
 
-The rewind point is stored in `terminals.agent_resume_at` and cleared when the first new turn
+The rewind point is stored in `terminals.chat_resume_record_id` and cleared when the first new turn
 starts (or the Agent Session is replaced), because until a turn writes past it, any start would
 otherwise resume at the newest record and bring the rewound turns back. This matters when the
 edited message failed to send or Server Core restarted in between.

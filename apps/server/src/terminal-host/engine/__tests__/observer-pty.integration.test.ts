@@ -35,7 +35,6 @@ describe('Terminal Host real PTY observers', () => {
             cwd: process.cwd(),
             kind: 'shell',
             title: 'Fixture',
-            icon: 'terminal',
             orderIndex: 0,
             lastProcessState: 'running',
             createdAt: 1,

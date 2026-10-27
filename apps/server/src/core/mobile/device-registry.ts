@@ -12,10 +12,8 @@ import {
 } from '@caxri/protocol';
 import { z } from 'zod';
 
-import { fileSystemCode, readPrivateJsonFile, replacePrivateJsonFile } from '../private-json-store';
+import type { MobileDeviceStore } from '../../domains/db';
 
-const CURRENT_REGISTRY_VERSION = 2;
-const MAXIMUM_REGISTRY_BYTES = 128 * 1024;
 const credentialSchema = z
     .string()
     .regex(new RegExp(`^[0-9a-f]{${PAIRING_SECRET_BYTES * 2}}$`, 'u'));
@@ -31,16 +29,7 @@ const mobileDeviceRecordSchema = z.strictObject({
     lastConnectedAt: z.number().int().positive().optional(),
     revokedAt: z.number().int().positive().optional(),
 });
-
-const mobileDeviceStoreSchema = z.strictObject({
-    version: z.literal(CURRENT_REGISTRY_VERSION),
-    preferredPort: z.number().int().min(1).max(65_535).optional(),
-    /**
-     * The owner left mobile access on, so the next Server start reopens the gateway without another click.
-     */
-    accessEnabled: z.literal(true).optional(),
-    devices: z.array(mobileDeviceRecordSchema).max(128),
-});
+const mobileDeviceRecordsSchema = z.array(mobileDeviceRecordSchema).max(128);
 
 export type MobileDeviceRecord = z.infer<typeof mobileDeviceRecordSchema>;
 
@@ -54,10 +43,9 @@ interface MobileGatewayPreferences {
 export type MobileDeviceSummary = Omit<MobileDeviceRecord, 'credential'>;
 
 export interface MobileDeviceRegistryOptions {
-    directory: string;
     now?: () => number;
-    path: string;
     random?: (bytes: number) => Uint8Array;
+    store: MobileDeviceStore;
 }
 
 function publicRecord(record: MobileDeviceRecord): MobileDeviceSummary {
@@ -74,82 +62,33 @@ function publicRecord(record: MobileDeviceRecord): MobileDeviceSummary {
     };
 }
 
-async function readPrivateStore(path: string): Promise<z.infer<typeof mobileDeviceStoreSchema>> {
-    const source = await readPrivateJsonFile({
-        path,
-        maxBytes: MAXIMUM_REGISTRY_BYTES,
-        messages: {
-            malformed: 'Mobile device registry is malformed',
-            notPrivate: 'Mobile device registry is not private',
-            oversized: 'Mobile device registry is oversized',
-            wrongOwner: 'Mobile device registry belongs to another user',
-        },
-    });
-    /**
-     * Unpublished builds wrote other store versions. Opening one as empty would silently fence every paired phone
-     * without explanation, so fail with the recovery step instead of keeping a legacy reader.
-     */
-    if (
-        typeof source === 'object' &&
-        source !== null &&
-        'version' in source &&
-        source.version !== CURRENT_REGISTRY_VERSION
-    )
-        throw new CaxriError(
-            'VALIDATION',
-            'Mobile device registry has an unsupported version; delete mobile-devices.json from the Server profile directory and pair phones again',
-        );
-    try {
-        return mobileDeviceStoreSchema.parse(source);
-    } catch (error) {
-        if (error instanceof CaxriError) throw error;
-        throw new CaxriError('VALIDATION', 'Mobile device registry is malformed');
-    }
-}
-
-async function writePrivateStore(
-    directory: string,
-    path: string,
+function writeStore(
+    store: MobileDeviceStore,
     devices: Iterable<MobileDeviceRecord>,
     preferences: MobileGatewayPreferences,
-    random: (bytes: number) => Uint8Array,
-): Promise<void> {
-    const value = mobileDeviceStoreSchema.parse({
-        version: CURRENT_REGISTRY_VERSION,
+): void {
+    const records = [...devices];
+    if (records.length > 128) throw new CaxriError('CAPACITY', 'Mobile device registry is full');
+    store.write(mobileDeviceRecordsSchema.parse(records), {
         ...(preferences.preferredPort && { preferredPort: preferences.preferredPort }),
         ...(preferences.isAccessEnabled && { accessEnabled: true }),
-        devices: [...devices],
-    });
-    if (Buffer.byteLength(`${JSON.stringify(value)}\n`, 'utf8') > MAXIMUM_REGISTRY_BYTES)
-        throw new CaxriError('CAPACITY', 'Mobile device registry is full');
-    await replacePrivateJsonFile({
-        directory,
-        path,
-        random,
-        temporaryPrefix: '.mobile-devices-',
-        value,
     });
 }
 
 /**
- * Owns the only durable copy of paired-device credentials and grants for one Server profile.
+ * Owns paired-device credentials and grants for one Server profile. Mutations apply to a copy, persist it to
+ * `mobile_devices` in one transaction, and only then replace the in-memory set, so a failed write changes nothing.
  */
 export class MobileDeviceRegistry {
-    static async open(options: MobileDeviceRegistryOptions): Promise<MobileDeviceRegistry> {
-        try {
-            const store = await readPrivateStore(options.path);
-            return new MobileDeviceRegistry(options, store.devices, {
-                isAccessEnabled: store.accessEnabled === true,
-                preferredPort: store.preferredPort,
-            });
-        } catch (error) {
-            if (fileSystemCode(error) === 'ENOENT')
-                return new MobileDeviceRegistry(options, [], {
-                    isAccessEnabled: false,
-                    preferredPort: undefined,
-                });
-            throw error;
-        }
+    static open(options: MobileDeviceRegistryOptions): MobileDeviceRegistry {
+        const { devices, preferences } = options.store.load();
+        const parsed = mobileDeviceRecordsSchema.safeParse(devices);
+        if (!parsed.success)
+            throw new CaxriError('VALIDATION', 'Mobile device registry is malformed');
+        return new MobileDeviceRegistry(options, parsed.data, {
+            isAccessEnabled: preferences.accessEnabled === true,
+            preferredPort: preferences.preferredPort,
+        });
     }
 
     readonly #now: () => number;
@@ -190,13 +129,7 @@ export class MobileDeviceRegistry {
             await previousWrite;
             const records = new Map(this.#records);
             const result = change(records);
-            await writePrivateStore(
-                this.#options.directory,
-                this.#options.path,
-                records.values(),
-                this.#preferences,
-                this.#random,
-            );
+            writeStore(this.#options.store, records.values(), this.#preferences);
             this.#records = records;
             return result;
         })();
@@ -204,7 +137,7 @@ export class MobileDeviceRegistry {
             try {
                 await operation;
             } catch {
-                // A failed atomic replacement releases the write queue for the next mutation.
+                // A failed write releases the write queue for the next mutation.
             }
         })();
         return operation;
@@ -219,13 +152,7 @@ export class MobileDeviceRegistry {
         const previousWrite = this.#writeTail;
         const operation = (async (): Promise<void> => {
             await previousWrite;
-            await writePrivateStore(
-                this.#options.directory,
-                this.#options.path,
-                this.#records.values(),
-                next,
-                this.#random,
-            );
+            writeStore(this.#options.store, this.#records.values(), next);
             this.#preferences = next;
         })();
         this.#writeTail = (async () => {

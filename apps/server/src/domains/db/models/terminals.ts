@@ -28,7 +28,6 @@ interface TerminalRow {
     agentCwd: string | null;
     title: string;
     ptyTitle: string | null;
-    icon: string;
     orderIndex: number;
     agentSessionId: string | null;
     lastAgentProcessState: string | null;
@@ -53,7 +52,6 @@ function mapTerminal(row: TerminalRow): TerminalRecord {
         agentCwd: row.agentCwd ?? undefined,
         title: row.title,
         ptyTitle: row.ptyTitle ?? undefined,
-        icon: row.icon,
         orderIndex: row.orderIndex,
         agentSessionId: row.agentSessionId ?? undefined,
         lastAgentProcessState: (row.lastAgentProcessState as ProcessState | null) ?? undefined,
@@ -166,10 +164,8 @@ export class TerminalsModel {
                 kind: input.kind,
                 surface: input.surface ?? 'pty',
                 ...(input.surface === 'chat' && chatPermissionColumns(input.chatPermission)),
-                provider: input.kind === 'shell' ? null : input.kind,
                 cwd: input.cwd,
                 title: input.title,
-                icon: input.kind,
                 orderIndex,
                 lastAgentProcessState: input.kind === 'shell' ? null : 'starting',
                 lastProcessState: 'starting',
@@ -376,10 +372,8 @@ export class TerminalsModel {
                 .update(terminals)
                 .set({
                     kind: provider,
-                    provider,
                     title,
                     ptyTitle: null,
-                    icon: provider,
                     agentSessionId: null,
                     lastAgentProcessState: 'running',
                     updatedAt: now,
@@ -412,10 +406,8 @@ export class TerminalsModel {
                 .update(terminals)
                 .set({
                     kind: provider,
-                    provider,
                     title,
                     ptyTitle: null,
-                    icon: provider,
                     agentSessionId: null,
                     agentCwd: null,
                     chatPermissionMode: null,
@@ -493,10 +485,8 @@ export class TerminalsModel {
                 .update(terminals)
                 .set({
                     kind: provider,
-                    provider,
                     title,
                     ptyTitle: null,
-                    icon: provider,
                     lastAgentProcessState: 'running',
                     updatedAt: now,
                 })

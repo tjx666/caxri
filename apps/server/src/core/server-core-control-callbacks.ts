@@ -5,7 +5,7 @@ import { logEventCatalog } from '@caxri/system';
 import type { AgentEndpointRegistry } from './agent-endpoints/registry';
 import type { AgentInboxRegistry } from './agent-inbox/registry';
 import type { ControlServerOptions } from './control-server-support';
-import type { openDelegationAccess } from './delegation-access';
+import type { DelegationAccessRegistry } from './delegation-access-registry';
 import type { ServerDomainService } from './domain-service';
 import type { RequestCancellationRegistry } from './request-cancellation';
 import { principalRequestKey } from './request-cancellation';
@@ -23,7 +23,7 @@ export interface ServerCoreControlCallbacksDependencies {
     agentEndpoints: AgentEndpointRegistry;
     agentInbox: AgentInboxRegistry;
     commandStopFallbackReference: CommandStopFallbackReference;
-    delegationAccess: Awaited<ReturnType<typeof openDelegationAccess>>;
+    delegationAccess: DelegationAccessRegistry;
     dispatchWaitIds: Map<string, Set<string>>;
     domainService: ServerDomainService;
     logger: StructuredLogger;

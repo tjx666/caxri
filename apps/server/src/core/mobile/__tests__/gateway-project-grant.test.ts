@@ -1,23 +1,12 @@
-import { mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-
 import type { CommandAdapter, Principal } from '@caxri/protocol';
 import { CAXRI_PROTOCOL_VERSION, CaxriError } from '@caxri/protocol';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
+import { createMemoryMobileDeviceStore } from '../../__tests__/credential-stores.fixture';
 import { MobileDeviceRegistry } from '../device-registry';
 import { MobileGateway } from '../gateway';
 import { isMobileGatewayMethodAllowedForRole } from '../role-methods';
 import { connectDevice } from './gateway-client.fixture';
-
-const temporaryDirectories: string[] = [];
-
-afterEach(async () => {
-    const paths = [...temporaryDirectories];
-    temporaryDirectories.length = 0;
-    await Promise.all(paths.map((path) => rm(path, { recursive: true, force: true })));
-});
 
 const dashboard = {
     hostDisplayName: 'Test computer',
@@ -30,12 +19,9 @@ const dashboard = {
 
 describe('MobileGateway Project grants', () => {
     it('keeps the connection and adopts a Project granted mid-connection', async () => {
-        const directory = await mkdtemp(join(tmpdir(), 'caxri-mobile-gateway-grant-'));
-        temporaryDirectories.push(directory);
         let byte = 1;
-        const registry = await MobileDeviceRegistry.open({
-            directory,
-            path: join(directory, 'mobile-devices.json'),
+        const registry = MobileDeviceRegistry.open({
+            store: createMemoryMobileDeviceStore(),
             now: () => 1_788_106_000_000 + byte,
             random: (bytes) => new Uint8Array(bytes).fill(byte++),
         });

@@ -1,5 +1,6 @@
 import type {
     AgentActivityState,
+    AgentChatPermissionMode,
     AgentDelegationReceipt,
     AgentDispatchOperation,
     AgentDispatchStatus,
@@ -8,7 +9,7 @@ import type {
     SessionAttentionKind,
     SessionTitleMode,
     TerminalFailureReason,
-    UsagePullRequestState,
+    TerminalSurface,
 } from '@caxri/protocol';
 import { sql } from 'drizzle-orm';
 import type { AnySQLiteColumn } from 'drizzle-orm/sqlite-core';
@@ -43,6 +44,14 @@ const terminalFailureReasons = closedValues<TerminalFailureReason>()([
     'spawn_failed',
     'agent_session_unavailable',
 ]);
+const terminalSurfaces = closedValues<TerminalSurface>()(['pty', 'chat']);
+const agentChatPermissionModes = closedValues<AgentChatPermissionMode>()([
+    'readOnly',
+    'ask',
+    'acceptEdits',
+    'auto',
+    'fullAccess',
+]);
 const agentActivityStates = closedValues<AgentActivityState>()([
     'running',
     'waiting',
@@ -73,12 +82,6 @@ const agentDispatchStatuses = closedValues<AgentDispatchStatus>()([
     'stopped',
     'interrupted',
     'failed',
-]);
-const pullRequestOutcomeStates = closedValues<UsagePullRequestState>()([
-    'open',
-    'merged',
-    'closed',
-    'missing',
 ]);
 const agentDelegationStatuses = closedValues<AgentDelegationReceipt['status']>()([
     'requested',
@@ -207,10 +210,12 @@ export const sessions = sqliteTable(
          * The Session whose Agent created this one through `agent delegate create --new-session` or `bot session
          * create`, written by Server Core in the creating transaction and never by a caller. Agents in that Session may
          * rename, archive, and restore it; the user sees where it came from. A user's own Session, fork, or moved
-         * Terminal never has one. Deleting the creating Session clears it in the same transaction; it is not a foreign
-         * key because SQLite cannot drop a foreign-key column, which the migration tests' downgrades rely on.
+         * Terminal never has one. Deleting the creating Session clears it.
          */
-        createdBySessionId: text('created_by_session_id'),
+        createdBySessionId: text('created_by_session_id').references(
+            (): AnySQLiteColumn => sessions.id,
+            { onDelete: 'set null' },
+        ),
         automaticNaming: text('automatic_naming', { mode: 'json' }).$type<{
             agentSessionId: string;
             terminalId: string;
@@ -228,6 +233,8 @@ export const sessions = sqliteTable(
          */
         index('sessions_project_created').on(table.projectId, table.createdAt, table.id),
         index('sessions_workbench_project').on(table.workbenchProjectId),
+        index('sessions_primary_agent_terminal').on(table.primaryAgentTerminalId),
+        index('sessions_created_by').on(table.createdBySessionId),
         check(
             'sessions_last_activity_state',
             isOneOf(table.lastActivityState, agentActivityStates),
@@ -252,7 +259,13 @@ export const terminals = sqliteTable(
             .notNull()
             .references(() => sessions.id, { onDelete: 'cascade' }),
         kind: text('kind').notNull(),
-        provider: text('provider'),
+        /**
+         * The Agent provider this Terminal hosts, derived from `kind` so the two can never disagree: a Shell has none.
+         */
+        provider: text('provider').generatedAlwaysAs(
+            sql`CASE WHEN kind = 'shell' THEN NULL ELSE kind END`,
+            { mode: 'virtual' },
+        ),
         cwd: text('cwd').notNull(),
         /**
          * Where the hosted Agent CLI reports it is currently working, when that diverges from the PTY's launch `cwd`.
@@ -265,7 +278,6 @@ export const terminals = sqliteTable(
         agentCwd: text('agent_cwd'),
         title: text('title').notNull(),
         ptyTitle: text('pty_title'),
-        icon: text('icon').notNull(),
         orderIndex: integer('order_index').notNull(),
         agentSessionId: text('agent_session_id'),
         /**
@@ -282,23 +294,22 @@ export const terminals = sqliteTable(
         updatedAt: integer('updated_at').notNull(),
         /**
          * Fixed at creation: `pty` for a real pseudo-terminal, `chat` for an Agent Chat driven through the provider's
-         * structured protocol (ADR 0012). Chat rows never own a PTY, snapshot, or Shell process. Deliberately left
-         * without a `CHECK`: adding one forces drizzle-kit to rebuild `terminals`, and a rebuild would cascade-delete
-         * Terminal snapshots and null Primary Agent references. `mapTerminal` treats any value other than `chat` as a
-         * PTY.
+         * structured protocol (ADR 0012). Chat rows never own a PTY, snapshot, or Shell process.
          */
         surface: text('surface').notNull().default('pty'),
         /**
-         * A Chat's permission level (`AgentChatPermissionMode`), copied from the Project default when the Chat is
-         * created and changed from its composer. Null follows the provider's launch settings. Read through a validating
-         * mapper instead of a `CHECK`, for the same rebuild reason as `surface`.
+         * A Chat's permission level, copied from the Project default when the Chat is created and changed from its
+         * composer. Null follows the provider's launch settings.
          */
         chatPermissionMode: text('chat_permission_mode'),
         /**
          * 1 while a Chat's plan mode is on; null or 0 otherwise.
          */
         chatPlanMode: integer('chat_plan_mode'),
-        agentResumeAt: text('agent_resume_at'),
+        /**
+         * The transcript record a rewound Claude Chat resumes from, until its first new turn.
+         */
+        chatResumeRecordId: text('chat_resume_record_id'),
     },
     (table) => [
         /**
@@ -306,6 +317,7 @@ export const terminals = sqliteTable(
          * ever needs two rows to share a position transiently.
          */
         uniqueIndex('terminals_session_order').on(table.sessionId, table.orderIndex),
+        index('terminals_agent_session').on(table.agentSessionId),
         check('terminals_last_process_state', isOneOf(table.lastProcessState, processStates)),
         check(
             'terminals_last_agent_process_state',
@@ -316,6 +328,12 @@ export const terminals = sqliteTable(
             'terminals_failure_reason_state',
             sql`${table.failureReason} IS NULL OR ${table.lastProcessState} = 'failed'`,
         ),
+        check('terminals_surface', isOneOf(table.surface, terminalSurfaces)),
+        check(
+            'terminals_chat_permission_mode',
+            isOneOf(table.chatPermissionMode, agentChatPermissionModes),
+        ),
+        check('terminals_chat_plan_mode', sql`${table.chatPlanMode} IN (0, 1)`),
     ],
 );
 
@@ -487,9 +505,9 @@ export const protocolChangefeed = sqliteTable(
  * Delegation bodies and answers are private domain data, never bootstrap state or command-journal payloads. Session
  * ownership gives deletion an explicit retention boundary without deleting any Project files.
  *
- * `status` and `terminal_id` are query projections of `record_json.receipt`. `terminal_id` intentionally has no foreign
- * key: a `SET NULL` would desynchronize it from the JSON record, and a closed Terminal's ID stays meaningful evidence
- * for the delegation that ran in it.
+ * `status` and `terminal_id` are generated from `record_json.receipt`, so they can never drift from the record.
+ * `terminal_id` has no foreign key: a closed Terminal's ID stays meaningful evidence for the delegation that ran in
+ * it.
  */
 export const agentDelegations = sqliteTable(
     'agent_delegations',
@@ -498,8 +516,15 @@ export const agentDelegations = sqliteTable(
         sessionId: text('session_id')
             .notNull()
             .references(() => sessions.id, { onDelete: 'cascade' }),
-        status: text('status').notNull(),
-        terminalId: text('terminal_id'),
+        status: text('status')
+            .notNull()
+            .generatedAlwaysAs(sql`json_extract(record_json, '$.receipt.status')`, {
+                mode: 'stored',
+            }),
+        terminalId: text('terminal_id').generatedAlwaysAs(
+            sql`json_extract(record_json, '$.receipt.terminalId')`,
+            { mode: 'stored' },
+        ),
         recordJson: text('record_json').notNull(),
     },
     (table) => [
@@ -507,93 +532,5 @@ export const agentDelegations = sqliteTable(
         index('agent_delegations_status').on(table.status),
         index('agent_delegations_terminal').on(table.terminalId),
         check('agent_delegations_status', isOneOf(table.status, agentDelegationStatuses)),
-    ],
-);
-
-/**
- * Usage ledger: one row per Agent Session ever bound to a Terminal of a Caxri Session. `terminals.agent_session_id`
- * holds only the current binding and is overwritten by `/clear`, provider switches, and Terminal close, so this table
- * is the only durable record of which provider conversations Caxri itself hosted. Rows are appended by
- * `TerminalsModel.updateAgentSessionId` and the usage service's reconciliation pass, never updated by the Agent.
- *
- * `session_id`, `project_id`, and `terminal_id` intentionally carry no foreign key: tokens already spent stay spent
- * after Session, Project, or Terminal metadata is deleted, and the report labels such rows instead of dropping them.
- *
- * `usage_json` caches the parsed, content-free token aggregate (hourly buckets per model, active time, created pull
- * request URLs) so history survives a provider pruning its own transcripts. `source_fingerprint` is the size and mtime
- * of every transcript file that produced it; a mismatch triggers a rescan.
- */
-export const agentSessionUsage = sqliteTable(
-    'agent_session_usage',
-    {
-        provider: text('provider').notNull(),
-        agentSessionId: text('agent_session_id').notNull(),
-        sessionId: text('session_id').notNull(),
-        projectId: text('project_id').notNull(),
-        terminalId: text('terminal_id').notNull(),
-        /**
-         * Provider state root (`terminals.agent_cwd ?? terminals.cwd`) at the latest observed binding; locates the
-         * transcript after the Terminal is gone.
-         */
-        cwd: text('cwd').notNull(),
-        boundAt: integer('bound_at').notNull(),
-        sourceFingerprint: text('source_fingerprint'),
-        scannedAt: integer('scanned_at'),
-        usageJson: text('usage_json'),
-    },
-    (table) => [
-        primaryKey({ columns: [table.provider, table.agentSessionId] }),
-        index('agent_session_usage_session').on(table.sessionId),
-    ],
-);
-
-/**
- * Scan cache for Agent transcripts found on this machine outside the usage ledger: conversations the user ran in a
- * plain terminal or another app, read only when the Usage page asks for every Agent Session. One row per transcript
- * file, so a reverted Codex thread's continuation rollout (`<thread>_<rollout>`) keeps its own row; `agent_session_id`
- * is the provider conversation identity the ledger is keyed by, so a conversation later resumed in a Caxri Session is
- * counted once, from the ledger. Rows outlive their transcript for the same reason ledger rows do.
- */
-export const externalAgentUsage = sqliteTable(
-    'external_agent_usage',
-    {
-        provider: text('provider').notNull(),
-        /**
-         * Agent Session ID, or the Codex rollout ID for a reverted thread's continuation file.
-         */
-        transcriptId: text('transcript_id').notNull(),
-        agentSessionId: text('agent_session_id').notNull(),
-        path: text('path').notNull(),
-        /**
-         * Working directory the provider recorded for the conversation; attributes it to a Project. Null when the
-         * transcript names none.
-         */
-        cwd: text('cwd'),
-        sourceFingerprint: text('source_fingerprint').notNull(),
-        scannedAt: integer('scanned_at').notNull(),
-        usageJson: text('usage_json').notNull(),
-    },
-    (table) => [primaryKey({ columns: [table.provider, table.transcriptId] })],
-);
-
-/**
- * Last known GitHub outcome of a pull request an Agent created from a Caxri Session. Merged and closed rows are final
- * and never refetched; open rows are refreshed on a bounded schedule by the usage service. Keyed by the canonical
- * `https://github.com/<owner>/<repo>/pull/<number>` URL harvested from the transcript.
- */
-export const pullRequestOutcomes = sqliteTable(
-    'pull_request_outcomes',
-    {
-        url: text('url').primaryKey(),
-        state: text('state').notNull(),
-        title: text('title').notNull(),
-        createdAt: integer('created_at'),
-        mergedAt: integer('merged_at'),
-        additions: integer('additions').notNull().default(0),
-        deletions: integer('deletions').notNull().default(0),
-        checkedAt: integer('checked_at').notNull(),
-    },
-    (table) => [
-        check('pull_request_outcomes_state', isOneOf(table.state, pullRequestOutcomeStates)),
     ],
 );

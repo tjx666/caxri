@@ -37,7 +37,6 @@ function chatTerminal(overrides: Partial<TerminalRecord> = {}): TerminalRecord {
         surface: 'chat',
         cwd: '/repo',
         title: 'Chat',
-        icon: 'terminal',
         orderIndex: 0,
         lastProcessState: 'running',
         createdAt: 0,

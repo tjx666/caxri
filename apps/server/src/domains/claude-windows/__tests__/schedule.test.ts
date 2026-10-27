@@ -105,7 +105,7 @@ describe('decide', () => {
             due: { plannedAt: anchor, reason: 'anchor', isMissed: false },
         });
         const ten = local('2026-10-26T10:00:00');
-        const memory = { processedThrough: anchor, observedResetAt: ten };
+        const memory = { processedThroughAt: anchor, observedResetAt: ten };
         expect(decide(ten + MINUTE, TEN, idle, memory)).toMatchObject({
             kind: 'trigger',
             due: { plannedAt: ten, reason: 'renewal', isMissed: false },
@@ -113,7 +113,7 @@ describe('decide', () => {
         const night = local('2026-10-27T01:00:00');
         expect(
             decide(night + MINUTE, TEN, idle, {
-                processedThrough: local('2026-10-26T20:00:00'),
+                processedThroughAt: local('2026-10-26T20:00:00'),
                 observedResetAt: night,
             }),
         ).toMatchObject({ kind: 'skipRenewal', due: { plannedAt: night } });
@@ -121,7 +121,7 @@ describe('decide', () => {
 
     it('is idempotent: a spent window is never due again', () => {
         const anchor = local('2026-10-26T05:00:00');
-        expect(decide(anchor + 2 * MINUTE, TEN, idle, { processedThrough: anchor })).toEqual({
+        expect(decide(anchor + 2 * MINUTE, TEN, idle, { processedThroughAt: anchor })).toEqual({
             kind: 'idle',
         });
     });
@@ -145,7 +145,7 @@ describe('decide', () => {
                 TEN,
                 { ...idle, windowResetsAt: local('2026-10-27T00:30:00') },
                 {
-                    processedThrough: now,
+                    processedThroughAt: now,
                 },
             ),
         ).toEqual({ kind: 'active', resetsAt: local('2026-10-27T00:30:00'), renews: false });
@@ -158,7 +158,7 @@ describe('decide', () => {
             due: { plannedAt: anchor, isMissed: true },
         });
         expect(
-            decide(local('2026-10-26T07:31:00'), TEN, idle, { processedThrough: anchor }),
+            decide(local('2026-10-26T07:31:00'), TEN, idle, { processedThroughAt: anchor }),
         ).toEqual({
             kind: 'idle',
         });
@@ -167,7 +167,7 @@ describe('decide', () => {
 
     it('spends several missed times with one check: the latest wins', () => {
         const memory = {
-            processedThrough: local('2026-10-26T20:00:00'),
+            processedThroughAt: local('2026-10-26T20:00:00'),
             observedResetAt: local('2026-10-27T01:00:00'),
         };
         expect(decide(local('2026-10-27T06:00:00'), TEN, idle, memory)).toMatchObject({
@@ -179,7 +179,7 @@ describe('decide', () => {
     it('ignores a reset older than the latest anchor', () => {
         expect(
             decide(local('2026-10-26T14:00:00'), TEN, idle, {
-                processedThrough: local('2026-10-24T05:00:00'),
+                processedThroughAt: local('2026-10-24T05:00:00'),
                 observedResetAt: local('2026-10-24T15:00:00'),
             }),
         ).toEqual({ kind: 'idle' });

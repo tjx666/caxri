@@ -210,8 +210,6 @@ export class AgentDelegationsModel {
             .values({
                 id: parsed.receipt.delegationId,
                 sessionId: parsed.receipt.sessionId,
-                status: parsed.receipt.status,
-                terminalId: parsed.receipt.terminalId,
                 recordJson: JSON.stringify(parsed),
             })
             .run();
@@ -223,8 +221,6 @@ export class AgentDelegationsModel {
         const result = this.database
             .update(agentDelegations)
             .set({
-                status: parsed.receipt.status,
-                terminalId: parsed.receipt.terminalId,
                 recordJson: JSON.stringify(parsed),
             })
             .where(eq(agentDelegations.id, parsed.receipt.delegationId))

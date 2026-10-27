@@ -1,4 +1,4 @@
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -22,40 +22,27 @@ afterEach(async () => {
     );
 });
 
-describe('mobile registry startup', () => {
-    it('refuses to start with a registry from another version and leaves it untouched', async () => {
+describe('credential registry startup', () => {
+    it('removes the legacy private credential files when the Server starts', async () => {
         const userDataPath = await mkdtemp(join(tmpdir(), 'caxri-server-mobile-legacy-'));
         directories.push(userDataPath);
         const paths = await resolveServerProfilePaths(userDataPath);
         await mkdir(paths.directory, { mode: 0o700 });
-        const legacy = '{"version":1,"devices":[]}\n';
-        await writeFile(paths.mobileDevices, legacy, { mode: 0o600 });
+        const legacyFiles = ['mobile-devices.json', 'delegation-clients.json'].map((name) =>
+            join(paths.directory, name),
+        );
+        await Promise.all(
+            legacyFiles.map((file) =>
+                writeFile(file, '{"version":1,"devices":[]}\n', { mode: 0o600 }),
+            ),
+        );
 
-        await expect(
-            startServerCore({ commit: 'test', userDataPath, version: '1.0.0' }),
-        ).rejects.toThrow('pair phones again');
-        expect(await readFile(paths.mobileDevices, 'utf8')).toBe(legacy);
-
-        await rm(paths.mobileDevices);
         const app = await startServerCore({ commit: 'test', userDataPath, version: '1.0.0' });
         apps.push(app);
+
         expect(app.lease.identity.profileId).toBe(paths.profileId);
-    });
-
-    it('releases the profile lease when the private registry fails to open', async () => {
-        const userDataPath = await mkdtemp(join(tmpdir(), 'caxri-server-mobile-registry-'));
-        directories.push(userDataPath);
-        const paths = await resolveServerProfilePaths(userDataPath);
-        await mkdir(paths.directory, { mode: 0o700 });
-        await writeFile(paths.mobileDevices, '{"version":2,"devices":[]}\n', { mode: 0o644 });
-
-        await expect(
-            startServerCore({ commit: 'test', userDataPath, version: '1.0.0' }),
-        ).rejects.toMatchObject({ code: 'PATH_DENIED' });
-
-        await chmod(paths.mobileDevices, 0o600);
-        const app = await startServerCore({ commit: 'test', userDataPath, version: '1.0.0' });
-        apps.push(app);
-        expect(app.lease.identity.profileId).toBe(paths.profileId);
+        await Promise.all(
+            legacyFiles.map((file) => expect(stat(file)).rejects.toMatchObject({ code: 'ENOENT' })),
+        );
     });
 });
