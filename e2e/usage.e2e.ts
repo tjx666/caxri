@@ -81,6 +81,53 @@ test('Open Usage asks for a Project first, then opens the Usage tab and switches
     }
 });
 
+/**
+ * The Usage page's date format, `Oct 7, 2026`.
+ */
+function usageDate(date: Date): string {
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+test('Usage narrows the report to today or to a custom span picked in its calendar', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-usage-e2e-'));
+    const root = join(testDirectory, 'project');
+    await mkdir(root, { recursive: true });
+    const running = await launchCaxri({
+        userDataDir: join(testDirectory, 'user-data'),
+        testRootPath: root,
+    });
+    try {
+        await createProjectSession(running.page, 'shell');
+        await runOpenUsage(running.page);
+        const usage = running.page.locator(`${VISIBLE_SESSION} [data-usage-page]`);
+        const today = new Date();
+        const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+
+        await usage.getByRole('button', { name: 'Today', exact: true }).click();
+        await expect(usage.getByText(`${usageDate(today)} · Costs are API`)).toBeVisible();
+
+        await usage.getByRole('button', { name: 'Custom', exact: true }).click();
+        const calendar = running.page.getByRole('group', { name: 'Custom date range' });
+        // Picked end first: the second click still completes the span in date order.
+        await calendar.getByRole('button', { name: String(today.getDate()), exact: true }).click();
+        await calendar.getByRole('button', { name: '1', exact: true }).click();
+        await calendar.getByRole('button', { name: 'Apply' }).click();
+        await expect(calendar).toHaveCount(0);
+        const span =
+            today.getDate() === 1
+                ? usageDate(today)
+                : `${usageDate(firstOfMonth)} to ${usageDate(today)}`;
+        await expect(usage.getByText(`${span} · Costs are API`)).toBeVisible();
+        await expect(usage.getByRole('button', { name: 'Custom', exact: true })).toHaveAttribute(
+            'aria-pressed',
+            'true',
+        );
+    } finally {
+        await running.app.close();
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
 async function expectNoScrollFade(scroller: Locator): Promise<void> {
     await expect(scroller).not.toHaveAttribute('data-scroll-fade-start');
     await expect(scroller).not.toHaveAttribute('data-scroll-fade-end');
