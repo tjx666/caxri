@@ -395,7 +395,7 @@ if (ownsProfileInstance) {
                 supervisor: () => supervisor,
             }),
             getRemoteDebugging: () => remoteDebuggingState(desktopProfile),
-            getNotificationHelper: () => notifications?.helper,
+            getDesktopNotifications: () => notifications,
             relaunch: startupFailure.relaunch,
             decideUnsavedEditorsBeforeRelaunch: () => unsavedEditors.decide('quit'),
             getUserDataPath: () => desktopProfile.userDataPath,

@@ -143,6 +143,10 @@ export const desktopExclusiveSpecs: Readonly<Record<string, DesktopExclusiveClas
         reasons: ['clipboard'],
         why: 'Requests the system pasteboard (clipboard: true).',
     },
+    'e2e/environment-monitor.e2e.ts': {
+        reasons: ['visible-window'],
+        why: 'Captures the environment warning popover in a visible Desktop window.',
+    },
     'e2e/editor.performance.e2e.ts': {
         reasons: ['benchmark', 'opt-in-only'],
         why: 'Editor performance benchmark; skipped outside its benchmark command.',

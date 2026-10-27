@@ -197,3 +197,9 @@ export const agentNotificationsLogEvents = {
     operationFailed: 'agent_notifications.operation_failed',
     settingsRefreshSuppressed: 'agent_notifications.settings_refresh_suppressed',
 } as const;
+
+export const environmentMonitorLogEvents = {
+    notificationFailed: 'environment_monitor.notification_failed',
+    probeFailed: 'environment_monitor.probe_failed',
+    stateChanged: 'environment_monitor.state_changed',
+} as const;

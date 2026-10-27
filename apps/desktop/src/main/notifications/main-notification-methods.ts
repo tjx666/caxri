@@ -2,6 +2,7 @@ import type { MainRequest } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 import { shell } from 'electron';
 
+import type { EnvironmentMonitor } from '../environment-monitor/monitor';
 import type { NotificationHelperControl } from './agent-notification-delivery';
 
 /**
@@ -15,7 +16,8 @@ export interface MainNotificationMethodOptions {
      * The system-notification helper control, absent until Main finishes attaching to the Server; a request before then
      * fails clearly instead of reporting a status that was never probed.
      */
-    getNotificationHelper?(): NotificationHelperControl | undefined;
+    getDesktopNotifications?():
+        { helper: NotificationHelperControl; environmentMonitor?: EnvironmentMonitor } | undefined;
 }
 
 type NotificationRequest = Extract<MainRequest, { method: `notifications.${string}` }>;
@@ -44,7 +46,7 @@ export async function handleNotificationRequest(
 }
 
 function requireHelper(options: MainNotificationMethodOptions): NotificationHelperControl {
-    const helper = options.getNotificationHelper?.();
+    const helper = options.getDesktopNotifications?.()?.helper;
     if (!helper) throw new CaxriError('UNAVAILABLE', 'System notifications are still starting');
     return helper;
 }

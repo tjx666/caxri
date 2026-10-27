@@ -30,6 +30,7 @@ import { BotInboxChip } from './bot-inbox-chip';
 import { BotStatusChip } from './bot-status-chip';
 import { BranchPicker } from './branch-picker';
 import type { ChipVisibility } from './chip-priority';
+import { EnvironmentMonitorChip } from './environment-monitor-chip';
 import { useChipVisibility } from './hooks/use-chip-visibility';
 import { PeerApprovalChip } from './peer-approval-chip';
 import { PermissionAutoAllowChip } from './permission-auto-allow-chip';
@@ -302,6 +303,7 @@ export function StatusBar() {
                 <AgentChatWaitingChip />
                 <PeerApprovalChip />
                 <UpdateStatusChip />
+                {isLocalOnlyAvailable && <EnvironmentMonitorChip />}
                 {isLocalOnlyAvailable && <BotStatusChip />}
                 {isLocalOnlyAvailable && <BotInboxChip />}
                 <RemoteDebuggingChip />

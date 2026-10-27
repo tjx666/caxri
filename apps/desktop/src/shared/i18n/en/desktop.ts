@@ -3,6 +3,9 @@
  * they stay out of its dictionaries.
  */
 export const desktop = {
+    'desktop.environmentMonitor.notification.title': 'Environment changed',
+    'desktop.environmentMonitor.notification.body':
+        'Caxri detected {{count}} enabled environment signal(s).',
     'desktop.menu.project': 'Project',
     'desktop.menu.session': 'Session',
     'desktop.menu.terminal': 'Terminal',
