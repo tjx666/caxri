@@ -14,6 +14,11 @@ import { decodeDeviceStoreEntry, encodeDeviceStoreEntry } from './envelope.js';
 export interface DeviceStoreBackend {
     clear(): Promise<void> | void;
     /**
+     * How many entries exist in total, when the backend can tell without reading them. Eviction skips `list` while this
+     * is within the retention bound, since `list` may read every entry in full (IndexedDB's `getAll`).
+     */
+    count?(): number | Promise<number>;
+    /**
      * Every entry with the time it was last written, used only to pick the oldest for eviction.
      */
     list():
@@ -104,36 +109,48 @@ export const createDeviceStore = (options: DeviceStoreOptions) => {
         tail = tail.then(mutation).then(settle, settle);
     };
 
-    const evict = async (): Promise<void> => {
-        if (!retention) return;
-        const bounded = (await backend.list())
-            .filter(({ name }) => retention.isBounded(name))
-            // eslint-disable-next-line unicorn/no-array-sort -- The mobile Hermes target does not support ES2023 toSorted.
-            .sort((left, right) => right.modifiedAt - left.modifiedAt);
-        // Removals stay ordered with the writes around them.
-        await bounded
-            .slice(retention.maxEntries)
-            .reduce<Promise<void>>(
-                (previous, { name }) => previous.then(() => backend.remove(name)),
-                Promise.resolve(),
-            );
-    };
-
-    const evictSync = (): unknown => {
-        if (!retention) return undefined;
-        const listed = backend.list();
-        if (isPromise(listed)) return evict();
-        const bounded = listed
-            .filter(({ name }) => retention.isBounded(name))
+    /**
+     * Removes the bounded entries beyond the newest `maxEntries` from one listing, in order, synchronously while the
+     * backend answers synchronously.
+     */
+    const evictFrom = (
+        listed: Array<{ modifiedAt: number; name: string }>,
+        bound: NonNullable<DeviceStoreOptions['retention']>,
+    ): unknown => {
+        const evicted = listed
+            .filter(({ name }) => bound.isBounded(name))
             // eslint-disable-next-line unicorn/no-array-sort -- The mobile Hermes target does not support ES2023 toSorted.
             .sort((left, right) => right.modifiedAt - left.modifiedAt)
-            .slice(retention.maxEntries);
+            .slice(bound.maxEntries);
+        // Removals stay ordered with the writes around them.
         let result: unknown;
-        for (const { name } of bounded)
+        for (const { name } of evicted)
             result = isPromise(result)
                 ? result.then(() => backend.remove(name))
                 : backend.remove(name);
         return result;
+    };
+
+    const evictListed = (): unknown => {
+        if (!retention) return undefined;
+        const listed = backend.list();
+        return isPromise(listed)
+            ? listed.then((entries) => evictFrom(entries, retention))
+            : evictFrom(listed, retention);
+    };
+
+    /**
+     * Evicts after a write. A backend that counts its entries is listed only once the total exceeds the bound: the
+     * bounded family is a subset of every entry, so a total within it cannot hold an entry to evict.
+     */
+    const evictSync = (): unknown => {
+        if (!retention) return undefined;
+        const counted = backend.count?.();
+        if (counted === undefined) return evictListed();
+        const isOver = (total: number) => total > retention.maxEntries;
+        if (isPromise(counted))
+            return counted.then((total) => (isOver(total) ? evictListed() : undefined));
+        return isOver(counted) ? evictListed() : undefined;
     };
 
     /**

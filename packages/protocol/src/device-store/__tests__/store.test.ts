@@ -146,6 +146,34 @@ describe('device store over an asynchronous backend', () => {
         ).toEqual(['backup-2', 'backup-3', 'index']);
     });
 
+    it('lists a counting backend only once its entries exceed the bound, and still evicts the oldest then', async () => {
+        const { backend, entries } = asyncBackend();
+        const list = vi.fn(() => backend.list());
+        const counting: DeviceStoreBackend = {
+            ...backend,
+            count: () => Promise.resolve(entries.size),
+            list,
+        };
+        const store = createStore(counting, 2);
+        store.setScope(scope);
+        for (const name of ['backup-1', 'backup-2']) {
+            store.save(scope, name, { text: name });
+            // eslint-disable-next-line no-await-in-loop -- each write must land before the next is scheduled
+            await store.flush();
+        }
+        expect(list).not.toHaveBeenCalled();
+
+        store.save(scope, 'backup-3', { text: 'backup-3' });
+        await store.flush();
+        expect(list).toHaveBeenCalledOnce();
+        expect(
+            entries
+                .keys()
+                .toArray()
+                .toSorted((left, right) => left.localeCompare(right)),
+        ).toEqual(['backup-2', 'backup-3']);
+    });
+
     it('never writes under a scope that stopped being current, or without one', async () => {
         const { backend, entries } = asyncBackend();
         const store = createStore(backend);
