@@ -11,12 +11,10 @@ const E2E_PTY_USAGE_OVERRIDE_FILE_ENVIRONMENT_KEY = 'CAXRI_E2E_PTY_USAGE_OVERRID
  */
 const E2E_PTY_USAGE_SAMPLE_INTERVAL_MS = 1_000;
 
-const ptyUsageReadingOverrideSchema = z
-    .object({
-        inUse: z.number().int().nonnegative(),
-        limit: z.number().int().positive(),
-    })
-    .strict();
+const ptyUsageReadingOverrideSchema = z.strictObject({
+    inUse: z.number().int().nonnegative(),
+    limit: z.number().int().positive(),
+});
 
 type PtyUsageReadingOverride = z.infer<typeof ptyUsageReadingOverrideSchema>;
 
