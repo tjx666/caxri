@@ -14,7 +14,8 @@
  * - `paste-image [count]`: pastes that many synthetic PNGs (default 1) into the visible Agent Chat message box, as a
  *   screenshot paste would, without touching the system clipboard.
  * - `search <query>`: opens Session search and types the query.
- * - `idle [seconds]`: waits until the window's text stops changing, such as after an Agent reply.
+ * - `idle [seconds]`: waits until the window's text stops changing, such as after an Agent reply. Ticking figures, such
+ *   as a background task's elapsed time, do not count as change.
  * - `ready [seconds]`: waits until a dev instance just started with `switch-worktree dev` answers over CDP as this
  *   worktree's window and its Workbench reports the Runtime ready, instead of a fixed sleep.
  * - `theme <built-in id|absolute JSON path>`: replaces the active theme with a built-in palette (such as
@@ -41,6 +42,7 @@ import { chromium } from '@playwright/test';
 import { CommandError } from '../../switch-worktree/scripts/process';
 import type { CdpTarget } from './cdp-client';
 import { connectToNodeInspector, selectRendererTarget } from './cdp-client';
+import { IDLE_POLL_MS, waitForIdle } from './drive-app-idle';
 import { browserEnvironment, resolveTarget } from './worktree-browser';
 
 const STEPS = [
@@ -78,11 +80,6 @@ const FLAGS = new Set(['--screenshot', '--inspector-port', '--times']);
  */
 const NEW_SESSION_KINDS = ['shell', ...Object.keys(agentProviderCatalog)];
 
-const IDLE_POLL_MS = 1_000;
-/**
- * Consecutive unchanged polls that count as idle: a streaming reply can pause for a second between chunks.
- */
-const IDLE_STABLE_POLLS = 3;
 const DEFAULT_IDLE_SECONDS = 120;
 const DEFAULT_READY_SECONDS = 120;
 /**
@@ -327,22 +324,6 @@ async function openChat(page: Page, provider: AgentProvider): Promise<void> {
         .filter({ visible: true })
         .last()
         .waitFor({ timeout: OPEN_CHAT_TIMEOUT_MS });
-}
-
-async function waitForIdle(page: Page, seconds: number): Promise<void> {
-    const deadline = Date.now() + seconds * 1_000;
-    let previous: string | null = '';
-    let stable = 0;
-    while (stable < IDLE_STABLE_POLLS) {
-        if (Date.now() > deadline) throw new Error(`Window text still changing after ${seconds}s`);
-        // Each poll compares against the previous one, so the waits are sequential by design.
-        // eslint-disable-next-line no-await-in-loop
-        await page.waitForTimeout(IDLE_POLL_MS);
-        // eslint-disable-next-line no-await-in-loop
-        const text = await page.locator('body').textContent();
-        stable = text === previous ? stable + 1 : 0;
-        previous = text;
-    }
 }
 
 /**

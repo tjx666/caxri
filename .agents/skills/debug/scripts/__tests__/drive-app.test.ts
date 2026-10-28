@@ -6,6 +6,7 @@ import {
     settingsSourceWithLanguage,
     splitHeldChord,
 } from '../drive-app';
+import { idleComparableText } from '../drive-app-idle';
 
 describe('drive-app', () => {
     it('reads a step, its argument, and a trailing screenshot path', () => {
@@ -134,5 +135,14 @@ describe('drive-app', () => {
         >;
         expect(followsSystem['workbench.language']).toBeNull();
         expect(() => settingsSourceWithLanguage(settings, 'fr')).toThrow(/Language/u);
+    });
+
+    it('lets idle settle while figures tick but not while a reply streams', () => {
+        expect(idleComparableText('Watch the build 1m 59s · 12 turns')).toBe(
+            idleComparableText('Watch the build 2m 0s · 13 turns'),
+        );
+        expect(idleComparableText('The build passed')).not.toBe(
+            idleComparableText('The build passed and'),
+        );
     });
 });
