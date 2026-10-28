@@ -27,6 +27,8 @@ export interface FakeClaudeScript {
     /**
      * Replaces the default model's value and display name everywhere the fake reports it (initialize model list, init
      * message, assistant messages, result `modelUsage`), e.g. `{ value: 'claude-opus-4-7', displayName: 'Opus 4.7' }`.
+     * The default fake model has no price, so a check that expects a nonzero estimated cost names a model the bundled
+     * price list (`bundled-prices.generated.json`) carries.
      */
     model?: { value: string; displayName: string };
     turns: FakeClaudeScriptTurn[];

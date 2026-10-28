@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
+import { isAndroidCheckId } from '../../../../scripts/mobile-acceptance-check-id';
 import {
     centerOfAndroidBounds,
-    isAndroidCheckId,
     observeAndroidNodeFromUiAutomator,
     resumedPackageFromWindowDump,
     semanticNodesFromUiAutomator,
