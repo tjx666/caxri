@@ -16,6 +16,7 @@ import {
 import { AgentGlyph } from '../../../components/agent-icon';
 import { IconButton } from '../../../components/icon-button';
 import { PopoverMenu } from '../../../components/popover-menu';
+import { Spinner } from '../../../components/spinner';
 import { usePopoverAnchor } from '../../../components/use-popover-anchor';
 import type { Translate, TranslationKey } from '../../../i18n';
 import { useTranslation } from '../../../i18n';
@@ -27,6 +28,8 @@ import { panelIcon } from '../../panels/panel-icon';
 import type { Panel } from '../../panels/use-panels';
 import { PullRequestChip } from '../../pull-request/pull-request-chip';
 import { useSavedClock } from '../../read-cache/use-saved-age';
+import { segmentForAgentSurface } from '../agent-surface-switch';
+import { useAgentSurfaceSwitch } from '../hooks/use-agent-surface-switch';
 import type { MobileSessionItem } from '../session-model';
 import { sessionStateLabel, sessionTitleForDisplay } from '../session-row-model';
 import type { SESSION_SEGMENTS, SessionSegment } from '../session-ui-state';
@@ -210,6 +213,18 @@ export const SessionDetailHeader = ({
     const [isTitleExpanded, setTitleExpanded] = useState(false);
     const isChat = isAgentChatTerminal(session.primaryTerminal);
     const now = useSavedClock(savedAt);
+    const surfaceSwitch = useAgentSurfaceSwitch(session, (surface) =>
+        onSegmentChange(segmentForAgentSurface(surface)),
+    );
+    /**
+     * Reopening the Agent replaces its process and may stop its turn, so only a control device sees it, as with Stop.
+     */
+    const surfaceTarget = deviceRole === 'control' ? surfaceSwitch.target : null;
+    const isSwitchingSurface = surfaceSwitch.pending !== null;
+    const handleSwitchSurface = useCallback((): void => {
+        closeMenu();
+        void surfaceSwitch.switchSurface();
+    }, [closeMenu, surfaceSwitch]);
     const handleMarkRead = useCallback(async (): Promise<void> => {
         closeMenu();
         try {
@@ -291,6 +306,41 @@ export const SessionDetailHeader = ({
                     placement={menu.placement}
                     theme={theme}
                 >
+                    {surfaceTarget ? (
+                        <Pressable
+                            accessibilityRole="button"
+                            accessibilityState={{
+                                disabled: !isConnected || isSwitchingSurface,
+                            }}
+                            disabled={!isConnected || isSwitchingSurface}
+                            onPress={handleSwitchSurface}
+                            style={styles.menuAction}
+                            testID="session-switch-surface"
+                        >
+                            {surfaceTarget === 'chat' ? (
+                                <MessagesSquare color={theme.muted} size={18} />
+                            ) : (
+                                <SquareTerminal color={theme.muted} size={18} />
+                            )}
+                            <Text
+                                style={[
+                                    styles.menuActionText,
+                                    {
+                                        color:
+                                            isConnected && !isSwitchingSurface
+                                                ? theme.text
+                                                : theme.muted,
+                                    },
+                                ]}
+                            >
+                                {t(
+                                    surfaceTarget === 'chat'
+                                        ? 'sessions.surface.openAsChat'
+                                        : 'sessions.surface.openAsTerminal',
+                                )}
+                            </Text>
+                        </Pressable>
+                    ) : null}
                     <Pressable
                         accessibilityRole="button"
                         accessibilityState={{ disabled: !isConnected }}
@@ -311,10 +361,35 @@ export const SessionDetailHeader = ({
                     </Pressable>
                     {!isConnected ? (
                         <Text style={[styles.sendState, { color: theme.muted }]}>
-                            {t('sessions.detail.markReadReconnect')}
+                            {t('sessions.detail.reconnectForActions')}
                         </Text>
                     ) : null}
                 </PopoverMenu>
+                {surfaceSwitch.pending ? (
+                    <View
+                        accessibilityLiveRegion="polite"
+                        style={styles.surfaceSwitchState}
+                        testID="session-switch-surface-pending"
+                    >
+                        <Spinner color={theme.muted} />
+                        <Text style={[styles.sendState, { color: theme.muted }]}>
+                            {t(
+                                surfaceSwitch.pending === 'chat'
+                                    ? 'sessions.surface.openingAsChat'
+                                    : 'sessions.surface.openingAsTerminal',
+                            )}
+                        </Text>
+                    </View>
+                ) : null}
+                {surfaceSwitch.error ? (
+                    <Text
+                        accessibilityRole="alert"
+                        style={[styles.sendState, { color: theme.danger }]}
+                        testID="session-switch-surface-error"
+                    >
+                        {surfaceSwitch.error}
+                    </Text>
+                ) : null}
                 {markReadError ? (
                     <Text
                         accessibilityRole="alert"

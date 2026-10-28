@@ -83,9 +83,9 @@ export const sessions = {
     'sessions.detail.markReadFailed': 'Unable to mark this Session as read.',
     'sessions.detail.markReadForbidden':
         'This device cannot mark Sessions as read. Pair it again on your computer to grant control.',
-    'sessions.detail.markReadReconnect': 'Reconnect to mark read.',
     'sessions.detail.menu': 'Session menu',
     'sessions.detail.noTerminal': 'No active Terminal for this Session.',
+    'sessions.detail.reconnectForActions': 'Reconnect to use these actions.',
     'sessions.detail.selectSession': 'Select a Session',
     'sessions.home.addProject': 'Add Project',
     'sessions.home.allProjects': 'All',
@@ -219,5 +219,17 @@ export const sessions = {
     'sessions.state.waiting': 'Waiting for you',
     'sessions.state.working': 'Working',
     'sessions.status.needsAttention': 'Needs attention: {{state}}',
+    'sessions.surface.confirmSwitchLabel': 'Stop and Switch',
+    'sessions.surface.confirmSwitchToChat':
+        '{{provider}} is still working. Switching stops the current turn and continues the conversation in Chat.',
+    'sessions.surface.confirmSwitchToTerminal':
+        '{{provider}} is still working. Switching stops the current turn and continues the conversation in the Terminal.',
+    'sessions.surface.openAsChat': 'Open as Chat',
+    'sessions.surface.openAsChatFailed': 'Open as Chat failed',
+    'sessions.surface.openAsTerminal': 'Open as Terminal',
+    'sessions.surface.openAsTerminalFailed': 'Open as Terminal failed',
+    'sessions.surface.openingAsChat': 'Opening as Chat…',
+    'sessions.surface.openingAsTerminal': 'Opening as Terminal…',
+    'sessions.surface.turnGuardTitle': 'Stop the running turn?',
     'sessions.untitled': 'Untitled',
 } as const;

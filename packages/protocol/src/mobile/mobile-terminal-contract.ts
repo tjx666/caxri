@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { identifierSchema } from '../domain/identifiers.js';
+import { terminalSurfaceSchema } from '../domain/terminal-surface.js';
 import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
 
@@ -80,5 +81,24 @@ export const mobileTerminalMethods = {
             row: z.number().int().min(1).max(1_000),
         }),
         result: z.null(),
+    },
+    /**
+     * Reopens a granted Chat-capable Agent Terminal on the other surface through Desktop's own
+     * `terminal.switchSurface`, so the phone and the tab rail share one switch and one running-turn guard. Unlike the
+     * calls above it needs no subscription: the switch replaces the Terminal's process, so the phone re-reads the
+     * Session instead of steering a live PTY. The result drops the Terminal record; the phone already refreshes the
+     * Session it shows.
+     */
+    'mobile.terminal.switchSurface': {
+        ...commandPolicy('server', 'control', ['terminals.steer']),
+        params: z.strictObject({
+            terminalId: identifierSchema,
+            surface: terminalSurfaceSchema,
+            interruptTurn: z.boolean().default(false),
+        }),
+        result: z.discriminatedUnion('status', [
+            z.strictObject({ status: z.literal('switched') }),
+            z.strictObject({ status: z.literal('turnRunning') }),
+        ]),
     },
 } as const satisfies Record<string, MethodSpec>;

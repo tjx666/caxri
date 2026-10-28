@@ -91,6 +91,14 @@ Each returns only `sessionId`, and the dashboard carries the new state. `mobile.
 a read that lists archived Sessions of granted Projects, newest first, bounded to 64 items within
 one frame.
 
+`mobile.terminal.switchSurface` reopens a granted Agent Terminal on the other surface (PTY or
+Chat). It resolves the Terminal through the principal-scoped query first, so a Terminal outside
+the grant reports `NOT_FOUND` before anything restarts, then calls Desktop's own
+`terminal.switchSurface`, which owns the Chat-capability check and the running-turn guard. It
+requires the control role, like Stop, because the switch replaces the Agent's process and may end
+its turn. Unlike the other `mobile.terminal.*` methods it needs no subscription. Its result is only
+`switched` or `turnRunning`; the dashboard carries the new surface.
+
 ## Merging a pull request from mobile
 
 `mobile.pullRequest.read` returns the pull request of a Session's delivering repository (the primary

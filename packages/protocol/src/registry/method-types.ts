@@ -169,6 +169,7 @@ export const effectfulCommandRecovery = {
     'mobile.terminal.release': 'none',
     'mobile.terminal.input': 'none',
     'mobile.terminal.scroll': 'none',
+    'mobile.terminal.switchSurface': 'durable',
     'mobile.agentChat.send': 'memory',
     'mobile.agentChat.interrupt': 'memory',
     'mobile.agentChat.stopTask': 'memory',

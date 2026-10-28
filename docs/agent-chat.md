@@ -117,7 +117,8 @@ terminal send`) delivers its text as one Chat message, queued behind a running t
 A Chat-capable Agent Terminal reopens on the other surface from the `Terminal | Chat` toggle on the
 tab rail (accessible name "Open as Terminal or Chat", shown for the active tab), its tab's context
 menu and its Session row menu ("Open as Chat" / "Open as Terminal"), or
-`terminal.switchAgentSurface` (`cmd+shift+j`, also in the command palette), all through
+`terminal.switchAgentSurface` (`cmd+shift+j`, also in the command palette), or a phone's Session
+menu (`mobile.terminal.switchSurface`; see [Mobile](#mobile)), all through
 `terminal.switchSurface` (`apps/server/src/domains/terminal/surface-switch.ts`). The Terminal row,
 tab, title, and Primary Agent election stay; only the process is replaced.
 
@@ -1118,6 +1119,12 @@ side)`, the selected diff lines with their signs in a `diff` fence, then the com
 - The dashboard projects `surface` on the primary Terminal. A phone shows a Chat in its own Chat
   tab instead of the Conversation and Terminal tabs, so it never attaches to a PTY that does not
   exist.
+- A control device reopens the Session's primary Agent on the other surface from the Session
+  detail menu ("Open as Chat" / "Open as Terminal") through `mobile.terminal.switchSurface`, which
+  checks the device's Project grant and then calls Desktop's `terminal.switchSurface`. A running
+  turn comes back as `turnRunning`, and the phone asks with Desktop's "Stop the running turn?"
+  before retrying with `interruptTurn`. On success the phone re-reads the Session and opens the
+  Chat tab or the Terminal tab that now shows the Agent.
 - A sealed gateway frame carries 64 KiB, while a Chat projection may hold megabytes.
   `mobile.agentChat.read` therefore returns a window of the newest items within 48 KiB and sets
   `truncated` for the rest. Each item is shortened deterministically by
@@ -1965,5 +1972,5 @@ Claude Code's agent picker (its `initialize` response already lists the agents).
 plan mode and images (its ACP agent advertises `image: false`). Grok Build stays out
 of the real-Agent smoke. On mobile, a
 Chat shows no plan or context usage yet,
-cannot edit or fork from an earlier message, older history beyond the window stays on
-the computer, and switching surface is Desktop-only.
+cannot edit or fork from an earlier message, and older history beyond the window stays on
+the computer.
