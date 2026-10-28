@@ -59,6 +59,7 @@ export interface EnvironmentMonitor {
 
 export async function readPublicIp(fetcher: PublicIpFetcher = fetch): Promise<string> {
     const response = await fetcher(PUBLIC_IP_ENDPOINT, {
+        cache: 'no-store',
         headers: { Accept: 'application/json' },
         signal: AbortSignal.timeout(5_000),
     });

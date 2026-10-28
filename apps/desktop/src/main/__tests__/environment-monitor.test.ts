@@ -86,7 +86,10 @@ describe('environment monitor', () => {
         await expect(readPublicIp(fetcher)).resolves.toBe('203.0.113.20');
         expect(fetcher).toHaveBeenCalledWith(
             'https://api.ipify.org?format=json',
-            expect.objectContaining({ headers: { Accept: 'application/json' } }),
+            expect.objectContaining({
+                cache: 'no-store',
+                headers: { Accept: 'application/json' },
+            }),
         );
     });
 
