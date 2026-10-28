@@ -53,7 +53,9 @@ test('a Grok Build Chat streams a reply, answers an approval and a question, swi
         // Several questions are asked one at a time: a click answers and moves on, and the last answer sends them all.
         await question.getByRole('radio', { name: /^Blue/u }).click();
         await expect(question).toContainText('Which sizes?');
-        await question.getByRole('radio', { name: 'Large', exact: true }).click();
+        // A multi-select question only ticks on a click; Submit sends the ticked options.
+        await question.getByRole('checkbox', { name: 'Large', exact: true }).click();
+        await question.getByRole('button', { name: 'Submit', exact: true }).click();
         await expect(question).toHaveCount(0);
         await expect(chat.locator('[data-agent-chat-answered]').last()).toContainText(
             'Which color?Blue',

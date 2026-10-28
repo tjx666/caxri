@@ -9,7 +9,7 @@ import type { Page } from './support/fixtures.ts';
 import { allowE2EErrors, expect, test } from './support/fixtures.ts';
 import { createShellSession, launchCaxri, pageRequest } from './support/helpers.ts';
 
-const ERROR_TITLE = 'File not found';
+const ERROR_TITLE = 'Automatic recovery paused for Codex after 3 attempts in 10 minutes.';
 const SUCCESS_TITLE = 'Sent Esc and continue to Codex after a matched recovery rule.';
 const FALLBACK_TITLE = 'The active worktree is no longer available. Returned to Fallback Project.';
 
@@ -58,9 +58,14 @@ function toastWithTitle(page: Page, title: string) {
     return page.locator('[data-sonner-toast]').filter({ hasText: title });
 }
 
-function settingsError(error: string): ServerEvent {
-    return { event: 'settings.changed', payload: { source: '{}', error } };
-}
+/**
+ * An error notification that expires on its own. A settings load error no longer qualifies: it stays until the file is
+ * fixed or the user dismisses it, so a broken settings file cannot go unnoticed.
+ */
+const recoveryPaused: ServerEvent = {
+    event: 'terminal.outputRecovery',
+    payload: { provider: 'codex', status: 'rate-limited', terminalId: 'terminal-e2e' },
+};
 
 test('Sonner notifications expire, dedupe, run actions, and stay keyboard-dismissible', async () => {
     // The repeated error updates its mounted notification; only two error notifications are created.
@@ -78,7 +83,7 @@ test('Sonner notifications expire, dedupe, run actions, and stay keyboard-dismis
         await keepDocumentVisible(running.page);
         await running.page.clock.install();
 
-        await publishServerEvent(running.app, settingsError(ERROR_TITLE));
+        await publishServerEvent(running.app, recoveryPaused);
         await running.page.clock.runFor(1);
         const errorToast = toastWithTitle(running.page, ERROR_TITLE);
         await expect(errorToast).toBeVisible();
@@ -89,12 +94,12 @@ test('Sonner notifications expire, dedupe, run actions, and stay keyboard-dismis
         await expect(errorToast).toHaveCount(0);
         await expect(terminalInput).toBeFocused();
 
-        await publishServerEvent(running.app, settingsError(ERROR_TITLE));
+        await publishServerEvent(running.app, recoveryPaused);
         await running.page.clock.runFor(1);
         const dedupedToast = toastWithTitle(running.page, ERROR_TITLE);
         await expect(dedupedToast).toBeVisible();
         await running.page.clock.fastForward(3_500);
-        await publishServerEvent(running.app, settingsError(ERROR_TITLE));
+        await publishServerEvent(running.app, recoveryPaused);
         await running.page.clock.runFor(1);
         await expect(running.page.locator('[data-sonner-toast]')).toHaveCount(1);
         await running.page.clock.fastForward(1_000);
@@ -234,7 +239,7 @@ test('Notification center mutes a type, persists preferences, and restores remin
         await expect(settings).toHaveCount(0);
         await publishServerEvent(running.app, fallback);
         await expect(toastWithTitle(running.page, FALLBACK_TITLE)).toBeVisible();
-        await publishServerEvent(running.app, settingsError(ERROR_TITLE));
+        await publishServerEvent(running.app, recoveryPaused);
         await running.page
             .locator('footer')
             .getByRole('button', { name: /^Notifications/ })
