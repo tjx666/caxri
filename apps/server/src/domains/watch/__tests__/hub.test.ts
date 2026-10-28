@@ -88,6 +88,51 @@ describe('WatchHub', () => {
         await hub.close();
     });
 
+    it('keeps close pending until an in-flight native subscription is released', async () => {
+        const unsubscribe = vi.fn(() => Promise.resolve());
+        const { promise, resolve } = Promise.withResolvers<parcelWatcher.AsyncSubscription>();
+        const subscribe = vi.fn(() => promise) as unknown as typeof parcelWatcher.subscribe;
+        const hub = new WatchHub({ subscribe });
+        const registration = hub.register({ label: 'late', root: '/watched', onEvents: () => {} });
+        let isClosed = false;
+        const closing = (async () => {
+            await hub.close();
+            isClosed = true;
+        })();
+
+        await vi.advanceTimersByTimeAsync(0);
+        expect(isClosed).toBe(false);
+        resolve({ unsubscribe });
+        await closing;
+        expect(unsubscribe).toHaveBeenCalledOnce();
+        await expect(registration).resolves.toMatchObject({ mode: 'disposed' });
+    });
+
+    it('keeps close pending until a fallback-released native subscription finishes', async () => {
+        const { promise, resolve } = Promise.withResolvers<undefined>();
+        const { subscribe, unsubscribe } = nativeSubscribe(vi.fn(() => promise));
+        const hub = new WatchHub({ subscribe });
+        const handle = await hub.register({
+            label: 'degrading',
+            root: '/watched',
+            onEvents: () => {},
+            fallback: { intervalMs: 100, pollOnce: () => Promise.resolve() },
+        });
+        handle.startFallback(new CaxriError('UNAVAILABLE', 'native backend lost'));
+        await vi.advanceTimersByTimeAsync(0);
+        expect(unsubscribe).toHaveBeenCalledOnce();
+        let isClosed = false;
+        const closing = (async () => {
+            await hub.close();
+            isClosed = true;
+        })();
+
+        await vi.advanceTimersByTimeAsync(0);
+        expect(isClosed).toBe(false);
+        resolve(undefined);
+        await closing;
+    });
+
     it('degrades to the polling fallback when the native subscription fails', async () => {
         const hub = new WatchHub({ subscribe: failingSubscribe });
         const activate = vi.fn();
@@ -215,21 +260,6 @@ describe('WatchHub', () => {
         await vi.advanceTimersByTimeAsync(300);
         expect(pollOnce).toHaveBeenCalledTimes(3);
         await hub.close();
-    });
-
-    it('releases a native subscription that resolves after close', async () => {
-        const unsubscribe = vi.fn(() => Promise.resolve());
-        const { promise, resolve } = Promise.withResolvers<{ unsubscribe: typeof unsubscribe }>();
-        const subscribe = vi.fn(() => promise) as unknown as typeof parcelWatcher.subscribe;
-        const hub = new WatchHub({ subscribe });
-
-        const pending = hub.register({ label: 'late', root: '/watched', onEvents: () => {} });
-        await hub.close();
-        resolve({ unsubscribe });
-        const handle = await pending;
-
-        expect(handle.mode).toBe('disposed');
-        expect(unsubscribe).toHaveBeenCalledOnce();
     });
 
     it('runs registered pollers on their interval until disposed', async () => {
