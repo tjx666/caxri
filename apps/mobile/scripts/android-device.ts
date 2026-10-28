@@ -3,6 +3,7 @@
 import { Buffer } from 'node:buffer';
 import process from 'node:process';
 
+import { isAndroidCheckId } from '../../../scripts/mobile-acceptance-check-id';
 import {
     captureAndroidSemanticNodes,
     CAXRI_ANDROID_PACKAGE,
@@ -10,7 +11,7 @@ import {
     runAndroidAdb,
 } from './android-device-bridge';
 import type { AndroidNodeTextExpectation } from './android-receipts';
-import { centerOfAndroidBounds, isAndroidCheckId } from './android-receipts';
+import { centerOfAndroidBounds } from './android-receipts';
 
 interface Arguments {
     checkId?: string;

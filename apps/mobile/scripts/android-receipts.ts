@@ -1,3 +1,5 @@
+import { isAndroidCheckId } from '../../../scripts/mobile-acceptance-check-id';
+
 export interface AndroidSemanticNode {
     bounds: string;
     /**
@@ -55,9 +57,6 @@ const decodeXmlAttribute = (value: string): string =>
             )[reference] ?? entity
         );
     });
-
-export const isAndroidCheckId = (value: string): boolean =>
-    /^[a-z][a-z0-9_.:/-]{2,100}$/u.test(value);
 
 const checkIdFromResource = (resourceId: string, expectedPackage: string): string | undefined => {
     const separator = resourceId.indexOf(':id/');

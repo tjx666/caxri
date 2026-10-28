@@ -1,5 +1,6 @@
 import type { AgentChatSnapshot } from '@caxri/protocol';
 
+import { isAndroidCheckId } from '../../scripts/mobile-acceptance-check-id.ts';
 import { MOBILE_FIXTURE_IME_ID } from '../../scripts/mobile-acceptance-ime.ts';
 import type { MobileSemanticNode } from './mobile-android';
 import {
@@ -17,19 +18,32 @@ type ScreenBounds = NonNullable<ReturnType<typeof androidBounds>>;
 export const hasCheck = (nodes: Array<{ checkId: string }>, id: string): boolean =>
     nodes.some(({ checkId }) => checkId === id);
 
-export const waitForCheck = (serial: string, id: string, timeoutMs = 30_000) =>
-    waitForMobile(
+/**
+ * Android semantics drop a `testID` that `isAndroidCheckId` rejects (an uppercase letter, for one), so waiting for it
+ * would time out with no hint and waiting for its absence would pass at once. Both waits refuse such an id up front.
+ */
+function requireCheckId(id: string): void {
+    if (!isAndroidCheckId(id))
+        throw new Error(`Android semantics never expose check id ${id}; use lowercase kebab-case`);
+}
+
+export const waitForCheck = (serial: string, id: string, timeoutMs = 30_000) => {
+    requireCheckId(id);
+    return waitForMobile(
         () => mobileSemantics(serial),
         (nodes) => hasCheck(nodes, id),
         timeoutMs,
     );
+};
 
-export const waitForNoCheck = (serial: string, id: string, timeoutMs = 30_000) =>
-    waitForMobile(
+export const waitForNoCheck = (serial: string, id: string, timeoutMs = 30_000) => {
+    requireCheckId(id);
+    return waitForMobile(
         () => mobileSemantics(serial),
         (nodes) => !hasCheck(nodes, id),
         timeoutMs,
     );
+};
 
 export const agentText = (snapshot: AgentChatSnapshot): string =>
     snapshot.items
