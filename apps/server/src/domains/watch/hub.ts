@@ -7,6 +7,7 @@ import parcelWatcher from '@parcel/watcher';
 import { isMustRescanAdvisory, watchFailureFields, WatchLimitAlerts } from './failures';
 import { withInotifyStartProbe } from './inotify-probe';
 import { NATIVE_WATCHER_BACKEND } from './native-backend';
+import { NativeWatchOperations } from './native-operations';
 import type { WatchHubSnapshot } from './snapshot';
 import { summarizeWatchRegistrations } from './snapshot';
 
@@ -190,6 +191,7 @@ export class WatchHub {
     private nativePressureWarned = false;
     private gateTrips = 0;
     private readonly registrations = new Set<Registration>();
+    private readonly nativeOperations = new NativeWatchOperations();
     private readonly fallbackGroups = new Map<string, FallbackGroup>();
     private readonly logger?: StructuredLogger;
     private readonly maxNativeSubscriptions: number;
@@ -280,16 +282,6 @@ export class WatchHub {
             });
     }
 
-    private async releaseSubscription(
-        subscription: parcelWatcher.AsyncSubscription,
-    ): Promise<void> {
-        try {
-            await subscription.unsubscribe();
-        } catch {
-            // Releasing a dead native subscription must not mask shutdown or fallback activation.
-        }
-    }
-
     /**
      * Leaves this registration's poll timer (solo or shared group), without touching its native subscription or mode.
      * Shared by disposal and by a successful native restore, both of which need the fallback timer stopped.
@@ -345,7 +337,7 @@ export class WatchHub {
             // the guard at the top of this method.
             // oxlint-disable-next-line typescript/no-unnecessary-condition -- entry state can change during the preceding await
             if (entry.isDisposed() || this.closed || entry.mode !== 'polling') {
-                await this.releaseSubscription(subscription);
+                await this.nativeOperations.release(subscription);
                 return;
             }
             this.leaveFallbackTimer(entry);
@@ -375,40 +367,43 @@ export class WatchHub {
         entry: Registration,
         options: WatchRegistrationOptions,
     ): Promise<parcelWatcher.AsyncSubscription> {
-        return this.nativeSubscribe()(
-            options.root,
-            (error, events) => {
-                if (entry.mode === 'disposed') return;
-                if (error) {
-                    if (isMustRescanAdvisory(error)) {
-                        // FSEventsBackend.cc pairs this advisory with whatever events it still captured in the same
-                        // batch (see `Watcher::triggerCallbacks` in @parcel/watcher's Watcher.cc), so forward them
-                        // before treating the batch as a rescan trigger instead of silently discarding real events.
-                        if (events.length > 0) {
-                            entry.eventBatches += 1;
-                            entry.lastEventAt = Date.now();
-                            options.onEvents(events);
+        const subscribe = this.nativeSubscribe();
+        return this.nativeOperations.track(
+            subscribe(
+                options.root,
+                (error, events) => {
+                    if (entry.mode === 'disposed') return;
+                    if (error) {
+                        if (isMustRescanAdvisory(error)) {
+                            // FSEventsBackend.cc pairs this advisory with whatever events it still captured in the same
+                            // batch (see `Watcher::triggerCallbacks` in @parcel/watcher's Watcher.cc), so forward them
+                            // before treating the batch as a rescan trigger instead of silently discarding real events.
+                            if (events.length > 0) {
+                                entry.eventBatches += 1;
+                                entry.lastEventAt = Date.now();
+                                options.onEvents(events);
+                            }
+                            this.handleRescanAdvisory(entry, options, error);
+                            return;
                         }
-                        this.handleRescanAdvisory(entry, options, error);
+                        this.logger?.write('warn', logEventCatalog.watchHub.watcherError, {
+                            fields: {
+                                label: entry.label,
+                                error: errorMessage(error, 'unknown'),
+                            },
+                        });
+                        options.onError?.(error, entry);
                         return;
                     }
-                    this.logger?.write('warn', logEventCatalog.watchHub.watcherError, {
-                        fields: {
-                            label: entry.label,
-                            error: errorMessage(error, 'unknown'),
-                        },
-                    });
-                    options.onError?.(error, entry);
-                    return;
-                }
-                entry.eventBatches += 1;
-                entry.lastEventAt = Date.now();
-                options.onEvents(events);
-            },
-            {
-                backend: NATIVE_WATCHER_BACKEND,
-                ...(options.ignore && { ignore: [...options.ignore] }),
-            },
+                    entry.eventBatches += 1;
+                    entry.lastEventAt = Date.now();
+                    options.onEvents(events);
+                },
+                {
+                    backend: NATIVE_WATCHER_BACKEND,
+                    ...(options.ignore && { ignore: [...options.ignore] }),
+                },
+            ),
         );
     }
 
@@ -513,7 +508,7 @@ export class WatchHub {
             // dispose()/close() may have run while the native subscription was in flight; release the fresh
             // subscription quietly so no watcher leaks past shutdown.
             if (entry.mode === 'disposed' || !this.registrations.has(entry)) {
-                await this.releaseSubscription(subscription);
+                await this.nativeOperations.release(subscription);
                 return entry;
             }
             entry.subscription = subscription;
@@ -580,7 +575,7 @@ export class WatchHub {
         const subscription = entry.subscription;
         entry.subscription = undefined;
         // The native subscription already failed or is being replaced; releasing it must never block the fallback.
-        if (subscription) void this.releaseSubscription(subscription);
+        if (subscription) void this.nativeOperations.release(subscription);
         const { groupKey } = entry.fallback;
         try {
             await entry.fallback.activate?.();
@@ -615,7 +610,7 @@ export class WatchHub {
         this.limitAlerts?.recovered(entry);
         const subscription = entry.subscription;
         entry.subscription = undefined;
-        if (subscription) await this.releaseSubscription(subscription);
+        if (subscription) await this.nativeOperations.release(subscription);
     }
 
     /**
@@ -629,5 +624,6 @@ export class WatchHub {
         this.closed = true;
         const entries = [...this.registrations];
         await Promise.allSettled(entries.map((entry) => this.disposeRegistration(entry)));
+        await this.nativeOperations.drain();
     }
 }
