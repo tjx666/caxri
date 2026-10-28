@@ -80,8 +80,9 @@ Before a public write or mutation:
 3. Inspect the exact artifact or package file list and sanitized metadata. Do not publish a parent
    directory merely because one safe report lives inside it.
 4. Run `bun run gitleaks -- --staged` for staged repository changes. For committed changes, reuse a
-   successful exact-head CI range scan or explicitly provide the base and head revisions to
-   `scripts/gitleaks-scan.ts`; reserve a plain `bun run gitleaks` for an intentional full-history
+   successful exact-head CI range scan or run
+   `GITLEAKS_BASE_REVISION=origin/main bun run gitleaks` (`GITLEAKS_HEAD_REVISION` defaults to
+   `HEAD`; the script rejects revisions passed as arguments); reserve a plain `bun run gitleaks` for an intentional full-history
    scan. Repository rules reject home paths without an explicit synthetic account placeholder and
    deployment hosts under `vercel.app`, `netlify.app`, or `pages.dev` without an `example` label;
    keep those allowlists narrow when adding fixtures. For broad or fixture-heavy audits, also inspect

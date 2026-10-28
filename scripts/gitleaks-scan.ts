@@ -138,7 +138,26 @@ export async function runGitleaksScan(
     return exitCode === 0 ? { exitCode: 0, status: 'passed' } : { exitCode, status: 'scan-failed' };
 }
 
+/**
+ * Command-line arguments the scan cannot honor. The range comes only from `GITLEAKS_BASE_REVISION` and
+ * `GITLEAKS_HEAD_REVISION`, so `gitleaks-scan.ts origin/main HEAD` used to ignore both revisions and scan the full
+ * history, burying a branch check under every historical finding.
+ */
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/gitleaks-scan.test.ts
+export function unsupportedGitleaksArguments(argv: readonly string[]): string[] {
+    return argv.filter((argument) => argument !== '--staged' && argument !== '--');
+}
+
 async function main(): Promise<void> {
+    const unsupported = unsupportedGitleaksArguments(process.argv.slice(2));
+    if (unsupported.length > 0) {
+        console.error(
+            `Unsupported argument ${unsupported.join(' ')}. Pass --staged, or scan a range with` +
+                ' GITLEAKS_BASE_REVISION=<base> [GITLEAKS_HEAD_REVISION=<head>]; no range scans the full history.',
+        );
+        process.exitCode = 2;
+        return;
+    }
     const cacheRoot = process.env.RUNNER_TOOL_CACHE
         ? resolve(process.env.RUNNER_TOOL_CACHE, 'caxri')
         : resolve(projectRoot, '.cache', 'tool-cache');

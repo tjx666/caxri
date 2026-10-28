@@ -9,6 +9,7 @@ import {
     gitleaksLogOptions,
     isGitleaksRevisionRangeValid,
     runGitleaksScan,
+    unsupportedGitleaksArguments,
 } from '../gitleaks-scan';
 
 const projectRoot = resolve(import.meta.dirname, '../..');
@@ -51,6 +52,17 @@ describe('gitleaksLogOptions', () => {
 
     it('falls back to full history when the base equals the head (no new commits)', () => {
         expect(gitleaksLogOptions(head, head)).toBeUndefined();
+    });
+});
+
+describe('unsupportedGitleaksArguments', () => {
+    it('accepts a staged scan and rejects revisions passed as arguments', () => {
+        expect(unsupportedGitleaksArguments(['--staged'])).toEqual([]);
+        expect(unsupportedGitleaksArguments(['--', '--staged'])).toEqual([]);
+        expect(unsupportedGitleaksArguments(['origin/main', 'HEAD'])).toEqual([
+            'origin/main',
+            'HEAD',
+        ]);
     });
 });
 
