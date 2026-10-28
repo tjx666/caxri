@@ -225,7 +225,7 @@ export const AgentChatSessionUsageButton = ({
 }) => {
     const { t } = useTranslation();
     const [isOpen, setOpen] = useState(false);
-    const readout = useAgentChatUsage(terminalId);
+    const readout = useAgentChatUsage(terminalId, usage?.lastResponseAt);
     const ring = agentChatContextRing(usage, t);
     if (!ring && !readout) return null;
     const color = ring?.isWarning ? theme.warning : theme.muted;

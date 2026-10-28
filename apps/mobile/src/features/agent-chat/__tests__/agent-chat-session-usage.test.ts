@@ -124,7 +124,7 @@ describe('agentChatSessionUsageView', () => {
                 detail: 'Kept 1h 0m after each response.',
             },
             {
-                key: 'hitRate',
+                key: 'hit-rate',
                 label: 'Cache hit rate',
                 value: '95%',
                 detail: '950k read · 30k written',

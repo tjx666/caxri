@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 
 import type { AgentUsageReadout } from '@caxri/protocol';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -13,11 +13,23 @@ const usageKey = (connectionScopeKey: string | null, terminalId: string) =>
  * The conversation's tokens, estimated cost, and the provider's plan limits (`mobile.agentChat.readUsage`), read while
  * the app is in the foreground and connected and re-read every {@link AGENT_CHAT_PLAN_LIMITS_POLL_MS}. The pace
  * reminder, the model sheet's Plan limits, and the Session usage sheet share this one read. A failed read shows nothing
- * rather than an error: every one of them is a side note to the conversation.
+ * rather than an error: every one of them is a side note to the conversation. Passing the snapshot's `lastResponseAt`
+ * re-reads as soon as a response finishes, so the tokens and cost keep pace with the context figure instead of trailing
+ * it until the next poll.
  */
-export const useAgentChatUsage = (terminalId: string): AgentUsageReadout | undefined => {
+export const useAgentChatUsage = (
+    terminalId: string,
+    lastResponseAt?: number,
+): AgentUsageReadout | undefined => {
     const { connectionScopeKey, isForeground, request, status } = useMobileClient();
+    const queryClient = useQueryClient();
     const isObservable = connectionScopeKey !== null && isForeground && status === 'connected';
+    const seenResponseAt = useRef(lastResponseAt);
+    useEffect(() => {
+        if (lastResponseAt === seenResponseAt.current) return;
+        seenResponseAt.current = lastResponseAt;
+        void queryClient.invalidateQueries({ queryKey: usageKey(connectionScopeKey, terminalId) });
+    }, [connectionScopeKey, lastResponseAt, queryClient, terminalId]);
     const query = useQuery({
         enabled: isObservable,
         gcTime: 60_000,

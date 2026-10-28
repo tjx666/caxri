@@ -30,6 +30,10 @@ export interface AgentChatContextRing {
  * One label and figure in the Session usage sheet.
  */
 export interface AgentChatSessionUsageRow {
+    /**
+     * Lowercase kebab-case: it becomes the row's `agent-chat-usage-<key>` testID, and Android Acceptance only reads
+     * lowercase check ids (`isAndroidCheckId`).
+     */
     key: string;
     label: string;
     value: string;
@@ -210,7 +214,7 @@ function cacheRows(
         // has no hit rate to show.
         if (cacheRead + cacheWrite > 0 && prompt > 0)
             rows.push({
-                key: 'hitRate',
+                key: 'hit-rate',
                 label: t('chat.usage.cacheHitRate'),
                 value: formatPercent(cacheRead / prompt),
                 detail: t('chat.usage.cacheHitRateDetail', {

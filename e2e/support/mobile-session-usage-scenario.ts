@@ -49,7 +49,7 @@ export async function executeMobileSessionUsageScenario(
         await waitForCheck(serial, 'agent-chat-usage-sheet');
         await waitForCheck(serial, 'agent-chat-usage-context');
         await waitForCheck(serial, 'agent-chat-usage-cost');
-        await waitForCheck(serial, 'agent-chat-usage-hitRate');
+        await waitForCheck(serial, 'agent-chat-usage-hit-rate');
         await capture(environment, 'usage-sheet', artifacts);
         await tapMobileCheckByBounds(serial, 'agent-chat-usage-done');
         await waitForNoCheck(serial, 'agent-chat-usage-sheet');
