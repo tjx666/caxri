@@ -90,7 +90,6 @@ export const chat: TranslatedNamespace<typeof source> = {
     'chat.usage.open': '会话用量',
     'chat.usage.openHint': '查看上下文、Token、预估费用和提示缓存。',
     'chat.usage.ringLabel': '上下文已用 {{percent}}%，{{tokens}} / {{window}}',
-    'chat.usage.title': '会话用量',
     'chat.usage.tokens': 'Token',
     'chat.usage.tokensCacheRead': '缓存读取 {{count}}',
     'chat.usage.tokensCacheWrite': '缓存写入 {{count}}',

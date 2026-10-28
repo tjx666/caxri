@@ -92,7 +92,6 @@ export const chat = {
     'chat.usage.open': 'Session usage',
     'chat.usage.openHint': 'Shows context, tokens, estimated cost, and the prompt cache.',
     'chat.usage.ringLabel': 'Context {{percent}}% used, {{tokens}} of {{window}}',
-    'chat.usage.title': 'Session usage',
     'chat.usage.tokens': 'Tokens',
     'chat.usage.tokensCacheRead': '{{count}} cache read',
     'chat.usage.tokensCacheWrite': '{{count}} cache write',
