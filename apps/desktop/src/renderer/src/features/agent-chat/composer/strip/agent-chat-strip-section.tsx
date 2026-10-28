@@ -13,19 +13,20 @@ import {
 } from './agent-chat-strip-folds';
 
 /**
- * One collapsible section of the composer strip (the plan, background work): a 32px header that folds and unfolds the
- * list under it, and the list itself. The header is the toggle; `actions` sit after it outside the toggle, and the
- * chevron trails them at the header's right edge so it lines up whether or not a section has actions. The chevron is a
- * pointer-only target (`tabIndex={-1}`) that hands focus to the toggle, so keyboard users meet one fold control.
- * Collapsed, the header still says what matters (`summary`, `meta`), so folding never hides that work is running. Only
- * a fold the user makes animates: a section that appears with its work renders still, like every other strip row.
+ * One collapsible section of the composer strip (the plan, background work): a 32px header naming the section that
+ * folds and unfolds the list under it, and the list itself. The header is the toggle; `actions` sit after it outside
+ * the toggle, and the chevron trails them at the header's right edge so it lines up whether or not a section has
+ * actions. The chevron is a pointer-only target (`tabIndex={-1}`) that hands focus to the toggle, so keyboard users
+ * meet one fold control. Collapsed, the header still says what matters (`summary`, `meta`), so folding never hides that
+ * work is running. Only a fold the user makes animates: a section that appears with its work renders still, like every
+ * other strip row.
  */
 export function AgentChatStripSection({
     actions,
     ariaLabel,
     children,
+    count,
     glyph,
-    isLabelHidden = false,
     label,
     meta,
     section,
@@ -38,11 +39,11 @@ export function AgentChatStripSection({
      */
     ariaLabel?: string;
     children: ReactNode;
-    glyph: ReactNode;
     /**
-     * Keeps `label` as the section's accessible name only, for a header whose glyphs already say what the section is.
+     * How many items the section holds, right after its label (`Background work 3`).
      */
-    isLabelHidden?: boolean;
+    count?: number;
+    glyph: ReactNode;
     label: string;
     meta: ReactNode;
     section: AgentChatStripSectionName;
@@ -79,7 +80,8 @@ export function AgentChatStripSection({
                     onClick={toggle}
                 >
                     {glyph}
-                    {!isLabelHidden && <span className="shrink-0 text-foreground">{label}</span>}
+                    <span className="shrink-0 text-foreground">{label}</span>
+                    {count !== undefined && <span className="shrink-0 tabular-nums">{count}</span>}
                     {isCollapsed && summary && <span className="min-w-0 truncate">{summary}</span>}
                     <span className="ml-auto shrink-0 pl-1 tabular-nums">{meta}</span>
                 </button>

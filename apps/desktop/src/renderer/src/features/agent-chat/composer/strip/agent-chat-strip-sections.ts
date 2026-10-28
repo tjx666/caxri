@@ -9,11 +9,6 @@ import { agentChatPlanProgress, agentChatTaskStrip } from '@caxri/protocol';
 
 import type { Translate } from '../../../../i18n';
 
-export interface AgentChatRunningKind {
-    kind: AgentChatTask['kind'];
-    count: number;
-}
-
 /**
  * The composer strip's Background work section.
  */
@@ -23,18 +18,13 @@ export interface AgentChatBackgroundWork {
      */
     running: AgentChatTask[];
     /**
-     * How many tasks of each kind run, subagents before shells and only kinds with one running, so the header shows
-     * every kind at once instead of only the first task's.
-     */
-    runningKinds: AgentChatRunningKind[];
-    /**
      * Failures from the latest turn the user has not dismissed, most recent first: listed above the running tasks so a
      * failure is never buried.
      */
     failed: AgentChatTask[];
     /**
      * Every other ended task (completed, stopped, and failures already dismissed or older than the latest turn), most
-     * recent first, behind the `N ended` disclosure.
+     * recent first, behind the `Ended N` disclosure at the foot of the list.
      */
     ended: AgentChatTask[];
 }
@@ -81,7 +71,6 @@ export function agentChatBackgroundWork({
     if (running.length === 0 && failed.length === 0) return undefined;
     return {
         running,
-        runningKinds: agentChatRunningKinds(running),
         failed,
         ended: allEnded.filter((task) => !isUnseenFailure(task)),
     };
@@ -114,16 +103,14 @@ export function agentChatBackgroundWorkSoleTask(
     return work.running.length === 1 && work.failed.length === 0 ? work.running[0] : undefined;
 }
 
-const RUNNING_KIND_ORDER: ReadonlyArray<AgentChatTask['kind']> = ['agent', 'shell'];
-
 /**
- * Counts running tasks per kind in a fixed order, so the glyphs never swap places as tasks start and end.
+ * The task a folded Background work header names after its count: the latest to start, as a folded Plan names the step
+ * in progress, so one row still says what the work is doing.
  */
-export function agentChatRunningKinds(running: readonly AgentChatTask[]): AgentChatRunningKind[] {
-    return RUNNING_KIND_ORDER.map((kind) => ({
-        kind,
-        count: running.filter((task) => task.kind === kind).length,
-    })).filter(({ count }) => count > 0);
+export function agentChatBackgroundWorkFoldedTask(
+    work: AgentChatBackgroundWork,
+): AgentChatTask | undefined {
+    return work.running.at(-1);
 }
 
 /**

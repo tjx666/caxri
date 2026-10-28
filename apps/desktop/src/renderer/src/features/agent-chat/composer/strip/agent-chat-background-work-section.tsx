@@ -2,7 +2,7 @@ import { useId, useState } from 'react';
 
 import type { AgentChatTask } from '@caxri/protocol';
 import { canStopAgentChatTask } from '@caxri/protocol';
-import { History, Square, X } from 'lucide-react';
+import { ChevronRight, Layers, Square, X } from 'lucide-react';
 
 import { DisclosureMotion } from '../../../../components/disclosure-motion';
 import { Button } from '../../../../components/ui/button';
@@ -16,41 +16,57 @@ import {
     useAgentChatTaskStopStore,
 } from '../../agent-chat-commands';
 import { AgentChatTaskEntry } from '../../tasks/agent-chat-task-entry';
-import { AgentChatTaskGlyph } from '../../tasks/agent-chat-task-glyph';
+import { agentChatTaskTitle } from '../../tasks/agent-chat-tasks';
+import { agentChatChevronMotion } from '../../transcript/agent-chat-disclosure';
 import { markAgentChatFailuresSeen } from './agent-chat-seen-failures';
-import {
-    toggleAgentChatStripFold,
-    useIsAgentChatStripSectionCollapsed,
-} from './agent-chat-strip-folds';
 import { AgentChatStripSection } from './agent-chat-strip-section';
-import type { AgentChatBackgroundWork, AgentChatRunningKind } from './agent-chat-strip-sections';
+import type { AgentChatBackgroundWork } from './agent-chat-strip-sections';
 import {
     agentChatBackgroundWorkCounts,
+    agentChatBackgroundWorkFoldedTask,
     agentChatBackgroundWorkSoleTask,
 } from './agent-chat-strip-sections';
 
 /**
- * One glyph per running task kind (subagents, then background shells), each with its count, so a shell running beside a
- * subagent is never hidden behind the first task's glyph. The glyphs are the header's whole title: a `Background work`
- * label or an `N running` total beside them would only repeat what they and the rows under them already show.
+ * The `Ended N` disclosure at the foot of a headed list, the way Synara folds finished tasks into one row and Claude
+ * Code files them under `Completed`: ended work costs one quiet row until the user asks for it, and leaves the header
+ * to say what is running.
  */
-function RunningKindGlyphs({ kinds }: { kinds: readonly AgentChatRunningKind[] }) {
-    if (kinds.length === 0) return <AgentChatTaskGlyph kind="agent" />;
+function EndedTasksRow({
+    count,
+    isShowing,
+    listId,
+    onToggle,
+}: {
+    count: number;
+    isShowing: boolean;
+    listId: string;
+    onToggle: () => void;
+}) {
+    const { t } = useTranslation();
     return (
-        <span className="inline-flex shrink-0 items-center gap-1.5">
-            {kinds.map(({ kind, count }) => (
-                <span className="inline-flex items-center gap-0.5" data-task-kind={kind} key={kind}>
-                    <AgentChatTaskGlyph kind={kind} />
-                    {count}
-                </span>
-            ))}
-        </span>
+        <button
+            aria-controls={listId}
+            aria-expanded={isShowing}
+            className="mt-0.5 flex w-full cursor-pointer items-center gap-2 rounded border-0 bg-transparent px-2 py-0.5 text-left text-[12px] leading-5 text-muted tabular-nums hover:bg-list-hover-background hover:text-foreground focus-visible:outline focus-visible:outline-accent"
+            type="button"
+            onClick={onToggle}
+        >
+            <ChevronRight
+                aria-hidden="true"
+                className={cn(
+                    'size-3.5 shrink-0',
+                    agentChatChevronMotion(isShowing),
+                    isShowing && 'rotate-90',
+                )}
+            />
+            {t('agentChat.tasks.endedCount', { count })}
+        </button>
     );
 }
 
 /**
- * The `N ended` disclosure: a history glyph with the count, so ended work costs no row of its own until the user asks
- * for it.
+ * The `Ended N` disclosure beside a lone task's Stop, where the section has no list to end with a row of its own.
  */
 function EndedTasksToggle({
     count,
@@ -59,33 +75,25 @@ function EndedTasksToggle({
     onToggle,
 }: {
     count: number;
-    /**
-     * Whether the ended list is visible now, which a folded section rules out whatever the user last chose.
-     */
     isShowing: boolean;
     listId: string;
     onToggle: () => void;
 }) {
     const { t } = useTranslation();
-    const label = t('agentChat.tasks.endedCount', { count });
     return (
-        <Tooltip content={label}>
-            <Button
-                aria-controls={listId}
-                aria-expanded={isShowing}
-                aria-label={label}
-                className={cn(
-                    'h-6 shrink-0 gap-1 px-1.5 text-[11px] text-muted tabular-nums hover:text-foreground',
-                    isShowing && 'text-foreground',
-                )}
-                size="sm"
-                variant="ghost"
-                onClick={onToggle}
-            >
-                <History aria-hidden="true" className="size-3.5" />
-                {count}
-            </Button>
-        </Tooltip>
+        <Button
+            aria-controls={listId}
+            aria-expanded={isShowing}
+            className={cn(
+                'h-6 shrink-0 px-1.5 text-[11px] text-muted tabular-nums hover:text-foreground',
+                isShowing && 'text-foreground',
+            )}
+            size="sm"
+            variant="ghost"
+            onClick={onToggle}
+        >
+            {t('agentChat.tasks.endedCount', { count })}
+        </Button>
     );
 }
 
@@ -131,12 +139,17 @@ function StopAllTasksButton({
  */
 function EndedTasksList({
     expanded,
+    isDivided,
     listId,
     tasks,
     terminalId,
     onOpenTask,
 }: {
     expanded: boolean;
+    /**
+     * Rules the list off from the task above it; the `Ended N` row already separates a headed list's ended work.
+     */
+    isDivided: boolean;
     listId: string;
     tasks: readonly AgentChatTask[];
     terminalId: string;
@@ -147,7 +160,10 @@ function EndedTasksList({
         <DisclosureMotion animate expanded={expanded} id={listId} kind="agent-chat-ended-tasks">
             <ul
                 aria-label={t('agentChat.tasks.endedList')}
-                className="m-0 mt-1 flex max-h-32 list-none flex-col overflow-y-auto border-0 border-t border-solid border-border p-0 pt-1"
+                className={cn(
+                    'm-0 flex max-h-32 list-none flex-col overflow-y-auto p-0',
+                    isDivided && 'mt-1 border-0 border-t border-solid border-border pt-1',
+                )}
             >
                 {tasks.map((task) => (
                     <AgentChatTaskEntry
@@ -209,6 +225,7 @@ function SoleTaskSection({
                 <div className="px-1 pb-1.5">
                     <EndedTasksList
                         expanded={isShowingEnded}
+                        isDivided
                         listId={endedListId}
                         tasks={ended}
                         terminalId={terminalId}
@@ -224,9 +241,10 @@ function SoleTaskSection({
  * Background work as a collapsible list in the composer strip (`agentChatBackgroundWork`): failures from the latest
  * turn first so one is never buried, then each running subagent and background shell with its elapsed time, opened in
  * its side tab on click where the host can open one and stoppable on its own or, with two or more running, all at once
- * from the header. Ended work is counted by a header control that reveals it. Failures stay until the user dismisses
- * them, which files them under the ended tasks; the section leaves once nothing runs and no failure waits. A single
- * running task with no failure drops the header (`SoleTaskSection`).
+ * from the header. The header names the section and counts what runs, the way the Plan section counts its steps, and
+ * folded it names the latest task to start. Ended work waits behind an `Ended N` row at the foot of the list. Failures
+ * stay until the user dismisses them, which files them under the ended tasks; the section leaves once nothing runs and
+ * no failure waits. A single running task with no failure drops the header (`SoleTaskSection`).
  */
 export function AgentChatBackgroundWorkSection({
     terminalId,
@@ -270,7 +288,7 @@ function FoldableSection({
     const { running, failed, ended } = work;
     const counts = agentChatBackgroundWorkCounts(work, t);
     const stoppableIds = running.filter(canStopAgentChatTask).map(({ id }) => id);
-    const isCollapsed = useIsAgentChatStripSectionCollapsed(terminalId, 'tasks');
+    const foldedTask = agentChatBackgroundWorkFoldedTask(work);
     const [isShowingEnded, setShowingEnded] = useState(false);
     const endedListId = useId();
     return (
@@ -279,22 +297,6 @@ function FoldableSection({
                 <>
                     {stoppableIds.length >= 2 && (
                         <StopAllTasksButton taskIds={stoppableIds} terminalId={terminalId} />
-                    )}
-                    {ended.length > 0 && (
-                        <EndedTasksToggle
-                            count={ended.length}
-                            isShowing={isShowingEnded && !isCollapsed}
-                            listId={endedListId}
-                            onToggle={() => {
-                                // The list lives in the section body, so opening it from a folded header unfolds it.
-                                if (isCollapsed) {
-                                    toggleAgentChatStripFold(terminalId, 'tasks');
-                                    setShowingEnded(true);
-                                    return;
-                                }
-                                setShowingEnded((value) => !value);
-                            }}
-                        />
                     )}
                     {failed.length > 0 && (
                         <Tooltip content={t('agentChat.tasks.dismissFailures')}>
@@ -317,8 +319,8 @@ function FoldableSection({
                 </>
             }
             ariaLabel={[t('agentChat.tasks.backgroundWork'), ...counts].join(', ')}
-            glyph={<RunningKindGlyphs kinds={work.runningKinds} />}
-            isLabelHidden
+            count={running.length}
+            glyph={<Layers aria-hidden="true" className="size-3.5 shrink-0" />}
             label={t('agentChat.tasks.backgroundWork')}
             meta={
                 failed.length > 0 && (
@@ -328,6 +330,7 @@ function FoldableSection({
                 )
             }
             section="tasks"
+            summary={foldedTask && `· ${agentChatTaskTitle(foldedTask, t)}`}
             terminalId={terminalId}
         >
             <ul className="m-0 flex max-h-48 list-none flex-col overflow-y-auto p-0">
@@ -341,8 +344,17 @@ function FoldableSection({
                 ))}
             </ul>
             {ended.length > 0 && (
+                <EndedTasksRow
+                    count={ended.length}
+                    isShowing={isShowingEnded}
+                    listId={endedListId}
+                    onToggle={() => setShowingEnded((value) => !value)}
+                />
+            )}
+            {ended.length > 0 && (
                 <EndedTasksList
                     expanded={isShowingEnded}
+                    isDivided={false}
                     listId={endedListId}
                     tasks={ended}
                     terminalId={terminalId}

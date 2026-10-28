@@ -1344,9 +1344,9 @@ could not resume adds a body naming the cause and Open as Terminal), or a hand-o
 client in a neutral `--border` card with the PTY recovery bar's unplugged glyph, its Detached label,
 and Resume. The card is inset 12px like the composer strip so the two share edges; while either shows, Send is disabled. Running subagents and background shells, and the Agent's plan, live in the composer strip (below)
 as collapsible sections rather than cards or popovers. The Background work section lists failed then running
-tasks with elapsed time and their own Stop, and a header control (a history glyph with the ended count, so ended work
-takes no row of its own) expands the ended tasks, most recent first, with how each ended; a shell is named by the Agent's
-description of it (Claude Code's `Bash` description) when there is one, with its command line atop
+tasks with elapsed time and their own Stop, and an `Ended N` row at the foot of the list expands the ended tasks, most
+recent first, with how each ended; a shell is named by the Agent's
+description of it (Claude Code's `Bash` or `Monitor` description) when there is one, with its command line atop
 its tab's output, and by the command line in monospace otherwise; clicking one, or the Open action on
 its timeline row, opens it as
 a read-only tab split to the right of the Chat, reusing that side pane for later tasks. A user
@@ -1364,13 +1364,14 @@ else that waits above the input joins that strip as hairline-divided sections in
 card, so the stack reads as one tray (references: LobeHub's input trays, T3 Code's composer drawer):
 the goal row, then the Plan and Background work sections, then queued messages, then the status row
 nearest the input, since it changes most often. The Plan and Background work sections each have a 32px
-header that folds and unfolds the list under it, remembered per Chat: a glyph, the label, the count
-on the right (`2/5`; `1 running · 2 failed` with the failures in `--danger`), and a chevron at the
-header's right edge, after any section actions such as Stop all, that turns as the list opens. Folded, the Plan header also names the current step and the Background
-work header shows each running kind's glyph with its count (subagents before background shells, so
-one kind never hides the other), so folding never hides that work runs. With a single running task and no failure,
-Background work drops its header and fold: that task's row is the whole section, with the ended-count control beside
-its Stop, since `1 running` would only repeat the row. The plan list scrolls past
+header that folds and unfolds the list under it, remembered per Chat: a glyph, the label, its count (the Plan's
+`2/5` on the right; `Background work 3` right after the label, with `2 failed` in `--danger` on the right), and a
+chevron at the header's right edge, after any section actions such as Stop all, that turns as the list opens. Every
+header carries its visible label: a glyph-and-number header read as a riddle to anyone new to it (references:
+Superset's work drawer, Grok Build's `Tasks 3` dock, Claude Code's `3 background tasks`). Folded, the Plan header also
+names the current step and the Background work header the latest task to start, so folding never hides what runs.
+With a single running task and no failure, Background work drops its header and fold: that task's row is the whole
+section, with an `Ended N` button beside its Stop, since `1 running` would only repeat the row. The plan list scrolls past
 192px. The Plan section shows while the Chat is busy and after the turn only while the plan is
 unfinished; Background work shows while anything runs or a failure from the latest turn is
 unseen, and its X dismisses those failures. The status row is the one place the turn's live state

@@ -151,6 +151,25 @@ describe('Claude Code background work in Agent Chat', () => {
         });
     });
 
+    it('titles a Monitor watch by its description and keeps its command line for the tab', async () => {
+        const { service, terminal, until } = await fixture({ provider: 'claude' });
+        await service.send(terminal.id, { text: 'start a monitor' });
+        const listed = await until(
+            (snapshot) => !snapshot.activeTurnId && snapshot.tasks?.[0]?.status === 'running',
+        );
+        const monitorRow = listed.items.find(
+            (item) => item.type === 'toolCall' && item.name === 'Monitor',
+        );
+        // A described shell carries its command line, which is how the Renderer tells a title in words from a command.
+        expect(listed.tasks?.[0]).toMatchObject({
+            kind: 'shell',
+            itemId: monitorRow?.id,
+            title: 'Ticks from the watcher',
+            command: 'while true; do echo tick; sleep 0.1; done',
+        });
+        await service.stopTask(terminal.id, listed.tasks?.[0]?.id ?? '');
+    });
+
     it('keeps background tasks running when the turn is interrupted', async () => {
         const { service, terminal, until } = await fixture({ provider: 'claude' });
         await service.send(terminal.id, { text: 'start a background agent' });

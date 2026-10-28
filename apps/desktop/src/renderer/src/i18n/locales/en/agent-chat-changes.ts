@@ -113,7 +113,7 @@ export const agentChatChanges = {
     'agentChat.tasks.stopAll': 'Stop all',
     'agentChat.tasks.backgroundWork': 'Background work',
     'agentChat.tasks.runningCount': '{{count}} running',
-    'agentChat.tasks.endedCount': '{{count}} ended',
+    'agentChat.tasks.endedCount': 'Ended {{count}}',
     'agentChat.tasks.failedCount': '{{count}} failed',
     'agentChat.tasks.dismissFailures': 'Dismiss failures',
     'agentChat.tasks.endedList': 'Ended background work',

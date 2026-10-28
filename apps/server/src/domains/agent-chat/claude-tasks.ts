@@ -181,21 +181,38 @@ export class ClaudeTasks {
     }
 
     /**
-     * The Bash row a background shell started, when that row is in the parent timeline.
+     * The parent timeline row of the tool call that started a background shell, when that row is there.
      */
-    private commandRow(toolUseId: string | undefined) {
+    private shellRow(toolUseId: string | undefined) {
         const id = toolUseId && clip(toolUseId, 200);
-        const item = id && this.options.host.read().items.find((candidate) => candidate.id === id);
-        return item && item.type === 'command' ? item : undefined;
+        return id
+            ? this.options.host.read().items.find((candidate) => candidate.id === id)
+            : undefined;
+    }
+
+    /**
+     * The command line and description of the tool call that started a background shell: a Bash row, or a `Monitor`
+     * row, a generic tool row whose summary is the command it watches.
+     */
+    private shellCall(
+        toolUseId: string | undefined,
+    ): { command?: string; description?: string } | undefined {
+        const item = this.shellRow(toolUseId);
+        if (item?.type === 'command')
+            return { command: item.command, description: item.description };
+        return item?.type === 'toolCall' && item.name === 'Monitor'
+            ? { command: item.summary }
+            : undefined;
     }
 
     private listShell(claudeId: string, known: KnownTask): void {
         const id = clip(claudeId, 200);
         this.known.set(claudeId, { ...known, id });
         this.claudeIds.set(id, claudeId);
-        const row = this.commandRow(known.toolUseId);
+        const row = this.shellCall(known.toolUseId);
         const command = stringField(row?.command);
-        // The Bash call's description names the shell the way the Agent did; the command line stays for its tab.
+        // The call's description names the shell the way the Agent did; the command line stays for its tab, and its
+        // presence tells the Renderer the title is words, not a command (`isAgentChatTaskTitleCommand`).
         const description =
             stringField(row?.description) ??
             (known.description === command ? undefined : stringField(known.description));
@@ -408,15 +425,15 @@ export class ClaudeTasks {
     }
 
     /**
-     * The command line of a listed background shell, read from the Bash row that started it. A shell whose row is not
-     * in the parent timeline has no known command, even when the Agent named it.
+     * The command line of a listed background shell, read from the Bash or Monitor row that started it. A shell whose
+     * row is not in the parent timeline has no known command, even when the Agent named it.
      */
     shellCommand(taskId: string): string | undefined {
         const claudeId = this.claudeIds.get(taskId);
         const known = claudeId === undefined ? undefined : this.known.get(claudeId);
-        return known?.kind === 'shell'
-            ? stringField(this.commandRow(known.toolUseId)?.command)
-            : undefined;
+        // Only a Bash row: a Monitor watch keeps its unknown-command standing, so it never starts holding the turn.
+        const row = known?.kind === 'shell' ? this.shellRow(known.toolUseId) : undefined;
+        return row?.type === 'command' ? stringField(row.command) : undefined;
     }
 
     /**
