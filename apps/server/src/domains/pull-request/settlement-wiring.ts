@@ -8,11 +8,11 @@ import type { PullRequestSettlement } from './settlement';
  * Carries Session activity changes to the pull request settlement. The activity hook is installed while the Agent
  * runtime is built, long before the Status services that own the settlement exist, so the composition root creates this
  * holder first and `createServiceHandlers` attaches the settlement to it. It also keeps each Session's latest pull
- * request state for consumers built before the Status services, such as Chat idle compaction.
+ * request for consumers built before the Status services, such as Chat idle compaction.
  */
 export class PullRequestSettlementWiring {
     private settlement?: PullRequestSettlement;
-    private readonly states = new Map<string, SessionPullRequest['state']>();
+    private readonly pullRequests = new Map<string, SessionPullRequest>();
     readonly turnWindows = new SessionTurnWindows();
 
     /**
@@ -38,20 +38,20 @@ export class PullRequestSettlementWiring {
         previous: SessionPullRequest | undefined,
         next: SessionPullRequest | undefined,
     ): void {
-        if (next) this.states.set(sessionId, next.state);
-        else this.states.delete(sessionId);
+        if (next) this.pullRequests.set(sessionId, next);
+        else this.pullRequests.delete(sessionId);
         this.settlement?.observePullRequest(sessionId, previous, next);
     }
 
     /**
-     * The Session's pull request state as last resolved in this Server Core, without a GitHub lookup.
+     * The Session's pull request as last resolved in this Server Core, without a GitHub lookup.
      */
-    pullRequestState(sessionId: string): SessionPullRequest['state'] | undefined {
-        return this.states.get(sessionId);
+    pullRequest(sessionId: string): SessionPullRequest | undefined {
+        return this.pullRequests.get(sessionId);
     }
 
     forgetSession(sessionId: string): void {
-        this.states.delete(sessionId);
+        this.pullRequests.delete(sessionId);
         this.settlement?.forgetSession(sessionId);
     }
 

@@ -51,7 +51,7 @@ function compose() {
         database: {} as never,
         dependencies: { logger: { write: vi.fn() }, send: vi.fn() } as never,
         presence: { isSettled: () => true, visibleSessionIds: () => new Set() } as never,
-        settlementWiring: { pullRequestState: () => {} },
+        settlementWiring: { pullRequest: () => {} },
         suspensionState: suspensionState as never,
         terminals: {} as never,
         transcripts: {} as never,

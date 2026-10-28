@@ -1,5 +1,10 @@
 import type { AppSettings, SessionPullRequest } from '@caxri/protocol';
-import { agentChatIdleCompactionAt, CaxriError, errorMessage } from '@caxri/protocol';
+import {
+    agentChatIdleCompactionAt,
+    CaxriError,
+    errorMessage,
+    isAgentChatEndedByMerge,
+} from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog, mapWithConcurrency } from '@caxri/system';
 
@@ -18,8 +23,9 @@ const IDLE_COMPACTION_SWEEP_INTERVAL_MS = 30_000;
  * What one due Chat's idle compaction came to: `submitted` once the provider took the command, `changed` when the Chat
  * left its idle launch before delivery, `unsupported` when its provider lists no compact command, `failed` for any
  * other error, `cache_expired` when the cache expired before the Chat was idle long enough to compact (a turn or
- * request kept it busy through the whole window), and `pull_request_merged` when the Session's pull request already
- * merged, so the delivery is done and a next message is unlikely to need the cache.
+ * request kept it busy through the whole window), and `pull_request_merged` when the Session's pull request merged and
+ * nothing but the merge notice reached the Chat since (`isAgentChatEndedByMerge`), so the delivery is done and a next
+ * message is unlikely to need the cache.
  */
 type IdleCompactionOutcome =
     'cache_expired' | 'changed' | 'failed' | 'pull_request_merged' | 'submitted' | 'unsupported';
@@ -32,9 +38,9 @@ interface Options {
     maintenanceTurns: Pick<AgentCoordinator['maintenanceTurns'], 'begin' | 'end' | 'holds'>;
     logger: StructuredLogger;
     /**
-     * The cached state of the Session's pull request, read without a GitHub lookup. A merged one skips compaction.
+     * The Session's last resolved pull request, read without a GitHub lookup; see `isAgentChatEndedByMerge`.
      */
-    pullRequestState?: (sessionId: string) => SessionPullRequest['state'] | undefined;
+    pullRequest?: (sessionId: string) => SessionPullRequest | undefined;
     settings: () => Pick<AppSettings, 'agentChat.idleCompaction.enabled'>;
     watchHub: Pick<WatchHub, 'registerPoller'>;
     now?: () => number;
@@ -48,11 +54,11 @@ interface Options {
  * it from here.
  *
  * Only a Chat whose provider is running and idle in this Server Core is compacted: a stopped or suspended Chat is never
- * started for it. A Session whose pull request already merged is skipped: its delivery is over, so the compaction would
- * spend a provider request summarizing a conversation that most likely ends here. Like batch compaction
- * (`SessionCompaction`), the compaction is maintenance, so its turn never reaches Session state. Each response is
- * attempted once: a compaction resets the response time, and a refused or failed one waits for the next response rather
- * than retrying every sweep.
+ * started for it. A Chat that ended with its Session's merged pull request is skipped: its delivery is over, so the
+ * compaction would spend a provider request summarizing a conversation that most likely ends here. Like batch
+ * compaction (`SessionCompaction`), the compaction is maintenance, so its turn never reaches Session state. Each
+ * response is attempted once: a compaction resets the response time, and a refused or failed one waits for the next
+ * response rather than retrying every sweep.
  */
 export class ChatIdleCompaction {
     /**
@@ -102,7 +108,8 @@ export class ChatIdleCompaction {
             return;
         const { provider } = terminal;
         // Read from the projection directly: `AgentChatService.read` would start a stopped provider.
-        const usage = agentChat.states.get(terminalId)?.projection.snapshot.usage;
+        const snapshot = agentChat.states.get(terminalId)?.projection.snapshot;
+        const usage = snapshot?.usage;
         const dueAt = agentChatIdleCompactionAt(usage, provider);
         if (
             dueAt === undefined ||
@@ -116,7 +123,10 @@ export class ChatIdleCompaction {
         return {
             dueAt,
             expiresAt: lastResponseAt + cacheTtlMinutes * 60_000,
-            isMerged: this.options.pullRequestState?.(terminal.sessionId) === 'merged',
+            isMerged: isAgentChatEndedByMerge(
+                snapshot?.items,
+                this.options.pullRequest?.(terminal.sessionId),
+            ),
             lastResponseAt,
             provider,
             totalTokens,
@@ -201,9 +211,9 @@ export class ChatIdleCompaction {
     /**
      * Whether this Chat's idle compaction is still to run before its cache expires: the idle-suspension rule keeps such
      * a Chat running until then (`isChatCompactionPending`), because a suspended Chat is never started to compact. The
-     * hold ends once the compaction was attempted (whatever its outcome) or the cache expired, never applies to a
-     * Session whose pull request merged (there is nothing to wait for), and never covers the compaction's own response,
-     * so a Chat still above the threshold afterwards is not kept one cache lifetime after another.
+     * hold ends once the compaction was attempted (whatever its outcome) or the cache expired, never applies to a Chat
+     * that ended with its merged pull request (there is nothing to wait for), and never covers the compaction's own
+     * response, so a Chat still above the threshold afterwards is not kept one cache lifetime after another.
      */
     isPending(terminalId: string): boolean {
         if (!this.options.settings()['agentChat.idleCompaction.enabled']) return false;

@@ -1,4 +1,4 @@
-import { errorMessage, isChatTerminal } from '@caxri/protocol';
+import { errorMessage, formatMergeNotice, isChatTerminal } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 import { rememberBounded } from '@caxri/utils';
@@ -50,10 +50,6 @@ export interface PullRequestMergeNoticeOptions {
     isWithinAgentTurn?(sessionId: string, at: number): boolean;
     logger: Pick<StructuredLogger, 'write'>;
     terminals: Pick<TerminalManager, 'agentLaunchId' | 'submitAgentExact'>;
-}
-
-export function formatMergeNotice(url: string): string {
-    return `Pull request ${url} has been merged.`;
 }
 
 /**

@@ -1,7 +1,8 @@
+import { formatMergeNotice } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { PullRequestMergeNoticeOptions } from '../merge-notice';
-import { createPullRequestMergeNotice, formatMergeNotice } from '../merge-notice';
+import { createPullRequestMergeNotice } from '../merge-notice';
 
 const URL = 'https://github.com/acme/widget/pull/42';
 
