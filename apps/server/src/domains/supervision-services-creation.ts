@@ -2,6 +2,7 @@ import type { AgentChatService } from './agent-chat';
 import type { AgentCoordinator } from './agents';
 import type { CaxriDatabase } from './db';
 import type { DomainDependencies } from './domain-services';
+import type { PullRequestSettlementWiring } from './pull-request';
 import type { createRootServices } from './root-services';
 import { ChatIdleCompaction } from './session';
 import type { TerminalManager } from './terminal';
@@ -30,6 +31,7 @@ export function createTerminalSupervision({
     database,
     dependencies,
     presence,
+    settlementWiring,
     suspensionState,
     terminals,
     transcripts,
@@ -40,6 +42,7 @@ export function createTerminalSupervision({
     database: CaxriDatabase;
     dependencies: DomainDependencies;
     presence: Pick<WindowPresence, 'isSettled' | 'visibleSessionIds'>;
+    settlementWiring: Pick<PullRequestSettlementWiring, 'pullRequestState'>;
     suspensionState: { service?: TerminalSuspensionService };
     terminals: TerminalManager;
 }) {
@@ -49,6 +52,7 @@ export function createTerminalSupervision({
         database,
         maintenanceTurns: coordinator.maintenanceTurns,
         logger,
+        pullRequestState: (sessionId) => settlementWiring.pullRequestState(sessionId),
         settings: () => configuration.getSettings().value,
         watchHub,
     });

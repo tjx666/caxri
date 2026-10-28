@@ -213,6 +213,7 @@ export async function createDomainServices(
         database,
         dependencies,
         presence,
+        settlementWiring,
         suspensionState,
         terminals,
         transcripts,
@@ -506,10 +507,6 @@ export async function createDomainServices(
             restoreSelection: presenceEffects.restoreWindowSelections,
             send,
         }),
-        'session.updateState': (state) => {
-            database.updateSessionState(state, 'clientWrite');
-            return database.getSessionState(state.sessionId);
-        },
         'session.queryForPrincipal': ({ principal, query }) =>
             introspection.records.session(query, principal),
         ...terminalInputs,

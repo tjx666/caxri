@@ -143,7 +143,8 @@ Conversation, so a reply sent from the phone never finds its provider stopped.
 
 The idle rule also leaves a Chat running while its idle compaction is pending
 (`ChatIdleCompaction.isPending`, see [Idle Chat compaction](session-compaction.md#idle-chat-compaction)):
-a primary Claude Code or Grok Build Chat over the compaction threshold stays up until the compaction
+a primary Claude Code or Grok Build Chat over the compaction threshold, whose Session's pull request
+has not merged, stays up until the compaction
 is attempted near the end of its prompt cache lifetime (minute 54 of a one-hour cache) or the cache
 expires, and the next sweep parks it. Without that hold a suspension window shorter than 54 minutes
 stops the Chat first, and the compaction never runs, since a suspended Chat is never started for it.

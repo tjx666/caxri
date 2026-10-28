@@ -1,4 +1,4 @@
-import type { AgentChatUsage, AgentProvider } from '@caxri/protocol';
+import type { AgentChatUsage, AgentProvider, SessionPullRequest } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { describe, expect, it, vi } from 'vitest';
@@ -14,11 +14,13 @@ function fixture({
     usage = { totalTokens: 250_000, cacheTtlMinutes: 60, lastResponseAt: respondedAt },
     isEnabled = true,
     primaryAgentTerminalId = 'chat',
+    pullRequestState,
 }: {
     provider?: AgentProvider;
     usage?: AgentChatUsage;
     isEnabled?: boolean;
     primaryAgentTerminalId?: string;
+    pullRequestState?: SessionPullRequest['state'];
 } = {}) {
     let now = respondedAt;
     const current = { usage: usage as AgentChatUsage | undefined };
@@ -43,6 +45,7 @@ function fixture({
         },
         maintenanceTurns,
         logger: { write } as unknown as StructuredLogger,
+        pullRequestState: () => pullRequestState,
         settings: () => settings,
         watchHub: {} as WatchHub,
         now: () => now,
@@ -139,6 +142,30 @@ describe('ChatIdleCompaction', () => {
         await f.compaction.sweep();
         expect(f.agentChat.compactIdle).toHaveBeenCalledOnce();
     });
+
+    it("skips a Chat whose Session's pull request merged, once per response", async () => {
+        const f = fixture({ pullRequestState: 'merged' });
+        f.advanceTo(30);
+        expect(f.compaction.isPending('chat')).toBe(false);
+        f.advanceTo(54);
+        await f.compaction.sweep();
+        f.advanceTo(55);
+        await f.compaction.sweep();
+        expect(f.agentChat.compactIdle).not.toHaveBeenCalled();
+        expect(f.maintenanceTurns.begin).not.toHaveBeenCalled();
+        expect(f.write).toHaveBeenCalledOnce();
+        expect(f.lastRecord()).toMatchObject({ level: 'info', outcome: 'pull_request_merged' });
+    });
+
+    it.each(['open', 'closed'] as const)(
+        'still compacts a Chat whose pull request is %s',
+        async (pullRequestState) => {
+            const f = fixture({ pullRequestState });
+            f.advanceTo(54);
+            await f.compaction.sweep();
+            expect(f.agentChat.compactIdle).toHaveBeenCalledOnce();
+        },
+    );
 
     it('tries again after the next response restarts the cache', async () => {
         const f = fixture();
