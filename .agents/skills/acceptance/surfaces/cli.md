@@ -30,6 +30,15 @@ it at the developer's resident profile. `apps/cli/dist/caxri.cjs` requires
 Node.js 24 or newer. `--help` and `capabilities --json` are the only commands
 that work without a Server.
 
+Run inside a Caxri-managed Agent Session, the CLI presents that Session's Agent
+Endpoint credential (`CAXRI_AGENT_ENDPOINT_{HOST_ID,ID,GENERATION,TOKEN}`) to
+whichever Server `--profile` selects. The isolated Server rejects it and the CLI
+reports `UNAVAILABLE: Caxri Server is unavailable`, which reads like a Server
+still starting. Prefix every call against an isolated profile with
+`env -u CAXRI_AGENT_ENDPOINT_HOST_ID -u CAXRI_AGENT_ENDPOINT_ID
+-u CAXRI_AGENT_ENDPOINT_GENERATION -u CAXRI_AGENT_ENDPOINT_TOKEN` so it runs as
+the profile's owner.
+
 Every mutation additionally requires `--yes`, and should carry a stable
 `--request-id <id>` so a retry is safe. See [docs/cli.md](../../../../docs/cli.md)
 for the full command surface.
