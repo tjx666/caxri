@@ -1,10 +1,11 @@
-import { realpath } from 'node:fs/promises';
+import { lstat, realpath } from 'node:fs/promises';
 import { sep } from 'node:path';
 
 import type { AgentProvider, ProjectRecord, SessionRecord, TerminalRecord } from '@caxri/protocol';
 import { isTopLevelProject } from '@caxri/protocol';
 
 import type { CaxriDatabase } from '../db';
+import type { GitWorktreeTopology } from '../git';
 
 /**
  * The deepest visible top-level Project whose root contains `path`.
@@ -14,12 +15,9 @@ function containingProject(
     path: string,
 ): ProjectRecord | undefined {
     return projects
-        .filter(
-            (project) =>
-                isTopLevelProject(project) &&
-                (path === project.rootPath || path.startsWith(`${project.rootPath}${sep}`)),
-        )
-        .toSorted((left, right) => right.rootPath.length - left.rootPath.length)[0];
+        .filter((project) => isTopLevelProject(project) && isInside(path, project.rootPath))
+        .toSorted((left, right) => right.rootPath.length - left.rootPath.length)
+        .at(0);
 }
 
 /**
@@ -52,32 +50,95 @@ interface ImportableConversation {
 }
 
 /**
+ * Reads the linked-worktree topology of the repository containing a folder; see `GitService.worktreeTopology`.
+ */
+export type WorktreeTopologyReader = (path: string) => Promise<GitWorktreeTopology>;
+
+interface ConversationPlacement {
+    project: ProjectRecord;
+    /**
+     * The linked worktree of `project` the conversation ran in, which becomes the Session's Workbench Root.
+     */
+    worktreeRoot?: string;
+}
+
+/**
+ * The visible top-level Project whose repository has the folder as a linked worktree, and that worktree's root. A
+ * conversation started in a worktree checkout kept outside the Project folder then lands in the Project it belongs to,
+ * working in that worktree, as a Session the user moved there would, instead of adding the checkout as a new Project.
+ * Anything that is not a Git checkout, or whose repository no visible Project owns, has no placement here.
+ */
+async function worktreePlacement(
+    projects: readonly ProjectRecord[],
+    cwd: string,
+    readTopology: WorktreeTopologyReader,
+): Promise<ConversationPlacement | undefined> {
+    let topology: GitWorktreeTopology;
+    let canonical: string;
+    try {
+        canonical = await realpath(cwd);
+        topology = await readTopology(canonical);
+    } catch {
+        return undefined;
+    }
+    const worktree = topology.worktrees
+        .filter((entry) => isInside(canonical, entry.rootPath))
+        .toSorted((left, right) => right.rootPath.length - left.rootPath.length)
+        .at(0);
+    if (!worktree || worktree.isMain) return undefined;
+    const roots = new Set(topology.worktrees.map((entry) => entry.rootPath));
+    const owner = projects.find(
+        (project) => isTopLevelProject(project) && roots.has(project.rootPath),
+    );
+    return owner && { project: owner, worktreeRoot: worktree.rootPath };
+}
+
+export function isInside(path: string, root: string): boolean {
+    return path === root || path.startsWith(`${root}${sep}`);
+}
+
+/**
  * Creates the Session that holds an external conversation: a parked Agent Terminal bound to the conversation, so
- * opening the Session resumes it. Reuses the Project containing the conversation's folder, or adds one for it.
- * Selection stays where the user is. Returns `undefined` when the folder no longer resolves to a top-level Project
- * root.
+ * opening the Session resumes it. Reuses the Project containing the conversation's folder, else the Project whose
+ * linked worktree it ran in (with that worktree as the Workbench Root), or adds a Project for it. The transcript's
+ * title starts as the Session's automatic title, so naming the conversation later still replaces it. Selection stays
+ * where the user is. Returns `undefined` when the folder no longer resolves to a top-level Project root.
  */
 export async function importExternalConversation(
     database: CaxriDatabase,
     conversation: ImportableConversation,
     resolveProjectRoot: (path: string) => Promise<string>,
+    readTopology?: WorktreeTopologyReader,
 ): Promise<{ session: SessionRecord; terminal: TerminalRecord } | undefined> {
-    let project = await conversationProject(database.listVisibleProjects(), conversation.cwd);
-    if (!project) {
+    const projects = database.listVisibleProjects();
+    const containing = await conversationProject(projects, conversation.cwd);
+    let placement: ConversationPlacement | undefined = containing && { project: containing };
+    if (!placement && readTopology)
+        placement = await worktreePlacement(projects, conversation.cwd, readTopology);
+    if (!placement) {
         let rootPath: string;
         try {
             rootPath = await resolveProjectRoot(conversation.cwd);
         } catch {
             return undefined;
         }
-        project = database.createProject(rootPath);
+        const project = database.createProject(rootPath);
         if (!isTopLevelProject(project)) return undefined;
+        placement = { project };
     }
-    const { session } = database.createSession(project.id, null, undefined, {
-        selection: 'preserve',
-    });
     const title = conversation.title?.trim().slice(0, 200);
-    if (title) database.renameSession(session.id, title);
+    const { session } = database.createSession(placement.project.id, null, undefined, {
+        selection: 'preserve',
+        ...(title && { title }),
+    });
+    if (placement.worktreeRoot) {
+        const worktree = database.createProject(placement.worktreeRoot, placement.project.id);
+        database.selectWorkbenchProject(
+            session.id,
+            worktree.id,
+            await rootIdentity(worktree.rootPath),
+        );
+    }
     const terminal = database.createTerminal(session.id, conversation.provider, conversation.cwd);
     database.rebindAgentSession(terminal.id, conversation.provider, conversation.providerSessionId);
     database.updateTerminalState(terminal.id, 'detached');
@@ -86,4 +147,9 @@ export async function importExternalConversation(
         session: database.getSession(session.id)!,
         terminal: database.getTerminal(terminal.id)!,
     };
+}
+
+async function rootIdentity(path: string): Promise<{ device: string; inode: string }> {
+    const stats = await lstat(path, { bigint: true });
+    return { device: stats.dev.toString(), inode: stats.ino.toString() };
 }

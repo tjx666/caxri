@@ -26,7 +26,8 @@ import {
     SessionSearchIndexUnavailableError,
 } from '../agents';
 import type { CaxriDatabase } from '../db';
-import { importExternalConversation } from './import-conversation';
+import type { WorktreeTopologyReader } from './import-conversation';
+import { importExternalConversation, isInside } from './import-conversation';
 
 /**
  * Index hits requested per search: several conversations can fold into one Session row, so ask for more than one page.
@@ -99,8 +100,22 @@ export class SessionSearchService {
             index: Pick<SessionSearchIndex, 'inspect' | 'search'>;
             resolveProjectRoot: (path: string) => Promise<string>;
             onSessionImported: () => void;
+            /**
+             * Folders where Caxri runs its own Agents, such as Caxri Bot's workspace. A conversation there is never the
+             * user's own, so it is neither listed as external nor imported. Matching the folder rather than the hidden
+             * Session keeps it out after a clean-install cutoff drops that Session.
+             */
+            internalRoots?: readonly string[];
+            readTopology?: WorktreeTopologyReader;
         },
     ) {}
+
+    private isInternal(cwd: string | undefined): boolean {
+        return (
+            cwd !== undefined &&
+            (this.options.internalRoots ?? []).some((root) => isInside(cwd, root))
+        );
+    }
 
     private async searchIndex(
         query: string,
@@ -256,7 +271,8 @@ export class SessionSearchService {
         for (const hit of index.hits) {
             const held = holdings.byKey.get(hit.key);
             if (held) offer(`session:${held.session.id}`, heldEntry(held, hit));
-            else if (!holdings.hiddenKeys.has(hit.key)) offer(hit.key, externalEntry(hit));
+            else if (!holdings.hiddenKeys.has(hit.key) && !this.isInternal(hit.cwd))
+                offer(hit.key, externalEntry(hit));
         }
         if (status !== 'external') {
             for (const entry of this.sessionEntries(parameters.query, providers, status, holdings))
@@ -299,6 +315,8 @@ export class SessionSearchService {
         }
         if (!conversation)
             throw new CaxriError('NOT_FOUND', 'The Agent no longer has this conversation');
+        if (this.isInternal(conversation.cwd))
+            throw new CaxriError('CONFLICT', 'This conversation belongs to Caxri Bot');
         const isFolder = await isDirectory(conversation.cwd);
         if (!isFolder)
             throw new CaxriError(
@@ -314,6 +332,7 @@ export class SessionSearchService {
                 ...(conversation.title !== undefined && { title: conversation.title }),
             },
             this.options.resolveProjectRoot,
+            this.options.readTopology,
         );
         if (!imported)
             throw new CaxriError('PATH_DENIED', 'This folder cannot be added as a Project');

@@ -33,8 +33,9 @@ export interface IndexSearchRequest {
     restrict?: { mode: 'exclude' | 'include'; keys: string[] };
     /**
      * `<provider>:<conversation id>` keys of the conversations Caxri Sessions hold. A hosted conversation (one an
-     * application started through the Agent SDK) appears only when listed here, so Caxri's own Agent Chat conversations
-     * are searchable while another application's SDK runs stay out.
+     * application started through the Agent SDK) appears only when listed here, so an Agent Chat conversation written
+     * before Caxri labelled its own is searchable while a Session holds it, and another application's SDK runs stay
+     * out.
      */
     heldKeys?: string[];
     limit: number;

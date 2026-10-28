@@ -7,7 +7,7 @@ import Database from 'better-sqlite3';
  * Bumped whenever the schema or what is extracted from a transcript changes. The index is derived data, so a mismatch
  * drops the file and rebuilds it from the providers' transcripts instead of migrating.
  */
-const INDEX_VERSION = 4;
+const INDEX_VERSION = 5;
 
 const SCHEMA = `
 CREATE TABLE transcripts (
@@ -52,11 +52,11 @@ END;
 `;
 
 /**
- * `conversation` is a top-level conversation a user started in a terminal; `hosted` is one an application started
- * through the Agent SDK (Caxri's Agent Chat among them), searchable only while a Caxri Session holds it; `excluded` is
- * everything else a provider writes beside one (subagent threads, scripted `-p` / `exec` runs, Caxri's own delegated
- * children, a conversation with no prompt yet). Excluded transcripts keep a row so an unchanged file is not inspected
- * again.
+ * `conversation` is a top-level conversation a user started in a terminal; `hosted` is one another application started
+ * through the Agent SDK (Caxri's Agent Chat before its `caxri` entrypoint), searchable only while a Caxri Session holds
+ * it; `excluded` is everything else a provider writes beside one (subagent threads, scripted `-p` / `exec` runs,
+ * Caxri's own delegated children, a conversation with no prompt yet). Excluded transcripts keep a row so an unchanged
+ * file is not inspected again.
  */
 type IndexedTranscriptState = 'conversation' | 'excluded' | 'hosted';
 

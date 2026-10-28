@@ -50,13 +50,9 @@ import {
     PullRequestSettlement,
     refreshAfterMerge,
 } from './pull-request';
+import { createSessionSearchServices } from './search-service-creation';
 import type { SessionContextService } from './session';
-import {
-    defaultSessionReferenceDirectory,
-    SessionAgentHistoryService,
-    SessionConversationReferenceService,
-    SessionSearchService,
-} from './session';
+import { defaultSessionReferenceDirectory, SessionConversationReferenceService } from './session';
 import { resolveTerminalFileLink } from './terminal';
 import type { AgentUsageGuards } from './usage';
 import { offlinePriceListFetch, UsageService } from './usage';
@@ -253,18 +249,12 @@ export function createServiceHandlers(services: {
         userDataPath,
         vercel,
     } = services;
-    const sessionSearch = new SessionSearchService({
+    const { sessionAgentHistory, sessionSearch } = createSessionSearchServices({
         database,
+        emit,
+        git,
         index: agentRuntime.sessionSearchIndex,
-        resolveProjectRoot: resolveOwnerProjectRoot,
-        onSessionImported: () =>
-            emit({ event: 'state.changed', payload: { kind: 'full', reason: 'session.create' } }),
-    });
-    const sessionAgentHistory = new SessionAgentHistoryService({
-        database,
-        index: agentRuntime.sessionSearchIndex,
-        onTerminalCreated: () =>
-            emit({ event: 'state.changed', payload: { kind: 'full', reason: 'terminal.create' } }),
+        userDataPath,
     });
     const sessionConversationReferences = new SessionConversationReferenceService(
         defaultSessionReferenceDirectory(),

@@ -175,11 +175,6 @@ describe('listExternalConversations', () => {
             [claudeUser('claude-hosted', 'Draft a note', { entrypoint: 'sdk-ts' })],
             at,
         );
-        await writeLines(
-            claudePath('claude-caxri'),
-            [claudeUser('claude-caxri', 'Draft a reply', { entrypoint: 'caxri' })],
-            at,
-        );
         await writeLines(subagentPath, [claudeUser('claude-parent', 'Sub task')], at);
         await writeLines(
             claudePath('claude-delegated'),
@@ -198,6 +193,18 @@ describe('listExternalConversations', () => {
         );
 
         await expect(list()).resolves.toEqual([]);
+    });
+
+    it("lists Caxri's own Agent Chat conversations, which carry the caxri entrypoint", async () => {
+        await writeLines(
+            claudePath('claude-caxri'),
+            [claudeUser('claude-caxri', 'Draft a reply', { entrypoint: 'caxri' })],
+            NOW - 5 * MINUTE,
+        );
+
+        await expect(list()).resolves.toEqual([
+            expect.objectContaining({ providerSessionId: 'claude-caxri', title: 'Draft a reply' }),
+        ]);
     });
 
     it('reads Codex rollouts, skipping injected prompts, subagents, and exec runs', async () => {

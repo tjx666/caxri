@@ -11,6 +11,7 @@ export {
 } from './conversation-reference';
 export { createSessionCreationHandlers, createSessionCreator } from './creation';
 export { ChatIdleCompaction } from './idle-compaction';
+export type { WorktreeTopologyReader } from './import-conversation';
 export { conversationProject, importExternalConversation } from './import-conversation';
 export { createSessionMarkReadHandler } from './mark-read';
 export { SessionRenameService } from './rename';

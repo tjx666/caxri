@@ -29,7 +29,13 @@ function hit(agentSessionId: string, overrides: Partial<IndexedConversationHit> 
     } satisfies IndexedConversationHit;
 }
 
-async function fixture(hits: IndexedConversationHit[] = []) {
+async function fixture(
+    hits: IndexedConversationHit[] = [],
+    options: Pick<
+        ConstructorParameters<typeof SessionSearchService>[0],
+        'internalRoots' | 'readTopology'
+    > = {},
+) {
     const temporary = await mkdtemp(join(tmpdir(), 'caxri-session-search-'));
     const directory = await realpath(temporary);
     const database = new CaxriDatabase(join(directory, 'state.db'));
@@ -60,6 +66,7 @@ async function fixture(hits: IndexedConversationHit[] = []) {
         index: { search, inspect },
         resolveProjectRoot: (path) => Promise.resolve(path),
         onSessionImported,
+        ...options,
     });
     return {
         archived,
@@ -149,9 +156,11 @@ describe('SessionSearchService', () => {
         const imported = await f.service.importConversation('claude', EXTERNAL);
 
         const session = f.database.getSession(imported.sessionId)!;
+        // The transcript's title is only a starting point: naming the conversation later may still replace it.
         expect(session).toMatchObject({
             projectId: f.open.session.projectId,
             title: 'Ship the refund ledger',
+            titleMode: 'automatic',
         });
         const terminal = f.database.listTerminals().find((row) => row.sessionId === session.id)!;
         expect(terminal).toMatchObject({ provider: 'claude', agentSessionId: EXTERNAL });
@@ -171,5 +180,63 @@ describe('SessionSearchService', () => {
             code: 'NOT_FOUND',
         });
         expect(f.onSessionImported).not.toHaveBeenCalled();
+    });
+
+    it("keeps conversations in Caxri's own Agent folders out of search and import", async () => {
+        const bot = '/profile/caxri-bot';
+        const f = await fixture(
+            [hit(EXTERNAL, { cwd: `${bot}/tasks` }), hit(ARCHIVED, { cwd: bot }), hit(HELD)],
+            { internalRoots: [bot] },
+        );
+
+        const result = await f.service.search({ query: 'invoice' });
+
+        // A Session holding the conversation still lists it; only unheld ones in the folder are hidden.
+        expect(result.entries.map((entry) => entry.agentSessionId)).toEqual([HELD, ARCHIVED]);
+        f.inspect.mockResolvedValue({ cwd: bot, updatedAt: 1 });
+        await expect(f.service.importConversation('claude', EXTERNAL)).rejects.toMatchObject({
+            code: 'CONFLICT',
+        });
+    });
+
+    it('places a conversation run in a linked worktree under the Project that owns it', async () => {
+        const readTopology = vi.fn();
+        const f = await fixture([], { readTopology });
+        const root = join(f.directory, 'billing-worktrees', 'feature');
+        const cwd = join(root, 'packages');
+        await mkdir(cwd, { recursive: true });
+        readTopology.mockResolvedValue({
+            repositoryKey: join(f.repo, '.git'),
+            worktrees: [
+                { branch: 'main', rootPath: f.repo, isMain: true },
+                { branch: 'feature', rootPath: root },
+            ],
+        });
+        f.inspect.mockResolvedValue({ cwd, updatedAt: 1 });
+
+        const imported = await f.service.importConversation('claude', EXTERNAL);
+
+        const session = f.database.getSession(imported.sessionId)!;
+        expect(session).toMatchObject({ projectId: f.open.session.projectId, rootPath: root });
+        expect(f.database.getProject(session.workbenchRootProjectId)).toMatchObject({
+            rootPath: root,
+            ownerProjectId: f.open.session.projectId,
+        });
+        const terminal = f.database.listTerminals().find((row) => row.sessionId === session.id)!;
+        expect(terminal.cwd).toBe(cwd);
+    });
+
+    it('keeps a worktree the user added as its own Project', async () => {
+        const readTopology = vi.fn();
+        const f = await fixture([], { readTopology });
+        const root = join(f.directory, 'billing-worktrees', 'feature');
+        await mkdir(root, { recursive: true });
+        const added = f.database.createProject(root);
+        f.inspect.mockResolvedValue({ cwd: root, updatedAt: 1 });
+
+        const imported = await f.service.importConversation('claude', EXTERNAL);
+
+        expect(imported.projectId).toBe(added.id);
+        expect(readTopology).not.toHaveBeenCalled();
     });
 });
