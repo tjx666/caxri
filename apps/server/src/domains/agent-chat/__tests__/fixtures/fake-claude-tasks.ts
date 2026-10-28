@@ -384,18 +384,27 @@ function resumeBackgroundAgent(io: FakeClaudeIo, startedAt: number) {
 
 /**
  * A background Bash command printing a tick every 100 ms. With `finishAfterMs` it ends on its own and wakes the main
- * thread; otherwise it runs until `stop_task`.
+ * thread; otherwise it runs until `stop_task`. As `Monitor`, the call is the Monitor tool, which runs its command as a
+ * `local_bash` task too but has no `run_in_background` flag and lands in the timeline as a generic tool row.
  */
-function startBackgroundShell(io: FakeClaudeIo, startedAt: number, finishAfterMs?: number) {
+function startBackgroundShell(
+    io: FakeClaudeIo,
+    startedAt: number,
+    finishAfterMs?: number,
+    tool: 'Bash' | 'Monitor' = 'Bash',
+) {
     const toolUseId = `toolu_${crypto.randomUUID()}`;
     const taskId = `b${tasks.nextTaskId++}`;
     const command = finishAfterMs ? 'sleep 0.3' : 'while true; do echo tick; sleep 0.1; done';
-    const description = 'Print ticks';
+    const description = tool === 'Monitor' ? 'Ticks from the watcher' : 'Print ticks';
     io.assistant(`msg_${crypto.randomUUID()}`, {
         type: 'tool_use',
         id: toolUseId,
-        name: 'Bash',
-        input: { command, description, run_in_background: true },
+        name: tool,
+        input:
+            tool === 'Monitor'
+                ? { description, command, timeout_ms: 60_000 }
+                : { command, description, run_in_background: true },
     });
     const task: BackgroundTask = { kind: 'shell', toolUseId, description };
     tasks.background.set(taskId, task);
@@ -413,7 +422,7 @@ function startBackgroundShell(io: FakeClaudeIo, startedAt: number, finishAfterMs
         childFrame(io, toolUseId, {
             type: 'tool_progress',
             tool_use_id: toolUseId,
-            tool_name: 'Bash',
+            tool_name: tool,
             elapsed_time_seconds: 1,
             task_id: taskId,
         }),
@@ -483,6 +492,7 @@ export function didStartBackgroundTask(io: FakeClaudeIo, startedAt: number, text
     else if (text.includes('workflow')) startWorkflow(io, startedAt);
     else if (text.includes('quick background agent')) startBackgroundAgent(io, startedAt, 300);
     else if (text.includes('background agent')) startBackgroundAgent(io, startedAt);
+    else if (text.includes('monitor')) startBackgroundShell(io, startedAt, undefined, 'Monitor');
     else if (text.includes('quick background')) startBackgroundShell(io, startedAt, 300);
     else if (text.includes('background')) startBackgroundShell(io, startedAt);
     else return false;

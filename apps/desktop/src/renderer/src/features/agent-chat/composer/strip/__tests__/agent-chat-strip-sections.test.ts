@@ -5,11 +5,11 @@ import { translate } from '../../../../../i18n';
 import {
     agentChatBackgroundWork,
     agentChatBackgroundWorkCounts,
+    agentChatBackgroundWorkFoldedTask,
     agentChatBackgroundWorkSoleTask,
     agentChatLatestTurnStart,
     agentChatPlanProgressLabel,
     agentChatPlanSection,
-    agentChatRunningKinds,
 } from '../agent-chat-strip-sections';
 
 const WORKING: AgentChatActivity = { kind: 'working', text: 'Working…', startedAt: 100 };
@@ -163,28 +163,34 @@ describe('strip section labels', () => {
         const failed = task('broke', 'failed', 160);
         const counts = (work: Parameters<typeof agentChatBackgroundWorkCounts>[0]) =>
             agentChatBackgroundWorkCounts(work, translate);
-        expect(
-            counts({ running: [running], runningKinds: [], failed: [failed], ended: [] }),
-        ).toEqual([
+        expect(counts({ running: [running], failed: [failed], ended: [] })).toEqual([
             translate('agentChat.tasks.runningCount', { count: 1 }),
             translate('agentChat.tasks.failedCount', { count: 1 }),
         ]);
-        expect(counts({ running: [], runningKinds: [], failed: [failed], ended: [] })).toEqual([
+        expect(counts({ running: [], failed: [failed], ended: [] })).toEqual([
             translate('agentChat.tasks.failedCount', { count: 1 }),
         ]);
     });
 });
 
-describe('agentChatRunningKinds', () => {
-    it('counts each running kind, subagents before shells, so neither hides the other', () => {
-        const shell = task('shell', 'running', 100);
-        const agent: AgentChatTask = { ...task('agent', 'running', 200), kind: 'agent' };
-        expect(agentChatRunningKinds([shell, agent, task('shell-2', 'running', 300)])).toEqual([
-            { kind: 'agent', count: 1 },
-            { kind: 'shell', count: 2 },
-        ]);
-        expect(agentChatRunningKinds([shell])).toEqual([{ kind: 'shell', count: 1 }]);
-        expect(agentChatRunningKinds([])).toEqual([]);
+describe('agentChatBackgroundWorkFoldedTask', () => {
+    it('names the latest running task to start, never a failure', () => {
+        const work = agentChatBackgroundWork({
+            latestTurnStartedAt: 100,
+            seenFailureIds: NONE,
+            tasks: [
+                task('first', 'running', 150),
+                task('latest', 'running', 300),
+                task('broke', 'failed', 400),
+            ],
+        });
+        expect(work && agentChatBackgroundWorkFoldedTask(work)?.id).toBe('latest');
+        const onlyFailed = agentChatBackgroundWork({
+            latestTurnStartedAt: 100,
+            seenFailureIds: NONE,
+            tasks: [task('broke', 'failed', 400)],
+        });
+        expect(onlyFailed && agentChatBackgroundWorkFoldedTask(onlyFailed)).toBeUndefined();
     });
 });
 

@@ -110,7 +110,7 @@ export const agentChatChanges: TranslatedNamespace<typeof source> = {
     'agentChat.tasks.stopAll': '全部停止',
     'agentChat.tasks.backgroundWork': '后台任务',
     'agentChat.tasks.runningCount': '{{count}} 个运行中',
-    'agentChat.tasks.endedCount': '{{count}} 个已结束',
+    'agentChat.tasks.endedCount': '已结束 {{count}}',
     'agentChat.tasks.failedCount': '{{count}} 个失败',
     'agentChat.tasks.dismissFailures': '忽略失败',
     'agentChat.tasks.endedList': '已结束的后台任务',
