@@ -113,6 +113,13 @@ and `events watch`. Settings writes accept repeated `--set key=value` arguments;
 Pass `--request-id <id>` when a mutation must be safely retried. Streaming commands stop on
 Ctrl+C, keep data on stdout, and send keepalives or cursor-gap warnings only to stderr.
 
+The owner's own CLI (not an Agent Endpoint or a paired phone) can also find and tidy Sessions:
+`session search [<terms>...] [--provider <provider>]... [--status all|caxri|archived|external]`
+searches every provider's history like Desktop's Session search, `session import <key>` adds an
+`external` result (its `key`, `<provider>:<conversation-id>`) as a Session, and
+`session rename <id> --title <text>`, `session pin <id>`, and `session unpin <id>` match the
+sidebar's actions.
+
 Desktop window commands stay behind authenticated Server and Project-root authorization:
 `desktop focus`, `open <path>`, and `reveal <path>`. Path commands accept an optional exact
 `--session <id>`; `open` supports files and directories and launches Desktop by default, while
