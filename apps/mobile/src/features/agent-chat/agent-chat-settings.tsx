@@ -8,11 +8,13 @@ import { Chip } from '../../components/chip';
 import { useTranslation } from '../../i18n';
 import { mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
+import type { AgentChatModelTrigger } from './agent-chat-model-choice';
 import { agentChatModelTrigger } from './agent-chat-model-choice';
+import type { AgentChatPermissionTrigger } from './agent-chat-permission-choice';
 import { agentChatPermissionTrigger } from './agent-chat-permission-choice';
 import type { AgentChatSettingsEntry } from './agent-chat-settings-sheet';
 import { AgentChatSettingsSheet } from './agent-chat-settings-sheet';
-import { shouldMarkAgentChatPermission } from './agent-chat-settings-trigger';
+import { visibleAgentChatPermissionTrigger } from './agent-chat-settings-trigger';
 import type { AgentChatController } from './use-agent-chat';
 import {
     useAgentChatModelSelection,
@@ -23,6 +25,86 @@ const styles = StyleSheet.create({
     modelSlot: { flexShrink: 1 },
     mode: { ...mobileType.meta, fontWeight: '600' },
 });
+
+/**
+ * The `Model · Effort` chip, with `Ultracode` trailing while it is on; split out of `AgentChatSettings` to keep its
+ * control flow flat (react-doctor/no-high-complexity-react-function).
+ */
+const ModelChip = ({
+    hint,
+    onPress,
+    theme,
+    trigger,
+}: {
+    hint: string;
+    onPress: () => void;
+    theme: MobileTheme;
+    trigger: AgentChatModelTrigger;
+}) => (
+    <View style={styles.modelSlot}>
+        <Chip
+            accessibilityHint={trigger.isInteractive ? hint : undefined}
+            accessibilityLabel={trigger.accessibilityLabel}
+            disabled={!trigger.isInteractive}
+            label={trigger.effort ? `${trigger.model} · ${trigger.effort}` : trigger.model}
+            onPress={onPress}
+            testID={trigger.isInteractive ? 'agent-chat-model-button' : 'agent-chat-model-label'}
+            theme={theme}
+            trailing={
+                trigger.isUltracode ? (
+                    <Text
+                        style={[styles.mode, { color: theme.text }]}
+                        testID="agent-chat-model-ultracode"
+                    >
+                        Ultracode
+                    </Text>
+                ) : null
+            }
+        />
+    </View>
+);
+
+/**
+ * The shield chip, with `Plan` trailing while plan mode is on; split out of `AgentChatSettings` like `ModelChip`.
+ */
+const PermissionChip = ({
+    hint,
+    onPress,
+    theme,
+    trigger,
+}: {
+    hint: string;
+    onPress: () => void;
+    theme: MobileTheme;
+    trigger: AgentChatPermissionTrigger;
+}) => {
+    const { t } = useTranslation();
+    return (
+        <Chip
+            accessibilityHint={trigger.isInteractive ? hint : undefined}
+            accessibilityLabel={trigger.accessibilityLabel}
+            disabled={!trigger.isInteractive}
+            icon={trigger.isFullAccess ? ShieldAlert : ShieldCheck}
+            onPress={onPress}
+            testID={
+                trigger.isInteractive
+                    ? 'agent-chat-permission-button'
+                    : 'agent-chat-permission-label'
+            }
+            theme={theme}
+            trailing={
+                trigger.isPlanMode ? (
+                    <Text
+                        style={[styles.mode, { color: theme.text }]}
+                        testID="agent-chat-permission-plan"
+                    >
+                        {t('chat.permission.plan')}
+                    </Text>
+                ) : null
+            }
+        />
+    );
+};
 
 /**
  * The Chat's settings entries above the composer input: one `Model · Effort` chip (followed by `Ultracode` while it is
@@ -63,74 +145,30 @@ export const AgentChatSettings = ({
         permissionReason === undefined,
         t,
     );
-    const showsPermission =
-        permissionTrigger !== undefined &&
-        provider !== undefined &&
-        (!modelTrigger ||
-            shouldMarkAgentChatPermission({
-                mode: permission.snapshot?.permissionMode,
-                planMode: permissionTrigger.isPlanMode,
-                provider,
-            }));
-    if (!modelTrigger && !showsPermission) return null;
+    const permissionChip = visibleAgentChatPermissionTrigger({
+        hasModelTrigger: modelTrigger !== undefined,
+        mode: permission.snapshot?.permissionMode,
+        provider,
+        trigger: permissionTrigger,
+    });
+    if (!modelTrigger && !permissionChip) return null;
     const hint = t('chat.settings.triggerHint');
-    const PermissionIcon = permissionTrigger?.isFullAccess ? ShieldAlert : ShieldCheck;
     return (
         <>
             {modelTrigger ? (
-                <View style={styles.modelSlot}>
-                    <Chip
-                        accessibilityHint={modelTrigger.isInteractive ? hint : undefined}
-                        accessibilityLabel={modelTrigger.accessibilityLabel}
-                        disabled={!modelTrigger.isInteractive}
-                        label={
-                            modelTrigger.effort
-                                ? `${modelTrigger.model} · ${modelTrigger.effort}`
-                                : modelTrigger.model
-                        }
-                        onPress={() => setEntry('model')}
-                        testID={
-                            modelTrigger.isInteractive
-                                ? 'agent-chat-model-button'
-                                : 'agent-chat-model-label'
-                        }
-                        theme={theme}
-                        trailing={
-                            modelTrigger.isUltracode ? (
-                                <Text
-                                    style={[styles.mode, { color: theme.text }]}
-                                    testID="agent-chat-model-ultracode"
-                                >
-                                    Ultracode
-                                </Text>
-                            ) : null
-                        }
-                    />
-                </View>
-            ) : null}
-            {showsPermission ? (
-                <Chip
-                    accessibilityHint={permissionTrigger.isInteractive ? hint : undefined}
-                    accessibilityLabel={permissionTrigger.accessibilityLabel}
-                    disabled={!permissionTrigger.isInteractive}
-                    icon={PermissionIcon}
-                    onPress={() => setEntry('permission')}
-                    testID={
-                        permissionTrigger.isInteractive
-                            ? 'agent-chat-permission-button'
-                            : 'agent-chat-permission-label'
-                    }
+                <ModelChip
+                    hint={hint}
+                    onPress={() => setEntry('model')}
                     theme={theme}
-                    trailing={
-                        permissionTrigger.isPlanMode ? (
-                            <Text
-                                style={[styles.mode, { color: theme.text }]}
-                                testID="agent-chat-permission-plan"
-                            >
-                                {t('chat.permission.plan')}
-                            </Text>
-                        ) : null
-                    }
+                    trigger={modelTrigger}
+                />
+            ) : null}
+            {permissionChip ? (
+                <PermissionChip
+                    hint={hint}
+                    onPress={() => setEntry('permission')}
+                    theme={theme}
+                    trigger={permissionChip}
                 />
             ) : null}
             {entry ? (

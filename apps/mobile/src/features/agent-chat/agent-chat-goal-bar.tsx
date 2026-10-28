@@ -98,53 +98,23 @@ export const AgentChatGoalBar = ({
                         </View>
                     </Pressable>
                     {canAct && toggle ? (
-                        <IconButton
-                            accessibilityLabel={t(
-                                toggle === 'pause' ? 'chat.goal.pause' : 'chat.goal.resume',
-                            )}
-                            color={theme.muted}
-                            disabled={isBusy}
-                            icon={toggle === 'pause' ? Pause : Play}
-                            onPress={() => {
-                                void run(toggle);
-                            }}
-                            size={18}
-                            testID="agent-chat-goal-toggle"
+                        <GoalToggleButton
+                            isBusy={isBusy}
+                            onRun={run}
                             theme={theme}
+                            toggle={toggle}
                         />
                     ) : null}
                 </View>
-                {isExpanded ? (
-                    <View style={styles.expanded}>
-                        <Text
-                            selectable
-                            style={[styles.full, { color: theme.text }]}
-                            testID="agent-chat-goal-full"
-                        >
-                            {view.objective}
-                        </Text>
-                        {canAct ? (
-                            <Button
-                                icon={Trash2}
-                                isDisabled={isBusy}
-                                label={t('chat.goal.clear')}
-                                onPress={() => setConfirmingClear(true)}
-                                testID="agent-chat-goal-clear"
-                                theme={theme}
-                                variant="outline"
-                            />
-                        ) : null}
-                    </View>
-                ) : null}
-                {hasFailed ? (
-                    <Text
-                        accessibilityLiveRegion="polite"
-                        style={[styles.error, { color: theme.danger }]}
-                        testID="agent-chat-goal-error"
-                    >
-                        {t('chat.commands.runFailed', { name: AGENT_CHAT_GOAL_COMMAND })}
-                    </Text>
-                ) : null}
+                <GoalBarDetails
+                    canAct={canAct}
+                    hasFailed={hasFailed}
+                    isBusy={isBusy}
+                    isExpanded={isExpanded}
+                    objective={view.objective}
+                    onClear={() => setConfirmingClear(true)}
+                    theme={theme}
+                />
             </Card>
             {isConfirmingClear ? (
                 <ConfirmSheet
@@ -161,6 +131,97 @@ export const AgentChatGoalBar = ({
                 />
             ) : null}
         </Animated.View>
+    );
+};
+
+/**
+ * The Pause or Resume button on the goal row; split out of `AgentChatGoalBar` to keep its control flow flat
+ * (react-doctor/no-high-complexity-react-function).
+ */
+const GoalToggleButton = ({
+    isBusy,
+    onRun,
+    theme,
+    toggle,
+}: {
+    isBusy: boolean;
+    onRun: (action: 'pause' | 'resume') => Promise<void>;
+    theme: MobileTheme;
+    toggle: 'pause' | 'resume';
+}) => {
+    const { t } = useTranslation();
+    return (
+        <IconButton
+            accessibilityLabel={t(toggle === 'pause' ? 'chat.goal.pause' : 'chat.goal.resume')}
+            color={theme.muted}
+            disabled={isBusy}
+            icon={toggle === 'pause' ? Pause : Play}
+            onPress={() => {
+                void onRun(toggle);
+            }}
+            size={18}
+            testID="agent-chat-goal-toggle"
+            theme={theme}
+        />
+    );
+};
+
+/**
+ * The expanded objective with its Clear button, plus the failure line; split out of `AgentChatGoalBar` for the same
+ * reason as `GoalToggleButton`.
+ */
+const GoalBarDetails = ({
+    canAct,
+    hasFailed,
+    isBusy,
+    isExpanded,
+    objective,
+    onClear,
+    theme,
+}: {
+    canAct: boolean;
+    hasFailed: boolean;
+    isBusy: boolean;
+    isExpanded: boolean;
+    objective: string;
+    onClear: () => void;
+    theme: MobileTheme;
+}) => {
+    const { t } = useTranslation();
+    return (
+        <>
+            {isExpanded ? (
+                <View style={styles.expanded}>
+                    <Text
+                        selectable
+                        style={[styles.full, { color: theme.text }]}
+                        testID="agent-chat-goal-full"
+                    >
+                        {objective}
+                    </Text>
+                    {canAct ? (
+                        <Button
+                            icon={Trash2}
+                            isDisabled={isBusy}
+                            label={t('chat.goal.clear')}
+                            onPress={onClear}
+                            testID="agent-chat-goal-clear"
+                            theme={theme}
+                            variant="outline"
+                        />
+                    ) : null}
+                </View>
+            ) : null}
+            {hasFailed ? (
+                <Text
+                    accessibilityLiveRegion="polite"
+                    style={[styles.error, { color: theme.danger }]}
+                    testID="agent-chat-goal-error"
+                >
+                    {t('chat.commands.runFailed', { name: AGENT_CHAT_GOAL_COMMAND })}
+                </Text>
+            ) : null}
+        </>
     );
 };
 

@@ -9,6 +9,8 @@ import { useTranslation } from '../../i18n';
 import { mobileControl, mobileSpace, mobileType, PRESSED_OPACITY } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
 import { sessionDetailStyles as styles } from '../sessions/components/session-detail-styles';
+import type { AgentChatComposerButtonLook } from './agent-chat-composer-button-look';
+import { agentChatComposerButtonLook } from './agent-chat-composer-button-look';
 import { agentChatComposerButton, agentChatImagesUnsupportedReason } from './agent-chat-model';
 
 /**
@@ -121,6 +123,47 @@ export const AgentChatQueueButton = ({
     );
 };
 
+const composerButtonBackground: Record<
+    AgentChatComposerButtonLook['background'],
+    (theme: MobileTheme) => string
+> = {
+    danger: (theme) => theme.danger,
+    neutral: (theme) => theme.elevated,
+    primary: (theme) => theme.primary,
+};
+
+const composerButtonIcon = { send: ArrowUp, steer: ArrowUpToLine, stop: Square } as const;
+
+/**
+ * What the main button shows inside: a spinner while busy, the Steer label in its pill, otherwise the state's glyph.
+ */
+const ComposerButtonContent = ({
+    isBusy,
+    look,
+    theme,
+}: {
+    isBusy: boolean;
+    look: AgentChatComposerButtonLook;
+    theme: MobileTheme;
+}) => {
+    const { t } = useTranslation();
+    if (isBusy) return <Spinner color={theme.primaryForeground} />;
+    if (look.isSteerPill)
+        return (
+            <Text style={[pillStyles.label, { color: theme.primaryForeground }]}>
+                {t('chat.composer.steer')}
+            </Text>
+        );
+    const Icon = composerButtonIcon[look.icon];
+    return (
+        <Icon
+            color={look.isDisabled ? theme.muted : theme.primaryForeground}
+            size={20}
+            strokeWidth={2.5}
+        />
+    );
+};
+
 /**
  * The composer's main button: Send, Steer during a turn, or Stop on an empty draft during a turn. Steer wears Desktop's
  * steer glyph (`ArrowUpToLine`) instead of the send arrow, so a tap visibly does something different mid-turn. Holding
@@ -152,12 +195,13 @@ export const AgentChatComposerButton = ({
 }) => {
     const { t } = useTranslation();
     const action = agentChatComposerButton({ isRunning, isStopAction, isStopping, provider }, t);
-    const Icon = action.kind === 'stop' ? Square : isRunning ? ArrowUpToLine : ArrowUp;
-    // A button that cannot act (offline, no access, an empty draft) drops the brand color for the neutral surface,
-    // since a dimmed pink still read as enabled beside `Reconnect to send messages.`; busy keeps its color.
-    const isDisabled = !canSubmit && !isBusy;
-    // Steer beside Queue wears a text label in Queue's pill shape; every other state is the round icon button.
-    const isSteerPill = canQueue && isRunning && action.kind === 'send';
+    const look = agentChatComposerButtonLook({
+        canQueue,
+        canSubmit,
+        isBusy,
+        isRunning,
+        kind: action.kind,
+    });
     return (
         <Pressable
             accessibilityActions={
@@ -177,31 +221,15 @@ export const AgentChatComposerButton = ({
             onPress={onPress}
             style={[
                 styles.sendButton,
-                isSteerPill ? pillStyles.pill : null,
+                look.isSteerPill ? pillStyles.pill : null,
                 {
-                    backgroundColor: isDisabled
-                        ? theme.elevated
-                        : action.kind === 'stop'
-                          ? theme.danger
-                          : theme.primary,
-                    opacity: isDisabled ? 0.7 : 1,
+                    backgroundColor: composerButtonBackground[look.background](theme),
+                    opacity: look.isDisabled ? 0.7 : 1,
                 },
             ]}
             testID={action.testID}
         >
-            {isBusy ? (
-                <Spinner color={theme.primaryForeground} />
-            ) : isSteerPill ? (
-                <Text style={[pillStyles.label, { color: theme.primaryForeground }]}>
-                    {t('chat.composer.steer')}
-                </Text>
-            ) : (
-                <Icon
-                    color={isDisabled ? theme.muted : theme.primaryForeground}
-                    size={20}
-                    strokeWidth={2.5}
-                />
-            )}
+            <ComposerButtonContent isBusy={isBusy} look={look} theme={theme} />
         </Pressable>
     );
 };

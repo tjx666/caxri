@@ -107,19 +107,23 @@ export const PreviewMenuActions = ({
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
-    return previews.targets.map((target) => (
-        <PopoverAction
-            accessibilityHint={target.processName}
-            disabled={previews.openingPort !== null}
-            icon={Globe}
-            key={target.port}
-            label={t('browser.preview.menuOpen', { port: target.port })}
-            onPress={() => {
-                onClose();
-                void onOpen(target);
-            }}
-            testID={`session-menu-preview-${target.port}`}
-            theme={theme}
-        />
-    ));
+    return (
+        <>
+            {previews.targets.map((target) => (
+                <PopoverAction
+                    accessibilityHint={target.processName}
+                    disabled={previews.openingPort !== null}
+                    icon={Globe}
+                    key={target.port}
+                    label={t('browser.preview.menuOpen', { port: target.port })}
+                    onPress={() => {
+                        onClose();
+                        void onOpen(target);
+                    }}
+                    testID={`session-menu-preview-${target.port}`}
+                    theme={theme}
+                />
+            ))}
+        </>
+    );
 };
