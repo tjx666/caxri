@@ -68,9 +68,12 @@ async function fixture(overrides: { isPackaged?: boolean; platform?: NodeJS.Plat
         launchctl,
     });
     const agent = claudeWindowLaunchAgent(home, '/profiles/default');
+    /**
+     * Waits for the first sync to report its result, which it does only after writing the plist and running
+     * `launchctl`. A fixed delay after the first request lost to that file I/O on a loaded runner (#1418).
+     */
     const settle = async () => {
-        await vi.waitFor(() => expect(request.mock.calls.length).toBeGreaterThan(0));
-        await new Promise((resolve) => setTimeout(resolve, 20));
+        await vi.waitFor(() => expect(reported.length).toBeGreaterThan(0));
     };
     return {
         job,

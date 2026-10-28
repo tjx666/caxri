@@ -2,6 +2,12 @@ import { describe, expect, it } from 'vitest';
 
 import { pollUntil } from './polling.ts';
 
+/**
+ * The window the timeout cases need for a second sample. `expect.poll` stops on wall-clock time, and a 20 ms window
+ * ended inside the first sample when a loaded runner stalled it, leaving one attempt where the cases assert several.
+ */
+const TIMEOUT_AFTER_SAMPLES_MS = 250;
+
 describe('pollUntil', () => {
     it('retries explicitly classified callback errors until a matching value is available', async () => {
         let attempts = 0;
@@ -86,7 +92,7 @@ describe('pollUntil', () => {
                     throw new Error(`still unavailable ${attempts}`);
                 },
                 () => true,
-                { intervals: [1], isRetryableError: () => true, timeout: 20 },
+                { intervals: [1], isRetryableError: () => true, timeout: TIMEOUT_AFTER_SAMPLES_MS },
             ),
         ).rejects.toThrow(/Last callback error: still unavailable \d+/);
         expect(attempts).toBeGreaterThan(1);
@@ -103,7 +109,7 @@ describe('pollUntil', () => {
                     return null;
                 },
                 () => true,
-                { intervals: [1], isRetryableError: () => true, timeout: 20 },
+                { intervals: [1], isRetryableError: () => true, timeout: TIMEOUT_AFTER_SAMPLES_MS },
             ),
         ).rejects.toThrow('Last callback error: initial transient failure');
         expect(attempts).toBeGreaterThan(1);

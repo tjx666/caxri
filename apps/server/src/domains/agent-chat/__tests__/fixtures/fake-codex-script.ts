@@ -590,6 +590,10 @@ export async function playScriptedTurn(
         if (outcome === 'stop') break;
     }
     if (turn.status === 'inProgress' && !turn.interrupted) reportUsage(playback);
-    // The caller closes the turn with `Date.now() - startedAt`, so moving the start back sets the reported duration.
-    if (scripted.durationMs !== undefined) turn.startedAt = Date.now() - scripted.durationMs;
+    // The start moves back so the recorded start time agrees with the duration, but the duration itself is reported
+    // as given: the caller's own `Date.now() - startedAt` drifted by a few milliseconds on a loaded runner.
+    if (scripted.durationMs !== undefined) {
+        turn.startedAt = Date.now() - scripted.durationMs;
+        turn.scriptedDurationMs = scripted.durationMs;
+    }
 }

@@ -79,8 +79,10 @@ describe('Agent Chat model and effort with a fake Codex app-server', () => {
         await service.configure(terminal.id, { model: 'fake-codex-mini' });
         // The smaller model has no Fast mode and only `low` effort, so the save turns both off with it.
         await expect
-            .poll(async () =>
-                (await fakeLog('codex', 'config-writes.jsonl')).map((entry) => entry.edits),
+            .poll(
+                async () =>
+                    (await fakeLog('codex', 'config-writes.jsonl')).map((entry) => entry.edits),
+                { timeout: 10_000 },
             )
             .toEqual([
                 [{ keyPath: 'service_tier', value: 'fast', mergeStrategy: 'replace' }],
@@ -90,16 +92,19 @@ describe('Agent Chat model and effort with a fake Codex app-server', () => {
                     { keyPath: 'service_tier', value: 'default', mergeStrategy: 'replace' },
                 ],
             ]);
-        // The fake writes its config file before it replies, and the log follows the reply, so poll for it too.
+        // The fake writes its config file before it replies, and the log follows the reply, so poll for it too. The
+        // save is fire-and-forget behind `configure`, so a loaded runner can take longer than `expect.poll`'s 1 s default.
         await expect
-            .poll(() =>
-                logWrite.mock.calls
-                    .filter(([, event]) => event === 'agent_chat.defaults_saved')
-                    .map(([level, , record]) => [
-                        level,
-                        record?.fields?.outcome,
-                        record?.fields?.keys,
-                    ]),
+            .poll(
+                () =>
+                    logWrite.mock.calls
+                        .filter(([, event]) => event === 'agent_chat.defaults_saved')
+                        .map(([level, , record]) => [
+                            level,
+                            record?.fields?.outcome,
+                            record?.fields?.keys,
+                        ]),
+                { timeout: 10_000 },
             )
             .toEqual([
                 ['info', 'saved', 'service_tier'],

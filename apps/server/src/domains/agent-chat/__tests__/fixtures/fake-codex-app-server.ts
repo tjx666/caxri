@@ -374,7 +374,7 @@ function finishTurn(turn: FakeTurn) {
     turn.finished = true;
     if (turn.interrupted) turn.status = 'interrupted';
     else if (turn.status === 'inProgress') turn.status = 'completed';
-    turn.durationMs = Date.now() - turn.startedAt;
+    turn.durationMs = turn.scriptedDurationMs ?? Date.now() - turn.startedAt;
     state.activeTurn = undefined;
     save();
     notify('turn/completed', { turn: { ...wireTurn(turn), items: [] } });

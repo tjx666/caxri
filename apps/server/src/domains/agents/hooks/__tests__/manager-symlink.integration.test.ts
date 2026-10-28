@@ -242,7 +242,10 @@ describe('AgentHookManager symlinked provider config', () => {
         try {
             await manager.initialize(claudeOnlySettings());
             await runBridge(manager.terminalEnvironment('terminal-1', 'claude'));
-            await vi.waitFor(() => expect(manager.getHealth().claude.kind).toBe('active'));
+            await vi.waitFor(
+                () => expect(manager.getHealth().claude.kind).toBe('active'),
+                WATCHER_WAIT,
+            );
 
             await rm(managedSettings);
 
@@ -268,7 +271,10 @@ describe('AgentHookManager symlinked provider config', () => {
             expect(await hasCaxriStopHook(managedSettings)).toBe(true);
             expect((await lstat(configPath)).isSymbolicLink()).toBe(true);
             await runBridge(manager.terminalEnvironment('terminal-2', 'claude'));
-            await vi.waitFor(() => expect(manager.getHealth().claude.kind).toBe('active'));
+            await vi.waitFor(
+                () => expect(manager.getHealth().claude.kind).toBe('active'),
+                WATCHER_WAIT,
+            );
         } finally {
             await manager.close();
         }
