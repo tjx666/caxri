@@ -1,8 +1,9 @@
-import { Pressable, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 
 import { ChevronLeft } from 'lucide-react-native';
 
-import { Spinner } from '../../components/spinner';
+import { IconButton } from '../../components/icon-button';
+import { ScreenState } from '../../components/screen-state';
 import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { ChangesDiffLines } from './changes-diff-lines';
@@ -18,42 +19,8 @@ export interface ChangesDiffState {
 }
 
 /**
- * An outdated diff: Refresh re-reads it, unless the phone is offline and can only wait to reconnect.
- */
-const ChangesDiffStale = ({
-    isDisconnected,
-    onRefresh,
-    theme,
-}: {
-    isDisconnected: boolean;
-    onRefresh: () => void;
-    theme: MobileTheme;
-}) => {
-    const { t } = useTranslation();
-    return (
-        <View style={styles.state} testID="changes-diff-stale">
-            <Text style={[styles.stateBody, { color: theme.muted }]}>
-                {t(isDisconnected ? 'changes.diffReconnect' : 'changes.diffOutdated')}
-            </Text>
-            {isDisconnected ? null : (
-                <Pressable
-                    accessibilityLabel={t('changes.refresh')}
-                    accessibilityRole="button"
-                    onPress={onRefresh}
-                    style={styles.commit}
-                    testID="changes-diff-refresh"
-                >
-                    <Text style={[styles.commitText, { color: theme.primary }]}>
-                        {t('changes.diffRefresh')}
-                    </Text>
-                </Pressable>
-            )}
-        </View>
-    );
-};
-
-/**
- * The diff, or the loading, outdated, failed, or too-large state that stands in for it.
+ * The diff, or the loading, outdated, failed, or too-large state that stands in for it. An outdated diff offers Refresh
+ * unless the phone is offline and can only wait to reconnect.
  */
 const ChangesDiffBody = ({
     onRefresh,
@@ -69,46 +36,50 @@ const ChangesDiffBody = ({
     const { t } = useTranslation();
     if (state.isLoading)
         return (
-            <View style={styles.state} testID="changes-diff-loading">
-                <Spinner color={theme.primary} />
-                <Text style={[styles.stateBody, { color: theme.muted }]}>
-                    {t('changes.diffLoading')}
-                </Text>
-            </View>
+            <ScreenState
+                kind="loading"
+                testID="changes-diff-loading"
+                theme={theme}
+                title={t('changes.diffLoading')}
+            />
         );
     if (state.stale)
-        return (
-            <ChangesDiffStale
-                isDisconnected={state.isDisconnected}
-                onRefresh={onRefresh}
+        return state.isDisconnected ? (
+            <ScreenState
+                kind="offline"
+                testID="changes-diff-stale"
                 theme={theme}
+                title={t('changes.diffReconnect')}
+            />
+        ) : (
+            <ScreenState
+                actionLabel={t('changes.diffRefresh')}
+                kind="empty"
+                onAction={onRefresh}
+                testID="changes-diff-stale"
+                theme={theme}
+                title={t('changes.diffOutdated')}
             />
         );
     if (state.error)
         return (
-            <View style={styles.state} testID="changes-diff-error">
-                <Text accessibilityRole="alert" style={[styles.stateBody, { color: theme.danger }]}>
-                    {t('changes.diffLoadFailed')}
-                </Text>
-                <Pressable
-                    accessibilityLabel={t('changes.diffRetry')}
-                    accessibilityRole="button"
-                    onPress={onRetry}
-                    style={styles.commit}
-                >
-                    <Text style={[styles.commitText, { color: theme.primary }]}>
-                        {t('common.retry')}
-                    </Text>
-                </Pressable>
-            </View>
+            <ScreenState
+                actionLabel={t('common.retry')}
+                kind="error"
+                onAction={onRetry}
+                testID="changes-diff-error"
+                theme={theme}
+                title={t('changes.diffLoadFailed')}
+            />
         );
     if (state.unavailable)
         return (
-            <View style={styles.state} testID="changes-too-large">
-                <Text style={[styles.stateBody, { color: theme.muted }]}>
-                    {t('changes.diffUnavailable')}
-                </Text>
-            </View>
+            <ScreenState
+                kind="empty"
+                testID="changes-too-large"
+                theme={theme}
+                title={t('changes.diffUnavailable')}
+            />
         );
     return <ChangesDiffLines patch={state.patch ?? ''} theme={theme} />;
 };
@@ -135,15 +106,13 @@ export const ChangesDiff = ({
     return (
         <View style={styles.root} testID="changes-diff-view">
             <View style={[styles.detailToolbar, { borderColor: theme.border }]}>
-                <Pressable
+                <IconButton
                     accessibilityLabel={t('changes.backToFiles')}
-                    accessibilityRole="button"
+                    icon={ChevronLeft}
                     onPress={onBack}
-                    style={styles.back}
                     testID="changes-diff-back"
-                >
-                    <ChevronLeft color={theme.text} size={22} />
-                </Pressable>
+                    theme={theme}
+                />
                 <Text
                     ellipsizeMode="head"
                     numberOfLines={1}

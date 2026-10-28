@@ -10,7 +10,6 @@ export const conversation = {
         'Always allow is on: every later permission request in this Session is allowed automatically.',
     'conversation.attention.moreOne': '+{{count}} more request',
     'conversation.attention.moreOther': '+{{count}} more requests',
-    'conversation.attention.next': 'Next',
     'conversation.attention.nextQuestion': 'Next question',
     'conversation.attention.openTerminal': 'Open Terminal',
     'conversation.attention.openTerminalIfWaiting':
@@ -22,7 +21,6 @@ export const conversation = {
     'conversation.attention.statusApplied': 'Applied',
     'conversation.attention.statusClosed': 'Already handled or expired',
     'conversation.attention.statusSubmitting': 'Submitting…',
-    'conversation.attention.submit': 'Submit',
     'conversation.attention.submitAnswers': 'Submit answers',
     'conversation.attention.terminalFallback':
         "This Agent's requests need to be handled in Terminal.",

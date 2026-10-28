@@ -3,7 +3,9 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { isPlanPaceDismissed, limitPaceShortfall } from '@caxri/protocol';
 import { TrendingUp, X } from 'lucide-react-native';
 
+import { Card } from '../../components/card';
 import { useTranslation } from '../../i18n';
+import { mobileControl, mobileSpace, mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
 import { agentChatPlanLimitRows } from './agent-chat-plan-limits';
 import { useAgentChatPlanLimits, useDismissAgentChatPlanPace } from './use-agent-chat-plan-limits';
@@ -11,18 +13,21 @@ import { useAgentChatPlanLimits, useDismissAgentChatPlanPace } from './use-agent
 const styles = StyleSheet.create({
     row: {
         alignItems: 'center',
-        borderRadius: 10,
-        borderWidth: StyleSheet.hairlineWidth,
         flexDirection: 'row',
-        gap: 8,
-        marginBottom: 6,
-        paddingLeft: 10,
-        paddingVertical: 6,
+        gap: mobileSpace.sm,
+        marginBottom: mobileSpace.sm,
+        paddingVertical: mobileSpace.xs,
+        paddingLeft: mobileSpace.md,
     },
-    body: { flex: 1, gap: 2 },
-    text: { fontSize: 13, lineHeight: 18 },
-    reset: { fontSize: 12, lineHeight: 16 },
-    dismiss: { alignItems: 'center', height: 32, justifyContent: 'center', width: 36 },
+    body: { flex: 1, gap: mobileSpace.xxs },
+    text: { ...mobileType.meta },
+    reset: { ...mobileType.caption },
+    dismiss: {
+        alignItems: 'center',
+        height: mobileControl.row,
+        justifyContent: 'center',
+        width: mobileControl.row,
+    },
 });
 
 /**
@@ -53,10 +58,7 @@ export const AgentChatPlanPaceNotice = ({
         left: row.left,
     });
     return (
-        <View
-            style={[styles.row, { backgroundColor: theme.elevated, borderColor: theme.border }]}
-            testID="agent-chat-plan-pace"
-        >
+        <Card padded={false} style={styles.row} testID="agent-chat-plan-pace" theme={theme}>
             <TrendingUp color={theme.warning} size={16} />
             <View style={styles.body}>
                 <Text style={[styles.text, { color: theme.text }]}>{text}</Text>
@@ -75,6 +77,6 @@ export const AgentChatPlanPaceNotice = ({
             >
                 <X color={theme.muted} size={16} />
             </Pressable>
-        </View>
+        </Card>
     );
 };

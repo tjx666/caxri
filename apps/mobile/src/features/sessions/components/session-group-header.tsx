@@ -14,7 +14,9 @@ import {
     Zap,
 } from 'lucide-react-native';
 
+import { SectionLabel } from '../../../components/section-label';
 import { useTranslation } from '../../../i18n';
+import { mobileControl, mobileSpace, mobileType } from '../../../theme/scale';
 import type { MobileTheme } from '../../../theme/tokens';
 import type { MobileSessionListGroup } from '../session-model';
 
@@ -69,7 +71,7 @@ export const SessionGroupHeader = ({
             testID={`session-group-${group}`}
         >
             <Icon color={theme.muted} size={13} strokeWidth={2.25} />
-            <Text style={[styles.label, { color: theme.muted }]}>{label}</Text>
+            <SectionLabel theme={theme}>{label}</SectionLabel>
             {isCollapsed ? (
                 <Text style={[styles.count, { color: theme.muted }]}>{count}</Text>
             ) : null}
@@ -117,16 +119,19 @@ const styles = StyleSheet.create({
     row: {
         alignItems: 'center',
         flexDirection: 'row',
-        gap: 6,
-        minHeight: 48,
-        paddingBottom: 6,
-        paddingHorizontal: 18,
-        paddingTop: 16,
+        gap: mobileSpace.sm,
+        minHeight: mobileControl.row,
+        paddingBottom: mobileSpace.sm,
+        paddingHorizontal: mobileSpace.lg,
+        paddingTop: mobileSpace.lg,
     },
-    label: { fontSize: 12, fontWeight: '700', letterSpacing: 0.6 },
-    count: { fontSize: 12, fontVariant: ['tabular-nums'], fontWeight: '600' },
+    count: { ...mobileType.caption, fontVariant: ['tabular-nums'], fontWeight: '600' },
     fill: { flex: 1 },
-    reveal: { justifyContent: 'center', minHeight: 48, paddingHorizontal: 18 },
-    revealText: { fontSize: 14, fontWeight: '600' },
+    reveal: {
+        justifyContent: 'center',
+        minHeight: mobileControl.row,
+        paddingHorizontal: mobileSpace.lg,
+    },
+    revealText: { ...mobileType.meta, fontWeight: '600' },
 });
 /* eslint-enable no-use-before-define, @typescript-eslint/no-use-before-define */

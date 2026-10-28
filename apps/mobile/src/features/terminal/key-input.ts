@@ -1,5 +1,16 @@
 export type TerminalKey =
-    'escape' | 'tab' | 'ctrl' | 'up' | 'down' | 'left' | 'right' | '1' | '2' | '3' | 'enter';
+    | 'escape'
+    | 'tab'
+    | 'shift-tab'
+    | 'ctrl'
+    | 'up'
+    | 'down'
+    | 'left'
+    | 'right'
+    | '1'
+    | '2'
+    | '3'
+    | 'enter';
 
 const arrows = {
     up: 'A',
@@ -28,6 +39,9 @@ export const encodeTerminalKey = (
             return isCtrl ? null : '\u{1B}';
         case 'tab':
             return isCtrl ? null : '\t';
+        case 'shift-tab':
+            // CSI Z (back-tab), which Claude Code reads as Shift+Tab to cycle its permission mode.
+            return isCtrl ? null : '\u{1B}[Z';
         case 'enter':
             return isCtrl ? null : '\r';
         case '1':

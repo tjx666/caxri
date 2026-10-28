@@ -9,6 +9,7 @@ import type { FlashListRef, ListRenderItemInfo } from '@shopify/flash-list';
 import { FlashList } from '@shopify/flash-list';
 import { ArrowDown } from 'lucide-react-native';
 
+import { Button } from '../../components/button';
 import { NoticeBanner } from '../../components/notice-banner';
 import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
@@ -71,21 +72,17 @@ const ConversationHistory = ({
                 </Text>
             ) : null}
             {olderCursor ? (
-                <Pressable
-                    accessibilityRole="button"
-                    disabled={isLoadingOlder}
+                <Button
+                    isBusy={isLoadingOlder}
+                    label={t(
+                        isLoadingOlder ? 'conversation.loadingEarlier' : 'conversation.loadEarlier',
+                    )}
                     onPress={onLoadOlder}
-                    style={[styles.button, { backgroundColor: theme.surface }]}
+                    style={styles.stateButton}
                     testID="conversation-load-earlier"
-                >
-                    <Text style={[styles.buttonText, { color: theme.text }]}>
-                        {t(
-                            isLoadingOlder
-                                ? 'conversation.loadingEarlier'
-                                : 'conversation.loadEarlier',
-                        )}
-                    </Text>
-                </Pressable>
+                    theme={theme}
+                    variant="secondary"
+                />
             ) : null}
             {needsConnection ? (
                 <Text
@@ -152,16 +149,14 @@ const ConversationStatus = ({
             ) : null}
             <Text style={[styles.statusText, { color: theme.muted }]}>{message}</Text>
             {status === 'error' || status === 'stale' ? (
-                <Pressable
-                    accessibilityRole="button"
+                <Button
+                    label={t('common.retry')}
                     onPress={onRetry}
-                    style={[styles.button, { backgroundColor: theme.surface }]}
+                    style={styles.stateButton}
                     testID="conversation-retry"
-                >
-                    <Text style={[styles.buttonText, { color: theme.text }]}>
-                        {t('common.retry')}
-                    </Text>
-                </Pressable>
+                    theme={theme}
+                    variant="secondary"
+                />
             ) : null}
         </View>
     );
@@ -471,7 +466,11 @@ export const ConversationList = <Entry extends { id: string }>({
                     onPress={jumpToLatest}
                     style={[
                         styles.jump,
-                        { backgroundColor: theme.elevated, borderColor: theme.border },
+                        {
+                            backgroundColor: theme.elevated,
+                            borderColor: theme.border,
+                            boxShadow: `0px 2px 8px ${theme.shadow}`,
+                        },
                     ]}
                     testID="conversation-jump-latest"
                 >

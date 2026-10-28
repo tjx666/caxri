@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
     agentChatQueueCardLayout,
     agentChatQueueEditMode,
+    agentChatQueueEditNotice,
     agentChatQueueEntries,
     agentChatQueueErrorMessage,
     agentChatQueueFailure,
@@ -262,5 +263,16 @@ describe('queued message edit', () => {
     it('words the images note as Desktop does', () => {
         expect(agentChatQueueImagesAttached(1)).toBe('1 image attached');
         expect(agentChatQueueImagesAttached(3)).toBe('3 images attached');
+    });
+});
+
+describe('agentChatQueueEditNotice', () => {
+    it('joins the title and the explanation into one sentence pair for the card', () => {
+        expect(agentChatQueueEditNotice('gone')).toBe(
+            'Message already left the queue. It was sent or removed before it could come back for editing.',
+        );
+        expect(agentChatQueueEditNotice('tooLong')).toBe(
+            'Edit this message on your computer. It is longer than a message the phone can send.',
+        );
     });
 });

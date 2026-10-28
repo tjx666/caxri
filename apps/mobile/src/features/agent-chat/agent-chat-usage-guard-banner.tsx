@@ -1,13 +1,10 @@
-import { useEffect, useState } from 'react';
-
 import type { AgentChatUsageGuard } from '@caxri/protocol';
 
 import { NoticeBanner } from '../../components/notice-banner';
 import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { agentChatUsageGuardBanner } from './agent-chat-model';
-
-const TICK_MS = 60_000;
+import { useMinuteClock } from './use-minute-clock';
 
 /**
  * The weekly usage guard's banner (`agentChatUsageGuardBanner`), whose time to the reset moves on a minute clock while
@@ -23,11 +20,7 @@ export const AgentChatUsageGuardBanner = ({
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
-    const [now, setNow] = useState(Date.now);
-    useEffect(() => {
-        const timer = setInterval(() => setNow(Date.now()), TICK_MS);
-        return () => clearInterval(timer);
-    }, []);
+    const now = useMinuteClock();
     return (
         <NoticeBanner
             message={agentChatUsageGuardBanner(guard, provider, now, t)}

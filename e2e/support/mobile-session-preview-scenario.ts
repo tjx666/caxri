@@ -97,9 +97,14 @@ async function startPreviewServer(script: string, cwd: string): Promise<PreviewS
     };
 }
 
+/**
+ * The chip reads `Preview :<port>` (`browser.preview.chipLabel`) while the Session has one server.
+ */
+const chipText = (port: number): string => `Preview :${port}`;
+
 const isChipShowingOnly = async (serial: string, port: number, other: number): Promise<boolean> =>
-    (await mobileNativeControlBounds(serial, { text: String(port) })) !== null &&
-    (await mobileNativeControlBounds(serial, { text: String(other) })) === null;
+    (await mobileNativeControlBounds(serial, { text: chipText(port) })) !== null &&
+    (await mobileNativeControlBounds(serial, { text: chipText(other) })) === null;
 
 /**
  * `MOB-CHAT-36`: a web server started from the Session's folder appears as a port chip in the phone's Session header,

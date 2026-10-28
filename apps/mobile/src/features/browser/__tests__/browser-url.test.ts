@@ -3,7 +3,9 @@ import { describe, expect, it } from 'vitest';
 import {
     browserDisplayHost,
     browserNavigation,
+    browserPageLabel,
     browserPillTitle,
+    browserResumeUrl,
     isSecurePage,
     linkTarget,
 } from '../browser-url';
@@ -57,6 +59,39 @@ describe('browserPillTitle', () => {
     it('keeps the host instead of the error page title after a failed load', () => {
         expect(browserPillTitle({ hasLoadFailed: true, title: 'Webpage not available', url })).toBe(
             'example.com',
+        );
+    });
+
+    it('falls back to a caller-named host, such as a preview label, but keeps a real page title', () => {
+        const preview = 'Preview · :5173';
+        expect(browserPillTitle({ hasLoadFailed: false, title: '', url }, preview)).toBe(preview);
+        expect(browserPillTitle({ hasLoadFailed: false, title: 'Example', url }, preview)).toBe(
+            'Example',
+        );
+    });
+});
+
+describe('browserPageLabel', () => {
+    it('names the opening origin and gives way once the page leaves it', () => {
+        const initial = 'http://192.0.2.10:8443/preview/abc?token=1';
+        expect(browserPageLabel('Preview · :5173', initial, 'http://192.0.2.10:8443/app')).toBe(
+            'Preview · :5173',
+        );
+        expect(browserPageLabel('Preview · :5173', initial, 'https://example.com/')).toBeNull();
+        expect(browserPageLabel(undefined, initial, initial)).toBeNull();
+    });
+});
+
+describe('browserResumeUrl', () => {
+    it('resumes the current page, not the single-use opening URL', () => {
+        expect(browserResumeUrl('http://192.0.2.10/app/page', 'http://192.0.2.10/?token=1')).toBe(
+            'http://192.0.2.10/app/page',
+        );
+        expect(browserResumeUrl('about:blank', 'http://192.0.2.10/?token=1')).toBe(
+            'http://192.0.2.10/?token=1',
+        );
+        expect(browserResumeUrl('', 'http://192.0.2.10/?token=1')).toBe(
+            'http://192.0.2.10/?token=1',
         );
     });
 });

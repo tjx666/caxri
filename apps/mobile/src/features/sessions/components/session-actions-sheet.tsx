@@ -1,13 +1,19 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { isPinnedSession } from '@caxri/protocol';
 import { Archive, Pencil, Pin, PinOff } from 'lucide-react-native';
 
-import { BottomSheet, SheetAction, SheetCancel } from '../../../components/bottom-sheet';
-import { Spinner } from '../../../components/spinner';
+import {
+    BottomSheet,
+    SheetAction,
+    SheetCancel,
+    SheetTitle,
+} from '../../../components/bottom-sheet';
+import { Button } from '../../../components/button';
 import { useTranslation } from '../../../i18n';
+import { mobileControl, mobileRadius, mobileSpace, mobileType } from '../../../theme/scale';
 import type { MobileTheme } from '../../../theme/tokens';
 import type { useSessionManagement } from '../hooks/use-session-management';
 import { sessionRenameDraft } from '../session-management-model';
@@ -69,14 +75,15 @@ const SessionActionsBody = ({
         >
             {(dismiss) => (
                 <>
-                    <Text numberOfLines={3} style={[styles.title, { color: theme.text }]}>
-                        {mode === 'rename'
-                            ? t('sessions.actions.renameTitle')
-                            : sessionTitleForDisplay(session.title, t)}
-                    </Text>
-                    <Text numberOfLines={1} style={[styles.subtitle, { color: theme.muted }]}>
-                        {session.projectTitle}
-                    </Text>
+                    <SheetTitle
+                        detail={session.projectTitle}
+                        theme={theme}
+                        title={
+                            mode === 'rename'
+                                ? t('sessions.actions.renameTitle')
+                                : sessionTitleForDisplay(session.title, t)
+                        }
+                    />
                     {mode === 'menu' ? (
                         <View style={styles.actions}>
                             <SheetAction
@@ -147,45 +154,26 @@ const SessionActionsBody = ({
                                 value={draft}
                             />
                             <View style={styles.buttons}>
-                                <Pressable
-                                    accessibilityRole="button"
+                                <Button
+                                    label={t('common.cancel')}
                                     onPress={() => setMode('menu')}
-                                    style={[styles.button, { backgroundColor: theme.elevated }]}
+                                    style={styles.button}
                                     testID="session-rename-cancel"
-                                >
-                                    <Text style={[styles.buttonText, { color: theme.text }]}>
-                                        {t('common.cancel')}
-                                    </Text>
-                                </Pressable>
-                                <Pressable
-                                    accessibilityRole="button"
-                                    accessibilityState={{ disabled: nextTitle === null || isBusy }}
-                                    disabled={nextTitle === null || isBusy}
+                                    theme={theme}
+                                    variant="outline"
+                                />
+                                <Button
+                                    isBusy={isBusy}
+                                    isDisabled={nextTitle === null}
+                                    label={t('sessions.actions.save')}
                                     onPress={() => {
                                         void submitRename();
                                     }}
-                                    style={[
-                                        styles.button,
-                                        {
-                                            backgroundColor: theme.primary,
-                                            opacity: nextTitle === null || isBusy ? 0.5 : 1,
-                                        },
-                                    ]}
+                                    style={styles.button}
                                     testID="session-rename-save"
-                                >
-                                    {isBusy ? (
-                                        <Spinner color={theme.primaryForeground} />
-                                    ) : (
-                                        <Text
-                                            style={[
-                                                styles.buttonText,
-                                                { color: theme.primaryForeground },
-                                            ]}
-                                        >
-                                            {t('sessions.actions.save')}
-                                        </Text>
-                                    )}
-                                </Pressable>
+                                    theme={theme}
+                                    variant="primary"
+                                />
                             </View>
                         </View>
                     )}
@@ -205,27 +193,18 @@ const SessionActionsBody = ({
 };
 
 const styles = StyleSheet.create({
-    title: { fontSize: 17, fontWeight: '700', paddingHorizontal: 8 },
-    subtitle: { fontSize: 13, paddingBottom: 8, paddingHorizontal: 8, paddingTop: 2 },
-    actions: { paddingTop: 4 },
-    rename: { gap: 12, paddingHorizontal: 8, paddingTop: 8 },
+    actions: { paddingTop: mobileSpace.xs },
+    rename: { gap: mobileSpace.md, paddingHorizontal: mobileSpace.sm, paddingTop: mobileSpace.sm },
     input: {
-        borderRadius: 12,
+        ...mobileType.body,
+        borderRadius: mobileRadius.md,
         borderWidth: 1,
-        fontSize: 16,
-        minHeight: 48,
-        paddingHorizontal: 14,
+        minHeight: mobileControl.row,
+        paddingHorizontal: mobileSpace.lg,
     },
-    buttons: { flexDirection: 'row', gap: 10 },
-    button: {
-        alignItems: 'center',
-        borderRadius: 12,
-        flex: 1,
-        justifyContent: 'center',
-        minHeight: 48,
-    },
-    buttonText: { fontSize: 16, fontWeight: '700' },
-    error: { fontSize: 13, paddingHorizontal: 8, paddingTop: 10 },
+    buttons: { flexDirection: 'row', gap: mobileSpace.md },
+    button: { flex: 1 },
+    error: { ...mobileType.meta, paddingHorizontal: mobileSpace.sm, paddingTop: mobileSpace.md },
 });
 
 /* eslint-enable no-use-before-define, @typescript-eslint/no-use-before-define */

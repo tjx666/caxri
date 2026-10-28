@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useSyncExternalStore } from 'react';
-import { Alert } from 'react-native';
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 
 import { encodeHex } from '@caxri/mobile-transport';
 import * as Clipboard from 'expo-clipboard';
@@ -110,6 +109,17 @@ export const useImageAttachments = (
 ) => {
     const { connectionScopeKey, request } = useMobileClient();
     const { t } = useTranslation();
+    /**
+     * Why the last pick or preparation failed, for the composer's status line. A system dialog used to cover the
+     * composer for this; the sentence now sits where the reader is already looking and clears with the next attempt.
+     */
+    const [attachError, setAttachError] = useState<string | null>(null);
+    /**
+     * The failed image whose reason, Retry, and Remove the failure sheet shows.
+     */
+    const [failedId, setFailedId] = useState<string>();
+    const attachFailureMessage = (error: unknown): string =>
+        `${t('sessions.image.attachFailedTitle')}. ${mobileErrorMessage(error, t('sessions.image.attachFailedBody'), t)}`;
     const key = imageAttachmentKey(connectionScopeKey, surface, sessionId);
     const subscribe = useCallback(
         (listener: () => void) => imageAttachmentStore.subscribe(key, listener),
@@ -256,6 +266,7 @@ export const useImageAttachments = (
         const remaining = () => maxAttachments - imageAttachmentStore.get(key).length;
         if (remaining() <= 0) return;
         let picked: PickedImage[];
+        setAttachError(null);
         try {
             if (source === 'clipboard') {
                 const image = await Clipboard.getImageAsync({ format: 'jpeg', jpegQuality: 0.75 });
@@ -285,10 +296,7 @@ export const useImageAttachments = (
                 picked = result.assets.map(({ height, uri, width }) => ({ height, uri, width }));
             }
         } catch (error) {
-            Alert.alert(
-                t('sessions.image.attachFailedTitle'),
-                mobileErrorMessage(error, t('sessions.image.attachFailedBody'), t),
-            );
+            setAttachError(attachFailureMessage(error));
             return;
         }
         // Another pick may have filled the strip while the picker was open.
@@ -313,11 +321,7 @@ export const useImageAttachments = (
             const error = await attach(id, image); // eslint-disable-line no-await-in-loop -- see above
             failure ??= error;
         }
-        if (failure !== undefined)
-            Alert.alert(
-                t('sessions.image.attachFailedTitle'),
-                mobileErrorMessage(failure, t('sessions.image.attachFailedBody'), t),
-            );
+        if (failure !== undefined) setAttachError(attachFailureMessage(failure));
     };
 
     const remove = (id: string) => {
@@ -347,6 +351,7 @@ export const useImageAttachments = (
 
     return {
         add,
+        attachError,
         attachments,
         canAdd: attachments.length < maxAttachments,
         readyIds: attachments.filter((item) => item.state === 'ready').map((item) => item.id),
@@ -366,31 +371,18 @@ export const useImageAttachments = (
         remove,
         retry,
         /**
-         * Shows why an upload failed and lets the user retry or remove the image.
+         * The failed image the failure sheet is open for, with the reason its upload failed.
          */
-        explainFailure: (id: string) => {
-            const item = imageAttachmentStore.get(key).find((candidate) => candidate.id === id);
-            if (!item) return;
-            Alert.alert(
-                t('sessions.image.uploadFailedTitle'),
-                item.error ?? t('sessions.image.uploadFailed'),
-                [
-                    { text: t('common.cancel'), style: 'cancel' },
-                    {
-                        text: t('sessions.image.remove'),
-                        style: 'destructive',
-                        onPress: () => remove(id),
-                    },
-                    {
-                        text: t('common.retry'),
-                        onPress: () => {
-                            void retry(id);
-                        },
-                    },
-                ],
-            );
+        failure: attachments.find((item) => item.id === failedId),
+        /**
+         * Opens the failure sheet, where the user retries or removes the image.
+         */
+        explainFailure: setFailedId,
+        dismissFailure: () => setFailedId(undefined),
+        clear: () => {
+            setAttachError(null);
+            update(() => []);
         },
-        clear: () => update(() => []),
         /**
          * Puts back images whose message failed to send, ahead of any attached since; one still attached is not added
          * twice. Their uploads are still on the Server, so they are ready to send again.

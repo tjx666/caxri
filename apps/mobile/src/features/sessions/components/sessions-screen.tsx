@@ -6,16 +6,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
 import { useMobileTheme } from '../../../theme/use-mobile-theme';
-import type { MobileConnectionStatus } from '../../connection/connection-state';
 import { initialConnectionClock, nextConnectionClock } from '../../connection/connection-state';
 import { useMobileClient } from '../../connection/mobile-client-provider';
 import type { MobileLayoutMode } from '../../layout/layout-mode';
 import { mobileLayoutMode } from '../../layout/layout-mode';
-import { MobileUpdateBanner } from '../../update/mobile-update-banner';
+import { useMobileUpdateNotice } from '../../update/use-mobile-update-notice';
 import { isConnectionBannerShown } from '../session-notices';
-import { ConnectionBanner } from './connection-banner';
 import { useHostSessions } from './host-sessions-provider';
 import { SessionHome } from './session-home';
+import { SessionHomeNotice } from './session-home-notice';
 import { SessionsScreenDetail } from './sessions-screen-detail';
 
 const styles = StyleSheet.create({
@@ -24,34 +23,8 @@ const styles = StyleSheet.create({
     divider: { width: StyleSheet.hairlineWidth },
 });
 
-/**
- * A version mismatch is not a connection problem the Retry banner can fix; `MobileUpdateBanner` explains it instead.
- */
-const SessionsScreenStatus = ({
-    fresh,
-    isSavedCopyLabeled,
-    onRetry,
-    status,
-    theme,
-}: {
-    fresh: boolean;
-    isSavedCopyLabeled: boolean;
-    onRetry: () => void;
-    status: MobileConnectionStatus;
-    theme: ReturnType<typeof useMobileTheme>;
-}) =>
-    isConnectionBannerShown(fresh, status) ? (
-        <ConnectionBanner
-            isSavedCopyLabeled={isSavedCopyLabeled}
-            onRetry={onRetry}
-            status={status === 'unverified' ? 'unverified' : 'stale'}
-            theme={theme}
-        />
-    ) : null;
-
 const SessionsScreenLayout = ({
     detail,
-    isConnectionNoticeShown,
     layout,
     now,
     onNewSession,
@@ -60,7 +33,6 @@ const SessionsScreenLayout = ({
     theme,
 }: {
     detail: ReactNode;
-    isConnectionNoticeShown: boolean;
     layout: MobileLayoutMode;
     now: number;
     onNewSession: () => void;
@@ -70,7 +42,6 @@ const SessionsScreenLayout = ({
 }) => {
     const home = (
         <SessionHome
-            isConnectionNoticeShown={isConnectionNoticeShown}
             layout={layout}
             now={now}
             onNewSession={onNewSession}
@@ -96,6 +67,7 @@ export const SessionsScreen = ({ routeSessionId }: { routeSessionId: string | nu
     const { getLastSeenAt, retryConnection, status } = useMobileClient();
     const { hostId, sessions } = useHostSessions();
     const { selectSession } = sessions;
+    const updateNotice = useMobileUpdateNotice();
     /**
      * Lazy-initialized so the first paint already reflects the client's current `lastSeenAt` instead of the
      * guaranteed-stale `null` placeholder (see `initialConnectionClock`).
@@ -151,17 +123,22 @@ export const SessionsScreen = ({ routeSessionId }: { routeSessionId: string | nu
             edges={['top', 'right', 'bottom', 'left']}
             style={[styles.safeArea, { backgroundColor: theme.background }]}
         >
-            <SessionsScreenStatus
-                fresh={fresh}
-                isSavedCopyLabeled={sessions.savedAt !== null}
-                onRetry={retryConnection}
-                status={status}
+            <SessionHomeNotice
+                connection={
+                    isConnectionBannerShown(fresh, status)
+                        ? status === 'unverified'
+                            ? 'unverified'
+                            : 'stale'
+                        : null
+                }
+                isListVisible={layout !== 'phone' || !routeSessionId}
+                now={now}
+                onRetryConnection={retryConnection}
                 theme={theme}
+                update={updateNotice}
             />
-            <MobileUpdateBanner theme={theme} />
             <SessionsScreenLayout
                 detail={detail}
-                isConnectionNoticeShown={isConnectionBannerShown(fresh, status)}
                 layout={layout}
                 now={now}
                 onNewSession={openNewSession}

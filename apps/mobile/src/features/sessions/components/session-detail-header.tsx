@@ -15,17 +15,20 @@ import {
 
 import { AgentGlyph } from '../../../components/agent-icon';
 import { IconButton } from '../../../components/icon-button';
-import { PopoverMenu } from '../../../components/popover-menu';
+import { PopoverAction, PopoverDivider, PopoverMenu } from '../../../components/popover-menu';
 import { usePopoverAnchor } from '../../../components/use-popover-anchor';
 import type { Translate, TranslationKey } from '../../../i18n';
 import { useTranslation } from '../../../i18n';
 import type { MobileTheme } from '../../../theme/tokens';
 import { isAgentChatTerminal } from '../../agent-chat/agent-chat-model';
-import { PreviewChip } from '../../browser/preview-chip';
+import { PreviewChip, PreviewMenuActions } from '../../browser/preview-chip';
+import { useOpenPreview } from '../../browser/use-open-preview';
+import { useSessionPreviews } from '../../browser/use-session-previews';
 import { MobileGatewayRequestError } from '../../connection/mobile-gateway-client';
 import { panelIcon } from '../../panels/panel-icon';
 import type { Panel } from '../../panels/use-panels';
 import { PullRequestChip } from '../../pull-request/pull-request-chip';
+import { useSessionPullRequest } from '../../pull-request/use-session-pull-request';
 import { useSavedClock } from '../../read-cache/use-saved-age';
 import { segmentForAgentSurface } from '../agent-surface-switch';
 import { useAgentSurfaceSwitch } from '../hooks/use-agent-surface-switch';
@@ -38,6 +41,7 @@ import {
     panelIdOfSegment,
 } from '../session-ui-state';
 import {
+    AgentSurfaceSwitchConfirm,
     AgentSurfaceSwitchMenuAction,
     AgentSurfaceSwitchStatus,
 } from './agent-surface-switch-controls';
@@ -214,6 +218,13 @@ export const SessionDetailHeader = ({
     const { close: closeMenu } = menu;
     const [markReadError, setMarkReadError] = useState<string | null>(null);
     const [isTitleExpanded, setTitleExpanded] = useState(false);
+    const [isPullRequestOpen, setPullRequestOpen] = useState(false);
+    // The header owns both reads so it can tell which one holds the inline slot: a pull request wins, and the preview
+    // entry moves into the menu, which keeps a 360dp header to the back button, title, one chip, and the menu.
+    const pullRequest = useSessionPullRequest(session.id, isPullRequestOpen);
+    const previews = useSessionPreviews(session.id, deviceRole);
+    const openPreview = useOpenPreview(previews);
+    const hasPullRequest = Boolean(pullRequest.pullRequest);
     const isChat = isAgentChatTerminal(session.primaryTerminal);
     const now = useSavedClock(savedAt);
     const surfaceSwitch = useAgentSurfaceSwitch(session, (surface) =>
@@ -285,13 +296,18 @@ export const SessionDetailHeader = ({
                             theme={theme}
                         />
                     </View>
-                    <PreviewChip deviceRole={deviceRole} sessionId={session.id} theme={theme} />
-                    <PullRequestChip
-                        deviceRole={deviceRole}
-                        isConnected={isConnected}
-                        sessionId={session.id}
-                        theme={theme}
-                    />
+                    {hasPullRequest ? (
+                        <PullRequestChip
+                            deviceRole={deviceRole}
+                            isConnected={isConnected}
+                            isOpen={isPullRequestOpen}
+                            onOpenChange={setPullRequestOpen}
+                            state={pullRequest}
+                            theme={theme}
+                        />
+                    ) : (
+                        <PreviewChip onOpen={openPreview} previews={previews} theme={theme} />
+                    )}
                     <View collapsable={false} ref={menuAnchor}>
                         <IconButton
                             accessibilityLabel={t('sessions.detail.menu')}
@@ -309,6 +325,17 @@ export const SessionDetailHeader = ({
                     placement={menu.placement}
                     theme={theme}
                 >
+                    {hasPullRequest && previews.targets.length > 0 ? (
+                        <>
+                            <PreviewMenuActions
+                                onClose={closeMenu}
+                                onOpen={openPreview}
+                                previews={previews}
+                                theme={theme}
+                            />
+                            <PopoverDivider theme={theme} />
+                        </>
+                    ) : null}
                     {surfaceTarget ? (
                         <AgentSurfaceSwitchMenuAction
                             isDisabled={!isConnected || isSwitchingSurface}
@@ -317,30 +344,30 @@ export const SessionDetailHeader = ({
                             theme={theme}
                         />
                     ) : null}
-                    <Pressable
-                        accessibilityRole="button"
-                        accessibilityState={{ disabled: !isConnected }}
+                    <PopoverAction
                         disabled={!isConnected}
+                        icon={MailOpen}
+                        label={t('sessions.detail.markRead')}
                         onPress={handleMarkRead}
-                        style={styles.menuAction}
                         testID="session-mark-read"
-                    >
-                        <MailOpen color={theme.muted} size={18} />
-                        <Text
-                            style={[
-                                styles.menuActionText,
-                                { color: isConnected ? theme.text : theme.muted },
-                            ]}
-                        >
-                            {t('sessions.detail.markRead')}
-                        </Text>
-                    </Pressable>
+                        theme={theme}
+                    />
                     {!isConnected ? (
                         <Text style={[styles.sendState, { color: theme.muted }]}>
                             {t('sessions.detail.reconnectForActions')}
                         </Text>
                     ) : null}
                 </PopoverMenu>
+                {surfaceSwitch.confirmation ? (
+                    <AgentSurfaceSwitchConfirm
+                        confirmation={surfaceSwitch.confirmation}
+                        onClose={surfaceSwitch.dismissConfirmation}
+                        onConfirm={() => {
+                            void surfaceSwitch.confirm();
+                        }}
+                        theme={theme}
+                    />
+                ) : null}
                 <AgentSurfaceSwitchStatus
                     error={surfaceSwitch.error}
                     pending={surfaceSwitch.pending}

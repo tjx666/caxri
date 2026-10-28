@@ -8,6 +8,7 @@ import { Archive } from 'lucide-react-native';
 
 import { Spinner } from '../../../components/spinner';
 import { useTranslation } from '../../../i18n';
+import { mobileRadius, mobileSpace, mobileType, PRESSED_OPACITY } from '../../../theme/scale';
 import type { MobileTheme } from '../../../theme/tokens';
 import type { SwipeRow } from '../open-swipe-row';
 
@@ -30,14 +31,14 @@ const NEVER_ACTIVATES_DP = 10_000;
 const styles = StyleSheet.create({
     action: {
         alignItems: 'center',
-        borderRadius: 14,
-        gap: 4,
+        borderRadius: mobileRadius.md,
+        gap: mobileSpace.xs,
         justifyContent: 'center',
-        marginLeft: 6,
-        marginRight: 8,
+        marginLeft: mobileSpace.sm,
+        marginRight: mobileSpace.sm,
         width: ACTION_WIDTH,
     },
-    actionText: { fontSize: 13, fontWeight: '700' },
+    actionText: { ...mobileType.meta, fontWeight: '700' },
 });
 
 /**
@@ -105,7 +106,7 @@ export const SessionSwipeRow = ({
                 onPress={archive}
                 style={({ pressed }) => [
                     styles.action,
-                    { backgroundColor: theme.elevated, opacity: pressed ? 0.8 : 1 },
+                    { backgroundColor: theme.elevated, opacity: pressed ? PRESSED_OPACITY : 1 },
                 ]}
                 testID={`session-swipe-archive-${sessionId}`}
             >

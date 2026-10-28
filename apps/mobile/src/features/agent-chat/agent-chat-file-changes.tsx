@@ -13,6 +13,7 @@ import { ChevronDown, ChevronRight } from 'lucide-react-native';
 
 import { useTranslation } from '../../i18n';
 import { MONOSPACE_FONT } from '../../theme/monospace';
+import { mobileControl, mobileRadius, mobileSpace, mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
 import { ChangesDiffRow } from '../changes/changes-diff-row';
 import { ChangesDiffStat } from '../changes/changes-diff-stat';
@@ -145,20 +146,24 @@ export const AgentChatFileChanges = ({
 );
 
 const styles = StyleSheet.create({
-    list: { gap: 8 },
-    file: { borderRadius: 8, borderWidth: 1, overflow: 'hidden' },
+    list: { gap: mobileSpace.sm },
+    file: { borderRadius: mobileRadius.sm, borderWidth: 1, overflow: 'hidden' },
     header: {
         alignItems: 'center',
         flexDirection: 'row',
-        gap: 6,
+        gap: mobileSpace.sm,
         // The header is the file's expand toggle; 48dp is the mobile minimum touch target.
-        minHeight: 48,
-        paddingHorizontal: 10,
+        minHeight: mobileControl.row,
+        paddingHorizontal: mobileSpace.md,
     },
-    letter: { fontFamily: MONOSPACE_FONT, fontSize: 12, fontWeight: '700' },
-    path: { flex: 1, fontFamily: MONOSPACE_FONT, fontSize: 12, minWidth: 0 },
-    meta: { fontSize: 12, fontVariant: ['tabular-nums'] },
-    diff: { borderTopWidth: 1, paddingVertical: 4 },
-    empty: { fontSize: 12, paddingHorizontal: 10, paddingVertical: 8 },
+    letter: { ...mobileType.caption, fontFamily: MONOSPACE_FONT, fontWeight: '700' },
+    path: { ...mobileType.caption, flex: 1, fontFamily: MONOSPACE_FONT, minWidth: 0 },
+    meta: { ...mobileType.caption, fontVariant: ['tabular-nums'] },
+    diff: { borderTopWidth: 1, paddingVertical: mobileSpace.xs },
+    empty: {
+        ...mobileType.caption,
+        paddingHorizontal: mobileSpace.md,
+        paddingVertical: mobileSpace.sm,
+    },
 });
 /* eslint-enable no-use-before-define, @typescript-eslint/no-use-before-define */

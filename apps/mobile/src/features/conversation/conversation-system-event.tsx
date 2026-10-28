@@ -17,6 +17,7 @@ import {
     SquareTerminal,
 } from 'lucide-react-native';
 
+import { Card } from '../../components/card';
 import type { TranslationKey } from '../../i18n';
 import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
@@ -87,39 +88,41 @@ export const ConversationSystemEvent = ({
     const Chevron = isExpanded ? ChevronDown : ChevronRight;
     return (
         <View style={styles.message} testID={`conversation-event-${event.id}`}>
-            <Pressable
-                accessibilityLabel={`${t(eventLabel[event.kind])}${event.status ? `, ${t(eventStatusLabel[event.status])}` : ''}: ${event.summary}`}
-                accessibilityRole={canExpand ? 'button' : 'text'}
-                accessibilityState={canExpand ? { expanded: isExpanded } : undefined}
-                disabled={!canExpand}
-                onPress={() => setExpanded((value) => !value)}
-                style={[styles.eventRow, { borderColor: theme.border }]}
-            >
-                <Icon color={color} size={16} />
-                <View style={styles.eventSummaryFrame}>
-                    <Text
-                        numberOfLines={isExpanded ? undefined : 1}
-                        style={[styles.eventSummary, { color: theme.muted }]}
-                    >
-                        {event.summary}
-                    </Text>
-                    {/*
-                     * An invisible unclamped copy at the same width reports whether the visible line is cut off; a
-                     * clamped Text's own layout does not say so consistently across platforms.
-                     */}
-                    <Text
-                        accessible={false}
-                        importantForAccessibility="no-hide-descendants"
-                        onTextLayout={({ nativeEvent }) =>
-                            setTruncated(nativeEvent.lines.length > 1)
-                        }
-                        style={[styles.eventSummary, styles.eventSummaryProbe]}
-                    >
-                        {event.summary}
-                    </Text>
-                </View>
-                {canExpand ? <Chevron color={theme.muted} size={16} /> : null}
-            </Pressable>
+            <Card padded={false} theme={theme}>
+                <Pressable
+                    accessibilityLabel={`${t(eventLabel[event.kind])}${event.status ? `, ${t(eventStatusLabel[event.status])}` : ''}: ${event.summary}`}
+                    accessibilityRole={canExpand ? 'button' : 'text'}
+                    accessibilityState={canExpand ? { expanded: isExpanded } : undefined}
+                    disabled={!canExpand}
+                    onPress={() => setExpanded((value) => !value)}
+                    style={[styles.eventRow, canExpand ? styles.eventRowExpandable : null]}
+                >
+                    <Icon color={color} size={16} />
+                    <View style={styles.eventSummaryFrame}>
+                        <Text
+                            numberOfLines={isExpanded ? undefined : 1}
+                            style={[styles.eventSummary, { color: theme.muted }]}
+                        >
+                            {event.summary}
+                        </Text>
+                        {/*
+                         * An invisible unclamped copy at the same width reports whether the visible line is cut off; a
+                         * clamped Text's own layout does not say so consistently across platforms.
+                         */}
+                        <Text
+                            accessible={false}
+                            importantForAccessibility="no-hide-descendants"
+                            onTextLayout={({ nativeEvent }) =>
+                                setTruncated(nativeEvent.lines.length > 1)
+                            }
+                            style={[styles.eventSummary, styles.eventSummaryProbe]}
+                        >
+                            {event.summary}
+                        </Text>
+                    </View>
+                    {canExpand ? <Chevron color={theme.muted} size={16} /> : null}
+                </Pressable>
+            </Card>
             {isExpanded && hasDetail ? (
                 <Text
                     selectable

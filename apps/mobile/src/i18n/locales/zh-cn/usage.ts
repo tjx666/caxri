@@ -16,6 +16,7 @@ export const usage: TranslatedNamespace<typeof source> = {
     'usage.noLimit': '暂无限额读数。{{agent}} 运行时才会上报；使用 API key 时没有限额。',
     'usage.noLimitClaude': '暂无限额读数。Claude Code 只有在它的 Chat 运行时才会上报。',
     'usage.noSpeed': '还没有测量到回复。',
+    'usage.offline': '重新连接后即可查看 Agent 用量。',
     'usage.open': 'Agent 用量',
     'usage.openHint': '查看每个 Agent 的限额、输出速度和 API 状态。',
     'usage.openStatusPage': '打开状态页',
@@ -32,5 +33,6 @@ export const usage: TranslatedNamespace<typeof source> = {
     'usage.service.unknown': '未知',
     'usage.speedSource': '{{session}} 最近 {{count}} 次回复 · {{age}}',
     'usage.speedSourceOne': '{{session}} 最近一次回复 · {{age}}',
+    'usage.staleNotice': '连接已断开。正在显示最近一次读数。',
     'usage.title': 'Agent 用量',
 };

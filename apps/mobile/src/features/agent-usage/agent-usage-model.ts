@@ -20,6 +20,32 @@ import { relativeAgeLabel } from '../sessions/session-row-model';
  */
 export const AGENT_USAGE_POLL_MS = 30_000;
 
+export type AgentUsageScreenState =
+    | { kind: 'ready'; isStale: boolean }
+    | { kind: 'loading' }
+    | { kind: 'offline' }
+    | { kind: 'error' };
+
+/**
+ * Which part of the Agent usage screen to draw. The query is disabled while the phone cannot observe the computer
+ * (offline, backgrounded, or reconnecting), and a disabled query never leaves `pending`, so "no data and not
+ * observable" must read as offline rather than as an endless loading state. A reading already on screen stays, marked
+ * stale.
+ */
+export const agentUsageScreenState = ({
+    hasData,
+    isError,
+    isObservable,
+}: {
+    hasData: boolean;
+    isError: boolean;
+    isObservable: boolean;
+}): AgentUsageScreenState => {
+    if (hasData) return { kind: 'ready', isStale: !isObservable };
+    if (!isObservable) return { kind: 'offline' };
+    return isError ? { kind: 'error' } : { kind: 'loading' };
+};
+
 /**
  * Below this a response's duration is transcript-timestamp noise, as on Desktop's tok/s chip.
  */

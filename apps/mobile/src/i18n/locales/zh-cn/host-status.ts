@@ -6,6 +6,7 @@ export const hostStatus: TranslatedNamespace<typeof source> = {
     'hostStatus.back': '返回',
     'hostStatus.title': '电脑状态',
     'hostStatus.updated': '更新于 {{time}}',
+    'hostStatus.loading': '正在读取电脑状态…',
     'hostStatus.offline': '重新连接以查看电脑的运行状态。',
     'hostStatus.loadFailed': '无法读取电脑的运行状态。',
     'hostStatus.staleNotice': '连接已断开，正在显示上次的读数。',

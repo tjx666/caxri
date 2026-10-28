@@ -8,9 +8,9 @@ import { useRouter } from 'expo-router';
 import { Plus } from 'lucide-react-native';
 
 import { useTranslation } from '../../../i18n';
+import { mobileRadius, mobileSpace, mobileType } from '../../../theme/scale';
 import type { MobileTheme } from '../../../theme/tokens';
 import { useMobileClient } from '../../connection/mobile-client-provider';
-import { useConfirmForgetComputer } from '../../connection/use-confirm-forget-computer';
 import { AttentionCards } from '../../conversation/attention-cards';
 import type { MobileLayoutMode } from '../../layout/layout-mode';
 import { useSessionManagement } from '../hooks/use-session-management';
@@ -24,8 +24,8 @@ import type { MobileSessionItem } from '../session-model';
 import { useHostSessions } from './host-sessions-provider';
 import { SessionActionsSheet } from './session-actions-sheet';
 import { SessionGroupHeader, SessionGroupReveal } from './session-group-header';
+import { SessionHomeEmpty } from './session-home-empty';
 import { SessionHomeHeader } from './session-home-header';
-import { SessionHomeEmpty, SessionHomeStatus } from './session-home-status';
 import { SessionRow } from './session-row';
 import { SessionSwipeRow } from './session-swipe-row';
 
@@ -36,25 +36,28 @@ const styles = StyleSheet.create({
     tabletPane: { flexGrow: 0, flexShrink: 0, width: 320 },
     newButton: {
         alignItems: 'center',
-        borderRadius: 18,
-        bottom: 20,
-        boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.35)',
+        borderRadius: mobileRadius.lg,
+        bottom: mobileSpace.xl,
         height: 58,
         justifyContent: 'center',
         position: 'absolute',
-        right: 18,
+        right: mobileSpace.lg,
         width: 58,
     },
     tabletNewButton: {
         alignItems: 'center',
         borderTopWidth: StyleSheet.hairlineWidth,
         flexDirection: 'row',
-        gap: 8,
+        gap: mobileSpace.sm,
         justifyContent: 'center',
         minHeight: 56,
     },
-    tabletNewText: { fontSize: 15, fontWeight: '700' },
-    listError: { fontSize: 13, paddingHorizontal: 18, paddingVertical: 8 },
+    tabletNewText: mobileType.bodyStrong,
+    listError: {
+        ...mobileType.meta,
+        paddingHorizontal: mobileSpace.lg,
+        paddingVertical: mobileSpace.sm,
+    },
 });
 
 const entryKey = (entry: SessionListRow): string => entry.id;
@@ -62,17 +65,12 @@ const entryType = (entry: SessionListRow): SessionListRow['type'] => entry.type;
 
 // react-doctor-disable-next-line react-doctor/no-giant-component -- already this size before the connection-notice prop; splitting the Session list screen is its own refactor.
 export const SessionHome = ({
-    isConnectionNoticeShown,
     layout,
     now,
     onNewSession,
     onOpenSession,
     theme,
 }: {
-    /**
-     * Whether the app-wide connection banner above already explains why the list is not live.
-     */
-    isConnectionNoticeShown: boolean;
     layout: MobileLayoutMode;
     now: number;
     onNewSession: () => void;
@@ -137,10 +135,8 @@ export const SessionHome = ({
         projects,
         refresh,
         savedAt,
-        sections,
         selectedId,
     } = sessions;
-    const confirmForget = useConfirmForgetComputer(hostDisplayName);
     const beginInteractionReference = useRef(beginListInteraction);
     const finishInteractionReference = useRef(finishListInteraction);
     const listInteractionReference = useRef<ReturnType<typeof createSessionListInteraction> | null>(
@@ -297,7 +293,6 @@ export const SessionHome = ({
                         : undefined
                 }
                 onChooseProject={chooseProject}
-                onForgetComputer={confirmForget}
                 onOpenArchived={() => router.navigate(`/h/${encodeURIComponent(hostId)}/archived`)}
                 onOpenInbox={
                     deviceRole === 'control'
@@ -313,17 +308,6 @@ export const SessionHome = ({
                 onOpenUsage={() => router.navigate(`/h/${encodeURIComponent(hostId)}/usage`)}
                 projects={projects}
                 status={status}
-                theme={theme}
-            />
-            <SessionHomeStatus
-                error={error}
-                hasLoaded={hasLoaded}
-                isConnectionNoticeShown={isConnectionNoticeShown}
-                isLoading={isLoading}
-                now={now}
-                onRetry={refresh}
-                savedAt={savedAt}
-                sections={sections}
                 theme={theme}
             />
             {/* The actions sheet reports its own failures; a swipe archive has no sheet to show one in. */}
@@ -382,7 +366,13 @@ export const SessionHome = ({
                 onPress={onNewSession}
                 style={
                     layout === 'phone'
-                        ? [styles.newButton, { backgroundColor: theme.primary }]
+                        ? [
+                              styles.newButton,
+                              {
+                                  backgroundColor: theme.primary,
+                                  boxShadow: `0px 4px 12px ${theme.shadow}`,
+                              },
+                          ]
                         : [styles.tabletNewButton, { borderColor: theme.border }]
                 }
                 testID="new-session-button"

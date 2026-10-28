@@ -6,6 +6,7 @@ import { ChevronRight } from 'lucide-react-native';
 
 import { useTranslation } from '../../i18n';
 import { MONOSPACE_FONT } from '../../theme/monospace';
+import { chipHitSlop, mobileSpace, mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
 import { AgentChatActivityLead } from './agent-chat-activity-lead';
 import { AgentChatTaskKindGlyph } from './agent-chat-task-detail';
@@ -14,11 +15,6 @@ import type { AgentChatRunningKind } from './agent-chat-tasks';
 import { agentChatStatusRow, agentChatTaskLead } from './agent-chat-tasks';
 import type { AgentChatController } from './use-agent-chat';
 import { useAgentChatTaskSheet } from './use-agent-chat-task-sheet';
-
-/**
- * Lifts the 32dp row's badge to the 48dp mobile minimum touch target.
- */
-const BADGE_HIT_SLOP = { top: 8, bottom: 8, left: 8, right: 8 };
 
 /**
  * One quiet row above the composer, as Desktop's status row: what the turn is doing (`agentChatStatusRow`), with a
@@ -61,7 +57,7 @@ export const AgentChatStatusRow = ({
                                 label: sheet.pill.label,
                             })}
                             accessibilityRole="button"
-                            hitSlop={BADGE_HIT_SLOP}
+                            hitSlop={chipHitSlop}
                             onPress={sheet.open}
                             style={styles.badge}
                             testID="agent-chat-tasks"
@@ -105,7 +101,7 @@ const TaskLead = ({
             accessibilityHint={t('chat.tasks.pillHint')}
             accessibilityLabel={lead.accessibilityLabel}
             accessibilityRole="button"
-            hitSlop={BADGE_HIT_SLOP}
+            hitSlop={chipHitSlop}
             onPress={onPress}
             style={styles.taskLead}
             testID="agent-chat-tasks"
@@ -153,22 +149,29 @@ const RunningKinds = ({
 
 const styles = StyleSheet.create({
     /**
-     * Inset like the queue card's text below it, so the row, the card, and the composer share one left edge.
+     * Inset by the same 16dp gutter as the docked cards and the timeline, so the row, the cards, and the composer share
+     * one left edge.
      */
     root: {
         alignItems: 'center',
         flexDirection: 'row',
-        gap: 12,
+        gap: mobileSpace.md,
         minHeight: 32,
-        paddingHorizontal: 24,
+        paddingHorizontal: mobileSpace.lg,
     },
-    taskLead: { alignItems: 'center', flex: 1, flexDirection: 'row', gap: 8, minWidth: 0 },
+    taskLead: {
+        alignItems: 'center',
+        flex: 1,
+        flexDirection: 'row',
+        gap: mobileSpace.sm,
+        minWidth: 0,
+    },
     taskTitle: { flex: 1, minWidth: 0 },
     command: { fontFamily: MONOSPACE_FONT },
-    kinds: { alignItems: 'center', flexDirection: 'row', gap: 10 },
-    text: { fontSize: 13, lineHeight: 18 },
-    badge: { alignItems: 'center', flexDirection: 'row', gap: 10 },
-    badgeKind: { alignItems: 'center', flexDirection: 'row', gap: 4 },
-    count: { fontSize: 13, fontVariant: ['tabular-nums'], lineHeight: 18 },
+    kinds: { alignItems: 'center', flexDirection: 'row', gap: mobileSpace.md },
+    text: mobileType.meta,
+    badge: { alignItems: 'center', flexDirection: 'row', gap: mobileSpace.md },
+    badgeKind: { alignItems: 'center', flexDirection: 'row', gap: mobileSpace.xs },
+    count: { ...mobileType.meta, fontVariant: ['tabular-nums'] },
 });
 /* eslint-enable no-use-before-define, @typescript-eslint/no-use-before-define */

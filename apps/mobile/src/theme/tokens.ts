@@ -5,6 +5,10 @@ export interface MobileTheme {
     border: string;
     danger: string;
     /**
+     * Text and glyphs on a `danger` fill, such as a swipe action, matching Desktop's `--danger-foreground`.
+     */
+    dangerForeground: string;
+    /**
      * The `+N -M` changed-line counts, matching Desktop's `--diff-stat-added` / `--diff-stat-removed`: `success` and
      * `danger` moved to one lightness so neither count reads heavier (see `diffStatColors`).
      */
@@ -52,6 +56,11 @@ export interface MobileTheme {
      * Secondary text over the scrim, such as a "Showing a preview" note.
      */
     onScrimMuted: string;
+    /**
+     * The dimming layer behind a bottom sheet or popover menu. Unlike {@link MobileTheme.scrim}, the screen behind it
+     * stays readable, because the overlay is about the content underneath.
+     */
+    overlay: string;
     primary: string;
     primaryForeground: string;
     /**
@@ -62,6 +71,15 @@ export interface MobileTheme {
      * A round control (Close) floating over the scrim.
      */
     scrimControl: string;
+    /**
+     * A selected list row, such as the open Session on a tablet, matching Desktop's `--selection`. Selection pairs it
+     * with a `primary` leading edge so it never relies on a background change alone.
+     */
+    selection: string;
+    /**
+     * The color of every drop shadow (floating buttons, popovers, Terminal pills), matching Desktop's `--shadow`.
+     */
+    shadow: string;
     success: string;
     surface: string;
     text: string;
@@ -81,6 +99,7 @@ export const mobileTheme = {
     background: draculaTheme.colors.background,
     border: draculaTheme.colors.border,
     danger: draculaTheme.colors.danger,
+    dangerForeground: '#000000',
     diffStatAdded: diffStat.added,
     diffStatRemoved: diffStat.removed,
     elevated: draculaTheme.colors.elevated,
@@ -93,10 +112,13 @@ export const mobileTheme = {
     muted: draculaTheme.colors.muted,
     onScrim: '#ffffff',
     onScrimMuted: 'rgba(255, 255, 255, 0.8)',
+    overlay: 'rgba(0, 0, 0, 0.5)',
     primary: draculaTheme.colors.accent,
     primaryForeground: draculaTheme.colors.background,
     scrim: 'rgba(0, 0, 0, 0.94)',
     scrimControl: 'rgba(255, 255, 255, 0.16)',
+    selection: draculaTheme.colors.selection,
+    shadow: draculaTheme.colors.shadow,
     success: draculaTheme.colors.success,
     surface: draculaTheme.colors.surface,
     text: draculaTheme.colors.foreground,

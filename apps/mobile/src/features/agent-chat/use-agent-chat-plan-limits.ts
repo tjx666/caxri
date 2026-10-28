@@ -12,10 +12,10 @@ const usageKey = (connectionScopeKey: string | null, terminalId: string) =>
 /**
  * The conversation's tokens, estimated cost, and the provider's plan limits (`mobile.agentChat.readUsage`), read while
  * the app is in the foreground and connected and re-read every {@link AGENT_CHAT_PLAN_LIMITS_POLL_MS}. The pace
- * reminder, the model sheet's Plan limits, and the Session usage sheet share this one read. A failed read shows nothing
- * rather than an error: every one of them is a side note to the conversation. Passing the snapshot's `lastResponseAt`
- * re-reads as soon as a response finishes, so the tokens and cost keep pace with the context figure instead of trailing
- * it until the next poll.
+ * reminder, the usage chip, and the Session usage sheet with its Plan limits share this one read. A failed read shows
+ * nothing rather than an error: every one of them is a side note to the conversation. Passing the snapshot's
+ * `lastResponseAt` re-reads as soon as a response finishes, so the tokens and cost keep pace with the context figure
+ * instead of trailing it until the next poll.
  */
 export const useAgentChatUsage = (
     terminalId: string,
@@ -47,7 +47,7 @@ export const useAgentChatUsage = (
 };
 
 /**
- * The provider's plan limits for the pace reminder and the open model sheet; see {@link useAgentChatUsage}.
+ * The provider's plan limits for the pace reminder and the Session usage sheet; see {@link useAgentChatUsage}.
  */
 export const useAgentChatPlanLimits = (terminalId: string) => useAgentChatUsage(terminalId)?.limit;
 

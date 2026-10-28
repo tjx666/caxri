@@ -1,10 +1,7 @@
-import { Pressable, Text } from 'react-native';
-
-import { Spinner } from '../../../components/spinner';
+import { Button } from '../../../components/button';
 import { useTranslation } from '../../../i18n';
 import type { MobileTheme } from '../../../theme/tokens';
 import type { NewSessionViewState } from '../hooks/use-new-session';
-import { newSessionStyles as styles } from './new-session-styles';
 
 export const NewSessionCreateButton = ({
     state,
@@ -16,27 +13,15 @@ export const NewSessionCreateButton = ({
     const { t } = useTranslation();
     const isCreating = state.createState.kind === 'creating';
     return (
-        <Pressable
-            accessibilityLabel={t('sessions.new.create')}
-            accessibilityRole="button"
-            accessibilityState={{ disabled: !state.canCreate, busy: isCreating }}
-            disabled={!state.canCreate}
+        <Button
+            isBusy={isCreating}
+            isDisabled={!state.canCreate && !isCreating}
+            label={t(isCreating ? 'sessions.new.creating' : 'sessions.new.create')}
             onPress={state.create}
-            style={[
-                styles.action,
-                { backgroundColor: state.canCreate ? theme.primary : theme.surface },
-            ]}
+            size="primary"
             testID="new-session-create"
-        >
-            {isCreating ? <Spinner color={theme.primaryForeground} /> : null}
-            <Text
-                style={[
-                    styles.actionText,
-                    { color: state.canCreate ? theme.primaryForeground : theme.muted },
-                ]}
-            >
-                {t(isCreating ? 'sessions.new.creating' : 'sessions.new.create')}
-            </Text>
-        </Pressable>
+            theme={theme}
+            variant="primary"
+        />
     );
 };

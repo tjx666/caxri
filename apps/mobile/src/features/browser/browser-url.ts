@@ -39,18 +39,46 @@ export function browserDisplayHost(url: string): string {
 /**
  * The text of the toolbar pill. A page without a title (or one still loading, when the title is the URL) is named by
  * its host, as X's pill does. While the load has failed the WebView still reports Chromium's own error page title (for
- * example `Webpage not available`), which the app's error view has replaced, so the pill keeps the host.
+ * example `Webpage not available`), which the app's error view has replaced, so the pill keeps the host. `host` lets a
+ * caller name the address itself, such as a preview's `Preview · :5173` in place of the gateway it is served from.
  */
-export function browserPillTitle(page: {
-    hasLoadFailed: boolean;
-    title: string;
-    url: string;
-}): string {
-    const host = browserDisplayHost(page.url);
+export function browserPillTitle(
+    page: {
+        hasLoadFailed: boolean;
+        title: string;
+        url: string;
+    },
+    host = browserDisplayHost(page.url),
+): string {
     if (page.hasLoadFailed) return host;
     return page.title && page.title !== page.url ? page.title : host;
 }
 
 export function isSecurePage(url: string): boolean {
     return parseUrl(url)?.protocol === 'https:';
+}
+
+/**
+ * The caller-supplied name for the page the browser was opened on (for example `Preview · :5173`), which stands in for
+ * the gateway address and proxy port a preview is really served from. It applies only while the browser is still on
+ * that origin: after a link leads elsewhere the name would mislabel the page, so the browser goes back to naming the
+ * real host.
+ */
+export function browserPageLabel(
+    label: string | undefined,
+    initialUrl: string,
+    currentUrl: string,
+): string | null {
+    if (!label) return null;
+    const initialOrigin = parseUrl(initialUrl)?.origin;
+    return initialOrigin && initialOrigin === parseUrl(currentUrl)?.origin ? label : null;
+}
+
+/**
+ * The URL a remounted WebView loads. The page the reader was on, not the URL the browser opened with: a preview URL
+ * carries a single-use token, so loading it again would fail. A blank or missing current page falls back to the opening
+ * URL.
+ */
+export function browserResumeUrl(currentUrl: string, initialUrl: string): string {
+    return currentUrl && !currentUrl.startsWith('about:') ? currentUrl : initialUrl;
 }

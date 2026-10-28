@@ -7,6 +7,7 @@ export const inbox = {
     'inbox.earlierRepliesOther': '{{count}} earlier replies',
     'inbox.empty': 'Nothing needs you right now.',
     'inbox.loadFailed': 'Unable to load what needs you.',
+    'inbox.loading': 'Loading what needs you…',
     'inbox.offline': 'Reconnect to see what needs you.',
     'inbox.openPullRequestHint': 'Opens the pull request.',
     'inbox.refreshFailed': 'Unable to refresh. Showing the last known items.',

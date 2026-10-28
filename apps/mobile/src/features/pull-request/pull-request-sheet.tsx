@@ -5,11 +5,12 @@ import { StyleSheet, Text, View } from 'react-native';
 import type { MobilePullRequest } from '@caxri/protocol';
 import { ExternalLink } from 'lucide-react-native';
 
-import { BottomSheet, SheetAction, SheetCancel } from '../../components/bottom-sheet';
-import { SheetButton } from '../../components/sheet-button';
+import { BottomSheet, SheetAction, SheetCancel, SheetTitle } from '../../components/bottom-sheet';
+import { Button } from '../../components/button';
 import { Spinner } from '../../components/spinner';
 import { useTranslation } from '../../i18n';
 import { openLink } from '../../lib/open-link';
+import { mobileRadius, mobileSpace, mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
 import { PullRequestGlyph } from './pull-request-glyph';
 import { isMergeInProgress } from './pull-request-merge-store';
@@ -80,14 +81,11 @@ export const PullRequestSheet = ({
                             #{pullRequest.number}
                         </Text>
                     </View>
-                    <Text
-                        numberOfLines={3}
-                        selectable
-                        style={[styles.title, { color: theme.text }]}
+                    <SheetTitle
                         testID="pull-request-title"
-                    >
-                        {pullRequest.title}
-                    </Text>
+                        theme={theme}
+                        title={pullRequest.title}
+                    />
                     {showConfirmation && isConfirmablePullRequestAction(action) ? (
                         <MergeConfirmation
                             action={action}
@@ -217,7 +215,7 @@ const MergeArea = ({
             return (
                 <View style={styles.mergeArea}>
                     <Note color={theme.muted} text={t('pullRequest.draftNote')} />
-                    <SheetButton
+                    <Button
                         label={t('pullRequest.openOnGitHub')}
                         onPress={() => openLink(pullRequest.url)}
                         testID="pull-request-open"
@@ -233,7 +231,7 @@ const MergeArea = ({
     const isOverride = action.kind === 'confirm' && action.isOverride;
     return (
         <View style={styles.mergeArea}>
-            <SheetButton
+            <Button
                 isBusy={isMerging}
                 isDisabled={!canMerge}
                 label={t(
@@ -293,7 +291,7 @@ const MergeConfirmation = ({
             </Text>
             <View style={styles.buttons}>
                 <View style={styles.buttonSlot}>
-                    <SheetButton
+                    <Button
                         label={t('pullRequest.back')}
                         onPress={onBack}
                         testID="pull-request-confirm-back"
@@ -302,12 +300,12 @@ const MergeConfirmation = ({
                     />
                 </View>
                 <View style={styles.buttonSlot}>
-                    <SheetButton
+                    <Button
                         label={t(isOverride ? 'pullRequest.mergeAnyway' : 'pullRequest.merge')}
                         onPress={onMerge}
                         testID="pull-request-confirm-merge"
                         theme={theme}
-                        variant={isOverride ? 'danger' : 'primary'}
+                        variant={isOverride ? 'danger' : 'success'}
                     />
                 </View>
             </View>
@@ -333,38 +331,46 @@ const Note = ({
 );
 
 const styles = StyleSheet.create({
-    body: { paddingHorizontal: 4 },
-    heading: { alignItems: 'center', flexDirection: 'row', gap: 6, paddingHorizontal: 8 },
-    number: { fontSize: 14, fontVariant: ['tabular-nums'], fontWeight: '600' },
-    title: { fontSize: 17, fontWeight: '700', lineHeight: 23, paddingHorizontal: 8, paddingTop: 4 },
-    status: {
-        borderRadius: 12,
-        borderWidth: StyleSheet.hairlineWidth,
-        gap: 4,
-        marginHorizontal: 8,
-        marginTop: 14,
-        paddingHorizontal: 12,
-        paddingVertical: 10,
+    body: { paddingHorizontal: mobileSpace.xs },
+    heading: {
+        alignItems: 'center',
+        flexDirection: 'row',
+        gap: mobileSpace.sm,
+        paddingHorizontal: mobileSpace.md,
+        paddingBottom: mobileSpace.xs,
     },
-    readinessLine: { alignItems: 'center', flexDirection: 'row', gap: 8 },
-    dot: { borderRadius: 4, height: 8, width: 8 },
-    readiness: { fontSize: 15, fontWeight: '600' },
-    checks: { fontSize: 13, lineHeight: 19, paddingLeft: 16 },
-    mergeArea: { gap: 8, paddingHorizontal: 8, paddingTop: 14 },
-    caption: { fontSize: 12, lineHeight: 17, textAlign: 'center' },
+    number: { ...mobileType.bodyStrong, fontVariant: ['tabular-nums'] },
+    status: {
+        borderRadius: mobileRadius.md,
+        borderWidth: StyleSheet.hairlineWidth,
+        gap: mobileSpace.xs,
+        marginHorizontal: mobileSpace.sm,
+        paddingHorizontal: mobileSpace.md,
+        paddingVertical: mobileSpace.md,
+    },
+    readinessLine: { alignItems: 'center', flexDirection: 'row', gap: mobileSpace.sm },
+    dot: { borderRadius: mobileSpace.xs, height: mobileSpace.sm, width: mobileSpace.sm },
+    readiness: { ...mobileType.bodyStrong },
+    checks: { ...mobileType.meta, paddingLeft: mobileSpace.lg },
+    mergeArea: {
+        gap: mobileSpace.sm,
+        paddingHorizontal: mobileSpace.sm,
+        paddingTop: mobileSpace.md,
+    },
+    caption: { ...mobileType.caption, textAlign: 'center' },
     note: {
         alignItems: 'center',
         flexDirection: 'row',
-        gap: 8,
-        paddingHorizontal: 8,
-        paddingTop: 14,
+        gap: mobileSpace.sm,
+        paddingHorizontal: mobileSpace.sm,
+        paddingTop: mobileSpace.md,
     },
-    noteText: { flex: 1, fontSize: 14, lineHeight: 20 },
-    outcome: { fontSize: 14, lineHeight: 20, paddingHorizontal: 8, paddingTop: 12 },
-    confirmation: { gap: 10, paddingHorizontal: 8, paddingTop: 14 },
-    confirmTitle: { fontSize: 16, fontWeight: '700' },
-    confirmText: { fontSize: 14, lineHeight: 20 },
-    buttons: { flexDirection: 'row', gap: 10, paddingTop: 6 },
+    noteText: { ...mobileType.meta, flex: 1 },
+    outcome: { ...mobileType.meta, paddingHorizontal: mobileSpace.sm, paddingTop: mobileSpace.md },
+    confirmation: { gap: mobileSpace.md, paddingHorizontal: mobileSpace.sm },
+    confirmTitle: { ...mobileType.bodyStrong },
+    confirmText: { ...mobileType.meta },
+    buttons: { flexDirection: 'row', gap: mobileSpace.md, paddingTop: mobileSpace.xs },
     buttonSlot: { flex: 1 },
 });
 

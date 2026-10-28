@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useTranslation } from '../../i18n';
+import { mobileControl, mobileSpace, mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
 import { mobileUpdateSizeLabel, mobileUpdateStatusLabel } from './mobile-update-state';
 import type { MobileUpdate } from './use-mobile-update';
@@ -58,15 +59,16 @@ export const MobileUpdateSettingsRow = ({
 
 const styles = StyleSheet.create({
     row: {
-        gap: 4,
-        minHeight: 52,
+        gap: mobileSpace.xs,
+        minHeight: mobileControl.row,
         justifyContent: 'center',
-        paddingHorizontal: 16,
-        paddingVertical: 12,
+        paddingHorizontal: mobileSpace.lg,
+        paddingVertical: mobileSpace.md,
     },
-    main: { alignItems: 'center', flexDirection: 'row', gap: 12 },
-    label: { flex: 1, fontSize: 15, fontWeight: '600' },
-    value: { fontSize: 15 },
-    detail: { fontSize: 13, lineHeight: 18 },
+    main: { alignItems: 'center', flexDirection: 'row', gap: mobileSpace.md },
+    label: { ...mobileType.bodyStrong, flex: 1 },
+    value: mobileType.body,
+    detail: mobileType.meta,
 });
+
 /* eslint-enable no-use-before-define, @typescript-eslint/no-use-before-define */

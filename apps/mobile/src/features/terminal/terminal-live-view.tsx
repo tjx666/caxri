@@ -2,12 +2,14 @@ import { useCallback, useLayoutEffect, useMemo, useRef } from 'react';
 import { Platform, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 
+import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import type { MobileTerminalExitPresentation } from './terminal-exit-presentation';
 import {
     TerminalControlBar,
     TerminalFloatingActions,
     TerminalKeyboardInput,
+    TerminalLeaseHint,
     TerminalStatusChip,
 } from './terminal-live-controls';
 import { terminalViewStyles as styles } from './terminal-view-styles';
@@ -31,11 +33,12 @@ interface TerminalLiveViewProperties {
 }
 
 export const TerminalLiveView = (properties: TerminalLiveViewProperties) => {
+    const { t } = useTranslation();
     if (Platform.OS === 'android') return <AndroidTerminalLiveView {...properties} />;
     return (
         <View style={[styles.root, styles.status]} testID="terminal-unavailable-platform">
             <Text style={[styles.statusText, { color: properties.theme.muted }]}>
-                Live Terminal is available on Android in this build.
+                {t('terminal.platformUnavailable')}
             </Text>
         </View>
     );
@@ -112,6 +115,7 @@ function AndroidTerminalLiveView({
                     terminal={terminal}
                     theme={theme}
                 />
+                <TerminalLeaseHint hasLease={terminal.hasLease} theme={theme} />
                 <TerminalFloatingActions
                     onTakeOver={() => {
                         void takeOver();

@@ -1,7 +1,12 @@
 import type { AgentProviderStatus, MobileAgentUsageProvider } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { agentUsageCards, resetClockTime, throughputRateLabel } from '../agent-usage-model';
+import {
+    agentUsageCards,
+    agentUsageScreenState,
+    resetClockTime,
+    throughputRateLabel,
+} from '../agent-usage-model';
 
 const NOW = new Date(2026, 9, 19, 12, 0).getTime();
 const HOUR = 3_600_000;
@@ -140,5 +145,31 @@ describe('agentUsageCards', () => {
                 note: 'Status unavailable: the computer could not reach the status page',
             },
         });
+    });
+});
+
+describe('agentUsageScreenState', () => {
+    it('reads offline, not loading, when the disabled query has no data', () => {
+        expect(
+            agentUsageScreenState({ hasData: false, isError: false, isObservable: false }),
+        ).toEqual({ kind: 'offline' });
+    });
+
+    it('loads only while the phone can observe the computer', () => {
+        expect(
+            agentUsageScreenState({ hasData: false, isError: false, isObservable: true }),
+        ).toEqual({ kind: 'loading' });
+        expect(
+            agentUsageScreenState({ hasData: false, isError: true, isObservable: true }),
+        ).toEqual({ kind: 'error' });
+    });
+
+    it('keeps a reading on screen and marks it stale once the phone goes offline', () => {
+        expect(
+            agentUsageScreenState({ hasData: true, isError: false, isObservable: false }),
+        ).toEqual({ kind: 'ready', isStale: true });
+        expect(agentUsageScreenState({ hasData: true, isError: true, isObservable: true })).toEqual(
+            { kind: 'ready', isStale: false },
+        );
     });
 });

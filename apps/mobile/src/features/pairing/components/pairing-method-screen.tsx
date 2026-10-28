@@ -9,7 +9,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { ChevronLeft } from 'lucide-react-native';
 
-import { ActionButton } from '../../../components/action-button';
+import { Button } from '../../../components/button';
 import { IconButton } from '../../../components/icon-button';
 import { Spinner } from '../../../components/spinner';
 import { useTranslation } from '../../../i18n';
@@ -38,15 +38,15 @@ const PairingError = ({
                 {error}
             </Text>
             {onScanAgain ? (
-                <ActionButton
+                <Button
                     accessibilityHint={t('pairing.scanAgainHint')}
+                    label={t('pairing.scanAgain')}
                     onPress={onScanAgain}
+                    size="primary"
                     testID="pairing-scan-retry-button"
                     theme={theme}
-                    variant="secondary"
-                >
-                    {t('pairing.scanAgain')}
-                </ActionButton>
+                    variant="outline"
+                />
             ) : null}
         </View>
     );
@@ -89,16 +89,17 @@ const ScanControls = ({
     if (!permission.canAskAgain)
         return (
             <>
-                <ActionButton
+                <Button
                     accessibilityHint={t('pairing.openSettingsHint')}
+                    label={t('pairing.openSettings')}
                     onPress={() => {
                         void Linking.openSettings();
                     }}
+                    size="primary"
                     testID="pairing-camera-settings-button"
                     theme={theme}
-                >
-                    {t('pairing.openSettings')}
-                </ActionButton>
+                    variant="primary"
+                />
                 <Text style={[styles.fallback, { color: theme.muted }]}>
                     {t('pairing.cameraOptional')}
                 </Text>
@@ -106,14 +107,15 @@ const ScanControls = ({
         );
     return (
         <>
-            <ActionButton
+            <Button
                 accessibilityHint={t('pairing.allowCameraHint')}
+                label={t('pairing.allowCamera')}
                 onPress={requestPermission}
+                size="primary"
                 testID="pairing-camera-permission-button"
                 theme={theme}
-            >
-                {t('pairing.allowCamera')}
-            </ActionButton>
+                variant="primary"
+            />
             <Text style={[styles.fallback, { color: theme.muted }]}>
                 {t('pairing.cameraOptional')}
             </Text>
@@ -250,25 +252,26 @@ export const PairingMethodScreen = ({ method }: PairingMethodScreenProperties) =
                             />
                         ) : null}
                         {method === 'scan' ? (
-                            <ActionButton
+                            <Button
                                 accessibilityHint={t('pairing.choosePhotoHint')}
+                                label={t('pairing.choosePhoto')}
                                 onPress={scanPhoto}
+                                size="primary"
                                 testID="pairing-scan-photo-button"
                                 theme={theme}
-                                variant="secondary"
-                            >
-                                {t('pairing.choosePhoto')}
-                            </ActionButton>
+                                variant="outline"
+                            />
                         ) : null}
                         {method === 'paste' ? (
-                            <ActionButton
+                            <Button
                                 accessibilityHint={t('pairing.pasteAndPairHint')}
+                                label={t('pairing.pasteAndPair')}
                                 onPress={paste}
+                                size="primary"
                                 testID="pairing-paste-confirm-button"
                                 theme={theme}
-                            >
-                                {t('pairing.pasteAndPair')}
-                            </ActionButton>
+                                variant="primary"
+                            />
                         ) : null}
                         {busy ? (
                             <View

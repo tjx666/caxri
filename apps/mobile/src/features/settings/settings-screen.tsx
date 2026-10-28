@@ -1,14 +1,19 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import type { ReactNode } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
-import { ChevronLeft, Unlink } from 'lucide-react-native';
+import { Unlink } from 'lucide-react-native';
 
-import { IconButton } from '../../components/icon-button';
+import { Button } from '../../components/button';
+import { Card } from '../../components/card';
+import { ConfirmSheet } from '../../components/confirm-sheet';
+import { ScreenHeader } from '../../components/screen-header';
+import { SectionLabel } from '../../components/section-label';
 import { useTranslation } from '../../i18n';
+import { mobileControl, mobileSpace, mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
 import { useMobileTheme } from '../../theme/use-mobile-theme';
 import { useMobileClient } from '../connection/mobile-client-provider';
@@ -28,10 +33,12 @@ const Section = ({
     title: string;
 }) => (
     <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: theme.muted }]}>{title}</Text>
-        <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+        <SectionLabel style={styles.sectionTitle} theme={theme}>
+            {title}
+        </SectionLabel>
+        <Card padded={false} theme={theme}>
             {children}
-        </View>
+        </Card>
     </View>
 );
 
@@ -82,26 +89,21 @@ export const SettingsScreen = () => {
     const mobileUpdate = useMobileUpdate();
     const { update } = mobileUpdate;
     const role = sessions.deviceRole ? deviceRoleDetails(sessions.deviceRole, t) : null;
-    const confirmForget = useConfirmForgetComputer(sessions.hostDisplayName);
+    const forget = useConfirmForgetComputer();
     return (
         <SafeAreaView
             edges={['top', 'right', 'bottom', 'left']}
             style={[styles.root, { backgroundColor: theme.background }]}
             testID="settings-screen"
         >
-            <View style={styles.header}>
-                <IconButton
-                    accessibilityLabel={t('settings.back')}
-                    icon={ChevronLeft}
-                    onPress={() => router.back()}
-                    size={24}
-                    testID="settings-back"
-                    theme={theme}
-                />
-                <Text accessibilityRole="header" style={[styles.heading, { color: theme.text }]}>
-                    {t('settings.title')}
-                </Text>
-            </View>
+            <ScreenHeader
+                leading="back"
+                leadingLabel={t('settings.back')}
+                leadingTestID="settings-back"
+                onLeading={() => router.back()}
+                theme={theme}
+                title={t('settings.title')}
+            />
             <ScrollView contentContainerStyle={styles.content}>
                 <Section theme={theme} title={t('settings.section.computer')}>
                     <Row
@@ -144,66 +146,56 @@ export const SettingsScreen = () => {
                         />
                     ) : null}
                 </Section>
-                <Pressable
+                <Button
                     accessibilityHint={t('settings.forgetComputerHint')}
-                    accessibilityRole="button"
-                    onPress={confirmForget}
-                    style={({ pressed }) => [
-                        styles.forget,
-                        {
-                            backgroundColor: pressed ? theme.elevated : theme.surface,
-                            borderColor: theme.border,
-                        },
-                    ]}
+                    icon={Unlink}
+                    label={t('settings.forgetComputer')}
+                    onPress={forget.open}
                     testID="forget-this-computer-action"
-                >
-                    <Unlink color={theme.danger} size={18} />
-                    <Text style={[styles.forgetText, { color: theme.danger }]}>
-                        {t('settings.forgetComputer')}
-                    </Text>
-                </Pressable>
+                    theme={theme}
+                    variant="danger"
+                />
             </ScrollView>
+            {forget.isOpen ? (
+                <ConfirmSheet
+                    confirmLabel={t('connection.forget.confirm')}
+                    detail={t('connection.forget.message', { host: sessions.hostDisplayName })}
+                    onClose={forget.close}
+                    onConfirm={forget.confirm}
+                    testID="forget-computer-sheet"
+                    theme={theme}
+                    title={t('connection.forget.title')}
+                    tone="danger"
+                />
+            ) : null}
         </SafeAreaView>
     );
 };
 
 const styles = StyleSheet.create({
     root: { flex: 1 },
-    header: { alignItems: 'center', flexDirection: 'row', minHeight: 60, paddingHorizontal: 6 },
-    heading: { fontSize: 20, fontWeight: '700', marginLeft: 6 },
     content: {
         alignSelf: 'center',
-        gap: 22,
+        gap: mobileSpace.xl,
         maxWidth: 680,
-        paddingBottom: 32,
-        paddingHorizontal: 16,
-        paddingTop: 8,
+        paddingBottom: mobileSpace.xxl,
+        paddingHorizontal: mobileSpace.lg,
+        paddingTop: mobileSpace.sm,
         width: '100%',
     },
-    section: { gap: 8 },
-    sectionTitle: { fontSize: 12, fontWeight: '700', letterSpacing: 0.6, paddingHorizontal: 4 },
-    card: { borderRadius: 14, borderWidth: 1, overflow: 'hidden' },
+    section: { gap: mobileSpace.sm },
+    sectionTitle: { paddingHorizontal: mobileSpace.xs },
     row: {
-        gap: 4,
-        minHeight: 52,
+        gap: mobileSpace.xs,
+        minHeight: mobileControl.row,
         justifyContent: 'center',
-        paddingHorizontal: 16,
-        paddingVertical: 12,
+        paddingHorizontal: mobileSpace.lg,
+        paddingVertical: mobileSpace.md,
     },
-    rowMain: { alignItems: 'center', flexDirection: 'row', gap: 12 },
-    rowLabel: { flex: 1, fontSize: 15 },
-    rowValue: { flexShrink: 1, fontSize: 15, textAlign: 'right' },
-    rowDetail: { fontSize: 13, lineHeight: 18 },
-    forget: {
-        alignItems: 'center',
-        borderRadius: 14,
-        borderWidth: 1,
-        flexDirection: 'row',
-        gap: 10,
-        justifyContent: 'center',
-        minHeight: 52,
-    },
-    forgetText: { fontSize: 16, fontWeight: '600' },
+    rowMain: { alignItems: 'center', flexDirection: 'row', gap: mobileSpace.md },
+    rowLabel: { ...mobileType.body, flex: 1 },
+    rowValue: { ...mobileType.body, flexShrink: 1, textAlign: 'right' },
+    rowDetail: mobileType.meta,
 });
 
 /* eslint-enable no-use-before-define, @typescript-eslint/no-use-before-define */

@@ -14,6 +14,7 @@ export const usage = {
     'usage.noLimitClaude':
         'No plan limit reported yet. Claude Code reports one only while one of its Chats is running.',
     'usage.noSpeed': 'No response measured yet.',
+    'usage.offline': 'Reconnect to see Agent usage.',
     'usage.open': 'Agent usage',
     'usage.openHint': 'Shows plan limits, output speed, and API status for each Agent.',
     'usage.openStatusPage': 'Open status page',
@@ -30,5 +31,6 @@ export const usage = {
     'usage.service.unknown': 'Unknown',
     'usage.speedSource': 'Last {{count}} responses in {{session}} · {{age}}',
     'usage.speedSourceOne': 'Last response in {{session}} · {{age}}',
+    'usage.staleNotice': 'Connection lost. Showing the last reading.',
     'usage.title': 'Agent usage',
 } as const;

@@ -1,4 +1,4 @@
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { MAX_AGENT_CHAT_IMAGES } from '@caxri/protocol';
 import { ArrowUp, ArrowUpToLine, Paperclip, Square } from 'lucide-react-native';
@@ -6,8 +6,11 @@ import { ArrowUp, ArrowUpToLine, Paperclip, Square } from 'lucide-react-native';
 import { IconButton } from '../../components/icon-button';
 import { Spinner } from '../../components/spinner';
 import { useTranslation } from '../../i18n';
+import { mobileControl, mobileSpace, mobileType, PRESSED_OPACITY } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
 import { sessionDetailStyles as styles } from '../sessions/components/session-detail-styles';
+import type { AgentChatComposerButtonLook } from './agent-chat-composer-button-look';
+import { agentChatComposerButtonLook } from './agent-chat-composer-button-look';
 import { agentChatComposerButton, agentChatImagesUnsupportedReason } from './agent-chat-model';
 
 /**
@@ -18,6 +21,7 @@ export const AttachButton = ({
     canAdd,
     isEditable,
     onPress,
+    onUnsupported,
     provider,
     supportsImages,
     theme,
@@ -25,6 +29,11 @@ export const AttachButton = ({
     canAdd: boolean;
     isEditable: boolean;
     onPress: () => void;
+    /**
+     * Receives the reason a provider without image support gives when its disabled button is tapped; the composer shows
+     * it on its status line instead of in a system dialog.
+     */
+    onUnsupported: (reason: string) => void;
     provider: string;
     supportsImages: boolean;
     theme: MobileTheme;
@@ -46,9 +55,7 @@ export const AttachButton = ({
                 disabled={!supportsImages || !isEditable || !canAdd}
                 icon={Paperclip}
                 onDisabledPress={
-                    supportsImages
-                        ? undefined
-                        : () => Alert.alert(t('chat.composer.imagesUnavailable'), unsupportedReason)
+                    supportsImages ? undefined : () => onUnsupported(unsupportedReason)
                 }
                 onPress={onPress}
                 size={22}
@@ -60,20 +67,23 @@ export const AttachButton = ({
 };
 
 /**
- * A compact outlined pill: with Steer beside it and attach stepped aside (`agentChatComposerRowControls`), the input
- * keeps at least about 60% of a 360dp phone's composer row.
+ * The send area's shared shape while a turn runs: with Queue and Steer side by side, both are 52dp pills with a text
+ * label, so neither reads as the odd one out. Kept compact (`sm` padding) so that, with attach stepped aside
+ * (`agentChatComposerRowControls`), the input keeps at least about 60% of a 360dp phone's composer row.
  */
-const queueStyles = StyleSheet.create({
-    button: {
+const pillStyles = StyleSheet.create({
+    pill: {
         alignItems: 'center',
-        borderRadius: 26,
-        borderWidth: 1.5,
-        height: 52,
+        borderRadius: mobileControl.primary / 2,
+        height: mobileControl.primary,
         justifyContent: 'center',
-        minWidth: 52,
-        paddingHorizontal: 9,
+        minWidth: mobileControl.primary,
+        paddingHorizontal: mobileSpace.sm,
+        // Overrides the round send button's fixed 52dp width, so the label sets the pill's width.
+        width: 'auto',
     },
-    label: { fontSize: 14, fontWeight: '700' },
+    outlined: { borderWidth: 1.5 },
+    label: { ...mobileType.bodyStrong },
 });
 
 /**
@@ -100,15 +110,57 @@ export const AgentChatQueueButton = ({
                 void onQueue();
             }}
             style={({ pressed }) => [
-                queueStyles.button,
-                { borderColor: theme.primary, opacity: pressed ? 0.7 : 1 },
+                pillStyles.pill,
+                pillStyles.outlined,
+                { borderColor: theme.primary, opacity: pressed ? PRESSED_OPACITY : 1 },
             ]}
             testID="agent-chat-composer-queue"
         >
-            <Text style={[queueStyles.label, { color: theme.primary }]}>
+            <Text style={[pillStyles.label, { color: theme.primary }]}>
                 {t('chat.composer.queue')}
             </Text>
         </Pressable>
+    );
+};
+
+const composerButtonBackground: Record<
+    AgentChatComposerButtonLook['background'],
+    (theme: MobileTheme) => string
+> = {
+    danger: (theme) => theme.danger,
+    neutral: (theme) => theme.elevated,
+    primary: (theme) => theme.primary,
+};
+
+const composerButtonIcon = { send: ArrowUp, steer: ArrowUpToLine, stop: Square } as const;
+
+/**
+ * What the main button shows inside: a spinner while busy, the Steer label in its pill, otherwise the state's glyph.
+ */
+const ComposerButtonContent = ({
+    isBusy,
+    look,
+    theme,
+}: {
+    isBusy: boolean;
+    look: AgentChatComposerButtonLook;
+    theme: MobileTheme;
+}) => {
+    const { t } = useTranslation();
+    if (isBusy) return <Spinner color={theme.primaryForeground} />;
+    if (look.isSteerPill)
+        return (
+            <Text style={[pillStyles.label, { color: theme.primaryForeground }]}>
+                {t('chat.composer.steer')}
+            </Text>
+        );
+    const Icon = composerButtonIcon[look.icon];
+    return (
+        <Icon
+            color={look.isDisabled ? theme.muted : theme.primaryForeground}
+            size={20}
+            strokeWidth={2.5}
+        />
     );
 };
 
@@ -143,10 +195,13 @@ export const AgentChatComposerButton = ({
 }) => {
     const { t } = useTranslation();
     const action = agentChatComposerButton({ isRunning, isStopAction, isStopping, provider }, t);
-    const Icon = action.kind === 'stop' ? Square : isRunning ? ArrowUpToLine : ArrowUp;
-    // A button that cannot act (offline, no access, an empty draft) drops the brand color for the neutral surface,
-    // since a dimmed pink still read as enabled beside `Reconnect to send messages.`; busy keeps its color.
-    const isDisabled = !canSubmit && !isBusy;
+    const look = agentChatComposerButtonLook({
+        canQueue,
+        canSubmit,
+        isBusy,
+        isRunning,
+        kind: action.kind,
+    });
     return (
         <Pressable
             accessibilityActions={
@@ -166,26 +221,15 @@ export const AgentChatComposerButton = ({
             onPress={onPress}
             style={[
                 styles.sendButton,
+                look.isSteerPill ? pillStyles.pill : null,
                 {
-                    backgroundColor: isDisabled
-                        ? theme.elevated
-                        : action.kind === 'stop'
-                          ? theme.danger
-                          : theme.primary,
-                    opacity: isDisabled ? 0.7 : 1,
+                    backgroundColor: composerButtonBackground[look.background](theme),
+                    opacity: look.isDisabled ? 0.7 : 1,
                 },
             ]}
             testID={action.testID}
         >
-            {isBusy ? (
-                <Spinner color={theme.primaryForeground} />
-            ) : (
-                <Icon
-                    color={isDisabled ? theme.muted : theme.primaryForeground}
-                    size={20}
-                    strokeWidth={2.5}
-                />
-            )}
+            <ComposerButtonContent isBusy={isBusy} look={look} theme={theme} />
         </Pressable>
     );
 };

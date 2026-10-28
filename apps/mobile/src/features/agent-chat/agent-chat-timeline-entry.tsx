@@ -23,6 +23,7 @@ export const AgentChatTimelineEntry = memo(
     ({
         entry,
         onToggle,
+        provider,
         theme,
     }: {
         entry: Entry;
@@ -30,11 +31,15 @@ export const AgentChatTimelineEntry = memo(
          * Folds or unfolds a turn (by turn id), a delegated task's pointer, or an answered question list (by entry id).
          */
         onToggle: (id: string) => void;
+        /**
+         * The Agent's name, for a usage-limit notice's headline.
+         */
+        provider: string;
         theme: MobileTheme;
     }) => {
         switch (entry.kind) {
             case 'feedback': {
-                return <AgentChatFeedback item={entry.notice} theme={theme} />;
+                return <AgentChatFeedback item={entry.notice} provider={provider} theme={theme} />;
             }
             case 'message': {
                 return (

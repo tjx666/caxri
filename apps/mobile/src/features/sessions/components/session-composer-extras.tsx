@@ -7,6 +7,7 @@ import { RotateCw, X } from 'lucide-react-native';
 
 import { Spinner } from '../../../components/spinner';
 import { useTranslation } from '../../../i18n';
+import { mobileControl, mobileRadius, mobileSpace, mobileType } from '../../../theme/scale';
 import type { MobileTheme } from '../../../theme/tokens';
 import { LocalImageViewer } from '../../agent-chat/agent-chat-image-viewer';
 import { insertComposerSuggestion } from '../composer-suggestions';
@@ -21,6 +22,7 @@ import {
     IMAGE_STRIP_REMOVE_TARGET,
     IMAGE_STRIP_THUMBNAIL,
 } from '../image-strip-layout';
+import { ImageFailureSheet } from './image-failure-sheet';
 
 type Images = ReturnType<typeof useImageAttachments>;
 type Suggestions = ReturnType<typeof useComposerSuggestions>;
@@ -34,21 +36,25 @@ const styles = StyleSheet.create({
         width: IMAGE_STRIP_CELL,
     },
     thumbnail: {
-        borderRadius: 12,
+        borderRadius: mobileRadius.md,
         borderWidth: StyleSheet.hairlineWidth,
         height: IMAGE_STRIP_THUMBNAIL,
         overflow: 'hidden',
         width: IMAGE_STRIP_THUMBNAIL,
     },
     image: { height: '100%', width: '100%' },
+    suggestion: {
+        justifyContent: 'center',
+        minHeight: mobileControl.row,
+        padding: mobileSpace.sm,
+    },
     scrim: {
         alignItems: 'center',
-        backgroundColor: 'rgba(0, 0, 0, 0.55)',
         gap: 2,
         justifyContent: 'center',
         ...StyleSheet.absoluteFill,
     },
-    scrimText: { fontSize: 12, fontVariant: ['tabular-nums'], fontWeight: '600' },
+    scrimText: { ...mobileType.caption, fontVariant: ['tabular-nums'], fontWeight: '600' },
     remove: {
         alignItems: 'center',
         height: IMAGE_STRIP_REMOVE_TARGET,
@@ -133,12 +139,14 @@ export const SessionComposerAttachments = ({
                                 </Pressable>
                                 {attachment.state === 'preparing' ||
                                 attachment.state === 'uploading' ? (
-                                    <View style={styles.scrim}>
+                                    <View
+                                        style={[styles.scrim, { backgroundColor: theme.overlay }]}
+                                    >
                                         {attachment.state === 'preparing' ? (
-                                            <Spinner color={theme.text} />
+                                            <Spinner color={theme.onScrim} />
                                         ) : null}
                                         <Text
-                                            style={[styles.scrimText, { color: theme.text }]}
+                                            style={[styles.scrimText, { color: theme.onScrim }]}
                                             testID={`session-image-status-${index}`}
                                         >
                                             {attachment.state === 'preparing'
@@ -153,11 +161,15 @@ export const SessionComposerAttachments = ({
                                         accessibilityLabel={label}
                                         accessibilityRole="button"
                                         onPress={() => images.explainFailure(attachment.id)}
-                                        style={styles.scrim}
+                                        style={[styles.scrim, { backgroundColor: theme.overlay }]}
                                     >
-                                        <RotateCw color={theme.text} size={18} strokeWidth={2.5} />
+                                        <RotateCw
+                                            color={theme.onScrim}
+                                            size={18}
+                                            strokeWidth={2.5}
+                                        />
                                         <Text
-                                            style={[styles.scrimText, { color: theme.text }]}
+                                            style={[styles.scrimText, { color: theme.onScrim }]}
                                             testID={`session-image-status-${index}`}
                                         >
                                             {t('common.retry')}
@@ -190,6 +202,19 @@ export const SessionComposerAttachments = ({
                     );
                 })}
             </ScrollView>
+            {images.failure ? (
+                <ImageFailureSheet
+                    onClose={images.dismissFailure}
+                    onRemove={() => {
+                        if (images.failure) images.remove(images.failure.id);
+                    }}
+                    onRetry={() => {
+                        if (images.failure) void images.retry(images.failure.id);
+                    }}
+                    reason={images.failure.error ?? t('sessions.image.uploadFailed')}
+                    theme={theme}
+                />
+            ) : null}
             <LocalImageViewer
                 onClose={() => setOpenIndex(null)}
                 startIndex={openIndex}
@@ -230,14 +255,17 @@ export const SessionComposerSuggestions = ({
                                     ),
                                 )
                             }
-                            style={{ minHeight: 44, justifyContent: 'center', padding: 8 }}
+                            style={styles.suggestion}
                             testID={`session-composer-suggestion-${index}`}
                         >
-                            <Text style={{ color: theme.text }}>{item}</Text>
+                            <Text style={[mobileType.body, { color: theme.text }]}>{item}</Text>
                         </Pressable>
                     ))}
                     {suggestions.isError ? (
-                        <Text accessibilityRole="alert" style={{ color: theme.danger }}>
+                        <Text
+                            accessibilityRole="alert"
+                            style={[mobileType.meta, { color: theme.danger }]}
+                        >
                             {t('sessions.composer.suggestionsUnavailable')}
                         </Text>
                     ) : null}

@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import { router, useFocusEffect } from 'expo-router';
 
-import { ActionButton } from '../../../components/action-button';
+import { Button } from '../../../components/button';
 import { LoadingScreen } from '../../../components/loading-screen';
 import { useTranslation } from '../../../i18n';
 import { useMobileTheme } from '../../../theme/use-mobile-theme';
@@ -78,15 +78,15 @@ export const PairingLinkScreen = ({ parameters }: PairingLinkScreenProperties) =
                         {error}
                     </Text>
                 </View>
-                <ActionButton
+                <Button
                     accessibilityHint={t('pairing.backHint')}
+                    label={t('pairing.chooseAnotherMethod')}
                     onPress={() => router.replace('/')}
+                    size="primary"
                     testID="pairing-link-back-button"
                     theme={theme}
-                    variant="secondary"
-                >
-                    {t('pairing.chooseAnotherMethod')}
-                </ActionButton>
+                    variant="outline"
+                />
             </View>
         </SafeAreaView>
     );

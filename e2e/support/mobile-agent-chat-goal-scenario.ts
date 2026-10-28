@@ -4,12 +4,7 @@ import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scenarios';
 import { capture, finish } from './mobile-agent-actions-scenarios';
 import { waitForCheck, waitForNoCheck } from './mobile-agent-chat-helpers';
-import {
-    mobileNativeControlBounds,
-    tapMobileCheck,
-    tapMobileNativeControl,
-    waitForMobile,
-} from './mobile-android';
+import { tapMobileCheck, waitForMobile } from './mobile-android';
 
 /**
  * Long enough to be cut off in the goal row, so Expand has something to show. Without `hold` the fake Codex completes
@@ -19,16 +14,8 @@ const OBJECTIVE =
     'Keep fixing the mobile reply window until every emulator check passes, then report what changed';
 
 /**
- * React Native's two-button Android alert puts the first (cancel) button on the negative slot and the second on the
- * positive one.
- */
-const ALERT_CANCEL = { resourceId: 'android:id/button2' };
-const ALERT_CONFIRM = { resourceId: 'android:id/button1' };
-
-/**
- * `MOB-CHAT-GOAL-01`: a Codex Chat with a goal. The goal row's Expand is its own button at the row's end, apart from
- * Clear, and opens the whole objective; Clear asks before it clears, so Cancel keeps the goal and only the confirmation
- * clears it.
+ * `MOB-CHAT-GOAL-01`: a Codex Chat with a goal. Tapping the goal row opens the whole objective with Clear under it;
+ * Clear asks in a sheet before it clears, so Cancel keeps the goal and only the confirmation clears it.
  */
 export async function executeMobileChatGoalScenario(
     environment: MobileAgentScenarioEnvironment,
@@ -49,25 +36,25 @@ export async function executeMobileChatGoalScenario(
         await waitForCheck(serial, 'agent-chat-goal-expand');
         await capture(environment, 'goal-row', artifacts);
 
-        await tapMobileCheck(serial, 'agent-chat-goal-expand');
+        await tapMobileCheck(serial, 'agent-chat-goal-summary');
         await waitForCheck(serial, 'agent-chat-goal-full');
         await capture(environment, 'goal-expanded', artifacts);
-        await tapMobileCheck(serial, 'agent-chat-goal-expand');
+        await tapMobileCheck(serial, 'agent-chat-goal-summary');
         await waitForNoCheck(serial, 'agent-chat-goal-full');
 
+        // Clear lives in the expanded goal, away from the one-tap summary row.
+        await tapMobileCheck(serial, 'agent-chat-goal-summary');
+        await waitForCheck(serial, 'agent-chat-goal-clear');
         await tapMobileCheck(serial, 'agent-chat-goal-clear');
-        await waitForMobile(
-            () => mobileNativeControlBounds(serial, ALERT_CANCEL),
-            (bounds) => bounds !== null,
-            15_000,
-        );
+        await waitForCheck(serial, 'agent-chat-goal-clear-confirm');
         await capture(environment, 'goal-clear-confirm', artifacts);
-        await tapMobileNativeControl(serial, ALERT_CANCEL);
+        await tapMobileCheck(serial, 'agent-chat-goal-clear-confirm-cancel');
+        await waitForNoCheck(serial, 'agent-chat-goal-clear-confirm');
         await waitForCheck(serial, 'agent-chat-goal');
         if ((await chat.read()).goal === undefined) throw new Error('Cancel must keep the goal');
 
         await tapMobileCheck(serial, 'agent-chat-goal-clear');
-        await tapMobileNativeControl(serial, ALERT_CONFIRM);
+        await tapMobileCheck(serial, 'agent-chat-goal-clear-confirm-confirm');
         await waitForMobile(
             () => chat.read(),
             (snapshot) => snapshot.goal === undefined,

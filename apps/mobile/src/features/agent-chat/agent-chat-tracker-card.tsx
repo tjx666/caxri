@@ -1,6 +1,6 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import type { ComponentType } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
 import type { AgentChatTrackerArtifact, AgentChatTrackerStatusType } from '@caxri/protocol';
@@ -19,11 +19,14 @@ import {
     ListChecks,
 } from 'lucide-react-native';
 
+import { Card } from '../../components/card';
 import type { TranslationKey } from '../../i18n';
 import { useTranslation } from '../../i18n';
 import { openLink } from '../../lib/open-link';
 import { MONOSPACE_FONT } from '../../theme/monospace';
+import { mobileSpace, mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
+import { AgentChatResultRow } from './agent-chat-result-row';
 
 interface MarkProperties {
     color: string;
@@ -128,36 +131,28 @@ export const AgentChatTrackerCard = ({
     const reference = trackerReferenceText(artifact);
     const excerpt = trackerExcerptText(artifact);
     return (
-        <Pressable
-            accessibilityLabel={
-                artifact.status
-                    ? t('chat.tracker.cardLabelWithStatus', {
-                          action: label,
-                          reference,
-                          status: artifact.status.name,
-                          title: title ?? reference,
-                      })
-                    : t('chat.tracker.cardLabel', {
-                          action: label,
-                          reference,
-                          title: title ?? reference,
-                      })
-            }
-            accessibilityRole="link"
-            onPress={() => openLink(artifact.url)}
-            style={({ pressed }) => [
-                styles.card,
-                {
-                    backgroundColor: pressed ? theme.elevated : theme.surface,
-                    borderColor: theme.border,
-                },
-            ]}
-            testID={`agent-chat-tracker-${artifact.reference}`}
-        >
-            <View style={[styles.tile, { backgroundColor: theme.background }]}>
-                <Mark color={theme.text} size={16} />
-            </View>
-            <View style={styles.text}>
+        <Card padded={false} theme={theme}>
+            <AgentChatResultRow
+                accessibilityLabel={
+                    artifact.status
+                        ? t('chat.tracker.cardLabelWithStatus', {
+                              action: label,
+                              reference,
+                              status: artifact.status.name,
+                              title: title ?? reference,
+                          })
+                        : t('chat.tracker.cardLabel', {
+                              action: label,
+                              reference,
+                              title: title ?? reference,
+                          })
+                }
+                accessibilityRole="link"
+                onPress={() => openLink(artifact.url)}
+                testID={`agent-chat-tracker-${artifact.reference}`}
+                theme={theme}
+                tile={<Mark color={theme.text} size={16} />}
+            >
                 <View style={styles.titleRow}>
                     <Text numberOfLines={1} style={[styles.title, { color: theme.text }]}>
                         {title ?? reference}
@@ -177,47 +172,30 @@ export const AgentChatTrackerCard = ({
                             <StatusIcon color={theme[statusIcon.tone]} size={13} />
                             <Text
                                 numberOfLines={1}
-                                style={[styles.excerpt, styles.status, { color: theme.text }]}
+                                style={[styles.caption, styles.status, { color: theme.text }]}
                             >
                                 {artifact.status.name}
                             </Text>
-                            <Text style={[styles.excerpt, { color: theme.muted }]}>·</Text>
+                            <Text style={[styles.caption, { color: theme.muted }]}>·</Text>
                         </>
                     ) : (
                         <KindIcon color={theme.muted} size={13} />
                     )}
-                    <Text style={[styles.excerpt, { color: theme.muted }]}>{label}</Text>
+                    <Text style={[styles.caption, { color: theme.muted }]}>{label}</Text>
                     <ArrowUpRight color={theme.muted} size={13} />
                 </View>
-            </View>
-        </Pressable>
+            </AgentChatResultRow>
+        </Card>
     );
 };
 
 const styles = StyleSheet.create({
-    card: {
-        alignItems: 'center',
-        borderRadius: 10,
-        borderWidth: 1,
-        flexDirection: 'row',
-        gap: 12,
-        minHeight: 56,
-        paddingHorizontal: 12,
-        paddingVertical: 10,
-    },
-    tile: {
-        alignItems: 'center',
-        borderRadius: 7,
-        height: 36,
-        justifyContent: 'center',
-        width: 36,
-    },
-    text: { flex: 1, gap: 2, minWidth: 0 },
-    titleRow: { alignItems: 'baseline', flexDirection: 'row', gap: 8, minWidth: 0 },
-    title: { flexShrink: 1, fontSize: 14, lineHeight: 20 },
-    reference: { flexShrink: 0, fontFamily: MONOSPACE_FONT, fontSize: 11 },
-    excerpt: { fontSize: 12, lineHeight: 17 },
-    action: { alignItems: 'center', flexDirection: 'row', gap: 4 },
+    titleRow: { alignItems: 'baseline', flexDirection: 'row', gap: mobileSpace.sm, minWidth: 0 },
+    title: { ...mobileType.body, flexShrink: 1 },
+    reference: { ...mobileType.caption, flexShrink: 0, fontFamily: MONOSPACE_FONT },
+    excerpt: mobileType.meta,
+    caption: mobileType.caption,
+    action: { alignItems: 'center', flexDirection: 'row', gap: mobileSpace.xs },
     status: { flexShrink: 1 },
 });
 /* eslint-enable no-use-before-define, @typescript-eslint/no-use-before-define */

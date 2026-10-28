@@ -7,7 +7,7 @@ import type { AgentChatTask } from '@caxri/protocol';
 import { agentChatTaskIdentity, agentChatTaskUsageSummary } from '@caxri/protocol';
 import { Bot, Check, CircleSlash, Square, SquareTerminal, X } from 'lucide-react-native';
 
-import { SheetButton } from '../../components/sheet-button';
+import { Button } from '../../components/button';
 import { Spinner } from '../../components/spinner';
 import { useTranslation } from '../../i18n';
 import { MONOSPACE_FONT } from '../../theme/monospace';
@@ -131,7 +131,7 @@ const StopConfirmation = ({
             </Text>
             <View style={styles.confirmButtons}>
                 <View style={styles.confirmSlot}>
-                    <SheetButton
+                    <Button
                         label={t('common.cancel')}
                         onPress={onCancel}
                         testID="agent-chat-task-stop-cancel"
@@ -140,7 +140,7 @@ const StopConfirmation = ({
                     />
                 </View>
                 <View style={styles.confirmSlot}>
-                    <SheetButton
+                    <Button
                         label={t('chat.tasks.stop')}
                         onPress={onStop}
                         testID="agent-chat-task-stop-confirm"

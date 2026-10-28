@@ -1,84 +1,70 @@
-/* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import { useRef } from 'react';
 import type { HostInstance } from 'react-native';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { View } from 'react-native';
 
 import type { MobilePreviewTarget } from '@caxri/protocol';
 import { Globe } from 'lucide-react-native';
 
-import { PopoverMenu } from '../../components/popover-menu';
+import { Chip } from '../../components/chip';
+import { PopoverAction, PopoverMenu } from '../../components/popover-menu';
 import { Spinner } from '../../components/spinner';
 import { usePopoverAnchor } from '../../components/use-popover-anchor';
 import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
-import { useSessionPreviews } from './use-session-previews';
+import type { SessionPreviews } from './use-open-preview';
 
 /**
- * Matches the pull request chip beside it: 28dp tall with slop up to the 48dp touch target.
- */
-const CHIP_HIT_SLOP = { bottom: 10, left: 10, right: 10, top: 10 };
-
-/**
- * The Session header's preview entry. It appears only while a process of this Session listens on a port (a dev server
- * the Agent started), names that port, and opens the page in the in-app browser through the computer's preview proxy.
- * Several ports open a menu to choose one. The idea follows QuickTUI's Port Forwarding; see `docs/mobile/preview.md`.
+ * The Session header's preview entry when the Session has no pull request: `Preview :5173` (or `Preview · 2` for
+ * several ports, which open a menu to choose one). It appears only while a process of this Session listens on a port (a
+ * dev server the Agent started) and opens the page in the in-app browser through the computer's preview proxy. With a
+ * pull request the header carries only that chip and lists the same ports in its menu (`PreviewMenuActions`). The idea
+ * follows QuickTUI's Port Forwarding; see `docs/mobile/preview.md`.
  */
 export const PreviewChip = ({
-    deviceRole,
-    sessionId,
+    onOpen,
+    previews,
     theme,
 }: {
-    deviceRole: 'view' | 'reply' | 'control' | null;
-    sessionId: string;
+    onOpen: (target: MobilePreviewTarget) => Promise<void>;
+    previews: SessionPreviews;
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
-    const previews = useSessionPreviews(sessionId, deviceRole);
     const anchor = useRef<HostInstance>(null);
     const menu = usePopoverAnchor(anchor);
     const { targets } = previews;
     if (targets.length === 0) return null;
     const [first] = targets;
     const isSingle = targets.length === 1;
-    const open = async (target: MobilePreviewTarget): Promise<void> => {
-        if (!(await previews.open(target)))
-            Alert.alert(t('browser.preview.openFailedTitle'), t('browser.preview.openFailedBody'));
-    };
     return (
         <>
             <View collapsable={false} ref={anchor}>
-                <Pressable
+                <Chip
                     accessibilityHint={t('browser.preview.chipHint')}
                     accessibilityLabel={
                         isSingle
                             ? t('browser.preview.chipOne', { port: first.port })
                             : t('browser.preview.chipMany', { count: targets.length })
                     }
-                    accessibilityRole="button"
-                    accessibilityState={{ busy: previews.openingPort !== null }}
-                    disabled={previews.openingPort !== null}
-                    hitSlop={CHIP_HIT_SLOP}
+                    label={
+                        isSingle
+                            ? t('browser.preview.chipLabel', { port: first.port })
+                            : t('browser.preview.chipLabelMany', { count: targets.length })
+                    }
                     onPress={() => {
-                        if (isSingle) void open(first);
+                        if (previews.openingPort !== null) return;
+                        if (isSingle) void onOpen(first);
                         else menu.open();
                     }}
-                    style={({ pressed }) => [
-                        styles.chip,
-                        { backgroundColor: theme.elevated, opacity: pressed ? 0.7 : 1 },
-                    ]}
                     testID="preview-chip"
+                    theme={theme}
                 >
                     {previews.openingPort === null ? (
-                        <Globe color={theme.muted} size={15} />
+                        <Globe color={theme.muted} size={16} />
                     ) : (
-                        <Spinner color={theme.muted} size={15} testID="preview-chip-opening" />
+                        <Spinner color={theme.muted} size={16} testID="preview-chip-opening" />
                     )}
-                    <Text style={[styles.label, { color: theme.text }]}>
-                        {isSingle
-                            ? first.port
-                            : t('browser.preview.portCount', { count: targets.length })}
-                    </Text>
-                </Pressable>
+                </Chip>
             </View>
             <PopoverMenu
                 closeLabel={t('browser.preview.closeMenu')}
@@ -87,54 +73,57 @@ export const PreviewChip = ({
                 theme={theme}
             >
                 {targets.map((target) => (
-                    <Pressable
+                    <PopoverAction
+                        accessibilityHint={target.processName}
+                        icon={Globe}
                         key={target.port}
-                        accessibilityRole="button"
+                        label={t('browser.preview.menuOpen', { port: target.port })}
                         onPress={() => {
                             menu.close();
-                            void open(target);
+                            void onOpen(target);
                         }}
-                        style={({ pressed }) => [
-                            styles.menuAction,
-                            pressed && { backgroundColor: theme.elevated },
-                        ]}
                         testID={`preview-target-${target.port}`}
-                    >
-                        <Globe color={theme.muted} size={18} />
-                        <Text style={[styles.menuPort, { color: theme.text }]}>{target.port}</Text>
-                        <Text
-                            numberOfLines={1}
-                            style={[styles.menuProcess, { color: theme.muted }]}
-                        >
-                            {target.processName}
-                        </Text>
-                    </Pressable>
+                        theme={theme}
+                    />
                 ))}
             </PopoverMenu>
         </>
     );
 };
 
-const styles = StyleSheet.create({
-    chip: {
-        alignItems: 'center',
-        borderRadius: 14,
-        flexDirection: 'row',
-        gap: 5,
-        height: 28,
-        paddingHorizontal: 9,
-    },
-    label: { fontSize: 13, fontVariant: ['tabular-nums'], fontWeight: '600' },
-    menuAction: {
-        alignItems: 'center',
-        flexDirection: 'row',
-        gap: 12,
-        minHeight: 48,
-        minWidth: 200,
-        paddingHorizontal: 16,
-    },
-    menuPort: { fontSize: 15, fontVariant: ['tabular-nums'], fontWeight: '600' },
-    menuProcess: { flexShrink: 1, fontSize: 14 },
-});
-
-/* eslint-enable no-use-before-define, @typescript-eslint/no-use-before-define */
+/**
+ * One `Open preview · :5173` row per previewable port, for the Session header's menu when a pull request holds the
+ * inline slot.
+ */
+export const PreviewMenuActions = ({
+    onClose,
+    onOpen,
+    previews,
+    theme,
+}: {
+    onClose: () => void;
+    onOpen: (target: MobilePreviewTarget) => Promise<void>;
+    previews: SessionPreviews;
+    theme: MobileTheme;
+}) => {
+    const { t } = useTranslation();
+    return (
+        <>
+            {previews.targets.map((target) => (
+                <PopoverAction
+                    accessibilityHint={target.processName}
+                    disabled={previews.openingPort !== null}
+                    icon={Globe}
+                    key={target.port}
+                    label={t('browser.preview.menuOpen', { port: target.port })}
+                    onPress={() => {
+                        onClose();
+                        void onOpen(target);
+                    }}
+                    testID={`session-menu-preview-${target.port}`}
+                    theme={theme}
+                />
+            ))}
+        </>
+    );
+};

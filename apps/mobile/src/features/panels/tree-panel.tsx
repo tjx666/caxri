@@ -4,11 +4,13 @@ import { Pressable, ScrollView, Text, View } from 'react-native';
 import type { MethodResult } from '@caxri/protocol';
 import { ChevronDown, ChevronRight } from 'lucide-react-native';
 
+import { ScreenState } from '../../components/screen-state';
 import { Spinner } from '../../components/spinner';
 import { useTranslation } from '../../i18n';
+import { mobileSpace } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
-import { PanelStatus, PendingPanelStatus } from './panel-status';
 import { panelsStyles as styles } from './panels-styles';
+import { PendingPanelState } from './pending-panel-state';
 import { treeChildrenView } from './tree-children-view';
 import { TreeItemIcon } from './tree-item-icon';
 import { useTreeChildren } from './use-panels';
@@ -42,10 +44,13 @@ const TreeChildren = ({
         itemCount: children.data?.items.length ?? 0,
     });
     if (view === 'root-loading')
-        return <PendingPanelStatus fetchStatus={children.fetchStatus} theme={theme} />;
+        return <PendingPanelState fetchStatus={children.fetchStatus} theme={theme} />;
     if (view === 'nested-loading')
         return (
-            <View style={[styles.row, { paddingLeft: 8 + depth * INDENT }]} testID="tree-loading">
+            <View
+                style={[styles.row, { paddingLeft: mobileSpace.sm + depth * INDENT }]}
+                testID="tree-loading"
+            >
                 <Spinner
                     accessibilityLabel={t('panels.treeLoadingChildren')}
                     color={theme.muted}
@@ -56,25 +61,32 @@ const TreeChildren = ({
         );
     if (view === 'error')
         return (
-            <PanelStatus
-                message={t('panels.loadFailed')}
-                onRetry={() => {
+            <ScreenState
+                actionLabel={t('common.retry')}
+                kind="error"
+                onAction={() => {
                     void children.refetch();
                 }}
                 testID="tree-panel-error"
                 theme={theme}
+                title={t('panels.loadFailed')}
             />
         );
     if (view === 'root-empty')
         return (
-            <PanelStatus message={t('panels.treeEmpty')} testID="tree-panel-empty" theme={theme} />
+            <ScreenState
+                kind="empty"
+                testID="tree-panel-empty"
+                theme={theme}
+                title={t('panels.treeEmpty')}
+            />
         );
     if (view === 'nested-empty')
         return (
             <View
                 accessibilityLabel={t('panels.treeChildrenEmpty')}
                 accessible
-                style={[styles.row, { paddingLeft: 8 + depth * INDENT }]}
+                style={[styles.row, { paddingLeft: mobileSpace.sm + depth * INDENT }]}
                 testID="tree-nested-empty"
             >
                 <Text style={[styles.rowText, { color: theme.muted }]}>
@@ -127,7 +139,7 @@ const TreeRow = ({
                     styles.row,
                     {
                         backgroundColor: pressed ? theme.surface : 'transparent',
-                        paddingLeft: 8 + depth * INDENT,
+                        paddingLeft: mobileSpace.sm + depth * INDENT,
                     },
                 ]}
                 testID="tree-row"

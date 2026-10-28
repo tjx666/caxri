@@ -18,13 +18,13 @@ import {
 } from './mobile-android';
 
 /**
- * Scrolls the model sheet toward its end until the weekly plan-limit row is laid out, one drag per try. The drag stays
- * inside the sheet, away from Android's Back gesture edges.
+ * Scrolls the Session usage sheet toward its end until the weekly plan-limit row is laid out, one drag per try. The
+ * drag stays inside the sheet, away from Android's Back gesture edges.
  */
-async function scrollModelSheetToPlanLimits(serial: string, triesLeft = 6): Promise<void> {
+async function scrollUsageSheetToPlanLimits(serial: string, triesLeft = 6): Promise<void> {
     const nodes = await mobileSemantics(serial);
     if (checkBounds(nodes, 'agent-chat-plan-limit-10080')) return;
-    const sheet = checkBounds(nodes, 'agent-chat-model-sheet');
+    const sheet = checkBounds(nodes, 'agent-chat-usage-sheet');
     if (!sheet || triesLeft === 0) throw new Error('The plan limits are not on screen');
     const x = Math.floor((sheet.left + sheet.right) / 2);
     const height = sheet.bottom - sheet.top;
@@ -37,14 +37,15 @@ async function scrollModelSheetToPlanLimits(serial: string, triesLeft = 6): Prom
         String(sheet.top + Math.floor(height * 0.3)),
         '300',
     ]);
-    await scrollModelSheetToPlanLimits(serial, triesLeft - 1);
+    await scrollUsageSheetToPlanLimits(serial, triesLeft - 1);
 }
 
 /**
  * `MOB-CHAT-22`: a phone shows a running Claude Chat's plan limits. With the weekly limit used faster than an even pace
  * (the fake Claude's `/usage` answer: 61% of the week used with 5 days 3 hours to go), the composer shows the pace
- * notice, the model sheet lists the 5-hour and weekly windows with what is left and when each resets, and dismissing
- * the notice keeps it hidden, also after the app is killed and opened again (the OS reclaiming a backgrounded app).
+ * notice, the Session usage sheet lists the 5-hour and weekly windows with what is left and when each resets, and
+ * dismissing the notice keeps it hidden, also after the app is killed and opened again (the OS reclaiming a
+ * backgrounded app).
  */
 export async function executeMobilePlanLimitsScenario(
     environment: MobileAgentScenarioEnvironment,
@@ -86,13 +87,13 @@ export async function executeMobilePlanLimitsScenario(
         await waitForCheck(serial, 'agent-chat-plan-pace');
         await capture(environment, 'pace-notice', artifacts);
 
-        await tapMobileCheckByBounds(serial, 'agent-chat-model-button');
-        await waitForCheck(serial, 'agent-chat-model-sheet');
-        await scrollModelSheetToPlanLimits(serial);
+        await tapMobileCheckByBounds(serial, 'agent-chat-usage-button');
+        await waitForCheck(serial, 'agent-chat-usage-sheet');
+        await scrollUsageSheetToPlanLimits(serial);
         await waitForCheck(serial, 'agent-chat-plan-limit-300');
-        await capture(environment, 'model-sheet-limits', artifacts);
-        await tapMobileCheckByBounds(serial, 'agent-chat-model-done');
-        await waitForNoCheck(serial, 'agent-chat-model-sheet');
+        await capture(environment, 'usage-sheet-limits', artifacts);
+        await tapMobileCheckByBounds(serial, 'agent-chat-usage-done');
+        await waitForNoCheck(serial, 'agent-chat-usage-sheet');
 
         await tapMobileCheckByBounds(serial, 'agent-chat-plan-pace-dismiss');
         await waitForNoCheck(serial, 'agent-chat-plan-pace');
@@ -107,15 +108,15 @@ export async function executeMobilePlanLimitsScenario(
         await coldStartMobileApp(serial);
         await waitForCheck(serial, `session-row-${fixture.allowedSessionId}`, 60_000);
         await tapMobileCheck(serial, `session-row-${fixture.allowedSessionId}`);
-        // The model sheet listing the weekly window proves the relaunched app read the behind-pace limit, so the absent
+        // The usage sheet listing the weekly window proves the relaunched app read the behind-pace limit, so the absent
         // notice is the remembered dismissal rather than a limit that has not loaded yet.
-        await tapMobileCheckByBounds(serial, 'agent-chat-model-button');
-        await waitForCheck(serial, 'agent-chat-model-sheet');
-        await scrollModelSheetToPlanLimits(serial);
+        await tapMobileCheckByBounds(serial, 'agent-chat-usage-button');
+        await waitForCheck(serial, 'agent-chat-usage-sheet');
+        await scrollUsageSheetToPlanLimits(serial);
         await waitForCheck(serial, 'agent-chat-plan-limit-300');
-        await capture(environment, 'model-sheet-limits-after-relaunch', artifacts);
-        await tapMobileCheckByBounds(serial, 'agent-chat-model-done');
-        await waitForNoCheck(serial, 'agent-chat-model-sheet');
+        await capture(environment, 'usage-sheet-limits-after-relaunch', artifacts);
+        await tapMobileCheckByBounds(serial, 'agent-chat-usage-done');
+        await waitForNoCheck(serial, 'agent-chat-usage-sheet');
         await waitForNoCheck(serial, 'agent-chat-plan-pace');
         await capture(environment, 'pace-dismissed-after-relaunch', artifacts);
         await finish(environment, artifacts, {

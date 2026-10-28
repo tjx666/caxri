@@ -9,15 +9,19 @@ import {
     agentChatRequestTitle,
     sentenceStartProvider,
 } from '@caxri/protocol';
+import { MessageCircleQuestionMark, ShieldAlert } from 'lucide-react-native';
 
+import { Button } from '../../components/button';
+import { Card } from '../../components/card';
 import { useTranslation } from '../../i18n';
 import { MONOSPACE_FONT } from '../../theme/monospace';
+import { mobileRadius, mobileSpace, mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
 import type { agentChatRequestBlockedReason } from './agent-chat-model';
 import { agentChatApprovalFiles, agentChatApprovalRows } from './agent-chat-model';
 import { AgentChatQuestionForm } from './agent-chat-question-form';
 import type { RequestActions } from './agent-chat-request-parts';
-import { ActionButton, ClampedText } from './agent-chat-request-parts';
+import { ClampedText } from './agent-chat-request-parts';
 
 type ApprovalRequest = Extract<AgentChatRequest, { kind: 'command' | 'fileChange' | 'tool' }>;
 
@@ -112,10 +116,10 @@ const ApprovalContent = ({
                             {row.map((choice) => {
                                 const testID = `agent-chat-approval-${choice.decision.toLowerCase()}`;
                                 return (
-                                    <ActionButton
+                                    <Button
                                         key={choice.decision}
-                                        disabled={actions.isDisabled}
-                                        isPending={actions.pendingAction === testID}
+                                        isDisabled={actions.isDisabled}
+                                        isBusy={actions.pendingAction === testID}
                                         label={choice.label}
                                         onPress={() => {
                                             void actions.respond(testID, {
@@ -125,7 +129,10 @@ const ApprovalContent = ({
                                         }}
                                         testID={testID}
                                         theme={theme}
-                                        tone={choice.decision === 'accept' ? 'primary' : 'plain'}
+                                        variant={
+                                            choice.decision === 'accept' ? 'primary' : 'outline'
+                                        }
+                                        style={styles.answer}
                                     />
                                 );
                             })}
@@ -184,17 +191,17 @@ export const AgentChatRequestCard = ({
             }
         },
     };
+    // The only card that blocks the Agent on the user wears the attention edge and a leading glyph.
+    const Glyph = request.kind === 'question' ? MessageCircleQuestionMark : ShieldAlert;
     const notice = blockedReason ? (
         <Text style={[styles.meta, { color: theme.muted }]} testID="agent-chat-request-blocked">
             {blockedReason.message}
         </Text>
     ) : null;
     return (
-        <View
-            style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}
-            testID="agent-chat-request"
-        >
+        <Card style={styles.card} testID="agent-chat-request" theme={theme} tone="attention">
             <View style={styles.titleRow}>
+                <Glyph color={theme.warning} size={18} />
                 <Text numberOfLines={1} style={[styles.title, { color: theme.text }]}>
                     {agentChatRequestTitle(request, sentenceStartProvider(provider), t)}
                 </Text>
@@ -228,39 +235,36 @@ export const AgentChatRequestCard = ({
                     {error}
                 </Text>
             ) : null}
-        </View>
+        </Card>
     );
 };
 
 const styles = StyleSheet.create({
     /**
-     * The card shrinks inside the dock's height cap; its scroll area (options or approval text) gives way first, so the
-     * title and buttons stay on screen. It clips what still does not fit: Yoga shrinks a card below its content and
-     * draws the overflow unclipped, so the answer field and buttons used to spill over the status row and composer.
+     * Answer buttons share their row equally.
      */
-    card: {
-        borderRadius: 14,
-        borderWidth: 1,
-        flexShrink: 1,
-        gap: 8,
-        overflow: 'hidden',
-        padding: 12,
-    },
-    titleRow: { alignItems: 'center', flexDirection: 'row', gap: 8 },
-    title: { flexShrink: 1, fontSize: 15, fontWeight: '700' },
-    position: { fontSize: 12, fontVariant: ['tabular-nums'], marginLeft: 'auto' },
+    answer: { flex: 1 },
+    /**
+     * The card shrinks inside the dock's height cap; its scroll area (options or approval text) gives way first, so the
+     * title and buttons stay on screen. It clips what still does not fit (`Card` clips): Yoga shrinks a card below its
+     * content and draws the overflow unclipped, so the answer field and buttons used to spill over the status row and
+     * composer.
+     */
+    card: { flexShrink: 1 },
+    titleRow: { alignItems: 'center', flexDirection: 'row', gap: mobileSpace.sm },
+    title: { ...mobileType.bodyStrong, flexShrink: 1 },
+    position: { ...mobileType.caption, fontVariant: ['tabular-nums'], marginLeft: 'auto' },
     scroll: { flexGrow: 0, flexShrink: 1 },
-    approvalBody: { gap: 8 },
-    meta: { fontSize: 13, lineHeight: 18 },
+    approvalBody: { gap: mobileSpace.sm },
+    meta: mobileType.meta,
     code: {
-        borderRadius: 8,
+        ...mobileType.meta,
+        borderRadius: mobileRadius.sm,
         fontFamily: MONOSPACE_FONT,
-        fontSize: 13,
-        lineHeight: 18,
         overflow: 'hidden',
-        padding: 8,
+        padding: mobileSpace.sm,
     },
-    actions: { flexDirection: 'row', gap: 8 },
-    choices: { gap: 8 },
+    actions: { flexDirection: 'row', gap: mobileSpace.sm },
+    choices: { gap: mobileSpace.sm },
 });
 /* eslint-enable no-use-before-define, @typescript-eslint/no-use-before-define */

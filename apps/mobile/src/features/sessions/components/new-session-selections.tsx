@@ -5,6 +5,7 @@ import type { TerminalKind } from '@caxri/protocol';
 import { Folder, FolderPlus, MessagesSquare, Search, SquareTerminal } from 'lucide-react-native';
 
 import { AgentGlyph } from '../../../components/agent-icon';
+import { Button } from '../../../components/button';
 import { useTranslation } from '../../../i18n';
 import type { MobileTheme } from '../../../theme/tokens';
 import { mobileAgentDisplayName } from '../agent-display-name';
@@ -136,16 +137,13 @@ export const NewSessionSelections = ({
                     ))}
                 </View>
                 {state.isAvailabilityError ? (
-                    <Pressable
-                        accessibilityRole="button"
+                    <Button
+                        label={t('sessions.new.retryAvailability')}
                         onPress={() => state.refreshAvailability()}
-                        style={styles.secondaryAction}
                         testID="new-session-agent-retry"
-                    >
-                        <Text style={[styles.secondaryText, { color: theme.primary }]}>
-                            {t('sessions.new.retryAvailability')}
-                        </Text>
-                    </Pressable>
+                        theme={theme}
+                        variant="outline"
+                    />
                 ) : null}
             </View>
             <NewSessionSurfaceGroup state={state} theme={theme} />

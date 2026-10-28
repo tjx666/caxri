@@ -1,30 +1,24 @@
-import { useCallback } from 'react';
-import { Alert } from 'react-native';
+import { useCallback, useState } from 'react';
 
-import { useTranslation } from '../../i18n';
 import { useMobileClient } from './mobile-client-provider';
 
 /**
- * Asks before removing this phone's pairing with a computer; forgetting redirects to pairing on success. Shared by the
- * Session list menu and Settings so both entry points confirm with the same words.
+ * Drives the Forget this computer confirmation, which only Settings offers. The caller mounts a `ConfirmSheet` while
+ * `isOpen`, titled and worded from the `connection.forget.*` strings; confirming removes this phone's pairing and
+ * redirects to pairing on success.
  */
-export const useConfirmForgetComputer = (hostDisplayName: string): (() => void) => {
+export const useConfirmForgetComputer = (): {
+    close: () => void;
+    confirm: () => void;
+    isOpen: boolean;
+    open: () => void;
+} => {
     const { forgetDevice } = useMobileClient();
-    const { t } = useTranslation();
-    return useCallback(() => {
-        Alert.alert(
-            t('connection.forget.title'),
-            t('connection.forget.message', { host: hostDisplayName }),
-            [
-                { style: 'cancel', text: t('common.cancel') },
-                {
-                    onPress: () => {
-                        void forgetDevice();
-                    },
-                    style: 'destructive',
-                    text: t('connection.forget.confirm'),
-                },
-            ],
-        );
-    }, [forgetDevice, hostDisplayName, t]);
+    const [isOpen, setOpen] = useState(false);
+    const open = useCallback(() => setOpen(true), []);
+    const close = useCallback(() => setOpen(false), []);
+    const confirm = useCallback(() => {
+        void forgetDevice();
+    }, [forgetDevice]);
+    return { close, confirm, isOpen, open };
 };

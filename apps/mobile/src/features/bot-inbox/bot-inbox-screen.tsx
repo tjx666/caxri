@@ -1,25 +1,17 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import { useCallback, useRef } from 'react';
 import type { ListRenderItemInfo } from 'react-native';
-import {
-    FlatList,
-    Keyboard,
-    KeyboardAvoidingView,
-    Platform,
-    Pressable,
-    StyleSheet,
-    Text,
-    View,
-} from 'react-native';
+import { FlatList, Keyboard, KeyboardAvoidingView, Platform, StyleSheet, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { MobileBotInboxItem } from '@caxri/protocol';
 import { useRouter } from 'expo-router';
-import { ChevronLeft } from 'lucide-react-native';
 
-import { IconButton } from '../../components/icon-button';
-import { Spinner } from '../../components/spinner';
+import { NoticeBanner } from '../../components/notice-banner';
+import { ScreenHeader } from '../../components/screen-header';
+import { ScreenState } from '../../components/screen-state';
 import { useTranslation } from '../../i18n';
+import { mobileSpace, mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
 import { useMobileTheme } from '../../theme/use-mobile-theme';
 import { BotInboxCard } from './bot-inbox-card';
@@ -28,10 +20,12 @@ import { botInboxItems, botInboxScreenState } from './bot-inbox-model';
 import { useBotInbox, useBotInboxReply } from './use-bot-inbox';
 
 const InboxStatus = ({
+    onBack,
     onRetry,
     state,
     theme,
 }: {
+    onBack: () => void;
     onRetry: () => void;
     state: BotInboxScreenState;
     theme: MobileTheme;
@@ -39,41 +33,37 @@ const InboxStatus = ({
     const { t } = useTranslation();
     if (state.kind === 'loading')
         return (
-            <View style={styles.status} testID="bot-inbox-loading">
-                <Spinner color={theme.primary} />
-            </View>
+            <ScreenState
+                kind="loading"
+                testID="bot-inbox-loading"
+                theme={theme}
+                title={t('inbox.loading')}
+            />
         );
-    const message = t(
-        state.kind === 'offline'
-            ? 'inbox.offline'
-            : state.kind === 'error'
-              ? 'inbox.loadFailed'
-              : 'inbox.empty',
-    );
+    if (state.kind === 'offline')
+        return (
+            <ScreenState
+                actionLabel={t('common.back')}
+                kind="offline"
+                onAction={onBack}
+                testID="bot-inbox-offline"
+                theme={theme}
+                title={t('inbox.offline')}
+            />
+        );
+    if (state.kind === 'error')
+        return (
+            <ScreenState
+                actionLabel={t('common.retry')}
+                kind="error"
+                onAction={onRetry}
+                testID="bot-inbox-error"
+                theme={theme}
+                title={t('inbox.loadFailed')}
+            />
+        );
     return (
-        <View style={styles.status} testID={`bot-inbox-${state.kind}`}>
-            <Text
-                accessibilityRole={state.kind === 'error' ? 'alert' : undefined}
-                style={[
-                    styles.statusText,
-                    { color: state.kind === 'error' ? theme.danger : theme.muted },
-                ]}
-            >
-                {message}
-            </Text>
-            {state.kind === 'error' ? (
-                <Pressable
-                    accessibilityRole="button"
-                    onPress={onRetry}
-                    style={[styles.retry, { borderColor: theme.border }]}
-                    testID="bot-inbox-retry"
-                >
-                    <Text style={[styles.retryText, { color: theme.primary }]}>
-                        {t('common.retry')}
-                    </Text>
-                </Pressable>
-            ) : null}
-        </View>
+        <ScreenState kind="empty" testID="bot-inbox-empty" theme={theme} title={t('inbox.empty')} />
     );
 };
 
@@ -136,36 +126,21 @@ export const BotInboxScreen = () => {
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 style={styles.root}
             >
-                <View style={styles.header}>
-                    <IconButton
-                        accessibilityLabel={t('inbox.back')}
-                        icon={ChevronLeft}
-                        onPress={() => router.back()}
-                        size={24}
-                        testID="bot-inbox-back"
-                        theme={theme}
-                    />
-                    <Text
-                        accessibilityRole="header"
-                        style={[styles.heading, { color: theme.text }]}
-                    >
-                        {t('inbox.title')}
-                    </Text>
-                </View>
+                <ScreenHeader
+                    leading="back"
+                    leadingLabel={t('inbox.back')}
+                    leadingTestID="bot-inbox-back"
+                    onLeading={() => router.back()}
+                    theme={theme}
+                    title={t('inbox.title')}
+                />
                 {isStale || hasRefreshError ? (
-                    <Text
-                        accessibilityRole={hasRefreshError ? 'alert' : undefined}
-                        style={[
-                            styles.banner,
-                            {
-                                borderColor: theme.border,
-                                color: hasRefreshError ? theme.danger : theme.muted,
-                            },
-                        ]}
+                    <NoticeBanner
+                        message={t(isStale ? 'inbox.staleNotice' : 'inbox.refreshFailed')}
                         testID="bot-inbox-stale"
-                    >
-                        {t(isStale ? 'inbox.staleNotice' : 'inbox.refreshFailed')}
-                    </Text>
+                        theme={theme}
+                        tone={hasRefreshError ? 'danger' : 'muted'}
+                    />
                 ) : null}
                 <FlatList
                     contentContainerStyle={styles.listContent}
@@ -174,11 +149,16 @@ export const BotInboxScreen = () => {
                     onScrollToIndexFailed={() => {}}
                     keyExtractor={(item) => item.id}
                     ListEmptyComponent={
-                        <InboxStatus onRetry={refresh} state={state} theme={theme} />
+                        <InboxStatus
+                            onBack={() => router.back()}
+                            onRetry={refresh}
+                            state={state}
+                            theme={theme}
+                        />
                     }
                     ListFooterComponent={
                         query.data?.truncated ? (
-                            <Text style={[styles.statusText, { color: theme.muted }]}>
+                            <Text style={[styles.truncated, { color: theme.muted }]}>
                                 {t('inbox.truncated', {
                                     shown: items.length,
                                     total: query.data.total,
@@ -201,35 +181,18 @@ export const BotInboxScreen = () => {
 
 const styles = StyleSheet.create({
     root: { flex: 1 },
-    header: { alignItems: 'center', flexDirection: 'row', minHeight: 60, paddingHorizontal: 6 },
-    heading: { fontSize: 20, fontWeight: '700', marginLeft: 6 },
-    banner: {
-        borderBottomWidth: StyleSheet.hairlineWidth,
-        fontSize: 13,
-        paddingBottom: 8,
-        paddingHorizontal: 20,
-    },
     list: { flex: 1 },
     listContent: {
         alignSelf: 'center',
-        gap: 12,
+        flexGrow: 1,
+        gap: mobileSpace.md,
         maxWidth: 680,
-        paddingBottom: 24,
-        paddingHorizontal: 12,
-        paddingTop: 4,
+        paddingBottom: mobileSpace.xl,
+        paddingHorizontal: mobileSpace.md,
+        paddingTop: mobileSpace.xs,
         width: '100%',
     },
-    status: { alignItems: 'center', gap: 12, padding: 32 },
-    statusText: { fontSize: 14, padding: 12, textAlign: 'center' },
-    retry: {
-        alignItems: 'center',
-        borderRadius: 18,
-        borderWidth: 1,
-        justifyContent: 'center',
-        minHeight: 36,
-        paddingHorizontal: 16,
-    },
-    retryText: { fontSize: 14, fontWeight: '700' },
+    truncated: { ...mobileType.meta, padding: mobileSpace.md, textAlign: 'center' },
 });
 
 /* eslint-enable no-use-before-define, @typescript-eslint/no-use-before-define */

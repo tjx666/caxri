@@ -1,10 +1,9 @@
-import { ScrollView, Text, View } from 'react-native';
+import { ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useRouter } from 'expo-router';
-import { X } from 'lucide-react-native';
 
-import { IconButton } from '../../../components/icon-button';
+import { ScreenHeader } from '../../../components/screen-header';
 import { useTranslation } from '../../../i18n';
 import { useMobileTheme } from '../../../theme/use-mobile-theme';
 import { useNewSession } from '../hooks/use-new-session';
@@ -24,19 +23,14 @@ export const NewSessionScreen = () => {
             style={[styles.root, { backgroundColor: theme.background }]}
             testID="new-session-screen"
         >
-            <View style={styles.header}>
-                <IconButton
-                    accessibilityLabel={t('sessions.backToSessions')}
-                    icon={X}
-                    onPress={() => router.back()}
-                    size={24}
-                    testID="new-session-back"
-                    theme={theme}
-                />
-                <Text accessibilityRole="header" style={[styles.title, { color: theme.text }]}>
-                    {t('sessions.new.title')}
-                </Text>
-            </View>
+            <ScreenHeader
+                leading="close"
+                leadingLabel={t('sessions.backToSessions')}
+                leadingTestID="new-session-back"
+                onLeading={() => router.back()}
+                theme={theme}
+                title={t('sessions.new.title')}
+            />
             <ScrollView contentContainerStyle={styles.content} style={styles.scroll}>
                 <NewSessionStatus state={state} theme={theme} />
                 <NewSessionSelections

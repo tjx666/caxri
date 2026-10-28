@@ -1,19 +1,24 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import { useCallback, useState } from 'react';
 import type { ListRenderItemInfo } from 'react-native';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { MethodResult } from '@caxri/protocol';
 import { useRouter } from 'expo-router';
-import { ArchiveRestore, ChevronLeft } from 'lucide-react-native';
+import { ArchiveRestore } from 'lucide-react-native';
 
 import { AgentAvatar } from '../../../components/agent-icon';
-import { IconButton } from '../../../components/icon-button';
+import { Chip } from '../../../components/chip';
+import { NoticeBanner } from '../../../components/notice-banner';
+import { ScreenHeader } from '../../../components/screen-header';
+import { ScreenState } from '../../../components/screen-state';
 import { Spinner } from '../../../components/spinner';
 import { useTranslation } from '../../../i18n';
+import { mobileSpace, mobileType } from '../../../theme/scale';
 import type { MobileTheme } from '../../../theme/tokens';
 import { useMobileTheme } from '../../../theme/use-mobile-theme';
+import { queryScreenKind } from '../../connection/query-screen-kind';
 import { useArchivedSessions } from '../hooks/use-archived-sessions';
 import { useSessionManagement } from '../hooks/use-session-management';
 import { archivedAgeLabel, sessionTitleForDisplay } from '../session-row-model';
@@ -49,31 +54,76 @@ const ArchivedRow = ({
                 </Text>
             </View>
             {canRestore ? (
-                <Pressable
+                <Chip
                     accessibilityLabel={t('sessions.archived.restoreLabel', {
                         title: sessionTitleForDisplay(session.title, t),
                     })}
-                    accessibilityRole="button"
-                    accessibilityState={{ busy: isRestoring, disabled: isRestoring }}
-                    disabled={isRestoring}
-                    onPress={() => onRestore(session.id)}
-                    style={({ pressed }) => [
-                        styles.restore,
-                        { borderColor: theme.primary, opacity: pressed ? 0.6 : 1 },
-                    ]}
+                    icon={isRestoring ? undefined : ArchiveRestore}
+                    label={t('sessions.archived.restore')}
+                    onPress={() => {
+                        if (!isRestoring) onRestore(session.id);
+                    }}
                     testID={`archived-session-restore-${session.id}`}
+                    theme={theme}
+                    tint={theme.primary}
                 >
-                    {isRestoring ? (
-                        <Spinner color={theme.primary} />
-                    ) : (
-                        <ArchiveRestore color={theme.primary} size={16} />
-                    )}
-                    <Text style={[styles.restoreText, { color: theme.primary }]}>
-                        {t('sessions.archived.restore')}
-                    </Text>
-                </Pressable>
+                    {isRestoring ? <Spinner color={theme.primary} /> : undefined}
+                </Chip>
             ) : null}
         </View>
+    );
+};
+
+const ArchivedState = ({
+    kind,
+    onBack,
+    onRetry,
+    theme,
+}: {
+    kind: ReturnType<typeof queryScreenKind>;
+    onBack: () => void;
+    onRetry: () => void;
+    theme: MobileTheme;
+}) => {
+    const { t } = useTranslation();
+    if (kind === 'loading')
+        return (
+            <ScreenState
+                kind="loading"
+                testID="archived-sessions-loading"
+                theme={theme}
+                title={t('sessions.archived.loading')}
+            />
+        );
+    if (kind === 'offline')
+        return (
+            <ScreenState
+                actionLabel={t('common.back')}
+                kind="offline"
+                onAction={onBack}
+                testID="archived-sessions-offline"
+                theme={theme}
+                title={t('sessions.archived.offline')}
+            />
+        );
+    if (kind === 'error')
+        return (
+            <ScreenState
+                actionLabel={t('common.retry')}
+                kind="error"
+                onAction={onRetry}
+                testID="archived-sessions-load-error"
+                theme={theme}
+                title={t('sessions.archived.loadFailed')}
+            />
+        );
+    return (
+        <ScreenState
+            kind="empty"
+            testID="archived-sessions-empty"
+            theme={theme}
+            title={t('sessions.archived.empty')}
+        />
     );
 };
 
@@ -114,56 +164,51 @@ export const ArchivedSessionsScreen = () => {
         [canRestore, management.pending, now, restore, theme],
     );
     const list = archived.data?.sessions ?? [];
+    const kind = queryScreenKind({
+        fetchStatus: archived.fetchStatus,
+        hasData: archived.data !== undefined,
+        isError: archived.isError,
+        itemCount: list.length,
+    });
     return (
         <SafeAreaView
             edges={['top', 'right', 'bottom', 'left']}
             style={[styles.root, { backgroundColor: theme.background }]}
             testID="archived-sessions-screen"
         >
-            <View style={styles.header}>
-                <IconButton
-                    accessibilityLabel={t('sessions.archived.back')}
-                    icon={ChevronLeft}
-                    onPress={() => router.back()}
-                    size={24}
-                    testID="archived-sessions-back"
-                    theme={theme}
-                />
-                <Text accessibilityRole="header" style={[styles.heading, { color: theme.text }]}>
-                    {t('sessions.home.archivedSessions')}
-                </Text>
-            </View>
+            <ScreenHeader
+                leading="back"
+                leadingLabel={t('sessions.archived.back')}
+                leadingTestID="archived-sessions-back"
+                onLeading={() => router.back()}
+                theme={theme}
+                title={t('sessions.home.archivedSessions')}
+            />
             {management.error ? (
-                <Text
-                    accessibilityRole="alert"
-                    style={[styles.error, { color: theme.danger }]}
+                <NoticeBanner
+                    message={management.error}
                     testID="archived-sessions-error"
-                >
-                    {management.error}
-                </Text>
+                    theme={theme}
+                    tone="danger"
+                />
             ) : null}
             <FlatList
                 contentContainerStyle={styles.listContent}
                 data={list}
                 keyExtractor={(item) => item.id}
                 ListEmptyComponent={
-                    <View style={styles.empty}>
-                        {archived.isPending ? (
-                            <Spinner color={theme.muted} />
-                        ) : (
-                            <Text style={[styles.emptyText, { color: theme.muted }]}>
-                                {t(
-                                    archived.isError
-                                        ? 'sessions.archived.loadFailed'
-                                        : 'sessions.archived.empty',
-                                )}
-                            </Text>
-                        )}
-                    </View>
+                    <ArchivedState
+                        kind={kind}
+                        onBack={() => router.back()}
+                        onRetry={() => {
+                            void refetch();
+                        }}
+                        theme={theme}
+                    />
                 }
                 ListFooterComponent={
                     archived.data?.truncated ? (
-                        <Text style={[styles.emptyText, { color: theme.muted }]}>
+                        <Text style={[styles.footer, { color: theme.muted }]}>
                             {t('sessions.archived.truncated', {
                                 shown: list.length,
                                 total: archived.data.total,
@@ -185,34 +230,26 @@ export const ArchivedSessionsScreen = () => {
 
 const styles = StyleSheet.create({
     root: { flex: 1 },
-    header: { alignItems: 'center', flexDirection: 'row', minHeight: 60, paddingHorizontal: 6 },
-    heading: { fontSize: 20, fontWeight: '700', marginLeft: 6 },
     list: { flex: 1 },
-    listContent: { alignSelf: 'center', maxWidth: 680, paddingHorizontal: 8, width: '100%' },
+    listContent: {
+        alignSelf: 'center',
+        flexGrow: 1,
+        maxWidth: 680,
+        paddingHorizontal: mobileSpace.sm,
+        width: '100%',
+    },
     row: {
         alignItems: 'center',
         flexDirection: 'row',
-        gap: 12,
+        gap: mobileSpace.md,
         minHeight: 64,
-        paddingHorizontal: 10,
-        paddingVertical: 10,
+        paddingHorizontal: mobileSpace.md,
+        paddingVertical: mobileSpace.md,
     },
-    copy: { flex: 1, gap: 3, minWidth: 0 },
-    title: { fontSize: 15, fontWeight: '500' },
-    meta: { fontSize: 13 },
-    restore: {
-        alignItems: 'center',
-        borderRadius: 16,
-        borderWidth: 1,
-        flexDirection: 'row',
-        gap: 6,
-        minHeight: 34,
-        paddingHorizontal: 12,
-    },
-    restoreText: { fontSize: 13, fontWeight: '700' },
-    empty: { alignItems: 'center', padding: 32 },
-    emptyText: { fontSize: 13, padding: 12, textAlign: 'center' },
-    error: { fontSize: 13, paddingBottom: 8, paddingHorizontal: 20 },
+    copy: { flex: 1, gap: mobileSpace.xxs, minWidth: 0 },
+    title: { ...mobileType.bodyStrong, fontWeight: '500' },
+    meta: mobileType.meta,
+    footer: { ...mobileType.meta, padding: mobileSpace.md, textAlign: 'center' },
 });
 
 /* eslint-enable no-use-before-define, @typescript-eslint/no-use-before-define */

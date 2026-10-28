@@ -2,7 +2,8 @@ import { useCallback } from 'react';
 import type { ListRenderItemInfo } from 'react-native';
 import { FlatList, Pressable, Text, View } from 'react-native';
 
-import { Spinner } from '../../components/spinner';
+import { NoticeBanner } from '../../components/notice-banner';
+import { ScreenState } from '../../components/screen-state';
 import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { ChangesDiffStat } from './changes-diff-stat';
@@ -82,45 +83,6 @@ const ChangeFileRow = ({
     );
 };
 
-const ChangesStatus = ({
-    kind,
-    message,
-    onRefresh,
-    theme,
-    title,
-}: {
-    kind: 'loading' | 'stale-empty' | 'error' | 'empty';
-    message: string;
-    onRefresh: () => void;
-    theme: MobileTheme;
-    title?: string;
-}) => {
-    const { t } = useTranslation();
-    return (
-        <View style={styles.state} testID={`changes-${kind}`}>
-            {kind === 'loading' ? <Spinner color={theme.primary} /> : null}
-            {title ? <Text style={[styles.stateTitle, { color: theme.text }]}>{title}</Text> : null}
-            <Text
-                accessibilityRole={kind === 'error' ? 'alert' : undefined}
-                style={[styles.stateBody, { color: kind === 'error' ? theme.danger : theme.muted }]}
-            >
-                {message}
-            </Text>
-            {kind === 'error' ? (
-                <Pressable
-                    accessibilityRole="button"
-                    onPress={onRefresh}
-                    style={[styles.commit, { borderColor: theme.border }]}
-                >
-                    <Text style={[styles.commitText, { color: theme.primary }]}>
-                        {t('common.retry')}
-                    </Text>
-                </Pressable>
-            ) : null}
-        </View>
-    );
-};
-
 export const ChangesListContent = ({
     onOpenFile,
     onRefresh,
@@ -154,43 +116,43 @@ export const ChangesListContent = ({
     if (!snapshot) {
         if (state.isStale)
             return (
-                <ChangesStatus
-                    kind="stale-empty"
-                    message={t('changes.reconnectToReview')}
-                    onRefresh={onRefresh}
+                <ScreenState
+                    kind="offline"
+                    testID="changes-stale-empty"
                     theme={theme}
+                    title={t('changes.reconnectToReview')}
                 />
             );
         if (state.isLoading)
             return (
-                <ChangesStatus
+                <ScreenState
                     kind="loading"
-                    message={t('changes.loading')}
-                    onRefresh={onRefresh}
+                    testID="changes-loading"
                     theme={theme}
+                    title={t('changes.loading')}
                 />
             );
         return (
-            <ChangesStatus
+            <ScreenState
+                actionLabel={t('common.retry')}
                 kind="error"
-                message={t('changes.loadFailed')}
-                onRefresh={onRefresh}
+                onAction={onRefresh}
+                testID="changes-error"
                 theme={theme}
+                title={t('changes.loadFailed')}
             />
         );
     }
     if (snapshot.files.length === 0) {
         return (
-            <ChangesStatus
+            <ScreenState
+                detail={t(snapshot.isRepository ? 'changes.emptyBody' : 'changes.noRepositoryBody')}
                 kind="empty"
+                testID="changes-empty"
+                theme={theme}
                 title={t(
                     snapshot.isRepository ? 'changes.emptyTitle' : 'changes.noRepositoryTitle',
                 )}
-                message={t(
-                    snapshot.isRepository ? 'changes.emptyBody' : 'changes.noRepositoryBody',
-                )}
-                onRefresh={onRefresh}
-                theme={theme}
             />
         );
     }
@@ -202,9 +164,12 @@ export const ChangesListContent = ({
             style={styles.list}
             ListFooterComponent={
                 snapshot.truncated ? (
-                    <Text style={[styles.stale, { color: theme.muted }]}>
-                        {t('changes.truncated', { count: snapshot.files.length })}
-                    </Text>
+                    <NoticeBanner
+                        message={t('changes.truncated', { count: snapshot.files.length })}
+                        testID="changes-truncated"
+                        theme={theme}
+                        tone="muted"
+                    />
                 ) : undefined
             }
         />

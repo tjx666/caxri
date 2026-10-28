@@ -1,24 +1,22 @@
 import { useEffect, useRef, useState } from 'react';
 import type { TextInputInstance } from 'react-native';
-import { Pressable, Text, TextInput, View } from 'react-native';
+import { Pressable, TextInput, View } from 'react-native';
 
-import { MOBILE_AGENT_SUBMIT_MAX_BYTES } from '@caxri/protocol';
 import { ArrowUp, Paperclip, Square } from 'lucide-react-native';
 
 import { IconButton } from '../../../components/icon-button';
 import { Spinner } from '../../../components/spinner';
 import { useTranslation } from '../../../i18n';
-import { formatByteSize } from '../../../lib/format-size';
 import type { MobileTheme } from '../../../theme/tokens';
 import { mobileAgentDisplayName } from '../agent-display-name';
 import { useComposerSuggestions } from '../hooks/use-composer-suggestions';
 import { useImageAttachments } from '../hooks/use-image-attachments';
 import { useSessionComposer } from '../hooks/use-session-composer';
 import type { ComposerDelivery } from '../session-composer-state';
-import { composerDeliveryFeedback } from '../session-composer-state';
 import type { MobileSessionItem } from '../session-model';
 import { ImageSourceSheet } from './image-source-sheet';
 import { SessionComposerAttachments, SessionComposerSuggestions } from './session-composer-extras';
+import { SessionComposerStatus } from './session-composer-status';
 import { sessionDetailStyles as styles } from './session-detail-styles';
 
 const SessionComposerInput = ({
@@ -175,11 +173,6 @@ export const SessionDetailComposer = ({
             session,
         });
     const suggestions = useComposerSuggestions(draft, session);
-    const feedback = composerDeliveryFeedback(delivery, t);
-    /**
-     * The limit only matters near it; showing `0/16384 B` on every idle composer was noise.
-     */
-    const isShowByteCount = byteLength > MOBILE_AGENT_SUBMIT_MAX_BYTES * 0.75;
 
     return (
         <View
@@ -229,31 +222,13 @@ export const SessionDetailComposer = ({
                     theme={theme}
                 />
             </View>
-            {disabledReason || isShowByteCount ? (
-                <View style={styles.composerMeta}>
-                    <Text style={[styles.reason, { color: theme.muted }]}>
-                        {disabledReason ?? ''}
-                    </Text>
-                    {isShowByteCount ? (
-                        <Text style={[styles.byteCount, { color: theme.muted }]}>
-                            {formatByteSize(byteLength)}/
-                            {formatByteSize(MOBILE_AGENT_SUBMIT_MAX_BYTES)}
-                        </Text>
-                    ) : null}
-                </View>
-            ) : null}
-            {feedback ? (
-                <Text
-                    accessibilityRole={feedback.isError ? 'alert' : 'text'}
-                    style={[
-                        styles.sendState,
-                        { color: feedback.isError ? theme.danger : theme.muted },
-                    ]}
-                    testID="session-composer-feedback"
-                >
-                    {feedback.message}
-                </Text>
-            ) : null}
+            <SessionComposerStatus
+                attachError={images.attachError}
+                byteLength={byteLength}
+                delivery={delivery}
+                disabledReason={disabledReason}
+                theme={theme}
+            />
             {isChoosingImage ? (
                 <ImageSourceSheet
                     onClose={() => setChoosingImage(false)}

@@ -12,8 +12,9 @@ local network or Tailscale, the owner can see which Session needs them, read the
 watch and drive the live Terminal, send instructions, stop an Agent, start a new Session, and review
 the resulting changes.
 
-The mobile Project panel supports bounded text-file edits. Settings and multi-pane Terminal layouts
-stay on Desktop.
+The mobile Project panel supports bounded text-file edits from a `control` device. The phone's
+Settings screen only describes this device and its pairing; app configuration and multi-pane
+Terminal layouts stay on Desktop.
 
 ## Principles
 
@@ -115,6 +116,10 @@ The implemented device grants, method matrix, and cancellation behavior are docu
 /h/[hostId]/new           New Session
 /h/[hostId]/add-project   Add Project (control devices only)
 /h/[hostId]/status        Computer status (control devices only)
+/h/[hostId]/usage         Agent usage
+/h/[hostId]/inbox         Needs you (Caxri Bot inbox)
+/h/[hostId]/archived      Archived Sessions
+/h/[hostId]/settings      This device: role, pairing, forget the computer
 /browser?url=…            In-app browser, over whatever opened it
 ```
 
@@ -292,7 +297,7 @@ sent. Try again.` After the user's own send the timeline scrolls to the newest r
   keyboard is up the card collapses to its one-line header (`Queued 3`) with a toggle that shows the
   rows, and the timeline keeps a minimum height however much is docked above the composer.
 - Typing `/` at the start of a Chat draft lists matching commands in `48dp` rows, in place of the
-  model and permission row. Past six matches a last row says `Keep typing to narrow`. With no match
+  model, permission, and usage chips. Past six matches a last row says `Keep typing to narrow`. With no match
   the list stays open on Desktop's `No matching command or skill`; Send then holds the draft once and
   says `No such command. Tap Send again to send as text.`, and a second tap sends it as text. A
   command the Server refuses reads Desktop's `/<name> could not run`.
@@ -303,17 +308,18 @@ sent. Try again.` After the user's own send the timeline scrolls to the newest r
   - Unknown (connection dropped after sending): keep the draft and show `Couldn't confirm delivery.
 Check the Terminal before sending again.` Never resend automatically.
 - When the connection is stale, the composer keeps the draft and names the disabled reason.
-- A Chat's composer carries one row above the input naming the model and reasoning effort of the
-  next turn (`Fake Codex · High`), with Desktop's names. The row is `40dp` tall with a hit slop that
-  makes it a `48dp` target; the permission and model triggers sit `16dp` apart so their slop never
-  overlaps. Tapping it opens a sheet with `Model` and
-  `Reasoning effort` lists that apply on tap and a `Done` button; the sheet stays open after a
-  model is chosen so its efforts show right away. While a turn runs the sheet says `Applies to
-the next turn.` Without access or a connection the row is plain text, and an open sheet disables
-  its lists and names the reason. A new Chat opens with this row, so the model is chosen before the
-  first message. A change the provider refuses keeps the current choice checked and shows Desktop's
-  `Unable to switch the model.` with `Try again.` in the sheet (`MOB-CHAT-09`). See
-  [Agent Chat](../agent-chat.md#mobile).
+- A Chat's composer carries one row of chips above the input: `Model · Effort` for the next turn
+  (`Fake Codex · High`, with Desktop's names), a shield chip only while the permission level differs
+  from the provider's default or plan mode is on, and the usage chip. Chips draw at `32dp` and reach
+  `48dp` through their hit slop. The model and shield chips open one `Chat settings` sheet with
+  `Model`, `Reasoning effort`, and `Permissions` sections that apply on tap and a `Done` button; the
+  shield chip opens it scrolled to Permissions. The sheet stays open after a model is chosen so its
+  efforts show right away. While a turn runs the sheet says `Applies to the next turn.` Without
+  access or a connection the chips are read-only, and an open sheet disables its lists and names the
+  reason. A new Chat opens with this row, so the model is chosen before the first message. A change
+  the provider refuses keeps the current choice checked and shows Desktop's `Unable to switch the
+model.` with `Try again.` in the sheet (`MOB-CHAT-09`). The plan's 5-hour and weekly limits sit in
+  the Session usage sheet beside the context and cost. See [Agent Chat](../agent-chat.md#mobile).
 
 ### Conversation
 
@@ -445,12 +451,15 @@ for this Agent. Showing the Terminal.` A plain shell never shows this notice.
 
 ### Project
 
-Read-only mirrors of Desktop's right sidebar for the Session's Project: **Files**, **Status**, and
-any extension panel, switched by a sub-tab row. Desktop's Git panel is omitted because the Changes
+Mirrors of Desktop's right sidebar for the Session's Project: **Files**, **Status**, and any
+extension panel, each as its own Session tab. Desktop's Git panel is omitted because the Changes
 tab already shows the same data. Files browses the Project root (symlinks reached through the root
-included) and opens bounded text previews; binary and oversized files say so. Status and extension
-panels render the same tree nodes Desktop shows, without running their commands. The Project tab is
-available to every role; nothing in it mutates the Project. Offline with nothing cached, it asks the
+included) and opens bounded text previews; binary and oversized files say so. A `control` device can
+edit and save a bounded text file (`mobile.files.write`, see [Conversation](conversation.md)); other
+roles see why editing is unavailable. An unsaved edit and the folder position survive switching
+tabs, and Android Back walks the editor, preview, and folders before leaving the Session, confirming
+before it discards an edit. Status and extension panels render the same tree nodes Desktop shows,
+without running their commands. The Project tab is available to every role. Offline with nothing cached, it asks the
 reader to reconnect instead of showing an empty folder or a spinner. A loading folder or tree item
 waits 500 ms before it shows its spinner, so one that answers at once never flashes it.
 
@@ -539,6 +548,35 @@ Chat presentation label goes through the shared resources; see [Internationaliza
   at `44dp`; primary actions use `52–56dp`. The composer's Send and Stop are `52dp`; approval,
   question, and request buttons are `48dp`.
 - Base spacing is `4dp`; common gaps are `8`, `12`, `16`, `24`, and `32dp`.
+- These scales are code, not prose: `apps/mobile/src/theme/scale.ts` exports `mobileType` (title 22,
+  heading 17, body 15, meta 13, caption 12, and the uppercase section label), `mobileSpace`,
+  `mobileRadius` (`md` 12 for every card, button, and banner; `lg` 16 for a sheet's top corners;
+  `pill` for chips), and `mobileControl` (chip 32 lifted to 48 by its hit slop, row 48, primary 52).
+  A size, gap, or radius between steps is a design change: make it in `scale.ts` and here first,
+  never as a one-off number in a feature's styles.
+
+## Shared components
+
+Every new surface composes these primitives from `apps/mobile/src/components/` before writing its
+own styles. A feature that needs a variant extends the primitive instead of copying it, so the next
+feature finds one way to draw each job.
+
+| Job                                     | Component                                                  | Rule                                                                                                                                       |
+| --------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Text action                             | `Button`                                                   | `primary` once per screen, sheet, or card; `outline` for every other answer; `success` and `danger` only when the outcome is that state.   |
+| Glyph-only action                       | `IconButton`                                               | Mandatory accessible name; `onDisabledPress` explains a disabled control.                                                                  |
+| Bounded surface                         | `Card`                                                     | One radius, border, and fill. `attention` (amber leading edge) only for what blocks the Agent on the user, so one thing on screen is loud. |
+| Pill                                    | `Chip`                                                     | Project filters, header chips, path chips, inline card actions.                                                                            |
+| Group heading                           | `SectionLabel`                                             | Uppercase, muted, one size everywhere.                                                                                                     |
+| Usage bar                               | `Meter`                                                    | Always paired with a number.                                                                                                               |
+| Pushed screen header                    | `ScreenHeader`                                             | `back` or `close`, fixed for the screen's life.                                                                                            |
+| Remote state                            | `ScreenState`                                              | `loading`, `empty`, `error`, `offline`; an offline state always offers a way back.                                                         |
+| Top notice                              | `NoticeBanner`                                             | At most one per screen, the most severe state.                                                                                             |
+| Confirmation                            | `ConfirmSheet`                                             | Replaces the system `Alert`; the button names the verb; `danger` only when something is lost.                                              |
+| Menu on a tapped control                | `PopoverMenu` + `PopoverAction`                            | Short anchored menus (a header's ⋮, a chip's choices).                                                                                     |
+| Actions on one object, choices, details | `BottomSheet` + `SheetTitle`, `SheetAction`, `SheetCancel` | Long-press menus, pickers, inspectors; `Cancel` for menus, `Done` when choices apply as tapped.                                            |
+
+A multi-step task (New Session, Add Project) is a full screen, not a sheet.
 
 ## Color and state
 

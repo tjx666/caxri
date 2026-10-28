@@ -1,8 +1,11 @@
-import { useState } from 'react';
+import { useMemo } from 'react';
 
+import { useSessionViewState } from '../../lib/session-view-store';
+import { useHardwareBack } from '../../lib/use-hardware-back';
 import type { MobileTheme } from '../../theme/tokens';
 import { ChangesDiff } from './changes-diff';
 import type { ChangedFile } from './changes-model';
+import { openDiffStore } from './changes-navigation';
 import { ChangesView } from './changes-view';
 import type { useChangesList } from './use-changes';
 import { useChangesDiff } from './use-changes';
@@ -20,8 +23,21 @@ export const ChangesPanel = ({
     sessionId: string;
     theme: MobileTheme;
 }) => {
-    const [file, setFile] = useState<ChangedFile | null>(null);
+    const [file, update] = useSessionViewState(openDiffStore, sessionId);
+    const setFile = (next: ChangedFile | null): void => update(() => next);
     const diff = useChangesDiff(file !== null, sessionId, file);
+    // Hardware Back closes the open diff before it leaves the Session.
+    const closeDiff = useMemo(
+        () =>
+            file === null
+                ? null
+                : (): boolean => {
+                      update(() => null);
+                      return true;
+                  },
+        [file, update],
+    );
+    useHardwareBack(closeDiff);
     return file ? (
         <ChangesDiff
             onBack={() => setFile(null)}

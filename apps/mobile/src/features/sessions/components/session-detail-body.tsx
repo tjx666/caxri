@@ -166,7 +166,9 @@ export const SessionDetailBody = ({
         />
     ) : (
         <View style={styles.placeholder} testID="terminal-unavailable">
-            <Text style={{ color: theme.muted }}>{t('sessions.detail.noTerminal')}</Text>
+            <Text style={[styles.placeholderBody, { color: theme.muted }]}>
+                {t('sessions.detail.noTerminal')}
+            </Text>
         </View>
     );
     const attention = (shouldFallbackToTerminal: boolean, canOpenTerminal: boolean) => (

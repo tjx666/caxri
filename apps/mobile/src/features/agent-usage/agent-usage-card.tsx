@@ -5,8 +5,12 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { ExternalLink, TrendingUp } from 'lucide-react-native';
 
 import { AgentAvatar } from '../../components/agent-icon';
+import { Card } from '../../components/card';
+import { Meter } from '../../components/meter';
+import { SectionLabel } from '../../components/section-label';
 import { useTranslation } from '../../i18n';
 import { openExternalLink } from '../../lib/open-external-link';
+import { mobileRadius, mobileSpace, mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
 import type { AgentUsageCard as AgentUsageCardModel, AgentUsageTone } from './agent-usage-model';
 
@@ -36,7 +40,7 @@ const Section = ({
             isLast ? null : { borderBottomColor: theme.border, borderBottomWidth: 1 },
         ]}
     >
-        <Text style={[styles.sectionTitle, { color: theme.muted }]}>{title}</Text>
+        <SectionLabel theme={theme}>{title}</SectionLabel>
         {children}
     </View>
 );
@@ -55,10 +59,7 @@ export const AgentUsageCard = ({
     const { t } = useTranslation();
     const { service } = card;
     return (
-        <View
-            style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}
-            testID={`agent-usage-card-${card.provider}`}
-        >
+        <Card padded={false} testID={`agent-usage-card-${card.provider}`} theme={theme}>
             <View style={[styles.heading, { borderBottomColor: theme.border }]}>
                 <AgentAvatar kind={card.provider} size={32} theme={theme} />
                 <Text
@@ -109,19 +110,11 @@ export const AgentUsageCard = ({
                                 {row.left}
                             </Text>
                         </View>
-                        <View style={[styles.track, { backgroundColor: theme.elevated }]}>
-                            <View
-                                style={[
-                                    styles.fill,
-                                    {
-                                        backgroundColor: row.isWarning
-                                            ? theme.warning
-                                            : theme.primary,
-                                        width: `${row.leftPercent}%`,
-                                    },
-                                ]}
-                            />
-                        </View>
+                        <Meter
+                            color={row.isWarning ? theme.warning : theme.primary}
+                            ratio={row.leftPercent / 100}
+                            theme={theme}
+                        />
                         {row.resetLabel ? (
                             <Text style={[styles.detail, { color: theme.muted }]}>
                                 {row.resetLabel}
@@ -211,48 +204,58 @@ export const AgentUsageCard = ({
                     </Pressable>
                 </Section>
             ) : null}
-        </View>
+        </Card>
     );
 };
 
 const styles = StyleSheet.create({
-    card: { borderRadius: 14, borderWidth: 1, overflow: 'hidden' },
     heading: {
         alignItems: 'center',
         borderBottomWidth: 1,
         flexDirection: 'row',
-        gap: 10,
-        paddingHorizontal: 14,
-        paddingVertical: 12,
+        gap: mobileSpace.md,
+        paddingHorizontal: mobileSpace.lg,
+        paddingVertical: mobileSpace.md,
     },
-    name: { flex: 1, fontSize: 17, fontWeight: '700' },
+    name: { ...mobileType.heading, flex: 1 },
     badge: {
         alignItems: 'center',
-        borderRadius: 12,
+        borderRadius: mobileRadius.md,
         flexDirection: 'row',
-        gap: 6,
-        paddingHorizontal: 10,
-        paddingVertical: 4,
+        gap: mobileSpace.sm,
+        paddingHorizontal: mobileSpace.md,
+        paddingVertical: mobileSpace.xs,
     },
     badgeDot: { borderRadius: 4, height: 8, width: 8 },
-    badgeText: { fontSize: 12, fontWeight: '600' },
-    section: { gap: 10, paddingHorizontal: 14, paddingVertical: 12 },
-    sectionTitle: { fontSize: 12, fontWeight: '700', letterSpacing: 0.6 },
-    limit: { gap: 6 },
+    badgeText: { ...mobileType.caption, fontWeight: '600' },
+    section: {
+        gap: mobileSpace.md,
+        paddingHorizontal: mobileSpace.lg,
+        paddingVertical: mobileSpace.md,
+    },
+    limit: { gap: mobileSpace.sm },
     limitHeading: { alignItems: 'baseline', flexDirection: 'row', justifyContent: 'space-between' },
-    label: { flexShrink: 1, fontSize: 15, fontWeight: '600' },
-    left: { fontSize: 15, fontVariant: ['tabular-nums'], fontWeight: '600' },
-    track: { borderRadius: 3, height: 6, overflow: 'hidden' },
-    fill: { borderRadius: 3, height: 6 },
-    detail: { fontSize: 13, lineHeight: 18 },
-    body: { fontSize: 14, lineHeight: 20 },
-    pace: { alignItems: 'flex-start', flexDirection: 'row', gap: 8 },
-    paceText: { flex: 1, fontSize: 13, lineHeight: 18 },
-    speed: { gap: 2 },
-    rate: { fontSize: 22, fontVariant: ['tabular-nums'], fontWeight: '700' },
-    incident: { borderRadius: 10, borderWidth: 1, gap: 4, padding: 10 },
-    link: { alignItems: 'center', alignSelf: 'flex-start', flexDirection: 'row', gap: 6 },
-    linkText: { fontSize: 14, fontWeight: '600' },
+    label: { ...mobileType.bodyStrong, flexShrink: 1 },
+    left: { ...mobileType.bodyStrong, fontVariant: ['tabular-nums'] },
+    detail: mobileType.meta,
+    body: mobileType.body,
+    pace: { alignItems: 'flex-start', flexDirection: 'row', gap: mobileSpace.sm },
+    paceText: { ...mobileType.meta, flex: 1 },
+    speed: { gap: mobileSpace.xxs },
+    rate: { ...mobileType.title, fontVariant: ['tabular-nums'] },
+    incident: {
+        borderRadius: mobileRadius.sm,
+        borderWidth: 1,
+        gap: mobileSpace.xs,
+        padding: mobileSpace.md,
+    },
+    link: {
+        alignItems: 'center',
+        alignSelf: 'flex-start',
+        flexDirection: 'row',
+        gap: mobileSpace.sm,
+    },
+    linkText: { ...mobileType.body, fontWeight: '600' },
 });
 
 /* eslint-enable no-use-before-define, @typescript-eslint/no-use-before-define */

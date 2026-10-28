@@ -4,6 +4,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { useIsFocused } from 'expo-router';
 
 import { useTranslation } from '../../../i18n';
+import { mobileType } from '../../../theme/scale';
 import type { useMobileTheme } from '../../../theme/use-mobile-theme';
 import type { MobileLayoutMode } from '../../layout/layout-mode';
 import { useSessionAttention } from '../hooks/use-session-attention';
@@ -17,7 +18,7 @@ import { SessionRouteStatus } from './session-route-status';
 
 const styles = StyleSheet.create({
     detailEmpty: { alignItems: 'center', flex: 1, justifyContent: 'center' },
-    emptyBody: { fontSize: 14, lineHeight: 21, textAlign: 'center' },
+    emptyBody: { ...mobileType.body, textAlign: 'center' },
 });
 
 /**

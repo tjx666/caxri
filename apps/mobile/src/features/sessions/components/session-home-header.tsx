@@ -1,6 +1,6 @@
 import { useCallback, useRef } from 'react';
 import type { HostInstance } from 'react-native';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, StyleSheet, Text, View } from 'react-native';
 
 import {
     Activity,
@@ -10,13 +10,14 @@ import {
     Gauge,
     MessageSquareWarning,
     Settings,
-    Unlink,
 } from 'lucide-react-native';
 
+import { Chip } from '../../../components/chip';
 import { IconButton } from '../../../components/icon-button';
-import { PopoverMenu } from '../../../components/popover-menu';
+import { PopoverAction, PopoverDivider, PopoverMenu } from '../../../components/popover-menu';
 import { usePopoverAnchor } from '../../../components/use-popover-anchor';
 import { useTranslation } from '../../../i18n';
+import { mobileSpace, mobileType } from '../../../theme/scale';
 import type { MobileTheme } from '../../../theme/tokens';
 import type { MobileConnectionStatus } from '../../connection/connection-state';
 import type { useSessionPolling } from '../hooks/use-session-polling';
@@ -33,68 +34,26 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         minHeight: 60,
-        paddingLeft: 18,
-        paddingRight: 6,
+        paddingLeft: mobileSpace.lg,
+        paddingRight: mobileSpace.xs,
     },
-    heading: { flexShrink: 1, fontSize: 20, fontWeight: '700' },
-    connectionDot: { borderRadius: 4, height: 8, marginRight: 10, width: 8 },
+    heading: { ...mobileType.title, flexShrink: 1 },
+    connectionDot: { borderRadius: 4, height: 8, marginRight: mobileSpace.md, width: 8 },
     headingRow: { alignItems: 'center', flex: 1, flexDirection: 'row', minWidth: 0 },
-    menuAction: {
-        alignItems: 'center',
-        flexDirection: 'row',
-        gap: 12,
-        minHeight: 48,
-        paddingHorizontal: 14,
+    chips: {
+        gap: mobileSpace.sm,
+        paddingBottom: mobileSpace.sm,
+        paddingHorizontal: mobileSpace.lg,
+        paddingTop: mobileSpace.xs,
     },
-    menuText: { fontSize: 15 },
-    chips: { gap: 8, paddingBottom: 6, paddingHorizontal: 14, paddingTop: 2 },
     chipsScroll: { flexGrow: 0 },
-    chip: {
-        borderRadius: 18,
-        justifyContent: 'center',
-        minHeight: 34,
-        paddingHorizontal: 14,
-    },
-    chipText: { fontSize: 13, fontWeight: '600' },
 });
-
-const MenuAction = ({
-    icon: Icon,
-    isDestructive = false,
-    label,
-    onPress,
-    testID,
-    theme,
-}: {
-    icon: typeof Archive;
-    isDestructive?: boolean;
-    label: string;
-    onPress: () => void;
-    testID: string;
-    theme: MobileTheme;
-}) => (
-    <Pressable
-        accessibilityRole="button"
-        onPress={onPress}
-        style={({ pressed }) => [
-            styles.menuAction,
-            { backgroundColor: pressed ? theme.elevated : 'transparent' },
-        ]}
-        testID={testID}
-    >
-        <Icon color={isDestructive ? theme.danger : theme.muted} size={18} />
-        <Text style={[styles.menuText, { color: isDestructive ? theme.danger : theme.text }]}>
-            {label}
-        </Text>
-    </Pressable>
-);
 
 export const SessionHomeHeader = ({
     activeProjectId,
     hostDisplayName,
     onAddProject,
     onChooseProject,
-    onForgetComputer,
     onOpenArchived,
     onOpenInbox,
     onOpenSettings,
@@ -111,7 +70,6 @@ export const SessionHomeHeader = ({
      */
     onAddProject?: () => void;
     onChooseProject: (projectId: string | null) => void;
-    onForgetComputer: () => void;
     onOpenArchived: () => void;
     /**
      * Present only for a control device: the Bot Inbox spans every Project, beyond a narrower device grant.
@@ -123,7 +81,7 @@ export const SessionHomeHeader = ({
      */
     onOpenStatus?: () => void;
     /**
-     * Opens the Agent usage screen: plan limits, output speed, and API status, one tap from home.
+     * Opens the Agent usage screen: plan limits, output speed, and API status.
      */
     onOpenUsage: () => void;
     projects: Project[];
@@ -142,26 +100,14 @@ export const SessionHomeHeader = ({
         ({ item }: { item: ProjectChoice }) => {
             const isSelected = activeProjectId === item.id;
             return (
-                <Pressable
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: isSelected }}
-                    hitSlop={{ bottom: 7, top: 7 }}
+                <Chip
+                    accessibilityLabel={item.title}
+                    label={item.title}
                     onPress={() => onChooseProject(item.id)}
-                    style={[
-                        styles.chip,
-                        { backgroundColor: isSelected ? theme.primary : theme.surface },
-                    ]}
+                    selected={isSelected}
                     testID={`project-filter-${item.id ?? 'all'}`}
-                >
-                    <Text
-                        style={[
-                            styles.chipText,
-                            { color: isSelected ? theme.primaryForeground : theme.text },
-                        ]}
-                    >
-                        {item.title}
-                    </Text>
-                </Pressable>
+                    theme={theme}
+                />
             );
         },
         [activeProjectId, onChooseProject, theme],
@@ -193,14 +139,6 @@ export const SessionHomeHeader = ({
                         {hostDisplayName}
                     </Text>
                 </View>
-                <IconButton
-                    accessibilityHint={t('usage.openHint')}
-                    accessibilityLabel={t('usage.open')}
-                    icon={Gauge}
-                    onPress={onOpenUsage}
-                    testID="agent-usage-action"
-                    theme={theme}
-                />
                 <View collapsable={false} ref={menuAnchor}>
                     <IconButton
                         accessibilityHint={t('sessions.home.computerMenuHint')}
@@ -208,7 +146,7 @@ export const SessionHomeHeader = ({
                         expanded={menu.isOpen}
                         icon={EllipsisVertical}
                         onPress={menu.open}
-                        testID="forget-device-button"
+                        testID="computer-menu-button"
                         theme={theme}
                     />
                 </View>
@@ -219,20 +157,8 @@ export const SessionHomeHeader = ({
                 placement={menu.placement}
                 theme={theme}
             >
-                {onAddProject ? (
-                    <MenuAction
-                        icon={FolderPlus}
-                        label={t('sessions.home.addProject')}
-                        onPress={() => {
-                            closeMenu();
-                            onAddProject();
-                        }}
-                        testID="add-project-action"
-                        theme={theme}
-                    />
-                ) : null}
                 {onOpenInbox ? (
-                    <MenuAction
+                    <PopoverAction
                         icon={MessageSquareWarning}
                         label={t('sessions.home.needsYou')}
                         onPress={() => {
@@ -243,8 +169,19 @@ export const SessionHomeHeader = ({
                         theme={theme}
                     />
                 ) : null}
+                <PopoverAction
+                    accessibilityHint={t('usage.openHint')}
+                    icon={Gauge}
+                    label={t('usage.open')}
+                    onPress={() => {
+                        closeMenu();
+                        onOpenUsage();
+                    }}
+                    testID="agent-usage-action"
+                    theme={theme}
+                />
                 {onOpenStatus ? (
-                    <MenuAction
+                    <PopoverAction
                         icon={Activity}
                         label={t('sessions.home.computerStatus')}
                         onPress={() => {
@@ -255,7 +192,8 @@ export const SessionHomeHeader = ({
                         theme={theme}
                     />
                 ) : null}
-                <MenuAction
+                <PopoverDivider theme={theme} />
+                <PopoverAction
                     icon={Archive}
                     label={t('sessions.home.archivedSessions')}
                     onPress={() => {
@@ -265,7 +203,20 @@ export const SessionHomeHeader = ({
                     testID="archived-sessions-action"
                     theme={theme}
                 />
-                <MenuAction
+                {onAddProject ? (
+                    <PopoverAction
+                        icon={FolderPlus}
+                        label={t('sessions.home.addProject')}
+                        onPress={() => {
+                            closeMenu();
+                            onAddProject();
+                        }}
+                        testID="add-project-action"
+                        theme={theme}
+                    />
+                ) : null}
+                <PopoverDivider theme={theme} />
+                <PopoverAction
                     icon={Settings}
                     label={t('sessions.home.settings')}
                     onPress={() => {
@@ -273,17 +224,6 @@ export const SessionHomeHeader = ({
                         onOpenSettings();
                     }}
                     testID="settings-action"
-                    theme={theme}
-                />
-                <MenuAction
-                    icon={Unlink}
-                    isDestructive
-                    label={t('sessions.home.forgetComputer')}
-                    onPress={() => {
-                        closeMenu();
-                        onForgetComputer();
-                    }}
-                    testID="forget-computer-menu-action"
                     theme={theme}
                 />
             </PopoverMenu>

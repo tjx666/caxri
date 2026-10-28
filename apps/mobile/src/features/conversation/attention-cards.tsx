@@ -1,10 +1,11 @@
+/* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import { useEffect, useRef, useState } from 'react';
 import {
     AccessibilityInfo,
     FlatList,
     Pressable,
+    StyleSheet,
     Text,
-    TextInput,
     useWindowDimensions,
     View,
 } from 'react-native';
@@ -12,7 +13,10 @@ import {
 import type { MethodResult } from '@caxri/protocol';
 import { useQuery } from '@tanstack/react-query';
 
+import { Button } from '../../components/button';
+import { Card } from '../../components/card';
 import { useTranslation } from '../../i18n';
+import { mobileControl, mobileSpace, mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
 import { useMobileClient } from '../connection/mobile-client-provider';
 import { mobileErrorMessage } from '../connection/mobile-error-message';
@@ -31,6 +35,7 @@ import {
     visibleAttentionRequests,
 } from './attention-cards-model';
 import { AttentionEmptyState } from './attention-empty-state';
+import { AttentionQuestionFields } from './attention-question-fields';
 
 type Attention = MethodResult<'mobile.attention.list'>['requests'][number];
 
@@ -39,96 +44,6 @@ type Attention = MethodResult<'mobile.attention.list'>['requests'][number];
  * scrolls once a Session accumulates enough pending requests to exceed it.
  */
 const ATTENTION_MAX_HEIGHT_RATIO = 0.45;
-
-const AttentionQuestionFields = ({
-    advance,
-    canAnswer,
-    draft,
-    onFreeTextChange,
-    onToggleOption,
-    question,
-    questionCount,
-    questionIndex,
-    theme,
-}: {
-    advance: () => Promise<void>;
-    canAnswer: boolean;
-    draft: AttentionAnswerDraft;
-    onFreeTextChange: (value: string) => void;
-    onToggleOption: (label: string) => void;
-    question: Attention['questions'][number];
-    questionCount: number;
-    questionIndex: number;
-    theme: MobileTheme;
-}) => {
-    const { t } = useTranslation();
-    const selectedOptions = new Set(draft.selectedOptions);
-    const isLastQuestion = questionIndex + 1 >= questionCount;
-    return (
-        <View style={{ gap: 8 }}>
-            <Text style={{ color: theme.text }}>{question.question}</Text>
-            {question.options.map((option, optionIndex) => (
-                <Pressable
-                    accessibilityLabel={option.label}
-                    accessibilityRole="button"
-                    accessibilityState={{
-                        disabled: !canAnswer,
-                        selected: selectedOptions.has(option.label),
-                    }}
-                    disabled={!canAnswer}
-                    key={option.label}
-                    style={{ minHeight: 44, justifyContent: 'center', paddingVertical: 8 }}
-                    testID={`attention-option-${questionIndex}-${optionIndex}`}
-                    onPress={() => onToggleOption(option.label)}
-                >
-                    <Text style={{ color: theme.primary }}>
-                        {option.label}
-                        {option.description ? ` · ${option.description}` : ''}
-                    </Text>
-                </Pressable>
-            ))}
-            {canAnswer ? (
-                <>
-                    <TextInput
-                        accessibilityLabel={t('conversation.attention.answerLabel')}
-                        onChangeText={onFreeTextChange}
-                        placeholder={t('conversation.attention.answerPlaceholder')}
-                        placeholderTextColor={theme.muted}
-                        style={{
-                            color: theme.text,
-                            borderColor: theme.border,
-                            borderWidth: 1,
-                            padding: 8,
-                        }}
-                        value={draft.freeText}
-                        testID="attention-answer-input"
-                    />
-                    <Pressable
-                        accessibilityLabel={t(
-                            isLastQuestion
-                                ? 'conversation.attention.submitAnswers'
-                                : 'conversation.attention.nextQuestion',
-                        )}
-                        accessibilityRole="button"
-                        accessibilityState={{ disabled: isAttentionAnswerDraftEmpty(draft) }}
-                        disabled={isAttentionAnswerDraftEmpty(draft)}
-                        style={{ justifyContent: 'center', minHeight: 44 }}
-                        testID="attention-answer-next"
-                        onPress={advance}
-                    >
-                        <Text style={{ color: theme.primary }}>
-                            {t(
-                                isLastQuestion
-                                    ? 'conversation.attention.submit'
-                                    : 'conversation.attention.next',
-                            )}
-                        </Text>
-                    </Pressable>
-                </>
-            ) : null}
-        </View>
-    );
-};
 
 const AttentionCard = ({
     onOpenTerminal,
@@ -207,72 +122,73 @@ const AttentionCard = ({
         }
     };
     return (
-        <View
-            accessibilityLiveRegion={item.kind === 'permission' ? 'assertive' : 'polite'}
-            style={{
-                borderWidth: 1,
-                borderColor: theme.border,
-                backgroundColor: theme.surface,
-                padding: 12,
-                gap: 8,
-            }}
-            testID={`attention-${item.id}`}
-        >
-            <AttentionCardChrome
-                item={item}
-                questionIndex={questionIndex}
-                role={role}
-                theme={theme}
-            />
-            {canAnswer && item.kind === 'permission' ? (
-                <AttentionPermissionActions
-                    send={(decision, shouldAutoAllow) =>
-                        send(
-                            shouldAutoAllow
-                                ? { decision, autoAllow: shouldAutoAllow }
-                                : { decision },
-                        )
-                    }
-                    theme={theme}
-                />
-            ) : null}
-            {question && item.kind === 'question' ? (
-                <AttentionQuestionFields
-                    advance={advance}
-                    canAnswer={canAnswer}
-                    draft={draft}
-                    onFreeTextChange={setFreeText}
-                    onToggleOption={toggleOption}
-                    question={question}
-                    questionCount={item.questions.length}
+        <View accessibilityLiveRegion={item.kind === 'permission' ? 'assertive' : 'polite'}>
+            <Card testID={`attention-${item.id}`} theme={theme} tone="attention">
+                <AttentionCardChrome
+                    item={item}
                     questionIndex={questionIndex}
+                    role={role}
                     theme={theme}
                 />
-            ) : null}
-            {error ? (
-                <View style={{ gap: 4 }}>
-                    <Text accessibilityRole="alert" style={{ color: theme.danger }}>
-                        {error}
-                    </Text>
-                    {onOpenTerminal ? (
-                        <Pressable
-                            accessibilityLabel={t('conversation.attention.openTerminal')}
-                            accessibilityRole="button"
-                            onPress={onOpenTerminal}
-                            style={{ justifyContent: 'center', minHeight: 44 }}
-                            testID="attention-open-terminal"
+                {canAnswer && item.kind === 'permission' ? (
+                    <AttentionPermissionActions
+                        send={(decision, shouldAutoAllow) =>
+                            send(
+                                shouldAutoAllow
+                                    ? { decision, autoAllow: shouldAutoAllow }
+                                    : { decision },
+                            )
+                        }
+                        theme={theme}
+                    />
+                ) : null}
+                {question && item.kind === 'question' ? (
+                    <AttentionQuestionFields
+                        advance={advance}
+                        canAnswer={canAnswer}
+                        draft={draft}
+                        onFreeTextChange={setFreeText}
+                        onToggleOption={toggleOption}
+                        question={question}
+                        questionCount={item.questions.length}
+                        questionIndex={questionIndex}
+                        theme={theme}
+                    />
+                ) : null}
+                {error ? (
+                    <View style={styles.errorBox}>
+                        <Text
+                            accessibilityRole="alert"
+                            style={[styles.meta, { color: theme.danger }]}
                         >
-                            <Text style={{ color: theme.primary, textDecorationLine: 'underline' }}>
+                            {error}
+                        </Text>
+                        {onOpenTerminal ? (
+                            <Pressable
+                                accessibilityLabel={t('conversation.attention.openTerminal')}
+                                accessibilityRole="button"
+                                onPress={onOpenTerminal}
+                                style={styles.link}
+                                testID="attention-open-terminal"
+                            >
+                                <Text
+                                    style={[
+                                        styles.meta,
+                                        styles.underline,
+                                        { color: theme.primary },
+                                    ]}
+                                >
+                                    {t('conversation.attention.openTerminalIfWaiting')}
+                                </Text>
+                            </Pressable>
+                        ) : (
+                            <Text style={[styles.meta, { color: theme.muted }]}>
                                 {t('conversation.attention.openTerminalIfWaiting')}
                             </Text>
-                        </Pressable>
-                    ) : (
-                        <Text style={{ color: theme.muted }}>
-                            {t('conversation.attention.openTerminalIfWaiting')}
-                        </Text>
-                    )}
-                </View>
-            ) : null}
+                        )}
+                    </View>
+                ) : null}
+            </Card>
         </View>
     );
 };
@@ -293,43 +209,29 @@ const AttentionAutoAllowBanner = ({
     const { t } = useTranslation();
     const [busy, setBusy] = useState(false);
     return (
-        <View
-            style={{
-                alignItems: 'center',
-                backgroundColor: theme.surface,
-                borderColor: theme.border,
-                borderWidth: 1,
-                flexDirection: 'row',
-                gap: 8,
-                justifyContent: 'space-between',
-                padding: 8,
-            }}
-            testID="attention-auto-allow-banner"
-        >
-            <Text style={{ color: theme.text, flex: 1 }}>
-                {t('conversation.attention.autoAllowBanner')}
-            </Text>
-            {onRevoke ? (
-                <Pressable
-                    accessibilityLabel={t('conversation.attention.turnOffAlwaysAllow')}
-                    accessibilityRole="button"
-                    disabled={busy}
-                    style={{ justifyContent: 'center', minHeight: 44, paddingHorizontal: 8 }}
-                    testID="attention-auto-allow-revoke"
-                    onPress={async () => {
-                        setBusy(true);
-                        try {
-                            await onRevoke();
-                        } finally {
-                            setBusy(false);
-                        }
-                    }}
-                >
-                    <Text style={{ color: theme.primary, fontWeight: '600' }}>
-                        {t('conversation.attention.turnOff')}
-                    </Text>
-                </Pressable>
-            ) : null}
+        <View style={styles.banner}>
+            <Card style={styles.bannerCard} testID="attention-auto-allow-banner" theme={theme}>
+                <Text style={[styles.bannerText, { color: theme.text }]}>
+                    {t('conversation.attention.autoAllowBanner')}
+                </Text>
+                {onRevoke ? (
+                    <Button
+                        isBusy={busy}
+                        label={t('conversation.attention.turnOff')}
+                        onPress={async () => {
+                            setBusy(true);
+                            try {
+                                await onRevoke();
+                            } finally {
+                                setBusy(false);
+                            }
+                        }}
+                        testID="attention-auto-allow-revoke"
+                        theme={theme}
+                        variant="outline"
+                    />
+                ) : null}
+            </Card>
         </View>
     );
 };
@@ -436,7 +338,7 @@ export const AttentionCards = ({
         >
             {banner}
             <FlatList
-                contentContainerStyle={{ gap: 8, padding: 8 }}
+                contentContainerStyle={styles.list}
                 data={visible}
                 keyExtractor={(item) => item.id}
                 ListHeaderComponent={
@@ -450,10 +352,10 @@ export const AttentionCards = ({
                             )}
                             accessibilityRole="button"
                             onPress={() => setExpanded(true)}
-                            style={{ justifyContent: 'center', minHeight: 44 }}
+                            style={styles.link}
                             testID="attention-show-more"
                         >
-                            <Text style={{ color: theme.primary, fontWeight: '600' }}>
+                            <Text style={[styles.meta, styles.strong, { color: theme.primary }]}>
                                 {t(
                                     hiddenCount === 1
                                         ? 'conversation.attention.moreOne'
@@ -469,3 +371,19 @@ export const AttentionCards = ({
         </View>
     );
 };
+
+const styles = StyleSheet.create({
+    /**
+     * The dock gutter is 16dp, shared with the Agent Chat docks.
+     */
+    list: { gap: mobileSpace.sm, padding: mobileSpace.lg },
+    banner: { paddingHorizontal: mobileSpace.lg, paddingTop: mobileSpace.sm },
+    bannerCard: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
+    bannerText: { ...mobileType.meta, flex: 1 },
+    errorBox: { gap: mobileSpace.xs },
+    link: { justifyContent: 'center', minHeight: mobileControl.row },
+    meta: mobileType.meta,
+    strong: { fontWeight: '600' },
+    underline: { textDecorationLine: 'underline' },
+});
+/* eslint-enable no-use-before-define, @typescript-eslint/no-use-before-define */

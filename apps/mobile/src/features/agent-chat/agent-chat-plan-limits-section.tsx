@@ -1,6 +1,8 @@
 import { StyleSheet, Text, View } from 'react-native';
 
+import { Meter } from '../../components/meter';
 import { useTranslation } from '../../i18n';
+import { mobileSpace, mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
 import { agentChatPlanLimitRows } from './agent-chat-plan-limits';
 import { SheetSectionLabel } from './agent-chat-sheet-primitives';
@@ -8,17 +10,20 @@ import { sheetStyles } from './agent-chat-sheet-styles';
 import { useAgentChatPlanLimits } from './use-agent-chat-plan-limits';
 
 const styles = StyleSheet.create({
-    row: { gap: 6, paddingHorizontal: 10, paddingVertical: 8 },
+    row: {
+        gap: mobileSpace.xs,
+        paddingHorizontal: mobileSpace.md,
+        paddingVertical: mobileSpace.sm,
+    },
     heading: { alignItems: 'baseline', flexDirection: 'row', justifyContent: 'space-between' },
-    left: { fontSize: 15, fontVariant: ['tabular-nums'], fontWeight: '600' },
-    track: { borderRadius: 3, height: 6, overflow: 'hidden' },
-    fill: { borderRadius: 3, height: 6 },
+    left: { ...mobileType.bodyStrong, fontVariant: ['tabular-nums'] },
 });
 
 /**
- * The model sheet's Plan limits: each live window of the provider's plan (`5-hour limit`, `Weekly limit`) with what is
- * left, a bar, and when it resets, the figures Desktop's status bar shows as `5h 62% · 7d 28% left`. Nothing renders
- * until the provider has reported a limit (an API key has none, and Claude Code reports one only while its Chat runs).
+ * The Session usage sheet's Plan limits: each live window of the provider's plan (`5-hour limit`, `Weekly limit`) with
+ * what is left, a bar, and when it resets, the figures Desktop's status bar shows as `5h 62% · 7d 28% left`. Nothing
+ * renders until the provider has reported a limit (an API key has none, and Claude Code reports one only while its Chat
+ * runs).
  */
 export const AgentChatPlanLimitsSection = ({
     terminalId,
@@ -54,19 +59,11 @@ export const AgentChatPlanLimitsSection = ({
                             </Text>
                             <Text style={[styles.left, { color: tone }]}>{row.left}</Text>
                         </View>
-                        <View style={[styles.track, { backgroundColor: theme.elevated }]}>
-                            <View
-                                style={[
-                                    styles.fill,
-                                    {
-                                        backgroundColor: row.isWarning
-                                            ? theme.warning
-                                            : theme.primary,
-                                        width: `${row.leftPercent}%`,
-                                    },
-                                ]}
-                            />
-                        </View>
+                        <Meter
+                            color={row.isWarning ? theme.warning : theme.primary}
+                            ratio={row.leftPercent / 100}
+                            theme={theme}
+                        />
                         {row.reset ? (
                             <Text style={[sheetStyles.optionDescription, { color: theme.muted }]}>
                                 {row.reset}

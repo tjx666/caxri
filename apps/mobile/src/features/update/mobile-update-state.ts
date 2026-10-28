@@ -137,6 +137,51 @@ export const mobileUpdateBannerView = (
     };
 };
 
+export interface MobileUpdateNoticeView {
+    /**
+     * `null` while nothing can be done: recovery is still asking, an install is running, or no build exists to offer.
+     */
+    action: 'install' | 'retry-check' | null;
+    actionLabel: string;
+    canDismiss: boolean;
+    /**
+     * Title and detail as one sentence pair, since a notice is a single line of text.
+     */
+    message: string;
+    testID: 'mobile-update-banner' | 'mobile-update-required' | 'mobile-version-mismatch';
+    tone: 'danger' | 'muted' | 'warning';
+}
+
+/**
+ * The update as the one notice across the top of Session home. A required update warns (the app cannot reconnect
+ * without it), a failed install or check turns danger, and an optional update stays muted.
+ */
+export const mobileUpdateNoticeView = (
+    kind: MobileUpdateBannerKind,
+    phase: MobileUpdatePhase,
+    update: MobileUpdateBundle | undefined,
+    t: Translate = translate,
+): MobileUpdateNoticeView => {
+    if (kind === 'mismatch')
+        return {
+            action: null,
+            actionLabel: '',
+            canDismiss: false,
+            message: `${t('update.required')}: ${t('update.mismatchBody')}`,
+            testID: 'mobile-version-mismatch',
+            tone: 'warning',
+        };
+    const view = mobileUpdateBannerView(kind, phase, update, t);
+    return {
+        action: view.action,
+        actionLabel: view.actionLabel,
+        canDismiss: view.canDismiss,
+        message: `${view.title}: ${view.detail}`,
+        testID: view.isRequired ? 'mobile-update-required' : 'mobile-update-banner',
+        tone: view.isFailure ? 'danger' : view.isRequired ? 'warning' : 'muted',
+    };
+};
+
 export interface MobileUpdateInstallPorts {
     /**
      * Downloads to a private cache file and resolves with its size, MD5, and shareable `content://` URI.

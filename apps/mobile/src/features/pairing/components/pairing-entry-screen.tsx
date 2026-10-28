@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import { router } from 'expo-router';
 
-import { ActionButton } from '../../../components/action-button';
+import { Button } from '../../../components/button';
 import { useTranslation } from '../../../i18n';
 import { useMobileTheme } from '../../../theme/use-mobile-theme';
 import { useMobileClient } from '../../connection/mobile-client-provider';
@@ -31,14 +31,15 @@ export const PairingEntryScreen = () => {
                         <Text style={[styles.description, { color: theme.muted }]}>
                             {t('pairing.storageError.description')}
                         </Text>
-                        <ActionButton
+                        <Button
                             accessibilityHint={t('pairing.storageError.retryHint')}
+                            label={t('components.tryAgain')}
                             onPress={retryCredentialLoad}
+                            size="primary"
                             testID="credential-storage-retry"
                             theme={theme}
-                        >
-                            {t('components.tryAgain')}
-                        </ActionButton>
+                            variant="primary"
+                        />
                     </View>
                 </View>
             </SafeAreaView>
@@ -97,25 +98,26 @@ export const PairingEntryScreen = () => {
                                 {t(wasRevoked ? 'pairing.pairAgain' : 'pairing.notConnected')}
                             </Text>
                         </View>
-                        <ActionButton
-                            navigates
+                        <Button
                             accessibilityHint={t('pairing.scanHint')}
+                            label={t('pairing.scanCode')}
+                            navigates
                             onPress={() => router.push('/pair/scan')}
+                            size="primary"
                             testID="pairing-scan-button"
                             theme={theme}
-                        >
-                            {t('pairing.scanCode')}
-                        </ActionButton>
-                        <ActionButton
-                            navigates
+                            variant="primary"
+                        />
+                        <Button
                             accessibilityHint={t('pairing.pasteHint')}
+                            label={t('pairing.pasteLink')}
+                            navigates
                             onPress={() => router.push('/pair/paste')}
+                            size="primary"
                             testID="pairing-paste-button"
                             theme={theme}
-                            variant="secondary"
-                        >
-                            {t('pairing.pasteLink')}
-                        </ActionButton>
+                            variant="outline"
+                        />
                         <Text style={[styles.footnote, { color: theme.muted }]}>
                             {t('pairing.footnote')}
                         </Text>

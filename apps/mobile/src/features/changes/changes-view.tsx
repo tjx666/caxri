@@ -1,7 +1,10 @@
-import { Pressable, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 
 import { RotateCw } from 'lucide-react-native';
 
+import { Button } from '../../components/button';
+import { IconButton } from '../../components/icon-button';
+import { NoticeBanner } from '../../components/notice-banner';
 import { Spinner } from '../../components/spinner';
 import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
@@ -66,37 +69,41 @@ export const ChangesView = ({
                             t('changes.title')
                         )}
                     </Text>
-                    <Pressable
-                        accessibilityLabel={t('changes.refresh')}
-                        accessibilityRole="button"
-                        accessibilityState={{ busy: state.isRefreshing }}
-                        onPress={onRefresh}
-                        style={styles.refresh}
-                        testID="changes-refresh"
-                    >
-                        {state.isRefreshing ? (
+                    {state.isRefreshing ? (
+                        <View style={styles.refresh} testID="changes-refresh">
                             <Spinner color={theme.primary} />
-                        ) : (
-                            <RotateCw color={theme.primary} size={20} />
-                        )}
-                    </Pressable>
+                        </View>
+                    ) : (
+                        <IconButton
+                            accessibilityLabel={t('changes.refresh')}
+                            color={theme.primary}
+                            icon={RotateCw}
+                            onPress={onRefresh}
+                            size={20}
+                            testID="changes-refresh"
+                            theme={theme}
+                        />
+                    )}
                 </View>
             )}
             {state.isStale ? (
-                <Text
-                    style={[styles.stale, { borderColor: theme.border, color: theme.muted }]}
+                <NoticeBanner
+                    message={t('changes.staleNotice')}
                     testID="changes-stale"
-                >
-                    {t('changes.staleNotice')}
-                </Text>
+                    theme={theme}
+                    tone="muted"
+                />
             ) : null}
             {state.snapshot && state.error ? (
-                <Text
-                    accessibilityRole="alert"
-                    style={[styles.stale, { borderColor: theme.border, color: theme.danger }]}
-                >
-                    {t('changes.refreshFailed')}
-                </Text>
+                <NoticeBanner
+                    actionLabel={t('common.retry')}
+                    isBusy={state.isRefreshing}
+                    message={t('changes.refreshFailed')}
+                    onAction={onRefresh}
+                    testID="changes-refresh-failed"
+                    theme={theme}
+                    tone="danger"
+                />
             ) : null}
             <ChangesListContent
                 onOpenFile={onOpenFile}
@@ -106,18 +113,14 @@ export const ChangesView = ({
             />
             {canAskAgent && state.snapshot && state.snapshot.files.length > 0 ? (
                 <View style={[styles.footer, { borderColor: theme.border }]}>
-                    <Pressable
-                        accessibilityLabel={t('changes.askAgentToCommit')}
+                    <Button
                         accessibilityHint={t('changes.askAgentToCommitHint')}
-                        accessibilityRole="button"
+                        label={t('changes.askAgentToCommit')}
                         onPress={onAskAgentToCommit}
-                        style={[styles.commit, { borderColor: theme.success }]}
                         testID="changes-ask-agent-commit"
-                    >
-                        <Text style={[styles.commitText, { color: theme.success }]}>
-                            {t('changes.askAgentToCommit')}
-                        </Text>
-                    </Pressable>
+                        theme={theme}
+                        variant="primary"
+                    />
                 </View>
             ) : null}
         </View>
