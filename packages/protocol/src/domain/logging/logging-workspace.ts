@@ -55,6 +55,13 @@ export const externalStatusLogEvents = {
      */
     providerHistoryFailed: 'external_status.provider_history_failed',
     providerHistoryRecovered: 'external_status.provider_history_recovered',
+    /**
+     * Main could not read the Codex global reset tracker, so the status bar shows no reset countdown. Written once per
+     * change of the closed `fields.reason` (`CodexGlobalResetFailureReason`);
+     * `external_status.codex_global_reset_recovered` follows when the tracker answers again.
+     */
+    codexGlobalResetFailed: 'external_status.codex_global_reset_failed',
+    codexGlobalResetRecovered: 'external_status.codex_global_reset_recovered',
     paused: 'external_status.paused',
     quota: 'external_status.quota',
     resumed: 'external_status.resumed',

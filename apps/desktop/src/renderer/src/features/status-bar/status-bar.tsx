@@ -30,6 +30,7 @@ import { BotInboxChip } from './bot-inbox-chip';
 import { BotStatusChip } from './bot-status-chip';
 import { BranchPicker } from './branch-picker';
 import type { ChipVisibility } from './chip-priority';
+import { CodexGlobalResetChip } from './codex-global-reset-chip';
 import { EnvironmentMonitorChip } from './environment-monitor-chip';
 import { useChipVisibility } from './hooks/use-chip-visibility';
 import { PeerApprovalChip } from './peer-approval-chip';
@@ -310,6 +311,7 @@ export function StatusBar() {
                 <ScreencastModeChip />
                 <PermissionAutoAllowChip />
                 <WindowZoomIndicator side="top" triggerClassName={statusItemClassName} />
+                <CodexGlobalResetChip />
                 <ActivePaneStatus
                     showAgentThroughput={chipVisibility.agentThroughput}
                     showAgentUsage={chipVisibility.agentUsage}

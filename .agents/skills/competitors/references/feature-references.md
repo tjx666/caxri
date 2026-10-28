@@ -286,3 +286,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 ## CodexBar (MIT)
 
 - **Claude extra usage left**: Read Claude's extra usage (`extra_usage`: enabled, monthly cap, spend in minor units) as what is left of the monthly cap. Borrowed: the field interpretation and the remainder figure. Evidence: `apps/server/src/domains/agent-chat/claude-plan-limits.ts`; `docs/agent-usage-continuation.md`.
+
+## codex-reset.com (public API; credit required)
+
+- **Codex global reset countdown**: Forecast data (the announcement's target time, text, and post URL) and its credit-plus-identifying-User-Agent reuse terms. Evidence: `packages/system/src/network/codex-global-reset.ts`; `docs/agent-throughput.md`.

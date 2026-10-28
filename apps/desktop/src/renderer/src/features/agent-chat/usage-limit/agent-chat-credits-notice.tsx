@@ -1,6 +1,7 @@
 import { formatCreditsBalance, weeklyCreditsNotice } from '@caxri/protocol';
 import { Gauge, X } from 'lucide-react';
 
+import { useClockTick } from '@/hooks/use-clock-tick';
 import { usePolledQuery } from '@/hooks/use-polled-query';
 
 import { Button } from '../../../components/ui/button';
@@ -9,7 +10,6 @@ import { useTranslation } from '../../../i18n';
 import { resolveAgentIcon } from '../../../icons/agents/agent-icon-registry';
 import { localizedLimitReset } from '../../../lib/usage-format';
 import { dismissUsageNotice } from '../../usage/usage-notice-client';
-import { useClockTick } from '../hooks/use-clock-tick';
 
 /**
  * A composer strip row in place of the weekly usage guard card when the account still has usable credits: the weekly

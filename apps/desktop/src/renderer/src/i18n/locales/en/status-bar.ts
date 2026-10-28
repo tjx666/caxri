@@ -2,6 +2,20 @@
  * Status bar chips, their hover cards, and the branch and Workbench Root pickers.
  */
 export const statusBar = {
+    'statusBar.codexGlobalReset.eyebrow': 'Codex global reset',
+    'statusBar.codexGlobalReset.labelWithin': 'Codex reset within {{duration}}',
+    'statusBar.codexGlobalReset.labelIn': 'Codex reset in {{duration}}',
+    'statusBar.codexGlobalReset.ariaLabel': '{{label}}. Click to open the announcement.',
+    'statusBar.codexGlobalReset.announcement': 'Announcement',
+    'statusBar.codexGlobalReset.targetDeadline': 'Lands by',
+    'statusBar.codexGlobalReset.targetExact': 'Lands at',
+    'statusBar.codexGlobalReset.announcedAt': 'Announced',
+    'statusBar.codexGlobalReset.note':
+        "A global reset restores every paid account's 5-hour and weekly limits. Read from public posts on X; check your own usage to confirm it landed.",
+    'statusBar.codexGlobalReset.links': 'Links',
+    'statusBar.codexGlobalReset.openPost': 'Announcement on X',
+    'statusBar.codexGlobalReset.dataSource': 'Data: {{source}}',
+    'statusBar.codexGlobalReset.clickToOpen': 'Click to open the announcement',
     'statusBar.environmentMonitor.eyebrow': 'Environment monitor',
     'statusBar.environmentMonitor.warningLabel': 'Environment · {{count}}',
     'statusBar.environmentMonitor.unavailableLabel': 'Environment check unavailable',

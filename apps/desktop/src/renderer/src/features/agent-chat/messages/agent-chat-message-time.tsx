@@ -1,10 +1,11 @@
 import type { AgentChatTurnMetrics } from '@caxri/protocol';
 import { CircleDollarSign } from 'lucide-react';
 
+import { useClockTick } from '@/hooks/use-clock-tick';
+
 import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
 import { agentChatReplyMetrics } from '../activity/agent-chat-turn-metrics';
-import { useClockTick } from '../hooks/use-clock-tick';
 import {
     agentChatDayLabel,
     agentChatMessageFullTime,

@@ -4,6 +4,8 @@ import type { AgentChatHandoff, AgentChatUsageGuard } from '@caxri/protocol';
 import { agentProviderCatalog } from '@caxri/protocol';
 import { FileText, Gauge } from 'lucide-react';
 
+import { useClockTick } from '@/hooks/use-clock-tick';
+
 import { writeToClipboardWithFeedback } from '../../../components/copy-feedback';
 import { CopyIconButton } from '../../../components/markdown/copy-icon-button';
 import { Button } from '../../../components/ui/button';
@@ -13,7 +15,6 @@ import { useTranslation } from '../../../i18n';
 import { resolveAgentIcon } from '../../../icons/agents/agent-icon-registry';
 import { textClipboard } from '../../../lib/clipboard';
 import { localizedLimitReset } from '../../../lib/usage-format';
-import { useClockTick } from '../hooks/use-clock-tick';
 import { agentChatUsageGuardOffer } from './agent-chat-continuation';
 import { AgentChatContinueInAgent } from './agent-chat-continue-in-agent';
 import { generateAgentChatHandoff } from './agent-chat-usage-limit-commands';

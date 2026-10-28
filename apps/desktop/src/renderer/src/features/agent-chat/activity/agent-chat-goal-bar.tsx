@@ -4,10 +4,11 @@ import type { AgentChatGoal, AgentChatGoalUsage, AgentChatTurn } from '@caxri/pr
 import { agentChatGoalElapsedSeconds, formatAgentChatGoalDuration } from '@caxri/protocol';
 import { Goal } from 'lucide-react';
 
+import { useClockTick } from '@/hooks/use-clock-tick';
+
 import type { TranslationKey } from '../../../i18n';
 import { useTranslation } from '../../../i18n';
 import { cn } from '../../../lib/utilities';
-import { useClockTick } from '../hooks/use-clock-tick';
 import { goalTimeFigures } from './agent-chat-elapsed-time';
 import { AgentChatGoalActions } from './agent-chat-goal-actions';
 import type { AgentChatWorkingActivity } from './agent-chat-goal-row';

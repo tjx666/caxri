@@ -10,8 +10,15 @@ function clock(intervalMs: number) {
             const timer = setInterval(onTick, intervalMs);
             return () => clearInterval(timer);
         },
-        snapshot: (): number => Math.floor(Date.now() / intervalMs) * intervalMs,
+        snapshot: (): number => clockTickSnapshot(intervalMs, Date.now()),
     };
+}
+
+/**
+ * `now` rounded down to the clock's interval, so every read inside one tick returns the same value.
+ */
+export function clockTickSnapshot(intervalMs: number, now: number): number {
+    return Math.floor(now / intervalMs) * intervalMs;
 }
 
 const CLOCKS = { second: clock(1000), minute: clock(60_000) };

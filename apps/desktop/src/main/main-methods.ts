@@ -9,9 +9,13 @@ import type {
 } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { createAgentProviderStatus, createE2EStatusPageFetch } from '@caxri/system';
+import {
+    createAgentProviderStatus,
+    createCodexGlobalReset,
+    createE2EStatusPageFetch,
+} from '@caxri/system';
 import type { BrowserWindow } from 'electron';
-import { clipboard, ClipboardItem, dialog, net, shell } from 'electron';
+import { app, clipboard, ClipboardItem, dialog, net, shell } from 'electron';
 
 import { createAcceptanceExternalOpenFixture } from './acceptance-external-open';
 import { createAcceptanceSessionDeleteFixture } from './acceptance-session-delete';
@@ -133,11 +137,17 @@ function assertNever(value: never): never {
 export function createMainMethodHandler(options: MainMethodHandlerOptions) {
     const environment = options.environment ?? unconfiguredEnvironment;
     const linkFavicon = createLinkFavicons(netRequestFetch, netResolveHost);
+    const statusPageFetch =
+        process.env.CAXRI_E2E === '1'
+            ? createE2EStatusPageFetch(process.env.CAXRI_E2E_PROVIDER_STATUS_DIR)
+            : (url: string, init: RequestInit) => net.fetch(url, init);
     const agentProviderStatus = createAgentProviderStatus({
-        fetch:
-            process.env.CAXRI_E2E === '1'
-                ? createE2EStatusPageFetch(process.env.CAXRI_E2E_PROVIDER_STATUS_DIR)
-                : (url, init) => net.fetch(url, init),
+        fetch: statusPageFetch,
+        logger: () => options.logger?.(),
+    });
+    const codexGlobalReset = createCodexGlobalReset({
+        fetch: statusPageFetch,
+        userAgent: () => `Caxri/${app.getVersion()} (+https://github.com/tjx666/caxri)`,
         logger: () => options.logger?.(),
     });
     const linkPreview = createLinkPreviews(netRequestFetch, netResolveHost);
@@ -263,6 +273,8 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                 return linkFavicon(request.params.origin, request.params.path);
             case 'agentProviderStatus.read':
                 return agentProviderStatus(request.params.provider);
+            case 'codexGlobalReset.read':
+                return codexGlobalReset();
             case 'environmentMonitor.read':
                 return requireEnvironmentMonitor(options).read();
             case 'environmentMonitor.refresh':

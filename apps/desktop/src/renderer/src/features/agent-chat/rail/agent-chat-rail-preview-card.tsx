@@ -1,13 +1,14 @@
 import type { LucideIcon } from 'lucide-react';
 import { CornerDownRight, Forward, ImageIcon, MessageSquare } from 'lucide-react';
 
+import { useClockTick } from '@/hooks/use-clock-tick';
+
 import { HoverCard, HoverCardContent } from '../../../components/ui/hover-card';
 import { Skeleton } from '../../../components/ui/skeleton';
 import type { Translate } from '../../../i18n';
 import { useTranslation } from '../../../i18n';
 import { localeDateTimeFormat } from '../../../lib/locale-format';
 import { cn } from '../../../lib/utilities';
-import { useClockTick } from '../hooks/use-clock-tick';
 import type { AgentChatRailMark, AgentChatRailMarkKind } from './agent-chat-rail-marks';
 import {
     agentChatRailCaption,

@@ -41,6 +41,7 @@ import { agentProviderStatusDesktopMethods } from '../desktop/agent-provider-sta
 import { argvDesktopMethods } from '../desktop/argv-config.js';
 import { benchmarkShareMethods } from '../desktop/benchmark-share-contract.js';
 import { clipboardMethods } from '../desktop/clipboard-contract.js';
+import { codexGlobalResetDesktopMethods } from '../desktop/codex-global-reset-contract.js';
 import { contextMenuDesktopMethods } from '../desktop/context-menu-contract.js';
 import {
     desktopHostMethods,
@@ -272,6 +273,7 @@ export const methods = {
     ...editorPromptDesktopMethods,
     ...linkFaviconDesktopMethods,
     ...agentProviderStatusDesktopMethods,
+    ...codexGlobalResetDesktopMethods,
     ...environmentMonitorDesktopMethods,
     ...linkPreviewDesktopMethods,
     ...windowDesktopMethods,

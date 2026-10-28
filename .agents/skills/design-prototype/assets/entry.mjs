@@ -47,6 +47,7 @@ import * as Toggle from '@/components/ui/toggle';
 import * as ToggleGroup from '@/components/ui/toggle-group';
 import * as Tooltip from '@/components/ui/tooltip';
 import * as useChartKeyboardCursor from '@/hooks/use-chart-keyboard-cursor';
+import * as useClockTick from '@/hooks/use-clock-tick';
 import * as useContainerWidth from '@/hooks/use-container-width';
 import * as useContentHeightTransition from '@/hooks/use-content-height-transition';
 import * as useContextMenu from '@/hooks/use-context-menu';
@@ -114,6 +115,7 @@ export default {
     '@/components/ui/toggle-group': ToggleGroup,
     '@/components/ui/tooltip': Tooltip,
     '@/hooks/use-chart-keyboard-cursor': useChartKeyboardCursor,
+    '@/hooks/use-clock-tick': useClockTick,
     '@/hooks/use-container-width': useContainerWidth,
     '@/hooks/use-content-height-transition': useContentHeightTransition,
     '@/hooks/use-context-menu': useContextMenu,

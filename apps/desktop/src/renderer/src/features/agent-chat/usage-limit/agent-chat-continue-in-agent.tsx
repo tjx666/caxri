@@ -6,6 +6,8 @@ import type {
     AgentProvider,
 } from '@caxri/protocol';
 
+import { useClockTick } from '@/hooks/use-clock-tick';
+
 import { Button } from '../../../components/ui/button';
 import { Menu, MenuContent, MenuItem, MenuTrigger } from '../../../components/ui/menu';
 import { Spinner } from '../../../components/ui/spinner';
@@ -22,7 +24,6 @@ import { useCaxriQuery } from '../../../queries/client';
 import { useSessions } from '../../../stores/selectors';
 import { openSession } from '../../session/session-commands';
 import { sessionTitleForDisplay } from '../../session/session-title';
-import { useClockTick } from '../hooks/use-clock-tick';
 import {
     agentChatContinuationChoice,
     agentChatContinuationUnavailableLabel,

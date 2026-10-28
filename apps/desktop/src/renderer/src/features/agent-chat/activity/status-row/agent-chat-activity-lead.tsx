@@ -2,9 +2,10 @@ import type { AgentChatActivity } from '@caxri/protocol';
 import { AnimatePresence } from 'motion/react';
 import * as m from 'motion/react-m';
 
+import { useClockTick } from '@/hooks/use-clock-tick';
+
 import { Spinner } from '../../../../components/ui/spinner';
 import { useTranslation } from '../../../../i18n';
-import { useClockTick } from '../../hooks/use-clock-tick';
 import { stripIndicator, ToolGlyph, useLoadingStyle, WorkingBuddy } from '../../loading';
 import { elapsedTimeFigures } from '../agent-chat-elapsed-time';
 import { AgentChatRollingTime } from '../agent-chat-rolling-time';
