@@ -81,10 +81,20 @@ by itself once the limit resets (issue #2220). Owner: `continuation/chat-usage-l
   guard for that provider account. Only a window the provider names as its weekly one counts, never a
   model-specific window of the same length. The guard is persisted in `app_state`
   (`agentUsageGuards`), so a restart keeps it, and it lifts itself at `resetsAt`.
-- **Credits.** A reading that reports usable pay-as-you-go credits (Codex's `credits`: unlimited, or
-  a positive balance) never arms the guard and lifts an armed one, because the account keeps working
-  past its weekly window by spending them. A reading with a zero balance protects the last percent
-  again. Caxri does not read Claude Code's extra usage (`overageStatus`) yet, so its guard always applies.
+- **Credits.** A reading that reports usable pay-as-you-go credits never arms the guard and lifts an
+  armed one, because the account keeps working past its weekly window by spending them. Codex reports
+  `credits` (unlimited, or a positive balance) in every rate-limit reading. Claude Code reports extra
+  usage in its `/usage` answer (`rate_limits.extra_usage`: enabled, monthly cap and spend in minor
+  units), read as the cap's remainder in its currency, and in each `rate_limit_event`
+  (`overageStatus` allowed, or overage in use, keeps the account on credits; `rejected` takes them
+  away). A reading with a zero balance protects the last percent again.
+- **Credits notice.** While the weekly window is at the guard and the account has usable credits,
+  the composer shows a one-line notice in place of the guard card: `Codex weekly usage at 99%:
+requests continue on credits, 1,250 left` (Claude: `... on extra usage, $37.40 left this month`).
+  Nothing is paused, and the pace reminder gives way to it. Its close button hides it for a day
+  (`CREDITS_NOTICE_DISMISS_MS`) on every Client: `usage.dismissNotice` with `notice: 'credits'`
+  keeps the time in `app_state` (`creditsNoticeDismissals`), returned as
+  `UsageLimit.creditsNoticeDismissedAt` (`weeklyCreditsNotice`). The phone does not show it yet.
 - **What it blocks.** Every ordinary model request on that account fails with `USAGE_LIMITED`:
   Chat send, steer, queued follow-ups, slash commands, side questions, delegation, dispatch, Session
   auto-naming, and idle compaction. Arming interrupts the account's running turns (recorded as
@@ -101,12 +111,14 @@ Agent` continues from the deterministic package, with the hand-off document firs
 
 ## Observability
 
-All three events are content-free and use closed enums (`packages/protocol/src/domain/logging/logging-usage.ts`):
+All four events are content-free and use closed enums (`packages/protocol/src/domain/logging/logging-usage.ts`):
 
 - `usage.guard`: `provider` and `outcome` (`armed`, `window_reset` or `credits_available` with its
   duration, `refused` with
   its closed `path`, `handoff_started`, `handoff_generated`, `handoff_failed` with its closed
   `reason`).
+- `usage.credits_notice_dismissed`: `provider` and the weekly window's `usedPercent` when the user
+  hid the credits notice.
 - `usage.continuation`: source and target `provider`, `trigger` (`usageLimit`, `usageGuard`), and
   `outcome` (`created`, `existing`, `failed` with the error `code`), with the duration.
 - `usage.auto_continue`: `provider`, `window`, `attempt`, and `outcome` (`waiting`, `continued`,

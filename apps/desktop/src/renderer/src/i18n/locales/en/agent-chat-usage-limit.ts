@@ -38,6 +38,17 @@ export const agentChatUsageLimit = {
     'agentChat.usageLimit.unavailable.usageLimitedUntil': 'Weekly usage at the guard, {{reset}}',
     'agentChat.message.sendBlockedUsageGuard': 'Weekly usage nearly used up. Hand off below',
     'agentChat.queue.pausedUsageGuard': 'Queue paused · weekly usage nearly used up',
+    'agentChat.creditsNotice.credits':
+        '{{provider}} weekly usage at {{percent}}%: requests continue on credits',
+    'agentChat.creditsNotice.creditsLeft':
+        '{{provider}} weekly usage at {{percent}}%: requests continue on credits, {{balance}} left',
+    'agentChat.creditsNotice.extraUsage':
+        '{{provider}} weekly usage at {{percent}}%: requests continue on extra usage',
+    'agentChat.creditsNotice.extraUsageLeft':
+        '{{provider}} weekly usage at {{percent}}%: requests continue on extra usage, {{balance}} left this month',
+    'agentChat.creditsNotice.detail':
+        "New requests spend the account's credits until the weekly limit resets ({{reset}}).",
+    'agentChat.creditsNotice.dismiss': 'Hide for a day',
     'agentChat.usageGuard.headline': '{{provider}} weekly usage at {{percent}}%',
     'agentChat.usageGuard.detail':
         'New requests are paused, {{reset}}. The rest is kept for one hand-off on this account.',

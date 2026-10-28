@@ -298,7 +298,7 @@ export const effectfulCommandRecovery = {
     'window.tearOffSession': 'memory',
     'window.reportViewing': 'memory',
     'session.markRead': 'durable',
-    'usage.dismissPlanPace': 'durable',
+    'usage.dismissNotice': 'durable',
     'session.refreshDeliveryOnFocus': 'memory',
     'session.reorder': 'durable',
     'session.reorderPinned': 'durable',

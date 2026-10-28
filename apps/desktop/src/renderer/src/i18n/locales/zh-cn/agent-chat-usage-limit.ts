@@ -35,6 +35,15 @@ export const agentChatUsageLimit: TranslatedNamespace<typeof source> = {
     'agentChat.usageLimit.unavailable.usageLimitedUntil': '每周额度已达保护线，{{reset}}',
     'agentChat.message.sendBlockedUsageGuard': '每周额度即将用完，请在下方交接',
     'agentChat.queue.pausedUsageGuard': '队列已暂停 · 每周额度即将用完',
+    'agentChat.creditsNotice.credits': '{{provider}} 每周额度已用 {{percent}}%：新请求改用积分继续',
+    'agentChat.creditsNotice.creditsLeft':
+        '{{provider}} 每周额度已用 {{percent}}%：新请求改用积分继续，剩余 {{balance}}',
+    'agentChat.creditsNotice.extraUsage':
+        '{{provider}} 每周额度已用 {{percent}}%：新请求改用额外用量继续',
+    'agentChat.creditsNotice.extraUsageLeft':
+        '{{provider}} 每周额度已用 {{percent}}%：新请求改用额外用量继续，本月剩余 {{balance}}',
+    'agentChat.creditsNotice.detail': '每周额度重置前，新请求会消耗账号积分（{{reset}}）。',
+    'agentChat.creditsNotice.dismiss': '一天内不再提示',
     'agentChat.usageGuard.headline': '{{provider}} 每周额度已用 {{percent}}%',
     'agentChat.usageGuard.detail': '新请求已暂停，{{reset}}。剩余额度留给此账号的一次交接。',
     'agentChat.usageGuard.generate': '生成交接文档',

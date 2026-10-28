@@ -3,7 +3,7 @@
  * CLI readout), so the same number never renders two ways.
  */
 import { compactCountParts, formatCompactCount } from './line-count-format.js';
-import type { AgentUsageReadout, UsageLimit } from './usage-contract.js';
+import type { AgentUsageReadout, UsageCredits, UsageLimit } from './usage-contract.js';
 
 /**
  * Estimated cost in US dollars: cents below $1,000, whole dollars below $100k, then thousands.
@@ -14,6 +14,18 @@ export function formatUsd(value: number): string {
     if (value < 999.995) return `$${value.toFixed(2)}`;
     if (value < 99_999.5) return `$${groupThousands(Math.round(value))}`;
     return `$${groupThousands(Math.round(value / 1_000))}k`;
+}
+
+/**
+ * What is left of an account's credits: money in its currency (`$12.40`, `12.40 EUR`) for Claude Code's extra usage, a
+ * whole count (`1,250`) for Codex's own credits. Undefined when the provider names no balance.
+ */
+export function formatCreditsBalance(credits: UsageCredits): string | undefined {
+    const { balance, currency } = credits;
+    if (balance === undefined) return undefined;
+    if (currency === 'USD') return formatUsd(balance);
+    if (currency) return `${balance.toFixed(2)} ${currency}`;
+    return groupThousands(Math.floor(balance));
 }
 
 /**
@@ -142,7 +154,7 @@ export const LIMIT_WARNING_PERCENT = 90;
 
 /**
  * Whether the user dismissed the provider's pace reminder today: the Server keeps when it was dismissed
- * (`UsageLimit.paceDismissedAt`, set by `usage.dismissPlanPace` from any Client), and each device compares it with its
+ * (`UsageLimit.paceDismissedAt`, set by `usage.dismissNotice` from any Client), and each device compares it with its
  * own local midnight, so the reminder comes back on the next local day and two devices in different time zones each
  * judge "today" by their own clock.
  */

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 import { identifierSchema } from '../domain/identifiers.js';
-import type { UsageLimit } from '../domain/usage-contract.js';
+import type { UsageCredits, UsageLimit } from '../domain/usage-contract.js';
 import { hasUsableCredits } from '../domain/usage-contract.js';
 import { agentProviderSchema } from './agents.js';
 
@@ -162,18 +162,62 @@ export const agentChatContinuationTargetSchema = z.strictObject({
 export type AgentChatContinuationTarget = z.infer<typeof agentChatContinuationTargetSchema>;
 
 /**
+ * How long dismissing the credits notice hides it, from any Client.
+ */
+export const CREDITS_NOTICE_DISMISS_MS = 24 * 60 * 60_000;
+
+/**
  * The provider's general weekly window when its raw usage is at or past {@link AGENT_USAGE_GUARD_PERCENT} and it has not
- * reset by `now`. A window without a known reset cannot be held to an end, so it never arms the guard; nor does a
- * model-specific window, which the parsers leave unscoped. An account with usable credits keeps working past its weekly
- * window by spending them, so there is no last percent to protect.
+ * reset by `now`. A window without a known reset cannot be held to an end, so it never qualifies; nor does a
+ * model-specific window, which the parsers leave unscoped.
+ */
+function weeklyWindowAtGuard(
+    limit: Pick<UsageLimit, 'windows'> | null | undefined,
+    now: number,
+): { usedPercent: number; resetsAt: number } | undefined {
+    const window = limit?.windows.find((candidate) => candidate.scope === 'weekly');
+    if (!window?.resetsAt || window.resetsAt <= now) return undefined;
+    if (window.usedPercent < AGENT_USAGE_GUARD_PERCENT) return undefined;
+    return { usedPercent: window.usedPercent, resetsAt: window.resetsAt };
+}
+
+/**
+ * The weekly window that arms the usage guard ({@link weeklyWindowAtGuard}). An account with usable credits keeps
+ * working past its weekly window by spending them, so there is no last percent to protect; it gets the credits notice
+ * instead ({@link weeklyCreditsNotice}).
  */
 export function weeklyUsageGuardWindow(
     limit: Pick<UsageLimit, 'windows' | 'credits'> | undefined,
     now: number,
 ): { usedPercent: number; resetsAt: number } | undefined {
     if (hasUsableCredits(limit?.credits)) return undefined;
-    const window = limit?.windows.find((candidate) => candidate.scope === 'weekly');
-    if (!window?.resetsAt || window.resetsAt <= now) return undefined;
-    if (window.usedPercent < AGENT_USAGE_GUARD_PERCENT) return undefined;
-    return { usedPercent: window.usedPercent, resetsAt: window.resetsAt };
+    return weeklyWindowAtGuard(limit, now);
+}
+
+/**
+ * The weekly window at the guard of an account that still has usable credits: requests go on, now spending credits,
+ * until the window resets. The pace reminder gives way to the credits notice while this holds.
+ */
+export function weeklyCreditsWindow(
+    limit: Pick<UsageLimit, 'windows' | 'credits'> | null | undefined,
+    now: number,
+): { usedPercent: number; resetsAt: number; credits: UsageCredits } | undefined {
+    const credits = limit?.credits;
+    if (!credits || !hasUsableCredits(credits)) return undefined;
+    const window = weeklyWindowAtGuard(limit, now);
+    return window && { ...window, credits };
+}
+
+/**
+ * What the composer's credits notice shows: the {@link weeklyCreditsWindow}, except for {@link CREDITS_NOTICE_DISMISS_MS}
+ * after the user dismissed it on any Client. Without usable credits the guard itself shows instead.
+ */
+export function weeklyCreditsNotice(
+    limit: Pick<UsageLimit, 'windows' | 'credits' | 'creditsNoticeDismissedAt'> | null | undefined,
+    now: number,
+): { usedPercent: number; resetsAt: number; credits: UsageCredits } | undefined {
+    const dismissedAt = limit?.creditsNoticeDismissedAt;
+    if (dismissedAt !== undefined && now - dismissedAt < CREDITS_NOTICE_DISMISS_MS)
+        return undefined;
+    return weeklyCreditsWindow(limit, now);
 }

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
     agentUsageCostLabel,
     currentLimitWindows,
+    formatCreditsBalance,
     formatPercent,
     formatTokens,
     formatUsd,
@@ -159,5 +160,18 @@ describe('agentUsageCostLabel', () => {
             }),
         ).toBe('≥$3.40');
         expect(agentUsageCostLabel({ ...priced, unpricedModels: ['gpt-5.5'] })).toBeUndefined();
+    });
+});
+
+describe('formatCreditsBalance', () => {
+    it('shows money in its currency and a credit count whole', () => {
+        expect(formatCreditsBalance({ unlimited: false, balance: 37.4, currency: 'USD' })).toBe(
+            '$37.40',
+        );
+        expect(formatCreditsBalance({ unlimited: false, balance: 12.4, currency: 'EUR' })).toBe(
+            '12.40 EUR',
+        );
+        expect(formatCreditsBalance({ unlimited: false, balance: 1250.4 })).toBe('1,250');
+        expect(formatCreditsBalance({ unlimited: true })).toBeUndefined();
     });
 });

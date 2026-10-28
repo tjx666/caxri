@@ -18,17 +18,24 @@ const CLAUDE_LIMIT_WINDOWS: Record<
 };
 
 /**
+ * Whether a `rate_limit_event` (untrusted) says extra usage (overage) still answers requests past the plan's windows.
+ */
+export function isClaudeOverageAllowed(info: SDKRateLimitInfo): boolean {
+    return (
+        info.overageStatus === 'allowed' ||
+        info.overageStatus === 'allowed_warning' ||
+        info.isUsingOverage === true ||
+        info.overageInUse === true
+    );
+}
+
+/**
  * The usage limit a `rate_limit_event` (untrusted) reports as used up, or undefined when it still allows requests. A
  * `rejected` window that overage still covers is not used up: Claude Code keeps answering on extra usage.
  */
 export function claudeRejectedUsageLimit(info: SDKRateLimitInfo): AgentChatUsageLimit | undefined {
     if (info.status !== 'rejected') return undefined;
-    const isOverageAllowed =
-        info.overageStatus === 'allowed' ||
-        info.overageStatus === 'allowed_warning' ||
-        info.isUsingOverage === true ||
-        info.overageInUse === true;
-    if (isOverageAllowed) return undefined;
+    if (isClaudeOverageAllowed(info)) return undefined;
     const window = (info.rateLimitType && CLAUDE_LIMIT_WINDOWS[info.rateLimitType]) ?? 'unknown';
     const resetsAt =
         typeof info.resetsAt === 'number' && Number.isFinite(info.resetsAt) && info.resetsAt > 0

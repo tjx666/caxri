@@ -1,4 +1,9 @@
-import { isPlanPaceDismissed, limitPaceShortfall, remainingLimitPercent } from '@caxri/protocol';
+import {
+    isPlanPaceDismissed,
+    limitPaceShortfall,
+    remainingLimitPercent,
+    weeklyCreditsWindow,
+} from '@caxri/protocol';
 import { TrendingUp, X } from 'lucide-react';
 
 import { usePolledQuery } from '@/hooks/use-polled-query';
@@ -7,7 +12,7 @@ import { Button } from '../../../components/ui/button';
 import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
 import { localizedLimitReset, localizedLimitWindowName } from '../../../lib/usage-format';
-import { dismissPlanPace } from '../../usage/plan-pace-client';
+import { dismissUsageNotice } from '../../usage/usage-notice-client';
 import { useClockTick } from '../hooks/use-clock-tick';
 
 /**
@@ -15,7 +20,7 @@ import { useClockTick } from '../hooks/use-clock-tick';
  * `Weekly limit ahead of pace: 40% left, resets in 4d 2h`. It reads the same `terminal.agentUsage` poll as the status
  * bar's usage chip, so it adds no request, and like the context notices it gives way to the activity and edit rows.
  * Dismissing it hides it for the rest of the local day for that provider, on every Client and across restarts: the
- * Server keeps the dismissal (`plan-pace-client`).
+ * Server keeps the dismissal (`usage-notice-client`).
  */
 export function AgentChatPlanPaceAlert({
     isShown,
@@ -37,6 +42,8 @@ export function AgentChatPlanPaceAlert({
     const provider = readout?.provider;
     const shortfall = limitPaceShortfall(readout?.limit, now);
     if (!isShown || !provider || !shortfall || isPlanPaceDismissed(readout.limit, now)) return null;
+    // An account working on credits past its weekly window gets the credits notice instead, dismissed or not.
+    if (weeklyCreditsWindow(readout.limit, now)) return null;
     const { window, evenPacePercent } = shortfall;
     const windowName = localizedLimitWindowName(window.windowMinutes, t);
     return (
@@ -70,7 +77,7 @@ export function AgentChatPlanPaceAlert({
                     size="icon"
                     variant="ghost"
                     onClick={async () => {
-                        await dismissPlanPace(terminalId, provider);
+                        await dismissUsageNotice(terminalId, provider, 'planPace');
                     }}
                 >
                     <X aria-hidden className="size-3.5" />

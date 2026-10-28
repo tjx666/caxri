@@ -5,6 +5,7 @@ import type {
     AgentProvider,
     AgentUsageReadout,
     UsageLimit,
+    UsageNotice,
     UsageReport,
     UsageReportParameters,
 } from '@caxri/protocol';
@@ -19,7 +20,6 @@ import type { ExternalStatusRunner } from '../external-status';
 import { UsageKeyIndex } from './key-index';
 import { LiveAgentUsage } from './live-usage';
 import { PlanLimitRefresh } from './plan-limit-refresh';
-import { PlanPaceDismissals } from './plan-pace-dismissals';
 import { ModelPricing } from './pricing';
 import {
     fetchPullRequestOutcomes,
@@ -32,6 +32,7 @@ import type { OutsideUsageEntry, UsageLedgerEntry, UsageReportInput } from './re
 import { buildUsageReport } from './report';
 import type { ClaudeTranscriptMisses, UsageTranscriptFiles } from './scanner';
 import { scanUsage, UsageTranscriptLocator } from './scanner';
+import { UsageNoticeDismissals } from './usage-notice-dismissals';
 
 /**
  * Transcripts parsed concurrently during one ledger sync.
@@ -153,7 +154,7 @@ export class UsageService {
     private readonly staleOutsideRows = new Set<string>();
     private readonly live: LiveAgentUsage;
     private readonly planLimits: PlanLimitRefresh;
-    private readonly paceDismissals: PlanPaceDismissals;
+    private readonly noticeDismissals: UsageNoticeDismissals;
 
     constructor(private readonly options: UsageServiceOptions) {
         this.pricing = new ModelPricing({
@@ -171,9 +172,12 @@ export class UsageService {
         this.planLimits = new PlanLimitRefresh(options.readPlanLimits, (limits) =>
             this.live.observeLimits(limits),
         );
-        this.paceDismissals = new PlanPaceDismissals(options.database, options.logger, () =>
-            this.now(),
-        );
+        this.noticeDismissals = new UsageNoticeDismissals({
+            database: options.database,
+            logger: options.logger,
+            now: () => this.now(),
+            limits: () => this.live.limits(),
+        });
     }
 
     private now(): number {
@@ -515,18 +519,15 @@ export class UsageService {
         if (!readout) return readout;
         this.planLimits.request(readout.provider, terminalId);
         return readout.limit
-            ? { ...readout, limit: this.paceDismissals.attach(readout.limit) }
+            ? { ...readout, limit: this.noticeDismissals.attach(readout.limit) }
             : readout;
     }
 
     /**
-     * Hides the provider's pace reminder for the rest of the day on every Client; answers `usage.dismissPlanPace`.
+     * Hides one of the provider's plan notices on every Client; answers `usage.dismissNotice`.
      */
-    dismissPlanPace(provider: AgentProvider): null {
-        this.paceDismissals.dismiss(
-            provider,
-            this.live.limits().find((limit) => limit.provider === provider),
-        );
+    dismissNotice(provider: AgentProvider, notice: UsageNotice): null {
+        this.noticeDismissals.dismiss(notice, provider);
         return null;
     }
 
@@ -543,7 +544,7 @@ export class UsageService {
             if (rateLimits) ledger.push({ provider: row.provider, ...rateLimits });
         }
         this.live.observeLimits(ledger);
-        return this.live.limits().map((limit) => this.paceDismissals.attach(limit));
+        return this.live.limits().map((limit) => this.noticeDismissals.attach(limit));
     }
 
     /**
@@ -592,7 +593,7 @@ export class UsageService {
         this.live.observeLimits(report.limits);
         return {
             ...report,
-            limits: report.limits.map((limit) => this.paceDismissals.attach(limit)),
+            limits: report.limits.map((limit) => this.noticeDismissals.attach(limit)),
         };
     }
 }
