@@ -90,17 +90,58 @@ describe('settings spec and schema agreement', () => {
         expect(defaultAppSettings['files.exclude']).toEqual(DEFAULT_FILES_EXCLUDE);
         expect(defaultAppSettings['security.trustedDomains']).toEqual([]);
         expect(defaultAppSettings['terminal.referenceLinks']).toEqual([]);
+        expect(defaultAppSettings['environmentMonitor.publicIpChanges']).toBe(true);
+        expect(defaultAppSettings['environmentMonitor.expectedTimeZone']).toBeNull();
+        expect(defaultAppSettings['environmentMonitor.mihomoRoutes']).toEqual({
+            endpoint: 'http://127.0.0.1:9090',
+            secret: null,
+            assertions: [],
+        });
         expect(defaultAppSettings['agents.providers']).toEqual(defaultAgentProviderSettings);
         // The lenient file parser lands on the same canonical defaults.
         expect(appSettingsFileSchema.parse({})).toEqual(defaultAppSettings);
     });
 
+    it('normalizes explicit environment expectations and rejects remote Mihomo controllers', () => {
+        expect(
+            appSettingsFileSchema.parse({
+                'environmentMonitor.expectedTimeZone': 'Asia/Shanghai',
+                'environmentMonitor.mihomoRoutes': {
+                    endpoint: 'http://localhost:9090',
+                    secret: ' local-secret ',
+                    assertions: [{ domain: 'EXAMPLE.COM', expectedNode: 'Fixed node' }],
+                },
+            }),
+        ).toMatchObject({
+            'environmentMonitor.expectedTimeZone': 'Asia/Shanghai',
+            'environmentMonitor.mihomoRoutes': {
+                endpoint: 'http://localhost:9090',
+                secret: 'local-secret',
+                assertions: [{ domain: 'example.com', expectedNode: 'Fixed node' }],
+            },
+        });
+        expect(
+            appSettingsFileSchema.safeParse({
+                'environmentMonitor.mihomoRoutes': {
+                    endpoint: 'http://192.0.2.10:9090',
+                    assertions: [],
+                },
+            }).success,
+        ).toBe(false);
+        expect(
+            appSettingsFileSchema.safeParse({
+                'environmentMonitor.mihomoRoutes': {
+                    endpoint: 'http://127.0.0.1:9090',
+                    assertions: [
+                        { domain: 'example.com', expectedNode: 'Node A' },
+                        { domain: 'EXAMPLE.COM', expectedNode: 'Node B' },
+                    ],
+                },
+            }).success,
+        ).toBe(false);
+    });
+
     it('ships the requested defaults while preserving explicit saved choices', () => {
-        expect(defaultAppSettings['environmentMonitor.publicIpChanges']).toBe(true);
-        expect(defaultAppSettings['environmentMonitor.proxyProtection']).toBe(false);
-        expect(defaultAppSettings['environmentMonitor.locationChanges']).toBe(false);
-        expect(defaultAppSettings['environmentMonitor.timeZoneMismatch']).toBe(false);
-        expect(defaultAppSettings['environmentMonitor.checkUnavailable']).toBe(false);
         expect(defaultAppSettings['primarySidebar.autoCollapseProjects']).toBe('30m');
         expect(defaultAppSettings['terminal.scrollback']).toBe(8_000);
         expect(defaultAppSettings['terminal.gpuAcceleration']).toBe('on');

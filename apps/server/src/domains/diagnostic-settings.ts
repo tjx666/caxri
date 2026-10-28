@@ -10,6 +10,7 @@ type DelegationCaller = NonNullable<
     DelegationSettings['callers'][keyof DelegationSettings['callers']]
 >;
 type DelegationBinding = NonNullable<DelegationCaller['presets']>[string];
+type EnvironmentMonitorMihomoSettings = AppSettings['environmentMonitor.mihomoRoutes'];
 
 /**
  * Names every field of `T`, optional ones included. A projected object literal checked against it fails typecheck when
@@ -95,6 +96,20 @@ function projectAgentProviders(providers: AppSettings['agents.providers']) {
     );
 }
 
+/**
+ * Controller addresses, secrets, domains, and node names stay local. Support only learns whether the optional
+ * integration is configured and which local transport shape it uses.
+ */
+function projectEnvironmentMonitorMihomo(settings: EnvironmentMonitorMihomoSettings) {
+    return {
+        endpoint: settings.endpoint.startsWith('unix://') ? 'unix' : 'loopback-http',
+        accessProtected: settings.secret !== null,
+        // Deliberately omitted (JSON drops `undefined`); only `routeCount` below is exported.
+        assertions: undefined,
+        routeCount: settings.assertions.length,
+    } satisfies Omit<Projection<EnvironmentMonitorMihomoSettings>, 'secret'>;
+}
+
 function projectDelegationBinding(binding: DelegationBinding) {
     return {
         provider: binding.provider,
@@ -149,11 +164,6 @@ function projectDelegation(delegation: DelegationSettings) {
 const settingsProjection: SettingsProjection = {
     'notifications.worktreeFallback': exportAsIs,
     'notifications.agentRecovery': exportAsIs,
-    'environmentMonitor.publicIpChanges': exportAsIs,
-    'environmentMonitor.proxyProtection': exportAsIs,
-    'environmentMonitor.locationChanges': exportAsIs,
-    'environmentMonitor.timeZoneMismatch': exportAsIs,
-    'environmentMonitor.checkUnavailable': exportAsIs,
     'session.defaultAgent': exportAsIs,
     'session.openAgentsInChat': exportAsIs,
     'agentChat.idleCompaction.enabled': exportAsIs,
@@ -195,6 +205,9 @@ const settingsProjection: SettingsProjection = {
     'projectStatus.notifyAgentOnMerge': exportAsIs,
     'projectStatus.autoArchiveOnPullRequestSettled': exportAsIs,
     'projectStatus.notifications.enabled': exportAsIs,
+    'environmentMonitor.publicIpChanges': exportAsIs,
+    'environmentMonitor.expectedTimeZone': exportAsIs,
+    'environmentMonitor.mihomoRoutes': projectEnvironmentMonitorMihomo,
     'security.trustedDomains': exportAsIs,
     'security.trustedFolders': exportAsIs,
     'terminal.defaultWorkingDirectory': exportAsIs,

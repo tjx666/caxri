@@ -122,8 +122,7 @@ const expectedLanes: Record<string, ControlLane> = {
     'editor.confirmDiscard': 'ordered',
     'editor.saveUntitled': 'ordered',
     'editor.unsavedReply': 'ordered',
-    'environmentMonitor.acceptBaseline': 'ordered',
-    'environmentMonitor.refresh': 'ordered',
+    'environmentMonitor.useCurrentIp': 'ordered',
     'extensions.retry': 'ordered',
     'external.open': 'ordered',
     'externalDocument.openInTerminal': 'ordered',
@@ -327,6 +326,7 @@ const expectedLanes: Record<string, ControlLane> = {
     'claudeWindow.tick': 'self-serialized',
     'claudeWindow.update': 'self-serialized',
     'files.copy': 'self-serialized',
+    'environmentMonitor.checkNow': 'self-serialized',
     'session.rename': 'self-serialized',
     'terminal.prepareLongPaste': 'self-serialized',
 };

@@ -271,10 +271,10 @@ export const methods = {
     ...contextMenuDesktopMethods,
     ...externalDocumentDesktopMethods,
     ...editorPromptDesktopMethods,
+    ...environmentMonitorDesktopMethods,
     ...linkFaviconDesktopMethods,
     ...agentProviderStatusDesktopMethods,
     ...codexGlobalResetDesktopMethods,
-    ...environmentMonitorDesktopMethods,
     ...linkPreviewDesktopMethods,
     ...windowDesktopMethods,
     'external.open': {

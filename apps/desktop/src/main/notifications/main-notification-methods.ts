@@ -2,7 +2,7 @@ import type { MainRequest } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 import { shell } from 'electron';
 
-import type { EnvironmentMonitor } from '../environment-monitor/monitor';
+import type { EnvironmentMonitor } from '../environment-monitor/environment-monitor';
 import type { NotificationHelperControl } from './agent-notification-delivery';
 
 /**
@@ -17,7 +17,7 @@ export interface MainNotificationMethodOptions {
      * fails clearly instead of reporting a status that was never probed.
      */
     getDesktopNotifications?():
-        { helper: NotificationHelperControl; environmentMonitor?: EnvironmentMonitor } | undefined;
+        { environmentMonitor?: EnvironmentMonitor; helper: NotificationHelperControl } | undefined;
 }
 
 type NotificationRequest = Extract<MainRequest, { method: `notifications.${string}` }>;

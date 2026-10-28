@@ -1,54 +1,54 @@
 import { z } from 'zod';
 
+import { MAX_MIHOMO_CONTROLLER_NODES } from '../configuration/environment-monitor-settings.js';
 import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
 
-export const environmentMonitorIssueKinds = [
-    'publicIpChanged',
-    'locationChanged',
-    'proxyRouteChanged',
-    'proxyUnavailable',
-    'timeZoneMismatch',
-    'checkUnavailable',
-] as const;
-export const environmentMonitorIssueKindSchema = z.enum(environmentMonitorIssueKinds);
-export type EnvironmentMonitorIssueKind = z.infer<typeof environmentMonitorIssueKindSchema>;
-
-export const environmentMonitorProxyModes = ['direct', 'proxy', 'mixed', 'unknown'] as const;
-export const environmentMonitorProxyModeSchema = z.enum(environmentMonitorProxyModes);
-export type EnvironmentMonitorProxyMode = z.infer<typeof environmentMonitorProxyModeSchema>;
-
-export const environmentMonitorDetailsSchema = z.strictObject({
-    countryCode: z
-        .string()
-        .regex(/^[A-Z]{2}$/u)
-        .optional(),
-    region: z.string().min(1).max(160).optional(),
-    network: z.string().min(1).max(160).optional(),
-    egressTimeZone: z.string().min(1).max(64).optional(),
-    systemTimeZone: z.string().min(1).max(64).optional(),
-    proxyMode: environmentMonitorProxyModeSchema.optional(),
+const publicIpChangedIssueSchema = z.strictObject({
+    kind: z.literal('publicIpChanged'),
 });
-export type EnvironmentMonitorDetails = z.infer<typeof environmentMonitorDetailsSchema>;
+
+const timeZoneMismatchIssueSchema = z.strictObject({
+    kind: z.literal('timeZoneMismatch'),
+    expectedTimeZone: z.string().min(1).max(100),
+    actualTimeZone: z.string().min(1).max(100),
+});
+
+const routeNodeMismatchIssueSchema = z.strictObject({
+    kind: z.literal('routeNodeMismatch'),
+    domain: z.string().min(1).max(253),
+    expectedNode: z.string().min(1).max(160),
+    observedChain: z.array(z.string().min(1).max(160)).min(1).max(16),
+});
+
+export const environmentMonitorIssueSchema = z.discriminatedUnion('kind', [
+    publicIpChangedIssueSchema,
+    timeZoneMismatchIssueSchema,
+    routeNodeMismatchIssueSchema,
+]);
+
+export type EnvironmentMonitorIssue = z.infer<typeof environmentMonitorIssueSchema>;
 
 export const environmentMonitorStateSchema = z.strictObject({
-    state: z.enum(['disabled', 'checking', 'healthy', 'warning', 'unavailable']),
-    issues: z.array(environmentMonitorIssueKindSchema).max(environmentMonitorIssueKinds.length),
+    state: z.enum(['disabled', 'healthy', 'warning']),
+    issues: z.array(environmentMonitorIssueSchema).max(34),
     checkedAt: z.number().int().nonnegative().optional(),
-    lastSuccessfulAt: z.number().int().nonnegative().optional(),
-    consecutiveFailures: z.number().int().nonnegative(),
-    canAcceptBaseline: z.boolean(),
-    details: environmentMonitorDetailsSchema.optional(),
+    canUseCurrentIp: z.boolean(),
 });
+
 export type EnvironmentMonitorState = z.infer<typeof environmentMonitorStateSchema>;
 
 const desktopRead = commandPolicy('desktop', 'read');
 const desktopControl = commandPolicy('desktop', 'control');
 const noParameters = z.object({}).default({});
+const mihomoControllerAccessParameters = z.strictObject({
+    endpoint: z.string().min(1).max(4_096),
+    secret: z.string().max(4_096).nullable(),
+});
 
 /**
- * Desktop-only, boot-scoped monitoring of explicitly selected local network signals. Raw public IP and proxy addresses
- * remain inside Main and never enter this contract.
+ * Desktop-only access to the boot-scoped monitor. Raw public IP values never enter this contract. Controller access is
+ * accepted only for bounded node discovery, then revalidated as local-only inside Main.
  */
 export const environmentMonitorDesktopMethods = {
     'environmentMonitor.read': {
@@ -56,14 +56,21 @@ export const environmentMonitorDesktopMethods = {
         params: noParameters,
         result: environmentMonitorStateSchema,
     },
-    'environmentMonitor.refresh': {
+    'environmentMonitor.checkNow': {
         ...desktopControl,
         params: noParameters,
         result: environmentMonitorStateSchema,
     },
-    'environmentMonitor.acceptBaseline': {
+    'environmentMonitor.useCurrentIp': {
         ...desktopControl,
         params: noParameters,
         result: environmentMonitorStateSchema,
+    },
+    'environmentMonitor.mihomoNodes': {
+        ...desktopRead,
+        params: mihomoControllerAccessParameters,
+        result: z.strictObject({
+            nodes: z.array(z.string().min(1).max(160)).max(MAX_MIHOMO_CONTROLLER_NODES),
+        }),
     },
 } as const satisfies Record<string, MethodSpec>;

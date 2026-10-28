@@ -24,6 +24,7 @@ import {
 interface ExportedSettings {
     'agents.delegation': unknown;
     'agents.providers': Record<string, { launch: { args: unknown }; recovery: unknown }>;
+    'environmentMonitor.mihomoRoutes': unknown;
 }
 
 function parseExport(file: string): ExportedSettings {
@@ -158,6 +159,24 @@ describe('diagnostics redaction', () => {
             '--api-key',
             '[REDACTED]',
         ]);
+    });
+
+    it('excludes Mihomo Controller access and route identities', () => {
+        const settings = structuredClone(defaultAppSettings);
+        settings['environmentMonitor.mihomoRoutes'] = {
+            endpoint: 'http://127.0.0.1:9090',
+            secret: 'SENTINEL_CONTROLLER_SECRET',
+            assertions: [{ domain: 'sentinel.example', expectedNode: 'SENTINEL_NODE_NAME' }],
+        };
+
+        const exported = diagnosticSettingsFile(settings);
+
+        expect(exported).not.toMatch(/sentinel/iu);
+        expect(parseExport(exported)['environmentMonitor.mihomoRoutes']).toEqual({
+            accessProtected: true,
+            endpoint: 'loopback-http',
+            routeCount: 1,
+        });
     });
 
     it('declares an export rule for exactly the settings schema keys', () => {

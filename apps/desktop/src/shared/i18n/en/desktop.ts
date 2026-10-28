@@ -3,9 +3,6 @@
  * they stay out of its dictionaries.
  */
 export const desktop = {
-    'desktop.environmentMonitor.notification.title': 'Environment changed',
-    'desktop.environmentMonitor.notification.body':
-        'Caxri detected {{count}} enabled environment signal(s).',
     'desktop.menu.project': 'Project',
     'desktop.menu.session': 'Session',
     'desktop.menu.terminal': 'Terminal',
@@ -300,6 +297,13 @@ export const desktop = {
     'desktop.serverReplaced.bodyOne': '1 running Terminal from the previous version was stopped.',
     'desktop.serverReplaced.bodyOther':
         '{{count}} running Terminals from the previous version were stopped.',
+    'desktop.notification.environmentMonitor.title': 'Environment monitoring',
+    'desktop.notification.environmentMonitor.publicIpChanged':
+        'The public IP changed during this launch.',
+    'desktop.notification.environmentMonitor.timeZoneMismatch':
+        'The system time zone differs from the selected time zone.',
+    'desktop.notification.environmentMonitor.routeNodeMismatch':
+        'A monitored domain used a different Mihomo node.',
     'desktop.duration.hoursMinutes': '{{hours}}h {{minutes}}m',
     'desktop.duration.hours': '{{hours}}h',
     'desktop.duration.minutesSeconds': '{{minutes}}m {{seconds}}s',

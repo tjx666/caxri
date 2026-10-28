@@ -3,8 +3,6 @@ import type { TranslatedNamespace } from '@caxri/protocol';
 import type { desktop as source } from '../en/desktop';
 
 export const desktop: TranslatedNamespace<typeof source> = {
-    'desktop.environmentMonitor.notification.title': '环境发生变化',
-    'desktop.environmentMonitor.notification.body': 'Caxri 检测到 {{count}} 项已启用的环境信号。',
     'desktop.menu.project': '项目',
     'desktop.menu.session': '会话',
     'desktop.menu.terminal': '终端',
@@ -280,6 +278,11 @@ export const desktop: TranslatedNamespace<typeof source> = {
     'desktop.serverReplaced.title': 'Caxri 已更新',
     'desktop.serverReplaced.bodyOne': '上一版本中正在运行的 1 个终端已停止。',
     'desktop.serverReplaced.bodyOther': '上一版本中正在运行的 {{count}} 个终端已停止。',
+    'desktop.notification.environmentMonitor.title': '环境监测',
+    'desktop.notification.environmentMonitor.publicIpChanged': '本次启动期间公网 IP 发生了变化。',
+    'desktop.notification.environmentMonitor.timeZoneMismatch': '系统时区与选择的时区不一致。',
+    'desktop.notification.environmentMonitor.routeNodeMismatch':
+        '一个受监测域名使用了不同的 Mihomo 节点。',
     'desktop.duration.hoursMinutes': '{{hours}} 小时 {{minutes}} 分',
     'desktop.duration.hours': '{{hours}} 小时',
     'desktop.duration.minutesSeconds': '{{minutes}} 分 {{seconds}} 秒',

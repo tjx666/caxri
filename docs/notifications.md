@@ -36,24 +36,6 @@ attaches a reminder type. The separate delivery failure setting still controls i
 the error rule does not override that setting. Disabling delivery failure notifications prevents
 those alerts from being emitted, including their history entries.
 
-### Environment monitor alerts
-
-Desktop can monitor selected local environment signals and surface an abnormal reading in both a
-native notification and a persistent Status Bar chip. **Public IP changes** is the only signal
-enabled by default. **Local proxy interruptions**, **Location changes**, **Time zone mismatch**,
-and **Check unavailable** are independent opt-in signals under **Settings → Notifications**.
-Disabling every signal stops the probe.
-
-The probe uses neutral public IP endpoints and resolves proxy routing only for the selected neutral
-endpoint. Requests refuse redirects, so a catalog endpoint cannot move the probe to another host.
-The monitor never sends a probe to, or resolves the route for, an Agent service domain. A warning
-describes only the enabled observable signals; it does not interpret their meaning for another
-service. A notification is sent only when the current reading adds an issue. Repeated readings and
-issue-only reductions do not send another banner; a recovered issue can notify again if it later
-returns. **Use current environment** accepts change-based readings as the in-memory baseline, while
-an unavailable proxy, time zone mismatch, or failed check stays visible until the live condition
-clears.
-
 Delivery failure alerts cover every unarchived Session, not only the selected one: a failing CI
 check, a failing Vercel preview build, or a failing Vercel production build raises one
 notification. Every Session a visible window shows keeps its fast Status panel poll; every other Session is
@@ -65,6 +47,27 @@ Server Core started and within the last 30 minutes, so opening a Session on a br
 last week, or restarting Caxri, does not replay old failures. Success feedback such as copying normally stays
 ephemeral unless the caller explicitly opts into history, supplies a reminder type, or marks the
 notice persistent.
+
+### Environment monitoring
+
+**Settings → Notifications** also configures three independent environment signals. **Public IP
+changes** is on by default and compares the current public egress address with the first successful
+lookup in this Desktop launch. The address remains in Desktop Main memory: it is not persisted,
+logged, or sent to the Renderer. **Expected system time zone** is off until the user selects one
+IANA time zone, then compares that exact expectation with the system time zone.
+
+**Domain routes through Mihomo** is also off until at least one exact domain-to-node assertion is
+added. It accepts only a local loopback HTTP Controller or an absolute Unix socket. Node choices
+come from the Controller's proxy list; route checks read the Controller's existing live connections
+and compare the latest matching connection chain with the chosen node. Caxri does not request the
+configured domain to test its route. No matching connection is no evidence, and an unavailable
+Controller or failed public-IP lookup is not itself an environment warning.
+
+An enabled signal with contrary evidence raises a generic native notification and keeps an
+**Environment warning** item in the Status Bar until the evidence clears or the expectation is
+disabled. Its popover lists only enabled signals with active warnings and offers **Check Now**.
+When the public IP changed, **Use Current IP** adopts the latest successful address as this launch's
+new baseline without clearing time-zone or route warnings.
 
 ### Native Agent banner content
 
@@ -125,13 +128,14 @@ Agents running in Terminals, not for Chats.
 
 ## Ownership and event flow
 
-| Owner                                  | Responsibility                                                                                                                                                                  |
-| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Renderer `stores/toasts.ts` and Sonner | Record eligible history before checking suppression; present live popups and own expiration, actions, and dismissal.                                                            |
-| Renderer `stores/notifications.ts`     | Keep bounded entries, unread state, grouping, and the projection of typed reminder settings in memory.                                                                          |
-| Server settings domain                 | Persist scalar preferences through `settings.patch` in the profile's `settings.jsonc`; return authoritative settings.                                                           |
-| Desktop Main                           | Decide and deliver native Agent notifications; own environment probes and baselines; forward only `shown` waiting/completed decisions as transient `agent.notification` events. |
-| Project Status alert path              | Emit `projectStatus.alert` for delivery failures; Renderer records the received alert without another popup.                                                                    |
+| Owner                                  | Responsibility                                                                                                                            |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Renderer `stores/toasts.ts` and Sonner | Record eligible history before checking suppression; present live popups and own expiration, actions, and dismissal.                      |
+| Renderer `stores/notifications.ts`     | Keep bounded entries, unread state, grouping, and the projection of typed reminder settings in memory.                                    |
+| Server settings domain                 | Persist scalar preferences through `settings.patch` in the profile's `settings.jsonc`; return authoritative settings.                     |
+| Desktop Main                           | Decide and deliver native Agent notifications; forward only `shown` waiting/completed decisions as transient `agent.notification` events. |
+| Desktop Main environment monitor       | Keep the launch-scoped public-IP baseline, evaluate selected expectations, read local Mihomo metadata, and deliver generic warnings.      |
+| Project Status alert path              | Emit `projectStatus.alert` for delivery failures; Renderer records the received alert without another popup.                              |
 
 `agent.notification` carries only `sessionId` and `attentionKind`. Renderer resolves the current
 Session and Project display names from bootstrap state and constructs the history message.
@@ -157,12 +161,6 @@ waits for a successful Server response before syncing preferences and dismissing
 of that type. A failed write leaves the reminders visible and reports an error through the command
 error path. The displayed text can be the Server's error message; **Unable to mute notifications**
 is the command's diagnostic label, not a guaranteed prefix for every failure.
-
-Environment signal preferences are persisted as independent booleans. The baseline, public IP
-fingerprint, and resolved proxy route stay in Desktop Main memory and reset when Desktop restarts.
-Raw IP addresses and proxy endpoints never enter the Renderer protocol, settings, notification
-copy, diagnostic logs, or notification history. Logs retain only state transitions, enabled-signal
-booleans, issue count, closed failure reasons, failure count, and probe duration.
 
 History uses an ordinary Zustand memory store with no persistence middleware:
 
@@ -191,17 +189,12 @@ History must not become a vehicle for retaining source content, Terminal output,
 | Muting fails                                | Follow the `settings.patch` command failure. Do not dismiss the original popup or assume a preference was saved.                                                                                                                                                                                           |
 | A settings shortcut opens the wrong section | Follow `settings.openNotifications` into the settings dialog controller. Its scroll request must remain pending until the virtual list has measured items.                                                                                                                                                 |
 | Delivery failures group incorrectly         | Verify `projectStatus.alert` repository and branch identity before changing general history grouping.                                                                                                                                                                                                      |
-| Environment alert never appears             | Verify the relevant signal is enabled under Settings → Notifications, then use Check again. Disabled and healthy states intentionally have no Status Bar chip.                                                                                                                                             |
-| Environment alert does not clear            | Check the popover for a live unavailable proxy, time zone mismatch, or failed check. Use current environment accepts change-based readings only; live failures must recover.                                                                                                                               |
 
 Implementation entry points are
 [`stores/notifications.ts`](../apps/desktop/src/renderer/src/stores/notifications.ts),
 [`stores/toasts.ts`](../apps/desktop/src/renderer/src/stores/toasts.ts),
 [`stores/workbench.ts`](../apps/desktop/src/renderer/src/stores/workbench.ts), and
 [`agent-notification-runtime.ts`](../apps/desktop/src/main/agent-notification-runtime.ts).
-Environment monitoring starts in
-[`monitor.ts`](../apps/desktop/src/main/environment-monitor/monitor.ts) and
-[`probe.ts`](../apps/desktop/src/main/environment-monitor/probe.ts).
 Setting labels and defaults live in
 [`settings-spec.ts`](../packages/protocol/src/configuration/settings-spec.ts); transient event
 classification lives in

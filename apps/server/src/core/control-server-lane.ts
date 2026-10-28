@@ -13,6 +13,7 @@ const SELF_SERIALIZED_OPERATIONS = new Set([
     'claudeWindow.tick',
     'claudeWindow.update',
     'files.copy',
+    'environmentMonitor.checkNow',
     /**
      * Waits on the Agent provider's own rename (seconds for Claude Code) before committing the title.
      * `SessionRenameQueue` serializes every rename of one Session and the commit re-reads the Session, so a later

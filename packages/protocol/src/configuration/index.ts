@@ -2,6 +2,7 @@ export * from './agent-session-instructions.js';
 export * from './builtin-themes/index.js';
 export * from './config-files.js';
 export * from './configuration-contract.js';
+export * from './environment-monitor-settings.js';
 export * from './i18n-interpolate.js';
 export * from './ignored-checks.js';
 export * from './language-settings-spec.js';

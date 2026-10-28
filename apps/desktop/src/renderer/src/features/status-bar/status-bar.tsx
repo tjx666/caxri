@@ -303,8 +303,8 @@ export function StatusBar() {
                 )}
                 <AgentChatWaitingChip />
                 <PeerApprovalChip />
-                <UpdateStatusChip />
                 {isLocalOnlyAvailable && <EnvironmentMonitorChip />}
+                <UpdateStatusChip />
                 {isLocalOnlyAvailable && <BotStatusChip />}
                 {isLocalOnlyAvailable && <BotInboxChip />}
                 <RemoteDebuggingChip />
