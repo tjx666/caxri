@@ -16,7 +16,6 @@ import {
 import { AgentGlyph } from '../../../components/agent-icon';
 import { IconButton } from '../../../components/icon-button';
 import { PopoverMenu } from '../../../components/popover-menu';
-import { Spinner } from '../../../components/spinner';
 import { usePopoverAnchor } from '../../../components/use-popover-anchor';
 import type { Translate, TranslationKey } from '../../../i18n';
 import { useTranslation } from '../../../i18n';
@@ -38,6 +37,10 @@ import {
     isSegmentAwaitingAnswer,
     panelIdOfSegment,
 } from '../session-ui-state';
+import {
+    AgentSurfaceSwitchMenuAction,
+    AgentSurfaceSwitchStatus,
+} from './agent-surface-switch-controls';
 import { sessionDetailStyles as styles } from './session-detail-styles';
 import { SessionStatusGlyph } from './session-status-glyph';
 
@@ -307,39 +310,12 @@ export const SessionDetailHeader = ({
                     theme={theme}
                 >
                     {surfaceTarget ? (
-                        <Pressable
-                            accessibilityRole="button"
-                            accessibilityState={{
-                                disabled: !isConnected || isSwitchingSurface,
-                            }}
-                            disabled={!isConnected || isSwitchingSurface}
+                        <AgentSurfaceSwitchMenuAction
+                            isDisabled={!isConnected || isSwitchingSurface}
                             onPress={handleSwitchSurface}
-                            style={styles.menuAction}
-                            testID="session-switch-surface"
-                        >
-                            {surfaceTarget === 'chat' ? (
-                                <MessagesSquare color={theme.muted} size={18} />
-                            ) : (
-                                <SquareTerminal color={theme.muted} size={18} />
-                            )}
-                            <Text
-                                style={[
-                                    styles.menuActionText,
-                                    {
-                                        color:
-                                            isConnected && !isSwitchingSurface
-                                                ? theme.text
-                                                : theme.muted,
-                                    },
-                                ]}
-                            >
-                                {t(
-                                    surfaceTarget === 'chat'
-                                        ? 'sessions.surface.openAsChat'
-                                        : 'sessions.surface.openAsTerminal',
-                                )}
-                            </Text>
-                        </Pressable>
+                            target={surfaceTarget}
+                            theme={theme}
+                        />
                     ) : null}
                     <Pressable
                         accessibilityRole="button"
@@ -365,31 +341,11 @@ export const SessionDetailHeader = ({
                         </Text>
                     ) : null}
                 </PopoverMenu>
-                {surfaceSwitch.pending ? (
-                    <View
-                        accessibilityLiveRegion="polite"
-                        style={styles.surfaceSwitchState}
-                        testID="session-switch-surface-pending"
-                    >
-                        <Spinner color={theme.muted} />
-                        <Text style={[styles.sendState, { color: theme.muted }]}>
-                            {t(
-                                surfaceSwitch.pending === 'chat'
-                                    ? 'sessions.surface.openingAsChat'
-                                    : 'sessions.surface.openingAsTerminal',
-                            )}
-                        </Text>
-                    </View>
-                ) : null}
-                {surfaceSwitch.error ? (
-                    <Text
-                        accessibilityRole="alert"
-                        style={[styles.sendState, { color: theme.danger }]}
-                        testID="session-switch-surface-error"
-                    >
-                        {surfaceSwitch.error}
-                    </Text>
-                ) : null}
+                <AgentSurfaceSwitchStatus
+                    error={surfaceSwitch.error}
+                    pending={surfaceSwitch.pending}
+                    theme={theme}
+                />
                 {markReadError ? (
                     <Text
                         accessibilityRole="alert"
