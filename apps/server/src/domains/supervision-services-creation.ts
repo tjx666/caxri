@@ -7,6 +7,7 @@ import { ChatIdleCompaction } from './session';
 import type { TerminalManager } from './terminal';
 import {
     createTerminalHandlers,
+    PtyUsageMonitor,
     TerminalResourceMonitor,
     TerminalSuspensionService,
 } from './terminal';
@@ -16,11 +17,11 @@ type RootServices = Awaited<ReturnType<typeof createRootServices>>;
 
 /**
  * Owns the background Agent supervision slice: idle suspension, Chat idle compaction, automatic continuation after a
- * usage limit resets, and the resource monitor. Create: builds the services and publishes the suspension service
- * through `suspensionState` for the launch hooks wired before it exists. Register: the returned `handlers` are the
- * Terminal methods that read them. Start: `start` begins every poller once every handler is registered. Close: `close`
- * stops suspension and idle compaction before the resource monitor; the composition root calls it after Chats and
- * benchmarks shut down and before Terminals do.
+ * usage limit resets, and the resource and PTY usage monitors. Create: builds the services and publishes the suspension
+ * service through `suspensionState` for the launch hooks wired before it exists. Register: the returned `handlers` are
+ * the Terminal methods that read them. Start: `start` begins every poller once every handler is registered. Close:
+ * `close` stops suspension and idle compaction before the resource monitor; the composition root calls it after Chats
+ * and benchmarks shut down and before Terminals do.
  */
 export function createTerminalSupervision({
     agentChat,
@@ -73,10 +74,12 @@ export function createTerminalSupervision({
         terminals,
         watchHub,
     });
+    const ptyUsage = new PtyUsageMonitor({ logger, send, watchHub });
     return {
         handlers: createTerminalHandlers({
             countLiveChats: (sessionId) => agentChat.liveCount(sessionId),
             database,
+            ptyUsage,
             resourceMonitor,
             terminals,
             terminalSuspension,
@@ -87,12 +90,14 @@ export function createTerminalSupervision({
             idleCompaction.start();
             agentChat.states.usageLimitWaits?.start(watchHub);
             resourceMonitor.start();
+            ptyUsage.start();
         },
         close: async (): Promise<void> => {
             await terminalSuspension.close();
             await idleCompaction.close();
             await agentChat.states.usageLimitWaits?.close();
             await resourceMonitor.close();
+            await ptyUsage.close();
         },
     };
 }

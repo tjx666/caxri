@@ -14,6 +14,8 @@ export const terminal = {
         'Original Agent Session could not be restored; check provider state or start fresh',
     'terminal.exit.failure.executableNotFound': 'Agent CLI executable was not found',
     'terminal.exit.failure.spawnFailed': 'Terminal process could not be started',
+    'terminal.exit.failure.ptyExhausted':
+        'This computer has no free terminal slots (PTYs). Close Terminals you no longer need, then restart this one',
     'terminal.exit.failure.workingDirectoryUnavailable': 'Working directory no longer exists',
     'terminal.exit.interrupted': 'Terminal is restoring on your computer',
     'terminal.exit.stopped': 'Terminal has stopped',

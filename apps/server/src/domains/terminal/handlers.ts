@@ -4,6 +4,7 @@ import type { CaxriDatabase } from '../db';
 import type { DomainHandlers } from '../domain-services';
 import { applyTerminalResourceOverride } from './e2e-resource-override';
 import type { TerminalManager } from './manager';
+import type { PtyUsageMonitor } from './pty-usage-monitor';
 import type { TerminalResourceMonitor } from './resource-monitor';
 import type { TerminalSuspensionService } from './suspension';
 
@@ -15,6 +16,7 @@ interface TerminalHandlerOptions {
      */
     countLiveChats: (sessionId?: string) => number;
     database: Pick<CaxriDatabase, 'getTerminal'>;
+    ptyUsage: Pick<PtyUsageMonitor, 'usage'>;
     resourceMonitor: Pick<TerminalResourceMonitor, 'processes' | 'readingOverride'>;
     terminals: Pick<
         TerminalManager,
@@ -38,6 +40,7 @@ interface TerminalHandlerOptions {
 export function createTerminalHandlers({
     countLiveChats,
     database,
+    ptyUsage,
     resourceMonitor,
     terminals,
     terminalSuspension,
@@ -48,6 +51,7 @@ export function createTerminalHandlers({
     | 'terminal.detachAll'
     | 'terminal.preview'
     | 'terminal.processes'
+    | 'terminal.ptyUsage'
     | 'terminal.resize'
     | 'terminal.resources'
     | 'terminal.runningCount'
@@ -88,6 +92,7 @@ export function createTerminalHandlers({
                 await resourceMonitor.readingOverride(terminalId),
             ),
         'terminal.processes': () => ({ terminals: resourceMonitor.processes() }),
+        'terminal.ptyUsage': async () => ({ usage: (await ptyUsage.usage()) ?? null }),
         /**
          * Suspends rather than closes, so the Session and its Agent conversation stay resumable. `suspended: false`
          * means the Terminal was not running anything to stop.

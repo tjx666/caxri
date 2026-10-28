@@ -23,6 +23,7 @@ export type {
     TerminalWorkingDirectoryIdentity,
 } from './manager-types';
 export { createTerminalMoveHandler } from './move';
+export { PtyUsageMonitor } from './pty-usage-monitor';
 export { createRelaunchHandlers } from './relaunch';
 export { TerminalRemoteObservers } from './remote-observers';
 export { TerminalResourceMonitor } from './resource-monitor';

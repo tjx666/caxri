@@ -6,6 +6,7 @@ export * from './event-loop-monitor.js';
 export * from './keyed-serial-queue.js';
 export * from './process-table.js';
 export * from './profile-identity.js';
+export * from './pty-usage.js';
 export * from './secrets.js';
 export * from './single-flight.js';
 export * from './system-resources.js';

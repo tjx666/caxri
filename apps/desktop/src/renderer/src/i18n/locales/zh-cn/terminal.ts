@@ -33,6 +33,8 @@ export const terminal: TranslatedNamespace<typeof source> = {
     'terminal.exit.failure.workingDirectoryUnavailableAt': '文件夹已不存在：{{path}}',
     'terminal.exit.failure.executableNotFound': '未找到 Agent CLI 可执行文件',
     'terminal.exit.failure.spawnFailed': '无法启动终端进程',
+    'terminal.exit.failure.ptyExhausted':
+        '这台电脑的终端名额（PTY）已用完。请关闭不再需要的终端，然后重新启动此终端',
     'terminal.exit.failure.agentSessionUnavailable':
         '无法恢复原 Agent 会话，请检查提供方状态或重新开始',
     'terminal.exit.suspendedDetail':
@@ -185,6 +187,8 @@ export const terminal: TranslatedNamespace<typeof source> = {
     'terminal.resourceAlert.message':
         '资源占用过高：{{subject}} 正在使用 {{memory}} 内存和 {{cpu}} CPU。',
     'terminal.resourceAlert.stop': '停止 {{subject}}',
+    'terminal.ptyAlert.message':
+        '终端名额（PTY）即将用完：已使用 {{inUse}} / {{limit}}。请关闭不再需要的终端，否则新终端将无法启动。',
     'terminal.agentPrompt.tooLong': '提示词过长，无法发送给 Agent',
     'terminal.agentPrompt.noAgent': '请先在此会话中启动一个 Agent',
     'terminal.agentPrompt.notReady': '{{agent}} 尚未准备好接收输入',

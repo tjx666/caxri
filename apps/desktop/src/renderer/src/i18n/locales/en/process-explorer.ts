@@ -8,12 +8,15 @@ export const processExplorer = {
     'processExplorer.summary.cpu': 'CPU',
     'processExplorer.summary.memory': 'Memory',
     'processExplorer.summary.processes': 'Processes',
+    'processExplorer.summary.pty': 'PTY',
+    'processExplorer.summary.ptyHigh': ', nearly out of PTY slots',
     'processExplorer.filter.placeholder': 'Filter',
     'processExplorer.filter.label': 'Filter processes',
     // Table header
     'processExplorer.columns.name': 'Name',
     'processExplorer.columns.cpu': 'CPU',
     'processExplorer.columns.memory': 'Memory',
+    'processExplorer.columns.pty': 'PTY',
     'processExplorer.columns.pid': 'PID',
     'processExplorer.header.sortBy': 'Sort by {{column}}',
     'processExplorer.header.resize': 'Resize {{column}} column',
@@ -36,6 +39,7 @@ export const processExplorer = {
     'processExplorer.terminal': 'Terminal',
     'processExplorer.untitledSession': 'Untitled Session',
     'processExplorer.sessionsGroup': 'Sessions',
+    'processExplorer.otherAppsGroup': 'Other apps',
     'processExplorer.processCount': '{{count}} processes',
     // Footer
     'processExplorer.footer.live': 'Live · updates every {{seconds}} seconds',

@@ -10,6 +10,7 @@ function handlers(
     return createTerminalHandlers({
         countLiveChats: liveChats,
         database: { getTerminal: vi.fn() },
+        ptyUsage: { usage: vi.fn() },
         resourceMonitor: { processes: vi.fn(() => []), readingOverride: vi.fn() },
         terminals: { runningCount: runningTerminals } as unknown as TerminalManager,
         terminalSuspension: { suspendOnRequest: vi.fn() },

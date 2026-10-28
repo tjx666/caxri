@@ -16,8 +16,7 @@ import {
 import { gpuIncidentBudget } from '../features/gpu/gpu-incident-budget';
 import { gpuRecoveryNotificationCoordinator } from '../features/gpu/gpu-recovery-notifications';
 import { beginRendererPerformanceRequest } from '../features/renderer-performance/controller';
-import { reportTerminalOutputRecovery } from '../features/terminal/terminal-output-recovery-notice';
-import { reportTerminalResourceAlert } from '../features/terminal/terminal-resource-alerts';
+import { reportTerminalNoticeEvent } from '../features/terminal/terminal-notice-events';
 import {
     dismissWorkbenchRootCandidate,
     showWorkbenchRootCandidate,
@@ -646,10 +645,9 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
                 );
                 return;
             case 'terminal.outputRecovery':
-                reportTerminalOutputRecovery(event.payload);
-                return;
+            case 'terminal.ptyAlert':
             case 'terminal.resourceAlert':
-                reportTerminalResourceAlert(event.payload);
+                reportTerminalNoticeEvent(event);
                 return;
             case 'agent.automaticNamingUnavailable': {
                 reportAutomaticNamingNotices(

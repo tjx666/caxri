@@ -1,10 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
+import { getTableConfig, SQLiteTable } from 'drizzle-orm/sqlite-core';
 import { describe, expect, it } from 'vitest';
 
 import { executableMigrationSql, MIGRATION_AUTHORING_RULE } from '../connection';
 import { migrationManifest } from '../migrations/manifest';
+import * as schema from '../schema';
 
 const PERSISTENCE_REFERENCE = resolve(
     import.meta.dirname,
@@ -48,5 +50,40 @@ describe('migration SQL foreign_keys pragma guard', () => {
     it('states the same authoring rule as the persistence architecture reference', () => {
         const reference = readFileSync(PERSISTENCE_REFERENCE, 'utf8').replaceAll(/\s+/gu, ' ');
         expect(reference).toContain(MIGRATION_AUTHORING_RULE);
+    });
+});
+
+/**
+ * Generated columns per table, from the Drizzle schema. SQLite refuses to INSERT into one, yet drizzle-kit 0.31 lists
+ * them in the copy statement of a table rebuild, so such a migration fails on every database that has a row.
+ */
+function generatedColumnsByTable(): Map<string, Set<string>> {
+    const tables = new Map<string, Set<string>>();
+    for (const table of Object.values(schema)) {
+        if (!(table instanceof SQLiteTable)) continue;
+        const config = getTableConfig(table);
+        const generated = config.columns.filter((column) => column.generated !== undefined);
+        if (generated.length > 0)
+            tables.set(config.name, new Set(generated.map((column) => column.name)));
+    }
+    return tables;
+}
+
+describe('migration SQL generated column guard', () => {
+    it('never copies a generated column during a table rebuild', () => {
+        const generatedColumns = generatedColumnsByTable();
+        expect(generatedColumns.get('terminals')).toContain('provider');
+        for (const migration of migrationManifest)
+            for (const match of migration.sql.matchAll(/INSERT INTO `__new_(\w+)`\(([^)]*)\)/gu)) {
+                const [, table, columnList] = match;
+                const copied = columnList
+                    .split(',')
+                    .map((column) => column.trim().replaceAll('"', ''));
+                const generated = generatedColumns.get(table) ?? new Set<string>();
+                expect(
+                    copied.filter((column) => generated.has(column)),
+                    `${migration.tag} copies a generated column of ${table}; remove it from both column lists of the INSERT`,
+                ).toEqual([]);
+            }
     });
 });

@@ -192,6 +192,7 @@ export const coreForwardedMethods = [
     'terminal.moveToNewSession',
     'terminal.resize',
     'terminal.processes',
+    'terminal.ptyUsage',
     'terminal.resources',
     'terminal.referenceContext',
     'terminal.restart',

@@ -58,10 +58,14 @@ export function buildServerLaunchEnvironment(
             CAXRI_E2E_AGENT_UNKNOWN_RECOVERY_MS:
                 processEnvironment.CAXRI_E2E_AGENT_UNKNOWN_RECOVERY_MS,
         }),
-        // Server Core ignores it unless `CAXRI_E2E=1`; see `terminal/e2e-resource-override.ts`.
+        // Server Core ignores these unless `CAXRI_E2E=1`; see `terminal/e2e-resource-override.ts` and
+        // `terminal/e2e-pty-usage-override.ts`.
         ...(processEnvironment.CAXRI_E2E_TERMINAL_RESOURCE_OVERRIDE_FILE && {
             CAXRI_E2E_TERMINAL_RESOURCE_OVERRIDE_FILE:
                 processEnvironment.CAXRI_E2E_TERMINAL_RESOURCE_OVERRIDE_FILE,
+        }),
+        ...(processEnvironment.CAXRI_E2E_PTY_USAGE_OVERRIDE_FILE && {
+            CAXRI_E2E_PTY_USAGE_OVERRIDE_FILE: processEnvironment.CAXRI_E2E_PTY_USAGE_OVERRIDE_FILE,
         }),
         ...(processEnvironment.CAXRI_E2E === '1' && {
             CAXRI_E2E_MOBILE_PAIRING_RESULT_DELAY:

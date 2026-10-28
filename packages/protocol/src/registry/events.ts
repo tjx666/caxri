@@ -24,7 +24,10 @@ import { identifierSchema, pathSchema } from '../domain/identifiers.js';
 import { lowCostSandboxFailureReasonSchema } from '../domain/low-cost-generation.js';
 import { airplaneModeStateSchema } from '../domain/session/session-airplane-mode.js';
 import { settingsTargetSchema } from '../domain/settings-target.js';
-import { terminalResourceAlertSchema } from '../domain/terminal-resources.js';
+import {
+    terminalPtyAlertSchema,
+    terminalResourceAlertSchema,
+} from '../domain/terminal-resources.js';
 import { updateStateSchema } from '../domain/update-state.js';
 import {
     extensionIdSchema,
@@ -169,6 +172,10 @@ export const serverEventPayloads = {
      * A running Terminal's process tree crossed, or fell back below, the shared resource alert thresholds.
      */
     'terminal.resourceAlert': terminalResourceAlertSchema,
+    /**
+     * The machine's PTY use reached, or fell back below, the share of the limit Caxri warns at.
+     */
+    'terminal.ptyAlert': terminalPtyAlertSchema,
     'terminal.exit': z.object({
         terminalId: identifierSchema,
         exitCode: z.number(),

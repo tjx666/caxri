@@ -33,6 +33,7 @@ const recorder = vi.hoisted(
 
 vi.mock('../terminal', () => ({
     createTerminalHandlers: () => ({}),
+    PtyUsageMonitor: recorder('ptyUsage'),
     TerminalResourceMonitor: recorder('monitor'),
     TerminalSuspensionService: recorder('suspension'),
 }));
@@ -90,6 +91,7 @@ describe('createTerminalSupervision', () => {
             'idleCompaction.start',
             'usageLimitWaits.start',
             'monitor.start',
+            'ptyUsage.start',
             'suspension.close:begin',
             'suspension.close:end',
             'idleCompaction.close:begin',
@@ -98,6 +100,8 @@ describe('createTerminalSupervision', () => {
             'usageLimitWaits.close:end',
             'monitor.close:begin',
             'monitor.close:end',
+            'ptyUsage.close:begin',
+            'ptyUsage.close:end',
         ]);
     });
 });

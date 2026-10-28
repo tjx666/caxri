@@ -16,6 +16,8 @@ export const terminal: TranslatedNamespace<typeof source> = {
         '无法恢复原 Agent 会话，请检查提供方状态或重新开始',
     'terminal.exit.failure.executableNotFound': '未找到 Agent CLI 可执行文件',
     'terminal.exit.failure.spawnFailed': '无法启动终端进程',
+    'terminal.exit.failure.ptyExhausted':
+        '这台电脑的终端名额（PTY）已用完。请关闭不再需要的终端，然后重新启动此终端',
     'terminal.exit.failure.workingDirectoryUnavailable': '工作目录已不存在',
     'terminal.exit.interrupted': '终端正在电脑上恢复',
     'terminal.exit.stopped': '终端已停止',

@@ -1,6 +1,6 @@
-import type { TerminalProcessEntry } from '@caxri/protocol';
+import type { PtyUsage, TerminalProcessEntry } from '@caxri/protocol';
 import type { ServerHostRole } from '@caxri/system';
-import { execFileAsync, serverHostRole } from '@caxri/system';
+import { execFileAsync, isPtyUsageScanCommand, serverHostRole } from '@caxri/system';
 import { processDisplayName, redactCommandLine } from '@caxri/utils';
 
 import type { ProcessExplorerEntry, ProcessExplorerSnapshot } from '../shared/process-explorer';
@@ -47,6 +47,10 @@ export interface RawProcessEntry {
 interface ProcessExplorerSamplerOptions {
     electronProcesses: () => ElectronProcessSample[];
     processList?: ProcessListRunner;
+    /**
+     * The machine's PTY slots and their holders, from Server Core. A failure only drops the PTY readings.
+     */
+    ptyUsage?: () => Promise<PtyUsage | null>;
     /**
      * OS process id -> role for Caxri's renderer windows. Electron's `getAppMetrics()` leaves `name` undefined for
      * `Tab` processes, so without this every renderer listed as a bare window and the workbench was distinguishable
@@ -183,8 +187,10 @@ export class ProcessExplorerSampler {
 
     private async load(): Promise<ProcessExplorerSnapshot> {
         const terminals = this.loadTerminals();
+        const ptyUsage = this.loadPtyUsage();
         const raw = parseProcessList(await (this.options.processList ?? runProcessList)()).filter(
-            (process) => !process.name.includes('/bin/ps -axo'),
+            (process) =>
+                !process.name.includes('/bin/ps -axo') && !isPtyUsageScanCommand(process.name),
         );
         const serverPid = this.options.serverPid?.();
         const selected = new Map(
@@ -200,14 +206,31 @@ export class ProcessExplorerSampler {
             this.options.electronProcesses().map((sample) => [sample.pid, sample] as const),
         );
         const rendererRoles = this.options.rendererRoles?.();
+        const pty = await ptyUsage;
+        const terminalList = await terminals;
+        const ptyCounts = new Map(pty?.holders.map((holder) => [holder.pid, holder.count]));
+        const terminalHostPid = selected.find(
+            (process) => serverProcessName(process, serverPid) === SERVER_HOST_NAMES.terminalHost,
+        )?.pid;
+        if (terminalHostPid !== undefined) {
+            const remaining = (ptyCounts.get(terminalHostPid) ?? 0) - terminalList.length;
+            if (remaining > 0) ptyCounts.set(terminalHostPid, remaining);
+            else ptyCounts.delete(terminalHostPid);
+        }
+        const baseEntry = (process: RawProcessEntry) => {
+            const ptyCount = ptyCounts.get(process.pid);
+            return {
+                pid: process.pid,
+                parentPid: process.parentPid,
+                cpuPercent: process.cpuPercent,
+                memoryMb: process.memoryMb,
+                ...(ptyCount !== undefined && { ptyCount }),
+            };
+        };
+        const selectedPids = new Set(selected.map((process) => process.pid));
         return {
             processes: selected.map((process): ProcessExplorerEntry => {
-                const base = {
-                    pid: process.pid,
-                    parentPid: process.parentPid,
-                    cpuPercent: process.cpuPercent,
-                    memoryMb: process.memoryMb,
-                };
+                const base = baseEntry(process);
                 const ownedName = serverProcessName(process, serverPid);
                 if (ownedName) return { ...base, kind: 'service', name: ownedName };
                 const sample = electron.get(process.pid);
@@ -225,8 +248,17 @@ export class ProcessExplorerSampler {
                     memoryMb: sample.memoryMb,
                 };
             }),
-            terminals: await terminals,
+            terminals: terminalList,
             systemMemoryMb: this.options.systemMemoryMb?.() ?? 0,
+            ...(pty && { pty: { inUse: pty.inUse, limit: pty.limit } }),
+            otherPtyHolders: raw
+                .filter((process) => ptyCounts.has(process.pid) && !selectedPids.has(process.pid))
+                .map((process): ProcessExplorerEntry => ({
+                    ...baseEntry(process),
+                    kind: 'process',
+                    name: processDisplayName(process.name),
+                    command: process.name,
+                })),
             sampledAt: Date.now(),
         };
     }
@@ -237,6 +269,15 @@ export class ProcessExplorerSampler {
         } catch {
             // Server Core restarting or unreachable: show the processes ungrouped rather than no processes at all.
             return [];
+        }
+    }
+
+    private async loadPtyUsage(): Promise<PtyUsage | undefined> {
+        try {
+            return (await this.options.ptyUsage?.()) ?? undefined;
+        } catch {
+            // Server Core restarting or unreachable: the window still lists processes, just without PTY readings.
+            return undefined;
         }
     }
 

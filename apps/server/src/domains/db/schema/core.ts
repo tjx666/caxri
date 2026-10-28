@@ -43,6 +43,7 @@ const terminalFailureReasons = closedValues<TerminalFailureReason>()([
     'executable_not_found',
     'spawn_failed',
     'agent_session_unavailable',
+    'pty_exhausted',
 ]);
 const terminalSurfaces = closedValues<TerminalSurface>()(['pty', 'chat']);
 const agentChatPermissionModes = closedValues<AgentChatPermissionMode>()([

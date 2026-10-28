@@ -48,6 +48,7 @@ export type TransientServerEvent = Extract<
             | 'settings.openRequested'
             | 'terminal.output'
             | 'terminal.outputRecovery'
+            | 'terminal.ptyAlert'
             | 'terminal.resourceAlert'
             | 'terminal.sizeOwnership'
             | 'viewContainers.catalogChanged'
@@ -82,6 +83,11 @@ const TRANSIENT_SERVER_EVENT_NAMES = new Set<ServerEvent['event']>([
      * live reading stays available in the status bar and Process Explorer.
      */
     'terminal.resourceAlert',
+    /**
+     * Raised once per episode and not replayed: a window that missed it still sees the high reading in Process
+     * Explorer's summary, and the next episode raises again.
+     */
+    'terminal.ptyAlert',
     'terminal.sizeOwnership',
     'agent.messaging.changed',
     'agent.message.held',

@@ -159,4 +159,56 @@ describe('Process Explorer sampling', () => {
         expect(degraded.terminals).toEqual([]);
         expect(degraded.processes).toHaveLength(1);
     });
+    it('attributes PTY slots to their holders and moves Terminal masters off Terminal Host', async () => {
+        const terminal = {
+            terminalId: 't1',
+            sessionId: 's1',
+            sessionTitle: 'Fix the build',
+            kind: 'shell' as const,
+            title: 'zsh',
+            processId: 203,
+        };
+        const sampler = new ProcessExplorerSampler({
+            rootPid: 100,
+            serverPid: () => 200,
+            processList: () =>
+                Promise.resolve(
+                    '100 1 1 1024 raw-main\n200 1 1 1024 raw-server\n202 200 1 1024 /artifact/runtime/bin/node /artifact/bundles/terminal-host.js\n203 202 1 1024 /bin/zsh -il\n204 203 1 1024 tmux\n900 1 1 1024 /Applications/Other.app/Contents/MacOS/Other\n901 1 1 1024 unrelated\n',
+                ),
+            electronProcesses: () => [],
+            terminals: () => Promise.resolve([terminal]),
+            ptyUsage: () =>
+                Promise.resolve({
+                    inUse: 6,
+                    limit: 511,
+                    holders: [
+                        { pid: 202, count: 1 },
+                        { pid: 204, count: 2 },
+                        { pid: 900, count: 3 },
+                    ],
+                }),
+        });
+
+        const snapshot = await sampler.snapshot();
+
+        expect(snapshot.pty).toEqual({ inUse: 6, limit: 511 });
+        expect(snapshot.processes.find(({ pid }) => pid === 202)).not.toHaveProperty('ptyCount');
+        expect(snapshot.processes.find(({ pid }) => pid === 204)).toMatchObject({ ptyCount: 2 });
+        expect(snapshot.otherPtyHolders).toEqual([
+            expect.objectContaining({ pid: 900, name: 'Other', kind: 'process', ptyCount: 3 }),
+        ]);
+    });
+
+    it('lists processes without PTY readings when Server Core cannot provide them', async () => {
+        const snapshot = await new ProcessExplorerSampler({
+            rootPid: 100,
+            processList: () => Promise.resolve('100 1 1 1024 raw-main\n'),
+            electronProcesses: () => [],
+            ptyUsage: () => Promise.reject(new Error('Server Core unavailable')),
+        }).snapshot();
+
+        expect(snapshot.pty).toBeUndefined();
+        expect(snapshot.otherPtyHolders).toEqual([]);
+        expect(snapshot.processes).toHaveLength(1);
+    });
 });

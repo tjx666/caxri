@@ -44,6 +44,11 @@ export interface ProcessTreeNode {
     name: string;
     pid?: number;
     /**
+     * PTY slots this row stands for: what the process holds, or the sum beneath a grouping row. A Terminal row counts
+     * its own PTY (held by Terminal Host) plus any its process tree opened.
+     */
+    ptyCount: number;
+    /**
      * Muted qualifier after the name: the process role, or how many processes a Terminal row stands for.
      */
     tag?: string;
@@ -52,6 +57,7 @@ export interface ProcessTreeNode {
 
 export const SESSIONS_GROUP_ID = 'group:sessions';
 export const CAXRI_GROUP_ID = 'group:caxri';
+export const OTHER_PTY_GROUP_ID = 'group:other-pty';
 
 const KIND_TAG_KEYS: Partial<Record<ProcessExplorerKind, TranslationKey>> = {
     helper: 'processExplorer.kind.helper',
@@ -76,6 +82,9 @@ function compareColumn(left: ProcessTreeNode, right: ProcessTreeNode, column: Pr
         }
         case 'pid': {
             return (left.pid ?? 0) - (right.pid ?? 0);
+        }
+        case 'pty': {
+            return left.ptyCount - right.ptyCount;
         }
     }
 }
@@ -108,18 +117,27 @@ function processNode(process: ProcessExplorerEntry, t: Translate): ProcessTreeNo
         memoryMb: process.memoryMb,
         name: process.name,
         pid: process.pid,
+        ptyCount: process.ptyCount ?? 0,
         tag: tagKey ? t(tagKey) : undefined,
     };
 }
 
-function sumUsage(nodes: readonly ProcessTreeNode[]): { cpuPercent: number; memoryMb: number } {
+interface TreeUsage {
+    cpuPercent: number;
+    memoryMb: number;
+    ptyCount: number;
+}
+
+function sumUsage(nodes: readonly ProcessTreeNode[]): TreeUsage {
     let cpuPercent = 0;
     let memoryMb = 0;
+    let ptyCount = 0;
     for (const node of nodes) {
         cpuPercent += node.cpuPercent;
         memoryMb += node.memoryMb;
+        ptyCount += node.ptyCount;
     }
-    return { cpuPercent, memoryMb };
+    return { cpuPercent, memoryMb, ptyCount };
 }
 
 function countProcesses(node: ProcessTreeNode): number {
@@ -129,7 +147,7 @@ function countProcesses(node: ProcessTreeNode): number {
 /**
  * Sums a node's own usage with everything under it; used for Terminal rows, whose PTY root is a real process.
  */
-function treeUsage(node: ProcessTreeNode): { cpuPercent: number; memoryMb: number } {
+function treeUsage(node: ProcessTreeNode): TreeUsage {
     return sumUsage(collectTreeSubtree(node, (candidate) => candidate.children));
 }
 
@@ -142,10 +160,12 @@ function terminalDisplayName(terminal: TerminalProcessEntry, t: Translate): stri
  * Groups the sampled processes the way a user asks about them: which Session and Agent is using this, then everything
  * Caxri itself runs. A Terminal's PTY process tree moves under its Session; whatever no running Terminal claims stays
  * in the Caxri group as a flat list, because its parent chain (Main → Server Core → Terminal Host) is the same for
- * every row and says nothing a role label does not.
+ * every row and says nothing a role label does not. Processes outside Caxri that hold PTYs come last, in a read-only
+ * group, so a machine running out of PTY slots shows who else is using them.
  */
 export function buildProcessTree(
-    snapshot: Pick<ProcessExplorerSnapshot, 'processes' | 'terminals'>,
+    snapshot: Pick<ProcessExplorerSnapshot, 'processes' | 'terminals'> &
+        Partial<Pick<ProcessExplorerSnapshot, 'otherPtyHolders'>>,
     sort: ProcessSort = DEFAULT_PROCESS_SORT,
     /**
      * Components pass `useTranslation().t` so the tree rebuilds when the language changes; the default serves tests.
@@ -167,7 +187,8 @@ export function buildProcessTree(
         if (!root) continue;
         const subtree = collectTreeSubtree(root, (candidate) => candidate.children);
         for (const node of subtree) if (node.pid !== undefined) claimed.add(node.pid);
-        const usage = treeUsage(root);
+        const subtreeUsage = treeUsage(root);
+        const usage = { ...subtreeUsage, ptyCount: subtreeUsage.ptyCount + 1 };
         const processCount = countProcesses(root);
         const terminalNode: ProcessTreeNode = {
             children: [root],
@@ -191,6 +212,7 @@ export function buildProcessTree(
             isHigh: false,
             kind: 'session' as const,
             memoryMb: 0,
+            ptyCount: 0,
             name: terminal.sessionTitle
                 ? sessionTitleForDisplay(terminal.sessionTitle, t)
                 : t('processExplorer.untitledSession'),
@@ -198,6 +220,7 @@ export function buildProcessTree(
         session.children.push(terminalNode);
         session.cpuPercent += usage.cpuPercent;
         session.memoryMb += usage.memoryMb;
+        session.ptyCount += usage.ptyCount;
         session.isHigh ||= terminalNode.isHigh;
         sessions.set(terminal.sessionId, session);
     }
@@ -231,6 +254,20 @@ export function buildProcessTree(
             isHigh: false,
             kind: 'group',
             name: 'Caxri',
+        });
+    const otherPtyNodes = sortTree(
+        (snapshot.otherPtyHolders ?? []).map((process) => processNode(process, t)),
+    );
+    if (otherPtyNodes.length > 0)
+        groups.push({
+            children: otherPtyNodes,
+            ...sumUsage(otherPtyNodes),
+            // Other apps are context for the PTY total, not Caxri's own work, so they stay out of the way until asked for.
+            defaultCollapsed: true,
+            id: OTHER_PTY_GROUP_ID,
+            isHigh: false,
+            kind: 'group',
+            name: t('processExplorer.otherAppsGroup'),
         });
     return groups;
 }

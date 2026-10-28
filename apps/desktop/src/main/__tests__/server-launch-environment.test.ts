@@ -68,6 +68,18 @@ describe('buildServerLaunchEnvironment', () => {
         });
     });
 
+    it('forwards the PTY usage override file to Server Core, which gates it on CAXRI_E2E', () => {
+        expect(buildServerLaunchEnvironment(baseOptions, {})).not.toHaveProperty(
+            'CAXRI_E2E_PTY_USAGE_OVERRIDE_FILE',
+        );
+        expect(
+            buildServerLaunchEnvironment(baseOptions, {
+                CAXRI_E2E: '1',
+                CAXRI_E2E_PTY_USAGE_OVERRIDE_FILE: '/tmp/pty-usage-override.json',
+            }),
+        ).toMatchObject({ CAXRI_E2E_PTY_USAGE_OVERRIDE_FILE: '/tmp/pty-usage-override.json' });
+    });
+
     it('forwards a local mobile update directory unconditionally', () => {
         const environment = buildServerLaunchEnvironment(baseOptions, {
             CAXRI_MOBILE_UPDATE_DIRECTORY: '/tmp/mobile-update',

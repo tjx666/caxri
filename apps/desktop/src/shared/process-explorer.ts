@@ -24,6 +24,12 @@ const processExplorerEntrySchema = z.object({
     kind: processExplorerKindSchema,
     cpuPercent: z.number().nonnegative(),
     memoryMb: z.number().nonnegative(),
+    /**
+     * PTY masters this process holds open, each one of the machine's limited PTY slots. Absent when it holds none or
+     * the PTY reading was unavailable. Terminal Host holds the master of every running Terminal; those count on each
+     * Terminal's row instead (one each), so Terminal Host keeps only masters no listed Terminal accounts for.
+     */
+    ptyCount: z.number().int().positive().optional(),
 });
 
 export const processExplorerSnapshotSchema = z.object({
@@ -34,6 +40,18 @@ export const processExplorerSnapshotSchema = z.object({
      */
     terminals: z.array(terminalProcessEntrySchema).max(1_024),
     systemMemoryMb: z.number().nonnegative(),
+    /**
+     * The machine's PTY slots in use and their limit; absent where the platform has no readable PTY limit or Server
+     * Core could not read it.
+     */
+    pty: z
+        .object({ inUse: z.number().int().nonnegative(), limit: z.number().int().positive() })
+        .optional(),
+    /**
+     * Processes outside Caxri that hold PTYs, such as another terminal app, so a nearly full machine shows who else is
+     * using the slots. Read-only: Process Explorer can stop only Caxri's own Terminals.
+     */
+    otherPtyHolders: z.array(processExplorerEntrySchema).max(1_024),
     sampledAt: z.number(),
 });
 
