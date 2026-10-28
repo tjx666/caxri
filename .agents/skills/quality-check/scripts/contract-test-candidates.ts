@@ -120,6 +120,17 @@ const DEPENDENCY_MANIFESTS = new Set(['package.json', 'pnpm-workspace.yaml']);
 const WORKSPACE_MANIFEST = /^(?:apps|packages|extensions)\/[^/]+\/package\.json$/u;
 
 /**
+ * Contracts that read only the root `package.json`: its exact scripts, `build` packaging settings, and Knip config.
+ * Adding a step to the root `build` script once passed the focused check and failed first in CI's sharded unit suite on
+ * `workspace-contract`'s pinned script.
+ */
+const ROOT_PACKAGE_CONTRACTS = [
+    'scripts/__tests__/eslint-toolchain-contract.test.ts',
+    'scripts/__tests__/extension-test-packaging.test.ts',
+    'scripts/__tests__/oxlint-toolchain-contract.test.ts',
+];
+
+/**
  * The dependency and toolchain contracts read the root manifests at runtime. `patchedDependencies` keys carry exact
  * versions, so a dependency upgrade that edited only `pnpm-workspace.yaml` once passed every focused gate and failed
  * first in CI's full suite.
@@ -127,6 +138,7 @@ const WORKSPACE_MANIFEST = /^(?:apps|packages|extensions)\/[^/]+\/package\.json$
 function dependencyManifestContractTestCandidates(files: readonly string[]): string[] {
     const normalized = files.map((file) => file.replaceAll('\\', '/'));
     const rootManifestChanged = normalized.some((file) => DEPENDENCY_MANIFESTS.has(file));
+    const rootPackageChanged = normalized.includes('package.json');
     const workspaceManifestChanged = normalized.some((file) => WORKSPACE_MANIFEST.test(file));
     return [
         ...(rootManifestChanged || workspaceManifestChanged
@@ -135,7 +147,11 @@ function dependencyManifestContractTestCandidates(files: readonly string[]): str
                   'scripts/__tests__/workspace-package-contract.test.ts',
               ]
             : []),
+        ...(rootPackageChanged || workspaceManifestChanged
+            ? ['scripts/__tests__/workspace-contract.test.ts']
+            : []),
         ...(rootManifestChanged ? ['scripts/__tests__/workspace-dependency-contract.test.ts'] : []),
+        ...(rootPackageChanged ? ROOT_PACKAGE_CONTRACTS : []),
     ];
 }
 

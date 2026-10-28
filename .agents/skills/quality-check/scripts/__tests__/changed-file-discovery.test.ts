@@ -146,6 +146,26 @@ describe('dependency manifest contract selection', () => {
         ).resolves.not.toContain(contract);
     });
 
+    it('runs the root package contracts only when the root package.json changes', async () => {
+        const rootOnly = [
+            'scripts/__tests__/eslint-toolchain-contract.test.ts',
+            'scripts/__tests__/extension-test-packaging.test.ts',
+            'scripts/__tests__/oxlint-toolchain-contract.test.ts',
+        ];
+
+        await expect(selectedTestCandidates(process.cwd(), ['package.json'])).resolves.toEqual(
+            expect.arrayContaining([...rootOnly, 'scripts/__tests__/workspace-contract.test.ts']),
+        );
+        const workspaceSelected = await selectedTestCandidates(process.cwd(), [
+            'apps/mobile/package.json',
+        ]);
+        expect(workspaceSelected).toContain('scripts/__tests__/workspace-contract.test.ts');
+        for (const contract of rootOnly) expect(workspaceSelected).not.toContain(contract);
+        const lockSelected = await selectedTestCandidates(process.cwd(), ['pnpm-workspace.yaml']);
+        expect(lockSelected).not.toContain('scripts/__tests__/workspace-contract.test.ts');
+        for (const contract of rootOnly) expect(lockSelected).not.toContain(contract);
+    });
+
     it('runs the workspace-manifest contracts when a workspace package.json changes', async () => {
         const selected = await selectedTestCandidates(process.cwd(), [
             'extensions/status/package.json',
