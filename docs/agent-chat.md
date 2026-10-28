@@ -1625,7 +1625,8 @@ Chat has idled past the lifetime, a `--muted` notice says the next message rewri
 what that costs. From 85% of the compaction window, a `--warning` notice suggests `/compact`. A cache
 notice and the compaction notice can show at once, cache first. Dismissing a cache notice (its
 control reads `Hide this notice`) hides it until the next reply arrives without cancelling anything;
-the dismissal lives in memory only. While idle compaction counts down, the row offers `Compact now`
+the dismissal lives in memory only. While idle compaction counts down (it does not for a Session whose pull request merged, which Server
+Core skips), the row offers `Compact now`
 when the provider reports a compact command, so the user need not wait for the same compaction.
 
 The expired-cache notice also offers **Continue in new Chat**, the cheaper way out of a large cold

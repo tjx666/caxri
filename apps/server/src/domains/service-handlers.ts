@@ -302,7 +302,7 @@ export function createServiceHandlers(services: {
             emit,
             github: externalStatus.github,
             onPullRequestChanged: (sessionId, previous, next) =>
-                pullRequestSettlement.observePullRequest(sessionId, previous, next),
+                settlementWiring.observePullRequest(sessionId, previous, next),
             sessionContext: (session) => sessionContext.read(session),
             settings: () => configuration.getSettings().value,
             vercel,

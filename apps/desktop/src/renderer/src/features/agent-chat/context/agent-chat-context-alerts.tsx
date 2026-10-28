@@ -9,6 +9,7 @@ import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
 import { cn } from '../../../lib/utilities';
 import { useWorkbenchStore } from '../../../stores/workbench';
+import { useSessionPullRequest } from '../../primary-sidebar/hooks/use-session-pull-request';
 import { useClockTick } from '../hooks/use-clock-tick';
 import {
     agentChatContextAlerts,
@@ -24,8 +25,9 @@ import {
 /**
  * When Server Core's idle compaction will compact this Chat (`agentChatIdleCompactionAt`), or `undefined` when it will
  * not: the provider or context does not qualify, the Chat is not its Session's primary Agent or its provider is not
- * running (a suspended Chat is never woken to compact), or the user turned the setting off. Each selector returns a
- * primitive, so an unrelated Terminal or setting change does not re-render the composer.
+ * running (a suspended Chat is never woken to compact), the Session's pull request merged (Server Core skips a finished
+ * delivery), or the user turned the setting off. Each selector returns a primitive, so an unrelated Terminal or setting
+ * change does not re-render the composer.
  */
 function useAgentChatIdleCompactionAt(
     terminalId: string,
@@ -39,11 +41,15 @@ function useAgentChatIdleCompactionAt(
             ? terminal.provider
             : undefined;
     });
+    const sessionId = useWorkbenchStore(
+        (state) => state.bootstrap?.terminals.find(({ id }) => id === terminalId)?.sessionId ?? '',
+    );
+    const isMerged = useSessionPullRequest(sessionId).pullRequest?.state === 'merged';
     const isEnabled = useWorkbenchStore(
         (state) =>
             (state.bootstrap?.settings ?? defaultAppSettings)['agentChat.idleCompaction.enabled'],
     );
-    return isEnabled ? agentChatIdleCompactionAt(usage, provider) : undefined;
+    return isEnabled && !isMerged ? agentChatIdleCompactionAt(usage, provider) : undefined;
 }
 
 /**

@@ -187,12 +187,19 @@ export function createSessionHandlers(
     parking: SessionParkingOptions,
     renames: Pick<SessionRenameService, 'rename'>,
 ): ReturnType<typeof createSessionParkingHandlers> &
-    Pick<DomainHandlers, 'agent.session.manageInternal' | 'session.rename'> {
+    Pick<
+        DomainHandlers,
+        'agent.session.manageInternal' | 'session.rename' | 'session.updateState'
+    > {
     const parkingHandlers = createSessionParkingHandlers(parking);
     return {
         ...parkingHandlers,
         'session.rename': ({ sessionId, title }, signal, finalizeDurably) =>
             renames.rename(sessionId, title, signal, finalizeDurably),
+        'session.updateState': (state) => {
+            database.updateSessionState(state, 'clientWrite');
+            return database.getSessionState(state.sessionId);
+        },
         'agent.session.manageInternal': async (
             { operation, sessionId, ...authority },
             signal,
