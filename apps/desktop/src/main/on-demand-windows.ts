@@ -145,6 +145,7 @@ export function createOnDemandWindows(options: {
             serverPid: () => supervisor.serverProcessId(),
             systemMemoryMb: () => kilobytesToMegabytes(os.totalmem() / 1024),
             terminals: async () => (await supervisor.request('terminal.processes', {})).terminals,
+            ptyUsage: async () => (await supervisor.request('terminal.ptyUsage', {})).usage,
             /**
              * Resolved lazily at sample time: the diagnostics window is created on demand, so its renderer process does
              * not exist yet while this controller is being constructed.

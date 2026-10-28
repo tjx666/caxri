@@ -56,6 +56,41 @@ describe('TerminalManager shell integration launch', () => {
         }
     });
 
+    it.each([
+        { exhausted: true, failureReason: 'pty_exhausted' },
+        { exhausted: false, failureReason: 'spawn_failed' },
+    ])(
+        'records a PTY allocation failure as $failureReason when the machine exhausted is $exhausted',
+        async ({ exhausted, failureReason }) => {
+            const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-exhausted-'));
+            temporaryDirectories.push(directory);
+            const database = new CaxriDatabase(join(directory, 'state.db'));
+            const created = database.createSession(database.createProject(directory).id, 'shell');
+            const logger = new StructuredLogger(join(directory, 'logs'));
+            const manager = createTestTerminalManager(database, () => {}, logger, {
+                isPtyExhausted: () => Promise.resolve(exhausted),
+                resolveExecutable: () => Promise.resolve('/bin/zsh'),
+                spawn: vi.fn<typeof spawnPty>(() => {
+                    throw new Error('forkpty(3) failed.');
+                }),
+            });
+
+            try {
+                await expect(manager.start(created.terminal!)).rejects.toThrow(
+                    'forkpty(3) failed.',
+                );
+                expect(database.getTerminal(created.terminal!.id)).toMatchObject({
+                    lastProcessState: 'failed',
+                    failureReason,
+                });
+            } finally {
+                manager.close(created.terminal!.id);
+                database.close();
+                await logger.flush();
+            }
+        },
+    );
+
     it('applies controlled argv and environment to a shell launch', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-shell-integration-'));
         temporaryDirectories.push(directory);

@@ -13,9 +13,10 @@ import {
 describe('resolveProcessColumnWidths', () => {
     it('stretches an untouched name column to fill the measured row', () => {
         expect(resolveProcessColumnWidths({}, 1_000)).toEqual({
-            name: 704,
+            name: 632,
             cpu: 96,
             memory: 110,
+            pty: 72,
             pid: 90,
         });
     });
@@ -42,10 +43,13 @@ describe('resolveProcessColumnWidths', () => {
 
 describe('processColumnWidthStyle', () => {
     it('emits one pixel custom property per column', () => {
-        expect(processColumnWidthStyle({ name: 300, cpu: 110, memory: 140, pid: 90 })).toEqual({
+        expect(
+            processColumnWidthStyle({ name: 300, cpu: 110, memory: 140, pty: 72, pid: 90 }),
+        ).toEqual({
             '--process-column-name': '300px',
             '--process-column-cpu': '110px',
             '--process-column-memory': '140px',
+            '--process-column-pty': '72px',
             '--process-column-pid': '90px',
         });
     });

@@ -18,6 +18,7 @@ const FAILURE_REASON_LABELS: Record<TerminalFailureReason, TranslationKey> = {
     executable_not_found: 'terminal.exit.failure.executableNotFound',
     spawn_failed: 'terminal.exit.failure.spawnFailed',
     agent_session_unavailable: 'terminal.exit.failure.agentSessionUnavailable',
+    pty_exhausted: 'terminal.exit.failure.ptyExhausted',
 };
 
 /**

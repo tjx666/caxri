@@ -1,16 +1,54 @@
-import { formatCpuPercent, formatMemoryMb } from '@caxri/protocol';
+import { formatCpuPercent, formatMemoryMb, isPtyUsageHigh } from '@caxri/protocol';
 import type { ProcessExplorerSnapshot } from '@desktop-shared/process-explorer';
 import { Search } from 'lucide-react';
 
 import { Input, InputGroup } from '../../components/ui/input';
 import { useTranslation } from '../../i18n';
 import { isImeComposing } from '../../lib/ime';
+import { cn } from '../../lib/utilities';
 import type { ProcessExplorerTotals } from './process-tree';
 
-function SummaryReading({ label, value }: { label: string; value: string }) {
+function SummaryReading({
+    isWarning = false,
+    label,
+    value,
+}: {
+    isWarning?: boolean;
+    label: string;
+    value: string;
+}) {
     return (
-        <span>
-            {label} <strong className="font-semibold text-foreground tabular-nums">{value}</strong>
+        <span className={cn(isWarning && 'text-warning')}>
+            {label}{' '}
+            <strong
+                className={cn(
+                    'font-semibold tabular-nums',
+                    isWarning ? 'text-warning' : 'text-foreground',
+                )}
+            >
+                {value}
+            </strong>
+        </span>
+    );
+}
+
+/**
+ * The machine's PTY slots in use out of the kernel limit, in the warning color once the Server would alert on them.
+ * Hidden where the platform reports no limit.
+ */
+function PtySummaryReading({ pty }: { pty: ProcessExplorerSnapshot['pty'] }) {
+    const { t } = useTranslation();
+    if (!pty) return null;
+    const isHigh = isPtyUsageHigh(pty);
+    return (
+        <span className="process-summary-pty">
+            <SummaryReading
+                isWarning={isHigh}
+                label={t('processExplorer.summary.pty')}
+                value={String(pty.inUse)}
+            />
+            <span className={cn('tabular-nums', isHigh && 'text-warning')}> / {pty.limit}</span>
+            {isHigh && <span className="sr-only">{t('processExplorer.summary.ptyHigh')}</span>}
         </span>
     );
 }
@@ -52,6 +90,7 @@ export function ProcessSummaryBar({
                 label={t('processExplorer.summary.processes')}
                 value={snapshot ? String(totals.processCount) : '—'}
             />
+            <PtySummaryReading pty={snapshot?.pty} />
             <InputGroup appearance="workbench" size="dense" className="ml-auto w-60">
                 <Search aria-hidden="true" className="shrink-0 text-muted" size={13} />
                 <Input

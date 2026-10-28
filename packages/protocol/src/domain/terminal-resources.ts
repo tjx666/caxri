@@ -70,6 +70,46 @@ export const terminalResourceAlertSchema = z.object({
 
 export type TerminalResourceAlert = z.infer<typeof terminalResourceAlertSchema>;
 
+/**
+ * The machine's PTY slots. Every Terminal, and every PTY an Agent opens for its own commands, takes one; once all are
+ * taken no application on the machine can open another terminal. `holders` lists the processes this user may inspect,
+ * with how many PTY masters each holds open.
+ */
+const ptyHolderSchema = z.object({
+    pid: z.number().int().positive(),
+    count: z.number().int().positive(),
+});
+
+export const ptyUsageSchema = z.object({
+    limit: z.number().int().positive(),
+    inUse: z.number().int().nonnegative(),
+    holders: z.array(ptyHolderSchema).max(4_096),
+});
+
+export type PtyUsage = z.infer<typeof ptyUsageSchema>;
+
+/**
+ * Share of the PTY limit at which Caxri warns. macOS defaults to 511 slots, so this leaves about a hundred: enough for
+ * the user to act before a new Terminal fails, high enough that ordinary heavy use never trips it.
+ */
+export const PTY_USAGE_ALERT_RATIO = 0.8;
+
+export function isPtyUsageHigh(usage: { inUse: number; limit: number }): boolean {
+    return usage.inUse >= Math.ceil(usage.limit * PTY_USAGE_ALERT_RATIO);
+}
+
+/**
+ * `raised` when the machine's PTY use reaches {@link PTY_USAGE_ALERT_RATIO} of the limit, `cleared` once it falls back
+ * below, so a client can retract a notice that stopped being true.
+ */
+export const terminalPtyAlertSchema = z.object({
+    state: z.enum(['raised', 'cleared']),
+    inUse: z.number().int().nonnegative(),
+    limit: z.number().int().positive(),
+});
+
+export type TerminalPtyAlert = z.infer<typeof terminalPtyAlertSchema>;
+
 const BYTES_PER_MEBIBYTE = 1024 * 1024;
 
 /**

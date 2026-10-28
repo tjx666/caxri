@@ -22,6 +22,7 @@ function isValidEntry(overrides: Partial<Record<string, unknown>>): boolean {
     const snapshot = {
         processes: [makeEntry(overrides)],
         terminals: [],
+        otherPtyHolders: [],
         systemMemoryMb: 0,
         sampledAt: Date.now(),
     };
@@ -35,6 +36,7 @@ function isValidProcessCount(count: number): boolean {
     const snapshot = {
         processes: entries,
         terminals: [],
+        otherPtyHolders: [],
         systemMemoryMb: 0,
         sampledAt: Date.now(),
     };
@@ -47,7 +49,13 @@ describe('processExplorerSnapshotSchema', () => {
     });
 
     it('accepts an empty process list', () => {
-        const snapshot = { processes: [], terminals: [], systemMemoryMb: 0, sampledAt: Date.now() };
+        const snapshot = {
+            processes: [],
+            terminals: [],
+            otherPtyHolders: [],
+            systemMemoryMb: 0,
+            sampledAt: Date.now(),
+        };
         expect(processExplorerSnapshotSchema.safeParse(snapshot).success).toBe(true);
     });
 

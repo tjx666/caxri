@@ -26,6 +26,16 @@ export const ptyLogEvents = {
 
 export const terminalLogEvents = {
     humanSteer: 'terminal.human_steer',
+    /**
+     * Machine PTY use fell back below the alert share: `durationMs` of the episode, the `peakInUse`, the `limit`, and
+     * the closed `reason` (`recovered`, or `stopped` when Server Core shut down mid-episode).
+     */
+    ptyAlertCleared: 'terminal.pty_alert_cleared',
+    /**
+     * Machine PTY use reached the alert share of the limit: `inUse`, `limit`, and the largest holders' PIDs and counts.
+     */
+    ptyAlertRaised: 'terminal.pty_alert_raised',
+    ptySampleFailed: 'terminal.pty_sample_failed',
     resourceAlertCleared: 'terminal.resource_alert_cleared',
     resourceAlertRaised: 'terminal.resource_alert_raised',
     resourceSampleFailed: 'terminal.resource_sample_failed',

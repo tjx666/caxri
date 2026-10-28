@@ -12,12 +12,15 @@ export const processExplorer: TranslatedNamespace<typeof source> = {
     'processExplorer.summary.cpu': 'CPU',
     'processExplorer.summary.memory': '内存',
     'processExplorer.summary.processes': '进程',
+    'processExplorer.summary.pty': 'PTY',
+    'processExplorer.summary.ptyHigh': '，PTY 名额即将用完',
     'processExplorer.filter.placeholder': '筛选',
     'processExplorer.filter.label': '筛选进程',
     // Table header
     'processExplorer.columns.name': '名称',
     'processExplorer.columns.cpu': 'CPU',
     'processExplorer.columns.memory': '内存',
+    'processExplorer.columns.pty': 'PTY',
     'processExplorer.columns.pid': 'PID',
     'processExplorer.header.sortBy': '按{{column}}排序',
     'processExplorer.header.resize': '调整“{{column}}”列宽',
@@ -40,6 +43,7 @@ export const processExplorer: TranslatedNamespace<typeof source> = {
     'processExplorer.terminal': '终端',
     'processExplorer.untitledSession': '未命名会话',
     'processExplorer.sessionsGroup': '会话',
+    'processExplorer.otherAppsGroup': '其他应用',
     'processExplorer.processCount': '{{count}} 个进程',
     // Footer
     'processExplorer.footer.live': '实时 · 每 {{seconds}} 秒更新',

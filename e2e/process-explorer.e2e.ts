@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -60,11 +60,12 @@ test('Process Explorer opens one live Caxri process tree and closes independentl
             processPage.getByText('Process Explorer — Caxri', { exact: true }),
         ).toBeVisible();
         const grid = processPage.getByRole('treegrid', { name: 'Caxri processes' });
-        await expect(grid.getByRole('columnheader')).toHaveCount(4);
+        await expect(grid.getByRole('columnheader')).toHaveCount(5);
         const summary = processPage.getByRole('region', { name: 'Resource summary' });
         await expect(summary).toContainText(/CPU [\d.]+%/);
         await expect(summary).toContainText(/Memory [\d.]+ [KMG]B \/ [\d.]+ [KMG]B/);
         await expect(summary).toContainText(/Processes \d+/);
+        await expect(summary).toContainText(/PTY \d+ \/ \d+/);
         /**
          * Caxri's own processes read as role labels, never artifact paths, and the Terminal the Session runs is grouped
          * under that Session instead of nested five levels deep under Main.
@@ -87,18 +88,27 @@ test('Process Explorer opens one live Caxri process tree and closes independentl
             '.process-row:has(.process-name-cell[data-process-name="zsh"], .process-name-cell[data-process-name="bash"], .process-name-cell[data-process-name="sh"])',
         );
         await expect(shellRow).toHaveCount(0);
+        // Name, CPU, memory, then PTY: the Terminal row counts at least its own PTY, held by Terminal Host.
+        await expect(terminalRow.getByRole('gridcell').nth(3)).toHaveText(/^[1-9]\d*$/);
         await terminalRow.click();
         await expect(terminalRow).toHaveAttribute('aria-expanded', 'true');
         await expect(shellRow.first()).toBeVisible();
-        const expandedRowCount = await processPage.locator('.process-row').count();
+        /**
+         * Rows Caxri owns: the Other apps group appears only while other apps on the machine hold PTYs, which this
+         * workflow does not control.
+         */
+        const caxriRows = processPage.locator(
+            '.process-row:not([data-process-row-id="group:other-pty"])',
+        );
+        const expandedRowCount = await caxriRows.count();
         expect(expandedRowCount).toBeGreaterThan(6);
 
         const caxriGroup = grid.locator('[data-process-row-id="group:caxri"]');
         await caxriGroup.click();
-        const collapsedRowCount = await processPage.locator('.process-row').count();
+        const collapsedRowCount = await caxriRows.count();
         expect(collapsedRowCount).toBeLessThan(expandedRowCount - 3);
         await caxriGroup.click();
-        await expect(processPage.locator('.process-row')).toHaveCount(expandedRowCount);
+        await expect(caxriRows).toHaveCount(expandedRowCount);
 
         /**
          * The filter matches names, PIDs, and command lines, and keeps each match's Session or group above it.
@@ -111,7 +121,7 @@ test('Process Explorer opens one live Caxri process tree and closes independentl
         await expect(processPage.getByText(/No processes match/)).toBeVisible();
         await filter.press('Escape');
         await expect(filter).toHaveValue('');
-        await expect(processPage.locator('.process-row')).toHaveCount(expandedRowCount);
+        await expect(caxriRows).toHaveCount(expandedRowCount);
 
         const sampledAt = Number(
             await processPage.locator('.process-explorer').getAttribute('data-sampled-at'),
@@ -196,7 +206,7 @@ test('Process Explorer opens one live Caxri process tree and closes independentl
         await retry.focus();
         await retry.press('Enter');
         await expect(processPage.locator('.process-error')).toHaveCount(0);
-        await expect(processPage.locator('.process-row')).toHaveCount(expandedRowCount);
+        await expect(caxriRows).toHaveCount(expandedRowCount);
         await expect(processPage.getByText('Live · updates every 2 seconds')).toBeVisible();
         await expect(processPage.getByText(/^Updated /)).toBeVisible();
 
@@ -404,6 +414,66 @@ test('Process Explorer follows the language setting, including while it is open'
             await running.app.close();
         } catch {
             // Ignore close failures; the assertions above already produced the test result.
+        }
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
+test('PTY alert warns near the machine limit, opens Process Explorer, and clears', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-process-explorer-pty-e2e-'));
+    const root = join(testDirectory, 'project');
+    const overrideFile = join(testDirectory, 'pty-usage-override.json');
+    await execFileAsync('mkdir', ['-p', root]);
+    /**
+     * Replaces the file atomically: Server Core re-reads it on every sample, and a half-written file would fail the
+     * sample instead of injecting the reading. Exhausting the runner's real PTYs would break every other terminal on
+     * it.
+     */
+    const injectReading = async (reading: { inUse: number; limit: number }) => {
+        const staging = `${overrideFile}.tmp`;
+        await writeFile(staging, JSON.stringify(reading), 'utf8');
+        await rename(staging, overrideFile);
+    };
+    const running = await launchCaxri({
+        userDataDir: join(testDirectory, 'user-data'),
+        testRootPath: root,
+        env: { CAXRI_E2E_PTY_USAGE_OVERRIDE_FILE: overrideFile },
+    });
+    try {
+        const { page } = running;
+        await createShellSession(page);
+        const alert = page.locator('.toast', { hasText: 'Almost out of terminal slots' });
+        await expect(alert).toHaveCount(0);
+
+        await injectReading({ inUse: 450, limit: 511 });
+        await expect(alert).toHaveCount(1);
+        await expect(alert).toContainText(
+            'Almost out of terminal slots (PTYs): 450 of 511 in use.',
+        );
+        await page.screenshot({ path: test.info().outputPath('pty-alert.png') });
+
+        await alert.getByRole('button', { name: 'View details' }).click();
+        await expect.poll(() => running.app.windows().length).toBe(2);
+        const processPage = running.app.windows().find((window) => window !== page)!;
+        await processPage.waitForLoadState('domcontentloaded');
+        const summary = processPage.getByRole('region', { name: 'Resource summary' });
+        await expect(summary).toContainText('PTY 450 / 511');
+        await expect(summary).toContainText('nearly out of PTY slots');
+        await processPage.screenshot({ path: test.info().outputPath('pty-summary-high.png') });
+
+        // 400 of 511 is still above the 75% clear line, so the notice stays; 300 clears it.
+        await injectReading({ inUse: 400, limit: 511 });
+        await expect(summary).toContainText('PTY 400 / 511');
+        await expect(alert).toHaveCount(1);
+        await injectReading({ inUse: 300, limit: 511 });
+        await expect(alert).toHaveCount(0);
+        await expect(summary).toContainText('PTY 300 / 511');
+        await expect(summary).not.toContainText('nearly out of PTY slots');
+    } finally {
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures during cleanup.
         }
         await rm(testDirectory, { recursive: true, force: true });
     }

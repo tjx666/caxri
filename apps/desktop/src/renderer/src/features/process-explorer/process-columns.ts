@@ -5,7 +5,7 @@ import { z } from 'zod';
 
 import type { TranslationKey } from '../../i18n';
 
-export type ProcessColumnKey = 'cpu' | 'memory' | 'name' | 'pid';
+export type ProcessColumnKey = 'cpu' | 'memory' | 'name' | 'pid' | 'pty';
 
 export interface ProcessSort {
     column: ProcessColumnKey;
@@ -52,6 +52,13 @@ export const PROCESS_COLUMNS: readonly ProcessColumnDefinition[] = [
         labelKey: 'processExplorer.columns.memory',
         minWidth: 80,
         width: 110,
+    },
+    {
+        isNumeric: true,
+        key: 'pty',
+        labelKey: 'processExplorer.columns.pty',
+        minWidth: 52,
+        width: 72,
     },
     {
         isNumeric: true,
@@ -123,7 +130,7 @@ export function resolveProcessColumnWidths(
         ...resolved,
         name: clampProcessColumnWidth(
             'name',
-            containerWidth - resolved.cpu - resolved.memory - resolved.pid,
+            containerWidth - resolved.cpu - resolved.memory - resolved.pty - resolved.pid,
         ),
     };
 }
@@ -138,14 +145,14 @@ export function processColumnWidthVariable(key: ProcessColumnKey): string {
  * than the window.
  */
 export const PROCESS_GRID_TEMPLATE =
-    'var(--process-column-name) var(--process-column-cpu) var(--process-column-memory) var(--process-column-pid) minmax(0,1fr)';
+    'var(--process-column-name) var(--process-column-cpu) var(--process-column-memory) var(--process-column-pty) var(--process-column-pid) minmax(0,1fr)';
 
 /**
- * Keeps the grid at least as wide as its four columns, so widening one scrolls the table horizontally (header included)
+ * Keeps the grid at least as wide as its five columns, so widening one scrolls the table horizontally (header included)
  * instead of squeezing its siblings.
  */
 export const PROCESS_GRID_MIN_WIDTH =
-    'calc(var(--process-column-name) + var(--process-column-cpu) + var(--process-column-memory) + var(--process-column-pid))';
+    'calc(var(--process-column-name) + var(--process-column-cpu) + var(--process-column-memory) + var(--process-column-pty) + var(--process-column-pid))';
 
 export function processColumnWidthStyle(resolved: Record<ProcessColumnKey, number>): CSSProperties {
     return Object.fromEntries(
@@ -165,7 +172,7 @@ export function nextProcessSort(current: ProcessSort, column: ProcessColumnKey):
     return { column, direction: columnDefinition(column).isNumeric ? 'descending' : 'ascending' };
 }
 
-const processColumnKeySchema = z.enum(['cpu', 'memory', 'name', 'pid']);
+const processColumnKeySchema = z.enum(['cpu', 'memory', 'name', 'pid', 'pty']);
 
 const processTableStateSchema = z.object({
     sort: z
@@ -180,6 +187,7 @@ const processTableStateSchema = z.object({
             memory: z.number().positive(),
             name: z.number().positive(),
             pid: z.number().positive(),
+            pty: z.number().positive(),
         })
         .partial()
         .optional(),

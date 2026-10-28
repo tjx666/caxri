@@ -7,7 +7,7 @@ import type {
     TerminalResourceUsage,
     TerminalSnapshot,
 } from '@caxri/protocol';
-import { CaxriError, errorMessage, isCaxriError, toWireError } from '@caxri/protocol';
+import { CaxriError, errorMessage, isCaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog, SingleFlight } from '@caxri/system';
 import { disposeAllThenRethrow } from '@caxri/utils';
@@ -25,6 +25,7 @@ import type {
 import { forwardedServerEvent } from './forwarded-events';
 import { InFlightLaunches } from './in-flight-launches';
 import { isTerminalMouseReport, isTerminalProtocolResponse } from './input-origin';
+import { recordTerminalLaunchFailure } from './launch-failure';
 import { TerminalLaunchPlanner } from './launch-plan';
 import type {
     TerminalLifecycleCause,
@@ -58,6 +59,7 @@ export class TerminalManager {
     private readonly onLifecycleStarted?: TerminalManagerOptions['onLifecycleStarted'];
     private readonly onLifecycleRetired?: TerminalManagerOptions['onLifecycleRetired'];
     private readonly onShellRetired?: TerminalManagerOptions['onShellRetired'];
+    private readonly isPtyExhausted?: TerminalManagerOptions['isPtyExhausted'];
     private readonly onAgentStateChanged?: TerminalManagerOptions['onAgentStateChanged'];
     private readonly onOutputActivity?: TerminalManagerOptions['onOutputActivity'];
     private readonly onStateChanged?: TerminalManagerOptions['onStateChanged'];
@@ -80,6 +82,7 @@ export class TerminalManager {
         this.onLifecycleStarted = options.onLifecycleStarted;
         this.onLifecycleRetired = options.onLifecycleRetired;
         this.onShellRetired = options.onShellRetired;
+        this.isPtyExhausted = options.isPtyExhausted;
         this.onAgentStateChanged = options.onAgentStateChanged;
         this.onOutputActivity = options.onOutputActivity;
         this.onStateChanged = options.onStateChanged;
@@ -410,23 +413,20 @@ export class TerminalManager {
                 this.database.updateTerminalState(record.id, 'interrupted');
                 return this.database.getTerminal(record.id) ?? record;
             }
-            if (this.database.getTerminal(record.id))
-                this.database.updateTerminalState(
-                    record.id,
-                    'failed',
-                    failureReason,
-                    failureDetail,
-                );
-            const wire = toWireError(error);
-            this.logger.write('error', ptyLogEvents.spawnFailed, {
-                durationMs: performance.now() - startedAt,
-                fields: {
-                    code: wire.code,
-                    terminalId: record.id,
-                    kind: record.kind,
-                    error: errorMessage(error, 'unknown'),
+            await recordTerminalLaunchFailure(
+                {
+                    database: this.database,
+                    isPtyExhausted: this.isPtyExhausted,
+                    logger: this.logger,
                 },
-            });
+                {
+                    durationMs: performance.now() - startedAt,
+                    error,
+                    failureDetail,
+                    failureReason,
+                    record,
+                },
+            );
             throw error;
         }
     }

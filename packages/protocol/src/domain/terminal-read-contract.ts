@@ -5,7 +5,11 @@ import { commandPolicy } from '../transport/method-spec.js';
 import { identifierSchema } from './identifiers.js';
 import { terminalPreviewSchema } from './terminal-preview.js';
 import { terminalSnapshotSchema } from './terminal-record.js';
-import { terminalProcessEntrySchema, terminalResourceUsageSchema } from './terminal-resources.js';
+import {
+    ptyUsageSchema,
+    terminalProcessEntrySchema,
+    terminalResourceUsageSchema,
+} from './terminal-resources.js';
 
 const serverRead = commandPolicy('server', 'read');
 
@@ -46,5 +50,14 @@ export const terminalReadMethods = {
         ...serverRead,
         params: z.object({}).default({}),
         result: z.object({ terminals: z.array(terminalProcessEntrySchema).max(1_024) }),
+    },
+    /**
+     * The machine's PTY limit, the slots in use, and which processes hold them; `null` where the platform has no
+     * readable PTY limit.
+     */
+    'terminal.ptyUsage': {
+        ...serverRead,
+        params: z.object({}).default({}),
+        result: z.object({ usage: ptyUsageSchema.nullable() }),
     },
 } as const satisfies Record<string, MethodSpec>;

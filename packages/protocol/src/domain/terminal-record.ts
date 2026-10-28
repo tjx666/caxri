@@ -33,6 +33,10 @@ const terminalFailureReasonSchema = z.enum([
     'executable_not_found',
     'spawn_failed',
     'agent_session_unavailable',
+    /**
+     * The kernel refused a new PTY and a reading right after confirmed the machine's PTY slots were full.
+     */
+    'pty_exhausted',
 ]);
 
 /**

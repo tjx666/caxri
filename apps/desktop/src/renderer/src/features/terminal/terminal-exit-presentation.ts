@@ -30,6 +30,7 @@ export const FAILURE_REASON_LABEL_KEYS: Record<TerminalFailureReason, Translatio
     executable_not_found: 'terminal.exit.failure.executableNotFound',
     spawn_failed: 'terminal.exit.failure.spawnFailed',
     agent_session_unavailable: 'terminal.exit.failure.agentSessionUnavailable',
+    pty_exhausted: 'terminal.exit.failure.ptyExhausted',
 };
 
 /**

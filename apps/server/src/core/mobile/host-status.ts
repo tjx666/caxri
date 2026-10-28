@@ -15,6 +15,7 @@ import { errorMessage, projectHostStatusForMobile } from '@caxri/protocol';
 import type { ProcessTable, StructuredLogger, SystemMemory } from '@caxri/system';
 import {
     CpuUsageMeter,
+    isPtyUsageScanCommand,
     logEventCatalog,
     sampleProcessTable,
     sampleSystemMemory,
@@ -130,12 +131,12 @@ export function serviceLoads(table: ProcessTable, serverPid: number): MobileHost
 
 /**
  * Every process reduced to its display name. The command line itself never leaves this function. The `ps` that took the
- * sample is dropped.
+ * sample, and Caxri's own PTY usage queries, are dropped.
  */
 export function namedProcesses(table: ProcessTable): MobileHostProcess[] {
     return table.entries().flatMap((entry) => {
         const command = entry.command ?? '';
-        if (command.startsWith('/bin/ps -axo')) return [];
+        if (command.startsWith('/bin/ps -axo') || isPtyUsageScanCommand(command)) return [];
         const name = processDisplayName(command);
         if (!name) return [];
         return [

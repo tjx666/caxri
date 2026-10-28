@@ -180,6 +180,9 @@ export function ProcessRow({
             <span role="gridcell" className={processRowCellClassName}>
                 {formatMemoryMb(node.memoryMb)}
             </span>
+            <span role="gridcell" className={processRowCellClassName}>
+                {node.ptyCount > 0 ? node.ptyCount : ''}
+            </span>
             <ProcessPidCell node={node} onStopTerminal={onStopTerminal} />
         </div>
     );

@@ -9,6 +9,7 @@ import {
     filterProcessTree,
     flattenProcessTree,
     nextProcessRowIndex,
+    OTHER_PTY_GROUP_ID,
     processExplorerTotals,
     processRowHorizontalIntent,
     rovingProcessRowId,
@@ -107,6 +108,45 @@ describe('buildProcessTree', () => {
             'claude',
             'Caxri',
         ]);
+    });
+
+    it('counts a Terminal PTY master on its row and rolls PTY use up to the Session', () => {
+        const withPty = processes.map((entry) =>
+            entry.pid === 41 ? { ...entry, ptyCount: 2 } : entry,
+        );
+        const roots = buildProcessTree({ processes: withPty, terminals: [terminal] });
+        expect(byId(roots, 'terminal:terminal-1')?.ptyCount).toBe(3);
+        expect(byId(roots, 'session:session-1')?.ptyCount).toBe(3);
+        expect(byId(roots, 'pid:41')?.ptyCount).toBe(2);
+        expect(byId(roots, 'pid:30')?.ptyCount).toBe(0);
+    });
+
+    it('lists PTY holders outside Caxri in a separate group', () => {
+        const roots = buildProcessTree({
+            processes,
+            terminals: [],
+            otherPtyHolders: [
+                process(900, 1, 'Ghostty', { ptyCount: 4 }),
+                process(901, 1, 'tmux', { ptyCount: 7 }),
+            ],
+        });
+        expect(roots.map((root) => root.id)).toEqual([CAXRI_GROUP_ID, OTHER_PTY_GROUP_ID]);
+        expect(roots[1]).toMatchObject({ kind: 'group', name: 'Other apps', ptyCount: 11 });
+    });
+
+    it('sorts by PTY count', () => {
+        const roots = buildProcessTree(
+            {
+                processes: [],
+                terminals: [],
+                otherPtyHolders: [
+                    process(900, 1, 'Ghostty', { ptyCount: 4 }),
+                    process(901, 1, 'tmux', { ptyCount: 7 }),
+                ],
+            },
+            { column: 'pty', direction: 'descending' },
+        );
+        expect(roots[0].children.map((child) => child.name)).toEqual(['tmux', 'Ghostty']);
     });
 });
 

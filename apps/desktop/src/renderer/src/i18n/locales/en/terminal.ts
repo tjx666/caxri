@@ -35,6 +35,8 @@ export const terminal = {
     'terminal.exit.failure.workingDirectoryUnavailableAt': 'Folder no longer exists: {{path}}',
     'terminal.exit.failure.executableNotFound': 'Agent CLI executable was not found',
     'terminal.exit.failure.spawnFailed': 'Terminal process could not be started',
+    'terminal.exit.failure.ptyExhausted':
+        'This computer has no free terminal slots (PTYs). Close Terminals you no longer need, then restart this one',
     'terminal.exit.failure.agentSessionUnavailable':
         'Original Agent Session could not be restored; check provider state or start fresh',
     'terminal.exit.suspendedDetail':
@@ -196,6 +198,8 @@ export const terminal = {
     'terminal.resourceAlert.message':
         'High resource use: {{subject}} is using {{memory}} of memory and {{cpu}} CPU.',
     'terminal.resourceAlert.stop': 'Stop {{subject}}',
+    'terminal.ptyAlert.message':
+        'Almost out of terminal slots (PTYs): {{inUse}} of {{limit}} in use. Close Terminals you no longer need, or new ones will fail to start.',
     'terminal.agentPrompt.tooLong': 'The prompt is too long to send to an Agent',
     'terminal.agentPrompt.noAgent': 'Start an Agent in this Session first',
     'terminal.agentPrompt.notReady': '{{agent}} is not ready for input',

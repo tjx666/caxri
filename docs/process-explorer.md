@@ -5,7 +5,8 @@ status: current
 
 # Process Explorer and resource alerts
 
-Caxri watches the processes it runs so that a runaway Agent never goes unnoticed. Three surfaces
+Caxri watches the processes it runs so that a runaway Agent never goes unnoticed, and the
+machine's PTY slots so that running out of them never arrives without warning. Three surfaces
 share one definition of "too much":
 
 - The **resource alert** is a persistent warning toast. It appears when a Terminal's process tree
@@ -75,7 +76,8 @@ with its Session, Agent, and PTY root PID.
 
 The window shows:
 
-- **Summary bar**: total CPU, memory used out of system memory, the process count, and a filter.
+- **Summary bar**: total CPU, memory used out of system memory, the process count, PTY slots in
+  use out of the machine limit (see [PTY slots](#pty-slots)), and a filter.
   The filter matches names, command lines, and PIDs, and opens every row while it is active.
 - **Sessions** group: each Session, then each Terminal named after its Agent, with a
   "N processes" tag. Terminal rows start folded, and the PTY process tree sits under them. A
@@ -85,6 +87,10 @@ The window shows:
   (Main process), Workbench and Process Explorer (Window), GPU, helpers such as Network Service,
   and Server Core, Extension Host, and Terminal Host (Service). Processes that no Terminal claims
   also land here.
+- **Other apps** group: processes outside Caxri that hold PTY slots, such as another terminal app
+  or `tmux`. It is read-only, starts folded, and appears only when the machine reports PTY holders.
+- **PTY** column: how many PTY slots each row holds. A Terminal row counts its own PTY plus every
+  PTY its process tree opened, and Session and group rows sum their children.
 
 Plain processes show only their executable. An interpreter shows its script too, such as
 `bun <script>`. The full command line, redacted for credential flags, appears in the row tooltip.
@@ -99,3 +105,60 @@ The grid is a treegrid with a single roving Tab stop:
 - Left and Right fold, unfold, and move between parent and child rows.
 - Enter and Space toggle a row, and Alt-click toggles a whole subtree.
 - Columns sort and resize, and the widths persist.
+
+## PTY slots
+
+Every Terminal, in Caxri or any other app, needs one PTY (pseudo-terminal) slot, and the kernel
+caps how many exist at once: `kern.tty.ptmx_max` on macOS (511 by default) and
+`/proc/sys/kernel/pty/max` on Linux. Once they are all taken, no app on the machine can open a new
+terminal until something closes one.
+
+Server Core's `PtyUsageMonitor` (`apps/server/src/domains/terminal/pty-usage-monitor.ts`) reads
+the machine's PTY use through `@caxri/system`'s `samplePtyUsage`. On macOS it lists PTY master
+holders with `lsof /dev/ptmx`; on Linux it counts `/dev/pts` entries and scans `/proc/<pid>/fd`.
+An unprivileged `lsof` cannot see masters held by another user's processes (for example a
+root-owned `sshd`), so the macOS figure is a lower bound; the Linux count covers every user.
+`terminal.ptyUsage` returns the reading (limit, slots in use, and per-PID holders); it is cached
+for 1.5 seconds so the Process Explorer's 2-second refresh and the background check share one
+scan.
+
+Process Explorer attributes the holders to rows. Terminal Host holds one PTY master per running
+Terminal, so Desktop Main moves those slots from the Terminal Host row onto each Terminal row.
+Holders outside Caxri's process trees form the **Other apps** group. The `lsof` and `sysctl`
+queries themselves (including their exited, not yet reaped `(lsof)` form) are dropped from the
+listing, like the `ps` that took the sample. A failed scan is logged as `terminal.pty_sample_failed`
+and the window simply omits the PTY figures.
+
+### PTY alert
+
+The monitor checks every 30 seconds. It first counts PTY device nodes (`/dev/ttys*` on macOS,
+`/dev/pts/*` on Linux), which never undercounts, and runs the full holder scan only when that
+count reaches the alert share, so an ordinary machine never pays for `lsof` in the background.
+
+- It publishes `raised` once slots in use reach 80% of the limit (`PTY_USAGE_ALERT_RATIO` in
+  `packages/protocol/src/domain/terminal-resources.ts`).
+- It publishes `cleared` only below 75%, so a machine hovering at the line does not flicker the
+  notice, or with reason `stopped` when Server Core shuts down.
+
+`terminal.ptyAlert` is a transient event delivered to the focused window. The Workbench shows a
+persistent warning toast, `Almost out of terminal slots (PTYs): <in use> of <limit> in use.`, with
+**View details** opening the Process Explorer (left out in an SSH Host window, whose processes the
+local Process Explorer cannot see). A `cleared` event retracts it.
+
+The monitor writes three log events: `terminal.pty_alert_raised` (readings plus the top five
+holders as `pid:count`), `terminal.pty_alert_cleared` (episode `durationMs`, peak use, and a
+closed `reason`), and `terminal.pty_sample_failed`.
+
+### Exhausted launch
+
+When node-pty fails to allocate a PTY (`forkpty(3) failed.`, `openpty(3) failed.`, or
+`posix_openpt`), `TerminalManager` takes a fresh reading. If use is within two slots of the limit,
+the Terminal records the `pty_exhausted` failure reason instead of `spawn_failed`, and the Terminal
+pane and the mobile client say the computer is out of terminal slots and to close Terminals before
+restarting. A failed or missing reading keeps `spawn_failed`, so an unrelated launch failure is
+never blamed on PTYs.
+
+Under `CAXRI_E2E=1`, `CAXRI_E2E_PTY_USAGE_OVERRIDE_FILE` names a JSON file holding the
+`{ "inUse", "limit" }` Server Core should report. It is re-read on every sample, skips the
+device-node pre-check, and makes the monitor sample every second. Production launches ignore the
+variable (`apps/server/src/domains/terminal/e2e-pty-usage-override.ts`).

@@ -51,6 +51,11 @@ export interface TerminalManagerOptions {
      */
     onShellRetired?: (terminalId: string) => void;
     /**
+     * Confirms, after a PTY allocation failure, that the machine's PTY slots are actually full, so the failed Terminal
+     * records `pty_exhausted` instead of the generic `spawn_failed`. Defaults to a fresh reading of the machine.
+     */
+    isPtyExhausted?: () => Promise<boolean>;
+    /**
      * Adds generation-scoped, non-secret integration variables immediately before PTY spawn.
      */
     lifecycleEnvironment?: (
