@@ -2,8 +2,9 @@ import { useCallback, useMemo, useState } from 'react';
 
 import type { MobilePreviewTarget } from '@caxri/protocol';
 import { useQuery } from '@tanstack/react-query';
-import { useIsFocused } from 'expo-router';
+import { router, useIsFocused } from 'expo-router';
 
+import { useTranslation } from '../../i18n';
 import { openLink } from '../../lib/open-link';
 import { useMobileClient } from '../connection/mobile-client-provider';
 
@@ -15,12 +16,14 @@ const PREVIEW_POLL_MS = 10_000;
 
 /**
  * The local web servers of one Session that a `control` device can preview, and the action that opens one in the in-app
- * browser. Other roles never ask: the Server would refuse them.
+ * browser, passing `label` (`Preview · :5173`) as the browser route's page title. Other roles never ask: the Server
+ * would refuse them.
  */
 export const useSessionPreviews = (
     sessionId: string,
     deviceRole: 'view' | 'reply' | 'control' | null,
 ) => {
+    const { t } = useTranslation();
     const { connectionScopeKey, isForeground, request, status } = useMobileClient();
     const isFocused = useIsFocused();
     const queryKey = useMemo(
@@ -57,7 +60,12 @@ export const useSessionPreviews = (
                     port: target.port,
                     sessionId,
                 });
-                openLink(url);
+                // The in-app browser titles the page with `label` instead of the proxy's loopback URL.
+                const label = t('browser.preview.pageLabel', { port: target.port });
+                openLink(url, {
+                    navigate: (page) =>
+                        router.push({ params: { label, url: page }, pathname: '/browser' }),
+                });
                 return true;
             } catch {
                 void query.refetch();
@@ -66,7 +74,7 @@ export const useSessionPreviews = (
                 setOpeningPort(null);
             }
         },
-        [query, request, sessionId],
+        [query, request, sessionId, t],
     );
     const targets: readonly MobilePreviewTarget[] = isObservable ? (query.data?.targets ?? []) : [];
     return {

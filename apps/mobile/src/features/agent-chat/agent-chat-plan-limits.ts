@@ -5,8 +5,9 @@ import type { Translate } from '../../i18n';
 import { translate } from '../../i18n';
 
 /**
- * How often the open model sheet reads the plan limits again. The Server asks a running Claude Code Chat at most once a
- * minute, and Codex writes a new reading with each turn, so a faster poll would only repeat the same figures.
+ * How often the open Session usage sheet reads the plan limits again. The Server asks a running Claude Code Chat at
+ * most once a minute, and Codex writes a new reading with each turn, so a faster poll would only repeat the same
+ * figures.
  */
 export const AGENT_CHAT_PLAN_LIMITS_POLL_MS = 30_000;
 
@@ -42,7 +43,11 @@ function windowName(minutes: number, t: Translate): string {
     return t('chat.model.limitWindowMinutes', { count: minutes });
 }
 
-function resetText(at: number, now: number, t: Translate): string {
+/**
+ * `Resets in 3h 20m`: how long until a limit window resets, shared by the usage sheet's Plan limits rows and a
+ * usage-limit notice.
+ */
+export function resetText(at: number, now: number, t: Translate): string {
     const minutes = Math.max(0, Math.round((at - now) / 60_000));
     if (minutes < 1) return t('chat.model.limitResetsSoon');
     const hours = Math.floor(minutes / 60);
@@ -57,8 +62,8 @@ function resetText(at: number, now: number, t: Translate): string {
 }
 
 /**
- * The model sheet's Plan limits rows, shortest window first, as Desktop's status bar reads `5h 62% · 7d 28% left`. A
- * window that has reset since the reading is left out rather than shown stale.
+ * The Session usage sheet's Plan limits rows, shortest window first, as Desktop's status bar reads `5h 62% · 7d 28%
+ * left`. A window that has reset since the reading is left out rather than shown stale.
  */
 export function agentChatPlanLimitRows(
     limit: UsageLimit | null | undefined,

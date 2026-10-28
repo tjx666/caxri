@@ -1,9 +1,10 @@
 import { StyleSheet } from 'react-native';
 
 import { MONOSPACE_FONT } from '../../theme/monospace';
+import { mobileControl, mobileRadius, mobileSpace, mobileType } from '../../theme/scale';
 
-const JUMP_SIZE = 48;
-const JUMP_BOTTOM_OFFSET = 12;
+const JUMP_SIZE = mobileControl.row;
+const JUMP_BOTTOM_OFFSET = mobileSpace.md;
 
 /**
  * The room the jump-to-latest button takes at the viewport's bottom. The list ends with this much padding, so a reader
@@ -15,32 +16,44 @@ const JUMP_CLEARANCE = JUMP_SIZE + JUMP_BOTTOM_OFFSET;
 export const conversationStyles = StyleSheet.create({
     root: { flex: 1, minWidth: 0 },
     list: { flex: 1 },
-    listContent: { paddingBottom: JUMP_CLEARANCE, paddingHorizontal: 16, paddingTop: 16 },
+    /**
+     * The timeline column's gutter is 16dp, the same as the docks above the composer.
+     */
+    listContent: {
+        paddingBottom: JUMP_CLEARANCE,
+        paddingHorizontal: mobileSpace.lg,
+        paddingTop: mobileSpace.lg,
+    },
     /**
      * FlashList positions cells itself and ignores `gap` on its content container, so each cell owns its spacing.
      */
-    entry: { paddingBottom: 14 },
+    entry: { paddingBottom: mobileSpace.lg },
     message: { maxWidth: 680, width: '100%', alignSelf: 'center' },
-    userRow: { alignItems: 'flex-end', gap: 6 },
-    userBubble: { borderRadius: 16, maxWidth: '85%', paddingHorizontal: 14, paddingVertical: 10 },
-    userText: { fontSize: 15, lineHeight: 22 },
-    agentText: { fontSize: 15, lineHeight: 23 },
-    toolGroup: { borderRadius: 12, borderWidth: 1, overflow: 'hidden' },
+    userRow: { alignItems: 'flex-end', gap: mobileSpace.sm },
+    userBubble: {
+        borderRadius: mobileRadius.lg,
+        maxWidth: '85%',
+        paddingHorizontal: mobileSpace.lg,
+        paddingVertical: mobileSpace.md,
+    },
+    userText: mobileType.body,
+    agentText: mobileType.body,
+    toolGroup: { borderRadius: mobileRadius.md, borderWidth: 1, overflow: 'hidden' },
     toolRow: {
         alignItems: 'center',
         flexDirection: 'row',
-        gap: 8,
-        minHeight: 46,
-        paddingHorizontal: 10,
+        gap: mobileSpace.sm,
+        minHeight: mobileControl.row,
+        paddingHorizontal: mobileSpace.md,
     },
     toolIcon: {
         alignItems: 'center',
-        borderRadius: 7,
-        height: 26,
+        borderRadius: mobileRadius.sm,
+        height: 28,
         justifyContent: 'center',
-        width: 26,
+        width: 28,
     },
-    toolLabel: { flexShrink: 0, fontSize: 13, fontWeight: '500', maxWidth: '45%' },
+    toolLabel: { ...mobileType.meta, flexShrink: 0, fontWeight: '500', maxWidth: '45%' },
     /**
      * A running row's whole title (verb and subject) as one line under the activity highlight.
      */
@@ -48,96 +61,111 @@ export const conversationStyles = StyleSheet.create({
     /**
      * A row with an activity line: the title line above it, both sharing the space between glyph and trailing facts.
      */
-    toolTitleStack: { flex: 1, gap: 2, minWidth: 0, paddingVertical: 6 },
-    toolTitleLine: { alignItems: 'center', flexDirection: 'row', gap: 8, minWidth: 0 },
-    toolActivity: { fontSize: 12, lineHeight: 16 },
-    toolLiveLabel: { fontSize: 13, fontWeight: '500' },
-    toolSubject: { flex: 1, fontSize: 13, minWidth: 0 },
-    toolSummaryText: { fontSize: 13 },
+    toolTitleStack: { flex: 1, gap: mobileSpace.xxs, minWidth: 0, paddingVertical: mobileSpace.sm },
+    toolTitleLine: {
+        alignItems: 'center',
+        flexDirection: 'row',
+        gap: mobileSpace.sm,
+        minWidth: 0,
+    },
+    toolActivity: mobileType.caption,
+    toolLiveLabel: { ...mobileType.meta, fontWeight: '500' },
+    toolSubject: { ...mobileType.meta, flex: 1, minWidth: 0 },
+    toolSummaryText: mobileType.meta,
     toolChipSlot: { alignItems: 'flex-start', flex: 1, minWidth: 0 },
     toolChip: {
-        borderRadius: 6,
+        borderRadius: mobileRadius.sm,
         maxWidth: '100%',
-        paddingHorizontal: 7,
-        paddingVertical: 3,
+        paddingHorizontal: mobileSpace.sm,
+        paddingVertical: mobileSpace.xs,
     },
-    toolChipText: { fontFamily: MONOSPACE_FONT, fontSize: 12 },
+    toolChipText: { ...mobileType.caption, fontFamily: MONOSPACE_FONT },
     toolSpacer: { flex: 1 },
-    toolDuration: { fontSize: 12, fontVariant: ['tabular-nums'] },
-    toolChildren: { borderTopWidth: 1, paddingLeft: 12 },
+    toolDuration: { ...mobileType.caption, fontVariant: ['tabular-nums'] },
+    toolChildren: { borderTopWidth: 1, paddingLeft: mobileSpace.md },
+    /**
+     * Inside a `Card` (which owns the border, radius, and fill). An event with detail or a clipped summary also has
+     * `eventRowExpandable`, which lifts the row to the 48dp touch minimum.
+     */
     eventRow: {
         alignItems: 'center',
-        borderRadius: 10,
-        borderWidth: 1,
         flexDirection: 'row',
-        gap: 8,
+        gap: mobileSpace.sm,
         minHeight: 40,
-        paddingHorizontal: 12,
-        paddingVertical: 8,
+        paddingHorizontal: mobileSpace.md,
+        paddingVertical: mobileSpace.sm,
     },
+    eventRowExpandable: { minHeight: mobileControl.row },
     eventSummaryFrame: { flex: 1, minWidth: 0 },
-    eventSummary: { fontSize: 13, lineHeight: 18 },
+    eventSummary: mobileType.meta,
     eventSummaryProbe: { left: 0, opacity: 0, position: 'absolute', right: 0, top: 0 },
     eventDetail: {
-        borderRadius: 8,
+        ...mobileType.caption,
+        borderRadius: mobileRadius.sm,
         fontFamily: MONOSPACE_FONT,
-        fontSize: 12,
         lineHeight: 17,
-        marginTop: 6,
-        padding: 10,
+        marginTop: mobileSpace.sm,
+        padding: mobileSpace.md,
     },
     /**
      * A small centered caption, like a chat app's time stamp, so turn boundaries stay out of the reading flow.
      */
-    turnDivider: { alignItems: 'center', paddingVertical: 2 },
-    turnPill: { borderRadius: 4, paddingHorizontal: 6, paddingVertical: 1 },
-    turnText: { fontSize: 11, lineHeight: 15 },
-    status: { alignItems: 'center', flex: 1, gap: 12, justifyContent: 'center', padding: 24 },
-    statusText: { fontSize: 14, lineHeight: 21, textAlign: 'center' },
-    button: {
-        alignItems: 'center',
-        borderRadius: 20,
-        minHeight: 44,
-        justifyContent: 'center',
-        paddingHorizontal: 16,
+    turnDivider: { alignItems: 'center', paddingVertical: mobileSpace.xxs },
+    turnPill: {
+        borderRadius: mobileRadius.sm,
+        paddingHorizontal: mobileSpace.sm,
+        paddingVertical: mobileSpace.xxs,
     },
-    buttonText: { fontSize: 13, fontWeight: '700' },
-    // 48dp: the mobile minimum touch target (docs/mobile/design.md).
+    turnText: mobileType.caption,
+    status: {
+        alignItems: 'center',
+        flex: 1,
+        gap: mobileSpace.md,
+        justifyContent: 'center',
+        padding: mobileSpace.xl,
+    },
+    statusText: { ...mobileType.body, textAlign: 'center' },
+    stateButton: { minWidth: 96 },
+    // 48dp: the mobile minimum touch target (docs/mobile/design.md). The shadow color comes from `theme.shadow`.
     jump: {
         alignItems: 'center',
-        borderRadius: 24,
+        borderRadius: JUMP_SIZE / 2,
         borderWidth: 1,
         bottom: JUMP_BOTTOM_OFFSET,
-        boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.35)',
         height: JUMP_SIZE,
         justifyContent: 'center',
         position: 'absolute',
-        right: 16,
+        right: mobileSpace.lg,
         width: JUMP_SIZE,
     },
-    history: { alignItems: 'center', gap: 6, paddingBottom: 8 },
-    historyText: { fontSize: 12, textAlign: 'center' },
+    history: { alignItems: 'center', gap: mobileSpace.sm, paddingBottom: mobileSpace.sm },
+    historyText: { ...mobileType.caption, textAlign: 'center' },
     /**
      * Flexes inside the sheet's height cap so the detail body scrolls instead of overflowing.
      */
-    detailContent: { flexShrink: 1, paddingHorizontal: 8 },
-    detailHeader: { alignItems: 'center', flexDirection: 'row', gap: 8 },
-    detailTitle: { flex: 1, fontSize: 17, fontWeight: '700' },
+    detailContent: { flexShrink: 1, paddingHorizontal: mobileSpace.sm },
+    detailHeader: { alignItems: 'center', flexDirection: 'row', gap: mobileSpace.sm },
+    detailTitle: { ...mobileType.heading, flex: 1 },
     detailCloseButton: {
         alignItems: 'center',
         justifyContent: 'center',
-        minHeight: 44,
-        minWidth: 44,
+        minHeight: mobileControl.row,
+        minWidth: mobileControl.row,
     },
-    detailClose: { fontSize: 15, fontWeight: '600' },
+    detailClose: mobileType.bodyStrong,
     detailSubject: {
-        borderRadius: 8,
+        ...mobileType.caption,
+        borderRadius: mobileRadius.sm,
         fontFamily: MONOSPACE_FONT,
-        fontSize: 12,
         lineHeight: 18,
-        marginTop: 14,
-        paddingHorizontal: 10,
-        paddingVertical: 8,
+        marginTop: mobileSpace.lg,
+        paddingHorizontal: mobileSpace.md,
+        paddingVertical: mobileSpace.sm,
     },
-    detailBody: { fontFamily: MONOSPACE_FONT, fontSize: 13, lineHeight: 20, paddingTop: 16 },
+    detailBody: {
+        ...mobileType.meta,
+        fontFamily: MONOSPACE_FONT,
+        lineHeight: 20,
+        paddingTop: mobileSpace.lg,
+    },
 });

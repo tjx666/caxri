@@ -2,6 +2,7 @@ import { Pressable, Switch, Text, View } from 'react-native';
 
 import { Check } from 'lucide-react-native';
 
+import { SectionLabel } from '../../components/section-label';
 import { Spinner } from '../../components/spinner';
 import type { MobileTheme } from '../../theme/tokens';
 import { sheetStyles } from './agent-chat-sheet-styles';
@@ -132,10 +133,13 @@ export const SheetToggleRow = ({
     </Pressable>
 );
 
+/**
+ * A group heading inside a composer sheet, set by the app's one section label.
+ */
 export const SheetSectionLabel = ({ label, theme }: { label: string; theme: MobileTheme }) => (
-    <Text accessibilityRole="header" style={[sheetStyles.section, { color: theme.muted }]}>
-        {label}
-    </Text>
+    <SectionLabel style={sheetStyles.section} theme={theme}>
+        {label.toUpperCase()}
+    </SectionLabel>
 );
 
 /**

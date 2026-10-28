@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
-import { KeyboardAvoidingView, Platform, Text } from 'react-native';
+import { KeyboardAvoidingView, Platform } from 'react-native';
 
+import { NoticeBanner } from '../../../components/notice-banner';
 import { useTranslation } from '../../../i18n';
 import type { MobileTheme } from '../../../theme/tokens';
 import { AgentChatComposer } from '../../agent-chat/agent-chat-composer';
@@ -138,16 +139,12 @@ export const SessionDetail = ({
                 theme={theme}
             />
             {conversationFallback ? (
-                <Text
-                    accessibilityRole="alert"
-                    style={[
-                        styles.fallbackBanner,
-                        { color: theme.muted, borderColor: theme.border },
-                    ]}
+                <NoticeBanner
+                    message={t('sessions.detail.conversationFallback')}
                     testID="conversation-fallback-banner"
-                >
-                    {t('sessions.detail.conversationFallback')}
-                </Text>
+                    theme={theme}
+                    tone="muted"
+                />
             ) : null}
             <SessionDetailBody
                 changesPanel={changesPanel}

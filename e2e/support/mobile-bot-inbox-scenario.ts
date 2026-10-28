@@ -69,8 +69,8 @@ export async function executeMobileBotInboxScenario(
         const { readId, unreadId } = await seedBotInbox(join(fixture.testDirectory, 'user-data'));
         await fixture.pair();
         // "Needs you" sits in the computer menu next to Archived Sessions.
-        await waitForCheck(serial, 'forget-device-button');
-        await tapMobileCheck(serial, 'forget-device-button');
+        await waitForCheck(serial, 'computer-menu-button');
+        await tapMobileCheck(serial, 'computer-menu-button');
         await waitForCheck(serial, 'bot-inbox-action');
         await tapMobileCheck(serial, 'bot-inbox-action');
         await waitForCheck(serial, `bot-inbox-reply-state-${readId}`);

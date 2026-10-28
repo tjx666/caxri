@@ -54,3 +54,28 @@ export function browserPillTitle(page: {
 export function isSecurePage(url: string): boolean {
     return parseUrl(url)?.protocol === 'https:';
 }
+
+/**
+ * The caller-supplied name for the page the browser was opened on (for example `Preview · :5173`), which stands in for
+ * the gateway address and proxy port a preview is really served from. It applies only while the browser is still on
+ * that origin: after a link leads elsewhere the name would mislabel the page, so the pill goes back to the page's own
+ * title.
+ */
+export function browserPageLabel(
+    label: string | undefined,
+    initialUrl: string,
+    currentUrl: string,
+): string | null {
+    if (!label) return null;
+    const initialOrigin = parseUrl(initialUrl)?.origin;
+    return initialOrigin && initialOrigin === parseUrl(currentUrl)?.origin ? label : null;
+}
+
+/**
+ * The URL a remounted WebView loads. The page the reader was on, not the URL the browser opened with: a preview URL
+ * carries a single-use token, so loading it again would fail. A blank or missing current page falls back to the opening
+ * URL.
+ */
+export function browserResumeUrl(currentUrl: string, initialUrl: string): string {
+    return currentUrl && !currentUrl.startsWith('about:') ? currentUrl : initialUrl;
+}

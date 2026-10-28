@@ -2,6 +2,7 @@ export const hostStatus = {
     'hostStatus.back': 'Back',
     'hostStatus.title': 'Computer status',
     'hostStatus.updated': 'Updated {{time}}',
+    'hostStatus.loading': 'Reading your computer’s status…',
     'hostStatus.offline': 'Reconnect to see how your computer is doing.',
     'hostStatus.loadFailed': 'Unable to read your computer’s status.',
     'hostStatus.staleNotice': 'Connection lost. Showing the last reading.',

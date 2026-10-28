@@ -5,9 +5,12 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import type { MobileBotInboxItem } from '@caxri/protocol';
 import { ExternalLink, MessageSquareReply } from 'lucide-react-native';
 
-import { Spinner } from '../../components/spinner';
+import { Button } from '../../components/button';
+import { Card } from '../../components/card';
+import { Chip } from '../../components/chip';
 import { useTranslation } from '../../i18n';
 import { openLink } from '../../lib/open-link';
+import { mobileRadius, mobileSpace, mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
 import { ConversationMarkdown } from '../conversation/conversation-markdown';
 import { botInboxCardModel, botInboxReplyBody } from './bot-inbox-model';
@@ -42,10 +45,7 @@ export const BotInboxCard = ({
     const model = botInboxCardModel(item, readAt, t);
     const pullRequestUrl = item.pullRequest?.url;
     return (
-        <View
-            style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}
-            testID={`bot-inbox-item-${item.id}`}
-        >
+        <Card testID={`bot-inbox-item-${item.id}`} theme={theme}>
             <View style={styles.titleRow}>
                 <Text style={[styles.title, { color: theme.text }]}>{item.title}</Text>
                 <Text style={[styles.meta, { color: theme.muted }]}>{model.ageLabel}</Text>
@@ -99,19 +99,18 @@ export const BotInboxCard = ({
                     theme={theme}
                 />
             ) : (
-                <Pressable
-                    accessibilityRole="button"
-                    onPress={() => setComposing(true)}
-                    style={[styles.replyButton, { borderColor: theme.border }]}
-                    testID={`bot-inbox-reply-${item.id}`}
-                >
-                    <MessageSquareReply color={theme.primary} size={16} />
-                    <Text style={[styles.actionText, { color: theme.primary }]}>
-                        {t('inbox.reply')}
-                    </Text>
-                </Pressable>
+                <View style={styles.replyChip}>
+                    <Chip
+                        icon={MessageSquareReply}
+                        label={t('inbox.reply')}
+                        onPress={() => setComposing(true)}
+                        testID={`bot-inbox-reply-${item.id}`}
+                        theme={theme}
+                        tint={theme.primary}
+                    />
+                </View>
             )}
-        </View>
+        </Card>
     );
 };
 
@@ -218,88 +217,56 @@ const BotInboxReplyComposer = ({
                 </Text>
             ) : null}
             <View style={styles.actions}>
-                <Pressable
-                    accessibilityRole="button"
-                    disabled={isSending}
+                <Button
+                    isDisabled={isSending}
+                    label={t('common.cancel')}
                     onPress={onClose}
                     style={styles.action}
                     testID={`bot-inbox-reply-cancel-${item.id}`}
-                >
-                    <Text style={[styles.actionText, { color: theme.muted }]}>
-                        {t('common.cancel')}
-                    </Text>
-                </Pressable>
-                <Pressable
-                    accessibilityRole="button"
-                    accessibilityState={{ busy: isSending, disabled: !body || isSending }}
-                    disabled={!body || isSending}
+                    theme={theme}
+                    variant="outline"
+                />
+                <Button
+                    isBusy={isSending}
+                    isDisabled={!body}
+                    label={t('inbox.send')}
                     onPress={() => {
                         void send();
                     }}
-                    style={[
-                        styles.action,
-                        {
-                            backgroundColor: theme.primary,
-                            opacity: !body || isSending ? 0.5 : 1,
-                        },
-                    ]}
+                    style={styles.action}
                     testID={`bot-inbox-reply-send-${item.id}`}
-                >
-                    {isSending ? (
-                        <Spinner color={theme.primaryForeground} />
-                    ) : (
-                        <Text style={[styles.actionText, { color: theme.primaryForeground }]}>
-                            {t('inbox.send')}
-                        </Text>
-                    )}
-                </Pressable>
+                    theme={theme}
+                    variant="primary"
+                />
             </View>
         </View>
     );
 };
 
 const styles = StyleSheet.create({
-    card: { borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, gap: 8, padding: 14 },
-    titleRow: { alignItems: 'baseline', flexDirection: 'row', gap: 8 },
-    title: { flex: 1, fontSize: 16, fontWeight: '600', lineHeight: 22 },
-    metaRow: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-    meta: { fontSize: 13 },
-    link: { alignItems: 'center', flexDirection: 'row', gap: 4 },
-    options: { gap: 4 },
-    option: { fontSize: 15, lineHeight: 21 },
-    replies: { borderLeftWidth: 2, gap: 6, paddingLeft: 10 },
-    reply: { fontSize: 15, lineHeight: 21 },
-    composer: { gap: 8 },
+    titleRow: { alignItems: 'baseline', flexDirection: 'row', gap: mobileSpace.sm },
+    title: { ...mobileType.bodyStrong, flex: 1 },
+    metaRow: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: mobileSpace.sm },
+    meta: mobileType.meta,
+    link: { alignItems: 'center', flexDirection: 'row', gap: mobileSpace.xs },
+    options: { gap: mobileSpace.xs },
+    option: mobileType.body,
+    replies: { borderLeftWidth: 2, gap: mobileSpace.sm, paddingLeft: mobileSpace.md },
+    reply: mobileType.body,
+    composer: { gap: mobileSpace.sm },
     input: {
-        borderRadius: 10,
+        ...mobileType.body,
+        borderRadius: mobileRadius.sm,
         borderWidth: 1,
-        fontSize: 15,
         maxHeight: 160,
         minHeight: 72,
-        paddingHorizontal: 12,
-        paddingVertical: 10,
+        paddingHorizontal: mobileSpace.md,
+        paddingVertical: mobileSpace.md,
         textAlignVertical: 'top',
     },
-    actions: { flexDirection: 'row', gap: 8, justifyContent: 'flex-end' },
-    action: {
-        alignItems: 'center',
-        borderRadius: 18,
-        justifyContent: 'center',
-        minHeight: 36,
-        minWidth: 72,
-        paddingHorizontal: 14,
-    },
-    actionText: { fontSize: 14, fontWeight: '700' },
-    replyButton: {
-        alignItems: 'center',
-        alignSelf: 'flex-start',
-        borderRadius: 18,
-        borderWidth: 1,
-        flexDirection: 'row',
-        gap: 6,
-        minHeight: 36,
-        paddingHorizontal: 14,
-    },
+    actions: { flexDirection: 'row', gap: mobileSpace.sm, justifyContent: 'flex-end' },
+    action: { minWidth: 96 },
+    replyChip: { alignItems: 'flex-start' },
 });
 
 /* eslint-enable no-use-before-define, @typescript-eslint/no-use-before-define */

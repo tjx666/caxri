@@ -5,6 +5,7 @@ import type { AgentChatWorkItem } from '@caxri/protocol';
 import { ChevronRight, CircleStop, CircleX } from 'lucide-react-native';
 
 import { useTranslation } from '../../i18n';
+import { mobileControl, mobileSpace, mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
 import { conversationStyles } from '../conversation/conversation-styles';
 import type { AgentChatTimelineEntry } from './agent-chat-timeline';
@@ -92,17 +93,17 @@ export const AgentChatTurnFold = ({
 };
 
 const styles = StyleSheet.create({
-    root: { borderBottomWidth: StyleSheet.hairlineWidth, paddingBottom: 4 },
+    root: { borderBottomWidth: StyleSheet.hairlineWidth, paddingBottom: mobileSpace.xs },
     row: {
         alignItems: 'center',
         alignSelf: 'flex-start',
         flexDirection: 'row',
-        gap: 6,
+        gap: mobileSpace.sm,
         minHeight: 28,
     },
-    toggle: { alignSelf: 'stretch', minHeight: 48 },
+    toggle: { alignSelf: 'stretch', minHeight: mobileControl.row },
     pressed: { opacity: 0.6 },
-    label: { flexShrink: 1, fontSize: 13, lineHeight: 18 },
+    label: { ...mobileType.meta, flexShrink: 1 },
     chevronOpen: { transform: [{ rotate: '90deg' }] },
 });
 /* eslint-enable no-use-before-define, @typescript-eslint/no-use-before-define */

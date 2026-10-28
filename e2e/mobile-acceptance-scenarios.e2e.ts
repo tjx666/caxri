@@ -317,7 +317,7 @@ test('executes one report-bound Android product scenario', async ({}) => {
                     () => mobileSemantics(environment.serial),
                     (nodes) =>
                         nodes.some(({ checkId }) => checkId === 'session-list-unverified') &&
-                        nodes.some(({ checkId }) => checkId === 'forget-device-button') &&
+                        nodes.some(({ checkId }) => checkId === 'computer-menu-button') &&
                         nodes.some(({ checkId }) => checkId === 'connection-retry-button'),
                 );
                 await finish(environment, artifacts, {

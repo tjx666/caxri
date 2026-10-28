@@ -1123,7 +1123,7 @@ side)`, the selected diff lines with their signs in a `diff` fence, then the com
   detail menu ("Open as Chat" / "Open as Terminal") through `mobile.terminal.switchSurface`, which
   checks the device's Project grant and then calls Desktop's `terminal.switchSurface`. A running
   turn comes back as `turnRunning`, and the phone asks with Desktop's "Stop the running turn?"
-  before retrying with `interruptTurn`. On success the phone re-reads the Session and opens the
+  in a confirmation sheet before retrying with `interruptTurn`. On success the phone re-reads the Session and opens the
   Chat tab or the Terminal tab that now shows the Agent.
 - A sealed gateway frame carries 64 KiB, while a Chat projection may hold megabytes.
   `mobile.agentChat.read` therefore returns a window of the newest items within 48 KiB and sets
@@ -1209,12 +1209,15 @@ side)`, the selected diff lines with their signs in a `diff` fence, then the com
   its model yet asks for a model before it lists efforts. A provider without a model list, a
   `view` device, or a stale connection shows the model as plain text; an open sheet stays open with
   its lists disabled and the composer's reason.
-- Beside the model, the composer shows the permission level with the Desktop picker's names
-  (`agentChatPermissionModeLabel`, so Codex reads `Default`; `Custom` while launch settings match no
-  level), `Plan` while plan mode is on, and Full access with its alert shield in the ordinary text color,
-  as Desktop's trigger; only the sheet's Full access option keeps the warning tone. Tapping
-  it opens a `Permissions` sheet listing the provider's levels with their descriptions and, except
-  for Grok Build, a `Plan mode` switch; both go through `mobile.agentChat.configure { permissionMode,
+- Beside the model, the composer shows a shield chip with the permission level in the Desktop
+  picker's names (`agentChatPermissionModeLabel`, so Codex reads `Default`; `Custom` while launch
+  settings match no level) and `Plan` while plan mode is on, only while the level differs from the
+  provider's default (`acceptEdits` for Codex, `ask` otherwise) or plan mode is on, so a Chat at its
+  defaults shows one chip instead of two. Full access keeps its alert shield in the ordinary text
+  color, as Desktop's trigger; only the sheet's Full access option keeps the warning tone. The model
+  chip and the shield chip open one `Chat settings` sheet; the shield chip opens it scrolled to its
+  `Permissions` section, which lists the provider's levels with their descriptions and, except for
+  Grok Build, a `Plan mode` switch; both go through `mobile.agentChat.configure { permissionMode,
 planMode }`. A Codex switch during a turn says it applies to the next turn. "Use as Project
   default" stays on Desktop. Without `control` access, or offline, the level is a plain label; the
   saved copy keeps it so it still shows offline.
@@ -1520,7 +1523,8 @@ enters Goal mode and Enter sends `/goal <condition>` as prompt text. The list be
   menu (see `DESIGN.md`). While a turn works on an active goal, the goal row shows that work live
   with the goal's time and `goalUsage`, in place of the status row (`agentChatLiveGoalActivity`). The
   phone runs `/goal` as a command and shows a goal row of its own (the objective, the goal's time,
-  and Clear and Pause or Resume) beside its status row, without `goalUsage`.
+  and Pause or Resume; tapping the row shows the whole objective with Clear, which confirms in a
+  sheet) beside its status row, without `goalUsage`.
 
 ### Claude Code goals
 

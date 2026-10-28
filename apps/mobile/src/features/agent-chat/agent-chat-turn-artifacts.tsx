@@ -1,6 +1,6 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import { useMemo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import type { AgentChatEditedFile, AgentChatTurnArtifacts as Artifacts } from '@caxri/protocol';
 import {
@@ -11,11 +11,14 @@ import {
 import { useRecyclingState } from '@shopify/flash-list';
 import { ChevronDown, FileDiff } from 'lucide-react-native';
 
+import { Card } from '../../components/card';
 import { useTranslation } from '../../i18n';
+import { mobileSpace, mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
 import { ChangesDiffStat } from '../changes/changes-diff-stat';
 import { conversationStyles } from '../conversation/conversation-styles';
 import { AgentChatFileDiff } from './agent-chat-file-changes';
+import { AgentChatResultRow } from './agent-chat-result-row';
 import { AgentChatTrackerCard } from './agent-chat-tracker-card';
 
 const EditedFile = ({
@@ -60,8 +63,8 @@ const AgentChatEditedFiles = ({
     const stat = agentChatEditedFilesStat(files);
     const title = agentChatEditedFilesTitle(files, t);
     return (
-        <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <Pressable
+        <Card padded={false} theme={theme}>
+            <AgentChatResultRow
                 accessibilityLabel={t(
                     isExpanded ? 'chat.changes.hideChanges' : 'chat.changes.viewChanges',
                     { additions: stat.additions, deletions: stat.deletions, title },
@@ -69,33 +72,28 @@ const AgentChatEditedFiles = ({
                 accessibilityRole="button"
                 accessibilityState={{ expanded: isExpanded }}
                 onPress={() => setExpanded((current) => !current)}
-                style={({ pressed }) => [
-                    styles.header,
-                    pressed ? { backgroundColor: theme.elevated } : null,
-                ]}
                 testID={`agent-chat-turn-changes-${turnId}`}
+                theme={theme}
+                tile={<FileDiff color={theme.text} size={16} />}
+                trailing={
+                    <ChevronDown
+                        color={theme.muted}
+                        size={16}
+                        style={isExpanded ? styles.chevronOpen : null}
+                    />
+                }
             >
-                <View style={[styles.tile, { backgroundColor: theme.background }]}>
-                    <FileDiff color={theme.text} size={16} />
-                </View>
-                <View style={styles.text}>
-                    <Text numberOfLines={1} style={[styles.title, { color: theme.text }]}>
-                        {title}
-                    </Text>
-                    <Text style={[styles.stat, { color: theme.muted }]}>
-                        <ChangesDiffStat
-                            additions={stat.additions}
-                            deletions={stat.deletions}
-                            theme={theme}
-                        />
-                    </Text>
-                </View>
-                <ChevronDown
-                    color={theme.muted}
-                    size={16}
-                    style={isExpanded ? styles.chevronOpen : null}
-                />
-            </Pressable>
+                <Text numberOfLines={1} style={[styles.title, { color: theme.text }]}>
+                    {title}
+                </Text>
+                <Text style={[styles.stat, { color: theme.muted }]}>
+                    <ChangesDiffStat
+                        additions={stat.additions}
+                        deletions={stat.deletions}
+                        theme={theme}
+                    />
+                </Text>
+            </AgentChatResultRow>
             {isExpanded ? (
                 <View style={styles.files}>
                     {files.map((file) => (
@@ -108,7 +106,7 @@ const AgentChatEditedFiles = ({
                     ))}
                 </View>
             ) : null}
-        </View>
+        </Card>
     );
 };
 
@@ -134,27 +132,14 @@ export const AgentChatTurnArtifacts = ({
 );
 
 const styles = StyleSheet.create({
-    root: { gap: 8 },
-    card: { borderRadius: 10, borderWidth: 1, overflow: 'hidden' },
-    header: {
-        alignItems: 'center',
-        flexDirection: 'row',
-        gap: 12,
-        minHeight: 56,
-        paddingHorizontal: 12,
-        paddingVertical: 10,
-    },
-    tile: {
-        alignItems: 'center',
-        borderRadius: 7,
-        height: 36,
-        justifyContent: 'center',
-        width: 36,
-    },
-    text: { flex: 1, gap: 2, minWidth: 0 },
-    title: { fontSize: 14, lineHeight: 20 },
-    stat: { fontSize: 12, fontVariant: ['tabular-nums'], lineHeight: 17 },
+    root: { gap: mobileSpace.sm },
+    title: mobileType.body,
+    stat: { ...mobileType.caption, fontVariant: ['tabular-nums'] },
     chevronOpen: { transform: [{ rotate: '180deg' }] },
-    files: { gap: 8, paddingBottom: 6, paddingHorizontal: 6 },
+    files: {
+        gap: mobileSpace.sm,
+        paddingBottom: mobileSpace.sm,
+        paddingHorizontal: mobileSpace.sm,
+    },
 });
 /* eslint-enable no-use-before-define, @typescript-eslint/no-use-before-define */

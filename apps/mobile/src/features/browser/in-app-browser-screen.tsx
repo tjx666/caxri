@@ -23,15 +23,19 @@ import {
 
 import { IconButton } from '../../components/icon-button';
 import { PopoverMenu } from '../../components/popover-menu';
+import { ScreenState } from '../../components/screen-state';
 import { usePopoverAnchor } from '../../components/use-popover-anchor';
 import { useTranslation } from '../../i18n';
 import { openExternalLink } from '../../lib/open-external-link';
+import { mobileRadius, mobileSpace, mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
 import { useMobileTheme } from '../../theme/use-mobile-theme';
 import {
     browserDisplayHost,
     browserNavigation,
+    browserPageLabel,
     browserPillTitle,
+    browserResumeUrl,
     isSecurePage,
 } from './browser-url';
 
@@ -85,7 +89,10 @@ export const InAppBrowserScreen = () => {
     const theme = useMobileTheme();
     const { t } = useTranslation();
     const insets = useSafeAreaInsets();
-    const { url: initialUrl = 'about:blank' } = useLocalSearchParams<{ url?: string }>();
+    const { label, url: initialUrl = 'about:blank' } = useLocalSearchParams<{
+        label?: string;
+        url?: string;
+    }>();
     const webview = useRef<WebView>(null);
     const [page, setPage] = useState<PageState>({
         canGoBack: false,
@@ -102,6 +109,12 @@ export const InAppBrowserScreen = () => {
      * Remounts the WebView after Android kills its renderer, as the Terminal does.
      */
     const [generation, setGeneration] = useState(0);
+    /**
+     * What the WebView loads when it (re)mounts: the opening URL first, then the page the reader was on after a
+     * renderer death. It changes only with `generation`, never on a navigation, so a page change never restarts the
+     * load.
+     */
+    const [sourceUrl, setSourceUrl] = useState(initialUrl);
     const menuAnchor = useRef<HostInstance>(null);
     const menu = usePopoverAnchor(menuAnchor, { side: 'above' });
 
@@ -143,8 +156,9 @@ export const InAppBrowserScreen = () => {
         [menu],
     );
 
-    const host = browserDisplayHost(page.url);
-    const title = browserPillTitle({ ...page, hasLoadFailed });
+    const pageLabel = browserPageLabel(label, initialUrl, page.url);
+    const host = pageLabel ?? browserDisplayHost(page.url);
+    const title = pageLabel ?? browserPillTitle({ ...page, hasLoadFailed });
     return (
         <View
             style={[styles.root, { backgroundColor: theme.background, paddingTop: insets.top }]}
@@ -173,7 +187,10 @@ export const InAppBrowserScreen = () => {
                 onLoadStart={() => setHasLoadFailed(false)}
                 onLoadProgress={(event) => setProgress(event.nativeEvent.progress)}
                 onNavigationStateChange={onNavigationStateChange}
-                onRenderProcessGone={() => setGeneration((current) => current + 1)}
+                onRenderProcessGone={() => {
+                    setSourceUrl(browserResumeUrl(page.url, initialUrl));
+                    setGeneration((current) => current + 1);
+                }}
                 onShouldStartLoadWithRequest={(request) => {
                     if (browserNavigation(request.url) === 'load') return true;
                     void openExternalLink(request.url);
@@ -187,16 +204,19 @@ export const InAppBrowserScreen = () => {
                         style={[styles.error, { backgroundColor: theme.background }]}
                         testID="in-app-browser-error"
                     >
-                        <Text style={[styles.errorTitle, { color: theme.text }]}>
-                            {t('browser.errorTitle')}
-                        </Text>
-                        <Text style={[styles.errorBody, { color: theme.muted }]}>
-                            {t('browser.errorBody')}
-                        </Text>
+                        <ScreenState
+                            actionLabel={t('browser.reload')}
+                            detail={t('browser.errorBody')}
+                            kind="error"
+                            onAction={() => webview.current?.reload()}
+                            testID="in-app-browser-error-state"
+                            theme={theme}
+                            title={t('browser.errorTitle')}
+                        />
                     </View>
                 )}
                 setSupportMultipleWindows={false}
-                source={{ uri: initialUrl }}
+                source={{ uri: sourceUrl }}
                 style={[styles.webview, { backgroundColor: PAGE_CANVAS }]}
                 testID="in-app-browser-webview"
             />
@@ -312,26 +332,23 @@ export const InAppBrowserScreen = () => {
 };
 
 const styles = StyleSheet.create({
-    error: {
-        ...StyleSheet.absoluteFill,
-        alignItems: 'center',
-        gap: 8,
-        justifyContent: 'center',
-        padding: 24,
-    },
-    errorBody: { fontSize: 14, textAlign: 'center' },
-    errorTitle: { fontSize: 17, fontWeight: '600', textAlign: 'center' },
+    error: { ...StyleSheet.absoluteFill, justifyContent: 'center' },
     menuAction: {
         alignItems: 'center',
         flexDirection: 'row',
-        gap: 12,
+        gap: mobileSpace.md,
         minHeight: 48,
         paddingHorizontal: 14,
     },
-    menuActionText: { fontSize: 15 },
-    menuHost: { fontSize: 12, paddingBottom: 4, paddingHorizontal: 14, paddingTop: 8 },
+    menuActionText: { ...mobileType.body },
+    menuHost: {
+        ...mobileType.caption,
+        paddingBottom: mobileSpace.xs,
+        paddingHorizontal: 14,
+        paddingTop: mobileSpace.sm,
+    },
     pill: {
-        borderRadius: 24,
+        borderRadius: mobileRadius.pill,
         borderWidth: 1,
         flex: 1,
         minHeight: 48,
@@ -341,15 +358,15 @@ const styles = StyleSheet.create({
         flex: 1,
         flexDirection: 'row',
         gap: 6,
-        paddingHorizontal: 16,
+        paddingHorizontal: mobileSpace.lg,
     },
-    pillText: { flex: 1, fontSize: 14 },
+    pillText: { ...mobileType.meta, flex: 1 },
     progress: { height: 2 },
     progressTrack: { left: 0, position: 'absolute', right: 0, zIndex: 1 },
     root: { flex: 1 },
     round: {
         alignItems: 'center',
-        borderRadius: 24,
+        borderRadius: mobileRadius.pill,
         borderWidth: 1,
         height: 48,
         justifyContent: 'center',
@@ -358,10 +375,10 @@ const styles = StyleSheet.create({
     toolbar: {
         alignItems: 'center',
         flexDirection: 'row',
-        gap: 8,
-        left: 12,
+        gap: mobileSpace.sm,
+        left: mobileSpace.md,
         position: 'absolute',
-        right: 12,
+        right: mobileSpace.md,
     },
     webview: { flex: 1 },
 });

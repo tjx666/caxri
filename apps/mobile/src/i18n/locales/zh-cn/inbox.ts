@@ -11,6 +11,7 @@ export const inbox: TranslatedNamespace<typeof source> = {
     'inbox.earlierRepliesOther': '更早的 {{count}} 条回复',
     'inbox.empty': '目前没有需要你处理的事项。',
     'inbox.loadFailed': '无法加载需要你处理的事项。',
+    'inbox.loading': '正在加载待处理事项…',
     'inbox.offline': '重新连接以查看需要你处理的事项。',
     'inbox.openPullRequestHint': '打开 Pull Request。',
     'inbox.refreshFailed': '无法刷新，正在显示上次获取的事项。',

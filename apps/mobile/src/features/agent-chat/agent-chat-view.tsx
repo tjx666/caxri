@@ -1,7 +1,7 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import type { ReactNode } from 'react';
 import { useCallback, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import {
     agentChatDockedPlan,
@@ -9,15 +9,18 @@ import {
     sentenceStartProvider,
 } from '@caxri/protocol';
 
+import { Button } from '../../components/button';
 import { NoticeBanner } from '../../components/notice-banner';
 import { Spinner } from '../../components/spinner';
 import { useTranslation } from '../../i18n';
+import { mobileSpace, mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
 import { useMobileClient } from '../connection/mobile-client-provider';
 import type { ConversationMessageTarget } from '../conversation/conversation-message-actions';
 import { ConversationMessageActions } from '../conversation/conversation-message-actions';
 import { ConversationMessageSheet } from '../conversation/conversation-message-sheet';
 import { ConversationUserAttachments } from '../conversation/conversation-user-attachments';
+import { conversationActionText } from '../conversation/conversation-user-text';
 import { ConversationList } from '../conversation/conversation-view';
 import { SavedCopyNote } from '../read-cache/saved-copy-note';
 import { AgentChatGoalBar } from './agent-chat-goal-bar';
@@ -142,9 +145,14 @@ const AgentChatBody = ({
     );
     const renderEntry = useCallback(
         (entry: TimelineEntry) => (
-            <AgentChatTimelineEntry entry={entry} onToggle={toggleExpansion} theme={theme} />
+            <AgentChatTimelineEntry
+                entry={entry}
+                onToggle={toggleExpansion}
+                provider={provider}
+                theme={theme}
+            />
         ),
-        [theme, toggleExpansion],
+        [provider, theme, toggleExpansion],
     );
     /**
      * Keyed on the messages that carry images, not the snapshot, so a streamed reply does not redraw every entry.
@@ -211,16 +219,14 @@ const AgentChatBody = ({
                 <Text style={[styles.statusText, { color: theme.muted }]}>
                     {t('chat.loadFailed')}
                 </Text>
-                <Pressable
-                    accessibilityRole="button"
+                <Button
+                    label={t('common.retry')}
                     onPress={chat.refresh}
-                    style={[styles.bannerButton, { backgroundColor: theme.surface }]}
+                    style={styles.stateButton}
                     testID="agent-chat-reload"
-                >
-                    <Text style={[styles.bannerButtonText, { color: theme.text }]}>
-                        {t('common.retry')}
-                    </Text>
-                </Pressable>
+                    theme={theme}
+                    variant="secondary"
+                />
             </View>
         );
     // Offline with no saved copy, the read cannot start; say so instead of spinning until the connection returns.
@@ -232,17 +238,15 @@ const AgentChatBody = ({
                 <Text style={[styles.statusText, { color: theme.muted }]}>
                     {t('chat.reconnectToLoad')}
                 </Text>
-                <Pressable
+                <Button
                     accessibilityHint={t('chat.reconnectHint')}
-                    accessibilityRole="button"
+                    label={t('common.retry')}
                     onPress={retryConnection}
-                    style={[styles.bannerButton, { backgroundColor: theme.surface }]}
+                    style={styles.stateButton}
                     testID="agent-chat-reconnect"
-                >
-                    <Text style={[styles.bannerButtonText, { color: theme.text }]}>
-                        {t('common.retry')}
-                    </Text>
-                </Pressable>
+                    theme={theme}
+                    variant="secondary"
+                />
             </View>
         );
     if (!snapshot || snapshot.status === 'starting')
@@ -299,7 +303,8 @@ const AgentChatMessageSheet = ({
             return message.text;
         }
         try {
-            return await chat.readMessage(message.id);
+            // A Desktop hand-off message copies and edits as the user's note, never the Agent's instructions.
+            return conversationActionText(await chat.readMessage(message.id));
         } catch (error) {
             if (isClipped) throw error;
             return message.text;
@@ -520,16 +525,14 @@ const styles = StyleSheet.create({
      */
     body: { flex: 1, minHeight: TIMELINE_MIN_HEIGHT },
     bodyYielding: { minHeight: 0 },
-    bannerButton: {
+    stateButton: { minWidth: 96 },
+    status: {
         alignItems: 'center',
-        borderRadius: 10,
+        flex: 1,
+        gap: mobileSpace.md,
         justifyContent: 'center',
-        minHeight: 48,
-        minWidth: 72,
-        paddingHorizontal: 14,
+        padding: mobileSpace.xl,
     },
-    bannerButtonText: { fontSize: 14, fontWeight: '700' },
-    status: { alignItems: 'center', flex: 1, gap: 12, justifyContent: 'center', padding: 24 },
-    statusText: { fontSize: 15, lineHeight: 21, textAlign: 'center' },
+    statusText: { ...mobileType.body, textAlign: 'center' },
 });
 /* eslint-enable no-use-before-define, @typescript-eslint/no-use-before-define */

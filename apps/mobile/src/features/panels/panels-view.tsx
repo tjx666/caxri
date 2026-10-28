@@ -1,10 +1,11 @@
 import { Text, View } from 'react-native';
 
+import { ScreenState } from '../../components/screen-state';
 import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { FilesPanel } from './files-panel';
-import { PanelStatus, PendingPanelStatus } from './panel-status';
 import { panelsStyles as styles } from './panels-styles';
+import { PendingPanelState } from './pending-panel-state';
 import { TreePanel } from './tree-panel';
 import type { Panel, useSessionPanels } from './use-panels';
 
@@ -36,9 +37,11 @@ const PanelBody = ({
             return <TreePanel key={view.id} sessionId={sessionId} theme={theme} viewId={view.id} />;
         default:
             return (
-                <PanelStatus
-                    message={t('panels.viewOnComputerOnly', { title: view.title })}
+                <ScreenState
+                    kind="empty"
+                    testID="panel-computer-only"
                     theme={theme}
+                    title={t('panels.viewOnComputerOnly', { title: view.title })}
                 />
             );
     }
@@ -63,26 +66,28 @@ export const ProjectPanelView = ({
 }) => {
     const { t } = useTranslation();
     const { query } = panels;
-    if (query.isPending)
-        return <PendingPanelStatus fetchStatus={query.fetchStatus} theme={theme} />;
+    if (query.isPending) return <PendingPanelState fetchStatus={query.fetchStatus} theme={theme} />;
     if (query.isError)
         return (
-            <PanelStatus
-                message={t('panels.loadFailed')}
-                onRetry={() => {
+            <ScreenState
+                actionLabel={t('common.retry')}
+                kind="error"
+                onAction={() => {
                     void query.refetch();
                 }}
                 testID="panels-error"
                 theme={theme}
+                title={t('panels.loadFailed')}
             />
         );
     const panel = panels.panels?.find((candidate) => candidate.id === panelId);
     if (!panel)
         return (
-            <PanelStatus
-                message={t('panels.viewUnavailable')}
+            <ScreenState
+                kind="empty"
                 testID="panel-missing"
                 theme={theme}
+                title={t('panels.viewUnavailable')}
             />
         );
     return (

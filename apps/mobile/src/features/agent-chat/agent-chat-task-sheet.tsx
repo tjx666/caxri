@@ -4,10 +4,12 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { AgentChatTask } from '@caxri/protocol';
 import { ChevronLeft } from 'lucide-react-native';
 
-import { BottomSheet } from '../../components/bottom-sheet';
+import { BottomSheet, SheetTitle } from '../../components/bottom-sheet';
 import { IconButton } from '../../components/icon-button';
+import { SectionLabel } from '../../components/section-label';
 import { useTranslation } from '../../i18n';
 import { MONOSPACE_FONT } from '../../theme/monospace';
+import { mobileControl, mobileRadius, mobileSpace, mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
 import {
     AgentChatTaskDetailBody,
@@ -89,9 +91,9 @@ const TaskList = ({
     const section = (title: string, tasks: AgentChatTask[]) =>
         tasks.length > 0 ? (
             <View>
-                <Text accessibilityRole="header" style={[styles.section, { color: theme.muted }]}>
-                    {title}
-                </Text>
+                <SectionLabel style={styles.section} theme={theme}>
+                    {title.toUpperCase()}
+                </SectionLabel>
                 {tasks.map((task) => (
                     <TaskRow key={task.id} now={now} onOpen={onOpen} task={task} theme={theme} />
                 ))}
@@ -154,22 +156,24 @@ export const AgentChatTaskSheet = ({
                         theme={theme}
                     />
                 ) : null}
-                <Text
-                    accessibilityRole="header"
-                    numberOfLines={2}
-                    style={[
-                        shownRow?.isCommandTitle ? styles.sheetCommandTitle : styles.sheetTitle,
-                        { color: theme.text },
-                    ]}
-                >
-                    {shownRow ? shownRow.title : t('chat.tasks.backgroundWork')}
-                </Text>
+                <View style={styles.sheetTitle}>
+                    <SheetTitle
+                        theme={theme}
+                        title={
+                            shownRow
+                                ? // A command's own text is the monospace block in the body; the title only names the kind.
+                                  shownRow.isCommandTitle
+                                    ? t('chat.tasks.backgroundShell')
+                                    : shownRow.title
+                                : t('chat.tasks.backgroundWork')
+                        }
+                    />
+                </View>
             </View>
             {shownTask ? (
                 <ScrollView style={styles.list}>
                     <AgentChatTaskDetailBody
                         canControl={canControl}
-                        isCommandShown={shownRow?.isCommandTitle}
                         stopper={stopper}
                         task={shownTask}
                         terminalId={terminalId ?? ''}
@@ -184,26 +188,25 @@ export const AgentChatTaskSheet = ({
 };
 
 const styles = StyleSheet.create({
-    sheetHeader: { alignItems: 'center', flexDirection: 'row', gap: 4, minHeight: 44 },
-    sheetTitle: { flex: 1, fontSize: 17, fontWeight: '700', paddingHorizontal: 4 },
-    sheetCommandTitle: { flex: 1, fontFamily: MONOSPACE_FONT, fontSize: 14, paddingHorizontal: 4 },
+    sheetHeader: { alignItems: 'center', flexDirection: 'row', gap: mobileSpace.xs },
+    sheetTitle: { flex: 1 },
     list: { flexGrow: 0 },
-    section: { fontSize: 12, fontWeight: '700', paddingHorizontal: 4, paddingTop: 12 },
+    section: { paddingHorizontal: mobileSpace.xs, paddingTop: mobileSpace.md },
     row: { alignItems: 'center', flexDirection: 'row' },
     rowButton: {
         alignItems: 'center',
-        borderRadius: 10,
+        borderRadius: mobileRadius.md,
         flex: 1,
         flexDirection: 'row',
-        gap: 10,
-        minHeight: 52,
-        paddingHorizontal: 6,
+        gap: mobileSpace.md,
+        minHeight: mobileControl.row,
+        paddingHorizontal: mobileSpace.sm,
     },
-    rowText: { flex: 1, gap: 2, minWidth: 0 },
-    rowTitle: { fontSize: 15 },
-    rowCommand: { fontFamily: MONOSPACE_FONT, fontSize: 13 },
-    rowSummary: { fontSize: 12 },
-    rowElapsed: { fontSize: 12, fontVariant: ['tabular-nums'] },
-    empty: { fontSize: 14, paddingVertical: 16, textAlign: 'center' },
+    rowText: { flex: 1, gap: mobileSpace.xxs, minWidth: 0 },
+    rowTitle: { ...mobileType.body },
+    rowCommand: { ...mobileType.meta, fontFamily: MONOSPACE_FONT },
+    rowSummary: { ...mobileType.caption },
+    rowElapsed: { ...mobileType.caption, fontVariant: ['tabular-nums'] },
+    empty: { ...mobileType.meta, paddingVertical: mobileSpace.lg, textAlign: 'center' },
 });
 /* eslint-enable no-use-before-define, @typescript-eslint/no-use-before-define */

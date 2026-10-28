@@ -11,30 +11,19 @@ export const isConnectionBannerShown = (
 ): boolean => !isFresh && status !== 'version-mismatch';
 
 /**
- * The connection banner's copy. When the screen already labels its saved copy (`Showing Sessions saved 5m ago.`), the
- * banner only says why it is not live, so the two notices never both say what is being shown.
+ * The connection notice's one sentence pair. When the Session list is the copy saved on this phone and its screen is
+ * showing, the stale message names that copy's age (`Showing Sessions saved 5m ago.`) instead of a second notice saying
+ * the same thing.
  */
-export const connectionBannerCopy = (
+export const connectionNoticeMessage = (
     status: 'stale' | 'unverified',
-    isSavedCopyLabeled: boolean,
+    savedLabel: string | null,
     t: Translate = translate,
-): { title: string; body: string; accessibilityLabel: string } => {
-    if (status === 'unverified') {
-        const body = t('sessions.banner.unverifiedBody');
-        return {
-            title: t('sessions.banner.unverifiedTitle'),
-            body,
-            accessibilityLabel: t('sessions.banner.unverifiedAccessibility', { body }),
-        };
-    }
-    const body = t(
-        isSavedCopyLabeled ? 'sessions.banner.staleSavedBody' : 'sessions.banner.staleBody',
-    );
-    return {
-        title: t('sessions.banner.staleTitle'),
-        body,
-        accessibilityLabel: t('sessions.banner.staleAccessibility', { body }),
-    };
+): string => {
+    if (status === 'unverified') return t('sessions.banner.unverified');
+    return savedLabel === null
+        ? t('sessions.banner.stale')
+        : t('sessions.banner.staleSaved', { saved: savedLabel });
 };
 
 /**
@@ -50,3 +39,73 @@ export const isSessionListErrorShown = ({
     hasLoaded: boolean;
     isConnectionNoticeShown: boolean;
 }): boolean => hasLoaded && error !== null && !isConnectionNoticeShown;
+
+/**
+ * Everything that can ask for the top of the Session home, most severe first. A screen shows exactly one: stacking
+ * differently styled bars pushed the list down and made the user read each to learn which one mattered.
+ */
+export type HomeNoticeKind =
+    | 'connection-stale'
+    | 'connection-unverified'
+    | 'list-error'
+    | 'saved-copy'
+    | 'truncated'
+    | 'update-available'
+    | 'update-mismatch'
+    | 'update-required';
+
+const HOME_NOTICE_PRIORITY: readonly HomeNoticeKind[] = [
+    'update-mismatch',
+    'update-required',
+    'connection-unverified',
+    'connection-stale',
+    'list-error',
+    'update-available',
+    'saved-copy',
+    'truncated',
+];
+
+/**
+ * The Session list's own notices only apply while the list is on screen; a phone showing a Session detail keeps just
+ * the app-wide connection and update ones.
+ */
+const LIST_ONLY_NOTICES: ReadonlySet<HomeNoticeKind> = new Set([
+    'list-error',
+    'saved-copy',
+    'truncated',
+]);
+
+/**
+ * Picks the single notice to draw. `update` is the Mobile update banner's kind: a version mismatch that offers no build
+ * (`mismatch`) or one that does (`required`, `checking`, `unreachable`) outranks everything because the app cannot
+ * reconnect until it is resolved; an optional update (`available`) yields to any connection or list problem.
+ */
+export const selectHomeNotice = ({
+    connection,
+    isListVisible,
+    isListErrorShown,
+    isSavedCopy,
+    isTruncated,
+    update,
+}: {
+    connection: 'stale' | 'unverified' | null;
+    isListErrorShown: boolean;
+    isListVisible: boolean;
+    isSavedCopy: boolean;
+    isTruncated: boolean;
+    update: 'available' | 'checking' | 'mismatch' | 'required' | 'unreachable' | null;
+}): HomeNoticeKind | null => {
+    const active = new Set<HomeNoticeKind>();
+    if (update === 'mismatch') active.add('update-mismatch');
+    else if (update === 'available') active.add('update-available');
+    else if (update !== null) active.add('update-required');
+    if (connection) active.add(`connection-${connection}`);
+    if (isListErrorShown) active.add('list-error');
+    if (isSavedCopy) active.add('saved-copy');
+    if (isTruncated) active.add('truncated');
+    return (
+        HOME_NOTICE_PRIORITY.find(
+            (kind) => active.has(kind) && (isListVisible || !LIST_ONLY_NOTICES.has(kind)),
+        ) ?? null
+    );
+};

@@ -66,7 +66,7 @@ tokens (input, output, cache read, cache write), estimated cost and models, and 
 state (warm with time left, or expired with the estimated rewrite) and hit rate
 (`cacheRead / (input + cacheRead + cacheWrite)`). The context and cache clock come from the Chat
 snapshot's `usage`; the tokens and cost come from `mobile.agentChat.readUsage`, the same read the
-pace reminder and the model sheet's Plan limits use. The context and cost rules
+pace reminder and the Session usage sheet's Plan limits use. The context and cost rules
 (`agentChatContextUsage`, `agentChatCacheClock`, `agentUsageCostLabel`) live in
 `@caxri/protocol`, shared with Desktop's composer meter, Context tab, and status bar chip, so both
 Clients show the same figures.

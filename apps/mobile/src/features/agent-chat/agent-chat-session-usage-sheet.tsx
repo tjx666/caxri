@@ -1,17 +1,21 @@
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 
 import type { AgentChatUsage } from '@caxri/protocol';
 import { Gauge } from 'lucide-react-native';
 
-import { BottomSheet, SheetCancel } from '../../components/bottom-sheet';
+import { BottomSheet, SheetCancel, SheetTitle } from '../../components/bottom-sheet';
+import { Chip } from '../../components/chip';
+import { Meter } from '../../components/meter';
 import { useTranslation } from '../../i18n';
+import { mobileSpace, mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
+import { AgentChatPlanLimitsSection } from './agent-chat-plan-limits-section';
 import type { AgentChatSessionUsageRow } from './agent-chat-session-usage';
 import { agentChatContextRing, agentChatSessionUsageView } from './agent-chat-session-usage';
 import { SheetSectionLabel } from './agent-chat-sheet-primitives';
-import { sheetStyles, TRIGGER_HIT_SLOP } from './agent-chat-sheet-styles';
+import { sheetStyles } from './agent-chat-sheet-styles';
 import { useAgentChatUsage } from './use-agent-chat-plan-limits';
 
 /**
@@ -30,19 +34,20 @@ const CLOCK_TICK_MS = 30_000;
 
 const styles = StyleSheet.create({
     trigger: { marginLeft: 'auto' },
-    triggerPercent: { fontSize: 13, fontVariant: ['tabular-nums'], fontWeight: '600' },
-    row: { gap: 2, paddingHorizontal: 10, paddingVertical: 8 },
-    heading: { alignItems: 'baseline', flexDirection: 'row', gap: 12 },
+    row: {
+        gap: mobileSpace.xxs,
+        paddingHorizontal: mobileSpace.md,
+        paddingVertical: mobileSpace.sm,
+    },
+    heading: { alignItems: 'baseline', flexDirection: 'row', gap: mobileSpace.md },
     label: { flexShrink: 0 },
     value: {
+        ...mobileType.bodyStrong,
         flex: 1,
-        fontSize: 15,
         fontVariant: ['tabular-nums'],
-        fontWeight: '600',
         textAlign: 'right',
     },
-    track: { borderRadius: 3, height: 6, marginTop: 4, overflow: 'hidden' },
-    fill: { borderRadius: 3, height: 6 },
+    meter: { paddingTop: mobileSpace.xs },
 });
 
 const ContextRing = ({ color, used }: { color: string; used: number }) => (
@@ -123,6 +128,7 @@ const AgentChatSessionUsageSheet = ({
         >
             {(dismiss) => (
                 <>
+                    <SheetTitle theme={theme} title={t('chat.usage.open')} />
                     <ScrollView style={sheetStyles.scroll}>
                         {isEmpty ? (
                             <Text style={[sheetStyles.hint, { color: theme.muted }]}>
@@ -152,19 +158,15 @@ const AgentChatSessionUsageSheet = ({
                                     >
                                         {view.context.value}
                                     </Text>
-                                    <View
-                                        style={[styles.track, { backgroundColor: theme.elevated }]}
-                                    >
-                                        <View
-                                            style={[
-                                                styles.fill,
-                                                {
-                                                    backgroundColor: view.context.isWarning
-                                                        ? theme.warning
-                                                        : theme.primary,
-                                                    width: `${view.context.used * 100}%`,
-                                                },
-                                            ]}
+                                    <View style={styles.meter}>
+                                        <Meter
+                                            color={
+                                                view.context.isWarning
+                                                    ? theme.warning
+                                                    : theme.primary
+                                            }
+                                            ratio={view.context.used}
+                                            theme={theme}
                                         />
                                     </View>
                                     {view.context.note ? (
@@ -194,6 +196,7 @@ const AgentChatSessionUsageSheet = ({
                         {view.cache.map((row) => (
                             <UsageRow key={row.key} row={row} theme={theme} />
                         ))}
+                        <AgentChatPlanLimitsSection terminalId={terminalId} theme={theme} />
                     </ScrollView>
                     <SheetCancel
                         label="Done"
@@ -208,11 +211,11 @@ const AgentChatSessionUsageSheet = ({
 };
 
 /**
- * The Session usage entry at the end of the composer's model row: Desktop's context ring, a quiet neutral glyph until
- * the context reaches the share where compacting is suggested, then the warning tone with the percentage. Before the
- * provider reports a window size (or for one that never does) a gauge stands in once the conversation recorded usage,
- * so tokens and cost stay one tap away. Tapping opens the Session usage sheet. Nothing renders before the first
- * response.
+ * The Session usage entry at the end of the composer's settings row: Desktop's context ring, a quiet neutral glyph
+ * until the context reaches the share where compacting is suggested, then the warning tone with the percentage. Before
+ * the provider reports a window size (or for one that never does) a gauge stands in once the conversation recorded
+ * usage, so tokens and cost stay one tap away. Tapping opens the Session usage sheet. Nothing renders before the first
+ * usage read, which also carries the plan limits.
  */
 export const AgentChatSessionUsageButton = ({
     terminalId,
@@ -231,28 +234,23 @@ export const AgentChatSessionUsageButton = ({
     const color = ring?.isWarning ? theme.warning : theme.muted;
     return (
         <>
-            <Pressable
-                accessibilityHint={t('chat.usage.openHint')}
-                accessibilityLabel={ring?.accessibilityLabel ?? t('chat.usage.open')}
-                accessibilityRole="button"
-                hitSlop={TRIGGER_HIT_SLOP}
-                onPress={() => setOpen(true)}
-                style={({ pressed }) => [
-                    sheetStyles.trigger,
-                    styles.trigger,
-                    pressed ? { backgroundColor: theme.elevated } : null,
-                ]}
-                testID="agent-chat-usage-button"
-            >
-                {ring ? (
-                    <ContextRing color={color} used={ring.used} />
-                ) : (
-                    <Gauge color={color} size={16} />
-                )}
-                {ring?.isWarning ? (
-                    <Text style={[styles.triggerPercent, { color }]}>{`${ring.percent}%`}</Text>
-                ) : null}
-            </Pressable>
+            <View style={styles.trigger}>
+                <Chip
+                    accessibilityHint={t('chat.usage.openHint')}
+                    accessibilityLabel={ring?.accessibilityLabel ?? t('chat.usage.open')}
+                    label={ring?.isWarning ? `${ring.percent}%` : undefined}
+                    onPress={() => setOpen(true)}
+                    testID="agent-chat-usage-button"
+                    theme={theme}
+                    tint={color}
+                >
+                    {ring ? (
+                        <ContextRing color={color} used={ring.used} />
+                    ) : (
+                        <Gauge color={color} size={16} />
+                    )}
+                </Chip>
+            </View>
             {isOpen ? (
                 <AgentChatSessionUsageSheet
                     onClose={() => setOpen(false)}

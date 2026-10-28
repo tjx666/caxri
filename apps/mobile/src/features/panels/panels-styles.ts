@@ -1,34 +1,52 @@
 import { StyleSheet } from 'react-native';
 
 import { MONOSPACE_FONT } from '../../theme/monospace';
+import { mobileControl, mobileSpace, mobileType } from '../../theme/scale';
 
 export const panelsStyles = StyleSheet.create({
     root: { flex: 1, minWidth: 0 },
-    viewTitle: { fontSize: 13, fontWeight: '600', padding: 12 },
+    viewTitle: { ...mobileType.meta, fontWeight: '600', padding: mobileSpace.md },
     body: { flex: 1 },
     crumbs: {
         alignItems: 'center',
         borderBottomWidth: 1,
         flexDirection: 'row',
-        gap: 6,
-        minHeight: 44,
-        paddingRight: 12,
+        gap: mobileSpace.sm,
+        minHeight: mobileControl.row,
+        paddingRight: mobileSpace.md,
     },
     crumbScroll: { flex: 1 },
-    crumbTrail: { alignItems: 'center', gap: 4, paddingRight: 4 },
-    crumb: { alignItems: 'center', flexDirection: 'row', gap: 6 },
-    crumbText: { fontSize: 13 },
-    fileActions: { gap: 12, paddingLeft: 16 },
-    fileAction: { justifyContent: 'center', minHeight: 44 },
+    crumbTrail: { alignItems: 'center', gap: mobileSpace.xs, paddingRight: mobileSpace.xs },
+    crumb: { alignItems: 'center', flexDirection: 'row', gap: mobileSpace.sm },
+    crumbText: { ...mobileType.meta },
+    /**
+     * The editor toolbar: Edit, or Save and Discard, in one row under the breadcrumb.
+     */
+    fileActions: {
+        alignItems: 'center',
+        borderBottomWidth: StyleSheet.hairlineWidth,
+        flexDirection: 'row',
+        gap: mobileSpace.sm,
+        paddingHorizontal: mobileSpace.lg,
+        paddingVertical: mobileSpace.sm,
+    },
+    fileAction: { minWidth: 96 },
+    fileActionNote: { ...mobileType.meta, flex: 1 },
+    listNote: { ...mobileType.caption, padding: mobileSpace.lg, textAlign: 'center' },
+    saveError: {
+        ...mobileType.meta,
+        paddingHorizontal: mobileSpace.lg,
+        paddingVertical: mobileSpace.sm,
+    },
     row: {
         alignItems: 'center',
         flexDirection: 'row',
-        gap: 10,
-        minHeight: 44,
-        paddingHorizontal: 16,
+        gap: mobileSpace.md,
+        minHeight: mobileControl.row,
+        paddingHorizontal: mobileSpace.lg,
     },
-    rowText: { flex: 1, fontSize: 14, minWidth: 0 },
-    treeChevron: { alignItems: 'center', marginRight: -4, width: 16 },
+    rowText: { ...mobileType.body, flex: 1, minWidth: 0 },
+    treeChevron: { alignItems: 'center', marginRight: -mobileSpace.xs, width: mobileSpace.lg },
     symlinkBadge: {
         alignItems: 'center',
         borderRadius: 6,
@@ -39,21 +57,13 @@ export const panelsStyles = StyleSheet.create({
         right: -2,
         width: 12,
     },
-    rowDescription: { flexShrink: 1, fontSize: 12, maxWidth: '45%' },
-    rowMeta: { fontSize: 12 },
-    status: { alignItems: 'center', gap: 12, justifyContent: 'center', padding: 32 },
-    statusText: { fontSize: 14, lineHeight: 20, textAlign: 'center' },
-    retry: { fontSize: 14, fontWeight: '700' },
-    /**
-     * A 44pt target around the short Retry label, the platform minimum, instead of relying on `hitSlop`.
-     */
-    retryButton: {
-        alignItems: 'center',
-        justifyContent: 'center',
-        minHeight: 44,
-        minWidth: 44,
-        paddingHorizontal: 12,
-    },
+    rowDescription: { ...mobileType.caption, flexShrink: 1, maxWidth: '45%' },
+    rowMeta: { ...mobileType.caption },
     preview: { flex: 1 },
-    previewText: { fontFamily: MONOSPACE_FONT, fontSize: 12, lineHeight: 18, padding: 16 },
+    previewText: {
+        ...mobileType.caption,
+        fontFamily: MONOSPACE_FONT,
+        lineHeight: 18,
+        padding: mobileSpace.lg,
+    },
 });

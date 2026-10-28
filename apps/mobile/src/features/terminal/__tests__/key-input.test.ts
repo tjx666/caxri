@@ -6,6 +6,8 @@ describe('mobile Terminal key input', () => {
     it('encodes menu navigation and submission as exact terminal bytes', () => {
         expect(encodeTerminalKey('escape', false)).toBe('\u{1B}');
         expect(encodeTerminalKey('tab', false)).toBe('\t');
+        expect(encodeTerminalKey('shift-tab', false)).toBe('\u{1B}[Z');
+        expect(encodeTerminalKey('shift-tab', true)).toBeNull();
         expect(encodeTerminalKey('up', false)).toBe('\u{1B}[A');
         expect(encodeTerminalKey('down', false)).toBe('\u{1B}[B');
         expect(encodeTerminalKey('right', false)).toBe('\u{1B}[C');

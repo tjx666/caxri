@@ -1,46 +1,55 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
+import { mobileSpace, mobileType } from '../theme/scale';
 import type { MobileTheme } from '../theme/tokens';
-import { Spinner } from './spinner';
+import { Button } from './button';
 
 const styles = StyleSheet.create({
     banner: {
         alignItems: 'center',
         borderBottomWidth: 1,
         flexDirection: 'row',
-        gap: 12,
-        paddingHorizontal: 16,
-        paddingVertical: 8,
+        gap: mobileSpace.md,
+        paddingHorizontal: mobileSpace.lg,
+        paddingVertical: mobileSpace.sm,
     },
-    text: { flex: 1, fontSize: 13, lineHeight: 18 },
-    button: {
-        alignItems: 'center',
-        borderRadius: 10,
-        justifyContent: 'center',
-        minHeight: 48,
-        minWidth: 72,
-        paddingHorizontal: 14,
-    },
-    buttonText: { fontSize: 14, fontWeight: '700' },
+    text: { ...mobileType.meta, flex: 1 },
+    button: { minWidth: 72 },
 });
 
 /**
- * A one-line state notice across the top of a Session segment, with an optional separate action button. The sentence
- * itself is never the button, so the action keeps a full touch target and a short accessible name.
+ * The one state notice across the top of a screen or Session segment (stale connection, failed or handed-off Agent,
+ * usage guard, update available), with an optional separate action button. The sentence itself is never the button, so
+ * the action keeps a full touch target and a short accessible name. A screen shows at most one at a time: the most
+ * severe state wins and the rest wait, so notices never stack above the content.
  */
 export const NoticeBanner = ({
     actionLabel,
+    actionTestID,
     isBusy,
     message,
     onAction,
+    onSecondaryAction,
+    secondaryActionLabel,
+    secondaryActionTestID,
     testID,
     theme,
     tone,
 }: {
     actionLabel?: string;
+    /**
+     * Overrides the action's default `${testID}-action`, for a button whose id outlived a renamed banner.
+     */
+    actionTestID?: string;
     isBusy?: boolean;
     message: string;
     onAction?: () => void;
+    /**
+     * A quieter companion to the action, such as `Later` beside `Update`. Drawn before the main action.
+     */
+    onSecondaryAction?: () => void;
+    secondaryActionLabel?: string;
+    secondaryActionTestID?: string;
     testID: string;
     theme: MobileTheme;
     tone: 'danger' | 'muted' | 'warning';
@@ -51,21 +60,26 @@ export const NoticeBanner = ({
         testID={testID}
     >
         <Text style={[styles.text, { color: theme[tone] }]}>{message}</Text>
+        {secondaryActionLabel && onSecondaryAction ? (
+            <Button
+                label={secondaryActionLabel}
+                onPress={onSecondaryAction}
+                style={styles.button}
+                testID={secondaryActionTestID ?? `${testID}-secondary-action`}
+                theme={theme}
+                variant="outline"
+            />
+        ) : null}
         {actionLabel && onAction ? (
-            <Pressable
-                accessibilityRole="button"
-                accessibilityState={{ busy: isBusy, disabled: isBusy }}
-                disabled={isBusy}
+            <Button
+                isBusy={isBusy}
+                label={actionLabel}
                 onPress={onAction}
-                style={[styles.button, { backgroundColor: theme.surface }]}
-                testID={`${testID}-action`}
-            >
-                {isBusy ? (
-                    <Spinner color={theme.text} />
-                ) : (
-                    <Text style={[styles.buttonText, { color: theme.text }]}>{actionLabel}</Text>
-                )}
-            </Pressable>
+                style={styles.button}
+                testID={actionTestID ?? `${testID}-action`}
+                theme={theme}
+                variant="secondary"
+            />
         ) : null}
     </View>
 );

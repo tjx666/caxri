@@ -5,13 +5,18 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { MethodResult } from '@caxri/protocol';
 import { useRouter } from 'expo-router';
-import { ChevronLeft, ChevronRight, Folder, FolderGit2, Plus, X } from 'lucide-react-native';
+import { ChevronRight, CornerLeftUp, Folder, FolderGit2, Plus } from 'lucide-react-native';
 
-import { IconButton } from '../../components/icon-button';
+import { Button } from '../../components/button';
+import { Chip } from '../../components/chip';
+import { ScreenHeader } from '../../components/screen-header';
+import { ScreenState } from '../../components/screen-state';
 import { Spinner } from '../../components/spinner';
 import { useTranslation } from '../../i18n';
+import { PRESSED_OPACITY } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
 import { useMobileTheme } from '../../theme/use-mobile-theme';
+import { queryScreenKind } from '../connection/query-screen-kind';
 import { addProjectStyles as styles } from './add-project-styles';
 import { canAddProjectBrowserEntry, canAddProjectBrowserLevel } from './project-browser-model';
 import { useProjectBrowser } from './use-project-browser';
@@ -46,7 +51,10 @@ const FolderRow = memo(
                     accessibilityRole="button"
                     disabled={!entry.hasChildren}
                     onPress={() => onOpen({ name: entry.name, path: entry.relativePath })}
-                    style={({ pressed }) => [styles.rowMain, { opacity: pressed ? 0.6 : 1 }]}
+                    style={({ pressed }) => [
+                        styles.rowMain,
+                        { opacity: pressed ? PRESSED_OPACITY : 1 },
+                    ]}
                     testID={`add-project-folder-${entry.relativePath}`}
                 >
                     <Icon color={entry.isGitRepository ? theme.primary : theme.muted} size={20} />
@@ -56,30 +64,77 @@ const FolderRow = memo(
                     {entry.hasChildren ? <ChevronRight color={theme.muted} size={18} /> : null}
                 </Pressable>
                 {canAddProjectBrowserEntry(entry) ? (
-                    <Pressable
+                    <Chip
                         accessibilityLabel={t('projects.addAsProject', { name: entry.name })}
-                        accessibilityRole="button"
-                        disabled={isAdding}
+                        icon={isAdding ? undefined : Plus}
+                        label={t('projects.add')}
                         onPress={() => {
-                            void onAdd(entry.relativePath);
+                            if (!isAdding) void onAdd(entry.relativePath);
                         }}
-                        style={[styles.addPill, { borderColor: theme.primary }]}
                         testID={`add-project-add-${entry.relativePath}`}
+                        theme={theme}
+                        tint={theme.primary}
                     >
-                        {isAdding ? (
-                            <Spinner color={theme.primary} />
-                        ) : (
-                            <Plus color={theme.primary} size={16} />
-                        )}
-                        <Text style={[styles.addPillText, { color: theme.primary }]}>
-                            {t('projects.add')}
-                        </Text>
-                    </Pressable>
+                        {isAdding ? <Spinner color={theme.primary} /> : undefined}
+                    </Chip>
                 ) : null}
             </View>
         );
     },
 );
+
+const AddProjectState = ({
+    kind,
+    onBack,
+    onRetry,
+    theme,
+}: {
+    kind: ReturnType<typeof queryScreenKind>;
+    onBack: () => void;
+    onRetry: () => void;
+    theme: MobileTheme;
+}) => {
+    const { t } = useTranslation();
+    if (kind === 'loading')
+        return (
+            <ScreenState
+                kind="loading"
+                testID="add-project-loading"
+                theme={theme}
+                title={t('projects.loading')}
+            />
+        );
+    if (kind === 'offline')
+        return (
+            <ScreenState
+                actionLabel={t('common.back')}
+                kind="offline"
+                onAction={onBack}
+                testID="add-project-offline"
+                theme={theme}
+                title={t('projects.offline')}
+            />
+        );
+    if (kind === 'error')
+        return (
+            <ScreenState
+                actionLabel={t('common.retry')}
+                kind="error"
+                onAction={onRetry}
+                testID="add-project-list-error"
+                theme={theme}
+                title={t('projects.listError')}
+            />
+        );
+    return (
+        <ScreenState
+            kind="empty"
+            testID="add-project-empty"
+            theme={theme}
+            title={t('projects.noFolders')}
+        />
+    );
+};
 
 const AddProjectFooter = ({
     browser,
@@ -103,28 +158,23 @@ const AddProjectFooter = ({
                 </Text>
             ) : null}
             {canAddProjectBrowserLevel(browser.level) ? (
-                <Pressable
-                    accessibilityRole="button"
-                    disabled={browser.addingPath !== null || !browser.isConnected}
+                <Button
+                    isBusy={browser.addingPath !== null}
+                    isDisabled={!browser.isConnected}
+                    label={
+                        browser.addingPath === browser.level.path
+                            ? t('projects.adding')
+                            : t('projects.addCurrent', { name: browser.level.name })
+                    }
                     onPress={() => {
                         const { path } = browser.level;
                         if (path !== null) void onAdd(path);
                     }}
-                    style={[
-                        styles.primary,
-                        {
-                            backgroundColor: theme.primary,
-                            opacity: browser.addingPath === null ? 1 : 0.6,
-                        },
-                    ]}
+                    size="primary"
                     testID="add-project-add-current"
-                >
-                    <Text style={[styles.primaryText, { color: theme.primaryForeground }]}>
-                        {browser.addingPath === browser.level.path
-                            ? t('projects.adding')
-                            : t('projects.addCurrent', { name: browser.level.name })}
-                    </Text>
-                </Pressable>
+                    theme={theme}
+                    variant="primary"
+                />
             ) : (
                 <Text style={[styles.hint, { color: theme.muted }]}>
                     {t('projects.footerHint')}
@@ -163,58 +213,66 @@ export const AddProjectScreen = () => {
         [addAndClose, addingPath, enter, theme],
     );
     const entries = browser.listing.data?.entries ?? [];
+    const kind = queryScreenKind({
+        fetchStatus: browser.listing.fetchStatus,
+        hasData: browser.listing.data !== undefined,
+        isError: browser.listing.isError,
+        itemCount: entries.length,
+    });
     return (
         <SafeAreaView
             edges={['top', 'right', 'bottom', 'left']}
             style={[styles.root, { backgroundColor: theme.background }]}
             testID="add-project-screen"
         >
-            <View style={styles.header}>
-                <IconButton
-                    accessibilityLabel={t(
-                        browser.canGoUp ? 'projects.upOneFolder' : 'common.close',
-                    )}
-                    icon={browser.canGoUp ? ChevronLeft : X}
-                    onPress={browser.canGoUp ? browser.up : () => router.back()}
-                    size={24}
-                    testID="add-project-back"
-                    theme={theme}
-                />
-                <View style={styles.headerCopy}>
-                    <Text accessibilityRole="header" style={[styles.title, { color: theme.text }]}>
-                        {t('projects.title')}
-                    </Text>
-                    <Text numberOfLines={1} style={[styles.subtitle, { color: theme.muted }]}>
-                        {browser.level.path === null
-                            ? t('projects.home')
-                            : `~/${browser.level.path}`}
-                    </Text>
-                </View>
-            </View>
+            <ScreenHeader
+                leading="back"
+                leadingLabel={t('common.back')}
+                leadingTestID="add-project-back"
+                onLeading={() => router.back()}
+                subtitle={
+                    browser.level.path === null ? t('projects.home') : `~/${browser.level.path}`
+                }
+                theme={theme}
+                title={t('projects.title')}
+            />
             <FlatList
                 contentContainerStyle={styles.listContent}
                 data={entries}
                 keyExtractor={(entry) => entry.relativePath}
                 ListEmptyComponent={
-                    <View style={styles.empty}>
-                        {browser.listing.isPending ? (
-                            <Spinner color={theme.muted} />
-                        ) : (
-                            <Text style={[styles.emptyText, { color: theme.muted }]}>
-                                {t(
-                                    browser.listing.isError
-                                        ? 'projects.listError'
-                                        : 'projects.noFolders',
-                                )}
-                            </Text>
-                        )}
-                    </View>
+                    <AddProjectState
+                        kind={kind}
+                        onBack={() => router.back()}
+                        onRetry={() => {
+                            void browser.listing.refetch();
+                        }}
+                        theme={theme}
+                    />
                 }
                 ListFooterComponent={
                     browser.listing.data?.truncated ? (
-                        <Text style={[styles.emptyText, { color: theme.muted }]}>
+                        <Text style={[styles.truncated, { color: theme.muted }]}>
                             {t('projects.truncated', { count: entries.length })}
                         </Text>
+                    ) : undefined
+                }
+                ListHeaderComponent={
+                    browser.canGoUp ? (
+                        <Pressable
+                            accessibilityRole="button"
+                            onPress={browser.up}
+                            style={({ pressed }) => [
+                                styles.rowMain,
+                                { opacity: pressed ? PRESSED_OPACITY : 1 },
+                            ]}
+                            testID="add-project-up"
+                        >
+                            <CornerLeftUp color={theme.muted} size={20} />
+                            <Text style={[styles.rowTitle, { color: theme.text }]}>
+                                {t('projects.upOneFolder')}
+                            </Text>
+                        </Pressable>
                     ) : undefined
                 }
                 renderItem={renderEntry}

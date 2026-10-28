@@ -5,8 +5,9 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { Copy, Pencil, TextCursor } from 'lucide-react-native';
 
-import { BottomSheet, SheetAction, SheetCancel } from '../../components/bottom-sheet';
+import { BottomSheet, SheetAction, SheetCancel, SheetTitle } from '../../components/bottom-sheet';
 import { useTranslation } from '../../i18n';
+import { mobileRadius, mobileSpace, mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
 
 /**
@@ -74,6 +75,7 @@ export const ConversationMessageSheet = ({
             {(dismiss) =>
                 selectText === undefined ? (
                     <View style={styles.actions}>
+                        <SheetTitle theme={theme} title={t('conversation.message.actions')} />
                         <SheetAction
                             busy={busy === 'copy'}
                             disabled={busy !== undefined}
@@ -100,30 +102,24 @@ export const ConversationMessageSheet = ({
                             theme={theme}
                         />
                         {edit ? (
-                            <>
-                                <SheetAction
-                                    busy={busy === 'edit'}
-                                    disabled={busy !== undefined || !edit.availability.canEdit}
-                                    icon={Pencil}
-                                    label={t('chat.edit.fromHere')}
-                                    onPress={() => {
-                                        void run('edit', (text) => {
-                                            edit.onEdit(text);
-                                            dismiss();
-                                        });
-                                    }}
-                                    testID="conversation-message-edit"
-                                    theme={theme}
-                                />
-                                {edit.availability.canEdit ? null : (
-                                    <Text
-                                        style={[styles.note, { color: theme.muted }]}
-                                        testID="conversation-message-edit-reason"
-                                    >
-                                        {edit.availability.reason}
-                                    </Text>
-                                )}
-                            </>
+                            <SheetAction
+                                busy={busy === 'edit'}
+                                detail={
+                                    edit.availability.canEdit ? undefined : edit.availability.reason
+                                }
+                                detailTestID="conversation-message-edit-reason"
+                                disabled={busy !== undefined || !edit.availability.canEdit}
+                                icon={Pencil}
+                                label={t('chat.edit.fromHere')}
+                                onPress={() => {
+                                    void run('edit', (text) => {
+                                        edit.onEdit(text);
+                                        dismiss();
+                                    });
+                                }}
+                                testID="conversation-message-edit"
+                                theme={theme}
+                            />
                         ) : null}
                         {error ? (
                             <Text
@@ -142,9 +138,7 @@ export const ConversationMessageSheet = ({
                     </View>
                 ) : (
                     <View style={styles.select}>
-                        <Text style={[styles.title, { color: theme.text }]}>
-                            {t('conversation.message.selectTitle')}
-                        </Text>
+                        <SheetTitle theme={theme} title={t('conversation.message.selectTitle')} />
                         <ScrollView
                             style={[styles.textBox, { borderColor: theme.border }]}
                             testID="conversation-message-select-scroll"
@@ -171,17 +165,17 @@ export const ConversationMessageSheet = ({
 };
 
 const styles = StyleSheet.create({
-    actions: { gap: 4 },
-    note: { fontSize: 13, lineHeight: 18, paddingBottom: 6, paddingHorizontal: 44 },
-    select: { flexShrink: 1, gap: 10 },
-    title: { fontSize: 16, fontWeight: '600', paddingHorizontal: 4 },
+    actions: { gap: mobileSpace.xs },
+    note: { ...mobileType.meta, paddingBottom: mobileSpace.sm, paddingHorizontal: mobileSpace.md },
+    select: { flexShrink: 1 },
     textBox: {
-        borderRadius: 12,
+        borderRadius: mobileRadius.md,
         borderWidth: StyleSheet.hairlineWidth,
         flexShrink: 1,
-        paddingHorizontal: 12,
-        paddingVertical: 10,
+        marginBottom: mobileSpace.sm,
+        paddingHorizontal: mobileSpace.md,
+        paddingVertical: mobileSpace.sm,
     },
-    text: { fontSize: 15, lineHeight: 23 },
+    text: { ...mobileType.body, lineHeight: 23 },
 });
 /* eslint-enable no-use-before-define, @typescript-eslint/no-use-before-define */

@@ -2,6 +2,7 @@
 import { StyleSheet, View } from 'react-native';
 
 import { useTranslation } from '../../i18n';
+import { mobileSpace } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
 import type { agentChatRequestBlockedReason } from './agent-chat-model';
 import { AgentChatRequestCard } from './agent-chat-request-card';
@@ -44,7 +45,6 @@ export const AgentChatRequests = ({
             style={[
                 styles.dock,
                 isExpanded && styles.dockExpanded,
-                { borderColor: theme.border },
                 dock.currentId === undefined && styles.hidden,
             ]}
             testID="agent-chat-requests"
@@ -70,7 +70,15 @@ export const AgentChatRequests = ({
 };
 
 const styles = StyleSheet.create({
-    dock: { borderTopWidth: 1, flexShrink: 1, maxHeight: '80%', padding: 12 },
+    /**
+     * The card carries its own border and the 16dp dock gutter, so the dock adds no rule of its own.
+     */
+    dock: {
+        flexShrink: 1,
+        maxHeight: '80%',
+        paddingHorizontal: mobileSpace.lg,
+        paddingTop: mobileSpace.sm,
+    },
     dockExpanded: { maxHeight: '100%' },
     dockCard: { flexShrink: 1 },
     hidden: { display: 'none' },

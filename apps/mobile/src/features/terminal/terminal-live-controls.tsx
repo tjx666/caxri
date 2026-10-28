@@ -1,18 +1,22 @@
+import { useEffect, useRef, useState } from 'react';
 import type { TextInputInstance } from 'react-native';
 import { Platform, Pressable, Text, TextInput, View } from 'react-native';
 
-import { ArrowDown, Keyboard, RotateCw, X } from 'lucide-react-native';
+import { ArrowDown, Keyboard, RotateCw, Undo2 } from 'lucide-react-native';
 
 import { IconButton } from '../../components/icon-button';
 import { useTranslation } from '../../i18n';
+import { chipHitSlop, PRESSED_OPACITY } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
 import type { TerminalKey } from './key-input';
 import type { MobileTerminalExitPresentation } from './terminal-exit-presentation';
 import { TerminalKeyBar } from './terminal-key-bar';
-import { terminalViewStyles as styles } from './terminal-view-styles';
+import { floatingShadow, terminalViewStyles as styles } from './terminal-view-styles';
 import type { useLiveTerminal } from './use-live-terminal';
 
 type LiveTerminal = ReturnType<typeof useLiveTerminal>;
+
+const LEASE_HINT_MS = 5000;
 
 /**
  * An invisible field that turns the system keyboard into Terminal keystrokes. Android's `visible-password` keyboard
@@ -156,10 +160,15 @@ export const TerminalFloatingActions = ({
                 <Pressable
                     accessibilityLabel={t('terminal.jumpToLatest')}
                     accessibilityRole="button"
+                    hitSlop={4}
                     onPress={terminal.jump}
                     style={[
                         styles.floatingRound,
-                        { backgroundColor: theme.elevated, borderColor: theme.border },
+                        {
+                            backgroundColor: theme.elevated,
+                            borderColor: theme.border,
+                            boxShadow: floatingShadow(theme.shadow),
+                        },
                     ]}
                     testID="terminal-jump-latest"
                 >
@@ -186,10 +195,15 @@ export const TerminalFloatingActions = ({
                         accessibilityRole="button"
                         accessibilityState={{ disabled: !canTakeOver }}
                         disabled={!canTakeOver}
+                        hitSlop={chipHitSlop}
                         onPress={onTakeOver}
-                        style={[
+                        style={({ pressed }) => [
                             styles.floatingPill,
-                            { backgroundColor: theme.primary, opacity: canTakeOver ? 1 : 0.45 },
+                            {
+                                backgroundColor: theme.primary,
+                                boxShadow: floatingShadow(theme.shadow),
+                                opacity: canTakeOver ? (pressed ? PRESSED_OPACITY : 1) : 0.4,
+                            },
                         ]}
                         testID="terminal-take-over"
                     >
@@ -240,17 +254,68 @@ export const TerminalControlBar = ({
                 testID="terminal-keyboard-toggle"
                 theme={theme}
             />
-            <IconButton
+            <Pressable
                 accessibilityHint={t('terminal.releaseHint')}
                 accessibilityLabel={t('terminal.release')}
-                icon={X}
+                accessibilityRole="button"
+                hitSlop={chipHitSlop}
                 onPress={() => {
                     void terminal.release();
                 }}
-                size={20}
+                style={({ pressed }) => [
+                    styles.releaseButton,
+                    { borderColor: theme.border, opacity: pressed ? PRESSED_OPACITY : 1 },
+                ]}
                 testID="terminal-release"
-                theme={theme}
-            />
+            >
+                <Undo2 color={theme.text} size={16} />
+                <Text style={[styles.releaseLabel, { color: theme.text }]}>
+                    {t('terminal.releaseLabel')}
+                </Text>
+            </Pressable>
+        </View>
+    );
+};
+
+/**
+ * Tells the reader once that the phone, not the computer, now sizes the Terminal. A control device takes over on its
+ * own (see `shouldAutoTakeOverTerminal`), so without this note the Terminal would reflow with no explanation. It shows
+ * for a few seconds the first time this view holds the size and never again for the view's lifetime.
+ */
+export const TerminalLeaseHint = ({
+    hasLease,
+    theme,
+}: {
+    hasLease: boolean;
+    theme: MobileTheme;
+}) => {
+    const { t } = useTranslation();
+    const hasShown = useRef(false);
+    const [isShown, setShown] = useState(false);
+    useEffect(() => {
+        if (!hasLease || hasShown.current) return;
+        hasShown.current = true;
+        setShown(true);
+        const timer = setTimeout(() => setShown(false), LEASE_HINT_MS);
+        return () => {
+            clearTimeout(timer);
+            setShown(false);
+        };
+    }, [hasLease]);
+    if (!isShown || !hasLease) return null;
+    return (
+        <View
+            accessibilityLiveRegion="polite"
+            pointerEvents="none"
+            style={[
+                styles.leaseHint,
+                { backgroundColor: theme.surface, borderColor: theme.border },
+            ]}
+            testID="terminal-lease-hint"
+        >
+            <Text numberOfLines={1} style={[styles.statusText, { color: theme.muted }]}>
+                {t('terminal.leaseHint')}
+            </Text>
         </View>
     );
 };

@@ -17,10 +17,12 @@ import {
     Trash2,
 } from 'lucide-react-native';
 
+import { Card } from '../../components/card';
 import { IconButton } from '../../components/icon-button';
 import { Spinner } from '../../components/spinner';
 import { useTranslation } from '../../i18n';
 import { MONOSPACE_FONT } from '../../theme/monospace';
+import { mobileSpace, mobileType, PRESSED_OPACITY } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
 import type { AgentChatQueueHeader, AgentChatQueueRow } from './agent-chat-queue';
 import {
@@ -90,7 +92,10 @@ const QueueHeader = ({
                     accessibilityState={{ busy: isResuming, disabled: isResuming }}
                     disabled={isResuming}
                     onPress={onResume}
-                    style={({ pressed }) => [styles.resume, { opacity: pressed ? 0.6 : 1 }]}
+                    style={({ pressed }) => [
+                        styles.resume,
+                        { opacity: pressed ? PRESSED_OPACITY : 1 },
+                    ]}
                     testID="agent-chat-queue-resume"
                 >
                     {isResuming ? (
@@ -228,12 +233,12 @@ const QueueRow = ({
                 onPress={remove}
                 style={({ pressed }) => [
                     styles.swipeAction,
-                    { backgroundColor: theme.danger, opacity: pressed ? 0.8 : 1 },
+                    { backgroundColor: theme.danger, opacity: pressed ? PRESSED_OPACITY : 1 },
                 ]}
                 testID="agent-chat-queue-delete"
             >
-                <Trash2 color={theme.primaryForeground} size={20} strokeWidth={2.25} />
-                <Text style={[styles.swipeActionText, { color: theme.primaryForeground }]}>
+                <Trash2 color={theme.dangerForeground} size={20} strokeWidth={2.25} />
+                <Text style={[styles.swipeActionText, { color: theme.dangerForeground }]}>
                     {t('chat.queue.delete')}
                 </Text>
             </Pressable>
@@ -341,6 +346,7 @@ export const AgentChatQueueList = ({
         header,
         isResuming,
         isSavingEdit,
+        notice,
         remove,
         resume,
         saveEdit,
@@ -383,13 +389,29 @@ export const AgentChatQueueList = ({
         ),
         [canAct, cancelEdit, edit, editing, isSavingEdit, remove, saveEdit, sendNow, theme],
     );
-    // An entry that failed to delete because it already left the queue leaves nothing to explain the error against.
-    if (!header) return null;
+    const noticeLine = notice ? (
+        <Text
+            accessibilityRole="alert"
+            style={[styles.error, { color: theme.danger }]}
+            testID="agent-chat-queue-notice"
+        >
+            {notice}
+        </Text>
+    ) : null;
+    // A message that left the queue before Edit reached it may have emptied the queue; its notice then stands alone.
+    if (!header)
+        return noticeLine ? (
+            <Card padded={false} style={styles.card} theme={theme}>
+                {noticeLine}
+            </Card>
+        ) : null;
     return (
-        <View
+        <Card
             accessibilityLabel={t('chat.queue.label')}
-            style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}
+            padded={false}
+            style={styles.card}
             testID="agent-chat-queue"
+            theme={theme}
         >
             <QueueHeader
                 canAct={canAct}
@@ -424,19 +446,17 @@ export const AgentChatQueueList = ({
                     {error}
                 </Text>
             ) : null}
-        </View>
+            {noticeLine}
+        </Card>
     );
 };
 
 const styles = StyleSheet.create({
     // Shrinks before the timeline does when the keyboard leaves little room (`AgentChatView`'s body keeps a minimum).
     card: {
-        borderRadius: 14,
-        borderWidth: 1,
         flexShrink: 1,
-        marginBottom: 8,
-        marginHorizontal: 12,
-        overflow: 'hidden',
+        marginBottom: mobileSpace.sm,
+        marginHorizontal: mobileSpace.md,
     },
     header: {
         alignItems: 'center',
@@ -446,10 +466,10 @@ const styles = StyleSheet.create({
         paddingLeft: 12,
         paddingRight: 4,
     },
-    title: { fontSize: 13, fontWeight: '700' },
+    title: { ...mobileType.meta, fontWeight: '700' },
     count: { borderRadius: 8, minWidth: 20, paddingHorizontal: 6, paddingVertical: 1 },
-    countText: { fontSize: 12, fontWeight: '700', textAlign: 'center' },
-    detail: { flex: 1, fontSize: 12 },
+    countText: { ...mobileType.caption, fontWeight: '700', textAlign: 'center' },
+    detail: { ...mobileType.caption, flex: 1 },
     // A full 48dp box rather than hit slop: the header is shorter than 48dp, and Android clips slop to the parent.
     resume: {
         alignItems: 'center',
@@ -458,7 +478,7 @@ const styles = StyleSheet.create({
         minHeight: 48,
         paddingHorizontal: 8,
     },
-    resumeText: { fontSize: 13, fontWeight: '700' },
+    resumeText: { ...mobileType.meta, fontWeight: '700' },
     list: { flexGrow: 0, flexShrink: 1, maxHeight: QUEUE_MAX_HEIGHT },
     row: {
         alignItems: 'center',
@@ -470,10 +490,10 @@ const styles = StyleSheet.create({
     },
     rowText: { flex: 1, gap: 2, minWidth: 0 },
     pending: { opacity: 0.6 },
-    preview: { fontSize: 14, lineHeight: 19 },
-    command: { fontFamily: MONOSPACE_FONT, fontSize: 13 },
+    preview: { ...mobileType.body },
+    command: { ...mobileType.meta, fontFamily: MONOSPACE_FONT },
     images: { alignItems: 'center', flexDirection: 'row', gap: 4 },
-    imagesText: { fontSize: 12 },
+    imagesText: { ...mobileType.caption },
     steer: {
         alignItems: 'center',
         borderRadius: 16,
@@ -483,14 +503,14 @@ const styles = StyleSheet.create({
         marginLeft: 4,
         paddingHorizontal: 12,
     },
-    steerText: { fontSize: 13, fontWeight: '700' },
+    steerText: { ...mobileType.meta, fontWeight: '700' },
     swipeAction: {
         alignItems: 'center',
         gap: 4,
         justifyContent: 'center',
         width: DELETE_ACTION_WIDTH,
     },
-    swipeActionText: { fontSize: 13, fontWeight: '700' },
-    error: { fontSize: 13, paddingBottom: 8, paddingHorizontal: 12 },
+    swipeActionText: { ...mobileType.meta, fontWeight: '700' },
+    error: { ...mobileType.meta, paddingBottom: mobileSpace.sm, paddingHorizontal: mobileSpace.md },
 });
 /* eslint-enable no-use-before-define, @typescript-eslint/no-use-before-define */

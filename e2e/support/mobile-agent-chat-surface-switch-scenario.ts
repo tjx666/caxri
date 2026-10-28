@@ -5,19 +5,7 @@ import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scenarios';
 import { capture, finish } from './mobile-agent-actions-scenarios';
 import { waitForCheck, waitForNoCheck } from './mobile-agent-chat-helpers';
-import {
-    mobileNativeControlBounds,
-    tapMobileCheck,
-    tapMobileNativeControl,
-    waitForMobile,
-} from './mobile-android';
-
-/**
- * React Native's two-button Android alert puts the first (cancel) button on the negative slot and the second on the
- * positive one.
- */
-const ALERT_CANCEL = { resourceId: 'android:id/button2' };
-const ALERT_CONFIRM = { resourceId: 'android:id/button1' };
+import { tapMobileCheck, waitForMobile } from './mobile-android';
 
 const FIRST_PROMPT = 'Summarize the repository layout';
 
@@ -97,24 +85,17 @@ export async function executeMobileChatSurfaceSwitchScenario(
             (snapshot) => Boolean(snapshot.activeTurnId),
         );
         await openAsOtherSurface(serial);
-        await waitForMobile(
-            () => mobileNativeControlBounds(serial, ALERT_CANCEL),
-            (bounds) => bounds !== null,
-            30_000,
-        );
+        await waitForCheck(serial, 'session-switch-surface-confirm');
         await capture(environment, 'running-turn-confirm', artifacts);
-        await tapMobileNativeControl(serial, ALERT_CANCEL);
+        await tapMobileCheck(serial, 'session-switch-surface-confirm-cancel');
+        await waitForNoCheck(serial, 'session-switch-surface-confirm');
         await waitForCheck(serial, 'agent-chat');
         if ((await agentTerminal())?.surface !== 'chat')
             throw new Error('Cancel must keep the Chat');
 
         await openAsOtherSurface(serial);
-        await waitForMobile(
-            () => mobileNativeControlBounds(serial, ALERT_CONFIRM),
-            (bounds) => bounds !== null,
-            30_000,
-        );
-        await tapMobileNativeControl(serial, ALERT_CONFIRM);
+        await waitForCheck(serial, 'session-switch-surface-confirm');
+        await tapMobileCheck(serial, 'session-switch-surface-confirm-confirm');
         await waitForMobile(agentTerminal, (terminal) => terminal?.surface !== 'chat', 60_000);
         await waitForCheck(serial, 'terminal-live-view', 60_000);
         await capture(environment, 'terminal-after-stop', artifacts);

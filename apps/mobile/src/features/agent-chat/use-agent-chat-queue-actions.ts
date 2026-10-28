@@ -1,5 +1,4 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { Alert } from 'react-native';
 
 import { useTranslation } from '../../i18n';
 import type {
@@ -8,8 +7,8 @@ import type {
     AgentChatQueueRowAction,
 } from './agent-chat-queue';
 import {
-    agentChatQueueEditAlert,
     agentChatQueueEditMode,
+    agentChatQueueEditNotice,
     agentChatQueueEntries,
     agentChatQueueErrorMessage,
     agentChatQueueFailure,
@@ -19,6 +18,7 @@ import {
     prunePendingQueueIds,
 } from './agent-chat-queue';
 import type { AgentChatController } from './use-agent-chat';
+import { useTransientNotice } from './use-transient-notice';
 
 /**
  * A queued message being edited where it stands (`agentChatQueueEditMode`), with the text its editor starts from.
@@ -67,6 +67,7 @@ export const useAgentChatQueueActions = (
     const { t } = useTranslation();
     const [pendingIds, setPendingIds] = useState<ReadonlySet<string>>(() => new Set());
     const [storedError, setError] = useState<AgentChatQueueError | null>(null);
+    const [notice, showNotice] = useTransientNotice();
     const [isResuming, setResuming] = useState(false);
     const [editing, setEditing] = useState<AgentChatQueueInPlaceEdit | null>(null);
     const [isSavingEdit, setSavingEdit] = useState(false);
@@ -99,20 +100,19 @@ export const useAgentChatQueueActions = (
         [onEdit, takeQueued],
     );
     /**
-     * Reports a failed Edit: a message that left the queue, or is too long for a phone, gets an alert, since its row is
-     * gone or cannot be retried; anything else an inline error on the card.
+     * Reports a failed Edit: a message that left the queue, or is too long for a phone, gets a transient notice on the
+     * card, since its row is gone or cannot be retried; anything else an inline error on the card.
      */
     const reportEditFailure = useCallback(
         (error: unknown, id: string): void => {
             const failure = agentChatQueueFailure('edit', errorCode(error));
             if (failure === 'gone' || failure === 'tooLong') {
-                const { title, message } = agentChatQueueEditAlert(failure, t);
-                Alert.alert(title, message);
+                showNotice(agentChatQueueEditNotice(failure, t));
                 return;
             }
             setError({ id, message: agentChatQueueErrorMessage('edit', t) });
         },
-        [t],
+        [showNotice, t],
     );
     const run = useCallback(
         (action: AgentChatQueueRowAction, id: string): Promise<boolean> =>
@@ -125,8 +125,7 @@ export const useAgentChatQueueActions = (
                 ],
                 reportError: (message, failure) => {
                     if (action === 'edit' && (failure === 'gone' || failure === 'tooLong')) {
-                        const { title, message: detail } = agentChatQueueEditAlert(failure, t);
-                        Alert.alert(title, detail);
+                        showNotice(agentChatQueueEditNotice(failure, t));
                         return;
                     }
                     setError(message === null ? null : { id, message });
@@ -134,7 +133,7 @@ export const useAgentChatQueueActions = (
                 reveal,
                 t,
             }),
-        [hide, removeQueued, reveal, sendQueuedNow, t, takeForEdit],
+        [hide, removeQueued, reveal, sendQueuedNow, showNotice, t, takeForEdit],
     );
     const remove = useCallback((id: string): Promise<boolean> => run('remove', id), [run]);
     const sendNow = useCallback((id: string): Promise<boolean> => run('sendNow', id), [run]);
@@ -144,6 +143,7 @@ export const useAgentChatQueueActions = (
             if (editingIds.current.has(id)) return false;
             editingIds.current.add(id);
             setError(null);
+            showNotice(undefined);
             try {
                 let target: AgentChatQueueEditTarget;
                 try {
@@ -159,12 +159,12 @@ export const useAgentChatQueueActions = (
                 editingIds.current.delete(id);
             }
         },
-        [readQueued, reportEditFailure, run],
+        [readQueued, reportEditFailure, run, showNotice],
     );
     const cancelEdit = useCallback((): void => setEditing(null), []);
     /**
      * Saves the in-place editor's text. A failure keeps the editor open with the typed text, so the edit can be retried
-     * instead of lost; a message that left the queue meanwhile closes it with the alert.
+     * instead of lost; a message that left the queue meanwhile closes it with the notice.
      */
     const saveEdit = useCallback(
         async (text: string): Promise<void> => {
@@ -204,6 +204,7 @@ export const useAgentChatQueueActions = (
         header,
         isResuming,
         isSavingEdit,
+        notice,
         remove,
         resume,
         saveEdit,

@@ -105,7 +105,7 @@ async function executeSkillsAndQuestionFlow(
             // The app's language reaches every screen, not only the Chat: the Session list, its menu, and Settings.
             await waitForCheck(serial, `session-row-${fixture.allowedSessionId}`);
             await capture(environment, 'sessions', artifacts);
-            await tapMobileCheck(serial, 'forget-device-button');
+            await tapMobileCheck(serial, 'computer-menu-button');
             await waitForCheck(serial, 'settings-action');
             await capture(environment, 'sessions-menu', artifacts);
             await tapMobileCheck(serial, 'settings-action');

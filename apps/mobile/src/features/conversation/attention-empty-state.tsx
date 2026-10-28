@@ -1,7 +1,9 @@
+/* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import type { ReactNode } from 'react';
-import { Pressable, Text } from 'react-native';
+import { Pressable, StyleSheet, Text } from 'react-native';
 
 import { useTranslation } from '../../i18n';
+import { mobileControl, mobileSpace, mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
 
 /**
@@ -32,14 +34,26 @@ export function AttentionEmptyState({
             accessibilityLabel={t('conversation.attention.openTerminal')}
             accessibilityRole="button"
             onPress={onOpenTerminal}
-            style={{ justifyContent: 'center', minHeight: 44, padding: 8 }}
+            style={styles.link}
             testID="attention-open-terminal-fallback"
         >
-            <Text style={{ color: theme.primary, textDecorationLine: 'underline' }}>
+            <Text style={[styles.text, styles.underline, { color: theme.primary }]}>
                 {fallbackCopy}
             </Text>
         </Pressable>
     ) : (
-        <Text style={{ color: theme.muted, padding: 8 }}>{fallbackCopy}</Text>
+        <Text style={[styles.text, styles.padded, { color: theme.muted }]}>{fallbackCopy}</Text>
     );
 }
+
+const styles = StyleSheet.create({
+    link: {
+        justifyContent: 'center',
+        minHeight: mobileControl.row,
+        paddingHorizontal: mobileSpace.lg,
+    },
+    text: mobileType.meta,
+    padded: { padding: mobileSpace.lg },
+    underline: { textDecorationLine: 'underline' },
+});
+/* eslint-enable no-use-before-define, @typescript-eslint/no-use-before-define */

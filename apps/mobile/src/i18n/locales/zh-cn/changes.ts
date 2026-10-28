@@ -11,7 +11,6 @@ export const changes: TranslatedNamespace<typeof source> = {
     'changes.diffOutdated': '此差异已过时。请刷新更改后重新打开文件。',
     'changes.diffRefresh': '刷新',
     'changes.diffReconnect': '重新连接以查看此差异。',
-    'changes.diffRetry': '重试加载差异',
     'changes.diffUnavailable': '此文件过大或不是文本。请在电脑上查看。',
     'changes.emptyBody': '此会话的工作树没有更改。',
     'changes.emptyTitle': '没有更改',

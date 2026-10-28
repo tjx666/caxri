@@ -1,5 +1,7 @@
 import { StyleSheet } from 'react-native';
 
+import { mobileControl, mobileRadius, mobileSpace, mobileType } from '../../../theme/scale';
+
 /**
  * Send and Stop are the composer's primary action, which the mobile design sizes at 52dp; the one-line input matches it
  * so the row stays aligned.
@@ -8,44 +10,41 @@ const COMPOSER_LINE_HEIGHT = 52;
 
 export const sessionDetailStyles = StyleSheet.create({
     root: { flex: 1, minWidth: 0 },
-    header: { paddingHorizontal: 4, paddingVertical: 4, zIndex: 2 },
-    headerLine: { alignItems: 'center', flexDirection: 'row', gap: 4, minHeight: 52 },
+    header: { paddingHorizontal: mobileSpace.xs, paddingVertical: mobileSpace.xs, zIndex: 2 },
+    headerLine: {
+        alignItems: 'center',
+        flexDirection: 'row',
+        gap: mobileSpace.xs,
+        minHeight: mobileControl.primary,
+    },
     titleGroup: {
         alignItems: 'center',
         flex: 1,
         flexDirection: 'row',
-        gap: 8,
+        gap: mobileSpace.sm,
         minWidth: 0,
-        paddingHorizontal: 8,
+        paddingHorizontal: mobileSpace.sm,
     },
-    title: { flexShrink: 1, fontSize: 17, fontWeight: '700' },
-    menuAction: {
-        alignItems: 'center',
-        flexDirection: 'row',
-        gap: 12,
-        minHeight: 48,
-        paddingHorizontal: 14,
-    },
-    menuActionText: { fontSize: 15 },
+    title: { ...mobileType.heading, flexShrink: 1 },
     tabStrip: { borderBottomWidth: 1, flexGrow: 0 },
     tabs: {
         flexDirection: 'row',
-        gap: 6,
-        paddingBottom: 8,
-        paddingHorizontal: 12,
+        gap: mobileSpace.sm,
+        paddingBottom: mobileSpace.sm,
+        paddingHorizontal: mobileSpace.lg,
     },
     tab: {
         alignItems: 'center',
-        borderRadius: 22,
+        borderRadius: mobileRadius.pill,
         flexDirection: 'row',
         flexShrink: 0,
-        gap: 6,
+        gap: mobileSpace.sm,
         justifyContent: 'center',
-        minHeight: 44,
-        minWidth: 48,
-        paddingHorizontal: 12,
+        minHeight: mobileControl.row,
+        minWidth: mobileControl.row,
+        paddingHorizontal: mobileSpace.md,
     },
-    tabText: { flexShrink: 0, fontSize: 14, fontWeight: '600' },
+    tabText: { ...mobileType.meta, flexShrink: 0, fontWeight: '600' },
     tabAttentionDot: {
         borderRadius: 5,
         borderWidth: 1.5,
@@ -56,25 +55,31 @@ export const sessionDetailStyles = StyleSheet.create({
         width: 10,
     },
     tabBadge: {
-        borderRadius: 8,
-        fontSize: 12,
+        ...mobileType.caption,
+        borderRadius: mobileRadius.sm,
         fontVariant: ['tabular-nums'],
         fontWeight: '700',
         overflow: 'hidden',
-        paddingHorizontal: 5,
+        paddingHorizontal: mobileSpace.xs,
     },
     body: { flex: 1, minWidth: 0 },
     fallbackBanner: {
+        ...mobileType.caption,
         borderBottomWidth: 1,
-        fontSize: 12,
-        paddingHorizontal: 16,
-        paddingVertical: 8,
+        paddingHorizontal: mobileSpace.lg,
+        paddingVertical: mobileSpace.sm,
     },
     bodyRow: { flex: 1, flexDirection: 'row' },
     wideChanges: { borderLeftWidth: 1, flex: 1, minWidth: 0 },
-    placeholder: { alignItems: 'center', flex: 1, gap: 8, justifyContent: 'center', padding: 24 },
-    placeholderTitle: { fontSize: 17, fontWeight: '700', textAlign: 'center' },
-    placeholderBody: { fontSize: 14, lineHeight: 21, textAlign: 'center' },
+    placeholder: {
+        alignItems: 'center',
+        flex: 1,
+        gap: mobileSpace.sm,
+        justifyContent: 'center',
+        padding: mobileSpace.xl,
+    },
+    placeholderTitle: { ...mobileType.heading, textAlign: 'center' },
+    placeholderBody: { ...mobileType.body, textAlign: 'center' },
     composerBlock: { borderTopWidth: 1, gap: 6, paddingHorizontal: 12, paddingVertical: 10 },
     composerRow: { alignItems: 'flex-end', flexDirection: 'row', gap: 8 },
     /**
@@ -102,6 +107,6 @@ export const sessionDetailStyles = StyleSheet.create({
         justifyContent: 'center',
         width: COMPOSER_LINE_HEIGHT,
     },
-    sendState: { fontSize: 13 },
-    surfaceSwitchState: { alignItems: 'center', flexDirection: 'row', gap: 8 },
+    sendState: mobileType.meta,
+    surfaceSwitchState: { alignItems: 'center', flexDirection: 'row', gap: mobileSpace.sm },
 });

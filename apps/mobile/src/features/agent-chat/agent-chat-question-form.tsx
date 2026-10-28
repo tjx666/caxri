@@ -12,13 +12,14 @@ import {
 } from '@caxri/protocol';
 import { Circle, CircleDot, Square, SquareCheck } from 'lucide-react-native';
 
+import { Button } from '../../components/button';
 import { useTranslation } from '../../i18n';
+import { mobileRadius, mobileSpace, mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
 import type { QuestionRequest } from './agent-chat-question-prompt';
 import { QuestionPrompt } from './agent-chat-question-prompt';
 import { agentChatQuestionAdvance, agentChatQuestionFooter } from './agent-chat-request-flow';
 import type { RequestActions } from './agent-chat-request-parts';
-import { ActionButton } from './agent-chat-request-parts';
 import { useIsKeyboardShown } from './use-keyboard-shown';
 
 const withoutKey = <T,>(record: Readonly<Record<string, T>>, key: string): Record<string, T> =>
@@ -220,9 +221,9 @@ const QuestionActions = ({
     const { t } = useTranslation();
     return (
         <View style={styles.actions}>
-            <ActionButton
-                disabled={actions.isDisabled}
-                isPending={actions.pendingAction === 'agent-chat-question-skip'}
+            <Button
+                isDisabled={actions.isDisabled}
+                isBusy={actions.pendingAction === 'agent-chat-question-skip'}
                 label={t('chat.question.skip')}
                 onPress={() => {
                     void actions.respond('agent-chat-question-skip', {
@@ -232,34 +233,37 @@ const QuestionActions = ({
                 }}
                 testID="agent-chat-question-skip"
                 theme={theme}
-                tone="plain"
+                variant="outline"
+                style={styles.answer}
             />
             {footer.isBackShown ? (
-                <ActionButton
-                    disabled={actions.pendingAction !== null}
-                    isPending={false}
+                <Button
+                    isDisabled={actions.pendingAction !== null}
+                    isBusy={false}
                     label={t('chat.question.back')}
                     onPress={onBack}
                     testID="agent-chat-question-back"
                     theme={theme}
-                    tone="plain"
+                    variant="outline"
+                    style={styles.answer}
                 />
             ) : null}
             {footer.primary === 'next' ? (
-                <ActionButton
-                    disabled={actions.pendingAction !== null}
-                    isPending={false}
+                <Button
+                    isDisabled={actions.pendingAction !== null}
+                    isBusy={false}
                     label={t('chat.question.next')}
                     onPress={onNext}
                     testID="agent-chat-question-next"
                     theme={theme}
-                    tone="primary"
+                    variant="primary"
+                    style={styles.answer}
                 />
             ) : null}
             {footer.primary === 'submit' ? (
-                <ActionButton
-                    disabled={actions.isDisabled || !footer.canSubmit}
-                    isPending={actions.pendingAction === 'agent-chat-question-submit'}
+                <Button
+                    isDisabled={actions.isDisabled || !footer.canSubmit}
+                    isBusy={actions.pendingAction === 'agent-chat-question-submit'}
                     label={t('chat.question.submit')}
                     onPress={() => {
                         void actions.respond('agent-chat-question-submit', {
@@ -269,7 +273,8 @@ const QuestionActions = ({
                     }}
                     testID="agent-chat-question-submit"
                     theme={theme}
-                    tone="primary"
+                    variant="primary"
+                    style={styles.answer}
                 />
             ) : null}
         </View>
@@ -497,47 +502,55 @@ export const AgentChatQuestionForm = ({
 };
 
 const styles = StyleSheet.create({
-    questionBottom: { gap: 8 },
+    /**
+     * Answer buttons share their row equally.
+     */
+    answer: { flex: 1 },
+    questionBottom: { gap: mobileSpace.sm },
     scroll: { flexGrow: 0, flexShrink: 1 },
-    optionList: { gap: 6 },
+    optionList: { gap: mobileSpace.xs },
     /**
      * Compact rows (44dp, like the key bar) so a phone shows more of a question's options before scrolling.
      */
     option: {
         alignItems: 'flex-start',
-        borderRadius: 10,
+        borderRadius: mobileRadius.sm,
         borderWidth: 1,
         flexDirection: 'row',
-        gap: 10,
+        gap: mobileSpace.md,
         minHeight: 44,
-        paddingHorizontal: 10,
-        paddingVertical: 8,
+        paddingHorizontal: mobileSpace.md,
+        paddingVertical: mobileSpace.sm,
     },
     glyph: { marginTop: 1 },
-    optionText: { flex: 1, gap: 2 },
-    optionLabelRow: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-    optionLabel: { flexShrink: 1, fontSize: 15, fontWeight: '600', lineHeight: 20 },
-    optionDescription: { fontSize: 13, lineHeight: 18 },
+    optionText: { flex: 1, gap: mobileSpace.xxs },
+    optionLabelRow: {
+        alignItems: 'center',
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: mobileSpace.xs,
+    },
+    optionLabel: { ...mobileType.bodyStrong, flexShrink: 1 },
+    optionDescription: { ...mobileType.meta },
     badge: {
-        borderRadius: 6,
+        ...mobileType.caption,
+        borderRadius: mobileRadius.sm,
         borderWidth: 1,
-        fontSize: 11,
         fontWeight: '700',
-        lineHeight: 16,
         overflow: 'hidden',
-        paddingHorizontal: 6,
+        paddingHorizontal: mobileSpace.xs,
     },
     otherClosed: { alignItems: 'center' },
     otherOpen: {
         alignItems: 'center',
-        borderRadius: 10,
+        borderRadius: mobileRadius.sm,
         borderWidth: 1,
         flexDirection: 'row',
-        gap: 10,
+        gap: mobileSpace.md,
         minHeight: 44,
-        paddingLeft: 10,
+        paddingLeft: mobileSpace.md,
     },
-    input: { flex: 1, fontSize: 15, minHeight: 44, paddingRight: 12 },
-    actions: { flexDirection: 'row', gap: 8 },
+    input: { ...mobileType.body, flex: 1, minHeight: 44, paddingRight: mobileSpace.md },
+    actions: { flexDirection: 'row', gap: mobileSpace.sm },
 });
 /* eslint-enable no-use-before-define, @typescript-eslint/no-use-before-define */

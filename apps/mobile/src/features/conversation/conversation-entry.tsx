@@ -7,6 +7,7 @@ import type { AgentTimelineItem } from '@caxri/protocol';
 
 import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
+import { ConversationHandoffCard } from './conversation-handoff-card';
 import { ConversationMarkdown } from './conversation-markdown';
 import type { ConversationMessageTarget } from './conversation-message-actions';
 import { ConversationMessageActions } from './conversation-message-actions';
@@ -18,6 +19,7 @@ import { ConversationToolDetail } from './conversation-tool-detail';
 import { ConversationToolGroup } from './conversation-tool-group';
 import { ConversationToolRow } from './conversation-tool-row';
 import { ConversationUserAttachments } from './conversation-user-attachments';
+import { conversationActionText, conversationUserText } from './conversation-user-text';
 import { useConversationPacedText } from './use-conversation-paced-text';
 
 type ToolCall = Extract<AgentTimelineItem, { type: 'toolCall' }>;
@@ -137,7 +139,8 @@ export const ConversationEntry = memo(
                 />
             );
         }
-        if (entry.type === 'userMessage')
+        if (entry.type === 'userMessage') {
+            const user = conversationUserText(entry.text);
             return (
                 <View
                     style={[styles.message, styles.userRow]}
@@ -147,17 +150,26 @@ export const ConversationEntry = memo(
                     {userExtras}
                     {entry.text.length > 0 ? (
                         <ConversationMessagePress
-                            message={{ id: entry.id, role: 'user', text: entry.text }}
+                            message={{
+                                id: entry.id,
+                                role: 'user',
+                                text: conversationActionText(entry.text),
+                            }}
                             style={[styles.userBubble, { backgroundColor: theme.surface }]}
                             testID={`conversation-user-bubble-${entry.id}`}
                         >
-                            <Text style={[styles.userText, { color: theme.text }]}>
-                                {entry.text}
-                            </Text>
+                            {user.kind === 'handoff' ? (
+                                <ConversationHandoffCard note={user.note} theme={theme} />
+                            ) : (
+                                <Text style={[styles.userText, { color: theme.text }]}>
+                                    {user.text}
+                                </Text>
+                            )}
                         </ConversationMessagePress>
                     ) : null}
                 </View>
             );
+        }
         if (entry.type === 'systemEvent')
             return <ConversationSystemEvent event={entry} theme={theme} />;
         if (entry.type === 'agentMessage')

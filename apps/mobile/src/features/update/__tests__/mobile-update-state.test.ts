@@ -6,6 +6,7 @@ import {
     installMobileUpdate,
     mobileUpdateBannerKind,
     mobileUpdateBannerView,
+    mobileUpdateNoticeView,
     mobileUpdateSizeLabel,
     mobileUpdateStatusLabel,
     mobileUpdateStore,
@@ -258,5 +259,40 @@ describe('mobileUpdateStore', () => {
         expect(surviving).toHaveBeenCalledTimes(1);
         unsubscribeFailing();
         unsubscribeSurviving();
+    });
+});
+
+describe('mobileUpdateNoticeView', () => {
+    const idle: MobileUpdatePhase = { kind: 'idle' };
+
+    it('keeps an optional update muted and dismissible', () => {
+        expect(mobileUpdateNoticeView('available', idle, bundle)).toMatchObject({
+            action: 'install',
+            canDismiss: true,
+            testID: 'mobile-update-banner',
+            tone: 'muted',
+        });
+    });
+
+    it('warns for a required update, and turns danger when the check failed', () => {
+        expect(mobileUpdateNoticeView('required', idle, bundle)).toMatchObject({
+            canDismiss: false,
+            testID: 'mobile-update-required',
+            tone: 'warning',
+        });
+        expect(mobileUpdateNoticeView('unreachable', idle, undefined)).toMatchObject({
+            action: 'retry-check',
+            tone: 'danger',
+        });
+    });
+
+    it('only explains a mismatch that has no build to offer', () => {
+        const notice = mobileUpdateNoticeView('mismatch', idle, undefined);
+        expect(notice).toMatchObject({
+            action: null,
+            canDismiss: false,
+            testID: 'mobile-version-mismatch',
+        });
+        expect(notice.message).toContain('Update required');
     });
 });

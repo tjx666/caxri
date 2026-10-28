@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { TextInputInstance } from 'react-native';
-import { Pressable, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { MOBILE_AGENT_SUBMIT_MAX_BYTES } from '@caxri/protocol';
 import { ArrowUp, Paperclip, Square } from 'lucide-react-native';
@@ -9,6 +9,7 @@ import { IconButton } from '../../../components/icon-button';
 import { Spinner } from '../../../components/spinner';
 import { useTranslation } from '../../../i18n';
 import { formatByteSize } from '../../../lib/format-size';
+import { mobileType } from '../../../theme/scale';
 import type { MobileTheme } from '../../../theme/tokens';
 import { mobileAgentDisplayName } from '../agent-display-name';
 import { useComposerSuggestions } from '../hooks/use-composer-suggestions';
@@ -20,6 +21,15 @@ import type { MobileSessionItem } from '../session-model';
 import { ImageSourceSheet } from './image-source-sheet';
 import { SessionComposerAttachments, SessionComposerSuggestions } from './session-composer-extras';
 import { sessionDetailStyles as styles } from './session-detail-styles';
+
+/**
+ * The status lines under the input, set on the `meta` step; the shared composer styles keep only the layout.
+ */
+const statusStyles = StyleSheet.create({
+    reason: { ...mobileType.meta, flex: 1 },
+    byteCount: { ...mobileType.caption },
+    line: { ...mobileType.meta },
+});
 
 const SessionComposerInput = ({
     delivery,
@@ -231,22 +241,31 @@ export const SessionDetailComposer = ({
             </View>
             {disabledReason || isShowByteCount ? (
                 <View style={styles.composerMeta}>
-                    <Text style={[styles.reason, { color: theme.muted }]}>
+                    <Text style={[statusStyles.reason, { color: theme.muted }]}>
                         {disabledReason ?? ''}
                     </Text>
                     {isShowByteCount ? (
-                        <Text style={[styles.byteCount, { color: theme.muted }]}>
+                        <Text style={[statusStyles.byteCount, { color: theme.muted }]}>
                             {formatByteSize(byteLength)}/
                             {formatByteSize(MOBILE_AGENT_SUBMIT_MAX_BYTES)}
                         </Text>
                     ) : null}
                 </View>
             ) : null}
+            {images.attachError ? (
+                <Text
+                    accessibilityRole="alert"
+                    style={[statusStyles.line, { color: theme.danger }]}
+                    testID="session-composer-attach-error"
+                >
+                    {images.attachError}
+                </Text>
+            ) : null}
             {feedback ? (
                 <Text
                     accessibilityRole={feedback.isError ? 'alert' : 'text'}
                     style={[
-                        styles.sendState,
+                        statusStyles.line,
                         { color: feedback.isError ? theme.danger : theme.muted },
                     ]}
                     testID="session-composer-feedback"

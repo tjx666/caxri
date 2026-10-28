@@ -1,12 +1,13 @@
 import { StyleSheet, Text, View } from 'react-native';
 
 import { useTranslation } from '../../i18n';
+import { mobileSpace, mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
 import { useSavedAge } from './use-saved-age';
 
 const styles = StyleSheet.create({
-    note: { paddingHorizontal: 16, paddingVertical: 6 },
-    text: { fontSize: 12, fontVariant: ['tabular-nums'], lineHeight: 16, textAlign: 'center' },
+    note: { paddingHorizontal: mobileSpace.lg, paddingVertical: mobileSpace.sm },
+    text: { ...mobileType.caption, fontVariant: ['tabular-nums'], textAlign: 'center' },
 });
 
 /**

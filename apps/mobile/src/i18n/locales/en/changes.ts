@@ -8,7 +8,6 @@ export const changes = {
         'This diff is no longer current. Refresh changes and open the file again.',
     'changes.diffRefresh': 'Refresh',
     'changes.diffReconnect': 'Reconnect to review this diff.',
-    'changes.diffRetry': 'Retry diff',
     'changes.diffUnavailable': 'This file is too large or not text. Review it on your computer.',
     'changes.emptyBody': "This Session's worktree is clean.",
     'changes.emptyTitle': 'No changes',

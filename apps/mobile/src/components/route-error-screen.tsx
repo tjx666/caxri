@@ -6,7 +6,7 @@ import type { ErrorBoundaryProps } from 'expo-router';
 
 import { useTranslation } from '../i18n';
 import { useMobileTheme } from '../theme/use-mobile-theme';
-import { ActionButton } from './action-button';
+import { Button } from './button';
 
 /**
  * Replaces Expo Router's default error screen, which prints the raw error message and stack. Those can carry Session,
@@ -26,16 +26,17 @@ export const RouteErrorScreen = ({ retry }: ErrorBoundaryProps) => {
                     <Text style={[styles.body, { color: theme.muted }]}>
                         {t('components.routeError.body')}
                     </Text>
-                    <ActionButton
+                    <Button
                         accessibilityHint={t('components.routeError.retryHint')}
+                        label={t('components.tryAgain')}
                         onPress={() => {
                             void retry();
                         }}
+                        size="primary"
                         testID="route-error-retry"
                         theme={theme}
-                    >
-                        {t('components.tryAgain')}
-                    </ActionButton>
+                        variant="primary"
+                    />
                 </View>
             </SafeAreaView>
         </SafeAreaProvider>

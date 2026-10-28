@@ -5,7 +5,11 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { ChevronRight } from 'lucide-react-native';
 
 import { AgentAvatar, AgentGlyph } from '../../components/agent-icon';
+import { Card } from '../../components/card';
+import { Meter } from '../../components/meter';
+import { SectionLabel } from '../../components/section-label';
 import { useTranslation } from '../../i18n';
+import { mobileControl, mobileRadius, mobileSpace, mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
 import type {
     MeterLevel,
@@ -37,19 +41,17 @@ export const HostStatusSection = ({
 }) => (
     <View style={styles.section} testID={testID}>
         <View style={styles.sectionHeader}>
-            <Text accessibilityRole="header" style={[styles.sectionTitle, { color: theme.muted }]}>
-                {title}
-            </Text>
+            <SectionLabel theme={theme}>{title}</SectionLabel>
             {accessory}
         </View>
-        <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+        <Card padded={false} theme={theme}>
             {children}
-        </View>
+        </Card>
         {footer ? <Text style={[styles.footer, { color: theme.muted }]}>{footer}</Text> : null}
     </View>
 );
 
-const Meter = ({
+const SystemMeter = ({
     label,
     meter,
     testID,
@@ -80,17 +82,7 @@ const Meter = ({
                 {meter.value}
             </Text>
         </View>
-        <View style={[styles.track, { backgroundColor: theme.elevated }]}>
-            <View
-                style={[
-                    styles.fill,
-                    {
-                        backgroundColor: levelColor(meter.level, theme),
-                        width: `${Math.round((meter.ratio ?? 0) * 100)}%`,
-                    },
-                ]}
-            />
-        </View>
+        <Meter color={levelColor(meter.level, theme)} ratio={meter.ratio ?? 0} theme={theme} />
         {meter.detail ? (
             <Text style={[styles.meterDetail, { color: theme.muted }]}>{meter.detail}</Text>
         ) : null}
@@ -101,14 +93,14 @@ export const HostSystemCard = ({ system, theme }: { system: SystemModel; theme: 
     const { t } = useTranslation();
     return (
         <>
-            <Meter
+            <SystemMeter
                 label={t('hostStatus.system.cpu')}
                 meter={system.cpu}
                 testID="host-status-cpu"
                 theme={theme}
             />
             <View style={[styles.divider, { backgroundColor: theme.border }]} />
-            <Meter
+            <SystemMeter
                 label={t('hostStatus.system.memory')}
                 meter={system.memory}
                 testID="host-status-memory"
@@ -307,51 +299,63 @@ export const ProcessSortToggle = ({
 };
 
 const styles = StyleSheet.create({
-    section: { gap: 8 },
+    section: { gap: mobileSpace.sm },
     sectionHeader: {
         alignItems: 'center',
         flexDirection: 'row',
         justifyContent: 'space-between',
         minHeight: 28,
-        paddingHorizontal: 4,
+        paddingHorizontal: mobileSpace.xs,
     },
-    sectionTitle: { fontSize: 12, fontWeight: '700', letterSpacing: 0.6 },
-    card: { borderRadius: 14, borderWidth: 1, overflow: 'hidden' },
-    footer: { fontSize: 12, paddingHorizontal: 4 },
-    divider: { height: StyleSheet.hairlineWidth, marginHorizontal: 16 },
-    meter: { gap: 8, paddingHorizontal: 16, paddingVertical: 14 },
+    footer: { ...mobileType.caption, paddingHorizontal: mobileSpace.xs },
+    divider: { height: StyleSheet.hairlineWidth, marginHorizontal: mobileSpace.lg },
+    meter: {
+        gap: mobileSpace.sm,
+        paddingHorizontal: mobileSpace.lg,
+        paddingVertical: mobileSpace.md,
+    },
     meterHeading: { alignItems: 'baseline', flexDirection: 'row', justifyContent: 'space-between' },
-    meterLabel: { fontSize: 15, fontWeight: '600' },
+    meterLabel: mobileType.bodyStrong,
     meterValue: { fontSize: 20, fontVariant: ['tabular-nums'], fontWeight: '700' },
-    meterDetail: { fontSize: 13, fontVariant: ['tabular-nums'] },
-    track: { borderRadius: 3, height: 6, overflow: 'hidden' },
-    fill: { borderRadius: 3, height: 6 },
-    uptime: { fontSize: 13, paddingHorizontal: 16, paddingVertical: 12 },
+    meterDetail: { ...mobileType.meta, fontVariant: ['tabular-nums'] },
+    uptime: {
+        ...mobileType.meta,
+        paddingHorizontal: mobileSpace.lg,
+        paddingVertical: mobileSpace.md,
+    },
     usage: { alignItems: 'flex-end', minWidth: 72 },
-    usageCpu: { fontSize: 15, fontVariant: ['tabular-nums'], fontWeight: '600' },
-    usageMemory: { fontSize: 12, fontVariant: ['tabular-nums'] },
-    sessionRow: { gap: 8, paddingHorizontal: 14, paddingVertical: 12 },
-    sessionHeading: { alignItems: 'center', flexDirection: 'row', gap: 12 },
-    sessionMain: { flex: 1, gap: 2 },
-    sessionTitle: { fontSize: 15, fontWeight: '600' },
-    secondary: { fontSize: 12 },
-    terminals: { gap: 6, paddingLeft: 44, paddingRight: 30 },
-    terminalRow: { alignItems: 'center', flexDirection: 'row', gap: 8 },
-    terminalName: { flex: 1, fontSize: 13 },
-    terminalUsage: { fontSize: 12, fontVariant: ['tabular-nums'] },
+    usageCpu: { ...mobileType.bodyStrong, fontVariant: ['tabular-nums'] },
+    usageMemory: { ...mobileType.caption, fontVariant: ['tabular-nums'] },
+    sessionRow: {
+        gap: mobileSpace.sm,
+        paddingHorizontal: mobileSpace.lg,
+        paddingVertical: mobileSpace.md,
+    },
+    sessionHeading: { alignItems: 'center', flexDirection: 'row', gap: mobileSpace.md },
+    sessionMain: { flex: 1, gap: mobileSpace.xxs },
+    sessionTitle: mobileType.bodyStrong,
+    secondary: mobileType.caption,
+    terminals: { gap: mobileSpace.sm, paddingLeft: 44, paddingRight: 30 },
+    terminalRow: { alignItems: 'center', flexDirection: 'row', gap: mobileSpace.sm },
+    terminalName: { ...mobileType.meta, flex: 1 },
+    terminalUsage: { ...mobileType.caption, fontVariant: ['tabular-nums'] },
     processRow: {
         alignItems: 'center',
         flexDirection: 'row',
-        gap: 12,
-        minHeight: 52,
-        paddingHorizontal: 16,
-        paddingVertical: 10,
+        gap: mobileSpace.md,
+        minHeight: mobileControl.row,
+        paddingHorizontal: mobileSpace.lg,
+        paddingVertical: mobileSpace.sm,
     },
-    processMain: { flex: 1, gap: 2 },
-    processName: { fontSize: 14, fontWeight: '500' },
-    toggle: { borderRadius: 8, borderWidth: 1, flexDirection: 'row', padding: 2 },
-    toggleOption: { borderRadius: 6, paddingHorizontal: 10, paddingVertical: 4 },
-    toggleText: { fontSize: 12, fontWeight: '600' },
+    processMain: { flex: 1, gap: mobileSpace.xxs },
+    processName: { ...mobileType.body, fontWeight: '500' },
+    toggle: { borderRadius: mobileRadius.sm, borderWidth: 1, flexDirection: 'row', padding: 2 },
+    toggleOption: {
+        borderRadius: 6,
+        paddingHorizontal: mobileSpace.md,
+        paddingVertical: mobileSpace.xs,
+    },
+    toggleText: { ...mobileType.caption, fontWeight: '600' },
 });
 
 /* eslint-enable no-use-before-define, @typescript-eslint/no-use-before-define */

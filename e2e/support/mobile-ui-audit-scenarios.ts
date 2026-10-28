@@ -279,7 +279,7 @@ async function sessionManagement(
     if ((await sessionTitle(fixture, sessionId)).archivedAt === undefined)
         throw new Error('The Desktop Session was not archived');
 
-    await tapMobileCheck(serial, 'forget-device-button');
+    await tapMobileCheck(serial, 'computer-menu-button');
     await waitFor(serial, (nodes) => hasCheck(nodes, 'archived-sessions-action'));
     await tapMobileCheck(serial, 'archived-sessions-action');
     await waitFor(serial, (nodes) => hasCheck(nodes, `archived-session-restore-${sessionId}`));
@@ -345,7 +345,7 @@ async function renameKeyboardAvoidance(
 
 async function settingsPage(environment: UiAuditScenarioEnvironment, artifacts: string[]) {
     const { serial } = environment;
-    await tapMobileCheck(serial, 'forget-device-button');
+    await tapMobileCheck(serial, 'computer-menu-button');
     await waitFor(serial, (nodes) => hasCheck(nodes, 'settings-action'));
     await capture(environment, 'menu', artifacts, 'settings-action');
     await tapMobileCheck(serial, 'settings-action');
@@ -395,7 +395,7 @@ async function hostStatus(
 ) {
     const { serial } = environment;
     const sessionRow = `host-status-session-${sessionId}`;
-    await tapMobileCheck(serial, 'forget-device-button');
+    await tapMobileCheck(serial, 'computer-menu-button');
     await waitFor(serial, (nodes) => hasCheck(nodes, 'computer-status-action'));
     await capture(environment, 'menu', artifacts, 'computer-status-action');
     await tapMobileCheck(serial, 'computer-status-action');
@@ -424,7 +424,7 @@ async function hostStatus(
     await capture(environment, 'recovered', artifacts, 'host-status-processes');
     await tapMobileCheck(serial, 'host-status-back');
     await waitFor(serial, (nodes) => hasCheck(nodes, 'new-session-button'));
-    await tapMobileCheck(serial, 'forget-device-button');
+    await tapMobileCheck(serial, 'computer-menu-button');
     await waitFor(serial, (nodes) => hasCheck(nodes, 'computer-status-action'));
     await tapMobileCheck(serial, 'computer-status-action');
     await waitFor(serial, (nodes) => hasCheck(nodes, sessionRow));

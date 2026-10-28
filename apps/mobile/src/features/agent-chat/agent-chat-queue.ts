@@ -205,16 +205,16 @@ export const agentChatQueueFailure = (
 
 /**
  * The explanation an Edit that came back empty-handed needs. A row that already left the queue is gone from the card
- * too, and the queue may now be empty, so an inline error would explain nothing on screen; the phone shows these in an
- * alert instead, so the reader learns why nothing came back to the composer.
+ * too, and the queue may now be empty, so an error against a row would explain nothing on screen; the card shows this
+ * sentence for a few seconds instead, so the reader learns why nothing came back to the composer.
  */
-export const agentChatQueueEditAlert = (
+export const agentChatQueueEditNotice = (
     failure: 'gone' | 'tooLong',
     t: Translate = translate,
-): { title: string; message: string } =>
+): string =>
     failure === 'gone'
-        ? { title: t('chat.queue.goneTitle'), message: t('chat.queue.goneMessage') }
-        : { title: t('chat.queue.tooLongTitle'), message: t('chat.queue.tooLongMessage') };
+        ? `${t('chat.queue.goneTitle')}. ${t('chat.queue.goneMessage')}`
+        : `${t('chat.queue.tooLongTitle')}. ${t('chat.queue.tooLongMessage')}`;
 
 /**
  * Runs one row action optimistically: the row disappears at once, because Delete, Steer, and Edit all take it out of

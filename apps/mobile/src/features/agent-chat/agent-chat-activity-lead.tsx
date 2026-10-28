@@ -9,6 +9,7 @@ import { MessageCircleQuestionMark } from 'lucide-react-native';
 import { ShimmerText } from '../../components/shimmer-text';
 import { Spinner } from '../../components/spinner';
 import { useTranslation } from '../../i18n';
+import { mobileSpace, mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
 
 const ELAPSED_TICK_MS = 1000;
@@ -75,13 +76,13 @@ export const AgentChatActivityLead = ({
 );
 
 const styles = StyleSheet.create({
-    root: { alignItems: 'center', flex: 1, flexDirection: 'row', gap: 8, minWidth: 0 },
+    root: { alignItems: 'center', flex: 1, flexDirection: 'row', gap: mobileSpace.sm, minWidth: 0 },
     /**
      * A 16dp slot keeps the 14dp glyph centered on the 13pt line, the size Desktop's lead draws it at.
      */
     glyph: { alignItems: 'center', height: 16, justifyContent: 'center', width: 16 },
-    text: { fontSize: 13, lineHeight: 18 },
+    text: mobileType.meta,
     fill: { flex: 1 },
-    elapsed: { fontSize: 13, fontVariant: ['tabular-nums'], lineHeight: 18 },
+    elapsed: { ...mobileType.meta, fontVariant: ['tabular-nums'] },
 });
 /* eslint-enable no-use-before-define, @typescript-eslint/no-use-before-define */

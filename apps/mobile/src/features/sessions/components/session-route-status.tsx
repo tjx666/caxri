@@ -1,15 +1,23 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { router } from 'expo-router';
 
+import { Button } from '../../../components/button';
 import { Spinner } from '../../../components/spinner';
 import { useTranslation } from '../../../i18n';
+import { mobileSpace, mobileType } from '../../../theme/scale';
 import type { MobileTheme } from '../../../theme/tokens';
 
 const styles = StyleSheet.create({
-    root: { alignItems: 'center', flex: 1, gap: 12, justifyContent: 'center', padding: 24 },
-    body: { fontSize: 14, lineHeight: 21, textAlign: 'center' },
-    retry: { justifyContent: 'center', minHeight: 48 },
+    root: {
+        alignItems: 'center',
+        flex: 1,
+        gap: mobileSpace.md,
+        justifyContent: 'center',
+        padding: mobileSpace.xl,
+    },
+    body: { ...mobileType.body, textAlign: 'center' },
+    action: { minWidth: 160 },
 });
 
 export const SessionRouteStatus = ({
@@ -43,24 +51,26 @@ export const SessionRouteStatus = ({
                 {error ?? t(isOffline ? 'sessions.route.reconnect' : 'sessions.route.opening')}
             </Text>
             {error ? (
-                <Pressable
-                    accessibilityRole="button"
-                    onPress={onRetry}
-                    style={styles.retry}
+                <Button
+                    label={t('common.retry')}
+                    onPress={() => {
+                        void onRetry();
+                    }}
+                    style={styles.action}
                     testID="session-route-retry"
-                >
-                    <Text style={{ color: theme.primary }}>{t('common.retry')}</Text>
-                </Pressable>
+                    theme={theme}
+                    variant="outline"
+                />
             ) : null}
             {hasBack && (error || isOffline) ? (
-                <Pressable
-                    accessibilityRole="button"
+                <Button
+                    label={t('sessions.backToSessions')}
                     onPress={() => router.dismissTo(`/h/${encodeURIComponent(hostId)}`)}
-                    style={styles.retry}
+                    style={styles.action}
                     testID="session-route-back"
-                >
-                    <Text style={{ color: theme.primary }}>{t('sessions.backToSessions')}</Text>
-                </Pressable>
+                    theme={theme}
+                    variant="outline"
+                />
             ) : null}
         </View>
     );

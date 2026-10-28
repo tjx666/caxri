@@ -1,23 +1,34 @@
-import { memo, useCallback, useRef, useState } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 import type { ListRenderItemInfo } from 'react-native';
-import { Alert, FlatList, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { FlatList, Pressable, Text, View } from 'react-native';
 
 import type { FileEntry } from '@caxri/protocol';
 import { ChevronLeft, ChevronRight } from 'lucide-react-native';
 
-import { HighlightedCode } from '../../components/highlighted-code';
+import { ConfirmSheet } from '../../components/confirm-sheet';
 import { IconButton } from '../../components/icon-button';
+import { ScreenState } from '../../components/screen-state';
 import { useTranslation } from '../../i18n';
 import { formatByteSize } from '../../lib/format-size';
+import { useSessionViewState } from '../../lib/session-view-store';
+import { useHardwareBack } from '../../lib/use-hardware-back';
 import type { MobileTheme } from '../../theme/tokens';
-import { useMobileClient } from '../connection/mobile-client-provider';
-import { MobileGatewayRequestError } from '../connection/mobile-gateway-client';
-import { fileLanguage } from './file-language';
+import { FilePreview } from './file-preview';
 import { FileTypeIcon } from './file-type-icon';
 import { FilesBreadcrumb } from './files-breadcrumb';
-import { PanelStatus, PendingPanelStatus } from './panel-status';
+import {
+    closePreview,
+    discardDraft,
+    editDraft,
+    filesNavigationStore,
+    isDraftDirty,
+    keepFolders,
+    startDraft,
+    stepBack,
+} from './files-navigation';
 import { panelsStyles as styles } from './panels-styles';
-import { useFileRead, useFilesList } from './use-panels';
+import { PendingPanelState } from './pending-panel-state';
+import { useFilesList } from './use-panels';
 
 const isDirectory = (entry: FileEntry): boolean =>
     entry.kind === 'directory' || (entry.kind === 'symlink' && entry.linkKind === 'directory');
@@ -77,220 +88,14 @@ const FileRow = memo(
     },
 );
 
-const FilePreview = ({
-    deviceRole,
-    entry,
-    folders,
-    onBack,
-    sessionId,
-    theme,
-}: {
-    deviceRole: 'view' | 'reply' | 'control' | null;
-    entry: FileEntry;
-    /**
-     * The open folder path above the previewed file.
-     */
-    folders: FileEntry[];
-    /**
-     * Closes the preview, optionally returning to an ancestor folder picked from the breadcrumb.
-     */
-    onBack: (depth?: number) => void;
-    sessionId: string;
-    theme: MobileTheme;
-}) => {
-    const { t } = useTranslation();
-    const { request } = useMobileClient();
-    const file = useFileRead(sessionId, entry.path);
-    const language = fileLanguage(entry.name);
-    const [draft, setDraft] = useState<string | null>(null);
-    const expectedContentHash = useRef<string | null>(null);
-    const [saving, setSaving] = useState(false);
-    const [saveError, setSaveError] = useState<string | null>(null);
-    const discard = () => {
-        setDraft(null);
-        expectedContentHash.current = null;
-        setSaveError(null);
-        void file.refetch();
-    };
-    const save = async () => {
-        if (saving || draft === null || expectedContentHash.current === null) return;
-        setSaving(true);
-        setSaveError(null);
-        try {
-            await request('mobile.files.write', {
-                sessionId,
-                path: entry.path,
-                content: draft,
-                expectedContentHash: expectedContentHash.current,
-            });
-            setDraft(null);
-            expectedContentHash.current = null;
-            await file.refetch();
-        } catch (error) {
-            setSaveError(
-                t(
-                    error instanceof MobileGatewayRequestError && error.code === 'CONFLICT'
-                        ? 'panels.saveConflict'
-                        : 'panels.saveFailed',
-                ),
-            );
-        } finally {
-            setSaving(false);
-        }
-    };
-    /**
-     * Leaving the preview with an unsaved draft would discard it silently, so an in-progress edit is confirmed before
-     * the Back action or a breadcrumb navigates away.
-     */
-    const confirmBack = (depth?: number): void => {
-        if (draft === null) {
-            onBack(depth);
-            return;
-        }
-        Alert.alert(t('panels.discardTitle'), undefined, [
-            { text: t('panels.keepEditing'), style: 'cancel' },
-            { text: t('panels.discard'), style: 'destructive', onPress: () => onBack(depth) },
-        ]);
-    };
-    const body = (() => {
-        if (file.isPending)
-            return <PendingPanelStatus fetchStatus={file.fetchStatus} theme={theme} />;
-        if (file.isError)
-            return (
-                <PanelStatus
-                    message={t('panels.openFileFailed')}
-                    onRetry={() => {
-                        void file.refetch();
-                    }}
-                    theme={theme}
-                />
-            );
-        if (file.data.status !== 'available')
-            return (
-                <PanelStatus
-                    message={t('panels.fileUnavailable')}
-                    testID="files-preview-unavailable"
-                    theme={theme}
-                />
-            );
-        const document = file.data;
-        return (
-            <View style={styles.preview}>
-                {deviceRole === 'control' && !document.readOnly ? (
-                    <View style={[styles.crumbs, styles.fileActions]}>
-                        {/* Distinct keys prevent the disabled Save native view from becoming Edit after a write. */}
-                        {draft === null ? (
-                            <Pressable
-                                accessibilityLabel={t('panels.editFile')}
-                                accessibilityRole="button"
-                                key="edit"
-                                onPress={() => {
-                                    setDraft(document.content);
-                                    expectedContentHash.current = document.contentHash;
-                                }}
-                                style={styles.fileAction}
-                                testID="files-edit"
-                            >
-                                <Text style={{ color: theme.primary }}>{t('panels.edit')}</Text>
-                            </Pressable>
-                        ) : (
-                            <>
-                                <Pressable
-                                    accessibilityLabel={t('panels.saveFile')}
-                                    accessibilityRole="button"
-                                    accessibilityState={{ disabled: saving }}
-                                    disabled={saving}
-                                    key="save"
-                                    onPress={async () => {
-                                        await save();
-                                    }}
-                                    style={styles.fileAction}
-                                    testID="files-save"
-                                >
-                                    <Text style={{ color: theme.primary }}>{t('panels.save')}</Text>
-                                </Pressable>
-                                <Pressable
-                                    accessibilityLabel={t('panels.discardChanges')}
-                                    accessibilityRole="button"
-                                    onPress={discard}
-                                    style={styles.fileAction}
-                                    testID="files-discard"
-                                >
-                                    <Text style={{ color: theme.muted }}>
-                                        {t('panels.discard')}
-                                    </Text>
-                                </Pressable>
-                            </>
-                        )}
-                    </View>
-                ) : null}
-                {saveError ? (
-                    <Text
-                        accessibilityRole="alert"
-                        style={{ color: theme.danger }}
-                        testID="files-save-error"
-                    >
-                        {saveError}
-                    </Text>
-                ) : null}
-                {draft === null ? (
-                    <ScrollView style={styles.preview}>
-                        <ScrollView horizontal>
-                            <Text
-                                selectable
-                                style={[styles.previewText, { color: theme.text }]}
-                                testID="files-preview-text"
-                            >
-                                <HighlightedCode code={document.content} language={language} />
-                            </Text>
-                        </ScrollView>
-                    </ScrollView>
-                ) : (
-                    <TextInput
-                        accessibilityLabel={t('panels.fileContents')}
-                        autoCapitalize="none"
-                        multiline
-                        onChangeText={setDraft}
-                        scrollEnabled
-                        style={[styles.previewText, { color: theme.text, flex: 1 }]}
-                        testID="files-editor"
-                        textAlignVertical="top"
-                        /**
-                         * The draft stays plain text. Highlighted spans as `TextInput` children re-render per keystroke
-                         * and Android moves the caret, so a second typed character lands elsewhere in the file.
-                         */
-                        value={draft}
-                    />
-                )}
-            </View>
-        );
-    })();
-    return (
-        <View style={styles.root}>
-            <View style={[styles.crumbs, { borderColor: theme.border }]}>
-                <IconButton
-                    accessibilityLabel={t('panels.backToFolder')}
-                    icon={ChevronLeft}
-                    onPress={() => confirmBack()}
-                    testID="files-preview-back"
-                    theme={theme}
-                />
-                <FilesBreadcrumb
-                    onSelect={confirmBack}
-                    segments={[...folders, entry]}
-                    theme={theme}
-                />
-            </View>
-            {body}
-        </View>
-    );
-};
-
 /**
  * Mirrors Desktop's Files explorer: walk folders under the Session's Project and preview text files. A Control device
  * can also edit and save a previewed file (see `FilePreview`); every other device role stays read-only. Entry paths
  * come from the Server listing and are passed back unchanged, so symlinks reached through the Project keep their
  * workspace identity.
+ *
+ * Where the reader stands (folders, previewed file, unsaved draft) lives in `filesNavigationStore`, so a tab switch
+ * does not lose it, and hardware Back walks out one level at a time instead of dropping the whole view.
  */
 export const FilesPanel = ({
     deviceRole,
@@ -302,33 +107,89 @@ export const FilesPanel = ({
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
-    const [stack, setStack] = useState<FileEntry[]>([]);
-    const [preview, setPreview] = useState<FileEntry | null>(null);
+    const [navigation, update] = useSessionViewState(filesNavigationStore, sessionId);
+    const { draft, preview, stack } = navigation;
+    /**
+     * What a confirmed discard does next: leave for `depth` folders (or the current folder), or stay and close the
+     * editor (hardware Back from the editor).
+     */
+    const [pendingDiscard, setPendingDiscard] = useState<
+        { kind: 'leave'; depth?: number } | { kind: 'editor' } | null
+    >(null);
     const directory = stack.at(-1);
     const listing = useFilesList(sessionId, directory?.path);
-    const openEntry = useCallback((entry: FileEntry) => {
-        if (isDirectory(entry)) setStack((current) => [...current, entry]);
-        else setPreview(entry);
-    }, []);
+    const openEntry = useCallback(
+        (entry: FileEntry) =>
+            update((current) =>
+                isDirectory(entry)
+                    ? { ...current, stack: [...current.stack, entry] }
+                    : { ...current, draft: null, preview: entry },
+            ),
+        [update],
+    );
     const renderEntry = useCallback(
         ({ item }: ListRenderItemInfo<FileEntry>) => (
             <FileRow entry={item} onOpen={openEntry} theme={theme} />
         ),
         [openEntry, theme],
     );
+    /**
+     * Leaving the preview with an unsaved edit would discard it silently, so the on-screen Back and the breadcrumb ask
+     * first. A draft nobody typed in leaves without asking.
+     */
+    const requestLeave = (depth?: number): void => {
+        if (isDraftDirty(draft)) setPendingDiscard({ kind: 'leave', depth });
+        else update((current) => closePreview(current, depth));
+    };
+    const onHardwareBack = useMemo(() => {
+        if (preview === null && stack.length === 0) return null;
+        return (): boolean => {
+            const step = stepBack(navigation);
+            if (step.kind === 'unhandled') return false;
+            if (step.kind === 'confirm-discard') setPendingDiscard({ kind: 'editor' });
+            else update(() => step.next);
+            return true;
+        };
+    }, [navigation, preview, stack.length, update]);
+    useHardwareBack(onHardwareBack);
+    const discardSheet = pendingDiscard ? (
+        <ConfirmSheet
+            confirmLabel={t('panels.discard')}
+            detail={t('panels.discardDetail')}
+            onClose={() => setPendingDiscard(null)}
+            onConfirm={() => {
+                // Unmount with the view: a leave closes the preview this sheet belongs to.
+                setPendingDiscard(null);
+                update((current) =>
+                    pendingDiscard.kind === 'leave'
+                        ? closePreview(current, pendingDiscard.depth)
+                        : discardDraft(current),
+                );
+            }}
+            testID="files-discard-confirm"
+            theme={theme}
+            title={t('panels.discardTitle')}
+            tone="danger"
+        />
+    ) : null;
     if (preview)
         return (
-            <FilePreview
-                deviceRole={deviceRole}
-                entry={preview}
-                folders={stack}
-                onBack={(depth) => {
-                    setPreview(null);
-                    if (depth !== undefined) setStack((current) => current.slice(0, depth));
-                }}
-                sessionId={sessionId}
-                theme={theme}
-            />
+            <>
+                <FilePreview
+                    deviceRole={deviceRole}
+                    draft={draft}
+                    entry={preview}
+                    folders={stack}
+                    onChangeDraft={(content) => update((current) => editDraft(current, content))}
+                    onDiscardDraft={() => update(discardDraft)}
+                    onRequestBack={requestLeave}
+                    onSaved={() => update(discardDraft)}
+                    onStartEdit={(document) => update((current) => startDraft(current, document))}
+                    sessionId={sessionId}
+                    theme={theme}
+                />
+                {discardSheet}
+            </>
         );
     return (
         <View style={styles.root} testID="files-panel">
@@ -337,12 +198,14 @@ export const FilesPanel = ({
                     <IconButton
                         accessibilityLabel={t('panels.upOneFolder')}
                         icon={ChevronLeft}
-                        onPress={() => setStack((current) => current.slice(0, -1))}
+                        onPress={() =>
+                            update((current) => keepFolders(current, current.stack.length - 1))
+                        }
                         testID="files-up"
                         theme={theme}
                     />
                     <FilesBreadcrumb
-                        onSelect={(depth) => setStack((current) => current.slice(0, depth))}
+                        onSelect={(depth) => update((current) => keepFolders(current, depth))}
                         segments={stack}
                         theme={theme}
                     />
@@ -353,27 +216,32 @@ export const FilesPanel = ({
                 keyExtractor={(entry) => entry.path}
                 ListEmptyComponent={
                     listing.isPending ? (
-                        <PendingPanelStatus fetchStatus={listing.fetchStatus} theme={theme} />
+                        <PendingPanelState fetchStatus={listing.fetchStatus} theme={theme} />
                     ) : listing.isError ? (
-                        <PanelStatus
-                            message={t('panels.listFailed')}
-                            onRetry={() => {
+                        <ScreenState
+                            actionLabel={t('common.retry')}
+                            kind="error"
+                            onAction={() => {
                                 void listing.refetch();
                             }}
                             testID="files-error"
                             theme={theme}
+                            title={t('panels.listFailed')}
                         />
                     ) : (
-                        <PanelStatus
-                            message={t('panels.folderEmpty')}
+                        <ScreenState
+                            kind="empty"
                             testID="files-empty"
                             theme={theme}
+                            title={t('panels.folderEmpty')}
                         />
                     )
                 }
                 ListFooterComponent={
                     listing.data?.truncated ? (
-                        <PanelStatus message={t('panels.listTruncated')} theme={theme} />
+                        <Text style={[styles.listNote, { color: theme.muted }]}>
+                            {t('panels.listTruncated')}
+                        </Text>
                     ) : undefined
                 }
                 onRefresh={() => {

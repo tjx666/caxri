@@ -24,6 +24,13 @@ import { scheduleOnRN } from 'react-native-worklets';
 import type { LucideProps } from 'lucide-react-native';
 
 import { useTranslation } from '../i18n';
+import {
+    mobileControl,
+    mobileRadius,
+    mobileSpace,
+    mobileType,
+    PRESSED_OPACITY,
+} from '../theme/scale';
 import type { MobileTheme } from '../theme/tokens';
 import { Spinner } from './spinner';
 
@@ -103,7 +110,7 @@ export const BottomSheet = ({
                         accessibilityLabel={closeLabel}
                         accessibilityRole="button"
                         onPress={dismiss}
-                        style={styles.backdrop}
+                        style={[styles.backdrop, { backgroundColor: theme.overlay }]}
                         testID={testID ? `${testID}-backdrop` : undefined}
                     />
                 </Animated.View>
@@ -132,10 +139,39 @@ export const BottomSheet = ({
 };
 
 /**
+ * The heading at the top of a sheet, with an optional muted line under it. Every sheet that names its subject (a
+ * Session's actions, a pull request, a confirmation) uses it, so titles share one size and inset.
+ */
+export const SheetTitle = ({
+    detail,
+    testID,
+    theme,
+    title,
+}: {
+    detail?: string;
+    testID?: string;
+    theme: MobileTheme;
+    title: string;
+}) => (
+    <View style={styles.title} testID={testID}>
+        <Text
+            accessibilityRole="header"
+            numberOfLines={2}
+            style={[mobileType.heading, { color: theme.text }]}
+        >
+            {title}
+        </Text>
+        {detail ? <Text style={[mobileType.meta, { color: theme.muted }]}>{detail}</Text> : null}
+    </View>
+);
+
+/**
  * A full-width row in a `BottomSheet` menu.
  */
 export const SheetAction = ({
     busy = false,
+    detail,
+    detailTestID,
     disabled = false,
     icon: Icon,
     label,
@@ -144,6 +180,12 @@ export const SheetAction = ({
     theme,
 }: {
     busy?: boolean;
+    /**
+     * A muted line under the label, in the label's own column: why the row is disabled, or what it does. Only the icon
+     * and label dim when the row is disabled, so the explanation stays at full contrast.
+     */
+    detail?: string;
+    detailTestID?: string;
     disabled?: boolean;
     icon: ComponentType<LucideProps>;
     label: string;
@@ -158,15 +200,25 @@ export const SheetAction = ({
         onPress={onPress}
         style={({ pressed }) => [
             styles.action,
-            {
-                backgroundColor: pressed ? theme.elevated : 'transparent',
-                opacity: disabled ? 0.4 : 1,
-            },
+            { backgroundColor: pressed ? theme.elevated : 'transparent' },
         ]}
         testID={testID}
     >
-        {busy ? <Spinner color={theme.muted} /> : <Icon color={theme.muted} size={20} />}
-        <Text style={[styles.actionText, { color: theme.text }]}>{label}</Text>
+        {busy ? (
+            <Spinner color={theme.muted} />
+        ) : (
+            <Icon color={theme.muted} opacity={disabled ? 0.4 : 1} size={20} />
+        )}
+        <View style={styles.actionBody}>
+            <Text style={[styles.actionText, { color: theme.text, opacity: disabled ? 0.4 : 1 }]}>
+                {label}
+            </Text>
+            {detail ? (
+                <Text style={[mobileType.meta, { color: theme.muted }]} testID={detailTestID}>
+                    {detail}
+                </Text>
+            ) : null}
+        </View>
     </Pressable>
 );
 
@@ -193,7 +245,7 @@ export const SheetCancel = ({
             onPress={onPress}
             style={({ pressed }) => [
                 styles.cancel,
-                { backgroundColor: theme.elevated, opacity: pressed ? 0.7 : 1 },
+                { backgroundColor: theme.elevated, opacity: pressed ? PRESSED_OPACITY : 1 },
             ]}
             testID={testID}
         >
@@ -206,35 +258,47 @@ export const SheetCancel = ({
 
 const styles = StyleSheet.create({
     root: { flex: 1, justifyContent: 'flex-end' },
-    backdrop: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0, 0, 0, 0.5)' },
+    backdrop: { ...StyleSheet.absoluteFill },
     sheet: {
         alignSelf: 'center',
-        borderTopLeftRadius: 20,
-        borderTopRightRadius: 20,
+        borderTopLeftRadius: mobileRadius.lg,
+        borderTopRightRadius: mobileRadius.lg,
         borderWidth: StyleSheet.hairlineWidth,
         maxWidth: 560,
-        paddingHorizontal: 12,
-        paddingTop: 8,
+        paddingHorizontal: mobileSpace.md,
+        paddingTop: mobileSpace.sm,
         width: '100%',
     },
-    grabber: { alignSelf: 'center', borderRadius: 2, height: 4, marginBottom: 12, width: 36 },
+    grabber: {
+        alignSelf: 'center',
+        borderRadius: 2,
+        height: 4,
+        marginBottom: mobileSpace.md,
+        width: 36,
+    },
+    title: {
+        gap: mobileSpace.xs,
+        paddingBottom: mobileSpace.md,
+        paddingHorizontal: mobileSpace.md,
+    },
     action: {
         alignItems: 'center',
-        borderRadius: 12,
+        borderRadius: mobileRadius.md,
         flexDirection: 'row',
-        gap: 14,
-        minHeight: 52,
-        paddingHorizontal: 10,
+        gap: mobileSpace.md,
+        minHeight: mobileControl.primary,
+        paddingHorizontal: mobileSpace.md,
     },
-    actionText: { fontSize: 16 },
+    actionBody: { flex: 1, gap: mobileSpace.xxs, paddingVertical: mobileSpace.sm },
+    actionText: { ...mobileType.body },
     cancel: {
         alignItems: 'center',
-        borderRadius: 12,
+        borderRadius: mobileRadius.md,
         justifyContent: 'center',
-        marginTop: 8,
-        minHeight: 48,
+        marginTop: mobileSpace.sm,
+        minHeight: mobileControl.row,
     },
-    cancelText: { fontSize: 16, fontWeight: '600' },
+    cancelText: { ...mobileType.bodyStrong },
 });
 
 /* eslint-enable no-use-before-define, @typescript-eslint/no-use-before-define */

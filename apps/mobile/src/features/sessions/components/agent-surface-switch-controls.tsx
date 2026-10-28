@@ -1,8 +1,10 @@
-import { Pressable, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 
 import type { TerminalSurface } from '@caxri/protocol';
 import { MessagesSquare, SquareTerminal } from 'lucide-react-native';
 
+import { ConfirmSheet } from '../../../components/confirm-sheet';
+import { PopoverAction } from '../../../components/popover-menu';
 import { Spinner } from '../../../components/spinner';
 import { useTranslation } from '../../../i18n';
 import type { MobileTheme } from '../../../theme/tokens';
@@ -36,21 +38,52 @@ export const AgentSurfaceSwitchMenuAction = ({
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
-    const { icon: Icon, open } = surfaceCopy[target];
+    const { icon, open } = surfaceCopy[target];
     return (
-        <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ disabled: isDisabled }}
+        <PopoverAction
             disabled={isDisabled}
+            icon={icon}
+            label={t(open)}
             onPress={onPress}
-            style={styles.menuAction}
             testID="session-switch-surface"
-        >
-            <Icon color={theme.muted} size={18} />
-            <Text style={[styles.menuActionText, { color: isDisabled ? theme.muted : theme.text }]}>
-                {t(open)}
-            </Text>
-        </Pressable>
+            theme={theme}
+        />
+    );
+};
+
+/**
+ * Asks before a switch ends the Agent's running turn, with Desktop's words. Stopping a turn only interrupts work, so
+ * the confirmation is `primary`, not the red of an action that loses something. Mount it only while `confirmation` is
+ * set; dismissing counts as Cancel.
+ */
+export const AgentSurfaceSwitchConfirm = ({
+    confirmation,
+    onClose,
+    onConfirm,
+    theme,
+}: {
+    confirmation: { provider: string; target: TerminalSurface };
+    onClose: () => void;
+    onConfirm: () => void;
+    theme: MobileTheme;
+}) => {
+    const { t } = useTranslation();
+    return (
+        <ConfirmSheet
+            confirmLabel={t('sessions.surface.confirmSwitchLabel')}
+            detail={t(
+                confirmation.target === 'chat'
+                    ? 'sessions.surface.confirmSwitchToChat'
+                    : 'sessions.surface.confirmSwitchToTerminal',
+                { provider: confirmation.provider },
+            )}
+            onClose={onClose}
+            onConfirm={onConfirm}
+            testID="session-switch-surface-confirm"
+            theme={theme}
+            title={t('sessions.surface.turnGuardTitle')}
+            tone="primary"
+        />
     );
 };
 

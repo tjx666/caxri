@@ -9,8 +9,8 @@ import type { TerminalKey } from './key-input';
 import { terminalViewStyles as styles } from './terminal-view-styles';
 
 /**
- * Key caps (`Esc`, `Tab`, `Ctrl`, `Enter`) and their spoken names stay untranslated because they name physical keys;
- * every other entry's label or spoken name is a translation key.
+ * Key caps (`Esc`, `Tab`, `Shift Tab`, `Ctrl`, `Enter`) and their spoken names stay untranslated because they name
+ * physical keys; every other entry's label or spoken name is a translation key.
  */
 interface KeyEntry {
     key: TerminalKey | 'paste';
@@ -29,6 +29,7 @@ interface TerminalKeyBarProperties {
 const keys: KeyEntry[] = [
     { key: 'escape', label: 'Esc', name: 'Escape' },
     { key: 'tab', label: 'Tab', name: 'Tab' },
+    { key: 'shift-tab', label: '⇧Tab', name: 'Shift Tab' },
     { key: 'ctrl', label: 'Ctrl', name: 'Control' },
     { key: 'up', label: '↑', name: { key: 'terminal.key.arrowUp' } },
     { key: 'down', label: '↓', name: { key: 'terminal.key.arrowDown' } },

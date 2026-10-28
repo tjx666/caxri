@@ -155,7 +155,8 @@ export async function executeMobileChatComposerScenario(
             () => chat.read(),
             (snapshot) => snapshot.permissionMode === 'acceptEdits',
         );
-        // Choosing a different level applies it and closes the sheet.
+        // Choosing a level applies it at once; Done closes the Chat settings sheet.
+        await tapMobileCheckByBounds(serial, 'agent-chat-permission-done');
         await waitForNoCheck(serial, 'agent-chat-permission-sheet');
 
         // Fenced code (#1884): ts, bash, json, diff, a fence without a language, and an indented block.

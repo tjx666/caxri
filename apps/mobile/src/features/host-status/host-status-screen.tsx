@@ -1,15 +1,16 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import { useCallback, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { MobileHostStatus } from '@caxri/protocol';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ChevronLeft } from 'lucide-react-native';
 
-import { IconButton } from '../../components/icon-button';
-import { Spinner } from '../../components/spinner';
+import { NoticeBanner } from '../../components/notice-banner';
+import { ScreenHeader } from '../../components/screen-header';
+import { ScreenState } from '../../components/screen-state';
 import { useTranslation } from '../../i18n';
+import { mobileSpace, mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
 import { useMobileTheme } from '../../theme/use-mobile-theme';
 import type { HostStatusScreenState, ProcessSort } from './host-status-model';
@@ -31,10 +32,12 @@ import {
 import { useHostStatus } from './use-host-status';
 
 const StatusMessage = ({
+    onBack,
     onRetry,
     state,
     theme,
 }: {
+    onBack: () => void;
     onRetry: () => void;
     state: Exclude<HostStatusScreenState, { kind: 'ready' }>;
     theme: MobileTheme;
@@ -42,32 +45,33 @@ const StatusMessage = ({
     const { t } = useTranslation();
     if (state.kind === 'loading')
         return (
-            <View style={styles.status} testID="host-status-loading">
-                <Spinner color={theme.primary} />
-            </View>
+            <ScreenState
+                kind="loading"
+                testID="host-status-loading"
+                theme={theme}
+                title={t('hostStatus.loading')}
+            />
         );
-    const isError = state.kind === 'error';
+    if (state.kind === 'offline')
+        return (
+            <ScreenState
+                actionLabel={t('common.back')}
+                kind="offline"
+                onAction={onBack}
+                testID="host-status-offline"
+                theme={theme}
+                title={t('hostStatus.offline')}
+            />
+        );
     return (
-        <View style={styles.status} testID={`host-status-${state.kind}`}>
-            <Text
-                accessibilityRole={isError ? 'alert' : undefined}
-                style={[styles.statusText, { color: isError ? theme.danger : theme.muted }]}
-            >
-                {t(isError ? 'hostStatus.loadFailed' : 'hostStatus.offline')}
-            </Text>
-            {isError ? (
-                <Pressable
-                    accessibilityRole="button"
-                    onPress={onRetry}
-                    style={[styles.retry, { borderColor: theme.border }]}
-                    testID="host-status-retry"
-                >
-                    <Text style={[styles.retryText, { color: theme.primary }]}>
-                        {t('common.retry')}
-                    </Text>
-                </Pressable>
-            ) : null}
-        </View>
+        <ScreenState
+            actionLabel={t('common.retry')}
+            kind="error"
+            onAction={onRetry}
+            testID="host-status-error"
+            theme={theme}
+            title={t('hostStatus.loadFailed')}
+        />
     );
 };
 
@@ -252,48 +256,27 @@ export const HostStatusScreen = () => {
             style={[styles.root, { backgroundColor: theme.background }]}
             testID="host-status-screen"
         >
-            <View style={styles.header}>
-                <IconButton
-                    accessibilityLabel={t('hostStatus.back')}
-                    icon={ChevronLeft}
-                    onPress={() => router.back()}
-                    size={24}
-                    testID="host-status-back"
-                    theme={theme}
-                />
-                <View style={styles.headingBlock}>
-                    <Text
-                        accessibilityRole="header"
-                        style={[styles.heading, { color: theme.text }]}
-                    >
-                        {t('hostStatus.title')}
-                    </Text>
-                    {data ? (
-                        <Text
-                            style={[styles.updated, { color: theme.muted }]}
-                            testID="host-status-updated"
-                        >
-                            {t('hostStatus.updated', {
-                                time: formatSampledAt(data.sampledAt, locale),
-                            })}
-                        </Text>
-                    ) : null}
-                </View>
-            </View>
+            <ScreenHeader
+                leading="back"
+                leadingLabel={t('hostStatus.back')}
+                leadingTestID="host-status-back"
+                onLeading={() => router.back()}
+                subtitle={
+                    data
+                        ? t('hostStatus.updated', { time: formatSampledAt(data.sampledAt, locale) })
+                        : undefined
+                }
+                subtitleTestID="host-status-updated"
+                theme={theme}
+                title={t('hostStatus.title')}
+            />
             {banner ? (
-                <Text
-                    accessibilityRole={banner.isError ? 'alert' : undefined}
-                    style={[
-                        styles.banner,
-                        {
-                            borderColor: theme.border,
-                            color: banner.isError ? theme.danger : theme.muted,
-                        },
-                    ]}
+                <NoticeBanner
+                    message={banner.text}
                     testID="host-status-stale"
-                >
-                    {banner.text}
-                </Text>
+                    theme={theme}
+                    tone={banner.isError ? 'danger' : 'muted'}
+                />
             ) : null}
             <ScrollView
                 contentContainerStyle={styles.content}
@@ -308,6 +291,7 @@ export const HostStatusScreen = () => {
             >
                 {!data || state.kind !== 'ready' ? (
                     <StatusMessage
+                        onBack={() => router.back()}
                         onRetry={retry}
                         state={state.kind === 'ready' ? { kind: 'loading' } : state}
                         theme={theme}
@@ -328,37 +312,18 @@ export const HostStatusScreen = () => {
 
 const styles = StyleSheet.create({
     root: { flex: 1 },
-    header: { alignItems: 'center', flexDirection: 'row', minHeight: 60, paddingHorizontal: 6 },
-    headingBlock: { flex: 1, marginLeft: 6 },
-    heading: { fontSize: 20, fontWeight: '700' },
-    updated: { fontSize: 12, fontVariant: ['tabular-nums'] },
-    banner: {
-        borderBottomWidth: StyleSheet.hairlineWidth,
-        fontSize: 13,
-        paddingBottom: 8,
-        paddingHorizontal: 20,
-    },
     content: {
         alignSelf: 'center',
-        gap: 22,
+        flexGrow: 1,
+        gap: mobileSpace.xl,
         maxWidth: 680,
-        paddingBottom: 32,
-        paddingHorizontal: 16,
-        paddingTop: 8,
+        paddingBottom: mobileSpace.xxl,
+        paddingHorizontal: mobileSpace.lg,
+        paddingTop: mobileSpace.sm,
         width: '100%',
     },
-    empty: { fontSize: 14, padding: 16, textAlign: 'center' },
-    status: { alignItems: 'center', gap: 12, padding: 32 },
-    statusText: { fontSize: 14, padding: 12, textAlign: 'center' },
-    retry: {
-        alignItems: 'center',
-        borderRadius: 18,
-        borderWidth: 1,
-        justifyContent: 'center',
-        minHeight: 36,
-        paddingHorizontal: 16,
-    },
-    retryText: { fontSize: 14, fontWeight: '700' },
+    empty: { ...mobileType.body, padding: mobileSpace.lg, textAlign: 'center' },
+    statusText: { ...mobileType.meta, padding: mobileSpace.md, textAlign: 'center' },
 });
 
 /* eslint-enable no-use-before-define, @typescript-eslint/no-use-before-define */

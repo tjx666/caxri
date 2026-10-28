@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { TextInputInstance } from 'react-native';
-import { Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import type { AgentAction, AgentProvider } from '@caxri/protocol';
 import {
@@ -15,6 +15,7 @@ import * as Crypto from 'expo-crypto';
 
 import type { Translate } from '../../i18n';
 import { useTranslation } from '../../i18n';
+import { mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
 import { ImageSourceSheet } from '../sessions/components/image-source-sheet';
 import { SessionComposerAttachments } from '../sessions/components/session-composer-extras';
@@ -42,15 +43,15 @@ import {
     agentChatDisabledReason,
     isAgentChatStopping,
 } from './agent-chat-model';
-import { AgentChatModelButton } from './agent-chat-model-sheet';
 import { sendAgentChatMessageOptimistically } from './agent-chat-pending';
-import { AgentChatPermissionButton } from './agent-chat-permission-sheet';
 import { AgentChatPlanPaceNotice } from './agent-chat-plan-pace-notice';
 import { AgentChatSessionUsageButton } from './agent-chat-session-usage-sheet';
+import { AgentChatSettings } from './agent-chat-settings';
 import { sheetStyles } from './agent-chat-sheet-styles';
 import type { AgentChatController } from './use-agent-chat';
 import { useAgentChatCommandRun } from './use-agent-chat-command-run';
 import { useAgentChatSkills } from './use-agent-chat-skills';
+import { useTransientNotice } from './use-transient-notice';
 
 /**
  * A Chat message's images, as many and as large in total as the protocol takes. The strip scrolls sideways, and an
@@ -251,8 +252,13 @@ const useFocusRequest = ({
 };
 
 /**
- * The lines under the input: why the composer is disabled, a pending Stop, and a failed send or Stop.
+ * The lines under the input, the composer's one place for explanations: why the composer or a control is disabled
+ * (muted), a pending Stop, and a failed send, Stop, or image attach (danger). Nothing here opens a system dialog.
  */
+const statusStyles = StyleSheet.create({
+    line: { ...mobileType.meta },
+});
+
 const AgentChatComposerStatus = ({
     error,
     isStopping,
@@ -269,21 +275,18 @@ const AgentChatComposerStatus = ({
     const { t } = useTranslation();
     return (
         <>
-            {/* `reason` flexes along the meta row; placed directly in the column block it collapses to zero height. */}
             {reason ? (
-                <View style={styles.composerMeta}>
-                    <Text
-                        style={[styles.reason, { color: theme.muted }]}
-                        testID="agent-chat-composer-reason"
-                    >
-                        {reason}
-                    </Text>
-                </View>
+                <Text
+                    style={[statusStyles.line, { color: theme.muted }]}
+                    testID="agent-chat-composer-reason"
+                >
+                    {reason}
+                </Text>
             ) : null}
             {isStopping ? (
                 <Text
                     accessibilityLiveRegion="polite"
-                    style={[styles.sendState, { color: theme.muted }]}
+                    style={[statusStyles.line, { color: theme.muted }]}
                     testID="agent-chat-composer-stopping"
                 >
                     {t('chat.composer.stopping', { provider })}
@@ -292,7 +295,7 @@ const AgentChatComposerStatus = ({
             {error ? (
                 <Text
                     accessibilityRole="alert"
-                    style={[styles.sendState, { color: theme.danger }]}
+                    style={[statusStyles.line, { color: theme.danger }]}
                     testID="agent-chat-composer-error"
                 >
                     {error}
@@ -348,6 +351,10 @@ export const AgentChatComposer = ({
     const imageLimits = useMemo(() => chatImageLimits(t), [t]);
     const images = useImageAttachments(sessionId, imageLimits);
     const [isChoosingImage, setChoosingImage] = useState(false);
+    /**
+     * Why a disabled attach button cannot attach, shown on the status line for a few seconds after a tap on it.
+     */
+    const [attachNotice, showAttachNotice] = useTransientNotice();
     const access = { deviceRole, isConnected, isHandedOff, snapshot: chat.snapshot };
     const availability = agentChatComposerAvailability(access, t);
     const activeTurnId = chat.snapshot?.activeTurnId;
@@ -426,6 +433,7 @@ export const AgentChatComposer = ({
     const showsAttach = rowControls.showsAttach && !editing;
     const isMenuOpen = menu.matches !== undefined || menu.notice !== undefined;
     const statusReason =
+        attachNotice ??
         availability.reason ??
         editWaitReason ??
         images.waitReason ??
@@ -446,21 +454,17 @@ export const AgentChatComposer = ({
             )}
             {isMenuOpen ? null : (
                 <View style={sheetStyles.choices}>
-                    <AgentChatPermissionButton
+                    <AgentChatSettings
                         chat={chat}
-                        disabledReason={agentChatDisabledReason(
+                        configureReason={agentChatDisabledReason(
+                            { ...access, action: 'configure' },
+                            t,
+                        )}
+                        permissionReason={agentChatDisabledReason(
                             { ...access, action: 'permission' },
                             t,
                         )}
                         provider={providerId}
-                        theme={theme}
-                    />
-                    <AgentChatModelButton
-                        chat={chat}
-                        disabledReason={agentChatDisabledReason(
-                            { ...access, action: 'configure' },
-                            t,
-                        )}
                         theme={theme}
                     />
                     {chat.snapshot?.terminalId ? (
@@ -497,6 +501,7 @@ export const AgentChatComposer = ({
                         canAdd={images.canAdd}
                         isEditable={isEditable}
                         onPress={() => setChoosingImage(true)}
+                        onUnsupported={showAttachNotice}
                         provider={provider}
                         supportsImages={supportsImages}
                         theme={theme}
@@ -530,7 +535,7 @@ export const AgentChatComposer = ({
                 />
             </View>
             <AgentChatComposerStatus
-                error={error}
+                error={error ?? images.attachError}
                 isStopping={isStopping}
                 provider={provider}
                 reason={statusReason}

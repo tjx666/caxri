@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-    connectionBannerCopy,
+    connectionNoticeMessage,
     isConnectionBannerShown,
     isSessionListErrorShown,
+    selectHomeNotice,
 } from '../session-notices';
 
 describe('offline notices', () => {
@@ -14,25 +15,21 @@ describe('offline notices', () => {
         expect(isConnectionBannerShown(false, 'version-mismatch')).toBe(false);
     });
 
-    it('does not repeat what a labeled saved copy already says', () => {
-        expect(connectionBannerCopy('stale', true).body).toBe(
-            'Replies are paused until Caxri reconnects.',
+    it('folds the saved copy age into the stale message instead of a second notice', () => {
+        expect(connectionNoticeMessage('stale', 'saved 5m ago')).toBe(
+            'Reconnecting… Showing Sessions saved 5m ago. Replies are paused.',
         );
-        expect(connectionBannerCopy('stale', false).body).toBe(
-            'Showing the last known state. Replies are paused.',
-        );
-        expect(connectionBannerCopy('stale', true).accessibilityLabel).toBe(
-            'Connection interrupted. Replies are paused until Caxri reconnects.',
+        expect(connectionNoticeMessage('stale', null)).toBe(
+            'Reconnecting… Showing the last known state. Replies are paused.',
         );
     });
 
     it('names the computer rather than a Mac', () => {
-        const copy = connectionBannerCopy('unverified', true);
-        expect(copy.title).toBe('Pairing could not be verified');
-        expect(copy.body).toBe(
-            'If this device was revoked on your computer, forget it and pair again.',
+        const message = connectionNoticeMessage('unverified', null);
+        expect(message).toBe(
+            'Pairing could not be verified. If this device was revoked on your computer, forget it and pair again.',
         );
-        expect(copy.accessibilityLabel).not.toMatch(/\bMac\b/u);
+        expect(message).not.toMatch(/\bMac\b/u);
     });
 
     it('leaves a list load failure to the connection banner while it is up', () => {
@@ -53,5 +50,73 @@ describe('offline notices', () => {
                 isConnectionNoticeShown: false,
             }),
         ).toBe(false);
+    });
+});
+
+describe('selectHomeNotice', () => {
+    const none = {
+        connection: null,
+        isListErrorShown: false,
+        isListVisible: true,
+        isSavedCopy: false,
+        isTruncated: false,
+        update: null,
+    } as const;
+
+    it('shows nothing when nothing needs attention', () => {
+        expect(selectHomeNotice(none)).toBeNull();
+    });
+
+    it('shows only the most severe notice when several apply', () => {
+        expect(
+            selectHomeNotice({
+                connection: 'stale',
+                isListErrorShown: true,
+                isListVisible: true,
+                isSavedCopy: true,
+                isTruncated: true,
+                update: 'available',
+            }),
+        ).toBe('connection-stale');
+        expect(selectHomeNotice({ ...none, connection: 'unverified', update: 'available' })).toBe(
+            'connection-unverified',
+        );
+    });
+
+    it('lets a version mismatch outrank the connection it caused', () => {
+        expect(selectHomeNotice({ ...none, connection: 'stale', update: 'mismatch' })).toBe(
+            'update-mismatch',
+        );
+        expect(selectHomeNotice({ ...none, connection: 'stale', update: 'checking' })).toBe(
+            'update-required',
+        );
+    });
+
+    it('ranks an optional update below a list failure and above the saved copy note', () => {
+        expect(selectHomeNotice({ ...none, isListErrorShown: true, update: 'available' })).toBe(
+            'list-error',
+        );
+        expect(selectHomeNotice({ ...none, isSavedCopy: true, update: 'available' })).toBe(
+            'update-available',
+        );
+        expect(selectHomeNotice({ ...none, isSavedCopy: true, isTruncated: true })).toBe(
+            'saved-copy',
+        );
+        expect(selectHomeNotice({ ...none, isTruncated: true })).toBe('truncated');
+    });
+
+    it('keeps the list-only notices off a Session detail', () => {
+        expect(
+            selectHomeNotice({
+                ...none,
+                isListErrorShown: true,
+                isListVisible: false,
+                isSavedCopy: true,
+                isTruncated: true,
+            }),
+        ).toBeNull();
+        expect(selectHomeNotice({ ...none, connection: 'stale', isListVisible: false })).toBe(
+            'connection-stale',
+        );
     });
 });
