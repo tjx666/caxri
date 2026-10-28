@@ -336,6 +336,36 @@ describe('codexUsageParser', () => {
             ],
         });
     });
+
+    it('keeps usable credits with the rate-limit observation and drops an account without any', () => {
+        const observe = (credits: unknown) => {
+            const accumulator = new UsageAccumulator();
+            codexUsageParser(accumulator).line(
+                codexLine(T0, 'event_msg', {
+                    type: 'token_count',
+                    rate_limits: {
+                        limit_id: 'codex',
+                        primary: {
+                            used_percent: 99,
+                            window_minutes: 10_080,
+                            resets_at: 1_800_000_000,
+                        },
+                        credits,
+                    },
+                }),
+            );
+            return accumulator.toRecord().rateLimits?.credits;
+        };
+
+        expect(
+            observe({ has_credits: true, unlimited: false, balance: '1250.4000000000' }),
+        ).toEqual({ unlimited: false, balance: 1250.4 });
+        expect(observe({ has_credits: true, unlimited: true, balance: null })).toEqual({
+            unlimited: true,
+        });
+        expect(observe({ has_credits: false, unlimited: false, balance: '0' })).toBeUndefined();
+        expect(observe(null)).toBeUndefined();
+    });
 });
 
 function grokTurnCompleted(promptId: string, extra: Record<string, unknown> = {}) {

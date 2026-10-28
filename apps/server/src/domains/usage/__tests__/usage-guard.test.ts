@@ -9,7 +9,7 @@ const T0 = Date.parse('2026-03-02T10:00:00.000Z');
 const HOUR = 3_600_000;
 const RESET = T0 + 48 * HOUR;
 
-function reading(usedPercent: number, resetsAt = RESET): Pick<UsageLimit, 'windows'> {
+function reading(usedPercent: number, resetsAt = RESET): Pick<UsageLimit, 'windows' | 'credits'> {
     return {
         windows: [
             { windowMinutes: 300, usedPercent: 12, resetsAt: T0 + HOUR, scope: 'session' },
@@ -68,6 +68,28 @@ describe('AgentUsageGuards', () => {
         );
         expect(() => guards.assertAdmitted('codex', 'chat_send')).not.toThrow();
         expect(outcomes()).toEqual(['armed', 'refused']);
+        guards.close();
+    });
+
+    it('does not arm while the account has usable credits and lifts once credits appear', () => {
+        const { guards, outcomes } = harness();
+        guards.observe('codex', {
+            ...reading(99.5),
+            credits: { unlimited: false, balance: 1250 },
+        });
+        expect(guards.current('codex')).toBeUndefined();
+
+        guards.observe('codex', reading(99.5));
+        expect(guards.current('codex')).toBeDefined();
+        // The user bought credits in the same week: the account keeps working, so nothing is left to reserve.
+        guards.observe('codex', { ...reading(99.5), credits: { unlimited: true } });
+        expect(guards.current('codex')).toBeUndefined();
+        expect(() => guards.assertAdmitted('codex', 'chat_send')).not.toThrow();
+
+        // A spent balance protects the last percent again.
+        guards.observe('codex', { ...reading(99.8), credits: { unlimited: false, balance: 0 } });
+        expect(guards.current('codex')).toBeDefined();
+        expect(outcomes()).toEqual(['armed', 'credits_available', 'armed']);
         guards.close();
     });
 

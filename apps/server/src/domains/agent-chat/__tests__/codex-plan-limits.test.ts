@@ -59,4 +59,20 @@ describe('CodexUsageLimits.read', () => {
         await expect(limits.read(single('codex_other_model'), NOW)).resolves.toBeUndefined();
         await expect(limits.read(() => Promise.resolve(null), NOW)).resolves.toBeUndefined();
     });
+
+    it("reports the account's usable credits with the windows", async () => {
+        const withCredits = (credits: unknown) => () =>
+            Promise.resolve({ rateLimits: { ...snapshot('codex', 99), credits } });
+        const limits = new CodexUsageLimits();
+
+        await expect(
+            limits.read(
+                withCredits({ hasCredits: true, unlimited: false, balance: '1250.4' }),
+                NOW,
+            ),
+        ).resolves.toMatchObject({ credits: { unlimited: false, balance: 1250.4 } });
+        await expect(
+            limits.read(withCredits({ hasCredits: false, unlimited: false, balance: null }), NOW),
+        ).resolves.not.toHaveProperty('credits');
+    });
 });
