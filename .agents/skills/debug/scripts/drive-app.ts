@@ -26,11 +26,14 @@
  * - `hold-press <modifiers+key> [--times <n>]`: holds the modifiers, presses the key n times (default 1), and releases
  *   them, such as `Control+Alt+Tab --times 2` for the Session MRU switcher. `--screenshot` captures while they are
  *   still held, so a surface that closes on release is still on screen.
+ * - `trust-folder <absolute path>`: adds the folder (and, when it differs, its canonical path, such as `/private/tmp/x`
+ *   for `/tmp/x`) to `security.trustedFolders`, so opening a file there skips Main's native external-file confirmation.
+ *   `settings.trustFolder` is Main-only and refuses a Renderer call.
  * - `stub-folder-dialog <absolute path>`: makes Main's native folder picker return that path. Needs the dev instance
  *   started with `V8_INSPECTOR_PORT=<port>` exported; pass the same port as `--inspector-port` or in that variable.
  * - `screenshot <absolute path>`.
  */
-import { readFile } from 'node:fs/promises';
+import { readFile, realpath } from 'node:fs/promises';
 import { isAbsolute } from 'node:path';
 import process from 'node:process';
 
@@ -43,6 +46,12 @@ import { CommandError } from '../../switch-worktree/scripts/process';
 import type { CdpTarget } from './cdp-client';
 import { connectToNodeInspector, selectRendererTarget } from './cdp-client';
 import { IDLE_POLL_MS, waitForIdle } from './drive-app-idle';
+import {
+    request,
+    settingsSourceWithLanguage,
+    settingsSourceWithTrustedFolders,
+    updateSettings,
+} from './drive-app-settings';
 import { browserEnvironment, resolveTarget } from './worktree-browser';
 
 const STEPS = [
@@ -57,6 +66,7 @@ const STEPS = [
     'new-session',
     'hold-press',
     'stub-folder-dialog',
+    'trust-folder',
     'theme',
     'screenshot',
 ] as const;
@@ -140,6 +150,12 @@ export function parseDriveCommand(
             2,
         );
     }
+    if (step === 'trust-folder' && !isAbsolute(argument)) {
+        throw new CommandError(
+            `\`trust-folder\` takes an absolute folder path, not ${argument}`,
+            2,
+        );
+    }
     if (argument && step === 'paste-image' && !Number.isSafeInteger(Number(argument))) {
         throw new CommandError(`\`paste-image\` takes a count, not ${argument}`, 2);
     }
@@ -194,24 +210,6 @@ export function splitHeldChord(chord: string): { modifiers: string[]; key: strin
 }
 
 /**
- * `settings.update` replaces the whole settings source rather than patching one key, so the language goes into the
- * current values. `system` clears the override, which follows the macOS language.
- */
-export function settingsSourceWithLanguage(
-    settings: Record<string, unknown>,
-    language: string,
-): string {
-    if (!['en', 'zh-CN', 'system'].includes(language)) {
-        throw new CommandError(`Language must be en, zh-CN, or system, not ${language}`, 2);
-    }
-    return JSON.stringify(
-        { ...settings, 'workbench.language': language === 'system' ? null : language },
-        null,
-        4,
-    );
-}
-
-/**
  * The add-Project dialog's row for an Agent opened in Chat (`Codex Chat`, `Codex 对话`). It matches either interface
  * language, because a fresh fixture profile follows the macOS language and an English-only name never appears there.
  * The markers are `terminal.new.chatMarker` in the en and zh-cn Renderer locales, which this script's TypeScript
@@ -220,20 +218,6 @@ export function settingsSourceWithLanguage(
 export function chatChoiceName(provider: AgentProvider): RegExp {
     const name = RegExp.escape(agentProviderCatalog[provider].displayName);
     return new RegExp(String.raw`^${name}\s*(?:Chat|对话)$`);
-}
-
-async function request<T>(page: Page, method: string, parameters?: unknown): Promise<T> {
-    const reply = (await page.evaluate(
-        ([requestMethod, requestParameters]) =>
-            (
-                globalThis as unknown as {
-                    caxri: { request(method: string, parameters_?: unknown): Promise<unknown> };
-                }
-            ).caxri.request(requestMethod, requestParameters),
-        [method, parameters] as const,
-    )) as { ok: true; result: T } | { ok: false; error: { code: string; message: string } };
-    if (!reply.ok) throw new Error(`${method} failed: ${reply.error.code}: ${reply.error.message}`);
-    return reply.result;
 }
 
 /**
@@ -415,15 +399,19 @@ async function holdPress(page: Page, chord: string, times: number, screenshot?: 
 async function runStep(page: Page, command: DriveCommand): Promise<void> {
     const argument = command.argument ?? '';
     switch (command.step) {
-        case 'language': {
-            const settings = await request<{ value: Record<string, unknown> }>(
-                page,
-                'settings.get',
+        case 'language':
+            return updateSettings(page, (settings) =>
+                settingsSourceWithLanguage(settings, argument),
             );
-            await request(page, 'settings.update', {
-                source: settingsSourceWithLanguage(settings.value, argument),
-            });
-            return;
+        case 'trust-folder': {
+            /**
+             * Both spellings: a link is matched against the rules as written (`/tmp/x/a.png`), while a folder reached
+             * through a symlinked ancestor is canonical elsewhere (`/private/tmp/x`).
+             */
+            const folders = [argument, await realpath(argument)];
+            return updateSettings(page, (settings) =>
+                settingsSourceWithTrustedFolders(settings, folders),
+            );
         }
         case 'open-chat':
             return openChat(page, argument as AgentProvider);

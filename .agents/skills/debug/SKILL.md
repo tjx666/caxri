@@ -192,7 +192,9 @@ hand-writing a `session.create` request, `hold-press <modifiers+key> [--times <n
 modifiers down across several presses (`Control+Alt+Tab --times 2` walks the Session MRU switcher;
 its `--screenshot` captures before release, while the switcher is still open),
 `theme <built-in id|absolute JSON path>` for a light (`solarized-light`)
-or imported-theme capture without the native import dialog, and `screenshot <absolute path>`; every step also takes `--screenshot <absolute path>`. It reaches the same checked window as `worktree-browser.ts`,
+or imported-theme capture without the native import dialog, `trust-folder <absolute path>` so opening
+a file outside every Project skips Main's native confirmation (`settings.trustFolder` is Main-only),
+and `screenshot <absolute path>`; every step also takes `--screenshot <absolute path>`. It reaches the same checked window as `worktree-browser.ts`,
 which stays the tool for generic clicks and snapshots. A step it lacks goes into that script, not a
 throwaway one. `settings.update` takes `{ source }`, the whole settings JSON as a string, never a
 partial patch. If the fixture's test root does not cover the flow, export

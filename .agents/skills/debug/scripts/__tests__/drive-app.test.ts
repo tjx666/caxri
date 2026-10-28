@@ -1,12 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-    chatChoiceName,
-    parseDriveCommand,
-    settingsSourceWithLanguage,
-    splitHeldChord,
-} from '../drive-app';
+import { chatChoiceName, parseDriveCommand, splitHeldChord } from '../drive-app';
 import { idleComparableText } from '../drive-app-idle';
+import {
+    settingsSourceWithLanguage,
+    settingsSourceWithTrustedFolders,
+} from '../drive-app-settings';
 
 describe('drive-app', () => {
     it('reads a step, its argument, and a trailing screenshot path', () => {
@@ -120,6 +119,20 @@ describe('drive-app', () => {
         expect(chatChoiceName('codex').test('Codex对话')).toBe(true);
         expect(chatChoiceName('codex').test('Codex')).toBe(false);
         expect(chatChoiceName('claude').test('Codex Chat')).toBe(false);
+    });
+
+    it('appends trusted folders once, keeping the rules already set', () => {
+        const settings = { 'editor.fontSize': 13, 'security.trustedFolders': ['/tmp/a'] };
+
+        expect(
+            JSON.parse(settingsSourceWithTrustedFolders(settings, ['/tmp/a', '/private/tmp/a'])),
+        ).toEqual({
+            'editor.fontSize': 13,
+            'security.trustedFolders': ['/tmp/a', '/private/tmp/a'],
+        });
+        expect(() => parseDriveCommand(['trust-folder', 'relative/folder'], {})).toThrow(
+            /absolute folder path/u,
+        );
     });
 
     it('writes the language into the whole settings source that settings.update replaces', () => {
