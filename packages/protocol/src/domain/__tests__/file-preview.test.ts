@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { externalEditorTabPath } from '../external-editor-tab';
 import { filePreviewTabPath, parseFilePreviewTab } from '../file-preview';
 import {
+    isBinaryPreviewAssetPath,
     isPreviewImagePath,
     MAX_PREVIEW_ASSET_BYTES,
     MAX_PREVIEW_DOCUMENT_BYTES,
@@ -41,5 +42,12 @@ describe('preview asset media types', () => {
         expect(isPreviewImagePath('/p/docs/diagram.SVG')).toBe(true);
         expect(isPreviewImagePath('/p/docs/manual.pdf')).toBe(false);
         expect(isPreviewImagePath('/p/docs/notes.txt')).toBe(false);
+    });
+
+    it('reads PDFs and raster images as bytes but keeps SVG as editable text', () => {
+        expect(isBinaryPreviewAssetPath('/tmp/logo/discord-admin.png')).toBe(true);
+        expect(isBinaryPreviewAssetPath('/p/docs/manual.pdf')).toBe(true);
+        expect(isBinaryPreviewAssetPath('/p/docs/diagram.svg')).toBe(false);
+        expect(isBinaryPreviewAssetPath('/p/docs/notes.txt')).toBe(false);
     });
 });

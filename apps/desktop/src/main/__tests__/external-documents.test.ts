@@ -271,6 +271,29 @@ describe('files an external document refers to', () => {
         expect(Buffer.from(asset.base64, 'base64')).toEqual(bytes);
     });
 
+    it('registers an external raster image without a text read and serves its bytes under that grant', async () => {
+        // A PNG signature carries a zero byte within its first bytes, which a text read refuses as binary.
+        const bytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00]);
+        const { directory } = await externalFile();
+        await writeFile(join(directory, 'logo.png'), bytes);
+
+        const document = await readExternalFileSnapshot(join(directory, 'logo.png'));
+        expect(document).toMatchObject({ name: 'logo.png', content: '', size: bytes.byteLength });
+
+        const asset = await readExternalDocumentAsset(document.id, 'logo.png');
+        expect(asset.mediaType).toBe('image/png');
+        expect(Buffer.from(asset.base64, 'base64')).toEqual(bytes);
+    });
+
+    it('still reads an external SVG as text, since its source is editable', async () => {
+        const { directory } = await externalFile();
+        await writeFile(join(directory, 'icon.svg'), '<svg/>');
+
+        await expect(readExternalFileSnapshot(join(directory, 'icon.svg'))).resolves.toMatchObject({
+            content: '<svg/>',
+        });
+    });
+
     it('still refuses a PDF outside the grant or through an ID Main never issued', async () => {
         const { directory, document } = await externalFile();
         const outside = await mkdtemp(join(tmpdir(), 'caxri-external-outside-'));

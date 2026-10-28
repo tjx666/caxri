@@ -61,6 +61,17 @@ async function requestAsset(source: PreviewAssetSource, path: string) {
         : caxri.request(request.method, request.params);
 }
 
+async function requestAssetWithSignal(
+    source: PreviewAssetSource,
+    path: string,
+    signal: AbortSignal,
+) {
+    const request = assetRequest(source, path);
+    return request.method === 'files.readAsset'
+        ? caxri.requestWithSignal(request.method, signal, request.params)
+        : caxri.requestWithSignal(request.method, signal, request.params);
+}
+
 /**
  * Decodes one base64 payload: an asset read, or bundled binary data carried as a `data:` URL.
  *
@@ -151,11 +162,7 @@ export async function readAssetBytes(
     path: string,
     signal: AbortSignal,
 ): Promise<Uint8Array<ArrayBuffer>> {
-    const request = assetRequest(source, path);
-    const asset =
-        request.method === 'files.readAsset'
-            ? await caxri.requestWithSignal(request.method, signal, request.params)
-            : await caxri.requestWithSignal(request.method, signal, request.params);
+    const asset = await requestAssetWithSignal(source, path, signal);
     return decodeBase64(asset.base64);
 }
 
@@ -164,13 +171,14 @@ export async function readAssetBytes(
  *
  * Unlike {@link acquireAsset}, a failure is thrown rather than turned into a placeholder: the tab has nothing else to
  * show, so it needs the reason (a missing file, the size ceiling) to say what went wrong and which recovery helps. It
- * also skips the shared cache, because a rewrite on disk has to produce a fresh read rather than the cached bytes.
+ * also skips the shared cache, because a rewrite on disk has to produce a fresh read rather than the cached bytes. An
+ * external image is read under its own document's grant, as an external PDF is (see {@link readAssetBytes}).
  */
 export async function readAssetObjectUrl(
-    sessionId: string,
+    source: PreviewAssetSource,
     path: string,
     signal: AbortSignal,
 ): Promise<string> {
-    const asset = await caxri.requestWithSignal('files.readAsset', signal, { sessionId, path });
+    const asset = await requestAssetWithSignal(source, path, signal);
     return URL.createObjectURL(new Blob([decodeBase64(asset.base64)], { type: asset.mediaType }));
 }

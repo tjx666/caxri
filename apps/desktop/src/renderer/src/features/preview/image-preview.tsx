@@ -6,6 +6,7 @@ import { describeDocumentReadFailure } from '../../lib/document-read-failure';
 import { documentLoadRecoveryAction, documentReadRecovery } from '../editor/document-load-recovery';
 import { EditorLoadFailure } from '../editor/editor-load-failure';
 import { usePreviewSourceRevision } from './hooks/use-preview-source-revision';
+import type { PreviewAssetSource } from './preview-asset-client';
 import { readAssetObjectUrl } from './preview-asset-client';
 import { PREVIEW_LOADING_LABEL_KEY } from './preview-registry';
 import { PreviewZoomView } from './preview-zoom-view';
@@ -14,6 +15,15 @@ type ImageState =
     | { status: 'failed'; error: unknown }
     | { status: 'loading' }
     | { status: 'ready'; objectUrl: string };
+
+/**
+ * Main's grant for an image opened from outside every Project, and where it lives.
+ */
+interface ExternalImage {
+    directory: string;
+    displayPath: string;
+    documentId: string;
+}
 
 interface ImageSize {
     width: number;
@@ -30,13 +40,13 @@ function basename(path: string): string {
  * state.
  */
 async function readImage(
-    sessionId: string,
+    source: PreviewAssetSource,
     path: string,
     signal: AbortSignal,
     report: (state: ImageState) => void,
 ): Promise<string | undefined> {
     try {
-        const objectUrl = await readAssetObjectUrl(sessionId, path, signal);
+        const objectUrl = await readAssetObjectUrl(source, path, signal);
         if (!signal.aborted) report({ status: 'ready', objectUrl });
         return objectUrl;
     } catch (error) {
@@ -54,22 +64,30 @@ function useImageObjectUrl(
     sessionId: string,
     workbenchRootProjectId: string | undefined,
     path: string,
+    external: ExternalImage | undefined,
 ): { state: ImageState; retry: () => void } {
     const [attempt, setAttempt] = useState(0);
-    const revision = usePreviewSourceRevision(workbenchRootProjectId, path);
+    const externalDocumentId = external?.documentId;
+    const externalDirectory = external?.directory;
+    const readPath = external?.displayPath ?? path;
+    const revision = usePreviewSourceRevision(workbenchRootProjectId, path, externalDocumentId);
     const requestKey = `${sessionId}\0${path}\0${attempt}\0${revision}`;
     const [result, setResult] = useState<{ key: string; state: ImageState }>();
 
     useEffect(() => {
         const controller = new AbortController();
-        const read = readImage(sessionId, path, controller.signal, (state) =>
+        const source: PreviewAssetSource =
+            externalDocumentId !== undefined && externalDirectory !== undefined
+                ? { externalDocumentId, directory: externalDirectory }
+                : { sessionId };
+        const read = readImage(source, readPath, controller.signal, (state) =>
             setResult({ key: requestKey, state }),
         );
         return () => {
             controller.abort();
             void read.then((objectUrl) => objectUrl && URL.revokeObjectURL(objectUrl));
         };
-    }, [path, requestKey, sessionId]);
+    }, [externalDirectory, externalDocumentId, readPath, requestKey, sessionId]);
 
     return {
         state: result?.key === requestKey ? result.state : { status: 'loading' },
@@ -93,14 +111,20 @@ export function ImagePreview({
     sessionId,
     viewStateKey,
     workbenchRootProjectId,
+    external,
 }: {
     path: string;
     sessionId: string;
     viewStateKey: string;
     workbenchRootProjectId: string | undefined;
+    /**
+     * Set for an image opened from outside every Project, whose bytes come from Main under that grant. Absent for a
+     * Project file.
+     */
+    external?: ExternalImage;
 }) {
     const { t } = useTranslation();
-    const { state, retry } = useImageObjectUrl(sessionId, workbenchRootProjectId, path);
+    const { state, retry } = useImageObjectUrl(sessionId, workbenchRootProjectId, path, external);
     const [size, setSize] = useState<ImageSize | undefined>(undefined);
 
     if (state.status === 'failed')
@@ -128,7 +152,7 @@ export function ImagePreview({
                         className="caxri-image-preview-canvas block max-w-none"
                         draggable={false}
                         src={state.objectUrl}
-                        alt={basename(path)}
+                        alt={basename(external?.displayPath ?? path)}
                         onLoad={(event) =>
                             setSize({
                                 width: event.currentTarget.naturalWidth,
