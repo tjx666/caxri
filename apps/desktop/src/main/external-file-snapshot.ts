@@ -8,8 +8,8 @@ import type { MainRequest, MethodResult } from '@caxri/protocol';
 import {
     binaryFileReadError,
     CaxriError,
+    isBinaryPreviewAssetPath,
     MAX_CONFIGURABLE_FILE_BYTES,
-    previewAssetMediaType,
 } from '@caxri/protocol';
 import type { SaveDialogOptions, SaveDialogReturnValue } from 'electron';
 
@@ -117,16 +117,19 @@ export async function readExternalFile(
                 "This file is hard-linked elsewhere, so Caxri can't open it safely. Use Open with Default App.",
             );
         /**
-         * A PDF has no text form and is read by its preview (`externalDocument.readAsset`, under the PDF size ceiling),
-         * so opening it only registers the grant: no bytes are read here and the text limit does not apply.
+         * A PDF or raster image has no text form and is read by its preview (`externalDocument.readAsset`, under its
+         * media type's preview ceiling), so opening it only registers the grant: no bytes are read here and the text
+         * limit does not apply. Reading it as text instead refused every image an Agent cited outside the Projects.
          */
-        const isPdf = previewAssetMediaType(authorized.path) === 'application/pdf';
-        if (!isPdf && opened.size > BigInt(MAX_CONFIGURABLE_FILE_BYTES))
+        const isBinaryAsset = isBinaryPreviewAssetPath(authorized.path);
+        if (!isBinaryAsset && opened.size > BigInt(MAX_CONFIGURABLE_FILE_BYTES))
             throw new CaxriError(
                 'CAPACITY',
                 `File is larger than ${EXTERNAL_FILE_SIZE_LIMIT_LABEL} and can't be opened here.`,
             );
-        const boundedContent = isPdf ? Buffer.alloc(0) : await readBoundedExternalContent(file);
+        const boundedContent = isBinaryAsset
+            ? Buffer.alloc(0)
+            : await readBoundedExternalContent(file);
         if (boundedContent.includes(0)) throw binaryFileReadError();
         const current = await lstat(authorized.path, { bigint: true });
         if (

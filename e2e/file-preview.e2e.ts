@@ -341,12 +341,20 @@ test('previews PDF, CSV, and Mermaid files', async () => {
 });
 
 /**
- * A PDF opened from outside every Project (a free-path Open File, as a Terminal path link does) previews under the
- * external-document grant (issue #1791): Main registers it without a text read and the Renderer fetches its bytes
- * through `externalDocument.readAsset`.
+ * A 1×1 PNG: its signature and header carry zero bytes, so a text read refuses it as binary.
+ */
+const PIXEL_PNG = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==',
+    'base64',
+);
+
+/**
+ * A PDF or raster image opened from outside every Project (a free-path Open File, as a Terminal or Agent Chat path link
+ * does) previews under the external-document grant (issue #1791): Main registers it without a text read and the
+ * Renderer fetches its bytes through `externalDocument.readAsset`.
  */
 // eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
-test('previews a PDF opened from outside every Project', async ({}, testInfo) => {
+test('previews a PDF and an image opened from outside every Project', async ({}, testInfo) => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-file-preview-external-pdf-e2e-'));
     const root = join(testDirectory, 'project');
     const externalRoot = join(testDirectory, 'external');
@@ -356,6 +364,7 @@ test('previews a PDF opened from outside every Project', async ({}, testInfo) =>
         join(externalRoot, 'outside-manual.pdf'),
         syntheticPdf(['External page one', 'External page two']),
     );
+    await writeFile(join(externalRoot, 'outside-logo.png'), PIXEL_PNG);
 
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     const { page } = running;
@@ -367,7 +376,7 @@ test('previews a PDF opened from outside every Project', async ({}, testInfo) =>
         const input = dialog.getByRole('combobox', { name: 'File path' });
         await expect(input).toBeFocused();
         await input.press('Backspace');
-        await input.fill(`${externalRoot}/outside`);
+        await input.fill(`${externalRoot}/outside-manual`);
         await expect(input).toHaveAttribute('aria-busy', 'false');
         await expect(
             dialog.getByRole('option', { name: 'outside-manual.pdf', exact: true }),
@@ -392,6 +401,26 @@ test('previews a PDF opened from outside every Project', async ({}, testInfo) =>
         await expect(pdf.locator('.page')).toHaveCount(3);
         await expect(pdf.locator('.textLayer').first()).toContainText('Rewritten page one');
         await page.screenshot({ path: testInfo.outputPath('external-pdf-rewritten.png') });
+
+        await page.keyboard.press('Meta+P');
+        await expect(input).toBeFocused();
+        await input.press('Backspace');
+        await input.fill(`${externalRoot}/outside-logo`);
+        await expect(input).toHaveAttribute('aria-busy', 'false');
+        await expect(
+            dialog.getByRole('option', { name: 'outside-logo.png', exact: true }),
+        ).toBeVisible();
+        await input.press('Enter');
+        await expect(dialog).toHaveCount(0);
+        await expect(
+            page.getByRole('tab', { name: 'outside-logo.png', exact: true }),
+        ).toBeVisible();
+        const image = page.getByRole('img', { name: 'outside-logo.png', exact: true });
+        await expect
+            .poll(() => image.evaluate((element: HTMLImageElement) => element.naturalWidth))
+            .toBe(1);
+        await expect(page.getByText('1 × 1', { exact: true })).toBeVisible();
+        await page.screenshot({ path: testInfo.outputPath('external-image.png') });
     } finally {
         try {
             await running.app.close();

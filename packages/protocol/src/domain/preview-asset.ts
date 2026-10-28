@@ -82,6 +82,15 @@ export function isPreviewImagePath(path: string): boolean {
 }
 
 /**
+ * Whether `path` is a preview asset with no text form (a PDF or a raster image), so opening it reads no text and its
+ * preview fetches the bytes instead. An SVG is excluded: its source is text a user can edit.
+ */
+export function isBinaryPreviewAssetPath(path: string): boolean {
+    const mediaType = previewAssetMediaType(path);
+    return mediaType !== undefined && mediaType !== 'image/svg+xml';
+}
+
+/**
  * The size ceiling every reader enforces for one media type: a PDF is a whole document, an image one asset of many.
  */
 export function previewAssetByteLimit(mediaType: PreviewAssetMediaType): number {

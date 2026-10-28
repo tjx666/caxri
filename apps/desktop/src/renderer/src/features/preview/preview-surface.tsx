@@ -94,6 +94,18 @@ function TextPreviewSurface({
 }
 
 /**
+ * Main's grant for a file opened from outside every Project: its document ID, where it lives, and the folder the grant
+ * covers.
+ */
+function externalPreviewGrant(documentId: string, displayPath: string) {
+    return {
+        documentId,
+        displayPath,
+        directory: displayPath.slice(0, displayPath.lastIndexOf('/')) || '/',
+    };
+}
+
+/**
  * Routes a `caxri-file-preview://` tab to the view registered for its format.
  *
  * Every renderer is reached through {@link previewerForPath}, so adding a format is a registry entry plus its view: no
@@ -142,6 +154,26 @@ export function PreviewSurface({ paneId, tab }: { paneId: string; tab: FilePrevi
     );
     switch (previewer.id) {
         case 'image': {
+            const external = parseExternalEditorTab(tab.path);
+            /**
+             * An external image, like an external PDF, has no Project file to read: its bytes come from Main under the
+             * grant the open created, and the cached document supplies the display path.
+             */
+            if (external)
+                return textSurface((document) =>
+                    document.displayPath ? (
+                        <ImagePreview
+                            path={tab.path}
+                            sessionId={session.id}
+                            viewStateKey={viewStateKey}
+                            workbenchRootProjectId={session.workbenchRootProjectId}
+                            external={externalPreviewGrant(
+                                external.documentId,
+                                document.displayPath,
+                            )}
+                        />
+                    ) : null,
+                );
             return (
                 <ImagePreview
                     path={tab.path}
@@ -235,15 +267,10 @@ export function PreviewSurface({ paneId, tab }: { paneId: string; tab: FilePrevi
                                   sessionId={session.id}
                                   viewStateKey={viewStateKey}
                                   workbenchRootProjectId={session.workbenchRootProjectId}
-                                  external={{
-                                      documentId: external.documentId,
-                                      displayPath: document.displayPath,
-                                      directory:
-                                          document.displayPath.slice(
-                                              0,
-                                              document.displayPath.lastIndexOf('/'),
-                                          ) || '/',
-                                  }}
+                                  external={externalPreviewGrant(
+                                      external.documentId,
+                                      document.displayPath,
+                                  )}
                               />,
                           )
                         : null,
