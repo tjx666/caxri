@@ -7,9 +7,11 @@ import { isAgentChatCommandListed } from './chat-items';
 import type { ChatState, ChatStateDelivery, ChatStates } from './chat-states';
 
 /**
- * Whether a live Chat can be stopped without losing anything the user has not seen: its provider is ready and bound to
- * an Agent Session it can resume, and no turn, approval, operation, background task, or queued message is pending. A
- * Chat that is not bound yet has no conversation to resume, so stopping it would only discard its draft settings.
+ * Whether a live Chat can be stopped without losing anything the user has not seen: its provider is ready, and no turn,
+ * approval, operation, background task, side question, or queued message is pending. A Chat bound to an Agent Session
+ * resumes it on the next start. A Chat not bound yet has no conversation, so it qualifies only while its read lease
+ * holds: any input, including a model switch that only its live provider remembers, ends the lease, and the next start
+ * of an untouched Chat is the same fresh provider the user would have had.
  */
 function isChatIdleForSuspension(
     state: ChatState | undefined,
@@ -20,14 +22,15 @@ function isChatIdleForSuspension(
     return (
         state.session?.isOpen === true &&
         state.retiring === undefined &&
-        terminal.agentSessionId !== undefined &&
+        (terminal.agentSessionId !== undefined || state.readLeaseAt !== undefined) &&
         snapshot.status === 'ready' &&
         snapshot.activeTurnId === undefined &&
         snapshot.requests.length === 0 &&
         snapshot.operation === undefined &&
         !snapshot.tasks?.some((task) => task.status === 'running') &&
         (snapshot.queue?.length ?? 0) === 0 &&
-        (snapshot.queueLength ?? 0) === 0
+        (snapshot.queueLength ?? 0) === 0 &&
+        !state.sideQuestions
     );
 }
 
@@ -64,11 +67,12 @@ export class ChatIdleMaintenance {
     }
 
     /**
-     * The launch of a Chat whose provider is running and idle, or `undefined`. Batch compaction reads it so it never
-     * wakes a stopped Chat or interrupts pending work.
+     * The launch of a bound Chat whose provider is running and idle, or `undefined`. Batch compaction reads it so it
+     * never wakes a stopped Chat, interrupts pending work, or compacts a Chat with no conversation yet.
      */
     idleLaunchId(terminalId: string): string | undefined {
-        return this.isSuspendable(terminalId)
+        return this.isSuspendable(terminalId) &&
+            this.host.database.getTerminal(terminalId)?.agentSessionId !== undefined
             ? this.host.states.get(terminalId)?.launchId
             : undefined;
     }
@@ -138,15 +142,10 @@ export class ChatIdleMaintenance {
 }
 
 /**
- * Puts a Chat whose provider a read is about to start on an observation lease, when it has a conversation to resume:
- * the provider is only there so the Chat can be shown, and `enqueueOn` (any input) ends the lease. A Chat with no Agent
- * Session yet is new work, not history being browsed.
+ * Puts a Chat whose provider a read is about to start on an observation lease: the provider is only there so the Chat
+ * can be shown, and `enqueueOn` (any input) ends the lease. This covers a new Chat opened and left without a message,
+ * whose provider would otherwise stay running until its Session closes.
  */
-export function leaseReadStart(
-    database: Pick<CaxriDatabase, 'getTerminal'>,
-    state: ChatState,
-    terminalId: string,
-): void {
-    if (database.getTerminal(terminalId)?.agentSessionId !== undefined)
-        state.readLeaseAt = Date.now();
+export function leaseReadStart(state: ChatState): void {
+    state.readLeaseAt = Date.now();
 }

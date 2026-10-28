@@ -67,6 +67,11 @@ export interface ChatState {
      */
     readLeaseAt?: number;
     /**
+     * Side questions (`/btw` and the continuation handoff) the provider is answering now. They bypass the send chain
+     * and leave the projection untouched, so suspension reads this count to avoid stopping the provider mid-answer.
+     */
+    sideQuestions?: number;
+    /**
      * The Client request that started the running turn (`null` when no request did), taken by its
      * `agent_chat.turn_finished` record. Every provider start clears it.
      */

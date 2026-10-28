@@ -22,6 +22,7 @@ import type { AgentUsageGuards, UsageGuardPath } from '../../usage';
 import { requireChatTerminal } from '../chat-launch';
 import type { ChatStates } from '../chat-states';
 import type { AgentChatServiceOptions } from '../service-options';
+import { trackSideQuestion } from '../side-question/chat-side-question';
 import { buildContinuationBrief } from './continuation-brief';
 
 /**
@@ -170,10 +171,12 @@ export class ChatUsageContinuation {
         let settled: AgentChatHandoff;
         try {
             await chat.start(terminalId);
-            const session = chat.states.get(terminalId)?.session;
+            const state = chat.states.get(terminalId);
+            const session = state?.session;
             if (!session?.isOpen || !session.askSideQuestion)
                 throw new CaxriError('UNAVAILABLE', 'Agent Chat is not running');
-            const text = (await session.askSideQuestion(HANDOFF_QUESTION, [])).trim();
+            const ask = session.askSideQuestion.bind(session, HANDOFF_QUESTION, []);
+            const text = (await trackSideQuestion(state, ask)).trim();
             settled = text
                 ? {
                       status: 'generated',

@@ -6,8 +6,9 @@ describe('Agent Chat idle maintenance', () => {
     it('stops an idle bound Chat, keeps its conversation, and resumes the same thread on selection', async () => {
         const { database, service, spawnProcess, terminal, threadOpens, until } = await fixture();
         await until((snapshot) => snapshot.status === 'ready');
-        // Unbound: there is no conversation to resume yet, so suspension would only lose the draft.
-        expect(service.isSuspendable(terminal.id)).toBe(false);
+        // Unbound and untouched: only the read lease makes it suspendable, and batch compaction has nothing to compact.
+        expect(service.isSuspendable(terminal.id)).toBe(true);
+        expect(service.idleLaunchId(terminal.id)).toBeUndefined();
 
         await service.send(terminal.id, { text: 'hi there' });
         await until(
