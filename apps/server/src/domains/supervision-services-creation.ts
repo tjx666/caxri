@@ -42,7 +42,7 @@ export function createTerminalSupervision({
     database: CaxriDatabase;
     dependencies: DomainDependencies;
     presence: Pick<WindowPresence, 'isSettled' | 'visibleSessionIds'>;
-    settlementWiring: Pick<PullRequestSettlementWiring, 'pullRequestState'>;
+    settlementWiring: Pick<PullRequestSettlementWiring, 'pullRequest'>;
     suspensionState: { service?: TerminalSuspensionService };
     terminals: TerminalManager;
 }) {
@@ -52,7 +52,7 @@ export function createTerminalSupervision({
         database,
         maintenanceTurns: coordinator.maintenanceTurns,
         logger,
-        pullRequestState: (sessionId) => settlementWiring.pullRequestState(sessionId),
+        pullRequest: (sessionId) => settlementWiring.pullRequest(sessionId),
         settings: () => configuration.getSettings().value,
         watchHub,
     });

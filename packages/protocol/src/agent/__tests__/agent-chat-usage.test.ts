@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
+import type { AgentChatItem } from '../agent-chat-contract.js';
 import {
     agentChatCacheClock,
     agentChatContextLimit,
     agentChatContextPercent,
     agentChatContextUsage,
+    formatMergeNotice,
+    isAgentChatEndedByMerge,
 } from '../agent-chat-usage.js';
 
 const MINUTE = 60_000;
@@ -85,5 +88,41 @@ describe('agentChatCacheClock', () => {
             state: 'expired',
             idleMs: 7 * MINUTE,
         });
+    });
+});
+
+describe('isAgentChatEndedByMerge', () => {
+    const url = 'https://github.com/example/example/pull/1';
+    const mergedAt = 1_000 * MINUTE;
+    const merged = { state: 'merged' as const, mergedAt, url };
+    const userMessage = (text: string, createdAt?: number): AgentChatItem => ({
+        id: `message-${text}`,
+        type: 'userMessage',
+        text,
+        ...(createdAt !== undefined && { createdAt }),
+    });
+
+    it('ends the Chat when only the merge notice arrived after the merge', () => {
+        const items = [
+            userMessage('Ship it', mergedAt - MINUTE),
+            userMessage(formatMergeNotice(url), mergedAt + MINUTE),
+        ];
+        expect(isAgentChatEndedByMerge(items, merged)).toBe(true);
+        expect(isAgentChatEndedByMerge(undefined, merged)).toBe(true);
+        expect(isAgentChatEndedByMerge(items, { state: 'merged', url })).toBe(true);
+    });
+
+    it('keeps the Chat going once another message followed the merge', () => {
+        const items = [
+            userMessage(formatMergeNotice(url), mergedAt + MINUTE),
+            userMessage('Now fix the follow-up', mergedAt + 2 * MINUTE),
+        ];
+        expect(isAgentChatEndedByMerge(items, merged)).toBe(false);
+    });
+
+    it('ignores replayed messages without a time and pull requests that did not merge', () => {
+        expect(isAgentChatEndedByMerge([userMessage('Earlier')], merged)).toBe(true);
+        expect(isAgentChatEndedByMerge([], { state: 'closed', url })).toBe(false);
+        expect(isAgentChatEndedByMerge([], undefined)).toBe(false);
     });
 });

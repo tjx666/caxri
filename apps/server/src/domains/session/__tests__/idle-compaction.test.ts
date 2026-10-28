@@ -1,5 +1,10 @@
-import type { AgentChatUsage, AgentProvider, SessionPullRequest } from '@caxri/protocol';
-import { CaxriError } from '@caxri/protocol';
+import type {
+    AgentChatItem,
+    AgentChatUsage,
+    AgentProvider,
+    SessionPullRequest,
+} from '@caxri/protocol';
+import { CaxriError, formatMergeNotice } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -8,6 +13,12 @@ import { ChatIdleCompaction } from '../idle-compaction';
 
 const respondedAt = Date.parse('2026-01-01T00:00:00Z');
 const minute = 60_000;
+const mergedAt = respondedAt - 10 * minute;
+const url = 'https://github.com/example/example/pull/1';
+
+function userMessage(text: string, createdAt: number): AgentChatItem {
+    return { id: `message-${createdAt}`, type: 'userMessage', text, createdAt };
+}
 
 function fixture({
     provider = 'claude',
@@ -15,19 +26,21 @@ function fixture({
     isEnabled = true,
     primaryAgentTerminalId = 'chat',
     pullRequestState,
+    items = [],
 }: {
     provider?: AgentProvider;
     usage?: AgentChatUsage;
     isEnabled?: boolean;
     primaryAgentTerminalId?: string;
     pullRequestState?: SessionPullRequest['state'];
+    items?: AgentChatItem[];
 } = {}) {
     let now = respondedAt;
     const current = { usage: usage as AgentChatUsage | undefined };
     const agentChat = {
         states: {
             terminalIds: () => ['chat'][Symbol.iterator](),
-            get: () => ({ projection: { snapshot: { usage: current.usage } } }) as never,
+            get: () => ({ projection: { snapshot: { items, usage: current.usage } } }) as never,
         },
         idleLaunchId: vi.fn<(terminalId: string) => string | undefined>(() => 'launch'),
         compactIdle: vi.fn<
@@ -45,7 +58,8 @@ function fixture({
         },
         maintenanceTurns,
         logger: { write } as unknown as StructuredLogger,
-        pullRequestState: () => pullRequestState,
+        pullRequest: () =>
+            pullRequestState && ({ state: pullRequestState, mergedAt, url } as SessionPullRequest),
         settings: () => settings,
         watchHub: {} as WatchHub,
         now: () => now,
@@ -144,7 +158,10 @@ describe('ChatIdleCompaction', () => {
     });
 
     it("skips a Chat whose Session's pull request merged, once per response", async () => {
-        const f = fixture({ pullRequestState: 'merged' });
+        const f = fixture({
+            pullRequestState: 'merged',
+            items: [userMessage(formatMergeNotice(url), mergedAt + minute)],
+        });
         f.advanceTo(30);
         expect(f.compaction.isPending('chat')).toBe(false);
         f.advanceTo(54);
@@ -166,6 +183,21 @@ describe('ChatIdleCompaction', () => {
             expect(f.agentChat.compactIdle).toHaveBeenCalledOnce();
         },
     );
+
+    it('still compacts a Chat the user kept talking to after the merge', async () => {
+        const f = fixture({
+            pullRequestState: 'merged',
+            items: [
+                userMessage(formatMergeNotice(url), mergedAt + minute),
+                userMessage('One more thing', mergedAt + 2 * minute),
+            ],
+        });
+        f.advanceTo(30);
+        expect(f.compaction.isPending('chat')).toBe(true);
+        f.advanceTo(54);
+        await f.compaction.sweep();
+        expect(f.agentChat.compactIdle).toHaveBeenCalledOnce();
+    });
 
     it('tries again after the next response restarts the cache', async () => {
         const f = fixture();

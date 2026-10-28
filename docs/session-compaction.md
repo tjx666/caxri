@@ -109,10 +109,12 @@ returns a time and that time has passed:
   Chat never reached it), and the cache lifetime is at least 60 minutes (Claude's observed lifetime; Grok Build uses a
   60-minute estimate because xAI publishes none);
 - 90% of the lifetime has passed since the latest response (54 minutes of a one-hour cache);
-- the Session's pull request has not merged. A merged delivery's conversation most likely ends there,
-  so a summary would spend a provider request nobody reads; that response is logged as
-  `pull_request_merged` instead. The state comes from the last Session pull request resolution held in
-  memory (`PullRequestSettlementWiring.pullRequestState`), never a new GitHub lookup.
+- the conversation did not end with its Session's merged pull request (`isAgentChatEndedByMerge`): the
+  pull request merged and no message but Caxri's own merge notice reached the Chat since. Such a
+  conversation most likely ends there, so a summary would spend a provider request nobody reads; that
+  response is logged as `pull_request_merged` instead. A follow-up message after the merge keeps the
+  Chat compacting as usual. The pull request comes from the last Session pull request resolution held
+  in memory (`PullRequestSettlementWiring.pullRequest`), never a new GitHub lookup.
 
 The compaction goes through the same `AgentChatService.compactIdle` path and maintenance window as the
 batch command, so it never wakes a stopped Chat and never reaches Session state. Each response is tried
@@ -122,7 +124,7 @@ logs `session.idle_compaction` with its closed `outcome`, provider, context size
 
 Because a suspended Chat is never started to compact, idle suspension waits for this one: while a Chat
 is eligible, its current response has not been attempted, and its cache has not expired
-(`ChatIdleCompaction.isPending`), the idle rule leaves it running, unless its pull request merged ([Agent suspension](agent-suspension.md#agent-chats)).
+(`ChatIdleCompaction.isPending`), the idle rule leaves it running, unless the conversation ended with its merged pull request ([Agent suspension](agent-suspension.md#agent-chats)).
 The hold ends once the attempt finishes, whatever its outcome, or the cache expires, and it never
 covers the compaction's own response, so a Chat still above the threshold afterwards is not kept
 resident one cache lifetime after another.

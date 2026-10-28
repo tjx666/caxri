@@ -1,5 +1,9 @@
-import type { AgentChatUsage } from '@caxri/protocol';
-import { agentChatIdleCompactionAt, defaultAppSettings } from '@caxri/protocol';
+import type { AgentChatItem, AgentChatUsage } from '@caxri/protocol';
+import {
+    agentChatIdleCompactionAt,
+    defaultAppSettings,
+    isAgentChatEndedByMerge,
+} from '@caxri/protocol';
 import type { LucideIcon } from 'lucide-react';
 import { Gauge, MessageSquarePlus, Timer, TimerOff, X } from 'lucide-react';
 
@@ -25,13 +29,14 @@ import {
 /**
  * When Server Core's idle compaction will compact this Chat (`agentChatIdleCompactionAt`), or `undefined` when it will
  * not: the provider or context does not qualify, the Chat is not its Session's primary Agent or its provider is not
- * running (a suspended Chat is never woken to compact), the Session's pull request merged (Server Core skips a finished
- * delivery), or the user turned the setting off. Each selector returns a primitive, so an unrelated Terminal or setting
- * change does not re-render the composer.
+ * running (a suspended Chat is never woken to compact), the Chat ended with its Session's merged pull request (Server
+ * Core skips a finished delivery, `isAgentChatEndedByMerge`), or the user turned the setting off. Each selector returns
+ * a primitive, so an unrelated Terminal or setting change does not re-render the composer.
  */
 function useAgentChatIdleCompactionAt(
     terminalId: string,
     usage: AgentChatUsage | undefined,
+    items: readonly AgentChatItem[] | undefined,
 ): number | undefined {
     const provider = useWorkbenchStore((state) => {
         const terminal = state.bootstrap?.terminals.find(({ id }) => id === terminalId);
@@ -44,7 +49,7 @@ function useAgentChatIdleCompactionAt(
     const sessionId = useWorkbenchStore(
         (state) => state.bootstrap?.terminals.find(({ id }) => id === terminalId)?.sessionId ?? '',
     );
-    const isMerged = useSessionPullRequest(sessionId).pullRequest?.state === 'merged';
+    const isMerged = isAgentChatEndedByMerge(items, useSessionPullRequest(sessionId).pullRequest);
     const isEnabled = useWorkbenchStore(
         (state) =>
             (state.bootstrap?.settings ?? defaultAppSettings)['agentChat.idleCompaction.enabled'],
@@ -178,6 +183,7 @@ function ContextActions({
 export function AgentChatContextAlerts({
     isContinuing,
     isShown,
+    items,
     onCompact,
     onContinueInNewChat,
     terminalId,
@@ -193,6 +199,10 @@ export function AgentChatContextAlerts({
      */
     isShown: boolean;
     /**
+     * The conversation, read only to tell whether it went on after its pull request merged.
+     */
+    items: readonly AgentChatItem[] | undefined;
+    /**
      * Runs the provider's compact command; omitted when the provider reports none.
      */
     onCompact: (() => void) | undefined;
@@ -206,7 +216,7 @@ export function AgentChatContextAlerts({
         (state) => state.dismissedResponseAt[terminalId],
     );
     const now = useClockTick('minute');
-    const idleCompactionAt = useAgentChatIdleCompactionAt(terminalId, usage);
+    const idleCompactionAt = useAgentChatIdleCompactionAt(terminalId, usage, items);
     const lastResponseAt = usage?.lastResponseAt;
     const alerts = agentChatUndismissedContextAlerts(
         agentChatContextAlerts(usage, now, idleCompactionAt),

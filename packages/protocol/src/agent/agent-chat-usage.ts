@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import type { SessionPullRequest } from '../domain/session-pull-request.js';
+import type { AgentChatItem } from './agent-chat-contract.js';
 import { MAX_AGENT_CHAT_GOAL_OBJECTIVE_LENGTH } from './agent-chat-goal-contract.js';
 import type { AgentProvider } from './agents.js';
 
@@ -137,6 +139,36 @@ export function agentChatIdleCompactionAt(
     )
         return undefined;
     return lastResponseAt + Math.round(cacheTtlMinutes * 60_000 * IDLE_COMPACTION_FIRE_FRACTION);
+}
+
+/**
+ * The message Caxri sends a Session's primary Agent when its pull request merges (`projectStatus.notifyAgentOnMerge`).
+ */
+export function formatMergeNotice(url: string): string {
+    return `Pull request ${url} has been merged.`;
+}
+
+/**
+ * Whether idle compaction leaves this Chat alone because its delivery ended: the Session's pull request merged and
+ * nothing but Caxri's own merge notice reached the Chat afterwards. Any other message after the merge (a follow-up
+ * question, a new task) means the conversation goes on, so its cache is still worth a summary. A merge with no recorded
+ * time counts as ended, since no message can be placed after it.
+ */
+export function isAgentChatEndedByMerge(
+    items: readonly AgentChatItem[] | undefined,
+    pullRequest: Pick<SessionPullRequest, 'mergedAt' | 'state' | 'url'> | undefined,
+): boolean {
+    if (pullRequest?.state !== 'merged') return false;
+    const { mergedAt, url } = pullRequest;
+    if (mergedAt === undefined) return true;
+    const notice = formatMergeNotice(url);
+    return !items?.some(
+        (item) =>
+            item.type === 'userMessage' &&
+            item.createdAt !== undefined &&
+            item.createdAt > mergedAt &&
+            item.text !== notice,
+    );
 }
 
 /**
