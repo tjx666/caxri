@@ -21,8 +21,10 @@ The notification reports submitted requests and skipped or unconfirmed outcomes.
 proof of finished compaction; the native Agent window shows its progress. Results remain in notification
 history. One failed Session does not prevent the remaining Sessions from being checked.
 
-[Airplane Mode](airplane-mode.md) runs the same batch before it stops every Agent, and waits for the
-submitted compactions to finish.
+[Airplane Mode](airplane-mode.md) interrupts the running turns, runs the same batch before it stops
+every Agent, and waits for the submitted compactions to finish. A PTY turn it interrupted with a
+provably empty composer has no idle proof (an interrupt sends no `Stop`), so its empty-composer
+proof stands in for one.
 
 ## Cache estimates
 

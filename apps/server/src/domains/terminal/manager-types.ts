@@ -137,7 +137,8 @@ export interface TerminalStartOptions {
      */
     shouldKeepAgentAutonomy?: boolean;
     /**
-     * Server-generated private-file pointer, appended after provider-native resume arguments.
+     * Server-generated prompt appended after provider-native resume arguments: a delegation's private-file pointer, or
+     * Airplane Mode's continue prompt.
      */
     initialPrompt?: string;
     expectedWorkingDirectory?: TerminalWorkingDirectoryIdentity;

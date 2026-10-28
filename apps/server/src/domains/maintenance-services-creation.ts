@@ -1,8 +1,11 @@
+import { assertE2EAgentInputFromEnvironment } from '@caxri/system';
+
 import type { AgentChatService } from './agent-chat';
 import type { AgentEnvironment, CompactionReadiness } from './agents';
 import type { DomainHandlers } from './domain-services';
 import type { SessionParkingOptions } from './parking-handlers';
 import { detachSessionAgents } from './parking-handlers';
+import { isPtyTerminal } from './pty-guard';
 import { AirplaneMode, SessionCompaction } from './session';
 import type { TerminalSuspensionService } from './terminal';
 import { createInterruptedTerminalRestorer, TerminalRestoreSupervisor } from './terminal';
@@ -16,6 +19,19 @@ type RestorerOptions = Omit<
 > & {
     agentEnvironment: AgentEnvironment;
 };
+
+/**
+ * What a resumed Agent that Airplane Mode stopped mid-work receives. Its background subagents and commands died with
+ * it, so it is told to check them rather than wait for their results.
+ */
+const AIRPLANE_MODE_CONTINUE_PROMPT =
+    'Continue where you left off. Caxri Airplane Mode stopped this Agent before going offline, so your last turn was interrupted and any background subagents or commands were stopped; rerun what you still need.';
+
+/**
+ * What an Agent whose turn Airplane Mode interrupted receives when the user cancels before anything stopped.
+ */
+const AIRPLANE_CANCEL_CONTINUE_PROMPT =
+    'Continue where you left off. Caxri Airplane Mode interrupted your last turn, then the user cancelled it; nothing else was stopped.';
 
 /**
  * Owns the Session maintenance slice: the batch compaction (`session.compactWarm`) and Airplane Mode
@@ -43,6 +59,40 @@ export function createSessionMaintenanceServices(options: {
         readiness: options.compactionReadiness,
         environment: agentEnvironment,
     });
+    const { compactionReadiness } = options;
+    /**
+     * The Session's primary Agent Terminal, the one compaction and the continue prompt address.
+     */
+    const primaryAgent = (sessionId: string) => {
+        const terminalId = database.getSession(sessionId)?.primaryAgentTerminalId;
+        const terminal = terminalId ? database.getTerminal(terminalId) : undefined;
+        return terminal?.provider === undefined ? undefined : terminal;
+    };
+    const isTurnActive = (sessionId: string): boolean => {
+        const state = database.getSession(sessionId)?.agentActivityState;
+        return state === 'running' || state === 'waiting';
+    };
+    /**
+     * A PTY turn is interrupted only when its composer is proven empty (`CompactionReadiness.armInterrupt`), so the
+     * `/compact` typed afterwards cannot submit a draft along with it. Any other running PTY turn stops with its
+     * Agent.
+     */
+    const didInterruptPty = (
+        terminalId: string,
+        provider: Parameters<typeof assertE2EAgentInputFromEnvironment>[0],
+    ): boolean => {
+        const launchId = terminals.agentLaunchId(terminalId);
+        if (!launchId || !compactionReadiness.armInterrupt(terminalId, launchId)) return false;
+        assertE2EAgentInputFromEnvironment(provider);
+        // `maintenance` input reaches `CompactionReadiness.input`, which turns the armed proof ready on this Escape.
+        if (!terminals.writeAgentExact(terminalId, '\u{1B}', launchId, 'maintenance')) {
+            // The write counted as input before it was refused, which turned the armed proof ready: revoke it.
+            compactionReadiness.forget(terminalId);
+            return false;
+        }
+        coordinator.observeInput(terminalId, '\u{1B}');
+        return true;
+    };
     const restores = new TerminalRestoreSupervisor();
     const restoreSession = createInterruptedTerminalRestorer({
         ...options.restorerOptions,
@@ -61,16 +111,76 @@ export function createSessionMaintenanceServices(options: {
                         terminal.provider !== undefined &&
                         terminals.processId(terminal.id) !== undefined,
                 ),
+        isWorking: (sessionId) => {
+            if (isTurnActive(sessionId)) return true;
+            const terminal = primaryAgent(sessionId);
+            if (!terminal) return false;
+            if (!isPtyTerminal(terminal))
+                return (
+                    agentChat.hasActiveTurn(terminal.id) ||
+                    agentChat.states.hasRunningTasks(sessionId)
+                );
+            // Claude's background subagents, workflows, monitors, and non-server background commands
+            // (`agentBackgroundWork`); a dev server left running in the background does not count.
+            return coordinator.agentOperation(terminal.id) === 'background';
+        },
+        interrupt: async (sessionId) => {
+            const terminal = primaryAgent(sessionId);
+            if (!terminal) return false;
+            if (isPtyTerminal(terminal))
+                return (
+                    database.getSession(sessionId)?.agentActivityState === 'running' &&
+                    didInterruptPty(terminal.id, terminal.provider)
+                );
+            if (!agentChat.hasActiveTurn(terminal.id)) return false;
+            await agentChat.interrupt(terminal.id);
+            return true;
+        },
+        isTurnRunning: (sessionId) => {
+            const terminal = primaryAgent(sessionId);
+            if (terminal && !isPtyTerminal(terminal)) return agentChat.hasActiveTurn(terminal.id);
+            return database.getSession(sessionId)?.agentActivityState === 'running';
+        },
+        continueLive: async (sessionId) => {
+            const terminal = primaryAgent(sessionId);
+            if (!terminal) return;
+            if (!isPtyTerminal(terminal)) {
+                await agentChat.send(terminal.id, { text: AIRPLANE_CANCEL_CONTINUE_PROMPT });
+                return;
+            }
+            const launchId = terminals.agentLaunchId(terminal.id);
+            // The interrupt proved the composer empty, so the prompt is submitted on its own.
+            if (launchId)
+                await terminals.submitAgentExact(
+                    terminal.id,
+                    sessionId,
+                    launchId,
+                    AIRPLANE_CANCEL_CONTINUE_PROMPT,
+                );
+        },
         detach: async (sessionId) => {
             await detachSessionAgents(parking, sessionId);
             parking.sendFullStateChange('session.detach');
         },
-        resume: async (sessionId) => {
+        resume: async (sessionId, shouldContinue) => {
             // The same relaunch as `session.resume`, without moving any window's selection.
             await parking.mobileTerminalMutations.runSessions([sessionId], () =>
                 agentChat.resumeSession(sessionId),
             );
-            await restoreSession(sessionId, { includeDetached: true });
+            const terminal = shouldContinue ? primaryAgent(sessionId) : undefined;
+            await restoreSession(sessionId, {
+                includeDetached: true,
+                ...(terminal &&
+                    isPtyTerminal(terminal) && {
+                        agentPrompt: {
+                            terminalId: terminal.id,
+                            text: AIRPLANE_MODE_CONTINUE_PROMPT,
+                        },
+                    }),
+            });
+            // A Chat queues the message behind its own start, so it can be sent right after `resumeSession`.
+            if (terminal && !isPtyTerminal(terminal))
+                await agentChat.send(terminal.id, { text: AIRPLANE_MODE_CONTINUE_PROMPT });
             parking.sendFullStateChange('session.resume');
         },
         publish: (state) => send({ event: 'session.airplaneModeChanged', payload: state }),
