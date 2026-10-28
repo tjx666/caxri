@@ -4,6 +4,10 @@ import process from 'node:process';
 
 import { app } from 'electron';
 
+import { holdOpenFileRequests } from './external-activation/open-file-requests';
+
+holdOpenFileRequests(app);
+
 /**
  * Main's build entry. ESM compiles every static import before any module body runs, so the Node compile cache must be
  * enabled here, ahead of the dynamic import that loads the real Main graph (`index.ts`). Packaged builds only: a dev

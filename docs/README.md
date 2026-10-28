@@ -72,6 +72,7 @@ What/why of current shipped behavior, core modules, protocols, and operator know
 | [session-compaction.md](session-compaction.md)                     | Batch command and idle Chat compaction                              |
 | [session-search.md](session-search.md)                             | Session search across Caxri and external Agent conversations        |
 | [session-conversation-context.md](session-conversation-context.md) | Reading a Session's own Agent conversation                          |
+| [share-menu.md](share-menu.md)                                     | macOS Share menu hand-off into a Session's Agent Chat composer      |
 | [ssh-host.md](ssh-host.md)                                         | SSH Host windows: connect, install, lifecycle, remote layers        |
 | [terminal-reference-preview.md](terminal-reference-preview.md)     | Terminal commit/reference hover previews                            |
 | [type-aware-linting.md](type-aware-linting.md)                     | ESLint (syntactic) + oxlint/tsgolint (typed) split                  |

@@ -80,6 +80,20 @@ export const extensionHostLogEvents = {
 export const desktopLogEvents = {
     uncaughtException: 'desktop.uncaught_exception',
     unhandledRejection: 'desktop.unhandled_rejection',
+    /**
+     * A macOS Share menu request reached the Workbench (`apps/desktop/src/main/external-activation/share-inbox.ts`), or
+     * was refused with a closed reason.
+     */
+    shareReceived: 'desktop.share_received',
+    shareRejected: 'desktop.share_rejected',
+    /**
+     * Startup removal of expired Share Inbox requests, with how many were removed and how many failed.
+     */
+    shareInboxPruned: 'desktop.share_inbox_pruned',
+    /**
+     * The one-time `pluginkit` election that turns the bundled share extension on, with its outcome.
+     */
+    shareExtensionElection: 'desktop.share_extension_election',
 } as const;
 
 export const gpuLogEvents = {

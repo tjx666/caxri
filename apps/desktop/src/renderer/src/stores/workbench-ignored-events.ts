@@ -22,6 +22,8 @@ import type { ServerEvent } from '@caxri/protocol';
  *   `claudeWindow.status` read.
  * - `benchmark.changed` goes to `useBenchmarkEvents` in `features/benchmark/benchmark-queries.ts`, which refreshes the
  *   Benchmark tab's run list and the changed run.
+ * - `desktop.shareReceived` goes to `subscribeShareRequests` in `features/share/share-request-store.ts`, which opens the
+ *   Send to Session picker.
  */
 const WORKBENCH_IGNORED_EVENTS = [
     'agent.dispatch.changed',
@@ -39,6 +41,7 @@ const WORKBENCH_IGNORED_EVENTS = [
     'benchmark.changed',
     'claudeWindow.changed',
     'botInbox.changed',
+    'desktop.shareReceived',
     'editor.unsavedRequest',
     'environment.changed',
     'environment.connectionReused',

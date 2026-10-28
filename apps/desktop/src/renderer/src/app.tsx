@@ -53,6 +53,8 @@ import { SessionMruSwitcher } from './features/session/session-mru-switcher';
 import { SessionSearchDialog } from './features/session/session-search/session-search-dialog';
 import { subscribeClaudeWindowsDefaultNotice } from './features/settings/claude-windows/claude-windows-default-notice';
 import { useSettingsTabOpener } from './features/settings/settings-tab-opener';
+import { subscribeShareRequests } from './features/share/share-request-store';
+import { ShareToSessionDialog } from './features/share/share-to-session-dialog';
 import { ConnectSshHostDialog } from './features/ssh-host/connect-ssh-host-dialog';
 import { isConnectionOverlayVisible } from './features/ssh-host/connection-status';
 import { subscribeFileWatchLimitAlerts } from './features/ssh-host/file-watch-limit-alert';
@@ -193,6 +195,7 @@ export function App() {
     useEffect(() => subscribeClaudeWindowsDefaultNotice(), []);
     useEffect(() => startViewEventBridge(), []);
     useEffect(() => subscribeHeldMessageQueue(), []);
+    useEffect(() => subscribeShareRequests(), []);
     useEffect(() => subscribeUnsavedEditorRequests(), []);
     useEffect(() => subscribeDocumentSaveFailureCleanup(), []);
     useEffect(() => subscribeEditorBackups(), []);
@@ -322,6 +325,7 @@ export function App() {
                     <KeyboardShortcutsDialog />
                     <UpdateDialog />
                     <CommandPalette />
+                    <ShareToSessionDialog />
                     <ProjectSearchDialog />
                     <AgentActionsDialog />
                     <PathBrowserDialog />

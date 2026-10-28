@@ -31,6 +31,7 @@ export type TransientServerEvent = Extract<
             | 'command.execute'
             | 'botInbox.changed'
             | 'desktop.openRequested'
+            | 'desktop.shareReceived'
             | 'editor.unsavedRequest'
             | 'environment.changed'
             | 'environment.connectionReused'
@@ -107,6 +108,10 @@ const TRANSIENT_SERVER_EVENT_NAMES = new Set<ServerEvent['event']>([
      */
     'botInbox.changed',
     'desktop.openRequested',
+    /**
+     * One-shot: replaying a Share menu hand-off after a reconnect would ask again for a Session the user already chose.
+     */
+    'desktop.shareReceived',
     /**
      * Connection phase and askpass prompts belong to one Main-owned SSH session; a reloaded Renderer reads the current
      * state through `environment.get`, and a replayed prompt would answer a helper that already gave up.
