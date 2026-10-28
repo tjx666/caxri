@@ -138,3 +138,96 @@ export function agentChatIdleCompactionAt(
         return undefined;
     return lastResponseAt + Math.round(cacheTtlMinutes * 60_000 * IDLE_COMPACTION_FIRE_FRACTION);
 }
+
+/**
+ * Share of the compaction window past which the context counts as high: the composer suggests compacting. Set close to
+ * where the provider compacts on its own, so the suggestion arrives while compacting by hand still saves a turn,
+ * without reading as a false alarm for most of a long conversation.
+ *
+ * The meter turns `--warning` at the same share rather than earlier: below it the ring stays a quiet neutral glyph, so
+ * a color change means "worth compacting" and not "past half full". A full context is advice to compact, not a failure,
+ * so it never turns `--danger` beside the composer's `--warning` suggestion.
+ */
+export const AGENT_CHAT_HIGH_CONTEXT_SHARE = 0.85;
+
+/**
+ * How full the context window is, for the composer's meter on Desktop and the phone. Omitted until the provider reports
+ * a window size.
+ */
+export interface AgentChatContextUsage {
+    /**
+     * Share of `limit` in use, from 0 to 1.
+     */
+    used: number;
+    totalTokens: number;
+    /**
+     * The window the breakdown fills: the provider's compaction window when it is smaller than the model's.
+     */
+    window: number;
+    /**
+     * The denominator of `used` and of every percentage: `compactAt` when the provider reports one, otherwise `window`.
+     */
+    limit: number;
+    /**
+     * Where the provider compacts on its own, when it says so.
+     */
+    compactAt?: number;
+    /**
+     * The model's own window, when the compaction window is smaller than it.
+     */
+    modelWindow?: number;
+    tone: 'normal' | 'warning';
+    breakdown: NonNullable<AgentChatUsage['breakdown']>;
+}
+
+/**
+ * The whole-number share of `window` that `tokens` fill, from 0 to 100. Every context percentage on every Client rounds
+ * through here, so two surfaces never show the same context as `1%` and `1.3%`.
+ */
+export function agentChatContextPercent(tokens: number, window: number): number {
+    return window > 0 ? Math.round(Math.min(tokens / window, 1) * 100) : 0;
+}
+
+/**
+ * The denominator every context percentage uses: where the provider compacts on its own when it says so, otherwise the
+ * window pressure is measured against, so one Chat never shows `85%` in one place and `71%` in another for the same
+ * tokens.
+ */
+export function agentChatContextLimit(window: number, autoCompactAt: number | undefined): number {
+    return autoCompactAt !== undefined && autoCompactAt > 0 ? autoCompactAt : window;
+}
+
+export function agentChatContextUsage(
+    usage: AgentChatUsage | undefined,
+): AgentChatContextUsage | undefined {
+    const window = usage?.compactWindow ?? usage?.contextWindow;
+    if (!usage || !window) return undefined;
+    const limit = agentChatContextLimit(window, usage.autoCompactThreshold);
+    const share = usage.totalTokens / limit;
+    return {
+        used: Math.min(share, 1),
+        totalTokens: usage.totalTokens,
+        window,
+        limit,
+        ...(usage.autoCompactThreshold && { compactAt: usage.autoCompactThreshold }),
+        ...(usage.compactWindow &&
+            usage.contextWindow &&
+            usage.contextWindow > usage.compactWindow && { modelWindow: usage.contextWindow }),
+        tone: share >= AGENT_CHAT_HIGH_CONTEXT_SHARE ? 'warning' : 'normal',
+        breakdown: usage.breakdown ?? [],
+    };
+}
+
+/**
+ * The prompt cache's state right now, from when the latest response arrived and the lifetime it was written with.
+ */
+export function agentChatCacheClock(
+    lastResponseAt: number | undefined,
+    ttlMinutes: number,
+    now: number,
+): { state: 'warm' | 'expired'; remainingMs: number; idleMs: number } | undefined {
+    if (lastResponseAt === undefined) return undefined;
+    const idleMs = Math.max(0, now - lastResponseAt);
+    const remainingMs = ttlMinutes * 60_000 - idleMs;
+    return { state: remainingMs > 0 ? 'warm' : 'expired', remainingMs, idleMs };
+}

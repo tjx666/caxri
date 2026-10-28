@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+    agentUsageCostLabel,
     currentLimitWindows,
     formatPercent,
     formatTokens,
@@ -143,5 +144,20 @@ describe('isPlanPaceDismissed', () => {
         ).toBe(true);
         expect(isPlanPaceDismissed({}, now)).toBe(false);
         expect(isPlanPaceDismissed(undefined, now)).toBe(false);
+    });
+});
+
+describe('agentUsageCostLabel', () => {
+    it('marks a cost that leaves some unpriced models out as a lower bound, and omits an all-unpriced one', () => {
+        const priced = { costUsd: 3.4, models: ['gpt-5.5'], unpricedModels: [] };
+        expect(agentUsageCostLabel(priced)).toBe('$3.40');
+        expect(
+            agentUsageCostLabel({
+                ...priced,
+                models: ['gpt-5.5', 'mystery'],
+                unpricedModels: ['mystery'],
+            }),
+        ).toBe('≥$3.40');
+        expect(agentUsageCostLabel({ ...priced, unpricedModels: ['gpt-5.5'] })).toBeUndefined();
     });
 });

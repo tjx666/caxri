@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 
 import {
     agentUsageClockSignature,
-    agentUsageCostLabel,
     agentUsageLabel,
     agentUsageLimitTone,
     agentUsagePaceNote,
@@ -69,10 +68,7 @@ describe('agent usage chip label', () => {
 
     it('marks a cost that leaves some unpriced models out as a lower bound', () => {
         const partial = readout({ models: ['gpt-5.5', 'mystery'], unpricedModels: ['mystery'] });
-        expect(agentUsageCostLabel(partial)).toBe('≥$3.40');
         expect(agentUsageLabel(partial, NOW, DEFAULT_WINDOWS)).toBe('1.2M · ≥$3.40');
-        expect(agentUsageCostLabel(readout())).toBe('$3.40');
-        expect(agentUsageCostLabel(readout({ unpricedModels: ['gpt-5.5'] }))).toBeUndefined();
     });
 
     it('leaves the 5-hour window out unless the Setting opts in', () => {

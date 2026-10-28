@@ -1,5 +1,5 @@
 import type { AgentChatSnapshot } from '@caxri/protocol';
-import { agentProviderCatalog } from '@caxri/protocol';
+import { agentChatContextUsage, agentProviderCatalog } from '@caxri/protocol';
 import { Goal, Lightbulb } from 'lucide-react';
 
 import { Separator } from '../../../components/ui/separator';
@@ -8,7 +8,6 @@ import { useCommandShortcut } from '../../../lib/keybindings';
 import { useTerminal } from '../../../stores/selectors';
 import type { SessionReferenceCandidate } from '../../session/session-reference';
 import { AgentChatStopButton } from '../agent-chat-stop-button';
-import { agentChatContextUsage } from '../context/agent-chat-context';
 import { AgentChatContextMeter } from '../context/agent-chat-context-meter';
 import { useAgentChatComposerCommand } from '../hooks/use-agent-chat-composer-command';
 import { AgentChatModelMenu } from '../model/agent-chat-model-menu';
@@ -143,7 +142,7 @@ export function AgentChatComposerActions({
 }) {
     const { t } = useTranslation();
     const planModeShortcut = useCommandShortcut('agentChat.togglePlanMode');
-    const contextUsage = agentChatContextUsage(snapshot);
+    const contextUsage = agentChatContextUsage(snapshot?.usage);
     const terminal = useTerminal(terminalId);
     const provider = terminal && terminal.kind !== 'shell' ? terminal.kind : undefined;
     const permission = useAgentChatPermissionSelection(snapshot, provider, terminalId);

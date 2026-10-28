@@ -1,14 +1,13 @@
 import { Fragment } from 'react';
 
-import { formatTokens } from '@caxri/protocol';
+import type { AgentChatContextUsage } from '@caxri/protocol';
+import { agentChatContextPercent, formatTokens } from '@caxri/protocol';
 
 import { AnimatedNumber } from '../../../components/animated-number';
 import { Button } from '../../../components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '../../../components/ui/popover';
 import { useTranslation } from '../../../i18n';
 import { cn } from '../../../lib/utilities';
-import type { AgentChatContextUsage } from './agent-chat-context';
-import { agentChatContextPercent } from './agent-chat-context';
 import { contextCategoryLabel } from './category-labels';
 import { inRequestOrder, segmentShade } from './composition';
 

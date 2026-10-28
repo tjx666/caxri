@@ -194,17 +194,3 @@ function findBreak(
         ),
     };
 }
-
-/**
- * The prompt cache's state right now, from when the latest response arrived and the lifetime it was written with.
- */
-export function cacheClock(
-    lastResponseAt: number | undefined,
-    ttlMinutes: number,
-    now: number,
-): { state: 'warm' | 'expired'; remainingMs: number; idleMs: number } | undefined {
-    if (lastResponseAt === undefined) return undefined;
-    const idleMs = Math.max(0, now - lastResponseAt);
-    const remainingMs = ttlMinutes * 60_000 - idleMs;
-    return { state: remainingMs > 0 ? 'warm' : 'expired', remainingMs, idleMs };
-}
