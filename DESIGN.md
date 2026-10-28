@@ -1372,8 +1372,8 @@ card, so the stack reads as one tray (references: LobeHub's input trays, T3 Code
 the goal row, then the Plan and Background work sections, then queued messages, then the status row
 nearest the input, since it changes most often. The Plan and Background work sections each have a 32px
 header that folds and unfolds the list under it, remembered per Chat: a glyph, the label, the count
-on the right (`2/5`; `1 running · 2 failed` with the failures in `--danger`), and a trailing chevron
-that turns as the list opens. Folded, the Plan header also names the current step and the Background
+on the right (`2/5`; `1 running · 2 failed` with the failures in `--danger`), and a chevron at the
+header's right edge, after any section actions such as Stop all, that turns as the list opens. Folded, the Plan header also names the current step and the Background
 work header shows each running kind's glyph with its count (subagents before background shells, so
 one kind never hides the other), so folding never hides that work runs. With a single running task and no failure,
 Background work drops its header and fold: that task's row is the whole section, with the ended-count control beside

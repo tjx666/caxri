@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { useId, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 
 import { ChevronRight } from 'lucide-react';
 
@@ -14,10 +14,11 @@ import {
 
 /**
  * One collapsible section of the composer strip (the plan, background work): a 32px header that folds and unfolds the
- * list under it, and the list itself. The whole header is the toggle, with the chevron trailing; `actions` sit beside
- * it outside the toggle. Collapsed, the header still says what matters (`summary`, `meta`), so folding never hides that
- * work is running. Only a fold the user makes animates: a section that appears with its work renders still, like every
- * other strip row.
+ * list under it, and the list itself. The header is the toggle; `actions` sit after it outside the toggle, and the
+ * chevron trails them at the header's right edge so it lines up whether or not a section has actions. The chevron is a
+ * pointer-only target (`tabIndex={-1}`) that hands focus to the toggle, so keyboard users meet one fold control.
+ * Collapsed, the header still says what matters (`summary`, `meta`), so folding never hides that work is running. Only
+ * a fold the user makes animates: a section that appears with its work renders still, like every other strip row.
  */
 export function AgentChatStripSection({
     actions,
@@ -54,6 +55,11 @@ export function AgentChatStripSection({
     const isCollapsed = useIsAgentChatStripSectionCollapsed(terminalId, section);
     const [hasToggled, setToggled] = useState(false);
     const bodyId = useId();
+    const toggleReference = useRef<HTMLButtonElement>(null);
+    const toggle = (): void => {
+        setToggled(true);
+        toggleAgentChatStripFold(terminalId, section);
+    };
     return (
         <section
             aria-label={label}
@@ -68,26 +74,34 @@ export function AgentChatStripSection({
                     aria-label={ariaLabel}
                     data-agent-chat-strip-fold=""
                     className="flex h-6 min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-1.5 text-left text-muted hover:bg-elevated hover:text-foreground focus-visible:outline focus-visible:outline-accent"
+                    ref={toggleReference}
                     type="button"
-                    onClick={() => {
-                        setToggled(true);
-                        toggleAgentChatStripFold(terminalId, section);
-                    }}
+                    onClick={toggle}
                 >
                     {glyph}
                     {!isLabelHidden && <span className="shrink-0 text-foreground">{label}</span>}
                     {isCollapsed && summary && <span className="min-w-0 truncate">{summary}</span>}
                     <span className="ml-auto shrink-0 pl-1 tabular-nums">{meta}</span>
+                </button>
+                {actions}
+                <button
+                    aria-hidden="true"
+                    className="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-0 text-muted hover:bg-elevated hover:text-foreground"
+                    tabIndex={-1}
+                    type="button"
+                    onClick={() => {
+                        toggleReference.current?.focus();
+                        toggle();
+                    }}
+                >
                     <ChevronRight
-                        aria-hidden="true"
                         className={cn(
-                            'size-3.5 shrink-0',
+                            'size-3.5',
                             agentChatChevronMotion(!isCollapsed),
                             !isCollapsed && 'rotate-90',
                         )}
                     />
                 </button>
-                {actions}
             </div>
             <DisclosureMotion
                 animate={hasToggled}
