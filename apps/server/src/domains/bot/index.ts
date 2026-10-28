@@ -8,3 +8,4 @@ export type { CaxriBotServiceOptions } from './service';
 export { CaxriBotService } from './service';
 export { createBotSession, discardBotSession, requireBotSession } from './sessions';
 export { BotTerminalHooks } from './terminal-hooks';
+export { botWorkspacePath } from './workspace';

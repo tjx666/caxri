@@ -431,6 +431,7 @@ describe('operatorContext', () => {
                 'projects.read',
                 'projects.write',
                 'sessions.read',
+                'sessions.write',
                 'settings.read',
                 'settings.write',
                 'terminals.read',
@@ -444,7 +445,7 @@ describe('operatorContext', () => {
         expect(context.capabilities).toContain('settings.delegation.write');
         expect(context.capabilities).toContain('agents.delegation.access');
         expect(context.capabilities).toContain('bot');
-        expect(context.capabilities).toHaveLength(20);
+        expect(context.capabilities).toHaveLength(21);
     });
 
     it('derives the principal id from the profile id it is given', () => {

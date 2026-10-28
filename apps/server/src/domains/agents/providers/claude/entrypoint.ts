@@ -16,9 +16,12 @@
 export const CAXRI_CLAUDE_ENTRYPOINT = 'caxri';
 
 /**
- * Whether a transcript's first `entrypoint` marks a conversation an application started rather than one the user opened
- * in a terminal: Caxri's own label, or any Agent SDK and print-mode label.
+ * Whether a transcript's first `entrypoint` marks a conversation another application started through the Agent SDK or
+ * print mode. Caxri's own `caxri` label is not hosted: an Agent Chat conversation is the user's own, so it stays
+ * searchable and importable after the Session that held it is deleted or a clean-install cutoff rebuilds the database.
+ * Agent Chat transcripts written before the label existed carry `sdk-ts` and cannot be told apart from another
+ * application's runs.
  */
 export function isHostedClaudeEntrypoint(entrypoint: string | undefined): boolean {
-    return entrypoint === CAXRI_CLAUDE_ENTRYPOINT || entrypoint?.startsWith('sdk') === true;
+    return entrypoint?.startsWith('sdk') === true;
 }

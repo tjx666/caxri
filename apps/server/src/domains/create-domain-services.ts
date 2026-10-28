@@ -372,6 +372,7 @@ export async function createDomainServices(
         hooks: botHooks,
         ignoredChecks: () => configuration.getSettings().value['projectStatus.ignoredChecks'],
         logger,
+        readTopology: (path) => git.worktreeTopology(path),
         resolveProjectRoot: resolveOwnerProjectRoot,
         run: externalStatus.run,
         send,

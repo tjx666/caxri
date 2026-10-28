@@ -1,6 +1,7 @@
 import { resolve } from 'node:path';
 
-import { CaxriError } from '@caxri/protocol';
+import type { AgentProvider } from '@caxri/protocol';
+import { agentProviderIds, CaxriError, sessionSearchStatusFilters } from '@caxri/protocol';
 
 import { rejectOptions } from './reject-options';
 import type { RemoteCommandDefinition } from './types';
@@ -49,8 +50,115 @@ function selectorQuery(
     };
 }
 
+function optionValue(tokens: readonly string[], index: number, flag: string): string {
+    const value = tokens.at(index + 1);
+    if (value === undefined || value.startsWith('--'))
+        throw new CaxriError('VALIDATION', `${flag} requires a value`);
+    return value;
+}
+
+function rejectFlags(tokens: readonly string[]): void {
+    const flag = tokens.find((token) => token.startsWith('--'));
+    if (flag) throw new CaxriError('VALIDATION', `Unknown option: ${flag.split('=', 1)[0]}`);
+}
+
+function oneOf<Value extends string>(
+    value: string,
+    allowed: readonly Value[],
+    flag: string,
+): Value {
+    if (!(allowed as readonly string[]).includes(value))
+        throw new CaxriError('VALIDATION', `${flag} must be one of: ${allowed.join(', ')}`);
+    return value as Value;
+}
+
 /**
- * Project, Session, and Terminal record queries, and adding a folder as a Project.
+ * Every positional token joins the query, so `caxri session search fix login` needs no quoting.
+ */
+function sessionSearchParameters(tokens: readonly string[]): Record<string, unknown> {
+    const terms: string[] = [];
+    const providers: AgentProvider[] = [];
+    let status: string | undefined;
+    for (let index = 0; index < tokens.length; index += 1) {
+        const token = tokens[index];
+        if (token === '--provider') {
+            providers.push(oneOf(optionValue(tokens, index, token), agentProviderIds, token));
+            index += 1;
+        } else if (token === '--status') {
+            if (status) throw new CaxriError('VALIDATION', '--status may be provided only once');
+            status = oneOf(optionValue(tokens, index, token), sessionSearchStatusFilters, token);
+            index += 1;
+        } else if (token.startsWith('--')) {
+            throw new CaxriError('VALIDATION', `Unknown option: ${token.split('=', 1)[0]}`);
+        } else terms.push(token);
+    }
+    return {
+        query: terms.join(' '),
+        ...(providers.length > 0 && { providers }),
+        ...(status && { status }),
+    };
+}
+
+/**
+ * Takes a search result's `key` (`<provider>:<conversation id>`) as printed by `session search --quiet`, or the
+ * provider and conversation ID as two arguments.
+ */
+function sessionImportParameters(tokens: readonly string[]): {
+    agentSessionId: string;
+    provider: AgentProvider;
+} {
+    rejectFlags(tokens);
+    const [first, second, ...rest] = tokens as ReadonlyArray<string | undefined>;
+    if (!first || rest.length > 0)
+        throw new CaxriError(
+            'VALIDATION',
+            'session import requires <provider>:<conversation-id> or <provider> <conversation-id>',
+        );
+    const separator = first.indexOf(':');
+    const [provider, agentSessionId] =
+        second === undefined && separator > 0
+            ? [first.slice(0, separator), first.slice(separator + 1)]
+            : [first, second];
+    if (!agentSessionId)
+        throw new CaxriError(
+            'VALIDATION',
+            'session import requires <provider>:<conversation-id> or <provider> <conversation-id>',
+        );
+    return { provider: oneOf(provider, agentProviderIds, 'provider'), agentSessionId };
+}
+
+function sessionRenameParameters(tokens: readonly string[]): { sessionId: string; title: string } {
+    let sessionId: string | undefined;
+    let title: string | undefined;
+    for (let index = 0; index < tokens.length; index += 1) {
+        const token = tokens[index];
+        if (token === '--title' && title === undefined) {
+            title = tokens.at(index + 1);
+            if (title === undefined) throw new CaxriError('VALIDATION', '--title requires a value');
+            index += 1;
+        } else if (sessionId === undefined && !token.startsWith('--')) sessionId = token;
+        else throw new CaxriError('VALIDATION', `Unexpected argument: ${token.split('=', 1)[0]}`);
+    }
+    if (!sessionId || title === undefined)
+        throw new CaxriError('VALIDATION', 'session rename requires <session-id> --title <text>');
+    return { sessionId, title };
+}
+
+function sessionPinParameters(isPinned: boolean) {
+    return (tokens: readonly string[]): { pinned: boolean; sessionId: string } => {
+        rejectFlags(tokens);
+        if (tokens.length !== 1)
+            throw new CaxriError(
+                'VALIDATION',
+                `session ${isPinned ? 'pin' : 'unpin'} requires one <session-id>`,
+            );
+        return { sessionId: tokens[0], pinned: isPinned };
+    };
+}
+
+/**
+ * Project, Session, and Terminal record queries, adding a folder as a Project, and finding, importing, renaming, and
+ * pinning Sessions.
  */
 export const RECORD_COMMANDS: RemoteCommandDefinition[] = [
     {
@@ -115,6 +223,52 @@ export const RECORD_COMMANDS: RemoteCommandDefinition[] = [
         summary: 'Show the current Session for this profile.',
         parseParams: (tokens) => ({ ...rejectOptions(tokens), mode: 'current' }),
         quietKey: 'sessions',
+    },
+    {
+        kind: 'remote',
+        path: ['session', 'search'],
+        method: 'session.search',
+        summary:
+            'Find Agent conversations by title, ID, folder, or message text, including ones no Session holds yet.',
+        usage: '[<terms>...] [--provider <provider>]... [--status all|caxri|archived|external]',
+        parseParams: sessionSearchParameters,
+        quietKey: 'entries',
+        quietIdKey: 'key',
+    },
+    {
+        kind: 'remote',
+        path: ['session', 'import'],
+        method: 'session.importConversation',
+        summary:
+            'Add an external conversation from `session search` as a Session in the Project holding its folder.',
+        usage: '<provider>:<conversation-id> | <provider> <conversation-id>',
+        parseParams: sessionImportParameters,
+        quietIdKey: 'sessionId',
+    },
+    {
+        kind: 'remote',
+        path: ['session', 'rename'],
+        method: 'session.rename',
+        summary:
+            'Rename a Session; the title stays as typed instead of following the conversation.',
+        usage: '<session-id> --title <text>',
+        parseParams: sessionRenameParameters,
+    },
+    {
+        kind: 'remote',
+        path: ['session', 'pin'],
+        method: 'session.setPinned',
+        summary: 'Pin a Session to the top of the sidebar.',
+        usage: '<session-id>',
+        parseParams: sessionPinParameters(true),
+    },
+    {
+        kind: 'remote',
+        path: ['session', 'unpin'],
+        method: 'session.setPinned',
+        summary: 'Return a pinned Session to its Project group.',
+        usage: '<session-id>',
+        parseParams: sessionPinParameters(false),
     },
     {
         kind: 'remote',

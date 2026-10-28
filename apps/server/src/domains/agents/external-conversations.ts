@@ -102,11 +102,11 @@ const IO_CONCURRENCY = 8;
  *
  * Skipped as not resumable or not the user's own: Claude sidechain transcripts (top-level `isSidechain` records and the
  * `<id>/subagents/` subtree, which listing never descends into) and conversations started through the SDK or print mode
- * (first `entrypoint` `sdk-*` or Caxri's own `caxri`); Codex subagent threads and `codex exec` runs; Grok headless and
- * subagent conversations; any conversation opened by Caxri's delegated-task pointer; and conversations with neither a
- * provider title nor a visible user prompt. Injected prompts (AGENTS.md and environment blocks, `<command-name>`
- * echoes, caveats, system reminders) never count as the user's prompt; this reuses the shared visible-message boundary
- * in `title-generation.ts`.
+ * (first `entrypoint` `sdk-*`); Codex subagent threads and `codex exec` runs; Grok headless and subagent conversations;
+ * any conversation opened by Caxri's delegated-task pointer; and conversations with neither a provider title nor a
+ * visible user prompt. Injected prompts (AGENTS.md and environment blocks, `<command-name>` echoes, caveats, system
+ * reminders) never count as the user's prompt; this reuses the shared visible-message boundary in
+ * `title-generation.ts`.
  *
  * The result reaches a local UI only. Nothing here logs titles, prompts, paths, or transcript content.
  */

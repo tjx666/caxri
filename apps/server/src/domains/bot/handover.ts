@@ -28,6 +28,7 @@ import type { StructuredLogger } from '@caxri/system';
 
 import { canChatCorrelateTask } from '../agent-delegation';
 import type { CaxriDatabase } from '../db';
+import type { WorktreeTopologyReader } from '../session';
 import { conversationProject, importExternalConversation } from '../session';
 import { botHandovers, isHandoverTargetBusy, writeBotHandovers } from './handover-records';
 import type { BotHandoverNoticeEvent } from './notice-text';
@@ -63,6 +64,10 @@ export interface BotHandoverServiceOptions {
      * itself otherwise. Rejects a folder that no longer exists.
      */
     resolveProjectRoot(path: string): Promise<string>;
+    /**
+     * Places a conversation run in a linked worktree under the Project that owns it.
+     */
+    readTopology?: WorktreeTopologyReader;
     sendFullStateChange(): void;
 }
 
@@ -203,8 +208,11 @@ export class BotHandoverService {
     private importConversation(
         conversation: DiscoveredConversation,
     ): Promise<{ session: SessionRecord; terminal: TerminalRecord } | undefined> {
-        return importExternalConversation(this.options.database, conversation, (path) =>
-            this.options.resolveProjectRoot(path),
+        return importExternalConversation(
+            this.options.database,
+            conversation,
+            (path) => this.options.resolveProjectRoot(path),
+            this.options.readTopology,
         );
     }
 

@@ -109,16 +109,17 @@ export const sessionMethods = {
      * conversation content.
      */
     'session.search': {
-        ...commandPolicy('server', 'read'),
+        ...ownerOnlyCommandPolicy('server', 'read', ['sessions.read']),
         params: sessionSearchParametersSchema,
         result: sessionSearchResultSchema,
     },
     /**
      * Adds a conversation found only in a provider's own history as a new Session with a parked Agent Terminal, in the
-     * Project containing its folder (added when none does). Opening the Session resumes the conversation.
+     * Project containing its folder (added when none does). Opening the Session resumes the conversation. Owner-only,
+     * like `session.search` that finds the conversation.
      */
     'session.importConversation': {
-        ...serverWrite,
+        ...ownerOnlyCommandPolicy('server', 'write', ['sessions.write', 'projects.write']),
         params: sessionImportConversationParametersSchema,
         result: sessionImportConversationResultSchema,
     },
@@ -209,8 +210,11 @@ export const sessionMethods = {
         }),
         result: sessionAttentionReadResult,
     },
+    /**
+     * Owner-only: a title is the user's own naming, so neither an Agent Endpoint nor a paired phone sets it.
+     */
     'session.rename': {
-        ...serverWrite,
+        ...ownerOnlyCommandPolicy('server', 'write', ['sessions.write']),
         params: z.object({
             sessionId: identifierSchema,
             title: sessionRenameTitleSchema,
@@ -231,7 +235,7 @@ export const sessionMethods = {
      * a pinned Session keeps its place inside its own Project group.
      */
     'session.setPinned': {
-        ...serverWrite,
+        ...ownerOnlyCommandPolicy('server', 'write', ['sessions.write']),
         params: z.object({ sessionId: identifierSchema, pinned: z.boolean() }),
         result: sessionRecordSchema,
     },

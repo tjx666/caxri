@@ -156,11 +156,11 @@ describe('Session search index', () => {
     it('finds an SDK-started conversation by content only while a Caxri Session holds it', async () => {
         await seed();
         const HOSTED = '9c4f5d6e-7081-4c92-8da3-c5e6f708192a';
-        // Agent Chat labels its Claude process `caxri`; an older build's `/rename` appended an `sdk-cli` record.
+        // Agent Chat before its `caxri` label ran as `sdk-ts`; an older build's `/rename` appended an `sdk-cli` record.
         await writeTranscript(
             HOSTED,
             [
-                user(HOSTED, 'Draft a note to the vendor', { entrypoint: 'caxri' }),
+                user(HOSTED, 'Draft a note to the vendor', { entrypoint: 'sdk-ts' }),
                 assistant(HOSTED, 'Even a probe with only 21 tokens waits 30 to 190 seconds.'),
                 user(HOSTED, '/rename vendor note', { entrypoint: 'sdk-cli' }),
             ],
@@ -180,6 +180,29 @@ describe('Session search index', () => {
                 .hits,
         ).toEqual([]);
         expect(engine.search({ query: '', limit: 10 }).hits).toHaveLength(2);
+    });
+
+    it("finds Caxri's own Agent Chat conversation after no Session holds it", async () => {
+        await seed();
+        const CHAT = '3b1e2a4c-5d6f-4a70-8b91-a2c3d4e5f607';
+        await writeTranscript(
+            CHAT,
+            [
+                user(CHAT, 'Draft a note to the vendor', { entrypoint: 'caxri' }),
+                assistant(CHAT, 'Even a probe with only 21 tokens waits 30 to 190 seconds.'),
+            ],
+            NOW,
+        );
+        await engine.indexer.refresh();
+
+        expect(
+            engine
+                .search({ query: 'probe with only', limit: 10 })
+                .hits.map((hit) => hit.agentSessionId),
+        ).toEqual([CHAT]);
+        await expect(engine.indexer.inspect('claude', CHAT)).resolves.toMatchObject({
+            title: 'Draft a note to the vendor',
+        });
     });
 
     it('indexes a conversation whose first prompt carries a screenshot larger than the head budget', async () => {

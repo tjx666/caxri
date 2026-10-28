@@ -20,6 +20,6 @@ describe('describeCaxriMethod', () => {
         const description = describeCaxriMethod('session.rename');
         expect(description.effect).toBe('write');
         expect(description.idempotency).toBe('request');
-        expect(description.capabilities).toEqual(['desktop']);
+        expect(description.capabilities).toEqual(['sessions.write']);
     });
 });

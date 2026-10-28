@@ -4,6 +4,7 @@ import type { StructuredLogger } from '@caxri/system';
 import type { AgentEnvironment } from '../agents';
 import { listExternalConversations, probeOpenCodexSessionIds } from '../agents';
 import type { CaxriDatabase } from '../db';
+import type { WorktreeTopologyReader } from '../session';
 import { createBotCompletionNotifier } from './completion-notice-delivery';
 import { BotHandoverService } from './handover';
 import type { BotInboxServiceOptions } from './inbox';
@@ -19,6 +20,7 @@ export function createBotServices({
     environment,
     hooks,
     logger,
+    readTopology,
     resolveProjectRoot,
     sendFullStateChange,
     ...options
@@ -28,6 +30,7 @@ export function createBotServices({
         environment: AgentEnvironment;
         hooks: BotTerminalHooks;
         logger: StructuredLogger;
+        readTopology: WorktreeTopologyReader;
         resolveProjectRoot: (path: string) => Promise<string>;
         sendFullStateChange: () => void;
     }): { inbox: BotInboxService; handovers: BotHandoverService } {
@@ -68,6 +71,7 @@ export function createBotServices({
             }),
         logger,
         notify: (entry) => hooks.notifier?.notifyHandover(entry),
+        readTopology,
         resolveProjectRoot,
         sendFullStateChange,
     });
