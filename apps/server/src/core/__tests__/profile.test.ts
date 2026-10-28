@@ -44,6 +44,17 @@ describe('Host profile lease', () => {
         });
     });
 
+    it('refuses to publish a manifest once a stop during startup released the lease', async () => {
+        const userDataPath = await temporaryDirectory('caxri-host-released-');
+        const lease = await acquireServerProfile({ userDataPath, version: '1.0.0' });
+        await lease.release();
+
+        await expect(lease.publish(endpoint)).rejects.toMatchObject({ code: 'UNAVAILABLE' });
+        await expect(readFile(lease.paths.manifest, 'utf8')).rejects.toMatchObject({
+            code: 'ENOENT',
+        });
+    });
+
     it('admits only one owner before any Runtime can start', async () => {
         const userDataPath = await temporaryDirectory('caxri-host-single-');
         const first = await acquireServerProfile({ userDataPath, version: '1.0.0' });

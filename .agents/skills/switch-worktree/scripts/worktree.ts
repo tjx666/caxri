@@ -487,7 +487,8 @@ export async function developmentWorktree(
 ): Promise<number> {
     const { context, profile, worktreeId } = await prepareDevelopmentWorktree(cwd);
     let child!: ChildProcess;
-    let record!: DevelopmentProcessRecord;
+    let exited!: Promise<Error | number>;
+    let record: DevelopmentProcessRecord | undefined;
     const recordPath = developmentProcessPath(context, worktreeId);
     await withRepoLock(context, async () => {
         const existing = await readDevelopmentProcess(context, worktreeId);
@@ -513,10 +514,36 @@ export async function developmentWorktree(
             },
             stdio: options.stdoutToStderr ? ['inherit', 'pipe', 'inherit'] : 'inherit',
         });
+        /**
+         * Listen for the exit before anything else awaits. A launcher that finishes while this lock section is still
+         * probing its identity or writing the record (a short-lived command, or any command on a loaded machine) would
+         * otherwise emit `exit` with no listener and leave the wrapper waiting forever. It settles without rejecting,
+         * so a failure later in this lock section never leaves it unhandled.
+         */
+        exited = new Promise<Error | number>((resolve) => {
+            child.once('error', resolve);
+            child.once('exit', (code, signal) => {
+                if (signal && signal !== 'SIGINT' && signal !== 'SIGTERM') {
+                    resolve(new CommandError(`Development launcher exited with ${signal}`));
+                } else resolve(code ?? (signal ? 130 : 1));
+            });
+        });
         if (options.stdoutToStderr) child.stdout?.pipe(process.stderr);
         if (!child.pid) throw new CommandError('Could not start the Caxri development launcher');
         const identity = await getProcessIdentity(child.pid);
         if (!identity) {
+            /**
+             * `ps` stops listing a child only once Node has reaped it, which records its exit status first. A launcher
+             * that already finished has nothing left to record or stop, so report its exit instead of a failure.
+             */
+            if (child.exitCode !== null || child.signalCode !== null) {
+                options.onLaunch?.({
+                    cdpPort,
+                    profile: options.userDataDirectory ?? profile,
+                    worktreeId,
+                });
+                return;
+            }
             child.kill('SIGTERM');
             throw new CommandError('Could not establish the development launcher identity');
         }
@@ -538,18 +565,15 @@ export async function developmentWorktree(
     process.once('SIGINT', relay);
     process.once('SIGTERM', relay);
     try {
-        return await new Promise<number>((resolve, reject) => {
-            child.once('error', reject);
-            child.once('exit', (code, signal) => {
-                if (signal && signal !== 'SIGINT' && signal !== 'SIGTERM') {
-                    reject(new CommandError(`Development launcher exited with ${signal}`));
-                } else resolve(code ?? (signal ? 130 : 1));
-            });
-        });
+        const outcome = await exited;
+        if (outcome instanceof Error) throw outcome;
+        return outcome;
     } finally {
         process.removeListener('SIGINT', relay);
         process.removeListener('SIGTERM', relay);
-        const current = await readDevelopmentProcess(context, worktreeId);
-        if (current?.token === record.token) await unlinkIfExists(recordPath);
+        if (record) {
+            const current = await readDevelopmentProcess(context, worktreeId);
+            if (current?.token === record.token) await unlinkIfExists(recordPath);
+        }
     }
 }

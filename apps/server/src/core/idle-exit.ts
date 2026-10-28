@@ -1,4 +1,4 @@
-import type { ServerIdleExitDeferralReason } from '@caxri/protocol';
+import type { ServerIdleExitDeferralReason, ServerIdleExitReason } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
@@ -43,6 +43,28 @@ export interface IdleExitMonitor {
      * Disarms any pending check; safe to call more than once. Called once Core itself starts stopping.
      */
     stop(): void;
+}
+
+/**
+ * The monitor Server Core runs: an idle exit is logged with its idle time and deferrals, then stops Core.
+ */
+export function createIdleTimeoutMonitor(
+    options: Omit<IdleExitMonitorOptions, 'logger' | 'onIdleExit'> & {
+        logger: Pick<StructuredLogger, 'write'>;
+        stop: (reason: ServerIdleExitReason) => unknown;
+    },
+): IdleExitMonitor {
+    const { stop, ...monitor } = options;
+    return createIdleExitMonitor({
+        ...monitor,
+        onIdleExit: ({ deferralCount, idleDurationMs }) => {
+            const reason: ServerIdleExitReason = 'idle-timeout';
+            options.logger.write('info', logEventCatalog.serverCore.idleExitTriggered, {
+                fields: { deferralCount, idleDurationMs, reason },
+            });
+            void stop(reason);
+        },
+    });
 }
 
 /**
@@ -146,8 +168,8 @@ export interface IdleExitConnectionTracker {
      */
     bind(monitor: IdleExitMonitor): void;
     /**
-     * Disarms the bound monitor, if any; safe to call before `bind`. Any other stop trigger (command, signal, Desktop
-     * quit) makes a pending idle-exit check moot.
+     * Disarms the bound monitor, if any; safe to call before `bind`, which then binds a monitor that stays disarmed.
+     * Any other stop trigger (command, signal, Desktop quit) makes a pending idle-exit check moot.
      */
     stop(): void;
     /**
@@ -169,13 +191,17 @@ export function createIdleExitConnectionTracker(): IdleExitConnectionTracker {
     let controlCount = 0;
     let mobileCount = 0;
     let monitor: IdleExitMonitor | undefined;
+    let isStopped = false;
     const report = (): void => monitor?.updateConnectionCount(controlCount + mobileCount);
     return {
         bind(nextMonitor) {
             monitor = nextMonitor;
+            // A stop that arrived while Core was still starting leaves nothing to arm.
+            if (isStopped) nextMonitor.stop();
             report();
         },
         stop() {
+            isStopped = true;
             monitor?.stop();
         },
         updateControlCount(count) {

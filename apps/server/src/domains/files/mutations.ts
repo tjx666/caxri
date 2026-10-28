@@ -136,7 +136,7 @@ export class FileMutationService {
         this.beforeCopyTargetValidation = options.beforeCopyTargetValidation;
         this.beforeCopyValidation = options.beforeCopyValidation;
         this.copyLimits = { ...DEFAULT_COPY_LIMITS, ...options.copyLimits };
-        this.now = options.now ?? Date.now;
+        this.now = options.now ?? (() => Date.now()); // Read per call, so later-installed fake timers apply.
         this.copyTree = new CopyTreeExecutor(
             this.now,
             this.copyLimits,

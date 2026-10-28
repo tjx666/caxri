@@ -321,7 +321,9 @@ describe('AgentChatService with a fake Codex app-server', () => {
             ),
         );
         expect(snapshot.revision).toBeGreaterThan(cachedRevision);
-        expect(snapshot).toEqual(service.read(terminal.id));
+        // The Server state moves first and its patch reaches the Client a moment later (the reply can land just before
+        // `turn/completed`), so the mirror converges on the read rather than matching it at one instant.
+        await vi.waitFor(() => expect(client()).toEqual(service.read(terminal.id)));
     });
 
     it('ends the turn and its pending attention when a restart stops the process mid-request', async () => {

@@ -369,6 +369,15 @@ export async function acquireServerProfile(options: {
         paths,
         async publish(endpoint) {
             if (isPublished) return publishedManifest!;
+            /**
+             * A stop that released the lease during startup must not be followed by a manifest that advertises a Server
+             * Core nothing will remove again.
+             */
+            if (isReleased)
+                throw new CaxriError(
+                    'UNAVAILABLE',
+                    'Server Core stopped before publishing its endpoint',
+                );
             const manifest = serverManifestSchema.parse({
                 ...identity,
                 manifestVersion: SERVER_MANIFEST_VERSION,

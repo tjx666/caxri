@@ -163,6 +163,38 @@ describe('Server Core stop steps', () => {
     });
 });
 
+describe('Server Core stop settling', () => {
+    async function readEvents(userDataPath: string): Promise<string[]> {
+        const log = await readFile(join(userDataPath, 'logs', 'server-core.jsonl'), 'utf8');
+        return log
+            .split('\n')
+            .filter(Boolean)
+            .map((line) => (JSON.parse(line) as LogLine).event);
+    }
+
+    // A caller that removes the profile once `stop()` settles (a test teardown, an embedding host) must not race a
+    // record still draining into `logs/`: the append recreates the file and the removal fails with ENOTEMPTY.
+    it('has written its stopped record to disk by the time a clean stop resolves', async () => {
+        const { app, userDataPath } = await startWith(() => Promise.resolve());
+
+        await app.stop('SIGTERM');
+
+        expect(await readEvents(userDataPath)).toContain('server_core.stopped');
+    });
+
+    it('has written every stop record to disk by the time a failed stop rejects', async () => {
+        const { app, userDataPath } = await startWith(() =>
+            Promise.reject(new Error('domain close failed')),
+        );
+
+        await expect(app.stop('SIGTERM')).rejects.toThrow('domain close failed');
+
+        expect(await readEvents(userDataPath)).toEqual(
+            expect.arrayContaining(['server_core.stopping', 'server_core.stop_failed']),
+        );
+    });
+});
+
 describe('serverCoreStopFailureCapsule', () => {
     it('classifies a failed stop as a Server Core shutdown fault', () => {
         expect(serverCoreStopFailureCapsule()).toMatchObject({

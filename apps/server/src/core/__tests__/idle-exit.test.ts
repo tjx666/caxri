@@ -276,6 +276,16 @@ describe('createIdleExitConnectionTracker', () => {
         expect(stop).toHaveBeenCalledOnce();
     });
 
+    it('keeps a monitor bound after an early stop() disarmed', () => {
+        const tracker = createIdleExitConnectionTracker();
+        tracker.stop();
+        const { monitor, stop } = createMonitorSpy();
+
+        tracker.bind(monitor);
+
+        expect(stop).toHaveBeenCalledOnce();
+    });
+
     it('ignores stop() and connection updates before a monitor is bound', () => {
         const tracker = createIdleExitConnectionTracker();
 

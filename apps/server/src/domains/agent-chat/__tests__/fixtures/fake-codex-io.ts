@@ -46,6 +46,10 @@ export interface FakeTurn {
      */
     itemTimes?: Record<string, number>;
     durationMs?: number;
+    /**
+     * The duration a scripted turn reports instead of its measured playback time.
+     */
+    scriptedDurationMs?: number;
     interrupted?: boolean;
     finished?: boolean;
     onFinished?: () => void;

@@ -5,7 +5,6 @@ import type {
     CommandAdapter,
     ProtocolEventEnvelope,
     ServerEvent,
-    ServerIdleExitReason,
     ServerRequest,
 } from '@caxri/protocol';
 import {
@@ -44,7 +43,7 @@ import { routeActiveContextChange, routeExtensionDomainEvent } from './extension
 import type { ExtensionService } from './extensions/service';
 import { createDomainOperationForwarder } from './forward-domain-operation';
 import { acceptHostStop } from './host-stop';
-import { createIdleExitConnectionTracker, createIdleExitMonitor } from './idle-exit';
+import { createIdleExitConnectionTracker, createIdleTimeoutMonitor } from './idle-exit';
 import { isMobileControlRequest, resolveMobileAgentEndpoint } from './mobile';
 import { MutationAdmission } from './mutation-admission';
 import { assertOwnerOnlyMethod, projectScope } from './principal-project-scope';
@@ -175,20 +174,26 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         stopPromise ??= (async () => {
             const steps = createServerCoreStopSteps(logger, reason);
             eventLoopMonitor.stop();
-            // Yields once so `stopPromise` is assigned below before a synchronous domain-shutdown side effect (e.g. a
-            // state.changed emit) can hit `deliver`'s `if (!stopPromise)` extension-refresh branch.
-            await Promise.resolve();
-            // Captures every live Terminal's snapshot via `host.shutdown` first: the Extension Host's own graceful
-            // shutdown can wait up to 5s for its child to exit, and under the previous ordering that delay let an
-            // OS-initiated SIGTERM beat Core's `host.shutdown` request to Terminal Host.
-            await steps.run('domainServices', () => domainService.shutdown(steps.run));
-            await steps.run('mobileAccess', () => credentials.close());
-            await steps.run('controlServer', () => server?.close());
-            await steps.run('agentInbox', () => agentInbox.close());
-            await steps.run('providerMessaging', () => providerMessaging.close());
-            await steps.run('extensionHost', () => extensionService?.shutdown());
-            await steps.run('lease', () => lease.release());
-            steps.stopped();
+            try {
+                // Yields once so `stopPromise` is assigned below before a synchronous domain-shutdown side effect (e.g.
+                // a state.changed emit) can hit `deliver`'s `if (!stopPromise)` extension-refresh branch.
+                await Promise.resolve();
+                // Captures every live Terminal's snapshot via `host.shutdown` first: the Extension Host's own graceful
+                // shutdown can wait up to 5s for its child to exit, and under the previous ordering that delay let an
+                // OS-initiated SIGTERM beat Core's `host.shutdown` request to Terminal Host.
+                await steps.run('domainServices', () => domainService.shutdown(steps.run));
+                await steps.run('mobileAccess', () => credentials.close());
+                await steps.run('controlServer', () => server?.close());
+                await steps.run('agentInbox', () => agentInbox.close());
+                await steps.run('providerMessaging', () => providerMessaging.close());
+                await steps.run('extensionHost', () => extensionService?.shutdown());
+                await steps.run('lease', () => lease.release());
+                steps.stopped();
+            } finally {
+                // A settled stop has written its records, so a caller that removes the profile next (a test teardown)
+                // does not race an async append into `logs/` (ENOTEMPTY). A process exit flushes synchronously anyway.
+                await logger.flush();
+            }
             resolveStopped();
         })();
         return stopPromise;
@@ -532,22 +537,6 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
             serverId: protocolIdentity.serverId,
             userDataPath: lease.paths.userDataPath,
         });
-        idleExitConnections.bind(
-            createIdleExitMonitor({
-                ...(options.idleExitThresholdMs !== undefined && {
-                    thresholdMs: options.idleExitThresholdMs,
-                }),
-                logger,
-                isBusy: async () => (await domainService.request('app.health')).activePtyCount > 0,
-                onIdleExit: ({ deferralCount, idleDurationMs }) => {
-                    const reason: ServerIdleExitReason = 'idle-timeout';
-                    logger.write('info', logEventCatalog.serverCore.idleExitTriggered, {
-                        fields: { deferralCount, idleDurationMs, reason },
-                    });
-                    void stop(reason);
-                },
-            }),
-        );
         server = new ControlServer({
             adapters: {
                 durableReceipts: protocolRecovery,
@@ -616,6 +605,17 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         });
         const endpoint = await server.start();
         await lease.publish(endpoint);
+        // Armed after `publish`: an earlier idle stop released the lease, then `publish` left a stopped Core's manifest.
+        idleExitConnections.bind(
+            createIdleTimeoutMonitor({
+                ...(options.idleExitThresholdMs !== undefined && {
+                    thresholdMs: options.idleExitThresholdMs,
+                }),
+                logger,
+                isBusy: async () => (await domainService.request('app.health')).activePtyCount > 0,
+                stop,
+            }),
+        );
         logger.recordMetric('startup.phase', Date.now() - startedAt, {
             owner: 'server-core',
             phase: 'startup',

@@ -74,19 +74,40 @@ describe('per-worktree CDP port', () => {
         });
         const firstOutput = join(fixture.temporary, 'first-cdp-port.txt');
         const secondOutput = join(fixture.temporary, 'second-cdp-port.txt');
-        const program =
-            "require('node:fs').writeFileSync(process.argv[1], process.env.CAXRI_DEV_CDP_PORT); setTimeout(() => {}, 100)";
+        const releasePath = join(fixture.temporary, 'cdp-port-release.txt');
+        /**
+         * Each child holds its port, as a real Electron dev instance does, until both have reported. Otherwise the
+         * second probe finds the first port free and two preferred ports that happen to collide (1 in 400) share it.
+         */
+        const program = [
+            "const fs = require('node:fs');",
+            "const server = require('node:net').createServer();",
+            "server.listen(Number(process.env.CAXRI_DEV_CDP_PORT), '127.0.0.1', () => {",
+            '    fs.writeFileSync(process.argv[1], process.env.CAXRI_DEV_CDP_PORT);',
+            '    const timer = setInterval(() => {',
+            '        if (fs.existsSync(process.argv[2])) { clearInterval(timer); server.close(); }',
+            '    }, 10);',
+            '});',
+        ].join('\n');
 
-        await Promise.all([
+        const launches = Promise.all([
             developmentWorktree(first.path, {
-                args: ['-e', program, firstOutput],
+                args: ['-e', program, firstOutput, releasePath],
                 command: process.execPath,
             }),
             developmentWorktree(second.path, {
-                args: ['-e', program, secondOutput],
+                args: ['-e', program, secondOutput, releasePath],
                 command: process.execPath,
             }),
         ]);
+        // Polls until both children report their port; inherently sequential.
+        /* eslint-disable no-await-in-loop -- sequential poll for an external side effect */
+        while (!(await isPathPresent(firstOutput)) || !(await isPathPresent(secondOutput))) {
+            await new Promise<void>((resolve) => setTimeout(resolve, 10));
+        }
+        /* eslint-enable no-await-in-loop */
+        await writeFile(releasePath, 'release\n', 'utf8');
+        await expect(launches).resolves.toEqual([0, 0]);
 
         const [firstPort, secondPort] = await Promise.all([
             readFile(firstOutput, 'utf8'),
@@ -122,10 +143,18 @@ describe('per-worktree CDP port', () => {
         /* eslint-enable no-await-in-loop */
 
         try {
+            // The child can write its marker before the wrapper records it, so wait for the record too.
+            await expect
+                .poll(
+                    async () =>
+                        (await listWorktreeStatus(fixture.root)).find(
+                            (entry) => entry.path === created.path,
+                        )?.devProcess,
+                )
+                .toBe('active');
             const status = (await listWorktreeStatus(fixture.root)).find(
                 (entry) => entry.path === created.path,
             );
-            expect(status?.devProcess).toBe('active');
             expect(status?.cdpPort).toBeGreaterThanOrEqual(CDP_PORT_BASE);
             expect(status?.cdpPort).toBeLessThan(CDP_PORT_BASE + CDP_PORT_RANGE);
         } finally {

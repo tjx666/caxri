@@ -1,5 +1,5 @@
 import { Buffer } from 'node:buffer';
-import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
@@ -234,18 +234,23 @@ async function connectDesktop(manifest: ServerManifest, desktopToken: string) {
     return { read, socket };
 }
 
-async function waitForFile(path: string): Promise<void> {
+/**
+ * Polls until the fixture wrote `path` and returns its contents. Existence alone is not enough: `writeFile` creates the
+ * file empty before it writes, so a loaded runner can observe it in between.
+ */
+async function readFixtureOutput(path: string): Promise<string> {
     for (let attempt = 0; attempt < 100; attempt += 1) {
         try {
             // Each attempt must observe the outcome of the previous poll before deciding
             // whether to retry, so the polling cannot be parallelized.
             // eslint-disable-next-line no-await-in-loop -- sequential polling by design
-            await access(path);
-            return;
+            const contents = await readFile(path, 'utf8');
+            if (contents) return contents;
         } catch {
-            // eslint-disable-next-line no-await-in-loop -- sequential retry backoff by design
-            await new Promise((resolve) => setTimeout(resolve, 10));
+            // Not created yet.
         }
+        // eslint-disable-next-line no-await-in-loop -- sequential retry backoff by design
+        await new Promise((resolve) => setTimeout(resolve, 10));
     }
     throw new Error(`Timed out waiting for fixture output: ${path}`);
 }
@@ -442,14 +447,12 @@ describe('Server Core Agent Endpoint', () => {
             })
             // eslint-disable-next-line unicorn/prefer-await -- promise must be deferred, not awaited immediately
             .catch(() => {});
-        await waitForFile(waitFixturePath);
+        const waitId = await readFixtureOutput(waitFixturePath);
 
         operator.close();
 
-        await waitForFile(cancelFixturePath);
+        const cancelledId = await readFixtureOutput(cancelFixturePath);
         await waiting;
-        expect(await readFile(cancelFixturePath, 'utf8')).toBe(
-            await readFile(waitFixturePath, 'utf8'),
-        );
+        expect(cancelledId).toBe(waitId);
     });
 });

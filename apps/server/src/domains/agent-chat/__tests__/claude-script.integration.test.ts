@@ -138,7 +138,10 @@ describe('AgentChatService with scripted fake Claude turns', () => {
             (snapshot) =>
                 snapshot.turns.at(-1)?.status === 'completed' &&
                 !snapshot.activeTurnId &&
-                snapshot.usage?.breakdown !== undefined,
+                // The rows refresh after each response and the previous ones stay until then, so the turn can
+                // finish while they still describe the response before the last; wait for the rows of the final total.
+                snapshot.usage?.breakdown?.reduce((sum, row) => sum + row.tokens, 0) ===
+                    snapshot.usage?.totalTokens,
         );
         /**
          * What a reopened Chat keeps; the live rows also carry timings the transcript does not.
@@ -203,9 +206,6 @@ describe('AgentChatService with scripted fake Claude turns', () => {
         expect(live.reply).toBe('greet() takes a **name** now.');
         // The context meter follows the scripted usage: a base context plus what the turn added, not the fixed total.
         expect(done.usage?.totalTokens).toBeGreaterThan(24_000);
-        expect(done.usage?.breakdown?.reduce((sum, row) => sum + row.tokens, 0)).toBe(
-            done.usage?.totalTokens,
-        );
 
         await service.restart(terminal.id);
         const resumed = service.read(terminal.id);

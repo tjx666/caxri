@@ -15,7 +15,10 @@ describe('Agent Chat follow-up queue with a fake Codex app-server', () => {
         await until((snapshot) => snapshot.activeTurnId !== undefined);
         await service.send(terminal.id, { text: 'hello first' });
         await service.send(terminal.id, { text: 'hello second' });
-        const queued = await until((snapshot) => snapshot.queue?.length === 2);
+        // The queue fills on the Server at once, but the running turn's own message shows only when Codex echoes it.
+        const queued = await until(
+            (snapshot) => snapshot.queue?.length === 2 && userTexts(snapshot).length > 0,
+        );
         expect(queued.queue?.map((entry) => entry.text)).toEqual(['hello first', 'hello second']);
         expect(userTexts(queued)).toEqual(['slow please']);
 
