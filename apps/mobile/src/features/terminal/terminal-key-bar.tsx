@@ -26,15 +26,19 @@ interface TerminalKeyBarProperties {
     theme: MobileTheme;
 }
 
+/**
+ * The arrows stay on the row's first screen because menus in Agent CLIs are driven by them; `⇧Tab` (cycling a CLI's
+ * mode) comes after them since it is wide and used less often.
+ */
 const keys: KeyEntry[] = [
     { key: 'escape', label: 'Esc', name: 'Escape' },
     { key: 'tab', label: 'Tab', name: 'Tab' },
-    { key: 'shift-tab', label: '⇧Tab', name: 'Shift Tab' },
     { key: 'ctrl', label: 'Ctrl', name: 'Control' },
     { key: 'up', label: '↑', name: { key: 'terminal.key.arrowUp' } },
     { key: 'down', label: '↓', name: { key: 'terminal.key.arrowDown' } },
     { key: 'left', label: '←', name: { key: 'terminal.key.arrowLeft' } },
     { key: 'right', label: '→', name: { key: 'terminal.key.arrowRight' } },
+    { key: 'shift-tab', label: '⇧Tab', name: 'Shift Tab' },
     { key: '1', label: '1', name: { key: 'terminal.key.one' } },
     { key: '2', label: '2', name: { key: 'terminal.key.two' } },
     { key: '3', label: '3', name: { key: 'terminal.key.three' } },

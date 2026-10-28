@@ -28,8 +28,9 @@ export const sessionDetailStyles = StyleSheet.create({
     title: { ...mobileType.heading, flexShrink: 1 },
     tabStrip: { borderBottomWidth: 1, flexGrow: 0 },
     /**
-     * A Session can list five fixed tabs plus extension panels; the tight 4dp gap and 12dp inset keep a 360dp phone
-     * showing every icon tab beside one labeled tab.
+     * A Session can list five fixed tabs plus extension panels; the tight 4dp gap and 12dp inset keep as many tabs in
+     * view as the 44dp touch target allows. Past that the strip scrolls, and the tab clipped at the edge shows there is
+     * more.
      */
     tabs: {
         flexDirection: 'row',
@@ -48,7 +49,11 @@ export const sessionDetailStyles = StyleSheet.create({
         minWidth: mobileControl.row,
         paddingHorizontal: mobileSpace.md,
     },
-    tabText: { ...mobileType.meta, flexShrink: 0, fontWeight: '600' },
+    /**
+     * Capped so a long extension panel name (`Extension Fixture`) ellipsizes instead of pushing the tabs after it out
+     * of view; the fixed tabs' names fit inside the cap.
+     */
+    tabText: { ...mobileType.meta, flexShrink: 0, fontWeight: '600', maxWidth: 88 },
     tabAttentionDot: {
         borderRadius: 5,
         borderWidth: 1.5,

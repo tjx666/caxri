@@ -15,6 +15,18 @@ export async function tapTerminalKey(serial: string, key: 'down' | 'enter'): Pro
         bounds.top >= 0 &&
         bounds.right <= frame.width &&
         bounds.bottom <= frame.height;
+    /**
+     * A key scrolled under the row's edge still reports bounds clipped to a sliver, and a tap there lands on nothing,
+     * so a key counts as reachable only when the whole key sits inside the key row.
+     */
+    const isInsideRow = (
+        bounds: NonNullable<ReturnType<typeof androidBounds>>,
+        row: ReturnType<typeof androidBounds>,
+    ): boolean =>
+        !row ||
+        (bounds.left >= row.left &&
+            bounds.right <= row.right &&
+            bounds.right - bounds.left >= (bounds.bottom - bounds.top) / 2);
     for (let attempt = 0; attempt < 6; attempt += 1) {
         // eslint-disable-next-line no-await-in-loop -- every swipe needs a fresh sanitized device view.
         const nodes = await mobileSemantics(serial);
@@ -23,7 +35,10 @@ export async function tapTerminalKey(serial: string, key: 'down' | 'enter'): Pro
         const target = nodes.find((node) => node.checkId === checkId);
         if (target?.clickable && target.enabled) {
             const targetBounds = androidBounds(target.bounds);
-            if (targetBounds && isOnFrame(targetBounds)) {
+            const rowBounds = androidBounds(
+                nodes.find((node) => node.checkId === 'terminal-key-bar')?.bounds ?? '',
+            );
+            if (targetBounds && isOnFrame(targetBounds) && isInsideRow(targetBounds, rowBounds)) {
                 // eslint-disable-next-line no-await-in-loop -- this is the only reachable key after inspection.
                 await tapMobileCheck(serial, checkId);
                 return;

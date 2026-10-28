@@ -156,9 +156,8 @@ export const InAppBrowserScreen = () => {
         [menu],
     );
 
-    const pageLabel = browserPageLabel(label, initialUrl, page.url);
-    const host = pageLabel ?? browserDisplayHost(page.url);
-    const title = pageLabel ?? browserPillTitle({ ...page, hasLoadFailed });
+    const host = browserPageLabel(label, initialUrl, page.url) ?? browserDisplayHost(page.url);
+    const title = browserPillTitle({ ...page, hasLoadFailed }, host);
     return (
         <View
             style={[styles.root, { backgroundColor: theme.background, paddingTop: insets.top }]}

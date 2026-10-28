@@ -61,6 +61,14 @@ describe('browserPillTitle', () => {
             'example.com',
         );
     });
+
+    it('falls back to a caller-named host, such as a preview label, but keeps a real page title', () => {
+        const preview = 'Preview · :5173';
+        expect(browserPillTitle({ hasLoadFailed: false, title: '', url }, preview)).toBe(preview);
+        expect(browserPillTitle({ hasLoadFailed: false, title: 'Example', url }, preview)).toBe(
+            'Example',
+        );
+    });
 });
 
 describe('browserPageLabel', () => {
