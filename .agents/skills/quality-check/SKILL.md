@@ -31,7 +31,8 @@ bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--related
   a deleted path stays valid because it selects the tests that still reference it. Use
   `rg --files` to discover the concrete paths before selecting a feature's files.
 - `--lint` applies ESLint, oxlint type-aware (`.oxlintrc.json`, TS files only), and `bun fmt` fixes
-  to supported files, formatting before ESLint so `caxri/jsdoc-format` wraps comments at their final indentation. Always inspect the resulting diff. Appending file paths to `bun run format`
+  to supported files, formatting before ESLint so `caxri/jsdoc-format` wraps comments at their final indentation. Always inspect the resulting diff. The summary names every input whose bytes the fixes changed as `autofixed <paths>`; commit or
+  discard those before pushing, since a green summary otherwise hides a fix that never reached the commit. Appending file paths to `bun run format`
   does not narrow formatting; use `bun run --silent check <files...> --lint` for a focused pass.
   When the changed set includes source files, `--lint` also runs the source-size ratchet; when it
   includes Markdown, `--lint` also runs the documentation check. Neither autofixes -- see

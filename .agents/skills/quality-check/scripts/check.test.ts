@@ -7,22 +7,48 @@ import { CommandError } from '../../switch-worktree/scripts/process';
 import { dirtyLayerReportForFiles } from './changed-file-layers';
 import {
     checkErrorForDesktopLease,
-    ESLINT_CACHE_ARGUMENTS,
-    eslintArguments,
-    eslintTargets,
     formatCheckSummary,
-    FORMATTER_ARGUMENTS,
-    lintBucketsForFiles,
-    lintPipelineForFile,
     playwrightArguments,
-    runLint,
     selectE2ESpecs,
     testCandidatesForFile,
 } from './check';
 import { CheckError, parseCheckArguments } from './check-arguments';
 import { canAffectTypes, shouldRunKnip, shouldTypecheck } from './default-gates';
+import {
+    ESLINT_CACHE_ARGUMENTS,
+    eslintArguments,
+    eslintTargets,
+    FORMATTER_ARGUMENTS,
+    lintBucketsForFiles,
+    lintPipelineForFile,
+    runLint,
+} from './lint-passes';
 
 describe('final lint validation', () => {
+    it('reports only the inputs whose bytes an autofix pass changed', async () => {
+        const contents = new Map([
+            ['notes.md', '# Title\n## Section\n'],
+            ['source.ts', 'export const value = 1;\n'],
+        ]);
+        const run = (_root: string, executable: string) => {
+            if (executable === 'markdownlint-cli2')
+                contents.set('notes.md', '# Title\n\n## Section\n');
+            return Promise.resolve();
+        };
+        const read = (_root: string, file: string) => Promise.resolve(contents.get(file));
+        await expect(runLint('/fixture', ['notes.md', 'source.ts'], run, read)).resolves.toEqual({
+            fileCount: 2,
+            autofixedFiles: ['notes.md'],
+        });
+    });
+
+    it('reports no autofixed inputs when every pass leaves the bytes alone', async () => {
+        const read = () => Promise.resolve('unchanged\n');
+        await expect(
+            runLint('/fixture', ['source.ts'], () => Promise.resolve(), read),
+        ).resolves.toEqual({ fileCount: 1, autofixedFiles: [] });
+    });
+
     it('checks formatted bytes without mutating them and propagates final failures', async () => {
         const calls: Array<{ executable: string; arguments: string[] }> = [];
         const run = (_root: string, executable: string, arguments_: string[]) => {
