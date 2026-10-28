@@ -1,6 +1,6 @@
 {
     "name": "@caxri/client",
-    "version": "0.0.139",
+    "version": "0.0.140",
     "private": true,
     "description": "Shared Caxri connection, recovery, state, and Server supervision client.",
     "type": "module",
