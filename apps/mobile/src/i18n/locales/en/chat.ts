@@ -82,6 +82,8 @@ export const chat = {
     'chat.emptyHandedOff': 'No messages to show.',
     'chat.emptyReady': 'No messages yet. Send a message to start working with {{provider}}.',
     'chat.goal.clear': 'Clear goal',
+    'chat.goal.clearConfirmBody': 'The Agent stops pursuing it. Set a new goal with /goal.',
+    'chat.goal.clearConfirmTitle': 'Clear this goal?',
     'chat.goal.collapse': 'Collapse goal',
     'chat.goal.expand': 'Show the whole goal',
     'chat.goal.pause': 'Pause goal',

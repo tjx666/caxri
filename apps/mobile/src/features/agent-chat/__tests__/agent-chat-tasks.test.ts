@@ -10,7 +10,7 @@ import {
     agentChatRunningKinds,
     agentChatStatusRow,
     agentChatTaskDetailContent,
-    agentChatTaskLeadText,
+    agentChatTaskLead,
     agentChatTaskPill,
     agentChatTaskPillIds,
     agentChatTaskRow,
@@ -76,16 +76,22 @@ describe('agentChatRunningKinds', () => {
     });
 });
 
-describe('agentChatTaskLeadText', () => {
-    it('names the one running task, and counts several', () => {
+describe('agentChatTaskLead', () => {
+    it('names the one running task by its title, and labels several, keeping the sentence for screen readers', () => {
         const one = agentChatTaskPill({ tasks: [task({ id: 'a' })] });
-        expect(one && agentChatTaskLeadText(one)).toBe(
-            'Still running in the background: bun run dev',
-        );
+        expect(one && agentChatTaskLead(one)).toEqual({
+            text: 'bun run dev',
+            isCommandTitle: true,
+            accessibilityLabel: 'Still running in the background: bun run dev',
+        });
         const several = agentChatTaskPill({
             tasks: [task({ id: 'a' }), task({ id: 'b', kind: 'agent', title: '' })],
         });
-        expect(several && agentChatTaskLeadText(several)).toBe('2 background tasks running');
+        expect(several && agentChatTaskLead(several)).toEqual({
+            text: 'Background work',
+            isCommandTitle: false,
+            accessibilityLabel: '2 background tasks running',
+        });
     });
 });
 
@@ -103,7 +109,10 @@ describe('agentChatStatusRow', () => {
 
     it('leads with the running work once the turn ended, and hides with nothing to say', () => {
         const pill = agentChatTaskPill({ tasks: [task({ id: 'a' })] });
-        expect(agentChatStatusRow(undefined, pill)).toEqual({ lead: 'tasks', badge: [] });
+        expect(agentChatStatusRow(undefined, pill)).toEqual({
+            lead: 'tasks',
+            badge: [{ kind: 'shell', count: 1 }],
+        });
         expect(agentChatStatusRow(undefined, undefined)).toBeUndefined();
     });
 });
