@@ -135,9 +135,11 @@ Both transitions are logged without any Terminal or transcript content:
 
 An Agent Chat is considered by the idle rule only; the untouched rule judges launch and input
 samples a Chat does not record. Besides the conditions above, the Chat's own projection must report
-nothing pending (`AgentChatService.isSuspendable`): its provider is ready and bound to an Agent
-Session, and no turn, approval or question, operation (compaction), running background task, or
-queued message remains. An unbound Chat is never parked, because it has no conversation to resume.
+nothing pending (`AgentChatService.isSuspendable`): its provider is ready, and no turn, approval or
+question, operation (compaction), running background task, side question being answered (`/btw` or
+a continuation handoff, which bypass the send chain), or queued message remains. A Chat not yet
+bound to an Agent Session qualifies only while its observation lease holds (below): input such as a
+model switch, which only its live provider remembers, ends the lease and keeps it running.
 A Chat a paired phone has open (an `agentChat` subscription) counts as viewed, like a phone-watched
 Conversation, so a reply sent from the phone never finds its provider stopped.
 
@@ -153,7 +155,8 @@ The observation lease is unaffected.
 A Chat whose provider only a read started also holds an observation lease
 (`AgentChatService.readLeaseAt`): it is parked with reason `observation` two minutes
 (`CHAT_OBSERVATION_LEASE_MS`) after its Session is left, even with idle suspension off, so browsing
-history never leaves a resident provider. At most `MAX_CHAT_OBSERVATION_LEASES` (3) leases wait out
+history never leaves a resident provider. That includes a new Chat opened and left without a message:
+its provider would otherwise run until the Session closes, and its next read starts a fresh one. At most `MAX_CHAT_OBSERVATION_LEASES` (3) leases wait out
 that window: a read that starts one more requests an immediate sweep, which parks the oldest unexpired
 leases beyond the newest three, so browsing many Chats in a row keeps a bounded number of providers.
 Any input to the Chat ends the lease, and the park re-checks it when it reaches the head of the send

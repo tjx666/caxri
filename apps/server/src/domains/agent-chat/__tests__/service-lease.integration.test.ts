@@ -95,10 +95,34 @@ describe('Agent Chat observation lease', () => {
         expect(database.getTerminal(terminal.id)?.agentSessionId).toBe(agentSessionId);
     });
 
-    it('does not lease a Chat that has no conversation to resume yet', async () => {
-        const { service, terminal, until } = await fixture();
-        service.read(terminal.id);
+    it('reclaims a new Chat that was opened and left without a message, and starts it fresh on the next read', async () => {
+        const { database, service, spawnProcess, terminal, until } = await fixture();
         await until((snapshot) => snapshot.status === 'ready');
+        expect(service.readLeaseAt(terminal.id)).toBeDefined();
+
+        expect(await service.suspendIdle(terminal.id, 'observation')).toMatchObject({
+            lastProcessState: 'suspended',
+        });
+        expect(service.liveCount()).toBe(0);
+        expect(database.getTerminal(terminal.id)?.agentSessionId).toBeUndefined();
+
+        await vi.waitFor(() => expect(service.read(terminal.id).status).toBe('ready'));
+        expect(spawnProcess).toHaveBeenCalledTimes(2);
+        await service.send(terminal.id, { text: 'hi there' });
+        await until(
+            (snapshot) => snapshot.turns.at(-1)?.status === 'completed' && !snapshot.activeTurnId,
+        );
+        expect(database.getTerminal(terminal.id)?.agentSessionId).toBeDefined();
+    });
+
+    it('keeps a new Chat running once input such as a model switch ends its lease', async () => {
+        const { service, terminal, until } = await fixture();
+        await until((snapshot) => snapshot.status === 'ready');
+
+        await service.configure(terminal.id, { effort: 'high' });
         expect(service.readLeaseAt(terminal.id)).toBeUndefined();
+        expect(service.isSuspendable(terminal.id)).toBe(false);
+        expect(await service.suspendIdle(terminal.id, 'idle')).toBeUndefined();
+        expect(service.liveCount()).toBe(1);
     });
 });

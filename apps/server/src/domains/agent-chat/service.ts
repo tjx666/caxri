@@ -253,7 +253,7 @@ export class AgentChatService {
             !this.starts.has(terminalId) &&
             state.projection.snapshot.status !== 'failed'
         ) {
-            leaseReadStart(this.options.database, state, terminalId);
+            leaseReadStart(state);
             void this.startQuietly(terminalId, state);
         }
         state.projection.flush();
@@ -381,8 +381,8 @@ export class AgentChatService {
     }
 
     askSideQuestion(terminalId: string, question: string, history: readonly ChatSideExchange[]) {
-        const session = this.states.get(terminalId)?.session;
-        return askChatSideQuestion(this.options, terminalId, session, question, history);
+        const state = this.states.get(terminalId);
+        return askChatSideQuestion(this.options, terminalId, state, question, history);
     }
 
     async stopTask(terminalId: string, taskId: string): Promise<void> {

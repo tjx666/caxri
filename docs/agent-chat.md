@@ -215,7 +215,7 @@ additions a PTY Agent receives from `apps/server/src/domains/terminal/lifecycle-
   send or restart reports the error. A PTY relaunch (`TerminalManager.relaunch`) is gated the same way.
 - **Observation lease.** The protocol needs the provider to report a bound Chat's models, commands, and
   live state, so a read still starts it, but a provider that a read alone started holds only a lease
-  (`ChatState.readLeaseAt`). Any input ends the lease. Once its Session is left (or, when the Session
+  (`ChatState.readLeaseAt`), whether or not the Chat is bound yet. Any input ends the lease. Once its Session is left (or, when the Session
   was never observed being left, once the read is) for `CHAT_OBSERVATION_LEASE_MS` (2 minutes), the
   idle sweep stops the provider, with `terminal.suspended` reason `observation`, whatever the idle
   suspension setting says. Only the newest `MAX_CHAT_OBSERVATION_LEASES` (3) leases wait out that

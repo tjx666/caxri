@@ -44,6 +44,19 @@ describe('AgentChatService side questions', () => {
         await service.interrupt(terminal.id);
     });
 
+    it('keeps a Chat from being parked while it answers a side question', async () => {
+        const { service, terminal, until } = await fixture({ provider: 'claude' });
+        await service.send(terminal.id, { text: 'hello' });
+        await until((snapshot) => snapshot.turns.length === 1 && !snapshot.activeTurnId);
+        expect(service.isSuspendable(terminal.id)).toBe(true);
+
+        const answer = service.askSideQuestion(terminal.id, 'what is 1+1?', []);
+        expect(service.isSuspendable(terminal.id)).toBe(false);
+        expect(await service.suspendIdle(terminal.id, 'observation')).toBeUndefined();
+        await answer;
+        expect(service.isSuspendable(terminal.id)).toBe(true);
+    });
+
     it('fails a Claude side question the CLI refuses or answers empty, with a closed reason', async () => {
         const { service, terminal, until, logWrite } = await fixture({ provider: 'claude' });
         await service.send(terminal.id, { text: 'hello' });
