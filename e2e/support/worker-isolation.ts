@@ -129,7 +129,9 @@ export function resolveE2EWorkerIsolation(environment: NodeJS.ProcessEnv): E2EWo
     }
     const coordinatorToken = environment.CAXRI_E2E_COORDINATOR_TOKEN;
     if (!coordinatorToken || !/^[0-9a-f-]{36}$/u.test(coordinatorToken)) {
-        throw new Error('parallel-safe E2E requires its desktop coordinator token');
+        throw new Error(
+            'parallel-safe E2E requires its desktop coordinator token; run selected parallel-safe specs through scripts/run-e2e-repair.ts',
+        );
     }
     return {
         coordinatorToken,

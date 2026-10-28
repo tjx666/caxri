@@ -219,6 +219,15 @@ bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts desktop --labe
   bunx playwright test <failed-files...> -g '<failed test>' --workers=1 --repeat-each=2 --reporter=line
 ```
 
+To reproduce selected specs under the `parallel-safe` pool's worker isolation, use the CI repair
+runner; it holds the coordinator, passes its token to the namespaced workers, and runs one worker
+then two (`CI_E2E_REPEAT` is `1` or `3`, default `3`). Setting `CAXRI_E2E_POOL=parallel-safe` on
+the wrapper above fails every test with `requires its desktop coordinator token`.
+
+```bash
+CI_E2E_TESTS='["e2e/toasts.e2e.ts"]' CI_E2E_POOL=parallel-safe bun run scripts/run-e2e-repair.ts
+```
+
 Preserve the relevant CI viewport, font/locale/shell behavior, and long temporary-path conditions.
 Inject slowness at the owning async boundary or wait for an observable product invariant. Never use
 machine-wide throttling, fixed sleeps, random pressure, or a timeout-only change as the fix.
