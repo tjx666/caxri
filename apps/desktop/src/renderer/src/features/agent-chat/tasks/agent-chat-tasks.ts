@@ -4,10 +4,9 @@ import type {
     AgentChatTaskSnapshot,
     AgentUsageReadout,
 } from '@caxri/protocol';
-import { isAgentChatSubagentItem } from '@caxri/protocol';
+import { agentUsageCostLabel, isAgentChatSubagentItem } from '@caxri/protocol';
 
 import type { Translate } from '../../../i18n';
-import { agentUsageCostLabel } from '../../status-bar/agent-usage-label';
 
 /**
  * Whether a work row's subagent or background shell still runs, which keeps the row out of a `Ran N commands` summary

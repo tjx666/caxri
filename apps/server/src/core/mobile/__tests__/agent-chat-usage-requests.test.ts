@@ -15,30 +15,27 @@ const limit = {
 const readUsage = (domain: ReturnType<typeof domainFixture>) =>
     invoke({ method: 'mobile.agentChat.readUsage', params: { terminalId: 'terminal-1' } }, domain);
 
-describe('mobile Agent Chat plan limits', () => {
-    it("returns the Chat's plan limits without its tokens or cost", async () => {
-        const domain = domainFixture({
-            surface: 'chat',
-            usage: {
-                provider: 'claude',
-                tokens: {
-                    input: 1,
-                    output: 1,
-                    cacheRead: 0,
-                    cacheWrite: 0,
-                    reasoning: 0,
-                    total: 2,
-                },
-                costUsd: 0.01,
-                models: [],
-                unpricedModels: [],
-                limit,
+describe('mobile Agent Chat usage', () => {
+    it("returns the conversation's tokens, cost, and the provider's plan limits", async () => {
+        const usage = {
+            provider: 'claude',
+            tokens: {
+                input: 1,
+                output: 1,
+                cacheRead: 0,
+                cacheWrite: 0,
+                reasoning: 0,
+                total: 2,
             },
-        });
-        expect(await readUsage(domain)).toEqual(limit);
+            costUsd: 0.01,
+            models: [],
+            unpricedModels: [],
+            limit,
+        } satisfies AgentUsageReadout;
+        expect(await readUsage(domainFixture({ surface: 'chat', usage }))).toEqual(usage);
     });
 
-    it('answers null before the provider reported a limit, and refuses a PTY', async () => {
+    it('answers null before the conversation recorded usage, and refuses a PTY', async () => {
         expect(await readUsage(domainFixture({ surface: 'chat' }))).toBeNull();
         await expect(readUsage(domainFixture({}))).rejects.toMatchObject({ code: 'CONFLICT' });
     });

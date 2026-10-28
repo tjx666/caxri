@@ -3,10 +3,10 @@ import type {
     AgentChatImageMediaType,
     AgentChatSnapshot,
     AgentChatTaskSnapshot,
+    AgentUsageReadout,
     Principal,
     ServerOperationRequest,
     ServerRequest,
-    UsageLimit,
 } from '@caxri/protocol';
 import {
     agentChatMethods,
@@ -220,7 +220,7 @@ export async function invokeMobileAgentChatRequest(
     | AgentChatSnapshot
     | AgentChatHistoryPage
     | AgentChatTaskSnapshot
-    | UsageLimit
+    | AgentUsageReadout
     | (ImageData & { chunkIndex: number; chunkCount: number })
     | { text: string }
     | { text: string; imageCount: number; hasReferences: boolean }
@@ -341,7 +341,7 @@ export async function invokeMobileAgentChatRequest(
         case 'mobile.agentChat.readUsage': {
             const readout = await domainService.request('terminal.agentUsage', { terminalId });
             reauthorize();
-            return readout?.limit ?? null;
+            return readout;
         }
         case 'mobile.agentChat.dismissPlanPace': {
             if (!terminal.provider)

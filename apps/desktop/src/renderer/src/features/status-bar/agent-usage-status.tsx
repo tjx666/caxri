@@ -1,6 +1,7 @@
 import type { AgentUsageReadout } from '@caxri/protocol';
 import {
     agentProviderCatalog,
+    agentUsageCostLabel,
     currentLimitWindows,
     defaultAppSettings,
     formatTokens,
@@ -20,12 +21,7 @@ import { localizedLimitReset, localizedLimitWindowName } from '../../lib/usage-f
 import { cn } from '../../lib/utilities';
 import { useSettings } from '../../stores/selectors';
 import { openUsagePageForTerminal } from '../usage/usage-page-request';
-import {
-    agentUsageCostLabel,
-    agentUsageLabel,
-    agentUsageLimitTone,
-    agentUsagePaceNote,
-} from './agent-usage-label';
+import { agentUsageLabel, agentUsageLimitTone, agentUsagePaceNote } from './agent-usage-label';
 import { useAgentUsageClock } from './hooks/use-agent-usage-clock';
 import { StatusItem } from './status-item';
 

@@ -46,6 +46,7 @@ import { AgentChatModelButton } from './agent-chat-model-sheet';
 import { sendAgentChatMessageOptimistically } from './agent-chat-pending';
 import { AgentChatPermissionButton } from './agent-chat-permission-sheet';
 import { AgentChatPlanPaceNotice } from './agent-chat-plan-pace-notice';
+import { AgentChatSessionUsageButton } from './agent-chat-session-usage-sheet';
 import { sheetStyles } from './agent-chat-sheet-styles';
 import type { AgentChatController } from './use-agent-chat';
 import { useAgentChatCommandRun } from './use-agent-chat-command-run';
@@ -462,6 +463,13 @@ export const AgentChatComposer = ({
                         )}
                         theme={theme}
                     />
+                    {chat.snapshot?.terminalId ? (
+                        <AgentChatSessionUsageButton
+                            terminalId={chat.snapshot.terminalId}
+                            theme={theme}
+                            usage={chat.snapshot.usage}
+                        />
+                    ) : null}
                 </View>
             )}
             {editing ? (

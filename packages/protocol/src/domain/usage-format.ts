@@ -3,7 +3,7 @@
  * CLI readout), so the same number never renders two ways.
  */
 import { compactCountParts, formatCompactCount } from './line-count-format.js';
-import type { UsageLimit } from './usage-contract.js';
+import type { AgentUsageReadout, UsageLimit } from './usage-contract.js';
 
 /**
  * Estimated cost in US dollars: cents below $1,000, whole dollars below $100k, then thousands.
@@ -155,4 +155,18 @@ export function isPlanPaceDismissed(
     const midnight = new Date(now);
     midnight.setHours(0, 0, 0, 0);
     return dismissedAt >= midnight.getTime();
+}
+
+/**
+ * How the conversation's estimated cost reads: undefined while every model is unpriced (`$0.00` would read as free),
+ * and `≥$3.40` while only some are, since the figure then leaves the unpriced models' usage out and is a lower bound.
+ * The Usage page marks the same case with a muted `partial` beside the figure; the status bar chip and the phone's
+ * Session usage sheet have no room for a word.
+ */
+export function agentUsageCostLabel(
+    readout: Pick<AgentUsageReadout, 'costUsd' | 'models' | 'unpricedModels'>,
+): string | undefined {
+    if (readout.unpricedModels.length >= readout.models.length) return undefined;
+    const cost = formatUsd(readout.costUsd);
+    return readout.unpricedModels.length > 0 ? `≥${cost}` : cost;
 }

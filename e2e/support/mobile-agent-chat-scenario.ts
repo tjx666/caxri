@@ -71,6 +71,7 @@ import {
 } from './mobile-session-groups-scenario';
 import { executeMobileSessionPinScenario } from './mobile-session-pin-scenario';
 import { executeMobileSessionPreviewScenario } from './mobile-session-preview-scenario';
+import { executeMobileSessionUsageScenario } from './mobile-session-usage-scenario';
 
 /**
  * Waits for the answered question list's `index`th answer to read `answer`.
@@ -568,6 +569,8 @@ export async function executeMobileAgentChatCase(
             return executeMobileChatSurfaceSwitchScenario(environment, artifacts);
         case 'MOB-CHAT-USAGE-GUARD-01':
             return executeMobileChatUsageGuardScenario(environment, artifacts);
+        case 'MOB-CHAT-USAGE-01':
+            return executeMobileSessionUsageScenario(environment, artifacts);
         default:
             throw new Error(`Unsupported Agent Chat Acceptance case: ${environment.caseId}`);
     }

@@ -1,11 +1,15 @@
 import type { AgentChatContextComposition, AgentChatContextRequest } from '@caxri/protocol';
-import { formatPercent, formatTokens } from '@caxri/protocol';
+import {
+    agentChatContextLimit,
+    agentChatContextPercent,
+    formatPercent,
+    formatTokens,
+} from '@caxri/protocol';
 
 import { ReportCard } from '../../../components/report-card';
 import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
 import { cn } from '../../../lib/utilities';
-import { agentChatContextLimit, agentChatContextPercent } from './agent-chat-context';
 import { contextCategoryLabel } from './category-labels';
 import { autoCompactAt, contextWindowSegments, segmentShade } from './composition';
 

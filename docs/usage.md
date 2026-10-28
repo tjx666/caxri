@@ -148,7 +148,8 @@ the newest reading Server Core has from any conversation.
   limits show only after a Claude Chat has run. An API-key account has no plan windows.
 
 The phone reads the same figures through `mobile.agentChat.readUsage` (every paired role) and lists them in the model
-sheet under Plan limits.
+sheet under Plan limits. That read returns the whole `terminal.agentUsage` readout, so the phone's Session usage sheet
+shows the conversation's tokens and estimated cost from it too (see [Mobile Conversation](mobile/conversation.md)).
 
 **Pace reminder.** When a multi-day window (the weekly limit) has less left than an even pace would leave, both
 composers show a warning row above the input: `Weekly limit on track to run out: 40% left, resets in 4d 2h`. An even pace

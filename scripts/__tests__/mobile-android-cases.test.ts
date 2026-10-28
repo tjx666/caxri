@@ -171,6 +171,16 @@ describe('mobile Android Acceptance cases', () => {
         });
     });
 
+    it('registers the Session usage case in Chinese', () => {
+        expect(mobileAndroidAcceptanceCase('MOB-CHAT-USAGE-01')).toEqual({
+            appLocale: 'zh-CN',
+            desktopProfile: 'managed-by-isolated-e2e',
+            media: ['screenshot'],
+            recordingOwner: 'scenario',
+            scenario: 'agent-chat-session-usage',
+        });
+    });
+
     it('accepts a stable ordered subset without duplicates', () => {
         expect(parseMobileAndroidCaseIds('MOB-FDN-01,MOB-COMPOSER-01')).toEqual([
             'MOB-FDN-01',

@@ -1,5 +1,5 @@
 import type { AgentChatContextComposition, AgentChatUsage } from '@caxri/protocol';
-import { formatPercent, formatTokens, formatUsd } from '@caxri/protocol';
+import { agentChatCacheClock, formatPercent, formatTokens, formatUsd } from '@caxri/protocol';
 
 import { StatTile } from '../../../components/report-card';
 import { useTranslation } from '../../../i18n';
@@ -7,7 +7,6 @@ import { formatCount } from '../../../lib/locale-format';
 import { localizedDuration } from '../../../lib/usage-format';
 import { useClockTick } from '../hooks/use-clock-tick';
 import type { CacheAnalysis } from './cache-analysis';
-import { cacheClock } from './cache-analysis';
 import { contextTileFigures } from './composition';
 
 /**
@@ -91,7 +90,7 @@ function CacheClockTile({
     const now = useClockTick('minute');
     const ttlMinutes = usage?.cacheTtlMinutes ?? analysis.ttlMinutes;
     const lastAt = usage?.lastResponseAt ?? analysis.points.at(-1)?.at;
-    const clock = cacheClock(lastAt, ttlMinutes, now);
+    const clock = agentChatCacheClock(lastAt, ttlMinutes, now);
     const ttl = localizedDuration(ttlMinutes * 60_000, t);
     const rewrite =
         usage && usage.totalTokens > 0

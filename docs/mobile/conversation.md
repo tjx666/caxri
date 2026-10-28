@@ -57,6 +57,20 @@ submission fingerprint alongside the text, so an uncertain retry cannot silently
 payload. Interrupted uploads expire after two idle minutes without writing a file; completed
 temporary images expire after one hour.
 
+**Session usage.** The Agent Chat composer's model row ends with Desktop's context ring: a quiet
+neutral ring until the context reaches the share where compacting is suggested (85% of the window
+the provider compacts at), then the warning tone with the percentage. Before the provider reports a
+window size, a gauge stands in once the conversation recorded usage. Tapping either opens the
+Session usage sheet: the context against that window with the auto-compact note, the conversation's
+tokens (input, output, cache read, cache write), estimated cost and models, and the prompt cache's
+state (warm with time left, or expired with the estimated rewrite) and hit rate
+(`cacheRead / (input + cacheRead + cacheWrite)`). The context and cache clock come from the Chat
+snapshot's `usage`; the tokens and cost come from `mobile.agentChat.readUsage`, the same read the
+pace reminder and the model sheet's Plan limits use. The context and cost rules
+(`agentChatContextUsage`, `agentChatCacheClock`, `agentUsageCostLabel`) live in
+`@caxri/protocol`, shared with Desktop's composer meter, Context tab, and status bar chip, so both
+Clients show the same figures.
+
 The Project file preview exposes **Edit** only to `control` devices for bounded editable text.
 `mobile.files.write` carries the hash of the content originally read. The existing document writer
 checks that precondition inside its ordered, atomic save path and rejects an external change with

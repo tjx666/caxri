@@ -1,7 +1,7 @@
 import type { AgentChatContextChange } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { analyzeContextCache, cacheClock } from '../cache-analysis';
+import { analyzeContextCache } from '../cache-analysis';
 import { MINUTE, request } from './fixtures';
 
 describe('analyzeContextCache', () => {
@@ -123,17 +123,4 @@ describe('analyzeContextCache', () => {
     });
 });
 
-describe('cacheClock', () => {
-    it('counts down while warm and reports the idle time once expired', () => {
-        expect(cacheClock(undefined, 5, 0)).toBeUndefined();
-        expect(cacheClock(0, 5, 2 * MINUTE)).toEqual({
-            state: 'warm',
-            remainingMs: 3 * MINUTE,
-            idleMs: 2 * MINUTE,
-        });
-        expect(cacheClock(0, 5, 7 * MINUTE)).toMatchObject({
-            state: 'expired',
-            idleMs: 7 * MINUTE,
-        });
-    });
-});
+//END

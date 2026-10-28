@@ -1,8 +1,8 @@
 import type { AgentUsageReadout, UsageLimit } from '@caxri/protocol';
 import {
+    agentUsageCostLabel,
     currentLimitWindows,
     formatTokens,
-    formatUsd,
     LIMIT_WARNING_PERCENT,
     limitPaceShortfall,
     remainingLimitPercent,
@@ -15,17 +15,6 @@ import {
     localizedLimitWindowName,
     localizedShortLimitWindowName,
 } from '../../lib/usage-format';
-
-/**
- * How the conversation's estimated cost reads: undefined while every model is unpriced (`$0.00` would read as free),
- * and `≥$3.40` while only some are, since the figure then leaves the unpriced models' usage out and is a lower bound.
- * The Usage page marks the same case with a muted `partial` beside the figure; the chip has no room for a word.
- */
-export function agentUsageCostLabel(readout: AgentUsageReadout): string | undefined {
-    if (readout.unpricedModels.length >= readout.models.length) return undefined;
-    const cost = formatUsd(readout.costUsd);
-    return readout.unpricedModels.length > 0 ? `≥${cost}` : cost;
-}
 
 /**
  * The 5-hour plan window, which the chip leaves out unless `statusBar.usage.showFiveHourLimit` is on.
