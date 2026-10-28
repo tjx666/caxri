@@ -5,6 +5,7 @@ import { isAbsolute, normalize, resolve, sep } from 'node:path';
 import process from 'node:process';
 
 import type { CIChecksScope } from './ci-execution-plan';
+import { printNodeCrashReports } from './crash-report-summary';
 import { runChildProcess } from './exec';
 
 const projectRoot = resolve(import.meta.dirname, '..');
@@ -107,10 +108,12 @@ async function main(): Promise<void> {
         console.log('No changed source file selects a related Vitest suite.');
         return;
     }
+    const startedAt = Date.now();
     process.exitCode = await runChildProcess(command.command, command.arguments, {
         cwd: projectRoot,
         stdio: 'inherit',
     });
+    if (process.exitCode !== 0) await printNodeCrashReports(startedAt);
 }
 
 if (import.meta.main) await main();
