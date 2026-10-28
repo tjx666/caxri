@@ -554,6 +554,8 @@ export async function executeMobileAgentChatCase(
             return executeMobileSessionPreviewScenario(environment, artifacts);
         case 'MOB-CHAT-LINK-WRAP-01':
             return executeMobileChatInlineLinkScenario(environment, artifacts);
+        case 'MOB-CHAT-CLIP-REREAD-01':
+            return executeMobileChatBurstStreamScenario(environment, artifacts, 'clipped');
         case 'MOB-CHAT-RUNNING-OPEN-01':
             return executeMobileChatRunningTurnScenario(environment, artifacts);
         case 'MOB-CHAT-SEND-UNKNOWN-01':
