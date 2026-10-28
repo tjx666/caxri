@@ -19,6 +19,12 @@ export async function executeMobileSessionUsageScenario(
     const { serial } = environment;
     const fixture = await createMobileAcceptanceFixture({
         chatProvider: 'claude',
+        // A model the bundled price list knows, so the sheet shows an estimated cost rather than "No price". The one
+        // scripted turn is never sent; `hi there` gets the default reply with its cache usage.
+        claudeScript: {
+            model: { value: 'claude-opus-4-7', displayName: 'Opus 4.7' },
+            turns: [{ prompt: 'unused', steps: [{ kind: 'text', text: 'Unused.' }] }],
+        },
         mode: 'agent-chat',
         serial,
     });
@@ -38,7 +44,10 @@ export async function executeMobileSessionUsageScenario(
                 pageRequest<AgentUsageReadout | null>(fixture.running.page, 'terminal.agentUsage', {
                     terminalId: chat.terminalId,
                 }),
-            (current) => (current?.tokens.total ?? 0) > 0,
+            (current) =>
+                (current?.tokens.total ?? 0) > 0 &&
+                current?.unpricedModels.length === 0 &&
+                current.costUsd > 0,
         );
         await fixture.pair();
         await tapMobileCheck(serial, `session-row-${fixture.allowedSessionId}`);
@@ -58,7 +67,7 @@ export async function executeMobileSessionUsageScenario(
             contextTokens: snapshot.usage?.totalTokens,
             contextWindow: snapshot.usage?.contextWindow,
             conversationTokens: readout?.tokens.total,
-            hasCost: readout ? readout.unpricedModels.length < readout.models.length : false,
+            costUsd: readout?.costUsd,
         });
     } finally {
         await fixture.stop();
