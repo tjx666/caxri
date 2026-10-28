@@ -96,11 +96,6 @@ describe('settings spec and schema agreement', () => {
     });
 
     it('ships the requested defaults while preserving explicit saved choices', () => {
-        expect(defaultAppSettings['environmentMonitor.publicIpChanges']).toBe(true);
-        expect(defaultAppSettings['environmentMonitor.proxyProtection']).toBe(false);
-        expect(defaultAppSettings['environmentMonitor.locationChanges']).toBe(false);
-        expect(defaultAppSettings['environmentMonitor.timeZoneMismatch']).toBe(false);
-        expect(defaultAppSettings['environmentMonitor.checkUnavailable']).toBe(false);
         expect(defaultAppSettings['primarySidebar.autoCollapseProjects']).toBe('30m');
         expect(defaultAppSettings['terminal.scrollback']).toBe(8_000);
         expect(defaultAppSettings['terminal.gpuAcceleration']).toBe('on');

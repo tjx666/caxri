@@ -122,8 +122,6 @@ const expectedLanes: Record<string, ControlLane> = {
     'editor.confirmDiscard': 'ordered',
     'editor.saveUntitled': 'ordered',
     'editor.unsavedReply': 'ordered',
-    'environmentMonitor.acceptBaseline': 'ordered',
-    'environmentMonitor.refresh': 'ordered',
     'extensions.retry': 'ordered',
     'external.open': 'ordered',
     'externalDocument.openInTerminal': 'ordered',

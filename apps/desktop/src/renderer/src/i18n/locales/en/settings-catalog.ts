@@ -37,22 +37,6 @@ export const settingsCatalog = {
     'settings.notifications.agentRecovery.description':
         'Show a popup after automatic Agent recovery. Turn on to restore muted reminders. Applies to all Projects; failures always appear.',
 
-    'settings.environmentMonitor.publicIpChanges.title': 'Public IP changes',
-    'settings.environmentMonitor.publicIpChanges.description':
-        'Monitor the public egress IP and show a notification plus status bar warning when it changes.',
-    'settings.environmentMonitor.proxyProtection.title': 'Local proxy interruptions',
-    'settings.environmentMonitor.proxyProtection.description':
-        'Check whether a configured loopback proxy remains reachable and whether its route changes.',
-    'settings.environmentMonitor.locationChanges.title': 'Network location changes',
-    'settings.environmentMonitor.locationChanges.description':
-        'Compare the country and region reported for the public egress IP.',
-    'settings.environmentMonitor.timeZoneMismatch.title': 'Network time-zone mismatch',
-    'settings.environmentMonitor.timeZoneMismatch.description':
-        'Compare the current UTC offset of the network location with the system time zone.',
-    'settings.environmentMonitor.checkUnavailable.title': 'Environment check unavailable',
-    'settings.environmentMonitor.checkUnavailable.description':
-        'Notify after several consecutive environment checks cannot complete.',
-
     'settings.session.defaultAgent.title': 'Default Agent',
     'settings.session.defaultAgent.description':
         'Starts new Sessions and new Terminals with this Agent. Ask each time opens the list instead, and the New Terminal button always offers the other Agents.',

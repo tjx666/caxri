@@ -8,16 +8,12 @@ import { createDesktopAgentNotifications } from '../agent-notification-runtime';
 import { resolveNotificationAppIconPath } from '../app-icon';
 import { createDesktopBotInboxNotifications } from '../bot-inbox-notification-runtime';
 import { createDesktopDeliveryNotifications } from '../delivery-notification-runtime';
-import { createDesktopEnvironmentMonitor } from '../environment-monitor/composition';
-import type { EnvironmentMonitor } from '../environment-monitor/monitor';
-import { createDesktopEnvironmentMonitorNotifications } from '../environment-monitor/notification-runtime';
 import type { DesktopServerConnection } from '../server-connection';
 import type { NotificationHelperControl } from './agent-notification-delivery';
 import { createAgentNotificationDelivery } from './agent-notification-delivery';
 import { createAlerterNotificationDriver } from './alerter-notification';
 
 interface DesktopNotificationOptions {
-    environmentMonitor?: EnvironmentMonitor;
     currentDirectory: string;
     focusMainWindow: (windowKey?: string) => Promise<BrowserWindow>;
     isSessionShown: (sessionId: string) => boolean;
@@ -31,7 +27,6 @@ interface DesktopNotificationOptions {
 
 export interface DesktopNotifications {
     dispose(): void;
-    environmentMonitor: EnvironmentMonitor;
     /**
      * Status and test banner for Settings > Notifications > System notifications.
      */
@@ -45,12 +40,13 @@ export interface DesktopNotifications {
 }
 
 /**
- * All system notification families behind one handle: Agent attention, Bot Inbox, delivery failures, and environment
- * changes. They share one delivery, so the native/alerter choice is probed and its fallback logged once per change
- * rather than once per family, and the composition root does not fan `observe` and `dispose` out to each.
+ * Both families of system notification Caxri raises, behind one handle: Agent attention (a Session wants you back), the
+ * Bot Inbox (Caxri Bot raised something for you), and delivery failures (CI or a Vercel deployment just broke). They
+ * share one delivery, so the native/alerter choice is probed (a `codesign` child process) and its fallback logged once
+ * per change rather than once per family, and the composition root should not have to remember to fan `observe` and
+ * `dispose` out to each.
  */
 export function createDesktopNotifications({
-    environmentMonitor: providedEnvironmentMonitor,
     currentDirectory,
     focusMainWindow,
     handleMainMethod,
@@ -61,14 +57,6 @@ export function createDesktopNotifications({
     supervisor,
     sendEvent,
 }: DesktopNotificationOptions): DesktopNotifications {
-    const environmentMonitor =
-        providedEnvironmentMonitor ??
-        createDesktopEnvironmentMonitor({
-            e2eFixture: process.env.CAXRI_E2E_ENVIRONMENT_MONITOR_FIXTURE,
-            isE2E: process.env.CAXRI_E2E === '1',
-            logger,
-            supervisor,
-        });
     const appIconPath = resolveNotificationAppIconPath({
         currentDirectory,
         isPackaged,
@@ -101,31 +89,20 @@ export function createDesktopNotifications({
         logger,
         supervisor,
     });
-    const environmentNotifications = createDesktopEnvironmentMonitorNotifications({
-        delivery: systemNotifications,
-        focusMainWindow,
-        logger,
-        monitor: environmentMonitor,
-    });
     return {
-        environmentMonitor,
         helper: {
             sendTest: (notification) => systemNotifications.sendTest(notification),
             status: (options) => systemNotifications.status(options),
         },
         dispose: () => {
-            environmentNotifications.dispose();
-            environmentMonitor.dispose();
             agents.dispose();
             delivery.dispose();
             botInbox.dispose();
         },
         initialize: async () => {
             await Promise.all([agents.initialize(), botInbox.initialize()]);
-            environmentMonitor.start();
         },
         observe: (event) => {
-            if (event.event === 'settings.changed') environmentMonitor.settingsChanged();
             agents.observe(event);
             delivery.observe(event);
             botInbox.observe(event);

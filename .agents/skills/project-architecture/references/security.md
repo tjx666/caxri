@@ -91,13 +91,6 @@ threat model.
   `https:` URL only while the user hovers that link's card. 5 s timeout, reads at most 256 KiB and
   stops at `</head>`, parses only title, description, and an `https:` share image; cached per URL
   with the same 256-entry, insertion-order eviction and no caching of outright failures.
-- **Environment monitor** (`apps/desktop/src/main/environment-monitor/probe.ts`): the fixed neutral
-  public IP catalog at startup, every 5 minutes, after resume or a setting change, and when the user
-  requests a refresh, but only while at least one selected signal requires an external reading.
-  Requests use `net.fetch` with cookies omitted, cache disabled, and redirects refused. Each catalog
-  attempt has an 8 s timeout and a 64 KiB response cap. The proxy signal resolves the system route
-  only for the same catalog URL and checks only loopback proxy ports; it never resolves or contacts
-  an Agent service domain. Raw addresses and routes remain in Desktop Main memory.
 - **Agent provider status** (`agentProviderStatus.read`,
   `packages/system/src/network/agent-provider-status.ts`): the fixed public Statuspage endpoints for
   Claude and OpenAI, polled every 60 s while a status bar tok/s item or an Agent status tab for that

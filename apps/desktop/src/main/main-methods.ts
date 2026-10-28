@@ -39,7 +39,6 @@ import {
     unsavedChangesPrompt,
 } from './confirmations';
 import { showContextMenu } from './context-menu';
-import type { EnvironmentMonitor } from './environment-monitor/monitor';
 import {
     createExternalDocumentContext,
     handleExternalDocumentRequest,
@@ -275,12 +274,6 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                 return agentProviderStatus(request.params.provider);
             case 'codexGlobalReset.read':
                 return codexGlobalReset();
-            case 'environmentMonitor.read':
-                return requireEnvironmentMonitor(options).read();
-            case 'environmentMonitor.refresh':
-                return requireEnvironmentMonitor(options).refresh();
-            case 'environmentMonitor.acceptBaseline':
-                return requireEnvironmentMonitor(options).acceptBaseline();
             case 'links.preview':
                 return linkPreview(request.params.url);
             case 'dialog.selectDirectory':
@@ -564,10 +557,4 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
         }
         return assertNever(request);
     };
-}
-
-function requireEnvironmentMonitor(options: MainMethodHandlerOptions): EnvironmentMonitor {
-    const monitor = options.getDesktopNotifications?.()?.environmentMonitor;
-    if (!monitor) throw new CaxriError('UNAVAILABLE', 'Environment monitoring is still starting');
-    return monitor;
 }

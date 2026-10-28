@@ -149,11 +149,6 @@ function projectDelegation(delegation: DelegationSettings) {
 const settingsProjection: SettingsProjection = {
     'notifications.worktreeFallback': exportAsIs,
     'notifications.agentRecovery': exportAsIs,
-    'environmentMonitor.publicIpChanges': exportAsIs,
-    'environmentMonitor.proxyProtection': exportAsIs,
-    'environmentMonitor.locationChanges': exportAsIs,
-    'environmentMonitor.timeZoneMismatch': exportAsIs,
-    'environmentMonitor.checkUnavailable': exportAsIs,
     'session.defaultAgent': exportAsIs,
     'session.openAgentsInChat': exportAsIs,
     'agentChat.idleCompaction.enabled': exportAsIs,

@@ -30,7 +30,7 @@ describe('Main notification methods', () => {
         await expect(
             handleNotificationRequest(
                 { method: 'notifications.helperStatus', params: { recheck: true } },
-                { getDesktopNotifications: () => ({ helper: control }) },
+                { getNotificationHelper: () => control },
             ),
         ).resolves.toEqual({ delivery: 'helper' });
         expect(status).toHaveBeenCalledWith({ recheck: true });
@@ -41,7 +41,7 @@ describe('Main notification methods', () => {
 
         await handleNotificationRequest(
             { method: 'notifications.sendTest', params: { body: 'Body', title: 'Title' } },
-            { getDesktopNotifications: () => ({ helper: control }) },
+            { getNotificationHelper: () => control },
         );
 
         expect(sendTest).toHaveBeenCalledWith({ body: 'Body', title: 'Title' });

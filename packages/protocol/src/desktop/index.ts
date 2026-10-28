@@ -9,9 +9,7 @@ export * from './desktop-launch.js';
 export * from './desktop-path-errors.js';
 export * from './desktop-server-operations.js';
 export * from './editor-prompt-contract.js';
-export * from './environment-monitor-contract.js';
 export * from './external-document-contract.js';
-export * from './external-open-contract.js';
 export { MAX_LINK_FAVICON_DATA_URL_LENGTH } from './link-favicon-contract.js';
 export {
     MAX_LINK_PREVIEW_DESCRIPTION_LENGTH,

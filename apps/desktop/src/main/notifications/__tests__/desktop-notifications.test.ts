@@ -24,7 +24,6 @@ vi.mock(import('../agent-notification-delivery'), async (importOriginal) => {
     };
 });
 
-import type { EnvironmentMonitor } from '../../environment-monitor/monitor';
 import type { DesktopServerConnection } from '../../server-connection';
 import { createDesktopNotifications } from '../desktop-notifications';
 
@@ -37,12 +36,6 @@ describe('desktop notifications', () => {
     it('probes the signature and logs the unsigned-build fallback once for both notification families', async () => {
         vi.stubEnv('CAXRI_E2E', '0');
         const write = vi.fn();
-        const environmentMonitor = {
-            dispose: vi.fn(),
-            settingsChanged: vi.fn(),
-            start: vi.fn(),
-            subscribeAlerts: () => vi.fn(),
-        } as unknown as EnvironmentMonitor;
         const notifications = createDesktopNotifications({
             currentDirectory: '/caxri/out/main',
             focusMainWindow: vi.fn(),
@@ -53,7 +46,6 @@ describe('desktop notifications', () => {
             resourcesPath: '/caxri/resources',
             supervisor: { request: vi.fn() } as unknown as DesktopServerConnection,
             sendEvent: vi.fn(),
-            environmentMonitor,
         });
         const fallbackLogs = () =>
             write.mock.calls.filter(

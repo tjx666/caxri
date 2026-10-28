@@ -34,20 +34,6 @@ export const settingsCatalog: TranslatedNamespace<typeof source> = {
     'settings.notifications.agentRecovery.description':
         'Agent 自动恢复后显示弹窗。开启可恢复已静音的提醒。对所有项目生效；失败始终会显示。',
 
-    'settings.environmentMonitor.publicIpChanges.title': '公网 IP 变化',
-    'settings.environmentMonitor.publicIpChanges.description':
-        '监测公网出口 IP，发生变化时发送通知并在状态栏持续提示。',
-    'settings.environmentMonitor.proxyProtection.title': '本地代理中断',
-    'settings.environmentMonitor.proxyProtection.description':
-        '检查已配置的本地代理是否仍可连接，以及代理路径是否发生变化。',
-    'settings.environmentMonitor.locationChanges.title': '网络位置变化',
-    'settings.environmentMonitor.locationChanges.description': '比较公网出口 IP 对应的国家和地区。',
-    'settings.environmentMonitor.timeZoneMismatch.title': '网络时区不一致',
-    'settings.environmentMonitor.timeZoneMismatch.description':
-        '比较网络位置与系统时区当前的 UTC 偏移。',
-    'settings.environmentMonitor.checkUnavailable.title': '环境检查不可用',
-    'settings.environmentMonitor.checkUnavailable.description': '连续多次无法完成环境检查后提醒。',
-
     'settings.session.defaultAgent.title': '默认 Agent',
     'settings.session.defaultAgent.description':
         '新会话和新终端使用此 Agent 启动。选择“每次询问”则改为打开列表；“新建终端”按钮始终提供其他 Agent。',
