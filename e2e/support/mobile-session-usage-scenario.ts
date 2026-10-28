@@ -53,6 +53,7 @@ export async function executeMobileSessionUsageScenario(
         await capture(environment, 'usage-sheet', artifacts);
         await tapMobileCheckByBounds(serial, 'agent-chat-usage-done');
         await waitForNoCheck(serial, 'agent-chat-usage-sheet');
+        await capture(environment, 'usage-closed', artifacts);
         await finish(environment, artifacts, {
             contextTokens: snapshot.usage?.totalTokens,
             contextWindow: snapshot.usage?.contextWindow,
