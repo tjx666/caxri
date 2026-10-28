@@ -32,9 +32,10 @@ or cancels the delivery, or a concrete blocker requires their input.
    `git rebase --continue` commits without the pre-commit hook, so a conflict resolution never gets
    lint-staged's formatter pass: run `bun run format:check` before pushing a rebased branch, since
    CI's `format:check` fails on one unformatted line in an otherwise green diff.
-   Before pushing Renderer React changes, run `bun run doctor:changed` against the intended diff
-   and resolve every finding. The changed-file checker suggests this gate but does not run it;
-   a green lint/type/knip result cannot substitute for the CI React Doctor gate.
+   Before pushing React changes in Desktop's Renderer or in `apps/mobile`, run
+   `bun run doctor:changed` against the intended diff and resolve every finding. The changed-file
+   checker suggests this gate but does not run it; a green lint/type/knip result cannot substitute
+   for the CI React Doctor gate, which also scans Mobile.
    Before pushing any TypeScript change, run `bun run knip` against the intended diff and resolve
    every finding. CI runs knip in the `full` checks scope (a main push, an explicit dispatch, or a
    ready PR that touches a full-validation path) and in the `affected` scope of an ordinary ready
