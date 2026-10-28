@@ -412,7 +412,8 @@ export const openMobileAccessController = (options: {
                 case 'mobile.session.rename':
                 case 'mobile.session.archive':
                 case 'mobile.session.restore':
-                case 'mobile.session.setPinned': {
+                case 'mobile.session.setPinned':
+                case 'mobile.terminal.switchSurface': {
                     return runRevocableOperation(
                         () => {
                             assertOpen();

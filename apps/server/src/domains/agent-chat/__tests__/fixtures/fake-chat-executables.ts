@@ -35,6 +35,17 @@ ${options.claudeConfigDirectory ? `process.env.CLAUDE_CONFIG_DIR = ${JSON.string
 }
 
 /**
+ * The PTY side of a surface switch: `codex resume <thread>` prints the thread it continues and waits for input. The
+ * app-server branch follows in the `else` that `fakeCodexChatExecutableSource` closes.
+ */
+const FAKE_CODEX_PTY_STAND_IN = String.raw`if (!process.argv.includes('app-server')) {
+  const resume = process.argv.indexOf('resume');
+  process.stdout.write('Fake Codex TUI on thread ' + (resume === -1 ? 'new' : process.argv[resume + 1]) + '\r\n');
+  process.stdin.resume();
+} else {
+`;
+
+/**
  * A fake `codex` whose `app-server` is the JSON-RPC fixture. Threads persist under `stateDirectory`, so a resumed Chat
  * reads real history. `scriptPath` names a JSON file of scripted turns that replace the canned replies for the prompts
  * it lists (`FAKE_CODEX_SCRIPT`, see `fake-codex-script.ts`), and `controlDirectory` is where its `hold` steps look for
@@ -58,16 +69,21 @@ export function fakeCodexChatExecutableSource(options: {
      * Directory whose files the script's `hold` steps wait on; sets `FAKE_CODEX_CONTROL_DIR`.
      */
     controlDirectory?: string;
+    /**
+     * Answers a launch other than `app-server` (the PTY surface after a switch) with a stand-in TUI that prints which
+     * thread it resumed and waits, instead of an app-server that never draws anything.
+     */
+    hasPtyStandIn?: boolean;
 }): string {
     return String.raw`#!${process.execPath}
 if (process.argv.includes('--version')) {
   process.stdout.write('codex-cli 0.162.0\n');
   process.exit(0);
 }
-process.env.FAKE_CODEX_STATE_DIR = ${JSON.stringify(options.stateDirectory)};
+${options.hasPtyStandIn ? FAKE_CODEX_PTY_STAND_IN : ''}process.env.FAKE_CODEX_STATE_DIR = ${JSON.stringify(options.stateDirectory)};
 process.env.FAKE_CODEX_NATIVE_USAGE_HOME = ${JSON.stringify(options.nativeUsageHome ?? '')};
 ${options.scriptPath ? `process.env.FAKE_CODEX_SCRIPT = ${JSON.stringify(options.scriptPath)};\n` : ''}${options.controlDirectory ? `process.env.FAKE_CODEX_CONTROL_DIR = ${JSON.stringify(options.controlDirectory)};\n` : ''}${options.shouldWriteRollouts ? 'process.env.FAKE_CODEX_SESSIONS_DIR = `${process.env.CODEX_HOME}/sessions`;\n' : ''}import(${JSON.stringify(pathToFileURL(FAKE_CODEX_APP_SERVER).href)});
-`;
+${options.hasPtyStandIn ? '}\n' : ''}`;
 }
 
 /**

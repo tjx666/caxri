@@ -103,4 +103,5 @@ export const sessionDetailStyles = StyleSheet.create({
         width: COMPOSER_LINE_HEIGHT,
     },
     sendState: { fontSize: 13 },
+    surfaceSwitchState: { alignItems: 'center', flexDirection: 'row', gap: 8 },
 });

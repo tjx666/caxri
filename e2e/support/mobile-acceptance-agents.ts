@@ -28,6 +28,8 @@ export async function fakeChatAgent(
             },
             codex: {
                 executableSource: fakeCodexChatExecutableSource({
+                    // A phone may reopen the Chat as a Terminal (`MOB-CHAT-SURFACE-SWITCH-01`).
+                    hasPtyStandIn: true,
                     stateDirectory: join(testDirectory, 'codex-threads'),
                 }),
             },

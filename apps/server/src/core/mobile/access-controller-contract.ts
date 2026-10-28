@@ -54,6 +54,7 @@ export type MobileControlRequest = Extract<
             | 'mobile.terminal.release'
             | 'mobile.terminal.input'
             | 'mobile.terminal.scroll'
+            | 'mobile.terminal.switchSurface'
             | 'mobile.agentChat.read'
             | 'mobile.agentChat.readImage'
             | 'mobile.agentChat.readTask'

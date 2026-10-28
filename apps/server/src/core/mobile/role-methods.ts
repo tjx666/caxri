@@ -153,6 +153,10 @@ const mobileGatewayMethodsByRole = {
         'mobile.terminal.release',
         'mobile.terminal.input',
         'mobile.terminal.scroll',
+        /**
+         * Switching replaces the Agent's process and may stop its running turn, so it carries Stop's grant.
+         */
+        'mobile.terminal.switchSurface',
         'mobile.project.browse',
         'mobile.project.add',
         'mobile.files.write',

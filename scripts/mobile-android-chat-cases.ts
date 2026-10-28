@@ -262,6 +262,12 @@ export const androidChatCases = {
         recordingOwner: 'scenario',
         scenario: 'agent-chat-send-unknown',
     },
+    'MOB-CHAT-SURFACE-SWITCH-01': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'agent-chat-surface-switch',
+    },
     'MOB-CHAT-USAGE-GUARD-01': {
         desktopProfile: 'managed-by-isolated-e2e',
         media: ['screenshot'],

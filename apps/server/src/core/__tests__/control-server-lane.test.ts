@@ -201,6 +201,7 @@ const expectedLanes: Record<string, ControlLane> = {
     'mobile.terminal.input': 'ordered',
     'mobile.terminal.release': 'ordered',
     'mobile.terminal.scroll': 'ordered',
+    'mobile.terminal.switchSurface': 'ordered',
     'mobile.terminal.takeOver': 'ordered',
     'mobile.timeline.unwatchInternal': 'ordered',
     'mobile.timeline.watchInternal': 'ordered',

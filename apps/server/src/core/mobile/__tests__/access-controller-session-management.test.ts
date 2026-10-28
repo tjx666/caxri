@@ -62,12 +62,23 @@ const open = async () => {
                             ? sessions.filter(({ id }) => id === parameters.query?.selector)
                             : sessions,
                 });
-            if (method === 'terminal.queryForPrincipal') return Promise.resolve({ terminals: [] });
+            if (method === 'terminal.queryForPrincipal')
+                return Promise.resolve({
+                    terminals:
+                        parameters?.query?.selector === 'terminal-granted'
+                            ? [{ id: 'terminal-granted', sessionId: 'session-granted' }]
+                            : [],
+                });
             throw new Error(`Unexpected method: ${method}`);
         },
     );
-    const requestWithSignal = vi.fn<(method: string, parameters: unknown) => Promise<unknown>>(() =>
-        Promise.resolve({}),
+    const requestWithSignal = vi.fn<(method: string, parameters: unknown) => Promise<unknown>>(
+        (method) =>
+            Promise.resolve(
+                method === 'terminal.switchSurface'
+                    ? { status: 'switched', terminal: { id: 'terminal-granted' } }
+                    : {},
+            ),
     );
     const domainService = { request, requestWithSignal } as unknown as ServerDomainService;
     const context: CommandExecutionContext = { capabilities: [], principal };
@@ -157,6 +168,84 @@ describe('MobileAccessController Session management', () => {
                 total: 1,
                 truncated: false,
             });
+        } finally {
+            await controller.close();
+        }
+    });
+});
+
+describe('MobileAccessController Agent surface switch', () => {
+    it('forwards a granted Terminal to the Desktop switch and drops the Terminal record', async () => {
+        const { controller, context, domainService, requestWithSignal } = await open();
+        try {
+            await expect(
+                controller.invokeControl(
+                    {
+                        method: 'mobile.terminal.switchSurface',
+                        params: {
+                            terminalId: 'terminal-granted',
+                            surface: 'chat',
+                            interruptTurn: true,
+                        },
+                    },
+                    context,
+                    domainService,
+                ),
+            ).resolves.toEqual({ status: 'switched' });
+            expect(
+                requestWithSignal.mock.calls.map(([method, parameters]) => [method, parameters]),
+            ).toEqual([
+                [
+                    'terminal.switchSurface',
+                    { terminalId: 'terminal-granted', surface: 'chat', interruptTurn: true },
+                ],
+            ]);
+        } finally {
+            await controller.close();
+        }
+    });
+
+    it('passes a running turn back without switching', async () => {
+        const { controller, context, domainService, requestWithSignal } = await open();
+        requestWithSignal.mockResolvedValueOnce({ status: 'turnRunning' });
+        try {
+            await expect(
+                controller.invokeControl(
+                    {
+                        method: 'mobile.terminal.switchSurface',
+                        params: {
+                            terminalId: 'terminal-granted',
+                            surface: 'pty',
+                            interruptTurn: false,
+                        },
+                    },
+                    context,
+                    domainService,
+                ),
+            ).resolves.toEqual({ status: 'turnRunning' });
+        } finally {
+            await controller.close();
+        }
+    });
+
+    it('rejects a Terminal outside the grant without relaunching anything', async () => {
+        const { controller, context, domainService, requestWithSignal } = await open();
+        try {
+            await expect(
+                controller.invokeControl(
+                    {
+                        method: 'mobile.terminal.switchSurface',
+                        params: {
+                            terminalId: 'terminal-hidden',
+                            surface: 'chat',
+                            interruptTurn: false,
+                        },
+                    },
+                    context,
+                    domainService,
+                ),
+            ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+            expect(requestWithSignal).not.toHaveBeenCalled();
         } finally {
             await controller.close();
         }

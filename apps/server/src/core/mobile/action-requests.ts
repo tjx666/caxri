@@ -46,3 +46,26 @@ export async function listMobileAgentActions(
         truncated: result.discovery === 'partial' || ranked.length > MOBILE_AGENT_ACTIONS_MAX,
     };
 }
+
+/**
+ * Reopens a granted Agent Terminal on the other surface through Desktop's own `terminal.switchSurface`, which owns the
+ * Chat-capability check and the running-turn guard. The grant check comes first, so a Terminal outside the device's
+ * Projects is `NOT_FOUND` before anything is relaunched. The access controller admits it like Session management: only
+ * admission waits in the authority queue, since the provider restart takes seconds and may outlive a revoke, which then
+ * withholds the result.
+ */
+export async function switchMobileTerminalSurface(
+    domainService: ServerDomainService,
+    principal: Principal,
+    request: Extract<ServerRequest, { method: 'mobile.terminal.switchSurface' }>,
+    signal: AbortSignal,
+): Promise<{ status: 'switched' | 'turnRunning' }> {
+    const { interruptTurn, surface, terminalId } = request.params;
+    await terminalForPrincipal(domainService, principal, terminalId);
+    const result = await domainService.requestWithSignal(
+        'terminal.switchSurface',
+        { terminalId, surface, interruptTurn },
+        signal,
+    );
+    return { status: result.status };
+}

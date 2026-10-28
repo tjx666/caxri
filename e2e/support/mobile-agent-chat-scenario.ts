@@ -39,6 +39,7 @@ import {
 } from './mobile-agent-chat-skills-scenario';
 import { executeMobileChatBurstStreamScenario } from './mobile-agent-chat-stream-scenario';
 import { executeMobileChatSubagentScenario } from './mobile-agent-chat-subagent-scenario';
+import { executeMobileChatSurfaceSwitchScenario } from './mobile-agent-chat-surface-switch-scenario';
 import {
     executeMobileChatHistoryTasksScenario,
     executeMobileChatPinScrollScenario,
@@ -563,6 +564,8 @@ export async function executeMobileAgentChatCase(
             return executeMobileChatRunningTurnScenario(environment, artifacts);
         case 'MOB-CHAT-SEND-UNKNOWN-01':
             return executeMobileChatSendUnknownScenario(environment, artifacts);
+        case 'MOB-CHAT-SURFACE-SWITCH-01':
+            return executeMobileChatSurfaceSwitchScenario(environment, artifacts);
         case 'MOB-CHAT-USAGE-GUARD-01':
             return executeMobileChatUsageGuardScenario(environment, artifacts);
         default:

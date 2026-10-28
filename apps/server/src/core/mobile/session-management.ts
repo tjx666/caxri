@@ -2,6 +2,7 @@ import type { Principal, ServerRequest } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
 import type { ServerDomainService } from '../domain-service';
+import { switchMobileTerminalSurface } from './action-requests';
 import { buildMobileArchivedSessions } from './dashboard';
 
 export type MobileSessionManagementRequest = Extract<
@@ -11,7 +12,8 @@ export type MobileSessionManagementRequest = Extract<
             | 'mobile.session.archive'
             | 'mobile.session.rename'
             | 'mobile.session.restore'
-            | 'mobile.session.setPinned';
+            | 'mobile.session.setPinned'
+            | 'mobile.terminal.switchSurface';
     }
 >;
 
@@ -62,14 +64,16 @@ export const readMobileArchivedSessions = async (
 /**
  * Session management reuses Desktop's own handlers so rename, archive, restore, and pinning keep one implementation;
  * the gateway only adds the grant check in front of them. Restore lands at the top of the Project, matching Desktop's
- * dialog.
+ * dialog. Reopening the Session's Agent on its other surface shares the same admission from the Session menu.
  */
 export const applyMobileSessionManagement = async (
     domainService: ServerDomainService,
     principal: Principal,
     request: MobileSessionManagementRequest,
     signal: AbortSignal,
-): Promise<{ sessionId: string }> => {
+): Promise<{ sessionId: string } | { status: 'switched' | 'turnRunning' }> => {
+    if (request.method === 'mobile.terminal.switchSurface')
+        return switchMobileTerminalSurface(domainService, principal, request, signal);
     const { sessionId } = request.params;
     await sessionForPrincipal(domainService, principal, sessionId);
     switch (request.method) {

@@ -78,9 +78,9 @@ export const sessions: TranslatedNamespace<typeof source> = {
     'sessions.detail.markReadFailed': '无法将此会话标为已读。',
     'sessions.detail.markReadForbidden':
         '此设备无法将会话标为已读。请在电脑上重新配对以授予控制权限。',
-    'sessions.detail.markReadReconnect': '请重新连接以标为已读。',
     'sessions.detail.menu': '会话菜单',
     'sessions.detail.noTerminal': '此会话没有活动的终端。',
+    'sessions.detail.reconnectForActions': '请重新连接后再使用这些操作。',
     'sessions.detail.selectSession': '选择一个会话',
     'sessions.home.addProject': '添加项目',
     'sessions.home.allProjects': '全部',
@@ -208,5 +208,17 @@ export const sessions: TranslatedNamespace<typeof source> = {
     'sessions.state.waiting': '等待你处理',
     'sessions.state.working': '运行中',
     'sessions.status.needsAttention': '需要处理：{{state}}',
+    'sessions.surface.confirmSwitchLabel': '停止并切换',
+    'sessions.surface.confirmSwitchToChat':
+        '{{provider}} 仍在工作。切换将停止当前轮次，并在对话中继续该对话。',
+    'sessions.surface.confirmSwitchToTerminal':
+        '{{provider}} 仍在工作。切换将停止当前轮次，并在终端中继续该对话。',
+    'sessions.surface.openAsChat': '以对话打开',
+    'sessions.surface.openAsChatFailed': '无法以对话打开',
+    'sessions.surface.openAsTerminal': '以终端打开',
+    'sessions.surface.openAsTerminalFailed': '无法以终端打开',
+    'sessions.surface.openingAsChat': '正在以对话打开…',
+    'sessions.surface.openingAsTerminal': '正在以终端打开…',
+    'sessions.surface.turnGuardTitle': '要停止正在运行的轮次吗？',
     'sessions.untitled': '未命名',
 };
