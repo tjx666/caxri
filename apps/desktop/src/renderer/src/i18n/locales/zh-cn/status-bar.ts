@@ -3,6 +3,20 @@ import type { TranslatedNamespace } from '@caxri/protocol';
 import type { statusBar as source } from '../en/status-bar';
 
 export const statusBar: TranslatedNamespace<typeof source> = {
+    'statusBar.codexGlobalReset.eyebrow': 'Codex 全量重置',
+    'statusBar.codexGlobalReset.labelWithin': 'Codex 重置 · {{duration}}内',
+    'statusBar.codexGlobalReset.labelIn': 'Codex 重置 · {{duration}}后',
+    'statusBar.codexGlobalReset.ariaLabel': '{{label}}。点击打开预告原帖。',
+    'statusBar.codexGlobalReset.announcement': '预告',
+    'statusBar.codexGlobalReset.targetDeadline': '最晚到账',
+    'statusBar.codexGlobalReset.targetExact': '到账时间',
+    'statusBar.codexGlobalReset.announcedAt': '发布时间',
+    'statusBar.codexGlobalReset.note':
+        '全量重置会恢复所有付费账号的 5 小时和每周额度。数据来自 X 上的公开帖子，是否到账以你自己的用量为准。',
+    'statusBar.codexGlobalReset.links': '链接',
+    'statusBar.codexGlobalReset.openPost': 'X 上的预告',
+    'statusBar.codexGlobalReset.dataSource': '数据：{{source}}',
+    'statusBar.codexGlobalReset.clickToOpen': '点击打开预告原帖',
     'statusBar.environmentMonitor.eyebrow': '环境监测',
     'statusBar.environmentMonitor.warningLabel': '环境 · {{count}}',
     'statusBar.environmentMonitor.unavailableLabel': '环境检查不可用',

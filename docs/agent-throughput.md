@@ -112,3 +112,25 @@ the log records `external_status.provider_history_failed` and
 never touches the network: it reads fixtures from `CAXRI_E2E_PROVIDER_STATUS_DIR`, preferring
 `<hostname>.<last path segment>.json` (such as `status.openai.com.component_impacts.json`) and
 falling back to `<hostname>.json`, and reports `network` without one.
+
+## Codex global reset countdown
+
+A Codex global reset restores every paid account's 5-hour and weekly limits at once. It has no
+fixed schedule: the Codex lead announces it on X, often ahead of time with a deadline
+(`Lands by midnight PST.`). While such a dated announcement is pending, and only when the Codex
+CLI is installed, the status bar shows a countdown (`Codex reset within 1h 35m`). Clicking it opens
+the announcement; its hover card shows the announcement text, the target and posting times, and
+credits the data source. With no dated announcement, an unreadable source, or a target time
+already reached, the chip is absent; reaching the target hides it rather than claiming the reset
+landed, which only the account's own usage can confirm.
+
+The data comes from the public forecast at `https://codex-reset.com/api/forecast`
+(`official_signal.window.target_at`, `official_signal.url`, `last_reset_at`). Its terms ask for a
+visible credit where the data is shown and an identifying `User-Agent`, both of which Caxri sends.
+An announcement the tracker already saw land (`last_reset_at` at or after it) counts as over.
+`codexGlobalReset.read` is a Desktop Main method over
+`packages/system/src/network/codex-global-reset.ts`, on the same `net.fetch` transport and E2E
+fixture directory (`codex-reset.com.forecast.json`) as the provider status above. Results are
+cached for five minutes after success and one minute after failure; the log records
+`external_status.codex_global_reset_failed` once per reason change and
+`external_status.codex_global_reset_recovered` when the tracker answers again.

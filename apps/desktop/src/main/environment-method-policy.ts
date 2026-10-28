@@ -101,6 +101,7 @@ const environmentMethodScopes = {
     'editor.unsavedReply': 'any',
     'links.favicon': 'any',
     'agentProviderStatus.read': 'any',
+    'codexGlobalReset.read': 'any',
     'environmentMonitor.read': 'local-only',
     'environmentMonitor.refresh': 'local-only',
     'environmentMonitor.acceptBaseline': 'local-only',
