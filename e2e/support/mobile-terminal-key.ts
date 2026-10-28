@@ -15,7 +15,7 @@ export async function tapTerminalKey(serial: string, key: 'down' | 'enter'): Pro
         bounds.top >= 0 &&
         bounds.right <= frame.width &&
         bounds.bottom <= frame.height;
-    for (let attempt = 0; attempt < 4; attempt += 1) {
+    for (let attempt = 0; attempt < 6; attempt += 1) {
         // eslint-disable-next-line no-await-in-loop -- every swipe needs a fresh sanitized device view.
         const nodes = await mobileSemantics(serial);
         if (nodes.every(({ checkId }) => checkId !== 'session-detail'))
@@ -31,7 +31,9 @@ export async function tapTerminalKey(serial: string, key: 'down' | 'enter'): Pro
         }
         const visibleKeys = nodes
             .filter(({ checkId: id }) =>
-                /^terminal-key-(?:escape|tab|ctrl|up|down|left|right|[123]|enter|paste)$/u.test(id),
+                /^terminal-key-(?:escape|tab|shift-tab|ctrl|up|down|left|right|[123]|enter|paste)$/u.test(
+                    id,
+                ),
             )
             .map((node) => androidBounds(node.bounds))
             .filter((bounds): bounds is NonNullable<typeof bounds> =>

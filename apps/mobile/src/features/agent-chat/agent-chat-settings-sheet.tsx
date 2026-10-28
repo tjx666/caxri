@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import type { ScrollViewInstance } from 'react-native';
-import { ScrollView, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type {
     AgentChatModelRequest,
@@ -10,6 +10,7 @@ import type {
 
 import { BottomSheet, SheetCancel, SheetTitle } from '../../components/bottom-sheet';
 import { useTranslation } from '../../i18n';
+import { mobileSpace } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
 import {
     agentChatEffortHint,
@@ -42,6 +43,10 @@ type PermissionSelection = ReturnType<typeof useAgentChatPermissionSelection>;
  * (`agent-chat-model-sheet` and `-done`, or the `agent-chat-permission-` pair) so each entry point stays addressable.
  */
 export type AgentChatSettingsEntry = 'model' | 'permission';
+
+const styles = StyleSheet.create({
+    footer: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: mobileSpace.xs },
+});
 
 /**
  * Chat settings as one phone sheet, the Desktop composer's model and permission menus together: `Model`, `Reasoning
@@ -229,34 +234,37 @@ export const AgentChatSettingsSheet = ({
                             </View>
                         ) : null}
                     </ScrollView>
-                    {/* Outside the scroll, so a failed choice stays in view whichever section it came from. */}
-                    <SheetMessages
-                        disabledReason={configureReason}
-                        error={model.error}
-                        note={
-                            modelNote ??
-                            (provider
-                                ? agentChatPermissionSheetNote(permission.snapshot, provider, t)
-                                : undefined)
-                        }
-                        testIDPrefix="agent-chat-model"
-                        theme={theme}
-                    />
-                    <SheetMessages
-                        disabledReason={
-                            permissionReason === configureReason ? undefined : permissionReason
-                        }
-                        error={permission.error}
-                        note={undefined}
-                        testIDPrefix="agent-chat-permission"
-                        theme={theme}
-                    />
-                    <SheetCancel
-                        label="Done"
-                        onPress={dismiss}
-                        testID={`agent-chat-${entry}-done`}
-                        theme={theme}
-                    />
+                    {/* Outside the scroll, so a failed choice stays in view whichever section it came from. The hairline marks
+                    where the list scrolls under the footer instead of leaving a row cut off mid-line. */}
+                    <View style={[styles.footer, { borderTopColor: theme.border }]}>
+                        <SheetMessages
+                            disabledReason={configureReason}
+                            error={model.error}
+                            note={
+                                modelNote ??
+                                (provider
+                                    ? agentChatPermissionSheetNote(permission.snapshot, provider, t)
+                                    : undefined)
+                            }
+                            testIDPrefix="agent-chat-model"
+                            theme={theme}
+                        />
+                        <SheetMessages
+                            disabledReason={
+                                permissionReason === configureReason ? undefined : permissionReason
+                            }
+                            error={permission.error}
+                            note={undefined}
+                            testIDPrefix="agent-chat-permission"
+                            theme={theme}
+                        />
+                        <SheetCancel
+                            label="Done"
+                            onPress={dismiss}
+                            testID={`agent-chat-${entry}-done`}
+                            theme={theme}
+                        />
+                    </View>
                 </>
             )}
         </BottomSheet>

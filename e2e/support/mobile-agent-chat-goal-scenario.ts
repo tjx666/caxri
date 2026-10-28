@@ -36,14 +36,14 @@ export async function executeMobileChatGoalScenario(
         await waitForCheck(serial, 'agent-chat-goal-expand');
         await capture(environment, 'goal-row', artifacts);
 
-        await tapMobileCheck(serial, 'agent-chat-goal-expand');
+        await tapMobileCheck(serial, 'agent-chat-goal-summary');
         await waitForCheck(serial, 'agent-chat-goal-full');
         await capture(environment, 'goal-expanded', artifacts);
-        await tapMobileCheck(serial, 'agent-chat-goal-expand');
+        await tapMobileCheck(serial, 'agent-chat-goal-summary');
         await waitForNoCheck(serial, 'agent-chat-goal-full');
 
         // Clear lives in the expanded goal, away from the one-tap summary row.
-        await tapMobileCheck(serial, 'agent-chat-goal-expand');
+        await tapMobileCheck(serial, 'agent-chat-goal-summary');
         await waitForCheck(serial, 'agent-chat-goal-clear');
         await tapMobileCheck(serial, 'agent-chat-goal-clear');
         await waitForCheck(serial, 'agent-chat-goal-clear-confirm');

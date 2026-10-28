@@ -27,11 +27,15 @@ export const sessionDetailStyles = StyleSheet.create({
     },
     title: { ...mobileType.heading, flexShrink: 1 },
     tabStrip: { borderBottomWidth: 1, flexGrow: 0 },
+    /**
+     * A Session can list five fixed tabs plus extension panels; the tight 4dp gap and 12dp inset keep a 360dp phone
+     * showing every icon tab beside one labeled tab.
+     */
     tabs: {
         flexDirection: 'row',
-        gap: mobileSpace.sm,
+        gap: mobileSpace.xs,
         paddingBottom: mobileSpace.sm,
-        paddingHorizontal: mobileSpace.lg,
+        paddingHorizontal: mobileSpace.md,
     },
     tab: {
         alignItems: 'center',
