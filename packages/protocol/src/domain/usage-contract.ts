@@ -169,6 +169,25 @@ const usageLimitWindowSchema = z.object({
 const modelName = z.string().max(200);
 
 /**
+ * Pay-as-you-go credits the account can spend once a plan window is used up, as the provider reports them (Codex's
+ * `credits`). `balance` is absent when the account is unlimited or the provider named no amount.
+ */
+export const usageCreditsSchema = z.object({
+    unlimited: z.boolean(),
+    balance: z.number().nonnegative().optional(),
+});
+export type UsageCredits = z.infer<typeof usageCreditsSchema>;
+
+/**
+ * Whether the account keeps working past its plan windows by spending credits. A reported account without a named
+ * balance has credits on the provider's word.
+ */
+export function hasUsableCredits(credits: UsageCredits | undefined): boolean {
+    if (!credits) return false;
+    return credits.unlimited || credits.balance === undefined || credits.balance > 0;
+}
+
+/**
  * Latest provider-reported plan rate-limit windows: Codex writes them into its own transcript, and a running Claude
  * Code Chat answers them when asked (its `/usage`). Account-wide, not limited to Caxri Sessions.
  */
@@ -177,6 +196,10 @@ export const usageLimitSchema = z.object({
     observedAt: count,
     planType: z.string().max(64).optional(),
     windows: z.array(usageLimitWindowSchema).max(4),
+    /**
+     * Absent when the provider does not report credits, or reports an account without any.
+     */
+    credits: usageCreditsSchema.optional(),
     /**
      * When the user last dismissed this provider's pace reminder (`usage.dismissPlanPace`), from any Client. Clients
      * hide the reminder while it falls on their current local day (`isPlanPaceDismissed`).

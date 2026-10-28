@@ -5,6 +5,7 @@ import type {
     UsageLimit,
 } from '@caxri/protocol';
 
+import { codexCredits } from '../../usage';
 import { isRecord, stringField } from '../chat-items';
 
 type Json = Record<string, unknown>;
@@ -133,7 +134,19 @@ export class CodexUsageLimits {
             });
         }
         const planType = stringField(limits.planType)?.slice(0, 64);
-        return { observedAt: now, ...(planType && { planType }), windows };
+        const credits = isRecord(limits.credits)
+            ? codexCredits({
+                  hasCredits: limits.credits.hasCredits,
+                  unlimited: limits.credits.unlimited,
+                  balance: limits.credits.balance,
+              })
+            : undefined;
+        return {
+            observedAt: now,
+            ...(planType && { planType }),
+            windows,
+            ...(credits && { credits }),
+        };
     }
 
     /**

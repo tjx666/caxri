@@ -1,5 +1,10 @@
 import type { AgentChatHandoff, AgentProvider, AgentUsageGuard, UsageLimit } from '@caxri/protocol';
-import { agentProviderCatalog, CaxriError, weeklyUsageGuardWindow } from '@caxri/protocol';
+import {
+    agentProviderCatalog,
+    CaxriError,
+    hasUsableCredits,
+    weeklyUsageGuardWindow,
+} from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 import { notifyListeners } from '@caxri/utils';
@@ -24,6 +29,7 @@ export type UsageGuardPath =
 type GuardOutcome =
     | 'armed'
     | 'window_reset'
+    | 'credits_available'
     | 'refused'
     | 'handoff_started'
     | 'handoff_generated'
@@ -44,8 +50,8 @@ const MAX_TIMER_MS = 2_147_483_647;
  * The weekly usage guard of each provider account (issue #2580). Once the provider's raw weekly figure reaches
  * `AGENT_USAGE_GUARD_PERCENT`, every ordinary model request for that account is refused until the window's `resetsAt`,
  * keeping the last percent for one hand-off. The guard is sticky for its window: a later, lower reading of the same
- * window does not lift it (the remaining budget is what it protects); a reading of a later window, or reaching
- * `resetsAt`, does.
+ * window does not lift it (the remaining budget is what it protects); a reading of a later window, reaching `resetsAt`,
+ * or a reading that reports usable credits (the account keeps working past its window by spending them) does.
  *
  * The account is the provider for now: Caxri runs one sign-in per provider, and per-account isolation follows once
  * accounts are told apart. Persisted in `app_state` so a restart neither lifts the guard early nor grants a second
@@ -127,13 +133,25 @@ export class AgentUsageGuards {
         this.timer.unref();
     }
 
+    private lift(provider: AgentProvider, outcome: 'window_reset' | 'credits_available'): void {
+        const now = this.now();
+        const armedAt = this.guards.get(provider)?.armedAt ?? now;
+        this.guards.delete(provider);
+        this.log(provider, outcome, { durationMs: now - armedAt });
+        this.changed(provider);
+    }
+
     /**
      * One reading of the provider's plan windows, from any source: a transcript, `/usage`, or a live rate-limit event.
      * A reading without a weekly window says nothing about the guard.
      */
-    observe(provider: AgentProvider, limit: Pick<UsageLimit, 'windows'>): void {
+    observe(provider: AgentProvider, limit: Pick<UsageLimit, 'windows' | 'credits'>): void {
         const now = this.now();
         const existing = this.current(provider);
+        if (hasUsableCredits(limit.credits)) {
+            if (existing) this.lift(provider, 'credits_available');
+            return;
+        }
         const window = weeklyUsageGuardWindow(limit, now);
         if (window) {
             if (
@@ -154,10 +172,7 @@ export class AgentUsageGuards {
         )
             return;
         // A later window below the guard: the account's week reset before the time the guard recorded.
-        const armedAt = this.guards.get(provider)?.armedAt ?? now;
-        this.guards.delete(provider);
-        this.log(provider, 'window_reset', { durationMs: now - armedAt });
-        this.changed(provider);
+        this.lift(provider, 'window_reset');
     }
 
     current(provider: AgentProvider): AgentUsageGuard | undefined {

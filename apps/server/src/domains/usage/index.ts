@@ -1,4 +1,5 @@
 export { measureConversationUsage } from './conversation-usage';
+export { codexCredits } from './parsers';
 export { estimateCacheRewriteUsd, ModelPricing, offlinePriceListFetch } from './pricing';
 export { UsageService } from './service';
 export { recordChatTurnMetrics } from './turn-metrics';

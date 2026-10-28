@@ -1,9 +1,10 @@
+import { usageCreditsSchema } from '@caxri/protocol';
 import { z } from 'zod';
 
 /**
  * Bumped whenever parsing changes what a stored aggregate means, so every cached row is rescanned once.
  */
-export const USAGE_RECORD_VERSION = 2;
+export const USAGE_RECORD_VERSION = 3;
 
 const count = z.number().int().nonnegative();
 
@@ -93,6 +94,7 @@ const usageRecordSchema = z.object({
             observedAt: count,
             planType: z.string().max(64).optional(),
             windows: z.array(rateLimitWindowSchema).max(4),
+            credits: usageCreditsSchema.optional(),
         })
         .optional(),
 });

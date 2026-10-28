@@ -81,6 +81,10 @@ by itself once the limit resets (issue #2220). Owner: `continuation/chat-usage-l
   guard for that provider account. Only a window the provider names as its weekly one counts, never a
   model-specific window of the same length. The guard is persisted in `app_state`
   (`agentUsageGuards`), so a restart keeps it, and it lifts itself at `resetsAt`.
+- **Credits.** A reading that reports usable pay-as-you-go credits (Codex's `credits`: unlimited, or
+  a positive balance) never arms the guard and lifts an armed one, because the account keeps working
+  past its weekly window by spending them. A reading with a zero balance protects the last percent
+  again. Caxri does not read Claude Code's extra usage (`overageStatus`) yet, so its guard always applies.
 - **What it blocks.** Every ordinary model request on that account fails with `USAGE_LIMITED`:
   Chat send, steer, queued follow-ups, slash commands, side questions, delegation, dispatch, Session
   auto-naming, and idle compaction. Arming interrupts the account's running turns (recorded as
@@ -99,7 +103,8 @@ Agent` continues from the deterministic package, with the hand-off document firs
 
 All three events are content-free and use closed enums (`packages/protocol/src/domain/logging/logging-usage.ts`):
 
-- `usage.guard`: `provider` and `outcome` (`armed`, `window_reset` with its duration, `refused` with
+- `usage.guard`: `provider` and `outcome` (`armed`, `window_reset` or `credits_available` with its
+  duration, `refused` with
   its closed `path`, `handoff_started`, `handoff_generated`, `handoff_failed` with its closed
   `reason`).
 - `usage.continuation`: source and target `provider`, `trigger` (`usageLimit`, `usageGuard`), and

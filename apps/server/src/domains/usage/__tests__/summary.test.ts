@@ -8,7 +8,7 @@ const HOUR_SECONDS = 1_700_000_000 - (1_700_000_000 % 3600);
 const PRICE: ModelPrice = [1e-6, 2e-6, 1e-7, 1.25e-6, 2e-6];
 
 const record: UsageRecord = {
-    version: 2,
+    version: 3,
     models: ['priced', 'unpriced'],
     tokens: [
         [HOUR_SECONDS, 0, 100, 10, 1000, 50, 20, 0, 0],

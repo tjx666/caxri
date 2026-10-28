@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { identifierSchema } from '../domain/identifiers.js';
 import type { UsageLimit } from '../domain/usage-contract.js';
+import { hasUsableCredits } from '../domain/usage-contract.js';
 import { agentProviderSchema } from './agents.js';
 
 /**
@@ -163,12 +164,14 @@ export type AgentChatContinuationTarget = z.infer<typeof agentChatContinuationTa
 /**
  * The provider's general weekly window when its raw usage is at or past {@link AGENT_USAGE_GUARD_PERCENT} and it has not
  * reset by `now`. A window without a known reset cannot be held to an end, so it never arms the guard; nor does a
- * model-specific window, which the parsers leave unscoped.
+ * model-specific window, which the parsers leave unscoped. An account with usable credits keeps working past its weekly
+ * window by spending them, so there is no last percent to protect.
  */
 export function weeklyUsageGuardWindow(
-    limit: Pick<UsageLimit, 'windows'> | undefined,
+    limit: Pick<UsageLimit, 'windows' | 'credits'> | undefined,
     now: number,
 ): { usedPercent: number; resetsAt: number } | undefined {
+    if (hasUsableCredits(limit?.credits)) return undefined;
     const window = limit?.windows.find((candidate) => candidate.scope === 'weekly');
     if (!window?.resetsAt || window.resetsAt <= now) return undefined;
     if (window.usedPercent < AGENT_USAGE_GUARD_PERCENT) return undefined;

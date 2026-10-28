@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import type { AgentProvider } from '@caxri/protocol';
+import type { AgentProvider, UsageCredits } from '@caxri/protocol';
 
 import type { TranscriptPullRequestScan } from '../agents';
 import { createTranscriptPullRequestScan, scanTranscriptPullRequestLine } from '../agents';
@@ -248,6 +248,21 @@ function codexWindowScope(windowMinutes: number): 'session' | 'weekly' | undefin
     return undefined;
 }
 
+/**
+ * Codex's `credits` snapshot (`has_credits` in a rollout, `hasCredits` from the app-server; `balance` is a decimal
+ * string). Undefined for an account without credits, so only usable credits ever reach the weekly usage guard.
+ */
+export function codexCredits(value: {
+    hasCredits: unknown;
+    unlimited: unknown;
+    balance: unknown;
+}): UsageCredits | undefined {
+    if (value.hasCredits !== true && value.unlimited !== true) return undefined;
+    if (value.unlimited === true) return { unlimited: true };
+    const balance = typeof value.balance === 'string' ? Number(value.balance) : NaN;
+    return { unlimited: false, ...(Number.isFinite(balance) && balance >= 0 && { balance }) };
+}
+
 function codexRateLimits(value: unknown, at: number): RateLimitObservation | undefined {
     const limits = record(value);
     if (!limits) return;
@@ -269,7 +284,20 @@ function codexRateLimits(value: unknown, at: number): RateLimitObservation | und
         ];
     });
     if (windows.length === 0) return;
-    return { observedAt: at, planType: string(limits.plan_type), windows };
+    const credits = record(limits.credits);
+    const usable =
+        credits &&
+        codexCredits({
+            hasCredits: credits.has_credits,
+            unlimited: credits.unlimited,
+            balance: credits.balance,
+        });
+    return {
+        observedAt: at,
+        planType: string(limits.plan_type),
+        windows,
+        ...(usable && { credits: usable }),
+    };
 }
 
 const CODEX_USAGE_LINE_KINDS = [

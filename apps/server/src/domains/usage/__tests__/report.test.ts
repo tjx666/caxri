@@ -50,7 +50,7 @@ function outsideRow(overrides: Partial<ExternalAgentUsageRow>): ExternalAgentUsa
 function usage(at: number, input: number, overrides: Partial<UsageRecord> = {}): UsageRecord {
     const hour = Math.floor(at / HOUR) * 3600;
     return {
-        version: 2,
+        version: 3,
         models: ['claude-x'],
         tokens: [[hour, 0, input, 0, 0, 0, 0, 0, 0]],
         activity: [[hour, 60_000]],
