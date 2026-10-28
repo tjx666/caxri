@@ -244,7 +244,7 @@ const expectedLanes: Record<string, ControlLane> = {
     'session.dismissWorkbenchCandidate': 'ordered',
     'session.importConversation': 'ordered',
     'session.markRead': 'ordered',
-    'usage.dismissPlanPace': 'ordered',
+    'usage.dismissNotice': 'ordered',
     'session.refreshDeliveryOnFocus': 'ordered',
     'session.reopenConversation': 'ordered',
     'session.reorder': 'ordered',

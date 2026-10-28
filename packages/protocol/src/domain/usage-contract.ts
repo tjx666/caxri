@@ -175,6 +175,14 @@ const modelName = z.string().max(200);
 export const usageCreditsSchema = z.object({
     unlimited: z.boolean(),
     balance: z.number().nonnegative().optional(),
+    /**
+     * ISO 4217 code when `balance` is money in major units (Claude Code's extra usage left this month); absent for
+     * Codex's own credits, which are a count.
+     */
+    currency: z
+        .string()
+        .regex(/^[A-Z]{3}$/)
+        .optional(),
 });
 export type UsageCredits = z.infer<typeof usageCreditsSchema>;
 
@@ -186,6 +194,14 @@ export function hasUsableCredits(credits: UsageCredits | undefined): boolean {
     if (!credits) return false;
     return credits.unlimited || credits.balance === undefined || credits.balance > 0;
 }
+
+/**
+ * The plan notices a user can dismiss (`usage.dismissNotice`): the pace reminder, which warns that a window runs out
+ * before it resets, and the credits notice, shown while the weekly window is at the usage guard but the account keeps
+ * working on credits.
+ */
+export const usageNoticeSchema = z.enum(['planPace', 'credits']);
+export type UsageNotice = z.infer<typeof usageNoticeSchema>;
 
 /**
  * Latest provider-reported plan rate-limit windows: Codex writes them into its own transcript, and a running Claude
@@ -201,10 +217,15 @@ export const usageLimitSchema = z.object({
      */
     credits: usageCreditsSchema.optional(),
     /**
-     * When the user last dismissed this provider's pace reminder (`usage.dismissPlanPace`), from any Client. Clients
-     * hide the reminder while it falls on their current local day (`isPlanPaceDismissed`).
+     * When the user last dismissed this provider's pace reminder (`usage.dismissNotice`), from any Client. Clients hide
+     * the reminder while it falls on their current local day (`isPlanPaceDismissed`).
      */
     paceDismissedAt: count.optional(),
+    /**
+     * When the user last dismissed this provider's credits notice (`usage.dismissNotice`), from any Client. Clients
+     * hide the notice for a day after it (`weeklyCreditsNotice`).
+     */
+    creditsNoticeDismissedAt: count.optional(),
 });
 export type UsageLimit = z.infer<typeof usageLimitSchema>;
 
@@ -345,13 +366,14 @@ export const usageMethods = {
         result: z.array(usageLimitSchema).max(agentProviderIds.length),
     },
     /**
-     * Hides the provider's plan pace reminder for the rest of the day on every Client: the Server keeps the time in
-     * `app_state` and returns it as `UsageLimit.paceDismissedAt`, so a restart or another device does not bring it
-     * back.
+     * Hides one of the provider's plan notices on every Client: the pace reminder for the rest of the local day, the
+     * credits notice for a day. The Server keeps the time in `app_state` and returns it on the reading
+     * (`UsageLimit.paceDismissedAt`, `UsageLimit.creditsNoticeDismissedAt`), so a restart or another device does not
+     * bring it back.
      */
-    'usage.dismissPlanPace': {
+    'usage.dismissNotice': {
         ...commandPolicy('server', 'write'),
-        params: z.strictObject({ provider: agentProvider }),
+        params: z.strictObject({ provider: agentProvider, notice: usageNoticeSchema }),
         result: z.null(),
     },
     /**

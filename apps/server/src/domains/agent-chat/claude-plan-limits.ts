@@ -1,8 +1,9 @@
 import type { Query, SDKRateLimitInfo } from '@anthropic-ai/claude-agent-sdk';
-import type { UsageLimit } from '@caxri/protocol';
+import type { UsageCredits, UsageLimit } from '@caxri/protocol';
 
 import { isRecord, stringField } from './chat-items';
 import { withTimeout } from './claude-prompt-queue';
+import { isClaudeOverageAllowed } from './continuation/claude-usage-limit';
 
 const PLAN_LIMITS_TIMEOUT_MS = 5_000;
 
@@ -117,7 +118,55 @@ export function claudePlanLimits(
     });
     if (windows.length === 0) return undefined;
     const plan = stringField(answer.subscription_type);
-    return { observedAt: now, ...(plan && { planType: plan.slice(0, 64) }), windows };
+    const credits = claudeExtraUsageCredits(limits.extra_usage);
+    return {
+        observedAt: now,
+        ...(plan && { planType: plan.slice(0, 64) }),
+        windows,
+        ...(credits && { credits }),
+    };
+}
+
+/**
+ * Claude Code's extra usage in a `/usage` answer (untrusted) as credits: what is left of the member's monthly cap, in
+ * major units of its currency, or undefined while extra usage is off. The answer counts `monthly_limit` and
+ * `used_credits` in minor units (cents for USD, the currency it means when it names none); an enabled account without a
+ * cap has credits with no balance to show. The same object backs the "Extra usage" section of Claude Code's `/usage`
+ * and CodexBar's Claude extra usage figure.
+ */
+export function claudeExtraUsageCredits(extra: unknown): UsageCredits | undefined {
+    if (!isRecord(extra) || extra.is_enabled !== true) return undefined;
+    const cap = extra.monthly_limit;
+    if (typeof cap !== 'number' || !Number.isFinite(cap)) return { unlimited: false };
+    const named = stringField(extra.currency)?.toUpperCase();
+    const currency = named ?? 'USD';
+    // A currency whose minor unit is unknown cannot be shown as an amount; the account still has credits.
+    if (!/^[A-Z]{3}$/.test(currency)) return { unlimited: false };
+    const used =
+        typeof extra.used_credits === 'number' && Number.isFinite(extra.used_credits)
+            ? extra.used_credits
+            : 0;
+    return {
+        unlimited: false,
+        balance: Math.max(0, cap - used) / 10 ** minorUnitDigits(currency),
+        currency,
+    };
+}
+
+const minorUnits = new Map<string, number>();
+
+/**
+ * How many digits a currency's minor unit has (2 for USD, 0 for JPY), as `Intl` knows it.
+ */
+function minorUnitDigits(currency: string): number {
+    let digits = minorUnits.get(currency);
+    if (digits === undefined) {
+        digits =
+            new Intl.NumberFormat('en', { style: 'currency', currency }).resolvedOptions()
+                .maximumFractionDigits ?? 2;
+        minorUnits.set(currency, digits);
+    }
+    return digits;
 }
 
 /**
@@ -149,9 +198,25 @@ export function claudeRateLimitEvent(
         scope,
     };
     const others = reading.windows.filter((existing) => existing.windowMinutes !== windowMinutes);
+    const { credits: known, ...rest } = reading;
     return {
-        ...reading,
+        ...rest,
         observedAt: now,
         windows: [...others, window].toSorted((a, b) => a.windowMinutes - b.windowMinutes),
+        ...withEventCredits(known, info),
     };
+}
+
+/**
+ * The credits a reading keeps after a `rate_limit_event`: extra usage the event reports as answering keeps the `/usage`
+ * balance (or has credits without one), extra usage it reports as rejected has none left, and an event that does not
+ * mention it leaves the reading's credits as they were.
+ */
+function withEventCredits(
+    known: UsageCredits | undefined,
+    info: SDKRateLimitInfo,
+): { credits?: UsageCredits } {
+    if (isClaudeOverageAllowed(info)) return { credits: known ?? { unlimited: false } };
+    if (info.overageStatus === 'rejected') return {};
+    return known ? { credits: known } : {};
 }

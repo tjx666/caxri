@@ -4,7 +4,7 @@ import type { StructuredLogger } from '@caxri/system';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { CaxriDatabase } from '../../db';
-import { PlanPaceDismissals } from '../plan-pace-dismissals';
+import { UsageNoticeDismissals } from '../usage-notice-dismissals';
 
 const NOW = new Date(2026, 9, 27, 23, 0).getTime();
 
@@ -23,13 +23,23 @@ function harness(state: Record<string, unknown> = {}) {
     } as unknown as Pick<CaxriDatabase, 'getAppState' | 'setAppState'>;
     const write = vi.fn<StructuredLogger['write']>();
     const logger = { write } as unknown as StructuredLogger;
-    return { state, write, open: () => new PlanPaceDismissals(database, logger, () => NOW) };
+    return {
+        state,
+        write,
+        open: () =>
+            new UsageNoticeDismissals({
+                database,
+                logger,
+                now: () => NOW,
+                limits: () => [limit('claude')],
+            }),
+    };
 }
 
-describe('PlanPaceDismissals', () => {
+describe('UsageNoticeDismissals', () => {
     it('keeps a dismissal per provider across a Server restart and attaches it to readings', () => {
         const { state, open } = harness();
-        open().dismiss('claude', limit('claude'));
+        open().dismiss('planPace', 'claude');
 
         const restarted = open();
         const claude = restarted.attach(limit('claude'));
@@ -39,13 +49,27 @@ describe('PlanPaceDismissals', () => {
         expect(state.planPaceDismissals).toEqual({ claude: NOW });
     });
 
+    it('keeps the credits notice dismissal apart from the pace reminder', () => {
+        const { state, open } = harness();
+        open().dismiss('credits', 'codex');
+
+        const codex = open().attach(limit('codex'));
+        expect(codex.creditsNoticeDismissedAt).toBe(NOW);
+        expect(codex).not.toHaveProperty('paceDismissedAt');
+        expect(state).toEqual({ creditsNoticeDismissals: { codex: NOW } });
+    });
+
     it('logs the provider and how much of the week was used, without any other content', () => {
         const { open, write } = harness();
-        open().dismiss('claude', limit('claude'));
-        open().dismiss('codex', undefined);
+        open().dismiss('planPace', 'claude');
+        open().dismiss('credits', 'codex');
         expect(write.mock.calls.map((call) => call[2]?.fields)).toEqual([
             { provider: 'claude', usedPercent: 58 },
             { provider: 'codex', usedPercent: null },
+        ]);
+        expect(write.mock.calls.map((call) => call[1])).toEqual([
+            'usage.plan_pace_dismissed',
+            'usage.credits_notice_dismissed',
         ]);
     });
 });

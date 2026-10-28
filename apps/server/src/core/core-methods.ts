@@ -41,7 +41,7 @@ export const coreForwardedMethods = [
     'agentAvailability.get',
     'agentHooks.get',
     'agentSkills.get',
-    'usage.dismissPlanPace',
+    'usage.dismissNotice',
     'usage.limits',
     'usage.report',
     'benchmark.attemptDiff',

@@ -90,3 +90,63 @@ test("a running Claude Chat reports its plan's 5-hour and weekly limits and warn
         await rm(directory, { recursive: true, force: true });
     }
 });
+
+// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
+test('a Claude Chat at 99% of its weekly usage with extra usage keeps sending and shows a dismissible credits notice', async ({}, testInfo) => {
+    const created = await mkdtemp(join(tmpdir(), 'caxri-claude-credits-'));
+    const directory = await realpath(created);
+    const userData = join(directory, 'user-data');
+    const root = join(directory, 'project');
+    const control = join(directory, 'control');
+    await mkdir(root, { recursive: true });
+    await mkdir(control, { recursive: true });
+    // The fake's `/usage` answer: weekly 99.5% used, extra usage on with $37.40 of the monthly cap left.
+    await writeFile(join(control, 'plan-weekly-guarded'), '');
+    await writeFile(join(control, 'plan-extra-usage'), '');
+    const agentMode = await fakeClaudeChatAgentMode(userData, control);
+    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    try {
+        const { page } = running;
+        await createProjectSession(page, 'shell');
+        await page.locator(VISIBLE_SESSION).getByRole('button', { name: 'New Terminal' }).click();
+        const terminalMenu = page.getByRole('menu', { name: 'New Terminal' });
+        await terminalMenu.getByRole('menuitemcheckbox', { name: 'Open Agents in Chat' }).click();
+        await chooseTerminalFromCreateMenu(page, 'Claude Chat');
+        const chat = page.locator(VISIBLE_SESSION);
+        const message = chat.getByRole('textbox', { name: 'Message' });
+        await expect(message).toHaveAttribute('aria-placeholder', 'Message Claude');
+        await message.fill('hi there');
+        await message.press('Enter');
+        await expect(chat.getByText('Hello from fake Claude. You said: hi there')).toBeVisible();
+
+        const notice = chat.locator('[data-agent-chat-credits-notice]');
+        await expect(notice).toContainText(
+            'Claude weekly usage at 99%: requests continue on extra usage, $37.40 left this month',
+        );
+        // The guard stays off and the pace reminder gives way to the notice.
+        await expect(chat.locator('[data-agent-chat-usage-guard]')).toHaveCount(0);
+        await expect(chat.locator('[data-agent-chat-plan-pace-alert]')).toHaveCount(0);
+        await page.screenshot({ path: testInfo.outputPath('claude-credits-notice.png') });
+
+        await message.fill('still going');
+        await message.press('Enter');
+        await expect(chat.getByText('Hello from fake Claude. You said: still going')).toBeVisible();
+
+        await notice.getByRole('button', { name: 'Hide for a day' }).click();
+        await expect(notice).toHaveCount(0);
+        await expect
+            .poll(async () => {
+                const limits = await pageRequest<UsageLimit[]>(page, 'usage.limits', {});
+                return limits.find((limit) => limit.provider === 'claude')
+                    ?.creditsNoticeDismissedAt;
+            })
+            .toBeGreaterThan(0);
+        await page.reload();
+        await expect(chat.getByRole('textbox', { name: 'Message' })).toBeVisible();
+        await expect(notice).toHaveCount(0);
+        await expect(chat.locator('[data-agent-chat-plan-pace-alert]')).toHaveCount(0);
+    } finally {
+        await closeAppQuietly(running.app);
+        await rm(directory, { recursive: true, force: true });
+    }
+});

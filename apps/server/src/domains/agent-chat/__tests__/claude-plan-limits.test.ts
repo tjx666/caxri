@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
     CLAUDE_PLAN_LIMITS_REFRESH_MS,
+    claudeExtraUsageCredits,
     ClaudePlanLimits,
     claudePlanLimits,
     claudeRateLimitEvent,
@@ -117,5 +118,97 @@ describe('ClaudePlanLimits', () => {
                 ?.windows[1],
         ).toEqual({ windowMinutes: 10_080, usedPercent: 100, scope: 'weekly' });
         expect(claudeRateLimitEvent(reading, { status: 'allowed' }, NOW)).toBeUndefined();
+    });
+});
+
+describe('claudeExtraUsageCredits', () => {
+    it('reads what is left of the monthly cap, in major units of its currency', () => {
+        expect(
+            claudeExtraUsageCredits({
+                is_enabled: true,
+                monthly_limit: 5000,
+                used_credits: 1260,
+                utilization: 25.2,
+                currency: 'usd',
+            }),
+        ).toEqual({ unlimited: false, balance: 37.4, currency: 'USD' });
+        expect(
+            claudeExtraUsageCredits({ is_enabled: true, monthly_limit: 2000, used_credits: null }),
+        ).toEqual({ unlimited: false, balance: 20, currency: 'USD' });
+        expect(
+            claudeExtraUsageCredits({ is_enabled: true, monthly_limit: 300, used_credits: 900 }),
+        ).toEqual({ unlimited: false, balance: 0, currency: 'USD' });
+        expect(
+            claudeExtraUsageCredits({ is_enabled: true, monthly_limit: 500, currency: 'JPY' }),
+        ).toEqual({ unlimited: false, balance: 500, currency: 'JPY' });
+    });
+
+    it('has credits without a balance when no cap is set, and none while extra usage is off', () => {
+        expect(claudeExtraUsageCredits({ is_enabled: true, monthly_limit: null })).toEqual({
+            unlimited: false,
+        });
+        expect(
+            claudeExtraUsageCredits({ is_enabled: false, monthly_limit: 5000, used_credits: 0 }),
+        ).toBeUndefined();
+        expect(claudeExtraUsageCredits(null)).toBeUndefined();
+    });
+
+    it('attaches the credits to a /usage reading', () => {
+        expect(
+            claudePlanLimits(
+                {
+                    ...answer,
+                    rate_limits: {
+                        ...answer.rate_limits,
+                        extra_usage: { is_enabled: true, monthly_limit: 1000, used_credits: 250 },
+                    },
+                },
+                NOW,
+            )?.credits,
+        ).toEqual({ unlimited: false, balance: 7.5, currency: 'USD' });
+    });
+
+    it('follows what a rate-limit event says about extra usage', () => {
+        const reading = claudePlanLimits(
+            {
+                ...answer,
+                rate_limits: {
+                    ...answer.rate_limits,
+                    extra_usage: { is_enabled: true, monthly_limit: 1000, used_credits: 250 },
+                },
+            },
+            NOW,
+        );
+        if (!reading) throw new Error('expected a reading');
+        const weekly = { rateLimitType: 'seven_day', utilization: 0.995 } as const;
+        expect(
+            claudeRateLimitEvent(
+                reading,
+                { ...weekly, status: 'allowed', overageStatus: 'allowed' },
+                NOW,
+            )?.credits,
+        ).toEqual(reading.credits);
+        expect(
+            claudeRateLimitEvent(reading, { ...weekly, status: 'allowed' }, NOW)?.credits,
+        ).toEqual(reading.credits);
+        expect(
+            claudeRateLimitEvent(
+                reading,
+                {
+                    ...weekly,
+                    status: 'rejected',
+                    overageStatus: 'rejected',
+                    overageDisabledReason: 'out_of_credits',
+                },
+                NOW,
+            ),
+        ).not.toHaveProperty('credits');
+        expect(
+            claudeRateLimitEvent(
+                { observedAt: 0, windows: [] },
+                { ...weekly, status: 'rejected', isUsingOverage: true },
+                NOW,
+            )?.credits,
+        ).toEqual({ unlimited: false });
     });
 });

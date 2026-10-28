@@ -28,6 +28,11 @@ export const usageLogEvents = {
      * `usedPercent` at that moment, so how often the reminder is dismissed, and how far behind pace, is measurable.
      */
     planPaceDismissed: 'usage.plan_pace_dismissed',
+    /**
+     * The user dismissed a provider's credits notice (weekly window at the usage guard, account working on credits)
+     * from any Client, with `provider` and the weekly window's `usedPercent`.
+     */
+    creditsNoticeDismissed: 'usage.credits_notice_dismissed',
     pricing: 'usage.pricing',
     pullRequests: 'usage.pull_requests',
     scan: 'usage.scan',

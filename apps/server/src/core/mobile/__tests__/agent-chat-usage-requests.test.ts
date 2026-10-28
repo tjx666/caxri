@@ -71,8 +71,8 @@ describe('mobile Agent Chat pace reminder dismissal', () => {
             await dismiss(domainFixture({ surface: 'chat', provider: 'claude' }), forward),
         ).toBeNull();
         expect(forward).toHaveBeenCalledWith({
-            method: 'usage.dismissPlanPace',
-            params: { provider: 'claude' },
+            method: 'usage.dismissNotice',
+            params: { provider: 'claude', notice: 'planPace' },
         });
     });
 

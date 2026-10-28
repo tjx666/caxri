@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => ({ request: vi.fn() }));
 vi.mock('../../../lib/caxri', () => ({ caxri: { request: mocks.request } }));
 
 import { caxriQueryKey, queryClient } from '../../../queries/client';
-import { dismissPlanPace } from '../plan-pace-client';
+import { dismissUsageNotice } from '../usage-notice-client';
 
 const readout: AgentUsageReadout = {
     provider: 'claude',
@@ -22,17 +22,20 @@ afterEach(() => {
     mocks.request.mockReset();
 });
 
-describe('dismissPlanPace', () => {
+describe('dismissUsageNotice', () => {
     it('hides the reminder in the cached readout at once and asks the Server to keep the dismissal', async () => {
         const key = caxriQueryKey('terminal.agentUsage', { terminalId: 'terminal-1' });
         queryClient.setQueryData(key, readout);
         mocks.request.mockResolvedValue(null);
 
-        await dismissPlanPace('terminal-1', 'claude');
+        await dismissUsageNotice('terminal-1', 'claude', 'planPace');
 
         const cached = queryClient.getQueryData<AgentUsageReadout>(key);
         expect(isPlanPaceDismissed(cached?.limit, Date.now())).toBe(true);
-        expect(mocks.request).toHaveBeenCalledWith('usage.dismissPlanPace', { provider: 'claude' });
+        expect(mocks.request).toHaveBeenCalledWith('usage.dismissNotice', {
+            provider: 'claude',
+            notice: 'planPace',
+        });
     });
 
     it('keeps the dismissal when a poll that started before it resolves afterwards', async () => {
@@ -46,11 +49,27 @@ describe('dismissPlanPace', () => {
             queryFn: () => pollResult.promise,
         });
 
-        await dismissPlanPace('terminal-1', 'claude');
+        await dismissUsageNotice('terminal-1', 'claude', 'planPace');
         pollResult.resolve(readout);
         await Promise.allSettled([poll]);
 
         const cached = queryClient.getQueryData<AgentUsageReadout>(key);
         expect(isPlanPaceDismissed(cached?.limit, Date.now())).toBe(true);
+    });
+
+    it('dismisses the credits notice through its own field', async () => {
+        const key = caxriQueryKey('terminal.agentUsage', { terminalId: 'terminal-1' });
+        queryClient.setQueryData(key, readout);
+        mocks.request.mockResolvedValue(null);
+
+        await dismissUsageNotice('terminal-1', 'codex', 'credits');
+
+        const cached = queryClient.getQueryData<AgentUsageReadout>(key);
+        expect(cached?.limit?.creditsNoticeDismissedAt).toBeGreaterThan(0);
+        expect(cached?.limit).not.toHaveProperty('paceDismissedAt');
+        expect(mocks.request).toHaveBeenCalledWith('usage.dismissNotice', {
+            provider: 'codex',
+            notice: 'credits',
+        });
     });
 });

@@ -403,7 +403,7 @@ export const mobileAgentChatMethods = {
         result: agentUsageReadoutSchema.nullable(),
     },
     /**
-     * The phone's pace reminder close button: `usage.dismissPlanPace` for the Chat's provider, so the reminder stays
+     * The phone's pace reminder close button: `usage.dismissNotice` for the Chat's provider, so the reminder stays
      * hidden for the day on this phone after a relaunch and on Desktop too. It only hides a reminder, so every role
      * that may read the limit may dismiss it.
      */

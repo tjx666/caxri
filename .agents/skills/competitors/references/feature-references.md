@@ -282,3 +282,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 ## ipcheck (MIT)
 
 - **Read-only environment diagnostics**: Present filtered findings without changing proxy or network configuration. Borrowed: read-only diagnostics only, no code. Evidence: `apps/desktop/src/main/environment-monitor/probe.ts`; `apps/desktop/src/renderer/src/features/status-bar/environment-monitor-chip.tsx`.
+
+## CodexBar (MIT)
+
+- **Claude extra usage left**: Read Claude's extra usage (`extra_usage`: enabled, monthly cap, spend in minor units) as what is left of the monthly cap. Borrowed: the field interpretation and the remainder figure. Evidence: `apps/server/src/domains/agent-chat/claude-plan-limits.ts`; `docs/agent-usage-continuation.md`.
