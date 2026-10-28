@@ -290,3 +290,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 ## codex-reset.com (public API; credit required)
 
 - **Codex global reset countdown**: Forecast data (the announcement's target time, text, and post URL) and its credit-plus-identifying-User-Agent reuse terms. Evidence: `packages/system/src/network/codex-global-reset.ts`; `docs/agent-throughput.md`.
+
+## Dukou (closed product reference)
+
+- **Share to a Session from the macOS Share menu**: Receiving files forwarded from WeChat ("Forward to other apps") through a share extension. Evidence: `docs/share-menu.md`.

@@ -82,9 +82,10 @@ function terminalDropInput(
 }
 
 /**
- * The text that cites `paths` (files or folders), spelled the way a drop of the same paths would be.
+ * The text that cites `paths` (files or folders), spelled the way a drop of the same paths would be. The macOS Share
+ * menu hand-off (`features/share`) cites its files in a Terminal the same way.
  */
-function terminalPathsInput(
+export function terminalPathsInput(
     paths: readonly string[],
     terminal: Pick<TerminalRecord, 'agentCwd' | 'cwd' | 'lastAgentProcessState'>,
     workbenchRoot: string | undefined,

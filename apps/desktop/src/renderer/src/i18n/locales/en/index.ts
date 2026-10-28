@@ -28,6 +28,7 @@ import { screencast } from './screencast';
 import { secondarySidebar } from './secondary-sidebar';
 import { session } from './session';
 import { settings } from './settings';
+import { share } from './share';
 import { shellCommand } from './shell-command';
 import { sshHost } from './ssh-host';
 import { statusBar } from './status-bar';
@@ -74,6 +75,7 @@ export const enResources = {
     ...secondarySidebar,
     ...session,
     ...settings,
+    ...share,
     ...shellCommand,
     ...sshHost,
     ...statusBar,

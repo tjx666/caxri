@@ -30,12 +30,12 @@ import { createDesktopOperationHandler } from './desktop-operations';
 import {
     configureDesktopProfile,
     hasProfileSingleInstanceLock,
-    installSecondInstanceFocus,
     remoteDebuggingState,
 } from './desktop-profile';
 import { e2eLaunchLogFields } from './e2e-launch';
 import { guardEnvironmentMethods } from './environment-method-policy';
 import { createMainEventRelay } from './event-relay';
+import { installExternalActivation } from './external-activation/activation';
 import { createGpuDiagnostics } from './gpu-diagnostics';
 import { createGpuRecoveryCoordinator, prepareGpuBoot } from './gpu-recovery';
 import {
@@ -360,19 +360,13 @@ if (ownsProfileInstance) {
         return window;
     }
 
-    const secondInstanceFocus = installSecondInstanceFocus(
+    const externalActivation = installExternalActivation({
         app,
-        async () => {
-            await focusMainWindow();
-            mainLogger?.write('info', logEventCatalog.app.secondInstanceFocused, {
-                fields: { profileId: desktopProfile.id },
-            });
-        },
-        (error) =>
-            mainLogger?.write('error', logEventCatalog.app.secondInstanceFocusFailed, {
-                fields: { error: errorMessage(error, 'unknown') },
-            }),
-    );
+        focusMainWindow,
+        logger: () => mainLogger,
+        profileId: desktopProfile.id,
+        sendEvent,
+    });
 
     const dispatchWorkbenchCommand = workbenchCommandDispatcher(sendEvent);
 
@@ -590,7 +584,7 @@ if (ownsProfileInstance) {
             // Fire-and-forget: it reads a Server setting, which must not delay reopening windows or second-instance focus.
             void startupFailure.announceReplacement(supervisor);
             await reopenAuxiliaryWindowsAtStartup(caxriBot, processExplorer);
-            secondInstanceFocus.ready();
+            externalActivation.ready();
         })
         // eslint-disable-next-line unicorn/prefer-await -- see comment above
         .catch(() => {});

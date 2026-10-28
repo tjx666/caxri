@@ -48,6 +48,8 @@ const configChangedSchema = z.object({
  */
 export const MAX_FILE_CHANGES_PER_EVENT = 512;
 
+const sharedFileSchema = z.object({ path: pathSchema, isDirectory: z.boolean() });
+
 const fullStateChangeReasonSchema = z.enum([
     'project.create',
     'project.delete',
@@ -452,6 +454,16 @@ export const serverEventPayloads = {
         path: pathSchema.optional(),
         location: editorNavigationTargetSchema.optional(),
         focusEditor: z.boolean().optional(),
+    }),
+    /**
+     * Main-originated: files (and any text) the macOS Share menu handed to Caxri, already copied into the Share Inbox
+     * and validated by Main (`apps/desktop/src/main/external-activation/share-inbox.ts`). The Workbench asks which
+     * Session receives them.
+     */
+    'desktop.shareReceived': z.object({
+        requestId: z.uuid(),
+        files: z.array(sharedFileSchema).max(20),
+        text: z.string().max(100_000).optional(),
     }),
     /**
      * `viaAccelerator` distinguishes a native menu item fired by its keyboard accelerator from one fired by an actual

@@ -59,7 +59,7 @@
         "performance:baseline:derive": "bun run scripts/performance-baseline-derive.ts",
         "performance:baseline:gate": "bun run scripts/performance-baseline-gate.ts",
         "performance:trend:check": "bun run scripts/performance-trend-check.ts",
-        "build": "bun run scripts/build-receipt.ts begin && bun run build:workspaces && bun run build:desktop && bun run scripts/build-receipt.ts record",
+        "build": "bun run scripts/build-receipt.ts begin && bun run build:workspaces && bun run build:desktop && bun run build:share-extension && bun run scripts/build-receipt.ts record",
         "build:workspaces": "pnpm --recursive --filter './apps/*' --filter './packages/*' --filter './extensions/*' --filter '!@caxri/desktop' --filter '!@caxri/server' --if-present run build && pnpm --filter @caxri/server run build",
         "build:api": "pnpm --filter caxri run build",
         "build:protocol": "pnpm --filter @caxri/protocol run build",
@@ -70,6 +70,7 @@
         "unlink:cli": "pnpm remove --global @caxri/cli",
         "uninstall:caxri": "bun run scripts/uninstall-caxri.ts",
         "build:desktop": "electron-vite build",
+        "build:share-extension": "bun run scripts/build-share-extension.ts",
         "package": "bun run build && bun run build:remote-layers && electron-builder --mac dir",
         "package:e2e": "bun run build && bun run scripts/package-extension-test-app.ts",
         "package:dmg": "bun run build && bun run build:remote-layers && electron-builder --mac dmg --publish never",
@@ -368,8 +369,38 @@
         "mac": {
             "category": "public.app-category.developer-tools",
             "extendInfo": {
-                "CaxriSchemaBaseline": 55
+                "CaxriSchemaBaseline": 55,
+                "CFBundleDocumentTypes": [
+                    {
+                        "CFBundleTypeName": "Caxri Share Request",
+                        "CFBundleTypeRole": "Viewer",
+                        "LSHandlerRank": "Owner",
+                        "LSItemContentTypes": [
+                            "com.caxri.share-request"
+                        ]
+                    }
+                ],
+                "UTExportedTypeDeclarations": [
+                    {
+                        "UTTypeConformsTo": [
+                            "public.json"
+                        ],
+                        "UTTypeDescription": "Caxri Share Request",
+                        "UTTypeIdentifier": "com.caxri.share-request",
+                        "UTTypeTagSpecification": {
+                            "public.filename-extension": [
+                                "caxrishare"
+                            ]
+                        }
+                    }
+                ]
             },
+            "extraFiles": [
+                {
+                    "from": "out/share-extension/Caxri Share.appex",
+                    "to": "PlugIns/Caxri Share.appex"
+                }
+            ],
             "icon": "build/icon.icns",
             "target": [
                 "dir"

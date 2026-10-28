@@ -65,6 +65,7 @@ export const EVENT_AUDIENCE = {
     'session.airplaneModeChanged': 'all',
     'gpu.recoveryRequested': 'focused',
     'desktop.openRequested': 'focused',
+    'desktop.shareReceived': 'focused',
     'command.execute': 'focused',
     'settings.openRequested': 'focused',
     /**
