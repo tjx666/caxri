@@ -64,6 +64,7 @@ export function normalizeEnvironmentMonitorTimeZone(value: string): string | und
     const candidate = value.trim();
     if (!candidate || candidate.length > 100) return undefined;
     try {
+        // react-doctor-disable-next-line react-doctor/js-hoist-intl -- The candidate is dynamic, so this formatter cannot be shared across calls.
         return new Intl.DateTimeFormat('en', { timeZone: candidate }).resolvedOptions().timeZone;
     } catch {
         return undefined;

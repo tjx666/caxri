@@ -91,6 +91,7 @@ export function EnvironmentMihomoRoutesForm({
     });
     const persistedAccessKey = controllerAccessKey(value.endpoint, value.secret);
     const nodes = nodeCache.accessKey === persistedAccessKey ? nodeCache.nodes : [];
+    const nodeNames = new Set(nodes);
     const expectedNode = nodeCache.accessKey === persistedAccessKey ? nodeCache.expectedNode : '';
     const [domain, setDomain] = useState('');
     const [error, setError] = useState<string>();
@@ -219,7 +220,7 @@ export function EnvironmentMihomoRoutesForm({
                     aria-label={t('settings.environmentMonitor.mihomo.routesLabel')}
                 >
                     {value.assertions.map((assertion, index) => {
-                        const availableNodes = nodes.includes(assertion.expectedNode)
+                        const availableNodes = nodeNames.has(assertion.expectedNode)
                             ? nodes
                             : [assertion.expectedNode, ...nodes];
                         return (

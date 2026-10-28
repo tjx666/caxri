@@ -129,7 +129,10 @@ export function createEnvironmentMonitor(options: EnvironmentMonitorOptions): En
     const now = options.now ?? Date.now;
     const getSystemTimeZone =
         options.getSystemTimeZone ??
-        (() => new Intl.DateTimeFormat().resolvedOptions().timeZone || 'Unknown');
+        (() => {
+            // react-doctor-disable-next-line react-doctor/js-hoist-intl -- A shared formatter freezes the default time zone and would miss a system change while Caxri is open.
+            return new Intl.DateTimeFormat().resolvedOptions().timeZone || 'Unknown';
+        });
     const fetchIp = options.fetchPublicIp ?? readPublicIp;
     const setTimer = options.setInterval ?? globalThis.setInterval;
     const clearTimer = options.clearInterval ?? globalThis.clearInterval;
