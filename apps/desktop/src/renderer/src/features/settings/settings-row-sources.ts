@@ -362,6 +362,9 @@ export const settingRowSources: SettingRowSource[] = [
     specRow('projectStatus.autoArchiveOnPullRequestSettled'),
     specRow('notifications.worktreeFallback'),
     specRow('notifications.agentRecovery'),
+    specRow('environmentMonitor.publicIpChanges'),
+    specRow('environmentMonitor.expectedTimeZone'),
+    specRow('environmentMonitor.mihomoRoutes'),
     specRow('projectStatus.notifications.enabled'),
     {
         id: 'agents.delegation.maxDepth',

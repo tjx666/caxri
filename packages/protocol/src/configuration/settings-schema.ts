@@ -16,6 +16,12 @@ import {
 } from '../agent/agents.js';
 import { agentDelegationSettingsSchema } from '../agent/delegation/agent-delegation-settings.js';
 import {
+    environmentMonitorMihomoSettingsFileSchema,
+    environmentMonitorMihomoSettingsSchema,
+    expectedEnvironmentTimeZoneFileSchema,
+    expectedEnvironmentTimeZoneSchema,
+} from './environment-monitor-settings.js';
+import {
     MAX_IGNORED_CHECK_LENGTH,
     MAX_IGNORED_CHECKS,
     normalizeIgnoredCheckRule,
@@ -229,6 +235,9 @@ export const appSettingsSchema = z.object({
     'projectStatus.notifications.enabled': booleanField(
         spec['projectStatus.notifications.enabled'],
     ),
+    'environmentMonitor.publicIpChanges': booleanField(spec['environmentMonitor.publicIpChanges']),
+    'environmentMonitor.expectedTimeZone': expectedEnvironmentTimeZoneSchema,
+    'environmentMonitor.mihomoRoutes': environmentMonitorMihomoSettingsSchema,
     'security.trustedDomains': trustedDomainsSchema,
     'security.trustedFolders': trustedFoldersSchema,
     'terminal.defaultWorkingDirectory': nullableStringField(
@@ -428,6 +437,8 @@ export const appSettingsFileSchema = appSettingsSchema.extend({
     'agents.providers': agentProvidersFileSchema,
     'agents.longRunningShellCommands': longRunningShellCommandsFileSchema,
     'projectStatus.ignoredChecks': ignoredChecksFileSchema,
+    'environmentMonitor.expectedTimeZone': expectedEnvironmentTimeZoneFileSchema,
+    'environmentMonitor.mihomoRoutes': environmentMonitorMihomoSettingsFileSchema,
     'security.trustedDomains': trustedDomainsFileSchema,
     'security.trustedFolders': trustedFoldersFileSchema,
     'files.exclude': filesExcludeFileSchema,

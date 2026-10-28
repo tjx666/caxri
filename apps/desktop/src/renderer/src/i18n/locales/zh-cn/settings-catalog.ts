@@ -302,6 +302,18 @@ export const settingsCatalog: TranslatedNamespace<typeof source> = {
     'settings.projectStatus.notifications.enabled.description':
         'CI 检查或 Vercel 部署开始失败时发送通知',
 
+    'settings.environmentMonitor.publicIpChanges.title': '公网 IP 变化',
+    'settings.environmentMonitor.publicIpChanges.description':
+        '本次启动期间公网出口 IP 变化时发送通知，并在状态栏持续提示。',
+
+    'settings.environmentMonitor.expectedTimeZone.title': '预期系统时区',
+    'settings.environmentMonitor.expectedTimeZone.description':
+        '系统时区与你选择的时区不一致时提示。',
+
+    'settings.environmentMonitor.mihomoRoutes.title': '域名通过 Mihomo 的路由',
+    'settings.environmentMonitor.mihomoRoutes.description':
+        '观察真实的 Mihomo 连接，并在指定域名未使用预期节点时提示。',
+
     'settings.agents.providers.title': 'Agent 提供方',
     'settings.agents.providers.description':
         '每个 Agent 提供方的启动命令、生命周期 Hook、对等消息和输出恢复',

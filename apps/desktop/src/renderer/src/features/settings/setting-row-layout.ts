@@ -35,6 +35,10 @@ const FULL_WIDTH_BINDING_TYPES: ReadonlySet<SettingRowDescriptor['binding']['typ
  * typing, per DESIGN.md's short-control-vs-full-width-row split.
  */
 export function isFullWidthRow(row: SettingRowDescriptor): boolean {
-    if (row.binding.type === 'setting') return settingsSpecByKey[row.binding.key].kind === 'string';
+    if (row.binding.type === 'setting')
+        return (
+            settingsSpecByKey[row.binding.key].kind === 'string' ||
+            row.binding.key === 'environmentMonitor.mihomoRoutes'
+        );
     return FULL_WIDTH_BINDING_TYPES.has(row.binding.type);
 }

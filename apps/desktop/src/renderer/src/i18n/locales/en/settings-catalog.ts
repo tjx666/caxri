@@ -325,6 +325,18 @@ export const settingsCatalog = {
     'settings.projectStatus.notifications.enabled.description':
         'Notify when a CI check or a Vercel deployment starts failing',
 
+    'settings.environmentMonitor.publicIpChanges.title': 'Public IP changes',
+    'settings.environmentMonitor.publicIpChanges.description':
+        'Notify and keep a status bar warning when the public egress IP changes during this launch.',
+
+    'settings.environmentMonitor.expectedTimeZone.title': 'Expected system time zone',
+    'settings.environmentMonitor.expectedTimeZone.description':
+        'Warn when the system time zone differs from the time zone you select.',
+
+    'settings.environmentMonitor.mihomoRoutes.title': 'Domain routes through Mihomo',
+    'settings.environmentMonitor.mihomoRoutes.description':
+        'Observe real Mihomo connections and warn when a configured domain does not use its expected node.',
+
     'settings.agents.providers.title': 'Agent providers',
     'settings.agents.providers.description':
         'Launch commands, lifecycle hooks, peer messaging, and output recovery per Agent provider',

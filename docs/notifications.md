@@ -48,6 +48,27 @@ last week, or restarting Caxri, does not replay old failures. Success feedback s
 ephemeral unless the caller explicitly opts into history, supplies a reminder type, or marks the
 notice persistent.
 
+### Environment monitoring
+
+**Settings → Notifications** also configures three independent environment signals. **Public IP
+changes** is on by default and compares the current public egress address with the first successful
+lookup in this Desktop launch. The address remains in Desktop Main memory: it is not persisted,
+logged, or sent to the Renderer. **Expected system time zone** is off until the user selects one
+IANA time zone, then compares that exact expectation with the system time zone.
+
+**Domain routes through Mihomo** is also off until at least one exact domain-to-node assertion is
+added. It accepts only a local loopback HTTP Controller or an absolute Unix socket. Node choices
+come from the Controller's proxy list; route checks read the Controller's existing live connections
+and compare the latest matching connection chain with the chosen node. Caxri does not request the
+configured domain to test its route. No matching connection is no evidence, and an unavailable
+Controller or failed public-IP lookup is not itself an environment warning.
+
+An enabled signal with contrary evidence raises a generic native notification and keeps an
+**Environment warning** item in the Status Bar until the evidence clears or the expectation is
+disabled. Its popover lists only enabled signals with active warnings and offers **Check Now**.
+When the public IP changed, **Use Current IP** adopts the latest successful address as this launch's
+new baseline without clearing time-zone or route warnings.
+
 ### Native Agent banner content
 
 A native Agent banner names the Agent first: the title is `<Provider> · <Session title>` (the
@@ -113,6 +134,7 @@ Agents running in Terminals, not for Chats.
 | Renderer `stores/notifications.ts`     | Keep bounded entries, unread state, grouping, and the projection of typed reminder settings in memory.                                    |
 | Server settings domain                 | Persist scalar preferences through `settings.patch` in the profile's `settings.jsonc`; return authoritative settings.                     |
 | Desktop Main                           | Decide and deliver native Agent notifications; forward only `shown` waiting/completed decisions as transient `agent.notification` events. |
+| Desktop Main environment monitor       | Keep the launch-scoped public-IP baseline, evaluate selected expectations, read local Mihomo metadata, and deliver generic warnings.      |
 | Project Status alert path              | Emit `projectStatus.alert` for delivery failures; Renderer records the received alert without another popup.                              |
 
 `agent.notification` carries only `sessionId` and `attentionKind`. Renderer resolves the current

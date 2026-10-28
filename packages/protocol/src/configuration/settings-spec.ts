@@ -10,6 +10,7 @@ import { agentChatSettingsSpec } from './agent-chat-settings-spec.js';
 import { agentSettingsSpec } from './agent-settings-spec.js';
 import { agentSuspensionSettingsSpec } from './agent-suspension-settings-spec.js';
 import { editorSettingsSpec } from './editor-settings-spec.js';
+import { environmentMonitorSettingsSpec } from './environment-monitor-settings.js';
 import { languageSettingsSpec } from './language-settings-spec.js';
 import { primarySidebarSettingsSpec } from './primary-sidebar-settings-spec.js';
 
@@ -497,6 +498,7 @@ export const settingsSpec = [
         ],
         default: true,
     },
+    ...environmentMonitorSettingsSpec,
     ...agentSettingsSpec,
     {
         kind: 'boolean',

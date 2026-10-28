@@ -206,6 +206,8 @@ export const effectfulCommandRecovery = {
     'notifications.openSystemSettings': 'none',
     'gpu.restartInSafeMode': 'none',
     'gpu.testInjectContextLoss': 'none',
+    'environmentMonitor.checkNow': 'none',
+    'environmentMonitor.useCurrentIp': 'memory',
     'external.open': 'durable',
     'editor.confirmDiscard': 'durable',
     /**

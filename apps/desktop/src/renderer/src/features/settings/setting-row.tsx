@@ -30,6 +30,7 @@ import { TranslucentSidebarStatus } from '../primary-sidebar/translucent-sidebar
 import { AgentActionSettingsEditor } from './agent-action-settings-editor';
 import { ClaudeWindowsForm } from './claude-windows/claude-windows-form';
 import { EnumControl } from './enum-control';
+import { EnvironmentMonitorSettingControl } from './environment-monitor-setting-control';
 import { FilesExcludeEditor } from './files-exclude-editor';
 import { IgnoredChecksForm } from './ignored-checks-form';
 import { IntegerControl } from './integer-control';
@@ -138,6 +139,21 @@ function rowControl(
         case 'setting': {
             const spec = settingsSpecByKey[binding.key];
             const isDisabled = !isRowEnabled(row, settings);
+            const environmentControl = EnvironmentMonitorSettingControl({
+                controlId,
+                key: binding.key,
+                label: row.accessibleTitle,
+                settings,
+                onChange: onFieldChange,
+            });
+            if (environmentControl)
+                return {
+                    control: environmentControl,
+                    labelFor:
+                        binding.key === 'environmentMonitor.expectedTimeZone'
+                            ? controlId
+                            : undefined,
+                };
             if (spec.kind === 'boolean')
                 return {
                     labelFor: controlId,
@@ -226,7 +242,7 @@ function rowControl(
                     ),
                 };
             }
-            // Complex specs always carry a dedicated binding; a 'setting' binding never reaches here.
+            // Other complex specs always carry a dedicated binding.
             return { control: undefined };
         }
         case 'provider-toggle': {

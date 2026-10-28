@@ -7,7 +7,7 @@ import type {
     RemoteDebuggingState,
     ServerEvent,
 } from '@caxri/protocol';
-import { CaxriError } from '@caxri/protocol';
+import { CaxriError, mihomoControllerAccessSchema } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import {
     createAgentProviderStatus,
@@ -39,6 +39,7 @@ import {
     unsavedChangesPrompt,
 } from './confirmations';
 import { showContextMenu } from './context-menu';
+import type { EnvironmentMonitor } from './environment-monitor/environment-monitor';
 import {
     createExternalDocumentContext,
     handleExternalDocumentRequest,
@@ -127,6 +128,12 @@ export interface MainMethodHandlerOptions
 
 function assertNever(value: never): never {
     throw new CaxriError('INTERNAL', `Unhandled Main request: ${String(value)}`);
+}
+
+function requireEnvironmentMonitor(options: MainMethodHandlerOptions): EnvironmentMonitor {
+    const monitor = options.getDesktopNotifications?.()?.environmentMonitor;
+    if (!monitor) throw new CaxriError('UNAVAILABLE', 'Environment monitoring is still starting');
+    return monitor;
 }
 
 /**
@@ -263,6 +270,23 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                         'GPU fault injection is available only in E2E launches',
                     );
                 return options.injectGpuContextLoss();
+            case 'environmentMonitor.read':
+                return requireEnvironmentMonitor(options).read();
+            case 'environmentMonitor.checkNow':
+                return requireEnvironmentMonitor(options).checkNow();
+            case 'environmentMonitor.useCurrentIp':
+                return requireEnvironmentMonitor(options).useCurrentIp();
+            case 'environmentMonitor.mihomoNodes': {
+                const access = mihomoControllerAccessSchema.safeParse(request.params);
+                if (!access.success)
+                    throw new CaxriError(
+                        'VALIDATION',
+                        'Expected a local Mihomo Controller endpoint',
+                    );
+                return {
+                    nodes: await requireEnvironmentMonitor(options).readNodes(access.data),
+                };
+            }
             case 'external.open':
                 return handleExternalUrl(request.params.url, {
                     allowTrust: true,
