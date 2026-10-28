@@ -48,6 +48,41 @@ describe('compaction empty-composer proof', () => {
         state.observe({ ...event('turnFinished'), agentTurnId: 'queued' });
         expect(state.proof(base.terminalId)).toBeUndefined();
     });
+    it('accepts an interrupt of a running turn whose composer was proven empty, once', () => {
+        const state = new CompactionReadiness();
+        expect(state.armInterrupt(base.terminalId, 'launch')).toBe(false);
+        state.input(base.terminalId, '\r');
+        state.observe(event('turnStarted'));
+        // Interrupted before the model answered, the CLI would put the prompt back into the composer.
+        expect(state.armInterrupt(base.terminalId, 'launch')).toBe(false);
+        state.observe(event('toolBatchFinished'));
+        expect(state.armInterrupt(base.terminalId, 'other-launch')).toBe(false);
+        expect(state.armInterrupt(base.terminalId, 'launch')).toBe(true);
+        state.input(base.terminalId, '\u{1B}');
+        expect(state.proof(base.terminalId)).toEqual({
+            launchId: 'launch',
+            turnId: 'turn',
+            interrupted: true,
+        });
+        state.input(base.terminalId, 'draft');
+        expect(state.proof(base.terminalId)).toBeUndefined();
+    });
+    it('refuses the interrupt proof when a draft was typed during the turn or another input came first', () => {
+        const typed = new CompactionReadiness();
+        typed.input(base.terminalId, '\r');
+        typed.observe(event('turnStarted'));
+        typed.input(base.terminalId, 'draft');
+        expect(typed.armInterrupt(base.terminalId, 'launch')).toBe(false);
+
+        const raced = new CompactionReadiness();
+        raced.input(base.terminalId, '\r');
+        raced.observe(event('turnStarted'));
+        raced.observe(event('shellToolStarted'));
+        expect(raced.armInterrupt(base.terminalId, 'launch')).toBe(true);
+        raced.input(base.terminalId, 'x');
+        raced.input(base.terminalId, '\u{1B}');
+        expect(raced.proof(base.terminalId)).toBeUndefined();
+    });
     it.each([
         'attentionRequested',
         'compactionStarted',

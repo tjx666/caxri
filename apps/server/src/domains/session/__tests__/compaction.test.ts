@@ -176,6 +176,29 @@ describe('batch compaction', () => {
             expect(f.terminals.writeAgentExact).not.toHaveBeenCalled();
         },
     );
+    it('compacts a turn Airplane Mode interrupted with an empty composer, which has no idle proof', async () => {
+        const f = await fixture();
+        f.coordinator.hasIdleProof.mockReturnValue(false);
+        f.readiness.input(f.terminal.id, '\r');
+        f.readiness.observe({
+            terminalId: f.terminal.id,
+            launchId: 'launch',
+            agentTurnId: 'running',
+            provider: 'codex',
+            phase: 'turnStarted',
+        });
+        f.readiness.observe({
+            terminalId: f.terminal.id,
+            launchId: 'launch',
+            agentTurnId: 'running',
+            provider: 'codex',
+            phase: 'toolBatchFinished',
+        });
+        expect((await f.service.run()).items[0]?.outcome).toBe('unsafe_input');
+        expect(f.readiness.armInterrupt(f.terminal.id, 'launch')).toBe(true);
+        f.readiness.input(f.terminal.id, '\u{1B}');
+        expect((await f.service.run()).items[0]?.outcome).toBe('submitted');
+    });
     it('skips preexisting drafts without even reading private history', async () => {
         const f = await fixture();
         f.readiness.input(f.terminal.id, 'draft');

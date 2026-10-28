@@ -148,12 +148,13 @@ export const session = {
     'session.airplaneMode.title.busy': 'Entering Airplane Mode',
     'session.airplaneMode.title.on': 'Airplane Mode is on',
     'session.airplaneMode.description.compacting':
-        'Compacting idle conversations first, so they resume from a short summary. Every Agent stops once they finish.',
+        'Interrupting running turns and compacting conversations first, so they resume from a short summary. Every Agent stops once they finish.',
     'session.airplaneMode.description.parking': 'Stopping every Agent. Conversations are kept.',
     'session.airplaneMode.description.on':
-        'Every Agent is stopped, so none retries requests while you are offline. When you are back online, choose the Sessions to resume.',
+        'Every Agent is stopped, so none retries requests while you are offline. When you are back online, choose the Sessions to resume; Agents that were working continue on their own.',
     'session.airplaneMode.description.resuming': 'Resuming the Sessions you chose.',
-    'session.airplaneMode.progress.compacting': 'Checking which Sessions to compact…',
+    'session.airplaneMode.progress.compacting':
+        'Interrupting running turns and checking which Sessions to compact…',
     'session.airplaneMode.progress.parking': 'Stopping Agents…',
     'session.airplaneMode.progress.resuming': 'Resuming…',
     'session.airplaneMode.compactionPending':
@@ -162,6 +163,7 @@ export const session = {
     'session.airplaneMode.listLabel': 'Sessions to resume',
     'session.airplaneMode.none': 'No Agent was running, so there is nothing to resume.',
     'session.airplaneMode.unlisted': 'Session not in the sidebar',
+    'session.airplaneMode.willContinue': 'Continues',
     'session.airplaneMode.resumeOne': 'Resume {{count}} Session',
     'session.airplaneMode.resumeOther': 'Resume {{count}} Sessions',
     'session.airplaneMode.exitWithoutResume': 'Leave Without Resuming',

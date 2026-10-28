@@ -14,6 +14,11 @@ import type { CaxriDatabase } from '../db';
  * conversation usually finishes within a minute or two; the user can also skip the wait from the dialog.
  */
 const AIRPLANE_MODE_COMPACTION_WAIT_MS = 3 * 60_000;
+/**
+ * How long entering waits for the turns it interrupted to settle before compacting. An interrupt lands within a second
+ * or two; a provider that ignores it is closed after ten seconds (`AgentChatService.interrupt`).
+ */
+const AIRPLANE_MODE_INTERRUPT_WAIT_MS = 15_000;
 const COMPACTION_POLL_MS = 1_000;
 
 /**
@@ -42,21 +47,41 @@ export interface AirplaneModeOptions {
     isCompacting(terminalId: string): boolean;
     hasLiveAgent(sessionId: string): boolean;
     /**
+     * Whether the Session's Agent is still working: a running or waiting turn, a background subagent, or a background
+     * command. Sampled once on entry; resuming such a Session also tells its Agent to continue.
+     */
+    isWorking(sessionId: string): boolean;
+    /**
+     * Interrupts the Session's running turn, without stopping its Agent, so the batch compaction can reach it. Resolves
+     * `true` when an interrupt was sent; a turn it cannot safely interrupt is left running and stops with its Agent.
+     */
+    interrupt(sessionId: string): Promise<boolean>;
+    /**
+     * Whether the Session's turn is still running, polled until the interrupted turns settle.
+     */
+    isTurnRunning(sessionId: string): boolean;
+    /**
      * Stops the Session's Agents as `detached` (`detachSessionAgents`).
      */
     detach(sessionId: string): Promise<void>;
     /**
      * Relaunches the Session's detached Agents on their bound conversations, resolving once its PTY restores settled.
+     * `shouldContinue` also tells its primary Agent to continue the work Airplane Mode stopped.
      */
-    resume(sessionId: string): Promise<void>;
+    resume(sessionId: string, shouldContinue: boolean): Promise<void>;
+    /**
+     * Tells a live Agent whose turn entering interrupted to continue, when the user cancels before anything stopped.
+     */
+    continueLive(sessionId: string): Promise<void>;
     publish(state: AirplaneModeState): void;
     logger: StructuredLogger;
     now?: () => number;
     compactionWaitMs?: number;
+    interruptWaitMs?: number;
     pollMs?: number;
 }
 
-const OFF: AirplaneModeState = { phase: 'off', parkedSessionIds: [] };
+const OFF: AirplaneModeState = { phase: 'off', parkedSessionIds: [], continueSessionIds: [] };
 
 /**
  * Whether Agent launches must stay down. The compaction wait still needs its Agents, and resuming relaunches them.
@@ -69,8 +94,9 @@ export function isAirplaneModeHolding(
 }
 
 /**
- * Airplane Mode: before the user goes offline, compact the conversations worth compacting, then stop every Agent so no
- * CLI keeps retrying requests without a network, and hold them stopped until the user picks which Sessions to resume.
+ * Airplane Mode: before the user goes offline, interrupt the running turns and compact the conversations worth
+ * compacting, then stop every Agent so no CLI keeps retrying requests without a network, and hold them stopped until
+ * the user picks which Sessions to resume. Resuming tells the Agents that were still working on entry to continue.
  *
  * Parking reuses `session.detach`: a detached Agent keeps its record and bound conversation and is not relaunched by
  * selecting its Session. While parking or on, {@link holds} is the fence the Terminal suspension service and the Chat
@@ -86,6 +112,10 @@ export class AirplaneMode {
      * Counts entries, so a compaction wait that outlived its own cancel cannot park a later entry.
      */
     private entry = 0;
+    /**
+     * Sessions whose turn the current entry interrupted: counted when it parks, told to continue when it is cancelled.
+     */
+    private interruptedSessionIds: string[] = [];
 
     constructor(private readonly options: AirplaneModeOptions) {
         const stored = options.database.getAppState('airplaneMode');
@@ -101,17 +131,62 @@ export class AirplaneMode {
         return !this.isClosed && this.entry === entry && this.state.phase === 'compacting';
     }
 
+    private sleep(): Promise<'tick'> {
+        return new Promise<'tick'>((resolve) => {
+            setTimeout(() => resolve('tick'), this.options.pollMs ?? COMPACTION_POLL_MS).unref();
+        });
+    }
+
+    /**
+     * Interrupts the running turns, then waits until they settled (bounded) so the batch compaction finds them idle.
+     */
+    private async interruptWorking(
+        entry: number,
+        skipped: Promise<'skipped'>,
+    ): Promise<'settled' | 'skipped'> {
+        const interrupted = this.interruptedSessionIds;
+        await Promise.all(
+            this.state.continueSessionIds.map(async (sessionId) => {
+                try {
+                    if (!(await this.options.interrupt(sessionId))) return;
+                } catch {
+                    // Uninterrupted, it simply stops with its Agent when parking.
+                    return;
+                }
+                // An interrupt that lands after the user cancelled is undone the same way the cancel undid the others.
+                if (this.isCurrentEntry(entry)) interrupted.push(sessionId);
+                else void this.continueLive([sessionId]);
+            }),
+        );
+        const deadlineAt =
+            this.now() + (this.options.interruptWaitMs ?? AIRPLANE_MODE_INTERRUPT_WAIT_MS);
+        while (
+            this.isCurrentEntry(entry) &&
+            this.now() < deadlineAt &&
+            interrupted.some((sessionId) => this.options.isTurnRunning(sessionId))
+        ) {
+            // Polling: each pass depends on the previous one's answer.
+            // oxlint-disable-next-line react-doctor/async-await-in-loop
+            const outcome = await Promise.race([skipped, this.sleep()]); // eslint-disable-line no-await-in-loop -- see above
+            if (outcome === 'skipped') return 'skipped';
+        }
+        return 'settled';
+    }
+
     private async compactThenPark(entry: number): Promise<void> {
         const skipped = new Promise<'skipped'>((resolve) => {
             this.skipWait = () => resolve('skipped');
         });
         try {
-            let result: SessionCompactionResult | 'failed' | 'skipped';
-            try {
-                result = await Promise.race([this.options.compact(), skipped]);
-            } catch {
-                result = 'failed';
-            }
+            const interrupted = await this.interruptWorking(entry, skipped);
+            if (!this.isCurrentEntry(entry)) return;
+            let result: SessionCompactionResult | 'failed' | 'skipped' = 'skipped';
+            if (interrupted === 'settled')
+                try {
+                    result = await Promise.race([this.options.compact(), skipped]);
+                } catch {
+                    result = 'failed';
+                }
             let reason: TransitionReason;
             if (result === 'skipped') reason = 'compactionSkipped';
             else if (result === 'failed') reason = 'compactionFailed';
@@ -144,15 +219,9 @@ export class AirplaneMode {
                 this.update({ compaction }, false);
             if (pending === 0) return 'compactionFinished';
             if (this.now() >= deadlineAt) return 'compactionTimedOut';
-            const tick = new Promise<'tick'>((resolve) => {
-                setTimeout(
-                    () => resolve('tick'),
-                    this.options.pollMs ?? COMPACTION_POLL_MS,
-                ).unref();
-            });
             // Polling: each pass depends on the previous one's answer.
             // oxlint-disable-next-line react-doctor/async-await-in-loop
-            const outcome = await Promise.race([skipped, tick]); // eslint-disable-line no-await-in-loop -- see above
+            const outcome = await Promise.race([skipped, this.sleep()]); // eslint-disable-line no-await-in-loop -- see above
             if (outcome === 'skipped') return 'compactionSkipped';
         }
     }
@@ -174,22 +243,49 @@ export class AirplaneMode {
             }),
         );
         const parked = new Set([...this.state.parkedSessionIds, ...live]);
-        this.transition('on', 'parked', { parkedSessionIds: [...parked] }, { failed });
+        this.transition(
+            'on',
+            'parked',
+            { parkedSessionIds: [...parked] },
+            { failed, interrupted: this.interruptedSessionIds.length },
+        );
     }
 
-    private async resume(sessionIds: readonly string[]): Promise<void> {
+    /**
+     * Cancelling keeps every Agent running, so the turns entering already interrupted are told to continue at once.
+     */
+    private async continueLive(sessionIds: readonly string[]): Promise<void> {
+        await Promise.all(
+            sessionIds.map(async (sessionId) => {
+                if (this.isClosed) return;
+                try {
+                    await this.options.continueLive(sessionId);
+                } catch {
+                    // The user sees the interrupted turn and can continue it by hand.
+                }
+            }),
+        );
+    }
+
+    private async resume(
+        sessionIds: readonly string[],
+        continueSessionIds: ReadonlySet<string>,
+    ): Promise<void> {
         let failed = 0;
+        let continued = 0;
         for (const sessionId of sessionIds) {
             if (this.isClosed) return;
+            const shouldContinue = continueSessionIds.has(sessionId);
             try {
                 // One Session at a time: the restore supervisor serves a single Session and aborts the previous one.
                 // oxlint-disable-next-line react-doctor/async-await-in-loop
-                await this.options.resume(sessionId); // eslint-disable-line no-await-in-loop -- see above
+                await this.options.resume(sessionId, shouldContinue); // eslint-disable-line no-await-in-loop -- see above
+                if (shouldContinue) continued += 1;
             } catch {
                 failed += 1;
             }
         }
-        this.transition('off', 'resumed', {}, { failed, resumed: sessionIds.length });
+        this.transition('off', 'resumed', {}, { continued, failed, resumed: sessionIds.length });
     }
 
     private transition(
@@ -204,6 +300,8 @@ export class AirplaneMode {
             fields: {
                 durationMs: now - this.phaseStartedAt,
                 parkedCount: patch.parkedSessionIds?.length ?? this.state.parkedSessionIds.length,
+                workingCount:
+                    patch.continueSessionIds?.length ?? this.state.continueSessionIds.length,
                 phase,
                 previousPhase: previous,
                 reason,
@@ -222,8 +320,9 @@ export class AirplaneMode {
         if (next.phase !== 'compacting') delete next.compaction;
         this.state = next;
         if (shouldPersist) {
-            const { enteredAt, parkedSessionIds, phase } = next;
+            const { continueSessionIds, enteredAt, parkedSessionIds, phase } = next;
             this.options.database.setAppState('airplaneMode', {
+                continueSessionIds,
                 enteredAt,
                 parkedSessionIds,
                 phase,
@@ -251,9 +350,25 @@ export class AirplaneMode {
         return this.state;
     }
 
+    /**
+     * Samples which Sessions are still working before interrupting anything, so resuming knows which Agents to tell to
+     * continue and which were idle.
+     */
     enter(): AirplaneModeState {
         if (this.state.phase !== 'off') return this.state;
-        this.transition('compacting', 'entered', { enteredAt: this.now(), parkedSessionIds: [] });
+        const working = this.options.database
+            .listSessions()
+            .filter(
+                (session) =>
+                    this.options.hasLiveAgent(session.id) && this.options.isWorking(session.id),
+            )
+            .map((session) => session.id);
+        this.interruptedSessionIds = [];
+        this.transition('compacting', 'entered', {
+            enteredAt: this.now(),
+            parkedSessionIds: [],
+            continueSessionIds: working,
+        });
         this.entry += 1;
         void this.compactThenPark(this.entry);
         return this.state;
@@ -265,23 +380,26 @@ export class AirplaneMode {
     }
 
     /**
-     * Leaving while the compaction wait still runs cancels Airplane Mode without stopping anything. Otherwise the
-     * picked Sessions relaunch one at a time in the background (each restore owns its Session, see
-     * `TerminalRestoreSupervisor`) and the phase returns to `off` once they all settled.
+     * Leaving while the compaction wait still runs cancels Airplane Mode without stopping anything, and tells the turns
+     * it already interrupted to continue. Otherwise the picked Sessions relaunch one at a time in the background (each
+     * restore owns its Session, see `TerminalRestoreSupervisor`) and the phase returns to `off` once they all settled.
      */
     exit(sessionIds: readonly string[]): AirplaneModeState {
-        const { phase, parkedSessionIds } = this.state;
+        const { phase, parkedSessionIds, continueSessionIds } = this.state;
         if (phase === 'off' || phase === 'resuming') return this.state;
         if (phase === 'parking')
             throw new CaxriError('CONFLICT', 'Airplane Mode is still stopping Agents');
         if (phase === 'compacting') {
-            this.transition('off', 'exited');
+            const interrupted = this.interruptedSessionIds;
+            this.interruptedSessionIds = [];
+            this.transition('off', 'exited', {}, { continued: interrupted.length });
             this.skipWait?.();
+            void this.continueLive(interrupted);
             return this.state;
         }
         const picked = [...new Set(sessionIds).intersection(new Set(parkedSessionIds))];
         this.transition('resuming', 'exited');
-        void this.resume(picked);
+        void this.resume(picked, new Set(continueSessionIds));
         return this.state;
     }
 

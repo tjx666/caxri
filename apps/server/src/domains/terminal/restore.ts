@@ -100,6 +100,11 @@ export interface TerminalRestoreOptions {
      * only the explicit `session.resume` request opts them back in.
      */
     includeDetached?: boolean;
+    /**
+     * A prompt submitted to one Terminal's resumed Agent conversation as its launch argument, so it reaches the CLI
+     * once it is ready without watching the PTY. Airplane Mode uses it to tell a stopped Agent to continue.
+     */
+    agentPrompt?: { terminalId: string; text: string };
 }
 
 /**
@@ -214,6 +219,10 @@ export function createInterruptedTerminalRestorer(options: InterruptedTerminalRe
                                 expectedWorkingDirectory,
                                 launchAgent: shouldRestoreAgent,
                                 resumeAgentSessionId,
+                                ...(resumeAgentSessionId &&
+                                    options.agentPrompt?.terminalId === terminal.id && {
+                                        initialPrompt: options.agentPrompt.text,
+                                    }),
                                 ...(shouldRestoreAgent &&
                                     delegated?.launchSettings && {
                                         launchSettings: delegated.launchSettings,

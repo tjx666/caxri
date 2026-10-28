@@ -83,10 +83,11 @@ export class SessionCompaction {
         )
             return 'busy';
         const proof = readiness.proof(terminal.id);
+        // Airplane Mode's interrupt leaves no `Stop`, so no idle proof; its empty-composer proof stands in for one.
         if (
             !proof ||
             proof.launchId !== launchId ||
-            !coordinator.hasIdleProof(terminal.id, launchId, proof.turnId)
+            (!proof.interrupted && !coordinator.hasIdleProof(terminal.id, launchId, proof.turnId))
         )
             return 'unsafe_input';
         return { isChat: false, terminal, launchId, turnId: proof.turnId };

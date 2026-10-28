@@ -57,6 +57,7 @@ function AirplaneModeBody({
     const [unchecked, setUnchecked] = useState<ReadonlySet<string>>(() => new Set());
     const picked = pickedAirplaneModeSessions(state.parkedSessionIds, unchecked);
     const { compaction } = state;
+    const continuing = new Set(state.continueSessionIds);
     return (
         <>
             <DialogHeader>
@@ -82,6 +83,7 @@ function AirplaneModeBody({
                                 <ParkedSessionRow
                                     key={sessionId}
                                     sessionId={sessionId}
+                                    willContinue={continuing.has(sessionId)}
                                     isChecked={!unchecked.has(sessionId)}
                                     onCheckedChange={(isChecked) =>
                                         setUnchecked((current) => {
@@ -158,16 +160,19 @@ function AirplaneModeBody({
 
 /**
  * One parked Session, labelled as the sidebar labels it, with its Project. A Session the sidebar does not list (Caxri
- * Bot's, or one archived since) still resumes, under a generic label.
+ * Bot's, or one archived since) still resumes, under a generic label. `willContinue` marks a Session whose Agent was
+ * working on entry: resuming it also tells the Agent to continue.
  */
 function ParkedSessionRow({
     isChecked,
     onCheckedChange,
     sessionId,
+    willContinue,
 }: {
     isChecked: boolean;
     onCheckedChange: (isChecked: boolean) => void;
     sessionId: string;
+    willContinue: boolean;
 }) {
     const { t } = useTranslation();
     const session = useSessionById(sessionId);
@@ -186,6 +191,11 @@ function ParkedSessionRow({
             <span className="truncate text-[13px] text-foreground">
                 {session ? label.title : t('session.airplaneMode.unlisted')}
                 {session && label.suffix && <span className="ml-1 text-muted">{label.suffix}</span>}
+                {willContinue && (
+                    <span className="airplane-mode-continues ml-2 text-[11px] text-muted">
+                        {t('session.airplaneMode.willContinue')}
+                    </span>
+                )}
             </span>
             {project && <span className="truncate text-[11px] text-muted">{project.title}</span>}
         </label>

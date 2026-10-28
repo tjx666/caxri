@@ -73,8 +73,9 @@ export const sessionMethods = {
         result: sessionCompactionResultSchema,
     },
     /**
-     * Airplane Mode (docs/airplane-mode.md): compacts eligible Sessions, then stops every Agent until the user resumes.
-     * Entering returns at once with the `compacting` phase; progress arrives as `session.airplaneModeChanged`.
+     * Airplane Mode (docs/airplane-mode.md): interrupts running turns and compacts eligible Sessions, then stops every
+     * Agent until the user resumes. Entering returns at once with the `compacting` phase; progress arrives as
+     * `session.airplaneModeChanged`.
      */
     'session.enterAirplaneMode': {
         ...commandPolicy('server', 'control'),
