@@ -1,11 +1,12 @@
 import type { AgentChatContextComposition, AgentChatUsage } from '@caxri/protocol';
 import { agentChatCacheClock, formatPercent, formatTokens, formatUsd } from '@caxri/protocol';
 
+import { useClockTick } from '@/hooks/use-clock-tick';
+
 import { StatTile } from '../../../components/report-card';
 import { useTranslation } from '../../../i18n';
 import { formatCount } from '../../../lib/locale-format';
 import { localizedDuration } from '../../../lib/usage-format';
-import { useClockTick } from '../hooks/use-clock-tick';
 import type { CacheAnalysis } from './cache-analysis';
 import { contextTileFigures } from './composition';
 

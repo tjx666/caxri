@@ -7,6 +7,8 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import { Gauge, MessageSquarePlus, Timer, TimerOff, X } from 'lucide-react';
 
+import { useClockTick } from '@/hooks/use-clock-tick';
+
 import { Button } from '../../../components/ui/button';
 import { Spinner } from '../../../components/ui/spinner';
 import { Tooltip } from '../../../components/ui/tooltip';
@@ -14,7 +16,6 @@ import { useTranslation } from '../../../i18n';
 import { cn } from '../../../lib/utilities';
 import { useWorkbenchStore } from '../../../stores/workbench';
 import { useSessionPullRequest } from '../../primary-sidebar/hooks/use-session-pull-request';
-import { useClockTick } from '../hooks/use-clock-tick';
 import {
     agentChatContextAlerts,
     agentChatContextAnnouncement,

@@ -1,6 +1,8 @@
 import type { AgentChatContextReport } from '@caxri/protocol';
 import { CircleAlert, Layers, RefreshCw } from 'lucide-react';
 
+import { useClockTick } from '@/hooks/use-clock-tick';
+
 import { LoadingSkeleton } from '../../../components/loading-skeleton';
 import { Button } from '../../../components/ui/button';
 import { Empty, EmptyMedia, EmptyTitle } from '../../../components/ui/empty';
@@ -10,7 +12,6 @@ import { AgentIdentityIcon } from '../../../icons/agents/agent-identity-icon';
 import { localizedRelativeTime } from '../../../lib/relative-time';
 import { cn } from '../../../lib/utilities';
 import { useTerminal } from '../../../stores/selectors';
-import { useClockTick } from '../hooks/use-clock-tick';
 import { analyzeContextCache } from './cache-analysis';
 import { contextWindowSegments } from './composition';
 import { ContextCacheCard } from './context-cache-card';

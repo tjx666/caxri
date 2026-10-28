@@ -6,6 +6,7 @@ import {
 } from '@caxri/protocol';
 import { TrendingUp, X } from 'lucide-react';
 
+import { useClockTick } from '@/hooks/use-clock-tick';
 import { usePolledQuery } from '@/hooks/use-polled-query';
 
 import { Button } from '../../../components/ui/button';
@@ -13,7 +14,6 @@ import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
 import { localizedLimitReset, localizedLimitWindowName } from '../../../lib/usage-format';
 import { dismissUsageNotice } from '../../usage/usage-notice-client';
-import { useClockTick } from '../hooks/use-clock-tick';
 
 /**
  * A composer strip row warning that the plan's weekly limit is running ahead of an even pace (`limitPaceShortfall`):

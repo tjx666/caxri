@@ -1,8 +1,9 @@
 import type { AgentChatUsageLimit } from '@caxri/protocol';
 import { Clock } from 'lucide-react';
 
+import { useClockTick } from '@/hooks/use-clock-tick';
+
 import { useTranslation } from '../../../i18n';
-import { useClockTick } from '../hooks/use-clock-tick';
 import { agentChatAutoContinueLabel } from './agent-chat-continuation';
 
 type AutoContinue = NonNullable<AgentChatUsageLimit['autoContinue']>;

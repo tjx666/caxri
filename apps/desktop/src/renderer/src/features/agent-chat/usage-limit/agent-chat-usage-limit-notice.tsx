@@ -2,12 +2,13 @@ import type { AgentChatItem } from '@caxri/protocol';
 import { agentChatNoticeMessage } from '@caxri/protocol';
 import { Gauge } from 'lucide-react';
 
+import { useClockTick } from '@/hooks/use-clock-tick';
+
 import { useTranslation } from '../../../i18n';
 import { resolveAgentIcon } from '../../../icons/agents/agent-icon-registry';
 import { localizedLimitReset } from '../../../lib/usage-format';
 import { useTerminal } from '../../../stores/selectors';
 import { useAgentChatTerminal } from '../hooks/use-agent-chat-terminal';
-import { useClockTick } from '../hooks/use-clock-tick';
 import { AgentChatAutoContinueActions } from './agent-chat-auto-continue-actions';
 import { AgentChatAutoContinueLine } from './agent-chat-auto-continue-line';
 import { agentChatUsageLimitHeadline } from './agent-chat-continuation';

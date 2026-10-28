@@ -2,9 +2,10 @@ import type { AgentChatTask } from '@caxri/protocol';
 import { agentChatTaskElapsedMs, formatNoticeableDuration } from '@caxri/protocol';
 import { Bot, SquareTerminal } from 'lucide-react';
 
+import { useClockTick } from '@/hooks/use-clock-tick';
+
 import { useTranslation } from '../../../i18n';
 import { cn } from '../../../lib/utilities';
-import { useClockTick } from '../hooks/use-clock-tick';
 
 /**
  * The kind glyph a subagent or a background shell shows wherever it is listed: the glyphs of the `agent` and `command`
