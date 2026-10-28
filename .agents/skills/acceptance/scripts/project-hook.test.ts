@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -229,6 +229,35 @@ describe('Caxri Acceptance project hook', () => {
         }
     });
 
+    test('routes worktree creation through switch-worktree', () => {
+        for (const command of [
+            'git worktree add -b docs/x ../caxri-worktrees/x origin/main',
+            'cd /tmp/caxri && git -C /tmp/caxri worktree add ../x main',
+            'git -c core.hooksPath=/dev/null worktree add ../x',
+            'bash -lc "git worktree add ../x"',
+            'echo $(git worktree add ../x)',
+        ]) {
+            expect(evaluate(command, { acceptanceRuntimeExists: false })).toMatchObject({
+                ruleId: 'caxri-raw-worktree-add',
+            });
+        }
+        for (const command of [
+            'bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts create fix/x',
+            'git worktree list --porcelain',
+            'git worktree prune',
+            "grep -rn 'git worktree add' .agents",
+            'git log --grep "worktree add"',
+        ]) {
+            expect(evaluate(command, { acceptanceRuntimeExists: false })).toBeNull();
+        }
+        expect(
+            evaluate('git worktree add ../x', {
+                acceptanceRuntimeExists: false,
+                cwd: '/tmp/other',
+            }),
+        ).toBeNull();
+    });
+
     test('exposes a harmless command that proves the project hook is active', () => {
         expect(evaluate('caxri-acceptance-hook-self-test')).toMatchObject({
             ruleId: 'caxri-acceptance-hook-self-test',
@@ -289,6 +318,54 @@ describe('Caxri Acceptance project hook', () => {
 
         expect(result.status).toBe(1);
         expect(result.stderr).toContain('Caxri PreToolUse hook failed');
+    });
+
+    test('runs in a checkout without installed dependencies', async () => {
+        const temporaryDirectory = await mkdtemp(path.join(tmpdir(), 'caxri-hook-no-deps-'));
+        const checkout = await realpath(temporaryDirectory);
+        try {
+            // Copy only the hook's own sources, so any workspace import fails to resolve.
+            const scriptDirectory = path.join(checkout, '.agents/skills/acceptance/scripts');
+            await mkdir(scriptDirectory, { recursive: true });
+            await Promise.all(
+                ['pre-tool-use.ts', 'shell-command.ts'].map((file) =>
+                    copyFile(
+                        path.join(import.meta.dirname, file),
+                        path.join(scriptDirectory, file),
+                    ),
+                ),
+            );
+            const hookPath = path.join(scriptDirectory, 'pre-tool-use.ts');
+            const runHook = (command: string) =>
+                spawnSync('bun', ['run', hookPath], {
+                    cwd: checkout,
+                    encoding: 'utf8',
+                    input: JSON.stringify({
+                        cwd: checkout,
+                        hook_event_name: 'PreToolUse',
+                        tool_input: { command },
+                    }),
+                });
+
+            const ordinary = runHook('git status --short');
+            expect(ordinary.status).toBe(0);
+            expect(ordinary.stdout).toBe('');
+            const guarded = runHook('agent-browser --cdp 9326 --pin-tab get url');
+            expect(guarded.status).toBe(0);
+            expect(guarded.stdout).toBe('');
+            const selfTest = runHook('caxri-acceptance-hook-self-test');
+            expect(selfTest.status).toBe(0);
+            expect(selfTest.stdout).toContain('caxri-acceptance-hook-self-test');
+
+            // A receipt whose ownership cannot be loaded still denies the guarded command.
+            await mkdir(path.join(checkout, '.records/acceptance'), { recursive: true });
+            await writeFile(path.join(checkout, '.records/acceptance/runtime.json'), '{}');
+            const unknownOwnership = runHook('agent-browser --cdp 9326 --pin-tab get url');
+            expect(unknownOwnership.status).toBe(0);
+            expect(unknownOwnership.stdout).toContain('caxri-acceptance-pin-tab');
+        } finally {
+            await rm(checkout, { recursive: true });
+        }
     });
 
     test('does not apply the Caxri project policy outside the repository', () => {

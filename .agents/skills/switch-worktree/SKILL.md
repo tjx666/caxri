@@ -105,6 +105,9 @@ prepare native `node-pty` artifacts, and initialize an isolated Caxri profile:
 bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts create feat/example
 ```
 
+The project `PreToolUse` hook denies a raw `git worktree add` in this repository: such a checkout
+has no dependencies, so project hooks, lint, and tests fail there.
+
 Use `--base <ref>` only when the task explicitly requires another baseline. Allowed new-branch
 prefixes are `feat/`, `fix/`, `refactor/`, `perf/`, `docs/`, `test/`, and `chore/`. A new name that already
 exists on `origin` is refused, since its push would be rejected or overwrite that branch.
