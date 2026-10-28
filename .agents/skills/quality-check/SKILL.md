@@ -50,8 +50,10 @@ bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--related
   or renamed path, or an edit to `doctor.config.jsonc` or `components.json`, also runs
   `scripts/__tests__/doctor-config-paths.test.ts`, because those configs name source paths as
   plain strings. A root or workspace `package.json` also runs the manifest-reading contracts
-  (`toolchain-contract`, `workspace-package-contract`, and for root manifests
-  `workspace-dependency-contract`), which assert scripts and ranges without importing source.
+  (`toolchain-contract`, `workspace-package-contract`, `workspace-contract`, and for root manifests
+  `workspace-dependency-contract`), which assert scripts and ranges without importing source. The
+  root `package.json` also runs the contracts that read its `build` and Knip settings
+  (`eslint-toolchain-contract`, `oxlint-toolchain-contract`, `extension-test-packaging`).
   A changed or removed path inside a directory `scripts/directory-density-baseline.ts`
   guards runs `scripts/__tests__/directory-density-ratchet.test.ts`, which counts files on disk.
   A changed or removed top-level `e2e/*.e2e.ts` spec runs `scripts/__tests__/e2e-pools.test.ts`,
