@@ -42,6 +42,9 @@ export const agentText = (snapshot: AgentChatSnapshot): string =>
  * word survives `input text` without the fixture IME.
  */
 export async function sendFromPhone(serial: string, word: string): Promise<void> {
+    // `input text` splits on whitespace, so a two-word keyword fails later as an unexplained draft mismatch.
+    if (!/^\S+$/u.test(word))
+        throw new Error(`sendFromPhone takes one word, got ${JSON.stringify(word)}`);
     await tapMobileCheckByBounds(serial, 'agent-chat-composer-input');
     await adbShell(serial, ['input', 'text', word]);
     const draft = await observeMobileNode(serial, 'agent-chat-composer-input', {
