@@ -392,12 +392,12 @@ function GroupCaption({
         );
     const lineStats = sumSourceControlLineStats(group.resources.map(({ lineStats }) => lineStats));
     return (
-        <div className="git-changes-caption group flex items-center justify-between pr-2 text-[10px] font-bold tracking-[0.06em] text-muted uppercase">
+        <div className="git-changes-caption group flex items-center justify-between pr-2 text-[11px] font-bold tracking-[0.06em] text-muted uppercase">
             <SourceControlTreeRow
                 rowId={`group:${provider.id}:${group.id}`}
                 level={2}
                 type="button"
-                className="flex h-7 min-w-0 flex-1 cursor-pointer items-center gap-1 border-0 bg-transparent px-2 text-left text-[10px] font-bold tracking-[0.06em] text-muted uppercase hover:text-foreground"
+                className="flex h-7 min-w-0 flex-1 cursor-pointer items-center gap-1 border-0 bg-transparent px-2 text-left text-[11px] font-bold tracking-[0.06em] text-muted uppercase hover:text-foreground"
                 aria-expanded={expanded}
                 aria-keyshortcuts={externalLink ? 'Meta Alt' : 'Alt'}
                 aria-description={[

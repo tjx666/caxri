@@ -75,7 +75,7 @@ function AgentActionRow({ action, location, onSelect }: AgentActionRowProperties
                     <span className="truncate text-[11px] text-muted">{action.description}</span>
                 )}
             </span>
-            <small className="shrink-0 text-[10px] text-muted">
+            <small className="shrink-0 text-[11px] text-muted">
                 {t(sourceLabelKeys[action.source])}
             </small>
         </CommandItem>

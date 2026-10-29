@@ -271,7 +271,7 @@ function PathBrowserResults({
                         <div
                             key={row.id}
                             aria-hidden="true"
-                            className="px-2 pt-2 pb-1 text-[10px] font-bold tracking-[0.06em] text-muted uppercase"
+                            className="px-2 pt-2 pb-1 text-[11px] font-bold tracking-[0.06em] text-muted uppercase"
                         >
                             {t(row.label)}
                         </div>

@@ -93,7 +93,7 @@ function ProjectIconDialogForm({ close, project }: { close: () => void; project:
                                 aria-label={t(projectIconRegistry[name].labelKey)}
                                 aria-pressed={iconName === name}
                                 className={cn(
-                                    'grid min-h-14 cursor-pointer place-items-center gap-1 rounded border border-border bg-transparent p-2 text-[10px] text-muted hover:bg-elevated hover:text-foreground focus-visible:border-accent focus-visible:outline-none',
+                                    'grid min-h-14 cursor-pointer place-items-center gap-1 rounded border border-border bg-transparent p-2 text-[11px] text-muted hover:bg-elevated hover:text-foreground focus-visible:border-accent focus-visible:outline-none',
                                     iconName === name && 'bg-elevated text-foreground',
                                 )}
                                 onClick={() => dispatch({ iconName: name, type: 'select-icon' })}
@@ -116,7 +116,7 @@ function ProjectIconDialogForm({ close, project }: { close: () => void; project:
                             aria-label={t('primarySidebar.projectIcon.defaultColorAriaLabel')}
                             aria-pressed={iconColor === undefined}
                             className={cn(
-                                'flex h-8 cursor-pointer items-center gap-2 rounded border border-border bg-transparent px-2 text-[10px] hover:bg-elevated focus-visible:border-accent focus-visible:outline-none',
+                                'flex h-8 cursor-pointer items-center gap-2 rounded border border-border bg-transparent px-2 text-[11px] hover:bg-elevated focus-visible:border-accent focus-visible:outline-none',
                                 iconColor === undefined && 'bg-elevated',
                             )}
                             onClick={() => dispatch({ iconColor: undefined, type: 'select-color' })}
@@ -133,7 +133,7 @@ function ProjectIconDialogForm({ close, project }: { close: () => void; project:
                                 })}
                                 aria-pressed={iconColor === color}
                                 className={cn(
-                                    'flex h-8 cursor-pointer items-center gap-2 rounded border border-border bg-transparent px-2 text-[10px] hover:bg-elevated focus-visible:border-accent focus-visible:outline-none',
+                                    'flex h-8 cursor-pointer items-center gap-2 rounded border border-border bg-transparent px-2 text-[11px] hover:bg-elevated focus-visible:border-accent focus-visible:outline-none',
                                     iconColor === color && 'bg-elevated',
                                 )}
                                 onClick={() => dispatch({ iconColor: color, type: 'select-color' })}

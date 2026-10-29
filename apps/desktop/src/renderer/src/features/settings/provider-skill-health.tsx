@@ -41,7 +41,7 @@ export function ProviderSkillHealth({ provider, agentSkillHealth }: ProviderSkil
         >
             <span className="flex items-center justify-between gap-3 text-foreground">
                 <span>{t('settings.providerHealth.skill.bundle')}</span>
-                <span className="font-mono text-[10px] text-muted">
+                <span className="font-mono text-[11px] text-muted">
                     {agentSkillHealth
                         ? t('settings.providerHealth.skill.bundledVersion', {
                               version: agentSkillHealth.bundled.bundledVersion,
@@ -75,7 +75,7 @@ export function ProviderSkillHealth({ provider, agentSkillHealth }: ProviderSkil
                         )}
                         {installation?.repairCommand && (
                             <span className="mt-1 flex min-w-0 items-center gap-1">
-                                <code className="block min-w-0 flex-1 overflow-x-auto font-mono text-[10px] text-foreground">
+                                <code className="block min-w-0 flex-1 overflow-x-auto font-mono text-[11px] text-foreground">
                                     {installation.repairCommand}
                                 </code>
                                 <CopyIconButton

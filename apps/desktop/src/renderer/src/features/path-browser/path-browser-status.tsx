@@ -15,7 +15,7 @@ export function PathBrowserHelp({
     const { t } = useTranslation();
     const isSshHost = useIsSshHost();
     return (
-        <div className="flex h-8 items-center gap-3 border-t border-border px-3 text-[10px] text-muted">
+        <div className="flex h-8 items-center gap-3 border-t border-border px-3 text-[11px] text-muted">
             <span>{t('pathBrowser.help.select')}</span>
             {/* A Project-search row names a file in another directory, so completing the input with it would produce a
                 path that does not exist. Drop the hint rather than advertise a key that stays inert. */}

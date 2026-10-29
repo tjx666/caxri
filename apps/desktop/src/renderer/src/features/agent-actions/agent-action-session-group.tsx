@@ -30,7 +30,7 @@ export function AgentActionSessionGroup({
                 >
                     <span className="min-w-0 flex-1 truncate">{candidate.title}</span>
                     {candidate.projectTitle && (
-                        <small className="max-w-[40%] shrink-0 truncate text-[10px] text-muted">
+                        <small className="max-w-[40%] shrink-0 truncate text-[11px] text-muted">
                             {candidate.projectTitle}
                         </small>
                     )}
@@ -47,7 +47,7 @@ export function AgentActionSessionGroup({
 export function AgentActionFooterModes({ isSessionMode }: { isSessionMode: boolean }) {
     const { t } = useTranslation();
     return (
-        <div className="flex items-center gap-3 text-[10px] text-muted">
+        <div className="flex items-center gap-3 text-[11px] text-muted">
             <span className="flex items-center gap-1" data-agent-action-mode="run">
                 <ShortcutBadge compact shortcut="enter" />{' '}
                 {t(isSessionMode ? 'agentActions.footer.insert' : 'agentActions.footer.run')}
