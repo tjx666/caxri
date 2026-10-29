@@ -5,17 +5,9 @@ import { agentChatTextWithSessionMentions, parseAgentChatPathReferences } from '
 
 import { writeToClipboardWithFeedback } from '../../../components/copy-feedback';
 import { CopyIconButton } from '../../../components/markdown/copy-icon-button';
-import { WebLink } from '../../../components/markdown/web-link';
-import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
 import { textClipboard } from '../../../lib/clipboard';
-import { linkSummary } from '../../../lib/link-summary';
 import { cn } from '../../../lib/utilities';
-import {
-    AgentChatImagePill,
-    AgentChatPathPill,
-    AgentChatSessionReferencePill,
-} from '../attachments/agent-chat-image-pill';
 import { AgentChatMessageImages } from '../attachments/agent-chat-message-images';
 import { AgentChatMessageVideos } from '../attachments/agent-chat-message-videos';
 import { AgentChatPathReferenceChips } from '../attachments/agent-chat-path-reference-chips';
@@ -28,15 +20,12 @@ import { useIsAgentChatClamped } from '../hooks/use-is-agent-chat-clamped';
 import { AgentChatSessionHandoffBubble } from '../session-handoff/agent-chat-session-handoff-bubble';
 import { AgentChatDelegatedTaskBubble } from '../tasks/agent-chat-delegated-task-bubble';
 import { AgentChatSkillPill } from '../tools/agent-chat-skill-card';
-import { openAgentChatLink } from '../transcript/agent-chat-links';
 import { agentChatDeliveryCaption } from '../transcript/agent-chat-presentation';
 import { AgentChatMessageTime } from './agent-chat-message-time';
 import { AgentChatReplyFrame } from './agent-chat-reply-frame';
 import { AgentChatUserMessageActions } from './agent-chat-user-message-actions';
-import {
-    agentChatFirstImageNumber,
-    agentChatUserMessageSegments,
-} from './agent-chat-user-message-text';
+import { agentChatFirstImageNumber } from './agent-chat-user-message-text';
+import { AgentChatUserMessageBody } from './bubble-text/agent-chat-user-message-body';
 
 /**
  * The user's message, right-aligned. A message steered into a running turn says so in a quiet caption under the bubble
@@ -206,14 +195,18 @@ export function AgentChatUserMessageBubble({
                     {invocation ? (
                         <>
                             <AgentChatInvocationChip invocation={invocation.invocation} />
-                            <UserMessageText
+                            <AgentChatUserMessageBody
                                 images={images}
                                 text={invocation.rest}
                                 onOpenFile={onOpenFile}
                             />
                         </>
                     ) : (
-                        <UserMessageText images={images} text={text} onOpenFile={onOpenFile} />
+                        <AgentChatUserMessageBody
+                            images={images}
+                            text={text}
+                            onOpenFile={onOpenFile}
+                        />
                     )}
                 </div>
             )}
@@ -238,95 +231,4 @@ export function AgentChatUserMessageBubble({
             <AgentChatMessageVideos className="mt-2 first:mt-0" text={text} />
         </div>
     );
-}
-
-/**
- * The user's own words, verbatim. A path they typed or dropped in (`src/app.ts:12`, an absolute path) opens in the
- * editor, and a URL they pasted gets the same site icon and hover card as a link in a reply. Both take the reply's link
- * treatment (the full accent with no underline until hover), so a link reads the same on both sides of the transcript.
- * An image's placeholder reads as the pill it was in the composer.
- */
-function UserMessageText({
-    images,
-    text,
-    onOpenFile,
-}: {
-    images: ReadonlyArray<{ thumbnail?: string }> | undefined;
-    text: string;
-    onOpenFile?: (target: string) => void;
-}) {
-    const terminalId = useAgentChatTerminal();
-    const { t } = useTranslation();
-    const segments = agentChatUserMessageSegments(text, {
-        withFiles: onOpenFile !== undefined,
-        imageCount: images?.length,
-    });
-    return segments.map((segment, position) => {
-        if (segment.kind === 'text') return segment.text;
-        if (segment.kind === 'image')
-            return (
-                <AgentChatImagePill
-                    key={position}
-                    number={segment.number}
-                    thumbnail={images?.[segment.index]?.thumbnail}
-                />
-            );
-        if (segment.kind === 'session')
-            return (
-                <AgentChatSessionReferencePill
-                    key={position}
-                    path={segment.path}
-                    title={segment.title}
-                />
-            );
-        if (segment.kind === 'path')
-            return (
-                <AgentChatPathPill
-                    isDirectory={segment.isDirectory}
-                    key={position}
-                    onOpen={onOpenFile}
-                    path={segment.path}
-                />
-            );
-        if (segment.kind === 'file')
-            /*
-             * An anchor rather than a `<button>`: a button is an atomic inline block, so a long path that does not fit the
-             * line moves whole to the next one and leaves the quotes around it on lines of their own, while an anchor
-             * wraps with the surrounding text. Main denies every window navigation, so `href` is semantic only (it makes
-             * the anchor focusable and Enter-activated); the click opens the file instead.
-             */
-            return (
-                <Tooltip
-                    content={t('agentChat.timeline.openNamed', { name: segment.file })}
-                    key={position}
-                >
-                    <a
-                        className="cursor-pointer text-accent underline-offset-2 hover:underline focus-visible:rounded-sm focus-visible:outline focus-visible:outline-accent"
-                        href={segment.file}
-                        onClick={(event) => {
-                            event.preventDefault();
-                            onOpenFile?.(segment.file);
-                        }}
-                    >
-                        {segment.text}
-                    </a>
-                </Tooltip>
-            );
-        const summary = linkSummary(segment.url);
-        if (!summary) return segment.text;
-        return (
-            <WebLink
-                className="text-accent hover:underline"
-                href={segment.url}
-                key={position}
-                referenceTerminalId={terminalId}
-                // The message's hover action row sits right under the bubble; a card opening below would cover it.
-                side="top"
-                summary={summary}
-                onOpen={openAgentChatLink}
-            >
-                {segment.text}
-            </WebLink>
-        );
-    });
 }
