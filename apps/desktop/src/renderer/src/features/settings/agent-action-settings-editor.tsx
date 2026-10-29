@@ -108,7 +108,7 @@ export function AgentActionSettingsEditor({
                         <span className="min-w-0 flex-1 truncate text-[11px] text-muted">
                             {override?.description ?? action.description}
                         </span>
-                        <small className="text-[10px] text-muted">
+                        <small className="text-[11px] text-muted">
                             {t('settings.agentActionsEditor.builtIn')}
                         </small>
                         <Switch

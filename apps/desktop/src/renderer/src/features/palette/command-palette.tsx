@@ -82,7 +82,7 @@ function PaletteFooter() {
     const { t } = useTranslation();
     return (
         <div
-            className="flex items-center gap-3 border-t border-border px-3 py-1.5 text-[10px] text-muted"
+            className="flex items-center gap-3 border-t border-border px-3 py-1.5 text-[11px] text-muted"
             data-palette-footer=""
         >
             <span className="flex items-center gap-1">

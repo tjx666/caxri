@@ -119,7 +119,7 @@ export function SourceControlHistory({
                 <SourceControlTreeRow
                     rowId={`${rowIdPrefix}:header`}
                     level={level}
-                    className="flex h-7 w-full cursor-pointer items-center gap-1 border-0 bg-transparent px-2 text-left text-[10px] font-bold tracking-[0.06em] text-muted uppercase hover:text-foreground"
+                    className="flex h-7 w-full cursor-pointer items-center gap-1 border-0 bg-transparent px-2 text-left text-[11px] font-bold tracking-[0.06em] text-muted uppercase hover:text-foreground"
                     aria-expanded={expanded}
                     onClick={toggleExpanded}
                 >
@@ -212,11 +212,11 @@ export function SourceControlHistory({
                                                         <span className="truncate text-foreground">
                                                             {item.label}
                                                         </span>
-                                                        <code className="ml-auto shrink-0 text-[10px] text-muted">
+                                                        <code className="ml-auto shrink-0 text-[11px] text-muted">
                                                             {item.description}
                                                         </code>
                                                     </span>
-                                                    <span className="flex w-full min-w-0 items-center gap-1 text-[10px] text-muted">
+                                                    <span className="flex w-full min-w-0 items-center gap-1 text-[11px] text-muted">
                                                         <span className="truncate">
                                                             {item.author}
                                                         </span>

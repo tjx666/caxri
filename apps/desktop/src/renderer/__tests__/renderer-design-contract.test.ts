@@ -60,8 +60,13 @@ const allowedArbitraryClasses = new Set([
     'w-[3px]',
     'w-[78px]',
 ]);
+/**
+ * Named letter-spacing utilities are matched too: DESIGN.md allows only `0.04em` and `0.06em`, and a `tracking-wide`
+ * heading once slipped past an arbitrary-value-only pattern. `tracking-normal` stays legal because it resets the
+ * caption tracking on a nested count.
+ */
 const arbitraryDesignClassPattern =
-    /(?<![\w-])(?:[\w-]+:)*-?(?:text-\[(?!var\()[^\]]+\]|(?:h|w|min-h|max-h|min-w|max-w|size)-\[-?\d+(?:\.\d+)?px\]|(?:leading|tracking|gap|gap-x|gap-y|space-x|space-y|p|px|py|pt|pr|pb|pl|m|mx|my|mt|mr|mb|ml|rounded(?:-[trbl]{1,2})?)-\[[^\]]+\])/g;
+    /(?<![\w-])(?:[\w-]+:)*-?(?:text-\[(?!var\()[^\]]+\]|(?:h|w|min-h|max-h|min-w|max-w|size)-\[-?\d+(?:\.\d+)?px\]|tracking-(?:tighter|tight|wide|wider|widest)(?![\w-])|(?:leading|tracking|gap|gap-x|gap-y|space-x|space-y|p|px|py|pt|pr|pb|pl|m|mx|my|mt|mr|mb|ml|rounded(?:-[trbl]{1,2})?)-\[[^\]]+\])/g;
 
 async function listProductionSources(directory: string): Promise<string[]> {
     const entries = await readdir(directory, { withFileTypes: true });
@@ -232,7 +237,7 @@ describe('Renderer design contract', () => {
 
     it('recognizes guarded arbitrary class shapes before applying the allowlist', () => {
         expect(
-            'text-[9px] h-[26px] min-w-[73px] -mt-[7px] hover:-mx-[3px] rounded-[5px]'.match(
+            'text-[9px] h-[26px] min-w-[73px] -mt-[7px] hover:-mx-[3px] rounded-[5px] tracking-wide tracking-normal'.match(
                 arbitraryDesignClassPattern,
             ),
         ).toEqual([
@@ -242,6 +247,7 @@ describe('Renderer design contract', () => {
             '-mt-[7px]',
             'hover:-mx-[3px]',
             'rounded-[5px]',
+            'tracking-wide',
         ]);
     });
 

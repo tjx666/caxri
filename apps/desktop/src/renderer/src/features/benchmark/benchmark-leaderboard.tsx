@@ -343,7 +343,7 @@ export function BenchmarkLeaderboard({
                                                     {name}
                                                 </span>
                                             </Tooltip>
-                                            <span className="flex-none text-[10px] tracking-[0.06em] text-muted uppercase">
+                                            <span className="flex-none text-[11px] tracking-[0.06em] text-muted uppercase">
                                                 {result.entry.effort ??
                                                     t('benchmark.picker.defaultEffort')}
                                             </span>

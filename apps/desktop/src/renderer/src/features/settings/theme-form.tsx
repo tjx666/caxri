@@ -175,7 +175,7 @@ export function ThemeForm({
                                                 {humanizeThemeTokenLabel(t, key)}
                                             </label>
                                         </Tooltip>
-                                        <code className="block truncate text-[10px] text-muted">
+                                        <code className="block truncate text-[11px] text-muted">
                                             {value}
                                         </code>
                                     </span>

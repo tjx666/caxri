@@ -49,7 +49,7 @@ export function SourceControlHistoryDetails({
         );
     return (
         <div className="commit-details border-y border-border bg-background py-1">
-            <div className="px-3 py-1 text-[10px] font-bold tracking-[0.06em] text-muted uppercase">
+            <div className="px-3 py-1 text-[11px] font-bold tracking-[0.06em] text-muted uppercase">
                 {descriptor.detailsLabel} ·{' '}
                 {details.data.resources.length + (details.data.hiddenCount ?? 0)}
                 {!!details.data.hiddenCount &&

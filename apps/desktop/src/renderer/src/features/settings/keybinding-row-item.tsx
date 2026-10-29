@@ -75,7 +75,7 @@ export function KeybindingRowItem({
                         id={conflictId}
                         role="status"
                         aria-live="polite"
-                        className="flex items-center gap-1 text-[10px] text-danger"
+                        className="flex items-center gap-1 text-[11px] text-danger"
                     >
                         <AlertTriangle aria-hidden="true" size={11} />
                         {conflict.reason === 'chordPrefix'
@@ -129,7 +129,7 @@ export function KeybindingRowItem({
                                 clearing needs its own key and its own hint — otherwise a
                                 mistyped first chord looks unrecoverable without leaving
                                 recording. */}
-                                <span className="text-[10px] text-accent-foreground/80">
+                                <span className="text-[11px] text-accent-foreground/80">
                                     {t('settings.keybindingEditor.recordingHint')}
                                 </span>
                             </span>

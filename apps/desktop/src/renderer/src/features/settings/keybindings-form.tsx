@@ -183,7 +183,7 @@ export function KeybindingsForm({
             <div className="structured-editor m-0 min-h-0 overflow-auto p-2">
                 {groups.map((group) => (
                     <section key={group.category} className="mb-3 last:mb-0">
-                        <h3 className="mb-1 truncate px-3 text-[10px] font-medium tracking-wide text-muted uppercase">
+                        <h3 className="mb-1 truncate px-3 text-[11px] font-semibold tracking-[0.04em] text-muted uppercase">
                             {group.category === CUSTOM_KEYBINDING_CATEGORY
                                 ? t('settings.keybindingEditor.customCategory')
                                 : commandCategory(group.category, t)}
