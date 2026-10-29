@@ -35,7 +35,7 @@ describe('mobile Acceptance scenario test IDs', () => {
         const ids = [
             ...source.matchAll(/checkId\s*===\s*'([^']+)'/gu),
             ...source.matchAll(
-                /(?:tapMobileCheck|hasCheck|observeMobileNode)\([^,]+,\s*'([^']+)'/gu,
+                /(?:tapMobileCheck(?:ByBounds)?|hasCheck|observeMobileNode|waitForCheck|waitForNoCheck)\([^,]+,\s*'([^']+)'/gu,
             ),
         ].map((match) => match[1]);
         expect(ids.length).toBeGreaterThan(0);
