@@ -83,6 +83,7 @@ import {
     isAgentChatAwaitingReplyInTimeline,
 } from './transcript/agent-chat-timeline';
 import { AgentChatTimelineEntryView } from './transcript/agent-chat-timeline-entry-view';
+import { useAgentChatTailFirstMount } from './transcript/mount/use-agent-chat-tail-first-mount';
 import { AgentChatTurnAnnouncer } from './turns/agent-chat-turn-announcer';
 import { markAgentChatOnScreen } from './waiting/agent-chat-on-screen';
 
@@ -231,6 +232,7 @@ export function AgentChatPane({
         snapshot,
         history.history,
     );
+    const { start: mountedFrom, mountAll } = useAgentChatTailFirstMount(timeline.length);
     const railMarkIds = useMemo(() => railMarks.map((mark) => mark.id), [railMarks]);
     const rail = useAgentChatMessageRail(
         scrollReference,
@@ -295,6 +297,7 @@ export function AgentChatPane({
                     hasUnsearchedHistory={history.hasMore || history.history.truncated}
                     isLoadingEarlier={history.history.status === 'loading'}
                     loadEarlier={history.hasMore ? history.loadOlder : undefined}
+                    onOpen={mountAll}
                     scrollReference={scrollReference}
                     stopFollowing={stopFollowing}
                     terminalId={terminalId}
@@ -354,6 +357,7 @@ export function AgentChatPane({
                                             isAgentChatAwaitingReplyInTimeline(snapshot, timeline)
                                         }
                                         mcpServers={snapshot?.mcpServers}
+                                        mountedFrom={mountedFrom}
                                         pending={pending}
                                         readBackHistory={readBackHistory}
                                         settledChunks={settledChunks}
@@ -474,14 +478,17 @@ function ConversationLoading() {
  */
 function LiveTimelineEntries({
     dayBreaks,
+    mountedFrom,
     onOpenFile,
     timeline,
 }: {
     dayBreaks: ReadonlyMap<string, number>;
+    mountedFrom: number;
     onOpenFile: (reference: string) => void;
     timeline: readonly AgentChatTimelineEntry[];
 }) {
-    return timeline.map((entry, index) => {
+    return timeline.slice(mountedFrom).map((entry, offset) => {
+        const index = mountedFrom + offset;
         const key = agentChatTimelineEntryKey(entry);
         const dayBreak = dayBreaks.get(key);
         const turnStartId = agentChatTurnStartId(entry, timeline[index - 1]);
@@ -513,6 +520,7 @@ function AgentChatTimelineBody({
     editActions,
     isAwaitingReply,
     mcpServers,
+    mountedFrom,
     onOpenFile,
     pending,
     readBackHistory,
@@ -525,6 +533,10 @@ function AgentChatTimelineBody({
     editActions: ComponentProps<typeof AgentChatEditContext>['value'];
     isAwaitingReply: boolean;
     mcpServers: AgentChatSnapshot['mcpServers'];
+    /**
+     * Index of the first live entry to mount; earlier ones are added by the idle backfill.
+     */
+    mountedFrom: number;
     onOpenFile: (reference: string) => void;
     pending: ComponentProps<typeof AgentChatPendingTimeline>['pending'];
     readBackHistory: ComponentProps<typeof AgentChatReadBackHistoryContext>['value'];
@@ -549,6 +561,7 @@ function AgentChatTimelineBody({
                     <AgentChatEditContext value={editActions}>
                         <LiveTimelineEntries
                             dayBreaks={dayBreaks}
+                            mountedFrom={mountedFrom}
                             timeline={timeline}
                             onOpenFile={onOpenFile}
                         />
