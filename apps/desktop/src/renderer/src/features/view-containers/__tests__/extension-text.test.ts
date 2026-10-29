@@ -23,9 +23,13 @@ const en: Translate = (key, parameters) =>
  * sentence.
  */
 function sample(template: string): string {
-    return template.replaceAll(/\{\{(\w+)\}\}/g, (_, name: string) =>
-        ['count', 'number', 'shown', 'total'].includes(name) ? '7' : `<${name}>`,
-    );
+    return template.replaceAll(/\{\{(\w+)\}\}/g, (_, name: string) => {
+        if (['count', 'number', 'shown', 'total'].includes(name)) return '7';
+        // Provider names are a closed set the catalog matches literally.
+        if (name === 'provider') return 'GitHub CLI';
+        if (name === 'service') return 'GitHub';
+        return `<${name}>`;
+    });
 }
 
 describe('extension text catalog', () => {
@@ -40,6 +44,48 @@ describe('extension text catalog', () => {
             expect(localizeExtensionText(text, en), key).toBe(text);
             expect(localizeExtensionText(text, zh), key).not.toBe(text);
         }
+    });
+
+    it('translates the Server-composed Project Status errors', () => {
+        expect(localizeExtensionText('GitHub CLI not signed in', zh)).toBe('GitHub CLI 未登录');
+        expect(localizeExtensionText('Repository not linked to Vercel', zh)).toBe(
+            '仓库未关联 Vercel',
+        );
+        expect(
+            localizeExtensionText(
+                'Caxri could not reach Vercel CLI. Check the connection, then recheck.',
+                zh,
+            ),
+        ).toBe('Caxri 无法连接 Vercel CLI。请检查网络连接，然后重新检查。');
+        expect(localizeExtensionText('Linear CLI: ENG-12 failed', zh)).toBe(
+            'Linear CLI：ENG-12 失败',
+        );
+        expect(
+            localizeExtensionText(
+                'Caxri paused GitHub checks to protect the shared API budget. Retries after 3:45 PM.',
+                zh,
+            ),
+        ).toContain('3:45 PM');
+        expect(
+            localizeExtensionText(
+                'Run gh auth login in a Terminal, then recheck. A GH_TOKEN environment variable alone is not enough — Caxri does not forward personal shell credentials to CLI checks.',
+                zh,
+            ),
+        ).toBe(
+            '请在终端中运行 gh auth login，然后重新检查。仅设置 GH_TOKEN 环境变量不够，Caxri 不会把你 shell 中的个人凭据转交给 CLI 检查。',
+        );
+    });
+
+    it('does not rewrite a row that merely ends like a Server error', () => {
+        expect(localizeExtensionText('build failed', zh)).toBe('build failed');
+        expect(localizeExtensionText('my-branch timed out', zh)).toBe('my-branch timed out');
+    });
+
+    it('translates the acceptance lifecycle and verdict words shared with the status bar', () => {
+        expect(localizeExtensionText('Awaiting review', zh)).toBe('待评审');
+        expect(localizeExtensionParts('Awaiting review · r2', zh)).toBe('待评审 · r2');
+        expect(localizeExtensionText('Checks passed', zh)).toBe('检查通过');
+        expect(localizeExtensionText('CI failed', zh)).toBe('CI 失败');
     });
 
     it('translates templated sentences with their captured values', () => {

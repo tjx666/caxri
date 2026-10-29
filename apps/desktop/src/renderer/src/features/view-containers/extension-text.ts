@@ -2,6 +2,7 @@ import { once } from 'es-toolkit';
 
 import type { Translate, TranslationKey } from '../../i18n';
 import { translate } from '../../i18n';
+import { statusBar as englishStatusBar } from '../../i18n/locales/en/status-bar';
 import { viewContainersExtensionText as englishExtensionText } from '../../i18n/locales/en/view-containers-extension-text';
 
 /**
@@ -24,6 +25,28 @@ interface ExtensionTextEntry {
  */
 const NUMERIC_PLACEHOLDERS: ReadonlySet<string> = new Set(['count', 'number', 'shown', 'total']);
 
+/**
+ * Placeholders that only ever hold one of the Server's provider names match that closed set, so a templated sentence
+ * such as `{{provider}} failed` cannot swallow an unrelated row (a check or branch that happens to end in "failed").
+ * `provider` is the CLI's display name and `service` is the service behind it; both stay English proper nouns.
+ */
+const PROVIDER_PLACEHOLDERS: Readonly<Record<string, string>> = {
+    provider: 'GitHub CLI|LobeHub CLI|Linear CLI|Vercel CLI',
+    service: 'GitHub|LobeHub|Linear|Vercel',
+};
+
+/**
+ * The status bar's acceptance lifecycle and verdict words. The Status extension spells the same words, so they join the
+ * lookup instead of being copied into the extension catalog a second time.
+ */
+const SHARED_ENGLISH_ENTRIES: ReadonlyArray<readonly [string, string]> = Object.entries(
+    englishStatusBar,
+).filter(
+    ([key]) =>
+        key.startsWith('statusBar.acceptance.status.') ||
+        key.startsWith('statusBar.acceptance.verdict.'),
+);
+
 const PLACEHOLDER = /\{\{(\w+)\}\}/g;
 
 function escapeRegExp(value: string): string {
@@ -36,7 +59,11 @@ function compileEntry(key: TranslationKey, template: string): ExtensionTextEntry
     let cursor = 0;
     for (const match of template.matchAll(PLACEHOLDER)) {
         source += escapeRegExp(template.slice(cursor, match.index));
-        source += NUMERIC_PLACEHOLDERS.has(match[1]) ? String.raw`(\d+)` : String.raw`([\s\S]+?)`;
+        source += NUMERIC_PLACEHOLDERS.has(match[1])
+            ? String.raw`(\d+)`
+            : match[1] in PROVIDER_PLACEHOLDERS
+              ? `(${PROVIDER_PLACEHOLDERS[match[1]]})`
+              : String.raw`([\s\S]+?)`;
         names.push(match[1]);
         cursor = match.index + match[0].length;
     }
@@ -56,7 +83,10 @@ interface ExtensionTextIndex {
 function buildTextIndex(): ExtensionTextIndex {
     const exact = new Map<string, TranslationKey>();
     const templates: ExtensionTextEntry[] = [];
-    for (const [key, template] of Object.entries(englishExtensionText)) {
+    for (const [key, template] of [
+        ...Object.entries(englishExtensionText),
+        ...SHARED_ENGLISH_ENTRIES,
+    ]) {
         if (template.includes('{{')) templates.push(compileEntry(key as TranslationKey, template));
         else exact.set(template, key as TranslationKey);
     }

@@ -184,4 +184,74 @@ export const viewContainersExtensionText = {
     'viewContainers.extensionText.status.descDetached': 'HEAD is not attached to a local branch.',
     'viewContainers.extensionText.status.descUnborn': 'This branch has no commits yet.',
     'viewContainers.extensionText.status.descChecking': 'Checking the same-named branch on origin.',
+    'viewContainers.extensionText.status.noDeployments': 'No Vercel deployments found',
+    'viewContainers.extensionText.status.noDeploymentsHint':
+        'This repository is linked to Vercel, but no matching deployments were found. Create one, then recheck.',
+    'viewContainers.extensionText.status.cliNotInstalled': '{{provider}} not installed',
+    'viewContainers.extensionText.status.cliNotSignedIn': '{{provider}} not signed in',
+    'viewContainers.extensionText.status.cliNotLinked': '{{provider}} not linked',
+    'viewContainers.extensionText.status.vercelNotLinked': 'Repository not linked to Vercel',
+    'viewContainers.extensionText.status.cliAccessDenied': '{{provider}} access denied',
+    'viewContainers.extensionText.status.cliConnectionFailed': '{{provider}} connection failed',
+    'viewContainers.extensionText.status.cliTlsFailed': '{{provider}} secure connection failed',
+    'viewContainers.extensionText.status.apiLimitReached': '{{service}} API limit reached',
+    'viewContainers.extensionText.status.cliTimedOut': '{{provider}} timed out',
+    'viewContainers.extensionText.status.cliFailed': '{{provider}} failed',
+    'viewContainers.extensionText.status.cliSubjectFailed': '{{provider}}: {{subject}} failed',
+    'viewContainers.extensionText.status.installGitHub':
+        'Pull requests for this repository need the GitHub CLI. Install it, then recheck.',
+    'viewContainers.extensionText.status.installLobeHub':
+        'Acceptance reports need the LobeHub CLI. Install it with npm i -g @lobehub/cli, then recheck.',
+    'viewContainers.extensionText.status.installLinear':
+        'Linked issues need the Linear CLI. Install it, then recheck.',
+    'viewContainers.extensionText.status.installVercel':
+        'Deployments for this repository need the Vercel CLI. Install it with npm i -g vercel, then recheck.',
+    'viewContainers.extensionText.status.signInHint':
+        'Run {{command}} in a Terminal, then recheck. A {{variable}} environment variable alone is not enough — Caxri does not forward personal shell credentials to CLI checks.',
+    'viewContainers.extensionText.status.linkLinear':
+        'Run linear config in this repository, then recheck.',
+    'viewContainers.extensionText.status.linkVercel':
+        'Run vc link in this repository, then recheck.',
+    'viewContainers.extensionText.status.linkGeneric':
+        'Configure {{service}} for this repository, then recheck.',
+    'viewContainers.extensionText.status.accessGitHub':
+        'Run gh auth refresh, authorize SSO for the organization if it requires it, then recheck.',
+    'viewContainers.extensionText.status.accessLobeHub':
+        'Check that your LobeHub account can read this report, then recheck.',
+    'viewContainers.extensionText.status.accessLinear':
+        'Check that your Linear account can see this team, then recheck.',
+    'viewContainers.extensionText.status.accessVercel':
+        'Check that your Vercel account can access this project, then recheck.',
+    'viewContainers.extensionText.status.couldNotReach':
+        'Caxri could not reach {{provider}}. Check the connection, then recheck.',
+    'viewContainers.extensionText.status.couldNotReachShared':
+        'Caxri could not reach {{providers}}. Reconnect, then refresh.',
+    'viewContainers.extensionText.status.tlsHint': 'Check your proxy or certificates, then retry.',
+    'viewContainers.extensionText.status.rateLimitRetry':
+        'Caxri paused {{service}} checks to protect the shared API budget. Retries after {{time}}.',
+    'viewContainers.extensionText.status.rateLimitRefresh':
+        'Caxri paused {{service}} checks to protect the shared API budget. Refresh after the limit resets.',
+    'viewContainers.extensionText.status.timeoutHint': 'Check the network or proxy, then refresh.',
+    'viewContainers.extensionText.status.failedPullRequests':
+        'Something went wrong while loading pull requests. Open Logs for details.',
+    'viewContainers.extensionText.status.failedAcceptance':
+        'Something went wrong while loading acceptance reports. Open Logs for details.',
+    'viewContainers.extensionText.status.failedIssues':
+        'Something went wrong while loading linked issues. Open Logs for details.',
+    'viewContainers.extensionText.status.failedDeployments':
+        'Something went wrong while loading deployments. Open Logs for details.',
+    'viewContainers.extensionText.status.statePassed': 'passed',
+    'viewContainers.extensionText.status.stateFailed': 'failed',
+    'viewContainers.extensionText.status.stateCanceled': 'canceled',
+    'viewContainers.extensionText.status.stateRunning': 'running',
+    'viewContainers.extensionText.status.stateQueued': 'queued',
+    'viewContainers.extensionText.status.stateNeutral': 'neutral',
+    'viewContainers.extensionText.status.stateUnknown': 'unknown',
+    'viewContainers.extensionText.status.ciPassed': 'CI passed',
+    'viewContainers.extensionText.status.ciFailed': 'CI failed',
+    'viewContainers.extensionText.status.ciCanceled': 'CI canceled',
+    'viewContainers.extensionText.status.ciRunning': 'CI running',
+    'viewContainers.extensionText.status.ciQueued': 'CI queued',
+    'viewContainers.extensionText.status.ciNeutral': 'CI neutral',
+    'viewContainers.extensionText.status.ciUnknown': 'CI unknown',
 } as const;

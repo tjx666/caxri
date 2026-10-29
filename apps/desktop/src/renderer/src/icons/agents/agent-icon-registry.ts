@@ -5,6 +5,8 @@ import codexColor from '@lobehub/icons-static-svg/icons/codex-color.svg?no-inlin
 import grok from '@lobehub/icons-static-svg/icons/grok.svg?no-inline';
 import openCode from '@lobehub/icons-static-svg/icons/opencode.svg?no-inline';
 
+import { translate } from '../../i18n';
+
 export type AgentIconIdentity = TerminalKind | 'opencode' | 'unknown';
 
 export interface AgentIconDefinition {
@@ -45,7 +47,17 @@ export const agentIconRegistry = {
     ...managedAgentIcons,
     opencode: { id: 'opencode', kind: 'mask-asset', label: 'OpenCode', src: openCode },
     shell: { id: 'shell', kind: 'shell', label: 'Shell' },
-    unknown: { id: 'unknown', kind: 'unknown', label: 'Unknown Agent' },
+    unknown: {
+        id: 'unknown',
+        kind: 'unknown',
+        /**
+         * A getter so the fallback name follows the interface language at the moment a surface reads it. Every other
+         * label is a product name that stays the same in both languages.
+         */
+        get label() {
+            return translate('core.agentIcon.unknown');
+        },
+    },
 } satisfies Record<AgentIconIdentity, AgentIconDefinition>;
 
 export function resolveAgentIcon(identity?: string | null): AgentIconDefinition {

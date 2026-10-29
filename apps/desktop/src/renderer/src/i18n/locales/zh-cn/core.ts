@@ -106,6 +106,7 @@ export const core: TranslatedNamespace<typeof source> = {
     'core.automaticNaming.unverifiedPaths':
         '{{subject}}：无法验证沙箱路径，自动命名不可用。请更正路径后重启 Agent。',
 
+    'core.agentIcon.unknown': '未知 Agent',
     'core.agentNotification.waiting': '{{title}} 正在等待你的输入。',
     'core.agentNotification.completed': '{{title}} 已完成一轮对话。',
     'core.projectStatusAlert.checkFailed': 'CI 失败：{{name}}',

@@ -129,6 +129,7 @@ export const core = {
         '{{subject}}: Automatic naming is unavailable because its sandbox paths could not be verified. Restart the Agent after correcting the paths.',
 
     // stores/workbench-event-notifications.ts
+    'core.agentIcon.unknown': 'Unknown Agent',
     'core.agentNotification.waiting': '{{title}} is waiting for your input.',
     'core.agentNotification.completed': '{{title}} completed a turn.',
     'core.projectStatusAlert.checkFailed': 'CI failed: {{name}}',

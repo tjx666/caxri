@@ -1,6 +1,7 @@
 import { agentProviderCatalog, agentProviderIds } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
+import { useLocaleStore } from '../../i18n/locale-store';
 import {
     agentIconRegistry,
     resolveAgentIcon,
@@ -22,6 +23,16 @@ describe('agentIconRegistry', () => {
         ['unknown', 'Unknown Agent', 'unknown'],
     ] as const)('keeps the local %s identity definition', (identity, label, kind) => {
         expect(resolveAgentIcon(identity)).toMatchObject({ id: identity, kind, label });
+    });
+
+    it('names the fallback Agent in the interface language', () => {
+        useLocaleStore.setState({ locale: 'zh-CN' });
+        try {
+            expect(resolveAgentIcon('unknown').label).toBe('未知 Agent');
+        } finally {
+            useLocaleStore.setState({ locale: 'en' });
+        }
+        expect(resolveAgentIcon(undefined).label).toBe('Unknown Agent');
     });
 
     it('contains every supported and reserved identity exactly once', () => {
