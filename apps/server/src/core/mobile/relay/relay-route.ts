@@ -7,6 +7,7 @@ import {
     relayHostIdForPublicKey,
     relayHostPublicKey,
 } from '@caxri/mobile-transport';
+import type { MobileRelayFailure } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import type WebSocket from 'ws';
 
@@ -20,6 +21,7 @@ const accessKeyHash = (secretHex: string, purpose: 'device' | 'pairing'): string
 export interface RelayRouteStatus {
     state: 'connecting' | 'offline' | 'online';
     hostId: string;
+    lastFailure?: MobileRelayFailure;
 }
 
 export interface MobileRelayRouteOptions {
@@ -75,8 +77,12 @@ export class MobileRelayRoute {
 
     status(): RelayRouteStatus | undefined {
         if (!this.#connector || !this.#hostId) return;
-        const { state } = this.#connector;
-        return { state: state === 'stopped' ? 'offline' : state, hostId: this.#hostId };
+        const { lastFailure, state } = this.#connector;
+        return {
+            state: state === 'stopped' ? 'offline' : state,
+            hostId: this.#hostId,
+            ...(lastFailure && { lastFailure }),
+        };
     }
 
     /**

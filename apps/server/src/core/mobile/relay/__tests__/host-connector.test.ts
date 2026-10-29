@@ -293,6 +293,25 @@ describe('RelayHostConnector', () => {
                 connectedMs: expect.any(Number) as number,
             }),
         );
+        expect(connector.lastFailure).toBe('closed-by-relay');
+    });
+
+    it('exposes no failure until a registration is lost, and clears it once registered again', async () => {
+        const { connector, relay } = await setup();
+        const first = relay.nextHost();
+        connector.start();
+        expect(connector.lastFailure).toBeUndefined();
+        const host = await first;
+        await relay.accept(host, connector.hostId);
+        await vi.waitFor(() => expect(connector.state).toBe('online'));
+        expect(connector.lastFailure).toBeUndefined();
+        const second = relay.nextHost();
+        host.socket.close(relayCloseCodes['shutting-down']);
+        const next = await second;
+        expect(connector.lastFailure).toBe('closed-by-relay');
+        await relay.accept(next, connector.hostId);
+        await vi.waitFor(() => expect(connector.state).toBe('online'));
+        expect(connector.lastFailure).toBeUndefined();
     });
 
     it('drops a registration whose pongs stop', async () => {
@@ -313,6 +332,7 @@ describe('RelayHostConnector', () => {
                 expect.objectContaining({ state: 'offline', cause: 'heartbeat-timeout' }),
             ),
         );
+        expect(connector.lastFailure).toBe('heartbeat-timeout');
     });
 
     it('rejects a registration acknowledged for another host identity', async () => {

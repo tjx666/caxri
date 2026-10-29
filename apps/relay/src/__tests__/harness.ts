@@ -11,6 +11,7 @@ import {
     relayPaths,
     signRelayHostChallenge,
 } from '@caxri/mobile-transport';
+import type { ClientOptions } from 'ws';
 import WebSocket from 'ws';
 
 import type { RelayConfig } from '../config';
@@ -156,8 +157,9 @@ export const connectClient = async (
     baseUrl: string,
     hostId: string,
     accessKey: string,
+    options?: ClientOptions,
 ): Promise<{ socket: WebSocket; frames: FrameQueue }> => {
-    const socket = new WebSocket(relayEndpoint(baseUrl, relayPaths.client));
+    const socket = new WebSocket(relayEndpoint(baseUrl, relayPaths.client), options);
     const frames = new FrameQueue(socket);
     await opened(socket);
     socket.send(

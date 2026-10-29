@@ -66,7 +66,9 @@ are unavailable over the Relay.
 Set `mobile.relayUrl` in Settings › Mobile to the Relay's `wss://` URL (a `ws://` URL is accepted for
 a private or local Relay). The Server connects whenever Mobile access is on and the URL is set,
 reconnects with backoff after failures, and follows changes to the setting immediately. Phones paired
-before the URL was set need to pair again to learn it.
+before the URL was set need to pair again to learn it. Under the field, Settings shows whether this
+computer is registered with the Relay (connected, connecting, or cannot connect with the reason of the
+last failure); the status row is absent while the URL is empty or Mobile access is off.
 
 ## Running a Relay
 
@@ -128,7 +130,8 @@ a Server to another region keeps its host key, but its phones pair again to lear
 
 The Relay writes one JSON line per event to stdout: `relay.host_registered`, `relay.host_ended`
 (cause, duration), `relay.connection_spliced` (setup time), `relay.connection_ended` (cause,
-duration, bytes in each direction), `relay.rejected` (closed reason), and a `relay.summary` every
+duration, bytes in each direction; a heartbeat timeout, such as a carrier NAT dropping an idle mapping, ends
+either kind of socket with cause `heartbeat-timeout`), `relay.rejected` (closed reason), and a `relay.summary` every
 minute. Logs never contain addresses, keys, tickets, or payload bytes; a host ID appears only as an
 8-character prefix. `GET /health` returns the protocol version and current host and connection
 counts. On the Server, Mobile connection records carry a `route` of `lan` or `relay`, and the Relay

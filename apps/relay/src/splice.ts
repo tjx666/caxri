@@ -44,6 +44,7 @@ export class Splice {
     readonly #now: () => number;
     readonly #startedAt: number;
     readonly #onEnd: (end: SpliceEnd) => void;
+    readonly #recordedCause?: (socket: WebSocket) => RelayEndCause | undefined;
     readonly #pausedSince = new Map<WebSocket, number>();
     #timer?: ReturnType<typeof setInterval>;
     #bytesUp = 0;
@@ -63,6 +64,11 @@ export class Splice {
         limits: SpliceLimits;
         now?: () => number;
         onEnd: (end: SpliceEnd) => void;
+        /**
+         * Reads the cause the Relay already recorded against a socket (a heartbeat timeout, a shutdown) before it
+         * closed it. Supplied as a callback because the Relay forgets a socket's state as soon as it closes.
+         */
+        recordedCause?: (socket: WebSocket) => RelayEndCause | undefined;
     }) {
         this.client = input.client;
         this.host = input.host;
@@ -72,6 +78,7 @@ export class Splice {
         this.#now = input.now ?? Date.now;
         this.#startedAt = this.#now();
         this.#onEnd = input.onEnd;
+        this.#recordedCause = input.recordedCause;
         this.#forward(this.client, this.host, (bytes) => (this.#bytesUp += bytes));
         this.#forward(this.host, this.client, (bytes) => (this.#bytesDown += bytes));
         this.#mirrorClose(this.client, this.host, 'client-closed');
@@ -124,7 +131,7 @@ export class Splice {
     #mirrorClose(source: WebSocket, destination: WebSocket, cause: RelayEndCause): void {
         source.on('error', () => {});
         source.on('close', (code, reason) => {
-            this.#endCause ??= cause;
+            this.#endCause ??= this.#recordedCause?.(source) ?? cause;
             if (destination.readyState === OPEN) destination.close(mirroredCloseCode(code), reason);
             else if (destination.readyState !== 3) destination.terminate();
             this.#finish();

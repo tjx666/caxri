@@ -381,6 +381,11 @@ export class RelayServer {
             ),
         );
         const host = shortHostId(pending.hostId);
+        // Captured now: the socket close handler forgets each state before the Splice sees the close.
+        const states = new Map([
+            [client, this.#sockets.get(client)],
+            [socket, this.#sockets.get(socket)],
+        ]);
         const splice = new Splice({
             client,
             host: socket,
@@ -388,6 +393,7 @@ export class RelayServer {
             keyHash: pending.keyHash,
             limits: this.#config,
             now: this.#now,
+            recordedCause: (ended) => states.get(ended)?.endCause,
             onEnd: (end) => {
                 this.#registry.removeSplice(splice);
                 this.#logger.count('connectionsEnded');

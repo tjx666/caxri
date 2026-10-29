@@ -39,7 +39,8 @@ export class HostRegistry {
     readonly #pending = new Map<string, PendingClient>();
     /**
      * Kept by host ID rather than inside `RegisteredHost`: a spliced connection outlives its host's control socket, and
-     * a later registration's revocation must still be able to cut it.
+     * a later registration's revocation must still be able to cut it. `register()` does not end these on
+     * re-registration; an old connection ends when its Server closes it, and the Server's revocation cuts it.
      */
     readonly #splices = new Map<string, Set<Splice>>();
     readonly #now: () => number;
