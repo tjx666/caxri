@@ -103,6 +103,27 @@ Each spliced direction pauses its source above 256 KiB queued, resumes below 64 
 with `capacity` when one direction stays above 8 MiB or paused for 10 seconds. The 20 second ping
 also keeps idle mappings alive on carrier NATs that drop quiet TCP flows.
 
+## Extending the Relay
+
+The Relay is a byte splice behind a versioned rendezvous, so most future work lands outside it.
+Each extension below names the seam it uses and what stays untouched.
+
+| Extension                                       | Seam                                                                                                                         | Unchanged                                    |
+| ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| New gateway features (commands, events, Agents) | The sealed mobile transport the Relay forwards blindly                                                                       | The Relay image and its protocol             |
+| Another route, such as iroh hole punching       | A new `MobileGatewayRoute` kind in `apps/mobile/src/features/connection/gateway-routes.ts`, raced by the same route selector | Pairing secret, device credential, handshake |
+| A wire change to the rendezvous                 | A `/v2/` path family and a new `RELAY_PROTOCOL_VERSION`, served beside `/v1/` until old Servers and phones upgrade           | `/v1/` clients                               |
+| A new rejection reason                          | A new code in the reserved 4400 to 4599 range of `relayCloseCodes`                                                           | The phone's 4001 to 4099 reasons             |
+| Push notifications                              | A separate content-free service ([issue #499](https://github.com/tjx666/caxri/issues/499))                                   | The Relay stays stateless and payload-blind  |
+| More capacity or regions                        | Another deployment of the same image, chosen per Server through `mobile.relayUrl`                                            | Host key and host ID                         |
+
+Scale out by region, not by clustering one URL. One process holds up to `CAXRI_RELAY_MAX_HOSTS`
+registrations, and a host's control socket and its phones must meet in the same process. A `/v1/`
+request carries the host ID only inside its first frame, so a load balancer cannot route on it;
+putting several processes behind one URL needs a `/v2/` rendezvous that exposes the host ID in the
+request URL for consistent hashing. Add that only when a single region outgrows one process. Moving
+a Server to another region keeps its host key, but its phones pair again to learn the new URL.
+
 ## Observability
 
 The Relay writes one JSON line per event to stdout: `relay.host_registered`, `relay.host_ended`
