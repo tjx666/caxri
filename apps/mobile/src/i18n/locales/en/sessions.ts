@@ -214,6 +214,7 @@ export const sessions = {
     'sessions.state.failed': 'Failed',
     'sessions.state.idle': 'Idle',
     'sessions.state.unknown': 'Unknown',
+    'sessions.state.usageWait': 'Continues automatically at {{time}}',
     'sessions.state.waiting': 'Waiting for you',
     'sessions.state.working': 'Working',
     'sessions.status.needsAttention': 'Needs attention: {{state}}',

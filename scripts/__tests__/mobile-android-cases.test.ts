@@ -171,6 +171,15 @@ describe('mobile Android Acceptance cases', () => {
         });
     });
 
+    it('registers the usage-wait Session row and plan approval cases', () => {
+        expect(mobileAndroidAcceptanceCase('MOB-CHAT-USAGE-WAIT-01')).toMatchObject({
+            scenario: 'agent-chat-usage-wait',
+        });
+        expect(mobileAndroidAcceptanceCase('MOB-CHAT-PLAN-APPROVAL-01')).toMatchObject({
+            scenario: 'agent-chat-plan-approval',
+        });
+    });
+
     it('registers the Session usage case in Chinese', () => {
         expect(mobileAndroidAcceptanceCase('MOB-CHAT-USAGE-01')).toEqual({
             appLocale: 'zh-CN',

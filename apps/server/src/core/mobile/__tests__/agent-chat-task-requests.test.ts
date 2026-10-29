@@ -73,6 +73,29 @@ describe('mobile Agent Chat background task requests', () => {
         });
     });
 
+    it('forwards Start Building for a proposed plan to Core and leaves it to control devices', async () => {
+        const forward = vi.fn<(operation: unknown) => Promise<null>>(async () => null);
+        await invoke(
+            {
+                method: 'mobile.agentChat.implementPlan',
+                params: { terminalId: 'terminal-1', itemId: 'plan-1' },
+            },
+            taskDomain(),
+            forward,
+        );
+        expect(forward).toHaveBeenCalledWith({
+            method: 'agentChat.implementPlan',
+            params: { terminalId: 'terminal-1', itemId: 'plan-1' },
+        });
+        for (const role of ['view', 'reply'] as const)
+            expect(
+                isMobileGatewayMethodAllowedForRole(role, 'mobile.agentChat.implementPlan'),
+            ).toBe(false);
+        expect(
+            isMobileGatewayMethodAllowedForRole('control', 'mobile.agentChat.implementPlan'),
+        ).toBe(true);
+    });
+
     it('refuses a task request for a Terminal that is not a Chat', async () => {
         await expect(
             invoke(

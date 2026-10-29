@@ -125,6 +125,7 @@ const mobileGatewayMethodsByRole = {
          * Approvals, answers, and Stop match `mobile.attention.answer` and `agent.control.interrupt`: control only.
          */
         'mobile.agentChat.respond',
+        'mobile.agentChat.implementPlan',
         'mobile.agentChat.interrupt',
         /**
          * Stopping a background task is Stop for one piece of the Agent's work, so it carries Stop's grant.

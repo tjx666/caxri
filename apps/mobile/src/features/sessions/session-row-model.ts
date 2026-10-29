@@ -73,14 +73,23 @@ export const sessionStateLabel = (
 
 /**
  * Which mark the Session status slot shows. A saved copy cannot know a Session is still running, so it never spins:
- * `running-saved` is a still glyph. When the screen below already shows the run (`isRunShownBelow`: the Chat tab's
- * status row, or its `Compacting context…` line), the slot stays empty so the same work does not spin twice.
+ * `running-saved` is a still glyph; `usage-wait` is a clock for a Chat waiting for a usage limit to reset. When the
+ * screen below already shows the run (`isRunShownBelow`: the Chat tab's status row, or its `Compacting context…` line),
+ * the slot stays empty so the same work does not spin twice.
  */
 export const sessionStatusGlyphKind = (
-    session: Pick<MobileSessionItem, 'hasUnread' | 'agentActivityState'>,
+    session: Pick<MobileSessionItem, 'hasUnread' | 'agentActivityState'> & {
+        primaryTerminal?: Pick<
+            NonNullable<MobileSessionItem['primaryTerminal']>,
+            'usageLimitWaitAt'
+        >;
+    },
     isSaved: boolean,
     isRunShownBelow = false,
-): 'attention' | 'running' | 'running-saved' | 'failed' | null => {
+): 'attention' | 'running' | 'running-saved' | 'failed' | 'usage-wait' | null => {
+    // A Chat waiting for a plan limit to reset outranks everything: it asks nothing of the user and continues by
+    // itself, so the clock replaces the failure or unread cue the limit left behind (Desktop's `usageWait`).
+    if (session.primaryTerminal?.usageLimitWaitAt !== undefined) return 'usage-wait';
     if (session.hasUnread) return 'attention';
     if (session.agentActivityState === 'running') {
         if (isRunShownBelow) return null;

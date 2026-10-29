@@ -371,6 +371,13 @@ export async function invokeMobileAgentChatRequest(
             });
             return null;
         }
+        case 'mobile.agentChat.implementPlan': {
+            await forward({
+                method: 'agentChat.implementPlan',
+                params: { terminalId, itemId: request.params.itemId },
+            });
+            return null;
+        }
         case 'mobile.agentChat.respond': {
             await forward({
                 method: 'agentChat.respond',

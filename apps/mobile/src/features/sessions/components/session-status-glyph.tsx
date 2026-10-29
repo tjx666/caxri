@@ -1,6 +1,6 @@
 import { View } from 'react-native';
 
-import { CircleAlert, LoaderCircle } from 'lucide-react-native';
+import { CircleAlert, Clock, LoaderCircle } from 'lucide-react-native';
 
 import { Spinner } from '../../../components/spinner';
 import { useTranslation } from '../../../i18n';
@@ -76,6 +76,12 @@ export const SessionStatusGlyph = ({
             return (
                 <View accessibilityLabel={stateLabel} accessible testID="session-status-failed">
                     <CircleAlert color={theme.danger} size={18} />
+                </View>
+            );
+        case 'usage-wait':
+            return (
+                <View accessibilityLabel={stateLabel} accessible testID="session-status-usage-wait">
+                    <Clock color={theme.muted} size={18} />
                 </View>
             );
         case null:

@@ -9,6 +9,8 @@ import {
 
 import type { Translate } from '../../i18n';
 import { translate } from '../../i18n';
+import { getLocale } from '../../i18n/locale-store';
+import { resetClockTime } from '../agent-usage/agent-usage-model';
 
 export type MobileSession = MethodResult<'mobile.dashboard'>['sessions'][number];
 export type MobileTerminal = NonNullable<MobileSession['primaryTerminal']>;
@@ -81,6 +83,9 @@ const groupForSession = (session: MobileSession, now: number): SessionActivityGr
     sessionActivityGroup(
         {
             ...session,
+            // A Chat waiting for a plan limit to reset outranks unread attention, as on Desktop (`sessionStatus`).
+            hasUnread: session.hasUnread && session.primaryTerminal?.usageLimitWaitAt === undefined,
+            isUsageWaiting: session.primaryTerminal?.usageLimitWaitAt !== undefined,
             isDetached: session.primaryTerminal?.lastProcessState === 'detached',
             isRunning: session.agentActivityState === 'running',
         },
@@ -102,7 +107,15 @@ export const buildMobileSessionSections = (
         const item: MobileSessionItem = {
             ...session,
             group,
-            stateLabel: labelForState(session.agentActivityState, t),
+            stateLabel: session.primaryTerminal?.usageLimitWaitAt
+                ? t('sessions.state.usageWait', {
+                      time: resetClockTime(
+                          session.primaryTerminal.usageLimitWaitAt,
+                          now,
+                          getLocale(),
+                      ),
+                  })
+                : labelForState(session.agentActivityState, t),
         };
         // Desktop repeats a pinned Session that has news under its status group; the phone lists each Session once
         // (no duplicate entries to the same data), and the row's status glyph still shows the state under Pinned.

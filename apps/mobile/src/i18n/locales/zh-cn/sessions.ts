@@ -204,6 +204,7 @@ export const sessions: TranslatedNamespace<typeof source> = {
     'sessions.state.failed': '失败',
     'sessions.state.idle': '空闲',
     'sessions.state.unknown': '未知',
+    'sessions.state.usageWait': '将在 {{time}} 自动继续',
     'sessions.state.waiting': '等待你处理',
     'sessions.state.working': '运行中',
     'sessions.status.needsAttention': '需要处理：{{state}}',
