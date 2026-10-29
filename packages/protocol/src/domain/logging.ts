@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { agentSecretLogEvents } from '../agent/secret/secret-log-events.js';
 import { claudeWindowLogEvents } from './claude-window/log-events.js';
 import {
     agentChatLogEvents,
@@ -77,6 +78,7 @@ export const logEventCatalog = {
     agentEndpoint: agentEndpointLogEvents,
     agentHooks: agentHooksLogEvents,
     agentMessage: agentMessageLogEvents,
+    agentSecrets: agentSecretLogEvents,
     agentNotifications: agentNotificationsLogEvents,
     app: appLogEvents,
     configuration: configLogEvents,

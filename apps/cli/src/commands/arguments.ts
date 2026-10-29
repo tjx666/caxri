@@ -188,6 +188,14 @@ export function parseCliArguments(argv: readonly string[]): ParsedCliArguments {
     };
     let isConnectTimeoutExplicit = false;
     for (let index = 0; index < argv.length; index += 1) {
+        /**
+         * Everything after `--` belongs to the command `secret exec` runs, so a child's own `--json` or `--help` is
+         * never taken as a Caxri option. The marker stays in `tokens` for the command parser to split on.
+         */
+        if (argv[index] === '--') {
+            parsed.tokens.push(...argv.slice(index));
+            break;
+        }
         const result = applyArgument(argv, index, argv[index], parsed, isConnectTimeoutExplicit);
         index = result.nextIndex;
         isConnectTimeoutExplicit = result.isConnectTimeoutExplicit;

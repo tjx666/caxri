@@ -138,6 +138,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 - **SSH Host slow-link benchmark**: 3G link profile (400 kbps each way, 400 ms RTT) and reporting time beside bytes on the wire. Evidence: `scripts/ssh-link-benchmark.ts`; `docs/ssh-host.md` (Slow links).
 - **Mobile computer status CPU**: Whole-machine CPU from the delta between two `os.cpus()` reads. Evidence: `packages/system/src/process/system-resources.ts`.
 - **Claude process entrypoint label**: Overwriting `CLAUDE_CODE_ENTRYPOINT` with the client's own name on every Claude process it starts. Evidence: `apps/server/src/domains/agents/providers/claude/entrypoint.ts`.
+- **Agent secret request card**: An Agent-raised request answered in a card with a masked value field that password managers ignore (`data-1p-ignore`), the Agent's reason, a privacy note, and Decline or Save; the value never enters the transcript. Evidence: `apps/desktop/src/renderer/src/features/agent-secrets/secret-request-cards.tsx`; `docs/agent-secrets.md`.
 
 ## PandaCode (MIT with fork attribution)
 
@@ -165,6 +166,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 - **Visible delegation layout**: Sibling pane that keeps the caller's focus. Reference: Herdr. Evidence: `apps/server/src/domains/agent-delegation/layout.ts`; `herdr.md`.
 - **Activity ranking**: Attention ranked above running work. Reference: Herdr, Kero. Evidence: `docs/activity-view.md`.
 - **Terminal font loading**: Font cascade. Reference: Kero. Evidence: `apps/desktop/src/renderer/src/features/terminal/terminal-fonts.ts`.
+- **Agent secret scopes**: Secrets saved per Project or for every Project, with the Project value winning. Reference: Synara (also Mux). Evidence: `docs/agent-secrets.md` (Scopes).
 - **Window presence**: Stable per-window key and per-client visible and focused tracking. Reference: Superset. Evidence: `docs/adr/0017-per-window-session-presence.md`; `apps/desktop/src/main/window-presence-registry.ts`.
 - **Mobile computer status sort**: CPU and memory sort toggle for top processes; poll only while the view is visible. Reference: Superset (also cmux). Evidence: `apps/mobile/src/features/host-status/host-status-model.ts`.
 - **Background work header**: A visible section label with its running count (`Background work 3`), and folded a one-line summary after it. Reference: Superset (work drawer; also Grok Build's `Tasks 3` dock and Claude Code's `3 background tasks`). Evidence: `DESIGN.md` (Chat composer); `apps/desktop/src/renderer/src/features/agent-chat/composer/strip/agent-chat-background-work-section.tsx`.

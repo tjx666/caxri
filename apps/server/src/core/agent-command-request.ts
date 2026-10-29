@@ -189,3 +189,48 @@ export function agentSessionRequest(
         },
     };
 }
+
+type AgentSecretRequest = Extract<
+    ServerRequest,
+    {
+        method:
+            | 'agent.secret.list'
+            | 'agent.secret.request'
+            | 'agent.secret.wait'
+            | 'agent.secret.resolve';
+    }
+>;
+
+/**
+ * Binds a secret request to the Project and Terminal of the caller's authenticated Endpoint. An Agent never names the
+ * Project whose secrets it reads, so it cannot reach another Project's secrets.
+ */
+export function agentSecretRequest(
+    request: AgentSecretRequest,
+    context: CommandExecutionContext,
+    endpoints: AgentEndpointRegistry,
+): ServerOperationRequest {
+    if (context.principal.kind !== 'agent')
+        throw new CaxriError('FORBIDDEN', 'Only an Agent running in Caxri uses Agent secrets');
+    const { endpoint } = endpoints.context(context);
+    const caller = { projectId: endpoint.projectId, terminalId: endpoint.terminalId };
+    switch (request.method) {
+        case 'agent.secret.list':
+            return { method: 'agent.secret.listInternal', params: { caller } };
+        case 'agent.secret.request':
+            return {
+                method: 'agent.secret.requestInternal',
+                params: { ...request.params, caller },
+            };
+        case 'agent.secret.wait':
+            return {
+                method: 'agent.secret.waitInternal',
+                params: { ...request.params, caller },
+            };
+        case 'agent.secret.resolve':
+            return {
+                method: 'agent.secret.resolveInternal',
+                params: { ...request.params, caller },
+            };
+    }
+}

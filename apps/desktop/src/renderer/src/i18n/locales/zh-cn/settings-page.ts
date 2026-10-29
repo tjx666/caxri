@@ -80,6 +80,9 @@ export const settingsPage: TranslatedNamespace<typeof source> = {
     'settings.row.delegationDepth.description': 'Agent 可以连续将部分工作交给另一个 Agent 的次数。',
     'settings.row.delegationDepth.detail':
         '设为 1 时，你启动的 Agent 可以引入一个助手，由它独自完成；设为 2 时，该助手还可以再引入一个。可以引入哪些 Agent 由委派预设决定，在源文件视图中编辑。',
+    'settings.row.agentSecrets.title': '密钥',
+    'settings.row.agentSecrets.description':
+        'Agent 通过 `caxri secret exec` 使用的 API Key 和 Token，不会出现在对话中。',
 
     'settings.row.providerActions.title': 'Agent 命令和 Skill',
     'settings.row.providerActions.description':

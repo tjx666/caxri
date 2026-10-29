@@ -542,6 +542,11 @@ export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () 
             void queryClient.invalidateQueries({ queryKey: ['claudeWindow.status'] });
             return;
         }
+        if (event.event === 'agentSecrets.changed') {
+            void queryClient.invalidateQueries({ queryKey: ['secrets.list'] });
+            void queryClient.invalidateQueries({ queryKey: ['secrets.requests.list'] });
+            return;
+        }
         if (event.event === 'botInbox.changed') {
             invalidateBotInboxQuery(queryClient);
             return;

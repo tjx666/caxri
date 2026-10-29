@@ -29,6 +29,7 @@ export type SettingRowBinding =
     | { type: 'archived-sessions' }
     | { type: 'mobile-access' }
     | { type: 'claude-windows' }
+    | { type: 'agent-secrets' }
     | { type: 'delegation-depth' }
     | { type: 'remote-debugging' }
     | { type: 'hardware-acceleration' };
@@ -368,6 +369,22 @@ export const settingRowSources: SettingRowSource[] = [
     specRow('environmentMonitor.expectedTimeZone'),
     specRow('environmentMonitor.mihomoRoutes'),
     specRow('projectStatus.notifications.enabled'),
+    {
+        id: 'agents.secrets',
+        category: 'agents',
+        titleKey: 'settings.row.agentSecrets.title',
+        descriptionKey: 'settings.row.agentSecrets.description',
+        binding: { type: 'agent-secrets' },
+        searchTerms: lower([
+            'secrets',
+            'api key',
+            'token',
+            'password',
+            'credential',
+            'environment variable',
+            'caxri secret',
+        ]),
+    },
     {
         id: 'agents.delegation.maxDepth',
         category: 'agents',

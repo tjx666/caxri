@@ -9,6 +9,8 @@ const nonExpiringServerOperations = new Set([
     'agent.delegation.wait',
     'agent.delegation.waitInternal',
     'agent.message.wait',
+    'agent.secret.wait',
+    'agent.secret.waitInternal',
     'bot.clearData',
     'files.create',
     'files.copy',
@@ -27,10 +29,10 @@ const nonExpiringViewOperations = new Set(['git.sync', 'git.discard', 'git.merge
 /**
  * Durable Files mutations, save/copy, and the destructive applies that follow a native confirmation (Git discard, and
  * Clear Caxri Bot Data, which may queue behind a Caxri Bot switch and then restart Caxri Bot) lack a safe retry
- * boundary, while Agent Inbox, dispatch, and delegation waits carry their own validated long-poll deadlines: a client
- * timer on the same deadline starts first and would always turn the wait's timeout result into a transport error.
- * Terminal input is bounded by both its public payload and private Host request deadlines. Their transports must wait
- * for the authoritative result instead of racing a second generic timer.
+ * boundary, while Agent Inbox, dispatch, delegation, and secret-request waits carry their own validated long-poll
+ * deadlines: a client timer on the same deadline starts first and would always turn the wait's timeout result into a
+ * transport error. Terminal input is bounded by both its public payload and private Host request deadlines. Their
+ * transports must wait for the authoritative result instead of racing a second generic timer.
  */
 export function isNonExpiringServerOperation(method: string): boolean {
     return nonExpiringServerOperations.has(method);

@@ -30,6 +30,7 @@ import {
     delegationAccessInternalMethods,
     delegationAccessMethods,
 } from '../agent/delegation/delegation-access-contract.js';
+import { agentSecretInternalMethods, agentSecretMethods } from '../agent/secret/secret-contract.js';
 import {
     configurationSourceSchema as configSourceSchema,
     MAX_KEYBINDINGS,
@@ -168,6 +169,7 @@ export const methods = {
     ...agentDispatchMethods,
     ...agentDelegationMethods,
     ...agentSessionMethods,
+    ...agentSecretMethods,
     ...botMethods,
     ...botDataMethods,
     ...delegationAccessMethods,
@@ -533,6 +535,7 @@ export const internalMethods = {
     ...agentDispatchInternalMethods,
     ...agentDelegationInternalMethods,
     ...agentSessionInternalMethods,
+    ...agentSecretInternalMethods,
     ...botDataInternalMethods,
     ...delegationAccessInternalMethods,
     ...businessInternalMethods,

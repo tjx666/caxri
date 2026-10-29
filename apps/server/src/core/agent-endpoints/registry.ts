@@ -43,6 +43,7 @@ const BASELINE_CAPABILITIES = [
     'agents.delegate',
     'projects.read',
     'projects.write',
+    'secrets.use',
     'sessions.read',
     'terminals.read',
 ] as const satisfies readonly Capability[];

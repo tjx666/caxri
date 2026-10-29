@@ -30,6 +30,7 @@ What/why of current shipped behavior, core modules, protocols, and operator know
 | [caxri-bot.md](caxri-bot.md)                                       | Second-window Codex or Claude Code bot and Agent board              |
 | [agent-delegation.md](agent-delegation.md)                         | Visible Agent delegation into a sibling pane                        |
 | [agent-dispatch-receipts.md](agent-dispatch-receipts.md)           | Managed dispatch launch requests and observed process lifetime      |
+| [agent-secrets.md](agent-secrets.md)                               | Secrets Agents use through `caxri secret` without seeing them       |
 | [agent-suspension.md](agent-suspension.md)                         | Parking idle background Agents and resuming them on return          |
 | [airplane-mode.md](airplane-mode.md)                               | Compact, stop every Agent before going offline, resume on return    |
 | [agent-throughput.md](agent-throughput.md)                         | Agent output speed (tok/s) in the status bar                        |

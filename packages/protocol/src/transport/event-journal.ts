@@ -28,6 +28,7 @@ export type TransientServerEvent = Extract<
             | 'agent.messaging.changed'
             | 'benchmark.changed'
             | 'claudeWindow.changed'
+            | 'agentSecrets.changed'
             | 'command.execute'
             | 'botInbox.changed'
             | 'desktop.openRequested'
@@ -101,6 +102,10 @@ const TRANSIENT_SERVER_EVENT_NAMES = new Set<ServerEvent['event']>([
      * Settings and Desktop re-read `claudeWindow.status` on reconnect, so a replay would only repeat that read.
      */
     'claudeWindow.changed',
+    /**
+     * Settings and the request layer re-read the store and the pending requests on reconnect.
+     */
+    'agentSecrets.changed',
     'command.execute',
     /**
      * An Inbox reader that missed this re-reads the whole list on reconnect, and the list is small and bounded, so a

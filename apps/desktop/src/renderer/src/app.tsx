@@ -11,6 +11,7 @@ import { subscribeAgentChatPatches } from './features/agent-chat/agent-chat-clie
 import { AgentChatWaitingPopup } from './features/agent-chat/waiting/agent-chat-waiting-popup';
 import { AgentMessageApprovalDialog } from './features/agent-inbox/agent-message-approval-dialog';
 import { subscribeHeldMessageQueue } from './features/agent-inbox/agent-message-approval-store';
+import { SecretRequestCards } from './features/agent-secrets/secret-request-cards';
 import { BugReportDialog } from './features/bug-report/bug-report-dialog';
 import { BotHandoverDialog } from './features/caxri-bot/bot-handover-dialog';
 import { ConfirmationDialog } from './features/confirmations/confirmation-dialog';
@@ -385,6 +386,7 @@ export function App() {
                     <ConfirmationDialog />
                     <AirplaneModeDialog />
                     <AgentChatWaitingPopup />
+                    <SecretRequestCards />
                     <ToastOutlet />
                     <WindowZoomHud />
                     <ScreencastOverlay />

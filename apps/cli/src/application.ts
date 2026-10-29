@@ -508,6 +508,19 @@ export async function runCli(
             );
         if (command.stream)
             return await streamRemote(command, parameters, client, mode, io, options);
+        if (command.run) {
+            const connected = client;
+            return await command.run({
+                cwd: options.cwd ?? process.cwd(),
+                environment,
+                json: mode === 'json',
+                parameters,
+                request: (method, methodParameters) => connected.request(method, methodParameters),
+                ...(options.signal && { signal: options.signal }),
+                writeStderr: (text) => io.writeStderr(text),
+                writeStdout: (text) => io.writeStdout(text),
+            });
+        }
         const result = parsed.requestId
             ? await client.requestWithId(parsed.requestId, command.method, parameters)
             : await client.request(command.method, parameters);

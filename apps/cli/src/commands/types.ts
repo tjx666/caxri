@@ -13,6 +13,7 @@ export const CLI_GROUPS = [
     { name: 'diagnostics', summary: 'Inspect redacted diagnostics.' },
     { name: 'agent', summary: 'Use generation-scoped Agent endpoints.' },
     { name: 'bot', summary: 'Coordinate Agents across Projects from Caxri Bot.' },
+    { name: 'secret', summary: 'Use the secrets the user saved for Agents.' },
     { name: 'skills', summary: 'Inspect and install Caxri Agent skills.' },
 ] as const;
 
@@ -53,7 +54,26 @@ export interface RemoteCommandDefinition {
      */
     quietIdKey?: string;
     stream?: 'events' | 'logs';
+    /**
+     * Replaces the single `method` request with a command-owned flow, such as a poll loop or a child process, and
+     * returns the process exit code. `method` still declares the first request, its capability, and its effect.
+     */
+    run?(context: RemoteCommandRunContext): Promise<number>;
     usage?: string;
+}
+
+/**
+ * What a command-owned flow (`RemoteCommandDefinition.run`) receives once the connection is open.
+ */
+export interface RemoteCommandRunContext {
+    cwd: string;
+    environment: NodeJS.ProcessEnv;
+    json: boolean;
+    parameters: unknown;
+    request(method: CaxriMethod, parameters: unknown): Promise<unknown>;
+    signal?: AbortSignal;
+    writeStderr(text: string): void;
+    writeStdout(text: string): void;
 }
 
 export type CliCommandDefinition = LocalCommandDefinition | RemoteCommandDefinition;

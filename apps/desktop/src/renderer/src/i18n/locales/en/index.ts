@@ -5,6 +5,7 @@ import { agentActions } from './agent-actions';
 import { agentActivity } from './agent-activity';
 import { agentChat } from './agent-chat';
 import { agentInbox } from './agent-inbox';
+import { agentSecrets } from './agent-secrets';
 import { agentStatus } from './agent-status';
 import { benchmark } from './benchmark';
 import { bugReport } from './bug-report';
@@ -52,6 +53,7 @@ export const enResources = {
     ...agentChatLabelsEn,
     ...caxriBot,
     ...agentInbox,
+    ...agentSecrets,
     ...agentStatus,
     ...benchmark,
     ...bugReport,

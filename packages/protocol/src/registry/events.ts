@@ -258,6 +258,11 @@ export const serverEventPayloads = {
      */
     'claudeWindow.changed': z.object({}),
     /**
+     * The secret store or its pending Agent requests changed. Content-free (never a name or value); readers re-read
+     * `secrets.list` and `secrets.requests.list`.
+     */
+    'agentSecrets.changed': z.object({}),
+    /**
      * A Benchmark run changed; Clients re-read it. `kind` is `progress` for live step counts, which change nothing the
      * history list shows, and `transition` for a status change, a new or removed run; only a transition needs the list
      * re-read. An absent `kind` means `transition`.

@@ -5,8 +5,15 @@ import { capabilityIds, methods } from '@caxri/protocol';
 
 import { CLI_COMMANDS, findCliCommand, parseCliArguments } from '../src/commands';
 
+/**
+ * Splits an example into argv the way a shell would for the simple forms the skill uses: whitespace-separated words,
+ * with a double-quoted span (`--reason "Run the eval"`) kept as one word.
+ */
 function tokenize(command: string): string[] {
-    return command.trim().split(/\s+/u).filter(Boolean);
+    return command
+        .matchAll(/"[^"]*"|\S+/gu)
+        .map(([word]) => (word.startsWith('"') ? word.slice(1, -1) : word))
+        .toArray();
 }
 
 /**
@@ -80,7 +87,9 @@ export async function validateSkillCommands(skill: string): Promise<{
         if (!command) throw new Error(`Skill references an unknown command: caxri ${source}`);
         // eslint-disable-next-line no-await-in-loop -- examples are validated in order, so the first bad one is reported
         const parameters = await command.parseParams(parsed.tokens.slice(command.path.length));
-        if (command.kind === 'remote') {
+        // A command-owned flow (`run`) parses its own parameters, such as `secret exec`'s child argv, which are not the
+        // request of its declared method.
+        if (command.kind === 'remote' && !command.run) {
             let requestParameters = parameters;
             if (command.method === 'agent.message.wait')
                 requestParameters = { timeoutMs: parsed.timeoutMs };

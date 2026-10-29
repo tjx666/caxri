@@ -1,0 +1,38 @@
+export const agentSecrets = {
+    'agentSecrets.request.title': '{{agent}} needs a secret',
+    'agentSecrets.request.agentFallback': 'An Agent',
+    'agentSecrets.request.reasonLabel': 'Reason given by the Agent',
+    'agentSecrets.request.valueLabel': 'Value for {{name}}',
+    'agentSecrets.request.allProjects': 'Use in all Projects',
+    'agentSecrets.request.privacy':
+        'Saved on this Mac for Agents to use in commands. It is not added to the conversation.',
+    'agentSecrets.request.save': 'Save',
+    'agentSecrets.request.decline': 'Decline',
+    'agentSecrets.request.openSession': 'Open Session',
+    'agentSecrets.request.more': '{{count}} more waiting',
+    'agentSecrets.request.failed': 'Could not answer the request. Try again.',
+    'agentSecrets.request.gone': 'The Agent stopped waiting for this secret.',
+    'agentSecrets.settings.empty':
+        'No secrets yet. When an Agent needs one, Caxri asks you here instead of in the conversation.',
+    'agentSecrets.settings.loading': 'Loading secrets…',
+    'agentSecrets.settings.loadFailed': 'Could not load the saved secrets.',
+    'agentSecrets.settings.add': 'Add secret',
+    'agentSecrets.settings.name': 'Name',
+    'agentSecrets.settings.namePlaceholder': 'API_TOKEN',
+    'agentSecrets.settings.value': 'Value',
+    'agentSecrets.settings.scope': 'Available in',
+    'agentSecrets.settings.scopeGlobal': 'All Projects',
+    'agentSecrets.settings.save': 'Save',
+    'agentSecrets.settings.cancel': 'Cancel',
+    'agentSecrets.settings.replace': 'Replace value',
+    'agentSecrets.settings.delete': 'Delete {{name}}',
+    'agentSecrets.settings.deleteTitle': 'Delete {{name}}?',
+    'agentSecrets.settings.deleteMessage':
+        'Agents can no longer use it in {{scope}}. This cannot be undone.',
+    'agentSecrets.settings.deleteConfirm': 'Delete',
+    'agentSecrets.settings.saveFailed': 'Could not save the secret.',
+    'agentSecrets.settings.invalidName':
+        'Use letters, digits, and underscores, starting with a letter or underscore. CAXRI_ names are reserved.',
+    'agentSecrets.settings.updated': 'Updated {{time}}',
+    'agentSecrets.settings.missingProject': 'Removed Project',
+} as const;

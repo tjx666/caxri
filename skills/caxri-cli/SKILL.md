@@ -1,6 +1,6 @@
 ---
 name: caxri-cli
-description: Operate and debug the current Caxri Server through its version-matched CLI contract. Use when an Agent needs to inspect Caxri Projects or Sessions, start a task in a new Session of any added Project and follow its result, add a folder as a Project, validate Settings, collect redacted diagnostics, exchange bounded peer messages, dispatch or control an Agent, steer a Terminal with human authority, or verify which capabilities and commands are available.
+description: Operate and debug the current Caxri Server through its version-matched CLI contract. Use when an Agent needs to inspect Caxri Projects or Sessions, start a task in a new Session of any added Project and follow its result, add a folder as a Project, validate Settings, collect redacted diagnostics, exchange bounded peer messages, dispatch or control an Agent, steer a Terminal with human authority, use an API key or token the user saved without asking for it in chat, or verify which capabilities and commands are available.
 ---
 
 # Caxri CLI
@@ -12,7 +12,7 @@ Inside a Caxri Terminal or Agent Chat, the `CAXRI_CLI` environment variable name
 matches the Server which started you. Run `"${CAXRI_CLI:-caxri}"` wherever this guide writes `caxri`:
 a `caxri` found on `PATH` can belong to another installed version that lacks newer commands.
 
-<!-- caxri-capabilities: agents.control,agents.delegate,agents.dispatch,agents.message,agents.read,bot,diagnostics.read,projects.read,projects.write,sessions.read,settings.read,settings.write,terminals.steer -->
+<!-- caxri-capabilities: agents.control,agents.delegate,agents.dispatch,agents.message,agents.read,bot,diagnostics.read,projects.read,projects.write,secrets.use,sessions.read,settings.read,settings.write,terminals.steer -->
 
 ## Start with live introspection
 
@@ -54,6 +54,34 @@ owner's startup or transport action, not an implicit privilege fallback.
   expanding authority yourself.
 - Treat Settings, logs, and diagnostics as redacted projections. Do not seek source content, Terminal
   output, credentials, socket paths, owner tokens, or Agent transcripts through another route.
+
+## Use secrets without asking in chat
+
+When a command needs an API key, token, or password, never ask the user to paste it into the
+conversation, and never write it to a file or a command line. Use the secrets the user saved in
+Caxri. `secret exec` exports each named secret as an environment variable of that one command, so
+the value never passes through you:
+
+```bash
+caxri secret list --json
+caxri secret exec OPENAI_API_KEY -- bun run scripts/eval.ts
+```
+
+If the secret is missing, ask for it through Caxri. The user answers in a card in Caxri and the
+command returns once they save or decline; the value never reaches you:
+
+```bash
+caxri secret request OPENAI_API_KEY --reason "Run the eval script against the OpenAI API" --json
+```
+
+- Name the secret as the environment variable the command reads. Write `--reason` for the user: say
+  what you will run and why. Caxri shows it as your words.
+- Exit `0` means the secret is ready. A decline (exit 4) means continue without it or ask the user
+  how to proceed; do not request it again unprompted. A `TIMEOUT` that says the request is still open
+  means the user has not answered yet: run the same command again to keep waiting. If your shell
+  kills a long command, run it again too; it joins the same request instead of asking twice.
+- The child command can still print what it receives. Do not echo, log, or `env`-dump a secret
+  inside `secret exec`, and never read the secret store directly.
 
 ## Read Project state and debug safely
 

@@ -15,19 +15,18 @@ import {
     MIN_DELEGATION_DEPTH,
     settingsSpecByKey,
 } from '@caxri/protocol';
-import { Archive } from 'lucide-react';
 
-import { Button } from '../../components/ui/button';
 import { FieldDescription } from '../../components/ui/field';
 import { Input } from '../../components/ui/input';
 import { Switch } from '../../components/ui/switch';
 import type { Translate } from '../../i18n';
 import { useTranslation } from '../../i18n';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
-import { setArchivedSessionsOpen } from '../../stores/dialogs';
 import { WorkingFigure } from '../agent-chat/loading';
 import { TranslucentSidebarStatus } from '../primary-sidebar/translucent-sidebar-status';
 import { AgentActionSettingsEditor } from './agent-action-settings-editor';
+import { AgentSecretsForm } from './agent-secrets/agent-secrets-form';
+import { ArchivedSessionsEntry } from './archived-sessions-entry';
 import { ClaudeWindowsForm } from './claude-windows/claude-windows-form';
 import { EnumControl } from './enum-control';
 import { EnvironmentMonitorSettingControl } from './environment-monitor-setting-control';
@@ -487,26 +486,13 @@ function rowControl(
                 ),
             };
         case 'archived-sessions':
-            return {
-                control: (
-                    <Button
-                        className="archived-sessions-entry w-44 flex-none"
-                        variant="secondary"
-                        onClick={() => {
-                            // The manager is its own dialog, floating over the Settings tab like any other modal
-                            // opened over a document; there is no modal layer to close first any more.
-                            setArchivedSessionsOpen(true);
-                        }}
-                    >
-                        <Archive aria-hidden="true" size={14} />
-                        {t('settings.row.archivedSessions.manage')}
-                    </Button>
-                ),
-            };
+            return { control: <ArchivedSessionsEntry /> };
         case 'mobile-access':
             return { control: <MobileAccessForm /> };
         case 'claude-windows':
             return { control: <ClaudeWindowsForm /> };
+        case 'agent-secrets':
+            return { control: <AgentSecretsForm /> };
         case 'delegation-depth':
             return {
                 labelFor: controlId,

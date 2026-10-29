@@ -20,6 +20,8 @@ import type { ServerEvent } from '@caxri/protocol';
  * - `files.watchLimitAlert` goes to `subscribeFileWatchLimitAlerts` in `features/ssh-host/file-watch-limit-alert.ts`.
  * - `claudeWindow.changed` goes to `subscribeRuntimeQueryInvalidation`, which refreshes the Claude 5-hour windows card's
  *   `claudeWindow.status` read.
+ * - `agentSecrets.changed` goes to `subscribeRuntimeQueryInvalidation`, which refreshes the Settings secret list and the
+ *   secret request cards.
  * - `benchmark.changed` goes to `useBenchmarkEvents` in `features/benchmark/benchmark-queries.ts`, which refreshes the
  *   Benchmark tab's run list and the changed run.
  * - `desktop.shareReceived` goes to `subscribeShareRequests` in `features/share/share-request-store.ts`, which opens the
@@ -37,6 +39,7 @@ const WORKBENCH_IGNORED_EVENTS = [
     'caxriBot.commandPaletteRequested',
     'caxriBot.inboxRequested',
     'agentHooks.changed',
+    'agentSecrets.changed',
     'agentTranscript.changed',
     'benchmark.changed',
     'claudeWindow.changed',

@@ -103,6 +103,10 @@ export const effectfulCommandRecovery = {
     'agent.session.rename': 'durable',
     'agent.session.archive': 'durable',
     'agent.session.unarchive': 'durable',
+    'secrets.set': 'memory',
+    'secrets.delete': 'memory',
+    'secrets.requests.answer': 'memory',
+    'agent.secret.request': 'memory',
     'bot.ensure': 'memory',
     /**
      * Replies with the same Workbench-shaped snapshot as `bot.ensure`.
