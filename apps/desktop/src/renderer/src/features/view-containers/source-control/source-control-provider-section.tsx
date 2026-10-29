@@ -26,6 +26,7 @@ import type {
     SourceControlController,
     SourceControlSubtreeTarget,
 } from './hooks/use-source-control-controller';
+import { stableActionKey } from './source-control-action-resolution';
 import { SourceControlBranchRow } from './source-control-branch-row';
 import { SourceControlHistory } from './source-control-history';
 import { SourceControlIcon } from './source-control-icon';
@@ -105,7 +106,7 @@ function GroupActionButtons({
     return (
         <>
             {group.actions.map((action) => (
-                <Tooltip content={action.tooltip ?? action.label} key={action.id}>
+                <Tooltip content={action.tooltip ?? action.label} key={stableActionKey(action)}>
                     <Button
                         /*
                          * Revealed on hover or focus, exactly like the single-file toolbar. The group toolbar carries
@@ -329,7 +330,7 @@ function ProviderHeader({
             {provider.actions.map((action) => {
                 const isRunning = runningActionId === action.id;
                 return (
-                    <Tooltip content={action.tooltip ?? action.label} key={action.id}>
+                    <Tooltip content={action.tooltip ?? action.label} key={stableActionKey(action)}>
                         <Button
                             className="git-sync mr-1 flex size-6 flex-none"
                             size="icon"

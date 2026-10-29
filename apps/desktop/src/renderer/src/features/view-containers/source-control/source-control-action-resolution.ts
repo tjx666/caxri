@@ -38,6 +38,17 @@ export function findSourceControlActionByCommand(
 }
 
 /**
+ * A React key that survives model revisions for an action.
+ *
+ * `SourceControlAction.id` is minted per model revision, so keying a toolbar button by it unmounts and remounts every
+ * button (and its Tooltip trigger) on each refresh even when nothing visible changed. The command binding is stable
+ * across revisions (see {@link findSourceControlActionByCommand}) and identifies what the button does.
+ */
+export function stableActionKey(action: SourceControlAction): string {
+    return `${action.command.id}:${JSON.stringify(action.command.arguments ?? [])}`;
+}
+
+/**
  * The provider refused an action because its model revision had already moved on; see `ExtensionService.viewOperation`.
  */
 export const SUPERSEDED = Symbol('superseded');
