@@ -196,10 +196,13 @@ const BLOCK_TAGS = new Set([
 /**
  * Every occurrence of `query` in the text `container` shows, as DOM ranges in reading order. The rendered Markdown is
  * left alone: the ranges feed the CSS Custom Highlight API rather than wrapping matches in elements.
+ *
+ * The ranges are `StaticRange`s: a live `Range` is tracked by the document and adjusted on every DOM mutation, and 10k
+ * of them are created on each repaint. Read geometry through {@link measureAgentChatFindRange}.
  */
-export function collectAgentChatFindRanges(container: HTMLElement, query: string): Range[] {
+export function collectAgentChatFindRanges(container: HTMLElement, query: string): StaticRange[] {
     if (!query) return [];
-    const ranges: Range[] = [];
+    const ranges: StaticRange[] = [];
     let text = '';
     let nodes: Text[] = [];
     let spans: AgentChatFindSpan[] = [];
@@ -209,10 +212,14 @@ export function collectAgentChatFindRanges(container: HTMLElement, query: string
             const startNode = located && nodes[located.start[0]];
             const endNode = located && nodes[located.end[0]];
             if (!located || !startNode || !endNode) continue;
-            const range = container.ownerDocument.createRange();
-            range.setStart(startNode, located.start[1]);
-            range.setEnd(endNode, located.end[1]);
-            ranges.push(range);
+            ranges.push(
+                new StaticRange({
+                    startContainer: startNode,
+                    startOffset: located.start[1],
+                    endContainer: endNode,
+                    endOffset: located.end[1],
+                }),
+            );
         }
         text = '';
         nodes = [];
@@ -235,4 +242,55 @@ export function collectAgentChatFindRanges(container: HTMLElement, query: string
     visit(container);
     flush();
     return ranges;
+}
+
+/**
+ * Selects `range`'s text in `scratch`, a live `Range` the caller reuses, so measuring a match never registers a new
+ * live range in the document. `undefined` when the text the range points into has since changed under it.
+ */
+export function measureAgentChatFindRange(range: StaticRange, scratch: Range): DOMRect | undefined {
+    try {
+        scratch.setStart(range.startContainer, range.startOffset);
+        scratch.setEnd(range.endContainer, range.endOffset);
+    } catch {
+        return undefined;
+    }
+    return scratch.getBoundingClientRect();
+}
+
+/**
+ * How far past the view's top and bottom edges, as a fraction of the view's height, matches still get a highlight, so a
+ * short scroll between two windowed repaints never shows bare text.
+ */
+export const AGENT_CHAT_FIND_HIGHLIGHT_MARGIN = 0.25;
+
+/**
+ * The matches whose rows touch the band `[top, bottom]`, as a half-open index range `[start, end)`. Matches are in
+ * reading order, so their vertical positions only grow and two binary searches find the band in O(log n) measurements
+ * instead of measuring every match. `measure` returns a match's top and bottom, or `undefined` when it cannot be
+ * measured (its text changed under it), which counts as above the band.
+ */
+export function agentChatFindVisibleWindow(
+    count: number,
+    measure: (index: number) => { top: number; bottom: number } | undefined,
+    top: number,
+    bottom: number,
+): [number, number] {
+    // First match whose bottom is at or below the band's top.
+    let low = 0;
+    let high = count;
+    while (low < high) {
+        const middle = (low + high) >>> 1;
+        if ((measure(middle)?.bottom ?? -Infinity) >= top) high = middle;
+        else low = middle + 1;
+    }
+    const start = low;
+    // First match whose top is below the band's bottom.
+    high = count;
+    while (low < high) {
+        const middle = (low + high) >>> 1;
+        if ((measure(middle)?.top ?? -Infinity) > bottom) high = middle;
+        else low = middle + 1;
+    }
+    return [start, low];
 }

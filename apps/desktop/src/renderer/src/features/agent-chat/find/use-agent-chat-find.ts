@@ -11,12 +11,16 @@ import {
 } from 'react';
 
 import { notifyListeners } from '@caxri/utils';
+import { throttle } from 'es-toolkit';
 
 import { registerTerminalSearchHandler } from '../../terminal/terminal-search';
 import {
+    AGENT_CHAT_FIND_HIGHLIGHT_MARGIN,
+    agentChatFindVisibleWindow,
     collectAgentChatFindRanges,
     createAgentChatFindRepaintScheduler,
     hasAgentChatFindEarlierLoadSettled,
+    measureAgentChatFindRange,
     stepAgentChatFindIndex,
 } from './agent-chat-find';
 import { registerAgentChatFindHandoff } from './agent-chat-find-handoff';
@@ -31,6 +35,11 @@ import {
  */
 const REVEAL_FRACTION = 1 / 3;
 
+/**
+ * The shortest gap between two highlight window updates that scrolling triggers.
+ */
+const AGENT_CHAT_FIND_WINDOW_INTERVAL_MS = 80;
+
 interface FindResult {
     count: number;
     activeIndex: number;
@@ -41,7 +50,7 @@ interface FindResult {
  * changes; the bar subscribes to the count and position they produce.
  */
 interface FindSession {
-    ranges: Range[];
+    ranges: StaticRange[];
     activeIndex: number;
     /**
      * Set by typing or stepping, consumed by the next paint: only those move the view. A streamed reply that adds a
@@ -104,17 +113,44 @@ function didStepFind(session: FindSession, delta: 1 | -1): boolean {
  * The first match at or below the top of the view, so a new query starts where the reader is rather than at the top of
  * a long conversation; the last match when every one is above.
  */
-function firstVisibleMatch(ranges: readonly Range[], view: HTMLElement): number {
+function firstVisibleMatch(ranges: readonly StaticRange[], view: HTMLElement): number {
     const top = view.getBoundingClientRect().top;
-    const index = ranges.findIndex((range) => range.getBoundingClientRect().bottom >= top);
+    const scratch = view.ownerDocument.createRange();
+    const index = ranges.findIndex(
+        (range) => (measureAgentChatFindRange(range, scratch)?.bottom ?? -Infinity) >= top,
+    );
     return index === -1 ? ranges.length - 1 : index;
 }
 
-function reveal(range: Range, view: HTMLElement): void {
+function reveal(range: StaticRange, view: HTMLElement): void {
     const viewRect = view.getBoundingClientRect();
-    const rect = range.getBoundingClientRect();
+    const rect = measureAgentChatFindRange(range, view.ownerDocument.createRange());
+    if (!rect) return;
     if (rect.top >= viewRect.top && rect.bottom <= viewRect.bottom) return;
     view.scrollTop += rect.top - viewRect.top - view.clientHeight * REVEAL_FRACTION;
+}
+
+/**
+ * Paints the matches near the view, plus the current one wherever it is. Painting highlights costs time in proportion
+ * to how many are registered, on every frame a streaming reply paints (a Chat with about 10k matches spent 3 s of
+ * PrePaint and 3 s of Paint in an 8 s trace, about 12 fps; the 800 or so matches near the view cost 2 s of Paint and no
+ * frame rate), so the matches far above or below the view stay unregistered until a scroll brings them near; the count,
+ * stepping, and reveal keep using all of them.
+ */
+function paintFindHighlights(owner: string, view: HTMLElement, session: FindSession): void {
+    const scratch = view.ownerDocument.createRange();
+    const viewRect = view.getBoundingClientRect();
+    const margin = viewRect.height * AGENT_CHAT_FIND_HIGHLIGHT_MARGIN;
+    const [start, end] = agentChatFindVisibleWindow(
+        session.ranges.length,
+        (index) => measureAgentChatFindRange(session.ranges[index], scratch),
+        viewRect.top - margin,
+        viewRect.bottom + margin,
+    );
+    setAgentChatFindHighlights(owner, {
+        ranges: session.ranges.slice(start, end),
+        active: session.ranges.at(session.activeIndex),
+    });
 }
 
 /**
@@ -156,7 +192,7 @@ function paintFind({
     const active = ranges.at(index);
     session.ranges = ranges;
     session.activeIndex = index;
-    setAgentChatFindHighlights(owner, { ranges, active });
+    paintFindHighlights(owner, view, session);
     publish(session, { count: ranges.length, activeIndex: index });
     if (active && session.pendingReveal) {
         stopFollowing();
@@ -253,9 +289,17 @@ export function useAgentChatFind({
         );
         const observer = new MutationObserver(repaints.schedule);
         observer.observe(content, { characterData: true, childList: true, subtree: true });
+        // Scrolling moves which matches are near the view, so the highlights follow it, without searching again.
+        const view = scrollReference.current;
+        const rewindow = throttle(() => {
+            if (view) paintFindHighlights(owner, view, session);
+        }, AGENT_CHAT_FIND_WINDOW_INTERVAL_MS);
+        view?.addEventListener('scroll', rewindow, { passive: true });
         return () => {
             observer.disconnect();
             repaints.cancel();
+            view?.removeEventListener('scroll', rewindow);
+            rewindow.cancel();
         };
     }, [contentReference, owner, scrollReference, searched, session, stopFollowing]);
     useEffect(() => () => clearAgentChatFindHighlights(owner), [owner]);

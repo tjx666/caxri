@@ -2,8 +2,7 @@ import { mkdir, mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { Page } from '@playwright/test';
-
+import { highlightedText, isActiveFindMatchInView } from './support/agent-chat-find.ts';
 import { fakeCodexChatAgentMode, openAgentChat } from './support/agent-chat-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
 import {
@@ -12,20 +11,6 @@ import {
     launchCaxri,
     VISIBLE_SESSION,
 } from './support/helpers.ts';
-
-/**
- * The text each find highlight paints, read from the CSS Custom Highlight registry: the matches are ranges, not
- * elements, so no locator reaches them.
- */
-async function highlightedText(page: Page, name: string): Promise<string[]> {
-    return page.evaluate(
-        (highlight) =>
-            [...(CSS.highlights.get(highlight) ?? [])].map((range) =>
-                range instanceof Range ? range.toString() : '',
-            ),
-        name,
-    );
-}
 
 // eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
 test('Cmd+F finds text in a Chat, steps through matches, and opens a folded turn that holds one', async ({}, testInfo) => {
@@ -107,6 +92,33 @@ test('Cmd+F finds text in a Chat, steps through matches, and opens a folded turn
         await expect(fold).toHaveAttribute('aria-expanded', 'true');
         await expect(message).toBeFocused();
         await expect.poll(() => highlightedText(page, 'agent-chat-find')).toEqual([]);
+
+        // Only matches near the view are highlighted, so a match far below it must still become current and scroll into
+        // view when stepped to. A tall middle reply keeps the first and last matches several screens apart, so stepping
+        // through all four jumps to matches that were outside the highlighted window.
+        const filler = Array.from({ length: 60 }, (_, index) => `filler ${index}`).join('\n\n');
+        await send('omega first', 'You said: omega first');
+        await send(filler, 'You said: filler 0');
+        await send('omega last', 'You said: omega last');
+        // A running turn follows its tail and would scroll the view back down after each jump.
+        await expect(session.getByRole('button', { name: 'Stop' })).toHaveCount(0);
+        await message.focus();
+        await page.keyboard.press('Meta+f');
+        await input.fill('omega');
+        await expect(find.getByText(/^\d\/4$/u)).toBeVisible();
+        const log = session.getByRole('log', { name: 'Conversation' });
+        await log.evaluate((element) => element.scrollTo({ top: 0 }));
+        const stepToVisibleMatch = async (): Promise<void> => {
+            await input.press('Enter');
+            await expect.poll(() => isActiveFindMatchInView(page)).toBe(true);
+            await expect
+                .poll(() => highlightedText(page, 'agent-chat-find-active'))
+                .toEqual(['omega']);
+        };
+        await stepToVisibleMatch();
+        await stepToVisibleMatch();
+        await stepToVisibleMatch();
+        await stepToVisibleMatch();
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { handOffAgentChatFind, registerAgentChatFindHandoff } from './agent-chat-find-handoff';
+import { handOffAgentChatFind, registerAgentChatFindHandoff } from '../agent-chat-find-handoff';
 
 describe('Agent Chat find handoff', () => {
     it('delivers to a mounted Chat at once and to a later one only within the wait', () => {

@@ -1039,7 +1039,11 @@ Request`, `agentChat.focusWaitingRequest`, bound to Cmd+Alt+W, unfolds it and mo
   reply streams without moving the view: each recompute walks the whole conversation, so the first
   DOM change after a quiet spell repaints at once and a streaming reply repaints at most every
   250 ms plus once after its last change (`createAgentChatFindRepaintScheduler` in
-  `agent-chat-find.ts`); typing and stepping repaint immediately. A finished turn folded behind
+  `agent-chat-find.ts`); typing and stepping repaint immediately. The count and stepping cover every match, but
+  only the matches within a quarter of the view's height of it (plus the current one) are registered with the
+  highlight API, as static ranges, and a scroll moves that window: painting a highlight costs time on every
+  frame a streaming reply paints, and registering about 10k of them in a long Chat dropped streaming from about
+  50 fps to 12 fps (`agentChatFindVisibleWindow` in `agent-chat-find.ts`). A finished turn folded behind
   `Worked for` opens when one of its messages mentions a query of three or more characters, since
   folded content is not in the DOM, and folds back when a refined query stops matching. Escape closes the
   bar, clears the highlights, leaves opened turns open, and returns focus to the composer. Times in
