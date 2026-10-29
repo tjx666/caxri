@@ -6,6 +6,7 @@ import type { BootstrapState } from '@caxri/protocol';
 import type { Page } from '@playwright/test';
 import Database from 'better-sqlite3';
 
+import { highlightedText } from './support/agent-chat-find.ts';
 import { fakeClaudeChatAgentMode } from './support/agent-chat-fixture.ts';
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
@@ -305,13 +306,7 @@ test('Session search finds an Agent Chat conversation by message text and opens 
         );
         await expect(find.getByText('1/1')).toBeVisible();
         await expect
-            .poll(() =>
-                page.evaluate(() =>
-                    [...(CSS.highlights.get('agent-chat-find-active') ?? [])].map((range) =>
-                        range instanceof Range ? range.toString() : '',
-                    ),
-                ),
-            )
+            .poll(() => highlightedText(page, 'agent-chat-find-active'))
             .toEqual(['probe with only 21']);
         await page.screenshot({ path: testInfo.outputPath('session-search-chat-find.png') });
     } finally {

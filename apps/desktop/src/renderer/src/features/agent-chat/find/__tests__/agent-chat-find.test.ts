@@ -1,17 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { AgentChatTimelineEntry } from '../transcript/agent-chat-timeline';
+import type { AgentChatTimelineEntry } from '../../transcript/agent-chat-timeline';
 import {
     AGENT_CHAT_FIND_REPAINT_INTERVAL_MS,
     agentChatFindCountLabel,
     agentChatFindOccurrences,
+    agentChatFindVisibleWindow,
     canAgentChatFindSearchEarlier,
     createAgentChatFindRepaintScheduler,
     hasAgentChatFindEarlierLoadSettled,
     isAgentChatTurnFoldMatch,
     locateAgentChatFindMatch,
     stepAgentChatFindIndex,
-} from './agent-chat-find';
+} from '../agent-chat-find';
 
 describe('agentChatFindOccurrences', () => {
     it('finds every occurrence ignoring case, without overlaps', () => {
@@ -189,5 +190,36 @@ describe('hasAgentChatFindEarlierLoadSettled', () => {
         expect(hasAgentChatFindEarlierLoadSettled(true, true, true)).toBe(false);
         expect(hasAgentChatFindEarlierLoadSettled(false, false, true)).toBe(false);
         expect(hasAgentChatFindEarlierLoadSettled(true, false, false)).toBe(false);
+    });
+});
+
+describe('agentChatFindVisibleWindow', () => {
+    /**
+     * One match per 20px row, row `index` spanning `[index * 20, index * 20 + 20]`.
+     */
+    const rows = (index: number) => ({ top: index * 20, bottom: index * 20 + 20 });
+
+    it('returns only the matches whose rows touch the band', () => {
+        // Rows 5 to 9 touch [100, 200]: row 4 ends at 100, which still touches, and row 10 starts at 200.
+        expect(agentChatFindVisibleWindow(1000, rows, 110, 190)).toEqual([5, 10]);
+        expect(agentChatFindVisibleWindow(1000, rows, 100, 200)).toEqual([4, 11]);
+    });
+
+    it('covers every match when the band spans them all and none when it misses them', () => {
+        expect(agentChatFindVisibleWindow(10, rows, -1000, 1000)).toEqual([0, 10]);
+        expect(agentChatFindVisibleWindow(10, rows, 5000, 6000)).toEqual([10, 10]);
+        expect(agentChatFindVisibleWindow(10, rows, -500, -100)).toEqual([0, 0]);
+        expect(agentChatFindVisibleWindow(0, rows, 0, 100)).toEqual([0, 0]);
+    });
+
+    it('measures only a logarithmic number of matches', () => {
+        const measure = vi.fn(rows);
+        agentChatFindVisibleWindow(10_000, measure, 100_000, 100_400);
+        expect(measure.mock.calls.length).toBeLessThan(40);
+    });
+
+    it('treats a match that cannot be measured as above the band', () => {
+        const measure = (index: number) => (index < 3 ? undefined : rows(index));
+        expect(agentChatFindVisibleWindow(10, measure, 0, 100)[0]).toBe(3);
     });
 });
