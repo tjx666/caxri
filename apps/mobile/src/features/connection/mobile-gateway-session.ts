@@ -23,82 +23,27 @@ import {
     X25519_KEY_BYTES,
 } from '@caxri/mobile-transport';
 
-import { discardSocket, isSocketDiscarded } from './discard-socket';
+import type { MobileGatewayRoute, MobileGatewayRouteKind } from './gateway-routes';
+import { gatewayRoutes, openGatewaySocket } from './gateway-routes';
 import type { MobileGatewayRuntime } from './mobile-gateway-client';
-import {
-    MobilePairingError,
-    MobileServerVerificationError,
-    MobileVersionMismatchError,
-} from './mobile-gateway-errors';
+import { MobileServerVerificationError, MobileVersionMismatchError } from './mobile-gateway-errors';
 import type { SocketReader } from './socket-reader';
 import { createSocketReader } from './socket-reader';
 
 export const HANDSHAKE_TIMEOUT_MS = 10_000;
-const SOCKET_OPEN_TIMEOUT_MS = 4_000;
 const textDecoder = new TextDecoder();
 const textEncoder = new TextEncoder();
 
-const openSocketAt = async (
-    address: string,
-    port: number,
-    runtime: MobileGatewayRuntime,
-    onSocket: (socket: WebSocket) => void,
-): Promise<WebSocket> => {
-    const socket = runtime.openWebSocket(`ws://${address}:${port}/mobile`);
-    onSocket(socket);
-    await new Promise<void>((resolve, reject) => {
-        const timeout: { handle?: ReturnType<typeof setTimeout> } = {};
-        function cleanup(): void {
-            clearTimeout(timeout.handle);
-            socket.removeEventListener('open', onOpen);
-            socket.removeEventListener('error', onError);
-            socket.removeEventListener('close', onError);
-        }
-        function onError(): void {
-            cleanup();
-            discardSocket(socket);
-            reject(new MobilePairingError('unreachable', 'Caxri could not be reached.'));
-        }
-        function onOpen(): void {
-            // A cancelled pairing's socket can still open on Android; it fails here and `discardSocket` closes it.
-            if (isSocketDiscarded(socket)) {
-                onError();
-                return;
-            }
-            cleanup();
-            resolve();
-        }
-        timeout.handle = setTimeout(onError, SOCKET_OPEN_TIMEOUT_MS);
-        socket.addEventListener('open', onOpen, { once: true });
-        socket.addEventListener('error', onError, { once: true });
-        socket.addEventListener('close', onError, { once: true });
-    });
-    return socket;
-};
-
 /**
- * Races one socket per advertised address and keeps the first to open. Only the winner ever carries a hello; every
- * other candidate is discarded, including one still connecting that React Native Android would otherwise leave open.
+ * Opens one socket to a paired computer over its direct addresses only. Update recovery and direct-route probes use it:
+ * neither may travel through the Relay.
  */
 export const openSocket = async (
     addresses: string[],
     port: number,
     runtime: MobileGatewayRuntime,
-): Promise<WebSocket> => {
-    const sockets: WebSocket[] = [];
-    try {
-        const winner = await Promise.any(
-            addresses.map((address) =>
-                openSocketAt(address, port, runtime, (socket) => sockets.push(socket)),
-            ),
-        );
-        for (const socket of sockets) if (socket !== winner) discardSocket(socket);
-        return winner;
-    } catch {
-        // Every candidate rejects only after `openSocketAt` discarded it, so nothing is left to close here.
-        throw new MobilePairingError('unreachable', 'Caxri could not be reached.');
-    }
-};
+): Promise<WebSocket> =>
+    (await openGatewaySocket(gatewayRoutes({ addresses, port }), runtime)).socket;
 
 export interface EstablishedSession {
     connectionId: Uint8Array;
@@ -109,6 +54,10 @@ export interface EstablishedSession {
     keys: MobileSessionKeys;
     outbound: MobileFrameCounter;
     reader: SocketReader;
+    /**
+     * The path that won the route race; a Relay session probes for a direct path to move back to.
+     */
+    route: MobileGatewayRouteKind;
     runtime: MobileGatewayRuntime;
     socket: WebSocket;
 }
@@ -158,17 +107,16 @@ export const sendSealed = (session: EstablishedSession, payload: unknown): void 
 };
 
 export const establish = async (input: {
-    addresses: string[];
     clientHello: Record<string, unknown>;
     clientNonce: Uint8Array;
     clientSecretKey: Uint8Array;
     expectedServerId: string;
     mode: 'connect' | 'pair';
-    port: number;
     presharedKey: Uint8Array;
+    routes: MobileGatewayRoute[];
     runtime: MobileGatewayRuntime;
 }): Promise<EstablishedSession> => {
-    const socket = await openSocket(input.addresses, input.port, input.runtime);
+    const { route, socket } = await openGatewaySocket(input.routes, input.runtime);
     const reader = createSocketReader(socket);
     try {
         socket.send(JSON.stringify(input.clientHello));
@@ -210,6 +158,7 @@ export const establish = async (input: {
             keys,
             outbound: new MobileFrameCounter(),
             reader,
+            route,
             runtime: input.runtime,
             socket,
         };

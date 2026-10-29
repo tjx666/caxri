@@ -1,4 +1,8 @@
-import { isPrivateMobileIpv4Address } from '@caxri/mobile-transport';
+import {
+    isPrivateMobileIpv4Address,
+    relayHostIdSchema,
+    relayUrlSchema,
+} from '@caxri/mobile-transport';
 import { mobileDeviceIdSchema } from '@caxri/protocol';
 import { z } from 'zod';
 
@@ -13,6 +17,10 @@ const mobileCredentialSchema = z.strictObject({
     deviceId: mobileDeviceIdSchema,
     generation: z.number().int().positive(),
     credential: z.string().regex(/^[0-9a-f]{64}$/u),
+    /**
+     * The Relay the computer advertised at pairing; absent for computers paired without one.
+     */
+    relay: z.strictObject({ url: relayUrlSchema, hostId: relayHostIdSchema }).optional(),
 });
 
 export type MobileCredential = z.infer<typeof mobileCredentialSchema>;

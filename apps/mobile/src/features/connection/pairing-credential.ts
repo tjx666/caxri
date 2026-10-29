@@ -1,7 +1,12 @@
 import type { MobileCredential } from './credential-store';
 
 export const pairingCredential = (
-    link: { addresses: string[]; port: number; serverId: string },
+    link: {
+        addresses: string[];
+        port: number;
+        relay?: { hostId: string; url: string };
+        serverId: string;
+    },
     paired: { credential: string; deviceId: string; generation: number },
 ): MobileCredential => ({
     version: 1,
@@ -11,4 +16,5 @@ export const pairingCredential = (
     deviceId: paired.deviceId,
     generation: paired.generation,
     credential: paired.credential,
+    ...(link.relay && { relay: { url: link.relay.url, hostId: link.relay.hostId } }),
 });

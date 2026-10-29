@@ -100,6 +100,32 @@ describe('mobile credential store', () => {
         await expect(store.load()).resolves.toBeNull();
     });
 
+    it('keeps the Relay route of a credential and still loads one paired without it', async () => {
+        const storage = memoryStorage();
+        const store = createMobileCredentialStore(storage);
+        const relay = { url: 'wss://relay.example.com', hostId: 'cd'.repeat(16) };
+
+        await store.save({ ...credential, relay });
+        await expect(store.load()).resolves.toEqual({ ...credential, relay });
+
+        storage.values.set('caxri.mobile-credential.v1', JSON.stringify(credential));
+        await expect(store.load()).resolves.toEqual(credential);
+    });
+
+    it('fails closed on a stored Relay route that is not a WebSocket URL', async () => {
+        const storage = memoryStorage();
+        storage.values.set(
+            'caxri.mobile-credential.v1',
+            JSON.stringify({
+                ...credential,
+                relay: { url: 'https://relay.example.com', hostId: 'cd'.repeat(16) },
+            }),
+        );
+
+        await expect(createMobileCredentialStore(storage).load()).resolves.toBeNull();
+        expect(storage.values.size).toBe(0);
+    });
+
     it('deletes invalid values instead of exposing them to reconnect', async () => {
         const storage = memoryStorage();
         storage.values.set('caxri.mobile-credential.v1', '{"credential":"secret"}');

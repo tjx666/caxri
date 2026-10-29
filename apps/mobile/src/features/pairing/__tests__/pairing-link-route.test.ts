@@ -25,6 +25,25 @@ describe('pairingLinkFromRouteParameters', () => {
         expect(pairingLinkFromRouteParameters(routeParameters)).toBe(pairingLink);
     });
 
+    it('reconstructs a link that carries a Relay fallback, and only with both Relay parameters', () => {
+        const relayLink = serializeMobilePairingLink({
+            addresses: ['192.168.1.3'],
+            expiresAt: 2_000_000_000_000,
+            pairingId: '12'.repeat(16),
+            port: 4_321,
+            secret: '34'.repeat(32),
+            serverId: 'server_test',
+            version: MOBILE_TRANSPORT_VERSION,
+            relay: { url: 'wss://relay.example.com', hostId: 'ab'.repeat(16) },
+        });
+        const relayParameters = Object.fromEntries(new URL(relayLink).searchParams);
+
+        expect(pairingLinkFromRouteParameters(relayParameters)).toBe(relayLink);
+        expect(() =>
+            pairingLinkFromRouteParameters({ ...relayParameters, 'relay-host': undefined }),
+        ).toThrow('Pairing route parameters do not match the protocol');
+    });
+
     it.each([
         { ...routeParameters, secret: undefined },
         { ...routeParameters, secret: [routeParameters.secret] },

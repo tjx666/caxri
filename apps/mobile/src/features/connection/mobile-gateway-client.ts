@@ -34,6 +34,9 @@ import { z } from 'zod';
 
 import { notifyListeners } from '../../lib/notify-listeners';
 import type { MobileCredential, MobileCredentialStore } from './credential-store';
+import { DirectRouteProbe } from './direct-route-probe';
+import type { MobileGatewayRouteKind } from './gateway-routes';
+import { isDirectRouteReachable, pairedGatewayRoutes } from './gateway-routes';
 import type { MobileSubscriptionListener } from './mobile-frame-router';
 import { MobileFrameRouter } from './mobile-frame-router';
 import {
@@ -104,8 +107,16 @@ export interface MobileGatewaySubscriptionHandle {
     unsubscribe(): Promise<void>;
 }
 
+export interface MobileGatewayConnectionOptions {
+    /**
+     * Checks the paired computer's direct addresses; only a Relay session uses it, to move back to a direct path.
+     */
+    directProbe?: () => Promise<boolean>;
+}
+
 export class MobileGatewayConnection {
     readonly #clearCredential: () => Promise<void>;
+    readonly #directRoute?: DirectRouteProbe;
     readonly #heartbeat: MobileHeartbeat;
     readonly #listeners = new Set<(reason: MobileGatewayTermination) => void>();
     readonly #observationListeners = new Set<() => void>();
@@ -122,9 +133,26 @@ export class MobileGatewayConnection {
     #subscriptionQueue = Promise.resolve();
     #termination?: MobileGatewayTermination;
 
-    constructor(session: EstablishedSession, clearCredential: () => Promise<void>) {
+    constructor(
+        session: EstablishedSession,
+        clearCredential: () => Promise<void>,
+        options: MobileGatewayConnectionOptions = {},
+    ) {
         this.#session = session;
         this.#clearCredential = clearCredential;
+        if (session.route === 'relay' && options.directProbe)
+            this.#directRoute = new DirectRouteProbe({
+                probe: options.directProbe,
+                readyAt: Date.now(),
+                canUpgrade: () => !this.hasOutstandingMutation(),
+                // Ends like any lost connection: the owner's reconnect path tries direct routes first again.
+                onUpgrade: () =>
+                    this.#finish(
+                        'disconnected',
+                        new Error('A direct route to Caxri is available.'),
+                        'route-upgrade',
+                    ),
+            });
         this.#heartbeat = new MobileHeartbeat({
             onTimeout: () => {
                 const error = new Error('Caxri did not acknowledge the heartbeat.');
@@ -146,6 +174,7 @@ export class MobileGatewayConnection {
         if (this.#termination || this.#closedByOwner) return;
         this.#termination = reason;
         this.#heartbeat.stop();
+        this.#directRoute?.stop();
         this.#router.rejectAll(error);
         this.#session.reader.close();
         closeSocketFor(this.#session.socket, closeReason);
@@ -239,6 +268,7 @@ export class MobileGatewayConnection {
             closeSocketFor(this.#session.socket, reason);
         this.#closedByOwner = true;
         this.#heartbeat.stop();
+        this.#directRoute?.stop();
         this.#router.rejectAll(connectionClosedError());
         this.#session.reader.close();
         this.#listeners.clear();
@@ -259,10 +289,22 @@ export class MobileGatewayConnection {
         return () => this.#observationListeners.delete(listener);
     }
 
+    /**
+     * The path this connection runs over.
+     */
+    get route(): MobileGatewayRouteKind {
+        return this.#session.route;
+    }
+
     setForeground(isForeground: boolean): void {
         this.#isForeground = isForeground;
-        if (isForeground && !this.#closedByOwner && !this.#termination) this.#heartbeat.start();
-        else this.#heartbeat.stop();
+        if (isForeground && !this.#closedByOwner && !this.#termination) {
+            this.#heartbeat.start();
+            this.#directRoute?.start();
+        } else {
+            this.#heartbeat.stop();
+            this.#directRoute?.stop();
+        }
     }
 
     hasOutstandingMutation(): boolean {
@@ -399,6 +441,13 @@ const hasUnsupportedPairingLinkVersion = (source: string): boolean => {
     }
 };
 
+const directProbeOptions = (
+    credential: MobileCredential,
+    runtime: MobileGatewayRuntime,
+): MobileGatewayConnectionOptions => ({
+    directProbe: () => isDirectRouteReachable(credential.addresses, credential.port, runtime),
+});
+
 export const pairMobileGateway = async (input: {
     isCurrent?: () => boolean;
     signal?: AbortSignal;
@@ -423,8 +472,7 @@ export const pairMobileGateway = async (input: {
     let session: EstablishedSession;
     try {
         session = await establish({
-            addresses: link.addresses,
-            port: link.port,
+            routes: pairedGatewayRoutes({ ...link, purpose: 'pairing', secret: link.secret }),
             mode: 'pair',
             expectedServerId: link.serverId,
             clientSecretKey,
@@ -459,9 +507,13 @@ export const pairMobileGateway = async (input: {
         if (input.signal?.aborted) throw new Error('Pairing attempt was cancelled.');
         dispose();
         return {
-            connection: new MobileGatewayConnection(session, async () => {
-                await input.store.clearIfCurrent(credential);
-            }),
+            connection: new MobileGatewayConnection(
+                session,
+                async () => {
+                    await input.store.clearIfCurrent(credential);
+                },
+                directProbeOptions(credential, input.runtime),
+            ),
             credential,
         };
     } catch (error) {
@@ -482,8 +534,11 @@ export const reconnectMobileGateway = async (
     let session: EstablishedSession;
     try {
         session = await establish({
-            addresses: credential.addresses,
-            port: credential.port,
+            routes: pairedGatewayRoutes({
+                ...credential,
+                purpose: 'device',
+                secret: credential.credential,
+            }),
             mode: 'connect',
             expectedServerId: credential.serverId,
             clientSecretKey,
@@ -508,9 +563,13 @@ export const reconnectMobileGateway = async (
         const ready = mobileReadySchema.parse(await receiveSealed(session, HANDSHAKE_TIMEOUT_MS));
         if (ready.deviceId !== credential.deviceId || ready.generation !== credential.generation)
             throw new Error('Caxri returned an unexpected device identity.');
-        return new MobileGatewayConnection(session, async () => {
-            await store.clearIfCurrent(credential);
-        });
+        return new MobileGatewayConnection(
+            session,
+            async () => {
+                await store.clearIfCurrent(credential);
+            },
+            directProbeOptions(credential, runtime),
+        );
     } catch (error) {
         session.reader.close();
         session.socket.close();
