@@ -772,6 +772,10 @@ html[data-translucent-sidebar] .app-shell {
 html[data-translucent-sidebar] .workbench-column {
     background: var(--background);
 }
+/* Zen Mode hides the sidebar, so nothing is see-through; the windowed title band must not show the material. */
+html[data-translucent-sidebar] .app-shell.zen-mode {
+    background: var(--background);
+}
 html[data-translucent-sidebar] .session-primary-sidebar,
 html[data-translucent-sidebar] .session-primary-sidebar + .panel-divider {
     background: var(--sidebar-translucent-fill);

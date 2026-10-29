@@ -1,5 +1,5 @@
 import { focusChromeSurface } from '../../stores/chrome-focus-handoff';
-import { useChromeLayoutStore } from '../../stores/chrome-layout';
+import { isPrimarySidebarShown, useChromeLayoutStore } from '../../stores/chrome-layout';
 
 /**
  * Moves keyboard focus into the Primary Side Bar's Session tree, revealing the side bar first when it is hidden.
@@ -14,7 +14,7 @@ import { useChromeLayoutStore } from '../../stores/chrome-layout';
  */
 export function focusPrimarySidebar(): void {
     const layout = useChromeLayoutStore.getState();
-    if (!layout.primarySidebarVisible) layout.setPrimarySidebarVisible(true);
+    if (!isPrimarySidebarShown(layout)) layout.setPrimarySidebarVisible(true);
     focusChromeSurface('primarySidebar');
 }
 

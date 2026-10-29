@@ -198,6 +198,10 @@ export const defaultKeybindings: Keybinding[] = [
      */
     { key: 'cmd+j', command: 'panel.toggle' },
     /**
+     * `Cmd+K Z` is VS Code's Zen Mode chord.
+     */
+    { key: 'cmd+k z', command: 'view.toggleZenMode' },
+    /**
      * `Cmd+=` / `Cmd+-` match VS Code and every browser. Reset Zoom stays unbound: VS Code's `Cmd+0` is Focus into
      * Primary Side Bar here too, and its `Cmd+Numpad0` cannot be expressed because bindings match `KeyboardEvent.key`,
      * which reports both zeros as `0`.
@@ -459,5 +463,9 @@ export const defaultKeybindingChanges = [
     {
         type: 'add',
         binding: { key: 'cmd+alt+w', command: 'agentChat.focusWaitingRequest' },
+    },
+    {
+        type: 'add',
+        binding: { key: 'cmd+k z', command: 'view.toggleZenMode' },
     },
 ] satisfies readonly DefaultKeybindingChange[];

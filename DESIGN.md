@@ -332,6 +332,14 @@ an editable virtual Editor tab in the current Session whose saves write back to 
 tab survives only for the Renderer lifetime and never creates a Project or Session or enters durable Session
 state.
 
+**Zen Mode** (`view.toggleZenMode`, `Cmd+K Z`): hides the Primary Side Bar, Secondary Side Bar,
+Panel, pane tab bars, and status bar so only the current Chat or Terminal remains. It is a
+window-local overlay, never persisted: each surface keeps its stored visibility, so leaving Zen
+restores the layout exactly. Toggling or revealing any hidden surface (its toggle, a focus or open
+command) leaves Zen first, so a command never acts on a surface the user cannot see. In a windowed
+layout the top 36px stays a drag band for the traffic lights; full screen drops it. Toasts still
+appear.
+
 **Status bar**: `--surface` background, top hairline, `meta` text in `--muted`. The left side
 shows Project and Git context, plus the delivery chips the current branch resolves to: its pull
 request, its Linear issue, and its acceptance report. Each one is a chip only when the branch

@@ -5,6 +5,8 @@ import {
     clampLayoutToViewport,
     clampPanelHeight,
     clampWidth,
+    isPanelShown,
+    isPrimarySidebarShown,
     isSecondarySidebarShownFor,
     MIN_MAIN_WIDTH,
     MIN_WORK_SURFACE_HEIGHT,
@@ -288,5 +290,52 @@ describe('SecondarySidebar yield', () => {
     it('hides normally without a yield', () => {
         useChromeLayoutStore.getState().toggleSecondarySidebar();
         expect(useChromeLayoutStore.getState().secondarySidebarVisible).toBe(false);
+    });
+});
+
+describe('Zen Mode', () => {
+    beforeEach(() => {
+        useChromeLayoutStore.setState({
+            zenMode: false,
+            primarySidebarVisible: true,
+            secondarySidebarVisible: true,
+            secondarySidebarRevealedScope: undefined,
+            panelVisible: true,
+        });
+    });
+
+    it('hides every surface without touching the stored layout, and restores it on exit', () => {
+        useChromeLayoutStore.getState().toggleZenMode();
+        const state = useChromeLayoutStore.getState();
+        expect(isPrimarySidebarShown(state)).toBe(false);
+        expect(isPanelShown(state)).toBe(false);
+        expect(state.primarySidebarVisible).toBe(true);
+        expect(state.panelVisible).toBe(true);
+
+        useChromeLayoutStore.getState().toggleZenMode();
+        expect(isPrimarySidebarShown(useChromeLayoutStore.getState())).toBe(true);
+        expect(isPanelShown(useChromeLayoutStore.getState())).toBe(true);
+    });
+
+    it('leaves Zen Mode and keeps a surface visible when its toggle runs inside Zen', () => {
+        useChromeLayoutStore.getState().toggleZenMode();
+        useChromeLayoutStore.getState().togglePanel();
+        const state = useChromeLayoutStore.getState();
+        expect(state.zenMode).toBe(false);
+        expect(isPanelShown(state)).toBe(true);
+    });
+
+    it('leaves Zen Mode when a command reveals a surface', () => {
+        useChromeLayoutStore.getState().toggleZenMode();
+        useChromeLayoutStore.getState().setPrimarySidebarVisible(true);
+        expect(useChromeLayoutStore.getState().zenMode).toBe(false);
+    });
+
+    it('stays in Zen Mode when a command hides a surface', () => {
+        useChromeLayoutStore.getState().toggleZenMode();
+        useChromeLayoutStore.getState().setPanelVisible(false);
+        const state = useChromeLayoutStore.getState();
+        expect(state.zenMode).toBe(true);
+        expect(state.panelVisible).toBe(false);
     });
 });

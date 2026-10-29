@@ -114,6 +114,7 @@ export const commands = {
     'commands.primarySidebar.toggleActivity': 'Toggle Activity',
     'commands.primarySidebar.focus': 'Focus Primary Side Bar',
     'commands.view.zoomIn': 'Zoom In',
+    'commands.view.toggleZenMode': 'Toggle Zen Mode',
     'commands.view.zoomOut': 'Zoom Out',
     'commands.view.resetZoom': 'Reset Zoom',
     'commands.usage.open': 'Open Usage',

@@ -147,6 +147,8 @@ export const commandDescriptions = {
     'commands.description.primarySidebar.focus':
         'Move keyboard focus into the Primary Side Bar, revealing it first when hidden',
     'commands.description.view.zoomIn': 'Enlarge the whole interface by one zoom step',
+    'commands.description.view.toggleZenMode':
+        'Hide the side bars, Panel, tab bars, and status bar so only the current Chat or Terminal remains',
     'commands.description.view.zoomOut': 'Shrink the whole interface by one zoom step',
     'commands.description.view.resetZoom': 'Return the interface to its original size',
     'commands.description.usage.open':

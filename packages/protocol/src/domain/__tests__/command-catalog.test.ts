@@ -39,6 +39,7 @@ const taggedGenerationDigests: ReadonlyArray<readonly [firstVersion: string, dig
     ['v0.0.127', 'b2ec2e1b6636ee5f'],
     ['v0.0.134', 'b2ec2e1b6636ee5f'],
     ['v0.0.135', '0f487a471ef3653d'],
+    ['v0.0.138', '34a749658b210ddd'],
 ];
 
 /**

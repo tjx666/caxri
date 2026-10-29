@@ -2,7 +2,7 @@ import type { TerminalKind } from '@caxri/protocol';
 
 import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
-import { useChromeLayoutStore } from '../../stores/chrome-layout';
+import { isPrimarySidebarShown, useChromeLayoutStore } from '../../stores/chrome-layout';
 import type { CreateSessionAnchor } from '../../stores/dialogs';
 import { clearPendingSession, useDialogStore } from '../../stores/dialogs';
 import { isLocalOnlyAvailable, isSshHost } from '../../stores/environment';
@@ -82,7 +82,7 @@ export function beginSessionCreation(
  * default on press and opens this list on hover.
  */
 export function openSessionCreationMenu(projectId: string, anchor: CreateSessionAnchor): void {
-    if (!useChromeLayoutStore.getState().primarySidebarVisible)
+    if (!isPrimarySidebarShown(useChromeLayoutStore.getState()))
         useChromeLayoutStore.getState().setPrimarySidebarVisible(true);
     useDialogStore.getState().openCreateSessionMenu(projectId, anchor);
 }

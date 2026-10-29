@@ -69,6 +69,8 @@ vi.mock('../../../queries/invalidation', () => ({
     removeSessionQueries: mocks.removeSessionQueries,
 }));
 vi.mock('../../../stores/chrome-layout', () => ({
+    isPrimarySidebarShown: (state: { primarySidebarVisible: boolean }) =>
+        state.primarySidebarVisible,
     useChromeLayoutStore: {
         getState: vi.fn(() => ({
             primarySidebarVisible: mocks.primarySidebarVisible,

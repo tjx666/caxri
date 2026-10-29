@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import {
+    isPanelShown,
     PANEL_DEFAULT_HEIGHT,
     PANEL_MAX_HEIGHT,
     PANEL_MIN_HEIGHT,
@@ -21,7 +22,7 @@ import { Workbench } from './workbench';
  */
 export function WorkbenchColumn() {
     const { t } = useTranslation();
-    const isPanelVisible = useChromeLayoutStore((state) => state.panelVisible);
+    const isPanelVisible = useChromeLayoutStore(isPanelShown);
     const panelHeight = useChromeLayoutStore((state) => state.panelHeight);
     /**
      * Only the committed height reaches the DOM through React; a drag in progress writes the same custom property

@@ -9,7 +9,7 @@ import type { ScrollFadeFill } from '../../components/scroll-fade';
 import { ScrollFade } from '../../components/scroll-fade';
 import { useScrollEdges } from '../../hooks/use-scroll-edges';
 import { cn } from '../../lib/utilities';
-import { useChromeLayoutStore } from '../../stores/chrome-layout';
+import { isPrimarySidebarShown, useChromeLayoutStore } from '../../stores/chrome-layout';
 import { useIsFullScreen, useSessionState, useTerminal } from '../../stores/selectors';
 import { editorTabActionsPath } from '../editor/document-tab-path-actions';
 import type { WorkTabNavigationKey } from '../tabs/work-tab-accessibility';
@@ -375,7 +375,8 @@ export function PaneTabBar({
     tabListLabel,
     spansWindowWidth,
 }: PaneTabBarProperties) {
-    const isPrimarySidebarVisible = useChromeLayoutStore((state) => state.primarySidebarVisible);
+    const isPrimarySidebarVisible = useChromeLayoutStore(isPrimarySidebarShown);
+    const isZenMode = useChromeLayoutStore((state) => state.zenMode);
     const isFullScreen = useIsFullScreen();
     const listReference = useRef<HTMLDivElement>(null);
     const {
@@ -417,6 +418,8 @@ export function PaneTabBar({
                     !isFullScreen &&
                     'pl-(--traffic-light-clearance)',
                 isDropTarget && 'bg-elevated',
+                // Hidden rather than unmounted: each tab panel is labelled by its tab, so the tabs stay in the tree.
+                isZenMode && 'hidden',
             )}
             data-pane-tab-bar={pane.id}
             onDragStart={onDragStart}

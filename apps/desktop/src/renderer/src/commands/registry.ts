@@ -157,6 +157,7 @@ export interface CommandContext {
         toggle(): void;
     };
     panel: { activateViewContainer(id: ViewContainerId): void; toggle(): void };
+    zenMode: { toggle(): void };
     primarySidebar: { focus(): void; toggle(): void; toggleActivityMode(): void };
     git: {
         /**

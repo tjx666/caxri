@@ -363,6 +363,13 @@ export const commandDefinitions: CommandDefinition[] = [
     fromCatalog('panel.toggle', (context) => context.panel.toggle(), {
         allowInEditable: true,
     }),
+    /**
+     * Reaches through a focused Composer or Terminal like the other chrome toggles: the Chat or Terminal is exactly
+     * what Zen keeps on screen, so that is where the user is when they reach for it.
+     */
+    fromCatalog('view.toggleZenMode', (context) => context.zenMode.toggle(), {
+        allowInEditable: true,
+    }),
     fromCatalog('primarySidebar.toggle', (context) => context.primarySidebar.toggle(), {
         allowInEditable: true,
     }),
