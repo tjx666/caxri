@@ -34,6 +34,8 @@ import { segmentForAgentSurface } from '../agent-surface-switch';
 import { useAgentSurfaceSwitch } from '../hooks/use-agent-surface-switch';
 import type { MobileSessionItem } from '../session-model';
 import { sessionStateLabel, sessionTitleForDisplay } from '../session-row-model';
+import type { SessionScoped } from '../session-scoped-state';
+import { patchSessionScoped, readSessionScoped } from '../session-scoped-state';
 import type { SESSION_SEGMENTS, SessionSegment } from '../session-ui-state';
 import {
     isPanelSessionSegment,
@@ -174,6 +176,12 @@ const SessionSegmentTab = ({
     );
 };
 
+interface MarkReadState {
+    message: string | null;
+}
+
+const NO_MARK_READ_ERROR: MarkReadState = { message: null };
+
 export const SessionDetailHeader = ({
     changesCount,
     deviceRole,
@@ -216,7 +224,13 @@ export const SessionDetailHeader = ({
     const menuAnchor = useRef<HostInstance>(null);
     const menu = usePopoverAnchor(menuAnchor);
     const { close: closeMenu } = menu;
-    const [markReadError, setMarkReadError] = useState<string | null>(null);
+    /**
+     * Keyed by Session ID: the wide layout keeps this header mounted across selections, so a failure belongs only to
+     * the Session whose "Mark read" raised it.
+     */
+    const [markReadErrors, setMarkReadErrors] = useState<SessionScoped<MarkReadState>>({});
+    const markReadError = readSessionScoped(markReadErrors, session.id, NO_MARK_READ_ERROR).message;
+    const sessionId = session.id;
     const [isTitleExpanded, setTitleExpanded] = useState(false);
     const [isPullRequestOpen, setPullRequestOpen] = useState(false);
     // The header owns both reads so it can tell which one holds the inline slot: a pull request wins, and the preview
@@ -243,17 +257,20 @@ export const SessionDetailHeader = ({
         closeMenu();
         try {
             await onMarkRead();
-            setMarkReadError(null);
+            setMarkReadErrors((previous) =>
+                patchSessionScoped(previous, sessionId, NO_MARK_READ_ERROR, { message: null }),
+            );
         } catch (error) {
-            setMarkReadError(
-                t(
-                    error instanceof MobileGatewayRequestError && error.code === 'FORBIDDEN'
-                        ? 'sessions.detail.markReadForbidden'
-                        : 'sessions.detail.markReadFailed',
-                ),
+            const message = t(
+                error instanceof MobileGatewayRequestError && error.code === 'FORBIDDEN'
+                    ? 'sessions.detail.markReadForbidden'
+                    : 'sessions.detail.markReadFailed',
+            );
+            setMarkReadErrors((previous) =>
+                patchSessionScoped(previous, sessionId, NO_MARK_READ_ERROR, { message }),
             );
         }
-    }, [closeMenu, onMarkRead, t]);
+    }, [closeMenu, onMarkRead, sessionId, t]);
     return (
         <>
             <View style={[styles.header, { borderColor: theme.border }]}>
