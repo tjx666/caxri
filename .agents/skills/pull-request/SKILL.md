@@ -217,7 +217,11 @@ continues to allow these three classes to merge after their own local gates and 
   and, for a user-visible change, whose behavior was accepted over CDP. The owner allows the PR to
   merge once `guards` passes, without waiting for the non-required hosted `checks` result. A hosted
   `checks` run that already finished red still blocks unless step 6 waived it; `guards` itself never
-  gets waived; its failure means fix the diff, not merge around it.
+  gets waived; its failure means fix the diff, not merge around it. A diff that widens what a lint
+  rule or `check --lint` reaches (a new rule, a new path scope, sibling linting) leaves this class:
+  run `bun run lint --no-cache` or wait for the hosted full lint, since focused checks cannot see
+  existing violations elsewhere (sibling linting merged while `features/settings` still broke
+  `caxri/feature-directory-structure`, failing `checks` for every later PR there).
 
 Run the gates that actually cover the changed files first, and require them to pass:
 
