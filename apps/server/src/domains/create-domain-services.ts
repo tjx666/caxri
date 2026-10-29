@@ -273,6 +273,7 @@ export async function createDomainServices(
         automaticNamingNotices: () => agentRuntime.automaticNaming.automaticNamingNotices(),
         configuration,
         database,
+        logger,
         liveTerminalRecord: createLiveTerminalRecord(
             coordinator,
             terminals,

@@ -101,6 +101,10 @@ export const watchHubLogEvents = {
     watcherError: 'watch_hub.watcher_error',
 } as const;
 
+export const workbenchSnapshotLogEvents = {
+    built: 'workbench_snapshot.built',
+} as const;
+
 export const workbenchRootLogEvents = {
     fallback: 'workbench_root.fallback',
     provenancePrimed: 'workbench_root.provenance_primed',
