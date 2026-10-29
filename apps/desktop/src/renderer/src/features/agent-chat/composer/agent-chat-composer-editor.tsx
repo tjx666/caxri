@@ -13,6 +13,7 @@ import { linkSummary } from '../../../lib/link-summary';
 import { queryClient } from '../../../queries/client';
 import { AgentChatVideoPlayerDialog } from '../attachments/agent-chat-message-videos';
 import type { AgentChatPathPill } from '../attachments/agent-chat-path-pills';
+import { agentChatKnownInvocations } from '../composer-input/chips/agent-chat-invocation-chips';
 import type { useAgentChatCommandMenu } from '../hooks/use-agent-chat-command-menu';
 import type { useAgentChatComposerEnter } from '../hooks/use-agent-chat-composer-enter';
 import type { useAgentChatComposerSend } from '../hooks/use-agent-chat-composer-send';
@@ -104,6 +105,7 @@ export function AgentChatComposerEditor({
     imagePlaceholders,
     inputReference,
     isEditing,
+    knownInvocations,
     menu,
     menuActions,
     pathPills,
@@ -125,6 +127,10 @@ export function AgentChatComposerEditor({
     >;
     inputReference: RefObject<AgentChatComposerInput | null>;
     isEditing: boolean;
+    /**
+     * The `/command` and `$skill` spellings the menu offers, which the leading token is recognized against.
+     */
+    knownInvocations: ReadonlySet<string>;
     menu: ReturnType<typeof useAgentChatCommandMenu>;
     menuActions: Pick<ComposerSend, 'choose' | 'complete'>;
     /**
@@ -160,6 +166,7 @@ export function AgentChatComposerEditor({
     const [compartments] = useState(() => ({
         attributes: new Compartment(),
         imagePills: new Compartment(),
+        invocations: new Compartment(),
         linkIcons: new Compartment(),
         pathPills: new Compartment(),
         placeholder: new Compartment(),
@@ -242,6 +249,7 @@ export function AgentChatComposerEditor({
                     compartments.placeholder.of([]),
                     compartments.attributes.of([]),
                     compartments.imagePills.of([]),
+                    compartments.invocations.of([]),
                     compartments.pathPills.of([]),
                     compartments.linkIcons.of([]),
                     EditorView.updateListener.of((update) => {
@@ -306,6 +314,13 @@ export function AgentChatComposerEditor({
         );
         viewReference.current?.dispatch({ effects });
     }, [compartments, imagePills]);
+
+    useLayoutEffect(() => {
+        const effects = compartments.invocations.reconfigure(
+            agentChatKnownInvocations.of(knownInvocations),
+        );
+        viewReference.current?.dispatch({ effects });
+    }, [compartments, knownInvocations]);
 
     useLayoutEffect(() => {
         const effects = compartments.pathPills.reconfigure(

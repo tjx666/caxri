@@ -18,6 +18,7 @@ import {
     agentChatPathPillRanges,
     isAgentChatPlayableVideo,
 } from '../attachments/agent-chat-path-pills';
+import { agentChatInvocationChips } from '../composer-input/chips/agent-chat-invocation-chips';
 import { agentChatLongPasteChips } from '../composer-input/chips/agent-chat-long-paste-chips';
 import { agentChatSessionChips } from '../composer-input/chips/agent-chat-session-chips';
 import type { AgentChatMarkdownMark } from './agent-chat-composer-markdown';
@@ -494,6 +495,20 @@ const composerTheme = EditorView.theme({
         whiteSpace: 'nowrap',
     },
     '.cm-session-chip-selected': { outline: '1px solid var(--accent)' },
+    /**
+     * A recognized leading invocation wears the sent message's chip colors (`agent-chat-invocation-chip.tsx`) on the
+     * Session chip's geometry. The text is the line's 13px, and `-1px` puts its baseline on the words beside it
+     * (measured: `text-bottom` left it 1.5px high) without growing the 20px line.
+     */
+    '.cm-invocation-chip': {
+        padding: '0 6px 0 4px',
+        backgroundColor: 'color-mix(in srgb, var(--accent) 15%, transparent)',
+        color: 'var(--accent)',
+        fontSize: '13px',
+        fontWeight: '500',
+        verticalAlign: '-1px',
+    },
+    '.cm-invocation-chip svg': { width: '14px', height: '14px', color: 'var(--accent)' },
     '.cm-video-pill': { cursor: 'pointer' },
     '.cm-video-pill:hover': {
         backgroundColor: 'color-mix(in srgb, var(--border) 75%, transparent)',
@@ -553,6 +568,7 @@ export function agentChatComposerExtensions(maxLength: number): Extension {
         // Ahead of the live preview: Markdown in a Session title must not style or hide part of its chip.
         agentChatSessionChips,
         agentChatLongPasteChips,
+        agentChatInvocationChips,
         livePreview,
         imagePills,
         pathPills,

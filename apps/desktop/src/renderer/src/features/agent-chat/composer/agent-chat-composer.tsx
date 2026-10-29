@@ -419,6 +419,7 @@ export function AgentChatComposer({
                         imagePlaceholders={placeholders}
                         inputReference={inputReference}
                         isEditing={edit.isEditing}
+                        knownInvocations={menu.knownInvocations}
                         menu={menu}
                         menuActions={{ choose, complete }}
                         pathPills={pathPills}

@@ -15,6 +15,7 @@ import { useCaxriQuery } from '../../../queries/client';
 import { useSettings, useTerminal } from '../../../stores/selectors';
 import type { AgentChatComposerKeyEvent } from '../composer/agent-chat-composer-view';
 import {
+    agentChatLeadingInvocation,
     agentChatSkillDiscoveryNotice,
     withAgentChatBuiltInActions,
 } from '../composer-input/agent-chat-slash-commands';
@@ -33,6 +34,16 @@ export const AGENT_ACTION_DISCOVERY_STALE_MS = 30_000;
 function useProviderRecentInvocations(provider: AgentProvider | undefined): readonly string[] {
     const settings = useSettings();
     return (provider && settings?.['agents.providers'][provider].actions.recent.invocations) ?? [];
+}
+
+/**
+ * Whether the draft needs the discovered skills: it is a bare `/name` for the menu, or it already starts with an
+ * invocation (history recall, a stash), whose chip is recognized without opening the menu.
+ */
+function requiresSkillDiscovery(draft: string): boolean {
+    return (
+        agentChatSlashQuery(draft) !== undefined || agentChatLeadingInvocation(draft) !== undefined
+    );
 }
 
 /**
@@ -67,13 +78,17 @@ export function useAgentChatCommandMenu({
         'agentActions.list',
         { terminalId },
         {
-            enabled: isAgentRunning && query !== undefined,
+            enabled: isAgentRunning && requiresSkillDiscovery(draft),
             staleTime: AGENT_ACTION_DISCOVERY_STALE_MS,
         },
     );
     const actions = useMemo(
         () => withAgentChatBuiltInActions(agentChatMenuActions(commands, discovery.data?.actions)),
         [commands, discovery.data?.actions],
+    );
+    const knownInvocations = useMemo(
+        () => new Set(actions.map((action) => action.invocation)),
+        [actions],
     );
     const [dismissedDraft, setDismissedDraft] = useState<string>();
     /**
@@ -116,6 +131,10 @@ export function useAgentChatCommandMenu({
         setActive({ query, index: (activeIndex + delta + matches.length) % matches.length });
     return {
         isOpen,
+        /**
+         * Every `/command` and `$skill` the menu offers, which the composer recognizes a leading token against.
+         */
+        knownInvocations,
         /**
          * The first Enter on a draft no command or skill matches was held; the composer says a second Enter sends the
          * draft as text.

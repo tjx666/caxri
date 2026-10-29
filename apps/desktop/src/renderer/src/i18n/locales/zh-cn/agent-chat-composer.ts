@@ -123,6 +123,8 @@ export const agentChatComposer: TranslatedNamespace<typeof source> = {
     'agentChat.slash.keyHintInsert': '插入',
     'agentChat.slash.keyHintRun': '运行',
     'agentChat.slash.preparingSession': '正在准备“{{title}}”…',
+    'agentChat.composer.invocationChip.command': '命令：{{name}}',
+    'agentChat.composer.invocationChip.skill': 'Skill：{{name}}',
     'agentChat.slash.showInvocation': '显示 {{invocation}}',
     'agentChat.slash.instructionsUnavailable': '无法加载 {{invocation}} 的说明。',
 
