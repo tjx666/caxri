@@ -18,6 +18,7 @@ function harness(options: {
     agentState?: string;
     notice?: MergeNoticeOutcome;
     backgroundWork?: boolean;
+    openPullRequests?: Record<string, string>;
 }) {
     const clock = { now: 1_000_000 };
     const session = {
@@ -32,10 +33,19 @@ function harness(options: {
         archiveEnabled: options.archiveEnabled ?? true,
         backgroundWork: options.backgroundWork ?? false,
     };
+    const store: { openPullRequests?: Record<string, string> } = {
+        openPullRequests: options.openPullRequests,
+    };
     const settlement = new PullRequestSettlement({
         archive,
         backgroundRecheckMs: 30_000,
-        database: { getSession: () => session } as never,
+        database: {
+            getAppState: () => store.openPullRequests,
+            getSession: () => session,
+            setAppState: (_key: string, value: Record<string, string>) => {
+                store.openPullRequests = value;
+            },
+        } as never,
         hasBackgroundWork: () => state.backgroundWork,
         isAutoArchiveEnabled: () => state.archiveEnabled,
         logger: { write },
@@ -46,7 +56,17 @@ function harness(options: {
     });
     const outcomes = () =>
         write.mock.calls.map((call) => (call[2] as { fields: { outcome: string } }).fields.outcome);
-    return { archive, clock, notifyMerged, onArchived, outcomes, session, settlement, state };
+    return {
+        archive,
+        clock,
+        notifyMerged,
+        onArchived,
+        outcomes,
+        session,
+        settlement,
+        state,
+        store,
+    };
 }
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -60,6 +80,77 @@ describe('PullRequestSettlement', () => {
 
         expect(notifyMerged).not.toHaveBeenCalled();
         expect(archive).not.toHaveBeenCalled();
+    });
+
+    describe('startup reconcile', () => {
+        it('notifies once and archives a pull request merged while Caxri was closed', async () => {
+            const { archive, notifyMerged, outcomes, settlement, store } = harness({
+                notice: 'disabled',
+                openPullRequests: { s: URL },
+            });
+
+            settlement.observePullRequest('s', undefined, pullRequest('merged', { mergedAt: 9 }));
+            // A later sweep reporting the same settled state is not a second transition.
+            settlement.observePullRequest('s', pullRequest('merged'), pullRequest('merged'));
+            await flush();
+
+            expect(notifyMerged).toHaveBeenCalledExactlyOnceWith('s', URL, {
+                origin: 'detected',
+                mergedAt: 9,
+            });
+            expect(archive).toHaveBeenCalledExactlyOnceWith('s');
+            expect(outcomes()).toEqual(['recovered', 'archived']);
+            expect(store.openPullRequests).toEqual({});
+        });
+
+        it('archives a pull request closed while Caxri was closed without any notice', async () => {
+            const { archive, notifyMerged, settlement } = harness({
+                openPullRequests: { s: URL },
+            });
+
+            settlement.observePullRequest('s', undefined, pullRequest('closed'));
+            await flush();
+
+            expect(notifyMerged).not.toHaveBeenCalled();
+            expect(archive).toHaveBeenCalledWith('s');
+        });
+
+        it('defers the archive while the Agent is busy, like a live settlement', async () => {
+            const { archive, settlement } = harness({
+                agentState: 'running',
+                openPullRequests: { s: URL },
+            });
+
+            settlement.observePullRequest('s', undefined, pullRequest('closed'));
+            await flush();
+
+            expect(archive).not.toHaveBeenCalled();
+        });
+
+        it('leaves old settled work alone and drops a record for another pull request', async () => {
+            const untracked = harness({});
+            untracked.settlement.observePullRequest('s', undefined, pullRequest('merged'));
+            const changed = harness({
+                openPullRequests: { s: 'https://github.com/acme/widget/pull/1' },
+            });
+            changed.settlement.observePullRequest('s', undefined, pullRequest('merged'));
+            await flush();
+
+            expect(untracked.archive).not.toHaveBeenCalled();
+            expect(changed.archive).not.toHaveBeenCalled();
+            expect(changed.notifyMerged).not.toHaveBeenCalled();
+            expect(changed.store.openPullRequests).toEqual({});
+        });
+
+        it('records an open pull request so the next start can recognize its settlement', () => {
+            const { settlement, store } = harness({});
+
+            settlement.observePullRequest('s', undefined, pullRequest('open'));
+            expect(store.openPullRequests).toEqual({ s: URL });
+
+            settlement.forgetSession('s');
+            expect(store.openPullRequests).toEqual({});
+        });
     });
 
     it('tells the Agent about a merge made elsewhere, carrying the merge time', async () => {

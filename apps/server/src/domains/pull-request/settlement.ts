@@ -41,12 +41,25 @@ type DeferReason = 'agent-busy' | 'background-work' | 'notice-turn';
 export type AutoArchiveOutcome =
     'archived' | 'deferred' | 'disabled' | 'failed' | 'reopened' | 'session-gone';
 
+/**
+ * Closed outcome of the first settled pull request Server Core resolves for a Session after it starts.
+ *
+ * - `recovered`: the pull request was last seen open before Server Core stopped, so its merge or close is handled now.
+ * - `url-changed`: the Session was last seen with another pull request open; that record is dropped, nothing is handled.
+ * - `untracked`: no earlier open sighting was recorded, so it is old settled work and is left alone.
+ */
+export type StartupReconcileOutcome = 'recovered' | 'untracked' | 'url-changed';
+
 export interface PullRequestSettlementOptions {
+    /**
+     * Persists which pull request each Session was last seen with open, the evidence that a settled pull request found
+     * at startup changed while Server Core was down.
+     */
     /**
      * Archives one Session's metadata and parks its runtime; the same operation as the sidebar's Archive.
      */
     archive(sessionId: string): unknown;
-    database: Pick<CaxriDatabase, 'getSession'>;
+    database: Pick<CaxriDatabase, 'getAppState' | 'getSession' | 'setAppState'>;
     /**
      * Tells the Desktop a Session was archived automatically, so it can say why the row left the PrimarySidebar and
      * offer Undo. Sent only after the archive succeeded.
@@ -98,7 +111,9 @@ function isSettled(state: SessionPullRequest['state'] | undefined): boolean {
 /**
  * Reacts to a Session's pull request being merged or closed, wherever that happened: tells the Agent about a merge
  * once, then archives the Session after its Agent is idle. Only a transition Caxri watched counts (the pull request was
- * open on an earlier sweep), so starting Caxri never mass-archives old merged work.
+ * open on an earlier sweep, possibly in an earlier Server Core lifetime, see `openPullRequests`), so starting Caxri
+ * never mass-archives old merged work. A settlement found at startup rides the same path as a live one, so it is
+ * announced once, archived under the same setting and idle rules, and costs no GitHub call beyond the regular sweep.
  */
 export class PullRequestSettlement {
     private readonly now: () => number;
@@ -198,6 +213,38 @@ export class PullRequestSettlement {
         );
     }
 
+    private reconcileStartup(sessionId: string, next: SessionPullRequest): StartupReconcileOutcome {
+        const remembered = this.options.database.getAppState('openPullRequests')?.[sessionId];
+        const outcome: StartupReconcileOutcome =
+            remembered === undefined
+                ? 'untracked'
+                : remembered === next.url
+                  ? 'recovered'
+                  : 'url-changed';
+        if (outcome === 'url-changed') this.forgetOpen(sessionId);
+        this.options.logger.write(
+            outcome === 'recovered' ? 'info' : 'debug',
+            logEventCatalog.sessionPullRequests.startupReconcile,
+            { fields: { outcome, pullRequestState: next.state, sessionId } },
+        );
+        return outcome;
+    }
+
+    private rememberOpen(sessionId: string, url: string): void {
+        const open = this.options.database.getAppState('openPullRequests') ?? {};
+        if (open[sessionId] === url) return;
+        this.options.database.setAppState('openPullRequests', { ...open, [sessionId]: url });
+    }
+
+    private forgetOpen(sessionId: string): void {
+        const open = this.options.database.getAppState('openPullRequests');
+        if (!open || !(sessionId in open)) return;
+        this.options.database.setAppState(
+            'openPullRequests',
+            Object.fromEntries(Object.entries(open).filter(([id]) => id !== sessionId)),
+        );
+    }
+
     /**
      * Receives each pull request change from the Session pull-request sweep.
      */
@@ -206,13 +253,24 @@ export class PullRequestSettlement {
         previous: SessionPullRequest | undefined,
         next: SessionPullRequest | undefined,
     ): void {
-        if (!previous || !next || previous.url !== next.url) return;
-        if (!isSettled(previous.state) && isSettled(next.state)) {
-            // Fire-and-forget: the notice logs its own outcome and the archive decision runs when it settles.
-            void this.settle(sessionId, next);
+        if (next && !isSettled(next.state)) {
+            this.rememberOpen(sessionId, next.url);
+            if (isSettled(previous?.state) && previous?.url === next.url)
+                this.cancel(sessionId, 'reopened');
             return;
         }
-        if (isSettled(previous.state) && !isSettled(next.state)) this.cancel(sessionId, 'reopened');
+        if (!next || !isSettled(next.state)) return;
+        const isLive = previous !== undefined && previous.url === next.url;
+        if (isLive && isSettled(previous.state)) return;
+        if (!previous) {
+            const outcome = this.reconcileStartup(sessionId, next);
+            if (outcome !== 'recovered') return;
+        } else if (!isLive) {
+            return;
+        }
+        this.forgetOpen(sessionId);
+        // Fire-and-forget: the notice logs its own outcome and the archive decision runs when it settles.
+        void this.settle(sessionId, next);
     }
 
     /**
@@ -232,6 +290,7 @@ export class PullRequestSettlement {
      * change that never comes.
      */
     forgetSession(sessionId: string): void {
+        this.forgetOpen(sessionId);
         const entry = this.pending.get(sessionId);
         if (!entry) return;
         clearTimeout(entry.timer);

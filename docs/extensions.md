@@ -453,13 +453,22 @@ message to the Session's primary Agent naming the merged pull request's URL: a f
 to the current launch for a Terminal Agent, or an ordinary turn for a Chat Agent. It fires once per
 pull request however the merge happened: the Project Status button, GitHub, or another person. The
 Session pull request sweep notices a pull request that it saw open turn merged, so a pull request
-that was already merged when Server Core started is never announced. The button path records its
+that was already merged when Server Core started is not announced unless Caxri last saw it open
+(see below). The button path records its
 send first, so a sweep that sees the same merge does not send a second message. A merge whose
 `mergedAt` falls inside one of that Session's Agent turns (plus a few seconds of clock skew) is
 skipped as `self-merged`, because the Agent that merged it already knows. A missing or stopped Agent
 never fails the merge; each attempt logs `git.merge_agent_notice` with a closed `outcome`
 (including `self-merged` and `duplicate`). Server Core remembers turn windows only for its own
-lifetime, so a pull request merged while Caxri was closed is not announced.
+lifetime, so a self-merge cannot be told apart after a restart.
+
+Server Core persists each Session's pull request last seen open (`app_state.openPullRequests`). When
+the first sweep after a start finds that pull request merged or closed, it is handled exactly like
+a live transition: one merge notice, then the archive below. No extra GitHub call is made; the
+regular sweep already resolves each active Session. A settled pull request with no earlier open
+sighting is old work and is left alone. Each such first sighting logs
+`session_pull_requests.startup_reconcile` with a closed `outcome` (`recovered`, `untracked`,
+`url-changed`).
 
 With the `projectStatus.autoArchiveOnPullRequestSettled` setting on (default on), the same sweep
 archives a Session whose pull request was seen open and then became merged or closed, using the

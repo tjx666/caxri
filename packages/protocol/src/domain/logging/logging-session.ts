@@ -82,4 +82,5 @@ export const sessionPullRequestsLogEvents = {
     refresh: 'session_pull_requests.refresh',
     refreshFailed: 'session_pull_requests.refresh_failed',
     autoArchive: 'session_pull_requests.auto_archive',
+    startupReconcile: 'session_pull_requests.startup_reconcile',
 } as const;

@@ -47,6 +47,12 @@ const appStateValueSchemas = {
     activeThemeId: z.string().min(1),
     externalDelegationSessions: z.record(z.string(), identifierSchema),
     /**
+     * Each Session's pull request last seen open or draft (Session id to URL), so a merge or close that happened while
+     * Server Core was down is recognized as a transition on the next start instead of an old settled pull request. An
+     * entry is removed once the Session's pull request is seen settled; see `pull-request/settlement.ts`.
+     */
+    openPullRequests: z.record(identifierSchema, z.url()),
+    /**
      * Caxri Bot's system rows and the Sessions it created in user Projects. See `bot-rows.ts`.
      */
     caxriBot: z.strictObject({
