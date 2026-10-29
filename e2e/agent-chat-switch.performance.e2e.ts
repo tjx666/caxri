@@ -62,6 +62,13 @@ type ChatSwitchScenario = 'keptAlive' | 'cached' | 'uncached';
  * kept-alive Workbench budget is the one that guards the experience: a switch back to a mounted Chat that renders its
  * transcript again costs about as much as the `cached` remount.
  */
+/*
+ * The Workbench render budgets of `cached` and `uncached` count the idle backfill of the tail-first mount
+ * (`use-agent-chat-tail-first-mount.ts`): a 16-turn Chat mounts 4 entries, then 6 more per idle commit, and each commit
+ * renders the pane tree a few times. That trades a few more renders for a short first frame (82-104 ms down to 36-48 ms
+ * on 2026-10-30). Measured 24-25 cached and 27-30 uncached on a quiet runner; the budgets leave about 20% for noise.
+ * Renders before the tail-first mount were 9-10 and 17-20. Duration budgets are unchanged and still bound the total cost.
+ */
 const REACT_BUDGETS: Record<
     ChatSwitchScenario,
     Record<RendererSurface, { renders: number; actualDurationMs: number }>
@@ -73,12 +80,12 @@ const REACT_BUDGETS: Record<
     },
     cached: {
         'primary-sidebar': { renders: 4, actualDurationMs: 5 },
-        'workbench': { renders: 12, actualDurationMs: 60 },
+        'workbench': { renders: 30, actualDurationMs: 60 },
         'secondary-sidebar': { renders: 8, actualDurationMs: 5 },
     },
     uncached: {
         'primary-sidebar': { renders: 4, actualDurationMs: 5 },
-        'workbench': { renders: 20, actualDurationMs: 90 },
+        'workbench': { renders: 36, actualDurationMs: 90 },
         'secondary-sidebar': { renders: 10, actualDurationMs: 5 },
     },
 };
@@ -205,6 +212,11 @@ async function measureWindow(
  * The Primary Sidebar lists a Project's five most recently active Sessions; the Chat falls behind its "Show more" row
  * once enough newer Sessions push it out of keep-alive.
  */
+/**
+ * Where the pointer rests while a switch is measured: inside the Workbench, clear of the sidebar rows.
+ */
+const PARKED_POINTER = { x: 700, y: 400 };
+
 async function revealSessionCard(page: Page, sessionId: string): Promise<void> {
     if ((await sessionCard(page, sessionId).count()) === 0) {
         await page.getByRole('treeitem', { name: /^Show \d+ more Sessions? in / }).click();
@@ -232,6 +244,14 @@ async function measureSwitch(
     chatSessionId: string,
 ): Promise<ChatSwitchSample> {
     await revealSessionCard(page, chatSessionId);
+    /*
+     * Park the pointer outside the Primary Sidebar. The previous step's click leaves it resting on a Session row, and
+     * that row's detail card opens 200ms later (the hover delay since #2531, 450ms before), inside this window. Opening
+     * a card commits the sidebar about ten times (the popup mounts through nested updates), so the cached scenario read
+     * 12 renders against a budget of 4 with no store or subscription change behind it. The card is a hover cost, not a
+     * Session switch cost, so it must not be billed to the switch budget.
+     */
+    await page.mouse.move(PARKED_POINTER.x, PARKED_POINTER.y);
     const readsBefore = await countChatReads(userData);
     const sample = await page.evaluate(
         async ({ sessionId, maximumFrames, settlingFrames }) => {

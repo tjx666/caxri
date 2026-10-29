@@ -106,7 +106,9 @@ The click and the sampling run inside the page, one sample per painted frame. An
 callback runs before that frame's layout and resize observers, which is where the Chat pins its view
 to the end, so each sample is taken from a task posted from that callback instead. Each switch is
 also bracketed as a Renderer `session.switch` scenario, so the receipt carries the same per-surface
-React Profiler renders and actual duration as `benchmark:renderer`. The command prints one receipt
+React Profiler renders and actual duration as `benchmark:renderer`. The pointer is parked outside the
+Primary Sidebar first: left resting on a Session row, its detail card opens 200ms later inside the
+window and commits the sidebar about ten times, a hover cost that is not part of the switch. The command prints one receipt
 prefixed by `CAXRI_AGENT_CHAT_SWITCH_BENCHMARK` and writes the same JSON to
 `test-results/receipts/agent-chat-session-switch.json`. `agentChat.read` requests are counted by
 distinct request id from `server-core.jsonl`, because Server Core records each Renderer request twice
