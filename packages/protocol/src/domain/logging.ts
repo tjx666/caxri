@@ -63,6 +63,7 @@ import {
     watchHubLogEvents,
     workbenchRootLogEvents,
     workbenchRootsLogEvents,
+    workbenchSnapshotLogEvents,
 } from './logging/logging-workspace.js';
 
 /**
@@ -125,6 +126,7 @@ export const logEventCatalog = {
     window: windowLogEvents,
     workbenchRoot: workbenchRootLogEvents,
     workbenchRoots: workbenchRootsLogEvents,
+    workbenchSnapshot: workbenchSnapshotLogEvents,
 } as const;
 
 export type LogEventName = {

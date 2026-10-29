@@ -6,6 +6,8 @@ import type {
     SessionRecord,
     TerminalRecord,
 } from '@caxri/protocol';
+import type { StructuredLogger } from '@caxri/system';
+import { logEventCatalog } from '@caxri/system';
 
 import type { ConfigService } from '../config';
 import type { CaxriDatabase } from '../db';
@@ -19,6 +21,10 @@ export function createWorkbenchSnapshots(dependencies: {
     configuration: ConfigService;
     database: CaxriDatabase;
     liveTerminalRecord: (terminal: TerminalRecord) => TerminalRecord;
+    /**
+     * Receives one `workbench_snapshot.built` record per snapshot with row counts and build time, never row contents.
+     */
+    logger?: StructuredLogger;
 }) {
     const { configuration, database, liveTerminalRecord } = dependencies;
     function workbenchState(
@@ -32,6 +38,7 @@ export function createWorkbenchSnapshots(dependencies: {
             | 'selectedSessionId'
         >,
     ): BootstrapState {
+        const startedAt = performance.now();
         const settings = configuration.getSettings();
         const keybindings = configuration.getKeybindings();
         const theme = configuration.getTheme();
@@ -43,14 +50,18 @@ export function createWorkbenchSnapshots(dependencies: {
             .listTerminals()
             .filter((terminal) => visibleSessionIds.has(terminal.sessionId));
         const notices = dependencies.automaticNamingNotices();
-        return {
+        const sessionStates = database
+            .listSessionStates(terminalRecords, true)
+            .filter((state) => visibleSessionIds.has(state.sessionId));
+        const archivedSessionCount = sessions.filter(
+            (session) => session.archivedAt !== undefined,
+        ).length;
+        const state: BootstrapState = {
             projects,
             sessions,
             terminals: terminalRecords.map(liveTerminalRecord),
             ...selection,
-            sessionStates: database
-                .listSessionStates(terminalRecords, true)
-                .filter((state) => visibleSessionIds.has(state.sessionId)),
+            sessionStates,
             settings: settings.value,
             keybindings: keybindings.value,
             keybindingConflicts: keybindings.conflicts,
@@ -59,6 +70,17 @@ export function createWorkbenchSnapshots(dependencies: {
             runtime: { status: 'ready', restartCount: 0 },
             ...(notices.length > 0 && { automaticNamingUnavailable: notices }),
         };
+        // Row counts only: they show which table dominates a slow `app.bootstrap` without recording any content.
+        dependencies.logger?.write('info', logEventCatalog.workbenchSnapshot.built, {
+            durationMs: Math.round(performance.now() - startedAt),
+            fields: {
+                archivedSessions: archivedSessionCount,
+                sessions: sessions.length - archivedSessionCount,
+                sessionStates: sessionStates.length,
+                terminals: terminalRecords.length,
+            },
+        });
+        return state;
     }
     return {
         /**

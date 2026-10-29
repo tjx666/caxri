@@ -19,7 +19,10 @@ const config = {
     getTheme: () => ({ value: {} }),
 } as unknown as ConfigService;
 
-async function fixture(counts: { active: number; archived: number }) {
+async function fixture(
+    counts: { active: number; archived: number },
+    logger?: Parameters<typeof createWorkbenchSnapshots>[0]['logger'],
+) {
     const directory = await mkdtemp(join(tmpdir(), 'caxri-snapshot-archived-'));
     const database = new CaxriDatabase(join(directory, 'state.db'));
     onTestFinished(async () => {
@@ -48,6 +51,7 @@ async function fixture(counts: { active: number; archived: number }) {
         configuration: config,
         database,
         liveTerminalRecord: (terminal) => terminal,
+        logger,
     });
     return { active, archived, database, snapshots };
 }
@@ -62,6 +66,22 @@ describe('app.bootstrap scope', () => {
         expect(state.sessionStates.map(({ sessionId }) => sessionId).toSorted(byId)).toEqual(
             active.map(({ id }) => id).toSorted(byId),
         );
+    });
+
+    it('logs row counts and build time for each snapshot without row contents', async () => {
+        const writes: Array<{ event: string; options: unknown }> = [];
+        const logger = {
+            write: (_level: string, event: string, options: unknown) =>
+                writes.push({ event, options }),
+        } as unknown as Parameters<typeof createWorkbenchSnapshots>[0]['logger'];
+        const { snapshots } = await fixture({ active: 3, archived: 4 }, logger);
+        snapshots.bootstrap();
+        expect(writes).toHaveLength(1);
+        expect(writes[0].event).toBe('workbench_snapshot.built');
+        expect(writes[0].options).toMatchObject({
+            durationMs: expect.any(Number) as number,
+            fields: { archivedSessions: 4, sessions: 3, sessionStates: 3, terminals: 7 },
+        });
     });
 
     it('delivers the state again once a Session is restored', async () => {
