@@ -6,6 +6,7 @@ import type { StructuredLogger } from '@caxri/system';
 
 import type { TerminalExecutionPort } from '../../../domains/terminal';
 import type { MobileDeviceRegistry } from '../device-registry';
+import type { RelayConnectorTiming } from '../relay';
 import type { MobileUpdateSource } from '../update-bundle';
 import type { MobileAppOptions } from './frame-router';
 
@@ -49,6 +50,10 @@ export interface MobileGatewayOptions {
      * Test seam for driving a real handshake timeout without a 10-second wait; production always uses the default.
      */
     handshakeTimeoutMs?: number;
+    /**
+     * Test seam for Relay reconnect and heartbeat timing; production uses the connector defaults.
+     */
+    relayTiming?: Partial<RelayConnectorTiming>;
     /**
      * The Android bundle shipped with this Desktop, read directly by update recovery so that path never enters the
      * command dispatcher. Absent means recovery answers "no bundle".

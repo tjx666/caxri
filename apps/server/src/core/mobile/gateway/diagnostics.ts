@@ -1,4 +1,5 @@
 import type { MobileClientCloseReason } from '@caxri/mobile-transport';
+import { mobileClientCloseReasonOf, relayCloseCodes } from '@caxri/mobile-transport';
 import type { MobilePairingOutcomeReason } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
@@ -62,6 +63,33 @@ export interface MobileConnectionEnd {
      */
     failureReason?: MobileGatewayFailureReason;
 }
+export type MobileConnectionRoute = 'lan' | 'relay';
+
+/**
+ * Server decisions win over the close code: a `terminate()` reaches the close handler as 1006, the same code a lost
+ * network produces. 1006 without a Server decision means no close frame arrived from the phone. The Relay reports a
+ * vanished phone as `peer-gone` because it can only mirror real close frames.
+ */
+export function mobileConnectionEnd(input: {
+    closeCode: number;
+    isDisabled: boolean;
+    isRevoking: boolean;
+    serverEnd: MobileConnectionEnd | undefined;
+}): MobileConnectionEnd {
+    if (input.isRevoking) return { cause: 'revoked' };
+    if (input.isDisabled) return { cause: 'gateway-disabled' };
+    if (input.serverEnd) return input.serverEnd;
+    const { closeCode } = input;
+    if (closeCode === 1_006 || closeCode === relayCloseCodes['peer-gone'])
+        return { cause: 'peer-dropped' };
+    const clientReason = mobileClientCloseReasonOf(closeCode);
+    return {
+        cause: 'peer-closed',
+        closeCode,
+        ...(clientReason !== undefined && { clientReason }),
+    };
+}
+
 export type MobileTerminalResyncReason =
     'capacity' | 'generation-changed' | 'source-gap' | 'resize';
 
@@ -185,9 +213,9 @@ export class MobileGatewayDiagnostics {
         this.logger?.write('info', logEventCatalog.mobileGateway.disabled, { fields: {} });
     }
 
-    connectionEstablished(deviceId: string): void {
+    connectionEstablished(deviceId: string, route: MobileConnectionRoute): void {
         this.logger?.write('info', logEventCatalog.mobileGateway.connectionEstablished, {
-            fields: { deviceId },
+            fields: { deviceId, route },
         });
     }
 
@@ -195,11 +223,17 @@ export class MobileGatewayDiagnostics {
      * A `durationMs` on the close record is what makes a session's lifetime knowable without logging its content, and
      * the closed `cause` is what tells a phone in the background from one that hit an error.
      */
-    connectionEnded(deviceId: string, durationMs: number, end: MobileConnectionEnd): void {
+    connectionEnded(
+        deviceId: string,
+        durationMs: number,
+        end: MobileConnectionEnd,
+        route: MobileConnectionRoute,
+    ): void {
         this.logger?.write('info', logEventCatalog.mobileGateway.connectionEnded, {
             fields: {
                 deviceId,
                 durationMs,
+                route,
                 cause: end.cause,
                 ...(end.failureReason !== undefined && { failureReason: end.failureReason }),
                 ...(end.closeCode !== undefined && { closeCode: end.closeCode }),

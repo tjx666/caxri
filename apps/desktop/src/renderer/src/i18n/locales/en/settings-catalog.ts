@@ -121,6 +121,10 @@ export const settingsCatalog = {
     'settings.workbench.externalEditor.description':
         'Command used by “Open Project in External Editor” (e.g. code, cursor, subl)',
 
+    'settings.mobile.relayUrl.title': 'Relay server',
+    'settings.mobile.relayUrl.description':
+        'ws:// or wss:// address of a Caxri Relay. Paired phones fall back to it when no local network address answers; traffic stays end-to-end encrypted. Leave empty to use local networks only.',
+
     'settings.updates.skippedVersion.title': 'Skipped update version',
     'settings.updates.skippedVersion.description':
         'Caxri stops offering this release until a newer one appears. Reset to be offered it again.',

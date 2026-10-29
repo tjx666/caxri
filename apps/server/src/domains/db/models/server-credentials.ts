@@ -24,6 +24,7 @@ export interface MobileDeviceRow {
 export interface MobileGatewayPreferenceRow {
     accessEnabled?: true;
     preferredPort?: number;
+    relayHostKey?: string;
 }
 
 export interface DelegationClientRow {

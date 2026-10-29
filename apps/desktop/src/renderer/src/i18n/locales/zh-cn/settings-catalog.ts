@@ -116,6 +116,10 @@ export const settingsCatalog: TranslatedNamespace<typeof source> = {
     'settings.workbench.externalEditor.description':
         '“在外部编辑器中打开项目”使用的命令（例如 code、cursor、subl）',
 
+    'settings.mobile.relayUrl.title': '中继服务器',
+    'settings.mobile.relayUrl.description':
+        'Caxri 中继的 ws:// 或 wss:// 地址。局域网地址都连不上时，已配对的手机会改走中继；流量始终端到端加密。留空则只使用局域网。',
+
     'settings.updates.skippedVersion.title': '已跳过的更新版本',
     'settings.updates.skippedVersion.description':
         '在出现更新的版本之前，Caxri 不再推荐此版本。重置后会再次推荐。',

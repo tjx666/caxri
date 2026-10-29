@@ -73,9 +73,20 @@ export function openSocket(url: string, options?: ClientOptions) {
     });
 }
 
-export async function connectDevice(gateway: MobileGateway, record: MobileDeviceRecord) {
+/**
+ * Opens a phone socket on the gateway's LAN listener; Relay tests pass their own opener instead.
+ */
+async function openLanSocket(gateway: MobileGateway): Promise<WebSocket> {
     const enabled = await gateway.enable();
-    const socket = await openSocket(`ws://${enabled.address}:${enabled.port}/mobile`);
+    return openSocket(`ws://${enabled.address}:${enabled.port}/mobile`);
+}
+
+export async function connectDevice(
+    gateway: MobileGateway,
+    record: Pick<MobileDeviceRecord, 'credential' | 'deviceId' | 'generation'>,
+    open: (gateway: MobileGateway) => Promise<WebSocket> = openLanSocket,
+) {
+    const socket = await open(gateway);
     const clientSecret = decodeHex('21'.repeat(32));
     const clientPublicKey = mobilePublicKey(clientSecret);
     const clientNonce = decodeHex('31'.repeat(32));

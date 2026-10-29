@@ -61,6 +61,7 @@ describe('MobileGateway connection end cause', () => {
             expect(await ended()).toEqual({
                 deviceId: record.deviceId,
                 durationMs: 0,
+                route: 'lan',
                 cause: 'peer-closed',
                 closeCode: 4_010,
                 clientReason: 'unmounted',
@@ -78,6 +79,7 @@ describe('MobileGateway connection end cause', () => {
             expect(await ended()).toEqual({
                 deviceId: record.deviceId,
                 durationMs: 0,
+                route: 'lan',
                 cause: 'peer-dropped',
             });
         } finally {
@@ -95,6 +97,7 @@ describe('MobileGateway connection end cause', () => {
             expect(await ended()).toEqual({
                 deviceId: record.deviceId,
                 durationMs: 13_000,
+                route: 'lan',
                 cause: 'heartbeat-idle',
             });
             expect(write).not.toHaveBeenCalledWith(

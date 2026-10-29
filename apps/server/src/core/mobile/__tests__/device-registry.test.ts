@@ -160,4 +160,31 @@ describe('MobileDeviceRegistry', () => {
         ).rejects.toMatchObject({ code: 'CAPACITY' });
         expect(registry.list()).toHaveLength(128);
     });
+
+    it('keeps one Relay host key across restarts and reports device changes', async () => {
+        const options = registryFixture();
+        const registry = MobileDeviceRegistry.open(options);
+        const changes: number[] = [];
+        const stop = registry.onDevicesChanged(() =>
+            changes.push(registry.activeCredentials().length),
+        );
+        const [first, concurrent] = await Promise.all([
+            registry.relayHostKey(),
+            registry.relayHostKey(),
+        ]);
+        expect(first).toMatch(/^[0-9a-f]{64}$/u);
+        expect(concurrent).toBe(first);
+        const paired = await registry.pair({
+            displayName: 'Relay phone',
+            platform: 'android',
+            projectIds: ['project-1'],
+        });
+        await registry.revoke(paired.device.deviceId, paired.device.generation);
+        stop();
+        expect(changes).toEqual([1, 0]);
+        expect(registry.activeCredentials()).toEqual([]);
+
+        const reopened = MobileDeviceRegistry.open(options);
+        await expect(reopened.relayHostKey()).resolves.toBe(first);
+    });
 });

@@ -55,6 +55,12 @@ export function admitMobileTcpConnection(
     socket.once('close', () => sockets.delete(socket));
 }
 
+/**
+ * Shared socket budget for LAN upgrades and Relay dial-backs, so a relayed phone cannot exceed the LAN limits.
+ */
+export const hasMobileSocketCapacity = (connections: number, handshakes: number): boolean =>
+    connections < MAXIMUM_MOBILE_CONNECTIONS && handshakes < MAXIMUM_HANDSHAKES;
+
 export function mobileUpgradeFailure(
     request: IncomingMessage,
     remoteAddress: string | undefined,
@@ -67,7 +73,6 @@ export function mobileUpgradeFailure(
         !isAllowedMobileOrigin(request.headers.origin, request.headers.host)
     )
         return 'upgradeRequest';
-    if (connections >= MAXIMUM_MOBILE_CONNECTIONS || handshakes >= MAXIMUM_HANDSHAKES)
-        return 'upgradeCapacity';
+    if (!hasMobileSocketCapacity(connections, handshakes)) return 'upgradeCapacity';
     return undefined;
 }

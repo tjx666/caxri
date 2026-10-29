@@ -186,6 +186,13 @@ const settingsProjection: SettingsProjection = {
      */
     'workbench.externalEditor': (value) => (value === null ? null : redactCommandLine(value)),
     'updates.skippedVersion': exportAsIs,
+    /**
+     * A self-hosted Relay address can name a private host, so only its presence and scheme leave the machine.
+     */
+    'mobile.relayUrl': (value) =>
+        value === null
+            ? null
+            : { configured: true, scheme: value.startsWith('wss:') ? 'wss' : 'ws' },
     'agents.providers': projectAgentProviders,
     'agents.delegation': projectDelegation,
     /**

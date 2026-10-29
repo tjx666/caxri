@@ -7,6 +7,7 @@ import type {
 import type { Principal, ProtocolConnectionIdentity } from '@caxri/protocol';
 
 import type { MobileDeviceRecord } from '../device-registry';
+import type { MobileConnectionRoute } from './diagnostics';
 import type { MobileGatewayFrameRouter } from './frame-router';
 
 /**
@@ -25,6 +26,10 @@ export interface GatewaySession {
      */
     localAddress?: string;
     mode: 'connect' | 'pair';
+    /**
+     * How the phone reached the gateway: its LAN listener, or a Relay dial-back with no local address.
+     */
+    route: MobileConnectionRoute;
     outbound: MobileFrameCounter;
     principal?: Principal;
     /**

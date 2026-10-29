@@ -274,7 +274,7 @@ describe('MobileGateway diagnostics', () => {
         try {
             const client = await connectDevice(gateway, record);
             expect(write).toHaveBeenCalledWith('info', 'mobile_gateway.connection_established', {
-                fields: { deviceId: record.deviceId },
+                fields: { deviceId: record.deviceId, route: 'lan' },
             });
             clock = 5_000;
             const closed = new Promise<void>((resolve) =>
@@ -289,6 +289,7 @@ describe('MobileGateway diagnostics', () => {
                     fields: {
                         deviceId: record.deviceId,
                         durationMs: 4_000,
+                        route: 'lan',
                         cause: 'peer-closed',
                         closeCode: 1_005,
                     },
@@ -422,6 +423,7 @@ describe('MobileGateway diagnostics', () => {
         const allowedFieldKeys = new Set([
             'reason',
             'deviceId',
+            'route',
             'durationMs',
             'dashboardReads',
             'sessionReads',

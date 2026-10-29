@@ -17,9 +17,11 @@ import {
     mobileUpdateRecoveryServerProof,
     PAIRING_SECRET_BYTES,
 } from '@caxri/mobile-transport';
+import type WebSocket from 'ws';
 
 import type { MobileDeviceRegistry } from '../device-registry';
 import type { MobileUpdateSource } from '../update-bundle';
+import type { MobileGatewayDiagnostics, MobileGatewayFailureReason } from './diagnostics';
 import type { MobileUpdateDownloads } from './update-downloads';
 
 /**
@@ -186,4 +188,29 @@ export class MobileUpdateRecoveryExchange {
             outcome: 'accepted',
         };
     }
+}
+
+/**
+ * Sends the single recovery answer and closes; the socket never becomes an application session.
+ */
+export async function sendUpdateRecoveryAnswer(
+    socket: WebSocket,
+    recovery: MobileUpdateRecoveryExchange,
+    raw: unknown,
+    dependencies: {
+        diagnostics: MobileGatewayDiagnostics;
+        terminate: (reason?: MobileGatewayFailureReason) => void;
+    },
+): Promise<void> {
+    const { frame, outcome } = await recovery.complete(raw);
+    dependencies.diagnostics.updateRecovery(outcome);
+    if (!frame) {
+        dependencies.terminate('invalidHandshake');
+        return;
+    }
+    if (socket.readyState !== 1) return;
+    socket.send(frame, (error) => {
+        if (error) dependencies.terminate('sendFailed');
+        else socket.close(1_000, 'Update recovery complete');
+    });
 }

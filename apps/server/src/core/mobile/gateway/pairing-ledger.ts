@@ -56,6 +56,14 @@ export class MobilePairingLedger {
         return { pairing, isValid };
     }
 
+    /**
+     * Pending offers that have not expired, for deriving Relay pairing grants.
+     */
+    pending(): PendingPairing[] {
+        this.removeExpired();
+        return this.#pairings.values().toArray();
+    }
+
     removeExpired(): void {
         const now = this.#now();
         for (const [pairingId, pairing] of this.#pairings)
