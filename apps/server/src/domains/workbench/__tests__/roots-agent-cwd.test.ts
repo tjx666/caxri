@@ -29,7 +29,7 @@ describe('WorkbenchRootService reported Agent working directory', () => {
         ]);
         const terminal = context.sessions[0].terminal!;
 
-        context.service.observeAgentCwd(agentCwdSignal(context, context.worktreeRoot));
+        void context.service.observeAgentCwd(agentCwdSignal(context, context.worktreeRoot));
 
         await vi.waitFor(() =>
             expect(context.database.getTerminal(terminal.id)?.agentCwd).toBe(context.worktreeRoot),
@@ -57,8 +57,8 @@ describe('WorkbenchRootService reported Agent working directory', () => {
             await mkdir(nested);
             const terminal = context.sessions[0].terminal!;
 
-            context.service.observeAgentCwd(agentCwdSignal(context, nested));
-            context.service.observeAgentCwd(agentCwdSignal(context, context.worktreeRoot));
+            void context.service.observeAgentCwd(agentCwdSignal(context, nested));
+            void context.service.observeAgentCwd(agentCwdSignal(context, context.worktreeRoot));
 
             await vi.waitFor(() => expect(context.worktreeTopology).toHaveBeenCalledTimes(2));
             await prime(context);
@@ -77,7 +77,7 @@ describe('WorkbenchRootService reported Agent working directory', () => {
         const context = await fixture();
         const terminal = context.sessions[0].terminal!;
 
-        context.service.observeAgentCwd(
+        void context.service.observeAgentCwd(
             agentCwdSignal(context, join(context.directory, 'missing')),
         );
 
@@ -94,10 +94,10 @@ describe('WorkbenchRootService reported Agent working directory', () => {
             { branch: 'feature/entered', rootPath: context.worktreeRoot },
         ]);
 
-        context.service.observeAgentCwd(agentCwdSignal(context, context.worktreeRoot));
+        void context.service.observeAgentCwd(agentCwdSignal(context, context.worktreeRoot));
         await vi.waitFor(() => expect(context.worktreeTopology).toHaveBeenCalledTimes(1));
-        context.service.observeAgentCwd(agentCwdSignal(context, context.worktreeRoot));
-        context.service.observeAgentCwd(
+        void context.service.observeAgentCwd(agentCwdSignal(context, context.worktreeRoot));
+        void context.service.observeAgentCwd(
             agentCwdSignal(context, context.worktreeRoot, { phase: 'turnFinished' }),
         );
 
@@ -119,7 +119,7 @@ describe('WorkbenchRootService reported Agent working directory', () => {
             { branch: 'feature/entered', rootPath: context.worktreeRoot },
         ]);
 
-        context.service.observeAgentCwd(agentCwdSignal(context, context.worktreeRoot));
+        void context.service.observeAgentCwd(agentCwdSignal(context, context.worktreeRoot));
 
         await vi.waitFor(() =>
             expect(context.database.getTerminal(context.sessions[0].terminal!.id)?.agentCwd).toBe(
@@ -149,7 +149,7 @@ describe('WorkbenchRootService reported Agent working directory', () => {
             { branch: 'feature/entered', rootPath: context.worktreeRoot },
         ]);
 
-        context.service.observeAgentCwd(agentCwdSignal(context, context.worktreeRoot));
+        void context.service.observeAgentCwd(agentCwdSignal(context, context.worktreeRoot));
 
         await vi.waitFor(() =>
             expect(context.database.getSession(context.sessions[0].session.id)?.rootPath).toBe(
@@ -221,7 +221,7 @@ describe('WorkbenchRootService reported Agent working directory', () => {
                     : originalRootIdentity(rootPath),
             );
 
-        context.service.observeAgentCwd(agentCwdSignal(context, nextWorktreeRoot));
+        void context.service.observeAgentCwd(agentCwdSignal(context, nextWorktreeRoot));
         await vi.waitFor(() => expect(identity).toHaveBeenCalledWith(nextWorktreeRoot));
         await expect(context.service.validateSession(sessionId)).resolves.toBe(false);
         expect(context.database.getSessionWorkbenchBinding(sessionId)?.rootDevice).toBe(
@@ -258,7 +258,7 @@ describe('WorkbenchRootService reported Agent working directory', () => {
             context.worktreeTopology.mockClear();
             context.worktreeTopology.mockImplementationOnce(() => pending.promise);
             if (source === 'agentCwd')
-                context.service.observeAgentCwd(agentCwdSignal(context, context.worktreeRoot));
+                void context.service.observeAgentCwd(agentCwdSignal(context, context.worktreeRoot));
             else
                 context.service.observeShellToolFinished(
                     shellFinished(context, { worktreeCreateIntent: true }),
@@ -300,7 +300,7 @@ describe('WorkbenchRootService reported Agent working directory', () => {
                 { branch: 'main', rootPath: context.ownerRoot },
                 { branch: 'feature/entered', rootPath: context.worktreeRoot },
             ]);
-            context.service.observeAgentCwd(agentCwdSignal(context, context.worktreeRoot));
+            void context.service.observeAgentCwd(agentCwdSignal(context, context.worktreeRoot));
             await checking.promise;
             let expectedRoot = context.ownerRoot;
             if (change === 'setting') context.setBehavior('ask');
@@ -337,7 +337,7 @@ describe('WorkbenchRootService reported Agent working directory', () => {
                 { branch: 'main', rootPath: context.ownerRoot },
                 { branch: 'feature/entered', rootPath: context.worktreeRoot },
             ]);
-            context.service.observeAgentCwd(agentCwdSignal(context, context.worktreeRoot));
+            void context.service.observeAgentCwd(agentCwdSignal(context, context.worktreeRoot));
             await vi.waitFor(() =>
                 expect(
                     context.events.filter((event) => event.event === 'workbench.candidate'),
@@ -361,7 +361,7 @@ describe('WorkbenchRootService reported Agent working directory', () => {
         ]);
         const authorized = context.database.createProject(context.worktreeRoot);
 
-        context.service.observeAgentCwd(agentCwdSignal(context, context.worktreeRoot));
+        void context.service.observeAgentCwd(agentCwdSignal(context, context.worktreeRoot));
 
         await vi.waitFor(() =>
             expect(
@@ -388,11 +388,11 @@ describe('WorkbenchRootService reported Agent working directory', () => {
         ]);
         const terminal = context.sessions[0].terminal!;
 
-        context.service.observeAgentCwd(agentCwdSignal(context, context.worktreeRoot));
+        void context.service.observeAgentCwd(agentCwdSignal(context, context.worktreeRoot));
         await vi.waitFor(() =>
             expect(context.database.getTerminal(terminal.id)?.agentCwd).toBe(context.worktreeRoot),
         );
-        context.service.observeAgentCwd(agentCwdSignal(context, context.ownerRoot));
+        void context.service.observeAgentCwd(agentCwdSignal(context, context.ownerRoot));
 
         await vi.waitFor(() =>
             expect(context.database.getTerminal(terminal.id)?.agentCwd).toBeUndefined(),
@@ -419,7 +419,7 @@ describe('WorkbenchRootService reported Agent working directory', () => {
         ]);
         const terminal = context.sessions[0].terminal!;
 
-        context.service.observeAgentCwd({
+        void context.service.observeAgentCwd({
             ...agentCwdSignal(context, context.worktreeRoot),
             provider: 'claude',
         });
