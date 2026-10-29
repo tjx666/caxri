@@ -18,7 +18,6 @@ import {
 } from '@caxri/protocol';
 
 import type { Translate } from '../../../i18n';
-import { translate } from '../../../i18n';
 import { agentChatMessageFullTime } from './agent-chat-time';
 
 /**
@@ -134,12 +133,16 @@ function groupWork(
  */
 export function agentChatTurnTimeTooltip(
     entry: Pick<Extract<AgentChatTimelineEntry, { kind: 'turn' }>, 'endedAt' | 'startedAt'>,
-    t: Translate = translate,
+    t: Translate,
 ): string | undefined {
     if (entry.endedAt !== undefined)
-        return t('agentChat.fold.finishedAt', { time: agentChatMessageFullTime(entry.endedAt) });
+        return t('agentChat.fold.finishedAt', {
+            time: agentChatMessageFullTime(entry.endedAt, t.locale),
+        });
     if (entry.startedAt !== undefined)
-        return t('agentChat.fold.startedAt', { time: agentChatMessageFullTime(entry.startedAt) });
+        return t('agentChat.fold.startedAt', {
+            time: agentChatMessageFullTime(entry.startedAt, t.locale),
+        });
     return undefined;
 }
 

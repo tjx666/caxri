@@ -1,7 +1,6 @@
 import type { TreeItemDto } from '@caxri/protocol';
 
 import type { Translate } from '../../i18n';
-import { translate } from '../../i18n';
 import { localizeExtensionParts, localizeExtensionText } from './extension-text';
 
 /**
@@ -28,7 +27,7 @@ function localizeTooltip(tooltip: NonNullable<TreeItemDto['tooltip']>, t: Transl
  * hover card, publication words, command titles) matches the catalog; repository names, branches, pull request titles,
  * and check names pass through untouched.
  */
-function localizeTreeItem(item: TreeItemDto, t: Translate = translate): TreeItemDto {
+function localizeTreeItem(item: TreeItemDto, t: Translate): TreeItemDto {
     return {
         ...item,
         label: localizeExtensionText(item.label, t),
@@ -50,7 +49,7 @@ function localizeTreeItem(item: TreeItemDto, t: Translate = translate): TreeItem
 export function localizeTreeChildren(
     viewId: string,
     children: ReadonlyMap<string, readonly TreeItemDto[]>,
-    t: Translate = translate,
+    t: Translate,
 ): ReadonlyMap<string, readonly TreeItemDto[]> {
     if (!LOCALIZED_TREE_VIEWS.has(viewId)) return children;
     return new Map(

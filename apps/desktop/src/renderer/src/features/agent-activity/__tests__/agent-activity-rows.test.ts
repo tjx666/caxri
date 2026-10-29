@@ -143,12 +143,14 @@ describe('agentActivityGroups', () => {
         expect(groups[0].rows.map((row) => row.session.id)).toEqual(['selected', 'other']);
         expect(groups[0].rows[0].session.hasUnread).toBe(false);
         expect(agentAttentionCount([project('alpha')], [viewed, other])).toBe(1);
-        expect(agentActivityHeadingPresentation(groups[0])).toEqual({
+        expect(agentActivityHeadingPresentation(groups[0], translate)).toEqual({
             count: 1,
             label: 'Needs attention',
             summary: '1 unread Session',
         });
-        expect(agentActivityHeadingPresentation(groupsOf([viewed], [], anchor)[0])).toEqual({
+        expect(
+            agentActivityHeadingPresentation(groupsOf([viewed], [], anchor)[0], translate),
+        ).toEqual({
             count: undefined,
             label: 'Viewing',
             summary: '1 read Session',

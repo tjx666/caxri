@@ -1,7 +1,6 @@
 import { agentChatPathReferencePreview } from '@caxri/protocol';
 
 import type { Translate } from '../../../i18n';
-import { translate } from '../../../i18n';
 import type { AgentChatTimelineEntry } from '../transcript/agent-chat-timeline';
 
 /**
@@ -67,11 +66,7 @@ export function isAgentChatMessageRailShown(marks: readonly AgentChatRailMark[])
 /**
  * The first line of a message, collapsed and cut to fit a tooltip. A message of images alone says so.
  */
-export function agentChatRailPreview(
-    text: string,
-    imageCount: number,
-    t: Translate = translate,
-): string {
+export function agentChatRailPreview(text: string, imageCount: number, t: Translate): string {
     const line = text.replaceAll(/\s+/gu, ' ').trim();
     if (!line)
         return imageCount === 1
@@ -130,7 +125,7 @@ function splitTitle(line: string): { title: string; rest: string } {
 export function agentChatRailPreviewParts(
     text: string,
     imageCount: number,
-    t: Translate = translate,
+    t: Translate,
 ): { title: string; summary: string } {
     const lines = text
         .split(/\r?\n/u)
@@ -157,7 +152,7 @@ export function agentChatRailPreviewParts(
  */
 export function agentChatRailMarks(
     timeline: readonly AgentChatTimelineEntry[],
-    t: Translate = translate,
+    t: Translate,
 ): AgentChatRailMark[] {
     const marks: AgentChatRailMark[] = [];
     for (const entry of timeline) {
@@ -215,7 +210,7 @@ export function agentChatRailCaption(
     total: number | undefined,
     loadedCount: number,
     time: string | undefined,
-    t: Translate = translate,
+    t: Translate,
 ): string {
     if (total === undefined)
         return time

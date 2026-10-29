@@ -1,5 +1,4 @@
 import type { Translate } from '../i18n';
-import { translate } from '../i18n';
 import { formatCount } from './locale-format';
 
 /**
@@ -11,7 +10,7 @@ import { formatCount } from './locale-format';
 /**
  * Active time rounded to minutes (`45m`, `3h 20m`, `120h`).
  */
-export function localizedDuration(ms: number, t: Translate = translate): string {
+export function localizedDuration(ms: number, t: Translate): string {
     const minutes = Math.round(ms / 60_000);
     if (minutes < 1)
         return ms > 0
@@ -25,13 +24,13 @@ export function localizedDuration(ms: number, t: Translate = translate): string 
             ? t('core.usageFormat.hoursMinutes', { hours, minutes: rest })
             : t('core.usageFormat.hours', { hours });
     // Grouped in the app locale, like every other count on the usage surfaces.
-    return t('core.usageFormat.hours', { hours: formatCount(hours) });
+    return t('core.usageFormat.hours', { hours: formatCount(hours, t.locale) });
 }
 
 /**
  * A provider rate-limit window's name (`Weekly`, `5-hour`).
  */
-export function localizedLimitWindowName(minutes: number, t: Translate = translate): string {
+export function localizedLimitWindowName(minutes: number, t: Translate): string {
     if (minutes === 10_080) return t('core.usageFormat.window.weekly');
     if (minutes % 1_440 === 0) return t('core.usageFormat.window.days', { count: minutes / 1_440 });
     if (minutes % 60 === 0) return t('core.usageFormat.window.hours', { count: minutes / 60 });
@@ -43,7 +42,7 @@ export function localizedLimitWindowName(minutes: number, t: Translate = transla
  * rather than `7d`, which reads as "7 days until reset" beside a remaining share; Orca's usage chip and the Codex CLI's
  * status line name it the same way.
  */
-export function localizedShortLimitWindowName(minutes: number, t: Translate = translate): string {
+export function localizedShortLimitWindowName(minutes: number, t: Translate): string {
     if (minutes === 10_080) return t('core.usageFormat.shortWindow.weekly');
     if (minutes % 1_440 === 0)
         return t('core.usageFormat.shortWindow.days', { count: minutes / 1_440 });
@@ -54,7 +53,7 @@ export function localizedShortLimitWindowName(minutes: number, t: Translate = tr
 /**
  * When a rate-limit window resets, relative to `now` (`resets in 3h 20m`, `resets in 4d 2h`).
  */
-export function localizedLimitReset(at: number, now: number, t: Translate = translate): string {
+export function localizedLimitReset(at: number, now: number, t: Translate): string {
     const ms = at - now;
     if (ms <= 0) return t('core.usageFormat.resetsNow');
     const hours = Math.floor(ms / 3_600_000);
@@ -70,11 +69,7 @@ export function localizedLimitReset(at: number, now: number, t: Translate = tran
 /**
  * When a banked reset expires, relative to `now` (`expires in 11h 20m`, `expires in 3d 4h`).
  */
-export function localizedResetCreditExpiry(
-    at: number,
-    now: number,
-    t: Translate = translate,
-): string {
+export function localizedResetCreditExpiry(at: number, now: number, t: Translate): string {
     const ms = at - now;
     if (ms <= 0) return t('core.usageFormat.expiresNow');
     const hours = Math.floor(ms / 3_600_000);

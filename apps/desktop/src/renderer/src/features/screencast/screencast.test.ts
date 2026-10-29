@@ -1,6 +1,7 @@
 import type { Keybinding } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../i18n';
 import type { ScreencastKeyboardInput } from './screencast';
 import {
     describeScreencastKey,
@@ -42,6 +43,7 @@ describe('describeScreencastKey', () => {
                     editable: false,
                     terminalFocus: false,
                 },
+                translate,
             ),
         ).toEqual({ commandTitle: 'Clear Terminal', shortcut: 'cmd+shift+k' });
     });
@@ -52,12 +54,17 @@ describe('describeScreencastKey', () => {
      */
     it('captions a chord continuation with the sequence that actually ran', () => {
         expect(
-            describeScreencastKey(keyboardInput('s', { metaKey: true }), keybindings, {
-                commandAllowsEditable: () => true,
-                editable: false,
-                leadingChord: 'cmd+k',
-                terminalFocus: false,
-            }),
+            describeScreencastKey(
+                keyboardInput('s', { metaKey: true }),
+                keybindings,
+                {
+                    commandAllowsEditable: () => true,
+                    editable: false,
+                    leadingChord: 'cmd+k',
+                    terminalFocus: false,
+                },
+                translate,
+            ),
         ).toEqual({ commandTitle: 'Edit Keyboard Shortcuts', shortcut: 'cmd+k cmd+s' });
     });
 
@@ -68,50 +75,73 @@ describe('describeScreencastKey', () => {
             terminalFocus: false,
         };
 
-        expect(describeScreencastKey(keyboardInput('s'), keybindings, options)).toBeUndefined();
+        expect(
+            describeScreencastKey(keyboardInput('s'), keybindings, options, translate),
+        ).toBeUndefined();
         expect(
             describeScreencastKey(
                 keyboardInput('Process', { isComposing: true }),
                 keybindings,
                 options,
+                translate,
             ),
         ).toBeUndefined();
     });
 
     it('hides a bare printable key even when it is a valid editable command binding', () => {
         expect(
-            describeScreencastKey(keyboardInput('p'), [{ key: 'p', command: 'terminal.clear' }], {
-                commandAllowsEditable: () => true,
-                editable: true,
-                terminalFocus: false,
-            }),
+            describeScreencastKey(
+                keyboardInput('p'),
+                [{ key: 'p', command: 'terminal.clear' }],
+                {
+                    commandAllowsEditable: () => true,
+                    editable: true,
+                    terminalFocus: false,
+                },
+                translate,
+            ),
         ).toBeUndefined();
     });
 
     it('does not show a shortcut that command dispatch blocks in an editable surface', () => {
         expect(
-            describeScreencastKey(keyboardInput('n', { metaKey: true }), keybindings, {
-                commandAllowsEditable: () => false,
-                editable: true,
-                terminalFocus: false,
-            }),
+            describeScreencastKey(
+                keyboardInput('n', { metaKey: true }),
+                keybindings,
+                {
+                    commandAllowsEditable: () => false,
+                    editable: true,
+                    terminalFocus: false,
+                },
+                translate,
+            ),
         ).toBeUndefined();
     });
 
     it('shows non-printable navigation keys only outside editable surfaces', () => {
         expect(
-            describeScreencastKey(keyboardInput('Escape'), keybindings, {
-                commandAllowsEditable: () => false,
-                editable: false,
-                terminalFocus: false,
-            }),
+            describeScreencastKey(
+                keyboardInput('Escape'),
+                keybindings,
+                {
+                    commandAllowsEditable: () => false,
+                    editable: false,
+                    terminalFocus: false,
+                },
+                translate,
+            ),
         ).toEqual({ shortcut: 'escape' });
         expect(
-            describeScreencastKey(keyboardInput('Escape'), keybindings, {
-                commandAllowsEditable: () => false,
-                editable: true,
-                terminalFocus: false,
-            }),
+            describeScreencastKey(
+                keyboardInput('Escape'),
+                keybindings,
+                {
+                    commandAllowsEditable: () => false,
+                    editable: true,
+                    terminalFocus: false,
+                },
+                translate,
+            ),
         ).toBeUndefined();
     });
 
@@ -129,9 +159,9 @@ describe('describeScreencastKey', () => {
             terminalFocus: false,
         };
 
-        expect(describeScreencastKey(event, [binding], options)).toBeUndefined();
+        expect(describeScreencastKey(event, [binding], options, translate)).toBeUndefined();
         expect(
-            describeScreencastKey(event, [binding], { ...options, terminalFocus: true }),
+            describeScreencastKey(event, [binding], { ...options, terminalFocus: true }, translate),
         ).toEqual({ commandTitle: 'Send Sequence', shortcut: 'cmd+enter' });
     });
 });

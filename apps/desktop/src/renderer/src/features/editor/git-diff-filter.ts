@@ -40,7 +40,7 @@ export function describeHiddenGitDiffFiles(
     isTruncated: boolean,
     t: Translate,
 ): string {
-    const count = formatCount(hiddenCount);
+    const count = formatCount(hiddenCount, t.locale);
     const isOne = hiddenCount === 1;
     if (areAllHidden) {
         if (isTruncated)

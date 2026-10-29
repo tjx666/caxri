@@ -70,7 +70,7 @@ export function sessionStatus(
     if (terminal.usageLimitWaitAt !== undefined) {
         return {
             ariaDescription: t('primarySidebar.status.usageWait.description', {
-                time: agentChatMessageTime(terminal.usageLimitWaitAt),
+                time: agentChatMessageTime(terminal.usageLimitWaitAt, t.locale),
             }),
             ariaLabel: t('primarySidebar.status.usageWait.label'),
             kind: 'usageWait',

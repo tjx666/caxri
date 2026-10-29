@@ -6,7 +6,6 @@ import type {
 import { agentChatQueueEntry } from '@caxri/protocol';
 
 import type { Translate } from '../../../i18n';
-import { translate } from '../../../i18n';
 import type { AgentChatPendingMessage } from '../transcript/agent-chat-pending';
 
 /**
@@ -122,7 +121,7 @@ export interface AgentChatQueueCardLabels {
 
 export function agentChatQueueCardLabels(
     entry: Pick<AgentChatQueueEntryView, 'canSendNow' | 'isPending' | 'sendNowLabel'>,
-    t: Translate = translate,
+    t: Translate,
     deleteOutcome: AgentChatQueueDeleteOutcome = 'drop',
 ): AgentChatQueueCardLabels {
     const isSteer = entry.sendNowLabel === 'Steer';
@@ -170,7 +169,7 @@ export interface AgentChatQueueHeader {
 
 export function agentChatQueueHeader(
     snapshot: Pick<AgentChatSnapshot, 'queuePauseReason' | 'queuePaused'> | undefined,
-    t: Translate = translate,
+    t: Translate,
 ): AgentChatQueueHeader | undefined {
     if (!snapshot?.queuePaused) return undefined;
     switch (snapshot.queuePauseReason) {

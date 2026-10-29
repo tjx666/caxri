@@ -1,27 +1,22 @@
 import type { AppLocale } from '@caxri/protocol';
 
-import { useLocaleStore } from '../i18n';
-
 /**
  * Number and date formatters in the interface language (`workbench.language`), not the system locale `undefined`
  * resolves to and not a hard-coded `en-US`: a Chinese interface on an English system should still group and date its
- * figures the Chinese way. The locale defaults to the store's current value, which the caller's `useTranslation()`
- * re-render keeps current, so a component that already re-renders on a language change formats in the new language.
+ * figures the Chinese way. The locale is a required argument, never read from the store here: React Compiler memoizes
+ * render output by its inputs, so a formatter that read the global locale would keep the previous language after a
+ * runtime language switch. Callers pass `locale` from `useTranslation()` or `t.locale`.
  */
 
 const numberFormats = new Map<string, Intl.NumberFormat>();
 const dateTimeFormats = new Map<string, Intl.DateTimeFormat>();
-
-function currentLocale(): AppLocale {
-    return useLocaleStore.getState().locale;
-}
 
 /**
  * A cached `Intl.NumberFormat` for the interface language.
  */
 export function localeNumberFormat(
     options: Intl.NumberFormatOptions = {},
-    locale: AppLocale = currentLocale(),
+    locale: AppLocale,
 ): Intl.NumberFormat {
     const key = `${locale}:${JSON.stringify(options)}`;
     let format = numberFormats.get(key);
@@ -37,7 +32,7 @@ export function localeNumberFormat(
  */
 export function localeDateTimeFormat(
     options: Intl.DateTimeFormatOptions,
-    locale: AppLocale = currentLocale(),
+    locale: AppLocale,
 ): Intl.DateTimeFormat {
     const key = `${locale}:${JSON.stringify(options)}`;
     let format = dateTimeFormats.get(key);
@@ -51,14 +46,14 @@ export function localeDateTimeFormat(
 /**
  * A whole count with the interface language's digit grouping: `12,345`.
  */
-export function formatCount(count: number, locale: AppLocale = currentLocale()): string {
+export function formatCount(count: number, locale: AppLocale): string {
     return localeNumberFormat({}, locale).format(count);
 }
 
 /**
  * A date and time in the interface language, the `toLocaleString()` shape (numeric date plus time with seconds).
  */
-export function formatDateTime(value: number | Date, locale: AppLocale = currentLocale()): string {
+export function formatDateTime(value: number | Date, locale: AppLocale): string {
     return localeDateTimeFormat(
         {
             year: 'numeric',
@@ -75,7 +70,7 @@ export function formatDateTime(value: number | Date, locale: AppLocale = current
 /**
  * A numeric date in the interface language, the `toLocaleDateString()` shape.
  */
-export function formatDate(value: number | Date, locale: AppLocale = currentLocale()): string {
+export function formatDate(value: number | Date, locale: AppLocale): string {
     return localeDateTimeFormat(
         { year: 'numeric', month: 'numeric', day: 'numeric' },
         locale,
@@ -87,8 +82,8 @@ export function formatDate(value: number | Date, locale: AppLocale = currentLoca
  */
 export function formatTime(
     value: number | Date,
-    options: { withSeconds?: boolean; twoDigitHour?: boolean } = {},
-    locale: AppLocale = currentLocale(),
+    options: { withSeconds?: boolean; twoDigitHour?: boolean },
+    locale: AppLocale,
 ): string {
     return localeDateTimeFormat(
         {

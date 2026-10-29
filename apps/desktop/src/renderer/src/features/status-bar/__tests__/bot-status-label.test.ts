@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../i18n';
 import { botInboxChipCopy, botStatusChipCopy } from '../bot-status-label';
 
 describe('botStatusChipCopy', () => {
     it('hides the chip while Caxri Bot is stopped', () => {
-        expect(botStatusChipCopy('stopped')).toBeUndefined();
+        expect(botStatusChipCopy('stopped', translate)).toBeUndefined();
     });
 
     it.each([
@@ -13,7 +14,7 @@ describe('botStatusChipCopy', () => {
         ['waiting', 'Caxri Bot needs input'],
         ['idle', 'Caxri Bot idle'],
     ] as const)('labels a %s Caxri Bot and says where to stop it', (state, text) => {
-        const copy = botStatusChipCopy(state);
+        const copy = botStatusChipCopy(state, translate);
         expect(copy?.text).toBe(text);
         expect(copy?.description).toContain('View > Stop Caxri Bot');
     });
@@ -21,12 +22,14 @@ describe('botStatusChipCopy', () => {
 
 describe('botInboxChipCopy', () => {
     it('holds no slot for an empty Inbox', () => {
-        expect(botInboxChipCopy(0)).toBeUndefined();
+        expect(botInboxChipCopy(0, translate)).toBeUndefined();
     });
 
     it('counts open items with singular and plural agreement', () => {
-        expect(botInboxChipCopy(1)?.text).toBe('1 needs you');
-        expect(botInboxChipCopy(3)?.text).toBe('3 need you');
-        expect(botInboxChipCopy(3)?.description).toMatch(/^Open Inbox: 3 Caxri Bot items/);
+        expect(botInboxChipCopy(1, translate)?.text).toBe('1 needs you');
+        expect(botInboxChipCopy(3, translate)?.text).toBe('3 need you');
+        expect(botInboxChipCopy(3, translate)?.description).toMatch(
+            /^Open Inbox: 3 Caxri Bot items/,
+        );
     });
 });

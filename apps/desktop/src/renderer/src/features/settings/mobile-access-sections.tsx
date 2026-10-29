@@ -58,7 +58,7 @@ const deviceStatus = (t: Translate, device: MobileDeviceSummary): string => {
     if (device.revokedAt) return t('settings.mobileAccess.devices.revoked');
     if (!device.lastConnectedAt) return t('settings.mobileAccess.devices.paired');
     return t('settings.mobileAccess.devices.lastConnected', {
-        time: formatDateTime(device.lastConnectedAt),
+        time: formatDateTime(device.lastConnectedAt, t.locale),
     });
 };
 

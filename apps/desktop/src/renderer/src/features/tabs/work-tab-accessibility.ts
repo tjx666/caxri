@@ -1,5 +1,4 @@
 import type { Translate } from '../../i18n';
-import { translate } from '../../i18n';
 import type { GitDecoration } from '../../lib/git-decorations';
 import { gitDecorationDescription } from '../../lib/git-decorations';
 
@@ -56,7 +55,7 @@ export function workTabDescription(
         dirty?: boolean;
         gitDecoration?: Pick<GitDecoration, 'kind'>;
     },
-    t: Translate = translate,
+    t: Translate,
 ): string {
     return [
         detail ? t('tabs.description.inDetail', { detail }) : undefined,

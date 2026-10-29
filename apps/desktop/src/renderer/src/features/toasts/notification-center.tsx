@@ -113,7 +113,7 @@ function NotificationRow({ entry }: { entry: NotificationEntry }) {
                             (entry.type ? t(notificationTypes[entry.type].titleKey) : 'Caxri')}
                     </span>
                     <time dateTime={new Date(entry.timestamp).toISOString()}>
-                        {formatTime(entry.timestamp, { twoDigitHour: true })}
+                        {formatTime(entry.timestamp, { twoDigitHour: true }, t.locale)}
                     </time>
                     {entry.count > 1 && (
                         <span className="tabular-nums">

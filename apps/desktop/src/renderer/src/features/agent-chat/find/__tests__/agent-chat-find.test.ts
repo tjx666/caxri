@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { translate } from '../../../../i18n';
 import type { AgentChatTimelineEntry } from '../../transcript/agent-chat-timeline';
 import {
     AGENT_CHAT_FIND_REPAINT_INTERVAL_MS,
@@ -76,16 +77,16 @@ describe('canAgentChatFindSearchEarlier', () => {
 
 describe('agentChatFindCountLabel', () => {
     it('counts from one, shows No results without matches, and nothing before a query', () => {
-        expect(agentChatFindCountLabel('a', 12, 2)).toBe('3/12');
-        expect(agentChatFindCountLabel('a', 0, 0)).toBe('No results');
-        expect(agentChatFindCountLabel('', 0, 0)).toBe('');
+        expect(agentChatFindCountLabel('a', 12, 2, translate)).toBe('3/12');
+        expect(agentChatFindCountLabel('a', 0, 0, translate)).toBe('No results');
+        expect(agentChatFindCountLabel('', 0, 0, translate)).toBe('');
     });
 
     it('limits an empty result to the loaded messages while older history is not searched', () => {
-        expect(agentChatFindCountLabel('a', 0, 0, { isPartial: true })).toBe(
+        expect(agentChatFindCountLabel('a', 0, 0, translate, { isPartial: true })).toBe(
             'No results in loaded messages',
         );
-        expect(agentChatFindCountLabel('a', 2, 0, { isPartial: true })).toBe('1/2');
+        expect(agentChatFindCountLabel('a', 2, 0, translate, { isPartial: true })).toBe('1/2');
     });
 });
 

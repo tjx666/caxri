@@ -76,16 +76,16 @@ function KpiTiles({ report }: { report: UsageReport }) {
             <StatTile
                 label={t('usage.kpi.sessions')}
                 value={t('usage.kpi.sessionsCreated', {
-                    count: formatCount(totals.sessionsCreated),
+                    count: formatCount(totals.sessionsCreated, t.locale),
                 })}
                 detail={t('usage.kpi.sessionsArchived', {
-                    count: formatCount(totals.sessionsArchived),
+                    count: formatCount(totals.sessionsArchived, t.locale),
                 })}
             />
             <StatTile
                 label={t('usage.kpi.pullRequests')}
                 value={t('usage.kpi.pullRequestsMerged', {
-                    count: formatCount(totals.pullRequestsMerged),
+                    count: formatCount(totals.pullRequestsMerged, t.locale),
                 })}
                 detail={
                     // A comma, not ` · `: when the tile is narrow the second fact wraps, and a comma may end a line

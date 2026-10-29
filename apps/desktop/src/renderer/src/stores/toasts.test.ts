@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../lib/caxri', () => ({ caxri: { request: mocks.request } }));
 
-import { applyLanguagePreference } from '../i18n';
+import { applyLanguagePreference, translate } from '../i18n';
 import { syncNotificationSettings, useNotificationStore } from './notifications';
 import type { ToastActionHandler, ToastActionHandlers, ToastActionId } from './toast-actions';
 import { configureToastActions, toastActionLabelKeys } from './toast-actions';
@@ -269,36 +269,41 @@ describe('Sonner notification adapter', () => {
             describeFailure(
                 new CaxriError('UNAVAILABLE', 'Codex could not rename the Agent session'),
                 'Session rename failed',
+                translate,
             ),
         ).toBe('Session rename failed. Codex could not rename the Agent session.');
         expect(
-            describeFailure(new CaxriError('TIMEOUT', 'Codex Session rename timed out'), 'Rename'),
+            describeFailure(
+                new CaxriError('TIMEOUT', 'Codex Session rename timed out'),
+                'Rename',
+                translate,
+            ),
         ).toBe('Rename. Codex Session rename timed out.');
     });
 
     it('falls back to generic copy only when the classified error carries no message', () => {
-        expect(describeFailure(new CaxriError('UNAVAILABLE', ''), 'Save file')).toBe(
+        expect(describeFailure(new CaxriError('UNAVAILABLE', ''), 'Save file', translate)).toBe(
             'Save file. Caxri is not ready yet.',
         );
-        expect(describeFailure(new CaxriError('TIMEOUT', ''), 'Save file')).toBe(
+        expect(describeFailure(new CaxriError('TIMEOUT', ''), 'Save file', translate)).toBe(
             'Save file. Caxri did not respond in time.',
         );
     });
 
     it('keeps the operation label for other CaxriError codes', () => {
-        expect(describeFailure(new CaxriError('NOT_FOUND', 'File is gone'), 'Save file')).toBe(
-            'Save file. File is gone.',
-        );
+        expect(
+            describeFailure(new CaxriError('NOT_FOUND', 'File is gone'), 'Save file', translate),
+        ).toBe('Save file. File is gone.');
     });
 
     it('falls back to the label for a non-Error rejection', () => {
-        expect(describeFailure('not an Error instance', 'Save file')).toBe(
+        expect(describeFailure('not an Error instance', 'Save file', translate)).toBe(
             'Save file. The operation could not be completed.',
         );
     });
 
     it('uses the plain Error message for a non-CaxriError rejection', () => {
-        expect(describeFailure(new Error('disk is full'), 'Save file')).toBe(
+        expect(describeFailure(new Error('disk is full'), 'Save file', translate)).toBe(
             'Save file. disk is full.',
         );
     });
@@ -313,7 +318,7 @@ describe('Sonner notification adapter', () => {
         const error = Object.assign(new Error(`${code}: open '/Users/me/project/note.txt'`), {
             code,
         });
-        expect(describeFailure(error, 'Save failed')).toBe(`Save failed. ${reason}`);
+        expect(describeFailure(error, 'Save failed', translate)).toBe(`Save failed. ${reason}`);
     });
 
     it('redacts Unix, Windows, and file URL paths from unknown reasons', () => {
@@ -324,29 +329,39 @@ describe('Sonner notification adapter', () => {
                     String.raw`Could not open '/Users/me/private/note.txt' or C:\Users\me\private\note.txt`,
                 ),
                 'Save failed',
+                translate,
             ),
         ).toBe('Save failed. Could not open a file or a file.');
         expect(
             describeFailure(
                 new Error('Failed at file:///Users/me/private/note.txt'),
                 'Save failed',
+                translate,
             ),
         ).toBe('Save failed. Failed at a file.');
         expect(
-            describeFailure(new Error('Access denied'), 'Open /Users/me/private/note.txt failed'),
+            describeFailure(
+                new Error('Access denied'),
+                'Open /Users/me/private/note.txt failed',
+                translate,
+            ),
         ).toBe('Open a file failed. Access denied.');
     });
 
     it('keeps a slash command name in a failure label', () => {
-        expect(describeFailure(new Error("unknown revision 'abc'"), '/review could not run')).toBe(
-            "/review could not run. unknown revision 'abc'.",
-        );
+        expect(
+            describeFailure(
+                new Error("unknown revision 'abc'"),
+                '/review could not run',
+                translate,
+            ),
+        ).toBe("/review could not run. unknown revision 'abc'.");
     });
 
     it('does not show a protocol error enum in the toast', () => {
-        expect(describeFailure(new CaxriError('IO', 'IO: write failed'), 'Save failed')).toBe(
-            'Save failed. write failed.',
-        );
+        expect(
+            describeFailure(new CaxriError('IO', 'IO: write failed'), 'Save failed', translate),
+        ).toBe('Save failed. write failed.');
     });
 
     describe('in a locale the Server does not write', () => {
@@ -370,6 +385,7 @@ describe('Sonner notification adapter', () => {
                     describeFailureNotice(
                         new CaxriError(code, 'Branch main already exists'),
                         '重命名失败',
+                        translate,
                     ),
                 ).toEqual({
                     message: `重命名失败：${reason}`,
@@ -379,21 +395,25 @@ describe('Sonner notification adapter', () => {
         );
 
         it('never leaves English or an English period in the toast sentence', () => {
-            const { message } = describeFailureNotice(new Error('socket hang up'), '保存失败');
+            const { message } = describeFailureNotice(
+                new Error('socket hang up'),
+                '保存失败',
+                translate,
+            );
             expect(message).toBe('保存失败：无法完成该操作。');
             expect(message).not.toMatch(/[A-Za-z]|\.$/u);
         });
 
         it('still prefers the errno reason, which already names the cause', () => {
             const error = Object.assign(new Error("ENOENT: open '/tmp/a.txt'"), { code: 'ENOENT' });
-            expect(describeFailureNotice(error, '保存失败').message).toBe(
+            expect(describeFailureNotice(error, '保存失败', translate).message).toBe(
                 '保存失败：该文件已不存在。',
             );
         });
 
         it('names a binary file instead of the misleading IO reason', () => {
             const error = new CaxriError('IO', 'Binary files cannot be opened in the editor');
-            expect(describeFailureNotice(error, '无法打开文件').message).toBe(
+            expect(describeFailureNotice(error, '无法打开文件', translate).message).toBe(
                 '无法打开文件：二进制文件无法在编辑器中打开。',
             );
         });

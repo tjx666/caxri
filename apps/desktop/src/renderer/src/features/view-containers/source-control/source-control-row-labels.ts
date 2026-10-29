@@ -1,7 +1,6 @@
 import type { SourceControlAction, SourceControlViewModel } from '@caxri/protocol';
 
 import type { Translate } from '../../../i18n';
-import { translate } from '../../../i18n';
 import type { ConfirmRequest } from '../../../stores/confirmations';
 
 type ProviderModel = SourceControlViewModel['providers'][number];
@@ -9,7 +8,7 @@ type ProviderModel = SourceControlViewModel['providers'][number];
 /**
  * Names the trailing number of a group caption, which otherwise reads as a bare `2` after the `+3 -1` line counts.
  */
-export function changedFileCountLabel(count: number, t: Translate = translate): string {
+export function changedFileCountLabel(count: number, t: Translate): string {
     return t(
         count === 1
             ? 'viewContainers.sourceControl.changedFilesOne'
@@ -22,7 +21,7 @@ export function changedFileCountLabel(count: number, t: Translate = translate): 
  * The group caption's visible file count (`2 files`). A bare `2` beside the `+4 -1` line counts read as a third diff
  * figure, so the count names its unit on screen as well as in the accessible description.
  */
-export function changedFileCountText(count: number, t: Translate = translate): string {
+export function changedFileCountText(count: number, t: Translate): string {
     return t(
         count === 1
             ? 'viewContainers.sourceControl.filesOne'
@@ -70,7 +69,7 @@ export function branchRowInteraction(
         | 'descriptionKind'
         | 'kindLabel'
     >,
-    t: Translate = translate,
+    t: Translate,
 ): BranchRowInteraction {
     const canSwitchBranch = !provider.kindLabel;
     /**
@@ -126,7 +125,7 @@ export function trackedRemoteBranch(descriptionTooltip: string): string | undefi
 export function branchSyncConfirmRequest(
     provider: Pick<ProviderModel, 'descriptionTooltip'>,
     syncAction: Pick<SourceControlAction, 'command'>,
-    t: Translate = translate,
+    t: Translate,
 ): ConfirmRequest {
     const [, ahead, behind] = syncAction.command.arguments ?? [];
     const remote = trackedRemoteBranch(provider.descriptionTooltip);

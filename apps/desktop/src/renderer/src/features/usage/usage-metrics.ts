@@ -16,7 +16,6 @@ import {
 } from '@caxri/protocol';
 
 import type { Translate, TranslationKey } from '../../i18n';
-import { translate } from '../../i18n';
 import { formatCount } from '../../lib/locale-format';
 import { localizedDuration, localizedLimitReset } from '../../lib/usage-format';
 import type { UsageCustomRange } from './usage-custom-range';
@@ -87,7 +86,7 @@ type UsageCountUnit =
  */
 export function countLabel(t: Translate, count: number, unit: UsageCountUnit): string {
     return t(`usage.count.${unit}${count === 1 ? 'One' : 'Other'}`, {
-        count: formatCount(count),
+        count: formatCount(count, t.locale),
     });
 }
 
@@ -395,7 +394,7 @@ export function agentTimeDetail(
     const sessions = countLabel(t, totals.sessionsWithUsage, 'session');
     return totals.outsideSessionsWithUsage > 0
         ? t('usage.agentTime.acrossWithOutside', {
-              outside: formatCount(totals.outsideSessionsWithUsage),
+              outside: formatCount(totals.outsideSessionsWithUsage, t.locale),
               sessions,
           })
         : t('usage.agentTime.across', { sessions });
@@ -419,7 +418,7 @@ export function usageScanCaption(
     const pending = pendingTranscriptScans(report);
     return pending > 0
         ? t(pending === 1 ? 'usage.scan.readingOne' : 'usage.scan.readingOther', {
-              count: formatCount(pending),
+              count: formatCount(pending, t.locale),
           })
         : undefined;
 }
@@ -517,7 +516,7 @@ export type LimitWindowState = { kind: 'active'; resetLabel?: string } | { kind:
 export function limitWindowState(
     window: UsageLimit['windows'][number],
     generatedAt: number,
-    t: Translate = translate,
+    t: Translate,
 ): LimitWindowState {
     if (window.resetsAt === undefined) return { kind: 'active' };
     if (window.resetsAt <= generatedAt) return { kind: 'reset' };

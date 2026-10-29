@@ -11,7 +11,6 @@ import { agentProviderCatalog, botBoardGroupIds } from '@caxri/protocol';
 import { isEqual, omit } from 'es-toolkit';
 
 import type { Translate, TranslationKey } from '../../i18n';
-import { translate } from '../../i18n';
 import type { AgentActivityGlyphId } from '../agent-activity/agent-activity-glyph';
 import type { SessionActivityPresentation } from '../primary-sidebar/session-activity';
 import {
@@ -46,10 +45,7 @@ interface BotBoardSection {
  * Buckets board rows into the protocol's display order and drops empty groups. Rows keep the Server's order within a
  * group, which is already most recent first.
  */
-export function botBoardSections(
-    rows: readonly BotBoardRow[],
-    t: Translate = translate,
-): BotBoardSection[] {
+export function botBoardSections(rows: readonly BotBoardRow[], t: Translate): BotBoardSection[] {
     const rowsByGroup = Map.groupBy(rows, (row) => row.group);
     return botBoardGroupIds.flatMap((id) => {
         const groupRows = rowsByGroup.get(id);
@@ -180,7 +176,7 @@ interface BotRowPresentation {
  * same Session reads the same in both windows, and a board of several working Agents does not turn into a wall of
  * green.
  */
-export function botRowPresentation(row: BotBoardRow, t: Translate = translate): BotRowPresentation {
+export function botRowPresentation(row: BotBoardRow, t: Translate): BotRowPresentation {
     const { agent } = row;
     /**
      * A turn or question recorded before the Agent exited is not happening any more. Without a live Agent the row reads
@@ -284,7 +280,7 @@ export function botPullRequestBadge(
         pullRequest,
         pullRequestUnavailable,
     }: Pick<BotBoardRow, 'pullRequest' | 'pullRequestUnavailable'>,
-    t: Translate = translate,
+    t: Translate,
 ): BotPullRequestBadge | undefined {
     if (!pullRequest || pullRequestUnavailable) return undefined;
     const presentation = sessionPullRequestPresentation(pullRequest, t);
@@ -420,10 +416,7 @@ interface BotTaskBadge {
 /**
  * The current Caxri Bot task in a row's Session, or nothing when Caxri Bot never delegated there.
  */
-export function botTaskBadge(
-    task: BotBoardRow['task'],
-    t: Translate = translate,
-): BotTaskBadge | undefined {
+export function botTaskBadge(task: BotBoardRow['task'], t: Translate): BotTaskBadge | undefined {
     if (!task) return undefined;
     if (task.status === 'blocked' && task.failure === 'startup_waiting')
         return {
@@ -460,7 +453,7 @@ export function botTaskBadge(
  */
 export function botHandoverDescription(
     handover: BotBoardRow['handover'],
-    t: Translate = translate,
+    t: Translate,
 ): string | undefined {
     if (!handover) return undefined;
     return t(

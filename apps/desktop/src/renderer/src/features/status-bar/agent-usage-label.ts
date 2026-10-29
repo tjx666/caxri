@@ -11,7 +11,6 @@ import {
 } from '@caxri/protocol';
 
 import type { Translate } from '../../i18n';
-import { translate } from '../../i18n';
 import { formatCount } from '../../lib/locale-format';
 import {
     localizedLimitReset,
@@ -62,7 +61,7 @@ export function agentUsageLabel(
     readout: AgentUsageReadout,
     now: number,
     options: AgentUsageChipOptions,
-    t: Translate = translate,
+    t: Translate,
 ): string {
     const parts = [formatTokens(readout.tokens.total)];
     const cost = agentUsageCostLabel(readout);
@@ -124,7 +123,7 @@ export function agentUsageLimitTone(
 export function agentUsagePaceNote(
     readout: AgentUsageReadout,
     now: number,
-    t: Translate = translate,
+    t: Translate,
 ): string | undefined {
     const shortfall = limitPaceShortfall(readout.limit, now);
     if (!shortfall) return undefined;
@@ -143,11 +142,11 @@ export function agentUsagePaceNote(
 export function agentUsageResetCreditsValue(
     limit: UsageLimit | undefined,
     now: number,
-    t: Translate = translate,
+    t: Translate,
 ): string | undefined {
     const credits = currentResetCredits(limit, now);
     if (!credits) return undefined;
-    const count = formatCount(credits.availableCount);
+    const count = formatCount(credits.availableCount, t.locale);
     if (credits.nextExpiresAt === undefined) return count;
     return t('statusBar.usage.resetCreditsValue', {
         count,
@@ -161,7 +160,7 @@ export function agentUsageResetCreditsValue(
 export function agentUsageResetCreditsNote(
     limit: UsageLimit | undefined,
     now: number,
-    t: Translate = translate,
+    t: Translate,
 ): string | undefined {
     const credits = currentResetCredits(limit, now);
     if (credits?.nextExpiresAt === undefined || !isResetCreditExpiringSoon(limit, now))
@@ -179,7 +178,7 @@ export function agentUsageResetCreditsNote(
 export function agentUsageClockSignature(
     limit: UsageLimit | undefined,
     now: number,
-    t: Translate = translate,
+    t: Translate,
 ): string {
     const windows = currentLimitWindows(limit, now)
         .map((window) =>

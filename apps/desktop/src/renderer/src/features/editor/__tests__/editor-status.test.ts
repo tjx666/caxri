@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import { translate } from '../../../i18n';
 import type { EditorStatus } from '../editor-status';
 import { editorLanguageLabel, editorStatusKey, useEditorStatusStore } from '../editor-status';
 
@@ -29,20 +30,20 @@ describe('editorStatusKey', () => {
 
 describe('editorLanguageLabel', () => {
     it('returns the curated label for a known language id', () => {
-        expect(editorLanguageLabel('typescriptreact')).toBe('TypeScript React');
-        expect(editorLanguageLabel('json')).toBe('JSON');
+        expect(editorLanguageLabel('typescriptreact', translate)).toBe('TypeScript React');
+        expect(editorLanguageLabel('json', translate)).toBe('JSON');
     });
 
     it('falls back to Title Case for an unknown kebab-case language id', () => {
-        expect(editorLanguageLabel('my-custom-lang')).toBe('My Custom Lang');
+        expect(editorLanguageLabel('my-custom-lang', translate)).toBe('My Custom Lang');
     });
 
     it('falls back to Title Case for an unknown snake_case language id', () => {
-        expect(editorLanguageLabel('my_custom_lang')).toBe('My Custom Lang');
+        expect(editorLanguageLabel('my_custom_lang', translate)).toBe('My Custom Lang');
     });
 
     it('title-cases a single unknown word', () => {
-        expect(editorLanguageLabel('zig')).toBe('Zig');
+        expect(editorLanguageLabel('zig', translate)).toBe('Zig');
     });
 });
 

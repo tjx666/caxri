@@ -6,6 +6,8 @@ import { describe, expect, it } from 'vitest';
 const root = resolve(import.meta.dirname, '../..');
 const ruleId = 'caxri/no-render-translate';
 const fixture = 'scripts/fixtures/eslint/no-render-translate/no-render-translate-fixture.tsx';
+const defaultFixture =
+    'scripts/fixtures/eslint/no-render-translate/no-default-translate-fixture.ts';
 
 /**
  * Linted through the real flat config so the file-scoped wiring is covered too; `ignore: false` bypasses the
@@ -32,5 +34,19 @@ describe('caxri/no-render-translate', () => {
         const reported = await lint(fixture);
 
         expect(reported.some((message) => message.line >= 25)).toBe(false);
+    });
+
+    /**
+     * A defaulted `t` lets a caller that forgets to pass it silently render the previous language, so the rule bans the
+     * `= translate` and `?? translate` fallbacks while leaving a required parameter and an explicit pass alone.
+     */
+    it('reports a t parameter that falls back to the module-level translate', async () => {
+        const reported = await lint(defaultFixture);
+
+        expect(reported.map((message) => [message.line, message.messageId])).toEqual([
+            [4, 'defaultTranslate'],
+            [8, 'defaultTranslate'],
+            [13, 'defaultTranslate'],
+        ]);
     });
 });

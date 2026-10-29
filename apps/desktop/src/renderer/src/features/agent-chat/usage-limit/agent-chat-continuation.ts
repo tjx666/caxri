@@ -7,7 +7,6 @@ import type {
 import { AGENT_CHAT_AUTO_CONTINUE_MAX_ATTEMPTS } from '@caxri/protocol';
 
 import type { Translate } from '../../../i18n';
-import { translate } from '../../../i18n';
 import { localizedDuration, localizedLimitReset } from '../../../lib/usage-format';
 import { agentChatMessageTime } from '../transcript/agent-chat-time';
 
@@ -32,7 +31,7 @@ export function agentChatContinuationChoice(targets: readonly AgentChatContinuat
 export function agentChatContinuationUnavailableLabel(
     target: AgentChatContinuationTarget,
     now: number,
-    t: Translate = translate,
+    t: Translate,
 ): string | undefined {
     switch (target.unavailable) {
         case undefined: {
@@ -57,7 +56,7 @@ export function agentChatContinuationUnavailableLabel(
 export function agentChatUsageLimitHeadline(
     limit: Pick<AgentChatUsageLimit, 'window'>,
     providerName: string,
-    t: Translate = translate,
+    t: Translate,
 ): string {
     return t(`agentChat.usageLimit.${limit.window}`, { provider: providerName });
 }
@@ -85,7 +84,7 @@ export function agentChatUsageGuardOffer(
 export function agentChatAutoContinueLabel(
     autoContinue: NonNullable<AgentChatUsageLimit['autoContinue']>,
     now: number,
-    t: Translate = translate,
+    t: Translate,
 ): string {
     switch (autoContinue.status) {
         case 'waiting': {
@@ -93,13 +92,13 @@ export function agentChatAutoContinueLabel(
             // Sweeps run every few seconds, so a passed time is only a moment before the continuation lands.
             if (ms < 60_000) return t('agentChat.usageLimit.auto.continuing');
             return t('agentChat.usageLimit.auto.waiting', {
-                time: agentChatMessageTime(autoContinue.at),
+                time: agentChatMessageTime(autoContinue.at, t.locale),
                 duration: localizedDuration(ms, t),
             });
         }
         case 'continued': {
             return t('agentChat.usageLimit.auto.continued', {
-                time: agentChatMessageTime(autoContinue.at),
+                time: agentChatMessageTime(autoContinue.at, t.locale),
             });
         }
         case 'missed': {

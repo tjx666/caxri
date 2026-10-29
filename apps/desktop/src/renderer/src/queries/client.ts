@@ -4,6 +4,7 @@ import type { CaxriMethod, MethodResult, ParametersArgument } from '@caxri/proto
 import type { UseQueryOptions, UseQueryResult } from '@tanstack/react-query';
 import { QueryClient, QueryObserver, useQuery } from '@tanstack/react-query';
 
+import { translate } from '../i18n';
 import { caxri } from '../lib/caxri';
 import { describeFailure, isCancelledRequest, pushToast } from '../stores/toasts';
 
@@ -169,7 +170,7 @@ export function subscribeCaxriQuery<M extends CaxriMethod>(
 export function useToastOnQueryError(isError: boolean, error: Error | null, label: string): void {
     useEffect(() => {
         if (shouldToastQueryError(isError, error))
-            pushToast('error', describeFailure(error, label));
+            pushToast('error', describeFailure(error, label, translate));
     }, [isError, error, label]);
 }
 

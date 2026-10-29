@@ -181,7 +181,7 @@ export function unavailableAgentKinds(
  * The tooltip on an unavailable Agent row: where to get the CLI and where to tell Caxri about it. Shell is always
  * available, so it has no hint.
  */
-export function agentInstallHint(kind: TerminalKind, t: Translate = translate): string | undefined {
+export function agentInstallHint(kind: TerminalKind, t: Translate): string | undefined {
     switch (kind) {
         case 'claude':
             return t('terminal.new.installHint.claude');
@@ -222,7 +222,7 @@ export function newTerminalAgentChoices(
 export function newTerminalActionLabel(
     target: NewTerminalTarget,
     agentLabel: string,
-    t: Translate = translate,
+    t: Translate,
 ): string {
     if (target.kind === 'shell') return t('terminal.new.terminal');
     return t(target.surface === 'chat' ? 'terminal.new.agentChat' : 'terminal.new.agentTerminal', {
@@ -234,10 +234,7 @@ export function newTerminalActionLabel(
  * The empty pane's labelled button text: "New Chat" when its press opens an Agent Chat, "New Terminal" otherwise. The
  * leading Agent icon already names the Agent, so the text names only what kind of tab appears.
  */
-export function newTerminalButtonText(
-    surface: TerminalSurface | undefined,
-    t: Translate = translate,
-): string {
+export function newTerminalButtonText(surface: TerminalSurface | undefined, t: Translate): string {
     return t(surface === 'chat' ? 'terminal.new.chat' : 'terminal.new.terminal');
 }
 
@@ -249,7 +246,7 @@ export function newTerminalButtonText(
 export function newSessionActionLabel(
     target: NewTerminalTarget,
     agentLabel: string,
-    t: Translate = translate,
+    t: Translate,
 ): string {
     return t(
         target.surface === 'chat' ? 'terminal.new.agentChatSession' : 'terminal.new.agentSession',
@@ -265,7 +262,7 @@ export function newSessionActionLabel(
  */
 export function agentChoiceMarker(
     choice: Pick<NewTerminalAgentChoice, 'isDefault' | 'surface'> & { isUnavailable?: boolean },
-    t: Translate = translate,
+    t: Translate,
 ): string | undefined {
     const parts = [
         choice.isUnavailable === true && t('terminal.new.notInstalledMarker'),

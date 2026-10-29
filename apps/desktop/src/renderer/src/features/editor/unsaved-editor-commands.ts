@@ -71,7 +71,7 @@ export function listUnsavedEditorDocuments(
  * does.
  */
 export function unsavedEditorName(path: string, content = ''): string {
-    if (isUntitledEditorTabPath(path)) return untitledDisplayName(path, content);
+    if (isUntitledEditorTabPath(path)) return untitledDisplayName(path, content, translate);
     return parseExternalEditorTab(path)?.name ?? pathBasename(path);
 }
 

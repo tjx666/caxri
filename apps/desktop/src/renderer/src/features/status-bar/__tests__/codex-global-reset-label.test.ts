@@ -1,6 +1,7 @@
 import type { AgentAvailability, CodexGlobalReset } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../i18n';
 import { codexGlobalResetChipCopy, isCodexAvailable } from '../codex-global-reset-label';
 
 const NOW = Date.parse('2026-01-02T03:00:00.000Z');
@@ -22,7 +23,7 @@ const formatTime = (at: number) => new Date(at).toISOString();
 
 describe('Codex global reset chip copy', () => {
     it('counts down to a deadline and links the announcement and the data source', () => {
-        const copy = codexGlobalResetChipCopy(scheduled(), NOW, undefined, formatTime);
+        const copy = codexGlobalResetChipCopy(scheduled(), NOW, translate, formatTime);
         expect(copy?.label).toBe('Codex reset within 2h 14m');
         expect(copy?.postUrl).toBe('https://x.com/example/status/1');
         expect(copy?.tooltip.rows).toEqual([
@@ -40,7 +41,7 @@ describe('Codex global reset chip copy', () => {
         const copy = codexGlobalResetChipCopy(
             scheduled({ targetKind: 'exact', quote: '' }),
             NOW,
-            undefined,
+            translate,
             formatTime,
         );
         expect(copy?.label).toBe('Codex reset in 2h 14m');
@@ -48,15 +49,20 @@ describe('Codex global reset chip copy', () => {
     });
 
     it('hides without a pending announcement or once the target time is reached', () => {
-        expect(codexGlobalResetChipCopy(undefined, NOW)).toBeUndefined();
-        expect(codexGlobalResetChipCopy({ state: 'none', checkedAt: NOW }, NOW)).toBeUndefined();
+        expect(codexGlobalResetChipCopy(undefined, NOW, translate)).toBeUndefined();
+        expect(
+            codexGlobalResetChipCopy({ state: 'none', checkedAt: NOW }, NOW, translate),
+        ).toBeUndefined();
         expect(
             codexGlobalResetChipCopy(
                 { state: 'unavailable', checkedAt: NOW, reason: 'network' },
                 NOW,
+                translate,
             ),
         ).toBeUndefined();
-        expect(codexGlobalResetChipCopy(scheduled({ targetAt: NOW }), NOW)).toBeUndefined();
+        expect(
+            codexGlobalResetChipCopy(scheduled({ targetAt: NOW }), NOW, translate),
+        ).toBeUndefined();
     });
 });
 

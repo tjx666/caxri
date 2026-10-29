@@ -1,5 +1,4 @@
 import type { Translate } from '../i18n';
-import { translate } from '../i18n';
 import { createStore } from '../lib/store';
 
 /**
@@ -116,7 +115,7 @@ export function resolveConfirm(isConfirmed: boolean): void {
  */
 export function confirmationLabels(
     request: ConfirmRequest,
-    t: Translate = translate,
+    t: Translate,
 ): { cancel: string; confirm: string } {
     return {
         cancel: request.cancelLabel ?? t('common.cancel'),

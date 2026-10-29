@@ -12,7 +12,7 @@ import {
     sessionViewScope,
     useSessionViewStore,
 } from '../../stores/session-view';
-import { describeFailure, pushToast } from '../../stores/toasts';
+import { describeFailureKey, pushToast } from '../../stores/toasts';
 import { useWorkbenchStore } from '../../stores/workbench';
 import { openFilePreview } from '../preview/preview-commands';
 import { shouldOpenAsPreview } from '../preview/preview-registry';
@@ -124,6 +124,6 @@ export async function openLinkedExternalDocument(
         if (!opened) throw new Error(translate('editor.external.openInSessionFailed'));
         if (shouldPreview) openFilePreview(opened);
     } catch (error) {
-        pushToast('error', describeFailure(error, translate('editor.external.openFailed')));
+        pushToast('error', describeFailureKey(error, 'editor.external.openFailed', translate));
     }
 }

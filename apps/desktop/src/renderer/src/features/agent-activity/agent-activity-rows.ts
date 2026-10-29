@@ -14,7 +14,6 @@ import {
 } from '@caxri/protocol';
 
 import type { Translate, TranslationKey } from '../../i18n';
-import { translate } from '../../i18n';
 import type { SessionActivityPresentation } from '../primary-sidebar/session-activity';
 import { sessionActivityPresentation } from '../primary-sidebar/session-activity';
 import type { SessionStatus } from '../primary-sidebar/session-status';
@@ -128,11 +127,11 @@ const GROUP_LABEL_KEYS: Record<AgentActivityGroupId, TranslationKey> = {
 
 /**
  * Heading words for one group. Components pass their `useTranslation()` `t` so a language change re-renders the
- * heading; the `translate` default serves unit tests and other non-React callers.
+ * heading.
  */
 export function agentActivityHeadingPresentation(
     group: AgentActivityGroup,
-    t: Translate = translate,
+    t: Translate,
 ): {
     count: number | undefined;
     label: string;

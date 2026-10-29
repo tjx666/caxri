@@ -49,7 +49,7 @@ describe('providerUptimeDays', () => {
 
 describe('formatUptimePercent', () => {
     it('drops trailing zeros the way the status page prints the figure', () => {
-        expect(formatUptimePercent(99.95)).toBe('99.95');
-        expect(formatUptimePercent(100)).toBe('100');
+        expect(formatUptimePercent(99.95, 'en')).toBe('99.95');
+        expect(formatUptimePercent(100, 'en')).toBe('100');
     });
 });

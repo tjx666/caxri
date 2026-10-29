@@ -202,7 +202,7 @@ export function TerminalInfoPanel() {
                             <dd className="m-0 min-w-0 [overflow-wrap:anywhere]">
                                 <Tooltip content={new Date(terminal.createdAt).toISOString()}>
                                     <span className={FOCUSABLE_TOOLTIP_TRIGGER_CLASS} tabIndex={0}>
-                                        {formatDateTime(terminal.createdAt)}
+                                        {formatDateTime(terminal.createdAt, t.locale)}
                                     </span>
                                 </Tooltip>
                             </dd>
@@ -210,7 +210,7 @@ export function TerminalInfoPanel() {
                             <dd className="m-0 min-w-0 [overflow-wrap:anywhere]">
                                 <Tooltip content={new Date(terminal.updatedAt).toISOString()}>
                                     <span className={FOCUSABLE_TOOLTIP_TRIGGER_CLASS} tabIndex={0}>
-                                        {formatDateTime(terminal.updatedAt)}
+                                        {formatDateTime(terminal.updatedAt, t.locale)}
                                     </span>
                                 </Tooltip>
                             </dd>

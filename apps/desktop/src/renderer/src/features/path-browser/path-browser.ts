@@ -57,7 +57,7 @@ export function pathBrowserDenialMessageKey(
  */
 export function pathBrowserError(error: unknown, fallback: string, isSshHost: boolean): Error {
     const key = pathBrowserDenialMessageKey(error, isSshHost);
-    return new Error(key ? translate(key) : describeFailure(error, fallback));
+    return new Error(key ? translate(key) : describeFailure(error, fallback, translate));
 }
 
 /**

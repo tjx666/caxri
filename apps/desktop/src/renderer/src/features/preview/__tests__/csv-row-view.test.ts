@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../i18n';
 import {
     filterTableRows,
     nextTableSort,
@@ -12,6 +13,7 @@ import { numericCellValue, parseDelimitedTable } from '../csv-table';
 const table = parseDelimitedTable(
     'name,score\nitem10,"1,200"\nItem2,15%\nitem1,\nalpha,-3.5\nbeta,n/a\ngamma,1e2\n',
     '/p/data.csv',
+    translate,
 );
 
 const names = (order: readonly number[]) => order.map((index) => table.rows[index][0]);

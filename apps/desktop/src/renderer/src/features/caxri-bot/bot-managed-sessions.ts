@@ -80,7 +80,7 @@ const feed: {
 export function inputTakeBackNotice(
     takeBack: Pick<BotInputTakeBack, 'sessionId'>,
     title: string | undefined,
-    t: Translate = translate,
+    t: Translate,
 ): { message: string; action: ToastAction } {
     return {
         message: title
@@ -96,7 +96,7 @@ function announce(takeBack: BotInputTakeBack): void {
     const title = getBootstrap()?.sessions.find(
         (session) => session.id === takeBack.sessionId,
     )?.title;
-    const { action, message } = inputTakeBackNotice(takeBack, title);
+    const { action, message } = inputTakeBackNotice(takeBack, title, translate);
     pushToast('info', message, { action });
 }
 

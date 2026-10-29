@@ -25,7 +25,7 @@ export function describeTruncatedGitChanges(
     t: Translate,
 ): string {
     return t('editor.gitDiff.truncated', {
-        visible: formatCount(visibleCount),
-        total: formatCount(totalCount),
+        visible: formatCount(visibleCount, t.locale),
+        total: formatCount(totalCount, t.locale),
     });
 }

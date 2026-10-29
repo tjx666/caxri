@@ -1,6 +1,7 @@
 import type { GitFileStatus, GitSummary } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../i18n';
 import {
     buildGitChildRepoIndex,
     buildGitDecorationIndex,
@@ -380,8 +381,8 @@ describe('buildGitChildRepoIndex', () => {
 
 describe('gitChildRepoDescription', () => {
     it('names each kind the way the row tooltip does', () => {
-        expect(gitChildRepoDescription('submodule')).toBe('Git submodule.');
-        expect(gitChildRepoDescription('nested')).toBe('Nested Git repository.');
+        expect(gitChildRepoDescription('submodule', translate)).toBe('Git submodule.');
+        expect(gitChildRepoDescription('nested', translate)).toBe('Nested Git repository.');
     });
 });
 

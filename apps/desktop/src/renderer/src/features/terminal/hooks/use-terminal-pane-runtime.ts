@@ -14,7 +14,7 @@ import { useLatestReference } from '@/hooks/use-latest-reference';
 import { translate } from '../../../i18n';
 import { caxri } from '../../../lib/caxri';
 import { useDialogStore } from '../../../stores/dialogs';
-import { describeFailure, pushToast } from '../../../stores/toasts';
+import { describeFailureKey, pushToast } from '../../../stores/toasts';
 import { gpuIncidentBudget } from '../../gpu/gpu-incident-budget';
 import {
     beginRendererPerformanceTerminalStage,
@@ -192,7 +192,7 @@ export function useTerminalPaneRuntime({
             try {
                 await loadTerminalFonts();
             } catch (error) {
-                onError(describeFailure(error, translate('terminal.errors.fontsFailed')));
+                onError(describeFailureKey(error, 'terminal.errors.fontsFailed', translate));
             }
             /**
              * A corrupt font must degrade to the system monospace stack instead of blocking the PTY. After the
@@ -374,7 +374,7 @@ export function useTerminalPaneRuntime({
         const selectionClipboard = new TerminalSelectionClipboard((error) => {
             if (isClipboardFailureReported) return;
             isClipboardFailureReported = true;
-            onError(describeFailure(error, translate('terminal.errors.copyFailed')));
+            onError(describeFailureKey(error, 'terminal.errors.copyFailed', translate));
         });
         const selectionDisposable = xterm.onSelectionChange(() => {
             /**
@@ -401,7 +401,7 @@ export function useTerminalPaneRuntime({
             try {
                 await longPaste.pasteFromClipboard(() => navigator.clipboard.readText());
             } catch (error) {
-                onError(describeFailure(error, translate('terminal.errors.pasteFailed')));
+                onError(describeFailureKey(error, 'terminal.errors.pasteFailed', translate));
             }
         };
         pasteReference.current = pasteFromClipboard;

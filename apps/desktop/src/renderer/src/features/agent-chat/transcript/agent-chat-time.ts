@@ -1,5 +1,6 @@
+import type { AppLocale } from '@caxri/protocol';
+
 import type { Translate } from '../../../i18n';
-import { translate } from '../../../i18n';
 import { localeDateTimeFormat } from '../../../lib/locale-format';
 import type { AgentChatTimelineEntry } from './agent-chat-timeline';
 
@@ -27,32 +28,28 @@ function startOfDay(timestamp: number): number {
 /**
  * When a message was sent, as the clock time beside it: `17:59`.
  */
-export function agentChatMessageTime(timestamp: number): string {
-    return localeDateTimeFormat(TIME_OPTIONS).format(timestamp);
+export function agentChatMessageTime(timestamp: number, locale: AppLocale): string {
+    return localeDateTimeFormat(TIME_OPTIONS, locale).format(timestamp);
 }
 
 /**
  * The full date and time a message's clock time stands for, for its tooltip.
  */
-export function agentChatMessageFullTime(timestamp: number): string {
-    return localeDateTimeFormat(FULL_OPTIONS).format(timestamp);
+export function agentChatMessageFullTime(timestamp: number, locale: AppLocale): string {
+    return localeDateTimeFormat(FULL_OPTIONS, locale).format(timestamp);
 }
 
 /**
  * The day break above the first message of a day: `Today 17:59`, `Yesterday 09:12`, `Oct 3 17:59`, or with the year
  * once the message is from another year. `now` decides what "today" is, so a caller re-renders it as days turn over.
  */
-export function agentChatDayLabel(
-    timestamp: number,
-    now: number,
-    t: Translate = translate,
-): string {
-    const time = agentChatMessageTime(timestamp);
+export function agentChatDayLabel(timestamp: number, now: number, t: Translate): string {
+    const time = agentChatMessageTime(timestamp, t.locale);
     const days = Math.round((startOfDay(now) - startOfDay(timestamp)) / DAY_MS);
     if (days === 0) return t('agentChat.time.today', { time });
     if (days === 1) return t('agentChat.time.yesterday', { time });
     const isSameYear = new Date(timestamp).getFullYear() === new Date(now).getFullYear();
-    const date = localeDateTimeFormat(isSameYear ? MONTH_DAY_OPTIONS : FULL_DATE_OPTIONS);
+    const date = localeDateTimeFormat(isSameYear ? MONTH_DAY_OPTIONS : FULL_DATE_OPTIONS, t.locale);
     return `${date.format(timestamp)} ${time}`;
 }
 

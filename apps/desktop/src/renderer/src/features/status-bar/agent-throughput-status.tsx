@@ -76,7 +76,7 @@ function ThroughputBars({ samples }: { samples: readonly AgentThroughputSample[]
                 })}
             </svg>
             <span className="text-muted tabular-nums">
-                {t('statusBar.throughput.max', { rate: formatThroughputRate(max) })}
+                {t('statusBar.throughput.max', { rate: formatThroughputRate(max, t.locale) })}
             </span>
         </span>
     );
@@ -252,7 +252,7 @@ function MeasuredThroughputStatus({
 }) {
     const { t } = useTranslation();
     const lastResponseAgo = useRelativeTime(latest.completedAt);
-    const label = formatThroughputRate(rate);
+    const label = formatThroughputRate(rate, t.locale);
     const agentName = agentProviderCatalog[throughput.provider].displayName;
     const tabLabel = t('editor.tab.agentStatus', { agent: agentName });
     const averageLabel = recentAverageLabel(throughput.recent.responseCount, t);

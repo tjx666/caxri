@@ -1,29 +1,33 @@
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../i18n';
 import { remoteDebuggingChipCopy } from '../remote-debugging-label';
 
 describe('remoteDebuggingChipCopy', () => {
     it('says nothing when no debugging channel is open', () => {
-        expect(remoteDebuggingChipCopy({ transport: 'disabled' })).toBeUndefined();
+        expect(remoteDebuggingChipCopy({ transport: 'disabled' }, translate)).toBeUndefined();
     });
 
     /**
      * DESIGN.md keeps a standing mode icon-only on the bar, so the copy carries no visible label for a chip to render.
      */
     it('gives the chip no visible label, only an accessible name and a tooltip', () => {
-        const copy = remoteDebuggingChipCopy({ port: '9224', transport: 'port' });
+        const copy = remoteDebuggingChipCopy({ port: '9224', transport: 'port' }, translate);
         expect(copy).not.toHaveProperty('text');
         expect(copy).toHaveProperty('description');
     });
 
     it('names the loopback address a listening port accepts connections on', () => {
-        const copy = remoteDebuggingChipCopy({ port: '9224', transport: 'port' });
+        const copy = remoteDebuggingChipCopy({ port: '9224', transport: 'port' }, translate);
         expect(copy?.description).toContain('127.0.0.1:9224');
         expect(copy?.description).toContain('act as you');
     });
 
     it('splits the tooltip into a heading, the address, the consequence, and the click hint', () => {
-        const tooltip = remoteDebuggingChipCopy({ port: '9224', transport: 'port' })?.tooltip;
+        const tooltip = remoteDebuggingChipCopy(
+            { port: '9224', transport: 'port' },
+            translate,
+        )?.tooltip;
         expect(tooltip?.title).toBe('Accepting debugging connections');
         expect(tooltip?.rows).toEqual([
             { label: 'Address', value: '127.0.0.1:9224', isCode: true },
@@ -37,7 +41,7 @@ describe('remoteDebuggingChipCopy', () => {
      * disclose that something is listening rather than go silent or print an empty address.
      */
     it('still discloses a port whose number the launch never fixed', () => {
-        const copy = remoteDebuggingChipCopy({ transport: 'port' });
+        const copy = remoteDebuggingChipCopy({ transport: 'port' }, translate);
         expect(copy?.description).toContain('loopback port');
         expect(copy?.description).not.toContain('pipe');
     });
@@ -47,7 +51,7 @@ describe('remoteDebuggingChipCopy', () => {
      * of leaving a dangling "on" with nothing after it.
      */
     it('describes a pipe without inventing an address', () => {
-        const copy = remoteDebuggingChipCopy({ transport: 'pipe' });
+        const copy = remoteDebuggingChipCopy({ transport: 'pipe' }, translate);
         expect(copy?.description).not.toContain('127.0.0.1');
         expect(copy?.description).toContain('pipe');
     });

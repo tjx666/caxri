@@ -3,6 +3,7 @@ import { interpolate } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import type { Translate } from '../../../i18n';
+import { withLocale } from '../../../i18n';
 import { enResources } from '../../../i18n/locales/en';
 import {
     formatMinuteOfDay,
@@ -13,7 +14,7 @@ import {
 } from './claude-windows-summary';
 
 const english: Record<string, string> = enResources;
-const t: Translate = (key, parameters) => interpolate(english[key] ?? key, parameters);
+const t: Translate = withLocale((key, parameters) => interpolate(english[key] ?? key, parameters));
 const NOW = new Date(2026, 9, 26, 12, 0).getTime();
 
 const state: ClaudeWindowState = {

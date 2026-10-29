@@ -1,6 +1,7 @@
 import type { AgentUsageReadout } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../i18n';
 import {
     agentUsageClockSignature,
     agentUsageLabel,
@@ -47,6 +48,7 @@ describe('agent usage chip label', () => {
             }),
             NOW,
             ALL_WINDOWS,
+            translate,
         );
         // 61.6% used leaves 38% of the 5-hour window; 12% used leaves 88% of the week.
         expect(label).toBe('1.2M · $3.40 · 5h 38% left · wk 88% left');
@@ -64,13 +66,14 @@ describe('agent usage chip label', () => {
             }),
             NOW,
             ALL_WINDOWS,
+            translate,
         );
         expect(label).toBe('1.2M');
     });
 
     it('marks a cost that leaves some unpriced models out as a lower bound', () => {
         const partial = readout({ models: ['gpt-5.5', 'mystery'], unpricedModels: ['mystery'] });
-        expect(agentUsageLabel(partial, NOW, DEFAULT_WINDOWS)).toBe('1.2M · ≥$3.40');
+        expect(agentUsageLabel(partial, NOW, DEFAULT_WINDOWS, translate)).toBe('1.2M · ≥$3.40');
     });
 
     it('leaves the 5-hour window out unless the Setting opts in', () => {
@@ -84,8 +87,10 @@ describe('agent usage chip label', () => {
                 ],
             },
         });
-        expect(agentUsageLabel(both, NOW, DEFAULT_WINDOWS)).toBe('1.2M · $3.40 · wk 80% left');
-        expect(agentUsageLabel(both, NOW, ALL_WINDOWS)).toBe(
+        expect(agentUsageLabel(both, NOW, DEFAULT_WINDOWS, translate)).toBe(
+            '1.2M · $3.40 · wk 80% left',
+        );
+        expect(agentUsageLabel(both, NOW, ALL_WINDOWS, translate)).toBe(
             '1.2M · $3.40 · 5h 79% left · wk 80% left',
         );
     });
@@ -140,10 +145,12 @@ describe('agent usage limit tone', () => {
 
     it('explains a pace warning in plain words and stays silent otherwise', () => {
         const DAY = 86_400_000;
-        expect(agentUsagePaceNote(withWindows(10, 30, NOW + 6 * DAY), NOW)).toBe(
+        expect(agentUsagePaceNote(withWindows(10, 30, NOW + 6 * DAY), NOW, translate)).toBe(
             'Weekly limit: 70% left, resets in 6d 0h. At this rate it runs out before it resets; the warning clears as usage slows or time passes.',
         );
-        expect(agentUsagePaceNote(withWindows(10, 10, NOW + 6 * DAY), NOW)).toBeUndefined();
+        expect(
+            agentUsagePaceNote(withWindows(10, 10, NOW + 6 * DAY), NOW, translate),
+        ).toBeUndefined();
     });
 
     it('follows only the windows the chip shows', () => {
@@ -172,17 +179,17 @@ describe('agent usage clock signature', () => {
     };
 
     it('stays the same across instants that render the same reset wording', () => {
-        expect(agentUsageClockSignature(limit, NOW)).toBe(
-            agentUsageClockSignature(limit, NOW + 2_000),
+        expect(agentUsageClockSignature(limit, NOW, translate)).toBe(
+            agentUsageClockSignature(limit, NOW + 2_000, translate),
         );
-        expect(agentUsageClockSignature(undefined, NOW)).toBe('');
+        expect(agentUsageClockSignature(undefined, NOW, translate)).toBe('');
     });
 
     it('changes when the reset wording turns over or the window resets', () => {
-        expect(agentUsageClockSignature(limit, NOW + 120_000)).not.toBe(
-            agentUsageClockSignature(limit, NOW),
+        expect(agentUsageClockSignature(limit, NOW + 120_000, translate)).not.toBe(
+            agentUsageClockSignature(limit, NOW, translate),
         );
-        expect(agentUsageClockSignature(limit, NOW + 3_600_000)).toBe('');
+        expect(agentUsageClockSignature(limit, NOW + 3_600_000, translate)).toBe('');
     });
 });
 
@@ -200,14 +207,21 @@ describe('banked reset credits', () => {
             agentUsageResetCreditsValue(
                 limit({ availableCount: 2, nextExpiresAt: NOW + 3 * DAY + 4 * 3_600_000 }),
                 NOW,
+                translate,
             ),
         ).toBe('2 · next expires in 3d 4h');
-        expect(agentUsageResetCreditsValue(limit({ availableCount: 1 }), NOW)).toBe('1');
-        expect(agentUsageResetCreditsValue(undefined, NOW)).toBeUndefined();
-        expect(agentUsageResetCreditsValue(limit({ availableCount: 0 }), NOW)).toBeUndefined();
+        expect(agentUsageResetCreditsValue(limit({ availableCount: 1 }), NOW, translate)).toBe('1');
+        expect(agentUsageResetCreditsValue(undefined, NOW, translate)).toBeUndefined();
+        expect(
+            agentUsageResetCreditsValue(limit({ availableCount: 0 }), NOW, translate),
+        ).toBeUndefined();
         // An expiry that has passed means the count is stale until the next reading.
         expect(
-            agentUsageResetCreditsValue(limit({ availableCount: 2, nextExpiresAt: NOW - 1 }), NOW),
+            agentUsageResetCreditsValue(
+                limit({ availableCount: 2, nextExpiresAt: NOW - 1 }),
+                NOW,
+                translate,
+            ),
         ).toBeUndefined();
     });
 
@@ -224,20 +238,22 @@ describe('banked reset credits', () => {
             agentUsageResetCreditsNote(
                 limit({ availableCount: 1, nextExpiresAt: NOW + 12 * 3_600_000 }),
                 NOW,
+                translate,
             ),
         ).toContain('expires in 12h');
         expect(
             agentUsageResetCreditsNote(
                 limit({ availableCount: 1, nextExpiresAt: NOW + 3 * DAY }),
                 NOW,
+                translate,
             ),
         ).toBeUndefined();
     });
 
     it('changes the clock signature as the expiry wording moves', () => {
         const credits = limit({ availableCount: 1, nextExpiresAt: NOW + 3 * DAY });
-        expect(agentUsageClockSignature(credits, NOW)).not.toBe(
-            agentUsageClockSignature(credits, NOW + DAY),
+        expect(agentUsageClockSignature(credits, NOW, translate)).not.toBe(
+            agentUsageClockSignature(credits, NOW + DAY, translate),
         );
     });
 });

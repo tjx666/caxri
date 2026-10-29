@@ -1,7 +1,6 @@
 import type { GitFileStatus, GitSummary } from '@caxri/protocol';
 
 import type { Translate } from '../i18n';
-import { translate } from '../i18n';
 import { resolveRepositoryFilePath as resolveRepoFilePath } from './repository-file-path';
 
 export type GitDecorationKind = GitFileStatus['kind'];
@@ -95,10 +94,7 @@ export function asGitDecorationKind(identifier: string): GitDecorationKind | und
  * A component passes its own `t` so the description follows a language change; the `translate` default serves callers
  * outside React.
  */
-export function gitDecorationDescription(
-    kind: GitDecorationKind,
-    t: Translate = translate,
-): string {
+export function gitDecorationDescription(kind: GitDecorationKind, t: Translate): string {
     return t('core.gitDecoration.description', { kind: t(`core.gitDecoration.kind.${kind}`) });
 }
 
@@ -106,7 +102,7 @@ export function gitDecorationDescription(
  * What the folder's repository icon means, for a screen reader and for the row's hover tooltip. Both read it, so the
  * wording a user sees on hover is the wording a user hears.
  */
-export function gitChildRepoDescription(kind: GitChildRepoKind, t: Translate = translate): string {
+export function gitChildRepoDescription(kind: GitChildRepoKind, t: Translate): string {
     return t(`core.gitDecoration.childRepo.${kind}`);
 }
 

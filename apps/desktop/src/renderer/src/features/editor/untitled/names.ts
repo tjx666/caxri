@@ -2,7 +2,6 @@ import { parseUntitledEditorTab } from '@caxri/protocol';
 import type { EditorDocument } from '@desktop-shared/editor-state';
 
 import type { Translate } from '../../../i18n';
-import { translate } from '../../../i18n';
 
 /**
  * How much of the first line VS Code reads for an untitled buffer's name, and how long the name may be.
@@ -70,11 +69,7 @@ export function untitledSaveAsBaseName(path: string, content: string): string {
 /**
  * The name an untitled buffer goes by in its tab, prompts, and Save As: its first line, or `Untitled-N`.
  */
-export function untitledDisplayName(
-    path: string,
-    content: string,
-    t: Translate = translate,
-): string {
+export function untitledDisplayName(path: string, content: string, t: Translate): string {
     return (
         untitledFirstLineName(content) ??
         t('editor.tab.untitled', { index: parseUntitledEditorTab(path) ?? 1 })

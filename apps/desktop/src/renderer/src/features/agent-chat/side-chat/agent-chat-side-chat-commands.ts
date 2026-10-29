@@ -65,7 +65,11 @@ async function answerExchange(terminalId: string, exchange: SideChatExchange): P
     } catch (error) {
         patchExchange(terminalId, exchange.id, {
             status: 'failed',
-            error: describeFailureNotice(error, translate('agentChat.sideChat.askFailed')).message,
+            error: describeFailureNotice(
+                error,
+                translate('agentChat.sideChat.askFailed'),
+                translate,
+            ).message,
         });
     }
 }

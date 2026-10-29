@@ -8,7 +8,7 @@ import { editorModelPath } from '@desktop-shared/editor-state';
 import type { TranslationKey } from '../../i18n';
 import { translate } from '../../i18n';
 import { sessionViewScope } from '../../stores/session-view';
-import { describeFailure, pushToast } from '../../stores/toasts';
+import { describeFailureKey, pushToast } from '../../stores/toasts';
 import { useWorkbenchStore } from '../../stores/workbench';
 import { revealEditorNavigation } from '../editor/editor-reveal';
 import { openExternalEditorDocument } from '../editor/external-editor-documents';
@@ -107,6 +107,6 @@ export async function openTerminalFileTarget(
                 result.truncated,
             );
     } catch (error) {
-        onError(describeFailure(error, translate('terminal.links.fileLinkFailed')));
+        onError(describeFailureKey(error, 'terminal.links.fileLinkFailed', translate));
     }
 }

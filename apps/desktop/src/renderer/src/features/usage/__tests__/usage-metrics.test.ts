@@ -371,23 +371,32 @@ describe('Usage page wording helpers', () => {
 
 describe('plan limit windows', () => {
     it('counts down to a reset', () => {
-        expect(limitWindowState({ windowMinutes: 300, usedPercent: 40 }, 0)).toEqual({
+        expect(limitWindowState({ windowMinutes: 300, usedPercent: 40 }, 0, translate)).toEqual({
             kind: 'active',
         });
         expect(
-            limitWindowState({ windowMinutes: 300, usedPercent: 40, resetsAt: 90 * 60_000 }, 0),
+            limitWindowState(
+                { windowMinutes: 300, usedPercent: 40, resetsAt: 90 * 60_000 },
+                0,
+                translate,
+            ),
         ).toEqual({ kind: 'active', resetLabel: 'resets in 1h 30m' });
         expect(
             limitWindowState(
                 { windowMinutes: 10_080, usedPercent: 40, resetsAt: 50 * 3_600_000 },
                 0,
+                translate,
             ),
         ).toEqual({ kind: 'active', resetLabel: 'resets in 2d 2h' });
     });
 
     it('reports a window whose reset has passed as reset instead of "resets now"', () => {
         expect(
-            limitWindowState({ windowMinutes: 300, usedPercent: 90, resetsAt: 1_000 }, 5_000),
+            limitWindowState(
+                { windowMinutes: 300, usedPercent: 90, resetsAt: 1_000 },
+                5_000,
+                translate,
+            ),
         ).toEqual({ kind: 'reset' });
     });
 });

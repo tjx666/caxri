@@ -13,22 +13,16 @@ import {
 import {
     agentChatAttachLabel,
     agentChatCommandCwd,
-    agentChatCommandMenuKeyStep,
-    agentChatComposerPlaceholder,
     agentChatDeliveryCaption,
     agentChatEmptyHint,
     agentChatEscapeAction,
     agentChatRecoveryNotice,
     agentChatResumeFailureDetail,
     agentChatSendAction,
-    agentChatSendRefusal,
-    agentChatSkillLabel,
     agentChatSubmitDelivery,
     canSendAgentChatMessage,
     isAgentChatBusy,
     isAgentChatInterruptKey,
-    shouldAgentChatPaneEscapeStop,
-    shouldConfirmUnmatchedSend,
     withOccurrenceKeys,
 } from '../agent-chat-presentation';
 
@@ -58,8 +52,10 @@ describe('agentChatRecoveryNotice', () => {
     const settled = { isLoadError: false, processState: 'stopped' } as const;
 
     it('shows nothing while the Chat can continue', () => {
-        expect(agentChatRecoveryNotice(snapshot('stopped'), settled, 'Codex')).toBeUndefined();
-        expect(agentChatRecoveryNotice(undefined, settled, 'Codex')).toBeUndefined();
+        expect(
+            agentChatRecoveryNotice(snapshot('stopped'), settled, 'Codex', translate),
+        ).toBeUndefined();
+        expect(agentChatRecoveryNotice(undefined, settled, 'Codex', translate)).toBeUndefined();
     });
 
     it('names a hand-over with the PTY copy and resumes it by restarting the Terminal', () => {
@@ -68,6 +64,7 @@ describe('agentChatRecoveryNotice', () => {
                 snapshot('stopped'),
                 { isLoadError: false, processState: 'detached' },
                 'Codex',
+                translate,
             ),
         ).toEqual({
             kind: 'detached',
@@ -88,6 +85,7 @@ describe('agentChatRecoveryNotice', () => {
                 { status: 'failed', failure: { reason: 'process_exited' } },
                 { isLoadError: false, processState: 'detached' },
                 'Codex',
+                translate,
             )?.kind,
         ).toBe('detached');
     });
@@ -98,6 +96,7 @@ describe('agentChatRecoveryNotice', () => {
                 { status: 'failed', failure: { reason: 'spawn_failed', detail: 'EACCES' } },
                 { isLoadError: false, processState: 'failed' },
                 'Codex',
+                translate,
             ),
         ).toEqual({
             kind: 'failed',
@@ -121,6 +120,7 @@ describe('agentChatRecoveryNotice', () => {
             },
             { isLoadError: false, processState: 'failed' },
             'Codex',
+            translate,
         );
         expect(notice).toEqual({
             kind: 'inUse',
@@ -136,6 +136,7 @@ describe('agentChatRecoveryNotice', () => {
                 undefined,
                 { isLoadError: true, processState: 'running' },
                 'Codex',
+                translate,
             ),
         ).toEqual({
             kind: 'failed',
@@ -147,21 +148,27 @@ describe('agentChatRecoveryNotice', () => {
 
 describe('agentChatSendAction', () => {
     it('sends when idle, queues while busy, and steers during a turn', () => {
-        expect(agentChatSendAction({ isTurnRunning: false, isBusy: false }, 'Codex')).toEqual({
+        expect(
+            agentChatSendAction({ isTurnRunning: false, isBusy: false }, 'Codex', translate),
+        ).toEqual({
             kind: 'send',
             label: 'Send',
             tooltip: 'Send',
             shortcut: 'enter',
             placeholder: 'Message Codex',
         });
-        expect(agentChatSendAction({ isTurnRunning: false, isBusy: true }, 'Codex')).toMatchObject({
+        expect(
+            agentChatSendAction({ isTurnRunning: false, isBusy: true }, 'Codex', translate),
+        ).toMatchObject({
             kind: 'queue',
             label: 'Queue message',
             tooltip: 'Queue',
             shortcut: 'enter',
         });
         // A running turn's tooltip lists its keys instead of the placeholder spelling them out.
-        expect(agentChatSendAction({ isTurnRunning: true, isBusy: true }, 'Codex')).toMatchObject({
+        expect(
+            agentChatSendAction({ isTurnRunning: true, isBusy: true }, 'Codex', translate),
+        ).toMatchObject({
             kind: 'steer',
             label: 'Steer message',
             placeholder: 'Add to this turn',
@@ -175,23 +182,36 @@ describe('agentChatSendAction', () => {
 
     it('adds to the goal rather than the turn while an active goal runs', () => {
         expect(
-            agentChatSendAction({ isTurnRunning: true, isBusy: true, isGoalActive: true }, 'Codex'),
+            agentChatSendAction(
+                { isTurnRunning: true, isBusy: true, isGoalActive: true },
+                'Codex',
+                translate,
+            ),
         ).toMatchObject({ kind: 'steer', placeholder: 'Add to the goal' });
         expect(
             agentChatSendAction(
                 { isTurnRunning: false, isBusy: false, isGoalActive: true },
                 'Codex',
+                translate,
             ),
         ).toMatchObject({ placeholder: 'Message Codex' });
     });
 
     it('asks what to plan in an idle Chat with plan mode on', () => {
         expect(
-            agentChatSendAction({ isTurnRunning: false, isBusy: false, isPlanMode: true }, 'Codex'),
+            agentChatSendAction(
+                { isTurnRunning: false, isBusy: false, isPlanMode: true },
+                'Codex',
+                translate,
+            ),
         ).toMatchObject({ label: 'Send', placeholder: 'Describe what to plan…' });
         // A running turn still invites a follow-up rather than a plan.
         expect(
-            agentChatSendAction({ isTurnRunning: true, isBusy: true, isPlanMode: true }, 'Codex'),
+            agentChatSendAction(
+                { isTurnRunning: true, isBusy: true, isPlanMode: true },
+                'Codex',
+                translate,
+            ),
         ).toMatchObject({ placeholder: 'Add to this turn' });
     });
 });
@@ -205,25 +225,37 @@ describe('agentChatSendTooltip', () => {
         expect(agentChatSendBlock(snapshot('failed'), 'running')).toBe('failed');
         expect(agentChatSendBlock(snapshot('failed'), 'detached')).toBe('detached');
         expect(agentChatSendBlock(snapshot('ready'), 'running')).toBeUndefined();
-        expect(agentChatSendTooltip(action, { ...ready, block: 'loading' })).toBe('Chat loading…');
-        expect(agentChatSendTooltip(action, { ...ready, block: 'failed' })).toBe(
+        expect(agentChatSendTooltip(action, { ...ready, block: 'loading' }, translate)).toBe(
+            'Chat loading…',
+        );
+        expect(agentChatSendTooltip(action, { ...ready, block: 'failed' }, translate)).toBe(
             'Chat stopped. Retry above',
         );
         expect(
-            agentChatSendTooltip(action, { ...ready, block: 'detached', isAttaching: true }),
+            agentChatSendTooltip(
+                action,
+                { ...ready, block: 'detached', isAttaching: true },
+                translate,
+            ),
         ).toBe('Chat detached. Resume above');
-        expect(agentChatSendTooltip(action, { ...ready, isAttaching: true })).toBe('Attaching…');
+        expect(agentChatSendTooltip(action, { ...ready, isAttaching: true }, translate)).toBe(
+            'Attaching…',
+        );
         expect(
-            agentChatSendTooltip(action, {
-                ...ready,
-                isAttaching: true,
-                isPreparingReference: true,
-            }),
+            agentChatSendTooltip(
+                action,
+                {
+                    ...ready,
+                    isAttaching: true,
+                    isPreparingReference: true,
+                },
+                translate,
+            ),
         ).toBe('Preparing Session reference…');
-        expect(agentChatSendTooltip(action, { ...ready, hasContent: false })).toBe(
+        expect(agentChatSendTooltip(action, { ...ready, hasContent: false }, translate)).toBe(
             'Type a message to send',
         );
-        expect(agentChatSendTooltip(action, ready)).toBe('Send (Enter)');
+        expect(agentChatSendTooltip(action, ready, translate)).toBe('Send (Enter)');
     });
 
     it('shows the action’s keycap only while Send can act', () => {
@@ -256,10 +288,10 @@ describe('agentChatSendTooltip', () => {
 
 describe('agentChatEmptyHint', () => {
     it('names the composer gestures, offering images only when the provider takes them', () => {
-        expect(agentChatEmptyHint(true)).toBe(
+        expect(agentChatEmptyHint(true, translate)).toBe(
             'Type / or $ for commands and skills, @ for files and Sessions · paste or drop images and files · ⇧Enter for a new line',
         );
-        expect(agentChatEmptyHint(false)).toBe(
+        expect(agentChatEmptyHint(false, translate)).toBe(
             'Type / or $ for commands and skills, @ for files and Sessions · drop files to insert paths · ⇧Enter for a new line',
         );
     });
@@ -267,10 +299,12 @@ describe('agentChatEmptyHint', () => {
 
 describe('agentChatAttachLabel', () => {
     it('says a pick attaches files, and images only when the provider takes them', () => {
-        expect(agentChatAttachLabel(true, false)).toBe('Attach images or files');
-        expect(agentChatAttachLabel(false, false)).toBe('Attach files');
-        expect(agentChatAttachLabel(true, true)).toBe('Attach images, files, or folders');
-        expect(agentChatAttachLabel(false, true)).toBe('Attach files or folders');
+        expect(agentChatAttachLabel(true, false, translate)).toBe('Attach images or files');
+        expect(agentChatAttachLabel(false, false, translate)).toBe('Attach files');
+        expect(agentChatAttachLabel(true, true, translate)).toBe(
+            'Attach images, files, or folders',
+        );
+        expect(agentChatAttachLabel(false, true, translate)).toBe('Attach files or folders');
     });
 });
 
@@ -394,6 +428,7 @@ describe('agentChatRecoveryNotice for a conversation that could not be resumed',
             },
             { isLoadError: false, processState: undefined },
             'Claude',
+            translate,
         );
         expect(notice).toEqual({
             kind: 'failed',
@@ -401,7 +436,7 @@ describe('agentChatRecoveryNotice for a conversation that could not be resumed',
                 providerName: 'Claude',
                 surface: 'desktop',
             }),
-            detail: agentChatResumeFailureDetail('Claude'),
+            detail: agentChatResumeFailureDetail('Claude', translate),
             recovery: 'restart',
             canOpenAsTerminal: true,
         });
@@ -411,186 +446,8 @@ describe('agentChatRecoveryNotice for a conversation that could not be resumed',
 
 describe('agentChatDeliveryCaption', () => {
     it('captions a steered message and drops the caption once a queued one was delivered', () => {
-        expect(agentChatDeliveryCaption('steered')).toBe('Steered');
-        expect(agentChatDeliveryCaption('queued')).toBeUndefined();
-        expect(agentChatDeliveryCaption(undefined)).toBeUndefined();
-    });
-});
-
-describe('agentChatComposerPlaceholder', () => {
-    const sendAction = { placeholder: 'Queue a follow-up' };
-
-    it('says Enter steers the first queued message in a running turn, and says Enter sends it in an idle Chat', () => {
-        const state = {
-            hasNextQueued: true,
-            hasStash: false,
-            isEditing: false,
-            isGoalMode: false,
-            isTurnRunning: true,
-        };
-        expect(agentChatComposerPlaceholder(sendAction, state)).toBe(
-            'Enter to steer the first queued message',
-        );
-        expect(agentChatComposerPlaceholder(sendAction, { ...state, isTurnRunning: false })).toBe(
-            'Enter to send the queued message, or type a new one',
-        );
-        expect(agentChatComposerPlaceholder(sendAction, { ...state, isEditing: true })).toBe(
-            sendAction.placeholder,
-        );
-        expect(agentChatComposerPlaceholder(sendAction, { ...state, hasNextQueued: false })).toBe(
-            sendAction.placeholder,
-        );
-    });
-
-    it('asks for the goal in Goal mode', () => {
-        expect(
-            agentChatComposerPlaceholder(sendAction, {
-                hasNextQueued: true,
-                hasStash: false,
-                isEditing: false,
-                isGoalMode: true,
-                isTurnRunning: true,
-            }),
-        ).toBe('Describe your goal, define measurable outcomes for best results');
-    });
-
-    it('says how to bring back a stashed draft, except during an edit', () => {
-        const state = {
-            hasNextQueued: false,
-            hasStash: true,
-            isEditing: false,
-            isGoalMode: false,
-            isTurnRunning: false,
-        };
-        expect(agentChatComposerPlaceholder(sendAction, state)).toBe(
-            'Draft stashed · Ctrl+S to restore',
-        );
-        expect(agentChatComposerPlaceholder(sendAction, { ...state, isEditing: true })).toBe(
-            sendAction.placeholder,
-        );
-    });
-});
-
-describe('agentChatSendRefusal', () => {
-    const action = { tooltip: 'Send (Enter)' };
-    const held = {
-        block: undefined,
-        hasContent: true,
-        isAttaching: false,
-        isSending: false,
-        isSendable: false,
-    };
-
-    it('says why Enter did not send a typed draft', () => {
-        expect(agentChatSendRefusal(action, { ...held, block: 'loading' })).toBe('Chat loading…');
-        expect(agentChatSendRefusal(action, { ...held, isAttaching: true })).toBe('Attaching…');
-        expect(agentChatSendRefusal(action, { ...held, isPreparingReference: true })).toBe(
-            'Preparing Session reference…',
-        );
-        expect(agentChatSendRefusal(action, { ...held, isSending: true })).toBe('Sending…');
-    });
-
-    it('stays quiet when Enter sent or there was nothing to send', () => {
-        expect(agentChatSendRefusal(action, { ...held, isSendable: true })).toBeUndefined();
-        expect(
-            agentChatSendRefusal(action, { ...held, hasContent: false, block: 'loading' }),
-        ).toBeUndefined();
-    });
-});
-
-describe('shouldConfirmUnmatchedSend', () => {
-    it('holds the first Enter on an unmatched draft and lets the second one send it', () => {
-        expect(
-            shouldConfirmUnmatchedSend({
-                confirmingDraft: undefined,
-                draft: '/tset',
-                matchCount: 0,
-            }),
-        ).toBe(true);
-        expect(
-            shouldConfirmUnmatchedSend({ confirmingDraft: '/tset', draft: '/tset', matchCount: 0 }),
-        ).toBe(false);
-        // An edit since the first Enter asks again.
-        expect(
-            shouldConfirmUnmatchedSend({
-                confirmingDraft: '/tset',
-                draft: '/tsetx',
-                matchCount: 0,
-            }),
-        ).toBe(true);
-        expect(
-            shouldConfirmUnmatchedSend({ confirmingDraft: undefined, draft: '/te', matchCount: 2 }),
-        ).toBe(false);
-    });
-});
-
-describe('agentChatCommandMenuKeyStep', () => {
-    const matched = {
-        confirmingDraft: undefined,
-        draft: '/te',
-        matchCount: 2,
-        hasActiveCommand: true,
-    };
-    const unmatched = {
-        confirmingDraft: undefined,
-        draft: '/tset',
-        matchCount: 0,
-        hasActiveCommand: false,
-    };
-
-    it('moves, completes, chooses, and dismisses on a list with an active row', () => {
-        expect(agentChatCommandMenuKeyStep('next', matched)).toEqual({ kind: 'move', delta: 1 });
-        expect(agentChatCommandMenuKeyStep('previous', matched)).toEqual({
-            kind: 'move',
-            delta: -1,
-        });
-        expect(agentChatCommandMenuKeyStep('complete', matched)).toEqual({
-            kind: 'run',
-            handler: 'complete',
-        });
-        expect(agentChatCommandMenuKeyStep('choose', matched)).toEqual({
-            kind: 'run',
-            handler: 'choose',
-        });
-        expect(agentChatCommandMenuKeyStep('dismiss', matched)).toEqual({ kind: 'dismiss' });
-        expect(agentChatCommandMenuKeyStep(undefined, matched)).toBeUndefined();
-    });
-
-    it('holds the first Enter with no match, then lets the composer send it', () => {
-        expect(agentChatCommandMenuKeyStep('choose', unmatched)).toEqual({ kind: 'confirm' });
-        expect(
-            agentChatCommandMenuKeyStep('choose', { ...unmatched, confirmingDraft: '/tset' }),
-        ).toBeUndefined();
-        expect(agentChatCommandMenuKeyStep('dismiss', unmatched)).toEqual({ kind: 'dismiss' });
-        expect(agentChatCommandMenuKeyStep('next', unmatched)).toBeUndefined();
-        expect(agentChatCommandMenuKeyStep('complete', unmatched)).toBeUndefined();
-    });
-});
-
-describe('agentChatSkillLabel', () => {
-    it('names the product skill by its product name and any other skill by its own', () => {
-        expect(agentChatSkillLabel('caxri-cli')).toBe('Caxri skill');
-        expect(agentChatSkillLabel('release-notes')).toBe('release-notes');
-    });
-});
-
-describe('shouldAgentChatPaneEscapeStop', () => {
-    const key = { key: 'Escape', isComposing: false, repeat: false, defaultPrevented: false };
-    const idle = { isTurnRunning: true, isEditableTarget: false, isOverlayOpen: false };
-
-    it('stops a running turn from outside the composer', () => {
-        expect(shouldAgentChatPaneEscapeStop(key, idle)).toBe(true);
-    });
-
-    it.each([
-        ['no turn is running', key, { ...idle, isTurnRunning: false }],
-        ['focus is in an editable field', key, { ...idle, isEditableTarget: true }],
-        ['an overlay is open', key, { ...idle, isOverlayOpen: true }],
-        ['the key was already handled', { ...key, defaultPrevented: true }, idle],
-        ['the key is held', { ...key, repeat: true }, idle],
-        ['an IME composition is active', { ...key, isComposing: true }, idle],
-        ['the key is not Escape', { ...key, key: 'a' }, idle],
-    ])('does nothing when %s', (_name, event, state) => {
-        expect(shouldAgentChatPaneEscapeStop(event, state)).toBe(false);
+        expect(agentChatDeliveryCaption('steered', translate)).toBe('Steered');
+        expect(agentChatDeliveryCaption('queued', translate)).toBeUndefined();
+        expect(agentChatDeliveryCaption(undefined, translate)).toBeUndefined();
     });
 });

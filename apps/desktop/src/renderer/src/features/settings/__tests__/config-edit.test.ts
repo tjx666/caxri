@@ -66,7 +66,7 @@ describe('byte/MB conversion', () => {
     });
 
     it('formats the size hint in human units instead of raw bytes', () => {
-        expect(formatByteHint(2097152)).toBe('2 MB');
-        expect(formatByteHint(1572864)).toBe('1.5 MB');
+        expect(formatByteHint(2097152, 'en')).toBe('2 MB');
+        expect(formatByteHint(1572864, 'en')).toBe('1.5 MB');
     });
 });

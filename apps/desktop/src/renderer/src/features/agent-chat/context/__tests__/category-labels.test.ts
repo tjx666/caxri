@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
+import { withLocale } from '../../../../i18n';
 import { contextCategoryId, contextCategoryLabel } from '../category-labels';
 
 describe('contextCategoryLabel', () => {
-    const t = (key: string) => `t:${key}`;
+    const t = withLocale((key) => `t:${key}`);
 
     it('translates a known provider row through its stable id', () => {
         expect(contextCategoryId('System prompt')).toBe('systemPrompt');

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { translate } from '../../../i18n';
 import type { TerminalRendererStatus } from '../terminal-renderer';
 import {
     terminalRendererIndicator,
@@ -25,15 +26,17 @@ function status(overrides: Partial<TerminalRendererStatus>): TerminalRendererSta
 
 describe('terminalRendererIndicator', () => {
     it('stays silent for the healthy WebGL renderer and disposed panes', () => {
-        expect(terminalRendererIndicator(undefined)).toBeUndefined();
-        expect(terminalRendererIndicator(status({}))).toBeUndefined();
+        expect(terminalRendererIndicator(undefined, {}, translate)).toBeUndefined();
+        expect(terminalRendererIndicator(status({}), {}, translate)).toBeUndefined();
         expect(
-            terminalRendererIndicator(status({ mode: 'dom', reason: 'disposed' })),
+            terminalRendererIndicator(status({ mode: 'dom', reason: 'disposed' }), {}, translate),
         ).toBeUndefined();
     });
 
     it('explains why the Terminal fell back to software rendering', () => {
-        expect(terminalRendererIndicator(status({ mode: 'dom', reason: 'disabled' }))).toEqual({
+        expect(
+            terminalRendererIndicator(status({ mode: 'dom', reason: 'disabled' }), {}, translate),
+        ).toEqual({
             action: {
                 confirmLabel: 'Turn On',
                 message:
@@ -56,6 +59,8 @@ describe('terminalRendererIndicator', () => {
                     retryAttemptCount: 1,
                     retryState: 'scheduled',
                 }),
+                {},
+                translate,
             )?.title,
         ).toBe(
             'Terminal is using software rendering. GPU drawing was interrupted. Trying the GPU again (1/3).',
@@ -68,13 +73,19 @@ describe('terminalRendererIndicator', () => {
                     retryAttemptCount: 3,
                     retryState: 'exhausted',
                 }),
+                {},
+                translate,
             )?.title,
         ).toContain('Retries exhausted');
     });
 
     it('explains a session pinned to software rendering after repeated GPU incidents', () => {
         expect(
-            terminalRendererIndicator(status({ mode: 'dom', reason: 'context-loss-limit' }))?.title,
+            terminalRendererIndicator(
+                status({ mode: 'dom', reason: 'context-loss-limit' }),
+                {},
+                translate,
+            )?.title,
         ).toBe(
             'Retry GPU rendering? — Terminal is using software rendering. Drawing failed repeatedly. Automatic recovery is paused; click to retry GPU rendering.',
         );
@@ -87,6 +98,8 @@ describe('terminalRendererIndicator', () => {
                 retryAttemptCount: 3,
                 retryState: 'exhausted',
             }),
+            {},
+            translate,
         );
         expect(pinnedAfterExhaustion?.title).not.toContain('reopen the Terminal tab');
         expect(pinnedAfterExhaustion?.title).toContain('click to retry');
@@ -94,7 +107,8 @@ describe('terminalRendererIndicator', () => {
 
     it('offers enabling for disabled GPU and a direct retry for settled failures', () => {
         expect(
-            terminalRendererIndicator(status({ mode: 'dom', reason: 'disabled' }))?.action,
+            terminalRendererIndicator(status({ mode: 'dom', reason: 'disabled' }), {}, translate)
+                ?.action,
         ).toEqual(expect.objectContaining({ preference: 'on' }));
         for (const reason of [
             'unsupported',
@@ -102,7 +116,11 @@ describe('terminalRendererIndicator', () => {
             'context-loss-limit',
             'load-failed',
         ] as const) {
-            const indicator = terminalRendererIndicator(status({ mode: 'dom', reason }));
+            const indicator = terminalRendererIndicator(
+                status({ mode: 'dom', reason }),
+                {},
+                translate,
+            );
             expect(indicator?.action).toEqual(
                 expect.objectContaining({
                     confirmLabel: 'Retry GPU',
@@ -120,7 +138,11 @@ describe('terminalRendererIndicator', () => {
      * must not name a cause it cannot observe.
      */
     it('keeps a transient probe failure retryable instead of blaming the setting', () => {
-        const indicator = terminalRendererIndicator(status({ mode: 'dom', reason: 'unsupported' }));
+        const indicator = terminalRendererIndicator(
+            status({ mode: 'dom', reason: 'unsupported' }),
+            {},
+            translate,
+        );
         expect(indicator?.title).toBe(
             'Retry GPU rendering? — Terminal is using software rendering. The GPU is unavailable in this window right now.',
         );
@@ -134,6 +156,7 @@ describe('terminalRendererIndicator', () => {
         const indicator = terminalRendererIndicator(
             status({ mode: 'dom', reason: 'unsupported' }),
             { isHardwareAccelerationOff: true },
+            translate,
         );
         expect(indicator?.action).toEqual({ opensSettings: true, title: 'Open Settings' });
         expect(indicator?.title).toBe(
@@ -141,9 +164,13 @@ describe('terminalRendererIndicator', () => {
         );
         // The flag only reinterprets the probe failure; a Terminal whose own setting is off still offers to turn it on.
         expect(
-            terminalRendererIndicator(status({ mode: 'dom', reason: 'disabled' }), {
-                isHardwareAccelerationOff: true,
-            })?.action,
+            terminalRendererIndicator(
+                status({ mode: 'dom', reason: 'disabled' }),
+                {
+                    isHardwareAccelerationOff: true,
+                },
+                translate,
+            )?.action,
         ).toEqual(expect.objectContaining({ preference: 'on' }));
     });
 
@@ -152,6 +179,8 @@ describe('terminalRendererIndicator', () => {
             expect(
                 terminalRendererIndicator(
                     status({ mode: 'dom', reason: 'context-loss', retryState }),
+                    {},
+                    translate,
                 )?.action,
             ).toBeUndefined();
         }

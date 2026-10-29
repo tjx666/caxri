@@ -173,7 +173,7 @@ export function EditorBreadcrumbPicker({
             {truncated && (
                 <div aria-live="polite" className="px-2 py-1 text-[11px] text-muted" role="status">
                     {t('editor.breadcrumbs.truncated', {
-                        count: formatCount(entries.length),
+                        count: formatCount(entries.length, t.locale),
                     })}
                 </div>
             )}

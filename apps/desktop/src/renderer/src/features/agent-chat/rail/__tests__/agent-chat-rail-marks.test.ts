@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../../i18n';
 import type { AgentChatRailMark } from '../agent-chat-rail-marks';
 import {
     agentChatActiveRailIndex,
@@ -31,18 +32,24 @@ const FOLDER_MESSAGE =
 describe('agentChatRailMarks', () => {
     it('marks each top-level user message in order', () => {
         expect(
-            agentChatRailMarks([
-                { kind: 'item', item: { id: 'u1', type: 'userMessage', text: 'first\n  line' } },
-                {
-                    kind: 'item',
-                    item: { id: 'r1', type: 'agentMessage', text: 'ok', streaming: false },
-                },
-                { kind: 'work', id: 'work:x', items: [] },
-                {
-                    kind: 'item',
-                    item: { id: 'u2', type: 'userMessage', text: '', images: [{}, {}] },
-                },
-            ]),
+            agentChatRailMarks(
+                [
+                    {
+                        kind: 'item',
+                        item: { id: 'u1', type: 'userMessage', text: 'first\n  line' },
+                    },
+                    {
+                        kind: 'item',
+                        item: { id: 'r1', type: 'agentMessage', text: 'ok', streaming: false },
+                    },
+                    { kind: 'work', id: 'work:x', items: [] },
+                    {
+                        kind: 'item',
+                        item: { id: 'u2', type: 'userMessage', text: '', images: [{}, {}] },
+                    },
+                ],
+                translate,
+            ),
         ).toEqual([
             {
                 id: 'u1',
@@ -65,21 +72,29 @@ describe('agentChatRailMarks', () => {
 
     it('names a steered message and previews a delegated task by what its caller asked', () => {
         expect(
-            agentChatRailMarks([
-                {
-                    kind: 'item',
-                    item: { id: 'u1', type: 'userMessage', text: 'also this', delivery: 'steered' },
-                },
-                {
-                    kind: 'item',
-                    item: {
-                        id: 'u2',
-                        type: 'userMessage',
-                        text: 'Read the delegated task from "/x/task.md" and carry it out. Delegation ID: d1.',
-                        delegatedTask: { delegationId: 'd1', prompt: 'Fix the build' },
+            agentChatRailMarks(
+                [
+                    {
+                        kind: 'item',
+                        item: {
+                            id: 'u1',
+                            type: 'userMessage',
+                            text: 'also this',
+                            delivery: 'steered',
+                        },
                     },
-                },
-            ]).map(({ kind, title }) => ({ kind, title })),
+                    {
+                        kind: 'item',
+                        item: {
+                            id: 'u2',
+                            type: 'userMessage',
+                            text: 'Read the delegated task from "/x/task.md" and carry it out. Delegation ID: d1.',
+                            delegatedTask: { delegationId: 'd1', prompt: 'Fix the build' },
+                        },
+                    },
+                ],
+                translate,
+            ).map(({ kind, title }) => ({ kind, title })),
         ).toEqual([
             { kind: 'steered', title: 'also this' },
             { kind: 'delegated', title: 'Fix the build' },
@@ -87,21 +102,25 @@ describe('agentChatRailMarks', () => {
     });
 
     it('holds the skeleton only for a message with nothing to show yet', () => {
-        const [mark] = agentChatRailMarks([
-            { kind: 'item', item: { id: 'u1', type: 'userMessage', text: '  ' } },
-        ]);
+        const [mark] = agentChatRailMarks(
+            [{ kind: 'item', item: { id: 'u1', type: 'userMessage', text: '  ' } }],
+            translate,
+        );
         expect(mark).toMatchObject({ isReady: false, title: '', summary: '' });
     });
 
     it('previews a message by its words, or by the folders it cites when it has none', () => {
         expect(
-            agentChatRailMarks([
-                {
-                    kind: 'item',
-                    item: { id: 'u1', type: 'userMessage', text: `${FOLDER_MESSAGE}tidy it` },
-                },
-                { kind: 'item', item: { id: 'u2', type: 'userMessage', text: FOLDER_MESSAGE } },
-            ]),
+            agentChatRailMarks(
+                [
+                    {
+                        kind: 'item',
+                        item: { id: 'u1', type: 'userMessage', text: `${FOLDER_MESSAGE}tidy it` },
+                    },
+                    { kind: 'item', item: { id: 'u2', type: 'userMessage', text: FOLDER_MESSAGE } },
+                ],
+                translate,
+            ),
         ).toMatchObject([
             { id: 'u1', preview: 'tidy it', title: 'tidy it' },
             { id: 'u2', preview: 'prettier-config', title: 'prettier-config' },
@@ -109,7 +128,7 @@ describe('agentChatRailMarks', () => {
     });
 
     it('cuts a long message to fit the preview', () => {
-        const preview = agentChatRailPreview('a'.repeat(500), 0);
+        const preview = agentChatRailPreview('a'.repeat(500), 0, translate);
         expect(preview).toHaveLength(120);
         expect(preview.endsWith('…')).toBe(true);
     });
@@ -118,7 +137,11 @@ describe('agentChatRailMarks', () => {
 describe('agentChatRailPreviewParts', () => {
     it('titles a message by its first line and keeps the rest as lines of summary', () => {
         expect(
-            agentChatRailPreviewParts('Fix the  build\n\n  then run   tests\nand ship', 0),
+            agentChatRailPreviewParts(
+                'Fix the  build\n\n  then run   tests\nand ship',
+                0,
+                translate,
+            ),
         ).toEqual({
             title: 'Fix the build',
             summary: 'then run tests\nand ship',
@@ -130,6 +153,7 @@ describe('agentChatRailPreviewParts', () => {
             agentChatRailPreviewParts(
                 'Please fix the flaky test. It fails on CI about once in ten runs and blocks every merge queue.',
                 0,
+                translate,
             ),
         ).toEqual({
             title: 'Please fix the flaky test.',
@@ -139,7 +163,7 @@ describe('agentChatRailPreviewParts', () => {
 
     it('leaves the title empty and keeps a long line whole in the summary when no first sentence fits', () => {
         const line = 'Open /work/project/src/very/deeply/nested/module/index.ts please';
-        expect(agentChatRailPreviewParts(`${line}\nthen tidy`, 0)).toEqual({
+        expect(agentChatRailPreviewParts(`${line}\nthen tidy`, 0, translate)).toEqual({
             title: '',
             summary: `${line}\nthen tidy`,
         });
@@ -150,6 +174,7 @@ describe('agentChatRailPreviewParts', () => {
             agentChatRailPreviewParts(
                 '修复构建。它在持续集成里大约每十次失败一次，先从缓存步骤查起。',
                 0,
+                translate,
             ),
         ).toEqual({
             title: '修复构建。',
@@ -158,13 +183,13 @@ describe('agentChatRailPreviewParts', () => {
     });
 
     it('bounds the summary it hands the card', () => {
-        const { summary } = agentChatRailPreviewParts(`title\n${'b'.repeat(2000)}`, 0);
+        const { summary } = agentChatRailPreviewParts(`title\n${'b'.repeat(2000)}`, 0, translate);
         expect(summary).toHaveLength(400);
         expect(summary.endsWith('…')).toBe(true);
     });
 
     it('names a message of one image', () => {
-        expect(agentChatRailPreviewParts('', 1)).toEqual({
+        expect(agentChatRailPreviewParts('', 1, translate)).toEqual({
             title: 'Image',
             summary: 'Images only, no text',
         });
@@ -241,16 +266,18 @@ describe('agentChatRailFocusStep', () => {
 });
 
 describe('agentChatRailCardText', () => {
-    const caption = agentChatRailCaption(3, 12, 12, '17:59');
+    const caption = agentChatRailCaption(3, 12, 12, '17:59', translate);
 
     it('words the caption with position and time, or position alone', () => {
         expect(caption).toBe('Message 3 of 12 · 17:59');
-        expect(agentChatRailCaption(3, 12, 12, undefined)).toBe('Message 3 of 12');
+        expect(agentChatRailCaption(3, 12, 12, undefined, translate)).toBe('Message 3 of 12');
     });
 
     it('does not claim a total while earlier history is unloaded', () => {
-        expect(agentChatRailCaption(3, undefined, 8, '17:59')).toBe('Sent at 17:59');
-        expect(agentChatRailCaption(3, undefined, 8, undefined)).toBe('Message 3 of 8 loaded');
+        expect(agentChatRailCaption(3, undefined, 8, '17:59', translate)).toBe('Sent at 17:59');
+        expect(agentChatRailCaption(3, undefined, 8, undefined, translate)).toBe(
+            'Message 3 of 8 loaded',
+        );
     });
 
     it('fills an otherwise empty body with the caption', () => {
@@ -262,7 +289,7 @@ describe('agentChatRailCardText', () => {
     });
 
     it('heads a title-less message with the caption and shows its full text once', () => {
-        const parts = agentChatRailPreviewParts('word '.repeat(60), 0);
+        const parts = agentChatRailPreviewParts('word '.repeat(60), 0, translate);
         const text = agentChatRailCardText(parts, caption);
         expect(text.title).toBe(caption);
         expect(text.body).toBe(parts.summary);

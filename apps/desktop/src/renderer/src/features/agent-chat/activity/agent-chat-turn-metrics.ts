@@ -2,7 +2,6 @@ import type { AgentChatTurnMetrics, AgentChatTurnUsage } from '@caxri/protocol';
 import { formatTokens, formatUsd, tokenCountParts } from '@caxri/protocol';
 
 import type { Translate } from '../../../i18n';
-import { translate } from '../../../i18n';
 import {
     describeThroughputAggregate,
     formatThroughputRate,
@@ -83,7 +82,7 @@ export function agentChatTurnMetrics(
  */
 export function agentChatReplyMetrics(
     metrics: AgentChatTurnMetrics | undefined,
-    t: Translate = translate,
+    t: Translate,
 ): { cost?: string; details: string[]; rate?: string } | undefined {
     if (!metrics) return undefined;
     const generated =
@@ -107,6 +106,6 @@ export function agentChatReplyMetrics(
     return {
         cost: costUsd === undefined ? undefined : formatAgentChatTurnCost(costUsd),
         details,
-        rate: rate === undefined ? undefined : formatThroughputRate(rate),
+        rate: rate === undefined ? undefined : formatThroughputRate(rate, t.locale),
     };
 }

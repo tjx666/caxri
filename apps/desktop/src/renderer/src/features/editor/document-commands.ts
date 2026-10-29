@@ -406,7 +406,11 @@ export function subscribeDocumentSaveFailureCleanup(): () => void {
  * dismissed dialog is a quiet "not saved" that keeps the buffer and its tab.
  */
 async function didSaveUntitledDocument(sessionId: string, path: string): Promise<boolean> {
-    const name = untitledDisplayName(path, getSessionDocuments(sessionId)?.[path]?.content ?? '');
+    const name = untitledDisplayName(
+        path,
+        getSessionDocuments(sessionId)?.[path]?.content ?? '',
+        translate,
+    );
     const outcome = await tryCommand(translate('editor.document.saveFailedFile', { name }), () =>
         saveUntitledDocument(sessionId, path),
     );

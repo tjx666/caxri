@@ -2,10 +2,10 @@ import type {
     AgentThroughputAggregate,
     AgentThroughputSample,
     AgentThroughputSpeed,
+    AppLocale,
 } from '@caxri/protocol';
 
 import type { Translate } from '../../i18n';
-import { translate } from '../../i18n';
 import { formatCount } from '../../lib/locale-format';
 
 /**
@@ -36,21 +36,21 @@ const NO_BREAK_SPACE = '\u{A0}';
  * Whole tokens per second, `<1` below one. A decimal place flickered on every 2s poll and changed the chip's width
  * between `9.8` and `10`, while the tenth carries no decision a user makes.
  */
-export function formatThroughputRate(rate: number): string {
-    return `${rate < 1 ? '<1' : formatCount(Math.round(rate))}${NO_BREAK_SPACE}tok/s`;
+export function formatThroughputRate(rate: number, locale: AppLocale): string {
+    return `${rate < 1 ? '<1' : formatCount(Math.round(rate), locale)}${NO_BREAK_SPACE}tok/s`;
 }
 
 /**
  * The spoken form of {@link formatThroughputRate} for accessible names: `62 tokens per second`.
  */
-export function spokenThroughputRate(rate: number, t: Translate = translate): string {
+export function spokenThroughputRate(rate: number, t: Translate): string {
     if (rate < 1) return t('statusBar.throughput.spokenRateBelowOne');
     const rounded = Math.round(rate);
     return t(
         rounded === 1
             ? 'statusBar.throughput.spokenRateOne'
             : 'statusBar.throughput.spokenRateOther',
-        { count: formatCount(rounded) },
+        { count: formatCount(rounded, t.locale) },
     );
 }
 
@@ -58,7 +58,7 @@ export function spokenThroughputRate(rate: number, t: Translate = translate): st
  * The one phrase every surface (status-bar chip, its hover card, the Agent status tab) uses for the headline figure:
  * `Average of the last 12 responses`.
  */
-export function recentAverageLabel(responseCount: number, t: Translate = translate): string {
+export function recentAverageLabel(responseCount: number, t: Translate): string {
     return responseCount === 1
         ? t('statusBar.throughput.lastResponseOnly')
         : t('statusBar.throughput.recentAverage', { count: responseCount });
@@ -95,11 +95,11 @@ export function formatThroughputDuration(milliseconds: number): string {
  */
 export function describeThroughputAggregate(
     aggregate: AgentThroughputAggregate,
-    t: Translate = translate,
+    t: Translate,
 ): string {
     const rate = throughputRate(aggregate);
     const parameters = {
-        tokens: formatCount(aggregate.outputTokens),
+        tokens: formatCount(aggregate.outputTokens, t.locale),
         duration: formatThroughputDuration(aggregate.durationMs),
         count: aggregate.responseCount,
     };
@@ -109,13 +109,10 @@ export function describeThroughputAggregate(
             : 'statusBar.throughput.tokensIn',
         parameters,
     );
-    return `${tokens}${rate === undefined ? '' : ` · ${formatThroughputRate(rate)}`}`;
+    return `${tokens}${rate === undefined ? '' : ` · ${formatThroughputRate(rate, t.locale)}`}`;
 }
 
-export function describeThroughputSample(
-    sample: AgentThroughputSample,
-    t: Translate = translate,
-): string {
+export function describeThroughputSample(sample: AgentThroughputSample, t: Translate): string {
     return describeThroughputAggregate({ ...sample, responseCount: 1 }, t);
 }
 
@@ -124,7 +121,7 @@ export function describeThroughputSample(
  */
 export function throughputSpeedLabel(
     speed: AgentThroughputSpeed | undefined,
-    t: Translate = translate,
+    t: Translate,
 ): string {
     return t(`statusBar.throughput.speed.${speed ?? 'unknown'}`);
 }
@@ -134,11 +131,11 @@ export function throughputSpeedLabel(
  */
 export function describeThroughputVariant(
     variant: Pick<AgentThroughputSample, 'model' | 'speed'>,
-    t: Translate = translate,
+    t: Translate,
 ): string {
     return `${variant.model ?? t('statusBar.throughput.unknownModel')} · ${throughputSpeedLabel(variant.speed, t)}`;
 }
 
-export function agentThroughputMethodNote(t: Translate = translate): string {
+export function agentThroughputMethodNote(t: Translate): string {
     return t('statusBar.throughput.methodNote');
 }

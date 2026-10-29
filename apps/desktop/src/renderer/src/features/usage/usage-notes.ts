@@ -41,7 +41,7 @@ export function usageCoverageNotes(
         report.scope === 'all'
             ? t('usage.coverage.countsWithOutside', {
                   counted,
-                  outside: formatCount(outside),
+                  outside: formatCount(outside, t.locale),
               })
             : t('usage.coverage.counts', { counted }),
     ];
@@ -52,7 +52,7 @@ export function usageCoverageNotes(
                 coverage.unavailable === 1
                     ? 'usage.coverage.unavailableOne'
                     : 'usage.coverage.unavailableOther',
-                { count: formatCount(coverage.unavailable) },
+                { count: formatCount(coverage.unavailable, t.locale) },
             ),
         );
     if (coverage.pendingPullRequests > 0)

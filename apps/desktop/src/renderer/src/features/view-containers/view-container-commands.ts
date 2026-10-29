@@ -112,7 +112,7 @@ type TreeItemActionFeedback = NonNullable<NonNullable<TreeItemDto['actions']>[nu
  * failed operation and the reason completes that sentence rather than starting a new one.
  */
 export function actionFailureMessage(error: unknown, label: string): string {
-    const described = describeFailure(error, label);
+    const described = describeFailure(error, label, translate);
     const joint = `${label}. `;
     return described.startsWith(joint) ? `${label}: ${described.slice(joint.length)}` : described;
 }

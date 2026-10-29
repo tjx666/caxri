@@ -2,7 +2,6 @@ import type { AgentChatSnapshot, ProcessState } from '@caxri/protocol';
 import { agentChatFailureMessage, CAXRI_SKILL_NAME, projectRelativePath } from '@caxri/protocol';
 
 import type { Translate } from '../../../i18n';
-import { translate } from '../../../i18n';
 import type { SuggestionMenuKeyAction } from '../../../lib/suggestion-options';
 import { getTerminalExitPresentation } from '../../terminal/terminal-exit-presentation';
 import type { AgentChatSendKey } from '../composer/send/agent-chat-send-tooltip';
@@ -34,7 +33,7 @@ export function agentChatEmptyMessage(
     snapshot: Pick<AgentChatSnapshot, 'items' | 'status'> | undefined,
     processState: ProcessState | undefined,
     providerName: string,
-    t: Translate = translate,
+    t: Translate,
 ): string | undefined {
     if (!snapshot || snapshot.items.length > 0) return undefined;
     if (processState === 'detached') return t('agentChat.timeline.emptyDetached');
@@ -65,7 +64,7 @@ export function isAgentChatConversationLoading(
  * Shift+Enter. Either sigil opens the same list of commands and skills (`agentChatSlashQuery`), `$` leading with
  * skills, so the hint does not promise `$` only skills.
  */
-export function agentChatEmptyHint(canAttachImages: boolean, t: Translate = translate): string {
+export function agentChatEmptyHint(canAttachImages: boolean, t: Translate): string {
     const files = t(
         canAttachImages
             ? 'agentChat.timeline.emptyHintImages'
@@ -82,7 +81,7 @@ export function agentChatEmptyHint(canAttachImages: boolean, t: Translate = tran
 export function agentChatAttachLabel(
     canAttachImages: boolean,
     canPickFolders: boolean,
-    t: Translate = translate,
+    t: Translate,
 ): string {
     if (canPickFolders)
         return t(
@@ -145,10 +144,7 @@ export function agentChatRecoveryActions(
  * provider's own detail only says so again (`Claude could not resume this conversation`), so the body names the cause
  * Caxri knows and the next step instead.
  */
-export function agentChatResumeFailureDetail(
-    providerName: string,
-    t: Translate = translate,
-): string {
+export function agentChatResumeFailureDetail(providerName: string, t: Translate): string {
     return t('agentChat.timeline.resumeFailureDetail', { provider: providerName });
 }
 
@@ -161,7 +157,7 @@ export function agentChatRecoveryNotice(
     snapshot: Pick<AgentChatSnapshot, 'failure' | 'status'> | undefined,
     state: { isLoadError: boolean; processState: ProcessState | undefined },
     providerName: string,
-    t: Translate = translate,
+    t: Translate,
 ): AgentChatRecoveryNotice | undefined {
     if (state.processState === 'detached')
         return {
@@ -289,7 +285,7 @@ export function agentChatSendAction(
         isGoalActive?: boolean;
     },
     providerName: string,
-    t: Translate = translate,
+    t: Translate,
 ): {
     kind: 'queue' | 'send' | 'steer';
     label: string;
@@ -358,7 +354,7 @@ export function agentChatComposerPlaceholder(
         isGoalMode: boolean;
         isTurnRunning: boolean;
     },
-    t: Translate = translate,
+    t: Translate,
 ): string {
     if (state.hasStash && !state.isEditing) return t('agentChat.stash.placeholder');
     if (state.isGoalMode) return t('agentChat.goal.placeholder');
@@ -419,7 +415,7 @@ export function agentChatCommandMenuKeyStep(
 export function agentChatSendRefusal(
     action: { tooltip: string },
     state: Parameters<typeof agentChatSendTooltip>[1] & { isSendable: boolean },
-    t: Translate = translate,
+    t: Translate,
 ): string | undefined {
     if (state.isSendable || !state.hasContent) return undefined;
     return agentChatSendTooltip(action, state, t);
@@ -475,7 +471,7 @@ export function shouldAgentChatPaneEscapeStop(
  */
 export function agentChatDeliveryCaption(
     delivery: 'queued' | 'steered' | undefined,
-    t: Translate = translate,
+    t: Translate,
 ): string | undefined {
     return delivery === 'steered' ? t('agentChat.message.steered') : undefined;
 }
@@ -515,7 +511,7 @@ export function withOccurrenceKeys<T>(
 /**
  * What a skill card is called: the product skill by its product name, any other skill by its own name.
  */
-export function agentChatSkillLabel(name: string, t: Translate = translate): string {
+export function agentChatSkillLabel(name: string, t: Translate): string {
     return name === CAXRI_SKILL_NAME ? t('agentChat.skill.caxri') : name;
 }
 

@@ -8,10 +8,8 @@ import type {
 } from '@desktop-shared/process-explorer';
 
 import type { Translate, TranslationKey } from '../../i18n';
-import { translate } from '../../i18n';
 import { sessionTitleForDisplay } from '../session/session-title';
 import type { ProcessColumnKey, ProcessSort } from './process-columns';
-import { DEFAULT_PROCESS_SORT } from './process-columns';
 
 export type ProcessTreeNodeKind = ProcessExplorerKind | 'group' | 'session' | 'terminal';
 
@@ -166,11 +164,11 @@ function terminalDisplayName(terminal: TerminalProcessEntry, t: Translate): stri
 export function buildProcessTree(
     snapshot: Pick<ProcessExplorerSnapshot, 'processes' | 'terminals'> &
         Partial<Pick<ProcessExplorerSnapshot, 'otherPtyHolders'>>,
-    sort: ProcessSort = DEFAULT_PROCESS_SORT,
+    sort: ProcessSort,
     /**
-     * Components pass `useTranslation().t` so the tree rebuilds when the language changes; the default serves tests.
+     * Components pass `useTranslation().t` so the tree rebuilds when the language changes.
      */
-    t: Translate = translate,
+    t: Translate,
 ): ProcessTreeNode[] {
     const nodes = new Map(
         snapshot.processes.map((process) => [process.pid, processNode(process, t)]),

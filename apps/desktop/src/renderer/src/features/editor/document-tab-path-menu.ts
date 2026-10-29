@@ -1,5 +1,4 @@
 import type { Translate } from '../../i18n';
-import { translate } from '../../i18n';
 import type { ContextMenuEntries } from '../../lib/context-menu';
 import { CONTEXT_MENU_SEPARATOR } from '../../lib/context-menu';
 import { copyFileName, copyFilePath } from '../../lib/copy-file-path';
@@ -46,7 +45,7 @@ export function documentTabPathMenu(
          */
         previewSwitch?: PreviewTabSwitch;
     },
-    t: Translate = translate,
+    t: Translate,
 ): ContextMenuEntries {
     const desktop = documentTabDesktopActionState(resolution, {
         externalDocumentId,

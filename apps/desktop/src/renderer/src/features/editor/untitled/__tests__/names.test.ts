@@ -1,6 +1,7 @@
 import { untitledEditorTabPath } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
+import { withLocale } from '../../../../i18n';
 import {
     emptyUntitledDocument,
     nextUntitledIndex,
@@ -38,8 +39,7 @@ describe('untitledFirstLineName', () => {
 
 describe('untitledDisplayName', () => {
     it('falls back to the numbered name', () => {
-        const t = (key: string, values?: Record<string, unknown>) =>
-            `${key}:${String(values?.index)}`;
+        const t = withLocale((key, values) => `${key}:${String(values?.index)}`);
         expect(untitledDisplayName(untitledEditorTabPath(4), '', t)).toBe('editor.tab.untitled:4');
         expect(untitledDisplayName(untitledEditorTabPath(4), 'notes', t)).toBe('notes');
     });

@@ -97,33 +97,38 @@ describe('agentChatNextQueuedId', () => {
 
 describe('agentChatQueueHeader', () => {
     it('tells a failed send from a Stop and offers Retry for it', () => {
-        expect(agentChatQueueHeader({ queuePaused: true, queuePauseReason: 'sendFailed' })).toEqual(
-            {
-                tone: 'failed',
-                text: "Couldn't send queued messages",
-                resumeLabel: 'Retry',
-            },
-        );
-        expect(agentChatQueueHeader({ queuePaused: true, queuePauseReason: 'stopped' })).toEqual({
+        expect(
+            agentChatQueueHeader({ queuePaused: true, queuePauseReason: 'sendFailed' }, translate),
+        ).toEqual({
+            tone: 'failed',
+            text: "Couldn't send queued messages",
+            resumeLabel: 'Retry',
+        });
+        expect(
+            agentChatQueueHeader({ queuePaused: true, queuePauseReason: 'stopped' }, translate),
+        ).toEqual({
             tone: 'paused',
             text: 'Queue paused · sends nothing until you resume',
             resumeLabel: 'Resume',
         });
         expect(
-            agentChatQueueHeader({ queuePaused: true, queuePauseReason: 'deliveryUnknown' }),
+            agentChatQueueHeader(
+                { queuePaused: true, queuePauseReason: 'deliveryUnknown' },
+                translate,
+            ),
         ).toMatchObject({ tone: 'paused', resumeLabel: 'Resume' });
-        expect(agentChatQueueHeader({ queuePaused: true, queuePauseReason: 'usageGuard' })).toEqual(
-            {
-                tone: 'paused',
-                text: 'Queue paused · weekly usage nearly used up',
-                resumeLabel: 'Resume',
-            },
-        );
+        expect(
+            agentChatQueueHeader({ queuePaused: true, queuePauseReason: 'usageGuard' }, translate),
+        ).toEqual({
+            tone: 'paused',
+            text: 'Queue paused · weekly usage nearly used up',
+            resumeLabel: 'Resume',
+        });
     });
 
     it('heads a waiting queue with nothing', () => {
-        expect(agentChatQueueHeader(undefined)).toBeUndefined();
-        expect(agentChatQueueHeader({ queuePaused: false })).toBeUndefined();
+        expect(agentChatQueueHeader(undefined, translate)).toBeUndefined();
+        expect(agentChatQueueHeader({ queuePaused: false }, translate)).toBeUndefined();
     });
 });
 
@@ -131,32 +136,39 @@ describe('agentChatQueueCardLabels', () => {
     const message = { canSendNow: true, sendNowLabel: 'Steer' as const };
 
     it('names each action, steering while a turn runs', () => {
-        expect(agentChatQueueCardLabels(message)).toEqual({
+        expect(agentChatQueueCardLabels(message, translate)).toEqual({
             deleteAriaLabel: 'Delete queued message',
             deleteTooltip: 'Delete',
             editTooltip: 'Edit',
             sendTooltip: 'Add to the running turn now',
             sendAriaLabel: 'Steer now',
         });
-        expect(agentChatQueueCardLabels({ ...message, sendNowLabel: 'Send now' })).toMatchObject({
+        expect(
+            agentChatQueueCardLabels({ ...message, sendNowLabel: 'Send now' }, translate),
+        ).toMatchObject({
             sendTooltip: 'Send now',
             sendAriaLabel: 'Send now',
         });
     });
 
     it('says why an action is unavailable', () => {
-        expect(agentChatQueueCardLabels({ ...message, canSendNow: false })).toMatchObject({
+        expect(
+            agentChatQueueCardLabels({ ...message, canSendNow: false }, translate),
+        ).toMatchObject({
             sendTooltip: 'A command waits for the running turn to end',
         });
     });
 
     it('says every action waits while the message is still sending', () => {
         expect(
-            agentChatQueueCardLabels({
-                ...message,
-                canSendNow: false,
-                isPending: true,
-            }),
+            agentChatQueueCardLabels(
+                {
+                    ...message,
+                    canSendNow: false,
+                    isPending: true,
+                },
+                translate,
+            ),
         ).toEqual({
             deleteAriaLabel: 'Delete queued message',
             deleteTooltip: 'Sending…',
@@ -182,11 +194,11 @@ describe('agentChatQueueDeleteOutcome', () => {
 
     it('words the delete tooltip and accessible name by the outcome', () => {
         const entry = { canSendNow: true, sendNowLabel: 'Steer' as const };
-        expect(agentChatQueueCardLabels(entry, undefined, 'restore')).toMatchObject({
+        expect(agentChatQueueCardLabels(entry, translate, 'restore')).toMatchObject({
             deleteAriaLabel: 'Move queued message back to the composer',
             deleteTooltip: 'Remove from the queue and move back to the composer',
         });
-        expect(agentChatQueueCardLabels(entry, undefined, 'drop')).toMatchObject({
+        expect(agentChatQueueCardLabels(entry, translate, 'drop')).toMatchObject({
             deleteAriaLabel: 'Delete queued message',
             deleteTooltip: 'Delete',
         });

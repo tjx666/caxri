@@ -53,6 +53,6 @@ export function throughputBarDescription(t: Translate, sample: AgentThroughputSa
     return t('agentStatus.throughput.barDescription', {
         variant: describeThroughputVariant(sample, t),
         sample: describeThroughputSample(sample, t),
-        time: localeDateTimeFormat({ timeStyle: 'medium' }).format(sample.completedAt),
+        time: localeDateTimeFormat({ timeStyle: 'medium' }, t.locale).format(sample.completedAt),
     });
 }

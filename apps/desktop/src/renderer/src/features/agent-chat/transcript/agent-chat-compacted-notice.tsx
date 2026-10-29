@@ -33,8 +33,8 @@ export function AgentChatCompactedNotice({
         hasSizes &&
             beforeTokens > 0 &&
             t('agentChat.message.contextCompactedDetail', {
-                before: formatCount(beforeTokens),
-                after: formatCount(afterTokens),
+                before: formatCount(beforeTokens, t.locale),
+                after: formatCount(afterTokens, t.locale),
                 percent: `${Math.round((1 - afterTokens / beforeTokens) * 100)}%`,
             }),
     ].filter(Boolean);

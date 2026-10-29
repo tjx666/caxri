@@ -4,7 +4,6 @@ import { notifyListeners } from '@caxri/utils';
 import { clamp } from 'es-toolkit';
 
 import type { Translate } from '../../i18n';
-import { translate } from '../../i18n';
 
 export type TerminalProgress =
     | { kind: 'error'; value: number }
@@ -17,20 +16,14 @@ export interface TerminalProgressUpdate {
     value: number;
 }
 
-export function terminalProgressLabel(
-    progress: TerminalProgress,
-    t: Translate = translate,
-): string {
+export function terminalProgressLabel(progress: TerminalProgress, t: Translate): string {
     if (progress.kind === 'indeterminate') return t('terminal.progress.inProgress');
     if (progress.kind === 'error') return t('terminal.progress.error', { value: progress.value });
     if (progress.kind === 'paused') return t('terminal.progress.paused', { value: progress.value });
     return `${progress.value}%`;
 }
 
-export function terminalProgressAriaLabel(
-    progress: TerminalProgress,
-    t: Translate = translate,
-): string {
+export function terminalProgressAriaLabel(progress: TerminalProgress, t: Translate): string {
     if (progress.kind === 'indeterminate') return t('terminal.progress.inProgressAria');
     if (progress.kind === 'error')
         return t('terminal.progress.errorAria', { value: progress.value });

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../i18n';
 import {
     cellDisplayWidth,
     describeTableIssues,
@@ -17,6 +18,7 @@ describe('parseDelimitedTable', () => {
         const table = parseDelimitedTable(
             'city,note\n"Lisbon, PT","said ""hi""\nthen left"\n',
             '/p/data.csv',
+            translate,
         );
 
         expect(table.header).toEqual(['city', 'note']);
@@ -25,27 +27,31 @@ describe('parseDelimitedTable', () => {
     });
 
     it('splits a TSV on tabs even when its cells contain commas', () => {
-        const table = parseDelimitedTable('name\tamount\nwidget, large\t1,200\n', '/p/data.tsv');
+        const table = parseDelimitedTable(
+            'name\tamount\nwidget, large\t1,200\n',
+            '/p/data.tsv',
+            translate,
+        );
 
         expect(table.rows).toEqual([['widget, large', '1,200']]);
     });
 
     it('detects a semicolon-separated CSV', () => {
-        const table = parseDelimitedTable('item;price\nbolt;1,5\n', '/p/export.csv');
+        const table = parseDelimitedTable('item;price\nbolt;1,5\n', '/p/export.csv', translate);
 
         expect(table.header).toEqual(['item', 'price']);
         expect(table.rows).toEqual([['bolt', '1,5']]);
     });
 
     it('strips a byte-order mark and skips blank lines', () => {
-        const table = parseDelimitedTable('﻿id,name\n\n1,Ada\n\n', '/p/people.csv');
+        const table = parseDelimitedTable('﻿id,name\n\n1,Ada\n\n', '/p/people.csv', translate);
 
         expect(table.header).toEqual(['id', 'name']);
         expect(table.rows).toEqual([['1', 'Ada']]);
     });
 
     it('pads ragged records and names blank header cells by position', () => {
-        const table = parseDelimitedTable('a,,c\n1\n1,2,3,4\n', '/p/ragged.csv');
+        const table = parseDelimitedTable('a,,c\n1\n1,2,3,4\n', '/p/ragged.csv', translate);
 
         expect(table.header).toEqual(['a', 'Column 2', 'c', 'Column 4']);
         expect(table.rows).toEqual([
@@ -55,7 +61,7 @@ describe('parseDelimitedTable', () => {
     });
 
     it('reports an unclosed quote with its data row and keeps what it recovered', () => {
-        const table = parseDelimitedTable('a,b\n1,2\n3,"open\n4,5\n', '/p/broken.csv');
+        const table = parseDelimitedTable('a,b\n1,2\n3,"open\n4,5\n', '/p/broken.csv', translate);
 
         expect(table.issueCount).toBe(1);
         expect(table.issues[0]).toEqual({ row: 2, message: 'Quoted field unterminated' });
@@ -63,7 +69,7 @@ describe('parseDelimitedTable', () => {
     });
 
     it('does not treat a single-column file as a parse issue', () => {
-        const table = parseDelimitedTable('name\nAda\nGrace\n', '/p/names.csv');
+        const table = parseDelimitedTable('name\nAda\nGrace\n', '/p/names.csv', translate);
 
         expect(table.header).toEqual(['name']);
         expect(table.issueCount).toBe(0);
@@ -73,6 +79,7 @@ describe('parseDelimitedTable', () => {
         const table = parseDelimitedTable(
             'id,amount,share,code,label\n1,"1,200.50",12%,007A,x\n2,-3e2,4.5%,008B,\n3,,0.1%,009C,y\n',
             '/p/numbers.csv',
+            translate,
         );
 
         expect(table.numericColumns).toEqual([true, true, true, false, false]);
@@ -82,13 +89,14 @@ describe('parseDelimitedTable', () => {
         const rows = Array.from({ length: MAX_TABLE_ROWS + 5 }, (_, index) => `${index}`).join(
             '\n',
         );
-        const tall = parseDelimitedTable(`n\n${rows}\n`, '/p/tall.csv');
+        const tall = parseDelimitedTable(`n\n${rows}\n`, '/p/tall.csv', translate);
         expect(tall.rows).toHaveLength(MAX_TABLE_ROWS);
         expect(tall.truncatedRows).toBe(true);
 
         const wide = parseDelimitedTable(
             `${Array.from({ length: MAX_TABLE_COLUMNS + 3 }, (_, index) => `c${index}`).join(',')}\n`,
             '/p/wide.csv',
+            translate,
         );
         expect(wide.header).toHaveLength(MAX_TABLE_COLUMNS);
         expect(wide.truncatedColumns).toBe(true);
@@ -96,7 +104,11 @@ describe('parseDelimitedTable', () => {
     });
 
     it('sizes columns from content within a readable band', () => {
-        const table = parseDelimitedTable(`a,b\n1,${'x'.repeat(200)}\n`, '/p/widths.csv');
+        const table = parseDelimitedTable(
+            `a,b\n1,${'x'.repeat(200)}\n`,
+            '/p/widths.csv',
+            translate,
+        );
 
         expect(table.columnWidths).toEqual([4, 40]);
     });
@@ -111,15 +123,15 @@ describe('cellDisplayWidth', () => {
 
 describe('table descriptions', () => {
     it('summarizes size, and warns separately about the bounds that cut the table off', () => {
-        const one = parseDelimitedTable('a\n1\n', '/p/one.csv');
-        expect(describeTableSize(one)).toBe('1 row × 1 column');
-        expect(describeTableLimits(one)).toBeUndefined();
+        const one = parseDelimitedTable('a\n1\n', '/p/one.csv', translate);
+        expect(describeTableSize(one, translate)).toBe('1 row × 1 column');
+        expect(describeTableLimits(one, translate)).toBeUndefined();
         const rows = Array.from({ length: MAX_TABLE_ROWS + 1 }, () => '1,2').join('\n');
-        const tall = parseDelimitedTable(`a,b\n${rows}\n`, '/p/tall.csv');
-        expect(describeTableSize(tall)).toBe('50,000 rows × 2 columns');
-        expect(describeTableSize(tall, undefined, 1_234)).toBe('1,234 of 50,000 rows × 2 columns');
-        expect(describeTableLimits(tall)).toBe('Only the first 50,000 rows are shown.');
-        expect(describeTableLimits({ ...tall, truncatedColumns: true })).toBe(
+        const tall = parseDelimitedTable(`a,b\n${rows}\n`, '/p/tall.csv', translate);
+        expect(describeTableSize(tall, translate)).toBe('50,000 rows × 2 columns');
+        expect(describeTableSize(tall, translate, 1_234)).toBe('1,234 of 50,000 rows × 2 columns');
+        expect(describeTableLimits(tall, translate)).toBe('Only the first 50,000 rows are shown.');
+        expect(describeTableLimits({ ...tall, truncatedColumns: true }, translate)).toBe(
             'Only the first 50,000 rows and 256 columns are shown.',
         );
     });
@@ -137,11 +149,17 @@ describe('table descriptions', () => {
     });
 
     it('names the first parse issue and counts the rest', () => {
-        expect(describeTableIssues(parseDelimitedTable('a,b\n1,2\n', '/p/clean.csv'))).toBe(
-            undefined,
-        );
         expect(
-            describeTableIssues(parseDelimitedTable('a,b\n1,2\n3,"open\n', '/p/broken.csv')),
+            describeTableIssues(
+                parseDelimitedTable('a,b\n1,2\n', '/p/clean.csv', translate),
+                translate,
+            ),
+        ).toBe(undefined);
+        expect(
+            describeTableIssues(
+                parseDelimitedTable('a,b\n1,2\n3,"open\n', '/p/broken.csv', translate),
+                translate,
+            ),
         ).toBe('Some rows may be split incorrectly. Row 2: Quoted field unterminated.');
     });
 });

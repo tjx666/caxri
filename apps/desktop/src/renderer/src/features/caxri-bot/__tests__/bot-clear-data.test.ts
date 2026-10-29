@@ -2,6 +2,7 @@ import type { BotClearDataResult, BotDataSummary, BotTask } from '@caxri/protoco
 import { describe, expect, it } from 'vitest';
 
 import type { Translate } from '../../../i18n';
+import { withLocale } from '../../../i18n';
 import { caxriBot as english } from '../../../i18n/locales/en/caxri-bot';
 import type { BotClearDataSelection } from '../bot-clear-data';
 import {
@@ -14,10 +15,11 @@ import {
 } from '../bot-clear-data';
 
 const strings: Readonly<Record<string, string>> = english;
-const t: Translate = (key, parameters) =>
+const t: Translate = withLocale((key, parameters) =>
     (strings[key] ?? key).replaceAll(/\{\{(\w+)\}\}/g, (_, name: string) =>
         String(parameters?.[name] ?? ''),
-    );
+    ),
+);
 
 function task(id: string, status: BotTask['status']): BotTask {
     return {

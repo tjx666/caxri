@@ -1,5 +1,4 @@
 import type { Translate } from '../i18n';
-import { translate } from '../i18n';
 
 /**
  * A `+N -M` changed-line pair in words, for accessible names and descriptions where bare signed digits would read as
@@ -8,7 +7,7 @@ import { translate } from '../i18n';
  */
 export function diffStatLabel(
     stat: { additions: number; deletions: number },
-    t: Translate = translate,
+    t: Translate,
 ): string {
     return t(stat.additions === 1 ? 'core.diffStat.labelOne' : 'core.diffStat.labelOther', {
         additions: stat.additions,

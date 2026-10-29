@@ -1,6 +1,7 @@
 import type { BotInboxItem } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../i18n';
 import {
     botInboxMergeState,
     botInboxSections,
@@ -40,11 +41,14 @@ const pullRequest = {
 
 describe('botInboxSections', () => {
     it('puts questions before pull requests and leaves closed items out', () => {
-        const sections = botInboxSections([
-            item({ id: 'merge', kind: 'merge', pullRequest }),
-            item({ id: 'hands', kind: 'hands' }),
-            item({ id: 'closed', status: 'closed', closeReason: 'resolved' }),
-        ]);
+        const sections = botInboxSections(
+            [
+                item({ id: 'merge', kind: 'merge', pullRequest }),
+                item({ id: 'hands', kind: 'hands' }),
+                item({ id: 'closed', status: 'closed', closeReason: 'resolved' }),
+            ],
+            translate,
+        );
         expect(sections.map((section) => [section.id, section.items.map(({ id }) => id)])).toEqual([
             ['questions', ['hands']],
             ['merge', ['merge']],
@@ -111,7 +115,10 @@ describe('botInboxMergeState', () => {
             'Checks passed',
         ],
     ])('%o -> canMerge %s (%s)', (overrides, canMerge, label) => {
-        const state = botInboxMergeState(item({ kind: 'merge', pullRequest, ...overrides }));
+        const state = botInboxMergeState(
+            item({ kind: 'merge', pullRequest, ...overrides }),
+            translate,
+        );
         expect(state).toMatchObject({ canMerge, label });
     });
 });
@@ -123,8 +130,12 @@ describe('Inbox mentions', () => {
             item({ id: 'b', kind: 'hands', title: 'Log in to the registry' }),
             item({ id: 'c', title: 'Table', status: 'closed' }),
         ];
-        expect(inboxMentionCandidates(items, 'TABLE').map(({ id }) => id)).toEqual(['a']);
-        expect(inboxMentionCandidates(items, 'your action').map(({ id }) => id)).toEqual(['b']);
+        expect(inboxMentionCandidates(items, 'TABLE', translate).map(({ id }) => id)).toEqual([
+            'a',
+        ]);
+        expect(inboxMentionCandidates(items, 'your action', translate).map(({ id }) => id)).toEqual(
+            ['b'],
+        );
         expect(removeInboxMention('Use @tab two tables', { start: 4, end: 8 })).toEqual({
             text: 'Use  two tables',
             caret: 4,
@@ -135,6 +146,7 @@ describe('Inbox mentions', () => {
         expect(
             inboxMentionSuggestion(
                 item({ id: 'b', kind: 'hands', title: 'Log in to the registry' }),
+                translate,
             ),
         ).toEqual({
             key: 'b',
@@ -165,10 +177,10 @@ describe('insertInboxMentionTrigger', () => {
 
 describe('inboxSendTooltip', () => {
     it('says why Send cannot send before naming its shortcut', () => {
-        expect(inboxSendTooltip({ draft: 'Yes', hasTarget: false })).toBe(
+        expect(inboxSendTooltip({ draft: 'Yes', hasTarget: false }, translate)).toBe(
             'Choose an item with @ first',
         );
-        expect(inboxSendTooltip({ draft: '  ', hasTarget: true })).toBe('Type a reply');
-        expect(inboxSendTooltip({ draft: 'Yes', hasTarget: true })).toBe('Send (Enter)');
+        expect(inboxSendTooltip({ draft: '  ', hasTarget: true }, translate)).toBe('Type a reply');
+        expect(inboxSendTooltip({ draft: 'Yes', hasTarget: true }, translate)).toBe('Send (Enter)');
     });
 });

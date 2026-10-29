@@ -1,6 +1,7 @@
 import type { WorkbenchRootOption } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../i18n';
 import {
     conversationWorkbenchRoots,
     conversationWorkbenchRootSuggestion,
@@ -42,7 +43,7 @@ describe('Workbench Root picker options', () => {
 
     it('points the closed trigger at the top-ranked conversation worktree', () => {
         const roots = [main, { ...alpha, conversationRank: 1 }, { ...beta, conversationRank: 0 }];
-        expect(conversationWorkbenchRootSuggestion(roots, false)).toBe('feat/beta');
+        expect(conversationWorkbenchRootSuggestion(roots, false, translate)).toBe('feat/beta');
     });
 
     /**
@@ -50,9 +51,15 @@ describe('Workbench Root picker options', () => {
      */
     it('suggests nothing from a linked worktree or without a recommendation', () => {
         expect(
-            conversationWorkbenchRootSuggestion([main, { ...alpha, conversationRank: 0 }], true),
+            conversationWorkbenchRootSuggestion(
+                [main, { ...alpha, conversationRank: 0 }],
+                true,
+                translate,
+            ),
         ).toBeUndefined();
-        expect(conversationWorkbenchRootSuggestion([main, alpha], false)).toBeUndefined();
+        expect(
+            conversationWorkbenchRootSuggestion([main, alpha], false, translate),
+        ).toBeUndefined();
     });
 
     it('is empty when the Server sent no recommendation', () => {

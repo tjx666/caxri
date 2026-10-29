@@ -46,6 +46,6 @@ describe('PDF zoom menu', () => {
     });
 
     it('announces the page and zoom after an explicit change', () => {
-        expect(describePdfView(3, 12, 1.25)).toBe('Page 3 of 12, 125%');
+        expect(describePdfView(3, 12, 1.25, translate)).toBe('Page 3 of 12, 125%');
     });
 });

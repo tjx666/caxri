@@ -1,7 +1,7 @@
 import { isCaxriError } from '@caxri/protocol';
 
 import { translate } from '../../i18n';
-import { describeFailure } from '../../stores/toasts';
+import { describeFailureKey } from '../../stores/toasts';
 
 /**
  * What the last Import Theme attempt did, reported inside the dialog rather than through a toast.
@@ -21,7 +21,7 @@ const BACKGROUND_ROLES = ['background', 'surface', 'elevated'] as const;
  */
 export function describeThemeImportFailure(error: unknown): string {
     if (!isCaxriError(error) || error.code !== 'VALIDATION')
-        return describeFailure(error, translate('settings.themeEditor.importFailed'));
+        return describeFailureKey(error, 'settings.themeEditor.importFailed', translate);
 
     const details = error.details;
     if (
@@ -32,7 +32,7 @@ export function describeThemeImportFailure(error: unknown): string {
         !Number.isFinite(details.requiredRatio) ||
         details.requiredRatio <= 0
     )
-        return describeFailure(error, translate('settings.themeEditor.importFailed'));
+        return describeFailureKey(error, 'settings.themeEditor.importFailed', translate);
 
     const backgroundRole = details.backgroundRole as (typeof BACKGROUND_ROLES)[number];
     const actualRatio = details.actualRatio;
@@ -42,7 +42,7 @@ export function describeThemeImportFailure(error: unknown): string {
             required: details.requiredRatio,
         });
     if (typeof actualRatio !== 'number' || !Number.isFinite(actualRatio) || actualRatio < 0)
-        return describeFailure(error, translate('settings.themeEditor.importFailed'));
+        return describeFailureKey(error, 'settings.themeEditor.importFailed', translate);
 
     return translate('settings.themeEditor.importFailedContrast', {
         actual: actualRatio.toFixed(2),

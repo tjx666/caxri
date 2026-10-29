@@ -8,6 +8,7 @@ import {
 } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../i18n';
 import {
     documentTabDesktopActionState,
     documentTabPathMenuState,
@@ -40,34 +41,47 @@ describe('documentTabPathMenuState', () => {
     const loaded = { isError: false, isPending: false };
     it('offers external absolute paths and single-file diffs but not aggregate virtual documents', () => {
         expect(
-            documentTabPathMenuState(externalEditorTabPath('external-1', 'outside.ts'), loaded),
+            documentTabPathMenuState(
+                externalEditorTabPath('external-1', 'outside.ts'),
+                loaded,
+                translate,
+            ),
         ).toMatchObject({ externalDocumentId: 'external-1', showMenu: true });
-        expect(documentTabPathMenuState('/project/file.ts', loaded)).not.toHaveProperty(
+        expect(documentTabPathMenuState('/project/file.ts', loaded, translate)).not.toHaveProperty(
             'externalDocumentId',
         );
-        expect(documentTabPathMenuState('/project/file.ts', loaded).showMenu).toBe(true);
+        expect(documentTabPathMenuState('/project/file.ts', loaded, translate).showMenu).toBe(true);
         expect(
-            documentTabPathMenuState(gitFileDiffTabPath('primary', 'file.ts'), loaded).showMenu,
+            documentTabPathMenuState(gitFileDiffTabPath('primary', 'file.ts'), loaded, translate)
+                .showMenu,
         ).toBe(true);
         expect(
-            documentTabPathMenuState(gitChangesDiffTabPath('primary', 'project'), loaded).showMenu,
+            documentTabPathMenuState(gitChangesDiffTabPath('primary', 'project'), loaded, translate)
+                .showMenu,
         ).toBe(false);
         expect(
-            documentTabPathMenuState(agentTranscriptTabPath('terminal-1'), loaded).showMenu,
+            documentTabPathMenuState(agentTranscriptTabPath('terminal-1'), loaded, translate)
+                .showMenu,
         ).toBe(false);
     });
     it('distinguishes loading, failed, and unavailable repository paths', () => {
         expect(
-            documentTabPathMenuState('/project/file.ts', { isError: false, isPending: true })
-                .unavailableReason,
+            documentTabPathMenuState(
+                '/project/file.ts',
+                { isError: false, isPending: true },
+                translate,
+            ).unavailableReason,
         ).toBe('Repository information is still loading');
         expect(
-            documentTabPathMenuState('/project/file.ts', { isError: true, isPending: false })
-                .unavailableReason,
+            documentTabPathMenuState(
+                '/project/file.ts',
+                { isError: true, isPending: false },
+                translate,
+            ).unavailableReason,
         ).toBe('Unable to load repository information');
-        expect(documentTabPathMenuState('/project/file.ts', loaded).unavailableReason).toBe(
-            'The file path is unavailable',
-        );
+        expect(
+            documentTabPathMenuState('/project/file.ts', loaded, translate).unavailableReason,
+        ).toBe('The file path is unavailable');
     });
 });
 

@@ -2,7 +2,6 @@ import type { AgentChatSnapshot } from '@caxri/protocol';
 import { agentChatRewindableMessageIds, agentChatRewindTarget } from '@caxri/protocol';
 
 import type { Translate, TranslationKey } from '../../../i18n';
-import { translate } from '../../../i18n';
 import { readLocalStorageJson, writeLocalStorageJson } from '../../../lib/local-storage';
 import { currentAgentChatComposerScope } from '../attachments/agent-chat-attachment-persistence';
 
@@ -241,7 +240,7 @@ export function agentChatEditCaption(removedTurns: number, t: Translate): string
 export function agentChatEditSendAction(
     isTurnRunning: boolean,
     providerName: string,
-    t: Translate = translate,
+    t: Translate,
 ): { label: string; tooltip: string; placeholder: string } {
     return {
         label: t('agentChat.edit.send'),

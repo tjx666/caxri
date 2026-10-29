@@ -1,7 +1,7 @@
 import type { AppLocale } from '@caxri/protocol';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { translate, useLocaleStore } from '../../../i18n';
+import { translate, useLocaleStore, withLocale } from '../../../i18n';
 import {
     agentChatPermissionLabel,
     agentChatPermissionView,
@@ -11,12 +11,11 @@ import {
     nextAgentChatPermissionTurnBaseline,
 } from './agent-chat-permissions';
 
-const translateIn =
-    (locale: AppLocale): typeof translate =>
-    (...parameters) => {
+const translateIn = (locale: AppLocale): typeof translate =>
+    withLocale((...parameters) => {
         useLocaleStore.setState({ locale });
         return translate(...parameters);
-    };
+    }, locale);
 
 afterEach(() => useLocaleStore.setState({ locale: 'en' }));
 

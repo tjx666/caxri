@@ -2,6 +2,8 @@ import type { TerminalProcessEntry } from '@caxri/protocol';
 import type { ProcessExplorerEntry } from '@desktop-shared/process-explorer';
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../i18n';
+import { DEFAULT_PROCESS_SORT } from '../process-columns';
 import type { ProcessTreeNode } from '../process-tree';
 import {
     buildProcessTree,
@@ -57,7 +59,11 @@ function byId(roots: readonly ProcessTreeNode[], id: string): ProcessTreeNode | 
 
 describe('buildProcessTree', () => {
     it('moves a Terminal process tree under its Session and lists the rest flat under Caxri', () => {
-        const roots = buildProcessTree({ processes, terminals: [terminal] });
+        const roots = buildProcessTree(
+            { processes, terminals: [terminal] },
+            DEFAULT_PROCESS_SORT,
+            translate,
+        );
         expect(roots.map((root) => root.id)).toEqual([SESSIONS_GROUP_ID, CAXRI_GROUP_ID]);
         const [session] = roots[0].children;
         expect(session).toMatchObject({ kind: 'session', name: 'Tune the timeline' });
@@ -85,16 +91,31 @@ describe('buildProcessTree', () => {
         const heavy = processes.map((entry) =>
             entry.pid === 41 ? { ...entry, cpuPercent: 350 } : entry,
         );
-        const roots = buildProcessTree({ processes: heavy, terminals: [terminal] });
+        const roots = buildProcessTree(
+            { processes: heavy, terminals: [terminal] },
+            DEFAULT_PROCESS_SORT,
+            translate,
+        );
         expect(byId(roots, 'terminal:terminal-1')?.isHigh).toBe(true);
         expect(byId(roots, 'session:session-1')?.isHigh).toBe(true);
         expect(
-            byId(buildProcessTree({ processes, terminals: [terminal] }), 'terminal:terminal-1'),
+            byId(
+                buildProcessTree(
+                    { processes, terminals: [terminal] },
+                    DEFAULT_PROCESS_SORT,
+                    translate,
+                ),
+                'terminal:terminal-1',
+            ),
         ).toMatchObject({ isHigh: false });
     });
 
     it('keeps every process under Caxri when no Terminal is running', () => {
-        const roots = buildProcessTree({ processes, terminals: [] });
+        const roots = buildProcessTree(
+            { processes, terminals: [] },
+            DEFAULT_PROCESS_SORT,
+            translate,
+        );
         expect(roots.map((root) => root.id)).toEqual([CAXRI_GROUP_ID]);
         expect(roots[0].children).toHaveLength(processes.length);
     });
@@ -103,6 +124,7 @@ describe('buildProcessTree', () => {
         const roots = buildProcessTree(
             { processes, terminals: [] },
             { column: 'memory', direction: 'descending' },
+            translate,
         );
         expect(roots[0].children.slice(0, 2).map((child) => child.name)).toEqual([
             'claude',
@@ -114,7 +136,11 @@ describe('buildProcessTree', () => {
         const withPty = processes.map((entry) =>
             entry.pid === 41 ? { ...entry, ptyCount: 2 } : entry,
         );
-        const roots = buildProcessTree({ processes: withPty, terminals: [terminal] });
+        const roots = buildProcessTree(
+            { processes: withPty, terminals: [terminal] },
+            DEFAULT_PROCESS_SORT,
+            translate,
+        );
         expect(byId(roots, 'terminal:terminal-1')?.ptyCount).toBe(3);
         expect(byId(roots, 'session:session-1')?.ptyCount).toBe(3);
         expect(byId(roots, 'pid:41')?.ptyCount).toBe(2);
@@ -122,14 +148,18 @@ describe('buildProcessTree', () => {
     });
 
     it('lists PTY holders outside Caxri in a separate group', () => {
-        const roots = buildProcessTree({
-            processes,
-            terminals: [],
-            otherPtyHolders: [
-                process(900, 1, 'Ghostty', { ptyCount: 4 }),
-                process(901, 1, 'tmux', { ptyCount: 7 }),
-            ],
-        });
+        const roots = buildProcessTree(
+            {
+                processes,
+                terminals: [],
+                otherPtyHolders: [
+                    process(900, 1, 'Ghostty', { ptyCount: 4 }),
+                    process(901, 1, 'tmux', { ptyCount: 7 }),
+                ],
+            },
+            DEFAULT_PROCESS_SORT,
+            translate,
+        );
         expect(roots.map((root) => root.id)).toEqual([CAXRI_GROUP_ID, OTHER_PTY_GROUP_ID]);
         expect(roots[1]).toMatchObject({ kind: 'group', name: 'Other apps', ptyCount: 11 });
     });
@@ -145,13 +175,18 @@ describe('buildProcessTree', () => {
                 ],
             },
             { column: 'pty', direction: 'descending' },
+            translate,
         );
         expect(roots[0].children.map((child) => child.name)).toEqual(['tmux', 'Ghostty']);
     });
 });
 
 describe('filterProcessTree', () => {
-    const roots = buildProcessTree({ processes, terminals: [terminal] });
+    const roots = buildProcessTree(
+        { processes, terminals: [terminal] },
+        DEFAULT_PROCESS_SORT,
+        translate,
+    );
 
     it('keeps matching rows with their ancestors and drops the rest', () => {
         const filtered = filterProcessTree(roots, 'resume');
@@ -172,7 +207,11 @@ describe('filterProcessTree', () => {
 });
 
 describe('flattenProcessTree', () => {
-    const roots = buildProcessTree({ processes, terminals: [terminal] });
+    const roots = buildProcessTree(
+        { processes, terminals: [terminal] },
+        DEFAULT_PROCESS_SORT,
+        translate,
+    );
 
     it('starts Terminal rows folded and everything else open', () => {
         const rows = flattenProcessTree(roots, new Set());
@@ -197,7 +236,11 @@ describe('flattenProcessTree', () => {
 });
 
 describe('keyboard helpers', () => {
-    const roots = buildProcessTree({ processes, terminals: [terminal] });
+    const roots = buildProcessTree(
+        { processes, terminals: [terminal] },
+        DEFAULT_PROCESS_SORT,
+        translate,
+    );
     const rows = flattenProcessTree(roots, new Set());
 
     it('moves vertically without wrapping', () => {
