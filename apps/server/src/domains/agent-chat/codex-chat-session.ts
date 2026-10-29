@@ -205,6 +205,7 @@ class CodexChatSession implements AgentChatProviderSession {
          * Server requests of a subagent are answered through the Chat like its own, so their resolution is too.
          */
         if (method !== 'serverRequest/resolved' && this.tasks.isOtherThread(threadId)) {
+            this.usage.onChildNotification(threadId, method, parameters);
             this.tasks.onChildNotification(threadId, method, parameters);
             return;
         }

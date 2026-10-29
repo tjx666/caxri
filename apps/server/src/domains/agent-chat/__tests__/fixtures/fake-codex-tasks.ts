@@ -79,6 +79,31 @@ function finishChildTurn(io: FakeCodexIo, child: FakeThread, turn: FakeTurn) {
 }
 
 /**
+ * Two model requests of the child thread, as `thread/tokenUsage/updated` reports them on the child's `threadId`: the
+ * first twice (Codex repeats a notification), then a second whose running `total` is larger. The totals are the parent
+ * thread's too in a real run, which must not read as a repeat.
+ */
+function reportChildUsage(io: FakeCodexIo, turn: FakeTurn) {
+    const report = (total: number, last: { input: number; output: number }) =>
+        io.notifyTurn(turn, 'thread/tokenUsage/updated', {
+            turnId: turn.id,
+            tokenUsage: {
+                total: { totalTokens: total },
+                last: {
+                    totalTokens: last.input + last.output,
+                    inputTokens: last.input,
+                    cachedInputTokens: 0,
+                    outputTokens: last.output,
+                },
+                modelContextWindow: 200_000,
+            },
+        });
+    report(1100, { input: 1000, output: 100 });
+    report(1100, { input: 1000, output: 100 });
+    report(1650, { input: 500, output: 50 });
+}
+
+/**
  * `isHeld` keeps the child working after the parent turn ends; `isBrowsing` has the child run the `browsestep` Computer
  * Use steps before it reports.
  */
@@ -153,6 +178,7 @@ export async function runSubagent(
         return;
     }
     if (isBrowsing) await runBrowserStep(io, childTurn);
+    reportChildUsage(io, childTurn);
     await io.streamMessage(childTurn, 'Found one sample file.', 0);
     finishChildTurn(io, child, childTurn);
     const wait = waitCall(parent.id, child.id);

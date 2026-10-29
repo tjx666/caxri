@@ -70,12 +70,14 @@ export function claudeTurnResponse(message: unknown): ChatTurnResponse | undefin
 /**
  * One Codex request from `thread/tokenUsage/updated`. `last` is that request's own usage, with cached input inside
  * `inputTokens`; the thread's running `total`, when reported, names the response, so a repeated notification for the
- * same request adds nothing.
+ * same request adds nothing. A subagent runs in a thread of its own whose running `total` can equal the parent's, so
+ * `threadId` scopes that name to the reporting thread.
  */
 export function codexTurnResponse(
     parameters: Record<string, unknown>,
     model: string | undefined,
     isFast: boolean,
+    threadId?: string,
 ): ChatTurnResponse | undefined {
     const usage = isRecord(parameters.tokenUsage) ? parameters.tokenUsage : undefined;
     const last = isRecord(usage?.last) ? usage.last : undefined;
@@ -85,7 +87,7 @@ export function codexTurnResponse(
     const input = count(last.inputTokens);
     const cached = Math.min(count(last.cachedInputTokens), input);
     return {
-        ...(totalTokens > 0 && { id: `total:${totalTokens}` }),
+        ...(totalTokens > 0 && { id: `${threadId ? `${threadId}:` : ''}total:${totalTokens}` }),
         model,
         tokens: {
             input: input - cached,
