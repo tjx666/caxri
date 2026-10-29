@@ -79,7 +79,11 @@ export function logQuery(tokens: readonly string[]): Record<string, unknown> {
         ['--level', 'level'],
         ['--limit', 'limit'],
         ['--process', 'process'],
+        ['--project-id', 'projectId'],
+        ['--session-id', 'sessionId'],
         ['--since', 'since'],
+        ['--terminal-id', 'terminalId'],
+        ['--trace-id', 'traceId'],
     ]);
     const result: Record<string, unknown> = {};
     for (let index = 0; index < tokens.length; index += 1) {

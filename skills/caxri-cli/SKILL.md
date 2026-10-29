@@ -81,6 +81,26 @@ caxri settings validate --set terminal.scrollback=10000 --json
 Confirm that the result has `dryRun: true` and inspect `errors` before proposing a real patch. Do not
 turn validation into a write or add `--yes` unless the user explicitly authorizes the mutation.
 
+## Investigate a Session or Terminal with logs
+
+Needs `diagnostics.read` (a `debug:read` grant includes it). Take opaque IDs from the CLI, never from
+display names, and query right after reproducing the problem: a query scans only a bounded recent
+window of each log file.
+
+```bash
+caxri session current --json
+caxri terminal list --json
+caxri logs query --session-id <session-id> --level warn --json
+caxri logs query --terminal-id <terminal-id> --event pty.attach --json
+caxri logs query --trace-id <trace-id> --json
+caxri logs follow --session-id <session-id>
+```
+
+`--session-id`, `--terminal-id`, and `--project-id` match a record's `context` and its `fields`;
+`--trace-id` matches `context.traceId`. Each record carries `context` (opaque correlation IDs) and, for
+faults, `failure`: read `failure.reason`, `failure.remediation`, and `failure.retryable`. Reasons such as
+`cancelled` and `generation-superseded` are expected non-faults.
+
 ## Pull and reply to peer messages
 
 Use the Server-owned bounded Inbox. Waiting consumes a message only after the authenticated response is

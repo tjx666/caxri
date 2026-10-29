@@ -155,4 +155,94 @@ describe('bounded structured log queries', () => {
             'server_core.ready',
         ]);
     });
+
+    describe('context, failure, and correlation filters', () => {
+        const line = (extra: Record<string, unknown>, second = 0) =>
+            JSON.stringify({
+                timestamp: `2026-08-14T00:00:0${second}.000Z`,
+                process: 'server-core',
+                level: 'info',
+                event: 'ipc.request',
+                ...extra,
+            });
+        async function setup(lines: string[]) {
+            const directory = await mkdtemp(join(tmpdir(), 'caxri-log-ctx-'));
+            await writeFile(join(directory, 'server-core.jsonl'), lines.join('\n'), {
+                mode: 0o600,
+            });
+            return directory;
+        }
+
+        it('projects context and failure, dropping unsafe context values and nested failure context', async () => {
+            const directory = await setup([
+                line({
+                    context: {
+                        sessionId: 's1',
+                        traceId: 'tr1',
+                        processId: 42,
+                        projectId: '/Users/someone/path',
+                        unknown: 'x',
+                    },
+                    failure: {
+                        owner: 'server',
+                        phase: 'request',
+                        reason: 'timeout',
+                        remediation: 'retry',
+                        retryable: true,
+                        context: { sessionId: 's1' },
+                    },
+                }),
+                line({ failure: { reason: 'timeout' } }, 1),
+            ]);
+            const { records } = await new LogQueryService(directory).query({ limit: 10 });
+            expect(records[0]?.context).toEqual({ sessionId: 's1', traceId: 'tr1', processId: 42 });
+            expect(records[0]?.failure).toEqual({
+                owner: 'server',
+                phase: 'request',
+                reason: 'timeout',
+                remediation: 'retry',
+                retryable: true,
+            });
+            expect(records[1]).toBeDefined();
+            expect(records[1]?.failure).toBeUndefined();
+        });
+
+        it('matches ids in context or fields and traceId in context only', async () => {
+            const directory = await setup([
+                line({ context: { sessionId: 's1', traceId: 'tr1' } }, 0),
+                line({ event: 'pty.attach', fields: { sessionId: 's1', terminalId: 't1' } }, 1),
+                line({ context: { sessionId: 's2', terminalId: 't2', projectId: 'p2' } }, 2),
+                line({ fields: { traceId: 'tr1' } }, 3),
+            ]);
+            const service = new LogQueryService(directory);
+            const ids = async (query: Record<string, string>) =>
+                (await service.query({ limit: 10, ...query })).records.map((r) =>
+                    r.timestamp.slice(18, 19),
+                );
+            expect(await ids({ sessionId: 's1' })).toEqual(['0', '1']);
+            expect(await ids({ terminalId: 't1' })).toEqual(['1']);
+            expect(await ids({ terminalId: 't2' })).toEqual(['2']);
+            expect(await ids({ projectId: 'p2' })).toEqual(['2']);
+            expect(await ids({ traceId: 'tr1' })).toEqual(['0']);
+        });
+
+        it('filters before the record cap and widens the scan only for id filters', async () => {
+            const noise = Array.from({ length: 50 }, (_, index) =>
+                line({ context: { sessionId: 'other' }, fields: { n: index } }, 1),
+            );
+            const directory = await setup([
+                line({ context: { sessionId: 'target' } }, 0),
+                ...noise,
+            ]);
+            const service = new LogQueryService(directory, {
+                maximumRecords: 5,
+                maximumBytesPerFile: 200,
+                maximumBytesForIdFilter: 1_000_000,
+            });
+            const filtered = await service.query({ limit: 10, sessionId: 'target' });
+            expect(filtered.records).toHaveLength(1);
+            expect(filtered.truncated).toBe(false);
+            expect((await service.query({ limit: 10 })).records.length).toBeLessThanOrEqual(5);
+        });
+    });
 });

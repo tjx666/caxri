@@ -9,7 +9,13 @@ import type {
     LogQueryRecord,
     LogQueryResult,
 } from '@caxri/protocol';
-import { CaxriError, logProcesses, logQueryRecordSchema } from '@caxri/protocol';
+import {
+    CaxriError,
+    logProcesses,
+    logQueryContextSchema,
+    logQueryFailureSchema,
+    logQueryRecordSchema,
+} from '@caxri/protocol';
 import { isSecretKey, redactLogValue } from '@caxri/system';
 
 /**
@@ -20,6 +26,15 @@ import { isSecretKey, redactLogValue } from '@caxri/system';
 const LOG_NAME = new RegExp(String.raw`^(?:${logProcesses.join('|')})\.jsonl(?:\.\d+)?$`, 'u');
 const DEFAULT_MAXIMUM_RECORDS = 4_096;
 const DEFAULT_MAXIMUM_BYTES_PER_FILE = 512 * 1024;
+/**
+ * A cursorless query narrowed by a correlation ID scans a wider suffix: the default window holds only minutes of a busy
+ * `debug` profile, which is too short to find an older Session's records after the fact.
+ */
+const DEFAULT_MAXIMUM_BYTES_PER_FILE_FOR_ID_FILTER = 4 * 1024 * 1024;
+/**
+ * Same shape the logger's `normalizeObservationContext` accepts when writing.
+ */
+const OBSERVATION_ID = /^[A-Za-z0-9][\w.:-]{0,199}$/u;
 
 interface Cursor {
     id: string;
@@ -87,6 +102,35 @@ function safeQueryFields(value: unknown): Record<string, unknown> | undefined {
     );
 }
 
+/**
+ * Read-time defense in depth mirroring the logger's write-time normalization: keep only known keys whose values are
+ * opaque identifiers, so a line written outside `StructuredLogger` cannot surface a path or prose through `context`.
+ */
+function safeQueryContext(value: unknown): LogQueryRecord['context'] {
+    if (typeof value !== 'object' || value === null) return undefined;
+    const entries = Object.entries(value).filter(([key, entry]) =>
+        key === 'processId'
+            ? typeof entry === 'number' && Number.isSafeInteger(entry) && entry > 0
+            : key in logQueryContextSchema.shape &&
+              typeof entry === 'string' &&
+              OBSERVATION_ID.test(entry),
+    );
+    if (entries.length === 0) return undefined;
+    return logQueryContextSchema.parse(Object.fromEntries(entries));
+}
+
+/**
+ * A malformed `failure` drops only itself; the record stays readable. The nested `context` is never copied.
+ */
+function safeQueryFailure(value: unknown): LogQueryRecord['failure'] {
+    if (typeof value !== 'object' || value === null) return undefined;
+    const parsed = logQueryFailureSchema.safeParse(value);
+    if (!parsed.success) return undefined;
+    const { reason, remediation, owner, phase } = parsed.data;
+    const identifiers = [reason, remediation, owner, phase, parsed.data.code ?? 'X'];
+    return identifiers.every((entry) => /^[\w.-]+$/u.test(entry)) ? parsed.data : undefined;
+}
+
 function safeRecord(line: string): LogQueryRecord | undefined {
     try {
         const value = JSON.parse(line) as Record<string, unknown>;
@@ -102,6 +146,8 @@ function safeRecord(line: string): LogQueryRecord | undefined {
             event: value.event,
             correlationId: value.correlationId,
             durationMs: value.durationMs,
+            context: safeQueryContext(value.context),
+            failure: safeQueryFailure(value.failure),
             fields: safeQueryFields(value.fields),
         });
     } catch {
@@ -117,8 +163,24 @@ function addUniqueRecords(records: Map<string, LogQueryRecord>, source: string):
     }
 }
 
+type IdFilter = 'projectId' | 'sessionId' | 'terminalId';
+const ID_FILTERS: readonly IdFilter[] = ['projectId', 'sessionId', 'terminalId'];
+
+function hasIdFilter(query: LogQueryParameters): boolean {
+    return [query.projectId, query.sessionId, query.terminalId, query.traceId].some(Boolean);
+}
+
+/**
+ * Lifecycle events carry IDs only in `fields`; request and Git records carry them only in `context`. Match both.
+ */
+function isIdMatching(record: LogQueryRecord, key: IdFilter, expected: string): boolean {
+    return record.context?.[key] === expected || record.fields?.[key] === expected;
+}
+
 function isRecordMatching(record: LogQueryRecord, query: LogQueryParameters): boolean {
     return (
+        ID_FILTERS.every((key) => !query[key] || isIdMatching(record, key, query[key])) &&
+        (!query.traceId || record.context?.traceId === query.traceId) &&
         (!query.since || record.timestamp >= query.since) &&
         (!query.process || record.process === query.process) &&
         (!query.level || record.level === query.level) &&
@@ -132,12 +194,19 @@ function isRecordMatching(record: LogQueryRecord, query: LogQueryParameters): bo
  */
 export class LogQueryService {
     private readonly maximumBytesPerFile: number;
+    private readonly maximumBytesForIdFilter: number;
     private readonly maximumRecords: number;
 
     constructor(
         private readonly directory: string,
-        options: { maximumBytesPerFile?: number; maximumRecords?: number } = {},
+        options: {
+            maximumBytesForIdFilter?: number;
+            maximumBytesPerFile?: number;
+            maximumRecords?: number;
+        } = {},
     ) {
+        this.maximumBytesForIdFilter =
+            options.maximumBytesForIdFilter ?? DEFAULT_MAXIMUM_BYTES_PER_FILE_FOR_ID_FILTER;
         this.maximumBytesPerFile = options.maximumBytesPerFile ?? DEFAULT_MAXIMUM_BYTES_PER_FILE;
         this.maximumRecords = options.maximumRecords ?? DEFAULT_MAXIMUM_RECORDS;
     }
@@ -151,15 +220,21 @@ export class LogQueryService {
         } catch {
             names = [];
         }
+        const isIdFiltered = hasIdFilter(query) && !query.afterCursor;
+        const maximumBytes = isIdFiltered
+            ? Math.max(this.maximumBytesPerFile, this.maximumBytesForIdFilter)
+            : this.maximumBytesPerFile;
         const sources = await Promise.all(
             names.map(async (name) => ({
                 name,
-                source: await readSuffix(join(this.directory, name), this.maximumBytesPerFile),
+                source: await readSuffix(join(this.directory, name), maximumBytes),
             })),
         );
         const uniqueRecords = new Map<string, LogQueryRecord>();
         for (const { source } of sources) addUniqueRecords(uniqueRecords, source);
         let records = uniqueRecords.values().toArray();
+        // Filter before the cap so an ID-filtered query is not starved by unrelated recent records.
+        if (isIdFiltered) records = records.filter((record) => isRecordMatching(record, query));
         records.sort((left, right) => compareCursor(recordCursor(left), recordCursor(right)));
         const dropped = Math.max(0, records.length - this.maximumRecords);
         if (dropped > 0) records = records.slice(dropped);
