@@ -67,9 +67,20 @@ Agent never names the Project whose secrets it reads, and only the Terminal that
 can wait on it. Settings management (`secrets.*`) is Desktop-only. External delegation callers and
 the human CLI have no secret commands.
 
-`secret exec` keeps the value out of the conversation, not out of the child command: a child that
-prints its environment puts the value in the Terminal output the Agent reads. The skill tells
-Agents not to do that; Caxri does not redact output.
+`secret exec` keeps the value out of the conversation, not out of the child command, so it also masks
+the child's output: stdout and stderr are piped through a streaming filter that replaces each resolved
+value with `[secret:NAME]`, including a value split across two chunks. The Terminal shows the same
+placeholder the Agent reads. Limits:
+
+- Values shorter than 4 characters are not masked, because they match ordinary text.
+- Only exact copies are masked; an encoded or re-formatted value (base64, JSON escapes) is not.
+- Files the child writes and network traffic it sends are not filtered, and commands not started by
+  `secret exec` are not scanned.
+- Piping makes the child see a non-TTY stdout and stderr, so some tools drop colors or buffer
+  differently. Stdin stays attached, and the exit code and signal status pass through unchanged.
+- A possible value prefix at the end of a chunk waits up to 100 ms for more output before it is
+  printed, so a prompt is never held back for long.
+- The skill still tells Agents not to echo secrets; masking is a safety net, not permission.
 
 ## Storage
 

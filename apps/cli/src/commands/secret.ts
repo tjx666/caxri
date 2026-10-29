@@ -1,11 +1,13 @@
 import { spawn } from 'node:child_process';
 import { constants } from 'node:os';
 import process from 'node:process';
+import { StringDecoder } from 'node:string_decoder';
 
 import type { AgentSecretRequestStatus, MethodResult } from '@caxri/protocol';
 import { agentSecretNameSchema, CaxriError } from '@caxri/protocol';
 
 import { rejectOptions } from './reject-options';
+import { createSecretOutputMasker } from './secret-output-masker';
 import type { RemoteCommandDefinition, RemoteCommandRunContext } from './types';
 
 /**
@@ -138,18 +140,77 @@ async function runRequest(context: RemoteCommandRunContext): Promise<number> {
 }
 
 /**
+ * How long a held-back possible value prefix may wait for more output before it is released. It keeps an interactive
+ * prompt that happens to end like a secret's first characters from looking stuck.
+ */
+const MASK_IDLE_FLUSH_MS = 100;
+
+/**
+ * How long to keep draining the pipes after the child exited before reporting its status anyway.
+ */
+const DRAIN_GRACE_MS = 2000;
+
+interface ChildOutput {
+    values: Readonly<Record<string, string>>;
+    writeStdout: (text: string) => void;
+    writeStderr: (text: string) => void;
+}
+
+/**
+ * Pipes one child stream through a masker: decodes UTF-8 across chunk boundaries, writes masked text as it arrives, and
+ * flushes the held tail when output stalls or the stream ends.
+ */
+function maskStream(
+    stream: NodeJS.ReadableStream,
+    values: Readonly<Record<string, string>>,
+    write: (text: string) => void,
+): Promise<void> {
+    const masker = createSecretOutputMasker(values);
+    const decoder = new StringDecoder('utf8');
+    let timer: NodeJS.Timeout | undefined;
+    const emit = (text: string) => {
+        if (text) write(text);
+    };
+    return new Promise((resolve) => {
+        stream.on('data', (chunk: Uint8Array) => {
+            clearTimeout(timer);
+            emit(masker.push(decoder.write(chunk)));
+            if (masker.pending())
+                timer = setTimeout(() => emit(masker.flush()), MASK_IDLE_FLUSH_MS);
+        });
+        stream.once('close', () => {
+            clearTimeout(timer);
+            emit(masker.push(decoder.end()));
+            emit(masker.flush());
+            resolve();
+        });
+    });
+}
+
+/**
  * Runs the child with the secrets added to its environment and reports its exit status as its own: a signal death
  * becomes `128 + signal`, the shell convention. Ctrl-C reaches the child through the Terminal's process group; a
- * `SIGTERM` or `SIGHUP` sent only to this process is forwarded so the child never outlives it.
+ * `SIGTERM` or `SIGHUP` sent only to this process is forwarded so the child never outlives it. Stdout and stderr are
+ * piped through a masker that replaces resolved secret values with `[secret:NAME]`; stdin stays inherited. Piping makes
+ * the child see a non-TTY output, so some tools drop colors or buffer differently.
  */
 function runChild(
     command: [string, ...string[]],
     environment: NodeJS.ProcessEnv,
     cwd: string,
+    output: ChildOutput,
 ): Promise<number> {
     const [file, ...arguments_] = command;
     return new Promise((resolve, reject) => {
-        const child = spawn(file, arguments_, { cwd, env: environment, stdio: 'inherit' });
+        const child = spawn(file, arguments_, {
+            cwd,
+            env: environment,
+            stdio: ['inherit', 'pipe', 'pipe'],
+        });
+        const drained = Promise.all([
+            maskStream(child.stdout, output.values, output.writeStdout),
+            maskStream(child.stderr, output.values, output.writeStderr),
+        ]);
         const forwarded = ['SIGTERM', 'SIGHUP'] as const;
         const forward = (signal: NodeJS.Signals) => child.kill(signal);
         for (const signal of forwarded) process.on(signal, forward);
@@ -166,7 +227,14 @@ function runChild(
         });
         child.once('exit', (code, signal) => {
             cleanup();
-            resolve(signal ? 128 + constants.signals[signal] : (code ?? 1));
+            // Wait for the pipes to drain so no output is lost behind the exit status, but not forever: a background
+            // grandchild that inherited the pipes would otherwise hold this command open after the child exited.
+            const grace = new Promise<void>((resolve) =>
+                setTimeout(resolve, DRAIN_GRACE_MS).unref(),
+            );
+            void Promise.race([drained, grace]).then(() =>
+                resolve(signal ? 128 + constants.signals[signal] : (code ?? 1)),
+            );
         });
     });
 }
@@ -176,7 +244,11 @@ async function runExec(context: RemoteCommandRunContext): Promise<number> {
     const { values } = (await context.request('agent.secret.resolve', {
         names,
     })) as MethodResult<'agent.secret.resolve'>;
-    return runChild(command, { ...context.environment, ...values }, context.cwd);
+    return runChild(command, { ...context.environment, ...values }, context.cwd, {
+        values,
+        writeStdout: (text) => context.writeStdout(text),
+        writeStderr: (text) => context.writeStderr(text),
+    });
 }
 
 /**
