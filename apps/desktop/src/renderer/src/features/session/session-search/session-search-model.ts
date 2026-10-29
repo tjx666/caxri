@@ -141,6 +141,14 @@ export function nextSelectionIndex(count: number, current: number, delta: number
 }
 
 /**
+ * The next match to preview: steps `delta` through `count` matches and wraps at either end, so the preview cycles.
+ */
+export function steppedMatchIndex(count: number, current: number, delta: number): number {
+    if (count === 0) return 0;
+    return (((current + delta) % count) + count) % count;
+}
+
+/**
  * The footer's index line: progress while the background index catches up, the indexed count once it has, and a plain
  * statement when only Caxri's own Sessions could be searched.
  */

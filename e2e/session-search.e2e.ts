@@ -166,6 +166,24 @@ test('Session search finds open, archived, and external conversations and acts o
         await expect(search.results.getByRole('option')).toHaveCount(1);
         await expect(row(EXTERNAL)).toBeVisible();
 
+        // The selected result previews its messages without adding the conversation to Caxri.
+        const preview = search.dialog.getByRole('region', { name: 'Conversation preview' });
+        await expect(preview).toContainText('Not in Caxri yet. Previewing does not add it.');
+        await expect(preview).toContainText('Draft the overdue invoice reminder email');
+        await expect(preview.locator('[data-session-search-preview-match]')).toContainText(
+            'invoice',
+        );
+        await expect(preview.locator('mark')).toHaveText('invoice');
+        expect(
+            (await pageRequest<BootstrapState>(page, 'app.bootstrap')).terminals.some(
+                (entry) => entry.agentSessionId === EXTERNAL,
+            ),
+        ).toBe(false);
+        await page.screenshot({
+            path: test.info().outputPath('session-search-preview.png'),
+            mask: [page.locator('.xterm')],
+        });
+
         // An ID prefix finds the conversation; Enter adds it to Caxri and opens it.
         await search.input.fill(EXTERNAL.slice(0, 8));
         await expect(search.results.getByRole('option').first()).toHaveAttribute(

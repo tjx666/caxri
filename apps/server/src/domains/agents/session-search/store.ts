@@ -410,6 +410,43 @@ export class SessionSearchStore {
             .get(ftsQuery, messageId) as { role: string; snippet: string } | undefined;
     }
 
+    /**
+     * Ids of a conversation's indexed messages, oldest first. Ids grow in insertion order, which is transcript order
+     * within a file and file order across a continuation.
+     */
+    conversationMessageIds(provider: AgentProvider, agentSessionId: string): number[] {
+        return (
+            this.database
+                .prepare(
+                    `SELECT m.id AS id FROM messages m JOIN transcripts t ON t.id = m.transcript
+                    WHERE t.provider = ? AND t.agent_session_id = ? AND t.state IN ${SEARCHABLE_STATES}
+                    ORDER BY m.id`,
+                )
+                .all(provider, agentSessionId) as Array<{ id: number }>
+        ).map((row) => row.id);
+    }
+
+    /**
+     * Ids of the conversation's messages holding every lower-cased term as a substring, oldest first.
+     */
+    matchingMessageIds(
+        provider: AgentProvider,
+        agentSessionId: string,
+        terms: readonly string[],
+    ): number[] {
+        const conditions = terms.map(() => String.raw`m.text LIKE ? ESCAPE '\'`);
+        return (
+            this.database
+                .prepare(
+                    `SELECT m.id AS id FROM messages m JOIN transcripts t ON t.id = m.transcript
+                    WHERE t.provider = ? AND t.agent_session_id = ? AND t.state IN ${SEARCHABLE_STATES}
+                    ${conditions.map((condition) => `AND ${condition}`).join(' ')}
+                    ORDER BY m.id`,
+                )
+                .all(provider, agentSessionId, ...terms.map(likePattern)) as Array<{ id: number }>
+        ).map((row) => row.id);
+    }
+
     message(id: number): IndexedMessage | undefined {
         return this.database.prepare('SELECT role, text FROM messages WHERE id = ?').get(id) as
             IndexedMessage | undefined;

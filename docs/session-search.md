@@ -60,6 +60,19 @@ as a PTY Terminal opens as before.
 `Tab` and `Shift+Tab` cycle the **All / In Caxri / Archived / Not in Caxri** filter; the Agent
 chips narrow to one provider. The hovered or selected row also offers Copy ID.
 
+## Preview
+
+The selected result shows a preview pane to the right of the list (below it when the dialog is
+narrow). It quotes the newest message that holds every query term (the one the row quotes) with the two messages before and
+after it, the matched terms underlined and bold, and long messages cut around the match. `Alt+Down`
+and `Alt+Up` (or the chevrons in the pane header) step through the other matching messages of that
+conversation and wrap around. A conversation with no matching message text (a title, folder, or ID
+match, or an empty query) shows its last five messages. A conversation not in Caxri is labelled as
+such: previewing reads the index only, so it creates no Session and writes nothing to Caxri's
+database. The pane follows the selection after a short pause and does not change what Enter does.
+Messages render as plain text, not Markdown, because the index stores text with its inline Markdown
+markers already dropped.
+
 ## How it works
 
 A Worker thread in Server Core owns a SQLite FTS5 trigram index at
@@ -85,6 +98,9 @@ Status comes from Caxri, not the index: a conversation held by a visible Session
 (or recorded in its usage ledger) is open or archived; a conversation held by a hidden Project's
 Session never appears; everything else is external. Before adding an external conversation the
 Server rereads its transcript, so a stale index row never decides the folder or title.
+
+The preview is the owner-only read `session.searchPreview`, answered by the same Worker from the
+indexed messages by position, never by re-parsing the transcript.
 
 Diagnostic logs record only counts, durations, and closed reasons (`session_search.*` events):
 never a query, title, path, or message text. Each index pass counts the transcripts it stored as not

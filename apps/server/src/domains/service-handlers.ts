@@ -146,6 +146,7 @@ type ServiceHandlerMethods =
     | 'mobile.botInbox.replyInternal'
     | 'session.refreshDeliveryOnFocus'
     | 'session.search'
+    | 'session.searchPreview'
     | 'session.importConversation'
     | 'session.agentHistory'
     | 'session.reopenConversation'
@@ -192,7 +193,7 @@ export function createServiceHandlers(services: {
     agentRuntime: {
         awaitSettingsReconcile: () => Promise<void>;
         usageGuards: Pick<AgentUsageGuards, 'observe'>;
-        sessionSearchIndex: Pick<SessionSearchIndex, 'describe' | 'inspect' | 'search'>;
+        sessionSearchIndex: Pick<SessionSearchIndex, 'describe' | 'inspect' | 'preview' | 'search'>;
     };
     bot: Omit<
         CaxriBotServiceOptions,
@@ -395,6 +396,7 @@ export function createServiceHandlers(services: {
             files.readAsset(sessionId, path, signal),
         'files.write': ({ sessionId, path, content }) => files.write(sessionId, path, content),
         'session.search': (parameters, signal) => sessionSearch.search(parameters, signal),
+        'session.searchPreview': (parameters, signal) => sessionSearch.preview(parameters, signal),
         'session.importConversation': ({ provider, agentSessionId }) =>
             sessionSearch.importConversation(provider, agentSessionId),
         'session.agentHistory': ({ sessionId }, signal) =>

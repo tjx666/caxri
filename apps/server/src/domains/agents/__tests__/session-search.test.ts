@@ -107,6 +107,108 @@ describe('Session search index', () => {
         expect(snippet.text.slice(start, end).toLowerCase()).toBe('invoice');
     });
 
+    describe('preview', () => {
+        const LONG = '9c4f5d6e-7081-4c92-8da3-c5e6f708192a';
+        async function seedLong() {
+            const records = Array.from({ length: 4 }, (_, turn) => [
+                user(
+                    LONG,
+                    `question ${turn}${turn === 1 || turn === 3 ? ' about the Invoice' : ''}`,
+                ),
+                assistant(LONG, `answer ${turn}`),
+            ]).flat();
+            await writeTranscript(LONG, records, NOW);
+            await engine.indexer.refresh();
+        }
+
+        it('centers on the newest match with two messages each side and highlights the terms', async () => {
+            await seedLong();
+
+            const preview = engine.preview({
+                provider: 'claude',
+                agentSessionId: LONG,
+                query: 'invoice',
+            });
+
+            expect(preview.messages.map((message) => message.text)).toEqual([
+                'question 2',
+                'answer 2',
+                'question 3 about the Invoice',
+                'answer 3',
+            ]);
+            expect(preview.messages.map((message) => message.isMatch)).toEqual([
+                false,
+                false,
+                true,
+                false,
+            ]);
+            const [start, end] = preview.messages[2].highlights[0];
+            expect(preview.messages[2].text.slice(start, end)).toBe('Invoice');
+            expect(preview).toMatchObject({
+                matchCount: 2,
+                matchIndex: 1,
+                hasEarlier: true,
+                hasLater: false,
+            });
+        });
+
+        it('jumps between matches and wraps past the last one', async () => {
+            await seedLong();
+            const at = (matchIndex: number) =>
+                engine.preview({
+                    provider: 'claude',
+                    agentSessionId: LONG,
+                    query: 'invoice',
+                    matchIndex,
+                });
+
+            expect(at(0).messages.find((message) => message.isMatch)?.text).toBe(
+                'question 1 about the Invoice',
+            );
+            expect(at(0)).toMatchObject({ matchIndex: 0, hasEarlier: false, hasLater: true });
+            expect(at(2).matchIndex).toBe(0);
+        });
+
+        it('shows the end of the conversation without a match and nothing for an unknown one', async () => {
+            await seedLong();
+
+            const tail = engine.preview({
+                provider: 'claude',
+                agentSessionId: LONG,
+                query: 'zzzzz',
+            });
+            expect(tail.messages.map((message) => message.text)).toEqual([
+                'answer 1',
+                'question 2',
+                'answer 2',
+                'question 3 about the Invoice',
+                'answer 3',
+            ]);
+            expect(tail).toMatchObject({ matchCount: 0, hasEarlier: true, hasLater: false });
+            expect(tail.messages.some((message) => message.isMatch)).toBe(false);
+            expect(
+                engine.preview({ provider: 'claude', agentSessionId: BILLING, query: '' }).messages,
+            ).toEqual([]);
+        });
+
+        it('cuts a long message around the match', async () => {
+            const text = `${'x'.repeat(3_000)} needle ${'y'.repeat(3_000)}`;
+            await writeTranscript(LONG, [user(LONG, text), assistant(LONG, 'ok')], NOW);
+            await engine.indexer.refresh();
+
+            const [message] = engine.preview({
+                provider: 'claude',
+                agentSessionId: LONG,
+                query: 'needle',
+            }).messages;
+
+            expect(message.text.length).toBeLessThanOrEqual(1_202);
+            expect(message.text.startsWith('…')).toBe(true);
+            const [start, end] = message.highlights[0];
+            expect(message.text.slice(start, end)).toBe('needle');
+        });
+    });
+
     it('ranks an ID match above content matches and scans short terms as substrings', async () => {
         await seed();
 

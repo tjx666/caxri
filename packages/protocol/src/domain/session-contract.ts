@@ -30,6 +30,8 @@ import {
     sessionImportConversationParametersSchema,
     sessionImportConversationResultSchema,
     sessionSearchParametersSchema,
+    sessionSearchPreviewParametersSchema,
+    sessionSearchPreviewResultSchema,
     sessionSearchResultSchema,
 } from './session-search.js';
 import { terminalKindSchema, terminalRecordSchema } from './terminal-record.js';
@@ -113,6 +115,16 @@ export const sessionMethods = {
         ...ownerOnlyCommandPolicy('server', 'read', ['sessions.read']),
         params: sessionSearchParametersSchema,
         result: sessionSearchResultSchema,
+    },
+    /**
+     * Reads a bounded window of one conversation's indexed messages around a `session.search` match, for the search
+     * dialog's preview. Read-only: it never creates a Session or touches the database, and it answers from the index
+     * without re-reading the transcript. Owner-only: the result quotes conversation content.
+     */
+    'session.searchPreview': {
+        ...ownerOnlyCommandPolicy('server', 'read', ['sessions.read']),
+        params: sessionSearchPreviewParametersSchema,
+        result: sessionSearchPreviewResultSchema,
     },
     /**
      * Adds a conversation found only in a provider's own history as a new Session with a parked Agent Terminal, in the

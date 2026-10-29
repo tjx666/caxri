@@ -11,6 +11,7 @@ import {
     sessionSearchIndexLabel,
     shortFolder,
     snippetSegments,
+    steppedMatchIndex,
 } from '../session-search-model';
 
 const base: SessionSearchEntry = {
@@ -29,6 +30,13 @@ function first() {
 }
 
 describe('Session search model', () => {
+    it('cycles the previewed match in both directions', () => {
+        expect(steppedMatchIndex(3, 2, 1)).toBe(0);
+        expect(steppedMatchIndex(3, 0, -1)).toBe(2);
+        expect(steppedMatchIndex(3, 1, 1)).toBe(2);
+        expect(steppedMatchIndex(0, 0, 1)).toBe(0);
+    });
+
     it('picks the action from where the conversation lives', () => {
         expect(sessionSearchAction({ ...base, status: 'open', sessionId: 's1' })).toBe('open');
         expect(sessionSearchAction({ ...base, status: 'archived', sessionId: 's1' })).toBe(

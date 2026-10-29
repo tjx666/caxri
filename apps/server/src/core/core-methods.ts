@@ -160,6 +160,7 @@ export const coreForwardedMethods = [
     'session.reopenConversation',
     'session.revokePermissionAutoAllow',
     'session.search',
+    'session.searchPreview',
     'session.resume',
     'session.select',
     'session.selectWorkbenchRoot',
