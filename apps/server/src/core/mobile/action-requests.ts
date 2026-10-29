@@ -3,6 +3,12 @@ import { CaxriError, MOBILE_AGENT_ACTIONS_MAX, searchAgentActions } from '@caxri
 
 import type { ServerDomainService } from '../domain-service';
 
+/**
+ * Authorizes a Terminal for a paired device by exact id. The introspection `selector` falls back to title matching, and
+ * callers forward the raw `terminalId` to Desktop, so a visible Terminal titled with an unauthorized Terminal's id
+ * would pass the check while Desktop acts on the other one. The mobile protocol only carries ids, so any non-exact
+ * match is `NOT_FOUND`.
+ */
 export const terminalForPrincipal = async (
     domainService: ServerDomainService,
     principal: Principal,
@@ -13,7 +19,7 @@ export const terminalForPrincipal = async (
         query: { mode: 'show', selector: terminalId },
     });
     const terminal = result.terminals.at(0);
-    if (!terminal) throw new CaxriError('NOT_FOUND', 'Terminal not found');
+    if (terminal?.id !== terminalId) throw new CaxriError('NOT_FOUND', 'Terminal not found');
     return terminal;
 };
 
