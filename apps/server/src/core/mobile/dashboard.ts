@@ -30,17 +30,30 @@ const title = (value: string): string => {
 };
 
 type DashboardSession = SessionQueryResult['sessions'][number];
+type DashboardTerminal = TerminalQueryResult['terminals'][number];
 
 /**
  * The phone's list order, decided here because the dashboard is capped: pinned Sessions first, then the status groups
  * Desktop's Activity view uses, then recency inside a group. Whatever the cap drops is the least urgent, least recent
  * work, never a pinned or attention Session.
  */
-const groupRank = (session: DashboardSession, isDetached: boolean, now: number): number => {
+const groupRank = (
+    session: DashboardSession,
+    terminal: DashboardTerminal | undefined,
+    now: number,
+): number => {
     if (isPinnedSession(session)) return -1;
+    // A Chat waiting for a plan limit to reset outranks unread attention, as on Desktop and the phone's own list.
+    const isUsageWaiting = terminal?.usageLimitWaitAt !== undefined;
     const group =
         sessionActivityGroup(
-            { ...session, isDetached, isRunning: session.agentActivityState === 'running' },
+            {
+                ...session,
+                hasUnread: session.hasUnread && !isUsageWaiting,
+                isDetached: terminal?.lastProcessState === 'detached',
+                isRunning: session.agentActivityState === 'running',
+                isUsageWaiting,
+            },
             now,
         ) ?? 'idle';
     return SESSION_ACTIVITY_GROUP_ORDER.indexOf(group);
@@ -90,7 +103,7 @@ export const buildMobileDashboard = (input: {
     const rank = new Map(
         input.sessions.map((session) => [
             session.id,
-            groupRank(session, primaryTerminalOf(session)?.lastProcessState === 'detached', now),
+            groupRank(session, primaryTerminalOf(session), now),
         ]),
     );
     const active = input.sessions
@@ -116,6 +129,9 @@ export const buildMobileDashboard = (input: {
                   ...(primaryTerminal.surface && { surface: primaryTerminal.surface }),
                   ...(primaryTerminal.failureReason && {
                       failureReason: primaryTerminal.failureReason,
+                  }),
+                  ...(primaryTerminal.usageLimitWaitAt !== undefined && {
+                      usageLimitWaitAt: primaryTerminal.usageLimitWaitAt,
                   }),
               }
             : undefined;
