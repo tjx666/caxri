@@ -50,6 +50,7 @@ import {
     claudeChatModels,
     claudeEffortHooks,
     claudeFastMode,
+    ClaudeFastModeGate,
     claudeInitState,
     configureClaudeModel,
     readClaudeAppliedSettings,
@@ -121,7 +122,11 @@ class ClaudeChatSession implements AgentChatProviderSession {
     private readonly tasks: ClaudeTasks;
     private readonly toolClock = new ClaudeToolClock();
     private readonly turnUsage = new ChatTurnUsage();
-    private readonly planLimits = new ClaudePlanLimits((info) => this.turns.observeRateLimit(info));
+    private readonly fastMode = new ClaudeFastModeGate();
+    private readonly planLimits = new ClaudePlanLimits({
+        onEvent: (info) => this.turns.observeRateLimit(info),
+        onExtraUsage: (isEnabled) => this.options.apply(this.fastMode.setExtraUsage(isEnabled)),
+    });
 
     private query: Query | undefined;
 
@@ -254,7 +259,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
                     this.sessionId = sessionId;
                     if (this.isSessionBound) this.options.onSessionBound(sessionId);
                 }
-                this.options.apply(claudeInitState(message));
+                this.options.apply(this.fastMode.report(claudeInitState(message)));
                 this.permissions.onReported(message.permissionMode, this.query);
                 this.commands.hideTerminalBound(message.terminal_slash_commands);
                 return;
@@ -320,7 +325,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
             }
             case 'result': {
                 this.turns.finish(message);
-                this.options.apply(claudeFastMode(message));
+                this.options.apply(this.fastMode.report(claudeFastMode(message)));
                 if (!this.options.read().activeTurnId) this.context.request();
                 return;
             }
@@ -443,7 +448,9 @@ class ClaudeChatSession implements AgentChatProviderSession {
             this.commands.report(initialized.commands);
             const models = claudeChatModels(initialized.models);
             if (models.length > 0) this.options.apply([{ op: 'state', state: { models } }]);
-            this.options.apply(claudeFastMode(initialized));
+            this.options.apply(this.fastMode.report(claudeFastMode(initialized)));
+            // Learns whether extra usage is on, which decides whether the Fast mode toggle is offered.
+            void this.planLimits.read(stream);
             this.reportAppliedSettings(stream);
             this.permissions.report();
         } catch {

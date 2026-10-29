@@ -73,6 +73,43 @@ export function claudeFastMode(message: unknown): AgentChatPatchOperation[] {
 }
 
 /**
+ * Withdraws the Fast mode toggle while the account's extra usage is off. Claude Code serves Fast mode only on extra
+ * usage, but under the Agent SDK it checks `sdk_opt_in_required` before the organization's status, so every message
+ * reports that reason and hides `extra_usage_disabled` until the host opts in, which is what turning the toggle on
+ * does. The same process's `/usage` answer says whether extra usage is on, so a Chat that reads it off offers no toggle
+ * that could only fail. A Fast mode Claude Code reports as on stays visible so it can be turned off.
+ */
+export class ClaudeFastModeGate {
+    private reported: boolean | null | undefined;
+    private isExtraUsageOff = false;
+
+    private offered(): boolean | null | undefined {
+        return this.reported === false && this.isExtraUsageOff ? null : this.reported;
+    }
+
+    /**
+     * Claude Code's operations with the Fast mode they report replaced by what the Chat offers.
+     */
+    report(operations: readonly AgentChatPatchOperation[]): AgentChatPatchOperation[] {
+        return operations.map((operation) => {
+            if (operation.op !== 'state' || operation.state.fast === undefined) return operation;
+            this.reported = operation.state.fast;
+            return { ...operation, state: { ...operation.state, fast: this.offered() } };
+        });
+    }
+
+    /**
+     * The operation that updates the toggle after a `/usage` answer, or none when the toggle does not change.
+     */
+    setExtraUsage(isEnabled: boolean): AgentChatPatchOperation[] {
+        const before = this.offered();
+        this.isExtraUsageOff = !isEnabled;
+        const fast = this.offered();
+        return fast === before ? [] : [{ op: 'state', state: { fast } }];
+    }
+}
+
+/**
  * The model, effort, and Fast mode an init message reports. Only a CLI that publishes the effort it will send includes
  * one, and the newest init wins.
  */

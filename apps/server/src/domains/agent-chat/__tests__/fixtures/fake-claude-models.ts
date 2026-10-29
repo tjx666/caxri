@@ -178,7 +178,8 @@ const HOUR = 3_600_000;
  * `plan-weekly-guarded` file reports the weekly window at 99.5% with 48 hours to go, which arms the weekly usage guard;
  * removing it returns the default answer, whose weekly window resets later and so lifts the guard. A `plan-extra-usage`
  * file adds extra usage with $37.40 of a $50 monthly cap left, so the guarded week shows the credits notice in place of
- * the guard.
+ * the guard. A `plan-extra-usage-off` file reports extra usage as off, as Claude Code does for an account that never
+ * turned it on, which withdraws the Fast mode toggle.
  */
 function fakeClaudeUsage(): Record<string, unknown> {
     const controlDirectory = process.env.FAKE_CLAUDE_CONTROL_DIR;
@@ -191,6 +192,9 @@ function fakeClaudeUsage(): Record<string, unknown> {
     const hasExtraUsage =
         controlDirectory !== undefined &&
         fs.existsSync(path.join(controlDirectory, 'plan-extra-usage'));
+    const isExtraUsageOff =
+        controlDirectory !== undefined &&
+        fs.existsSync(path.join(controlDirectory, 'plan-extra-usage-off'));
     const now = Date.now();
     return {
         subscription_type: 'max',
@@ -208,6 +212,15 @@ function fakeClaudeUsage(): Record<string, unknown> {
                     used_credits: 1260,
                     utilization: 25.2,
                     currency: 'USD',
+                },
+            }),
+            ...(isExtraUsageOff && {
+                extra_usage: {
+                    is_enabled: false,
+                    monthly_limit: null,
+                    used_credits: null,
+                    utilization: null,
+                    currency: null,
                 },
             }),
         },

@@ -28,6 +28,21 @@ type PlanLimitsQuery = Pick<Query, 'usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON
 type PlanLimitsReading = Omit<UsageLimit, 'provider'>;
 
 /**
+ * What a {@link ClaudePlanLimits} reports beyond its readings.
+ */
+interface ClaudePlanLimitsOptions {
+    /**
+     * Sees every `rate_limit_event`, including one that arrives before the first `/usage` reading.
+     */
+    onEvent?: (info: SDKRateLimitInfo) => void;
+    /**
+     * Sees whether extra usage is on, from each `/usage` answer that says.
+     */
+    onExtraUsage?: (isEnabled: boolean) => void;
+    now?: () => number;
+}
+
+/**
  * One Claude Chat's plan limits, read the way T3 Code reads them: ask the running process with `/usage`'s request at
  * most once per {@link CLAUDE_PLAN_LIMITS_REFRESH_MS}, and between asks apply the `rate_limit_event` the stream sends
  * whenever a turn changes a window. An event before the first answer is dropped: it carries one window and no plan, and
@@ -36,20 +51,20 @@ type PlanLimitsReading = Omit<UsageLimit, 'provider'>;
 export class ClaudePlanLimits {
     private reading: PlanLimitsReading | undefined;
     private askedAt = -Infinity;
+    private readonly now: () => number;
 
-    /**
-     * `onEvent` sees every `rate_limit_event`, including one that arrives before the first `/usage` reading.
-     */
-    constructor(
-        private readonly onEvent?: (info: SDKRateLimitInfo) => void,
-        private readonly now: () => number = Date.now,
-    ) {}
+    constructor(private readonly options: ClaudePlanLimitsOptions = {}) {
+        this.now = options.now ?? Date.now;
+    }
 
     async read(query: PlanLimitsQuery | undefined): Promise<PlanLimitsReading | undefined> {
         if (!query) return undefined;
         if (this.reading && this.now() - this.askedAt < CLAUDE_PLAN_LIMITS_REFRESH_MS)
             return this.reading;
-        const answer = await readClaudePlanLimits(query, this.now());
+        const raw = await askClaudeUsage(query);
+        const isExtraUsageEnabled = claudeExtraUsageEnabled(raw);
+        if (isExtraUsageEnabled !== undefined) this.options.onExtraUsage?.(isExtraUsageEnabled);
+        const answer = claudePlanLimits(raw, this.now());
         if (!answer) return this.reading;
         this.askedAt = this.now();
         this.reading = answer;
@@ -57,7 +72,7 @@ export class ClaudePlanLimits {
     }
 
     observe(info: SDKRateLimitInfo): void {
-        this.onEvent?.(info);
+        this.options.onEvent?.(info);
         if (!this.reading) return;
         const reading = claudeRateLimitEvent(this.reading, info, this.now());
         if (reading) this.reading = reading;
@@ -65,22 +80,16 @@ export class ClaudePlanLimits {
 }
 
 /**
- * A claude.ai plan's 5-hour and weekly limits from the running Claude Code process, the data behind its `/usage`
- * command. The process answers with the credentials it already holds, so Caxri never reads the Keychain itself.
- * `skipBehaviors` leaves out the transcript scan the command's attribution section needs. Undefined for an API key or a
- * third-party provider, where plan limits do not apply, for a process that is not open (`query` undefined), and for any
- * answer that is late or not understood.
+ * The running Claude Code process's `/usage` answer (untrusted), the data behind its `/usage` command: a claude.ai
+ * plan's 5-hour and weekly limits and its extra usage. The process answers with the credentials it already holds, so
+ * Caxri never reads the Keychain itself. `skipBehaviors` leaves out the transcript scan the command's attribution
+ * section needs. Undefined for an answer that is late or fails.
  *
  * The SDK marks this request experimental; a renamed or reshaped answer only makes the reading disappear.
  */
-export async function readClaudePlanLimits(
-    query: PlanLimitsQuery | undefined,
-    now: number = Date.now(),
-): Promise<Omit<UsageLimit, 'provider'> | undefined> {
-    if (!query) return undefined;
-    let answer: unknown;
+async function askClaudeUsage(query: PlanLimitsQuery): Promise<unknown> {
     try {
-        answer = await withTimeout(
+        return await withTimeout(
             query.usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET({
                 skipBehaviors: true,
             }),
@@ -89,7 +98,17 @@ export async function readClaudePlanLimits(
     } catch {
         return undefined;
     }
-    return claudePlanLimits(answer, now);
+}
+
+/**
+ * Whether a `/usage` answer (untrusted) reports extra usage as on, or undefined when it does not say (an API key, a
+ * third-party provider, or a plan without extra usage). Claude Code reports `is_enabled` false while extra usage cannot
+ * cover a request.
+ */
+export function claudeExtraUsageEnabled(answer: unknown): boolean | undefined {
+    if (!isRecord(answer) || !isRecord(answer.rate_limits)) return undefined;
+    const extra = answer.rate_limits.extra_usage;
+    return isRecord(extra) && typeof extra.is_enabled === 'boolean' ? extra.is_enabled : undefined;
 }
 
 /**
