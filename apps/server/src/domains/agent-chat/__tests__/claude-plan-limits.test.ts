@@ -3,10 +3,10 @@ import { describe, expect, it, vi } from 'vitest';
 import {
     CLAUDE_PLAN_LIMITS_REFRESH_MS,
     claudeExtraUsageCredits,
+    claudeExtraUsageEnabled,
     ClaudePlanLimits,
     claudePlanLimits,
     claudeRateLimitEvent,
-    readClaudePlanLimits,
 } from '../claude-plan-limits';
 
 const NOW = Date.parse('2026-10-19T12:00:00.000Z');
@@ -50,16 +50,6 @@ describe('claudePlanLimits', () => {
         ).toBeUndefined();
         expect(claudePlanLimits('nope', NOW)).toBeUndefined();
     });
-
-    it('asks nothing without an open process and swallows a failed request', async () => {
-        await expect(readClaudePlanLimits(undefined)).resolves.toBeUndefined();
-        await expect(
-            readClaudePlanLimits({
-                usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET: () =>
-                    Promise.reject(new Error('unsupported')),
-            }),
-        ).resolves.toBeUndefined();
-    });
 });
 
 const answer = {
@@ -76,7 +66,7 @@ describe('ClaudePlanLimits', () => {
         // The SDK types the full answer; the reader looks only at the fields this fixture carries.
         const usage = vi.fn(() => Promise.resolve(answer as never));
         const query = { usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET: usage };
-        const limits = new ClaudePlanLimits(undefined, () => now);
+        const limits = new ClaudePlanLimits({ now: () => now });
         limits.observe({ status: 'allowed', rateLimitType: 'five_hour', utilization: 0.9 });
         await expect(limits.read(query)).resolves.toMatchObject({
             windows: [{ usedPercent: 20 }, { usedPercent: 40 }],
@@ -210,5 +200,55 @@ describe('claudeExtraUsageCredits', () => {
                 NOW,
             )?.credits,
         ).toEqual({ unlimited: false });
+    });
+});
+
+describe('claudeExtraUsageEnabled', () => {
+    it('reads whether extra usage is on, and nothing from an answer that does not say', () => {
+        const withExtra = (extra_usage: unknown) => ({
+            ...answer,
+            rate_limits: { ...answer.rate_limits, extra_usage },
+        });
+        expect(claudeExtraUsageEnabled(withExtra({ is_enabled: true }))).toBe(true);
+        expect(claudeExtraUsageEnabled(withExtra({ is_enabled: false }))).toBe(false);
+        expect(claudeExtraUsageEnabled(withExtra(null))).toBeUndefined();
+        expect(claudeExtraUsageEnabled(answer)).toBeUndefined();
+        expect(claudeExtraUsageEnabled({ rate_limits: null })).toBeUndefined();
+    });
+});
+
+describe('ClaudePlanLimits extra usage', () => {
+    it('asks nothing without an open process and swallows a failed request', async () => {
+        const onExtraUsage = vi.fn();
+        const limits = new ClaudePlanLimits({ onExtraUsage });
+        await expect(limits.read(undefined)).resolves.toBeUndefined();
+        await expect(
+            limits.read({
+                usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET: () =>
+                    Promise.reject(new Error('unsupported')),
+            }),
+        ).resolves.toBeUndefined();
+        expect(onExtraUsage).not.toHaveBeenCalled();
+    });
+
+    it('reports whether extra usage is on with each answer', async () => {
+        let now = NOW;
+        const onExtraUsage = vi.fn();
+        let isEnabled = false;
+        const query = {
+            usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET: () =>
+                Promise.resolve({
+                    ...answer,
+                    rate_limits: { ...answer.rate_limits, extra_usage: { is_enabled: isEnabled } },
+                } as never),
+        };
+        const limits = new ClaudePlanLimits({ onExtraUsage, now: () => now });
+        await limits.read(query);
+        expect(onExtraUsage).toHaveBeenLastCalledWith(false);
+        isEnabled = true;
+        now += CLAUDE_PLAN_LIMITS_REFRESH_MS;
+        await limits.read(query);
+        expect(onExtraUsage).toHaveBeenLastCalledWith(true);
+        expect(onExtraUsage).toHaveBeenCalledTimes(2);
     });
 });

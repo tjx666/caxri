@@ -1725,7 +1725,11 @@ while on, like the Plan chip, show the pressed `--selection` fill, never the acc
 - **Claude Code**: a model offers Fast when its `supportsFastMode` is true. The SDK reports
   `fast_mode_state` on the `initialize` response, the init message, and every `result`; `cooldown`
   counts as on. When it reports a plan, policy, or provider block (any `fast_mode_disabled_reason`
-  other than `sdk_opt_in_required` or `pending`) the toggle is withdrawn. A switch applies in place
+  other than `sdk_opt_in_required` or `pending`) the toggle is withdrawn. Claude Code serves Fast
+  only on extra usage, but under the SDK it reports `sdk_opt_in_required` before checking the
+  account, so the Chat also reads the process's `/usage` answer when it opens (and on each plan
+  limits refresh): while `rate_limits.extra_usage.is_enabled` is false, a Fast mode that is off is
+  withdrawn too, and one that is on stays so it can be turned off. A switch applies in place
   through `applyFlagSettings { fastMode }`.
 
 - **Codex** lists models with `model/list` after the thread opens; a Codex that cannot list them
