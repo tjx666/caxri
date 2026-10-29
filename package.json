@@ -110,6 +110,8 @@
             ".": {
                 "entry": [
                     ".agents/skills/acceptance/scripts/capture-renderer.ts",
+                    "e2e/support/server-database/*-seed.ts",
+                    "e2e/support/server-database/timeline-read.ts",
                     ".agents/skills/acceptance/scripts/fixture-preflight.ts",
                     ".agents/skills/acceptance/scripts/report.ts",
                     ".agents/skills/acceptance/scripts/start-electron.ts",

@@ -1,6 +1,3 @@
-import { mkdir } from 'node:fs/promises';
-import { join } from 'node:path';
-
 import { delegatedTaskPointer } from '@caxri/protocol';
 
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
@@ -14,6 +11,7 @@ import {
     waitForCheck,
 } from './mobile-agent-chat-helpers';
 import { mobileSemantics, tapMobileCheck, waitForMobile } from './mobile-android';
+import { runServerDatabase as runServerDatabase } from './run-server-database';
 
 const RECORDED_DELEGATION = `dispatch-${'a'.repeat(64)}`;
 const BOT_DELEGATION = `dispatch-${'b'.repeat(64)}`;
@@ -31,59 +29,6 @@ const DELEGATED_PROMPT = [
     'Stop and ask if the fix needs a schema change.',
     'Reply with the final test output last.',
 ].join('\n');
-
-/**
- * Saves the delegation records a real launch would have written, so Server Core names the task the caller wrote when
- * each pointer arrives: `RECORDED_DELEGATION` with no caller, and `BOT_DELEGATION` called from Caxri Bot's own
- * Terminal, whose rows are seeded the way Caxri Bot records them. A real launch needs a delegated Agent; the bubble
- * only reads the records.
- */
-async function seedDelegationRecords(
-    testDirectory: string,
-    projectId: string,
-    sessionId: string,
-): Promise<void> {
-    const { CaxriDatabase } = await import('../../apps/server/src/domains/db');
-    const database = new CaxriDatabase(join(testDirectory, 'user-data', 'caxri.db'));
-    try {
-        const botRoot = join(testDirectory, 'bot');
-        await mkdir(botRoot);
-        const botProject = database.createProject(botRoot);
-        const bot = database.createSession(botProject.id, 'codex');
-        database.setAppState('caxriBot', {
-            projectId: botProject.id,
-            sessionId: bot.session.id,
-            terminalId: bot.terminal!.id,
-            sessionIds: [],
-        });
-        const now = Date.now();
-        for (const [delegationId, callerTerminalId] of [
-            [RECORDED_DELEGATION, undefined],
-            [BOT_DELEGATION, bot.terminal!.id],
-        ] as const) {
-            database.agentDelegations.insert({
-                receipt: {
-                    delegationId,
-                    projectId,
-                    sessionId,
-                    provider: 'codex',
-                    status: 'completed',
-                    revision: 1,
-                    createdAt: now,
-                    updatedAt: now,
-                    ...(callerTerminalId && { callerTerminalId }),
-                },
-                principal: { kind: 'human-cli', id: 'acceptance' },
-                input: { projectId, sessionId, provider: 'codex', prompt: DELEGATED_PROMPT },
-                fingerprint: 'acceptance',
-                promptDigest: '0'.repeat(64),
-                frozenLaunch: { executable: 'codex', args: [] },
-            });
-        }
-    } finally {
-        database.close();
-    }
-}
 
 /**
  * The laid-out height of check `id`, or 0 while it is off screen.
@@ -125,11 +70,14 @@ export async function executeMobileChatDelegatedTaskScenario(
     try {
         const chat = fixture.agentChat;
         if (!chat || !fixture.allowedSessionId) throw new Error('Chat fixture is unavailable');
-        await seedDelegationRecords(
-            fixture.testDirectory,
-            fixture.allowedProjectId,
-            fixture.allowedSessionId,
-        );
+        await runServerDatabase('delegation-seed', {
+            testDirectory: fixture.testDirectory,
+            projectId: fixture.allowedProjectId,
+            sessionId: fixture.allowedSessionId,
+            prompt: DELEGATED_PROMPT,
+            recordedDelegation: RECORDED_DELEGATION,
+            botDelegation: BOT_DELEGATION,
+        });
         await chat.send({
             text: delegatedTaskPointer('/tmp/caxri-delegation/recorded.md', RECORDED_DELEGATION),
         });
