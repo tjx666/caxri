@@ -14,6 +14,8 @@ import { useFocusOnRevision } from '@/hooks/use-focus-on-revision';
 
 import { useTranslation } from '../../i18n';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
+import { cn } from '../../lib/utilities';
+import { useDialogStore } from '../../stores/dialogs';
 import { SettingRow } from './setting-row';
 import type { SettingRowDescriptor } from './settings-registry';
 import { agentProviderForSubcategory, useSettingsRegistry } from './settings-registry';
@@ -104,6 +106,7 @@ export function SettingsPage(properties: SettingsPageProperties) {
     const isSearching = query.trim().length > 0;
     const scrollParentReference = useRef<HTMLDivElement>(null);
     const searchInputReference = useRef<HTMLInputElement>(null);
+    const isCreateSessionSuspended = useDialogStore((state) => state.isPendingSuspended);
     const handledFocusRequest = useRef(0);
     const handledAgentActionsFocusRequest = useRef(0);
     const handledAgentExecutableFocusRequest = useRef(0);
@@ -207,24 +210,64 @@ export function SettingsPage(properties: SettingsPageProperties) {
 
     useEffect(() => {
         const request = properties.agentActionsFocusRequest;
-        if (!request || handledAgentActionsFocusRequest.current === request.id) return;
-        handledAgentActionsFocusRequest.current = request.id;
+        if (
+            !request ||
+            handledAgentActionsFocusRequest.current === request.id ||
+            virtualItems.length === 0
+        )
+            return;
         const index = list.findIndex(
             (item) => item.kind === 'row' && item.row.id === `agents.${request.provider}.actions`,
         );
-        if (index !== -1) virtualizer.scrollToIndex(index, { align: 'start' });
-    }, [list, properties.agentActionsFocusRequest, virtualizer]);
+        if (index === -1) return;
+        /**
+         * Wait for measured items like the requests around it: a request that mounts this page (the Create Session
+         * dialog's Configure action, with no Session open) scrolls an unmeasured list, which silently does nothing and
+         * left the page on General. Pinning the provider's own heading selects its entry in the navigation.
+         */
+        handledAgentActionsFocusRequest.current = request.id;
+        const heading = list.slice(0, index).findLast((item) => item.kind === 'subcategory');
+        const anchor = heading && settingsAnchorOf(heading);
+        if (anchor) setPinnedAnchor({ anchor, requests: focusRequests });
+        virtualizer.scrollToIndex(index, { align: 'start' });
+    }, [
+        focusRequests,
+        list,
+        properties.agentActionsFocusRequest,
+        virtualizer,
+        virtualItems.length,
+    ]);
 
     useEffect(() => {
         const request = properties.agentExecutableFocusRequest;
-        if (!request || handledAgentExecutableFocusRequest.current === request.id) return;
-        handledAgentExecutableFocusRequest.current = request.id;
+        if (
+            !request ||
+            handledAgentExecutableFocusRequest.current === request.id ||
+            virtualItems.length === 0
+        )
+            return;
         const index = list.findIndex(
             (item) =>
                 item.kind === 'row' && item.row.id === `agents.${request.provider}.executable`,
         );
-        if (index !== -1) virtualizer.scrollToIndex(index, { align: 'start' });
-    }, [list, properties.agentExecutableFocusRequest, virtualizer]);
+        if (index === -1) return;
+        /**
+         * Wait for measured items like the requests around it: a request that mounts this page (the Create Session
+         * dialog's Configure action, with no Session open) scrolls an unmeasured list, which silently does nothing and
+         * left the page on General. Pinning the provider's own heading selects its entry in the navigation.
+         */
+        handledAgentExecutableFocusRequest.current = request.id;
+        const heading = list.slice(0, index).findLast((item) => item.kind === 'subcategory');
+        const anchor = heading && settingsAnchorOf(heading);
+        if (anchor) setPinnedAnchor({ anchor, requests: focusRequests });
+        virtualizer.scrollToIndex(index, { align: 'start' });
+    }, [
+        focusRequests,
+        list,
+        properties.agentExecutableFocusRequest,
+        virtualizer,
+        virtualItems.length,
+    ]);
 
     useEffect(() => {
         const requestId = properties.gitExclusionsFocusRequestId;
@@ -317,7 +360,11 @@ export function SettingsPage(properties: SettingsPageProperties) {
             {/* Wheel, touch, keyboard, and scrollbar drags are the user's own scrolling; programmatic scrolls are not. */}
             <div
                 ref={scrollParentReference}
-                className="min-h-0 overflow-y-auto pr-2 pb-6 pl-1"
+                className={cn(
+                    'min-h-0 overflow-y-auto pr-2 pb-6 pl-1',
+                    // Keeps the last rows clear of the floating Create Session resume bar.
+                    isCreateSessionSuspended && 'pb-24',
+                )}
                 onKeyDown={releasePinnedAnchor}
                 onPointerDown={(event) => {
                     if (event.target === event.currentTarget) releasePinnedAnchor();
