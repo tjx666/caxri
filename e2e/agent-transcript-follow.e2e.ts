@@ -96,7 +96,12 @@ test('live transcript updates follow the bottom until the user scrolls away', as
         await writeFile(transcriptPath, initialContent);
 
         await openPanelView(running.page, 'Info');
-        await running.page.getByTitle('Open transcript in the editor').click();
+        // The row's button carries a shared Tooltip rather than a native `title`, so match its
+        // visible label: the derived transcript path ends with the Agent Session id.
+        await running.page
+            .locator(`[data-terminal-info-id="${terminal.id}"]`)
+            .getByRole('button', { name: new RegExp(String.raw`${agentSessionId}\.jsonl$`) })
+            .click();
         const editor = running.page.locator('.agent-transcript-editor');
         const content = editor.locator('[data-transcript-following]');
         const scrollable = editor.locator('.monaco-scrollable-element.editor-scrollable');
