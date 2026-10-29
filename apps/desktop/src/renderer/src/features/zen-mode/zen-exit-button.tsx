@@ -1,9 +1,10 @@
 import { Minimize2 } from 'lucide-react';
 
 import { executeCommand } from '../../commands/execute';
-import { CommandTooltip } from '../../components/command-tooltip';
 import { Button } from '../../components/ui/button';
+import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
+import { useCommandShortcut } from '../../lib/keybindings';
 
 /**
  * The mouse exit for Zen Mode, which hides every other control. It stays invisible until the pointer reaches the top
@@ -12,9 +13,10 @@ import { useTranslation } from '../../i18n';
  */
 export function ZenExitButton() {
     const { t } = useTranslation();
+    const shortcut = useCommandShortcut('view.toggleZenMode');
     return (
         <div className="group/zen-exit fixed top-0 right-0 z-30 flex h-9 w-14 items-center justify-center [-webkit-app-region:no-drag]">
-            <CommandTooltip commandId="view.toggleZenMode">
+            <Tooltip content={t('workbench.exitZenMode')} shortcut={shortcut} side="left">
                 <Button
                     size="icon"
                     variant="ghost"
@@ -24,7 +26,7 @@ export function ZenExitButton() {
                 >
                     <Minimize2 size={14} />
                 </Button>
-            </CommandTooltip>
+            </Tooltip>
         </div>
     );
 }
