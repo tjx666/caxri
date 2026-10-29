@@ -1,13 +1,9 @@
-import { useSyncExternalStore } from 'react';
-
-import { notifyListeners } from '@caxri/utils';
-
 /**
  * How long a sidebar row's pointer rests before its detail card opens from cold. 450ms read as the card lagging behind
  * the pointer; this is short enough to answer a deliberate hover while a pointer crossing the sidebar on its way
  * elsewhere still opens nothing.
  */
-const SIDEBAR_DETAIL_CARD_DELAY_MS = 200;
+export const SIDEBAR_DETAIL_CARD_DELAY_MS = 200;
 
 /**
  * How long after a detail card closes the next one still opens at once. It covers the pointer crossing the gap between
@@ -29,17 +25,14 @@ const state: {
     isWarm: false,
     coolTimer: undefined,
 };
-const listeners = new Set<() => void>();
 
 function setWarm(isWarm: boolean): void {
-    if (state.isWarm === isWarm) return;
     state.isWarm = isWarm;
-    notifyListeners(listeners, undefined);
 }
 
 /**
  * Whether a sidebar detail card is open or closed within the handoff window, read at the moment a card opens to decide
- * whether it skips its enter animation.
+ * whether it skips its enter animation, and when the pointer enters a row to pick its hover delay.
  */
 export function isSidebarDetailCardWarm(): boolean {
     return state.isWarm;
@@ -68,18 +61,13 @@ export function claimSidebarDetailCard(close: () => void): () => void {
     };
 }
 
-function subscribe(listener: () => void): () => void {
-    listeners.add(listener);
-    return () => listeners.delete(listener);
-}
-
 /**
  * The hover delay a sidebar row's detail card trigger uses: none while another card is open or just closed, the cold
- * delay otherwise. It flips twice per hover sweep (first open, cooled down), never per row.
+ * delay otherwise. Read when the pointer enters a row, never subscribed to: the warm flag flips twice per hover sweep,
+ * and a subscription would re-render every row's card on each flip.
  */
-export function useSidebarDetailCardDelay(): number {
-    const isWarm = useSyncExternalStore(subscribe, isSidebarDetailCardWarm);
-    return isWarm ? 0 : SIDEBAR_DETAIL_CARD_DELAY_MS;
+export function sidebarDetailCardDelay(): number {
+    return state.isWarm ? 0 : SIDEBAR_DETAIL_CARD_DELAY_MS;
 }
 
 /**

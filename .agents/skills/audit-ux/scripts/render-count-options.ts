@@ -14,7 +14,7 @@ export const HELP = `Count Caxri Renderer renders per component instance over CD
 
 Usage:
   render-count.ts boot   [--port PORT] [--url SUBSTRING] [--label NAME] [--seconds ${DEFAULT_MAX_SECONDS}] [--settle-ms ${DEFAULT_SETTLE_MS}] [--limit ${DEFAULT_TABLE_LIMIT}] [--json FILE]
-  render-count.ts sample [--port PORT] [--url SUBSTRING] [--label NAME] [--click SELECTOR] [--within COMPONENT] [--seconds ${DEFAULT_MAX_SECONDS}] [--settle-ms ${DEFAULT_SETTLE_MS}] [--limit ${DEFAULT_TABLE_LIMIT}] [--json FILE]
+  render-count.ts sample [--port PORT] [--url SUBSTRING] [--label NAME] [--click SELECTOR] [--prehover SELECTOR] [--hover SELECTOR] [--within COMPONENT] [--seconds ${DEFAULT_MAX_SECONDS}] [--settle-ms ${DEFAULT_SETTLE_MS}] [--limit ${DEFAULT_TABLE_LIMIT}] [--json FILE]
 
   boot    reloads the window with the collector armed before any page script, so the first-paint storm is measured.
   sample  arms the collector on the loaded window and counts what the scenario causes.
@@ -28,6 +28,9 @@ Options:
   --url        Substring of the window URL to measure, e.g. "caxri-bot" (default: the main window).
   --label      Scenario name recorded in the report, e.g. "session-switch".
   --click      CSS selector clicked once right after arming, for a single-interaction scenario.
+  --prehover  CSS selector the real mouse moves to and rests on before arming, until its hover card opens, so --hover
+               measures a hand-off from an open card instead of a cold open.
+  --hover      CSS selector the real mouse moves to right after arming, then waits for the hover card to open.
   --within     Component name, e.g. "PrimarySidebar": the table keeps only instances that are that component or render
                beneath it, and the header adds the whole-window totals of the same interaction for comparison.
   --seconds    Upper bound on the sample window (1-${MAX_SAMPLE_SECONDS}).
@@ -38,6 +41,8 @@ Options:
 
 export interface RenderCountOptions {
     click?: string;
+    hover?: string;
+    prehover?: string;
     command: 'boot' | 'sample';
     json?: string;
     label: string;
@@ -72,6 +77,8 @@ function boundedInteger(raw: string, option: string, minimum: number, maximum: n
 
 const ALLOWED_OPTIONS = new Set([
     '--click',
+    '--hover',
+    '--prehover',
     '--json',
     '--label',
     '--limit',
@@ -99,6 +106,12 @@ export function parseRenderCountOptions(argv: string[]): RenderCountOptions | 'h
     if (command === 'boot' && click) {
         throw new Error('--click needs a loaded window; use the sample command');
     }
+    const hover = values.get('--hover');
+    const prehover = values.get('--prehover');
+    if (command === 'boot' && (hover || prehover)) {
+        throw new Error('--hover and --prehover need a loaded window; use the sample command');
+    }
+    if (prehover && !hover) throw new Error('--prehover needs --hover');
     const json = values.get('--json');
     const options: RenderCountOptions = {
         command,
@@ -124,6 +137,8 @@ export function parseRenderCountOptions(argv: string[]): RenderCountOptions | 'h
         ),
     };
     if (click) options.click = click;
+    if (hover) options.hover = hover;
+    if (prehover) options.prehover = prehover;
     if (json) options.json = resolve(process.cwd(), json);
     const within = values.get('--within');
     if (within) options.within = within;
