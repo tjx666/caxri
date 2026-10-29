@@ -83,10 +83,15 @@ const HEADINGS: Partial<Record<string, 'heading1' | 'heading2' | 'heading3'>> = 
  * strikethrough, inline code, list bullets, quotes, and fenced code render in place, and an element's syntax shows
  * again while a selection touches it (the caret on a heading's line, or at either end of `**bold**`), so it can be
  * edited. `selection` is empty while the editor is not focused, which renders everything. Marks are not sorted.
+ *
+ * A sent message's bubble reads the same marks (`agentChatUserMessageBlocks`) so both surfaces share one rule set; it
+ * passes `withBlocks: false` to leave headings and fenced code as typed, since a bubble renders only emphasis, inline
+ * code, lists, and quotes.
  */
 export function agentChatMarkdownMarks(
     text: string,
     selection: readonly Range[],
+    { withBlocks = true }: { withBlocks?: boolean } = {},
 ): AgentChatMarkdownMark[] {
     const marks: AgentChatMarkdownMark[] = [];
     const isTouched = (from: number, to: number): boolean =>
@@ -107,7 +112,7 @@ export function agentChatMarkdownMarks(
             const { from, name, to } = node;
             const heading = HEADINGS[name];
             if (heading) {
-                marks.push({ kind: 'line', from: lineStart(from), style: heading });
+                if (withBlocks) marks.push({ kind: 'line', from: lineStart(from), style: heading });
                 return;
             }
             const inline = INLINE_STYLES[name];
@@ -138,7 +143,8 @@ export function agentChatMarkdownMarks(
             }
             switch (name) {
                 case 'HeaderMark': {
-                    if (node.node.parent?.name.startsWith('ATXHeading') !== true) return;
+                    if (!withBlocks || node.node.parent?.name.startsWith('ATXHeading') !== true)
+                        return;
                     // The mark and the space after it; a closing `##` sequence stays as typed.
                     const end = text[to] === ' ' ? to + 1 : to;
                     if (from === lineStart(from) && !isLineTouched(from))
@@ -167,6 +173,7 @@ export function agentChatMarkdownMarks(
                     return;
                 }
                 case 'FencedCode': {
+                    if (!withBlocks) return false;
                     const first = lineStart(from);
                     for (let line = first; line <= to; line = lineEnd(line) + 1) {
                         // An unclosed fence runs to the end of the draft; its last line is code, not a fence.
