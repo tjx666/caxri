@@ -160,7 +160,10 @@ export class AgentUsageGuards {
             )
                 return;
             this.guards.set(provider, { provider, ...window, armedAt: now, handoff: 'available' });
-            this.log(provider, 'armed', { usedPercent: Math.floor(window.usedPercent) });
+            this.log(provider, 'armed', {
+                usedPercent: Math.floor(window.usedPercent),
+                resetsInMs: Math.max(0, window.resetsAt - now),
+            });
             this.changed(provider);
             return;
         }

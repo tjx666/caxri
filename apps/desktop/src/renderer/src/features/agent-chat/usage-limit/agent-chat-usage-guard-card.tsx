@@ -15,6 +15,8 @@ import { useTranslation } from '../../../i18n';
 import { resolveAgentIcon } from '../../../icons/agents/agent-icon-registry';
 import { textClipboard } from '../../../lib/clipboard';
 import { localizedLimitReset } from '../../../lib/usage-format';
+import { AgentChatAutoContinueActions } from './agent-chat-auto-continue-actions';
+import { AgentChatAutoContinueLine } from './agent-chat-auto-continue-line';
 import { agentChatUsageGuardOffer } from './agent-chat-continuation';
 import { AgentChatContinueInAgent } from './agent-chat-continue-in-agent';
 import { generateAgentChatHandoff } from './agent-chat-usage-limit-commands';
@@ -106,6 +108,9 @@ export function AgentChatUsageGuardCard({
                         })}
                         {offer.used && ` ${t('agentChat.usageGuard.used')}`}
                     </div>
+                    {guard.autoContinue && (
+                        <AgentChatAutoContinueLine autoContinue={guard.autoContinue} />
+                    )}
                 </div>
             </div>
             {guard.document && <HandoffDocument document={guard.document} />}
@@ -129,6 +134,12 @@ export function AgentChatUsageGuardCard({
                         </Button>
                     </Tooltip>
                 )}
+                <AgentChatAutoContinueActions
+                    autoContinue={guard.autoContinue}
+                    canContinueNow={false}
+                    terminalId={terminalId}
+                    turnId={guard.autoContinueTurnId ?? ''}
+                />
                 <AgentChatContinueInAgent
                     continuedIn={guard.continuedIn}
                     label="openElsewhere"

@@ -25,6 +25,7 @@ import { ChatHistoryArchive } from './chat-history-archive';
 import { ChatTaskProjections } from './chat-task-projections';
 import type { ProjectionUsageLimitWaits } from './continuation/usage-continuation-stamp';
 import {
+    observeGuardStops,
     observeUsageLimitWaits,
     stampUsageContinuations,
 } from './continuation/usage-continuation-stamp';
@@ -426,6 +427,7 @@ export class ChatProjection {
             stampNewItems(this.snapshot, labeled, Date.now()),
             this.stops,
         );
+        observeGuardStops(timed, isHistoryReplay, this.options.usageLimitWaits);
         const stamped = stampUsageContinuations(
             stampDelegatedTasks(timed, (delegationId) => this.options.delegatedTask(delegationId)),
             (turnId) => this.options.usageContinuedIn?.(turnId),

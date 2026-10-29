@@ -98,6 +98,7 @@ export class AgentChatService {
         options.usageLimitWaits?.attach({
             states: this.states,
             deliver: (id, deliver) => this.enqueue(id, deliver),
+            republishGuard: (id) => options.usage?.republish(id),
         });
         this.maintenance = new ChatIdleMaintenance({
             database: options.database,

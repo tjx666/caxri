@@ -51,12 +51,34 @@ export function stampUsageContinuations(
 export interface ProjectionUsageLimitWaits {
     stateOf(turnId: string): AgentChatAutoContinue | undefined;
     observeFailure(notice: UsageLimitNotice): void;
+    /**
+     * A turn just ended interrupted by the weekly usage guard (issue #2733).
+     */
+    observeGuardStop(turnId: string): void;
     replayNotice(): UsageLimitNotice | undefined;
 }
 
 export type UsageLimitNotice = Extract<AgentChatItem, { type: 'notice' }> & {
     usageLimit: NonNullable<Extract<AgentChatItem, { type: 'notice' }>['usageLimit']>;
 };
+
+/**
+ * Reports each turn a live batch shows interrupted by the weekly usage guard to the Chat's automatic continuation.
+ */
+export function observeGuardStops(
+    operations: readonly AgentChatPatchOperation[],
+    isHistoryReplay: boolean,
+    waits: ProjectionUsageLimitWaits | undefined,
+): void {
+    if (!waits || isHistoryReplay) return;
+    for (const operation of operations) {
+        if (operation.op !== 'state') continue;
+        const turns = operation.state.turns ?? [];
+        for (const turn of turns)
+            if (turn.status === 'interrupted' && turn.stoppedBy === 'usageGuard')
+                waits.observeGuardStop(turn.id);
+    }
+}
 
 /**
  * Reports each usage-limit notice a live batch brings to the Chat's automatic continuation, and puts back on a history

@@ -7,8 +7,9 @@ const HOUR_SECONDS = 3_600;
 /**
  * Plan-limit scenarios, as Claude Code reports them: `usage exhausted` fails the turn on a used-up 5-hour limit (a
  * `rejected` `rate_limit_event`, then the synthetic "You've hit your session limit" reply and an error result), and
- * `weekly nearly used` answers normally after a warning that the weekly limit is at 99.5%. Returns whether the turn was
- * one of them.
+ * `weekly nearly used` answers normally after a warning that the weekly limit is at 99.5%, and `weekly guard` warns the
+ * same while a long reply is still streaming, so the usage guard stops it (the window resets in 2 hours, or in 48 with
+ * `far`). Returns whether the turn was one of them.
  */
 export async function didRunUsageLimitScenario(
     io: FakeClaudeIo,
@@ -46,6 +47,22 @@ export async function didRunUsageLimitScenario(
             }),
         );
         io.result(startedAt, reply, true);
+        return true;
+    }
+    if (text.includes('weekly guard')) {
+        io.send(
+            io.frame({
+                type: 'rate_limit_event',
+                rate_limit_info: {
+                    status: 'allowed_warning',
+                    rateLimitType: 'seven_day',
+                    resetsAt: now + (text.includes('far') ? 48 : 2) * HOUR_SECONDS,
+                    utilization: 0.995,
+                },
+            }),
+        );
+        const isComplete = await io.didStreamFully('word '.repeat(300), 50);
+        io.result(startedAt, isComplete ? 'done' : 'interrupted', !isComplete);
         return true;
     }
     if (!text.includes('weekly nearly used')) return false;

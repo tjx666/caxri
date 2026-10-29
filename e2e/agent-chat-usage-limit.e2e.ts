@@ -163,3 +163,45 @@ test('Continue now resumes a Claude Chat waiting for its limit without a visible
         await rm(directory, { recursive: true, force: true });
     }
 });
+
+// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
+test('a turn the weekly guard stopped waits for the reset on the guard card and Cancel ends it', async ({}, testInfo) => {
+    const created = await mkdtemp(join(tmpdir(), 'caxri-usage-guard-wait-'));
+    const directory = await realpath(created);
+    const userData = join(directory, 'user-data');
+    const root = join(directory, 'project');
+    await mkdir(root, { recursive: true });
+    const agentMode = await createFakeAgentMode({
+        userDataDir: userData,
+        providers: { claude: { executableSource: fakeClaudeChatExecutableSource({}) } },
+    });
+    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    try {
+        const { page } = running;
+        await createProjectSession(page, 'shell');
+        await openAgentChat(page, 'Claude Chat');
+        const chat = page.locator(VISIBLE_SESSION);
+        const message = chat.getByRole('textbox', { name: 'Message' });
+        // The fake Claude reports the weekly window at 99.5% (resetting in 2 hours) while a long reply streams.
+        await message.fill('weekly guard');
+        await message.press('Enter');
+
+        const guard = chat.locator('[data-agent-chat-usage-guard]');
+        const wait = guard.locator('[data-agent-chat-auto-continue="waiting"]');
+        await expect(wait).toContainText(/Continues automatically at .+ \(in /u);
+        // The guard still refuses requests, so there is nothing to continue now.
+        await expect(guard.getByRole('button', { name: 'Continue now' })).toHaveCount(0);
+        const rowStatus = page.locator('.session-status[data-session-status="usageWait"]');
+        await expect(rowStatus).toHaveAccessibleName('Waiting for limit reset');
+        await page.screenshot({ path: testInfo.outputPath('usage-guard-wait.png') });
+
+        await guard.getByRole('button', { name: 'Cancel' }).click();
+        await expect(wait).toHaveCount(0);
+        await expect(rowStatus).toHaveCount(0);
+        // Only Claude is installed here, so the guard's other way forward reads as unavailable.
+        await expect(guard.getByText('No other Agent can take this over')).toBeVisible();
+    } finally {
+        await closeAppQuietly(running.app);
+        await rm(directory, { recursive: true, force: true });
+    }
+});

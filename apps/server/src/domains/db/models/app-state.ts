@@ -132,6 +132,11 @@ const appStateValueSchemas = {
                 window: agentUsageLimitWindowSchema,
                 resetsAt: z.number().int().positive().optional(),
                 /**
+                 * What stopped the turn: its provider's failure on a used-up limit, or Caxri's weekly usage guard
+                 * (issue #2733).
+                 */
+                source: z.enum(['usageLimit', 'usageGuard']).default('usageLimit'),
+                /**
                  * The failed turn's notice text, so a replay that dropped the notice can show it again.
                  */
                 message: z.string().max(2_000),

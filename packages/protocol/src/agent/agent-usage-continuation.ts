@@ -89,6 +89,11 @@ export const agentChatUsageLimitSchema = z.strictObject({
      * Whether the Chat continues on its own once the limit resets; absent while that is off or was cancelled.
      */
     autoContinue: agentChatAutoContinueSchema.optional(),
+    /**
+     * Set when Caxri's own weekly usage guard stopped the turn, not the provider's failure (issue #2733): the notice is
+     * the wait's anchor after the guard lifts, and a Client words its headline for the guard instead of a failed turn.
+     */
+    trigger: z.literal('usageGuard').optional(),
 });
 export type AgentChatUsageLimit = z.infer<typeof agentChatUsageLimitSchema>;
 
@@ -133,11 +138,14 @@ export type AgentChatHandoff = z.infer<typeof agentChatHandoffSchema>;
 
 /**
  * The usage guard as one Chat sees it: its account's guard, plus this Chat's hand-off document and the Session its work
- * continued in, both only for the guard's window.
+ * continued in, both only for the guard's window, and whether the turn the guard stopped continues on its own once the
+ * window resets (issue #2733; `autoContinueTurnId` names that turn for Cancel).
  */
 export const agentChatUsageGuardSchema = agentUsageGuardSchema.extend({
     document: agentChatHandoffSchema.optional(),
     continuedIn: agentChatContinuationSchema.optional(),
+    autoContinue: agentChatAutoContinueSchema.optional(),
+    autoContinueTurnId: z.string().min(1).max(200).optional(),
 });
 export type AgentChatUsageGuard = z.infer<typeof agentChatUsageGuardSchema>;
 

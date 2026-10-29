@@ -24,9 +24,11 @@ type StoredWait = AppStateValue<'agentChatUsageLimitWaits'>[number];
 /**
  * Why a wait ended before its Chat continued: `userInput` (a message, command, rewind, Stop, or "Continue now"),
  * `cancelled` (the notice's Cancel), `continuedElsewhere` (Continue in another Agent), `disabled` (the setting was
- * turned off), and `closed` (the Chat's Terminal is gone, or its Session was archived).
+ * turned off), `closed` (the Chat's Terminal is gone, or its Session was archived), and `queueResumed` (the weekly
+ * guard lifted with queued messages, which continue the Chat themselves).
  */
-type CancelReason = 'cancelled' | 'closed' | 'continuedElsewhere' | 'disabled' | 'userInput';
+type CancelReason =
+    'cancelled' | 'closed' | 'continuedElsewhere' | 'disabled' | 'queueResumed' | 'userInput';
 
 /**
  * How often waits are checked. A continuation lands at most this long after its stagger ends.
@@ -56,6 +58,10 @@ export interface UsageLimitWaitChatHost {
      * Runs `deliver` on the Chat's send chain once its provider has started, as `AgentChatService` delivers any input.
      */
     deliver(terminalId: string, deliver: ChatStateDelivery): Promise<void>;
+    /**
+     * Re-publishes the Chat's weekly guard, which shows the wait of a turn the guard stopped.
+     */
+    republishGuard?(terminalId: string): void;
 }
 
 interface Options {
@@ -118,6 +124,7 @@ export class ChatUsageLimitWaits {
             this.records.values().toArray(),
         );
         this.options.onChange?.(terminalId);
+        this.chat?.republishGuard?.(terminalId);
     }
 
     private log(
@@ -134,6 +141,7 @@ export class ChatUsageLimitWaits {
                     terminalId: record.terminalId,
                     provider: record.provider,
                     window: record.window,
+                    trigger: record.source,
                     outcome,
                     reason: extra.reason ?? null,
                     code: extra.code ?? null,
@@ -170,6 +178,7 @@ export class ChatUsageLimitWaits {
         terminalId: string,
         resetsAt: number | undefined,
         attempt: number,
+        source: StoredWait['source'],
     ): AgentChatAutoContinue {
         const skip = (reason: AgentChatAutoContinueSkipReason): AgentChatAutoContinue => ({
             status: 'skipped',
@@ -180,7 +189,9 @@ export class ChatUsageLimitWaits {
         // A reset already past, or none at all, is not a time to continue at: the provider's figure is wrong or stale.
         if (resetsAt === undefined || resetsAt <= now) return skip('resetUnknown');
         if (resetsAt - now > AGENT_CHAT_AUTO_CONTINUE_HORIZON_MS) return skip('resetTooFar');
-        if (this.options.isUsageGuarded(terminalId)) return skip('usageGuard');
+        // A used-up 5-hour window resets without lifting the guard; a guard-stopped turn waits for the guard itself.
+        if (source === 'usageLimit' && this.options.isUsageGuarded(terminalId))
+            return skip('usageGuard');
         return { status: 'waiting', at: resetsAt + this.stagger() };
     }
 
@@ -248,7 +259,7 @@ export class ChatUsageLimitWaits {
                 outcome = 'rescheduled';
                 record.attempt += 1;
                 record.resetsAt = until;
-                const next = this.plan(terminalId, until, record.attempt);
+                const next = this.plan(terminalId, until, record.attempt, record.source);
                 this.update(record, next);
                 this.log(record, next.status === 'waiting' ? 'rescheduled' : 'skipped', {
                     ...(next.status === 'skipped' && { reason: next.reason }),
@@ -266,6 +277,16 @@ export class ChatUsageLimitWaits {
         if (outcome === 'rescheduled' || this.records.get(terminalId) !== record) return;
         this.update(record, { status: 'continued', at: this.now() });
         this.log(record, 'continued');
+    }
+
+    /**
+     * Whether messages the user queued wait to be sent: they continue the Chat on their own.
+     */
+    private hasQueuedMessages(terminalId: string): boolean {
+        const state = this.chat?.states.get(terminalId);
+        return (
+            state !== undefined && agentChatPendingKnownQueueLength(state.projection.snapshot) > 0
+        );
     }
 
     private isClosed(terminalId: string): boolean {
@@ -296,6 +317,10 @@ export class ChatUsageLimitWaits {
                 this.log(record, 'missed');
                 continue;
             }
+            if (record.source === 'usageGuard' && this.hasQueuedMessages(terminalId)) {
+                this.cancel(terminalId, 'queueResumed');
+                continue;
+            }
             if (this.options.isUsageGuarded(terminalId)) {
                 this.update(record, { status: 'skipped', reason: 'usageGuard' });
                 this.log(record, 'skipped', { reason: 'usageGuard' });
@@ -310,6 +335,22 @@ export class ChatUsageLimitWaits {
                 this.firing.delete(terminalId);
             }
         }
+    }
+
+    private noticeOf(record: StoredWait): UsageLimitNotice {
+        return {
+            id: `${record.turnId}:error`,
+            turnId: record.turnId,
+            type: 'notice',
+            kind: 'error',
+            ...(record.message && { message: record.message }),
+            usageLimit: {
+                window: record.window,
+                ...(record.resetsAt !== undefined && { resetsAt: record.resetsAt }),
+                ...(record.source === 'usageGuard' && { trigger: 'usageGuard' as const }),
+            },
+            createdAt: record.failedAt,
+        };
     }
 
     attach(chat: UsageLimitWaitChatHost): void {
@@ -340,18 +381,81 @@ export class ChatUsageLimitWaits {
         const record = this.records.get(terminalId);
         if (!record || !['missed', 'waiting'].includes(record.autoContinue.status))
             return undefined;
-        return {
-            id: `${record.turnId}:error`,
-            turnId: record.turnId,
-            type: 'notice',
-            kind: 'error',
-            message: record.message,
-            usageLimit: {
-                window: record.window,
-                ...(record.resetsAt !== undefined && { resetsAt: record.resetsAt }),
-            },
-            createdAt: record.failedAt,
+        // While the guard holds, the Composer's guard card carries the wait; the notice appears once it lifts.
+        if (record.source === 'usageGuard' && this.options.isUsageGuarded(terminalId))
+            return undefined;
+        return this.noticeOf(record);
+    }
+
+    /**
+     * The wait of a turn the weekly guard stopped, for the guard card, or `undefined` when none is recorded.
+     */
+    guardWait(
+        terminalId: string,
+    ): { turnId: string; autoContinue: AgentChatAutoContinue } | undefined {
+        const record = this.records.get(terminalId);
+        return record?.source === 'usageGuard'
+            ? { turnId: record.turnId, autoContinue: record.autoContinue }
+            : undefined;
+    }
+
+    /**
+     * The weekly guard stopped the Chat's running turn (issue #2733): arms a wait for the guard's reset, or records why
+     * it will not wait. The same turn again (every state batch repeats it) changes nothing. Only a turn that really
+     * ended interrupted by the guard gets here, so a turn that finished on its own before the stop landed never waits.
+     */
+    observeGuardStop(
+        terminalId: string,
+        provider: StoredWait['provider'],
+        turnId: string,
+        resetsAt: number,
+    ): void {
+        const previous = this.records.get(terminalId);
+        if (previous?.turnId === turnId || this.observed.get(terminalId) === turnId) return;
+        this.observed.set(terminalId, turnId);
+        if (!this.options.settings()['agentChat.autoContinueAtUsageLimit']) {
+            if (previous) this.cancel(terminalId, 'disabled');
+            return;
+        }
+        const attempt =
+            previous?.autoContinue.status === 'continued' || this.firing.has(terminalId)
+                ? (previous?.attempt ?? 0) + 1
+                : 1;
+        const record: StoredWait = {
+            terminalId,
+            turnId,
+            provider,
+            window: 'weekly',
+            resetsAt,
+            source: 'usageGuard',
+            message: '',
+            failedAt: this.now(),
+            attempt,
+            autoContinue: this.plan(terminalId, resetsAt, attempt, 'usageGuard'),
         };
+        this.records.set(terminalId, record);
+        this.save(terminalId);
+        const { autoContinue } = record;
+        if (autoContinue.status === 'skipped')
+            this.log(record, 'skipped', { reason: autoContinue.reason });
+        else this.log(record, 'waiting');
+    }
+
+    /**
+     * The weekly guard lifted. A wait for a turn it stopped now shows its notice on the turn, or ends when queued
+     * messages are about to continue the Chat themselves. `willSendQueue` is whether lifting releases them.
+     */
+    guardLifted(terminalId: string, willSendQueue: boolean): void {
+        const record = this.records.get(terminalId);
+        if (record?.source !== 'usageGuard') return;
+        if (willSendQueue && this.hasQueuedMessages(terminalId)) {
+            this.cancel(terminalId, 'queueResumed');
+            return;
+        }
+        if (record.autoContinue.status === 'waiting')
+            this.chat?.states.apply(terminalId, [
+                { op: 'upsertItem', item: this.noticeOf(record) },
+            ]);
     }
 
     /**
@@ -392,10 +496,11 @@ export class ChatUsageLimitWaits {
             provider,
             window,
             ...(resetsAt !== undefined && { resetsAt }),
+            source: 'usageLimit',
             message: (notice.message ?? '').slice(0, 2_000),
             failedAt: previous?.turnId === notice.turnId ? previous.failedAt : this.now(),
             attempt,
-            autoContinue: this.plan(terminalId, resetsAt, attempt),
+            autoContinue: this.plan(terminalId, resetsAt, attempt, 'usageLimit'),
         };
         this.records.set(terminalId, record);
         this.save(terminalId);

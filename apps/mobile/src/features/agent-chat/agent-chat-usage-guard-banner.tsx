@@ -4,6 +4,7 @@ import { NoticeBanner } from '../../components/notice-banner';
 import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { agentChatUsageGuardBanner } from './agent-chat-model';
+import { agentChatAutoContinueLabel } from './agent-chat-usage-limit';
 import { useMinuteClock } from './use-minute-clock';
 
 /**
@@ -19,11 +20,17 @@ export const AgentChatUsageGuardBanner = ({
     provider: string;
     theme: MobileTheme;
 }) => {
-    const { t } = useTranslation();
+    const { locale, t } = useTranslation();
     const now = useMinuteClock();
     return (
         <NoticeBanner
-            message={agentChatUsageGuardBanner(guard, provider, now, t)}
+            message={[
+                agentChatUsageGuardBanner(guard, provider, now, t),
+                guard.autoContinue &&
+                    agentChatAutoContinueLabel(guard.autoContinue, now, locale, t),
+            ]
+                .filter(Boolean)
+                .join('\n')}
             testID="agent-chat-usage-guard"
             theme={theme}
             tone="warning"

@@ -48,10 +48,12 @@ export function AgentChatUsageLimitNotice({
             <Gauge aria-hidden className="mt-0.5 size-3.5 shrink-0 text-danger" />
             <div className="flex min-w-0 flex-col gap-1.5 select-text">
                 <div className="text-danger">
-                    {agentChatUsageLimitHeadline(usageLimit, providerName, t)}
+                    {usageLimit.trigger === 'usageGuard'
+                        ? t('agentChat.usageLimit.guardStopped', { provider: providerName })
+                        : agentChatUsageLimitHeadline(usageLimit, providerName, t)}
                     {reset && <span className="text-muted"> · {reset}</span>}
                 </div>
-                {detail && (
+                {detail && usageLimit.trigger !== 'usageGuard' && (
                     <div className="wrap-anywhere whitespace-pre-line text-muted">{detail}</div>
                 )}
                 {usageLimit.autoContinue && (
