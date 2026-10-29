@@ -1,10 +1,11 @@
 import os from 'node:os';
 import process from 'node:process';
 
-import type { AuxiliaryWindowState, ServerEvent } from '@caxri/protocol';
+import type { AuxiliaryWindowState, ServerEvent, ThemeTokens } from '@caxri/protocol';
+import { resolveEffectiveTheme } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import type { BaseWindow, BrowserWindow, WebContents } from 'electron';
-import { app } from 'electron';
+import { app, nativeTheme } from 'electron';
 
 import { BenchmarkWindowController } from './benchmark-window';
 import { CaxriBotWindowController } from './caxri-bot-window';
@@ -20,6 +21,23 @@ import { ProcessExplorerWindowController } from './process-explorer-window';
 import type { DesktopServerConnection } from './server-connection';
 import type { E2EWindowMode } from './window-mode';
 import type { CompanionRendererPolicy } from './workbench-ipc';
+
+/**
+ * The theme an on-demand window opens with: the persisted theme, or the preset paired with the system appearance while
+ * "Follow system appearance" is on. These windows read it once at open, so a later system switch applies the next time
+ * they open.
+ */
+async function effectiveTheme(supervisor: DesktopServerConnection): Promise<ThemeTokens> {
+    const [{ value: theme }, { value: settings }] = await Promise.all([
+        supervisor.request('theme.get'),
+        supervisor.request('settings.get'),
+    ]);
+    return resolveEffectiveTheme(
+        theme,
+        settings,
+        nativeTheme.shouldUseDarkColors ? 'dark' : 'light',
+    );
+}
 
 /**
  * Creates the controllers of Main's on-demand windows: Process Explorer, Performance Monitor, Caxri Bot, and Benchmark.
@@ -120,7 +138,7 @@ export function createOnDemandWindows(options: {
             },
             rendererUrl: process.env.ELECTRON_RENDERER_URL,
             target: options.mainWindow,
-            theme: async () => (await supervisor.request('theme.get')).value,
+            theme: () => effectiveTheme(supervisor),
             windowMode,
             zoomLevel: options.zoomLevel,
         });
@@ -171,7 +189,7 @@ export function createOnDemandWindows(options: {
             electronProcesses: readElectronProcesses,
         }),
         stopTerminal: (terminalId) => supervisor.request('terminal.suspend', { terminalId }),
-        theme: async () => (await supervisor.request('theme.get')).value,
+        theme: () => effectiveTheme(supervisor),
         windowMode,
         zoomLevel: options.zoomLevel,
     });

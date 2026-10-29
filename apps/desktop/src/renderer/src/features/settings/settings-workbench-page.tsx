@@ -1,10 +1,12 @@
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 
+import { builtinThemes, resolveEffectiveTheme } from '@caxri/protocol';
 import { Braces, SlidersHorizontal } from 'lucide-react';
 
 import { ToggleGroup, ToggleGroupItem } from '../../components/ui/toggle-group';
 import { Tooltip } from '../../components/ui/tooltip';
+import { useSystemColorScheme } from '../../hooks/use-system-color-scheme';
 import { useTranslation } from '../../i18n';
 import { useIsLocalOnlyAvailable } from '../../stores/environment';
 import { ConfigSourceView } from './config-source-view';
@@ -16,6 +18,9 @@ import type { SettingsNavigationState } from './settings-page';
 import { SettingsPage } from './settings-page';
 import { useSettingsRegistry } from './settings-registry';
 import { ThemeForm } from './theme-form';
+
+const presetName = (id: string | undefined): string =>
+    builtinThemes.find((theme) => theme.id === id)?.name ?? id ?? '';
 
 /**
  * Same header copy and classes as the former `DialogHeader`/`DialogTitle`/`DialogDescription` trio, reproduced as plain
@@ -31,6 +36,21 @@ function SettingsWorkbenchView({
     const canImportTheme = useIsLocalOnlyAvailable();
     const { categories } = useSettingsRegistry();
     const [navigationState, setNavigationState] = useState<SettingsNavigationState>();
+    const systemScheme = useSystemColorScheme();
+    const settings = state.settings.value;
+    const effectiveTheme =
+        settings && state.theme.value
+            ? resolveEffectiveTheme(state.theme.value, settings, systemScheme)
+            : undefined;
+
+    /**
+     * Turning the pair off keeps what is on screen: the preset the system appearance resolved to becomes the single
+     * saved theme, so the switch changes who decides the theme, not the theme itself.
+     */
+    const setFollowSystemAppearance = (isFollowing: boolean): void => {
+        if (!isFollowing && effectiveTheme) controller.selectBuiltinTheme(effectiveTheme.id);
+        controller.updateSettingsField('workbench.theme.followSystem', isFollowing);
+    };
 
     const sourceView = state.theme.value && (
         <ConfigSourceView
@@ -38,7 +58,7 @@ function SettingsWorkbenchView({
             error={sourceErrors[tab]}
             kind={tab}
             source={state[tab].source}
-            theme={state.theme.value}
+            theme={effectiveTheme ?? state.theme.value}
             onBlur={() => commitSource(tab)}
             onChange={(source) => updateSource(tab, source)}
             onRevert={() => updateSource(tab, state[tab].appliedSource)}
@@ -100,6 +120,14 @@ function SettingsWorkbenchView({
                         : undefined
                 }
                 onSelectBuiltin={controller.selectBuiltinTheme}
+                appearance={{
+                    isFollowingSystem:
+                        state.settings.value?.['workbench.theme.followSystem'] === true,
+                    effectiveTheme: effectiveTheme ?? state.theme.value,
+                    lightThemeName: presetName(state.settings.value?.['workbench.theme.light']),
+                    darkThemeName: presetName(state.settings.value?.['workbench.theme.dark']),
+                    onFollowSystemChange: setFollowSystemAppearance,
+                }}
             />
         );
 

@@ -17,7 +17,6 @@ import type {
 } from '@caxri/protocol';
 import {
     agentDelegationSettingsSchema,
-    agentProviderIds,
     appSettingsFileSchema,
     CaxriError,
     configurationSourceSchema as configSourceSchema,
@@ -33,7 +32,7 @@ import {
     pushRecentAgentAction,
 } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { logEventCatalog, parseJsonc, redactLogValue } from '@caxri/system';
+import { logEventCatalog, redactLogValue } from '@caxri/system';
 import { notifyListeners } from '@caxri/utils';
 import { applyEdits, modify } from 'jsonc-parser';
 
@@ -41,6 +40,7 @@ import { atomicWrite } from '../atomic-file';
 import { draculaTheme, importTheme, serializeTheme } from '../theme';
 import type { WatchHandle } from '../watch';
 import { WatchHub } from '../watch';
+import { preserveRecentAgentActions } from './recent-agent-actions';
 import {
     JSONC_FORMATTING_OPTIONS,
     prepareKeybindingsSource,
@@ -96,6 +96,7 @@ export class ConfigService {
     private readonly settingsListeners = new Set<(settings: AppSettings) => void>();
     private settingsMutationTail: Promise<void> = Promise.resolve();
     private closed = false;
+    private createdSettingsThisRun = false;
     private closePromise?: Promise<void>;
     private readonly fallbackPollIntervalMs: number;
     private readonly readConfigSource: (path: string) => Promise<string>;
@@ -135,6 +136,9 @@ export class ConfigService {
                 source = this.sourceFor(kind);
                 await this.writeConfigSource(path, source);
                 this.assertOpen();
+                if (kind === 'settings') this.createdSettingsThisRun = true;
+                if (kind === 'theme' && this.createdSettingsThisRun)
+                    await this.followSystemAppearanceByDefault();
                 return;
             }
             this.rememberRejectedSource(path, error);
@@ -167,6 +171,28 @@ export class ConfigService {
             this.assertOpen();
             this.recordConfigurationError(kind, error);
         }
+    }
+
+    /**
+     * A profile whose `settings.jsonc` and `theme.json` were both missing is a first launch that has never chosen a
+     * theme, so it follows the system appearance until the user picks one. The file written next to it (Dracula) cannot
+     * tell that user from one who saved Dracula by hand, which is why the flag lives in Settings and is set exactly
+     * here, at creation. An existing `theme.json` is always an explicit choice and keeps the flag at its `false`
+     * default; an existing `settings.jsonc` is never rewritten just to add it.
+     */
+    private async followSystemAppearanceByDefault(): Promise<void> {
+        const source = applyEdits(
+            this.settingsSource,
+            modify(this.settingsSource, ['workbench.theme.followSystem'], true, {
+                formattingOptions: JSONC_FORMATTING_OPTIONS,
+            }),
+        );
+        const prepared = this.prepare('settings', source);
+        await this.writeConfigSource(this.settingsPath, prepared.source);
+        this.assertOpen();
+        // Initialization runs before any Client or Settings subscriber exists, so this is applied without an event.
+        prepared.apply();
+        this.observedSources.set(this.settingsPath, prepared.source);
     }
 
     private assertOpen(): void {
@@ -410,39 +436,6 @@ export class ConfigService {
     }
 
     /**
-     * The Settings editor persists a debounced full JSONC draft, while action receipts update MRU independently. A
-     * draft prepared before a receipt must not erase that newer product-owned history when its queued write runs later.
-     * External file edits still use the watcher path and can intentionally replace the history.
-     */
-    private preserveRecentAgentActions(source: string): string {
-        this.prepare('settings', source);
-        const candidate = appSettingsFileSchema.parse(parseJsonc(source));
-        let mergedSource = source;
-        for (const provider of agentProviderIds) {
-            const currentRecent = this.settings['agents.providers'][provider].actions.recent;
-            const candidateRecent = candidate['agents.providers'][provider].actions.recent;
-            if (
-                currentRecent.invocations.length === 0 ||
-                (currentRecent.invocations.length === candidateRecent.invocations.length &&
-                    currentRecent.invocations.every(
-                        (invocation, index) => invocation === candidateRecent.invocations[index],
-                    ))
-            )
-                continue;
-            mergedSource = applyEdits(
-                mergedSource,
-                modify(
-                    mergedSource,
-                    ['agents.providers', provider, 'actions', 'recent'],
-                    currentRecent,
-                    { formattingOptions: JSONC_FORMATTING_OPTIONS },
-                ),
-            );
-        }
-        return mergedSource;
-    }
-
-    /**
      * Appends one already-normalized rule to a bounded allowlist setting, preserving the user's JSONC comments.
      */
     private appendTrustedRule(options: {
@@ -602,9 +595,10 @@ export class ConfigService {
     }
 
     updateSettings(source: string): Promise<void> {
-        return this.mutateSettings(() =>
-            this.update('settings', this.preserveRecentAgentActions(source)),
-        );
+        return this.mutateSettings(() => {
+            this.prepare('settings', source);
+            return this.update('settings', preserveRecentAgentActions(source, this.settings));
+        });
     }
 
     /**

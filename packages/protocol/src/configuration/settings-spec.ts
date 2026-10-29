@@ -13,6 +13,7 @@ import { editorSettingsSpec } from './editor-settings-spec.js';
 import { environmentMonitorSettingsSpec } from './environment-monitor-settings.js';
 import { languageSettingsSpec } from './language-settings-spec.js';
 import { primarySidebarSettingsSpec } from './primary-sidebar-settings-spec.js';
+import { themeSettingsSpec } from './theme-settings-spec.js';
 
 export const settingCategories = [
     { id: 'general', title: 'General' },
@@ -181,6 +182,7 @@ export const settingsSpec = [
         keywords: ['git', 'worktree', 'archive', 'cleanup', 'delete', 'remove', 'node_modules'],
         default: false,
     },
+    ...themeSettingsSpec,
     ...primarySidebarSettingsSpec,
     {
         kind: 'boolean',

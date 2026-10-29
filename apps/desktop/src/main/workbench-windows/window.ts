@@ -4,7 +4,7 @@ import process from 'node:process';
 import type { ServerEvent } from '@caxri/protocol';
 import { logEventCatalog } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { app, BrowserWindow, dialog } from 'electron';
+import { app, BrowserWindow, dialog, nativeTheme } from 'electron';
 
 import type { RunningWork } from '../confirmations';
 import { loadRendererEntry } from '../renderer-entry';
@@ -86,7 +86,11 @@ export function createWorkbenchWindowFactory(options: WorkbenchWindowFactoryOpti
             minWidth: 960,
             minHeight: 640,
             title: 'Caxri',
-            ...mainWindowChromeOptions(zoomFactor),
+            ...mainWindowChromeOptions(
+                zoomFactor,
+                process.platform,
+                nativeTheme.shouldUseDarkColors,
+            ),
             show: false,
             webPreferences: {
                 preload: join(options.currentDirectory, '../preload/index.cjs'),

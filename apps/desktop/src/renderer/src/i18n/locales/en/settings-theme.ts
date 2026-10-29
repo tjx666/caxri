@@ -2,6 +2,12 @@ export const settingsTheme = {
     'settings.themeEditor.importSucceeded': 'Imported {{theme}}.',
     'settings.themeEditor.dismissImportResult': 'Dismiss theme import result',
     'settings.themeEditor.dismissWarning': 'Dismiss warning',
+    'settings.themeEditor.followingNotice':
+        'Following the system appearance: {{light}} when it is light, {{dark}} when it is dark. Pick the two themes in Settings under General.',
+    'settings.themeEditor.useSingleTheme': 'Use a single theme',
+    'settings.themeEditor.singleThemeNotice':
+        'This theme applies in both light and dark appearance.',
+    'settings.themeEditor.followSystem': 'Follow system appearance',
     'settings.themeEditor.preset': 'Theme preset',
     'settings.themeEditor.customPreset': 'Custom — {{theme}}',
     'settings.themeEditor.importTheme': 'Import Theme',

@@ -1,19 +1,11 @@
-import { useEffect, useSyncExternalStore } from 'react';
+import { useEffect } from 'react';
 
 import { defaultAppSettings } from '@caxri/protocol';
 
+import { useSystemColorScheme } from '../../../hooks/use-system-color-scheme';
 import { useIsFullScreen, useSettings, useTheme } from '../../../stores/selectors';
 import type { TranslucentSidebarInput } from '../translucent-sidebar';
 import { isTranslucentSidebarActive } from '../translucent-sidebar';
-
-const SYSTEM_DARK_QUERY = '(prefers-color-scheme: dark)';
-
-const subscribeSystemAppearance = (onChange: () => void): (() => void) => {
-    const query = matchMedia(SYSTEM_DARK_QUERY);
-    query.addEventListener('change', onChange);
-    return () => query.removeEventListener('change', onChange);
-};
-const isSystemDark = (): boolean => matchMedia(SYSTEM_DARK_QUERY).matches;
 
 /**
  * Electron's Chromium reports `Macintosh` in every macOS user agent; the Renderer has no other platform signal.
@@ -29,9 +21,9 @@ export function useTranslucentSidebarInput(): TranslucentSidebarInput {
     const isEnabled =
         useSettings()?.['primarySidebar.translucent'] ??
         defaultAppSettings['primarySidebar.translucent'];
-    const systemDark = useSyncExternalStore(subscribeSystemAppearance, isSystemDark);
+    const isSystemDark = useSystemColorScheme() === 'dark';
     const isFullScreen = useIsFullScreen();
-    return { isMacOS, isEnabled, themeBackground, isSystemDark: systemDark, isFullScreen };
+    return { isMacOS, isEnabled, themeBackground, isSystemDark, isFullScreen };
 }
 
 /**

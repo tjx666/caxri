@@ -7,3 +7,4 @@ export { oscuraMidnightTheme } from './oscura-midnight.js';
 export { solarizedDarkTheme, solarizedLightTheme } from './solarized.js';
 export { tokyoNightTheme } from './tokyo-night.js';
 export { vscodeDarkPlusTheme } from './vscode-dark-plus.js';
+export { vscodeLightPlusTheme } from './vscode-light-plus.js';

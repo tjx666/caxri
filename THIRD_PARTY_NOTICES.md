@@ -86,7 +86,7 @@ Copyright (c) 2023 Dracula Theme. Licensed under the MIT License. The vendored l
 
 Caxri includes normalized app, editor, and Terminal palettes derived from several open-source editor themes:
 
-- Monokai, Solarized Dark, Solarized Light, and VS Code Dark+ use theme definitions from Microsoft Visual Studio Code. Copyright (c) 2015-present Microsoft Corporation, licensed under the MIT License. The vendored license text is in `licenses/VSCODE_THEMES_LICENSE.txt`; the upstream source is <https://github.com/microsoft/vscode>.
+- Monokai, Solarized Dark, Solarized Light, VS Code Dark+, and VS Code Light+ use theme definitions from Microsoft Visual Studio Code. Copyright (c) 2015-present Microsoft Corporation, licensed under the MIT License. The vendored license text is in `licenses/VSCODE_THEMES_LICENSE.txt`; the upstream source is <https://github.com/microsoft/vscode>.
 - Solarized Dark and Solarized Light are based on Ethan Schoonover's Solarized palette. Copyright (c) 2011 Ethan Schoonover, licensed under the MIT License. The vendored license text is in `licenses/SOLARIZED_LICENSE.txt`; the upstream source is <https://github.com/altercation/solarized>.
 - One Dark Pro is Copyright (c) 2013-2022 Binaryify, licensed under the MIT License. The vendored license text is in `licenses/ONEDARK_PRO_LICENSE.txt`; the upstream source is <https://github.com/Binaryify/OneDark-Pro>.
 - Tokyo Night is Copyright (c) 2018-present Enkia, licensed under the MIT License. The vendored license text is in `licenses/TOKYO_NIGHT_LICENSE.txt`; the upstream source is <https://github.com/tokyo-night/tokyo-night-vscode-theme>.

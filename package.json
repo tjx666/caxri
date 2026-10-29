@@ -185,7 +185,8 @@
                     "src/renderer/src/benchmark-main.tsx",
                     "src/renderer/src/main.tsx",
                     "src/renderer/src/performance-monitor-main.tsx",
-                    "src/renderer/src/process-explorer-main.tsx"
+                    "src/renderer/src/process-explorer-main.tsx",
+                    "src/renderer/src/startup-background.ts"
                 ]
             },
             "apps/server": {

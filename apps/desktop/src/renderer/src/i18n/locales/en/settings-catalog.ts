@@ -86,6 +86,13 @@ export const settingsCatalog = {
     'settings.workbench.removeWorktreeOnArchive.description':
         "Delete the worktree a Session works in when you archive it, including ignored files such as node_modules. Uncommitted changes are committed to its branch first and the branch is kept. A worktree whose pull request isn't merged is removed only after you confirm.",
 
+    'settings.workbench.theme.followSystem.title': 'Follow system appearance',
+    'settings.workbench.theme.followSystem.description':
+        'Uses the light theme when the system appearance is light and the dark theme when it is dark, switching live. Choosing a single theme in the Theme tab turns this off.',
+    'settings.workbench.theme.light.title': 'Light theme',
+    'settings.workbench.theme.light.description': 'Theme used while the system appearance is light',
+    'settings.workbench.theme.dark.title': 'Dark theme',
+    'settings.workbench.theme.dark.description': 'Theme used while the system appearance is dark',
     'settings.primarySidebar.autoCollapseProjects.title': 'Auto-collapse inactive Projects',
     'settings.primarySidebar.autoCollapseProjects.description':
         'Keeps active, working, unread, and manually expanded Projects open',

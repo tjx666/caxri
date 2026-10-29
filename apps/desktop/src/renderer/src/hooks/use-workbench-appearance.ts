@@ -4,6 +4,21 @@ import { cssFontFamilyEntry } from '@caxri/utils';
 
 import { applyCssTheme } from '../lib/theme-css';
 import { useSettings, useTheme } from '../stores/selectors';
+import { readSystemColorScheme } from './use-system-color-scheme';
+
+/**
+ * Remembers the canvas color painted under the current system appearance so the next launch's startup loader
+ * (`renderer/index.html`) can paint it before any bundle has run. It is keyed by appearance because a light-mode launch
+ * must not inherit what a dark-mode session painted. Storage can be unavailable; the loader then falls back to its
+ * default light canvas.
+ */
+function rememberStartupBackground(background: string): void {
+    try {
+        localStorage.setItem(`caxri.startupBackground.${readSystemColorScheme()}`, background);
+    } catch {
+        // The loader falls back to its default canvas.
+    }
+}
 
 /**
  * Publishes the Workbench snapshot's theme and font Settings onto the document root. Every window that renders
@@ -14,7 +29,9 @@ export function useWorkbenchAppearance(): void {
     const workbenchFontFamily = useSettings()?.['workbench.fontFamily'];
     const editorFontFamily = useSettings()?.['editor.fontFamily'];
     useEffect(() => {
-        if (theme) applyCssTheme(theme);
+        if (!theme) return;
+        applyCssTheme(theme);
+        rememberStartupBackground(theme.colors.background);
     }, [theme]);
     useEffect(() => {
         const entry = cssFontFamilyEntry(workbenchFontFamily);

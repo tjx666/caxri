@@ -48,11 +48,14 @@
              * so in a light appearance the clear root above showed a white sheet for the first second before the dark
              * workbench attached. A light appearance therefore paints the default theme's `--background` (the same
              * literal `window-chrome.ts` gives non-macOS windows) and only a dark appearance keeps the translucent
-             * material, which is already dark and hands off to the workbench without a flash.
+             * material, which is already dark and hands off to the workbench without a flash. The color is the canvas the
+             * last light-appearance session painted (`--startup-background`, published by the module script below from
+             * `useWorkbenchAppearance`'s record), so a user who saved a dark theme still launches dark; a first launch
+             * has no record and gets the default light preset's canvas.
              */
             @media (prefers-color-scheme: light) {
                 html:has(#startup-loader) {
-                    background: #282a36;
+                    background: var(--startup-background, #ffffff);
                 }
             }
 
@@ -123,6 +126,7 @@
             <div class="startup-loader__mark"></div>
         </div>
         <div id="root"></div>
+        <script type="module" src="/src/startup-background.ts"></script>
         <script type="module" src="/src/main.tsx"></script>
     </body>
 </html>

@@ -5,7 +5,7 @@ import process from 'node:process';
 
 import { CaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { shell } from 'electron';
+import { nativeTheme, shell } from 'electron';
 
 import type { MainMethodHandlerOptions } from '../main-methods';
 import { createMainMethodHandler } from '../main-methods';
@@ -69,7 +69,11 @@ export function composeSshHostEnvironments(
             chrome: () => {
                 const zoomFactor = zoomFactorForLevel(options.zoomLevel());
                 return {
-                    ...mainWindowChromeOptions(zoomFactor),
+                    ...mainWindowChromeOptions(
+                        zoomFactor,
+                        process.platform,
+                        nativeTheme.shouldUseDarkColors,
+                    ),
                     webPreferences: {
                         preload: join(options.currentDirectory, '../preload/index.cjs'),
                         contextIsolation: true,

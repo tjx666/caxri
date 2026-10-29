@@ -46,6 +46,7 @@ export function applyWindowZoom(window: BrowserWindow, level: number): void {
 export function mainWindowChromeOptions(
     zoomFactor: number,
     platform: NodeJS.Platform = process.platform,
+    isDarkAppearance = true,
 ): BrowserWindowConstructorOptions {
     return {
         /**
@@ -54,13 +55,14 @@ export function mainWindowChromeOptions(
          * run; the mounted workbench then paints its own opaque theme background over the material. The material
          * follows the system appearance (Electron has no per-window dark override short of `nativeTheme.themeSource`,
          * which would also flip menus and dialogs), so in a light appearance it is a white sheet: the loader paints
-         * this same `#282a36` over it under `prefers-color-scheme: light` and the launch never shows white. Other
-         * platforms keep the deliberate color literal, which mirrors the default theme's `--background` and prevents a
-         * white flash on launch; an imported theme cannot change it.
+         * this window's remembered light canvas over it under `prefers-color-scheme: light`, so the launch never shows
+         * a stray white sheet. Other platforms keep a deliberate color literal chosen from the system appearance
+         * (Dracula's `#282a36` in a dark one, Light+'s `#ffffff` in a light one), which prevents a flash on launch when
+         * the default theme follows the system; an imported theme cannot change it.
          */
         ...(platform === 'darwin'
             ? { backgroundColor: '#00000000', vibrancy: 'under-window' as const }
-            : { backgroundColor: '#282a36' }),
+            : { backgroundColor: isDarkAppearance ? '#282a36' : '#ffffff' }),
         /**
          * No title bar row: the primarySidebar header is the drag region and carries the brand instead. `title` stays
          * for VoiceOver and Mission Control, which still read the window title.

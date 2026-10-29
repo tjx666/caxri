@@ -38,6 +38,17 @@ interface ThemeFormProperties {
      */
     onImport?: () => void;
     onSelectBuiltin: (id: string) => void;
+    /**
+     * "Follow system appearance" state. While `isFollowingSystem`, `theme` is what `theme.json` holds, not what is
+     * painted, so the form shows the notice and the effective theme's preview instead of the editor.
+     */
+    appearance: {
+        isFollowingSystem: boolean;
+        effectiveTheme: ThemeTokens;
+        lightThemeName: string;
+        darkThemeName: string;
+        onFollowSystemChange: (isFollowing: boolean) => void;
+    };
 }
 
 /**
@@ -51,8 +62,37 @@ export function ThemeForm({
     onDismissImportResult,
     onImport,
     onSelectBuiltin,
+    appearance,
 }: ThemeFormProperties) {
     const { t } = useTranslation();
+    if (appearance.isFollowingSystem)
+        return (
+            <div className="flex h-full min-h-0 flex-col overflow-hidden">
+                <div className="theme-editor structured-editor min-h-0 flex-1 overflow-auto p-3">
+                    <Alert
+                        variant="info"
+                        role="status"
+                        className="mb-3 flex items-center justify-between gap-3"
+                    >
+                        <span>
+                            {t('settings.themeEditor.followingNotice', {
+                                light: appearance.lightThemeName,
+                                dark: appearance.darkThemeName,
+                            })}
+                        </span>
+                        <Button
+                            size="sm"
+                            variant="secondary"
+                            className="shrink-0"
+                            onClick={() => appearance.onFollowSystemChange(false)}
+                        >
+                            {t('settings.themeEditor.useSingleTheme')}
+                        </Button>
+                    </Alert>
+                    <ThemePreview theme={appearance.effectiveTheme} />
+                </div>
+            </div>
+        );
     const selectedTheme = findMatchingBuiltinTheme(theme);
     return (
         <div className="flex h-full min-h-0 flex-col overflow-hidden">
@@ -90,6 +130,17 @@ export function ThemeForm({
                         </Tooltip>
                     </Alert>
                 )}
+                <div className="mb-3 flex items-center justify-between gap-3 text-[11px] text-muted">
+                    <span>{t('settings.themeEditor.singleThemeNotice')}</span>
+                    <Button
+                        size="sm"
+                        variant="secondary"
+                        className="shrink-0"
+                        onClick={() => appearance.onFollowSystemChange(true)}
+                    >
+                        {t('settings.themeEditor.followSystem')}
+                    </Button>
+                </div>
                 <ThemeImportWarnings key={theme.id} themeId={theme.id} warnings={warnings} />
                 {/* Import Theme lives on the preset row rather than its own toolbar above it (issue caxri#1289):
                     both pick "which theme" — a preset by selecting, an import by supplying one — so they read as one
