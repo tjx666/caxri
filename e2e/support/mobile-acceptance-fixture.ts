@@ -36,6 +36,7 @@ import type { MobileEncryptedPeer } from './mobile-encrypted-peer';
 import { pairMobileEncryptedPeer } from './mobile-encrypted-peer';
 import type { SyntheticMenuState } from './mobile-synthetic-menu-state';
 import { readSyntheticMenuState } from './mobile-synthetic-menu-state';
+import { runServerDatabase as runServerDatabase } from './run-server-database';
 
 export interface MobileAcceptanceFixture {
     /**
@@ -499,30 +500,14 @@ export async function createMobileAcceptanceFixture(
                 await rename(next, transcriptPath);
             },
             readTimeline: async () => {
-                const [{ CaxriDatabase }, { AgentTimelineService }] = await Promise.all([
-                    import('../../apps/server/src/domains/db'),
-                    import('../../apps/server/src/domains/agents/timeline'),
-                ]);
-                const database = new CaxriDatabase(join(userData, 'caxri.db'));
-                try {
-                    const session = database.getSession(allowedSessionId!);
-                    if (!session?.primaryAgentTerminalId)
-                        throw new Error('Synthetic Conversation primary Agent is unavailable');
-                    if (!conversationAgentMode)
-                        throw new Error('Synthetic Conversation Agent is unavailable');
-                    const timeline = new AgentTimelineService(database, {
-                        homeDirectory: testDirectory,
-                        variables: conversationAgentMode.environment,
-                    });
-                    return await timeline.read(
-                        session.id,
-                        session.primaryAgentTerminalId,
-                        undefined,
-                        80,
-                    );
-                } finally {
-                    database.close();
-                }
+                if (!conversationAgentMode)
+                    throw new Error('Synthetic Conversation Agent is unavailable');
+                return runServerDatabase<MobileTimelineReadResult>('timeline-read', {
+                    userData,
+                    sessionId: allowedSessionId!,
+                    homeDirectory: testDirectory,
+                    variables: conversationAgentMode.environment,
+                });
             },
             pairTimelineGateway: async () => {
                 const pairing = await pageRequest<{ pairingLink: string }>(
