@@ -214,11 +214,47 @@ export const logQueryParametersSchema = z
         level: logLevelSchema.optional(),
         limit: z.number().int().min(1).max(100).default(50),
         process: logProcessSchema.optional(),
+        projectId: z.string().min(1).max(200).optional(),
+        sessionId: z.string().min(1).max(200).optional(),
         since: z.iso.datetime().optional(),
+        terminalId: z.string().min(1).max(200).optional(),
+        traceId: z.string().min(1).max(200).optional(),
     })
     .default({ limit: 50 });
 const logFieldKeySchema = z.string().max(200);
 const logFieldValueSchema = z.union([z.string().max(4_096), z.number(), z.boolean(), z.null()]);
+const logContextIdSchema = z.string().min(1).max(200);
+/**
+ * Opaque correlation IDs the logger attaches to a record (`ObservationContext`). Values are content-free identifiers;
+ * the Server re-validates them on read so a hand-written line cannot surface a path or prose through `logs.query`.
+ */
+export const logQueryContextSchema = z.object({
+    agentRunId: logContextIdSchema.optional(),
+    bootId: logContextIdSchema.optional(),
+    buildId: logContextIdSchema.optional(),
+    clientId: logContextIdSchema.optional(),
+    connectionId: logContextIdSchema.optional(),
+    operationId: logContextIdSchema.optional(),
+    processId: z.number().int().positive().optional(),
+    projectId: logContextIdSchema.optional(),
+    requestId: logContextIdSchema.optional(),
+    serverId: logContextIdSchema.optional(),
+    sessionId: logContextIdSchema.optional(),
+    terminalId: logContextIdSchema.optional(),
+    traceId: logContextIdSchema.optional(),
+});
+/**
+ * The closed failure classification ADR 0008 writes for faults. Enumerated members stay bounded strings (like `event`)
+ * so older or externally produced JSONL remains readable and protocol does not depend on `packages/system`.
+ */
+export const logQueryFailureSchema = z.object({
+    code: z.string().min(1).max(64).optional(),
+    owner: z.string().min(1).max(64),
+    phase: z.string().min(1).max(64),
+    reason: z.string().min(1).max(64),
+    remediation: z.string().min(1).max(64),
+    retryable: z.boolean(),
+});
 export const logQueryRecordSchema = z.object({
     id: identifierSchema,
     timestamp: z.iso.datetime(),
@@ -227,6 +263,8 @@ export const logQueryRecordSchema = z.object({
     event: z.string().min(1).max(200),
     correlationId: z.string().min(1).max(200).optional(),
     durationMs: z.number().nonnegative().optional(),
+    context: logQueryContextSchema.optional(),
+    failure: logQueryFailureSchema.optional(),
     /**
      * Structured detail fields as written by the logger (already secret-redacted at write time by `safeFields`).
      * Bounded so a pathological line cannot inflate a query reply.

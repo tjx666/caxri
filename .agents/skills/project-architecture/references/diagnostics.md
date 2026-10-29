@@ -23,6 +23,8 @@ External status commands (`gh`, `vc`, `linear`) write no per-call record on succ
 `<event>_summary` record per command operation per minute carries call, success, and failure counts, the
 failure-reason distribution, and total and maximum durations.
 
+`logs.query` records carry the logger's `context` (opaque correlation IDs, re-validated on read: unknown keys and non-identifier values are dropped) and `failure` (`owner`, `phase`, `reason`, `remediation`, `retryable`, optional `code`; no nested `context`; a malformed `failure` drops only itself). The `sessionId`, `terminalId`, and `projectId` filters match `context` or the same-named `fields` entry; `traceId` matches `context.traceId`. A cursorless query with any ID filter filters before the 4096-record cap and scans up to 4 MiB per file instead of 512 KiB; `--after` polling keeps the small window.
+
 Successful `logs.query` reads are not written to either Server Core request-log boundary. A cursor-following reader
 consumes those same files, so recording its own success would continuously advance the cursor and turn the configured
 poll into a self-sustaining request loop. Control queue metrics still measure the request, and failures remain logged at

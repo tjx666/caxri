@@ -148,6 +148,30 @@ describe('CLI business command catalog', () => {
                 : null,
         ).toEqual({ process: 'server-core', level: 'error', limit: 25 });
 
+        expect(
+            logs?.kind === 'remote'
+                ? logs.parseParams([
+                      '--session-id',
+                      's1',
+                      '--terminal-id',
+                      't1',
+                      '--project-id',
+                      'p1',
+                      '--trace-id',
+                      'tr1',
+                  ])
+                : null,
+        ).toEqual({
+            sessionId: 's1',
+            terminalId: 't1',
+            projectId: 'p1',
+            traceId: 'tr1',
+            limit: 50,
+        });
+        expect(() => (logs?.kind === 'remote' ? logs.parseParams(['--session']) : null)).toThrow(
+            'Unknown option',
+        );
+
         const grant = findCliCommand(['agent', 'grant']);
         expect(
             grant?.kind === 'remote'

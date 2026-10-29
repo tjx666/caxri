@@ -112,6 +112,8 @@ and `events watch`. Settings writes accept repeated `--set key=value` arguments;
 `settings validate` and `settings patch --dry-run` use the authoritative Server schema without writing.
 Pass `--request-id <id>` when a mutation must be safely retried. Streaming commands stop on
 Ctrl+C, keep data on stdout, and send keepalives or cursor-gap warnings only to stderr.
+`logs query|follow` also accept `--session-id`, `--terminal-id`, `--project-id`, and `--trace-id`; each
+record carries its correlation `context` and, for faults, a closed `failure` classification.
 
 The owner's own CLI (not an Agent Endpoint or a paired phone) can also find and tidy Sessions:
 `session search [<terms>...] [--provider <provider>]... [--status all|caxri|archived|external]`

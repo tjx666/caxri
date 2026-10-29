@@ -332,8 +332,9 @@ export const CLI_COMMANDS = [
         kind: 'remote',
         path: ['logs', 'query'],
         method: 'logs.query',
-        summary: 'Query a bounded page of structured log records (fields secret-redacted).',
-        usage: '[--after <cursor>] [--since <ISO-time>] [--process <name>] [--level <level>] [--event <name>] [--correlation-id <id>] [--limit <1-100>]',
+        summary:
+            'Query a bounded page of structured log records with correlation context and failure classification (fields secret-redacted).',
+        usage: '[--after <cursor>] [--since <ISO-time>] [--process <name>] [--level <level>] [--event <name>] [--correlation-id <id>] [--session-id <id>] [--terminal-id <id>] [--project-id <id>] [--trace-id <id>] [--limit <1-100>]',
         parseParams: logQuery,
         quietKey: 'records',
     },
