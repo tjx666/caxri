@@ -174,6 +174,7 @@ const settingsProjection: SettingsProjection = {
     'agentChat.statusShimmer': exportAsIs,
     'workbench.newWorktreeBehavior': exportAsIs,
     'workbench.confirmWorktreeAuthorization': exportAsIs,
+    'workbench.removeWorktreeOnArchive': exportAsIs,
     'primarySidebar.autoCollapseProjects': exportAsIs,
     'primarySidebar.showSubagents': exportAsIs,
     'primarySidebar.translucent': exportAsIs,

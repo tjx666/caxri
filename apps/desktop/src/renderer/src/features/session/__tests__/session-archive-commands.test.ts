@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => {
     const pushToast = vi.fn<(kind: ToastKind, message: string, options?: ToastOptions) => void>();
     return {
         caxriRequest: vi.fn((): Promise<unknown> => Promise.resolve([])),
+        getBootstrap: vi.fn((): unknown => undefined),
         getSelectedSession: vi.fn(),
         pushToast,
         refreshWorkbench: vi.fn(() => Promise.resolve()),
@@ -36,7 +37,10 @@ vi.mock('../../../lib/caxri', () => ({ caxri: { request: mocks.caxriRequest } })
 vi.mock('../../../stores/dialogs', () => ({
     useDialogStore: { getState: vi.fn(() => ({ setArchivedSessionsOpen: vi.fn() })) },
 }));
-vi.mock('../../../stores/selectors', () => ({ getSelectedSession: mocks.getSelectedSession }));
+vi.mock('../../../stores/selectors', () => ({
+    getBootstrap: mocks.getBootstrap,
+    getSelectedSession: mocks.getSelectedSession,
+}));
 vi.mock('../../../stores/toasts', () => ({
     pushToast: mocks.pushToast,
     tryCommand: mocks.tryCommand,
@@ -52,7 +56,9 @@ import {
 
 describe('Session archive and restore notices', () => {
     beforeEach(() => {
-        mocks.caxriRequest.mockClear();
+        mocks.caxriRequest.mockReset();
+        mocks.caxriRequest.mockResolvedValue([]);
+        mocks.getBootstrap.mockReset();
         mocks.getSelectedSession.mockReset();
         mocks.pushToast.mockClear();
         mocks.refreshWorkbench.mockClear();
@@ -188,5 +194,69 @@ describe('Session archive and restore notices', () => {
             sessionIds: ['session-1', 'session-2', 'session-3'],
         });
         expect(mocks.pushToast).toHaveBeenCalledExactlyOnceWith('info', 'Restored 2 Sessions');
+    });
+
+    describe('with worktree removal on archive enabled', () => {
+        const plan = (removal: 'automatic' | 'confirm') => ({
+            worktree: { branch: 'feat/x', rootPath: '/repo-feat-x', removal },
+        });
+        const requestsTo = (method: string) =>
+            mocks.caxriRequest.mock.calls.filter((call: unknown[]) => call[0] === method);
+
+        beforeEach(() => {
+            mocks.getBootstrap.mockReturnValue({
+                sessions: [{ id: 'session-1', title: 'api-fix' }],
+                settings: { 'workbench.removeWorktreeOnArchive': true },
+            });
+        });
+
+        it('archives without asking when Server Core removes the worktree on its own', async () => {
+            mocks.caxriRequest
+                .mockResolvedValueOnce(plan('automatic'))
+                .mockResolvedValueOnce({ id: 'session-1', title: 'api-fix' });
+
+            archiveSession('session-1');
+            await vi.waitFor(() => expect(mocks.pushToast).toHaveBeenCalledOnce());
+
+            expect(requestsTo('session.confirmArchiveWorktree')).toHaveLength(0);
+            expect(requestsTo('session.archive')).toEqual([
+                ['session.archive', { sessionId: 'session-1' }],
+            ]);
+        });
+
+        it('passes the confirmed answer for an unmerged pull request to the archive', async () => {
+            mocks.caxriRequest
+                .mockResolvedValueOnce(plan('confirm'))
+                .mockResolvedValueOnce({ choice: 'remove' })
+                .mockResolvedValueOnce({ id: 'session-1', title: 'api-fix' });
+
+            archiveSession('session-1');
+            await vi.waitFor(() => expect(mocks.pushToast).toHaveBeenCalledOnce());
+
+            expect(requestsTo('session.confirmArchiveWorktree')).toEqual([
+                [
+                    'session.confirmArchiveWorktree',
+                    { branch: 'feat/x', rootPath: '/repo-feat-x', sessionTitle: 'api-fix' },
+                ],
+            ]);
+            expect(requestsTo('session.archive')).toEqual([
+                ['session.archive', { sessionId: 'session-1', worktree: 'remove' }],
+            ]);
+        });
+
+        it('leaves the Session open when the confirmation is cancelled', async () => {
+            mocks.caxriRequest
+                .mockResolvedValueOnce(plan('confirm'))
+                .mockResolvedValueOnce({ choice: 'cancel' });
+
+            archiveSession('session-1');
+            await vi.waitFor(() =>
+                expect(requestsTo('session.confirmArchiveWorktree')).toHaveLength(1),
+            );
+            await new Promise((resolve) => setTimeout(resolve, 0));
+
+            expect(requestsTo('session.archive')).toHaveLength(0);
+            expect(mocks.pushToast).not.toHaveBeenCalled();
+        });
     });
 });

@@ -56,6 +56,7 @@ import { defaultSessionReferenceDirectory, SessionConversationReferenceService }
 import { resolveTerminalFileLink } from './terminal';
 import type { AgentUsageGuards } from './usage';
 import { offlinePriceListFetch, UsageService } from './usage';
+import type { ArchivedWorktreeCleanup } from './workbench';
 
 type ServiceHandlerMethods =
     | 'agent.excerpts'
@@ -182,6 +183,7 @@ type ServiceHandlerMethods =
  */
 export function createServiceHandlers(services: {
     acknowledgeFileMutation: (sessionId: string, operationId: string) => Promise<void>;
+    archivedWorktrees: Pick<ArchivedWorktreeCleanup, 'useSessionPullRequests'>;
     agentChat: PullRequestMergeNoticeOptions['agentChat'] &
         Pick<AgentChatService, 'readPlanLimits' | 'states'>;
     agentEnvironment: AgentEnvironment;
@@ -300,6 +302,7 @@ export function createServiceHandlers(services: {
         },
     );
     projectStatus.useSessionPullRequests((sessionId) => sessionPullRequests.resolve(sessionId));
+    services.archivedWorktrees.useSessionPullRequests((id) => sessionPullRequests.resolve(id));
     const bot = new CaxriBotService({
         ...services.bot,
         database,

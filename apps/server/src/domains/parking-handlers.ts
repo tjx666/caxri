@@ -1,4 +1,9 @@
-import type { FullStateChangeReason, Principal, SessionRestorePlacement } from '@caxri/protocol';
+import type {
+    FullStateChangeReason,
+    Principal,
+    SessionArchiveWorktreeChoice,
+    SessionRestorePlacement,
+} from '@caxri/protocol';
 import { CaxriError, isTopLevelProject } from '@caxri/protocol';
 
 import type { AgentChatService } from './agent-chat';
@@ -9,9 +14,14 @@ import type { DomainHandlers } from './domain-services';
 import type { MobileTerminalMutationQueue } from './mobile';
 import type { SessionRenameService } from './session';
 import type { TerminalRestoreSupervisor, TerminalSuspensionService } from './terminal';
+import type { ArchivedWorktreeCleanup } from './workbench';
 
 export interface SessionParkingOptions {
     database: CaxriDatabase;
+    /**
+     * Removes an archived Session's worktree under `workbench.removeWorktreeOnArchive`; only `session.archive` uses it.
+     */
+    archivedWorktrees?: Pick<ArchivedWorktreeCleanup, 'plan' | 'prepare' | 'schedule'>;
     agentChat: Pick<AgentChatService, 'closeSession'>;
     botRestores: Pick<TerminalRestoreSupervisor, 'cancelAll'>;
     mobileTerminalMutations: Pick<MobileTerminalMutationQueue, 'runProject' | 'runSessions'>;
@@ -94,6 +104,7 @@ function createSessionParkingHandlers(
     DomainHandlers,
     | 'bot.session.archive'
     | 'session.archive'
+    | 'session.archiveWorktreePlan'
     | 'session.detach'
     | 'session.unarchive'
     | 'session.unarchiveMany'
@@ -107,10 +118,16 @@ function createSessionParkingHandlers(
         options.sendFullStateChange('session.unarchive');
         return restored;
     };
-    const archiveSession = (sessionId: string) =>
+    /**
+     * The worktree decision runs before the archive because the pull request owner stops tracking an archived Session;
+     * the removal itself waits until parking has stopped every process working in that folder.
+     */
+    const archiveSession = (sessionId: string, worktree?: SessionArchiveWorktreeChoice) =>
         mobileTerminalMutations.runSessions([sessionId], async () => {
+            const removal = await options.archivedWorktrees?.prepare(sessionId, worktree);
             const session = database.archiveSession(sessionId);
             await parkSessions(options, [sessionId], 'session.archive');
+            if (removal) options.archivedWorktrees?.schedule(sessionId, removal);
             return session;
         });
     return {
@@ -122,7 +139,12 @@ function createSessionParkingHandlers(
             await archiveSession(sessionId);
             return { sessionId };
         },
-        'session.archive': ({ sessionId }) => archiveSession(sessionId),
+        'session.archive': ({ sessionId, worktree }) => archiveSession(sessionId, worktree),
+        'session.archiveWorktreePlan': async ({ sessionId }) => {
+            if (!database.getSession(sessionId))
+                throw new CaxriError('NOT_FOUND', 'Session not found');
+            return (await options.archivedWorktrees?.plan(sessionId)) ?? { worktree: null };
+        },
         'session.detach': async ({ sessionId }) => {
             if (!database.getSession(sessionId))
                 throw new CaxriError('NOT_FOUND', 'Session not found');
@@ -179,14 +201,16 @@ function authorizeAgentSessionManagement(
 }
 
 /**
- * The user's Session rename and parking handlers, plus the Agent entry to the same operations. An Agent goes through
- * exactly the code the sidebar runs (provider title synchronization, Terminal parking, Chat shutdown) after admission.
+ * The user's Session rename and parking handlers, Terminate All, plus the Agent entry to the same operations. An Agent
+ * goes through exactly the code the sidebar runs (provider title synchronization, Terminal parking, Chat shutdown)
+ * after admission.
  */
 export function createSessionHandlers(
     database: CaxriDatabase,
     parking: SessionParkingOptions,
     renames: Pick<SessionRenameService, 'rename'>,
 ): ReturnType<typeof createSessionParkingHandlers> &
+    ReturnType<typeof createTerminateAllHandler> &
     Pick<
         DomainHandlers,
         'agent.session.manageInternal' | 'session.rename' | 'session.updateState'
@@ -194,6 +218,7 @@ export function createSessionHandlers(
     const parkingHandlers = createSessionParkingHandlers(parking);
     return {
         ...parkingHandlers,
+        ...createTerminateAllHandler(parking),
         'session.rename': ({ sessionId, title }, signal, finalizeDurably) =>
             renames.rename(sessionId, title, signal, finalizeDurably),
         'session.updateState': (state) => {

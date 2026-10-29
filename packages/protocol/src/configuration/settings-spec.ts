@@ -171,6 +171,16 @@ export const settingsSpec = [
         keywords: ['git', 'branch', 'worktree', 'authorize', 'confirm', 'workbench root'],
         default: true,
     },
+    {
+        kind: 'boolean',
+        key: 'workbench.removeWorktreeOnArchive',
+        title: 'Remove worktree on archive',
+        description:
+            "Delete the worktree a Session works in when you archive it, including ignored files such as node_modules. Uncommitted changes are committed to its branch first and the branch is kept. A worktree whose pull request isn't merged is removed only after you confirm.",
+        category: 'general',
+        keywords: ['git', 'worktree', 'archive', 'cleanup', 'delete', 'remove', 'node_modules'],
+        default: false,
+    },
     ...primarySidebarSettingsSpec,
     {
         kind: 'boolean',

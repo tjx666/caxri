@@ -1,5 +1,6 @@
 import { join } from 'node:path';
 
+import type { FullStateChangeReason } from '@caxri/protocol';
 import { CaxriError, errorMessage } from '@caxri/protocol';
 import { logEventCatalog } from '@caxri/system';
 
@@ -19,11 +20,16 @@ import { CaxriDatabase } from './db';
 import type { DomainDependencies } from './domain-services';
 import { ExternalStatusHub } from './external-status';
 import { FileService } from './files';
-import { GitService, scheduleGitCommand, serverGitCommands } from './git';
+import {
+    GitService,
+    removeServerLinkedWorktree,
+    scheduleGitCommand,
+    serverGitCommands,
+} from './git';
 import { ProjectRootResolver } from './project';
 import { SessionContextService } from './session';
 import { WatchHub } from './watch';
-import { WorkbenchRootService } from './workbench';
+import { ArchivedWorktreeCleanup, WorkbenchRootService } from './workbench';
 
 /**
  * Applies durable inactive-root editor state before the journal record becomes unrecoverable.
@@ -174,6 +180,20 @@ export async function createRootServices({
         logger,
         sessionContext: (session) => sessionContext.read(session),
     });
+    /**
+     * Announces a full workbench re-read; `reason` is what the Renderer's command convergence matches on.
+     */
+    const sendFullStateChange = (reason: FullStateChangeReason): void => {
+        send({ event: 'state.changed', payload: { kind: 'full', reason } });
+    };
+    const archivedWorktrees = new ArchivedWorktreeCleanup({
+        database,
+        git,
+        isEnabled: () => config.getSettings().value['workbench.removeWorktreeOnArchive'],
+        logger,
+        removeWorktree: (input) => removeServerLinkedWorktree(logger, input),
+        sendFullStateChange,
+    });
     const files = new FileService(
         database,
         (event) => {
@@ -207,11 +227,13 @@ export async function createRootServices({
     return {
         acknowledgeFileMutation: (sessionId: string, operationId: string) =>
             acknowledgeFileMutation(database, files, sessionId, operationId),
+        archivedWorktrees,
         configuration: config,
         database,
         externalStatus,
         files,
         git,
+        sendFullStateChange,
         sessionContext,
         timeline,
         transcripts,

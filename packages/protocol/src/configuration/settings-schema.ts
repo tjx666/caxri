@@ -200,6 +200,7 @@ export const appSettingsSchema = z.object({
     'workbench.confirmWorktreeAuthorization': booleanField(
         spec['workbench.confirmWorktreeAuthorization'],
     ),
+    'workbench.removeWorktreeOnArchive': booleanField(spec['workbench.removeWorktreeOnArchive']),
     'primarySidebar.autoCollapseProjects': z
         .enum(enumValues(spec['primarySidebar.autoCollapseProjects'].options))
         .default(spec['primarySidebar.autoCollapseProjects'].default),

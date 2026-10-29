@@ -1,4 +1,8 @@
-import type { BotClearData, MethodResult } from '@caxri/protocol';
+import type {
+    BotClearData,
+    MethodResult,
+    SessionArchiveWorktreeConfirmation,
+} from '@caxri/protocol';
 import type { MessageBoxOptions } from 'electron';
 
 import { translateMain as t } from './locale';
@@ -292,6 +296,46 @@ export function deleteSessionsPrompt(
         defaultId: 1,
         cancelId: 1,
     };
+}
+
+/**
+ * Archiving a Session whose worktree has no merged pull request, under `workbench.removeWorktreeOnArchive`. Removing
+ * deletes the folder with its ignored files, so the safe "Archive Only" is the default and Enter never deletes.
+ */
+export function archiveWorktreePrompt({
+    branch,
+    pullRequestState,
+    rootPath,
+    sessionTitle,
+}: SessionArchiveWorktreeConfirmation): MessageBoxOptions {
+    const reason = t(
+        pullRequestState === 'closed'
+            ? 'desktop.archiveWorktree.reasonClosed'
+            : pullRequestState === undefined
+              ? 'desktop.archiveWorktree.reasonNone'
+              : 'desktop.archiveWorktree.reasonOpen',
+    );
+    return {
+        type: 'warning',
+        title: t('desktop.archiveWorktree.title'),
+        message: t('desktop.archiveWorktree.message', { title: sessionTitle }),
+        detail: t('desktop.archiveWorktree.detail', { branch, path: rootPath, reason }),
+        buttons: [
+            t('desktop.archiveWorktree.remove'),
+            t('desktop.archiveWorktree.keep'),
+            t('desktop.dialog.cancel'),
+        ],
+        defaultId: 1,
+        cancelId: 2,
+    };
+}
+
+/**
+ * Maps {@link archiveWorktreePrompt}'s button index to the Renderer's answer.
+ */
+export function archiveWorktreeChoice(response: number): 'remove' | 'keep' | 'cancel' {
+    if (response === 0) return 'remove';
+    return response === 1 ? 'keep' : 'cancel';
 }
 
 export function revokeMobileDevicePrompt(device: {

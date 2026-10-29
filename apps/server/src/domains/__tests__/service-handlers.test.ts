@@ -23,6 +23,7 @@ describe('Runtime service handler cancellation', () => {
         });
         const handlers = createServiceHandlers({
             acknowledgeFileMutation: () => Promise.resolve(),
+            archivedWorktrees: { useSessionPullRequests: () => {} },
             archiveSession: () => {},
             agentChat: {} as never,
             agentEnvironment: {} as never,
@@ -69,6 +70,7 @@ describe('Theme import handler', () => {
         const setAppState = vi.fn();
         const handlers = createServiceHandlers({
             acknowledgeFileMutation: () => Promise.resolve(),
+            archivedWorktrees: { useSessionPullRequests: () => {} },
             archiveSession: () => {},
             agentChat: {} as never,
             agentEnvironment: {} as never,

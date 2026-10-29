@@ -1,8 +1,6 @@
 import { join } from 'node:path';
 import process from 'node:process';
 
-import type { FullStateChangeReason } from '@caxri/protocol';
-
 import { readActiveContext } from './active-context';
 import { chatStateStore, createAgentChatHandlers } from './agent-chat';
 import type { AgentDelegationService } from './agent-delegation';
@@ -24,7 +22,7 @@ import { createIntrospectionServices } from './introspection';
 import { createSessionMaintenanceServices } from './maintenance-services-creation';
 import { createMobileDomainHandlers, MobileTerminalMutationQueue } from './mobile';
 import { createOrderingHandlers } from './ordering-handlers';
-import { createSessionHandlers, createTerminateAllHandler } from './parking-handlers';
+import { createSessionHandlers } from './parking-handlers';
 import {
     createProjectFolderBrowser,
     createProjectHidingHandlers,
@@ -79,11 +77,13 @@ export async function createDomainServices(
     const pid = dependencies.pid ?? process.pid;
     const {
         acknowledgeFileMutation,
+        archivedWorktrees,
         configuration,
         database,
         externalStatus,
         files,
         git,
+        sendFullStateChange,
         sessionContext,
         timeline,
         transcripts,
@@ -303,12 +303,6 @@ export async function createDomainServices(
         terminalRestores,
         terminalSuspension,
     });
-    /**
-     * Announces a full workbench re-read; `reason` is what the Renderer's command convergence matches on.
-     */
-    const sendFullStateChange = (reason: FullStateChangeReason): void => {
-        send({ event: 'state.changed', payload: { kind: 'full', reason } });
-    };
     const presenceEffects = createPresenceEffects({
         coordinator,
         database,
@@ -325,6 +319,7 @@ export async function createDomainServices(
      */
     const sessionParking = {
         agentChat,
+        archivedWorktrees,
         botRestores,
         database,
         evictSessions: evictSessionCaches,
@@ -408,7 +403,7 @@ export async function createDomainServices(
         await runStep('terminals', () => terminals.shutdown('orderly'));
         agentCommands.dispatchService.close();
         agentCommands.delegationService.close();
-        await workbenchRoots.close();
+        await Promise.all([archivedWorktrees.close(), workbenchRoots.close()]);
         await agentRuntime.close();
         await dependencies.agentEndpoints?.close();
         await files.close();
@@ -466,7 +461,6 @@ export async function createDomainServices(
         ...createOrderingHandlers({ database, sendFullStateChange }),
         ...createProjectHidingHandlers({ ...sessionParking, bootstrapState: snapshots.bootstrap }),
         ...createSessionHandlers(database, sessionParking, sessionRenames),
-        ...createTerminateAllHandler(sessionParking),
         ...createProjectFolderBrowser(),
         ...createSessionCreationHandlers(database, createSessionForProject),
         ...createMobileDomainHandlers({
@@ -529,6 +523,7 @@ export async function createDomainServices(
             introspection.records.terminal(query, principal),
         ...createServiceHandlers({
             acknowledgeFileMutation,
+            archivedWorktrees,
             agentChat,
             agentEnvironment,
             agentThroughput,

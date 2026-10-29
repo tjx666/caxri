@@ -5,3 +5,5 @@ export { mergeGitHubPullRequestAt } from './pull-request-merge';
 export { withGitRequestSignal } from './request-signal';
 export { GitService } from './service';
 export type { GitWorktreeTopology } from './topology';
+export type { LinkedWorktreeRemoval, LinkedWorktreeRemovalInput } from './worktree-removal';
+export { removeServerLinkedWorktree } from './worktree-removal';

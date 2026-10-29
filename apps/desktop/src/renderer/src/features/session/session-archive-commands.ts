@@ -1,9 +1,13 @@
-import type { SessionRestorePlacement } from '@caxri/protocol';
+import type {
+    SessionArchiveWorktreeChoice,
+    SessionArchiveWorktreePlan,
+    SessionRestorePlacement,
+} from '@caxri/protocol';
 
 import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import { useDialogStore } from '../../stores/dialogs';
-import { getSelectedSession } from '../../stores/selectors';
+import { getBootstrap, getSelectedSession } from '../../stores/selectors';
 import { pushToast, tryCommand } from '../../stores/toasts';
 import { refreshWorkbench } from '../../stores/workbench';
 import { recordClosedSession } from '../closed-items/recording';
@@ -15,6 +19,39 @@ import {
 import { sessionTitleForDisplay } from './session-title';
 
 /**
+ * Under `workbench.removeWorktreeOnArchive`, asks before archiving would remove a worktree whose pull request is not
+ * merged; a merged one is removed without asking, so `undefined` leaves the decision to Server Core. A failed plan
+ * archives without touching the worktree rather than blocking a reversible action.
+ */
+async function chooseArchivedWorktree(
+    sessionId: string,
+): Promise<SessionArchiveWorktreeChoice | 'cancel' | undefined> {
+    let plan: SessionArchiveWorktreePlan | undefined;
+    try {
+        plan = await caxri.request('session.archiveWorktreePlan', { sessionId });
+    } catch {
+        plan = undefined;
+    }
+    const worktree = plan?.worktree;
+    if (!worktree) return undefined;
+    if (worktree.removal === 'automatic') return undefined;
+    const title = getBootstrap()?.sessions.find((session) => session.id === sessionId)?.title;
+    const answer = await tryCommand(translate('session.errors.archiveFailed'), () =>
+        caxri.request('session.confirmArchiveWorktree', {
+            branch: worktree.branch,
+            rootPath: worktree.rootPath,
+            sessionTitle:
+                title === undefined
+                    ? translate('session.untitled')
+                    : sessionTitleForDisplay(title, translate),
+            ...(worktree.pullRequestState && { pullRequestState: worktree.pullRequestState }),
+        }),
+    );
+    // A dialog that never answered must not archive: the user did not get to choose.
+    return answer?.choice ?? 'cancel';
+}
+
+/**
  * Archiving deliberately skips a confirmation because it is reversible, but the Archived Sessions dialog it relies on
  * is reachable only through the PrimarySidebar footer entry, which `Command+[` hides entirely, and the `Delete`
  * keyboard path reports nothing at all on its own. The notice is therefore the state-change record for both the hover
@@ -23,9 +60,19 @@ import { sessionTitleForDisplay } from './session-title';
  * four-second toast: `persist` is reserved for events that already cost the user something irreversible.
  */
 async function archiveSessionWithNotice(sessionId: string): Promise<void> {
+    // Read from the bootstrap snapshot so an archive with the setting off never waits on the plan's pull request lookup.
+    const worktree =
+        getBootstrap()?.settings['workbench.removeWorktreeOnArchive'] === true
+            ? await chooseArchivedWorktree(sessionId)
+            : undefined;
+    if (worktree === 'cancel') return;
     const archived = await tryCommand(
         translate('session.errors.archiveFailed'),
-        () => caxri.request('session.archive', { sessionId }),
+        () =>
+            caxri.request('session.archive', {
+                sessionId,
+                ...(worktree && { worktree }),
+            }),
         { refresh: refreshWorkbench },
     );
     if (!archived) return;

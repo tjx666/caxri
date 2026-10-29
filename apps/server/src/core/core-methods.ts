@@ -140,6 +140,7 @@ export const coreForwardedMethods = [
     'projectStatus.summary',
     'session.agentHistory',
     'session.archive',
+    'session.archiveWorktreePlan',
     'session.compactWarm',
     'session.enterAirplaneMode',
     'session.skipAirplaneModeCompaction',

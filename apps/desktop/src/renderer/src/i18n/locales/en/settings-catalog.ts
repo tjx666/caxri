@@ -82,6 +82,9 @@ export const settingsCatalog = {
     'settings.workbench.confirmWorktreeAuthorization.title': 'Confirm worktree authorization',
     'settings.workbench.confirmWorktreeAuthorization.description':
         'Ask before authorizing a worktree picked from the status bar. Turn off to authorize and switch right away.',
+    'settings.workbench.removeWorktreeOnArchive.title': 'Remove worktree on archive',
+    'settings.workbench.removeWorktreeOnArchive.description':
+        "Delete the worktree a Session works in when you archive it, including ignored files such as node_modules. Uncommitted changes are committed to its branch first and the branch is kept. A worktree whose pull request isn't merged is removed only after you confirm.",
 
     'settings.primarySidebar.autoCollapseProjects.title': 'Auto-collapse inactive Projects',
     'settings.primarySidebar.autoCollapseProjects.description':

@@ -305,6 +305,7 @@ export const effectfulCommandRecovery = {
     'session.setPinned': 'durable',
     'session.rename': 'durable',
     'session.archive': 'durable',
+    'session.confirmArchiveWorktree': 'memory',
     'session.compactWarm': 'memory',
     'session.enterAirplaneMode': 'durable',
     'session.skipAirplaneModeCompaction': 'memory',

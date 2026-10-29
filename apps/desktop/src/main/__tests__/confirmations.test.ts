@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+    archiveWorktreeChoice,
+    archiveWorktreePrompt,
     clearBotDataPrompt,
     deleteProjectPrompt,
     deleteSessionPrompt,
@@ -433,5 +435,39 @@ describe('revert Agent Chat files prompt', () => {
         });
         expect(detail).toContain('Files return to how they were');
         expect(detail).toContain("Couldn't preview changes");
+    });
+});
+
+describe('archive worktree prompt', () => {
+    const base = {
+        branch: 'feat/x',
+        rootPath: '/Users/me/code/app-worktrees/feat-x',
+        sessionTitle: 'api-fix',
+    };
+
+    it('names the folder, the kept branch, and why it asks, with the safe choice as default', () => {
+        const prompt = archiveWorktreePrompt({ ...base, pullRequestState: 'open' });
+        expect(prompt.message).toBe('Remove the worktree of "api-fix" too?');
+        expect(prompt.detail).toBe(
+            'Its pull request is not merged yet. Removing deletes /Users/me/code/app-worktrees/feat-x, including ignored files such as node_modules. Uncommitted changes are committed to feat/x first, and the branch is kept.',
+        );
+        expect(prompt.buttons).toEqual(['Archive and Remove', 'Archive Only', 'Cancel']);
+        expect(prompt.defaultId).toBe(1);
+        expect(prompt.cancelId).toBe(2);
+    });
+
+    it('explains a closed or missing pull request', () => {
+        expect(archiveWorktreePrompt({ ...base, pullRequestState: 'closed' }).detail).toMatch(
+            /^Its pull request was closed without merging\./,
+        );
+        expect(archiveWorktreePrompt(base).detail).toMatch(/^No pull request was found for it\./);
+    });
+
+    it.each([
+        [0, 'remove'],
+        [1, 'keep'],
+        [2, 'cancel'],
+    ] as const)('maps button %i to %s', (response, choice) => {
+        expect(archiveWorktreeChoice(response)).toBe(choice);
     });
 });

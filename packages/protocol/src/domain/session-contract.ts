@@ -17,6 +17,11 @@ import {
 } from './session.js';
 import { airplaneModeStateSchema } from './session/session-airplane-mode.js';
 import {
+    sessionArchiveWorktreeChoiceSchema,
+    sessionArchiveWorktreeConfirmationSchema,
+    sessionArchiveWorktreePlanSchema,
+} from './session/session-archive-worktree.js';
+import {
     sessionAgentHistoryResultSchema,
     sessionReopenConversationParametersSchema,
     sessionReopenConversationResultSchema,
@@ -261,7 +266,37 @@ export const sessionMethods = {
         params: sessionReorderParametersSchema,
         result: z.null(),
     },
-    'session.archive': sessionIdWrite,
+    /**
+     * `worktree` answers the confirmation `session.archiveWorktreePlan` asked for. Omitted, as every CLI and Agent
+     * archive does, Server Core removes the Session's worktree only when `workbench.removeWorktreeOnArchive` is on and
+     * its pull request is merged.
+     */
+    'session.archive': {
+        ...sessionIdWrite,
+        params: z.object({
+            sessionId: identifierSchema,
+            worktree: sessionArchiveWorktreeChoiceSchema.optional(),
+        }),
+    },
+    /**
+     * What archiving this Session would do to its worktree, so the archive action can ask before removing a worktree
+     * whose pull request is not merged. Resolves the Session's pull request, which may query GitHub.
+     */
+    'session.archiveWorktreePlan': {
+        ...commandPolicy('server', 'read'),
+        params: z.object({ sessionId: identifierSchema }),
+        result: sessionArchiveWorktreePlanSchema,
+    },
+    /**
+     * Main's native confirmation before archiving removes a worktree whose pull request is not merged. Deleting the
+     * folder takes its ignored files with it, so it gets the native sheet DESIGN.md reserves for destructive actions.
+     * Main only asks; the Renderer sends `session.archive` with the answer, or nothing when the user cancels.
+     */
+    'session.confirmArchiveWorktree': {
+        ...commandPolicy('desktop', 'control'),
+        params: sessionArchiveWorktreeConfirmationSchema,
+        result: z.object({ choice: z.enum(['remove', 'keep', 'cancel']) }),
+    },
     'session.unarchive': {
         ...serverWrite,
         params: z.object({
