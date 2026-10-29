@@ -16,9 +16,12 @@ import { CaxriError, methods } from '@caxri/protocol';
 import type { ParsedCliArguments, RemoteCommandDefinition } from './commands';
 import {
     assertCommandTimeout,
+    assertMethodOffered,
     CLI_GROUPS,
     findCliCommand,
     parseCliArguments,
+    resolveGenericRequest,
+    validateRequestParameters,
     withCommandTimeout,
 } from './commands';
 import type {
@@ -80,6 +83,10 @@ export interface RunCliOptions {
     home?: string;
     io?: CliIo;
     platform?: NodeJS.Platform;
+    /**
+     * Supplies stdin text for `caxri request <method> --params -`; defaults to the process stdin.
+     */
+    readStdin?: () => Promise<string>;
     signal?: AbortSignal;
     wait?: (milliseconds: number, signal?: AbortSignal) => Promise<void>;
 }
@@ -250,6 +257,17 @@ async function streamRemote(
     return 130;
 }
 
+async function readProcessStdin(): Promise<string> {
+    process.stdin.setEncoding('utf8');
+    let text = '';
+    for await (const chunk of process.stdin) {
+        text += chunk as string;
+        if (text.length > 1_048_576)
+            throw new CaxriError('VALIDATION', '--params from stdin exceeds 1 MiB');
+    }
+    return text;
+}
+
 function remoteCommand(tokens: readonly string[]): RemoteCommandDefinition {
     const command = findCliCommand(tokens);
     if (command?.kind !== 'remote')
@@ -352,7 +370,7 @@ export async function runCli(
                 automation,
                 ...(serverLaunch && { serverLaunch }),
             });
-        if (selected.kind === 'local') {
+        if (selected.kind === 'local' && selected.path[0] !== 'request') {
             assertCommandTimeout(parsed.timeoutMs);
             const parameters = selected.parseParams(parsed.tokens.slice(selected.path.length));
             if (selected.mutates) await confirmMutation(selected, parsed, automation, options, io);
@@ -431,12 +449,22 @@ export async function runCli(
             writeSuccess(io, mode, output, humanLocal(selected, value));
             return 0;
         }
-        const command = remoteCommand(parsed.tokens);
+        const generic =
+            selected.path[0] === 'request'
+                ? await resolveGenericRequest(parsed.tokens.slice(selected.path.length), {
+                      isTTY: io.stdinIsTTY,
+                      read: options.readStdin ?? readProcessStdin,
+                  })
+                : undefined;
+        const command = generic?.command ?? remoteCommand(parsed.tokens);
         const parameters = withCommandTimeout(
             command.method,
-            await command.parseParams(parsed.tokens.slice(command.path.length)),
+            generic
+                ? generic.parameters
+                : await command.parseParams(parsed.tokens.slice(command.path.length)),
             parsed.timeoutMs,
         );
+        if (generic) validateRequestParameters(command.method, parameters);
         if (endpointCredential?.kind !== 'agent' && command.requiresAgentEndpoint)
             throw new CaxriError(
                 'FORBIDDEN',
@@ -501,7 +529,8 @@ export async function runCli(
                 'This command requires the CLI version bundled with the active Caxri Server',
                 { cliVersion: CLI_VERSION, hostVersion: client.serverVersion ?? 'unknown' },
             );
-        if (!client.welcome.commands.includes(command.method))
+        if (generic) assertMethodOffered(command.method, client.welcome);
+        else if (!client.welcome.commands.includes(command.method))
             throw new CaxriError(
                 'CONFLICT',
                 `The Caxri Server does not support command ${command.method}`,
