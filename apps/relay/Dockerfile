@@ -4,7 +4,10 @@
 
 FROM node:24-slim AS build
 WORKDIR /repo
-RUN npm install --global --no-fund --no-audit pnpm@12.0.0 bun@1.4.4
+COPY mise.toml ./
+# mise.toml owns the pnpm version, so the image cannot drift from local and CI installs.
+RUN pnpm_version="$(sed -n 's/^pnpm = "\(.*\)"$/\1/p' mise.toml)" && test -n "$pnpm_version" && \
+    npm install --global --no-fund --no-audit "pnpm@$pnpm_version" bun@1.4.4
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY patches ./patches
 COPY packages/mobile-transport/package.json ./packages/mobile-transport/

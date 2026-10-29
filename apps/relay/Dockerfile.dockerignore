@@ -1,5 +1,6 @@
-# Allowlist: the Relay image needs only the workspace manifests, the lockfile, and two source trees.
+# Allowlist: the Relay image needs only the workspace manifests, the lockfile, mise.toml, and two source trees.
 *
+!mise.toml
 !package.json
 !pnpm-lock.yaml
 !pnpm-workspace.yaml
