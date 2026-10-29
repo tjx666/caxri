@@ -429,7 +429,7 @@ export async function runBigStream(io: FakeCodexIo, turn: FakeTurn) {
 /**
  * Commands the `toolstorm` turn runs; each starts and then finishes, so the Chat receives twice as many tool updates.
  */
-export const TOOL_STORM_COMMANDS = 300;
+const TOOL_STORM_COMMANDS = 300;
 /**
  * The pause after each `toolstorm` update: about six seconds for the whole turn.
  */
