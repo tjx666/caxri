@@ -7,7 +7,7 @@ import { notifyListenersThenRethrow } from '@caxri/utils';
  * effective theme the Renderer paints (`resolveEffectiveTheme`), so a TUI picks the light or dark palette that matches
  * the window it runs in.
  */
-export function effectiveTerminalColors(
+function effectiveTerminalColors(
     theme: ThemeTokens,
     settings: Pick<
         AppSettings,
