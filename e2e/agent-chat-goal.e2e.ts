@@ -288,7 +288,11 @@ test("a Claude Code Chat's built-in /goal enters Goal mode on Tab instead of sen
         await message.fill('the fixtures pass');
         await message.press('Enter');
         await expect(goalChip).toHaveCount(0);
-        await expect(chat.getByText('/goal the fixtures pass').first()).toBeVisible();
+        // The goal's query keeps streaming, so the sent `/goal` bubble can scroll out of the virtualized transcript;
+        // the goal row proves Claude Code took the condition.
+        const row = chat.locator('[data-agent-chat-goal]');
+        await expect(row).toHaveAttribute('data-agent-chat-goal', 'active');
+        await expect(row).toContainText('the fixtures pass');
         await page.screenshot({ path: testInfo.outputPath('claude-goal-set.png') });
     } finally {
         await closeAppQuietly(running.app);
