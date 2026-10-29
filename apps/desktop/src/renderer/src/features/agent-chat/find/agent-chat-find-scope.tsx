@@ -18,6 +18,7 @@ export function AgentChatFindScope({
     hasUnsearchedHistory,
     isLoadingEarlier,
     loadEarlier,
+    onOpen,
     scrollReference,
     stopFollowing,
     terminalId,
@@ -43,6 +44,10 @@ export function AgentChatFindScope({
      */
     loadEarlier?: () => void;
     /**
+     * Called when the bar opens, so the conversation can mount every entry before find reads the DOM.
+     */
+    onOpen?: () => void;
+    /**
      * The conversation's scroll view, which find scrolls to reveal a match after `stopFollowing` stops it following the
      * latest output.
      */
@@ -59,6 +64,7 @@ export function AgentChatFindScope({
         focusComposer,
         isLoadingEarlier,
         loadEarlier,
+        onOpen,
     });
     return (
         <AgentChatFindQueryContext value={find.searched}>

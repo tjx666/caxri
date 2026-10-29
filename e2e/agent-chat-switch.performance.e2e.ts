@@ -23,7 +23,13 @@ import type { RendererPerformanceWindow } from './support/renderer-performance.t
  * Turns seeded into the measured Chat, alternating the fake Codex's two Markdown-heavy replies so the transcript is
  * long, highlighted, and several screens tall.
  */
-const TURN_COUNT = 16;
+const TURN_COUNT = Number(process.env.CAXRI_AGENT_CHAT_SWITCH_BENCHMARK_TURNS ?? 16);
+/**
+ * Longest frame gap and Long Animation Frame a remount of a cached Chat may show. Mounting the whole timeline in one
+ * frame measured 82-104 ms and 77-99 ms on 2026-10-30; mounting the tail first measured 36-48 ms and none. The budget
+ * sits between them with room for runner noise; it is not the 34 ms (two frames) the experience aims for.
+ */
+const CACHED_FRAME_BUDGET = { maxFrameGapMs: 65, longestAnimationFrameMs: 50 };
 /**
  * Frames sampled after a click before the switch counts as stuck. Far beyond any healthy load; it only bounds the run.
  */
@@ -407,6 +413,7 @@ test('benchmark: switching to a long Agent Chat Session', async ({}, testInfo) =
             otherSessionIds.push(await selectedSessionId(page));
         }
         const cached = await measureSwitch(page, userData, chatSessionId);
+        await page.screenshot({ path: testInfo.outputPath('chat-after-cached-switch.png') });
 
         await switchAndSettle(page, otherSessionIds.at(-1)!);
         const keptAlive = await measureSwitch(page, userData, chatSessionId);
@@ -448,6 +455,12 @@ test('benchmark: switching to a long Agent Chat Session', async ({}, testInfo) =
         );
         process.stdout.write(`CAXRI_AGENT_CHAT_SWITCH_BENCHMARK ${JSON.stringify(receipt)}\n`);
 
+        expect(cached.maxFrameGapMs, 'cached max frame gap').toBeLessThanOrEqual(
+            CACHED_FRAME_BUDGET.maxFrameGapMs,
+        );
+        expect(cached.longestAnimationFrameMs, 'cached Long Animation Frame').toBeLessThanOrEqual(
+            CACHED_FRAME_BUDGET.longestAnimationFrameMs,
+        );
         for (const name of ['keptAlive', 'cached', 'uncached'] as const) {
             const scenario = receipt.scenarios[name];
             expect(scenario.buildMode, 'run through bun run benchmark:chat-switch').toBe(

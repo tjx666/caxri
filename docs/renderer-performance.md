@@ -146,6 +146,30 @@ under `1 ms` in total. Three production-build runs of this benchmark against an 
 frames before the turns arrived, with no placeholder. Its conversation times were `25.9–26.6`,
 `54.6–58.3`, and `95.7–103.7`, so the repair did not trade speed for those invariants.
 
+### Tail-first mount
+
+A Chat pane that mounts with a conversation already in the cache (`cached`, `uncached`) first commits only
+the last four live timeline entries, then adds older entries above them in idle batches of six until the
+whole timeline is mounted (`transcript/mount/use-agent-chat-tail-first-mount.ts`). Entries keep their
+keys, so a batch only adds rows; a view following the end stays on it (the content resize observer
+re-pins before paint) and a view reading history is held by the browser's scroll anchoring. Opening find
+mounts every entry at once so a search never misses an early turn. The first non-empty timeline decides
+the tail, so a Chat that streams from empty mounts normally. Keep the tail long enough to fill a view: with
+two entries or fewer the first frame was shorter than the view and a later batch painted away from the end.
+
+Set `CAXRI_AGENT_CHAT_SWITCH_BENCHMARK_TURNS` to seed a longer conversation. Local profiling runs on
+2026-10-30 measured the `cached` longest frame gap and Long Animation Frame:
+
+| Turns | Mount      | Longest frame gap | Long Animation Frame |
+| ----: | ---------- | ----------------: | -------------------: |
+|    16 | whole      |        82.0-104.1 |            77.4-98.9 |
+|    16 | tail first |         36.1-48.0 |                    0 |
+|    64 | whole      |             309.7 |                292.4 |
+|    64 | tail first |              36.1 |                    0 |
+
+The shell of the Session (composer, header, sidebars) costs about 25-30 ms on its own, so the 34 ms goal
+is not met on every run; `CACHED_FRAME_BUDGET` gates 65 ms and 50 ms.
+
 ### Retention and hidden Chats
 
 Three choices, measured on 2026-10-21 against the previous Renderer in the same profiling build, keep

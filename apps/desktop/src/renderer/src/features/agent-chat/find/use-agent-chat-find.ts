@@ -181,6 +181,7 @@ export function useAgentChatFind({
     focusComposer,
     isLoadingEarlier,
     loadEarlier,
+    onOpen,
 }: {
     /**
      * The provider conversation shown, so a Session search result can open find here with its query.
@@ -199,6 +200,10 @@ export function useAgentChatFind({
      * Loads the next page of older history, or `undefined` when there is none to load.
      */
     loadEarlier?: () => void;
+    /**
+     * Called when the bar opens, before any match is searched: the conversation mounts every entry so find sees them.
+     */
+    onOpen?: () => void;
 }) {
     const owner = useId();
     const [isOpen, setOpen] = useState(false);
@@ -275,9 +280,10 @@ export function useAgentChatFind({
     }, [isLoadingEarlier]);
 
     const open = useCallback(() => {
+        onOpen?.();
         setOpen(true);
         setFocusRevision((revision) => revision + 1);
-    }, []);
+    }, [onOpen]);
     useEffect(() => registerTerminalSearchHandler(terminalId, open), [open, terminalId]);
     /**
      * A handed-off query arrives before the conversation has rendered, so it waits for the first paint that finds a
