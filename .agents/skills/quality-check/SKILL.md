@@ -36,7 +36,11 @@ bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--related
   does not narrow formatting; use `bun run --silent check <files...> --lint` for a focused pass.
   When the changed set includes source files, `--lint` also runs the source-size ratchet; when it
   includes Markdown, `--lint` also runs the documentation check. Neither autofixes -- see
-  "Guardrails" below to interpret a failure.
+  "Guardrails" below to interpret a failure. When the diff adds or removes a file, `--lint` also
+  lints, without the ESLint cache, the untouched TypeScript siblings in that directory (and in its
+  parent when the directory is `hooks/`, `__tests__/`, or `utils/`), reported as
+  `directory siblings <count>`: `caxri/feature-directory-structure` judges a file by the folders
+  beside it, so adding `settings/hooks/` once failed two untouched siblings only in hosted lint.
 - `--test` runs changed test files, the existing bounded colocated/domain candidates, and Vitest
   suites that statically import a changed source through a relative path, tsconfig alias, or
   workspace package export. Discovery crosses at most two pure re-export barrels, including
@@ -54,6 +58,7 @@ bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--related
   `workspace-dependency-contract`), which assert scripts and ranges without importing source. The
   root `package.json` also runs the contracts that read its `build` and Knip settings
   (`eslint-toolchain-contract`, `oxlint-toolchain-contract`, `extension-test-packaging`).
+  A changed `Dockerfile` runs `toolchain-contract`, which rejects a copy of a `mise.toml` version.
   A changed or removed path inside a directory `scripts/directory-density-baseline.ts`
   guards runs `scripts/__tests__/directory-density-ratchet.test.ts`, which counts files on disk.
   A changed or removed top-level `e2e/*.e2e.ts` spec runs `scripts/__tests__/e2e-pools.test.ts`,

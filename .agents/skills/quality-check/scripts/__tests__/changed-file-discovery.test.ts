@@ -166,6 +166,15 @@ describe('dependency manifest contract selection', () => {
         for (const contract of rootOnly) expect(lockSelected).not.toContain(contract);
     });
 
+    it('runs the toolchain contract when a Dockerfile changes', async () => {
+        await expect(
+            selectedTestCandidates(process.cwd(), ['apps/relay/Dockerfile']),
+        ).resolves.toContain('scripts/__tests__/toolchain-contract.test.ts');
+        await expect(
+            selectedTestCandidates(process.cwd(), ['apps/relay/compose.yaml']),
+        ).resolves.not.toContain('scripts/__tests__/toolchain-contract.test.ts');
+    });
+
     it('runs the workspace-manifest contracts when a workspace package.json changes', async () => {
         const selected = await selectedTestCandidates(process.cwd(), [
             'extensions/status/package.json',
