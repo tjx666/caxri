@@ -138,7 +138,8 @@ export class AgentSecretRequests {
         if (entry?.request.terminalId !== terminalId)
             throw new CaxriError('NOT_FOUND', 'Secret request not found');
         entry.lastPolledAt = this.now();
-        if (entry.request.status !== 'pending') return entry.request.status;
+        // An already aborted signal never fires `abort`, so the caller that disconnected first must not wait out the timer.
+        if (entry.request.status !== 'pending' || signal?.aborted) return entry.request.status;
         const { promise, resolve } = Promise.withResolvers<AgentSecretRequestStatus>();
         const waiter = (status: SettledStatus) => resolve(status);
         const finish = () => {

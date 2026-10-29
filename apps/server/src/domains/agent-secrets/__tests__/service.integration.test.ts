@@ -32,7 +32,7 @@ describe('AgentSecretService', () => {
                           ? { id }
                           : undefined,
                 getTerminal: (id: string) =>
-                    id === caller.terminalId ? { id, sessionId: 'session-a' } : undefined,
+                    id.startsWith('terminal-') ? { id, sessionId: 'session-a' } : undefined,
             } as unknown as Pick<CaxriDatabase, 'getProject' | 'getTerminal'>,
             logger: { write } as unknown as StructuredLogger,
             send: (event) => events.push(event),
@@ -143,6 +143,26 @@ describe('AgentSecretService', () => {
         expect(service.requests.get(request.requestId)?.status).toBe('pending');
         await service.set('API_TOKEN', { kind: 'global' }, 'global-value');
         expect(service.requests.get(request.requestId)?.status).toBe('saved');
+    });
+
+    it('closes every card asking for the same name when one is answered', async () => {
+        const first = await service.request({ caller, name: 'API_TOKEN', reason: 'Deploy' });
+        const second = await service.request({
+            caller: { projectId: 'worktree-a', terminalId: 'terminal-b' },
+            name: 'API_TOKEN',
+            reason: 'Test',
+        });
+        if (first.status !== 'pending' || second.status !== 'pending')
+            throw new Error('expected pending requests');
+
+        await expect(
+            service.answer({
+                requestId: first.requestId,
+                answer: { action: 'save', value: SYNTHETIC_VALUE, scope: 'project' },
+            }),
+        ).resolves.toEqual({ status: 'saved' });
+        expect(service.requests.get(second.requestId)?.status).toBe('saved');
+        expect(service.requests.pending()).toHaveLength(0);
     });
 
     it('keeps a request private to the Terminal that raised it', async () => {

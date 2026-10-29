@@ -85,12 +85,8 @@ export class AgentSecretService {
         this.options.logger.write('info', logEventCatalog.agentSecrets.saved, {
             fields: { kind: scope.kind, source },
         });
-        if (source === 'settings') {
-            const satisfied = this.requests.satisfy(name, (projectId) =>
-                isInScope(scope, projectId),
-            );
-            for (const requestId of satisfied) this.logSettled(requestId, 'saved');
-        }
+        const satisfied = this.requests.satisfy(name, (projectId) => isInScope(scope, projectId));
+        for (const requestId of satisfied) this.logSettled(requestId, 'saved');
         this.changed();
         return saved;
     }
@@ -116,12 +112,16 @@ export class AgentSecretService {
                 answer.scope === 'global'
                     ? { kind: 'global' }
                     : { kind: 'project', projectId: request.projectId };
+            /**
+             * Saving settles every pending request the secret now covers, this one included, so a second card asking
+             * for the same name closes too. The value is kept even when this request expired during the write.
+             */
             await this.set(request.name, scope, answer.value, 'request');
+            return { status: 'saved' };
         }
-        const status = answer.action === 'save' ? 'saved' : 'declined';
-        this.requests.answer(request.id, status);
-        this.logSettled(request.id, status);
-        return { status };
+        this.requests.answer(request.id, 'declined');
+        this.logSettled(request.id, 'declined');
+        return { status: 'declined' };
     }
 
     async visible(endpoint: Caller): Promise<MethodResult<'agent.secret.list'>> {

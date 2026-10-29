@@ -43,7 +43,14 @@ export const agentSecretNameSchema = z
     .refine((name) => !name.toUpperCase().startsWith('CAXRI_'), 'CAXRI_ names are reserved')
     .refine((name) => !RESERVED_SECRET_NAMES.has(name), 'This name is reserved');
 
-export const agentSecretValueSchema = z.string().min(1).max(MAX_AGENT_SECRET_VALUE_LENGTH);
+/**
+ * A NUL byte cannot appear in an environment variable, so `secret exec` could never pass such a value on.
+ */
+export const agentSecretValueSchema = z
+    .string()
+    .min(1)
+    .max(MAX_AGENT_SECRET_VALUE_LENGTH)
+    .refine((value) => !value.includes('\0'), 'A secret value cannot contain a NUL character');
 
 /**
  * `project` secrets reach only Agents running in that Project; `global` secrets reach every Project. A Project secret
