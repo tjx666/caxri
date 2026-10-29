@@ -114,6 +114,50 @@ describe('Agent delegation persistence', () => {
         }
     });
 
+    it('prunes the oldest completed task whose answer was already read and keeps unread answers', async () => {
+        const { database, record } = await fixture();
+        try {
+            const answered = (id: string, at: number, collectedAt?: number) =>
+                ({
+                    ...record,
+                    receipt: {
+                        ...record.receipt,
+                        delegationId: id,
+                        status: 'completed',
+                        updatedAt: at,
+                    },
+                    answer: {
+                        text: 'Synthetic answer',
+                        source: 'transcript' as const,
+                        messageId: 'm',
+                        truncated: false,
+                        byteLength: 16,
+                    },
+                    collectedAt,
+                }) satisfies StoredAgentDelegation;
+            database.agentDelegations.insert(answered('unread-oldest', 1));
+            database.agentDelegations.insert(answered('read-old', 2, 50));
+            database.agentDelegations.insert(answered('read-new', 3, 50));
+            for (let index = 0; index < 1024 - 3; index += 1)
+                database.agentDelegations.insert({
+                    ...record,
+                    receipt: { ...record.receipt, delegationId: `live-${index}`, updatedAt: 10 },
+                });
+
+            const pruned: string[][] = [];
+            database.agentDelegations.insert(
+                { ...record, receipt: { ...record.receipt, delegationId: 'admitted' } },
+                (ids) => pruned.push(ids),
+            );
+            expect(pruned).toEqual([['read-old']]);
+            expect(database.agentDelegations.get('read-old')).toBeUndefined();
+            for (const id of ['unread-oldest', 'read-new', 'admitted'])
+                expect(database.agentDelegations.get(id)).toBeDefined();
+        } finally {
+            database.close();
+        }
+    });
+
     it('never prunes the task a resume continues', async () => {
         const { database, record } = await fixture();
         try {

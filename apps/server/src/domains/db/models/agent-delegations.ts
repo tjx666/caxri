@@ -47,6 +47,10 @@ const storedDelegationSchema = z.strictObject({
     responseOverflow: z.boolean().optional(),
     transcriptOffset: z.number().int().nonnegative().optional(),
     answer: agentDelegationAnswerSchema.optional(),
+    /**
+     * When a caller first read the answer through wait or result; makes the record evictable under capacity pressure.
+     */
+    collectedAt: z.number().int().nonnegative().optional(),
     rootDelegationId: z.string().optional(),
     nextDelegationId: z.string().optional(),
     inputEpoch: z.number().int().nonnegative().optional(),
@@ -74,11 +78,11 @@ function allRecords(database: CaxriDrizzleDatabase): StoredAgentDelegation[] {
 }
 
 /**
- * Deletes the oldest records of tasks that settled with no answer to collect (failed, interrupted, or stopped), until
- * one slot is free, and returns the task directory names no remaining record uses. A completed task keeps its answer
- * because the store cannot tell whether a caller already read it. A record another one still points at (a chain's next
- * task, or a root whose directory its children share) is kept so those links never dangle. Synchronous, so the insert
- * that follows happens in the same tick.
+ * Deletes the oldest records of tasks that settled with no answer to collect (failed, interrupted, or stopped) or whose
+ * answer a caller already claimed (`collectedAt`), until one slot is free, and returns the task directory names no
+ * remaining record uses. A completed task with an unread answer is kept. A record another one still points at (a
+ * chain's next task, or a root whose directory its children share) is kept so those links never dangle. Synchronous, so
+ * the insert that follows happens in the same tick.
  */
 function pruneForAdmission(
     database: CaxriDrizzleDatabase,
@@ -100,9 +104,9 @@ function pruneForAdmission(
     }
     const removable = all
         .filter(
-            ({ receipt, answer }) =>
+            ({ receipt, answer, collectedAt }) =>
                 !isActiveDelegationStatus(receipt.status) &&
-                !answer &&
+                (!answer || collectedAt !== undefined) &&
                 !referenced.has(receipt.delegationId),
         )
         .toSorted(
@@ -131,7 +135,8 @@ function pruneForAdmission(
 
 /**
  * Bounded private task storage. At capacity, admission first prunes the oldest settled tasks that hold nothing a caller
- * could still collect, and refuses capacity rather than discarding unclaimed answers or live tasks.
+ * could still collect (no answer, or an answer already read), and refuses capacity rather than discarding unclaimed
+ * answers or live tasks.
  */
 export class AgentDelegationsModel {
     constructor(private readonly database: CaxriDrizzleDatabase) {}
@@ -228,6 +233,16 @@ export class AgentDelegationsModel {
         if (result.changes !== 1)
             throw new CaxriError('NOT_FOUND', 'Agent delegation is unavailable');
         return parsed;
+    }
+
+    /**
+     * Records that a caller read the task's answer, once. Deliberately leaves the receipt (revision and `updatedAt`)
+     * alone: claiming is not a lifecycle transition, and `updatedAt` orders eviction.
+     */
+    markCollected(id: string, at: number): void {
+        const record = this.get(id);
+        if (record?.answer && record.collectedAt === undefined)
+            this.save({ ...record, collectedAt: at });
     }
 
     /**
