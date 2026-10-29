@@ -27,7 +27,9 @@ export async function prepareMobileFixtureIme(
         .readDevice(['shell', 'settings', 'get', 'secure', 'default_input_method'])
         .trim();
     if (!previousIme || previousIme === 'null' || previousIme === MOBILE_FIXTURE_IME_ID)
-        throw new Error('The emulator default input method cannot be preserved safely');
+        throw new Error(
+            'The emulator default input method cannot be preserved safely; relaunch a task-owned disposable emulator with the clean-start flow in acceptance/surfaces/android.md',
+        );
     const existingPackages = commands.readDevice([
         'shell',
         'pm',
@@ -38,7 +40,9 @@ export async function prepareMobileFixtureIme(
         packageId,
     ]);
     if (existingPackages.split(/\r?\n/u).some((line) => line.trim() === `package:${packageId}`))
-        throw new Error('The emulator already contains the fixture IME package');
+        throw new Error(
+            'The emulator already contains the fixture IME package; relaunch a task-owned disposable emulator with the clean-start flow in acceptance/surfaces/android.md',
+        );
 
     const directory = await mkdtemp(join(tmpdir(), 'caxri-fixture-ime-'));
     let isUninstallPending = false;
