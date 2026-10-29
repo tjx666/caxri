@@ -13,15 +13,61 @@ function claude(id: string, usage: Record<string, unknown>, model = 'claude-sonn
     return claudeTurnResponse({ id, model, usage });
 }
 
-function codex(total: number, input: number, cached: number, output: number, isFast = false) {
+function codex(
+    total: number,
+    input: number,
+    cached: number,
+    output: number,
+    isFast = false,
+    threadId?: string,
+) {
     const parameters = {
         tokenUsage: {
             total: { totalTokens: total },
             last: { inputTokens: input, cachedInputTokens: cached, outputTokens: output },
         },
     };
-    return codexTurnResponse(parameters, 'gpt-5', isFast);
+    return codexTurnResponse(parameters, 'gpt-5', isFast, threadId);
 }
+
+describe('Codex subagent thread usage', () => {
+    it('does not read a child thread as a repeat of the parent when their running totals match', () => {
+        const usage = new ChatTurnUsage();
+        spend(usage, 'turn-1', codex(5000, 4000, 0, 100));
+        const withChild = spend(usage, 'turn-1', codex(5000, 3000, 0, 50, false, 'child-1'));
+        expect(withChild).toMatchObject({ requests: 2, totalTokens: 7150 });
+    });
+
+    it('counts a repeated child report once and accumulates its later requests', () => {
+        const usage = new ChatTurnUsage();
+        spend(usage, 'turn-1', codex(1100, 1000, 0, 100, false, 'child-1'));
+        expect(spend(usage, 'turn-1', codex(1100, 1000, 0, 100, false, 'child-1'))).toBeUndefined();
+        spend(usage, 'turn-1', codex(1650, 500, 0, 50, false, 'child-1'));
+        const other = spend(usage, 'turn-1', codex(1100, 200, 0, 20, false, 'child-2'));
+        expect(other).toMatchObject({ requests: 3, totalTokens: 1100 + 550 + 220 });
+    });
+
+    it('counts a child report that arrives after a later one only once, in either order', () => {
+        const usage = new ChatTurnUsage();
+        const later = codex(1650, 500, 0, 50, false, 'child-1');
+        const earlier = codex(1100, 1000, 0, 100, false, 'child-1');
+        spend(usage, 'turn-1', later);
+        spend(usage, 'turn-1', earlier);
+        expect(spend(usage, 'turn-1', later)).toBeUndefined();
+        expect(spend(usage, 'turn-1', earlier)).toBeUndefined();
+        expect(usage.add('turn-1', codex(1650, 500, 0, 50, false, 'child-1'))).toBeUndefined();
+        const total = spend(usage, 'turn-1', codex(2000, 100, 0, 10, false, 'child-1'));
+        expect(total).toMatchObject({ requests: 3, totalTokens: 550 + 1100 + 110 });
+    });
+
+    it('drops a child report once no turn is active and starts clean on the next turn', () => {
+        const usage = new ChatTurnUsage();
+        spend(usage, 'turn-1', codex(1100, 1000, 0, 100, false, 'child-1'));
+        expect(spend(usage, undefined, codex(1650, 500, 0, 50, false, 'child-1'))).toBeUndefined();
+        const next = spend(usage, 'turn-2', codex(300, 100, 0, 10, false, 'child-1'));
+        expect(next).toMatchObject({ turnId: 'turn-2', requests: 1, totalTokens: 110 });
+    });
+});
 
 describe('ChatTurnUsage', () => {
     it('counts a Claude message once across its repeated content block frames', () => {

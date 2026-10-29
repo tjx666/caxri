@@ -386,4 +386,23 @@ export class CodexUsage {
             );
         return true;
     }
+
+    /**
+     * Adds a subagent thread's `thread/tokenUsage/updated` (any other notification is ignored here) to the Chat's
+     * running turn. The subagent's own turn id means nothing to the parent, so the report counts toward the turn active
+     * when it arrives (none after the turn ends, so a late one never lands on the next turn). It leaves the Chat's
+     * context usage alone, which the parent thread owns.
+     */
+    onChildNotification(
+        threadId: string,
+        method: string,
+        parameters: Record<string, unknown>,
+    ): void {
+        if (method !== 'thread/tokenUsage/updated') return;
+        const snapshot = this.host.read();
+        this.turnUsage.record(
+            this.host,
+            codexTurnResponse(parameters, snapshot.model, snapshot.fast === true, threadId),
+        );
+    }
 }

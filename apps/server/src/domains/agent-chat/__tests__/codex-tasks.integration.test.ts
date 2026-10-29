@@ -66,6 +66,17 @@ describe('Codex Chat background work with a fake app-server', () => {
         expect(viaItem.items).toEqual(child.items);
     });
 
+    it("adds a subagent thread's requests to the parent turn's usage, without touching the context usage", async () => {
+        const { service, terminal, until } = await fixture();
+        await service.send(terminal.id, { text: 'use a subagent' });
+        const done = await until(
+            (snapshot) => !snapshot.activeTurnId && agentTask(snapshot)?.status === 'completed',
+        );
+        // The child reported one request twice and a second one: two steps, 1100 + 550 tokens.
+        expect(done.turnUsage).toMatchObject({ requests: 2, totalTokens: 1650 });
+        expect(done.usage).toBeUndefined();
+    });
+
     it("names a subagent's running browser step after the tab it bound earlier", async () => {
         const { service, terminal, until } = await fixture();
         await service.send(terminal.id, { text: 'subagent browsestep' });
