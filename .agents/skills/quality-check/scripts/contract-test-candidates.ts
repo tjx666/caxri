@@ -120,6 +120,12 @@ const DEPENDENCY_MANIFESTS = new Set(['package.json', 'pnpm-workspace.yaml']);
 const WORKSPACE_MANIFEST = /^(?:apps|packages|extensions)\/[^/]+\/package\.json$/u;
 
 /**
+ * The toolchain contract scans every tracked Dockerfile for a copy of the `mise.toml` Node.js or pnpm version, and no
+ * test imports a Dockerfile. A Relay image that pinned pnpm passed the focused check and failed only the full suite.
+ */
+const DOCKERFILE = /(?:^|\/)Dockerfile$/u;
+
+/**
  * Contracts that read only the root `package.json`: its exact scripts, `build` packaging settings, and Knip config.
  * Adding a step to the root `build` script once passed the focused check and failed first in CI's sharded unit suite on
  * `workspace-contract`'s pinned script.
@@ -140,7 +146,9 @@ function dependencyManifestContractTestCandidates(files: readonly string[]): str
     const rootManifestChanged = normalized.some((file) => DEPENDENCY_MANIFESTS.has(file));
     const rootPackageChanged = normalized.includes('package.json');
     const workspaceManifestChanged = normalized.some((file) => WORKSPACE_MANIFEST.test(file));
+    const dockerfileChanged = normalized.some((file) => DOCKERFILE.test(file));
     return [
+        ...(dockerfileChanged ? ['scripts/__tests__/toolchain-contract.test.ts'] : []),
         ...(rootManifestChanged || workspaceManifestChanged
             ? [
                   'scripts/__tests__/toolchain-contract.test.ts',

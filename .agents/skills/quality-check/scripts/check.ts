@@ -21,6 +21,7 @@ import { dirtyLayerReportForFiles } from './changed-file-layers';
 import { CheckError, MAX_E2E_WAIT_SECONDS, parseCheckArguments } from './check-arguments';
 import { contractTestCandidates } from './contract-test-candidates';
 import { shouldRunKnip, shouldTypecheck } from './default-gates';
+import { lintDirectorySiblings } from './directory-siblings';
 import { assertExplicitFiles } from './explicit-files';
 import { CODE_EXTENSIONS, lintBucketsForFiles, runLint } from './lint-passes';
 import { reportStaleLocaleCopy } from './locale-e2e-assertions';
@@ -391,6 +392,17 @@ async function main(): Promise<void> {
     if (options.lint) {
         const { fileCount, autofixedFiles } = await runLint(root, files, runTool);
         summaries.push(`lint ${fileCount}`);
+        const siblingCount = await lintDirectorySiblings({
+            base: options.isStaged
+                ? 'HEAD'
+                : (await runCapture('git', ['merge-base', 'origin/main', 'HEAD'], root)).trim(),
+            files,
+            removedFiles,
+            root,
+            capture: runCapture,
+            run: runTool,
+        });
+        if (siblingCount > 0) summaries.push(`directory siblings ${siblingCount}`);
         if (autofixedFiles.length > 0) summaries.push(`autofixed ${autofixedFiles.join(', ')}`);
         const { codeFiles, markdownFiles } = lintBucketsForFiles(files);
         summaries.push(
