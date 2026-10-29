@@ -1,6 +1,7 @@
 import type {
     AgentChatHistoryPage,
     AgentChatImageMediaType,
+    AgentChatRequest,
     AgentChatSnapshot,
     AgentChatTaskSnapshot,
     AgentUsageReadout,
@@ -41,6 +42,7 @@ export const isMobileAgentChatRequest = (
  */
 const mobileAgentChatReads: ReadonlySet<MobileAgentChatRequest['method']> = new Set([
     'mobile.agentChat.read',
+    'mobile.agentChat.requests',
     'mobile.agentChat.readImage',
     'mobile.agentChat.readTask',
     'mobile.agentChat.readHistory',
@@ -222,6 +224,7 @@ export async function invokeMobileAgentChatRequest(
     | AgentChatTaskSnapshot
     | AgentUsageReadout
     | (ImageData & { chunkIndex: number; chunkCount: number })
+    | { requests: AgentChatRequest[] }
     | { text: string }
     | { text: string; imageCount: number; hasReferences: boolean }
     | null
@@ -240,6 +243,15 @@ export async function invokeMobileAgentChatRequest(
             ]);
             reauthorize();
             return windowAgentChatSnapshotForMobile(snapshot, projectRoot);
+        }
+        case 'mobile.agentChat.requests': {
+            // Only the in-memory waiting list: `agentChat.read` would start the provider of an idle Chat.
+            const { entries } = await domainService.request('agentChat.pendingRequests', {});
+            reauthorize();
+            const entry = entries.find(
+                (candidate) => candidate.kind === 'chat' && candidate.terminalId === terminalId,
+            );
+            return { requests: entry?.kind === 'chat' ? entry.requests : [] };
         }
         case 'mobile.agentChat.readHistory': {
             const [page, projectRoot] = await Promise.all([

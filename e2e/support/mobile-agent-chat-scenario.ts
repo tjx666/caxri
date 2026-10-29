@@ -27,6 +27,7 @@ import {
     executeMobileChatMultiImagePickScenario,
 } from './mobile-agent-chat-image-scenario';
 import { executeMobileChatInlineLinkScenario } from './mobile-agent-chat-inline-link-scenario';
+import { executeMobileChatListApprovalScenario } from './mobile-agent-chat-list-approval-scenario';
 import { executeMobileChatMessageActionsScenario } from './mobile-agent-chat-message-actions-scenario';
 import {
     executeMobileChatModelScenario,
@@ -559,6 +560,10 @@ export async function executeMobileAgentChatCase(
             return executeMobileChatInlineLinkScenario(environment, artifacts);
         case 'MOB-CHAT-CLIP-REREAD-01':
             return executeMobileChatBurstStreamScenario(environment, artifacts, 'clipped');
+        case 'MOB-CHAT-LIST-APPROVAL-01':
+            return executeMobileChatListApprovalScenario(environment, artifacts, 'codex');
+        case 'MOB-CHAT-LIST-APPROVAL-02':
+            return executeMobileChatListApprovalScenario(environment, artifacts, 'claude');
         case 'MOB-CHAT-GOAL-01':
             return executeMobileChatGoalScenario(environment, artifacts);
         case 'MOB-CHAT-RUNNING-OPEN-01':

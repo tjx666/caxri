@@ -1281,6 +1281,14 @@ planMode }`. A Codex switch during a turn says it applies to the next turn. "Use
   available; only an image with neither reads "This image is no longer available.". The gateway caches the last two originals for a minute so
   paging one does not re-read the transcript per chunk. The phone keeps thumbnails in memory and
   writes an opened original only to its cache directory for display.
+- Sessions list approvals: a waiting Chat Session shows its first pending request as the same card the
+  Chat docks above its composer, under its row, answered through `mobile.agentChat.respond`
+  (control devices only; `view` and `reply` devices read the card and its access notice). The list
+  polls `mobile.agentChat.requests`, a read every role may call that reads only Core's in-memory
+  projection (`agentChat.pendingRequests`), so polling never starts or resumes a provider. A Chat
+  never shows the "handled in Terminal" link; that link is for PTY Terminal Agents only. A
+  file-change card in the list names no files (the timeline item that carries them is not sent);
+  open the Chat to read them.
 - Follow-up queue: `mobile.agentChat.send` forwards the phone's `delivery`, so a message sent during
   a turn steers it by default (`delivery: 'steer'`), like Desktop's Enter; holding the button, or
   the `Queue` button shown beside it during a turn, sends without `delivery` so the message joins

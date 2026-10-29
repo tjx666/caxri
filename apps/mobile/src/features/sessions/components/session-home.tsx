@@ -17,12 +17,17 @@ import { useSessionManagement } from '../hooks/use-session-management';
 import type { SwipeRow } from '../open-swipe-row';
 import { createOpenSwipeRow } from '../open-swipe-row';
 import { activeProjectFilter, filterSessionEntries } from '../project-filter';
+import {
+    sessionListAttentionSource,
+    shouldListFallbackToTerminal,
+} from '../session-list-attention';
 import type { SessionListRow } from '../session-list-groups';
 import { sessionListRows } from '../session-list-groups';
 import { createSessionListInteraction } from '../session-list-interaction';
 import type { MobileSessionItem } from '../session-model';
 import { useHostSessions } from './host-sessions-provider';
 import { SessionActionsSheet } from './session-actions-sheet';
+import { SessionChatRequests } from './session-chat-requests';
 import { SessionGroupHeader, SessionGroupReveal } from './session-group-header';
 import { SessionHomeEmpty } from './session-home-empty';
 import { SessionHomeHeader } from './session-home-header';
@@ -245,13 +250,22 @@ export const SessionHome = ({
                     </SessionSwipeRow>
                     {/* A pinned waiting Session is listed again under Waiting; its cards show there, once. */}
                     {item.session.agentActivityState === 'waiting' && item.group !== 'pinned' ? (
-                        <AttentionCards
-                            fallbackToTerminal={item.session.primaryTerminal?.provider !== 'claude'}
-                            onOpenTerminal={() => openTerminal(item.session.id)}
-                            role={deviceRole}
-                            sessionId={item.session.id}
-                            theme={theme}
-                        />
+                        sessionListAttentionSource(item.session) === 'chat' &&
+                        item.session.primaryTerminal ? (
+                            <SessionChatRequests
+                                role={deviceRole}
+                                terminal={item.session.primaryTerminal}
+                                theme={theme}
+                            />
+                        ) : (
+                            <AttentionCards
+                                fallbackToTerminal={shouldListFallbackToTerminal(item.session)}
+                                onOpenTerminal={() => openTerminal(item.session.id)}
+                                role={deviceRole}
+                                sessionId={item.session.id}
+                                theme={theme}
+                            />
+                        )
                     ) : null}
                 </View>
             ),
