@@ -58,6 +58,18 @@ describe('render-count options', () => {
         );
     });
 
+    it('accepts --hover with an optional --prehover and refuses them on boot or alone', () => {
+        expect(
+            parseRenderCountOptions(['sample', '--prehover', '.a', '--hover', '.b']),
+        ).toMatchObject({ hover: '.b', prehover: '.a' });
+        expect(() => parseRenderCountOptions(['sample', '--prehover', '.a'])).toThrow(
+            '--prehover needs --hover',
+        );
+        expect(() => parseRenderCountOptions(['boot', '--hover', '.a'])).toThrow(
+            'need a loaded window',
+        );
+    });
+
     it('refuses a click on the boot command, which reloads the window', () => {
         expect(() => parseRenderCountOptions(['boot', '--click', '.session-card'])).toThrow(
             '--click needs a loaded window',

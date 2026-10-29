@@ -115,7 +115,7 @@ export function SessionActivityCard({
 }) {
     const accessibleDescriptionId = useId();
     const { t } = useTranslation();
-    const { closeDelay, delay, motionClassName, setOpen, visible } =
+    const { closeDelay, delay, motionClassName, onPointerEnter, setOpen, visible } =
         useSidebarDetailCard(suppressed);
     const agent = terminal?.kind ?? 'shell';
     const activity = currentSessionActivityPresentation(session, {
@@ -151,6 +151,7 @@ export function SessionActivityCard({
                 aria-describedby={accessibleDescriptionId}
                 closeDelay={closeDelay}
                 delay={delay}
+                onPointerEnter={onPointerEnter}
                 onFocus={(event) => {
                     event.preventBaseUIHandler();
                     setOpen(

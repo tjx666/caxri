@@ -74,6 +74,11 @@ yet. `settled=no` in the header means the window closed while renders were still
 `--seconds` before reading those counts as complete. `--json FILE` keeps every instance; the table
 is truncated by `--limit`.
 
+Hover scenarios use the real mouse: `--hover SELECTOR` moves it onto an element right after arming and waits for a hover
+card to open; add `--prehover SELECTOR` to rest on another element first (before arming), so the sample measures a
+hand-off from an open card instead of a cold open. Move the mouse away and wait about a second between samples so the
+list is cold again.
+
 `--within COMPONENT` scopes the table and the header to one surface, such as `PrimarySidebar`: an
 instance counts when it is that component or renders beneath it in the Fiber tree, so portaled
 content such as a row's hover card stays with its row. The header keeps the whole-window totals in

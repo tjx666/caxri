@@ -425,6 +425,37 @@ async function didSampleSettle(
     return false;
 }
 
+/**
+ * Moves the real mouse to the element's center and waits for a hover card to be open, so Base UI's hover timers and
+ * hand-off logic run exactly as they do for a user. A synthetic `.click()` cannot reproduce them.
+ */
+async function hoverElement(client: CdpConnection, selector: string): Promise<void> {
+    const point = await evaluate<string>(
+        client,
+        `(() => {
+            const target = document.querySelector(${JSON.stringify(selector)});
+            if (!target) return 'MISSING_TARGET';
+            const box = target.getBoundingClientRect();
+            return JSON.stringify({ x: box.left + box.width / 2, y: box.top + box.height / 2 });
+        })()`,
+    );
+    if (point === 'MISSING_TARGET') throw new Error(`No element matched hover target ${selector}`);
+    const { x, y } = JSON.parse(point) as { x: number; y: number };
+    await client.request('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y });
+    const deadline = Date.now() + 5000;
+    while (Date.now() < deadline) {
+        // eslint-disable-next-line no-await-in-loop
+        await new Promise<void>((resolve) => setTimeout(resolve, 50));
+        // eslint-disable-next-line no-await-in-loop
+        const isOpen = await evaluate<boolean>(
+            client,
+            `Boolean(document.querySelector('[data-slot="hover-card-content"][data-open]'))`,
+        );
+        if (isOpen) return;
+    }
+    throw new Error(`No hover card opened for ${selector}`);
+}
+
 export async function collectRenderSample(
     options: RenderCountOptions,
     connect = connectToRenderer,
@@ -445,8 +476,11 @@ export async function collectRenderSample(
             bootScriptId = added.identifier;
             await client.request('Page.reload', { ignoreCache: false });
         } else {
+            if (options.prehover) await hoverElement(client, options.prehover);
+            await new Promise<void>((resolve) => setTimeout(resolve, options.prehover ? 800 : 0));
             const armed = await evaluate<string>(client, LIVE_ARM_SOURCE);
             if (armed !== 'ARMED') throw new Error(armed);
+            if (options.hover) await hoverElement(client, options.hover);
             if (options.click) {
                 const clicked = await evaluate<string>(
                     client,

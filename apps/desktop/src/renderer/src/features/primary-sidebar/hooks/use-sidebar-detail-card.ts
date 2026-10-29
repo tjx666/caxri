@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react';
+// react-doctor-disable-next-line react-doctor/no-flush-sync -- the hover delay must be committed before Base UI's native mouseenter reads it.
+import { flushSync } from 'react-dom';
 
 import { sidebarDetailCardDismissal } from '../sidebar-detail-card-dismissal';
 import {
     claimSidebarDetailCard,
     isSidebarDetailCardWarm,
+    SIDEBAR_DETAIL_CARD_DELAY_MS,
+    sidebarDetailCardDelay,
     sidebarDetailCardMotionClassName,
-    useSidebarDetailCardDelay,
 } from '../sidebar-detail-card-handoff';
 
 /**
@@ -17,7 +20,7 @@ import {
 export function useSidebarDetailCard(suppressed: boolean | undefined) {
     const [open, setOpenState] = useState(false);
     const [isOpenedWarm, setOpenedWarm] = useState(false);
-    const delay = useSidebarDetailCardDelay();
+    const [delay, setDelay] = useState(SIDEBAR_DETAIL_CARD_DELAY_MS);
     const visible = open && !suppressed;
 
     useEffect(() => {
@@ -37,10 +40,23 @@ export function useSidebarDetailCard(suppressed: boolean | undefined) {
         setOpenState(isNextOpen);
     };
 
+    /**
+     * Picks the hover delay for this entry, before Base UI's own mouseenter reads it. The hand-off flag is read here
+     * instead of subscribed to, so only the row the pointer enters re-renders. Base UI reads the delay at its native
+     * `mouseenter`, which follows `pointerenter` within the same pointer move; `flushSync` commits the new delay in
+     * between instead of leaving it to a later task.
+     */
+    const onPointerEnter = (): void => {
+        const nextDelay = sidebarDetailCardDelay();
+        if (nextDelay === delay) return;
+        flushSync(() => setDelay(nextDelay));
+    };
+
     return {
         closeDelay: 80,
         delay,
         motionClassName: sidebarDetailCardMotionClassName(isOpenedWarm),
+        onPointerEnter,
         setOpen,
         visible,
     };

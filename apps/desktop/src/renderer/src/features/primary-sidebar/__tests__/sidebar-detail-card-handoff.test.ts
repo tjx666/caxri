@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
     claimSidebarDetailCard,
     isSidebarDetailCardWarm,
+    SIDEBAR_DETAIL_CARD_DELAY_MS,
+    sidebarDetailCardDelay,
     sidebarDetailCardMotionClassName,
 } from '../sidebar-detail-card-handoff';
 
@@ -36,6 +38,15 @@ describe('sidebar detail card handoff', () => {
         expect(isSidebarDetailCardWarm()).toBe(true);
         vi.advanceTimersByTime(200);
         expect(isSidebarDetailCardWarm()).toBe(false);
+    });
+
+    it('picks the cold delay or none at read time, with nothing to subscribe to', () => {
+        expect(sidebarDetailCardDelay()).toBe(SIDEBAR_DETAIL_CARD_DELAY_MS);
+        const release = claimSidebarDetailCard(vi.fn());
+        expect(sidebarDetailCardDelay()).toBe(0);
+        release();
+        vi.advanceTimersByTime(1_000);
+        expect(sidebarDetailCardDelay()).toBe(SIDEBAR_DETAIL_CARD_DELAY_MS);
     });
 
     it('drops the exit animation always and the enter animation only for a card that follows another', () => {
