@@ -52,8 +52,10 @@ export const conversation = {
     'conversation.message.copy': 'Copy Message',
     'conversation.message.copyFailed': 'Unable to copy the message. Try again.',
     'conversation.message.readFailed': 'Unable to load the whole message. Try again.',
+    'conversation.message.readOffline': 'Connect to your computer to copy the whole message.',
     'conversation.message.selectText': 'Select Text',
     'conversation.message.selectTitle': 'Select text to copy',
+    'conversation.message.tooLong': 'This message is too long to copy on a phone.',
     'conversation.reconnectToUpdate': 'Reconnect to update Conversation.',
     'conversation.staleNotice':
         'This Conversation could not be updated. Showing the last loaded messages.',

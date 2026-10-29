@@ -22,6 +22,7 @@ import { ConversationMessageSheet } from '../conversation/conversation-message-s
 import { ConversationUserAttachments } from '../conversation/conversation-user-attachments';
 import { conversationActionText } from '../conversation/conversation-user-text';
 import { ConversationList } from '../conversation/conversation-view';
+import { MessageReadOfflineError } from '../conversation/read-whole-message';
 import { SavedCopyNote } from '../read-cache/saved-copy-note';
 import { AgentChatGoalBar } from './agent-chat-goal-bar';
 import { AgentChatMcpServersContext } from './agent-chat-mcp-icons';
@@ -298,8 +299,12 @@ const AgentChatMessageSheet = ({
     const isLive = isConnected && chat.savedAt === undefined;
     const readText = async (): Promise<string> => {
         const isClipped = isAgentChatMessageClipped(message.text);
-        if (!isLive) {
-            if (isClipped) throw new Error('Only the tail of this message is on the phone');
+        /**
+         * A saved copy still reads the whole text while the phone is connected: the Server finds the message by id, or
+         * says it is gone. Only an unreachable computer leaves a clipped message unreadable.
+         */
+        if (!isConnected) {
+            if (isClipped) throw new MessageReadOfflineError();
             return message.text;
         }
         try {

@@ -208,3 +208,62 @@ export async function executeMobileChatMessageActionsScenario(
         await fixture.stop();
     }
 }
+
+const hugeReply = (snapshot: AgentChatSnapshot) =>
+    snapshot.items.find(
+        (item): item is Extract<ChatItem, { type: 'agentMessage' }> =>
+            item.type === 'agentMessage' && item.text.startsWith('Huge reply first line.'),
+    );
+
+/**
+ * `MOB-CHAT-COPY-LONG-01`: Copy Message on a reply past 16 KiB, the most a phone may send. The whole reply, first and
+ * last line included, reaches the clipboard, which pasting it back into the composer proves.
+ */
+export async function executeMobileChatLongCopyScenario(
+    environment: MobileAgentScenarioEnvironment,
+    artifacts: string[],
+): Promise<void> {
+    const { serial } = environment;
+    const fixture = await createMobileAcceptanceFixture({ mode: 'agent-chat', serial });
+    try {
+        await fixture.pair();
+        const chat = fixture.agentChat;
+        if (!chat || !fixture.allowedSessionId) throw new Error('Chat fixture is unavailable');
+        await tapMobileCheck(serial, `session-row-${fixture.allowedSessionId}`);
+        await waitForCheck(serial, 'agent-chat-status-empty');
+        await sendFromPhone(serial, 'hugereply');
+        const snapshot = await waitForMobile(
+            () => chat.read(),
+            (current) => hugeReply(current) !== undefined && !current.activeTurnId,
+        );
+        await hideChatKeyboard(serial);
+        const reply = hugeReply(snapshot);
+        if (!reply) throw new Error('The Chat is missing the huge reply');
+        if (new TextEncoder().encode(reply.text).length <= 16 * 1_024)
+            throw new Error('The huge reply does not exceed 16 KiB');
+        await waitForCheck(serial, `conversation-agent-${reply.id}`);
+        await tapMobileCheck(serial, `conversation-agent-${reply.id}`, { isLongPress: true });
+        await waitForCheck(serial, 'conversation-message-sheet');
+        await capture(environment, 'huge-sheet', artifacts);
+        await tapMobileCheckByBounds(serial, 'conversation-message-copy');
+        await waitForNoCheck(serial, 'conversation-message-sheet');
+        // Android's clipboard preview appears over the composer after a copy: capture it as the copy feedback.
+        await new Promise((resolve) => setTimeout(resolve, 600));
+        await capture(environment, 'huge-copied', artifacts);
+        await adbShell(serial, ['input', 'tap', '540', '1000']);
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        await tapMobileCheckByBounds(serial, 'agent-chat-composer-input');
+        await adbShell(serial, ['input', 'keyevent', 'KEYCODE_PASTE']);
+        await composerReads(serial, reply.text);
+        await hideChatKeyboard(serial);
+        await capture(environment, 'huge-pasted', artifacts);
+        await finish(environment, artifacts, {
+            copiedBytes: new TextEncoder().encode(reply.text).length,
+            copiedCharacters: reply.text.length,
+            copyMessage: 'whole-reply-pasted',
+            status: 'passed',
+        });
+    } finally {
+        await fixture.stop();
+    }
+}

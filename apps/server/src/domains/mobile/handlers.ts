@@ -7,6 +7,7 @@ import {
     isBinaryFileReadError,
     MOBILE_FILES_MAX_ENTRIES,
     MOBILE_FILES_READ_MAX_BYTES,
+    readMobileMessageChunk,
 } from '@caxri/protocol';
 
 import type { AgentChatService } from '../agent-chat';
@@ -52,6 +53,8 @@ type MobileDomainMethods = Pick<
     | 'mobile.session.projectRootInternal'
     | 'mobile.timeline.read'
     | 'mobile.timeline.readInternal'
+    | 'mobile.timeline.readMessage'
+    | 'mobile.timeline.readMessageInternal'
     | 'mobile.timeline.watchInternal'
     | 'mobile.timeline.unwatchInternal'
     | 'mobile.chatWatch.watchInternal'
@@ -247,6 +250,19 @@ export function createMobileDomainHandlers(options: {
                     cursorExpired: false,
                 };
             return options.timeline.read(sessionId, terminalId, before, limit);
+        },
+        'mobile.timeline.readMessage': () => {
+            throw new CaxriError('FORBIDDEN', 'Mobile timeline requires a paired device');
+        },
+        'mobile.timeline.readMessageInternal': async ({ sessionId, itemId, offset, principal }) => {
+            const session = authorizedSession(options.database, sessionId, principal);
+            const terminalId = session.primaryAgentTerminalId;
+            const text = terminalId
+                ? await options.timeline.readMessage(sessionId, terminalId, itemId)
+                : undefined;
+            if (!text)
+                throw new CaxriError('NOT_FOUND', 'This message is no longer in the transcript');
+            return readMobileMessageChunk(text, offset);
         },
         'mobile.timeline.watchInternal': async ({ sessionId, principal }) => {
             const session = authorizedSession(options.database, sessionId, principal);

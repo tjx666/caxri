@@ -11,6 +11,7 @@ import { agentChatPendingView } from '@caxri/protocol';
 
 import { translate } from '../../i18n';
 import { useMobileClient } from '../connection/mobile-client-provider';
+import { readWholeMessage } from '../conversation/read-whole-message';
 import { useReadCache } from '../read-cache/read-cache-context';
 import {
     cachedChatSchema,
@@ -342,8 +343,9 @@ export const useAgentChat = ({
     const readMessage = useCallback(
         async (itemId: string): Promise<string> => {
             if (terminalId === null) throw new Error('No Chat is open');
-            const { text } = await request('mobile.agentChat.readMessage', { terminalId, itemId });
-            return text;
+            return readWholeMessage((offset) =>
+                request('mobile.agentChat.readMessage', { terminalId, itemId, offset }),
+            );
         },
         [request, terminalId],
     );

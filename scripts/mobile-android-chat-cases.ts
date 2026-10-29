@@ -223,6 +223,12 @@ export const androidChatCases = {
         recordingOwner: 'scenario',
         scenario: 'agent-chat-message-actions',
     },
+    'MOB-CHAT-COPY-LONG-01': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'agent-chat-long-copy',
+    },
     'MOB-CHAT-36': {
         desktopProfile: 'managed-by-isolated-e2e',
         media: ['screenshot'],

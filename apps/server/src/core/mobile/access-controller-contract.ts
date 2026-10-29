@@ -35,6 +35,7 @@ export type MobileControlRequest = Extract<
             | 'mobile.dashboard'
             | 'mobile.session.show'
             | 'mobile.timeline.read'
+            | 'mobile.timeline.readMessage'
             | 'mobile.changes.list'
             | 'mobile.changes.diff'
             | 'mobile.agent.availability'

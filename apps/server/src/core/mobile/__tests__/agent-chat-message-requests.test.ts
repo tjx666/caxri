@@ -24,7 +24,8 @@ const snapshot: AgentChatSnapshot = {
             text: 'with a picture',
             images: [{}],
         },
-        { id: 'huge', type: 'agentMessage', text: 'y'.repeat(20_000), streaming: false },
+        { id: 'long', type: 'agentMessage', text: 'y'.repeat(20_000), streaming: false },
+        { id: 'huge', type: 'agentMessage', text: 'z'.repeat(300_000), streaming: false },
         {
             id: 'change',
             type: 'fileChange',
@@ -41,17 +42,36 @@ describe('mobile Agent Chat message requests', () => {
             invoke(
                 {
                     method: 'mobile.agentChat.readMessage',
-                    params: { terminalId: 'terminal-1', itemId },
+                    params: { terminalId: 'terminal-1', itemId, offset: 0 },
                 },
                 domain,
             );
-        await expect(read('user-ref')).resolves.toEqual({ text: 'look here' });
+        await expect(read('user-ref')).resolves.toEqual({ text: 'look here', totalLength: 9 });
         await expect(read('reply')).resolves.toEqual({
             text: `${'a'.repeat(6_000)}\n\n**done**`,
+            totalLength: 6_010,
         });
         await expect(read('huge')).rejects.toMatchObject({ code: 'VALIDATION' });
         await expect(read('change')).rejects.toMatchObject({ code: 'NOT_FOUND' });
         await expect(read('gone')).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    });
+
+    it('reads a message over the 16 KiB send limit in slices that join to the original', async () => {
+        const domain = domainFixture({ surface: 'chat', snapshot });
+        const read = (offset: number) =>
+            invoke(
+                {
+                    method: 'mobile.agentChat.readMessage',
+                    params: { terminalId: 'terminal-1', itemId: 'long', offset },
+                },
+                domain,
+            ) as Promise<{ text: string; totalLength: number; nextOffset?: number }>;
+        const first = await read(0);
+        expect(first).toMatchObject({ totalLength: 20_000, nextOffset: 16_000 });
+        const second = await read(first.nextOffset ?? 0);
+        expect(second.nextOffset).toBeUndefined();
+        expect(first.text + second.text).toBe('y'.repeat(20_000));
+        await expect(read(20_001)).rejects.toMatchObject({ code: 'VALIDATION' });
     });
 
     it('rewinds to a user message with only the conversation, putting its reference block back', async () => {

@@ -26,6 +26,10 @@ import {
     MOBILE_AGENT_CHAT_CLIP_MARKER,
 } from './mobile-agent-chat-state-clip.js';
 import { mobileAttachmentIdSchema } from './mobile-image-contract.js';
+import {
+    mobileMessageChunkSchema,
+    mobileMessageOffsetSchema,
+} from './mobile-message-read-contract.js';
 
 /**
  * A mobile reply or event must fit one sealed gateway frame (64 KiB of plaintext), while a Desktop Chat projection may
@@ -558,19 +562,21 @@ export const mobileAgentChatMethods = {
         result: z.null(),
     },
     /**
-     * The whole text of one message for the phone's Copy and Edit, since its window keeps only the tail of a long one
-     * (`clipAgentChatItemForMobile`): a reply's Markdown source, or the words a user message's sender typed without the
-     * reference block its file chips stand for. Only a message still in Core's projection is found; another fails with
-     * `NOT_FOUND`, and a text over the 16 KiB a phone may send fails with `VALIDATION`.
+     * The whole text of one message for the phone's Copy and Select Text, since its window keeps only the tail of a
+     * long one (`clipAgentChatItemForMobile`): a reply's Markdown source, or the words a user message's sender typed
+     * without the reference block its file chips stand for. The text arrives in slices (`offset`, `nextOffset`) that
+     * each fit one gateway frame, and has its own bound, `MOBILE_MESSAGE_READ_MAX_BYTES`, not the 16 KiB a phone may
+     * send. Only a message still in Core's projection is found; another fails with `NOT_FOUND`, and one over the bound
+     * fails with `VALIDATION`.
      */
     'mobile.agentChat.readMessage': {
         ...commandPolicy('server', 'read', ['sessions.read']),
-        params: z.strictObject({ ...terminalTarget, itemId: z.string().min(1).max(200) }),
-        result: z.strictObject({
-            text: z
-                .string()
-                .refine(canMobileAgentChatSend, 'Mobile Chat messages must be at most 16 KiB'),
+        params: z.strictObject({
+            ...terminalTarget,
+            itemId: z.string().min(1).max(200),
+            offset: mobileMessageOffsetSchema,
         }),
+        result: mobileMessageChunkSchema,
     },
     /**
      * The phone's "Edit from here", forwarded to `agentChat.rewind`: rewinds the conversation to just before user

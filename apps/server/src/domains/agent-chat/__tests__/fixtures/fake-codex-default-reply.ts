@@ -23,6 +23,21 @@ const LONG_REPLY_TEXT = [
     'Long reply last line.',
 ].join('\n\n');
 
+/**
+ * The reply to a `hugereply` message: a first and a last line around three hundred numbered paragraphs, about 26,000
+ * characters, past the 16 KiB a phone may send, so copying it whole needs the Server's own read bound and sliced
+ * reply.
+ */
+const HUGE_REPLY_TEXT = [
+    'Huge reply first line.',
+    ...Array.from(
+        { length: 300 },
+        (_, index) =>
+            `Paragraph ${String(index + 1).padStart(3, '0')}: the phone keeps only the end of this reply.`,
+    ),
+    'Huge reply last line.',
+].join('\n\n');
+
 export async function runDefaultReply(io: FakeCodexIo, turn: FakeTurn, said: string) {
     if (said.includes('hookfeedback')) return runProviderFeedback(io, turn);
     const reasoning = { type: 'reasoning', id: crypto.randomUUID(), summary: [], content: [] };
@@ -53,9 +68,9 @@ export async function runDefaultReply(io: FakeCodexIo, turn: FakeTurn, said: str
             { step: 'Reply', status: 'inProgress' },
         ],
     });
-    const reply = said.includes('longreply')
-        ? LONG_REPLY_TEXT
-        : `Hello from fake Codex. You said: ${said}`;
+    let reply = `Hello from fake Codex. You said: ${said}`;
+    if (said.includes('longreply')) reply = LONG_REPLY_TEXT;
+    else if (said.includes('hugereply')) reply = HUGE_REPLY_TEXT;
     await io.streamMessage(turn, reply, 0);
     io.notifyTurn(turn, 'thread/tokenUsage/updated', {
         turnId: turn.id,

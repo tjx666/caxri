@@ -2,6 +2,7 @@ import { Buffer } from 'node:buffer';
 import type { FileHandle } from 'node:fs/promises';
 
 import type { AgentProvider, AgentTimelineItem, MobileTimelineReadResult } from '@caxri/protocol';
+import { MOBILE_MESSAGE_READ_MAX_BYTES } from '@caxri/protocol';
 
 import type { CaxriDatabase } from '../db';
 import type { AgentEnvironment } from './contract';
@@ -15,6 +16,11 @@ const MAX_RETAINED_BYTES = 16 * 1024 * 1024;
 const MAX_LINE_BYTES = 256 * 1024;
 const MAX_RESULT_BYTES = 48 * 1024;
 const MAX_CACHED_TRANSCRIPTS = 16;
+/**
+ * Characters one message keeps when it is read in full: one more than `MOBILE_MESSAGE_READ_MAX_BYTES`, so a message
+ * over the bound is seen to exceed it instead of passing as a prefix.
+ */
+const FULL_MESSAGE_CHARS = MOBILE_MESSAGE_READ_MAX_BYTES + 1;
 
 interface TranscriptLine {
     offset: number;
@@ -201,6 +207,28 @@ export class AgentTimelineService {
         before: string | undefined,
         limit: number,
     ): Promise<MobileTimelineReadResult> {
+        return this.#serialized(terminalId, missingTimeline(), () =>
+            this.#readCurrent(sessionId, terminalId, before, limit),
+        );
+    }
+
+    /**
+     * The whole text of one timeline message, which the page keeps only the first 4,096 characters of. The id's byte
+     * offset locates the message's first record; the records from there on are projected again with a larger message
+     * limit, so a reply the Agent streamed over several records is joined as the timeline joins it. Resolves
+     * `undefined` when the id belongs to a transcript that was rewritten since, or names no message.
+     */
+    async readMessage(
+        sessionId: string,
+        terminalId: string,
+        itemId: string,
+    ): Promise<string | undefined> {
+        return this.#serialized(terminalId, undefined, () =>
+            this.#readMessageText(sessionId, terminalId, itemId),
+        );
+    }
+
+    async #serialized<T>(terminalId: string, forgotten: T, run: () => Promise<T>): Promise<T> {
         const queue = this.#reads.get(terminalId) ?? { generation: 0, tail: Promise.resolve() };
         const previous = queue.tail;
         const release = Promise.withResolvers<void>();
@@ -209,9 +237,9 @@ export class AgentTimelineService {
         this.#reads.set(terminalId, queue);
         await previous;
         try {
-            if (queue.generation !== generation) return missingTimeline();
-            const page = await this.#readCurrent(sessionId, terminalId, before, limit);
-            return queue.generation === generation ? page : missingTimeline();
+            if (queue.generation !== generation) return forgotten;
+            const result = await run();
+            return queue.generation === generation ? result : forgotten;
         } finally {
             /**
              * A forgotten Terminal cannot regain cached history from an older in-flight read.
@@ -222,6 +250,46 @@ export class AgentTimelineService {
             }
             release.resolve();
             if (queue.tail === release.promise) this.#reads.delete(terminalId);
+        }
+    }
+
+    async #readMessageText(
+        sessionId: string,
+        terminalId: string,
+        itemId: string,
+    ): Promise<string | undefined> {
+        const requested = parseCursor(itemId);
+        if (!requested) return;
+        // The newest page brings the cache, and so the current generation, up to date with the file.
+        const page = await this.#readCurrent(sessionId, terminalId, undefined, 1);
+        const state = this.#cache.get(terminalId);
+        if (page.status !== 'available' || state?.generation !== requested.generation) return;
+        const terminal = this.database.getTerminal(terminalId);
+        const provider = terminal?.provider;
+        if (!provider) return;
+        const location = await locateAgentTranscript(this.database, terminalId, this.environment);
+        const opened = location && (await openSafeAgentTranscript(location));
+        if (!opened) return;
+        try {
+            const { path, stats } = opened;
+            if (path !== state.path || requested.offset >= stats.size) return;
+            const read = await readWindow(
+                opened.handle,
+                requested.offset,
+                Math.min(stats.size, requested.offset + READ_WINDOW_BYTES),
+                false,
+            );
+            const builder = projectLines(
+                new TimelineBuilder(state.generation, FULL_MESSAGE_CHARS),
+                provider,
+                read.lines,
+            );
+            const item = builder.entries.find((entry) => entry.item.id === itemId)?.item;
+            return item?.type === 'userMessage' || item?.type === 'agentMessage'
+                ? item.text
+                : undefined;
+        } finally {
+            await opened.handle.close();
         }
     }
 

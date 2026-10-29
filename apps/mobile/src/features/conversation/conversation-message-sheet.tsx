@@ -9,6 +9,7 @@ import { BottomSheet, SheetAction, SheetCancel, SheetTitle } from '../../compone
 import { useTranslation } from '../../i18n';
 import { mobileRadius, mobileSpace, mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
+import { messageReadErrorText } from './read-whole-message';
 
 /**
  * "Edit from Here" as a message sheet offers it: enabled, or dimmed with the reason it cannot run now.
@@ -52,9 +53,9 @@ export const ConversationMessageSheet = ({
         try {
             text = wholeText.current ?? (await readText());
             wholeText.current = text;
-        } catch {
+        } catch (error_) {
             setBusy(undefined);
-            setError(t('conversation.message.readFailed'));
+            setError(messageReadErrorText(error_, t));
             return;
         }
         try {

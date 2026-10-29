@@ -33,6 +33,7 @@ import {
     latestConversationTurnStart,
 } from './conversation-scroll';
 import { conversationStyles as styles } from './conversation-styles';
+import { isTimelineMessageClipped, MessageReadOfflineError } from './read-whole-message';
 import { useConversationOlderPages } from './use-conversation-older-pages';
 import { useConversationOpening } from './use-conversation-opening';
 import type {
@@ -524,7 +525,14 @@ export const ConversationView = ({
             />
         );
     }
-    // A terminal Agent's messages copy the text the phone holds; there is no Server read or edit behind them.
+    /**
+     * A terminal Agent's message the timeline cut short is read whole from the computer; there is no edit behind them.
+     */
+    const readActionText = async (target: ConversationMessageTarget): Promise<string> => {
+        if (!isTimelineMessageClipped(target.text) || !timeline.readMessage) return target.text;
+        if (!isConnected) throw new MessageReadOfflineError();
+        return timeline.readMessage(target.id);
+    };
     return (
         <ConversationMessageActions value={setActionTarget}>
             <ConversationList
@@ -539,7 +547,7 @@ export const ConversationView = ({
             {actionTarget ? (
                 <ConversationMessageSheet
                     onClose={() => setActionTarget(undefined)}
-                    readText={() => Promise.resolve(actionTarget.text)}
+                    readText={() => readActionText(actionTarget)}
                     theme={theme}
                 />
             ) : null}

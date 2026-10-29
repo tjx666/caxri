@@ -47,6 +47,7 @@ import {
     mobileSubscriptionMethod,
 } from './subscription-authority';
 import { invokeMobileTerminalRequest } from './terminal-requests';
+import { invokeMobileTimelineRequest } from './timeline-requests';
 import { createMobileUpdateRequests } from './update-bundle';
 
 const requiredGateway = (gateway: MobileGateway | undefined): MobileGateway => {
@@ -266,13 +267,14 @@ export const openMobileAccessController = (options: {
                         () => currentPairedPrincipal(principal, request.method),
                     );
                 }
-                case 'mobile.timeline.read': {
+                case 'mobile.timeline.read':
+                case 'mobile.timeline.readMessage': {
                     const principal = currentPairedPrincipal(context.principal, request.method);
-                    await sessionForPrincipal(domainService, principal, request.params.sessionId);
-                    const result = await domainService.request('mobile.timeline.readInternal', {
-                        ...request.params,
+                    const result = await invokeMobileTimelineRequest(
+                        request,
                         principal,
-                    });
+                        domainService,
+                    );
                     currentPairedPrincipal(principal, request.method);
                     return result;
                 }
