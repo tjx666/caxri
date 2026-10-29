@@ -238,6 +238,25 @@ describe('Cmd+Z after Move to Trash', () => {
         expect(undoLatestTrash(client, 'session-a')).toBeDefined();
     });
 
+    it('sends one restore for a rapid double Cmd+Z and shows no error toast', async () => {
+        await trash('a.txt', 'receipt-a');
+        mocks.request.mockClear();
+        mocks.request.mockResolvedValue({ kind: 'file', name: 'a.txt', path: '/project/a.txt' });
+
+        expect(undoLatestTrash(client, 'session-a')).toBeDefined();
+        expect(undoLatestTrash(client, 'session-a')).toBeUndefined();
+        await vi.waitFor(() =>
+            expect(getToasts()).toContainEqual(
+                expect.objectContaining({ type: 'success', title: "Restored 'a.txt'" }),
+            ),
+        );
+
+        expect(
+            mocks.request.mock.calls.filter(([method]) => method === 'files.restoreTrashed'),
+        ).toHaveLength(1);
+        expect(getToasts().filter((toast) => toast.type === 'error')).toHaveLength(0);
+    });
+
     it('drops the receipt once the toast Undo consumed it', async () => {
         await trash('a.txt', 'receipt-a');
         mocks.request.mockResolvedValue({ kind: 'file', name: 'a.txt', path: '/project/a.txt' });

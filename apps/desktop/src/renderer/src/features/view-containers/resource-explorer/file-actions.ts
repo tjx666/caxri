@@ -483,6 +483,7 @@ export async function didUndoTrashedFile(
     client: ResourceExplorerClient,
     undoToken: string,
     name: string,
+    onConflict?: () => void,
 ): Promise<boolean> {
     let restored: MutableFileEntry;
     try {
@@ -491,9 +492,10 @@ export async function didUndoTrashedFile(
     } catch (error) {
         // A name conflict is the one failure the user can fix and retry; every other one leaves nothing to retry.
         if (!(isCaxriError(error) && error.code === 'CONFLICT')) forgetUndoableTrash(undoToken);
-        if (isCaxriError(error) && error.code === 'CONFLICT')
+        if (isCaxriError(error) && error.code === 'CONFLICT') {
+            onConflict?.();
             pushToast('error', translate('viewContainers.files.restoreConflict', { name }));
-        else if (isCaxriError(error) && error.code === 'NOT_FOUND')
+        } else if (isCaxriError(error) && error.code === 'NOT_FOUND')
             pushToast('error', translate('viewContainers.files.restoreGone', { name }));
         else
             pushToast(
@@ -518,7 +520,15 @@ export function undoLatestTrash(
 ): UndoableTrash | undefined {
     const trash = undoableTrashFor(sessionId);
     if (!trash) return undefined;
+    /**
+     * Claim the slot before the async restore: a second Cmd+Z (double press or key auto-repeat) would otherwise send
+     * the same receipt again and show an error toast beside the success one. A name conflict is the one retryable
+     * failure, so it puts the receipt back, unless a later operation already filled the slot.
+     */
+    forgetUndoableTrash(trash.undoToken);
     // didUndoTrashedFile reports every outcome itself.
-    void didUndoTrashedFile(client, trash.undoToken, trash.name);
+    void didUndoTrashedFile(client, trash.undoToken, trash.name, () => {
+        if (!undoableTrashFor(trash.sessionId)) rememberUndoableTrash(trash);
+    });
     return trash;
 }
