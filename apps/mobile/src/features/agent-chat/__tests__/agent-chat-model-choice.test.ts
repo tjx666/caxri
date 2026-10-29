@@ -9,6 +9,7 @@ import {
     agentChatModelOptions,
     agentChatModelSheetNote,
     agentChatModelTrigger,
+    agentChatSettingsDisabledReasons,
     agentChatUltracodeToggle,
     currentAgentChatConfigureError,
 } from '../agent-chat-model-choice';
@@ -68,7 +69,7 @@ describe('Agent Chat model choice', () => {
             ['opus', true],
             ['haiku', false],
         ]);
-        expect(options.efforts).toEqual([
+        expect(options.efforts).toMatchObject([
             { value: 'low', label: 'Low', isDefault: false, isSelected: true },
             { value: 'high', label: 'High', isDefault: true, isSelected: false },
             { value: 'xhigh', label: 'Extra high', isDefault: false, isSelected: false },
@@ -94,6 +95,67 @@ describe('Agent Chat model choice', () => {
             expect.objectContaining({ value: 'medium' }),
         ]);
         expect(agentChatEffortHint(snapshot)).toBeUndefined();
+    });
+
+    afterEach(() => setLocale('en'));
+
+    it('explains each known reasoning effort and leaves an unknown one bare', () => {
+        const options = agentChatModelOptions({
+            model: 'opus',
+            models: [{ id: 'opus', displayName: 'Opus', efforts: ['low', 'xhigh', 'turbo'] }],
+        });
+        expect(options.efforts.map((effort) => effort.description)).toEqual([
+            'Quick answers with light reasoning.',
+            'Extra depth for complex work; slower.',
+            undefined,
+        ]);
+        setLocale('zh-CN');
+        expect(agentChatModelOptions({ model: 'opus', models }).efforts[0]?.description).toBe(
+            '轻度推理，快速回答。',
+        );
+    });
+
+    it('says a dropped connection once for the model and permissions together', () => {
+        const offline = {
+            configure: 'Reconnect to change the model.',
+            permission: 'Reconnect to change permissions.',
+        };
+        expect(agentChatSettingsDisabledReasons(offline)).toEqual({
+            model: 'Reconnect to change the model and permissions.',
+            permission: undefined,
+        });
+        // Other reasons stay per section: only the permission level needs control access.
+        expect(
+            agentChatSettingsDisabledReasons({
+                configure: undefined,
+                permission: 'Control access is required to change permissions.',
+            }),
+        ).toEqual({
+            model: undefined,
+            permission: 'Control access is required to change permissions.',
+        });
+        expect(
+            agentChatSettingsDisabledReasons({
+                configure: 'Retry the Chat before changing the model.',
+                permission: 'Retry the Chat before changing permissions.',
+            }),
+        ).toEqual({
+            model: 'Retry the Chat before changing the model.',
+            permission: 'Retry the Chat before changing permissions.',
+        });
+        expect(agentChatSettingsDisabledReasons({ configure: 'Same', permission: 'Same' })).toEqual(
+            {
+                model: 'Same',
+                permission: undefined,
+            },
+        );
+        setLocale('zh-CN');
+        expect(
+            agentChatSettingsDisabledReasons({
+                configure: '重新连接后才能更改模型。',
+                permission: '重新连接后才能更改权限。',
+            }).model,
+        ).toBe('重新连接后才能更改模型和权限。');
     });
 
     it('asks for a model before offering efforts when the provider has not named one yet', () => {
