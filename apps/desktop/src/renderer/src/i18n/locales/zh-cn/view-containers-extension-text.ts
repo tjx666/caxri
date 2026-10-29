@@ -169,4 +169,70 @@ export const viewContainersExtensionText: TranslatedNamespace<typeof source> = {
     'viewContainers.extensionText.status.descDetached': 'HEAD 没有指向本地分支。',
     'viewContainers.extensionText.status.descUnborn': '此分支还没有任何提交。',
     'viewContainers.extensionText.status.descChecking': '正在检查 origin 上的同名分支。',
+    'viewContainers.extensionText.status.noDeployments': '未找到 Vercel 部署',
+    'viewContainers.extensionText.status.noDeploymentsHint':
+        '此仓库已关联 Vercel，但没有找到匹配的部署。请先创建一个，然后重新检查。',
+    'viewContainers.extensionText.status.cliNotInstalled': '未安装 {{provider}}',
+    'viewContainers.extensionText.status.cliNotSignedIn': '{{provider}} 未登录',
+    'viewContainers.extensionText.status.cliNotLinked': '{{provider}} 未关联',
+    'viewContainers.extensionText.status.vercelNotLinked': '仓库未关联 Vercel',
+    'viewContainers.extensionText.status.cliAccessDenied': '{{provider}} 拒绝访问',
+    'viewContainers.extensionText.status.cliConnectionFailed': '{{provider}} 连接失败',
+    'viewContainers.extensionText.status.cliTlsFailed': '{{provider}} 安全连接失败',
+    'viewContainers.extensionText.status.apiLimitReached': '已达到 {{service}} API 限额',
+    'viewContainers.extensionText.status.cliTimedOut': '{{provider}} 超时',
+    'viewContainers.extensionText.status.cliFailed': '{{provider}} 出错',
+    'viewContainers.extensionText.status.cliSubjectFailed': '{{provider}}：{{subject}} 失败',
+    'viewContainers.extensionText.status.installGitHub':
+        '此仓库的 Pull Request 需要 GitHub CLI。请安装后重新检查。',
+    'viewContainers.extensionText.status.installLobeHub':
+        '验收报告需要 LobeHub CLI。请用 npm i -g @lobehub/cli 安装后重新检查。',
+    'viewContainers.extensionText.status.installLinear':
+        '关联的议题需要 Linear CLI。请安装后重新检查。',
+    'viewContainers.extensionText.status.installVercel':
+        '此仓库的部署需要 Vercel CLI。请用 npm i -g vercel 安装后重新检查。',
+    'viewContainers.extensionText.status.signInHint':
+        '请在终端中运行 {{command}}，然后重新检查。仅设置 {{variable}} 环境变量不够，Caxri 不会把你 shell 中的个人凭据转交给 CLI 检查。',
+    'viewContainers.extensionText.status.linkLinear':
+        '请在此仓库中运行 linear config，然后重新检查。',
+    'viewContainers.extensionText.status.linkVercel': '请在此仓库中运行 vc link，然后重新检查。',
+    'viewContainers.extensionText.status.linkGeneric': '请为此仓库配置 {{service}}，然后重新检查。',
+    'viewContainers.extensionText.status.accessGitHub':
+        '请运行 gh auth refresh；如果组织要求，请授权 SSO，然后重新检查。',
+    'viewContainers.extensionText.status.accessLobeHub':
+        '请确认你的 LobeHub 账号可以读取此报告，然后重新检查。',
+    'viewContainers.extensionText.status.accessLinear':
+        '请确认你的 Linear 账号可以访问此团队，然后重新检查。',
+    'viewContainers.extensionText.status.accessVercel':
+        '请确认你的 Vercel 账号可以访问此项目，然后重新检查。',
+    'viewContainers.extensionText.status.couldNotReach':
+        'Caxri 无法连接 {{provider}}。请检查网络连接，然后重新检查。',
+    'viewContainers.extensionText.status.couldNotReachShared':
+        'Caxri 无法连接 {{providers}}。请重新联网后刷新。',
+    'viewContainers.extensionText.status.tlsHint': '请检查代理或证书，然后重试。',
+    'viewContainers.extensionText.status.rateLimitRetry':
+        '为保护共享的 API 额度，Caxri 已暂停 {{service}} 检查，将在 {{time}} 之后重试。',
+    'viewContainers.extensionText.status.rateLimitRefresh':
+        '为保护共享的 API 额度，Caxri 已暂停 {{service}} 检查。请在限额重置后刷新。',
+    'viewContainers.extensionText.status.timeoutHint': '请检查网络或代理，然后刷新。',
+    'viewContainers.extensionText.status.failedPullRequests':
+        '加载 Pull Request 时出错。请打开日志查看详情。',
+    'viewContainers.extensionText.status.failedAcceptance':
+        '加载验收报告时出错。请打开日志查看详情。',
+    'viewContainers.extensionText.status.failedIssues': '加载关联议题时出错。请打开日志查看详情。',
+    'viewContainers.extensionText.status.failedDeployments': '加载部署时出错。请打开日志查看详情。',
+    'viewContainers.extensionText.status.statePassed': '已通过',
+    'viewContainers.extensionText.status.stateFailed': '失败',
+    'viewContainers.extensionText.status.stateCanceled': '已取消',
+    'viewContainers.extensionText.status.stateRunning': '运行中',
+    'viewContainers.extensionText.status.stateQueued': '排队中',
+    'viewContainers.extensionText.status.stateNeutral': '中性',
+    'viewContainers.extensionText.status.stateUnknown': '未知',
+    'viewContainers.extensionText.status.ciPassed': 'CI 已通过',
+    'viewContainers.extensionText.status.ciFailed': 'CI 失败',
+    'viewContainers.extensionText.status.ciCanceled': 'CI 已取消',
+    'viewContainers.extensionText.status.ciRunning': 'CI 运行中',
+    'viewContainers.extensionText.status.ciQueued': 'CI 排队中',
+    'viewContainers.extensionText.status.ciNeutral': 'CI 中性',
+    'viewContainers.extensionText.status.ciUnknown': 'CI 未知',
 };
