@@ -72,6 +72,7 @@ import {
     hookCallbackRequest,
     resolveFakeClaudeModel,
 } from './fake-claude-models.ts';
+import { didRunFakeClaudeOneShot } from './fake-claude-print.ts';
 import {
     didStreamTable,
     streamBrowserSteps,
@@ -87,9 +88,9 @@ import { noteFakeClaudeWindowRequest } from './fake-claude-window.ts';
 
 type Json = Record<string, unknown>;
 
-// The oldest version visible delegation accepts, still below the provider rename minimum (2.1.232).
+// Meets the provider rename and low-cost generation minimum (2.1.232); `fake-claude-print.ts` answers both.
 if (process.argv.includes('--version')) {
-    process.stdout.write('2.1.196 (Claude Code)\n');
+    process.stdout.write('2.1.232 (Claude Code)\n');
     exitProcess(0);
 }
 
@@ -125,6 +126,9 @@ if (resumeId && !fs.existsSync(transcriptPath)) {
     process.stderr.write(`No conversation found with session ID: ${resumeId}\n`);
     exitProcess(1);
 }
+
+if (await didRunFakeClaudeOneShot(configDirectory, sessionId, transcriptPath, controlDirectory))
+    exitProcess(0);
 
 const script = loadFakeClaudeScriptOrExit();
 const { models, defaultModel } = fakeClaudeModels(script?.model);

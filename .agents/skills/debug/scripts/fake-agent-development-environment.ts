@@ -13,12 +13,16 @@
  * Fake Claude reads its control files from `<task>/control`, so a file created there switches on the same scenario an
  * E2E spec does: `touch /tmp/<task>/control/plan-behind-pace` makes `/usage` report a week ahead of pace.
  *
+ * Fake Claude's AI Session naming (Option+click a Session row, or "Rename Session with AI") is switched on here by
+ * `<task>/control/ai-naming`, and answers "Fake generated title". `echo 2 > <task>/control/naming-skip` makes the next
+ * two generations answer `SKIP`; `naming-invalid` does the same for a title that fails validation.
+ *
  * `--script <absolute path>` hands fake Claude or Codex a JSON file of scripted turns (`fake-claude-script.ts`,
  * `fake-codex-script.ts`), for a reply with exact content such as a long code block. Exporting `FAKE_CLAUDE_SCRIPT` in
  * the shell does nothing: the Agent process environment is an allowlist, so the path is baked into the fake's
  * launcher.
  */
-import { mkdir } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 import process from 'node:process';
 import { parseArgs } from 'node:util';
@@ -94,6 +98,7 @@ async function main(): Promise<void> {
     await mkdir(projectRoot, { recursive: true });
     const controlDirectory = join(directory, 'control');
     await mkdir(controlDirectory, { recursive: true });
+    await writeFile(join(controlDirectory, 'ai-naming'), '');
     const mode =
         provider === 'claude'
             ? await fakeClaudeChatAgentMode(userData, controlDirectory, scriptPath)
