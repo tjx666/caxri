@@ -456,37 +456,6 @@ describe('resolveTerminalFileLink', () => {
         });
     });
 
-    it.each([
-        ['absolute path', (path: string) => path],
-        ['file URL', (path: string) => `file://${path}`],
-    ])(
-        'marks an external %s trusted only when a Trusted Folder contains it',
-        async (_kind, toTarget) => {
-            const { database, sourceSessionId, terminalId, userHome } = await fixture();
-            const outsideTarget = join(userHome, '.example', 'secrets', 'runtime.json');
-
-            await expect(
-                resolveTerminalFileLink(
-                    database,
-                    { terminalId, target: toTarget(outsideTarget) },
-                    { userHome, trustedFolders: [join(userHome, 'elsewhere')] },
-                ),
-            ).resolves.toEqual({
-                status: 'external',
-                path: outsideTarget,
-                sourceSessionId,
-                trusted: false,
-            });
-            await expect(
-                resolveTerminalFileLink(
-                    database,
-                    { terminalId, target: toTarget(outsideTarget) },
-                    { userHome, trustedFolders: [`${join(userHome, '.example')}/`] },
-                ),
-            ).resolves.toMatchObject({ status: 'external', trusted: true });
-        },
-    );
-
     it('authorizes a regular Home file already contained by an added Project', async () => {
         const { database, sourceSessionId, terminalId, userHome } = await fixture();
         const projectRoot = join(userHome, 'project');

@@ -1,6 +1,6 @@
 import { lstat, realpath } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { isAbsolute, relative, resolve, sep } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import type {
@@ -8,7 +8,12 @@ import type {
     ServerOperationResult,
     TerminalFileLinkCandidate,
 } from '@caxri/protocol';
-import { CaxriError, isPathInTrustedFolder, isTopLevelProject } from '@caxri/protocol';
+import {
+    CaxriError,
+    isPathInTrustedFolder,
+    isTopLevelProject,
+    MAX_TRUSTED_FOLDERS,
+} from '@caxri/protocol';
 
 import type { CaxriDatabase } from '../db';
 import { isSameOrInside } from '../path-security';
@@ -359,16 +364,56 @@ async function resolveUserHome(userHomeOverride: string | undefined): Promise<st
  * Server Core never reads the target here: Main decides whether to prompt, using `trusted` from the
  * `security.trustedFolders` setting, and then reads one bounded read-only snapshot itself.
  */
-function externalResolution(
+/**
+ * Resolves the deepest existing ancestor of `path` through `realpath` and re-appends the missing tail, so `/tmp/x/a`
+ * and `/private/tmp/x/a` compare equal on macOS even before `a` exists.
+ */
+async function canonicalizeExistingPrefix(path: string): Promise<string> {
+    let current = resolve(path);
+    const tail: string[] = [];
+    for (;;) {
+        try {
+            // eslint-disable-next-line no-await-in-loop -- walks one ancestor at a time until a path exists
+            const canonical = await realpath(current);
+            return tail.length === 0 ? canonical : join(canonical, ...tail.toReversed());
+        } catch (error) {
+            if (!isMissingFileSystemError(error)) return resolve(path);
+        }
+        const parent = dirname(current);
+        if (parent === current) return resolve(path);
+        tail.push(basename(current));
+        current = parent;
+    }
+}
+
+/**
+ * Trust only skips Main's confirmation prompt; the snapshot read still applies its own link checks. A rule and a target
+ * may name the same folder through different ancestor aliases (`/tmp` and `/private/tmp`), so a lexical miss is retried
+ * against both sides' canonical spellings.
+ */
+async function isTrustedExternalPath(
+    candidate: string,
+    trustedFolders: readonly string[],
+): Promise<boolean> {
+    if (isPathInTrustedFolder(candidate, trustedFolders)) return true;
+    const rules = trustedFolders.slice(0, MAX_TRUSTED_FOLDERS);
+    if (rules.length === 0) return false;
+    const [canonicalCandidate, ...canonicalRules] = await Promise.all(
+        [dirname(candidate), ...rules].map(canonicalizeExistingPrefix),
+    );
+    return isPathInTrustedFolder(join(canonicalCandidate, basename(candidate)), canonicalRules);
+}
+
+async function externalResolution(
     sourceSessionId: string,
     candidate: string,
     trustedFolders: readonly string[],
-): TerminalFileLinkResolution {
+): Promise<TerminalFileLinkResolution> {
     return {
         status: 'external',
         path: candidate,
         sourceSessionId,
-        trusted: isPathInTrustedFolder(candidate, trustedFolders),
+        trusted: await isTrustedExternalPath(candidate, trustedFolders),
     };
 }
 
