@@ -9,7 +9,6 @@ import { fileURLToPath } from 'node:url';
 import { verifyBuildReceipt } from '../../../../scripts/build-receipt';
 import type { DesktopLeaseHandle } from '../../switch-worktree/scripts/desktop-lease';
 import {
-    acquireDesktopLease,
     beginDesktopLeaseHandoff,
     releaseDesktopLease,
     transferDesktopLease,
@@ -57,9 +56,12 @@ import {
     AMBIENT_ACCEPTANCE_ENVIRONMENT_KEYS,
 } from './start-electron-environment';
 import {
+    acquireLaunchLease,
     hasBooleanOption,
     help,
+    leaseWaitSecondsOption,
     parseOptions,
+    resolveTestRoots,
     stringOption,
     stringOptions,
 } from './start-electron-options';
@@ -439,13 +441,39 @@ async function main(): Promise<void> {
     const isUseNativeDialog = hasBooleanOption(options, 'native-dialog');
     const requestedAgentFixture = stringOption(options, 'agent-fixture');
     if (isUseNativeDialog) assertNativeDialogAuthorization();
+    const leaseWaitSeconds = leaseWaitSecondsOption(options);
 
-    let desktopLease = await acquireDesktopLease(PROJECT_ROOT, 'Acceptance');
+    // Validate every input that does not need the desktop first, so a bad plan never waits for a busy lease.
+    await access(ELECTRON_APP_PATH);
+    const buildReceipt = await verifyBuildReceipt(PROJECT_ROOT, { purpose: 'launch' });
+    if (!buildReceipt.isValid) throw new Error(`${STALE_BUILD_MESSAGE} (${buildReceipt.reason})`);
+
+    const testRootPaths = await resolveTestRoots(stringOptions(options, 'test-root'), PROJECT_ROOT);
+    const testRootPath = testRootPaths[0];
+    const plannedCase = await loadAcceptanceCasePlan(reportDirectory, caseId);
+    validateAcceptanceAgentFixture(caseId, plannedCase.item.agentFixture, requestedAgentFixture);
+    // Rejects a declared fixture this launch cannot arm before any lifecycle receipt exists.
+    acceptanceFixtureEnvironment({
+        caseId,
+        declared: plannedCase.item,
+        hasTestRootFixture: !isUseNativeDialog,
+        isNativeDialogAuthorized: isNativeDialogAuthorized(),
+    });
+    assertAcceptanceBuildCommit({
+        builtMainSource: await readBuiltMainSource(dirname(BUILT_MAIN_PATH)),
+        reportCommit: plannedCase.commit,
+    });
+    const { profileId } = validateAcceptanceCaseLaunch(plannedCase.item.stateIsolation, {
+        caseMode,
+        cleanupReusable: isCleanupReusable,
+        reuseUserData: Boolean(reuseUserDataDirectory),
+    });
+
+    let desktopLease = await acquireLaunchLease(PROJECT_ROOT, leaseWaitSeconds);
     try {
-        await access(ELECTRON_APP_PATH);
-        const buildReceipt = await verifyBuildReceipt(PROJECT_ROOT, { purpose: 'launch' });
-        if (!buildReceipt.isValid)
-            throw new Error(`${STALE_BUILD_MESSAGE} (${buildReceipt.reason})`);
+        const lockedReceipt = await verifyBuildReceipt(PROJECT_ROOT, { purpose: 'launch' });
+        if (!lockedReceipt.isValid)
+            throw new Error(`${STALE_BUILD_MESSAGE} (${lockedReceipt.reason})`);
         const inheritedOwnedProcesses = await removeStaleRuntime(
             defaultStaleRuntimeDependencies,
             caseMode === 'restart' && reuseUserDataDirectory
@@ -456,43 +484,6 @@ async function main(): Promise<void> {
                 : undefined,
         );
         await assertPortAvailable(port);
-
-        const requestedRoots = stringOptions(options, 'test-root');
-        const testRootPaths = (requestedRoots.length > 0 ? requestedRoots : [PROJECT_ROOT]).map(
-            (root) => resolve(PROJECT_ROOT, root),
-        );
-        await Promise.all(
-            testRootPaths.map(async (root) => {
-                try {
-                    await access(root);
-                } catch {
-                    throw new Error(`Test root does not exist: ${root}`);
-                }
-            }),
-        );
-        const testRootPath = testRootPaths[0];
-        const plannedCase = await loadAcceptanceCasePlan(reportDirectory, caseId);
-        validateAcceptanceAgentFixture(
-            caseId,
-            plannedCase.item.agentFixture,
-            requestedAgentFixture,
-        );
-        // Rejects a declared fixture this launch cannot arm before any lifecycle receipt exists.
-        acceptanceFixtureEnvironment({
-            caseId,
-            declared: plannedCase.item,
-            hasTestRootFixture: !isUseNativeDialog,
-            isNativeDialogAuthorized: isNativeDialogAuthorized(),
-        });
-        assertAcceptanceBuildCommit({
-            builtMainSource: await readBuiltMainSource(dirname(BUILT_MAIN_PATH)),
-            reportCommit: plannedCase.commit,
-        });
-        const { profileId } = validateAcceptanceCaseLaunch(plannedCase.item.stateIsolation, {
-            caseMode,
-            cleanupReusable: isCleanupReusable,
-            reuseUserData: Boolean(reuseUserDataDirectory),
-        });
         const launcherIdentity = await getProcessIdentity(process.pid);
         if (!launcherIdentity) throw new Error('Could not establish Acceptance launcher identity');
         const { acceptanceCase, ownedUserData, userDataDir } = await prepareAcceptanceUserData({

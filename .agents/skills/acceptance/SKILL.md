@@ -87,6 +87,12 @@ accept/reject on this?_
 - A resident Caxri dev app is normal and must remain usable. `start-electron.ts` gives each
   Acceptance launch its own temporary macOS app bundle identity; never ask the developer to stop
   their app or fall back to global app-name, frontmost-window, or coordinate targeting.
+- `start-electron.ts` fails immediately when another desktop task holds the repository desktop lease.
+  When that task is expected to finish soon, pass `--lease-wait <seconds>` (integer 1 to 1800) so the
+  launcher waits for the lease once and starts a single instance. Never write a shell retry loop
+  around the launcher: it can relaunch an instance after cleanup. Input validation (build receipt,
+  case plan, test roots) runs before the wait, and a timeout reports the current owner and the waited
+  duration.
 - Tell the user immediately before launching because the real desktop window can take macOS focus
   during verification.
 - Follow the desktop lease's
