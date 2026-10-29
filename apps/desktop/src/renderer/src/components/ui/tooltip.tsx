@@ -1,5 +1,5 @@
 import type { PointerEvent as ReactPointerEvent, ReactElement, ReactNode } from 'react';
-import { useRef, useState } from 'react';
+import { createContext, useContext, useMemo, useState } from 'react';
 
 import { Tooltip as TooltipPrimitive } from '@base-ui/react/tooltip';
 
@@ -21,12 +21,199 @@ import { TOOLTIP_MOTION } from './overlay-motion';
 export const FOCUSABLE_TOOLTIP_TRIGGER_CLASS =
     'rounded-sm focus-visible:outline focus-visible:outline-accent';
 
+type TooltipSide = 'bottom' | 'left' | 'right' | 'top';
+
+/**
+ * What a trigger hands the shared Root it opens: everything the popup renders, so one Root serves every trigger of its
+ * variant instead of each trigger carrying its own Root, store, and hook state.
+ */
+interface TooltipPayload {
+    content: ReactNode;
+    shortcut: string | undefined;
+    side: TooltipSide;
+}
+
+interface PointerPosition {
+    x: number;
+    y: number;
+}
+
+/**
+ * Mutable cell for the latest pointer position; a plain object so a React Compiler lint does not read the context value
+ * it lives in as mutated.
+ */
+interface TooltipPointer {
+    position: PointerPosition | undefined;
+}
+
+type TooltipHandle = TooltipPrimitive.Handle<TooltipPayload>;
+
+/**
+ * A long Agent Chat reply mounts hundreds of Tooltips (every code block toolbar, table, inline path, and link), and a
+ * Base UI Root per Tooltip kept about a third of the reply's retained heap. Triggers are therefore detached from the
+ * Root: the {@link TooltipProvider} mounts one Root per variant, and each {@link Tooltip} only renders a Trigger bound to
+ * that variant's handle.
+ */
+interface TooltipHosts {
+    /**
+     * Pointer-anchored popups (tree rows); the anchor state lives in this variant's single Root.
+     */
+    cursor: TooltipHandle;
+    /**
+     * Element-anchored popups.
+     */
+    element: TooltipHandle;
+    /**
+     * Element-anchored popups that ignore keyboard focus.
+     */
+    hoverOnly: TooltipHandle;
+    /**
+     * The latest pointer position over any cursor-anchored trigger.
+     */
+    pointer: TooltipPointer;
+}
+
+const TooltipHostsContext = createContext<TooltipHosts | undefined>(undefined);
+
 export function TooltipProvider({ children }: { children: ReactNode }) {
+    const [hosts] = useState<TooltipHosts>(() => {
+        return {
+            cursor: TooltipPrimitive.createHandle<TooltipPayload>(),
+            element: TooltipPrimitive.createHandle<TooltipPayload>(),
+            hoverOnly: TooltipPrimitive.createHandle<TooltipPayload>(),
+            pointer: { position: undefined },
+        };
+    });
     return (
         <TooltipPrimitive.Provider delay={500} closeDelay={80} timeout={300}>
-            {children}
+            <TooltipHostsContext value={hosts}>
+                {children}
+                <TooltipHost handle={hosts.element} />
+                <TooltipHost handle={hosts.hoverOnly} hoverOnly />
+                <CursorTooltipHost handle={hosts.cursor} pointer={hosts.pointer} />
+            </TooltipHostsContext>
         </TooltipPrimitive.Provider>
     );
+}
+
+function TooltipPopup({ payload }: { payload: TooltipPayload }) {
+    return (
+        <TooltipPrimitive.Popup
+            className={cn(
+                // Kept as a plain class (not `data-slot`) because E2E reads a tooltip's rendered text
+                // through `.tooltip-popup` (`e2e/statusbar.e2e.ts`, `e2e/editor-git-actions.e2e.ts`).
+                'tooltip-popup flex max-w-80 items-center gap-3 rounded-md bg-elevated px-2.5 py-1.5 text-[12px] text-foreground shadow-[0_0_0_1px_var(--border),0_8px_24px_var(--shadow)] outline-none',
+                TOOLTIP_MOTION,
+            )}
+        >
+            <span className="min-w-0 wrap-anywhere whitespace-pre-line">{payload.content}</span>
+            {payload.shortcut && (
+                <ShortcutBadge className="ml-auto" compact shortcut={payload.shortcut} />
+            )}
+        </TooltipPrimitive.Popup>
+    );
+}
+
+/*
+ * Base UI marks the positioner `data-anchor-hidden` once a clipping ancestor (a scrolled list) hides the trigger, but
+ * keeps rendering the popup beside it. A wheel scroll leaves the pointer still, so no pointer-leave closes the tooltip
+ * either; hiding it here keeps it from floating outside the list.
+ */
+const POSITIONER_CLASS = 'z-[90] max-w-[var(--available-width)] data-[anchor-hidden]:invisible';
+
+function TooltipHost({ handle, hoverOnly }: { handle: TooltipHandle; hoverOnly?: boolean }) {
+    return (
+        <TooltipPrimitive.Root
+            handle={handle}
+            onOpenChange={
+                hoverOnly
+                    ? (open, details) => {
+                          /**
+                           * Base UI calls this before it commits the open, and honors `cancel()` by dropping the change
+                           * entirely, so the popup never mounts rather than mounting and being closed again.
+                           */
+                          if (open && details.reason === 'trigger-focus') details.cancel();
+                      }
+                    : undefined
+            }
+        >
+            {({ payload }) =>
+                payload && (
+                    <TooltipPrimitive.Portal>
+                        <TooltipPrimitive.Positioner
+                            className={POSITIONER_CLASS}
+                            side={payload.side}
+                            sideOffset={6}
+                        >
+                            <TooltipPopup payload={payload} />
+                        </TooltipPrimitive.Positioner>
+                    </TooltipPrimitive.Portal>
+                )
+            }
+        </TooltipPrimitive.Root>
+    );
+}
+
+function CursorTooltipHost({
+    handle,
+    pointer,
+}: {
+    handle: TooltipHandle;
+    pointer: TooltipPointer;
+}) {
+    const [cursorAnchor, setCursorAnchor] = useState<TooltipCursorAnchor>();
+    /*
+     * The collision middleware is installed unconditionally, before the first popup mount: the hover-open callback sets
+     * the anchor asynchronously, and waiting for that state would let a first right-edge open use Base UI's default
+     * flip behavior and overflow by the cursor offset.
+     */
+    return (
+        <TooltipPrimitive.Root
+            handle={handle}
+            onOpenChange={(open, details) => {
+                if (open) {
+                    setCursorAnchor(
+                        resolveTooltipCursorAnchor(open, details.reason, pointer.position),
+                    );
+                }
+            }}
+            onOpenChangeComplete={(open) => {
+                if (!open) setCursorAnchor(undefined);
+            }}
+        >
+            {({ payload }) =>
+                payload && (
+                    <TooltipPrimitive.Portal>
+                        <TooltipPrimitive.Positioner
+                            align={cursorAnchor ? 'start' : undefined}
+                            anchor={cursorAnchor}
+                            className={POSITIONER_CLASS}
+                            collisionAvoidance={{
+                                side: 'flip',
+                                align: 'shift',
+                                fallbackAxisSide: 'none',
+                            }}
+                            collisionPadding={TOOLTIP_CURSOR_COLLISION_PADDING}
+                            positionMethod={cursorAnchor ? 'fixed' : undefined}
+                            /*
+                             * Keeps the popup beside the pointer so its vertical path through adjacent tree rows stays
+                             * clear. Floating UI flips the popup to the left near the right edge without moving it
+                             * across that path.
+                             */
+                            side={cursorAnchor ? 'right' : payload.side}
+                            sideOffset={cursorAnchor ? TOOLTIP_CURSOR_SIDE_OFFSET : 6}
+                        >
+                            <TooltipPopup payload={payload} />
+                        </TooltipPrimitive.Positioner>
+                    </TooltipPrimitive.Portal>
+                )
+            }
+        </TooltipPrimitive.Root>
+    );
+}
+
+function rememberPointer(pointer: TooltipPointer, event: ReactPointerEvent): void {
+    pointer.position = { x: event.clientX, y: event.clientY };
 }
 
 export function Tooltip({
@@ -36,7 +223,7 @@ export function Tooltip({
     disabled,
     hoverOnly,
     shortcut,
-    side: elementSide = 'bottom',
+    side = 'bottom',
     triggerId,
 }: {
     /**
@@ -62,7 +249,7 @@ export function Tooltip({
     /**
      * The trigger edge an element-anchored tooltip opens from; a cursor-anchored one always sits beside the pointer.
      */
-    side?: 'bottom' | 'left' | 'right' | 'top';
+    side?: TooltipSide;
     /**
      * Required when the trigger element needs an `id` of its own (a WAI-ARIA `role="tab"`, for example).
      *
@@ -73,104 +260,33 @@ export function Tooltip({
      */
     triggerId?: string;
 }) {
-    const latestPointer = useRef<{ x: number; y: number }>(undefined);
-    const [cursorAnchor, setCursorAnchor] = useState<TooltipCursorAnchor>();
+    const hosts = useContext(TooltipHostsContext);
     /**
-     * Installs cursor collision middleware before the first popup mount. The hover-open callback establishes the anchor
-     * asynchronously; waiting for that state lets a first right-edge open use Base UI's default flip behavior and
-     * overflow by the cursor offset.
+     * Stable while its parts are: Base UI copies the payload into the shared store, and a fresh object per render would
+     * re-render the open popup's Root for every trigger that re-renders.
      */
+    const payload = useMemo(() => ({ content, shortcut, side }), [content, shortcut, side]);
+    // A tree outside any TooltipProvider (a detached React root) has no Root to open, so it renders the bare trigger.
+    if (!hosts) return children;
     const isCursorMode = anchorMode === 'cursor';
-    const isCursorAnchored = anchorMode === 'cursor' && cursorAnchor !== undefined;
     /**
      * Base UI can open a sibling tooltip in its instant phase before that trigger's first pointer-move handler runs.
      * Capturing pointer-enter as well prevents the open from falling back to the row's bottom edge.
      */
     const capturePointer = isCursorMode
         ? (event: ReactPointerEvent) => {
-              latestPointer.current = { x: event.clientX, y: event.clientY };
+              rememberPointer(hosts.pointer, event);
           }
         : undefined;
-    /**
-     * Keeps the popup beside the pointer so its vertical path through adjacent tree rows stays clear. Floating UI flips
-     * the popup to the left near the right edge without moving it across that path.
-     */
-    const side = isCursorAnchored ? 'right' : elementSide;
     return (
-        <TooltipPrimitive.Root
+        <TooltipPrimitive.Trigger
             disabled={disabled}
-            onOpenChange={
-                hoverOnly || isCursorMode
-                    ? (open, details) => {
-                          /**
-                           * Base UI calls this before it commits the open, and honors `cancel()` by dropping the change
-                           * entirely, so the popup never mounts rather than mounting and being closed again.
-                           */
-                          if (hoverOnly && open && details.reason === 'trigger-focus') {
-                              details.cancel();
-                              return;
-                          }
-                          if (isCursorMode && open) {
-                              setCursorAnchor(
-                                  resolveTooltipCursorAnchor(
-                                      open,
-                                      details.reason,
-                                      latestPointer.current,
-                                  ),
-                              );
-                          }
-                      }
-                    : undefined
-            }
-            onOpenChangeComplete={
-                anchorMode === 'cursor'
-                    ? (open) => {
-                          if (!open) setCursorAnchor(undefined);
-                      }
-                    : undefined
-            }
-        >
-            <TooltipPrimitive.Trigger
-                id={triggerId}
-                render={children}
-                onPointerEnter={capturePointer}
-                onPointerMove={capturePointer}
-            />
-            <TooltipPrimitive.Portal>
-                <TooltipPrimitive.Positioner
-                    align={isCursorAnchored ? 'start' : undefined}
-                    anchor={isCursorAnchored ? cursorAnchor : undefined}
-                    /*
-                     * Base UI marks the positioner `data-anchor-hidden` once a clipping ancestor (a scrolled list) hides
-                     * the trigger, but keeps rendering the popup beside it. A wheel scroll leaves the pointer still, so
-                     * no pointer-leave closes the tooltip either; hiding it here keeps it from floating outside the list.
-                     */
-                    className="z-[90] max-w-[var(--available-width)] data-[anchor-hidden]:invisible"
-                    collisionAvoidance={
-                        isCursorMode
-                            ? { side: 'flip', align: 'shift', fallbackAxisSide: 'none' }
-                            : undefined
-                    }
-                    collisionPadding={isCursorMode ? TOOLTIP_CURSOR_COLLISION_PADDING : undefined}
-                    positionMethod={isCursorAnchored ? 'fixed' : undefined}
-                    side={side}
-                    sideOffset={isCursorAnchored ? TOOLTIP_CURSOR_SIDE_OFFSET : 6}
-                >
-                    <TooltipPrimitive.Popup
-                        className={cn(
-                            // Kept as a plain class (not `data-slot`) because E2E reads a tooltip's rendered text
-                            // through `.tooltip-popup` (`e2e/statusbar.e2e.ts`, `e2e/editor-git-actions.e2e.ts`).
-                            'tooltip-popup flex max-w-80 items-center gap-3 rounded-md bg-elevated px-2.5 py-1.5 text-[12px] text-foreground shadow-[0_0_0_1px_var(--border),0_8px_24px_var(--shadow)] outline-none',
-                            TOOLTIP_MOTION,
-                        )}
-                    >
-                        <span className="min-w-0 wrap-anywhere whitespace-pre-line">{content}</span>
-                        {shortcut && (
-                            <ShortcutBadge className="ml-auto" compact shortcut={shortcut} />
-                        )}
-                    </TooltipPrimitive.Popup>
-                </TooltipPrimitive.Positioner>
-            </TooltipPrimitive.Portal>
-        </TooltipPrimitive.Root>
+            handle={isCursorMode ? hosts.cursor : hoverOnly ? hosts.hoverOnly : hosts.element}
+            id={triggerId}
+            payload={payload}
+            render={children}
+            onPointerEnter={capturePointer}
+            onPointerMove={capturePointer}
+        />
     );
 }

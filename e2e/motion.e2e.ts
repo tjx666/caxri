@@ -374,12 +374,21 @@ test('Tooltips travel from their trigger on a fresh open and appear without anim
             ),
         ).not.toBe('0');
 
-        // Sweeping to the neighbor inside that timeout is Base UI's instant phase: the next tooltip must not replay
-        // the enter keyframe, or a pass along the tab strip flickers once per tab.
+        // Sweeping to the neighbor inside that timeout must not replay the enter keyframe, or a pass along the tab
+        // strip flickers once per tab. Triggers share one Root, so the open popup retargets the neighbor instead of
+        // closing and reopening (`data-instant` only marks the provider's close-then-open phase).
+        await tooltip.evaluate((element) =>
+            Promise.all(element.getAnimations().map((animation) => animation.finished)),
+        );
         await running.page.getByRole('tab', { name: 'Git' }).hover();
         await expect(tooltip).toContainText('Git');
-        await expect(tooltip).toHaveAttribute('data-instant');
-        expect(await animationNameOf(tooltip)).toBe('none');
+        expect(
+            await tooltip.evaluate(
+                (element) =>
+                    element.getAnimations().filter((animation) => animation.playState === 'running')
+                        .length,
+            ),
+        ).toBe(0);
     } finally {
         try {
             await running.app.close();
