@@ -86,6 +86,33 @@ describe('caxri secret', () => {
         expect(`${output.stdout()}${output.stderr()}`).not.toContain(SYNTHETIC_SECRET);
     });
 
+    it('masks the secret value in stdout and stderr, including a value split across writes', async () => {
+        const output = io();
+        const { client } = agentServer(() => ({ values: { API_TOKEN: SYNTHETIC_SECRET } }));
+        const half = Math.floor(SYNTHETIC_SECRET.length / 2);
+        const script = String.raw`
+            const s = process.env.API_TOKEN;
+            process.stdout.write('a ' + s + ' b\n');
+            process.stdout.write(s.slice(0, ${half}));
+            setTimeout(() => {
+                process.stdout.write(s.slice(${half}) + '\n');
+                process.stderr.write('err ' + s + '\n');
+                process.exit(5);
+            }, 30);
+        `;
+
+        await expect(
+            runCli(['secret', 'exec', 'API_TOKEN', '--', process.execPath, '-e', script], {
+                connect: () => Promise.resolve(client),
+                environment: agentEnvironment,
+                io: output.io,
+            }),
+        ).resolves.toBe(5);
+
+        expect(output.stdout()).toBe('a [secret:API_TOKEN] b\n[secret:API_TOKEN]\n');
+        expect(output.stderr()).toBe('err [secret:API_TOKEN]\n');
+    });
+
     it('reports a missing command without starting anything', async () => {
         const output = io();
         const { client } = agentServer(() => ({ values: { API_TOKEN: SYNTHETIC_SECRET } }));

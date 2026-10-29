@@ -80,8 +80,9 @@ caxri secret request OPENAI_API_KEY --reason "Run the eval script against the Op
   how to proceed; do not request it again unprompted. A `TIMEOUT` that says the request is still open
   means the user has not answered yet: run the same command again to keep waiting. If your shell
   kills a long command, run it again too; it joins the same request instead of asking twice.
-- The child command can still print what it receives. Do not echo, log, or `env`-dump a secret
-  inside `secret exec`, and never read the secret store directly.
+- `secret exec` replaces an exact copy of a secret (4 characters or longer) in the command's output
+  with `[secret:NAME]`, but it cannot see files or network traffic. Do not echo, log, or `env`-dump a
+  secret inside `secret exec`, and never read the secret store directly.
 
 ## Read Project state and debug safely
 
