@@ -1,5 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import type { AppLocale } from '@caxri/protocol';
+import { afterEach, describe, expect, it } from 'vitest';
 
+import { translate, useLocaleStore } from '../../../i18n';
 import {
     agentChatPermissionLabel,
     agentChatPermissionView,
@@ -9,15 +11,37 @@ import {
     nextAgentChatPermissionTurnBaseline,
 } from './agent-chat-permissions';
 
+const translateIn =
+    (locale: AppLocale): typeof translate =>
+    (...parameters) => {
+        useLocaleStore.setState({ locale });
+        return translate(...parameters);
+    };
+
+afterEach(() => useLocaleStore.setState({ locale: 'en' }));
+
 describe('Agent Chat permission picker', () => {
+    it('writes the trigger in the language of the translator it is given', () => {
+        /**
+         * A language switch changes only `t`; the view must follow it instead of a cached global lookup.
+         */
+        const view = (t: typeof translate) =>
+            agentChatPermissionView({ permissionMode: 'fullAccess' }, 'claude', undefined, t);
+        expect(view(translateIn('en')).label).toBe('Full access');
+        expect(view(translateIn('zh-CN')).label).toBe('完全访问');
+        expect(view(translateIn('zh-CN')).projectDefaultItem.label).not.toBe(
+            'Use as Project default',
+        );
+    });
+
     it('names the level in the provider words, and Custom without one', () => {
-        expect(agentChatPermissionLabel({ permissionMode: 'acceptEdits' }, 'codex')).toBe(
-            'Default',
-        );
-        expect(agentChatPermissionLabel({ permissionMode: 'acceptEdits' }, 'claude')).toBe(
-            'Accept edits',
-        );
-        expect(agentChatPermissionLabel({}, 'codex')).toBe('Custom');
+        expect(
+            agentChatPermissionLabel({ permissionMode: 'acceptEdits' }, 'codex', translate),
+        ).toBe('Default');
+        expect(
+            agentChatPermissionLabel({ permissionMode: 'acceptEdits' }, 'claude', translate),
+        ).toBe('Accept edits');
+        expect(agentChatPermissionLabel({}, 'codex', translate)).toBe('Custom');
     });
 
     it('saves the level and plan mode as the Project default, and nothing for Custom', () => {
@@ -58,9 +82,14 @@ describe('Agent Chat permission picker', () => {
 
     it('describes the trigger and whether the Chat already matches the Project default', () => {
         expect(
-            agentChatPermissionView({ permissionMode: 'fullAccess', planMode: true }, 'claude', {
-                claude: { permissionMode: 'fullAccess', planMode: true },
-            }),
+            agentChatPermissionView(
+                { permissionMode: 'fullAccess', planMode: true },
+                'claude',
+                {
+                    claude: { permissionMode: 'fullAccess', planMode: true },
+                },
+                translate,
+            ),
         ).toEqual({
             label: 'Full access',
             ariaLabel: 'Permissions: Full access',
@@ -72,46 +101,64 @@ describe('Agent Chat permission picker', () => {
             showsClearProjectDefault: false,
             pendingCaption: undefined,
         });
-        expect(agentChatPermissionView({ planMode: false }, 'codex', undefined)).toEqual({
-            label: 'Custom',
-            ariaLabel: 'Permissions: Custom',
-            isFullAccess: false,
-            projectDefault: undefined,
-            isSavedDefault: false,
-            // Shown but unavailable, with the reason, rather than missing from the menu.
-            projectDefaultItem: {
-                label: 'Use as Project default',
-                isChecked: false,
-                disabledReason: 'Choose a level to save it as the default',
+        expect(agentChatPermissionView({ planMode: false }, 'codex', undefined, translate)).toEqual(
+            {
+                label: 'Custom',
+                ariaLabel: 'Permissions: Custom',
+                isFullAccess: false,
+                projectDefault: undefined,
+                isSavedDefault: false,
+                // Shown but unavailable, with the reason, rather than missing from the menu.
+                projectDefaultItem: {
+                    label: 'Use as Project default',
+                    isChecked: false,
+                    disabledReason: 'Choose a level to save it as the default',
+                },
+                showsClearProjectDefault: false,
+                pendingCaption: undefined,
             },
-            showsClearProjectDefault: false,
-            pendingCaption: undefined,
-        });
+        );
         expect(
-            agentChatPermissionView({ permissionMode: 'auto' }, 'codex', undefined)
+            agentChatPermissionView({ permissionMode: 'auto' }, 'codex', undefined, translate)
                 .projectDefaultItem,
         ).toEqual({ label: 'Use as Project default', isChecked: false });
     });
 
     it('offers clearing a saved Project default even when the Chat differs from it', () => {
-        const view = agentChatPermissionView({ permissionMode: 'auto' }, 'codex', {
-            codex: { permissionMode: 'readOnly' },
-            claude: { permissionMode: 'auto' },
-        });
+        const view = agentChatPermissionView(
+            { permissionMode: 'auto' },
+            'codex',
+            {
+                codex: { permissionMode: 'readOnly' },
+                claude: { permissionMode: 'auto' },
+            },
+            translate,
+        );
         expect(view.isSavedDefault).toBe(false);
         expect(view.showsClearProjectDefault).toBe(true);
         // Another provider's default does not count.
         expect(
-            agentChatPermissionView({ permissionMode: 'auto' }, 'grok', {
-                claude: { permissionMode: 'auto' },
-            }).showsClearProjectDefault,
+            agentChatPermissionView(
+                { permissionMode: 'auto' },
+                'grok',
+                {
+                    claude: { permissionMode: 'auto' },
+                },
+                translate,
+            ).showsClearProjectDefault,
         ).toBe(false);
     });
 
     it('says when the shown choice waits for the next turn', () => {
-        const view = agentChatPermissionView({ permissionMode: 'readOnly' }, 'codex', undefined, {
-            isDeferred: true,
-        });
+        const view = agentChatPermissionView(
+            { permissionMode: 'readOnly' },
+            'codex',
+            undefined,
+            translate,
+            {
+                isDeferred: true,
+            },
+        );
         expect(view.pendingCaption).toBe('from next turn');
         expect(view.ariaLabel).toBe('Permissions: Read only, from the next turn');
     });

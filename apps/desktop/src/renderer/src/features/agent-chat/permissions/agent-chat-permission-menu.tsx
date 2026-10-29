@@ -102,7 +102,7 @@ export function AgentChatPermissionMenu({
     );
     const shortcut = useCommandShortcut('agentChat.changePermissionMode');
     if (!isShown) return null;
-    const view = agentChatPermissionView(snapshot, provider, project?.chatDefaults, {
+    const view = agentChatPermissionView(snapshot, provider, project?.chatDefaults, t, {
         isDeferred,
     });
     const Icon = view.isFullAccess ? ShieldAlert : ShieldCheck;

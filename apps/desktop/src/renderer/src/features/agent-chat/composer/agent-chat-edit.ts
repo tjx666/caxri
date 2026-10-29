@@ -227,10 +227,10 @@ export function agentChatEditRemovedTurns(
 /**
  * The edit banner's line.
  */
-export function agentChatEditCaption(removedTurns: number): string {
+export function agentChatEditCaption(removedTurns: number, t: Translate): string {
     return removedTurns === 1
-        ? translate('agentChat.edit.captionOne')
-        : translate('agentChat.edit.captionOther', { count: removedTurns });
+        ? t('agentChat.edit.captionOne')
+        : t('agentChat.edit.captionOther', { count: removedTurns });
 }
 
 /**

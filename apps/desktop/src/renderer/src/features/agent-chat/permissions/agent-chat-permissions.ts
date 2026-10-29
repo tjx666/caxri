@@ -7,18 +7,22 @@ import type {
 } from '@caxri/protocol';
 import { agentChatPermissionModeLabel } from '@caxri/protocol';
 
-import { translate } from '../../../i18n';
+import type { Translate } from '../../../i18n';
 
 /**
  * The composer's permission trigger: the level's name, or "Custom" for launch settings no level matches.
+ *
+ * `t` is a parameter, not the module-level `translate()`: the React Compiler memoizes a render-time call on its
+ * arguments, and a global lookup is not one, so the label would keep its old language after a runtime language switch.
  */
 export function agentChatPermissionLabel(
     snapshot: Pick<AgentChatSnapshot, 'permissionMode'>,
     provider: AgentProvider,
+    t: Translate,
 ): string {
     return snapshot.permissionMode
-        ? agentChatPermissionModeLabel(snapshot.permissionMode, provider, translate)
-        : translate('agentChat.permission.custom');
+        ? agentChatPermissionModeLabel(snapshot.permissionMode, provider, t)
+        : t('agentChat.permission.custom');
 }
 
 /**
@@ -113,16 +117,17 @@ export const AGENT_CHAT_CUSTOM_PERMISSION = {
 function projectDefaultItem(
     projectDefault: AgentChatDefault | undefined,
     isSavedDefault: boolean,
+    t: Translate,
 ): AgentChatProjectDefaultItem {
     if (!projectDefault)
         return {
-            label: translate('agentChat.permission.useAsProjectDefault'),
+            label: t('agentChat.permission.useAsProjectDefault'),
             isChecked: false,
-            disabledReason: translate('agentChat.permission.chooseLevelForDefault'),
+            disabledReason: t('agentChat.permission.chooseLevelForDefault'),
         };
     return isSavedDefault
-        ? { label: translate('agentChat.permission.projectDefault'), isChecked: true }
-        : { label: translate('agentChat.permission.useAsProjectDefault'), isChecked: false };
+        ? { label: t('agentChat.permission.projectDefault'), isChecked: true }
+        : { label: t('agentChat.permission.useAsProjectDefault'), isChecked: false };
 }
 
 /**
@@ -133,22 +138,23 @@ export function agentChatPermissionView(
     snapshot: Pick<AgentChatSnapshot, 'permissionMode' | 'planMode'>,
     provider: AgentProvider,
     defaults: ProjectChatDefaults | undefined,
+    t: Translate,
     { isDeferred = false }: { isDeferred?: boolean } = {},
 ): AgentChatPermissionView {
-    const label = agentChatPermissionLabel(snapshot, provider);
+    const label = agentChatPermissionLabel(snapshot, provider, t);
     const projectDefault = agentChatProjectDefault(snapshot);
     const isSavedDefault =
         projectDefault !== undefined &&
         isAgentChatProjectDefault(projectDefault, defaults, provider);
     return {
         label,
-        ariaLabel: `${translate('agentChat.permission.triggerLabel', { label })}${isDeferred ? translate('agentChat.permission.triggerDeferred') : ''}`,
+        ariaLabel: `${t('agentChat.permission.triggerLabel', { label })}${isDeferred ? t('agentChat.permission.triggerDeferred') : ''}`,
         isFullAccess: snapshot.permissionMode === 'fullAccess',
         projectDefault,
         isSavedDefault,
-        projectDefaultItem: projectDefaultItem(projectDefault, isSavedDefault),
+        projectDefaultItem: projectDefaultItem(projectDefault, isSavedDefault, t),
         showsClearProjectDefault: defaults?.[provider] !== undefined && !isSavedDefault,
-        pendingCaption: isDeferred ? translate('agentChat.permission.pendingCaption') : undefined,
+        pendingCaption: isDeferred ? t('agentChat.permission.pendingCaption') : undefined,
     };
 }
 

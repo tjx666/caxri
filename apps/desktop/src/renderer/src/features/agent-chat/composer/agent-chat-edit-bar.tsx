@@ -55,7 +55,7 @@ function EditBar({
         >
             <Pencil aria-hidden className="size-3.5 shrink-0 text-foreground" />
             <span className="min-w-0 truncate" role="status">
-                {agentChatEditCaption(removedTurns)}
+                {agentChatEditCaption(removedTurns, t)}
             </span>
             <Tooltip content={filesUnsupportedReason} disabled={!isFilesDisabled}>
                 <span className="ml-auto flex shrink-0 items-center gap-1.5">

@@ -1,6 +1,7 @@
 import type { AgentChatItem, AgentChatSnapshot, EnvironmentState } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { translate } from '../../../../i18n';
 import {
     agentChatEditAvailability,
     agentChatEditCaption,
@@ -68,10 +69,10 @@ describe('Agent Chat edit from here', () => {
         expect(agentChatEditRemovedTurns(settled, edit)).toBe(3);
         expect(agentChatEditRemovedTurns({ ...settled, activeTurnId: 't3' }, edit)).toBe(3);
         expect(agentChatEditRemovedTurns({ items: [], turns: [] }, edit)).toBeUndefined();
-        expect(agentChatEditCaption(1)).toBe(
+        expect(agentChatEditCaption(1, translate)).toBe(
             'Editing an earlier message · its turn will be replaced',
         );
-        expect(agentChatEditCaption(3)).toBe(
+        expect(agentChatEditCaption(3, translate)).toBe(
             'Editing an earlier message · 3 turns will be replaced',
         );
     });
