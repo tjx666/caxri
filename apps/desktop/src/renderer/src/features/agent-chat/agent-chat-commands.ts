@@ -245,12 +245,10 @@ export async function didRunAgentChatCommand(
 }
 
 /**
- * Pauses, resumes, or clears the Chat's goal from its composer row, through the same `/goal` command the composer runs.
+ * Sets, pauses, resumes, or clears the Chat's goal outside the composer (its goal row, a user message's Set as Goal),
+ * through the same `/goal` command the composer runs.
  */
-export function changeAgentChatGoal(
-    terminalId: string,
-    change: Exclude<AgentChatGoalChange, { action: 'set' }>,
-): void {
+export function changeAgentChatGoal(terminalId: string, change: AgentChatGoalChange): void {
     void didRunAgentChatCommand(terminalId, {
         name: AGENT_CHAT_GOAL_COMMAND,
         arguments: agentChatGoalArguments(change),

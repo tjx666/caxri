@@ -34,6 +34,13 @@ function describeEntry(entry: MenuSlot): unknown {
 const visible = (entries: ReturnType<typeof agentChatUserMessageMenu>): unknown[] =>
     entries.filter(Boolean).map((entry) => describeEntry(entry));
 
+function selectSetAsGoal(entries: ReturnType<typeof agentChatUserMessageMenu>): void {
+    const goal = entries.find(
+        (entry) => entry && entry.type !== 'separator' && entry.label === 'Set as Goal',
+    );
+    if (goal && goal.type !== 'separator' && goal.type !== 'submenu') goal.onSelect();
+}
+
 describe('agentChatUserMessageMenu', () => {
     it('offers Copy Message and every enabled rewind action', () => {
         const menuInput = input();
@@ -57,6 +64,37 @@ describe('agentChatUserMessageMenu', () => {
         });
         if (copy && copy.type !== 'separator' && copy.type !== 'submenu') copy.onSelect();
         expect(onCopy).toHaveBeenCalledWith('the bug');
+    });
+
+    it('offers Set as Goal after Add to Message when the provider has a goal command', () => {
+        const onSetGoal = vi.fn();
+        const entries = agentChatUserMessageMenu(
+            input({ text: '  ship the release  ', onQuote: vi.fn(), onSetGoal }),
+        );
+        expect(visible(entries).slice(0, 3)).toEqual([
+            { label: 'Copy Message', disabledReason: undefined },
+            { label: 'Add to Message', disabledReason: undefined },
+            { label: 'Set as Goal', disabledReason: undefined },
+        ]);
+        selectSetAsGoal(entries);
+        expect(onSetGoal).toHaveBeenCalledWith('ship the release');
+    });
+
+    it('sets only the selection as the goal while one is inside the message', () => {
+        const onSetGoal = vi.fn();
+        const entries = agentChatUserMessageMenu(input({ selectedText: 'the bug', onSetGoal }));
+        selectSetAsGoal(entries);
+        expect(onSetGoal).toHaveBeenCalledWith('the bug');
+    });
+
+    it('leaves out Set as Goal for a message with no text', () => {
+        const entries = agentChatUserMessageMenu(input({ text: '', onSetGoal: vi.fn() }));
+        expect(visible(entries)).toEqual([
+            '---',
+            { label: 'Edit from Here', disabledReason: undefined },
+            { label: 'Fork from Here', disabledReason: undefined },
+            { label: 'Restore Code to Here', disabledReason: undefined },
+        ]);
     });
 
     it('keeps disabled actions with their reason and leaves out actions not offered', () => {

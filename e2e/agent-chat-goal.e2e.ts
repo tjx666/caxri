@@ -15,6 +15,7 @@ import {
     launchCaxri,
     VISIBLE_SESSION,
 } from './support/helpers.ts';
+import { chooseContextMenuItem, contextMenuLabels } from './support/native-context-menu.ts';
 
 /**
  * Goal mode and the goal row against the fake Codex app-server, whose goal turns stream until stopped when the
@@ -107,6 +108,51 @@ test('a Codex Chat sets, pauses, resumes, and clears a goal', async ({}, testInf
         await expect(row).toHaveAttribute('data-agent-chat-goal', 'paused');
         await expect(chat.getByRole('button', { name: 'Stop', exact: true })).toHaveCount(0);
 
+        await row.getByRole('button', { name: 'Clear goal' }).click();
+        await expect(row).toHaveCount(0);
+    } finally {
+        await closeAppQuietly(running.app);
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
+test('a message sent without Goal mode becomes the goal from its right-click menu', async ({}, testInfo) => {
+    const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-chat-goal-menu-'));
+    const userData = join(directory, 'user-data');
+    const root = join(directory, 'project');
+    await mkdir(root);
+    const agentMode = await fakeCodexChatAgentMode(directory, userData);
+    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    try {
+        const { app, page } = running;
+        await createProjectSession(page, 'shell');
+        await openAgentChat(page, 'Codex Chat');
+        const chat = page.locator(VISIBLE_SESSION);
+        const message = chat.getByRole('textbox', { name: 'Message' });
+        await expect(message).toBeVisible();
+        const objective = 'hold the release until the fixtures pass';
+        await message.fill(objective);
+        await message.press('Enter');
+        const bubble = chat.locator('[data-agent-chat-user-bubble]').filter({ hasText: objective });
+        // Right-click once the reply is in: the pending copy shown while the message is in flight has no menu.
+        await expect(chat.getByText(`You said: ${objective}`)).toBeVisible();
+        await expect(bubble).toBeVisible();
+
+        await bubble.click({ button: 'right' });
+        const labels = await contextMenuLabels(app);
+        // Set as Goal follows Add to Message, which takes the same text.
+        expect(labels.indexOf('Set as Goal')).toBe(labels.indexOf('Add to Message') + 1);
+        expect(labels).toContain('Add to Message');
+        await chooseContextMenuItem(app, 'Set as Goal');
+
+        const row = chat.locator('[data-agent-chat-goal]');
+        await expect(row).toHaveAttribute('data-agent-chat-goal', 'active');
+        await expect(row).toContainText(objective);
+        await page.screenshot({ path: testInfo.outputPath('goal-from-message-menu.png') });
+
+        await chat.getByRole('button', { name: 'Stop', exact: true }).click();
+        await expect(row).toHaveAttribute('data-agent-chat-goal', 'paused');
         await row.getByRole('button', { name: 'Clear goal' }).click();
         await expect(row).toHaveCount(0);
     } finally {

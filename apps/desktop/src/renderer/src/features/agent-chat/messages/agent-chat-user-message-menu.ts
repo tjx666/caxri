@@ -44,6 +44,11 @@ export interface AgentChatUserMessageMenuInput extends AgentChatMessageCopyMenuI
      * True while a Restore Code to Here this message started is still running, so the menu cannot start a second one.
      */
     isRestoring: boolean;
+    /**
+     * Sets text as the Chat's goal, for a message the user meant to send as one. Absent when the provider has no goal
+     * command or the timeline has no Chat to write to, which leaves the entry out.
+     */
+    onSetGoal?: (text: string) => void;
     onEdit: () => void;
     onFork: () => void;
     onRestore: () => void;
@@ -63,6 +68,17 @@ function rewindEntry(
 }
 
 /**
+ * What a menu action that takes "this message" acts on: the selection inside it, or else the whole message.
+ */
+function agentChatMenuTarget(input: AgentChatMessageCopyMenuInput): {
+    selection: string;
+    target: string;
+} {
+    const selection = input.selectedText.trim() === '' ? '' : input.selectedText;
+    return { selection, target: selection || input.text };
+}
+
+/**
  * Copy (the selection inside the message, offered only while there is one), Copy Message (the whole message, always
  * offered so a selection never hides it), then Add to Message, which quotes the selection or else the whole message
  * into the Chat's message.
@@ -70,8 +86,7 @@ function rewindEntry(
 function agentChatMessageCopyEntries(
     input: AgentChatMessageCopyMenuInput,
 ): Array<ContextMenuEntry | undefined> {
-    const selection = input.selectedText.trim() === '' ? '' : input.selectedText;
-    const target = selection || input.text;
+    const { selection, target } = agentChatMenuTarget(input);
     const copySelection: ContextMenuEntry | undefined = selection
         ? { label: translate('common.copy'), onSelect: () => input.onCopy(selection) }
         : undefined;
@@ -102,12 +117,22 @@ export function agentChatReplyMenu(input: AgentChatMessageCopyMenuInput): Contex
 
 /**
  * The right-click menu of a user message: the same Copy, Edit from Here, Fork from Here, and Restore Code to Here its
- * hover row offers, so a mouse user who never hovers the row still finds them, plus Add to Message. A disabled action
- * stays listed with the reason the hover row's tooltip gives, and an action the message does not offer is left out.
+ * hover row offers, so a mouse user who never hovers the row still finds them, plus Add to Message and Set as Goal. A
+ * disabled action stays listed with the reason the hover row's tooltip gives, and an action the message does not offer
+ * is left out. Set as Goal takes the selection or else the whole message, as Add to Message does, so a message the user
+ * forgot to send in Goal mode can still become the goal.
  */
 export function agentChatUserMessageMenu(input: AgentChatUserMessageMenuInput): ContextMenuEntries {
+    const { onSetGoal } = input;
+    const goalText = agentChatMenuTarget(input).target.trim();
     return [
         ...agentChatMessageCopyEntries(input),
+        onSetGoal && goalText
+            ? {
+                  label: translate('agentChat.userMenu.setAsGoal'),
+                  onSelect: () => onSetGoal(goalText),
+              }
+            : undefined,
         CONTEXT_MENU_SEPARATOR,
         rewindEntry(translate('agentChat.userMenu.editFromHere'), input.edit, input.onEdit),
         rewindEntry(
