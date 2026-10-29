@@ -452,7 +452,45 @@ export async function didTrashFile(
                 : 'viewContainers.files.trashed',
             { name: result.name },
         ),
-        { persist: hasUnsavedChanges },
+        {
+            persist: hasUnsavedChanges,
+            ...(result.undoToken && {
+                action: {
+                    id: 'files.undoTrash',
+                    params: { sessionId, undoToken: result.undoToken, name: result.name },
+                },
+            }),
+        },
     );
+    return true;
+}
+
+/**
+ * Takes a Trash move back from the Undo button on its notification. Every outcome is reported here, because the
+ * notification that carried the button is already gone: the original path being occupied is named and leaves the Trash
+ * copy untouched, and the Files tree refreshes only after a restore.
+ */
+export async function didUndoTrashedFile(
+    client: ResourceExplorerClient,
+    undoToken: string,
+    name: string,
+): Promise<boolean> {
+    let restored: MutableFileEntry;
+    try {
+        restored = await client.restoreTrashed(undoToken);
+    } catch (error) {
+        if (isCaxriError(error) && error.code === 'CONFLICT')
+            pushToast('error', translate('viewContainers.files.restoreConflict', { name }));
+        else if (isCaxriError(error) && error.code === 'NOT_FOUND')
+            pushToast('error', translate('viewContainers.files.restoreGone', { name }));
+        else
+            pushToast(
+                'error',
+                describeFailure(error, translate('viewContainers.files.restoreFailed')),
+            );
+        return false;
+    }
+    await invalidateDirectory(client, parentDirectoryPath(restored.path));
+    pushToast('success', translate('viewContainers.files.restored', { name: restored.name }));
     return true;
 }

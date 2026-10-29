@@ -50,7 +50,12 @@ export interface ResourceExplorerClient {
         path: string,
         options?: { hasUnsavedChanges?: boolean },
         signal?: AbortSignal,
-    ): Promise<MutableFileEntry | { canceled: true }>;
+    ): Promise<(MutableFileEntry & { undoToken?: string }) | { canceled: true }>;
+    /**
+     * Puts an item `trash` reported an `undoToken` for back at its original path; rejects with `CONFLICT` rather than
+     * overwrite something that now occupies it.
+     */
+    restoreTrashed(undoToken: string, signal?: AbortSignal): Promise<MutableFileEntry>;
     /**
      * Drops a trashed path's editor tabs from the Workbench Root's durable snapshot, which is the only copy for the
      * Sessions parked on another root (issue #909).
@@ -87,6 +92,7 @@ type ResourceExplorerMethod = Extract<
     | 'files.move'
     | 'files.rename'
     | 'files.trash'
+    | 'files.restoreTrashed'
     | 'session.workbenchRoot.forgetEditorPath'
 >;
 
@@ -158,6 +164,8 @@ export function createResourceExplorerClient(viewId: string): ResourceExplorerCl
                 { sessionId: requireSessionId(), workbenchRootProjectId, path },
                 signal,
             ),
+        restoreTrashed: (undoToken, signal) =>
+            request('files.restoreTrashed', { sessionId: requireSessionId(), undoToken }, signal),
         trash: (path, options, signal) =>
             request('files.trash', { sessionId: requireSessionId(), path, ...options }, signal),
     };

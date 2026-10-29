@@ -86,6 +86,11 @@ export interface ToastActionParameters {
      * Opens a GitHub page, such as the pull request a merge reported on, through the external-link policy.
      */
     'github.open': { url: string };
+    /**
+     * Puts a just-trashed Files tree item back at its original path. Carries only the Server's opaque receipt and the
+     * name for messages: Server decides whether the item can still be restored.
+     */
+    'files.undoTrash': { sessionId: string; undoToken: string; name: string };
     'processExplorer.open': undefined;
     'session.unarchive': { sessionId: string };
     'settings.open': undefined;
@@ -173,6 +178,7 @@ export const toastActionLabelKeys: Record<ToastActionId, TranslationKey> = {
     'diagnostics.revealExport': 'toasts.action.revealInFinder',
     'editor.restoreDiscardedChanges': 'toasts.action.restoreDiscardedChanges',
     'editor.retrySave': 'common.retry',
+    'files.undoTrash': 'toasts.action.undo',
     'github.open': 'toasts.action.openOnGitHub',
     'processExplorer.open': 'toasts.action.viewDetails',
     'session.unarchive': 'toasts.action.undo',

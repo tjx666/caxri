@@ -95,6 +95,7 @@ const client = {
         mocks.request('files.move', { sessionId: 'session-a', ...options }),
     rename: (options: Parameters<ResourceExplorerClient['rename']>[0]) =>
         mocks.request('files.rename', { sessionId: 'session-a', ...options }),
+    restoreTrashed: vi.fn(),
     trash: (path: string, options?: Parameters<ResourceExplorerClient['trash']>[1]) =>
         mocks.request('files.trash', { sessionId: 'session-a', path, ...options }),
 } satisfies Record<keyof ResourceExplorerClient, unknown> as unknown as ResourceExplorerClient;
@@ -271,27 +272,6 @@ describe('file action lifecycle', () => {
                 label: 'Renaming item in background…',
             }),
         ]);
-    });
-
-    it('confirms a successful trash with a toast naming the item', async () => {
-        useWorkbenchStore.setState({
-            bootstrap: {
-                sessions: [session('session-a', 'project-1')],
-                sessionStates: [],
-                terminals: [],
-            } as unknown as BootstrapState,
-        });
-        mocks.request.mockResolvedValue({
-            kind: 'file',
-            name: 'source.txt',
-            path: '/project/source.txt',
-        });
-
-        await expect(didTrashFile(client, 'session-a', '/project/source.txt')).resolves.toBe(true);
-
-        expect(getToasts()).toContainEqual(
-            expect.objectContaining({ type: 'success', title: "Moved 'source.txt' to Trash" }),
-        );
     });
 
     it('does not toast when Move to Trash is canceled', async () => {

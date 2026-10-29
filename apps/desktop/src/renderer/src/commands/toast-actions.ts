@@ -38,6 +38,8 @@ import {
     openReleaseNotes,
     showUpdateDialog,
 } from '../features/updates/update-commands';
+import { didUndoTrashedFile } from '../features/view-containers/resource-explorer/file-actions';
+import { activeResourceExplorerClient } from '../features/view-containers/resource-explorer-catalog-client';
 import { translate } from '../i18n';
 import { caxri } from '../lib/caxri';
 import { openExternalUrl } from '../lib/external-link';
@@ -128,6 +130,18 @@ export const toastActionHandlers: ToastActionHandlers = {
     'github.open': {
         run: ({ url }) => {
             void openExternalUrl(url, (message) => pushToast('error', message));
+        },
+    },
+    'files.undoTrash': {
+        unavailable: ({ sessionId }) =>
+            hasSession(sessionId)
+                ? undefined
+                : translate('toasts.actionUnavailable.missingSession'),
+        run: ({ name, undoToken }) => {
+            // Fire-and-forget: didUndoTrashedFile reports every outcome itself.
+            void tryCommand(translate('viewContainers.files.restoreFailed'), async () =>
+                didUndoTrashedFile(await activeResourceExplorerClient(), undoToken, name),
+            );
         },
     },
     'processExplorer.open': { run: openProcessExplorer },

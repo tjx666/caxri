@@ -144,6 +144,8 @@ const expectedLanes: Record<string, ControlLane> = {
     'files.reveal': 'ordered',
     'files.trash': 'ordered',
     'files.trashOnHost': 'ordered',
+    'files.recordTrash': 'ordered',
+    'files.restoreTrashed': 'ordered',
     'files.write': 'ordered',
     'git.discard': 'ordered',
     'git.discard.preflight': 'ordered',

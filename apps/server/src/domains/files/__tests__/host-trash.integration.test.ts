@@ -57,7 +57,7 @@ describe('FileService.trashOnHost', () => {
         await writeFile(target, 'created by an Agent');
         const approved = await service.authorizeTrash({ sessionId, path: target });
 
-        await service.trashOnHost({ ...approved, sessionId, path: target });
+        await service.trashUndo.trashOnHost({ ...approved, sessionId, path: target });
 
         await expect(access(target)).rejects.toMatchObject({ code: 'ENOENT' });
         expect(
@@ -78,7 +78,7 @@ describe('FileService.trashOnHost', () => {
         await writeFile(target, 'replacement');
 
         await expect(
-            service.trashOnHost({ ...approved, sessionId, path: target }),
+            service.trashUndo.trashOnHost({ ...approved, sessionId, path: target }),
         ).rejects.toMatchObject({ code: 'CONFLICT' });
         expect(await readFile(target, 'utf8')).toBe('replacement');
     });
@@ -88,10 +88,10 @@ describe('FileService.trashOnHost', () => {
         await writeFile(outside, 'not in the Project');
 
         await expect(
-            service.trashOnHost({ sessionId, path: root, device: '1', inode: '1' }),
+            service.trashUndo.trashOnHost({ sessionId, path: root, device: '1', inode: '1' }),
         ).rejects.toMatchObject({ code: 'PATH_DENIED' });
         await expect(
-            service.trashOnHost({ sessionId, path: outside, device: '1', inode: '1' }),
+            service.trashUndo.trashOnHost({ sessionId, path: outside, device: '1', inode: '1' }),
         ).rejects.toMatchObject({ code: 'PATH_DENIED' });
         await expect(access(outside)).resolves.toBeUndefined();
     });

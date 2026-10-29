@@ -81,6 +81,8 @@ type ServiceHandlerMethods =
     | 'files.authorizeTrash'
     | 'files.authorizeOpen'
     | 'files.trashOnHost'
+    | 'files.recordTrash'
+    | 'files.restoreTrashed'
     | 'files.read'
     | 'files.readAsset'
     | 'files.write'
@@ -391,10 +393,9 @@ export function createServiceHandlers(services: {
         },
         'files.authorizeTrash': (parameters) => files.authorizeTrash(parameters),
         'files.authorizeOpen': (parameters) => files.authorizeOpen(parameters),
-        'files.trashOnHost': async (parameters) => {
-            await files.trashOnHost(parameters);
-            return null;
-        },
+        'files.trashOnHost': (parameters) => files.trashUndo.trashOnHost(parameters),
+        'files.recordTrash': (parameters) => files.trashUndo.recordTrash(parameters),
+        'files.restoreTrashed': (parameters) => files.trashUndo.restoreTrashed(parameters),
         'files.resolveImports': (parameters) => files.resolveImports(parameters),
         'files.resolveKind': async (parameters) => (await files.authorizeOpen(parameters)).kind,
         'files.read': ({ sessionId, path }) => files.read(sessionId, path),

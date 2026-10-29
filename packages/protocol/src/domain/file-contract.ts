@@ -55,6 +55,11 @@ export const MAX_FILE_LIST_ENTRIES = 1_024;
  */
 export const MAX_RESOLVED_IMPORTS = 128;
 const resolvedImportSchema = z.object({ specifier: z.string(), path: pathSchema });
+/**
+ * Opaque receipt for one Trash move; the Server resolves it to the item's location in the Trash.
+ */
+const trashUndoTokenSchema = z.string().min(1).max(128);
+
 const importSpecifierSchema = z.string().min(1).max(1_024);
 
 const authorizedFileEntry = mutableFileEntrySchema.extend({
@@ -204,7 +209,27 @@ export const fileMethods = {
              */
             hasUnsavedChanges: z.boolean().optional(),
         }),
-        result: z.union([canceledResultSchema, mutableFileEntrySchema]),
+        result: z.union([
+            canceledResultSchema,
+            mutableFileEntrySchema.extend({
+                /**
+                 * Present when Caxri knows exactly where the item landed in the Trash, so `files.restoreTrashed` can
+                 * put it back. Absent when the platform cannot report that location: the item is still in the Trash,
+                 * only the one-click Undo is not offered.
+                 */
+                undoToken: trashUndoTokenSchema.optional(),
+            }),
+        ]),
+    },
+    /**
+     * Puts an item `files.trash` just moved back at its original path. The Server remembers a bounded number of recent
+     * receipts in memory only, so an old token, or one from before a Server restart, answers `NOT_FOUND`. An item that
+     * now occupies the original path answers `CONFLICT` and is never overwritten.
+     */
+    'files.restoreTrashed': {
+        ...serverWrite,
+        params: z.object({ sessionId: identifierSchema, undoToken: trashUndoTokenSchema }),
+        result: mutableFileEntrySchema,
     },
     'files.read': {
         ...serverRead,
@@ -285,6 +310,22 @@ export const fileInternalMethods = {
             device: z.string().regex(/^\d+$/),
             inode: z.string().regex(/^\d+$/),
         }),
-        result: z.null(),
+        result: z.object({ undoToken: trashUndoTokenSchema }),
+    },
+    /**
+     * Remembers where Main's native Trash call put an item, so `files.restoreTrashed` can move it back. `device` and
+     * `inode` are the identity the user approved; the location is accepted only when the entry found there carries that
+     * same identity (a same-volume rename keeps it), so a misreported location yields no Undo instead of a wrong move.
+     */
+    'files.recordTrash': {
+        ...serverControl,
+        params: z.object({
+            sessionId: identifierSchema,
+            path: pathSchema,
+            trashPath: pathSchema,
+            device: z.string().regex(/^\d+$/),
+            inode: z.string().regex(/^\d+$/),
+        }),
+        result: z.object({ undoToken: trashUndoTokenSchema.nullable() }),
     },
 } as const satisfies Record<string, MethodSpec>;
