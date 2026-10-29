@@ -21,7 +21,13 @@ import { localizedLimitReset, localizedLimitWindowName } from '../../lib/usage-f
 import { cn } from '../../lib/utilities';
 import { useSettings } from '../../stores/selectors';
 import { openUsagePageForTerminal } from '../usage/usage-page-request';
-import { agentUsageLabel, agentUsageLimitTone, agentUsagePaceNote } from './agent-usage-label';
+import {
+    agentUsageLabel,
+    agentUsageLimitTone,
+    agentUsagePaceNote,
+    agentUsageResetCreditsNote,
+    agentUsageResetCreditsValue,
+} from './agent-usage-label';
 import { useAgentUsageClock } from './hooks/use-agent-usage-clock';
 import { StatusItem } from './status-item';
 
@@ -78,6 +84,8 @@ export function AgentUsageStatus({ terminalId }: { terminalId: string }) {
     const limitTone = agentUsageLimitTone(readout, now, chipOptions, isPaceDismissed);
     // The pace note explains why the chip warns; once the user dismisses that warning the tooltip stops repeating it.
     const paceNote = isPaceDismissed ? undefined : agentUsagePaceNote(readout, now, t);
+    const resetCredits = agentUsageResetCreditsValue(readout.limit, now, t);
+    const resetCreditsNote = agentUsageResetCreditsNote(readout.limit, now, t);
     return (
         <StatusItem
             ariaLabel={t('statusBar.usage.ariaLabel', { agent: agentName, label })}
@@ -124,11 +132,18 @@ export function AgentUsageStatus({ terminalId }: { terminalId: string }) {
                                         : `${used} · ${localizedLimitReset(window.resetsAt, now, t)}`,
                             };
                         }),
+                        ...(resetCredits
+                            ? [{ label: t('statusBar.usage.resetCredits'), value: resetCredits }]
+                            : []),
                         ...(limitObservedAgo && limitWindows.length > 0
                             ? [{ label: t('statusBar.usage.limitsAsOf'), value: limitObservedAgo }]
                             : []),
                     ]}
-                    notes={[...(paceNote ? [paceNote] : []), t('statusBar.usage.methodNote')]}
+                    notes={[
+                        ...(resetCreditsNote ? [resetCreditsNote] : []),
+                        ...(paceNote ? [paceNote] : []),
+                        t('statusBar.usage.methodNote'),
+                    ]}
                     hint={t('statusBar.usage.clickToOpen')}
                 />
             }

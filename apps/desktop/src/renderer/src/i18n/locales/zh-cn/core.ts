@@ -145,4 +145,7 @@ export const core: TranslatedNamespace<typeof source> = {
     'core.usageFormat.resetsNow': '即将重置',
     'core.usageFormat.resetsInDays': '{{days}} 天 {{hours}} 小时后重置',
     'core.usageFormat.resetsIn': '{{duration}}后重置',
+    'core.usageFormat.expiresNow': '即将过期',
+    'core.usageFormat.expiresInDays': '{{days}} 天 {{hours}} 小时后过期',
+    'core.usageFormat.expiresIn': '{{duration}}后过期',
 };

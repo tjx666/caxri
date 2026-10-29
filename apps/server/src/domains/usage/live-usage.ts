@@ -1,4 +1,9 @@
-import type { AgentProvider, AgentUsageReadout, UsageLimit } from '@caxri/protocol';
+import type {
+    AgentProvider,
+    AgentUsageReadout,
+    UsageLimit,
+    UsageResetCredits,
+} from '@caxri/protocol';
 import { SingleFlight } from '@caxri/system';
 import { rememberBounded } from '@caxri/utils';
 
@@ -61,6 +66,12 @@ export class LiveAgentUsage {
      * Usage page, reading every transcript) had already seen a newer one.
      */
     private readonly latestLimits = new Map<AgentProvider, UsageLimit>();
+
+    /**
+     * Banked resets per provider, asked of a running Chat rather than read from a transcript. Kept apart from
+     * {@link latestLimits} so a later transcript reading of the windows never drops them.
+     */
+    private readonly resetCredits = new Map<AgentProvider, UsageResetCredits>();
 
     constructor(
         private readonly database: CaxriDatabase,
@@ -130,6 +141,11 @@ export class LiveAgentUsage {
         return this.reads.run(terminalId, () => this.advance(terminalId, identity));
     }
 
+    private withResetCredits(limit: UsageLimit): UsageLimit {
+        const credits = this.resetCredits.get(limit.provider);
+        return credits ? { ...limit, resetCredits: credits } : limit;
+    }
+
     /**
      * Records rate-limit observations read elsewhere (a Usage report over every transcript) so the next live read
      * reports the newest one for its provider instead of its own conversation's older reading.
@@ -143,10 +159,21 @@ export class LiveAgentUsage {
     }
 
     /**
+     * Records the banked resets a running Chat reported; undefined clears them (all spent or expired).
+     */
+    observeResetCredits(provider: AgentProvider, credits: UsageResetCredits | undefined): void {
+        if (credits) this.resetCredits.set(provider, credits);
+        else this.resetCredits.delete(provider);
+    }
+
+    /**
      * The newest reading of every provider seen so far, for a surface that shows the plan without a Terminal in view.
      */
     limits(): UsageLimit[] {
-        return this.latestLimits.values().toArray();
+        return this.latestLimits
+            .values()
+            .map((limit) => this.withResetCredits(limit))
+            .toArray();
     }
 
     async read(terminalId: string): Promise<AgentUsageReadout | null> {
@@ -157,8 +184,8 @@ export class LiveAgentUsage {
         const readout = this.readout(provider, record);
         if (!readout) return null;
         if (record.rateLimits) this.observeLimits([{ provider, ...record.rateLimits }]);
-        const limit = this.latestLimits.get(provider);
-        return { ...readout, ...(limit && { limit }) };
+        const latest = this.latestLimits.get(provider);
+        return { ...readout, ...(latest && { limit: this.withResetCredits(latest) }) };
     }
 
     /**

@@ -102,6 +102,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 - **Usage chip weekly window name**: Compact `wk` (Chinese `本周`) instead of `7d`, which reads as days until reset. Evidence: `apps/desktop/src/renderer/src/lib/usage-format.ts`.
 - **Chat video player**: Metadata-only preload until playback, and an unplayable state instead of a broken player. Evidence: `apps/desktop/src/renderer/src/features/agent-chat/attachments/agent-chat-message-videos.tsx`.
 - **Mobile computer status Session load**: Per-Session sum of PTY descendant CPU and memory; 2-second poll only while visible (also: Superset, cmux). Evidence: `apps/server/src/core/mobile/host-status.ts`; `apps/mobile/src/features/host-status/host-status-model.ts`.
+- **Banked reset credits in the usage hover card**: Count of Codex reset credits and the soonest expiry beside the plan windows (Orca's status-bar tooltip, `formatResetCreditExpiry`); Caxri adds a warning tone on the chip within 24 hours of expiry and reads the count from a running Chat's `account/rateLimits/read`. No consume action. Evidence: `apps/server/src/domains/usage/codex-reset-credits.ts`; `docs/usage.md`.
 - **PTY slot usage**: Machine-wide PTY use against the kernel limit, with per-process holders so the user can find what to close (Orca's Resource Manager "PTY manager"); Caxri adds the near-limit alert and the `pty_exhausted` launch reason. Evidence: `docs/process-explorer.md`.
 
 ## Wake (MIT)

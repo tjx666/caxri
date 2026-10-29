@@ -169,9 +169,7 @@ export class UsageService {
             () => this.now(),
             options.onLimit,
         );
-        this.planLimits = new PlanLimitRefresh(options.readPlanLimits, (limits) =>
-            this.live.observeLimits(limits),
-        );
+        this.planLimits = new PlanLimitRefresh(options.readPlanLimits, this.live, () => this.now());
         this.noticeDismissals = new UsageNoticeDismissals({
             database: options.database,
             logger: options.logger,

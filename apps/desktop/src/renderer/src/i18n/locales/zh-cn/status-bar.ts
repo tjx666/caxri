@@ -74,6 +74,10 @@ export const statusBar: TranslatedNamespace<typeof source> = {
     'statusBar.usage.chipLimitWindow': '{{window}}剩余 {{percent}}%',
     'statusBar.usage.paceNote':
         '{{window}}限额：剩余 {{percent}}%，{{reset}}。按当前用量速度，额度会在重置前用完，放慢用量或随时间推移会恢复。',
+    'statusBar.usage.resetCredits': '重置卡',
+    'statusBar.usage.resetCreditsValue': '{{count}} 张 · 最近一张{{expiry}}',
+    'statusBar.usage.resetCreditsExpiringNote':
+        '有一张重置卡{{expiry}}。请在此之前到 Codex 中使用，否则会作废。',
     'statusBar.usage.limitsAsOf': '限额更新于',
     'statusBar.usage.methodNote':
         'Token 数和费用读取自此对话自身的记录，并按 API 标价计费，规则与用量页面相同。套餐限额按账户计算，取任意对话中的最新读数。',

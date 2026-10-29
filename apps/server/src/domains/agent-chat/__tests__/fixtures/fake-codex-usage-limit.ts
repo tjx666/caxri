@@ -1,3 +1,7 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import process from 'node:process';
+
 import type { FakeCodexIo, FakeTurn } from './fake-codex-io';
 
 interface RateLimits {
@@ -37,6 +41,16 @@ export function failOnUsageLimit(io: FakeCodexIo, turn: FakeTurn, text: string):
     io.notifyTurn(turn, 'error', { turnId: turn.id, willRetry: false, error });
 }
 
+function readResetCreditsMode(): string | undefined {
+    const home = process.env.CODEX_HOME;
+    if (!home) return undefined;
+    try {
+        return readFileSync(join(home, 'reset-credits-mode'), 'utf8').trim();
+    } catch {
+        return undefined;
+    }
+}
+
 /**
  * `account/rateLimits/read`, in the multi-bucket shape codex-cli 0.165 answers with.
  */
@@ -47,5 +61,27 @@ export function rateLimitsReadResult() {
         primary: { usedPercent: 0, windowDurationMins: 300, resetsAt: now + 18_000 },
         secondary: { usedPercent: 0, windowDurationMins: 10_080, resetsAt: now + 604_800 },
     };
-    return { rateLimits, rateLimitsByLimitId: { codex: rateLimits }, ordinaryUsageAllowed: true };
+    // Banked resets (`RateLimitResetCreditsSummary` in the app-server schema): two cards, the soonest expiring in three
+    // days. A `reset-credits-mode` file in `CODEX_HOME` holding `expiring` makes it expire in 12 hours and `none` holds
+    // no card (the fake CLI's environment is not the launcher's, so a file is what a manual run can steer).
+    const mode = readResetCreditsMode();
+    const credit = (id: string, days: number) => ({
+        id,
+        status: 'available',
+        resetType: 'codexRateLimits',
+        grantedAt: now - 86_400,
+        expiresAt: now + Math.round(days * 86_400),
+    });
+    return {
+        rateLimits,
+        rateLimitsByLimitId: { codex: rateLimits },
+        rateLimitResetCredits:
+            mode === 'none'
+                ? { availableCount: 0, credits: [] }
+                : {
+                      availableCount: 2,
+                      credits: [credit('a', mode === 'expiring' ? 0.5 : 3), credit('b', 20)],
+                  },
+        ordinaryUsageAllowed: true,
+    };
 }

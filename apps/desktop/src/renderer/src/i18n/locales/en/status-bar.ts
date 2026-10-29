@@ -75,6 +75,10 @@ export const statusBar = {
     'statusBar.usage.chipLimitWindow': '{{window}} {{percent}}% left',
     'statusBar.usage.paceNote':
         '{{window}} limit: {{percent}}% left, {{reset}}. At this rate it runs out before it resets; the warning clears as usage slows or time passes.',
+    'statusBar.usage.resetCredits': 'Banked resets',
+    'statusBar.usage.resetCreditsValue': '{{count}} · next {{expiry}}',
+    'statusBar.usage.resetCreditsExpiringNote':
+        'A banked reset {{expiry}}. Use it in Codex before then, or it is lost.',
     'statusBar.usage.limitsAsOf': 'Limits as of',
     'statusBar.usage.methodNote':
         "Tokens and cost are read from this conversation's own transcript and priced at API list prices, the same rules as the Usage page. Plan limits are account-wide: the newest reading from any conversation.",

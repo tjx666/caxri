@@ -138,6 +138,15 @@ either way. The figures are account-wide:
 the newest reading Server Core has from any conversation.
 
 - **Codex** writes its windows into the rollout, which the live scan already reads.
+- **Codex banked resets** (reset credits: stored, one-time resets the user spends when they choose) are not in the
+  rollout. While a Codex Chat is open, `PlanLimitRefresh` also asks it through `ResetCreditRefresh`
+  (`reset-credit-refresh.ts`), at most every five minutes, and the Chat's `account/rateLimits/read` answer carries
+  `rateLimitResetCredits` (`availableCount` plus one row per credit with `status` and `expiresAt` in Unix seconds;
+  parsed by `codexResetCredits`). The hover card adds a `Banked resets` row (`2 · next expires in 3d 4h`) while at
+  least one card is held, and the chip takes the warning tone within 24 hours of the soonest expiry. The row is
+  stateless: it shows for as long as the condition holds, never as a one-time popup. A PTY Codex Terminal with no Chat
+  open is not asked, so the row appears only after a Codex Chat has run; an account or Codex build without the field
+  shows no row. There is no action to spend a card.
 - **Claude Code** records no limits in its transcript, so Caxri reads them the way T3 Code does. While a Claude Chat
   is open and its provider process runs, `PlanLimitRefresh` (`apps/server/src/domains/usage/plan-limit-refresh.ts`)
   asks the Chat on each status-bar poll, and the Chat's `ClaudePlanLimits` (`claude-plan-limits.ts`) asks the process

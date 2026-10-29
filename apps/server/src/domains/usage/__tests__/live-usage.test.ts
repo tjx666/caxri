@@ -126,6 +126,29 @@ describe('LiveAgentUsage', () => {
         usage.observeLimits([{ provider: 'codex', observedAt: T0, windows: [] }]);
         expect(usage.limits()).toEqual([newer, { provider: 'codex', observedAt: T0, windows: [] }]);
     });
+
+    it('attaches banked resets to the provider limit and keeps them across a newer window reading', async () => {
+        const { environment, directory } = await claudeProject();
+        await writeFile(join(directory, `${FIRST}.jsonl`), line('m1', 5));
+        const usage = new LiveAgentUsage(
+            boundTerminal({ agentSessionId: FIRST }),
+            environment,
+            () => {},
+            () => T0,
+        );
+        const reading = { provider: 'claude' as const, observedAt: T0, windows: [] };
+        const credits = { availableCount: 2, nextExpiresAt: T0 + 3 * 86_400_000 };
+        usage.observeLimits([reading]);
+        usage.observeResetCredits('claude', credits);
+        expect((await usage.read('terminal-1'))?.limit).toEqual({
+            ...reading,
+            resetCredits: credits,
+        });
+        usage.observeLimits([{ ...reading, observedAt: T0 + 1 }]);
+        expect(usage.limits()[0]?.resetCredits).toEqual(credits);
+        usage.observeResetCredits('claude', undefined);
+        expect(usage.limits()[0]).not.toHaveProperty('resetCredits');
+    });
 });
 
 describe('LiveAgentUsage.readTask', () => {
