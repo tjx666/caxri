@@ -373,6 +373,7 @@ export function useSourceControlController(
         hasSnapshotError: snapshot.isError,
         isSnapshotSuperseded: isSupersededSnapshotError(snapshot.error),
         model: localizedModel,
+        t,
     });
     if (panelState.status !== 'ready')
         return {

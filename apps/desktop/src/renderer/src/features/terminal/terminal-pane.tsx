@@ -212,14 +212,14 @@ function TerminalRecoveryBar({
     sessionId: string | undefined;
     terminalId: string;
 }) {
-    // Subscribes to the locale so the translated exit copy below follows a language change.
-    useTranslation();
+    const { t } = useTranslation();
     const exit = useTerminalExitInfo(terminalId, processState);
     const exitPresentation = getTerminalExitPresentation(
         processState,
         failureReason,
         failureDetail,
         { cwd, exit, isAgent: provider !== undefined },
+        t,
     );
     if (!exitPresentation) return null;
     const ExitIcon =

@@ -99,7 +99,7 @@ describe('agentChatUserMessageMenu', () => {
 
     it('keeps disabled actions with their reason and leaves out actions not offered', () => {
         const menuInput = input({
-            edit: 'Stop the running turn to edit from here',
+            edit: 'agentChat.edit.stopToEdit',
             restore: undefined,
             isForking: true,
         });

@@ -59,7 +59,12 @@ export function AgentChatSuggestionMenu({
         return (
             <SuggestionList
                 activeIndex={historyMenu.activeIndex}
-                footer={agentChatSuggestionFooter('history', historyMenu.suggestions.length > 0)}
+                footer={agentChatSuggestionFooter(
+                    'history',
+                    historyMenu.suggestions.length > 0,
+                    undefined,
+                    t,
+                )}
                 headingAt={(index) => (index === 0 ? t('agentChat.history.label') : undefined)}
                 iconAt={() => <History className={ICON_CLASS_NAME} />}
                 label={t('agentChat.history.label')}
@@ -78,6 +83,7 @@ export function AgentChatSuggestionMenu({
                     'commands',
                     commandMenu.suggestions.length > 0,
                     commandMenu.matches[commandMenu.activeIndex],
+                    t,
                 )}
                 headingAt={(index) => {
                     const heading = agentChatMenuGroupHeading(
@@ -119,7 +125,12 @@ export function AgentChatSuggestionMenu({
     return (
         <SuggestionList
             activeIndex={sessionMenu.activeIndex}
-            footer={agentChatSuggestionFooter('sessions', sessionMenu.suggestions.length > 0)}
+            footer={agentChatSuggestionFooter(
+                'sessions',
+                sessionMenu.suggestions.length > 0,
+                undefined,
+                t,
+            )}
             headingAt={(index) => {
                 const group = sessionMenu.groupAt(index);
                 if (group === undefined) return;

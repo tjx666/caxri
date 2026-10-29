@@ -67,7 +67,7 @@ function GitChangesDiffResult({
     if (isError)
         return (
             <div className={gitMultiDiffErrorClassName}>
-                {describeFailure(error, t('editor.gitDiff.openFailed'))}
+                {describeFailure(error, t('editor.gitDiff.openFailed'), t)}
             </div>
         );
     if (!document)
@@ -320,7 +320,7 @@ function WorkingChangesDiffEditor({
     if (isError)
         return (
             <div className={emptyWorkClassName}>
-                {describeFailure(error, t('editor.gitDiff.openChangesFailed'))}
+                {describeFailure(error, t('editor.gitDiff.openChangesFailed'), t)}
             </div>
         );
     if (!summary)
@@ -379,7 +379,7 @@ function PullRequestChangesDiffEditor({
     if (isError)
         return (
             <div className={emptyWorkClassName}>
-                {describeFailure(error, t('editor.gitDiff.openPullRequestChangesFailed'))}
+                {describeFailure(error, t('editor.gitDiff.openPullRequestChangesFailed'), t)}
             </div>
         );
     if (pullRequest === undefined)

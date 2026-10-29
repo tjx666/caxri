@@ -40,7 +40,7 @@ export function AgentTranscriptEditor({ tab }: { tab: AgentTranscriptTab }) {
     if (query.isError)
         return (
             <div className={emptyWorkDangerClassName}>
-                {describeFailure(query.error, t('editor.transcript.loadFailed'))}
+                {describeFailure(query.error, t('editor.transcript.loadFailed'), t)}
             </div>
         );
     if (!query.data)

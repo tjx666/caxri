@@ -194,6 +194,7 @@ export function botRowPresentation(row: BotBoardRow, t: Translate = translate): 
     const activity = sessionActivityPresentation(
         activityState,
         isAgentAlive ? agent.operation : undefined,
+        t,
     );
     const process = agent ? PROCESS_PRESENTATION[agent.processState] : undefined;
     const statePhrase = agent
@@ -286,7 +287,7 @@ export function botPullRequestBadge(
     t: Translate = translate,
 ): BotPullRequestBadge | undefined {
     if (!pullRequest || pullRequestUnavailable) return undefined;
-    const presentation = sessionPullRequestPresentation(pullRequest);
+    const presentation = sessionPullRequestPresentation(pullRequest, t);
     const checksIcon = presentation.checksTone && CHECKS_ICONS[presentation.checksTone];
     const status = [`#${pullRequest.number} ${presentation.label}`, presentation.checksLabel]
         .filter(Boolean)

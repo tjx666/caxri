@@ -1,4 +1,4 @@
-import { translate } from '../i18n';
+import type { Translate } from '../i18n';
 import { describeFailure, isCancelledRequest } from '../stores/toasts';
 
 /**
@@ -10,14 +10,17 @@ import { describeFailure, isCancelledRequest } from '../stores/toasts';
  * (`isCancelledRequest` documents the same rule for toasts). It still may not leave the spinner running forever,
  * because nothing re-issues the read afterwards, so it gets a neutral state that offers the retry.
  */
-export function describeDocumentReadFailure(error: unknown): {
+export function describeDocumentReadFailure(
+    error: unknown,
+    t: Translate,
+): {
     reason: string;
     tone: 'failed' | 'interrupted';
 } {
     return isCancelledRequest(error)
-        ? { reason: translate('core.documentRead.interrupted'), tone: 'interrupted' }
+        ? { reason: t('core.documentRead.interrupted'), tone: 'interrupted' }
         : {
-              reason: describeFailure(error, translate('core.documentRead.failed')),
+              reason: describeFailure(error, t('core.documentRead.failed'), t),
               tone: 'failed',
           };
 }

@@ -33,11 +33,11 @@ describe('Agent Chat edit from here', () => {
         expect(agentChatEditAvailability(settled, 'u1')).toEqual({ canEdit: true });
         expect(agentChatEditAvailability(settled, 'u2')).toEqual({
             canEdit: false,
-            reason: 'Messages with images cannot be edited',
+            reason: 'agentChat.edit.imagesUnsupported',
         });
         expect(agentChatEditAvailability({ ...settled, activeTurnId: 't3' }, 'u1')).toEqual({
             canEdit: false,
-            reason: 'Stop the running turn to edit from here',
+            reason: 'agentChat.edit.stopToEdit',
         });
     });
 
@@ -45,11 +45,11 @@ describe('Agent Chat edit from here', () => {
         expect(agentChatForkAvailability(settled, 'u2')).toEqual({ canFork: true });
         expect(agentChatForkAvailability({ ...settled, activeTurnId: 't3' }, 'u1')).toEqual({
             canFork: false,
-            reason: 'Stop the running turn to fork from here',
+            reason: 'agentChat.edit.stopToFork',
         });
         expect(agentChatForkAvailability(settled, 'missing')).toEqual({
             canFork: false,
-            reason: 'The conversation cannot fork from this message',
+            reason: 'agentChat.edit.cannotFork',
         });
     });
 
@@ -57,10 +57,10 @@ describe('Agent Chat edit from here', () => {
         expect(agentChatRestoreAvailability(settled, 'u1')).toEqual({ restoredTurns: 3 });
         expect(agentChatRestoreAvailability(settled, 'u2')).toEqual({ restoredTurns: 2 });
         expect(agentChatRestoreAvailability({ ...settled, activeTurnId: 't3' }, 'u3')).toEqual({
-            reason: 'Stop the running turn to restore code',
+            reason: 'agentChat.edit.stopToRestore',
         });
         expect(agentChatRestoreAvailability(settled, 'gone')).toEqual({
-            reason: 'Code cannot be restored to this message',
+            reason: 'agentChat.edit.cannotRestore',
         });
     });
 

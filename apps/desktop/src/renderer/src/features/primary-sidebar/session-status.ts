@@ -1,6 +1,6 @@
 import type { AgentOperation, ProcessState, SessionRecord } from '@caxri/protocol';
 
-import { translate } from '../../i18n';
+import type { Translate } from '../../i18n';
 import { agentChatMessageTime } from '../agent-chat/transcript/agent-chat-time';
 import { sessionActivityPresentation } from './session-activity';
 
@@ -62,29 +62,36 @@ type SessionStatusSource = Pick<
  */
 export function sessionStatus(
     session: SessionStatusSource,
-    terminal: SessionStatusTerminal = {},
+    terminal: SessionStatusTerminal,
+    t: Translate,
 ): SessionStatus {
     const { agentOperation } = terminal;
 
     if (terminal.usageLimitWaitAt !== undefined) {
         return {
-            ariaDescription: translate('primarySidebar.status.usageWait.description', {
+            ariaDescription: t('primarySidebar.status.usageWait.description', {
                 time: agentChatMessageTime(terminal.usageLimitWaitAt),
             }),
-            ariaLabel: translate('primarySidebar.status.usageWait.label'),
+            ariaLabel: t('primarySidebar.status.usageWait.label'),
             kind: 'usageWait',
         };
     }
 
-    const currentActivity = sessionActivityPresentation(session.agentActivityState, agentOperation);
+    const currentActivity = sessionActivityPresentation(
+        session.agentActivityState,
+        agentOperation,
+        t,
+    );
 
     if (session.hasUnread) {
         const attentionActivity = sessionActivityPresentation(
             session.lastAttentionKind ?? 'unknown',
+            undefined,
+            t,
         );
         const currentStatus =
             agentOperation === 'compacting' || session.agentActivityState === 'running'
-                ? translate('primarySidebar.status.currentStatus', {
+                ? t('primarySidebar.status.currentStatus', {
                       status: currentActivity.label,
                   })
                 : '';
@@ -93,8 +100,8 @@ export function sessionStatus(
             // `Unread, finished` rather than `Needs attention: Finished`: a finished turn needs nothing, it is unread.
             ariaLabel:
                 session.lastAttentionKind === undefined
-                    ? translate('primarySidebar.status.unread')
-                    : translate('primarySidebar.status.unreadWithKind', {
+                    ? t('primarySidebar.status.unread')
+                    : t('primarySidebar.status.unreadWithKind', {
                           kind: attentionActivity.label.toLowerCase(),
                       }),
             kind: 'attention',
@@ -108,8 +115,8 @@ export function sessionStatus(
      */
     if (terminal.lastProcessState === 'detached') {
         return {
-            ariaDescription: translate('primarySidebar.status.detached.description'),
-            ariaLabel: translate('primarySidebar.status.detached.label'),
+            ariaDescription: t('primarySidebar.status.detached.description'),
+            ariaLabel: t('primarySidebar.status.detached.label'),
             kind: 'detached',
         };
     }
@@ -141,10 +148,11 @@ export interface SessionStatusSummary {
 export function summarizeSessionStatuses<Session extends SessionStatusSource>(
     sessions: readonly Session[],
     terminalFor: (session: Session) => SessionStatusTerminal | undefined,
+    t: Translate,
 ): SessionStatusSummary {
     const summary: SessionStatusSummary = { attention: 0, running: 0 };
     for (const session of sessions) {
-        const { kind } = sessionStatus(session, terminalFor(session));
+        const { kind } = sessionStatus(session, terminalFor(session) ?? {}, t);
         if (kind === 'attention') summary.attention += 1;
         else if (kind === 'running') summary.running += 1;
     }

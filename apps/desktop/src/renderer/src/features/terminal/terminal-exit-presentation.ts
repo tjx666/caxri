@@ -1,7 +1,6 @@
 import type { ProcessState, TerminalFailureReason } from '@caxri/protocol';
 
-import type { TranslationKey } from '../../i18n';
-import { translate } from '../../i18n';
+import type { Translate, TranslationKey } from '../../i18n';
 import { settingCategoryPath } from '../settings/setting-spec-text';
 import type { TerminalExitInfo } from './terminal-exit-info';
 import { EARLY_EXIT_THRESHOLD_MS } from './terminal-exit-info';
@@ -38,9 +37,9 @@ export const FAILURE_REASON_LABEL_KEYS: Record<TerminalFailureReason, Translatio
  * it off. The record carries no suspension reason (an archive or a Process Explorer stop parks it the same way), so the
  * sentence describes the automatic rule without claiming it caused this particular park.
  */
-export function suspendedDetail(): string {
-    return translate('terminal.exit.suspendedDetail', {
-        settingsPath: settingCategoryPath(translate, 'terminal.idleSuspension.enabled'),
+export function suspendedDetail(t: Translate): string {
+    return t('terminal.exit.suspendedDetail', {
+        settingsPath: settingCategoryPath(t, 'terminal.idleSuspension.enabled'),
     });
 }
 
@@ -59,12 +58,12 @@ const SIGNAL_NAMES: Record<number, string> = {
     15: 'SIGTERM',
 };
 
-function exitReasonText(exit: TerminalExitInfo): string {
+function exitReasonText(exit: TerminalExitInfo, t: Translate): string {
     return exit.signal
-        ? translate('terminal.exit.reason.signal', {
+        ? t('terminal.exit.reason.signal', {
               signal: SIGNAL_NAMES[exit.signal] ?? String(exit.signal),
           })
-        : translate('terminal.exit.reason.code', { code: exit.exitCode });
+        : t('terminal.exit.reason.code', { code: exit.exitCode });
 }
 
 export interface TerminalExitContext {
@@ -82,26 +81,27 @@ export interface TerminalExitContext {
     cwd?: string;
 }
 
-function deadLabel(context: TerminalExitContext | undefined): string {
+function deadLabel(context: TerminalExitContext | undefined, t: Translate): string {
     const exit = context?.exit;
-    if (!exit) return translate('terminal.exit.dead');
-    const reason = exitReasonText(exit);
+    if (!exit) return t('terminal.exit.dead');
+    const reason = exitReasonText(exit, t);
     if (context.isAgent && exit.ranForMs !== undefined && exit.ranForMs < EARLY_EXIT_THRESHOLD_MS)
-        return translate('terminal.exit.agentEarly', { reason });
-    return translate('terminal.exit.deadWithReason', { reason });
+        return t('terminal.exit.agentEarly', { reason });
+    return t('terminal.exit.deadWithReason', { reason });
 }
 
 export function getTerminalExitPresentation(
     state: ProcessState,
-    failureReason?: TerminalFailureReason,
-    failureDetail?: string,
-    context?: TerminalExitContext,
+    failureReason: TerminalFailureReason | undefined,
+    failureDetail: string | undefined,
+    context: TerminalExitContext | undefined,
+    t: Translate,
 ): TerminalExitPresentation | undefined {
     switch (state) {
         case 'stopped':
             return {
                 icon: 'completed',
-                label: translate('terminal.exit.stopped'),
+                label: t('terminal.exit.stopped'),
                 tone: 'neutral',
             };
         case 'failed':
@@ -110,10 +110,10 @@ export function getTerminalExitPresentation(
                 label:
                     failureDetail ??
                     (failureReason === 'working_directory_unavailable' && context?.cwd
-                        ? translate('terminal.exit.failure.workingDirectoryUnavailableAt', {
+                        ? t('terminal.exit.failure.workingDirectoryUnavailableAt', {
                               path: context.cwd,
                           })
-                        : translate(
+                        : t(
                               failureReason
                                   ? FAILURE_REASON_LABEL_KEYS[failureReason]
                                   : 'terminal.exit.failed',
@@ -123,26 +123,26 @@ export function getTerminalExitPresentation(
         case 'dead':
             return {
                 icon: 'unexpected',
-                label: deadLabel(context),
+                label: deadLabel(context, t),
                 tone: 'danger',
             };
         case 'interrupted':
             return {
                 icon: 'pending',
-                label: translate('terminal.exit.interrupted'),
+                label: t('terminal.exit.interrupted'),
                 tone: 'neutral',
             };
         case 'suspended':
             return {
-                detail: suspendedDetail(),
+                detail: suspendedDetail(t),
                 icon: 'pending',
-                label: translate('terminal.exit.suspended'),
+                label: t('terminal.exit.suspended'),
                 tone: 'neutral',
             };
         case 'detached':
             return {
                 icon: 'detached',
-                label: translate('terminal.exit.detached'),
+                label: t('terminal.exit.detached'),
                 tone: 'neutral',
             };
         case 'starting':

@@ -1,6 +1,7 @@
 import type { ProjectRecord, SessionRecord, TerminalRecord } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../i18n';
 import { agentActivityGlyph } from '../agent-activity-glyph';
 import type { AgentActivitySelectionAnchor } from '../agent-activity-rows';
 import { agentActivityGroups } from '../agent-activity-rows';
@@ -37,6 +38,7 @@ function glyphOf(
         selectionAnchor,
         sessions: [record],
         terminals,
+        t: translate,
     });
     expect(groups).toHaveLength(1);
     const row = groups[0].rows[0];

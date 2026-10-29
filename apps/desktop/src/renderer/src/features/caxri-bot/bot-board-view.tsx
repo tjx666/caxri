@@ -43,7 +43,7 @@ export function BotBoardView() {
     if (!data && board.isError)
         return (
             <div className="bot-board-status flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-6 text-center text-xs text-muted">
-                <span>{describeFailure(board.error, t('caxriBot.board.loadFailed'))}</span>
+                <span>{describeFailure(board.error, t('caxriBot.board.loadFailed'), t)}</span>
                 <Button
                     size="sm"
                     variant="secondary"

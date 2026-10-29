@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { translate } from '../../../../i18n';
 import {
     agentChatAttachmentLabel,
     agentChatAttachmentName,
@@ -128,14 +129,14 @@ describe('Agent Chat drafts', () => {
     });
 
     it('names an attachment chip by its file name, falling back to its position', () => {
-        expect(agentChatAttachmentLabel({ name: 'diagram.png' }, 0)).toBe('diagram.png');
-        expect(agentChatAttachmentLabel({ name: '' }, 1)).toBe('Attachment 2');
-        expect(agentChatAttachmentLabel({}, 2)).toBe('Attachment 3');
+        expect(agentChatAttachmentLabel({ name: 'diagram.png' }, 0, translate)).toBe('diagram.png');
+        expect(agentChatAttachmentLabel({ name: '' }, 1, translate)).toBe('Attachment 2');
+        expect(agentChatAttachmentLabel({}, 2, translate)).toBe('Attachment 3');
     });
 
     it('names an attachment the same way for Remove, without the resized note', () => {
-        expect(agentChatAttachmentName({ name: 'diagram.png' }, 0)).toBe('diagram.png');
-        expect(agentChatAttachmentName({ name: '' }, 1)).toBe('Attachment 2');
+        expect(agentChatAttachmentName({ name: 'diagram.png' }, 0, translate)).toBe('diagram.png');
+        expect(agentChatAttachmentName({ name: '' }, 1, translate)).toBe('Attachment 2');
     });
 });
 

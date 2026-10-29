@@ -2,6 +2,7 @@ import type { AgentChatSnapshot } from '@caxri/protocol';
 import { agentChatFailureMessage, emptyAgentChatSnapshot } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../../i18n';
 import { getTerminalExitPresentation } from '../../../terminal/terminal-exit-presentation';
 import {
     agentChatSendBlock,
@@ -70,7 +71,13 @@ describe('agentChatRecoveryNotice', () => {
             ),
         ).toEqual({
             kind: 'detached',
-            message: getTerminalExitPresentation('detached')?.label,
+            message: getTerminalExitPresentation(
+                'detached',
+                undefined,
+                undefined,
+                undefined,
+                translate,
+            )?.label,
             recovery: 'restart',
         });
     });
@@ -221,19 +228,29 @@ describe('agentChatSendTooltip', () => {
 
     it('shows the action’s keycap only while Send can act', () => {
         const send = { tooltip: 'Send', shortcut: 'enter' };
-        expect(agentChatSendTooltipShortcut(send, ready)).toBe('enter');
-        expect(agentChatSendTooltipShortcut(send, { ...ready, hasContent: false })).toBeUndefined();
-        expect(agentChatSendTooltipShortcut(send, { ...ready, block: 'loading' })).toBeUndefined();
-        expect(agentChatSendTooltipShortcut({ tooltip: 'Queue' }, ready)).toBeUndefined();
+        expect(agentChatSendTooltipShortcut(send, ready, translate)).toBe('enter');
+        expect(
+            agentChatSendTooltipShortcut(send, { ...ready, hasContent: false }, translate),
+        ).toBeUndefined();
+        expect(
+            agentChatSendTooltipShortcut(send, { ...ready, block: 'loading' }, translate),
+        ).toBeUndefined();
+        expect(
+            agentChatSendTooltipShortcut({ tooltip: 'Queue' }, ready, translate),
+        ).toBeUndefined();
     });
 
     it('lists the running turn keys only while Send can act', () => {
         const keys = [{ label: 'Queue', shortcut: 'enter' }];
-        expect(agentChatSendTooltipKeys({ keys, tooltip: 'Queue' }, ready)).toBe(keys);
+        expect(agentChatSendTooltipKeys({ keys, tooltip: 'Queue' }, ready, translate)).toBe(keys);
         expect(
-            agentChatSendTooltipKeys({ keys, tooltip: 'Queue' }, { ...ready, isSending: true }),
+            agentChatSendTooltipKeys(
+                { keys, tooltip: 'Queue' },
+                { ...ready, isSending: true },
+                translate,
+            ),
         ).toBeUndefined();
-        expect(agentChatSendTooltipKeys({ tooltip: 'Send' }, ready)).toBeUndefined();
+        expect(agentChatSendTooltipKeys({ tooltip: 'Send' }, ready, translate)).toBeUndefined();
     });
 });
 

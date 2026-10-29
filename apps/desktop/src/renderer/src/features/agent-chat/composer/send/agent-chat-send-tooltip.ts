@@ -57,8 +57,9 @@ export function agentChatSendTooltip(
 export function agentChatSendTooltipShortcut(
     action: { shortcut?: string; tooltip: string },
     state: Parameters<typeof agentChatSendTooltip>[1],
+    t: Translate,
 ): string | undefined {
-    return sendBlockedReason(state, translate) === undefined ? action.shortcut : undefined;
+    return sendBlockedReason(state, t) === undefined ? action.shortcut : undefined;
 }
 
 /**
@@ -68,8 +69,9 @@ export function agentChatSendTooltipShortcut(
 export function agentChatSendTooltipKeys(
     action: { keys?: readonly AgentChatSendKey[]; tooltip: string },
     state: Parameters<typeof agentChatSendTooltip>[1],
+    t: Translate,
 ): readonly AgentChatSendKey[] | undefined {
-    return sendBlockedReason(state, translate) === undefined ? action.keys : undefined;
+    return sendBlockedReason(state, t) === undefined ? action.keys : undefined;
 }
 
 /**
@@ -92,8 +94,8 @@ export function agentChatSendLabels(
             sendTooltip: t('agentChat.composer.resumeTooltip'),
         };
     return {
-        sendKeys: agentChatSendTooltipKeys(action, state),
-        sendShortcut: agentChatSendTooltipShortcut(action, state),
+        sendKeys: agentChatSendTooltipKeys(action, state, t),
+        sendShortcut: agentChatSendTooltipShortcut(action, state, t),
         sendTooltip: agentChatSendTooltip(action, state, t),
     };
 }

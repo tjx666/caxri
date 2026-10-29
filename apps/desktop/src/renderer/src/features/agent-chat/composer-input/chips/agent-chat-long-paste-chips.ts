@@ -5,6 +5,7 @@ import { StateField } from '@codemirror/state';
 import type { DecorationSet } from '@codemirror/view';
 import { Decoration, EditorView, WidgetType } from '@codemirror/view';
 
+import { translate } from '../../../../i18n';
 import { agentChatLongPasteChipText } from '../agent-chat-long-paste';
 import { chipEditorFocus, chipFocusTracking, isChipFocusChange } from './agent-chat-chip-focus';
 import { chipGlyph } from './agent-chat-session-chips';
@@ -38,7 +39,11 @@ class LongPasteChipWidget extends WidgetType {
     }
 
     override toDOM(view: EditorView): HTMLElement {
-        const { aria, detail, label } = agentChatLongPasteChipText(this.reference, false);
+        const { aria, detail, label } = agentChatLongPasteChipText(
+            this.reference,
+            false,
+            translate,
+        );
         const chip = document.createElement('span');
         // Shares the Session chip's look: both are references the Agent receives as text but a person reads as a name.
         chip.className = 'cm-session-chip cm-long-paste-chip';

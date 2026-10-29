@@ -69,8 +69,8 @@ export function useBotHandoverPicker({
     const conversationList = conversations.data?.conversations;
     const refusedKeys = useMemo(() => new Set(refusedByKey.keys()), [refusedByKey]);
     const sessionGroups = useMemo(
-        () => (rows ? handoverSessionGroups(rows, query, refusedKeys) : NO_GROUPS),
-        [query, refusedKeys, rows],
+        () => (rows ? handoverSessionGroups(rows, query, refusedKeys, t) : NO_GROUPS),
+        [query, refusedKeys, rows, t],
     );
     const conversationGroups = useMemo(
         () =>
@@ -85,12 +85,12 @@ export function useBotHandoverPicker({
     const allCandidates = useMemo(
         () =>
             [
-                ...(rows ? handoverSessionGroups(rows, '', refusedKeys) : NO_GROUPS),
+                ...(rows ? handoverSessionGroups(rows, '', refusedKeys, t) : NO_GROUPS),
                 ...(conversationList && projects
                     ? handoverConversationGroups(conversationList, projects, '', untitled)
                     : NO_GROUPS),
             ].flatMap((group) => group.candidates),
-        [conversationList, projects, refusedKeys, rows, untitled],
+        [conversationList, projects, refusedKeys, rows, t, untitled],
     );
     const selected = allCandidates.filter((candidate) => selection.has(candidate.key));
     const toggle: ToggleCandidates = (keys, isChecked) => {

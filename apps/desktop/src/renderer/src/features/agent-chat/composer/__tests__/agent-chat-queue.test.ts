@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../../i18n';
 import {
     agentChatNextQueuedId,
     agentChatQueueCardLabels,
@@ -21,6 +22,8 @@ describe('agentChatQueueEntries', () => {
                 },
             ],
             true,
+            [],
+            translate,
         );
         expect(message).toMatchObject({
             preview: 'Then run the tests',
@@ -38,19 +41,24 @@ describe('agentChatQueueEntries', () => {
             canSendNow: false,
             canEdit: true,
         });
-        expect(agentChatQueueEntries(undefined, false)).toEqual([]);
+        expect(agentChatQueueEntries(undefined, false, [], translate)).toEqual([]);
     });
 
     it('lists messages still on their way after the queue, with every action held', () => {
-        const entries = agentChatQueueEntries([{ id: 'm1', text: 'Queued' }], true, [
-            {
-                id: 'p1',
-                text: 'On its way',
-                images: [{ thumbnail: '' }],
-                placement: 'queue',
-                knownIds: new Set(),
-            },
-        ]);
+        const entries = agentChatQueueEntries(
+            [{ id: 'm1', text: 'Queued' }],
+            true,
+            [
+                {
+                    id: 'p1',
+                    text: 'On its way',
+                    images: [{ thumbnail: '' }],
+                    placement: 'queue',
+                    knownIds: new Set(),
+                },
+            ],
+            translate,
+        );
         expect(entries.map((entry) => entry.id)).toEqual(['m1', 'p1']);
         expect(entries[0]?.isPending).toBeUndefined();
         expect(entries[1]).toMatchObject({

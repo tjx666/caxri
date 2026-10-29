@@ -2,6 +2,7 @@ import type { LucideIcon } from 'lucide-react';
 import { GitFork, History, LoaderCircle, Pencil } from 'lucide-react';
 
 import { Tooltip } from '../../../components/ui/tooltip';
+import type { TranslationKey } from '../../../i18n';
 import { useTranslation } from '../../../i18n';
 import { useAgentChatEdit } from '../hooks/use-agent-chat-edit';
 
@@ -23,17 +24,24 @@ function RewindActionButton({
     label,
     onClick,
 }: {
-    availability: string | null | undefined;
+    availability: TranslationKey | null | undefined;
     busyReason?: string;
     icon: LucideIcon;
     isBusy?: boolean;
     label: string;
     onClick: () => void;
 }) {
+    const { t } = useTranslation();
     if (availability === undefined) return null;
     const isDisabled = availability !== null || isBusy;
     return (
-        <Tooltip content={availability ?? (isBusy ? busyReason : undefined) ?? label}>
+        <Tooltip
+            content={
+                (availability === null ? undefined : t(availability)) ??
+                (isBusy ? busyReason : undefined) ??
+                label
+            }
+        >
             <button
                 aria-busy={isBusy || undefined}
                 aria-disabled={isDisabled || undefined}

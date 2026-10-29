@@ -1,4 +1,4 @@
-import { translate } from '../../i18n';
+import type { Translate } from '../../i18n';
 import type { SessionStatusSummary } from './session-status';
 
 /**
@@ -15,35 +15,34 @@ import type { SessionStatusSummary } from './session-status';
 export function describeProjectSessionCount(
     title: string,
     sessionCount: number,
-    agentSummary?: SessionStatusSummary,
+    agentSummary: SessionStatusSummary | undefined,
+    t: Translate,
 ): string {
-    const name = translate(
+    const name = t(
         sessionCount === 1
             ? 'primarySidebar.projectHeading.nameOne'
             : 'primarySidebar.projectHeading.nameOther',
         { count: sessionCount, title },
     );
-    const agentStatus = agentSummary && describeProjectAgentStatus(agentSummary);
+    const agentStatus = agentSummary && describeProjectAgentStatus(agentSummary, t);
     return agentStatus
-        ? translate('primarySidebar.projectHeading.withStatus', { name, status: agentStatus })
+        ? t('primarySidebar.projectHeading.withStatus', { name, status: agentStatus })
         : name;
 }
 
-function describeProjectAgentStatus({
-    attention,
-    running,
-}: SessionStatusSummary): string | undefined {
+function describeProjectAgentStatus(
+    { attention, running }: SessionStatusSummary,
+    t: Translate,
+): string | undefined {
     const parts = [
-        running > 0 && translate('primarySidebar.projectHeading.running', { count: running }),
+        running > 0 && t('primarySidebar.projectHeading.running', { count: running }),
         attention > 0 &&
-            translate(
+            t(
                 attention === 1
                     ? 'primarySidebar.projectHeading.attentionOne'
                     : 'primarySidebar.projectHeading.attentionOther',
                 { count: attention },
             ),
     ].filter(Boolean);
-    return parts.length > 0
-        ? parts.join(translate('primarySidebar.projectHeading.separator'))
-        : undefined;
+    return parts.length > 0 ? parts.join(t('primarySidebar.projectHeading.separator')) : undefined;
 }

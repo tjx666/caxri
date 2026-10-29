@@ -7,6 +7,7 @@ import jsdocFormat from './jsdoc-format';
 import listenerFanoutIsolation from './listener-fanout-isolation';
 import nativeTitle from './native-title';
 import noDeclareImplicitAnyVariable from './no-declare-implicit-any-variable';
+import noRenderTranslate from './no-render-translate';
 import noSchemaVersionOffset from './no-schema-version-offset';
 import registeredColorUtilities from './registered-color-utilities';
 import relativeImportExtension from './relative-import-extension';
@@ -25,6 +26,7 @@ const caxriEslintPlugin: ESLint.Plugin = {
         'listener-fanout-isolation': listenerFanoutIsolation,
         'native-title': nativeTitle,
         'no-declare-implicit-any-var': noDeclareImplicitAnyVariable,
+        'no-render-translate': noRenderTranslate,
         'no-schema-version-offset': noSchemaVersionOffset,
         'registered-color-utilities': registeredColorUtilities,
         'relative-import-extension': relativeImportExtension,

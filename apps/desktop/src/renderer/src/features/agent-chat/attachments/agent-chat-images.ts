@@ -7,6 +7,7 @@ import {
     MAX_AGENT_CHAT_THUMBNAIL_LENGTH,
 } from '@caxri/protocol';
 
+import type { Translate } from '../../../i18n';
 import { translate } from '../../../i18n';
 import type { AgentChatImageAttachment } from '../composer-input/agent-chat-drafts';
 
@@ -58,8 +59,8 @@ const RESIZABLE_IMAGE_TYPES: ReadonlySet<string> = new Set([
 /**
  * The tooltip on a resized attachment, saying what is sent is not the original file.
  */
-export function agentChatImageResizedNote(): string {
-    return translate('agentChat.images.resizedNote', {
+export function agentChatImageResizedNote(t: Translate): string {
+    return t('agentChat.images.resizedNote', {
         size: MAX_AGENT_CHAT_IMAGE_BYTES / 1024 / 1024,
     });
 }
@@ -67,8 +68,8 @@ export function agentChatImageResizedNote(): string {
 /**
  * An attachment's alt text when it was resized: its name plus the resized note.
  */
-function agentChatResizedImageLabel(name: string): string {
-    return translate('agentChat.images.resizedLabel', {
+function agentChatResizedImageLabel(name: string, t: Translate): string {
+    return t('agentChat.images.resizedLabel', {
         name,
         size: MAX_AGENT_CHAT_IMAGE_BYTES / 1024 / 1024,
     });
@@ -81,10 +82,11 @@ function agentChatResizedImageLabel(name: string): string {
 export function agentChatAttachmentName(
     attachment: Pick<AgentChatImageAttachment, 'name'>,
     index: number,
+    t: Translate,
 ): string {
     // A pasted image may carry an empty name, which falls back like a missing one.
     return attachment.name === undefined || attachment.name === ''
-        ? translate('agentChat.attachments.fallbackName', { number: index + 1 })
+        ? t('agentChat.attachments.fallbackName', { number: index + 1 })
         : attachment.name;
 }
 
@@ -94,9 +96,10 @@ export function agentChatAttachmentName(
 export function agentChatAttachmentLabel(
     attachment: Pick<AgentChatImageAttachment, 'isResized' | 'name'>,
     index: number,
+    t: Translate,
 ): string {
-    const label = agentChatAttachmentName(attachment, index);
-    return attachment.isResized ? agentChatResizedImageLabel(label) : label;
+    const label = agentChatAttachmentName(attachment, index, t);
+    return attachment.isResized ? agentChatResizedImageLabel(label, t) : label;
 }
 
 export type AgentChatImageRejection = 'count' | 'size' | 'total' | 'type';

@@ -4,7 +4,7 @@ import type {
     SessionPullRequests,
 } from '@caxri/protocol';
 
-import { translate } from '../../i18n';
+import type { Translate } from '../../i18n';
 import type { SessionActivityPresentation } from './session-activity';
 
 export type SessionPullRequestIcon = 'closed' | 'deployed' | 'draft' | 'merged' | 'open';
@@ -78,38 +78,39 @@ export function selectSessionPullRequest(
 function deployedPresentation(
     deployment: SessionPullRequest['deployment'],
     number: number,
+    t: Translate,
 ): SessionPullRequestPresentation | undefined {
     switch (deployment?.state) {
         case 'success':
             return {
-                ariaLabel: translate('primarySidebar.pullRequest.deployed.ariaLabel', { number }),
+                ariaLabel: t('primarySidebar.pullRequest.deployed.ariaLabel', { number }),
                 icon: 'deployed',
-                label: translate('primarySidebar.pullRequest.deployed.label'),
+                label: t('primarySidebar.pullRequest.deployed.label'),
                 // The merged violet, not the open green: a shipped rocket is where a merged pull request goes next,
                 // and at 13px a green rocket beside a green open PR read as the same state.
                 tone: 'merged',
-                checksLabel: translate('primarySidebar.pullRequest.deployed.checks'),
+                checksLabel: t('primarySidebar.pullRequest.deployed.checks'),
                 checksTone: 'success',
             };
         case 'failure':
             return {
-                ariaLabel: translate('primarySidebar.pullRequest.deployFailed.ariaLabel', {
+                ariaLabel: t('primarySidebar.pullRequest.deployFailed.ariaLabel', {
                     number,
                 }),
                 icon: 'deployed',
-                label: translate('primarySidebar.pullRequest.deployFailed.label'),
+                label: t('primarySidebar.pullRequest.deployFailed.label'),
                 tone: 'danger',
-                checksLabel: translate('primarySidebar.pullRequest.deployFailed.checks'),
+                checksLabel: t('primarySidebar.pullRequest.deployFailed.checks'),
                 checksTone: 'danger',
             };
         case 'pending':
         case 'queued':
             return {
-                ariaLabel: translate('primarySidebar.pullRequest.deploying.ariaLabel', { number }),
+                ariaLabel: t('primarySidebar.pullRequest.deploying.ariaLabel', { number }),
                 icon: 'deployed',
-                label: translate('primarySidebar.pullRequest.deploying.label'),
+                label: t('primarySidebar.pullRequest.deploying.label'),
                 tone: 'warning',
-                checksLabel: translate('primarySidebar.pullRequest.deploying.checks'),
+                checksLabel: t('primarySidebar.pullRequest.deploying.checks'),
                 checksTone: 'warning',
             };
         default:
@@ -146,12 +147,13 @@ const CHECKS_PRESENTATION: Partial<
  */
 export function pullRequestChecksPresentation(
     checks: SessionPullRequest['checks'],
+    t: Translate,
 ): { key: ChecksKey; label: string; tone: ChecksTone } | undefined {
     const entry = checks && CHECKS_PRESENTATION[checks];
     if (!entry) return undefined;
     return {
         ...entry,
-        label: translate(`primarySidebar.pullRequest.checks.${entry.key}.label`),
+        label: t(`primarySidebar.pullRequest.checks.${entry.key}.label`),
     };
 }
 
@@ -161,15 +163,16 @@ export function pullRequestChecksPresentation(
  */
 export function sessionPullRequestPresentation(
     pullRequest: SessionPullRequest,
+    t: Translate,
 ): SessionPullRequestPresentation {
-    const label = translate(`primarySidebar.pullRequest.state.${pullRequest.state}`);
+    const label = t(`primarySidebar.pullRequest.state.${pullRequest.state}`);
     const { number } = pullRequest;
-    const base = translate(`primarySidebar.pullRequest.base.${pullRequest.state}`, { number });
-    const sentence = translate('primarySidebar.pullRequest.sentence', { base });
+    const base = t(`primarySidebar.pullRequest.base.${pullRequest.state}`, { number });
+    const sentence = t('primarySidebar.pullRequest.sentence', { base });
     switch (pullRequest.state) {
         case 'merged':
             return (
-                deployedPresentation(pullRequest.deployment, pullRequest.number) ?? {
+                deployedPresentation(pullRequest.deployment, pullRequest.number, t) ?? {
                     ariaLabel: sentence,
                     icon: 'merged',
                     label,
@@ -181,15 +184,12 @@ export function sessionPullRequestPresentation(
         case 'draft':
             return { ariaLabel: sentence, icon: 'draft', label, tone: 'neutral' };
         case 'open': {
-            const checks = pullRequestChecksPresentation(pullRequest.checks);
+            const checks = pullRequestChecksPresentation(pullRequest.checks, t);
             if (checks)
                 return {
-                    ariaLabel: translate(
-                        `primarySidebar.pullRequest.checks.${checks.key}.ariaLabel`,
-                        {
-                            base,
-                        },
-                    ),
+                    ariaLabel: t(`primarySidebar.pullRequest.checks.${checks.key}.ariaLabel`, {
+                        base,
+                    }),
                     checksLabel: checks.label,
                     checksTone: checks.tone,
                     icon: 'open',

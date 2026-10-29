@@ -121,7 +121,7 @@ export function fileTreeItemMenu({
         {
             label: translate('viewContainers.files.menu.duplicate'),
             disabled: duplicateBlocked,
-            disabledReason: fileOperationBusyReason(),
+            disabledReason: fileOperationBusyReason(translate),
             onSelect: duplicateEntry,
         },
         {

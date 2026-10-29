@@ -8,6 +8,7 @@ import {
     agentChatSlashQuery,
 } from '@caxri/protocol';
 
+import { useTranslation } from '../../../i18n';
 import { isImeComposing } from '../../../lib/ime';
 import { suggestionMenuKeyAction, suggestionOptionId } from '../../../lib/suggestion-options';
 import { isAgentProcessRunning } from '../../../lib/terminal-agent-runtime';
@@ -68,6 +69,7 @@ export function useAgentChatCommandMenu({
     isInputFocused: boolean;
     terminalId: string;
 }) {
+    const { t } = useTranslation();
     const listId = useId();
     const query = agentChatSlashQuery(draft);
     // Discovery answers only for a running Agent, the same gate as the picker.
@@ -83,8 +85,9 @@ export function useAgentChatCommandMenu({
         },
     );
     const actions = useMemo(
-        () => withAgentChatBuiltInActions(agentChatMenuActions(commands, discovery.data?.actions)),
-        [commands, discovery.data?.actions],
+        () =>
+            withAgentChatBuiltInActions(agentChatMenuActions(commands, discovery.data?.actions), t),
+        [commands, discovery.data?.actions, t],
     );
     const knownInvocations = useMemo(
         () => new Set(actions.map((action) => action.invocation)),
@@ -146,10 +149,13 @@ export function useAgentChatCommandMenu({
          */
         recentCount,
         suggestions: matches.map(agentChatActionSuggestion),
-        skillNotice: agentChatSkillDiscoveryNotice({
-            isAgentRunning,
-            isLoading: discovery.isLoading,
-        }),
+        skillNotice: agentChatSkillDiscoveryNotice(
+            {
+                isAgentRunning,
+                isLoading: discovery.isLoading,
+            },
+            t,
+        ),
         activeIndex,
         activeCommand,
         listId,

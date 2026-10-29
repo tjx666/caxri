@@ -37,11 +37,9 @@ export function SessionPullRequestIndicator({
     className?: string;
     pullRequest?: SessionPullRequest;
 }) {
-    // `sessionPullRequestPresentation` words its labels through `translate()`; subscribing re-renders them on a language
-    // change.
-    useTranslation();
+    const { t } = useTranslation();
     if (!pullRequest) return null;
-    const presentation = sessionPullRequestPresentation(pullRequest);
+    const presentation = sessionPullRequestPresentation(pullRequest, t);
     const Icon = ICONS[presentation.icon];
     return (
         <span

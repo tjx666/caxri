@@ -3,7 +3,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 
 import type { FileEntry } from '@caxri/protocol';
 
-import { translate } from '../../../../i18n';
+import { translate, useTranslation } from '../../../../i18n';
 import { dragPath } from '../../../../lib/file-drag';
 import { resolveEntryKind } from '../../../../lib/file-entry';
 import { parentDirectoryPath } from '../../../../lib/file-path';
@@ -103,6 +103,7 @@ export function useFileTreeItemInteractions({
     setEditing,
 }: UseFileTreeItemInteractionsOptions): UseFileTreeItemInteractionsResult {
     const client = useResourceExplorerClient();
+    const { t } = useTranslation();
     const navigator = useFileTreeNavigator();
     const [isDropTarget, setIsDropTarget] = useState(false);
     const rowReference = useRef<HTMLButtonElement>(null);
@@ -336,7 +337,10 @@ export function useFileTreeItemInteractions({
         openEntry,
         parentDirectory,
         pasteBlocked: isPasteBlocked,
-        pasteDisabledReason: pasteDisabledReason({ isBlocked: isPasteBlocked, isClipboardEmpty }),
+        pasteDisabledReason: pasteDisabledReason(
+            { isBlocked: isPasteBlocked, isClipboardEmpty },
+            t,
+        ),
         pasteIntoEntry,
         rowDescriptionId,
         rowRef: rowReference,

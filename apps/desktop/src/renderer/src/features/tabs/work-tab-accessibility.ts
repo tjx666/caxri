@@ -61,7 +61,7 @@ export function workTabDescription(
     return [
         detail ? t('tabs.description.inDetail', { detail }) : undefined,
         accessibleDetail ? `${accessibleDetail}.` : undefined,
-        gitDecoration ? gitDecorationDescription(gitDecoration.kind) : undefined,
+        gitDecoration ? gitDecorationDescription(gitDecoration.kind, t) : undefined,
         dirty ? t('tabs.description.unsaved') : undefined,
     ]
         .filter(Boolean)

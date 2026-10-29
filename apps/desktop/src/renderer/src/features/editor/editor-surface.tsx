@@ -205,7 +205,7 @@ function FileEditorSurface({ paneId, path }: { paneId: string; path: string }) {
         if (failure)
             return (
                 <EditorLoadFailure
-                    {...describeDocumentReadFailure(failure.error)}
+                    {...describeDocumentReadFailure(failure.error, t)}
                     {...documentLoadRecoveryAction(
                         documentReadRecovery(failure.error),
                         path,

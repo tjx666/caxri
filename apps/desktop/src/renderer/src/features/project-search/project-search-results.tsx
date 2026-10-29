@@ -78,13 +78,14 @@ function ResultRow({
  * row and handed down rather than made here.
  */
 function GitDecorationSuffix({ descriptionId, path }: { descriptionId: string; path: string }) {
+    const { t } = useTranslation();
     const decoration = useGitDecoration(path);
     if (!decoration) return null;
     return (
         <>
             <GitFileStatusLetter decoration={decoration} />
             <span id={descriptionId} className="sr-only">
-                {gitDecorationDescription(decoration.kind)}
+                {gitDecorationDescription(decoration.kind, t)}
             </span>
         </>
     );

@@ -1,6 +1,7 @@
 import type { BotBoardRow, BotConversation } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../i18n';
 import {
     handoverConversationGroups,
     handoverRequestEntries,
@@ -55,6 +56,8 @@ describe('handoverSessionGroups', () => {
                 row({ sessionId: 'new', lastActivityAt: 2, agent: undefined }),
             ],
             '',
+            new Set(),
+            translate,
         );
 
         expect(
@@ -74,7 +77,7 @@ describe('handoverSessionGroups', () => {
         ];
 
         expect(
-            handoverSessionGroups(rows, '  parser ')
+            handoverSessionGroups(rows, '  parser ', new Set(), translate)
                 .flatMap((group) => group.candidates)
                 .map(({ key }) => key),
         ).toEqual(['by-title', 'by-project']);
@@ -149,7 +152,7 @@ describe('handoverConversationGroups', () => {
 describe('handoverRequestEntries', () => {
     it('splits the selection into Sessions and conversations and drops keys no longer offered', () => {
         const candidates = [
-            ...handoverSessionGroups([row({ sessionId: 'session-1' })], ''),
+            ...handoverSessionGroups([row({ sessionId: 'session-1' })], '', new Set(), translate),
             ...handoverConversationGroups([conversation()], projects, '', 'Untitled'),
         ].flatMap((group) => group.candidates);
 
@@ -216,8 +219,13 @@ describe('handover refusals in place', () => {
             ['managed', 'already_managed'],
         ]);
         const rows = [row({ sessionId: 'managed', botSession: true })];
-        expect(handoverSessionGroups(rows, '')).toEqual([]);
-        const kept = handoverSessionGroups(rows, '', new Set(summary.rejectedByKey.keys()));
+        expect(handoverSessionGroups(rows, '', new Set(), translate)).toEqual([]);
+        const kept = handoverSessionGroups(
+            rows,
+            '',
+            new Set(summary.rejectedByKey.keys()),
+            translate,
+        );
         expect(kept.flatMap((group) => group.candidates).map((candidate) => candidate.key)).toEqual(
             ['managed'],
         );

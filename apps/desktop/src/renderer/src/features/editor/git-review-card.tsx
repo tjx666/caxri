@@ -15,6 +15,7 @@ import type { GitReviewComment } from './git-review-comments';
  */
 function useViewZoneTranslate(): Translate {
     useLocaleStore((state) => state.locale);
+    // eslint-disable-next-line caxri/no-render-translate -- the locale store subscription above refreshes this snapshot
     return translate;
 }
 

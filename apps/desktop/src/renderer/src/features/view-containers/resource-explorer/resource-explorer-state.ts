@@ -211,8 +211,8 @@ export function fileTreeRowDescription(
 ): string {
     return [
         entry.kind === 'symlink' ? symlinkRowDescription(entry, t) : undefined,
-        childRepo ? gitChildRepoDescription(childRepo) : undefined,
-        decoration ? gitDecorationDescription(decoration.kind) : undefined,
+        childRepo ? gitChildRepoDescription(childRepo, t) : undefined,
+        decoration ? gitDecorationDescription(decoration.kind, t) : undefined,
     ]
         .filter(Boolean)
         .join(' ');

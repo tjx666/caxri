@@ -107,7 +107,7 @@ export function agentActivityGlyph(
     const state: AgentActivityState = unread
         ? (session.lastAttentionKind ?? 'unknown')
         : session.agentActivityState;
-    const presentation = sessionActivityPresentation(state);
+    const presentation = sessionActivityPresentation(state, undefined, t);
     const tone =
         !isAgentActivityActionable(groupId) || (groupId === 'attention' && !unread)
             ? 'neutral'

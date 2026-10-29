@@ -18,10 +18,13 @@ export function fileTreeRootMenu(
         | 'pasteIntoProjectRoot'
     >,
 ): ContextMenuEntries {
-    const pasteReason = pasteDisabledReason({
-        isBlocked: controller.isRootPasteBlocked,
-        isClipboardEmpty: controller.isRootPasteEmpty,
-    });
+    const pasteReason = pasteDisabledReason(
+        {
+            isBlocked: controller.isRootPasteBlocked,
+            isClipboardEmpty: controller.isRootPasteEmpty,
+        },
+        translate,
+    );
     return [
         { label: translate('viewContainers.files.newFile'), onSelect: controller.createRootFile },
         {

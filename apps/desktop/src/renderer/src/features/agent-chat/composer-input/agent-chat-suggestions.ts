@@ -1,6 +1,6 @@
 import type { AgentAction } from '@caxri/protocol';
 
-import { translate } from '../../../i18n';
+import type { Translate } from '../../../i18n';
 import type { SuggestionKeyHint, SuggestionOption } from '../../../lib/suggestion-options';
 import type { SessionReferenceCandidate } from '../../session/session-reference';
 import { isAgentChatGoalAction } from './agent-chat-slash-commands';
@@ -54,19 +54,20 @@ export function agentChatSessionSuggestions(
 export function agentChatSuggestionFooter(
     list: 'commands' | 'history' | 'sessions',
     hasMatches: boolean,
-    highlighted?: AgentAction,
+    highlighted: AgentAction | undefined,
+    t: Translate,
 ): SuggestionKeyHint[] {
-    const dismiss = { keys: 'Esc', action: translate('common.keyHint.dismiss') };
+    const dismiss = { keys: 'Esc', action: t('common.keyHint.dismiss') };
     if (!hasMatches) return [dismiss];
-    const move = { keys: '↑↓', action: translate('common.keyHint.move') };
+    const move = { keys: '↑↓', action: t('common.keyHint.move') };
     switch (list) {
         case 'commands': {
             return [
                 move,
-                { keys: 'Tab', action: translate('agentChat.slash.keyHintComplete') },
+                { keys: 'Tab', action: t('agentChat.slash.keyHintComplete') },
                 {
                     keys: 'Enter',
-                    action: translate(
+                    action: t(
                         highlighted && isAgentChatGoalAction(highlighted)
                             ? 'agentChat.slash.keyHintInsert'
                             : 'agentChat.slash.keyHintRun',
@@ -76,18 +77,10 @@ export function agentChatSuggestionFooter(
             ];
         }
         case 'history': {
-            return [
-                move,
-                { keys: 'Enter', action: translate('agentChat.history.keyHintFill') },
-                dismiss,
-            ];
+            return [move, { keys: 'Enter', action: t('agentChat.history.keyHintFill') }, dismiss];
         }
         case 'sessions': {
-            return [
-                move,
-                { keys: 'Enter', action: translate('agentChat.slash.keyHintCite') },
-                dismiss,
-            ];
+            return [move, { keys: 'Enter', action: t('agentChat.slash.keyHintCite') }, dismiss];
         }
     }
 }
@@ -95,8 +88,8 @@ export function agentChatSuggestionFooter(
 /**
  * The `@` list's progress row while the chosen Session is condensed into a reference file.
  */
-export function agentChatSessionPreparingText(title: string): string {
-    return translate('agentChat.slash.preparingSession', { title });
+export function agentChatSessionPreparingText(title: string, t: Translate): string {
+    return t('agentChat.slash.preparingSession', { title });
 }
 
 /**

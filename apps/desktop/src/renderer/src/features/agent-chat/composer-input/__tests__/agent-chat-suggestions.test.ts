@@ -1,6 +1,7 @@
 import type { AgentAction } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../../i18n';
 import {
     agentChatSelectionCaret,
     agentChatSessionPreparingText,
@@ -48,17 +49,19 @@ describe('Agent Chat suggestion list copy', () => {
     it('names Escape in every footer and Enter only when a row can be chosen', () => {
         const keycaps = (hints: ReadonlyArray<{ action: string; keys: string }>) =>
             hints.map(({ action, keys }) => `${keys} ${action}`).join(' · ');
-        expect(keycaps(agentChatSuggestionFooter('commands', true))).toBe(
+        expect(keycaps(agentChatSuggestionFooter('commands', true, undefined, translate))).toBe(
             '↑↓ to move · Tab to complete · Enter to run · Esc to dismiss',
         );
-        expect(keycaps(agentChatSuggestionFooter('sessions', true))).toBe(
+        expect(keycaps(agentChatSuggestionFooter('sessions', true, undefined, translate))).toBe(
             '↑↓ to move · Enter to cite · Esc to dismiss',
         );
-        expect(keycaps(agentChatSuggestionFooter('history', true))).toBe(
+        expect(keycaps(agentChatSuggestionFooter('history', true, undefined, translate))).toBe(
             '↑↓ to move · Enter to fill · Esc to dismiss',
         );
         for (const list of ['commands', 'history', 'sessions'] as const)
-            expect(keycaps(agentChatSuggestionFooter(list, false))).toBe('Esc to dismiss');
+            expect(keycaps(agentChatSuggestionFooter(list, false, undefined, translate))).toBe(
+                'Esc to dismiss',
+            );
     });
 
     it('says Enter runs every command and skill, and inserts only /goal', () => {
@@ -74,7 +77,7 @@ describe('Agent Chat suggestion list copy', () => {
             ...(argumentHint && { argumentHint }),
         });
         const enter = (highlighted: AgentAction) =>
-            agentChatSuggestionFooter('commands', true, highlighted).find(
+            agentChatSuggestionFooter('commands', true, highlighted, translate).find(
                 ({ keys }) => keys === 'Enter',
             )?.action;
         expect(enter(action('command', '/clear'))).toBe('to run');
@@ -84,7 +87,9 @@ describe('Agent Chat suggestion list copy', () => {
     });
 
     it('names the Session whose reference is being prepared', () => {
-        expect(agentChatSessionPreparingText('Fix login')).toBe('Preparing “Fix login”…');
+        expect(agentChatSessionPreparingText('Fix login', translate)).toBe(
+            'Preparing “Fix login”…',
+        );
     });
 });
 

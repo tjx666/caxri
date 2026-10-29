@@ -1,6 +1,7 @@
 import type { RefObject } from 'react';
 import { useEffect, useId, useMemo, useState } from 'react';
 
+import { useTranslation } from '../../../i18n';
 import { isImeComposing } from '../../../lib/ime';
 import { suggestionMenuKeyAction, suggestionOptionId } from '../../../lib/suggestion-options';
 import { useProjects, useSessions } from '../../../stores/selectors';
@@ -71,6 +72,7 @@ export function useAgentChatSessionMenu({
     root: string | undefined;
     setDraft: (update: (current: string) => string) => void;
 }) {
+    const { t } = useTranslation();
     const listId = useId();
     // The list follows the word at the caret rather than the whole draft, and only a caret the user placed.
     const { mention, setCaret, ...caretTracking } = useAgentChatPlacedCaret(draft, isShown);
@@ -178,7 +180,7 @@ export function useAgentChatSessionMenu({
          */
         preparingText:
             preparing !== undefined && isVisible
-                ? agentChatSessionPreparingText(preparing)
+                ? agentChatSessionPreparingText(preparing, t)
                 : undefined,
         /**
          * Which group heading the row at `index` starts, or `undefined` when it continues the group above it.

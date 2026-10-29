@@ -194,7 +194,7 @@ export function EditorBreadcrumbs({
                                 <>
                                     <GitFileStatusLetter decoration={decoration} />
                                     <span id={decorationDescriptionId} className="sr-only">
-                                        {gitDecorationDescription(decoration.kind)}
+                                        {gitDecorationDescription(decoration.kind, t)}
                                     </span>
                                 </>
                             )}

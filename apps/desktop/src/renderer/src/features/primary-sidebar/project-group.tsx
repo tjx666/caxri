@@ -153,9 +153,7 @@ export function ProjectGroup({
      */
     const agentSummary = expanded
         ? undefined
-        : summarizeSessionStatuses(projectSessions, (session) =>
-              sessionAgentTerminal(session, terminals),
-          );
+        : summarizeSessionStatuses(projectSessions, (s) => sessionAgentTerminal(s, terminals), t);
     return (
         <section
             data-project-id={project.id}
@@ -240,6 +238,7 @@ export function ProjectGroup({
                                     project.title,
                                     projectSessions.length,
                                     agentSummary,
+                                    t,
                                 )}
                                 data-row-id={project.id}
                                 tabIndex={project.id === rovingRowId ? 0 : -1}
