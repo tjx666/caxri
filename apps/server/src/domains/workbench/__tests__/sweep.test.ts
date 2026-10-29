@@ -10,16 +10,18 @@ const binding = (projectId: string) => ({
 });
 
 function setup(isClosed: () => boolean) {
-    const sessions = ['s1', 's2', 's3'].map((id) => ({ id }));
-    const bindings = new Map([
-        ['s1', binding('owner-a')],
-        ['s2', binding('owner-a')],
-        ['s3', binding('owner-b')],
-    ]);
+    const entries = [
+        { sessionId: 's1', binding: binding('owner-a') },
+        { sessionId: 's2', binding: binding('owner-a') },
+        { sessionId: 's3', binding: binding('owner-b') },
+    ];
+    const listSessions = vi.fn();
+    const getSessionWorkbenchBinding = vi.fn();
     const database = {
         getProject: (id: string) => ({ id, rootPath: `/root/${id}` }),
-        getSessionWorkbenchBinding: (id: string) => bindings.get(id),
-        listSessions: () => sessions,
+        getSessionWorkbenchBinding,
+        listActiveWorktreeBindings: () => entries,
+        listSessions,
     } as unknown as CaxriDatabase;
     const loadTopology = vi.fn(() => Promise.resolve({ repositoryKey: 'key', worktrees: [] }));
     const validateBinding = vi.fn(() => Promise.resolve(false));
@@ -31,7 +33,7 @@ function setup(isClosed: () => boolean) {
             logger: { write: vi.fn() } as unknown as StructuredLogger,
             validateBinding,
         });
-    return { loadTopology, run, validateBinding };
+    return { getSessionWorkbenchBinding, listSessions, loadTopology, run, validateBinding };
 }
 
 describe('sweepWorkbenchRoots', () => {
@@ -40,6 +42,13 @@ describe('sweepWorkbenchRoots', () => {
         await run();
         expect(loadTopology.mock.calls).toEqual([['/root/owner-a'], ['/root/owner-b']]);
         expect(validateBinding).toHaveBeenCalledTimes(3);
+    });
+
+    it('never walks every Session or reads bindings row by row', async () => {
+        const { getSessionWorkbenchBinding, listSessions, run } = setup(() => false);
+        await run();
+        expect(listSessions).not.toHaveBeenCalled();
+        expect(getSessionWorkbenchBinding).not.toHaveBeenCalled();
     });
 
     it('stops at the next boundary once the service closes', async () => {
