@@ -56,6 +56,7 @@ import {
     TerminalManager,
     TerminalRestoreSupervisor,
 } from './terminal';
+import { SystemAppearance } from './theme';
 import { pushUsageGuardToPtyTerminals } from './usage';
 import { createPresenceEffects, WindowPresence } from './window-presence';
 import { createWindowStateHandlers } from './window-state-handlers';
@@ -131,6 +132,7 @@ export async function createDomainServices(
     pushUsageGuardToPtyTerminals({ guards: agentRuntime.usageGuards, database, send });
     const shellIntegration = await createShellIntegration(userDataPath, logger);
     const mobileTerminalMutations = new MobileTerminalMutationQueue();
+    const systemAppearance = new SystemAppearance(configuration);
     const terminals = new TerminalManager(database, send, logger, {
         ...dependencies.terminal,
         execution: dependencies.terminalExecution,
@@ -181,9 +183,7 @@ export async function createDomainServices(
         onAgentStateChanged: dispatchState.observe,
         shellIntegration: (executable, environment) =>
             shellIntegration?.resolve(executable, environment),
-        terminalColors:
-            dependencies.terminal?.terminalColors ??
-            (() => configuration.getTheme().value.terminal),
+        terminalColors: dependencies.terminal?.terminalColors ?? systemAppearance.terminalColors,
     });
     const longPastes = await createLongPasteService({
         userDataPath,
@@ -191,7 +191,7 @@ export async function createDomainServices(
         settings: () => configuration.getSettings().value,
         agentLaunchId: (terminalId) => terminals.agentLaunchId(terminalId),
     });
-    const unsubscribeTerminalSettings = configuration.subscribeSettings(() =>
+    const unsubscribeTerminalSettings = systemAppearance.onChange(() =>
         terminals.reconcileOutputRecoverySettings(),
     );
     const agentChat = createAgentChatService({
@@ -443,7 +443,7 @@ export async function createDomainServices(
         ...benchmark.handlers,
         ...claudeWindows.handlers,
         ...createAgentSecretHandlers(agentSecrets),
-        ...createWindowStateHandlers(database),
+        ...createWindowStateHandlers(database, systemAppearance),
         ...presenceEffects.handlers,
         ...createWorkbenchRootHandlers(workbenchRoots),
         ...createTerminalMoveHandler({

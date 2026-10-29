@@ -1,7 +1,12 @@
 import os from 'node:os';
 import process from 'node:process';
 
-import type { AuxiliaryWindowState, ServerEvent, ThemeTokens } from '@caxri/protocol';
+import type {
+    AuxiliaryWindowState,
+    ServerEvent,
+    SystemColorScheme,
+    ThemeTokens,
+} from '@caxri/protocol';
 import { resolveEffectiveTheme } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import type { BaseWindow, BrowserWindow, WebContents } from 'electron';
@@ -24,19 +29,18 @@ import type { CompanionRendererPolicy } from './workbench-ipc';
 
 /**
  * The theme an on-demand window opens with: the persisted theme, or the preset paired with the system appearance while
- * "Follow system appearance" is on. These windows read it once at open, so a later system switch applies the next time
- * they open.
+ * "Follow system appearance" is on. Each window reads it at open and again on every `refreshTheme`.
  */
 async function effectiveTheme(supervisor: DesktopServerConnection): Promise<ThemeTokens> {
     const [{ value: theme }, { value: settings }] = await Promise.all([
         supervisor.request('theme.get'),
         supervisor.request('settings.get'),
     ]);
-    return resolveEffectiveTheme(
-        theme,
-        settings,
-        nativeTheme.shouldUseDarkColors ? 'dark' : 'light',
-    );
+    return resolveEffectiveTheme(theme, settings, systemScheme());
+}
+
+function systemScheme(): SystemColorScheme {
+    return nativeTheme.shouldUseDarkColors ? 'dark' : 'light';
 }
 
 /**
@@ -199,9 +203,27 @@ export function createOnDemandWindows(options: {
      * no key, so every settings change re-sends the current value.
      */
     supervisor.onEvent((event) => {
+        if (event.event === 'theme.changed' || event.event === 'settings.changed') {
+            void processExplorer.refreshTheme();
+            void performanceMonitor.refreshTheme();
+        }
         if (event.event !== 'settings.changed') return;
         void processExplorer.refreshLanguage();
         void performanceMonitor.refreshLanguage();
+    });
+    /**
+     * A system appearance switch changes the effective theme without touching `theme.json` or the settings, so no
+     * Server event announces it. The Server needs it for terminal color replies, and the open on-demand windows
+     * repaint.
+     */
+    nativeTheme.on('updated', () => {
+        void supervisor
+            .request('app.systemAppearance.update', { scheme: systemScheme() })
+            .catch(() => {
+                // Disconnected: the next attachment reports the appearance again.
+            });
+        void processExplorer.refreshTheme();
+        void performanceMonitor.refreshTheme();
     });
     performanceMonitor.installIpc();
     return { caxriBot, benchmarkWindow: benchmark, performanceMonitor, processExplorer };

@@ -557,14 +557,12 @@ export class TerminalManager {
     }
 
     reconcileOutputRecoverySettings(): void {
-        for (const terminal of this.database.listTerminals())
-            this.execution.configureOutputRecovery(
-                terminal.id,
-                terminal.lastAgentProcessState === 'running' ? terminal.provider : undefined,
-                terminal.lastAgentProcessState === 'running' && terminal.provider
-                    ? this.agentOutputRecoverySettings?.(terminal.provider)
-                    : undefined,
-            );
+        const colors = this.terminalColors?.();
+        for (const { id, lastAgentProcessState, provider } of this.database.listTerminals()) {
+            const agent = lastAgentProcessState === 'running' ? provider : undefined;
+            const settings = agent && this.agentOutputRecoverySettings?.(agent);
+            this.execution.configureOutputRecovery(id, agent, settings, colors);
+        }
     }
 
     signalExact(terminalId: string, expectedProcessId: number, signal: string): boolean {

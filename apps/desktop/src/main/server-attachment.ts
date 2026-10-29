@@ -12,6 +12,7 @@ import type {
     ServerDesktopCredential,
     ServerDesktopLaunch,
     ServerManifest,
+    SystemColorScheme,
     WindowPresenceSeed,
 } from '@caxri/protocol';
 import type { E2EAgentPolicy, StructuredLogger } from '@caxri/system';
@@ -88,6 +89,12 @@ export interface DesktopServerConnectionOptions {
      * retries.
      */
     seedAttachment?: (seed: WindowPresenceSeedSender) => Promise<void>;
+    /**
+     * Reads the live system appearance. Sent on every attachment so a Server that restarted, or outlived a previous
+     * Desktop, answers terminal color queries for the appearance on screen now; later changes go through
+     * `app.systemAppearance.update` from `createOnDemandWindows`.
+     */
+    systemAppearance?: () => SystemColorScheme;
     serverArtifactRoot: string;
     userDataPath: string;
 }
@@ -154,6 +161,10 @@ export async function connectDesktopAttachment(
         await options.seedAttachment?.((seed) =>
             client.requestServerOperation('window.seedPresence', seed),
         );
+        if (options.systemAppearance)
+            await client.requestServerOperation('app.systemAppearance.update', {
+                scheme: options.systemAppearance(),
+            });
     } catch (error) {
         // The attachment is not usable without its presence, so the reconnect loop retries it from scratch.
         client.close();

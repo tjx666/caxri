@@ -144,9 +144,11 @@ export function ProcessExplorerApp() {
             }
         }
         void loadTheme();
+        const unsubscribeTheme = globalThis.processExplorer.onThemeChanged(applyCssTheme);
         return () => {
             clearTimeout(initialRefresh);
             poll.dispose();
+            unsubscribeTheme();
         };
     }, [refresh]);
     const roots = useMemo(
