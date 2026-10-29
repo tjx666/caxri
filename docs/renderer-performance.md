@@ -228,9 +228,11 @@ Idle, the app held 1,344–1,436 MB resident (Electron 1,044–1,135 MB, Server 
 Renderer heap.
 
 Two findings shaped the code. React accounts for well under a tenth of the `bigstream` main-thread
-time; most of the rest is style recalculation and other non-React work. A heap snapshot diff
+time. Script, style recalculation, and layout together explain about half of the task time; the other
+half (paint, garbage collection, and other browser work) is not attributed by these metrics, so a
+trace is the next step before optimizing it. A heap snapshot diff
 showed the retained growth is mostly React hook state of controls that every code block and table
-renders, not the Markdown itself. The fullscreen dialog behind each block's Expand button was mounted
+renders, not the Markdown itself. The fullscreen dialog behind each block's View Full Screen button was mounted
 while closed; mounting it only while open lowered `bigstream` heap growth from 46.4 MB to about
 41 MB. Most of the remainder is one tooltip root per toolbar button. The highlighted-code and diagram
 caches (`MemoCache`) are bounded by characters as well as entries, so a few very large blocks cannot
