@@ -7,7 +7,7 @@ import type { AgentChatTask } from '@caxri/protocol';
 import { agentChatTaskIdentity, agentChatTaskUsageSummary } from '@caxri/protocol';
 import { Bot, Check, CircleSlash, Square, SquareTerminal, X } from 'lucide-react-native';
 
-import { Button } from '../../components/button';
+import { ConfirmSheet } from '../../components/confirm-sheet';
 import { Spinner } from '../../components/spinner';
 import { useTranslation } from '../../i18n';
 import { MONOSPACE_FONT } from '../../theme/monospace';
@@ -68,7 +68,7 @@ export const AgentChatTaskStatusGlyph = ({
 /**
  * Stop for one task, shown only to a control device while the task runs and the provider can stop it on its own, and
  * only in the task's detail, never in a list row where a stray tap would end a subagent. Pressing it asks for
- * confirmation (`onPress` opens `StopConfirmation`); it stays `Stopping…` until the Chat reports the task ended.
+ * confirmation (`onPress` opens a `ConfirmSheet`); it stays `Stopping…` until the Chat reports the task ended.
  */
 const AgentChatTaskStopButton = ({
     isStopping,
@@ -102,54 +102,6 @@ const AgentChatTaskStopButton = ({
                 {t(isStopping ? 'chat.tasks.stopping' : 'chat.tasks.stop')}
             </Text>
         </Pressable>
-    );
-};
-
-/**
- * The second step before a stop, in the sheet itself like the pull request merge confirmation: Stop ends a subagent for
- * good, so one tap on the button never does it.
- */
-const StopConfirmation = ({
-    onCancel,
-    onStop,
-    theme,
-    title,
-}: {
-    onCancel: () => void;
-    onStop: () => void;
-    theme: MobileTheme;
-    title: string;
-}) => {
-    const { t } = useTranslation();
-    return (
-        <View style={styles.confirmation} testID="agent-chat-task-stop-confirmation">
-            <Text style={[styles.confirmTitle, { color: theme.text }]}>
-                {t('chat.tasks.stopConfirmTitle')}
-            </Text>
-            <Text numberOfLines={3} style={[styles.confirmText, { color: theme.muted }]}>
-                {t('chat.tasks.stopConfirmBody', { title })}
-            </Text>
-            <View style={styles.confirmButtons}>
-                <View style={styles.confirmSlot}>
-                    <Button
-                        label={t('common.cancel')}
-                        onPress={onCancel}
-                        testID="agent-chat-task-stop-cancel"
-                        theme={theme}
-                        variant="secondary"
-                    />
-                </View>
-                <View style={styles.confirmSlot}>
-                    <Button
-                        label={t('chat.tasks.stop')}
-                        onPress={onStop}
-                        testID="agent-chat-task-stop-confirm"
-                        theme={theme}
-                        variant="danger"
-                    />
-                </View>
-            </View>
-        </View>
     );
 };
 
@@ -237,7 +189,9 @@ const TaskDetailContent = ({
 };
 
 /**
- * The status line with Stop beside it; pressing Stop swaps the button for `StopConfirmation` below the line.
+ * The status line with Stop beside it. Pressing Stop opens the shared `ConfirmSheet` above the task's sheet: Stop ends
+ * a subagent for good, so one tap on the button never does it. Android Back closes the confirmation first, then the
+ * detail. The button stays in place and reads `Stopping…` once confirmed.
  */
 const TaskStatusRow = ({
     canStop,
@@ -252,6 +206,7 @@ const TaskStatusRow = ({
     task: AgentChatTask;
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     const [isConfirmingStop, setConfirmingStop] = useState(false);
     const isStopping = stopper.isStopping(task);
     // A task that ended (or a device that lost control) while the question was open leaves nothing to confirm.
@@ -265,7 +220,7 @@ const TaskStatusRow = ({
                         {row.elapsed ? `${row.statusLabel} · ${row.elapsed}` : row.statusLabel}
                     </Text>
                 </View>
-                {canStop && !showStopConfirmation ? (
+                {canStop ? (
                     <AgentChatTaskStopButton
                         isStopping={isStopping}
                         onPress={() => setConfirmingStop(true)}
@@ -275,14 +230,17 @@ const TaskStatusRow = ({
                 ) : null}
             </View>
             {showStopConfirmation ? (
-                <StopConfirmation
-                    onCancel={() => setConfirmingStop(false)}
-                    onStop={() => {
-                        setConfirmingStop(false);
+                <ConfirmSheet
+                    confirmLabel={t('chat.tasks.stop')}
+                    detail={t('chat.tasks.stopConfirmBody', { title: row.title })}
+                    onClose={() => setConfirmingStop(false)}
+                    onConfirm={() => {
                         void stopper.stop(task.id);
                     }}
+                    testID="agent-chat-task-stop-confirm"
                     theme={theme}
-                    title={row.title}
+                    title={t('chat.tasks.stopConfirmTitle')}
+                    tone="danger"
                 />
             ) : null}
         </>
@@ -386,11 +344,6 @@ const styles = StyleSheet.create({
         paddingHorizontal: 10,
     },
     stopText: { fontSize: 14, fontWeight: '700' },
-    confirmation: { gap: 8 },
-    confirmTitle: { fontSize: 16, fontWeight: '700' },
-    confirmText: { fontSize: 14, lineHeight: 20 },
-    confirmButtons: { flexDirection: 'row', gap: 10, paddingTop: 4 },
-    confirmSlot: { flex: 1 },
     command: {
         borderRadius: 8,
         fontFamily: MONOSPACE_FONT,

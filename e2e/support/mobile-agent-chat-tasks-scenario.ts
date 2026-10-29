@@ -154,14 +154,21 @@ export async function exerciseChatBackgroundWork(
     );
     const stop = centerOf(stopBounds);
     await adbShell(serial, ['input', 'tap', String(stop.x), String(stop.y)]);
-    // Stop gives way to a confirmation whose Stop button is the danger color's only other use.
-    const confirm = centerOf(
+    // Stop opens a confirmation sheet whose Stop button spans the width, the danger color's only other use.
+    await waitForStop(serial, sheetRegion, (candidate) => isConfirmation(candidate, stopBounds));
+    await capture(environment, 'task-stop-confirmation', artifacts);
+    // Android Back closes the confirmation first and leaves the task's detail (and its running task) in place.
+    await adbShell(serial, ['input', 'keyevent', 'KEYCODE_BACK']);
+    // A running task redraws every second, so UIAutomator cannot read the screen: Stop back at its own size in the
+    // detail is the framebuffer proof that the confirmation closed and the detail stayed open.
+    await waitForStop(serial, sheetRegion, (candidate) => !isConfirmation(candidate, stopBounds));
+    await adbShell(serial, ['input', 'tap', String(stop.x), String(stop.y)]);
+    const reopened = centerOf(
         await waitForStop(serial, sheetRegion, (candidate) =>
             isConfirmation(candidate, stopBounds),
         ),
     );
-    await capture(environment, 'task-stop-confirmation', artifacts);
-    await adbShell(serial, ['input', 'tap', String(confirm.x), String(confirm.y)]);
+    await adbShell(serial, ['input', 'tap', String(reopened.x), String(reopened.y)]);
     await waitForMobile(
         () => chat.read(),
         (snapshot) =>
