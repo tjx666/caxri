@@ -16,6 +16,7 @@ import { useTranslation } from '../../i18n';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { cn } from '../../lib/utilities';
 import { useDialogStore } from '../../stores/dialogs';
+import { useAgentFocusRequests } from './hooks/use-agent-focus-requests';
 import { SettingRow } from './setting-row';
 import type { SettingRowDescriptor } from './settings-registry';
 import { agentProviderForSubcategory, useSettingsRegistry } from './settings-registry';
@@ -108,8 +109,6 @@ export function SettingsPage(properties: SettingsPageProperties) {
     const searchInputReference = useRef<HTMLInputElement>(null);
     const isCreateSessionSuspended = useDialogStore((state) => state.isPendingSuspended);
     const handledFocusRequest = useRef(0);
-    const handledAgentActionsFocusRequest = useRef(0);
-    const handledAgentExecutableFocusRequest = useRef(0);
     const handledGitExclusionsFocusRequest = useRef(0);
     const handledRowFocusRequest = useRef(0);
     const handledNotificationsFocusRequest = useRef(0);
@@ -208,66 +207,15 @@ export function SettingsPage(properties: SettingsPageProperties) {
         if (index !== -1) virtualizer.scrollToIndex(index, { align: 'start' });
     }, [list, trustedDomainsFocusRequestId, virtualizer]);
 
-    useEffect(() => {
-        const request = properties.agentActionsFocusRequest;
-        if (
-            !request ||
-            handledAgentActionsFocusRequest.current === request.id ||
-            virtualItems.length === 0
-        )
-            return;
-        const index = list.findIndex(
-            (item) => item.kind === 'row' && item.row.id === `agents.${request.provider}.actions`,
-        );
-        if (index === -1) return;
-        /**
-         * Wait for measured items like the requests around it: a request that mounts this page (the Create Session
-         * dialog's Configure action, with no Session open) scrolls an unmeasured list, which silently does nothing and
-         * left the page on General. Pinning the provider's own heading selects its entry in the navigation.
-         */
-        handledAgentActionsFocusRequest.current = request.id;
-        const heading = list.slice(0, index).findLast((item) => item.kind === 'subcategory');
-        const anchor = heading && settingsAnchorOf(heading);
-        if (anchor) setPinnedAnchor({ anchor, requests: focusRequests });
-        virtualizer.scrollToIndex(index, { align: 'start' });
-    }, [
+    useAgentFocusRequests({
+        actions: properties.agentActionsFocusRequest,
+        executable: properties.agentExecutableFocusRequest,
         focusRequests,
         list,
-        properties.agentActionsFocusRequest,
+        measuredItemCount: virtualItems.length,
+        setPinnedAnchor,
         virtualizer,
-        virtualItems.length,
-    ]);
-
-    useEffect(() => {
-        const request = properties.agentExecutableFocusRequest;
-        if (
-            !request ||
-            handledAgentExecutableFocusRequest.current === request.id ||
-            virtualItems.length === 0
-        )
-            return;
-        const index = list.findIndex(
-            (item) =>
-                item.kind === 'row' && item.row.id === `agents.${request.provider}.executable`,
-        );
-        if (index === -1) return;
-        /**
-         * Wait for measured items like the requests around it: a request that mounts this page (the Create Session
-         * dialog's Configure action, with no Session open) scrolls an unmeasured list, which silently does nothing and
-         * left the page on General. Pinning the provider's own heading selects its entry in the navigation.
-         */
-        handledAgentExecutableFocusRequest.current = request.id;
-        const heading = list.slice(0, index).findLast((item) => item.kind === 'subcategory');
-        const anchor = heading && settingsAnchorOf(heading);
-        if (anchor) setPinnedAnchor({ anchor, requests: focusRequests });
-        virtualizer.scrollToIndex(index, { align: 'start' });
-    }, [
-        focusRequests,
-        list,
-        properties.agentExecutableFocusRequest,
-        virtualizer,
-        virtualItems.length,
-    ]);
+    });
 
     useEffect(() => {
         const requestId = properties.gitExclusionsFocusRequestId;
