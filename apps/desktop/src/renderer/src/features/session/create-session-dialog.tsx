@@ -2,9 +2,9 @@ import type { KeyboardEvent } from 'react';
 import { useState } from 'react';
 
 import type { TerminalKind } from '@caxri/protocol';
-import { terminalKindSchema } from '@caxri/protocol';
+import { agentProviderSchema, terminalKindSchema } from '@caxri/protocol';
 import { pathBasename } from '@caxri/utils';
-import { ShieldAlert, SquareDashed } from 'lucide-react';
+import { Settings2, ShieldAlert, SquareDashed } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
 import {
@@ -26,7 +26,11 @@ import { useAgentAvailability } from '../terminal/hooks/use-agent-availability';
 import { agentInstallHint, newAgentSurface } from '../terminal/new-terminal-agent';
 import { setDefaultAgent, shouldMakeDefault } from './default-agent-preference';
 import { AgentChoiceMarker, OpenInChatSwitch } from './open-in-chat-menu-item';
-import { cancelPendingSession, confirmPendingSession } from './session-creation-commands';
+import {
+    cancelPendingSession,
+    configurePendingAgent,
+    confirmPendingSession,
+} from './session-creation-commands';
 
 /**
  * Centered fallback for the one Terminal choice that has nothing to anchor to: adding a Project starts at the native
@@ -38,7 +42,9 @@ export function CreateSessionDialog() {
     const pendingProjectId = useDialogStore((state) => state.pendingProjectId);
     const projects = useProjects();
     const { t } = useTranslation();
-    const isOpen = Boolean(pendingRoot ?? pendingProjectId);
+    const isSuspended = useDialogStore((state) => state.isPendingSuspended);
+    // Hidden, not dismissed, while the user configures an Agent in Settings: the pending Project stays.
+    const isOpen = Boolean(pendingRoot ?? pendingProjectId) && !isSuspended;
     // Mirrors the Server's Project-title derivation (`basename(rootPath)` in apps/server/src/domains/db/models/projects.ts) so
     // the dialog previews the same title the created Project will get.
     const contextLabel = pendingRoot
@@ -68,7 +74,9 @@ export function CreateSessionDialog() {
 function moveTileFocus(event: KeyboardEvent<HTMLDivElement>): void {
     const step = { ArrowLeft: -1, ArrowRight: 1, End: Infinity, Home: -Infinity }[event.key];
     if (step === undefined) return;
-    const tiles = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('button')];
+    const tiles = [
+        ...event.currentTarget.querySelectorAll<HTMLButtonElement>('button[data-agent-tile]'),
+    ];
     const current = tiles.indexOf(document.activeElement as HTMLButtonElement);
     if (current === -1) return;
     event.preventDefault();
@@ -105,42 +113,61 @@ function CreateSessionChoices() {
                 {terminalKindSchema.options.map((kind) => {
                     const isUnavailable = unavailable.has(kind);
                     const hint = isUnavailable ? agentInstallHint(kind, t) : undefined;
+                    const provider = agentProviderSchema.safeParse(kind);
+                    const configureLabel = t('session.createDialog.configureAgent', {
+                        agent: resolveAgentIcon(kind).label,
+                    });
                     /**
                      * Always wrapped: swapping a bare button for a Tooltip when availability resolves would remount it
                      * and drop the keyboard focus the dialog just placed on the first Agent.
                      */
                     return (
-                        <Tooltip key={kind} content={hint} disabled={!hint} side="bottom">
-                            <button
-                                className="group flex cursor-pointer flex-col items-center gap-1.5 rounded-lg border-0 bg-transparent px-1 pt-3 pb-2 text-foreground outline-none hover:bg-state-hover"
-                                type="button"
-                                onClick={() => choose(kind)}
-                            >
-                                {/**
-                                 * The icon well lifts on hover like a Dock icon; an Agent that is not installed stays pickable (the tooltip says how to
-                                 * install it) but its glyph recedes.
-                                 */}
-                                <span
-                                    className={cn(
-                                        'mb-1 grid size-14 place-items-center rounded-xl border border-border bg-elevated shadow-[0_2px_8px_var(--shadow)] transition-[translate,scale,border-color,box-shadow] duration-150 ease-out group-hover:-translate-y-0.5 group-hover:scale-105 group-focus-visible:border-accent group-focus-visible:shadow-[0_0_0_3px_var(--state-focus-ring)] motion-reduce:transition-none',
-                                        isUnavailable && 'opacity-50 grayscale',
-                                    )}
+                        <div key={kind} className="relative flex flex-col">
+                            <Tooltip content={hint} disabled={!hint} side="bottom">
+                                <button
+                                    data-agent-tile=""
+                                    className="group flex cursor-pointer flex-col items-center gap-1.5 rounded-lg border-0 bg-transparent px-1 pt-3 pb-2 text-foreground outline-none hover:bg-state-hover"
+                                    type="button"
+                                    onClick={() => choose(kind)}
                                 >
-                                    <AgentIdentityIcon identity={kind} size={30} />
-                                </span>
-                                <span className="text-[13px] leading-4 font-medium">
-                                    {resolveAgentIcon(kind).label}
-                                </span>
-                                {/* Reserved so tiles with and without a marker keep their labels on one baseline. */}
-                                <span className="h-4 text-[11px] leading-4 whitespace-nowrap">
-                                    <AgentChoiceMarker
-                                        isDefault={false}
-                                        isUnavailable={isUnavailable}
-                                        surface={newAgentSurface(kind, openInChat)}
-                                    />
-                                </span>
-                            </button>
-                        </Tooltip>
+                                    {/**
+                                     * The icon well lifts on hover like a Dock icon; an Agent that is not installed stays pickable (the tooltip says how to
+                                     * install it) but its glyph recedes.
+                                     */}
+                                    <span
+                                        className={cn(
+                                            'mb-1 grid size-14 place-items-center rounded-xl border border-border bg-elevated shadow-[0_2px_8px_var(--shadow)] transition-[translate,scale,border-color,box-shadow] duration-150 ease-out group-hover:-translate-y-0.5 group-hover:scale-105 group-focus-visible:border-accent group-focus-visible:shadow-[0_0_0_3px_var(--state-focus-ring)] motion-reduce:transition-none',
+                                            isUnavailable && 'opacity-50 grayscale',
+                                        )}
+                                    >
+                                        <AgentIdentityIcon identity={kind} size={30} />
+                                    </span>
+                                    <span className="text-[13px] leading-4 font-medium">
+                                        {resolveAgentIcon(kind).label}
+                                    </span>
+                                    {/* Reserved so tiles with and without a marker keep their labels on one baseline. */}
+                                    <span className="h-4 text-[11px] leading-4 whitespace-nowrap">
+                                        <AgentChoiceMarker
+                                            isDefault={false}
+                                            isUnavailable={isUnavailable}
+                                            surface={newAgentSurface(kind, openInChat)}
+                                        />
+                                    </span>
+                                </button>
+                            </Tooltip>
+                            {provider.success && isUnavailable && (
+                                <Tooltip content={configureLabel} side="top">
+                                    <button
+                                        aria-label={configureLabel}
+                                        className="absolute top-1 right-1 grid size-6 cursor-pointer place-items-center rounded-md border-0 bg-transparent text-muted outline-none hover:bg-state-hover hover:text-foreground focus-visible:shadow-[0_0_0_3px_var(--state-focus-ring)]"
+                                        type="button"
+                                        onClick={() => configurePendingAgent(provider.data)}
+                                    >
+                                        <Settings2 aria-hidden="true" size={14} />
+                                    </button>
+                                </Tooltip>
+                            )}
+                        </div>
                     );
                 })}
             </div>

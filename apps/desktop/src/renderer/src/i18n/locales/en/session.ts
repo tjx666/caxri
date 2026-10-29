@@ -17,6 +17,13 @@ export const session = {
     'session.createDialog.fullAccessNotice':
         'Agents start with full access: they can edit files and run commands without asking. Change this in Settings > Agents.',
     'session.createDialog.alwaysUseAgent': 'Always use this Agent',
+    'session.createDialog.configureAgent': 'Configure {{agent}} in Settings',
+    'session.createDialog.suspended':
+        'Finish setting up your Agent, then resume. Your folder choice is kept.',
+    'session.createDialog.grantExpired':
+        'Choose the folder again: that selection expired while you were in Settings.',
+    'session.createDialog.resume': 'Resume',
+    'session.createDialog.cancel': 'Cancel',
     'session.createDialog.makeDefaultFailed': 'Unable to change the default Agent',
     'session.openInChat.label': 'Always Open Agents in Chat',
     'session.openInChat.failed': 'Unable to change how Agents open',
