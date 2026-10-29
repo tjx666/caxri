@@ -60,11 +60,7 @@ export class AgentChatService {
 
     private readonly permissionSwitches: ChatPermissionSwitches;
 
-    private readonly planImplementations = new ChatPlanImplementations({
-        admit: (id) => this.states.admitOpen(id),
-        leavePlanMode: (id) => this.setPermission(id, { planMode: false }),
-        send: (id, message) => this.send(id, message),
-    });
+    readonly plans = new ChatPlanImplementations(this);
 
     private readonly endpoint: ChatEndpointLease;
 
@@ -317,13 +313,6 @@ export class AgentChatService {
      */
     setPermission(terminalId: string, request: AgentChatPermissionRequest): Promise<void> {
         return this.permissionSwitches.switch(terminalId, request);
-    }
-
-    /**
-     * Approves the proposed plan; see {@link ChatPlanImplementations}.
-     */
-    implementPlan(terminalId: string, itemId: string): Promise<void> {
-        return this.planImplementations.implement(terminalId, itemId);
     }
 
     /**

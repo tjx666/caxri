@@ -5,17 +5,17 @@ import {
     CaxriError,
 } from '@caxri/protocol';
 
-import type { ChatState } from '../chat-states';
+import type { ChatStates } from '../chat-states';
 
+/**
+ * The slice of `AgentChatService` that approving a plan drives.
+ */
 export interface ChatPlanImplementHost {
-    /**
-     * The Chat's in-memory state after the admission fence passed it.
-     */
-    admit: (terminalId: string) => ChatState;
+    states: Pick<ChatStates, 'admitOpen'>;
     /**
      * Turns plan mode off for the next turn and saves it as the Chat's choice.
      */
-    leavePlanMode: (terminalId: string) => Promise<void>;
+    setPermission: (terminalId: string, request: { planMode: boolean }) => Promise<void>;
     send: (terminalId: string, message: Omit<AgentChatMessageInput, 'delivery'>) => Promise<void>;
 }
 
@@ -31,7 +31,7 @@ export class ChatPlanImplementations {
     constructor(private readonly host: ChatPlanImplementHost) {}
 
     async implement(terminalId: string, itemId: string): Promise<void> {
-        const state = this.host.admit(terminalId);
+        const state = this.host.states.admitOpen(terminalId);
         if (
             this.running.has(terminalId) ||
             agentChatImplementablePlanId(state.projection.snapshot) !== itemId
@@ -39,7 +39,7 @@ export class ChatPlanImplementations {
             throw new CaxriError('CONFLICT', 'This plan is no longer the one to build');
         this.running.add(terminalId);
         try {
-            await this.host.leavePlanMode(terminalId);
+            await this.host.setPermission(terminalId, { planMode: false });
             await this.host.send(terminalId, { text: AGENT_CHAT_IMPLEMENT_PLAN_MESSAGE });
         } finally {
             this.running.delete(terminalId);

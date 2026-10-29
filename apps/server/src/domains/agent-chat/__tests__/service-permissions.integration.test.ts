@@ -148,7 +148,7 @@ describe('Agent Chat permission level and plan mode with a fake Codex app-server
         it('leaves plan mode and starts the build turn once, keeping the permission level', async () => {
             const { database, fakeLog, planId, service, terminal, until } = await proposePlan();
 
-            await service.implementPlan(terminal.id, planId);
+            await service.plans.implement(terminal.id, planId);
             const snapshot = await until(
                 (current) =>
                     current.turns.length === 2 && current.turns.at(-1)?.status === 'completed',
@@ -169,7 +169,7 @@ describe('Agent Chat permission level and plan mode with a fake Codex app-server
             ]);
 
             // The same plan cannot start a second turn.
-            await expect(service.implementPlan(terminal.id, planId)).rejects.toMatchObject({
+            await expect(service.plans.implement(terminal.id, planId)).rejects.toMatchObject({
                 code: 'CONFLICT',
             });
             expect(service.read(terminal.id).turns).toHaveLength(2);
@@ -178,7 +178,7 @@ describe('Agent Chat permission level and plan mode with a fake Codex app-server
         it('refuses a plan that is not the latest, was left by hand, or follows a new message', async () => {
             const { planId, service, terminal, until } = await proposePlan();
 
-            await expect(service.implementPlan(terminal.id, 'other-item')).rejects.toMatchObject({
+            await expect(service.plans.implement(terminal.id, 'other-item')).rejects.toMatchObject({
                 code: 'CONFLICT',
             });
 
@@ -187,7 +187,7 @@ describe('Agent Chat permission level and plan mode with a fake Codex app-server
                 (current) =>
                     current.turns.length === 2 && current.turns.at(-1)?.status === 'completed',
             );
-            await expect(service.implementPlan(terminal.id, planId)).rejects.toMatchObject({
+            await expect(service.plans.implement(terminal.id, planId)).rejects.toMatchObject({
                 code: 'CONFLICT',
             });
         });
@@ -196,7 +196,7 @@ describe('Agent Chat permission level and plan mode with a fake Codex app-server
             const { planId, service, terminal, until } = await proposePlan();
             await service.setPermission(terminal.id, { planMode: false });
             await until((current) => current.planMode === false);
-            await expect(service.implementPlan(terminal.id, planId)).rejects.toMatchObject({
+            await expect(service.plans.implement(terminal.id, planId)).rejects.toMatchObject({
                 code: 'CONFLICT',
             });
         });

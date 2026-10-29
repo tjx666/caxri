@@ -111,7 +111,7 @@ export function createAgentChatHandlers(
             return null;
         },
         'agentChat.implementPlan': async ({ terminalId, itemId }) => {
-            await agentChat.implementPlan(terminalId, itemId);
+            await agentChat.plans.implement(terminalId, itemId);
             return null;
         },
         'agentChat.rewind': async ({ terminalId, itemId, restoreFiles, text, images }) => {
