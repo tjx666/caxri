@@ -32,6 +32,7 @@ test('Theme presets apply, persist, and detach after a color edit', async () => 
                 'Tokyo Night',
                 'Oscura Midnight',
                 'VS Code Dark+',
+                'VS Code Light+',
             ].map((name) =>
                 expect(running.page.getByRole('option', { name, exact: true })).toBeVisible(),
             ),
@@ -81,6 +82,57 @@ test('Theme presets apply, persist, and detach after a color edit', async () => 
 
         await restoredPreset.click();
         await expect(running.page.getByRole('option', { selected: true })).toHaveCount(0);
+    } finally {
+        await running.app.close();
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
+test('Follow system appearance switches presets live and stops on an explicit single theme', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-theme-follow-system-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    await mkdir(root, { recursive: true });
+
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    const background = () =>
+        running.page.evaluate(() =>
+            getComputedStyle(document.documentElement).getPropertyValue('--background').trim(),
+        );
+    try {
+        const settingsTab = await openSettingsTab(running.page);
+        await openSettingsSection(settingsTab, 'Theme');
+        await settingsTab.getByRole('button', { name: 'Follow system appearance' }).click();
+        await expect(settingsTab.getByRole('status')).toContainText(
+            'VS Code Light+ when it is light, Dracula when it is dark',
+        );
+
+        // The Server holds one explicit theme; the system appearance is resolved in the Renderer, so a switch must
+        // repaint the window without rewriting `theme.json`.
+        const savedTheme = await pageRequest<{ source: string }>(running.page, 'theme.get');
+        await running.page.emulateMedia({ colorScheme: 'light' });
+        await expect.poll(background).toBe('#ffffff');
+        await running.page.emulateMedia({ colorScheme: 'dark' });
+        await expect.poll(background).toBe('#282a36');
+        await running.page.emulateMedia({ colorScheme: 'light' });
+        await expect.poll(background).toBe('#ffffff');
+        expect((await pageRequest<{ source: string }>(running.page, 'theme.get')).source).toBe(
+            savedTheme.source,
+        );
+
+        // Choosing a single theme keeps what is on screen and stops following.
+        await settingsTab.getByRole('button', { name: 'Use a single theme' }).click();
+        await expect(settingsTab.getByRole('combobox', { name: 'Theme preset' })).toContainText(
+            'VS Code Light+',
+        );
+        await running.page.emulateMedia({ colorScheme: 'dark' });
+        await expect.poll(background).toBe('#ffffff');
+        await expect
+            .poll(async () => {
+                const result = await pageRequest<{ value: ThemeTokens }>(running.page, 'theme.get');
+                return result.value.id;
+            })
+            .toBe('vscode-light-plus');
     } finally {
         await running.app.close();
         await rm(testDirectory, { recursive: true, force: true });
