@@ -7,7 +7,9 @@ description: Measure and protect Caxri startup, Server Core responsiveness, Rend
 
 1. Choose a representative large repository. Never benchmark only a synthetic empty directory when
    the report concerns a real Project.
-2. Establish the baseline with
+2. When another worktree holds the desktop lease, wrap a benchmark in
+   `switch-worktree.ts desktop --label <name> --wait <seconds> -- bun run benchmark:<name>` instead
+   of a hand-written retry loop. Establish the baseline with
    `CAXRI_BENCHMARK_PROJECT_ROOT=/path/to/repository bun run benchmark:startup`. Record the
    `CAXRI_STARTUP_BENCHMARK` object. For editor latency, also run
    `CAXRI_BENCHMARK_PROJECT_ROOT=/path/to/repository bun run benchmark:editor` and record
