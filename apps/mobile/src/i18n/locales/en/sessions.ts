@@ -29,7 +29,12 @@ export const sessions = {
     'sessions.banner.stale': 'Reconnecting… Showing the last known state. Replies are paused.',
     'sessions.banner.staleSaved': 'Reconnecting… Showing Sessions {{saved}}. Replies are paused.',
     'sessions.banner.unverified':
-        'Pairing could not be verified. If this device was revoked on your computer, forget it and pair again.',
+        'Pairing not verified. If this phone was revoked on your computer, choose Forget this computer in Settings, then pair again.',
+    'sessions.banner.hostOffline':
+        'Caxri on your computer is offline. Open Caxri on your computer; this phone reconnects automatically.',
+    'sessions.banner.relayUnauthorized':
+        'The Relay does not accept this phone. On your computer, open Caxri Settings → Mobile to check it is not Revoked, or pair again with Create pairing code.',
+    'sessions.banner.relayBusy': 'The Relay is busy. Retrying automatically.',
     'sessions.composer.agentNotRunning': 'The primary Agent is not running.',
     'sessions.composer.attachImage': 'Attach image',
     'sessions.composer.controlCharacters': 'Remove control characters before sending.',

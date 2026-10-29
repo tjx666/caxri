@@ -10,7 +10,7 @@ describe('settings model', () => {
     });
 
     it('labels connection states for people, not for the state machine', () => {
-        expect(connectionStatusLabel('storage-error')).toBe('Saved connection unavailable');
+        expect(connectionStatusLabel('storage-error')).toBe('Saved pairing unavailable');
         expect(connectionStatusLabel('connected')).toBe('Connected');
         expect(connectionStatusLabel('stale')).toBe('Reconnecting…');
         expect(connectionStatusLabel('version-mismatch')).toBe('Update required');

@@ -24,6 +24,17 @@ export const observeMobileConnectionTermination = <Reason>(
     return { didTerminate, unsubscribe };
 };
 
+/**
+ * What the owner does when its connection ended: `revoked` forgets the pairing, `route-upgrade` reconnects at once
+ * while the status stays "connected" (the phone is only changing route), and anything else is a lost connection that
+ * shows as stale and backs off.
+ */
+export const terminationOutcome = (
+    reason: 'disconnected' | 'revoked' | 'route-upgrade',
+): { kind: 'lost' | 'revoked' | 'route-upgrade' } => ({
+    kind: reason === 'disconnected' ? 'lost' : reason,
+});
+
 export const reconnectWaitForAttempt = (
     retryAttempt: number,
     delay: (attempt: number) => number,

@@ -27,9 +27,21 @@ describe('offline notices', () => {
     it('names the computer rather than a Mac', () => {
         const message = connectionNoticeMessage('unverified', null);
         expect(message).toBe(
-            'Pairing could not be verified. If this device was revoked on your computer, forget it and pair again.',
+            'Pairing not verified. If this phone was revoked on your computer, choose Forget this computer in Settings, then pair again.',
         );
         expect(message).not.toMatch(/\bMac\b/u);
+    });
+
+    it('explains each Relay refusal instead of a generic reconnecting notice', () => {
+        expect(connectionNoticeMessage('stale', null, undefined, 'host-offline')).toBe(
+            'Caxri on your computer is offline. Open Caxri on your computer; this phone reconnects automatically.',
+        );
+        expect(connectionNoticeMessage('stale', null, undefined, 'unauthorized')).toContain(
+            'Create pairing code',
+        );
+        expect(connectionNoticeMessage('stale', null, undefined, 'busy')).toBe(
+            'The Relay is busy. Retrying automatically.',
+        );
     });
 
     it('leaves a list load failure to the connection banner while it is up', () => {
