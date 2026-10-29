@@ -47,6 +47,12 @@ export const agentChatComposer = {
     'agentChat.pathReference.openFailed': 'Could not show it in Finder',
     'agentChat.sessionReference.label': 'Session reference: {{title}}',
     'agentChat.sessionReference.inProject': '{{title}} in {{project}}',
+    'agentChat.longPaste.chipOne': 'Pasted text · 1 line',
+    'agentChat.longPaste.chipOther': 'Pasted text · {{count}} lines',
+    'agentChat.longPaste.label': 'Saved paste: {{summary}}',
+    'agentChat.longPaste.detail':
+        '{{summary}}, {{characters}} characters. Click to open the original.',
+    'agentChat.longPaste.detailStatic': '{{summary}}, {{characters}} characters',
 
     'agentChat.add.tooltip': 'Add files and more',
     'agentChat.add.add': 'Add',

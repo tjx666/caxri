@@ -1,3 +1,4 @@
+import { formatLongPasteReference } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -79,6 +80,27 @@ describe('agentChatUserMessageSegments', () => {
             { kind: 'session', text: bare, path: '/tmp/refs/t.md', title: '修复登录' },
             { kind: 'text', text: ' ' },
             { kind: 'path', text: '/repo/x.ts', path: '/repo/x.ts', isDirectory: false },
+        ]);
+    });
+
+    it('draws a saved long paste as one chip, not a note and a path pill', () => {
+        const note = formatLongPasteReference({
+            characterCount: 9_000,
+            filePath: '/data/pastes/paste 1.txt',
+            lineCount: 200,
+        });
+        expect(
+            agentChatUserMessageSegments(`summarize ${note} please`, { withFiles: true }),
+        ).toEqual([
+            { kind: 'text', text: 'summarize ' },
+            {
+                kind: 'paste',
+                text: note,
+                path: '/data/pastes/paste 1.txt',
+                lineCount: 200,
+                characterCount: 9_000,
+            },
+            { kind: 'text', text: ' please' },
         ]);
     });
 

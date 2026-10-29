@@ -3,18 +3,21 @@ import { agentChatSessionReferenceRanges } from '@caxri/protocol';
 import type { DecorationSet, ViewUpdate } from '@codemirror/view';
 import { Decoration, EditorView, ViewPlugin, WidgetType } from '@codemirror/view';
 
-import { translate } from '../../../i18n';
-import { sessionReferenceProjectTitle } from '../../session/session-reference';
+import { translate } from '../../../../i18n';
+import { sessionReferenceProjectTitle } from '../../../session/session-reference';
 
 /**
- * Lucide's `message-circle` path, the glyph the `@` list shows beside a Session. A CodeMirror widget builds plain DOM,
- * so it draws the path itself rather than mounting the React icon.
+ * Lucide's `message-circle` path, the glyph the `@` list shows beside a Session.
  */
 const SESSION_GLYPH_PATH =
     'M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719';
 const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
 
-function sessionGlyph(): SVGSVGElement {
+/**
+ * A Lucide glyph for a chip. A CodeMirror widget builds plain DOM, so it draws the icon's path data itself rather than
+ * mounting the React icon.
+ */
+export function chipGlyph(paths: readonly string[]): SVGSVGElement {
     const svg = document.createElementNS(SVG_NAMESPACE, 'svg');
     svg.setAttribute('viewBox', '0 0 24 24');
     svg.setAttribute('fill', 'none');
@@ -23,9 +26,11 @@ function sessionGlyph(): SVGSVGElement {
     svg.setAttribute('stroke-linecap', 'round');
     svg.setAttribute('stroke-linejoin', 'round');
     svg.setAttribute('aria-hidden', 'true');
-    const path = document.createElementNS(SVG_NAMESPACE, 'path');
-    path.setAttribute('d', SESSION_GLYPH_PATH);
-    svg.append(path);
+    for (const d of paths) {
+        const path = document.createElementNS(SVG_NAMESPACE, 'path');
+        path.setAttribute('d', d);
+        svg.append(path);
+    }
     return svg;
 }
 
@@ -60,7 +65,7 @@ class SessionChipWidget extends WidgetType {
         const name = document.createElement('span');
         name.className = 'cm-session-chip-title';
         name.textContent = title;
-        chip.append(sessionGlyph(), '@', name);
+        chip.append(chipGlyph([SESSION_GLYPH_PATH]), '@', name);
         // A click selects the whole chip, so Backspace then removes it; the caret never lands inside the reference text.
         chip.addEventListener('mousedown', (event) => {
             if (event.button !== 0) return;

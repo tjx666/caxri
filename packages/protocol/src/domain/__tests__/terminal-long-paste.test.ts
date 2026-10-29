@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
     formatLongPasteReference,
+    longPasteReferenceRanges,
     MAX_LONG_PASTE_BYTES,
     terminalLongPasteParametersSchema,
 } from '../terminal-long-paste.js';
@@ -53,5 +54,40 @@ describe('long paste reference', () => {
                 'If a summary is enough, delegate it to a subagent on a small, fast model so the full text stays out of this conversation.',
             ].join('\n'),
         );
+    });
+});
+
+describe('longPasteReferenceRanges', () => {
+    const reference = (lineCount: number, filePath = '/local/paste.txt') =>
+        formatLongPasteReference({ characterCount: 2_048, filePath, lineCount });
+
+    it('finds each saved paste in a message without changing its text', () => {
+        const first = reference(200);
+        const second = reference(1, '/local/with space/paste 2.txt');
+        const text = `look at ${first} and\n${second}\nthanks`;
+        expect(longPasteReferenceRanges(text)).toEqual([
+            {
+                characterCount: 2_048,
+                from: 8,
+                lineCount: 200,
+                path: '/local/paste.txt',
+                to: 8 + first.length,
+            },
+            {
+                characterCount: 2_048,
+                from: text.indexOf(second),
+                lineCount: 1,
+                path: '/local/with space/paste 2.txt',
+                to: text.indexOf(second) + second.length,
+            },
+        ]);
+    });
+
+    it('leaves an edited or relative-path note as text', () => {
+        expect(longPasteReferenceRanges(reference(3).replace('saved locally', 'saved'))).toEqual(
+            [],
+        );
+        expect(longPasteReferenceRanges(reference(3, 'relative.txt'))).toEqual([]);
+        expect(longPasteReferenceRanges('[Long paste saved locally] typed by hand')).toEqual([]);
     });
 });

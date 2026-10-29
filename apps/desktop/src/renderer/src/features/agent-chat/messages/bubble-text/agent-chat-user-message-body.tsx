@@ -8,6 +8,7 @@ import { linkSummary } from '../../../../lib/link-summary';
 import { cn } from '../../../../lib/utilities';
 import {
     AgentChatImagePill,
+    AgentChatLongPastePill,
     AgentChatPathPill,
     AgentChatSessionReferencePill,
 } from '../../attachments/agent-chat-image-pill';
@@ -78,6 +79,16 @@ export function AgentChatUserMessageBody({
                     key={position}
                     path={segment.path}
                     title={segment.title}
+                />
+            );
+        if (segment.kind === 'paste')
+            return (
+                <AgentChatLongPastePill
+                    characterCount={segment.characterCount}
+                    key={position}
+                    lineCount={segment.lineCount}
+                    path={segment.path}
+                    onOpen={onOpenFile}
                 />
             );
         if (segment.kind === 'path')

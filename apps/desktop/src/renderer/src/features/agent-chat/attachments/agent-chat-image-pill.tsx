@@ -2,7 +2,7 @@ import { useState } from 'react';
 
 import { agentChatMediaUrl } from '@caxri/protocol';
 import { pathBasename } from '@caxri/utils';
-import { ImageIcon, MessageCircle } from 'lucide-react';
+import { FileText, ImageIcon, MessageCircle } from 'lucide-react';
 
 import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
@@ -11,6 +11,7 @@ import { cn } from '../../../lib/utilities';
 import { useCaxriQuery } from '../../../queries/client';
 import { useProjectById, useSessionById, useTerminal } from '../../../stores/selectors';
 import { sessionReferenceProjectTitle } from '../../session/session-reference';
+import { agentChatLongPasteChipText } from '../composer-input/agent-chat-long-paste';
 import { useAgentChatTerminal } from '../hooks/use-agent-chat-terminal';
 import { AgentChatVideoPlayerDialog } from './agent-chat-message-videos';
 import { isAgentChatPlayableVideo, isPathInsideProject } from './agent-chat-path-pills';
@@ -183,6 +184,63 @@ export function AgentChatSessionReferencePill({ path, title }: { path: string; t
                 <MessageCircle aria-hidden="true" className="size-3 shrink-0 text-muted" />
                 <span className="min-w-0 truncate">@{title}</span>
             </span>
+        </Tooltip>
+    );
+}
+
+/**
+ * A saved long paste in a sent message, drawn as the chip the composer showed while it was written: a document glyph
+ * and `Pasted text · N lines`, never the multi-line note the Agent received. When the Chat can open files the chip
+ * opens the original; it is an anchor so it wraps with the text around it, like the path pill.
+ */
+export function AgentChatLongPastePill({
+    characterCount,
+    lineCount,
+    onOpen,
+    path,
+}: {
+    characterCount: number;
+    lineCount: number;
+    onOpen: ((path: string) => void) | undefined;
+    path: string;
+}) {
+    useTranslation();
+    const { aria, detail, label } = agentChatLongPasteChipText(
+        { characterCount, lineCount },
+        onOpen !== undefined,
+    );
+    const content = (
+        <>
+            <FileText aria-hidden="true" className="size-3 shrink-0 text-muted" />
+            {label}
+        </>
+    );
+    return (
+        <Tooltip content={detail}>
+            {onOpen ? (
+                <a
+                    aria-label={aria}
+                    className={`${PILL_CLASS_NAME} cursor-pointer pl-1 text-foreground no-underline hover:bg-border/75 focus-visible:outline focus-visible:outline-accent`}
+                    data-agent-chat-long-paste={path}
+                    href={path}
+                    onClick={(event) => {
+                        // Main denies every window navigation; `href` only makes the chip focusable and Enter-activated.
+                        event.preventDefault();
+                        onOpen(path);
+                    }}
+                >
+                    {content}
+                </a>
+            ) : (
+                <span
+                    aria-label={aria}
+                    className={cn(PILL_CLASS_NAME, 'pl-1')}
+                    data-agent-chat-long-paste={path}
+                    role="img"
+                >
+                    {content}
+                </span>
+            )}
         </Tooltip>
     );
 }

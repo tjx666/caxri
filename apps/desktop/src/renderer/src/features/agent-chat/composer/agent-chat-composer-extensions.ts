@@ -3,6 +3,7 @@ import {
     agentChatImageTokenRanges,
     agentChatMediaUrl,
     agentChatSessionReferenceRanges,
+    longPasteReferenceRanges,
 } from '@caxri/protocol';
 import { pathBasename } from '@caxri/utils';
 import { history, historyKeymap, insertNewline, standardKeymap } from '@codemirror/commands';
@@ -17,7 +18,8 @@ import {
     agentChatPathPillRanges,
     isAgentChatPlayableVideo,
 } from '../attachments/agent-chat-path-pills';
-import { agentChatSessionChips } from '../composer-input/agent-chat-session-chips';
+import { agentChatLongPasteChips } from '../composer-input/chips/agent-chat-long-paste-chips';
+import { agentChatSessionChips } from '../composer-input/chips/agent-chat-session-chips';
 import type { AgentChatMarkdownMark } from './agent-chat-composer-markdown';
 import { agentChatMarkdownMarks } from './agent-chat-composer-markdown';
 import { agentChatLimitedChange } from './agent-chat-composer-view';
@@ -264,8 +266,8 @@ function pathPillDecorations(state: EditorState): DecorationSet {
     const { openVideo, pills } = state.facet(agentChatPathPills);
     if (pills.size === 0) return Decoration.none;
     const text = state.doc.toString();
-    // A cited Session's reference file is part of its chip, never a pill of its own.
-    const sessions = agentChatSessionReferenceRanges(text);
+    // A cited Session's or saved paste's file is part of its chip, never a pill of its own.
+    const sessions = [...agentChatSessionReferenceRanges(text), ...longPasteReferenceRanges(text)];
     return Decoration.set(
         agentChatPathPillRanges(text, pills).flatMap(({ from, pill, to }) =>
             sessions.some((session) => from < session.to && to > session.from)
@@ -550,6 +552,7 @@ export function agentChatComposerExtensions(maxLength: number): Extension {
         ),
         // Ahead of the live preview: Markdown in a Session title must not style or hide part of its chip.
         agentChatSessionChips,
+        agentChatLongPasteChips,
         livePreview,
         imagePills,
         pathPills,
