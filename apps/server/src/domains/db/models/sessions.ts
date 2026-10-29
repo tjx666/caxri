@@ -13,7 +13,7 @@ import {
     createPaneLayout,
     removePaneTerminal,
 } from '@caxri/protocol';
-import { and, asc, eq, lt, sql } from 'drizzle-orm';
+import { and, asc, eq, isNull, lt, sql } from 'drizzle-orm';
 
 import type { CaxriDrizzleDatabase } from '../connection';
 import {
@@ -41,7 +41,7 @@ import type {
     SessionStateRow,
     SessionStateUnchangedWrite,
 } from './session-state-row';
-import { parseSessionState } from './session-state-row';
+import { parseSessionState, stateRowColumns } from './session-state-row';
 import {
     defaultSessionPaneLayout,
     reconcileOwnedTerminalTabs,
@@ -538,16 +538,7 @@ export class SessionsModel {
 
     getState(sessionId: string): SessionState {
         const row = this.database
-            .select({
-                sessionId: sessionViewsTable.sessionId,
-                projectId: sessions.projectId,
-                workbenchRootProjectId: sessions.workbenchRootProjectId,
-                revision: sessionViewsTable.revision,
-                stateVersion: sessionViewsTable.stateVersion,
-                rootsJson: sessionViewsTable.rootsJson,
-                desiredSecondarySidebarViewContainerId:
-                    sessionViewsTable.desiredSecondarySidebarViewContainerId,
-            })
+            .select(stateRowColumns)
             .from(sessionViewsTable)
             .innerJoin(sessions, eq(sessions.id, sessionViewsTable.sessionId))
             .where(eq(sessionViewsTable.sessionId, sessionId))
@@ -557,22 +548,18 @@ export class SessionsModel {
     }
 
     /**
-     * Loads every 1:1 Session state row in the same stable order as {@link list}.
+     * Loads every 1:1 Session state row in the same stable order as {@link list}. `isActiveOnly` leaves archived
+     * Sessions out in SQL, neither parsed nor repaired, so the cost follows the Workbench.
      */
-    listStates(terminalIdsBySession = this.orderedTerminalIdsBySession()): SessionState[] {
+    listStates(
+        terminalIdsBySession = this.orderedTerminalIdsBySession(),
+        isActiveOnly = false,
+    ): SessionState[] {
         const rows = this.database
-            .select({
-                sessionId: sessionViewsTable.sessionId,
-                projectId: sessions.projectId,
-                workbenchRootProjectId: sessions.workbenchRootProjectId,
-                revision: sessionViewsTable.revision,
-                stateVersion: sessionViewsTable.stateVersion,
-                rootsJson: sessionViewsTable.rootsJson,
-                desiredSecondarySidebarViewContainerId:
-                    sessionViewsTable.desiredSecondarySidebarViewContainerId,
-            })
+            .select(stateRowColumns)
             .from(sessionViewsTable)
             .innerJoin(sessions, eq(sessions.id, sessionViewsTable.sessionId))
+            .where(isActiveOnly ? isNull(sessions.archivedAt) : undefined)
             .orderBy(asc(sessions.createdAt), asc(sessions.id))
             .all();
         return rows.map((row) =>

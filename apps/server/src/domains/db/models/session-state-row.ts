@@ -1,7 +1,7 @@
 import type { SessionState } from '@caxri/protocol';
 import { sessionStateSchema } from '@caxri/protocol';
 
-import { CURRENT_SESSION_STATE_VERSION } from '../schema';
+import { CURRENT_SESSION_STATE_VERSION, sessions, sessionViews } from '../schema';
 import type { WorkbenchEditorStates } from './workbench-editor-state';
 import { workbenchEditorStatesSchema } from './workbench-editor-state';
 
@@ -81,3 +81,16 @@ export function parseSessionState(
         ? { state: parsed.data, isNewRoot: !rootState }
         : { reason: 'invalid_shape' };
 }
+
+/**
+ * Columns of one stored Session state row, shared by the single and the list read.
+ */
+export const stateRowColumns = {
+    sessionId: sessionViews.sessionId,
+    projectId: sessions.projectId,
+    workbenchRootProjectId: sessions.workbenchRootProjectId,
+    revision: sessionViews.revision,
+    stateVersion: sessionViews.stateVersion,
+    rootsJson: sessionViews.rootsJson,
+    desiredSecondarySidebarViewContainerId: sessionViews.desiredSecondarySidebarViewContainerId,
+};

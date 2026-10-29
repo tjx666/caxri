@@ -75,6 +75,10 @@ import {
     shutdownOutcome,
 } from './session-policy';
 import { renameSessionWithPrimaryAgentTab } from './session-title';
+import {
+    listActiveWorktreeBindings,
+    selectWorkbenchProject as selectSessionWorkbenchProject,
+} from './session-workbench-binding';
 import { assertTerminalCapacity } from './terminal-capacity';
 import { terminalIdsBySession } from './terminal-ids-by-session';
 import { moveTerminalToNewSession } from './terminal-move';
@@ -314,6 +318,10 @@ export class CaxriDatabase {
         return this.db.sessions.getWorkbenchBinding(id);
     }
 
+    listActiveWorktreeBindings() {
+        return listActiveWorktreeBindings(this.db.db);
+    }
+
     /**
      * Sessions bound to `projectId` as their Workbench Root, archived ones included.
      */
@@ -326,13 +334,7 @@ export class CaxriDatabase {
         projectId: string,
         identity?: { device: string; inode: string },
     ): SessionRecord {
-        return this.db.transaction(() => {
-            if (!this.db.projects.get(projectId))
-                throw new CaxriError('NOT_FOUND', 'Workbench Project not found');
-            if (!this.db.sessions.setWorkbenchProject(sessionId, projectId, identity))
-                throw new CaxriError('NOT_FOUND', 'Session not found');
-            return this.db.sessions.get(sessionId)!;
-        });
+        return selectSessionWorkbenchProject(this.db, sessionId, projectId, identity);
     }
 
     renameSession(sessionId: string, title: string): SessionRecord {
@@ -639,10 +641,8 @@ export class CaxriDatabase {
         this.db.snapshots.save(snapshot);
     }
 
-    listSessionStates(terminalRecords?: readonly TerminalRecord[]): SessionState[] {
-        return this.db.sessions.listStates(
-            terminalRecords && terminalIdsBySession(terminalRecords),
-        );
+    listSessionStates(records?: readonly TerminalRecord[], isActiveOnly = false): SessionState[] {
+        return this.db.sessions.listStates(records && terminalIdsBySession(records), isActiveOnly);
     }
 
     getSessionState(sessionId: string): SessionState {

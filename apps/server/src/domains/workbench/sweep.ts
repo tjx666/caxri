@@ -26,24 +26,23 @@ interface SweepOptions {
 }
 
 /**
- * Revalidates every Session's Workbench Root binding, grouped by owning Project so each owner's Git topology is read
- * once, and logs a per-phase breakdown when the sweep is slow.
+ * Revalidates the Workbench Root binding of every unarchived Session, grouped by owning Project so each owner's Git
+ * topology is read once, and logs a per-phase breakdown when the sweep is slow. An archived Session is skipped so a
+ * focus-triggered sweep costs what the visible Workbench costs; selecting the Session validates it.
  */
 export async function sweepWorkbenchRoots(options: SweepOptions): Promise<void> {
     const timer = new SweepTimer(options.logger);
     const listStartedAt = timer.mark();
     const groups = new Map<string, Array<{ binding: SessionBinding; sessionId: string }>>();
-    const sessions = options.database.listSessions();
-    let bindingCount = 0;
-    for (const session of sessions) {
-        const binding = options.database.getSessionWorkbenchBinding(session.id);
-        if (!binding || binding.workbenchRootProjectId === binding.projectId) continue;
-        const entries = groups.get(binding.projectId) ?? [];
-        entries.push({ binding, sessionId: session.id });
-        groups.set(binding.projectId, entries);
-        bindingCount += 1;
+    const entries = options.database.listActiveWorktreeBindings();
+    for (const entry of entries) {
+        const group = groups.get(entry.binding.projectId) ?? [];
+        group.push(entry);
+        groups.set(entry.binding.projectId, group);
     }
-    timer.listed(listStartedAt, sessions.length, bindingCount);
+    const bindingCount = entries.length;
+    // `sessionCount` is the Sessions this sweep considered, which no longer includes archived ones.
+    timer.listed(listStartedAt, entries.length, bindingCount);
     /**
      * This sweep gates Workbench Root filesystem authorization, so it deliberately stays sequential: an unexpected
      * throw must stop the remaining validations instead of letting concurrently dispatched entries finish mutating

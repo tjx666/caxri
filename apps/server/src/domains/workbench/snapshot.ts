@@ -37,6 +37,8 @@ export function createWorkbenchSnapshots(dependencies: {
         const theme = configuration.getTheme();
         const visibleSessionIds = new Set(sessions.map((session) => session.id));
         // A hidden Project's Sessions keep their Terminal and layout rows, but none reaches the Workbench.
+        // Archived Sessions keep their record and Terminal rows (the Archived Sessions dialog and Chat draft retention
+        // read them) but no `session_state`: `session.unarchive` sends a full refresh that brings the state back.
         const terminalRecords = database
             .listTerminals()
             .filter((terminal) => visibleSessionIds.has(terminal.sessionId));
@@ -47,7 +49,7 @@ export function createWorkbenchSnapshots(dependencies: {
             terminals: terminalRecords.map(liveTerminalRecord),
             ...selection,
             sessionStates: database
-                .listSessionStates(terminalRecords)
+                .listSessionStates(terminalRecords, true)
                 .filter((state) => visibleSessionIds.has(state.sessionId)),
             settings: settings.value,
             keybindings: keybindings.value,
