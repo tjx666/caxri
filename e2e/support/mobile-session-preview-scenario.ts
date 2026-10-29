@@ -22,14 +22,14 @@ import {
  */
 const PREVIEW_PAGE_TITLE = 'Caxri preview page';
 
-const SERVER_SCRIPT = 'preview-server.mjs';
+export const SERVER_SCRIPT = 'preview-server.mjs';
 
 /**
  * A dev server stand-in: it listens on a free loopback port, prints `port <n>` once, and prints one line per page
  * fetch: `hit proxied` when the request reached it with the proxy's rewritten `localhost` Host, `hit direct` otherwise.
  * The scenario learns how the page arrived without reading anything else the client sent.
  */
-const SERVER_SOURCE = String.raw`import { createServer } from 'node:http';
+export const SERVER_SOURCE = String.raw`import { createServer } from 'node:http';
 const page = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${PREVIEW_PAGE_TITLE}</title></head><body style="font-family: sans-serif; padding: 24px"><h1>Synthetic dev server</h1><p>An invented page served from the Session folder.</p></body></html>';
 const server = createServer((request, response) => {
     if (request.method === 'GET' && request.url === '/') {
@@ -43,7 +43,7 @@ const server = createServer((request, response) => {
 server.listen(0, '127.0.0.1', () => process.stdout.write('port ' + server.address().port + '\n'));
 `;
 
-interface PreviewServer {
+export interface PreviewServer {
     /**
      * Page fetches that arrived through the preview proxy.
      */
@@ -59,7 +59,7 @@ interface PreviewServer {
 /**
  * Starts the stand-in with `cwd` as its working directory, the ownership signal Server Core matches.
  */
-async function startPreviewServer(script: string, cwd: string): Promise<PreviewServer> {
+export async function startPreviewServer(script: string, cwd: string): Promise<PreviewServer> {
     const child: ChildProcess = spawn(process.execPath, [script], {
         cwd,
         stdio: ['ignore', 'pipe', 'inherit'],

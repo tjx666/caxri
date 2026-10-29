@@ -573,6 +573,7 @@ feature finds one way to draw each job.
 | Remote state                            | `ScreenState`                                              | `loading`, `empty`, `error`, `offline`; an offline state always offers a way back.                                                         |
 | Top notice                              | `NoticeBanner`                                             | At most one per screen, the most severe state.                                                                                             |
 | Confirmation                            | `ConfirmSheet`                                             | Replaces the system `Alert`; the button names the verb; `danger` only when something is lost.                                              |
+| Result feedback                         | `Toast` (`showToast`)                                      | One transient card, ~3 s, a new one replaces the old; results only (copied, could not open). Confirmation stays `ConfirmSheet`.            |
 | Menu on a tapped control                | `PopoverMenu` + `PopoverAction`                            | Short anchored menus (a header's ⋮, a chip's choices).                                                                                     |
 | Actions on one object, choices, details | `BottomSheet` + `SheetTitle`, `SheetAction`, `SheetCancel` | Long-press menus, pickers, inspectors; `Cancel` for menus, `Done` when choices apply as tapped.                                            |
 

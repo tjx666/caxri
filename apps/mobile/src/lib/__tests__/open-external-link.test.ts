@@ -17,6 +17,18 @@ describe('openExternalLink', () => {
         );
     });
 
+    it('shows a Toast by default when the system refuses the link', async () => {
+        const { toastStore } = await import('../../components/toast-store');
+        await openExternalLink('https://example.com/x', {
+            open: () => Promise.reject(new Error('no handler')),
+        });
+        expect(toastStore.getSnapshot()).toMatchObject({
+            message: "Couldn't open link",
+            tone: 'error',
+        });
+        toastStore.dismiss();
+    });
+
     it('stays quiet when the link opens', async () => {
         const report = vi.fn();
         const open = vi.fn(() => Promise.resolve(true));

@@ -1,5 +1,6 @@
-import { Alert, Linking } from 'react-native';
+import { Linking } from 'react-native';
 
+import { showToast } from '../components/toast-store';
 import type { Translate } from '../i18n';
 import { translate } from '../i18n';
 
@@ -11,7 +12,7 @@ export const openExternalLink = async (
     url: string,
     {
         open = (target: string) => Linking.openURL(target),
-        report = (title: string, message: string) => Alert.alert(title, message),
+        report = (title: string, message: string) => showToast('error', title, message),
         t = translate,
     }: {
         open?: (target: string) => Promise<unknown>;
