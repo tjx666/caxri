@@ -1,11 +1,13 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
-import type { AgentChatWaitingChat } from '@caxri/protocol';
+import type { AgentChatWaitingEntry } from '@caxri/protocol';
+import { useQueryClient } from '@tanstack/react-query';
 
 import { useCaxriQuery } from '../../../queries/client';
 import { useSessions } from '../../../stores/selectors';
 import { useAgentChatPendingStore } from '../transcript/agent-chat-pending';
 import { isAgentChatOnScreen, useAgentChatOnScreenStore } from './agent-chat-on-screen';
+import { invalidateAgentChatWaiting, waitingTerminalKey } from './agent-chat-waiting-client';
 import type { AgentChatWaitingArrivals, AgentChatWaitingView } from './agent-chat-waiting-queue';
 import {
     agentChatWaitingQueue,
@@ -14,16 +16,16 @@ import {
     nextAgentChatWaitingView,
 } from './agent-chat-waiting-queue';
 
-const NO_CHATS: readonly AgentChatWaitingChat[] = [];
+const NO_ENTRIES: readonly AgentChatWaitingEntry[] = [];
 const NO_ARRIVALS: AgentChatWaitingArrivals = new Map();
 
 export interface AgentChatWaiting {
     /**
-     * The Chat the card asks about now, the oldest still waiting.
+     * The Chat or PTY Terminal the card asks about now, the oldest still waiting.
      */
-    current: AgentChatWaitingChat | undefined;
+    current: AgentChatWaitingEntry | undefined;
     /**
-     * Requests left to ask across every waiting Chat, the current one included.
+     * Requests left to ask across every waiting Chat and PTY Terminal, the current one included.
      */
     count: number;
     isCollapsed: boolean;
@@ -31,16 +33,26 @@ export interface AgentChatWaiting {
 }
 
 /**
- * What the waiting popup shows: every Chat with a running provider that waits on the user, minus the ones on screen in
- * this window and the requests already answered here. The list is read once and kept current by `agentChat.patch` (see
- * `isAgentChatWaitingPatch`), so it never polls.
+ * What the waiting popup shows: every Chat with a running provider and every PTY Terminal Agent that waits on the user,
+ * minus the ones on screen in this window and the requests already answered here. The list is read once and kept
+ * current by `agentChat.patch` (see `isAgentChatWaitingPatch`) and by the Session snapshot's waiting Terminals (see
+ * `waitingTerminalKey`), so it never polls.
  */
 export function useAgentChatWaiting(): AgentChatWaiting {
     const { data } = useCaxriQuery('agentChat.pendingRequests', {}, { staleTime: Infinity });
-    const chats = data?.chats ?? NO_CHATS;
+    const chats = data?.entries ?? NO_ENTRIES;
     const answers = useAgentChatPendingStore((state) => state.answers);
     const onScreen = useAgentChatOnScreenStore((state) => state.counts);
     const sessions = useSessions();
+    const queryClient = useQueryClient();
+    /**
+     * A PTY Agent's waiting state reaches this window only as a Session update, not as an `agentChat.patch`, so the
+     * Terminals the Sessions mark as waiting are what tells the list to be read again.
+     */
+    const waitingKey = waitingTerminalKey(sessions);
+    useEffect(() => {
+        invalidateAgentChatWaiting(queryClient);
+    }, [queryClient, waitingKey]);
     /**
      * Arrival order and the fold are derived from each read during render and stored only when they change (React's
      * "adjusting state when a prop changes" pattern), so a new request unfolds the card in the frame it arrives.

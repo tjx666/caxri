@@ -827,6 +827,14 @@ Request`, `agentChat.focusWaitingRequest`, bound to Cmd+Alt+W, unfolds it and mo
   editor, button, link, or row keeps the chord, so a Session row's Cmd+Backspace still archives. An
   unavailable command lets the key through untouched. Key repeats are ignored and the popup's 450ms
   arm delay also covers the keys, so a held or doubled press cannot answer the next card.
+  A PTY Terminal Agent waiting on the user gets a read-only entry too (`kind: 'terminal'` in the same
+  `agentChat.pendingRequests` list, `entries` beside the Chats' `kind: 'chat'`): Server Core lists each
+  non-archived Session whose lifecycle state is `waiting` and whose running Primary Agent Terminal is a PTY, from stored
+  rows only, so the read still wakes no provider. The card shows the provider, Session, Project, and "Waiting for your
+  response in Terminal" with Open Session, which selects the Session and its Terminal; there is no form and nothing is
+  written to the PTY, since the prompt is a TUI screen the hooks cannot describe. It queues and counts as one request
+  with the Chats, and a Terminal pane on screen in this window removes it. The Renderer re-reads the list when the set
+  of Sessions marked `waiting` changes, so the entry also leaves when the Agent resumes.
   A file-change approval shows no diff there and points to the Session instead. The design
   follows LobeHub's `GlobalApprovalNotification`; Caxri Bot window does not show it.
 - An answered question leaves an `answered` notice in the timeline, so the transcript records what

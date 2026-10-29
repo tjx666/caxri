@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { isAgentChatWaitingPatch } from '../agent-chat-waiting-client';
+import { isAgentChatWaitingPatch, waitingTerminalKey } from '../agent-chat-waiting-client';
 
 describe('isAgentChatWaitingPatch', () => {
     it('re-reads the waiting list when a patch replaces requests or resets the Chat', () => {
@@ -19,5 +19,23 @@ describe('isAgentChatWaitingPatch', () => {
                 ],
             }),
         ).toBe(false);
+    });
+});
+
+describe('waitingTerminalKey', () => {
+    const session = (id: string, agentActivityState: 'running' | 'waiting', terminal?: string) => ({
+        id,
+        agentActivityState,
+        primaryAgentTerminalId: terminal,
+    });
+
+    it('changes exactly when a Session starts or stops waiting', () => {
+        const running = waitingTerminalKey([session('s1', 'running', 't1')]);
+        const waiting = waitingTerminalKey([session('s1', 'waiting', 't1')]);
+        expect(waiting).not.toBe(running);
+        expect(waitingTerminalKey([session('s1', 'waiting', 't1'), session('s2', 'running')])).toBe(
+            waiting,
+        );
+        expect(waitingTerminalKey(undefined)).toBe('');
     });
 });

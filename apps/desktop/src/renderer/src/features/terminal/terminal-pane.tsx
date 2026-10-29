@@ -27,6 +27,7 @@ import { useCaxriQuery } from '../../queries/client';
 import { openSettings } from '../../stores/dialogs';
 import { useSessionById, useSettings, useTerminal, useTheme } from '../../stores/selectors';
 import { useWorkbenchStore } from '../../stores/workbench';
+import { markAgentChatOnScreen } from '../agent-chat/waiting/agent-chat-on-screen';
 import { resumeSession } from '../session/session-agent-commands';
 import { canRestartResumeAgent } from './agent-restart-commands';
 import { useTerminalExitInfo } from './hooks/use-terminal-exit-info';
@@ -356,6 +357,12 @@ export function TerminalPane({
         wordSeparators,
     });
     const linkPicker = useTerminalLinkPicker(terminalId, focusTerminal);
+
+    // The waiting popup leaves out an Agent Terminal on screen, whose own TUI prompt already asks.
+    useEffect(
+        () => (isPaneVisible ? markAgentChatOnScreen(terminalId) : undefined),
+        [isPaneVisible, terminalId],
+    );
 
     useEffect(
         () => registerTerminalFocusHandler(terminalId, focusTerminal, getFocusElement),

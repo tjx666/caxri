@@ -4,15 +4,17 @@ import { createStore } from '../../../lib/store';
 
 interface AgentChatOnScreenState {
     /**
-     * Mounted Chat panes per Terminal whose Session is on screen in this window. A count rather than a flag, because a
-     * pane remount (a split, a moved tab) mounts the new pane before the old one unmounts.
+     * Mounted Chat panes (and PTY Terminal panes) per Terminal whose Session is on screen in this window. A count
+     * rather than a flag, because a pane remount (a split, a moved tab) mounts the new pane before the old one
+     * unmounts.
      */
     counts: Readonly<Record<string, number>>;
 }
 
 /**
- * Which Chats this window shows right now. The waiting popup leaves these out: a Chat on screen shows its own request
- * card above the composer, and the same question in two places could be answered twice.
+ * Which Chats and PTY Terminals this window shows right now. The waiting popup leaves these out: a Chat on screen shows
+ * its own request card above the composer, and the same question in two places could be answered twice; a PTY Terminal
+ * on screen shows its own prompt, so an open-only entry beside it would only repeat it.
  */
 export const useAgentChatOnScreenStore = createStore<AgentChatOnScreenState>(
     'agent-chat-on-screen',

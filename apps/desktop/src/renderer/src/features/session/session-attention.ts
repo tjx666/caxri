@@ -81,7 +81,12 @@ export function useSessionAttentionAcknowledgement(): void {
     const onScreen = useAgentChatOnScreenStore((state) => state.counts);
     const primaryTerminal = useTerminal(session?.primaryAgentTerminalId ?? '');
     const waitingTerminalIds = useMemo(
-        () => new Set(data?.chats.map((chat) => chat.terminalId)),
+        () =>
+            new Set(
+                data?.entries
+                    .filter((entry) => entry.kind === 'chat')
+                    .map((chat) => chat.terminalId),
+            ),
         [data],
     );
     /**
