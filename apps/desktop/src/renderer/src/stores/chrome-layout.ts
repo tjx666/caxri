@@ -7,6 +7,7 @@ import { clamp } from 'es-toolkit';
 import { readLocalStorageJson, writeLocalStorageJson } from '../lib/local-storage';
 import { createStore } from '../lib/store';
 import { handOffChromeFocus, refocusChromeSurfaceBody } from './chrome-focus-handoff';
+import { useNotificationStore } from './notifications';
 
 /**
  * Renderer-local chrome layout: PrimarySidebar/SecondarySidebar widths, Panel height, their visibility, and the Panel's
@@ -343,6 +344,9 @@ export const useChromeLayoutStore = createStore<ChromeLayoutState>('chrome-layou
             handOffChromeFocus('primarySidebar', false);
             handOffChromeFocus('secondarySidebar', false);
             handOffChromeFocus('panel', false);
+            // The status bar bell that owns the center unmounts with Zen, which would leave it open and mark every
+            // notice that arrives meanwhile as read.
+            useNotificationStore.getState().setOpen(false);
         }
         set({ zenMode: isEntering });
     },

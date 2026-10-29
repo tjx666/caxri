@@ -25,6 +25,12 @@ eligible rows, including older entries; it does not record whether an event orig
 popup. Restoring the preference removes that label. Muting also marks existing eligible entries
 of that type read. A repeated event can make an unmuted, previously read entry unread again.
 
+While Zen Mode is on, `info`, `success`, and `warning` notices with no follow-up button and no
+`persist` flag do not pop up, because Zen is for attention. They are still recorded under the usual
+history rules and show as unread on the status bar bell once Zen ends; nothing replays. Failures,
+persistent notices, and any notice offering a follow-up button keep popping up. Entering Zen closes
+the center, since the bell that owns it is hidden.
+
 The center's settings button opens **Settings → Notifications**. Turn **Worktree fallback
 reminders** or **Automatic Agent recovery reminders** on to restore that type. The same category
 contains **System notifications**, **Completed turn threshold**, and **Delivery

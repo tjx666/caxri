@@ -114,6 +114,14 @@ export const settingsCatalog = {
     'settings.primarySidebar.translucent.inactive.themeLightSystemDark':
         'Not active: the theme is light while macOS uses the dark appearance.',
 
+    'settings.zen.fullScreen.title': 'Enter full screen with Zen Mode',
+    'settings.zen.fullScreen.description':
+        'Zen Mode also puts the window in native full screen, and leaving Zen Mode leaves full screen again unless the window was already full screen.',
+
+    'settings.zen.restore.title': 'Restore Zen Mode on launch',
+    'settings.zen.restore.description':
+        'Reopening Caxri while Zen Mode was on starts in Zen Mode again. Turn off to always start with the full layout.',
+
     'settings.statusBar.usage.showFiveHourLimit.title': 'Show 5-hour limit in the status bar',
     'settings.statusBar.usage.showFiveHourLimit.description':
         'Adds the 5-hour plan limit to the Agent usage chip beside the weekly limit. Its hover card always lists every limit.',

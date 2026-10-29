@@ -111,6 +111,18 @@ export function isNotificationMuted(input: NotificationInput): boolean {
 }
 
 /**
+ * Whether Zen Mode keeps this notification off the screen. Zen is for attention, so only what asks the user for
+ * something stays: a failure (`error`), a notice held until dismissed (`persist`, data loss and one-time disclosures),
+ * and anything offering a follow-up button (a recovery, an update ready to install). The remaining `info`, `success`,
+ * and `warning` notices report a fact or a degradation that needs no answer; they still enter the history, which the
+ * status bar bell shows again when Zen ends. Approval and question requests are Chat cards, not toasts, so this filter
+ * never touches them.
+ */
+export function isSilencedInZenMode(input: NotificationInput): boolean {
+    return input.kind !== 'error' && !input.persist && !input.action && !input.secondaryAction;
+}
+
+/**
  * Group exact repeats within a Project, cap both entry count and retained body size.
  */
 export function recordNotification(input: NotificationInput): void {

@@ -303,6 +303,7 @@ export const effectfulCommandRecovery = {
     'session.select': 'durable',
     'window.tearOffSession': 'memory',
     'window.reportViewing': 'memory',
+    'window.fullScreen.set': 'memory',
     'session.markRead': 'durable',
     'usage.dismissNotice': 'durable',
     'session.refreshDeliveryOnFocus': 'memory',

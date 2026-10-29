@@ -55,6 +55,15 @@ export const windowDesktopMethods = {
         result: z.object({ isFullScreen: z.boolean() }),
     },
     /**
+     * Enters or leaves native full screen for the sending Workbench window. Zen Mode asks for it; Main answers for the
+     * sender only and the `window.fullScreen` push reports the resulting transition.
+     */
+    'window.fullScreen.set': {
+        ...desktopControl,
+        params: z.object({ isFullScreen: z.boolean() }),
+        result: z.object({ isFullScreen: z.boolean() }),
+    },
+    /**
      * Tells Main which Session the sending Workbench window renders, or `null` for none. Main owns the rest of the
      * window's presence (native focus, visibility, minimize) and forwards the whole row to the Server, so a Renderer
      * cannot claim focus it does not have. Main answers for the sender only; it never accepts a window key.

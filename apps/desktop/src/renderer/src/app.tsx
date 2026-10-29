@@ -75,6 +75,8 @@ import { PanelDivider } from './features/workbench/panel-divider';
 import { WorkbenchColumn } from './features/workbench/workbench-column';
 import { activeWorkbenchFocusElement } from './features/workbench/workbench-focus';
 import { WorkbenchRootPrompt } from './features/workbench/workbench-root-prompt';
+import { useZenModeLifecycle } from './features/zen-mode/use-zen-mode-lifecycle';
+import { ZenExitButton } from './features/zen-mode/zen-exit-button';
 import { useStartupLoaderRemoval } from './hooks/use-startup-loader-removal';
 import { useWorkbenchAppearance } from './hooks/use-workbench-appearance';
 import { useTranslation } from './i18n';
@@ -253,6 +255,7 @@ export function App() {
     useWorkbenchAppearance();
     useTranslucentSidebar();
     useWindowZoomFactor();
+    useZenModeLifecycle();
     useEffect(() => {
         if (!isAttached) return;
         return scheduleCodeEditorPreload();
@@ -364,6 +367,7 @@ export function App() {
                         </RendererPerformanceProfiler>
                     )}
                     {!isZenMode && <StatusBar />}
+                    {isZenMode && <ZenExitButton />}
                     <CreateSessionDialog />
                     <CreateSessionResumeBanner />
                     <ArchivedSessionsDialog />

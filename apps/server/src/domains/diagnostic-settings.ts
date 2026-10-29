@@ -181,6 +181,8 @@ const settingsProjection: SettingsProjection = {
     'primarySidebar.autoCollapseProjects': exportAsIs,
     'primarySidebar.showSubagents': exportAsIs,
     'primarySidebar.translucent': exportAsIs,
+    'zen.fullScreen': exportAsIs,
+    'zen.restore': exportAsIs,
     'statusBar.usage.showFiveHourLimit': exportAsIs,
     'window.zoomLevel': exportAsIs,
     'workbench.fontFamily': exportAsIs,

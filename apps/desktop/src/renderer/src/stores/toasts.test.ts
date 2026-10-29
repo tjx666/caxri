@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../lib/caxri', () => ({ caxri: { request: mocks.request } }));
 
 import { applyLanguagePreference, translate } from '../i18n';
+import { useChromeLayoutStore } from './chrome-layout';
 import { syncNotificationSettings, useNotificationStore } from './notifications';
 import type { ToastActionHandler, ToastActionHandlers, ToastActionId } from './toast-actions';
 import { configureToastActions, toastActionLabelKeys } from './toast-actions';
@@ -154,6 +155,30 @@ describe('Sonner notification adapter', () => {
             ? action.label
             : undefined;
     }
+
+    it('keeps only notices that ask for the user visible in Zen Mode, and still records them', () => {
+        useChromeLayoutStore.setState({ zenMode: true });
+        try {
+            pushToast('info', 'Returned to Project', { type: 'worktree-fallback' });
+            pushToast('success', 'Saved', { history: true });
+            pushToast('warning', 'Running on reduced terms');
+            expect(getToasts()).toEqual([]);
+            expect(useNotificationStore.getState().entries).toHaveLength(3);
+
+            pushToast('error', 'Could not save');
+            pushToast('info', 'Held until dismissed', { persist: true });
+            pushToast('info', 'Update ready', { action: { id: 'settings.open' } });
+            expect(getToasts().map((toast) => toast.title)).toEqual([
+                'Could not save',
+                'Held until dismissed',
+                'Update ready',
+            ]);
+        } finally {
+            useChromeLayoutStore.setState({ zenMode: false });
+        }
+        pushToast('info', 'Back to normal');
+        expect(getToasts().at(-1)?.title).toBe('Back to normal');
+    });
 
     it('keeps an optional follow-up action on the notification', () => {
         const onSelect = vi.fn();
