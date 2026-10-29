@@ -4,6 +4,7 @@ import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
 import { cn } from '../../../lib/utilities';
 import type { SourceControlController } from './hooks/use-source-control-controller';
+import { stableActionKey } from './source-control-action-resolution';
 import { SourceControlIcon } from './source-control-icon';
 
 export function SourceControlHeader({ controller }: { controller: SourceControlController }) {
@@ -79,7 +80,10 @@ export function SourceControlHeader({ controller }: { controller: SourceControlC
                         ))}
                     </div>
                     {model.headerActions?.map((action) => (
-                        <Tooltip content={action.tooltip ?? action.label} key={action.id}>
+                        <Tooltip
+                            content={action.tooltip ?? action.label}
+                            key={stableActionKey(action)}
+                        >
                             <Button
                                 size="icon"
                                 variant="ghost"

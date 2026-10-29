@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
     findSourceControlActionByCommand,
     runSourceControlActionAgainstLatest,
+    stableActionKey,
     SUPERSEDED,
 } from '../source-control-action-resolution';
 
@@ -187,5 +188,19 @@ describe('runSourceControlActionAgainstLatest', () => {
             }),
         ).resolves.toBe(SUPERSEDED);
         expect(run).toHaveBeenCalledTimes(3);
+    });
+});
+
+describe('stableActionKey', () => {
+    it('stays the same across model revisions and differs per command binding', () => {
+        const discard = { id: 'caxri.git.discard', arguments: ['repo-1', 'a.ts'] };
+        expect(stableActionKey(action('action-1', discard))).toBe(
+            stableActionKey(action('action-9', discard)),
+        );
+        expect(stableActionKey(action('action-1', discard))).not.toBe(
+            stableActionKey(
+                action('action-1', { id: 'caxri.git.discard', arguments: ['repo-1', 'b.ts'] }),
+            ),
+        );
     });
 });

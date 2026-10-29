@@ -16,6 +16,7 @@ import { resolveRepositoryFilePath as resolveRepoFilePath } from '../../../lib/r
 import { cn } from '../../../lib/utilities';
 import { openFile } from '../../editor/document-commands';
 import { observeKeepAliveElementRect } from '../virtual-tree-keep-alive';
+import { stableActionKey } from './source-control-action-resolution';
 import { sourceControlDecorationClassName } from './source-control-decorations';
 import { SourceControlIcon } from './source-control-icon';
 import {
@@ -415,7 +416,7 @@ function SourceControlVirtualRow({
                 />
             </SourceControlTreeRow>
             {trailingActions.map((action, index) => (
-                <Tooltip content={action.tooltip ?? action.label} key={action.id}>
+                <Tooltip content={action.tooltip ?? action.label} key={stableActionKey(action)}>
                     <Button
                         className={
                             index === 0
