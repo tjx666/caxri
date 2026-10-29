@@ -10,7 +10,14 @@ import { parentDirectoryPath } from '../../../../lib/file-path';
 import { tryCommand } from '../../../../stores/toasts';
 import { openFileForSession } from '../../../editor/document-commands';
 import { useResourceExplorerClient } from '../../controlled-view-context';
-import { didTrashFile, duplicateFile, moveFile, pasteFile, rememberFile } from '../file-actions';
+import {
+    didTrashFile,
+    duplicateFile,
+    moveFile,
+    pasteFile,
+    rememberFile,
+    undoLatestTrash,
+} from '../file-actions';
 import type { FileClipboardEntry } from '../file-clipboard';
 import { useFileClipboardStore } from '../file-clipboard';
 import { pasteDisabledReason, useIsPathBlockedByFileOperations } from '../file-operation-state';
@@ -214,12 +221,20 @@ export function useFileTreeItemInteractions({
     };
     const confirmTrash = async (): Promise<void> => {
         const scope = activeResourceExplorerScope();
-        if (!scope || !(await didTrashFile(client, scope.sessionId, entry.path))) {
-            return;
+        if (!scope) return;
+        /**
+         * Resolved before the row disappears. The removed row held the keyboard focus, so without a new target the
+         * focus drops to the page and Cmd+Z (Undo Move to Trash) would no longer reach the Files tree.
+         */
+        const survivor =
+            rowReference.current === document.activeElement
+                ? navigator.pathFor(entry.path, 'afterRemoval')
+                : undefined;
+        if (await didTrashFile(client, scope.sessionId, entry.path)) {
+            setSelectedPath(undefined);
+            setEditing(undefined);
+            if (survivor !== undefined) setScopeFocusPath(scope.scopeId, survivor);
         }
-
-        setSelectedPath(undefined);
-        setEditing(undefined);
     };
     const dropIntoDirectory = async (event: DragEvent): Promise<void> => {
         event.preventDefault();
@@ -273,6 +288,16 @@ export function useFileTreeItemInteractions({
             event.preventDefault();
             event.stopPropagation();
             startRename();
+            return;
+        }
+        if (event.metaKey && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'z') {
+            // Only a tree row has focus here, so editors, inputs, and Terminals keep their own Cmd+Z. With nothing to
+            // undo the keystroke is left alone.
+            const scope = activeResourceExplorerScope();
+            if (scope && undoLatestTrash(client, scope.sessionId) !== undefined) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
             return;
         }
         if (!isEditable || !event.metaKey) return;

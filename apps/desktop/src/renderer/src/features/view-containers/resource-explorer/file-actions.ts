@@ -21,6 +21,8 @@ import {
 } from './file-operation-reconciliation';
 import { useFileOperationStore } from './file-operation-state';
 import type { ResourceExplorerClient } from './resource-explorer-client';
+import type { UndoableTrash } from './undoable-trash';
+import { forgetUndoableTrash, rememberUndoableTrash, undoableTrashFor } from './undoable-trash';
 
 /**
  * Looks up one entry's kind from its directory listing; undefined when not found or unreadable.
@@ -73,6 +75,8 @@ async function runTrackedFileOperation<Value>(options: {
         })
     )
         return undefined;
+    // Copy changes the tree too: a Trash older than this would no longer be the latest file operation.
+    forgetUndoableTrash();
     try {
         const result = await tryCommand(options.errorLabel, options.run);
         if (result !== undefined) pushToast('success', options.successMessage(result));
@@ -109,6 +113,8 @@ async function runDurableFileMutation<Value>(options: {
         })
     )
         return undefined;
+    // Create, rename, and move each make an older Trash the wrong thing for Cmd+Z to restore.
+    forgetUndoableTrash();
     if (options.shouldPropagateFailure) suppressFailureToast(options.id);
     try {
         return await runDurableFileMutationAttempt(options);
@@ -440,6 +446,9 @@ export async function didTrashFile(
         client.forgetEditorPath(workbenchRootProjectId, result.path),
     );
     await invalidateDirectory(client, parentDirectoryPath(result.path));
+    if (result.undoToken)
+        rememberUndoableTrash({ name: result.name, sessionId, undoToken: result.undoToken });
+    else forgetUndoableTrash();
     /**
      * One persistent card keeps the confirmed loss of unsaved edits visible without duplicating success feedback. It is
      * a warning when edits were lost: the move succeeded, but the user should not read the card as all-clear.
@@ -478,7 +487,10 @@ export async function didUndoTrashedFile(
     let restored: MutableFileEntry;
     try {
         restored = await client.restoreTrashed(undoToken);
+        forgetUndoableTrash(undoToken);
     } catch (error) {
+        // A name conflict is the one failure the user can fix and retry; every other one leaves nothing to retry.
+        if (!(isCaxriError(error) && error.code === 'CONFLICT')) forgetUndoableTrash(undoToken);
         if (isCaxriError(error) && error.code === 'CONFLICT')
             pushToast('error', translate('viewContainers.files.restoreConflict', { name }));
         else if (isCaxriError(error) && error.code === 'NOT_FOUND')
@@ -493,4 +505,20 @@ export async function didUndoTrashedFile(
     await invalidateDirectory(client, parentDirectoryPath(restored.path));
     pushToast('success', translate('viewContainers.files.restored', { name: restored.name }));
     return true;
+}
+
+/**
+ * Cmd+Z in the Files tree: takes back the latest Move to Trash of `sessionId` if no later file operation made it stale.
+ * Returns the Trash it took back, or `undefined` when there was nothing to undo, so the caller only swallows the
+ * keystroke when it acted on it.
+ */
+export function undoLatestTrash(
+    client: ResourceExplorerClient,
+    sessionId: string,
+): UndoableTrash | undefined {
+    const trash = undoableTrashFor(sessionId);
+    if (!trash) return undefined;
+    // didUndoTrashedFile reports every outcome itself.
+    void didUndoTrashedFile(client, trash.undoToken, trash.name);
+    return trash;
 }
