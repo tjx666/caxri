@@ -14,6 +14,9 @@ import { useFocusOnRevision } from '@/hooks/use-focus-on-revision';
 
 import { useTranslation } from '../../i18n';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
+import { cn } from '../../lib/utilities';
+import { useDialogStore } from '../../stores/dialogs';
+import { useAgentFocusRequests } from './hooks/use-agent-focus-requests';
 import { SettingRow } from './setting-row';
 import type { SettingRowDescriptor } from './settings-registry';
 import { agentProviderForSubcategory, useSettingsRegistry } from './settings-registry';
@@ -104,9 +107,8 @@ export function SettingsPage(properties: SettingsPageProperties) {
     const isSearching = query.trim().length > 0;
     const scrollParentReference = useRef<HTMLDivElement>(null);
     const searchInputReference = useRef<HTMLInputElement>(null);
+    const isCreateSessionSuspended = useDialogStore((state) => state.isPendingSuspended);
     const handledFocusRequest = useRef(0);
-    const handledAgentActionsFocusRequest = useRef(0);
-    const handledAgentExecutableFocusRequest = useRef(0);
     const handledGitExclusionsFocusRequest = useRef(0);
     const handledRowFocusRequest = useRef(0);
     const handledNotificationsFocusRequest = useRef(0);
@@ -205,26 +207,15 @@ export function SettingsPage(properties: SettingsPageProperties) {
         if (index !== -1) virtualizer.scrollToIndex(index, { align: 'start' });
     }, [list, trustedDomainsFocusRequestId, virtualizer]);
 
-    useEffect(() => {
-        const request = properties.agentActionsFocusRequest;
-        if (!request || handledAgentActionsFocusRequest.current === request.id) return;
-        handledAgentActionsFocusRequest.current = request.id;
-        const index = list.findIndex(
-            (item) => item.kind === 'row' && item.row.id === `agents.${request.provider}.actions`,
-        );
-        if (index !== -1) virtualizer.scrollToIndex(index, { align: 'start' });
-    }, [list, properties.agentActionsFocusRequest, virtualizer]);
-
-    useEffect(() => {
-        const request = properties.agentExecutableFocusRequest;
-        if (!request || handledAgentExecutableFocusRequest.current === request.id) return;
-        handledAgentExecutableFocusRequest.current = request.id;
-        const index = list.findIndex(
-            (item) =>
-                item.kind === 'row' && item.row.id === `agents.${request.provider}.executable`,
-        );
-        if (index !== -1) virtualizer.scrollToIndex(index, { align: 'start' });
-    }, [list, properties.agentExecutableFocusRequest, virtualizer]);
+    useAgentFocusRequests({
+        actions: properties.agentActionsFocusRequest,
+        executable: properties.agentExecutableFocusRequest,
+        focusRequests,
+        list,
+        measuredItemCount: virtualItems.length,
+        setPinnedAnchor,
+        virtualizer,
+    });
 
     useEffect(() => {
         const requestId = properties.gitExclusionsFocusRequestId;
@@ -317,7 +308,11 @@ export function SettingsPage(properties: SettingsPageProperties) {
             {/* Wheel, touch, keyboard, and scrollbar drags are the user's own scrolling; programmatic scrolls are not. */}
             <div
                 ref={scrollParentReference}
-                className="min-h-0 overflow-y-auto pr-2 pb-6 pl-1"
+                className={cn(
+                    'min-h-0 overflow-y-auto pr-2 pb-6 pl-1',
+                    // Keeps the last rows clear of the floating Create Session resume bar.
+                    isCreateSessionSuspended && 'pb-24',
+                )}
                 onKeyDown={releasePinnedAnchor}
                 onPointerDown={(event) => {
                     if (event.target === event.currentTarget) releasePinnedAnchor();
