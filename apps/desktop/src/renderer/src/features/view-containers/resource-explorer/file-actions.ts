@@ -486,7 +486,7 @@ export async function didUndoTrashedFile(
         else
             pushToast(
                 'error',
-                describeFailure(error, translate('viewContainers.files.restoreFailed')),
+                describeFailureKey(error, 'viewContainers.files.restoreFailed', translate),
             );
         return false;
     }
