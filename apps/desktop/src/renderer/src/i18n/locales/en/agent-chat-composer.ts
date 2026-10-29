@@ -132,6 +132,8 @@ export const agentChatComposer = {
     'agentChat.slash.keyHintInsert': 'to insert',
     'agentChat.slash.keyHintRun': 'to run',
     'agentChat.slash.preparingSession': 'Preparing “{{title}}”…',
+    'agentChat.composer.invocationChip.command': 'command: {{name}}',
+    'agentChat.composer.invocationChip.skill': 'skill: {{name}}',
     'agentChat.slash.showInvocation': 'Show {{invocation}}',
     'agentChat.slash.instructionsUnavailable':
         'The instructions for {{invocation}} could not be loaded.',

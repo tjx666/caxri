@@ -1,11 +1,12 @@
 import type { LongPasteReferenceRange } from '@caxri/protocol';
 import { longPasteReferenceRanges } from '@caxri/protocol';
 import type { EditorState, Extension } from '@codemirror/state';
-import { StateEffect, StateField } from '@codemirror/state';
+import { StateField } from '@codemirror/state';
 import type { DecorationSet } from '@codemirror/view';
 import { Decoration, EditorView, WidgetType } from '@codemirror/view';
 
 import { agentChatLongPasteChipText } from '../agent-chat-long-paste';
+import { chipEditorFocus, chipFocusTracking, isChipFocusChange } from './agent-chat-chip-focus';
 import { chipGlyph } from './agent-chat-session-chips';
 
 /**
@@ -66,22 +67,8 @@ class LongPasteChipWidget extends WidgetType {
     }
 }
 
-const focusChanged = StateEffect.define<boolean>();
-
-/**
- * Whether the editor has focus, so a chip shows its selection outline only while the caret is live. A state field
- * cannot ask the view, so focus changes arrive as an effect.
- */
-const editorFocus = StateField.define<boolean>({
-    create: () => false,
-    update(isFocused, transaction) {
-        for (const effect of transaction.effects) if (effect.is(focusChanged)) return effect.value;
-        return isFocused;
-    },
-});
-
 function longPasteChipDecorations(state: EditorState): DecorationSet {
-    const isFocused = state.field(editorFocus);
+    const isFocused = state.field(chipEditorFocus);
     return Decoration.set(
         longPasteReferenceRanges(state.doc.toString()).map((reference) => {
             const isSelected =
@@ -103,9 +90,7 @@ function longPasteChipDecorations(state: EditorState): DecorationSet {
 const longPasteChipField = StateField.define<DecorationSet>({
     create: longPasteChipDecorations,
     update(decorations, transaction) {
-        return transaction.docChanged ||
-            transaction.selection ||
-            transaction.effects.some((effect) => effect.is(focusChanged))
+        return transaction.docChanged || transaction.selection || isChipFocusChange(transaction)
             ? longPasteChipDecorations(transaction.state)
             : decorations;
     },
@@ -121,8 +106,4 @@ const longPasteChipField = StateField.define<DecorationSet>({
  * chip: the caret steps over it, Backspace and Delete remove it whole, and a click selects it. It is read from the
  * text, so a stashed draft, a restart, prompt history, the queue, or Edit shows the same chip.
  */
-export const agentChatLongPasteChips: Extension = [
-    editorFocus,
-    longPasteChipField,
-    EditorView.focusChangeEffect.of((_state, isFocusing) => focusChanged.of(isFocusing)),
-];
+export const agentChatLongPasteChips: Extension = [chipFocusTracking, longPasteChipField];
