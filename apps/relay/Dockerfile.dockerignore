@@ -1,0 +1,11 @@
+# Allowlist: the Relay image needs only the workspace manifests, the lockfile, and two source trees.
+*
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!patches
+!packages/mobile-transport
+!apps/relay
+**/node_modules
+**/dist
+**/__tests__

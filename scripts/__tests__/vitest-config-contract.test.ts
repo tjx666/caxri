@@ -56,6 +56,7 @@ describe('Vitest project partition', () => {
             'mobile',
             'mobile-transport',
             'markdown',
+            'relay',
         ]);
         expect(agentSkillsTestFiles).toEqual(['packages/agent-skills/{scripts,src}/**/*.test.ts']);
         expect(protocolTestFiles).toEqual(['packages/protocol/src/**/*.test.ts']);

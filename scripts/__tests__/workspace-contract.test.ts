@@ -103,6 +103,7 @@ describe('pnpm workspace contract', () => {
             'apps/mobile',
             'apps/server',
             'apps/cli',
+            'apps/relay',
         ]);
         expect(packageBoundaries.map(({ root }) => root)).toEqual([
             'packages/agent-skills',

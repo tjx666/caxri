@@ -53,6 +53,10 @@ export const mobileClientCloseReasons = {
      * The user removed this computer from the phone.
      */
     'forgotten': 4015,
+    /**
+     * A direct LAN or Tailscale path answered repeatedly while the phone was on the Relay, so it reconnects directly.
+     */
+    'route-upgrade': 4016,
 } as const;
 
 export type MobileClientCloseReason = keyof typeof mobileClientCloseReasons;

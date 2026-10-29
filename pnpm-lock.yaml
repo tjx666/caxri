@@ -625,6 +625,19 @@ importers:
         specifier: ^6.0.3
         version: 6.0.3
 
+  apps/relay:
+    dependencies:
+      '@caxri/mobile-transport':
+        specifier: workspace:*
+        version: link:../../packages/mobile-transport
+      ws:
+        specifier: 'catalog:'
+        version: 8.22.0
+    devDependencies:
+      '@types/ws':
+        specifier: 'catalog:'
+        version: 8.18.2
+
   apps/server:
     dependencies:
       '@anthropic-ai/claude-agent-sdk':

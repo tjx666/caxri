@@ -2,7 +2,7 @@ type TopologyMigrationBatch = 'A2b' | 'A2c' | 'A2d' | 'A2e' | 'A2f';
 
 export interface AppBoundary {
     allowedPackages: ReadonlyArray<PackageBoundary['id']>;
-    id: 'cli' | 'desktop' | 'mobile' | 'server';
+    id: 'cli' | 'desktop' | 'mobile' | 'relay' | 'server';
     root: `apps/${string}`;
     packageNames: readonly string[];
     testAllowedPackages?: ReadonlyArray<PackageBoundary['id']>;
@@ -87,6 +87,12 @@ export const appBoundaries: readonly AppBoundary[] = [
         root: 'apps/cli',
         packageNames: ['@caxri/cli'],
         allowedPackages: ['agent-skills', 'client', 'protocol', 'system', 'utils'],
+    },
+    {
+        id: 'relay',
+        root: 'apps/relay',
+        packageNames: ['@caxri/relay'],
+        allowedPackages: ['mobile-transport'],
     },
 ];
 

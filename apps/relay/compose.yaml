@@ -1,0 +1,14 @@
+# Local Relay for development: docker compose -f apps/relay/compose.yaml up --build
+# Put TLS in front (Caddy, a cloud load balancer) for a public deployment and set CAXRI_RELAY_TRUST_PROXY=1 there.
+services:
+  relay:
+    build:
+      context: ../..
+      dockerfile: apps/relay/Dockerfile
+    image: caxri-relay:local
+    ports:
+      - '8080:8080'
+    environment:
+      CAXRI_RELAY_TRUST_PROXY: '0'
+    restart: unless-stopped
+    stop_grace_period: 5s

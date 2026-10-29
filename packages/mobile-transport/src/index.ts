@@ -4,6 +4,7 @@ export * from './contract.js';
 export * from './encoding.js';
 export * from './messages.js';
 export * from './pairing-link.js';
+export * from './relay.js';
 export * from './sealed-frame.js';
 export * from './session-keys.js';
 export * from './update-recovery.js';
