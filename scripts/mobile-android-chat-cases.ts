@@ -242,6 +242,18 @@ export const androidChatCases = {
         recordingOwner: 'scenario',
         scenario: 'agent-chat-clipped-reread',
     },
+    'MOB-CHAT-LIST-APPROVAL-01': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'agent-chat-list-approval',
+    },
+    'MOB-CHAT-LIST-APPROVAL-02': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'agent-chat-list-approval',
+    },
     'MOB-CHAT-GOAL-01': {
         appLocale: 'zh-CN',
         desktopProfile: 'managed-by-isolated-e2e',

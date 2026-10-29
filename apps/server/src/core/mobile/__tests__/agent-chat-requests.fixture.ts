@@ -2,6 +2,7 @@
 import type {
     AgentChatHistoryPage,
     AgentChatSnapshot,
+    AgentChatWaitingEntry,
     AgentProvider,
     AgentUsageReadout,
     Principal,
@@ -58,6 +59,10 @@ export function domainFixture(options: {
      * What Core's `terminal.agentUsage` returns.
      */
     usage?: AgentUsageReadout | null;
+    /**
+     * What Core's `agentChat.pendingRequests` lists.
+     */
+    waiting?: AgentChatWaitingEntry[];
 }) {
     const request = vi.fn<(method: string, parameters?: unknown) => Promise<unknown>>(
         async (method) => {
@@ -78,6 +83,7 @@ export function domainFixture(options: {
                                   },
                               ],
                 };
+            if (method === 'agentChat.pendingRequests') return { entries: options.waiting ?? [] };
             if (method === 'agentChat.read') return options.snapshot ?? chatSnapshot('ready');
             if (method === 'mobile.session.projectRootInternal') return { rootPath: '/work/demo' };
             if (method === 'mobile.image.readInternal') return ['T1JJRw==', 'VEhVTUI='];

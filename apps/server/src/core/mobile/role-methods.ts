@@ -27,6 +27,7 @@ const mobileGatewayMethodsByRole = {
     view: [
         'mobile.dashboard',
         'mobile.agentChat.read',
+        'mobile.agentChat.requests',
         'mobile.agentChat.readImage',
         'mobile.agentChat.readTask',
         'mobile.agentChat.readHistory',
@@ -46,6 +47,7 @@ const mobileGatewayMethodsByRole = {
     reply: [
         'mobile.dashboard',
         'mobile.agentChat.read',
+        'mobile.agentChat.requests',
         'mobile.agentChat.readImage',
         'mobile.agentChat.readTask',
         'mobile.agentChat.readHistory',
@@ -101,6 +103,7 @@ const mobileGatewayMethodsByRole = {
     control: [
         'mobile.dashboard',
         'mobile.agentChat.read',
+        'mobile.agentChat.requests',
         'mobile.agentChat.readImage',
         'mobile.agentChat.readTask',
         'mobile.agentChat.readHistory',
