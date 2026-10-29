@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
-import type { ThemeImportWarning, ThemeTokens } from '@caxri/protocol';
-import { builtinThemes, findMatchingBuiltinTheme } from '@caxri/protocol';
+import type { SystemColorScheme, ThemeImportWarning, ThemeTokens } from '@caxri/protocol';
+import { builtinThemeIdsForScheme, builtinThemes, findMatchingBuiltinTheme } from '@caxri/protocol';
 import { Import, X } from 'lucide-react';
 
 import { Alert } from '../../components/ui/alert';
@@ -45,8 +45,13 @@ interface ThemeFormProperties {
     appearance: {
         isFollowingSystem: boolean;
         effectiveTheme: ThemeTokens;
-        lightThemeName: string;
-        darkThemeName: string;
+        /**
+         * The system appearance resolved right now; decides which of the two pickers is marked active.
+         */
+        systemScheme: SystemColorScheme;
+        lightThemeId: string;
+        darkThemeId: string;
+        onPreferredThemeChange: (scheme: SystemColorScheme, id: string) => void;
         onFollowSystemChange: (isFollowing: boolean) => void;
     };
 }
@@ -69,17 +74,8 @@ export function ThemeForm({
         return (
             <div className="flex h-full min-h-0 flex-col overflow-hidden">
                 <div className="theme-editor structured-editor min-h-0 flex-1 overflow-auto p-3">
-                    <Alert
-                        variant="info"
-                        role="status"
-                        className="mb-3 flex items-center justify-between gap-3"
-                    >
-                        <span>
-                            {t('settings.themeEditor.followingNotice', {
-                                light: appearance.lightThemeName,
-                                dark: appearance.darkThemeName,
-                            })}
-                        </span>
+                    <div className="mb-3 flex items-center justify-between gap-3 text-[11px] text-muted">
+                        <span role="status">{t('settings.themeEditor.followingNotice')}</span>
                         <Button
                             size="sm"
                             variant="secondary"
@@ -88,7 +84,20 @@ export function ThemeForm({
                         >
                             {t('settings.themeEditor.useSingleTheme')}
                         </Button>
-                    </Alert>
+                    </div>
+                    {(['light', 'dark'] as const).map((scheme) => (
+                        <PreferredThemeField
+                            key={scheme}
+                            scheme={scheme}
+                            value={
+                                scheme === 'light'
+                                    ? appearance.lightThemeId
+                                    : appearance.darkThemeId
+                            }
+                            isActive={appearance.systemScheme === scheme}
+                            onChange={(id) => appearance.onPreferredThemeChange(scheme, id)}
+                        />
+                    ))}
                     <ThemePreview theme={appearance.effectiveTheme} />
                 </div>
             </div>
@@ -237,6 +246,68 @@ export function ThemeForm({
                 ))}
             </div>
         </div>
+    );
+}
+
+/**
+ * One of the two presets "Follow system appearance" switches between. Lists only the presets of its own appearance
+ * (`builtinThemeColorSchemes`), the same options the General tab's Light theme and Dark theme settings offer, and both
+ * write the same `workbench.theme.light` and `workbench.theme.dark` keys, so the two surfaces cannot drift.
+ */
+function PreferredThemeField({
+    scheme,
+    value,
+    isActive,
+    onChange,
+}: {
+    scheme: SystemColorScheme;
+    value: string;
+    isActive: boolean;
+    onChange: (id: string) => void;
+}) {
+    const { t } = useTranslation();
+    const label = t(`settings.themeEditor.preferred.${scheme}`);
+    const options = builtinThemeIdsForScheme(scheme).map((id) => ({
+        id,
+        name: builtinThemes.find((theme) => theme.id === id)?.name ?? id,
+    }));
+    return (
+        <Field orientation="horizontal" className="mb-3">
+            <span className="flex min-w-0 items-center gap-3">
+                <FieldLabel htmlFor={`theme-preferred-${scheme}`} className="w-24 shrink-0">
+                    {label}
+                </FieldLabel>
+                <Select
+                    value={value}
+                    onValueChange={(next) => {
+                        const option = options.find((candidate) => candidate.id === next);
+                        if (option) onChange(option.id);
+                    }}
+                >
+                    <SelectTrigger
+                        id={`theme-preferred-${scheme}`}
+                        aria-label={label}
+                        className={`${SHORT_CONTROL_WIDTH_CLASS_NAME} flex-none bg-background`}
+                    >
+                        <SelectValue>
+                            {options.find((option) => option.id === value)?.name ?? value}
+                        </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                        {options.map((option) => (
+                            <SelectItem key={option.id} value={option.id}>
+                                {option.name}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+                {isActive && (
+                    <span className="shrink-0 text-[11px] text-muted">
+                        {t('settings.themeEditor.activeNow')}
+                    </span>
+                )}
+            </span>
+        </Field>
     );
 }
 

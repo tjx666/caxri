@@ -6,8 +6,10 @@ export const settingsTheme: TranslatedNamespace<typeof source> = {
     'settings.themeEditor.importSucceeded': '已导入 {{theme}}。',
     'settings.themeEditor.dismissImportResult': '关闭主题导入结果',
     'settings.themeEditor.dismissWarning': '忽略警告',
-    'settings.themeEditor.followingNotice':
-        '正在跟随系统外观：浅色时使用 {{light}}，深色时使用 {{dark}}。可在“设置”的“通用”中更改这两个主题。',
+    'settings.themeEditor.followingNotice': '正在跟随系统外观，浅色和深色外观各使用一个主题。',
+    'settings.themeEditor.preferred.light': '浅色主题',
+    'settings.themeEditor.preferred.dark': '深色主题',
+    'settings.themeEditor.activeNow': '当前使用',
     'settings.themeEditor.useSingleTheme': '改用单一主题',
     'settings.themeEditor.singleThemeNotice': '此主题在浅色和深色外观下都会使用。',
     'settings.themeEditor.followSystem': '跟随系统外观',
