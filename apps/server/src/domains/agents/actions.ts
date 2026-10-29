@@ -4,8 +4,9 @@ import { CaxriError, MAX_AGENT_ACTIONS, mergeAgentActions } from '@caxri/protoco
 import type { ConfigService } from '../config';
 import type { CaxriDatabase } from '../db';
 import { discoverAgentActions, readActionFile } from './action-discovery';
-import type { AgentEnvironment } from './contract';
+import type { AgentEnvironment, ReportedAgentSkill } from './contract';
 import { agentProviders } from './providers';
+import { mergeReportedSkills } from './reported-skills';
 
 /**
  * The Agent Terminal and the authorized Project root its actions are discovered under.
@@ -25,6 +26,7 @@ async function discoverTerminalActions(
     environment: AgentEnvironment,
     terminalId: string,
     { requireRunning }: { requireRunning: boolean },
+    readReportedSkills?: ReportedSkillsReader,
 ) {
     const { terminal, provider, projectRoot } = actionTerminal(database, terminalId);
     if (requireRunning && terminal.lastProcessState !== 'running')
@@ -36,8 +38,29 @@ async function discoverTerminalActions(
               adapter.roots({ cwd: terminal.cwd, projectRoot }, environment),
           )
         : { actions: [], referenceOnly: [], files: new Map<string, string>(), partial: false };
-    return { provider, discovered };
+    /**
+     * Only a Chat whose provider process is already running answers, so listing never starts one. A failed read leaves
+     * the scan as the whole answer.
+     */
+    let reported: readonly ReportedAgentSkill[] | undefined;
+    try {
+        reported = await readReportedSkills?.(terminalId);
+    } catch {
+        reported = undefined;
+    }
+    return {
+        provider,
+        discovered:
+            adapter && reported ? mergeReportedSkills(discovered, reported, adapter) : discovered,
+    };
 }
+
+/**
+ * The skills the Chat's running provider process reports for a Terminal, or undefined when it has no such process.
+ */
+export type ReportedSkillsReader = (
+    terminalId: string,
+) => Promise<readonly ReportedAgentSkill[] | undefined>;
 
 /**
  * Lists actions only for the selected, running Agent Terminal. The database supplies the authorized Project root and
@@ -48,6 +71,7 @@ export async function listAgentActions(
     environment: AgentEnvironment,
     settings: AppSettings,
     terminalId: string,
+    readReportedSkills?: ReportedSkillsReader,
 ) {
     const { provider, discovered } = await discoverTerminalActions(
         database,
@@ -56,6 +80,7 @@ export async function listAgentActions(
         {
             requireRunning: true,
         },
+        readReportedSkills,
     );
     const actions = mergeAgentActions(
         provider,
@@ -87,10 +112,15 @@ export async function readAgentAction(
     environment: AgentEnvironment,
     terminalId: string,
     invocation: string,
+    readReportedSkills?: ReportedSkillsReader,
 ): Promise<AgentActionReadResult> {
-    const { discovered } = await discoverTerminalActions(database, environment, terminalId, {
-        requireRunning: false,
-    });
+    const { discovered } = await discoverTerminalActions(
+        database,
+        environment,
+        terminalId,
+        { requireRunning: false },
+        readReportedSkills,
+    );
     const action = [...discovered.actions, ...discovered.referenceOnly].find(
         (candidate) => candidate.invocation === invocation,
     );

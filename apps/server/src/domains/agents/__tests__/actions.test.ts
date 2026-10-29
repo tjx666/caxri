@@ -192,3 +192,106 @@ describe('recordRecentAgentAction', () => {
         ).toThrow(expect.objectContaining({ code: 'NOT_FOUND' }) as Error);
     });
 });
+
+describe('listAgentActions with skills the running provider reports', () => {
+    async function scannedProject() {
+        const root = await mkdtemp(join(tmpdir(), 'caxri-actions-reported-'));
+        temporaryDirectories.push(root);
+        await Promise.all(
+            ['commit', 'stale'].map(async (name) => {
+                const directory = join(root, '.agents', 'skills', name);
+                await mkdir(directory, { recursive: true });
+                await writeFile(
+                    join(directory, 'SKILL.md'),
+                    `---\nname: ${name}\ndescription: Scanned ${name}\n---\nBody.\n`,
+                );
+            }),
+        );
+        const pluginDirectory = join(root, 'plugin-skill');
+        await mkdir(pluginDirectory);
+        const pluginFile = join(pluginDirectory, 'SKILL.md');
+        await writeFile(pluginFile, '---\nname: github:triage\n---\nTriage the issue.\n');
+        const database = databaseWith({
+            id: 'terminal-1',
+            sessionId: 'session-1',
+            cwd: root,
+            provider: 'codex',
+            lastProcessState: 'running',
+        });
+        return {
+            root,
+            pluginFile,
+            database,
+            environment: { homeDirectory: join(root, 'h'), variables: {} },
+        };
+    }
+
+    it('lists enabled plugin skills, drops disabled and unreported scanned ones, and keeps paths off the wire', async () => {
+        const { root, pluginFile, database, environment } = await scannedProject();
+        const result = await listAgentActions(database, environment, settings(), 'terminal-1', () =>
+            Promise.resolve([
+                {
+                    name: 'github:triage',
+                    description: 'Triage',
+                    enabled: true,
+                    isProject: false,
+                    path: pluginFile,
+                },
+                { name: 'linear:plan', enabled: false, isProject: false, path: pluginFile },
+                {
+                    name: 'commit',
+                    description: 'Reported commit',
+                    enabled: true,
+                    isProject: true,
+                    path: pluginFile,
+                },
+            ]),
+        );
+        const skills = result.actions.filter(({ kind }) => kind === 'skill');
+        expect(
+            skills
+                .map(({ invocation }) => invocation)
+                .toSorted((left, right) => left.localeCompare(right)),
+        ).toEqual(['$commit', '$github:triage']);
+        expect(skills.find(({ invocation }) => invocation === '$commit')).toMatchObject({
+            description: 'Reported commit',
+            source: 'project',
+        });
+        expect(JSON.stringify(result)).not.toContain(root);
+    });
+
+    it.each([
+        ['has no answer', () => Promise.resolve(undefined)],
+        ['fails', () => Promise.reject(new Error('Method not found'))],
+    ])('falls back to the scan when the provider %s', async (_case, reader) => {
+        const { database, environment } = await scannedProject();
+        const result = await listAgentActions(
+            database,
+            environment,
+            settings(),
+            'terminal-1',
+            reader,
+        );
+        expect(
+            result.actions
+                .filter(({ kind }) => kind === 'skill')
+                .map(({ invocation }) => invocation)
+                .toSorted((left, right) => left.localeCompare(right)),
+        ).toEqual(['$commit', '$stale']);
+    });
+
+    it('reads a reported plugin skill body by invocation', async () => {
+        const { pluginFile, database, environment } = await scannedProject();
+        const result = await readAgentAction(
+            database,
+            environment,
+            'terminal-1',
+            '$github:triage',
+            () =>
+                Promise.resolve([
+                    { name: 'github:triage', enabled: true, isProject: false, path: pluginFile },
+                ]),
+        );
+        expect(result.markdown).toBe('Triage the issue.');
+    });
+});

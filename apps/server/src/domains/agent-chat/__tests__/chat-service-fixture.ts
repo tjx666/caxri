@@ -42,6 +42,10 @@ export async function fixture(
          * CLI does, so the Server's rollout readers find it.
          */
         codexRollouts?: boolean;
+        /**
+         * Makes the fake Codex answer `skills/list`; without it the method fails, as on a Codex without it.
+         */
+        codexSkills?: boolean;
         provider?: keyof typeof FAKE_CLIS;
         turnRequestTimeoutMs?: number;
         endpoint?: AgentChatEndpoint;
@@ -115,6 +119,7 @@ export async function fixture(
                     ...(options.codexRollouts && {
                         FAKE_CODEX_SESSIONS_DIR: join(directory, '.codex', 'sessions'),
                     }),
+                    ...(options.codexSkills && { FAKE_CODEX_SKILLS: 'list' }),
                     FAKE_GROK_STATE_DIR: grokStateDirectory,
                     CLAUDE_CONFIG_DIR: claudeConfigDirectory,
                     FAKE_CLAUDE_CONTROL_DIR: claudeConfigDirectory,
