@@ -107,6 +107,15 @@ test('a Codex Chat switches its model, effort, and Fast mode and shows the conte
         await page.screenshot({ path: testInfo.outputPath('codex-chat-working-composer.png') });
         await message.press('Escape');
         await expect(strip.locator('[data-agent-chat-composer-strip-row]')).toBeHidden();
+        // The stopped turn keeps its spend on its fold row: the figures the status row showed, now at the row's end.
+        await expect(chat.locator('[data-agent-chat-turn-metric="steps"]')).toHaveAttribute(
+            'data-value',
+            '2',
+        );
+        await expect(chat.locator('[data-agent-chat-turn-metric="tokens"]')).toHaveAttribute(
+            'data-value',
+            '2.5k',
+        );
 
         await message.fill('hello');
         await message.press('Enter');

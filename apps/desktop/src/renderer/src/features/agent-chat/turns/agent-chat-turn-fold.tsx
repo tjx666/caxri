@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { use, useId, useMemo, useRef, useState } from 'react';
 
+import type { AgentChatTurnMetrics } from '@caxri/protocol';
 import { agentChatTurnLabel } from '@caxri/protocol';
 import { Bot, ChevronRight, CircleStop, CircleX } from 'lucide-react';
 
@@ -9,6 +10,7 @@ import { Button } from '../../../components/ui/button';
 import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
 import { cn } from '../../../lib/utilities';
+import { AgentChatTurnMetricList } from '../activity/agent-chat-turn-metric-list';
 import { AgentChatFindQueryContext, isAgentChatTurnFoldMatch } from '../find/agent-chat-find';
 import {
     useAgentChatExpansion,
@@ -100,6 +102,7 @@ function TurnFoldHeader({
     detailId,
     isExpanded,
     label,
+    metrics,
     onOpenSubagent,
     onRevealSubagent,
     onToggle,
@@ -110,6 +113,10 @@ function TurnFoldHeader({
     detailId: string;
     isExpanded: boolean;
     label: string;
+    /**
+     * What the finished turn spent, shown at the row's end; absent when none was recorded.
+     */
+    metrics: AgentChatTurnMetrics | undefined;
     onOpenSubagent: ((taskId: string) => void) | undefined;
     onRevealSubagent: ((itemId: string, element: HTMLElement) => void) | undefined;
     onToggle: (element: HTMLElement) => void;
@@ -175,6 +182,15 @@ function TurnFoldHeader({
                     onReveal={onRevealSubagent}
                 />
             ))}
+            {metrics && (
+                <AgentChatTurnMetricList
+                    usage={{
+                        requests: metrics.requests ?? 0,
+                        totalTokens: metrics.totalTokens ?? 0,
+                        costUsd: metrics.costUsd,
+                    }}
+                />
+            )}
         </div>
     );
 }
@@ -243,7 +259,7 @@ function useTurnFoldFindExpansion(entry: TurnEntry, isExpandedByUser: boolean) {
  * ran. A subagent the turn started stays named on the row itself, one click from its tab or its row, since it may have
  * left the Background work strip by the time the turn folds. A row the user opened while the turn ran keeps the fold
  * open when the turn ends, so finishing never hides what they were reading; hovering the row says when the turn
- * finished.
+ * finished. A finished turn's steps, tokens, and estimated cost sit at the row's end in the status row's figures.
  */
 export function AgentChatTurnFold({
     entry,
@@ -274,6 +290,7 @@ export function AgentChatTurnFold({
                 detailId={detailId}
                 isExpanded={isExpanded}
                 label={agentChatTurnLabel(entry, t)}
+                metrics={entry.metrics}
                 tone={agentChatTurnTone(entry)}
                 subagents={subagents}
                 timeTooltip={agentChatTurnTimeTooltip(entry, t)}
