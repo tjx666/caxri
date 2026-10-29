@@ -108,6 +108,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 
 - **Session search**: Cross-Agent discovery with one adapter per provider; trigram FTS5 with a short-term substring fallback; title hits ranked above content hits. Evidence: `docs/session-search.md`.
 - **Session search lands on the match**: Opening a message match scrolls to and highlights the matched message. Evidence: `docs/session-search.md`.
+- **Session search preview pane**: The selected result's matched message with its neighbours shown beside the list without opening it (also: Orca). Evidence: `docs/session-search.md`.
 
 ## agentsview (MIT)
 

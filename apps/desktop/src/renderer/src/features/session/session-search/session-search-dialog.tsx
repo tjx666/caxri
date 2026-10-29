@@ -24,9 +24,11 @@ import {
     sessionSearchIndexLabel,
     sessionSearchProviders,
 } from './session-search-model';
+import { SessionSearchPreview } from './session-search-preview';
 import { SessionSearchResults } from './session-search-results';
 import type { SessionSearchModel } from './use-session-search';
 import { useSessionSearch } from './use-session-search';
+import { useSessionSearchPreview } from './use-session-search-preview';
 
 const chipClassName =
     'flex h-6 cursor-pointer items-center gap-1 rounded border-0 bg-transparent px-2 text-[12px] text-muted hover:bg-elevated hover:text-foreground aria-pressed:bg-elevated aria-pressed:text-foreground';
@@ -50,7 +52,7 @@ export function SessionSearchDialog() {
         <Dialog open={isOpen} onOpenChange={setSessionSearchOpen}>
             <PickerDialogContent
                 aria-label={t('session.search.title')}
-                className="top-[12%] flex h-[min(620px,76vh)] w-[min(760px,calc(100vw-48px))] flex-col"
+                className="top-[12%] flex h-[min(620px,76vh)] w-[min(1080px,calc(100vw-48px))] flex-col"
             >
                 <SessionSearchBody />
             </PickerDialogContent>
@@ -65,6 +67,7 @@ function SessionSearchBody() {
     const resultsId = useId();
     const rowId = (index: number) => `${rowIdPrefix}-${index}`;
     const { entries, selected, selectedIndex, setSelectedIndex } = search;
+    const preview = useSessionSearchPreview(selected, search.searchedQuery);
 
     useEffect(() => {
         document
@@ -76,6 +79,10 @@ function SessionSearchBody() {
         if (isImeComposing(event)) return;
         if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
             event.preventDefault();
+            if (event.altKey) {
+                preview.stepMatch(event.key === 'ArrowDown' ? 1 : -1);
+                return;
+            }
             setSelectedIndex(
                 nextSelectionIndex(
                     entries.length,
@@ -127,10 +134,26 @@ function SessionSearchBody() {
                 </InputGroup>
                 <SessionSearchFilters search={search} />
             </div>
-            <SessionSearchContent resultsId={resultsId} rowId={rowId} search={search} />
+            <div className="@container flex min-h-0 flex-1 flex-col">
+                <div className="flex min-h-0 flex-1 flex-col @3xl:flex-row">
+                    <div className="flex min-h-0 min-w-0 flex-[3] flex-col @3xl:flex-1">
+                        <SessionSearchContent resultsId={resultsId} rowId={rowId} search={search} />
+                    </div>
+                    {selected && search.entries.length > 0 && (
+                        <div className="flex min-h-0 flex-[2] flex-col border-t border-border @3xl:w-[46%] @3xl:flex-none @3xl:border-t-0 @3xl:border-l">
+                            <SessionSearchPreview
+                                entry={selected}
+                                hasQuery={search.searchedQuery !== ''}
+                                preview={preview}
+                            />
+                        </div>
+                    )}
+                </div>
+            </div>
             <div className="flex h-7 flex-none items-center gap-3 border-t border-border px-3 text-[11px] text-muted">
                 <span>{t('session.search.helpMove')}</span>
                 <span>{t('session.search.helpAction')}</span>
+                <span>{t('session.search.helpMatch')}</span>
                 <span>{t('session.search.helpFilter')}</span>
                 {search.result && (
                     <span

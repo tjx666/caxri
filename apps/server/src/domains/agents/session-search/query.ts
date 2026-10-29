@@ -1,5 +1,12 @@
-import type { SessionSearchMatchField, SessionSearchSnippet } from '@caxri/protocol';
-import { normalizeSessionSearchText } from '@caxri/protocol';
+import type {
+    SessionSearchMatchField,
+    SessionSearchPreviewMessage,
+    SessionSearchSnippet,
+} from '@caxri/protocol';
+import {
+    MAX_SESSION_SEARCH_PREVIEW_MESSAGE_CHARACTERS,
+    normalizeSessionSearchText,
+} from '@caxri/protocol';
 
 /**
  * Trigram full-text search needs three characters; a shorter term is matched as a plain substring instead.
@@ -160,6 +167,30 @@ export function snippetAround(
     const prefix = begin > 0 ? ELLIPSIS : '';
     const window = `${prefix}${text.slice(begin, begin + MAX_SNIPPET_CHARACTERS)}`;
     return bounded({ role, text: window, highlights: termRanges(window, terms) });
+}
+
+/**
+ * One message of the preview: whole when it fits, otherwise cut around its first matched term with an ellipsis on each
+ * cut side. Line breaks stay (the preview renders them), unlike a result row's one-line snippet.
+ */
+export function previewMessage(
+    role: SessionSearchPreviewMessage['role'],
+    messageText: string,
+    terms: readonly string[],
+    isMatch: boolean,
+): SessionSearchPreviewMessage {
+    const full = messageText.replaceAll('\r\n', '\n').trim();
+    const limit = MAX_SESSION_SEARCH_PREVIEW_MESSAGE_CHARACTERS;
+    let text = full;
+    if (full.length > limit) {
+        const lower = full.toLowerCase();
+        const found = terms.map((term) => lower.indexOf(term)).filter((index) => index >= 0);
+        const anchor = found.length > 0 ? Math.min(...found) : 0;
+        const begin = Math.max(0, Math.min(anchor - 120, full.length - limit));
+        const end = Math.min(full.length, begin + limit);
+        text = `${begin > 0 ? ELLIPSIS : ''}${full.slice(begin, end)}${end < full.length ? ELLIPSIS : ''}`;
+    }
+    return { role, text, highlights: termRanges(text, terms).slice(0, 64), isMatch };
 }
 
 /**

@@ -64,6 +64,18 @@ async function main(): Promise<void> {
             });
             return;
         }
+        if (message.type === 'preview') {
+            try {
+                post({
+                    type: 'preview',
+                    id: message.id,
+                    response: engine.preview(message.request),
+                });
+            } catch {
+                post({ type: 'error', id: message.id, reason: 'failed' });
+            }
+            return;
+        }
         if (message.type === 'describe') {
             // A Session's hover card may be the first reader after launch; the titles it misses now arrive with the
             // background pass, in time for the next hover.

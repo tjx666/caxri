@@ -60,10 +60,11 @@ async function fixture(
         }),
     );
     const inspect = vi.fn();
+    const preview = vi.fn();
     const onSessionImported = vi.fn();
     const service = new SessionSearchService({
         database,
-        index: { search, inspect },
+        index: { search, inspect, preview },
         resolveProjectRoot: (path) => Promise.resolve(path),
         onSessionImported,
         ...options,
@@ -75,6 +76,7 @@ async function fixture(
         inspect,
         onSessionImported,
         open,
+        preview,
         repo,
         search,
         service,
@@ -82,6 +84,36 @@ async function fixture(
 }
 
 describe('SessionSearchService', () => {
+    it('previews an external conversation from the index without creating a Session', async () => {
+        const f = await fixture();
+        const window = {
+            messages: [],
+            matchCount: 0,
+            matchIndex: 0,
+            hasEarlier: false,
+            hasLater: false,
+        };
+        f.preview.mockResolvedValue(window);
+        const before = f.database.listVisibleSessions().length;
+
+        await expect(
+            f.service.preview({ provider: 'codex', agentSessionId: EXTERNAL, query: 'invoice' }),
+        ).resolves.toEqual(window);
+
+        expect(f.database.listVisibleSessions()).toHaveLength(before);
+        expect(f.inspect).not.toHaveBeenCalled();
+        expect(f.onSessionImported).not.toHaveBeenCalled();
+    });
+
+    it('reports an unavailable index as UNAVAILABLE', async () => {
+        const f = await fixture();
+        f.preview.mockRejectedValue(new SessionSearchIndexUnavailableError());
+
+        await expect(
+            f.service.preview({ provider: 'codex', agentSessionId: EXTERNAL, query: '' }),
+        ).rejects.toMatchObject({ code: 'UNAVAILABLE' });
+    });
+
     it('reports a held conversation as its Session and the rest as external', async () => {
         const f = await fixture([
             hit(EXTERNAL, { score: 9 }),

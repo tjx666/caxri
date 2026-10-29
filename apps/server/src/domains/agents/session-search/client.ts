@@ -1,6 +1,10 @@
 import { Worker } from 'node:worker_threads';
 
-import type { AgentProvider } from '@caxri/protocol';
+import type {
+    AgentProvider,
+    SessionSearchPreviewParameters,
+    SessionSearchPreviewResult,
+} from '@caxri/protocol';
 import { logEventCatalog } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 
@@ -303,6 +307,19 @@ export class SessionSearchIndex {
         const reply = await this.request((id) => ({ id, type: 'describe', conversations }), signal);
         if (reply.type !== 'describe') throw new SessionSearchIndexUnavailableError();
         return reply.titles;
+    }
+
+    /**
+     * The message window around one match of a conversation, from the index alone. Cheap enough to run on every
+     * selection change, and cancelled with the caller's signal when the selection moves on.
+     */
+    async preview(
+        request: SessionSearchPreviewParameters,
+        signal?: AbortSignal,
+    ): Promise<SessionSearchPreviewResult> {
+        const reply = await this.request((id) => ({ id, type: 'preview', request }), signal);
+        if (reply.type !== 'preview') throw new SessionSearchIndexUnavailableError();
+        return reply.response;
     }
 
     async close(): Promise<void> {

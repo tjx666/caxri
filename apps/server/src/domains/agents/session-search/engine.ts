@@ -1,4 +1,11 @@
-import type { AgentProvider, SessionSearchMatchField, SessionSearchSnippet } from '@caxri/protocol';
+import type {
+    AgentProvider,
+    SessionSearchMatchField,
+    SessionSearchPreviewParameters,
+    SessionSearchPreviewResult,
+    SessionSearchSnippet,
+} from '@caxri/protocol';
+import { SESSION_SEARCH_PREVIEW_CONTEXT_MESSAGES } from '@caxri/protocol';
 
 import type { AgentEnvironment } from '../contract';
 import type { IndexerPassReport } from './indexer';
@@ -6,6 +13,7 @@ import { SessionSearchIndexer } from './indexer';
 import {
     metadataMatch,
     parseSessionQuery,
+    previewMessage,
     snippetAround,
     snippetFromMarkers,
     withTermHighlights,
@@ -379,5 +387,54 @@ export class SessionSearchEngine {
             if (snippet) hit.snippet = snippet;
         }
         return { hits: ranked, status, usedSubstringScan: parsed.substrings.length > 0 };
+    }
+
+    /**
+     * A bounded window of one conversation's indexed messages: the `matchIndex`-th (default newest) message holding
+     * every query term with two messages on each side, or the conversation's last messages when nothing matches. Reads
+     * the index only.
+     */
+    preview(request: SessionSearchPreviewParameters): SessionSearchPreviewResult {
+        const { provider, agentSessionId } = request;
+        const { terms } = parseSessionQuery(request.query);
+        const ids = this.store.conversationMessageIds(provider, agentSessionId);
+        const matches =
+            terms.length > 0 ? this.store.matchingMessageIds(provider, agentSessionId, terms) : [];
+        const matchIndex =
+            matches.length > 0 ? (request.matchIndex ?? matches.length - 1) % matches.length : 0;
+        const centerId = matches.length > 0 ? matches[matchIndex] : ids.at(-1);
+        const center = centerId === undefined ? -1 : ids.indexOf(centerId);
+        if (center === -1)
+            return {
+                messages: [],
+                matchCount: 0,
+                matchIndex: 0,
+                hasEarlier: false,
+                hasLater: false,
+            };
+        const span = SESSION_SEARCH_PREVIEW_CONTEXT_MESSAGES;
+        // Without a match the window is the conversation's last messages rather than centered on one.
+        const first = Math.max(0, matches.length > 0 ? center - span : ids.length - (2 * span + 1));
+        const last = Math.min(ids.length, first + 2 * span + 1);
+        const messages = ids.slice(first, last).flatMap((id) => {
+            const message = this.store.message(id);
+            return message
+                ? [
+                      previewMessage(
+                          message.role,
+                          message.text,
+                          terms,
+                          matches.length > 0 && id === centerId,
+                      ),
+                  ]
+                : [];
+        });
+        return {
+            messages,
+            matchCount: matches.length,
+            matchIndex,
+            hasEarlier: first > 0,
+            hasLater: last < ids.length,
+        };
     }
 }

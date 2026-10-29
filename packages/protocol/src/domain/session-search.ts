@@ -125,6 +125,63 @@ export const sessionSearchResultSchema = z.object({
 });
 export type SessionSearchResult = z.infer<typeof sessionSearchResultSchema>;
 
+/**
+ * Messages shown on each side of the previewed match.
+ */
+export const SESSION_SEARCH_PREVIEW_CONTEXT_MESSAGES = 2;
+/**
+ * Upper bound on one previewed message's text, in UTF-16 code units; a longer message is cut around its first match.
+ */
+export const MAX_SESSION_SEARCH_PREVIEW_MESSAGE_CHARACTERS = 1_200;
+
+export const sessionSearchPreviewParametersSchema = z.object({
+    provider: agentProviderSchema,
+    agentSessionId: z.string().trim().min(1).max(1_024),
+    /**
+     * The query whose matches the preview centers on and highlights. Empty (or matching no message) previews the end of
+     * the conversation.
+     */
+    query: z.string().trim().max(200),
+    /**
+     * Which matching message to center on, oldest first; wraps past the last one. Defaults to the newest, the one a
+     * result row quotes.
+     */
+    matchIndex: z.number().int().nonnegative().max(100_000).optional(),
+});
+export type SessionSearchPreviewParameters = z.infer<typeof sessionSearchPreviewParametersSchema>;
+
+export const sessionSearchPreviewMessageSchema = z.object({
+    role: z.enum(['user', 'assistant']),
+    text: z.string().max(MAX_SESSION_SEARCH_PREVIEW_MESSAGE_CHARACTERS + 2),
+    highlights: z.array(z.tuple([snippetOffsetSchema, snippetOffsetSchema])).max(64),
+    /**
+     * The message the preview centers on.
+     */
+    isMatch: z.boolean(),
+});
+export type SessionSearchPreviewMessage = z.infer<typeof sessionSearchPreviewMessageSchema>;
+
+export const sessionSearchPreviewResultSchema = z.object({
+    /**
+     * The centered message with up to two before and two after, oldest first. Empty when the index holds no messages
+     * for the conversation (a Shell-only Session, or one whose Agent has not written yet).
+     */
+    messages: z
+        .array(sessionSearchPreviewMessageSchema)
+        .max(2 * SESSION_SEARCH_PREVIEW_CONTEXT_MESSAGES + 1),
+    /**
+     * Messages in the conversation that hold every query term.
+     */
+    matchCount: z.number().int().nonnegative(),
+    /**
+     * The shown match's position among them; 0 when there is none.
+     */
+    matchIndex: z.number().int().nonnegative(),
+    hasEarlier: z.boolean(),
+    hasLater: z.boolean(),
+});
+export type SessionSearchPreviewResult = z.infer<typeof sessionSearchPreviewResultSchema>;
+
 export const sessionImportConversationParametersSchema = z.object({
     provider: agentProviderSchema,
     agentSessionId: z.string().trim().min(1).max(1_024),

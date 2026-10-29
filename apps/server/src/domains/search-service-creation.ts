@@ -21,7 +21,7 @@ export function createSessionSearchServices({
     database: CaxriDatabase;
     emit: DomainDependencies['send'];
     git: GitService;
-    index: Pick<SessionSearchIndex, 'describe' | 'inspect' | 'search'>;
+    index: Pick<SessionSearchIndex, 'describe' | 'inspect' | 'preview' | 'search'>;
     userDataPath: string;
 }) {
     const sessionSearch = new SessionSearchService({

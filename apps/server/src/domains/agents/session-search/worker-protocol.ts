@@ -1,4 +1,8 @@
-import type { AgentProvider } from '@caxri/protocol';
+import type {
+    AgentProvider,
+    SessionSearchPreviewParameters,
+    SessionSearchPreviewResult,
+} from '@caxri/protocol';
 
 import type { AgentEnvironment } from '../contract';
 import type { IndexSearchRequest, IndexSearchResponse, IndexStatus } from './engine';
@@ -31,6 +35,10 @@ export type SessionSearchWorkerRequest =
      */
     | { id: number; type: 'describe'; conversations: ConversationIdentity[] }
     /**
+     * Reads a bounded message window of one indexed conversation for the search dialog's preview.
+     */
+    | { id: number; type: 'preview'; request: SessionSearchPreviewParameters }
+    /**
      * Drops a queued search whose caller gave up, so fast typing does not leave a backlog of substring scans.
      */
     | { id: number; type: 'cancel' };
@@ -42,6 +50,7 @@ export type SessionSearchWorkerReply =
      * Index titles aligned with the request's `conversations`; `undefined` where the index has none.
      */
     | { type: 'describe'; id: number; titles: Array<string | undefined> }
+    | { type: 'preview'; id: number; response: SessionSearchPreviewResult }
     /**
      * A request failed. Only a closed reason crosses the boundary: an exception message could quote a path or a title.
      */

@@ -7,6 +7,8 @@ import type {
     SessionSearchEntry,
     SessionSearchIndexStatus,
     SessionSearchParameters,
+    SessionSearchPreviewParameters,
+    SessionSearchPreviewResult,
     SessionSearchResult,
     SessionSearchStatus,
 } from '@caxri/protocol';
@@ -97,7 +99,7 @@ export class SessionSearchService {
     constructor(
         private readonly options: {
             database: CaxriDatabase;
-            index: Pick<SessionSearchIndex, 'inspect' | 'search'>;
+            index: Pick<SessionSearchIndex, 'inspect' | 'preview' | 'search'>;
             resolveProjectRoot: (path: string) => Promise<string>;
             onSessionImported: () => void;
             /**
@@ -288,6 +290,23 @@ export class SessionSearchService {
             index: index.status,
             usedSubstringScan: index.usedSubstringScan,
         };
+    }
+
+    /**
+     * The search dialog's preview of one conversation. Read-only and answered from the index, so previewing an external
+     * conversation creates no Session and writes nothing to Caxri's database.
+     */
+    async preview(
+        parameters: SessionSearchPreviewParameters,
+        signal?: AbortSignal,
+    ): Promise<SessionSearchPreviewResult> {
+        try {
+            return await this.options.index.preview(parameters, signal);
+        } catch (error) {
+            if (error instanceof SessionSearchIndexUnavailableError && !isAbort(signal))
+                throw new CaxriError('UNAVAILABLE', 'Session search is unavailable');
+            throw error;
+        }
     }
 
     /**
