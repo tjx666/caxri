@@ -1,6 +1,6 @@
 import { CaxriError } from '@caxri/protocol';
 
-import type { JsonRpcConnection } from './json-rpc-connection';
+import type { JsonRpcConnection } from '../json-rpc-connection';
 
 /**
  * The interrupt response is held until the turn actually aborts. A provider that never answers is stopped instead so

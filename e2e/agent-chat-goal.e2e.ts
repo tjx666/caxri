@@ -116,6 +116,47 @@ test('a Codex Chat sets, pauses, resumes, and clears a goal', async ({}, testInf
     }
 });
 
+/**
+ * Claude Code holds a slash command until the running query ends, and a goal's query runs until its condition is met
+ * (the fake streams until interrupted, `fake-claude-goal.ts`), so Clear stops the goal's turn instead of queueing.
+ */
+// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
+test('a Claude Chat clears a goal while its turn runs without queueing the clear', async ({}, testInfo) => {
+    const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-chat-claude-goal-'));
+    const userData = join(directory, 'user-data');
+    const root = join(directory, 'project');
+    await mkdir(root);
+    const agentMode = await fakeClaudeChatAgentMode(userData);
+    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    try {
+        const { page } = running;
+        await createProjectSession(page, 'shell');
+        await openAgentChat(page, 'Claude Chat');
+        const chat = page.locator(VISIBLE_SESSION);
+        const message = chat.getByRole('textbox', { name: 'Message' });
+        await expect(message).toBeVisible();
+
+        await chat.getByRole('button', { name: 'Add files and more' }).click();
+        await page.getByRole('menuitem', { name: /^Goal/u }).click();
+        await message.fill('All tests pass');
+        await message.press('Enter');
+        const row = chat.locator('[data-agent-chat-goal]');
+        await expect(row).toHaveAttribute('data-agent-chat-goal', 'active');
+        const stop = chat.getByRole('button', { name: 'Stop', exact: true });
+        await expect(stop).toBeVisible();
+
+        // A double click sends one clear; neither waits in the queue behind the goal's turn.
+        await row.getByRole('button', { name: 'Clear goal' }).dblclick();
+        await expect(row).toHaveCount(0);
+        await expect(stop).toHaveCount(0);
+        await expect(chat.getByRole('region', { name: 'Queued messages' })).toHaveCount(0);
+        await page.screenshot({ path: testInfo.outputPath('claude-goal-cleared.png') });
+    } finally {
+        await closeAppQuietly(running.app);
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
 // eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
 test('a message sent without Goal mode becomes the goal from its right-click menu', async ({}, testInfo) => {
     const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-chat-goal-menu-'));
@@ -247,7 +288,11 @@ test("a Claude Code Chat's built-in /goal enters Goal mode on Tab instead of sen
         await message.fill('the fixtures pass');
         await message.press('Enter');
         await expect(goalChip).toHaveCount(0);
-        await expect(chat.getByText('/goal the fixtures pass').first()).toBeVisible();
+        // The goal's query keeps streaming, so the sent `/goal` bubble can scroll out of the virtualized transcript;
+        // the goal row proves Claude Code took the condition.
+        const row = chat.locator('[data-agent-chat-goal]');
+        await expect(row).toHaveAttribute('data-agent-chat-goal', 'active');
+        await expect(row).toContainText('the fixtures pass');
         await page.screenshot({ path: testInfo.outputPath('claude-goal-set.png') });
     } finally {
         await closeAppQuietly(running.app);

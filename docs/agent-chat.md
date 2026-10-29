@@ -1544,6 +1544,12 @@ error` warning drop it.
   only printed the goal's status keep it, with the turn's time added to `timeUsedSeconds`.
 - The goal carries `pausable: false`, so no Client offers Pause: Claude Code's `/goal pause` would set
   a goal named `pause`. Clear sends `/goal clear`.
+- Claude Code's SDK mode holds a slash command until the running query ends (only its interactive
+  `/goal` runs beside a turn), and the goal's query runs until the condition is met, so a clear that
+  waited in the follow-up queue would never land. While a goal is set and a turn runs, `/goal clear`
+  stops that turn (labeled as the user's Stop), waits for it to end, and then runs at once
+  (`AgentChatProviderSession.stopsTurnForCommand`); the follow-up queue is not paused, so queued
+  messages go out after the clear. Without a goal, `/goal clear` waits like any other command.
 - A Chat reopened from history (a Server Core restart, or a switch from the Terminal) reads the
   transcript's goal records in order (`claude-history.ts`): a `goal_status` attachment with
   `met: false` (written when the goal is set and after each check that found it unmet) or a

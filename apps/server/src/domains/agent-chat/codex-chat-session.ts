@@ -47,7 +47,6 @@ import {
     CodexThumbnails,
     codexUserInput,
 } from './codex-input';
-import { didInterruptTimeout } from './codex-interrupt';
 import { loadCodexItemTimes } from './codex-item-times';
 import { mapCodexErrorNotice, mapCodexItem, mapCodexPlan } from './codex-items';
 import { readCodexMcpServer } from './codex-mcp-servers';
@@ -60,6 +59,7 @@ import { finishedTurnOperations, historyOperations } from './codex-turns';
 import { codexTurnFailure, CodexUsageLimits } from './continuation/codex-usage-limit';
 import { applyCodexNotice } from './feedback/codex-feedback';
 import { CodexGoals } from './goals/codex-goals';
+import { didInterruptTimeout } from './interrupt/codex-interrupt';
 import { JsonRpcConnection } from './json-rpc-connection';
 import { forkCodexThread, revertCodexThread } from './rewind/codex-rewind';
 import { CodexSideQuestions } from './side-question/codex-side-question';

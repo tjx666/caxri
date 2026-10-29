@@ -30,11 +30,12 @@
  *
  * A message with images is answered with how many it received. `/compact` compacts the conversation, reporting `status:
  * compacting` first; `/compact break` fails with a compaction error and `/compact crash` exits mid-compaction. The CLI
- * reports `/compact`, `/review`, the built-in `/goal`, and the terminal-bound `/exit` as its commands. A message
- * steered with `priority: 'next'` is quoted with `[next]`. It lists an `opus` alias and a model without effort control;
- * `set_model` and an `effortLevel` flag setting change what the next init message and hook input report. Ultracode is a
- * flag setting offered only on models with effort control, and an effort change without an `ultracode` key turns it
- * off. A `fastMode` flag setting turns Fast mode on, which `initialize`, the init message, and the result report.
+ * reports `/compact`, `/review`, the built-in `/goal` (`fake-claude-goal.ts`), and the terminal-bound `/exit` as its
+ * commands. A message steered with `priority: 'next'` is quoted with `[next]`. It lists an `opus` alias and a model
+ * without effort control; `set_model` and an `effortLevel` flag setting change what the next init message and hook
+ * input report. Ultracode is a flag setting offered only on models with effort control, and an effort change without an
+ * `ultracode` key turns it off. A `fastMode` flag setting turns Fast mode on, which `initialize`, the init message, and
+ * the result report.
  *
  * A `side_question` control request is answered at once, even mid-turn (`fake-claude-side.ts`).
  *
@@ -59,6 +60,7 @@ import readline from 'node:readline';
 
 import { didRunApprovalScenario } from './fake-claude-approvals.ts';
 import { didRunCompactingTurn, runCompactCommand } from './fake-claude-compaction.ts';
+import { didRunGoalCommand } from './fake-claude-goal.ts';
 import type { FakeClaudeIo, FakeClaudeUsage, QueuedTurn } from './fake-claude-io.ts';
 import { queuedTurn } from './fake-claude-io.ts';
 import {
@@ -70,7 +72,12 @@ import {
     hookCallbackRequest,
     resolveFakeClaudeModel,
 } from './fake-claude-models.ts';
-import { streamBrowserSteps, streamPacedReply, streamPlannedReply } from './fake-claude-replies.ts';
+import {
+    didStreamTable,
+    streamBrowserSteps,
+    streamPacedReply,
+    streamPlannedReply,
+} from './fake-claude-replies.ts';
 import { resumedLeaf, rewindFiles } from './fake-claude-rewind.ts';
 import { loadFakeClaudeScriptOrExit } from './fake-claude-script.ts';
 import { answerSideQuestion } from './fake-claude-side.ts';
@@ -394,6 +401,7 @@ async function runTurn({ text, content, priority, uuid, isAuto = false }: Queued
     await fireHook('UserPromptSubmit', { prompt: text });
     if (await script?.didRunTurn(scenarioIo, startedAt, text, isControlled)) return;
     state.usage = undefined;
+    if (await didRunGoalCommand(scenarioIo, startedAt, text)) return;
     if (text.trimStart().startsWith('/compact')) {
         system('status', { status: 'compacting' });
         if (text.includes('crash')) exitProcess(1);
@@ -429,25 +437,7 @@ async function runTurn({ text, content, priority, uuid, isAuto = false }: Queued
         return;
     }
     if (await didRunApprovalScenario(scenarioIo, startedAt, text)) return;
-    if (text.includes('table')) {
-        await didStreamFully(
-            [
-                'Here are the options:',
-                '',
-                '| Option | Cost |',
-                '| --- | --- |',
-                '| Safe | Low |',
-                '| Fast | High |',
-                '',
-                '```ts',
-                'const choice = "Safe";',
-                '```',
-            ].join('\n'),
-            0,
-        );
-        result(startedAt, 'done');
-        return;
-    }
+    if (await didStreamTable(scenarioIo, startedAt, text)) return;
     if (await didRunCompactingTurn(scenarioIo, startedAt, text)) return;
     if (text.includes('use chrome')) {
         await streamBrowserSteps(scenarioIo);

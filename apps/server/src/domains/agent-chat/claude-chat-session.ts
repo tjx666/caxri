@@ -68,6 +68,8 @@ import { onClaudeApiRetry, onClaudeCompactBoundary, onClaudeStatus } from './cla
 import { ClaudeTasks } from './claude-tasks';
 import { applyClaudeToolResults, ClaudeToolClock } from './claude-tool-results';
 import { ClaudeTurns } from './claude-turns';
+import { isClaudeGoalClearDuringTurn } from './goals/claude-goals';
+import { didClaudeInterruptTimeout, stopClaudeTurn } from './interrupt/claude-interrupt';
 import type { ClaudeChatSettings } from './launch-settings';
 import { claudeChatSettings } from './launch-settings';
 import { ProviderProcess } from './provider-process';
@@ -84,12 +86,6 @@ import { askClaudeSideQuestion } from './side-question/claude-side-question';
  * than Codex's.
  */
 const INITIALIZE_TIMEOUT_MS = 30_000;
-
-/**
- * An interrupt that Claude Code never acknowledges stops the process instead, so the Chat cannot stay stuck in a
- * running turn.
- */
-const INTERRUPT_TIMEOUT_MS = 10_000;
 
 /**
  * The frame types that carry a subagent's own conversation. The CLI also stamps `parent_tool_use_id` on a running Bash
@@ -473,14 +469,23 @@ class ClaudeChatSession implements AgentChatProviderSession {
         return Promise.resolve();
     }
 
-    runCommand(
+    stopsTurnForCommand(name: string, arguments_: string | undefined): boolean {
+        return isClaudeGoalClearDuringTurn(this.options.read(), name, arguments_);
+    }
+
+    async runCommand(
         name: string,
         arguments_: string | undefined,
         options?: ChatInputOptions,
     ): Promise<void> {
+        if (this.stopsTurnForCommand(name, arguments_))
+            await stopClaudeTurn(
+                this.turns.nextEnd(),
+                () => this.interrupt(),
+                this.process?.exited,
+            );
         const prompt = slashCommandPrompt(name, arguments_);
         this.submit(prompt, [], { ...options, isHidden: isClaudeCompactCommand(prompt) });
-        return Promise.resolve();
     }
 
     continueAfterUsageLimit(): Promise<void> {
@@ -530,12 +535,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
         if (!this.options.read().activeTurnId) return;
         const stream = this.requireOpen();
         this.turns.isInterruptRequested = true;
-        try {
-            await withTimeout(stream.interrupt(), INTERRUPT_TIMEOUT_MS);
-        } catch (error) {
-            if (error instanceof CaxriError && error.code === 'TIMEOUT') await this.close();
-            // Otherwise the turn already ended; its `result` settles the projection.
-        }
+        if (await didClaudeInterruptTimeout(stream)) await this.close();
     }
 
     async stopTask(taskId: string): Promise<void> {

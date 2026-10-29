@@ -5,12 +5,9 @@ import { agentChatTextWithSessionMentions, parseAgentChatPathReferences } from '
 
 import { useContextMenu } from '../../../hooks/use-context-menu';
 import { translate } from '../../../i18n';
+import { changeAgentChatGoal } from '../activity/agent-chat-goal-commands';
 import { cachedAgentChatSnapshot } from '../agent-chat-client';
-import {
-    agentChatRestoreKey,
-    changeAgentChatGoal,
-    useAgentChatRestoreStore,
-} from '../agent-chat-commands';
+import { agentChatRestoreKey, useAgentChatRestoreStore } from '../agent-chat-commands';
 import { isAgentChatGoalOffered } from '../composer-input/agent-chat-slash-commands';
 import {
     agentChatSelectionInside,

@@ -89,3 +89,33 @@ describe('Agent Chat goals with a fake Codex app-server', () => {
         await service.interrupt(terminal.id);
     });
 });
+
+describe('Agent Chat goals with a fake Claude Code CLI', () => {
+    it('clears a goal during its own turn by stopping that turn instead of queueing the clear', async () => {
+        const { service, terminal, until } = await fixture({ provider: 'claude' });
+        await service.runCommand(terminal.id, 'goal', 'All tests pass');
+        await until(
+            (snapshot) =>
+                snapshot.activeTurnId !== undefined &&
+                snapshot.goal?.objective === 'All tests pass',
+        );
+        const goalTurnId = service.read(terminal.id).activeTurnId;
+
+        await service.runCommand(terminal.id, 'goal', 'clear');
+        expect(service.read(terminal.id).queue ?? []).toEqual([]);
+        const cleared = await until(
+            (snapshot) => snapshot.goal === undefined && !snapshot.activeTurnId,
+        );
+        expect(cleared.turns.find((turn) => turn.id === goalTurnId)).toMatchObject({
+            status: 'interrupted',
+            stoppedBy: 'user',
+        });
+
+        // Without a goal, a clear during a turn stops nothing and waits its turn like any command.
+        await service.send(terminal.id, { text: 'slow please' });
+        await until((snapshot) => snapshot.activeTurnId !== undefined);
+        await service.runCommand(terminal.id, 'goal', 'clear');
+        expect(service.read(terminal.id).queue).toMatchObject([{ text: '/goal clear' }]);
+        await service.interrupt(terminal.id);
+    });
+});

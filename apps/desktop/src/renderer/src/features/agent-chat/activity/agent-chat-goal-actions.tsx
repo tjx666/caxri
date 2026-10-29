@@ -7,7 +7,7 @@ import { Maximize2, Minimize2, Pause, Play, Trash2 } from 'lucide-react';
 import { Button } from '../../../components/ui/button';
 import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
-import { changeAgentChatGoal } from '../agent-chat-commands';
+import { changeAgentChatGoal } from './agent-chat-goal-commands';
 
 function GoalAction({
     children,
