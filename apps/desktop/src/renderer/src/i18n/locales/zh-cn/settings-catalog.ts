@@ -110,6 +110,14 @@ export const settingsCatalog: TranslatedNamespace<typeof source> = {
     'settings.primarySidebar.translucent.inactive.themeLightSystemDark':
         '未生效：当前主题为浅色，而 macOS 使用深色外观。',
 
+    'settings.zen.fullScreen.title': '进入 Zen 模式时全屏',
+    'settings.zen.fullScreen.description':
+        '进入 Zen 模式时同时让窗口进入原生全屏；退出 Zen 模式时一并退出全屏，除非进入前窗口已经是全屏。',
+
+    'settings.zen.restore.title': '启动时恢复 Zen 模式',
+    'settings.zen.restore.description':
+        '关闭 Caxri 时处于 Zen 模式，重新打开后仍进入 Zen 模式。关闭后每次启动都显示完整布局。',
+
     'settings.statusBar.usage.showFiveHourLimit.title': '在状态栏显示 5 小时限额',
     'settings.statusBar.usage.showFiveHourLimit.description':
         '在 Agent 用量标签中，于每周限额旁同时显示 5 小时套餐限额。悬停卡片始终列出全部限额。',

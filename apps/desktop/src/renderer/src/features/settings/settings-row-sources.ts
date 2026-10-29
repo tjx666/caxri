@@ -249,6 +249,8 @@ export const settingRowSources: SettingRowSource[] = [
     specRow('primarySidebar.autoCollapseProjects'),
     specRow('primarySidebar.showSubagents'),
     specRow('primarySidebar.translucent'),
+    specRow('zen.fullScreen'),
+    specRow('zen.restore'),
     specRow('statusBar.usage.showFiveHourLimit'),
     specRow('workbench.newWorktreeBehavior'),
     specRow('workbench.confirmWorktreeAuthorization'),

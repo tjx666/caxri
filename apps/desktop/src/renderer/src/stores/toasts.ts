@@ -10,10 +10,12 @@ import { ToastCopyLabel } from '../components/toast-copy-label';
 import type { Translate, TranslationKey } from '../i18n';
 import { translate } from '../i18n';
 import { caxri } from '../lib/caxri';
+import { useChromeLayoutStore } from './chrome-layout';
 import type { NotificationType } from './notifications';
 import {
     canMuteNotification,
     isNotificationMuted,
+    isSilencedInZenMode,
     notificationTypes,
     recordNotification,
     syncNotificationSettings,
@@ -154,6 +156,7 @@ export function pushToast(kind: ToastKind, message: string, options?: ToastOptio
     )
         recordNotification(input);
     if (isNotificationMuted(input)) return;
+    if (useChromeLayoutStore.getState().zenMode && isSilencedInZenMode(input)) return;
     const active = getToasts();
     const activeIds = new Set(active.map((entry) => entry.id));
     for (const key of activeReminderToasts.keys()) {

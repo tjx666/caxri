@@ -251,6 +251,11 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
             }
             case 'window.fullScreen.get':
                 return { isFullScreen: requestWindowOr(mainWindow).isFullScreen() };
+            case 'window.fullScreen.set': {
+                const window = requestWindowOr(mainWindow);
+                window.setFullScreen(request.params.isFullScreen);
+                return { isFullScreen: request.params.isFullScreen };
+            }
             case 'argv.update':
                 return {
                     value: await (options.updateArgvConfig

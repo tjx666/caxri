@@ -154,6 +154,10 @@ const environmentMethodScopes = {
      * Reads the calling window's own fullscreen state, so its title bar restores the right chrome after a reload.
      */
     'window.fullScreen.get': 'any',
+    /**
+     * Zen Mode enters and leaves full screen for the calling window only.
+     */
+    'window.fullScreen.set': 'any',
     'window.reportViewing': 'any',
     /**
      * Tab tear-off exists only in the local Workbench; an SSH Host window is a single window.

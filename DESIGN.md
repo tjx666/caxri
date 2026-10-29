@@ -333,12 +333,19 @@ tab survives only for the Renderer lifetime and never creates a Project or Sessi
 state.
 
 **Zen Mode** (`view.toggleZenMode`, `Cmd+K Z`): hides the Primary Side Bar, Secondary Side Bar,
-Panel, pane tab bars, and status bar so only the current Chat or Terminal remains. It is a
-window-local overlay, never persisted: each surface keeps its stored visibility, so leaving Zen
+Panel, pane tab bars, and status bar so only the current Chat or Terminal remains. It is an
+overlay on the stored layout: each surface keeps its stored visibility, so leaving Zen
 restores the layout exactly. Toggling or revealing any hidden surface (its toggle, a focus or open
 command) leaves Zen first, so a command never acts on a surface the user cannot see. In a windowed
-layout the top 36px stays a drag band for the traffic lights; full screen drops it. Toasts still
-appear.
+layout the top 36px stays a drag band for the traffic lights; full screen drops it. With
+`zen.fullScreen` (default on) entering Zen also enters native full screen, and leaving Zen by any
+path gives it back only when Zen took it. With `zen.restore` (default on) a window that was in Zen
+when it closed starts in Zen again (one device-wide flag, like the chrome layout, so the last window to toggle Zen decides). A ghost `Exit Zen Mode` icon button in the top right
+corner is invisible until the pointer reaches it or keyboard focus lands on it; Escape does not
+exit Zen, because it stops a running Chat turn and is an application key in the Terminal. Toasts
+that report a fact or a degradation (`info`, `success`, `warning` with no follow-up button) do not
+pop up in Zen but still enter the notification history; failures, persistent notices, and any toast
+with a follow-up button still appear. Approvals and questions are Chat cards, never toasts.
 
 **Status bar**: `--surface` background, top hairline, `meta` text in `--muted`. The left side
 shows Project and Git context, plus the delivery chips the current branch resolves to: its pull

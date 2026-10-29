@@ -14,6 +14,7 @@ import { environmentMonitorSettingsSpec } from './environment-monitor-settings.j
 import { languageSettingsSpec } from './language-settings-spec.js';
 import { primarySidebarSettingsSpec } from './primary-sidebar-settings-spec.js';
 import { themeSettingsSpec } from './theme-settings-spec.js';
+import { zenSettingsSpec } from './zen-settings-spec.js';
 
 export const settingCategories = [
     { id: 'general', title: 'General' },
@@ -184,6 +185,7 @@ export const settingsSpec = [
     },
     ...themeSettingsSpec,
     ...primarySidebarSettingsSpec,
+    ...zenSettingsSpec,
     {
         kind: 'boolean',
         key: 'statusBar.usage.showFiveHourLimit',

@@ -318,6 +318,7 @@ const expectedLanes: Record<string, ControlLane> = {
     'updates.install': 'ordered',
     'viewContainers.cancelRequest': 'ordered',
     'window.closePresence': 'ordered',
+    'window.fullScreen.set': 'ordered',
     'window.openSessions.moveToWindow': 'ordered',
     'window.openSessions.release': 'ordered',
     'window.reportPresence': 'ordered',

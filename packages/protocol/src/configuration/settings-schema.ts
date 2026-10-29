@@ -230,6 +230,8 @@ export const appSettingsSchema = z.object({
         .default(spec['primarySidebar.autoCollapseProjects'].default),
     'primarySidebar.showSubagents': booleanField(spec['primarySidebar.showSubagents']),
     'primarySidebar.translucent': booleanField(spec['primarySidebar.translucent']),
+    'zen.fullScreen': booleanField(spec['zen.fullScreen']),
+    'zen.restore': booleanField(spec['zen.restore']),
     'statusBar.usage.showFiveHourLimit': booleanField(spec['statusBar.usage.showFiveHourLimit']),
     'window.zoomLevel': integerField(spec['window.zoomLevel']),
     'workbench.fontFamily': nullableStringField(spec['workbench.fontFamily']),

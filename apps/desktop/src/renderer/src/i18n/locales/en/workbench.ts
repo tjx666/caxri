@@ -11,6 +11,7 @@ export const workbench = {
     'workbench.welcome.keyboardShortcuts': 'Keyboard Shortcuts',
     'workbench.welcome.documentation': 'Documentation',
     'workbench.closeSettings': 'Close Settings',
+    'workbench.exitZenMode': 'Exit Zen Mode',
     'workbench.resizePanel': 'Resize Panel',
     'workbench.resizePrimarySidebar': 'Resize Primary Side Bar',
     'workbench.resizeSecondarySidebar': 'Resize Secondary Side Bar',

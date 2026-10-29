@@ -92,3 +92,22 @@ describe('window.fullScreen.get', () => {
         });
     });
 });
+
+describe('window.fullScreen.set', () => {
+    it('changes the fullscreen state of the window that asked, not the main window', async () => {
+        const setMain = vi.fn();
+        const setBot = vi.fn();
+        const handle = handler(
+            () => ({ isDestroyed: () => false, setFullScreen: setMain }) as never,
+        );
+        const bot = { isDestroyed: () => false, setFullScreen: setBot } as never;
+
+        await expect(
+            runInRequestWindow(bot, () =>
+                handle({ method: 'window.fullScreen.set', params: { isFullScreen: true } }),
+            ),
+        ).resolves.toEqual({ isFullScreen: true });
+        expect(setBot).toHaveBeenCalledWith(true);
+        expect(setMain).not.toHaveBeenCalled();
+    });
+});
