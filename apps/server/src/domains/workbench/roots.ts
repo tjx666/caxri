@@ -16,6 +16,7 @@ import type { CaxriDatabase } from '../db';
 import type { GitService, GitWorktreeTopology } from '../git';
 import { assertInsideRoot } from '../path-security';
 import type { SessionTranscriptContext } from '../session';
+import { ObservedAgentCwds } from './observed-agent-cwds';
 import type { WorktreeProvenanceScope } from './provenance';
 import {
     AgentWorktreeAttribution,
@@ -36,8 +37,8 @@ import {
 import type { TopologyValidation } from './sweep';
 import { sweepWorkbenchRoots } from './sweep';
 import type { SweepTimer } from './sweep-timing';
+import { returnFromLeftWorktree } from './worktree-return';
 
-const MAX_OBSERVED_AGENT_CWDS = 256;
 const MAX_PENDING_DELETION_VALIDATIONS = 256;
 const SHELL_VALIDATION_SETTLE_MS = 100;
 const workbenchRootLogEvents = logEventCatalog.workbenchRoot;
@@ -66,11 +67,7 @@ interface WorkbenchRootServiceOptions {
 export class WorkbenchRootService {
     private readonly candidates = new Map<string, WorkbenchCandidate>();
     private readonly deletionValidations: BoundedSerialBatcher<string>;
-    /**
-     * Last working directory each Terminal's Agent reported. Every hook event carries one, so this map exists to make
-     * the overwhelmingly common "unchanged" case a pure lookup instead of a Git read.
-     */
-    private readonly observedAgentCwds = new Map<string, string>();
+    private readonly observedAgentCwds = new ObservedAgentCwds();
     private readonly topologyReads = new SingleFlight<string, GitWorktreeTopology>();
     private readonly worktreeAttribution: AgentWorktreeAttribution;
     private closed = false;
@@ -296,20 +293,6 @@ export class WorkbenchRootService {
         return candidate;
     }
 
-    private rememberObservedAgentCwd(terminalId: string, agentCwd: string): void {
-        this.observedAgentCwds.delete(terminalId);
-        this.observedAgentCwds.set(terminalId, agentCwd);
-        while (this.observedAgentCwds.size > MAX_OBSERVED_AGENT_CWDS) {
-            const oldest = this.observedAgentCwds.keys().next().value;
-            if (!oldest) break;
-            this.observedAgentCwds.delete(oldest);
-        }
-    }
-
-    private isCurrentObservation(terminalId: string, reported: string): boolean {
-        return this.observedAgentCwds.get(terminalId) === reported;
-    }
-
     /**
      * Treats the reported directory as an unproven claim throughout: it becomes durable only after canonicalization and
      * a forced topology read agree that it is a linked worktree root of the owning Project's repository.
@@ -333,8 +316,22 @@ export class WorkbenchRootService {
          * divergence so provider state resolves against the launch root again.
          */
         if (canonical === terminal.cwd) {
-            if (!this.isCurrentObservation(signal.terminalId, reported)) return;
+            if (!this.observedAgentCwds.isCurrent(signal.terminalId, reported)) return;
             updateObservedAgentCwd(this.options, terminal, undefined);
+            returnFromLeftWorktree(
+                this.options.database,
+                this.options.behavior(),
+                { sessionId: session.id, surface: terminal.surface, left: terminal.agentCwd },
+                (projectId) =>
+                    this.commitSelection(
+                        session.id,
+                        projectId,
+                        'selected',
+                        undefined,
+                        performance.now(),
+                        'agent',
+                    ),
+            );
             return;
         }
         const topology = await this.loadTopology(owner.rootPath);
@@ -348,7 +345,7 @@ export class WorkbenchRootService {
             current.sessionId !== terminal.sessionId ||
             current.cwd !== terminal.cwd ||
             currentSession.projectId !== session.projectId ||
-            !this.isCurrentObservation(signal.terminalId, reported)
+            !this.observedAgentCwds.isCurrent(signal.terminalId, reported)
         )
             return;
         updateObservedAgentCwd(this.options, current, canonical);
@@ -359,7 +356,7 @@ export class WorkbenchRootService {
                 sessionId: currentSession.id,
             },
             () =>
-                this.isCurrentObservation(signal.terminalId, reported) &&
+                this.observedAgentCwds.isCurrent(signal.terminalId, reported) &&
                 isSameWorkbenchBinding(
                     initiatingBinding,
                     this.options.database.getSessionWorkbenchBinding(session.id),
@@ -455,7 +452,7 @@ export class WorkbenchRootService {
     }
 
     retireTerminal(terminalId: string): void {
-        this.observedAgentCwds.delete(terminalId);
+        this.observedAgentCwds.forget(terminalId);
         this.worktreeAttribution.retireTerminal(terminalId);
     }
 
@@ -470,18 +467,19 @@ export class WorkbenchRootService {
      *
      * @see https://github.com/tjx666/caxri/issues/575
      */
-    observeAgentCwd(signal: AgentLifecycleSignal): void {
+    observeAgentCwd(signal: AgentLifecycleSignal): Promise<void> | undefined {
         const reported = signal.agentCwd;
         if (!reported) return;
-        if (this.observedAgentCwds.get(signal.terminalId) === reported) return;
+        if (this.observedAgentCwds.isCurrent(signal.terminalId, reported)) return;
         /**
          * Remember before validating. A reported directory that fails Git validation must not re-enter the queue on
          * every subsequent hook event of the same launch.
          */
-        this.rememberObservedAgentCwd(signal.terminalId, reported);
-        // The hook callback is synchronous; `runQueued` already logs the failure, and a lost reconciliation is retried
-        // by the next divergent report.
-        void this.runQueued(() => this.reconcileAgentCwd(signal, reported)).catch(() => {});
+        this.observedAgentCwds.remember(signal.terminalId, reported);
+        // `runQueued` already logs the failure, and a lost reconciliation is retried by the next divergent report. A Chat
+        // hook awaits the returned promise; Terminal hooks ignore it.
+        // eslint-disable-next-line unicorn/prefer-await -- the swallowed rejection keeps a caller that ignores this from crashing
+        return this.runQueued(() => this.reconcileAgentCwd(signal, reported)).catch(() => {});
     }
 
     async observeShellToolStarted(

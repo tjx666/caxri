@@ -1937,8 +1937,17 @@ embeds, and `PreToolUse` waits (up to the bridge's 2 second budget) until Server
 before-snapshot. A Chat Session therefore follows a worktree its Agent creates under
 `workbench.newWorktreeBehavior`, exactly as a Terminal Session does. A Chat does not report the
 hook `cwd` as `agentCwd`: its transcript is located through `agentProviderStateRoot`, and a Bash
-`cd` moves the hook cwd without moving the transcript, so Chat resume would break. Entering an
-existing worktree with `EnterWorktree` is therefore not followed in a Chat yet. Codex and Grok Chats
+`cd` moves the hook cwd without moving the transcript, so Chat resume would break. Claude Code's
+built-in `EnterWorktree` and `ExitWorktree` do move the transcript, so a separate `PostToolUse`
+callback (`apps/server/src/domains/agent-chat/worktree/enter-worktree-hooks.ts`, matcher
+`^(EnterWorktree|ExitWorktree)$`) reports the `worktreePath` or `originalCwd` of the SDK's tool
+output as `agentCwd` on a `shellToolFinished` event, ignoring subagent calls (`agent_id`). Server
+Core proves it against the Project's Git worktree topology, then follows it under
+`workbench.newWorktreeBehavior` exactly as a Terminal does; `ExitWorktree` clears the divergence and
+returns a Session still rooted on that worktree to its owning Project. The hook waits (bounded to 2
+seconds) until the value is durable. Because the transcript now lives under the worktree's provider
+directory, a Chat start or resume launches Claude Code in `agentProviderStateRoot`, so the
+conversation is found again after a restart. Codex and Grok Chats
 expose no blocking pre-tool callback and do not report these phases.
 
 A Claude Chat whose turn ends while a background subagent, workflow, or shell task is still running reports

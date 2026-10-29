@@ -369,6 +369,7 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
                 coordinator,
                 workbenchRoots,
                 signal,
+                { settleAgentCwd: true },
             );
             if (decision === 'accepted') options.onLifecycleSignal?.(signal);
             return decision;

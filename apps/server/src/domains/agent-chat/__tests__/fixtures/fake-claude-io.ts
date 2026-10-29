@@ -38,6 +38,14 @@ export interface FakeClaudeIo {
      * Sends a control request to the SDK and resolves with its response.
      */
     controlRequest(request: Json): Promise<Json>;
+    /**
+     * Runs every callback the SDK registered for a hook event, as the CLI does around a tool.
+     */
+    fireHook(event: string, fields: Json): Promise<void>;
+    /**
+     * The path the session transcript is written to; a path argument moves it there, as `EnterWorktree` does.
+     */
+    transcript(next?: string): string;
     isInterrupted(): boolean;
     /**
      * Records that the SDK interrupted the turn, as a denied approval with `interrupt: true` does.
