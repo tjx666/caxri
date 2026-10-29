@@ -25,6 +25,13 @@ interface ExtensionTextEntry {
 const NUMERIC_PLACEHOLDERS: ReadonlySet<string> = new Set(['count', 'number', 'shown', 'total']);
 
 /**
+ * Placeholders that hold a list of names inside one sentence of a longer composed message (`lint, e2e` in `2 of 9
+ * checks failed: lint, e2e. Squash and merge.`) stop at a sentence boundary, so the sentence cannot swallow its
+ * neighbours.
+ */
+const SENTENCE_PLACEHOLDERS: ReadonlySet<string> = new Set(['names']);
+
+/**
  * Placeholders that only ever hold one of the Server's provider names match that closed set, so a templated sentence
  * such as `{{provider}} failed` cannot swallow an unrelated row (a check or branch that happens to end in "failed").
  * `provider` is the CLI's display name and `service` is the service behind it; both stay English proper nouns.
@@ -60,9 +67,11 @@ function compileEntry(key: TranslationKey, template: string): ExtensionTextEntry
         source += escapeRegExp(template.slice(cursor, match.index));
         source += NUMERIC_PLACEHOLDERS.has(match[1])
             ? String.raw`(\d+)`
-            : match[1] in PROVIDER_PLACEHOLDERS
-              ? `(${PROVIDER_PLACEHOLDERS[match[1]]})`
-              : String.raw`([\s\S]+?)`;
+            : SENTENCE_PLACEHOLDERS.has(match[1])
+              ? String.raw`((?:(?!\. [A-Z])[\s\S])+?)`
+              : match[1] in PROVIDER_PLACEHOLDERS
+                ? `(${PROVIDER_PLACEHOLDERS[match[1]]})`
+                : String.raw`([\s\S]+?)`;
         names.push(match[1]);
         cursor = match.index + match[0].length;
     }
@@ -140,4 +149,26 @@ export function localizeExtensionParts(text: string, t: Translate): string {
                 .join(', ');
         })
         .join(' · ');
+}
+
+/**
+ * Translates prose the extension composed from whole sentences (`Checks are still running. Squash and merge. A merged
+ * pull request cannot be undone from Caxri.`), such as a confirmation message or an action tooltip. The whole string is
+ * tried first; otherwise each sentence is, and one that matches nothing (a branch name, a check name) stays as sent.
+ * Chinese sentences end in a full-width stop and need no joining space.
+ */
+export function localizeExtensionSentences(text: string, t: Translate): string {
+    const whole = localizeExtensionText(text, t);
+    if (whole !== text) return whole;
+    const sentences = text.split(/(?<=[.?]) (?=[A-Z])/);
+    if (sentences.length === 1) return text;
+    return sentences
+        .map((sentence) => localizeExtensionText(sentence, t))
+        .reduce(
+            (joined, sentence) =>
+                joined === ''
+                    ? sentence
+                    : `${joined}${/[。？]$/.test(joined) ? '' : ' '}${sentence}`,
+            '',
+        );
 }

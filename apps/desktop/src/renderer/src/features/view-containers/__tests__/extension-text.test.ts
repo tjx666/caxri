@@ -6,7 +6,12 @@ import type { Translate } from '../../../i18n';
 import { withLocale } from '../../../i18n';
 import { viewContainersExtensionText } from '../../../i18n/locales/en/view-containers-extension-text';
 import { localeDictionaries } from '../../../i18n/resources';
-import { extensionTextKey, localizeExtensionParts, localizeExtensionText } from '../extension-text';
+import {
+    extensionTextKey,
+    localizeExtensionParts,
+    localizeExtensionSentences,
+    localizeExtensionText,
+} from '../extension-text';
 import { localizeTreeChildren } from '../extension-tree-text';
 import {
     localizeActionEffect,
@@ -259,5 +264,102 @@ describe('Status tree localization', () => {
             },
         });
         expect(localizeTreeChildren('vendor.view', children, zh)).toBe(children);
+    });
+});
+
+describe('Status panel merge, review, check, and deployment copy', () => {
+    it('translates a composed merge confirmation sentence by sentence', () => {
+        expect(
+            localizeExtensionSentences(
+                '1 of 9 check failed: lint. Squash and merge into main. A merged pull request cannot be undone from Caxri.',
+                zh,
+            ),
+        ).toBe(
+            '9 项检查中有 1 项失败：lint。压缩合并到 main。已合并的 Pull Request 无法在 Caxri 中撤销。',
+        );
+        expect(localizeExtensionSentences('3 of 9 checks failed: a, b, c, and 2 more.', zh)).toBe(
+            '9 项检查中有 3 项失败：a, b, c，另有 2 项。',
+        );
+        expect(localizeExtensionSentences('Fix the build. Then ship.', zh)).toBe(
+            'Fix the build. Then ship.',
+        );
+    });
+
+    it('translates review, check, deployment, and previous-commit rows and keeps data', () => {
+        for (const [english, chinese] of [
+            ['2 unresolved', '2 项未解决'],
+            ['No comments', '没有评论'],
+            ['5 checks running or queued', '5 项检查运行中或排队中'],
+            ['1 failing · 3 running', '1 项失败 · 3 项运行中'],
+            ['Production · Latest', '生产 · 最新'],
+            ['2 on production', '生产环境 2 个'],
+            ['4 on feat/x', 'feat/x 上 4 个'],
+            ['Previous commit: Fix typo', '上一个提交：Fix typo'],
+            ['3 ignored checks hidden', '已隐藏 3 项被忽略的检查'],
+        ] as const)
+            expect(localizeExtensionParts(english, zh), english).toBe(chinese);
+    });
+
+    it('translates action chrome and hover rows but not data rows', () => {
+        const item: TreeItemDto = {
+            handle: 'pr',
+            label: '#7 Add widget',
+            accessibilityLabel: '#7 Add widget',
+            collapsibleState: 'none',
+            tooltip: {
+                kind: 'rich',
+                title: '#7 Add widget',
+                rows: [
+                    { label: 'merge', value: 'Has conflicts' },
+                    { label: 'branch', value: 'Preview' },
+                ],
+            },
+            actions: [
+                {
+                    command: {
+                        id: 'caxri.project-status.mergePullRequest',
+                        title: 'Merge Pull Request',
+                    },
+                    icon: { kind: 'builtin', id: 'git-merge' },
+                    label: 'Merge',
+                    tooltip: 'Squash and merge into main.',
+                    confirmation: {
+                        title: 'Merge pull request #7?',
+                        message:
+                            'Checks are still running. Squash and merge. A merged pull request cannot be undone from Caxri.',
+                        confirmLabel: 'Merge Anyway',
+                    },
+                    feedback: { success: 'Merged #7', failure: "Couldn't merge #7" },
+                },
+            ],
+        };
+        const [localized] = localizeTreeChildren(
+            'caxri.project-status.overview',
+            new Map([['__root__', [item]]]),
+            zh,
+        ).get('__root__')!;
+        expect(localized).toMatchObject({
+            label: '#7 Add widget',
+            tooltip: {
+                rows: [
+                    { label: '合并', value: '存在冲突' },
+                    { label: '分支', value: 'Preview' },
+                ],
+            },
+            actions: [
+                {
+                    command: { title: '合并 Pull Request' },
+                    label: '合并',
+                    tooltip: '压缩合并到 main。',
+                    confirmation: {
+                        title: '合并 Pull Request #7？',
+                        message:
+                            '检查仍在运行。压缩合并。已合并的 Pull Request 无法在 Caxri 中撤销。',
+                        confirmLabel: '仍然合并',
+                    },
+                    feedback: { success: '已合并 #7', failure: '无法合并 #7' },
+                },
+            ],
+        });
     });
 });
