@@ -25,11 +25,12 @@ export type PairingRouteParameters = Record<string, string | string[] | undefine
  */
 export const pairingLinkFromRouteParameters = (parameters: PairingRouteParameters): string => {
     const keys = Object.keys(parameters);
-    const hasRelay = relayRouteParameterNames.some((name) => keys.includes(name));
+    const hasRelay = relayRouteParameterNames.some((name) => name in parameters);
     const expectedNames: readonly string[] = hasRelay
         ? [...pairingRouteParameterNames, ...relayRouteParameterNames]
         : pairingRouteParameterNames;
-    if (keys.length !== expectedNames.length || keys.some((key) => !expectedNames.includes(key)))
+    const expected = new Set(expectedNames);
+    if (keys.length !== expected.size || keys.some((key) => !expected.has(key)))
         throw new MobilePairingError(
             'invalid-link',
             'Pairing route parameters do not match the protocol',
