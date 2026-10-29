@@ -4,7 +4,7 @@ import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import process from 'node:process';
 
-import type { AppSettings } from '@caxri/protocol';
+import type { AppSettings, LastDatabaseRebuild } from '@caxri/protocol';
 import { CAXRI_PROTOCOL_VERSION, getMethodSpec, isLogProcess, logProcesses } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog, redactLogValue, redactSecrets } from '@caxri/system';
@@ -41,6 +41,21 @@ export function normalizeHome(path: string): string {
         : path.startsWith(`${home}/`)
           ? `$HOME/${path.slice(home.length + 1)}`
           : path;
+}
+
+/**
+ * The latest clean-install cutoff rebuild for `host.status` and the diagnostics snapshot, with the backup path
+ * home-normalized, or `undefined` when none happened (or the cell is unreadable: a status read must never fail on it).
+ */
+export function lastDatabaseRebuildReport(database: {
+    getAppState: (key: 'lastDatabaseRebuild') => LastDatabaseRebuild | undefined;
+}): LastDatabaseRebuild | undefined {
+    try {
+        const rebuild = database.getAppState('lastDatabaseRebuild');
+        return rebuild && { ...rebuild, backupPath: normalizeHome(rebuild.backupPath) };
+    } catch {
+        return undefined;
+    }
 }
 
 function json(value: unknown): string {
@@ -394,6 +409,7 @@ export class DiagnosticsService {
      */
     async snapshot() {
         const logs = await this.readLogs();
+        const lastDatabaseRebuild = lastDatabaseRebuildReport(this.database);
         return {
             appVersion: process.env.CAXRI_APP_VERSION ?? 'unknown',
             protocolVersion: CAXRI_PROTOCOL_VERSION,
@@ -407,6 +423,7 @@ export class DiagnosticsService {
             performance: summarizePerformanceLogs(logs),
             ...(this.watchSnapshot && { watchers: this.watchSnapshot() }),
             caxriBot: botDiagnostics(this.database, logs),
+            ...(lastDatabaseRebuild && { lastDatabaseRebuild }),
         };
     }
 

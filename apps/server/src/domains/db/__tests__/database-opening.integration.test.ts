@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -131,6 +132,33 @@ describe('database opening report', () => {
             outcome: 'rebuilt',
             fromVersion: BASELINE_SCHEMA_VERSION - 1,
         });
+        expect(rebuilt.opening.droppedTableCount).toBeGreaterThan(0);
+    });
+
+    it('persists the latest rebuild with its existing backup, and nothing without one', async () => {
+        const path = await databasePath();
+        const fresh = open(path);
+        expect(fresh.database.appState.get('lastDatabaseRebuild')).toBeUndefined();
+        expect(fresh.opening.droppedTableCount).toBe(0);
+        fresh.database.database.pragma(`user_version = ${BASELINE_SCHEMA_VERSION - 1}`);
+        fresh.database.close();
+
+        const before = Date.now();
+        const rebuilt = open(path);
+        const record = rebuilt.database.appState.get('lastDatabaseRebuild');
+        rebuilt.database.close();
+
+        expect(record).toMatchObject({ fromVersion: BASELINE_SCHEMA_VERSION - 1 });
+        expect(record!.at).toBeGreaterThanOrEqual(before);
+        expect(record!.backupPath.startsWith(`${path}.v${BASELINE_SCHEMA_VERSION - 1}-`)).toBe(
+            true,
+        );
+        expect(existsSync(record!.backupPath)).toBe(true);
+
+        const reopened = open(path);
+        const kept = reopened.database.appState.get('lastDatabaseRebuild');
+        reopened.database.close();
+        expect(kept).toEqual(record);
     });
 
     it('counts the live Terminal and Agent processes an unclean shutdown left behind', async () => {

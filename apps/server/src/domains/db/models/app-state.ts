@@ -10,6 +10,7 @@ import {
     botHandoverSchema,
     CaxriError,
     identifierSchema,
+    lastDatabaseRebuildSchema,
     persistedWindowStateSchema,
     windowKeySchema,
     windowOpenSessionsSchema,
@@ -21,6 +22,11 @@ import type { CaxriDrizzleDatabase } from '../connection';
 import { appState } from '../schema';
 
 const appStateValueSchemas = {
+    /**
+     * Written by the clean-install cutoff rebuild itself (`connection.ts`), inside the rebuild transaction; only the
+     * latest rebuild is kept.
+     */
+    lastDatabaseRebuild: lastDatabaseRebuildSchema,
     lastSelectedProjectId: identifierSchema.nullable(),
     /**
      * Each Workbench window's Open Session, keyed by the window key Desktop Main mints. There is no global "selected

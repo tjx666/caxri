@@ -1,3 +1,4 @@
+import { homedir } from 'node:os';
 import process from 'node:process';
 
 import type { AppSettings } from '@caxri/protocol';
@@ -5,6 +6,7 @@ import {
     appSettingsSchema,
     defaultAppSettings,
     diagnosticsSnapshotSchema,
+    lastDatabaseRebuildSchema,
     methods,
 } from '@caxri/protocol';
 import { redactLogValue, redactSecrets } from '@caxri/system';
@@ -12,6 +14,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
     diagnosticSettingsFile,
+    lastDatabaseRebuildReport,
     normalizeHome,
     pickDiagnosticLogNames,
     summarizePerformanceLogs,
@@ -204,6 +207,41 @@ describe('diagnostics redaction', () => {
     ])('redacts common provider token format %s', (token) => {
         expect(redactSecrets(`failure ${token}`)).toBe('failure [REDACTED]');
         expect(redactLogValue(`failure ${token}`)).toBe('failure [REDACTED]');
+    });
+});
+
+describe('last database rebuild report', () => {
+    it('home-normalizes the backup path and stays within the snapshot and host.status schemas', () => {
+        const backupPath = `${homedir()}/Library/caxri.db.v54-20261001T000000Z.bak`;
+        const report = lastDatabaseRebuildReport({
+            getAppState: () => ({ at: 1_700_000_000_000, backupPath, fromVersion: 54 }),
+        });
+        expect(report).toEqual({
+            at: 1_700_000_000_000,
+            backupPath: '$HOME/Library/caxri.db.v54-20261001T000000Z.bak',
+            fromVersion: 54,
+        });
+        expect(lastDatabaseRebuildSchema.parse(report)).toEqual(report);
+        expect(
+            methods['host.status'].result.shape.lastDatabaseRebuild.safeParse(report).success,
+        ).toBe(true);
+        expect(diagnosticsSnapshotSchema.shape.lastDatabaseRebuild.safeParse(report).success).toBe(
+            true,
+        );
+    });
+
+    it('is absent when no rebuild happened or the cell is unreadable', () => {
+        expect(lastDatabaseRebuildReport({ getAppState: () => {} })).toBeUndefined();
+        expect(
+            lastDatabaseRebuildReport({
+                getAppState: () => {
+                    throw new Error('Invalid app state value');
+                },
+            }),
+        ).toBeUndefined();
+        expect(
+            methods['host.status'].result.shape.lastDatabaseRebuild.safeParse(undefined).success,
+        ).toBe(true);
     });
 });
 

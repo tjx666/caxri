@@ -8,7 +8,6 @@ import type {
     ServerRequest,
 } from '@caxri/protocol';
 import {
-    CAXRI_PROTOCOL_VERSION,
     CaxriError,
     isServerRequest,
     isTransientServerEvent,
@@ -42,6 +41,7 @@ import { createExtensionService } from './extensions/create-service';
 import { routeActiveContextChange, routeExtensionDomainEvent } from './extensions/domain-events';
 import type { ExtensionService } from './extensions/service';
 import { createDomainOperationForwarder } from './forward-domain-operation';
+import { readHostStatus } from './host-status';
 import { acceptHostStop } from './host-stop';
 import { createIdleExitConnectionTracker, createIdleTimeoutMonitor } from './idle-exit';
 import { isMobileControlRequest, resolveMobileAgentEndpoint } from './mobile';
@@ -377,24 +377,16 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                     return agentInbox.approve(request.params.messageId);
                 case 'agent.message.deny':
                     return agentInbox.deny(request.params.messageId);
-                case 'host.status': {
-                    const health = await domainService.request('app.health');
-                    return {
+                case 'host.status':
+                    return readHostStatus({
+                        buildId: options.buildId,
+                        clientCount: () => server?.clientCount() ?? 0,
+                        desktopRouter: () => desktopRouter,
+                        domainService,
                         profileId: lease.identity.profileId,
-                        version: options.version,
-                        ...(options.buildId && { buildId: options.buildId }),
-                        ...(process.env.CAXRI_GIT_COMMIT && {
-                            commit: process.env.CAXRI_GIT_COMMIT,
-                        }),
-                        pid: process.pid,
                         startedAt,
-                        clientCount: server?.clientCount() ?? 0,
-                        activePtyCount: health.activePtyCount,
-                        protocolVersion: CAXRI_PROTOCOL_VERSION,
-                        protocolCompatible: true,
-                        desktop: (await desktopRouter?.status()) ?? { state: 'offline' },
-                    };
-                }
+                        version: options.version,
+                    });
                 case 'desktop.status':
                     return (await desktopRouter?.status()) ?? { state: 'offline' };
                 case 'desktop.focus':

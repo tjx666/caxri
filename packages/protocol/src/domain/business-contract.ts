@@ -4,6 +4,7 @@ import { botRunStateSchema } from '../agent/bot/caxri-bot-contract.js';
 import { agentDelegationReceiptSchema } from '../agent/delegation/agent-delegation-contract.js';
 import { agentDelegationSettingsSchema } from '../agent/delegation/agent-delegation-settings.js';
 import { appSettingsSchema } from '../configuration/settings-schema.js';
+import { lastDatabaseRebuildSchema } from '../registry/database-rebuild.js';
 import { projectListForPrincipal, projectListResultSchema } from '../registry/projections.js';
 import {
     eventRecoveryRequestSchema,
@@ -351,6 +352,7 @@ export const diagnosticsSnapshotSchema = z.object({
     performance: z.array(performanceSummarySchema).max(256),
     watchers: watchHubSnapshotSchema.optional(),
     caxriBot: caxriBotDiagnosticsSchema,
+    lastDatabaseRebuild: lastDatabaseRebuildSchema.optional(),
 });
 
 export const businessMethods = {
