@@ -25,6 +25,7 @@ export const desktopServerOperationIds = [
     'files.authorizeTrash',
     'files.authorizeOpen',
     'files.trashOnHost',
+    'files.recordTrash',
     'terminal.fileLink.resolve',
     'terminal.createInExternalDirectory',
     'terminal.detachAll',

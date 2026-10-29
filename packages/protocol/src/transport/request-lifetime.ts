@@ -19,6 +19,7 @@ const nonExpiringServerOperations = new Set([
     'files.operation.cancel',
     'files.operation.acknowledge',
     'files.trash',
+    'files.restoreTrashed',
     'files.write',
     'git.discard.apply',
     'terminal.input',

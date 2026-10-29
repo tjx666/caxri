@@ -5,6 +5,8 @@ const electronMock = vi.hoisted(() => ({
     shell: { trashItem: vi.fn() },
 }));
 vi.mock('electron', () => ({ dialog: electronMock.dialog, shell: electronMock.shell }));
+const trashLocalItem = vi.hoisted(() => vi.fn<(path: string) => Promise<string | undefined>>());
+vi.mock('../trash/local-item', () => ({ trashLocalItem }));
 
 import type { RunningWork } from '../confirmations';
 import type { MainEnvironmentMethods } from '../main-environment-methods';
@@ -48,6 +50,7 @@ function handler(
 beforeEach(() => {
     electronMock.dialog.showMessageBox.mockReset();
     electronMock.shell.trashItem.mockReset();
+    trashLocalItem.mockReset();
 });
 
 describe('files.trash', () => {
@@ -58,7 +61,9 @@ describe('files.trash', () => {
                 authorizeCalls += 1;
                 return Promise.resolve(authorizeCalls === 1 ? authorizedItem : secondAuthorization);
             }
-            if (method === 'files.trashOnHost') return Promise.resolve(null);
+            if (method === 'files.trashOnHost') return Promise.resolve({ undoToken: 'host-token' });
+            if (method === 'files.recordTrash')
+                return Promise.resolve({ undoToken: 'native-token' });
             return Promise.reject(new Error(`Unexpected method: ${method}`));
         });
     }
@@ -74,8 +79,46 @@ describe('files.trash', () => {
                 params: { sessionId: 'session-1', path: '/project/notes.md' },
             }),
         ).resolves.toEqual(authorizedItem);
-        expect(electronMock.shell.trashItem).toHaveBeenCalledWith(authorizedItem.path);
+        expect(trashLocalItem).toHaveBeenCalledWith(authorizedItem.path);
         expect(request).toHaveBeenCalledTimes(2);
+    });
+
+    it('offers Undo with the location the native Trash call reported', async () => {
+        electronMock.dialog.showMessageBox.mockResolvedValueOnce({ response: 0 });
+        trashLocalItem.mockResolvedValueOnce('/home/.Trash/notes.md');
+        const request = router();
+
+        await expect(
+            handler(request)({
+                method: 'files.trash',
+                params: { sessionId: 'session-1', path: '/project/notes.md' },
+            }),
+        ).resolves.toEqual({ ...authorizedItem, undoToken: 'native-token' });
+        expect(request).toHaveBeenLastCalledWith('files.recordTrash', {
+            sessionId: 'session-1',
+            path: authorizedItem.path,
+            trashPath: '/home/.Trash/notes.md',
+            device: authorizedItem.device,
+            inode: authorizedItem.inode,
+        });
+    });
+
+    it('still reports success, without Undo, when recording the location fails', async () => {
+        electronMock.dialog.showMessageBox.mockResolvedValueOnce({ response: 0 });
+        trashLocalItem.mockResolvedValueOnce('/home/.Trash/notes.md');
+        const request = router();
+        request.mockImplementation((method) =>
+            method === 'files.recordTrash'
+                ? Promise.reject(new Error('Server unavailable'))
+                : Promise.resolve(authorizedItem),
+        );
+
+        const result = await handler(request)({
+            method: 'files.trash',
+            params: { sessionId: 'session-1', path: '/project/notes.md' },
+        });
+
+        expect(result).toEqual(authorizedItem);
     });
 
     it("moves an SSH Host window's item into that host's Trash instead of this Mac's", async () => {
@@ -97,7 +140,7 @@ describe('files.trash', () => {
                 method: 'files.trash',
                 params: { sessionId: 'session-1', path: '/project/notes.md' },
             }),
-        ).resolves.toEqual(authorizedItem);
+        ).resolves.toEqual({ ...authorizedItem, undoToken: 'host-token' });
         expect(electronMock.dialog.showMessageBox).toHaveBeenCalledWith(
             {},
             expect.objectContaining({
@@ -110,7 +153,7 @@ describe('files.trash', () => {
             device: authorizedItem.device,
             inode: authorizedItem.inode,
         });
-        expect(electronMock.shell.trashItem).not.toHaveBeenCalled();
+        expect(trashLocalItem).not.toHaveBeenCalled();
     });
 
     it('returns canceled without a second authorization or Trash call when the user declines', async () => {
@@ -124,7 +167,7 @@ describe('files.trash', () => {
                 params: { sessionId: 'session-1', path: '/project/notes.md' },
             }),
         ).resolves.toEqual({ canceled: true });
-        expect(electronMock.shell.trashItem).not.toHaveBeenCalled();
+        expect(trashLocalItem).not.toHaveBeenCalled();
         expect(request).toHaveBeenCalledTimes(1);
     });
 
@@ -148,7 +191,7 @@ describe('files.trash', () => {
                     params: { sessionId: 'session-1', path: '/project/notes.md' },
                 }),
             ).rejects.toMatchObject({ code: 'CONFLICT' });
-            expect(electronMock.shell.trashItem).not.toHaveBeenCalled();
+            expect(trashLocalItem).not.toHaveBeenCalled();
         },
     );
 });

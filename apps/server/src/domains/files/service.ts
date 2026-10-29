@@ -19,7 +19,6 @@ import type { ResolvedSessionPath } from '../project';
 import { ProjectRootResolver } from '../project';
 import type { OpenFile } from './documents';
 import { DocumentService } from './documents';
-import { moveToHostTrash } from './host-trash';
 import {
     importCandidatePaths,
     ImportConfigFiles,
@@ -43,6 +42,7 @@ import type {
 } from './search';
 import { SearchService } from './search';
 import { shallowestProjectPath } from './shallowest-project-path';
+import { TrashUndo } from './trash-undo';
 import type { WatcherServiceOptions } from './watcher';
 import { WatcherService } from './watcher';
 
@@ -86,6 +86,10 @@ export class FileService {
     private readonly importConfigs: TsconfigImports;
     private readonly importFiles: ImportConfigFiles;
     private readonly packageImports: PackageImports;
+    /**
+     * Moves into the host Trash and restores from it (Files tree Undo); see {@link TrashUndo}.
+     */
+    readonly trashUndo: TrashUndo;
 
     constructor(
         database: CaxriDatabase,
@@ -133,6 +137,9 @@ export class FileService {
         );
         this.searcher = new SearchService(resolveSessionPath, logger, maxFileBytes, options.search);
         this.mutations = new FileMutationService(resolveSessionPath, logger, options.mutations);
+        this.trashUndo = new TrashUndo(this.projectRoots, this.operations, (parameters) =>
+            this.mutations.authorizeTrash(parameters),
+        );
     }
 
     private mutationOperationScope(sessionId: string): FileMutationOperationScope {
@@ -370,25 +377,6 @@ export class FileService {
         return this.operations.run(() => this.mutations.authorizeTrash(parameters), {
             paths: [path],
         });
-    }
-
-    async trashOnHost(parameters: ServerOperationParameters<'files.trashOnHost'>): Promise<void> {
-        const { path } = await this.projectRoots.resolveSessionPath(
-            parameters.sessionId,
-            parameters.path,
-        );
-        await this.operations.run(
-            async () => {
-                const entry = await this.mutations.authorizeTrash(parameters);
-                if (entry.device !== parameters.device || entry.inode !== parameters.inode)
-                    throw new CaxriError(
-                        'CONFLICT',
-                        'File or folder changed before it reached Trash',
-                    );
-                await moveToHostTrash(entry.path);
-            },
-            { paths: [path] },
-        );
     }
 
     async authorizeOpen(

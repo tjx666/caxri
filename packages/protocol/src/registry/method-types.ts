@@ -345,6 +345,7 @@ export const effectfulCommandRecovery = {
     'files.operation.cancel': 'durable',
     'files.operation.acknowledge': 'durable',
     'files.trash': 'durable',
+    'files.restoreTrashed': 'memory',
     'files.write': 'memory',
     'git.switchBranch': 'durable',
     'git.sync': 'durable',

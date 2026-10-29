@@ -78,6 +78,7 @@ import { requestWindowOr } from './request-window';
 import type { DesktopServerConnection } from './server-connection';
 import { installShellCommand, uninstallShellCommand } from './shell-command';
 import { createShellCommandEnvironment } from './shell-command-environment';
+import { moveAuthorizedItemToTrash } from './trash/dispatch';
 import type { UpdateService } from './updates/updates';
 import type { createWorkbenchRootAuthority } from './workbench-root-authority';
 
@@ -370,15 +371,15 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                  * entry lives on the remote machine, whose Server moves it into that host's Trash and checks the
                  * approved identity once more.
                  */
-                if (state.kind === 'ssh')
-                    await supervisor.request('files.trashOnHost', {
-                        sessionId: request.params.sessionId,
-                        path: current.path,
-                        device: current.device,
-                        inode: current.inode,
-                    });
-                else await shell.trashItem(current.path);
-                return item;
+                return {
+                    ...item,
+                    ...(await moveAuthorizedItemToTrash(
+                        supervisor,
+                        request.params.sessionId,
+                        current,
+                        state.kind === 'ssh',
+                    )),
+                };
             }
             case 'project.delete': {
                 const { projectId } = request.params;

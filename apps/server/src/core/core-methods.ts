@@ -105,6 +105,7 @@ export const coreForwardedMethods = [
     'files.read',
     'files.readAsset',
     'files.rename',
+    'files.restoreTrashed',
     'files.search',
     'files.write',
     'git.blame',

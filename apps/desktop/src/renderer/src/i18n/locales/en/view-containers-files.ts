@@ -64,6 +64,12 @@ export const viewContainersFiles = {
     'viewContainers.files.trashed': "Moved '{{name}}' to Trash",
     'viewContainers.files.trashedUnsaved':
         "Moved '{{name}}' to Trash. Unsaved changes were discarded; only the last saved version can be restored.",
+    'viewContainers.files.restored': "Restored '{{name}}'",
+    'viewContainers.files.restoreFailed': 'Unable to restore item from Trash',
+    'viewContainers.files.restoreConflict':
+        "Couldn't restore '{{name}}': something with that name already exists at its old place. The copy in Trash was left untouched.",
+    'viewContainers.files.restoreGone':
+        "Couldn't restore '{{name}}': its old folder or its copy in Trash is gone, or this Undo has expired.",
     'viewContainers.files.readyToMove': 'Ready to move item',
     'viewContainers.files.readyToCopy': 'Ready to copy item',
     'viewContainers.files.createFailed': 'Unable to create item',
