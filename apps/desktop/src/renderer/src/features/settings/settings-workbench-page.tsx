@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 
-import { builtinThemes, resolveEffectiveTheme } from '@caxri/protocol';
+import type { AppSettings, SystemColorScheme } from '@caxri/protocol';
+import { resolveEffectiveTheme } from '@caxri/protocol';
 import { Braces, SlidersHorizontal } from 'lucide-react';
 
 import { ToggleGroup, ToggleGroupItem } from '../../components/ui/toggle-group';
@@ -19,8 +20,27 @@ import { SettingsPage } from './settings-page';
 import { useSettingsRegistry } from './settings-registry';
 import { ThemeForm } from './theme-form';
 
-const presetName = (id: string | undefined): string =>
-    builtinThemes.find((theme) => theme.id === id)?.name ?? id ?? '';
+function readThemeAppearance(settings: AppSettings | undefined) {
+    return {
+        isFollowingSystem: settings?.['workbench.theme.followSystem'] === true,
+        lightThemeId: settings?.['workbench.theme.light'] ?? '',
+        darkThemeId: settings?.['workbench.theme.dark'] ?? '',
+    };
+}
+
+/**
+ * Writes one slot of the follow-system pair. The Theme tab's picker only offers the presets of `scheme`, which
+ * `theme-appearance.test.ts` pins to the options of these two settings, so the casts only narrow what is already true.
+ */
+function setPreferredTheme(
+    update: SettingsPageController['updateSettingsField'],
+    scheme: SystemColorScheme,
+    id: string,
+): void {
+    if (scheme === 'light')
+        update('workbench.theme.light', id as AppSettings['workbench.theme.light']);
+    else update('workbench.theme.dark', id as AppSettings['workbench.theme.dark']);
+}
 
 /**
  * Same header copy and classes as the former `DialogHeader`/`DialogTitle`/`DialogDescription` trio, reproduced as plain
@@ -121,11 +141,11 @@ function SettingsWorkbenchView({
                 }
                 onSelectBuiltin={controller.selectBuiltinTheme}
                 appearance={{
-                    isFollowingSystem:
-                        state.settings.value?.['workbench.theme.followSystem'] === true,
+                    ...readThemeAppearance(settings),
                     effectiveTheme: effectiveTheme ?? state.theme.value,
-                    lightThemeName: presetName(state.settings.value?.['workbench.theme.light']),
-                    darkThemeName: presetName(state.settings.value?.['workbench.theme.dark']),
+                    systemScheme,
+                    onPreferredThemeChange: (scheme, id) =>
+                        setPreferredTheme(controller.updateSettingsField, scheme, id),
                     onFollowSystemChange: setFollowSystemAppearance,
                 }}
             />

@@ -103,9 +103,11 @@ test('Follow system appearance switches presets live and stops on an explicit si
         const settingsTab = await openSettingsTab(running.page);
         await openSettingsSection(settingsTab, 'Theme');
         await settingsTab.getByRole('button', { name: 'Follow system appearance' }).click();
-        await expect(settingsTab.getByRole('status')).toContainText(
-            'VS Code Light+ when it is light, Dracula when it is dark',
-        );
+        // The Theme tab itself owns the pair: both pickers are here, not behind a pointer to General.
+        const lightPicker = settingsTab.getByRole('combobox', { name: 'Light theme' });
+        const darkPicker = settingsTab.getByRole('combobox', { name: 'Dark theme' });
+        await expect(lightPicker).toContainText('VS Code Light+');
+        await expect(darkPicker).toContainText('Dracula');
 
         // The Server holds one explicit theme; the system appearance is resolved in the Renderer, so a switch must
         // repaint the window without rewriting `theme.json`.
@@ -119,6 +121,15 @@ test('Follow system appearance switches presets live and stops on an explicit si
         expect((await pageRequest<{ source: string }>(running.page, 'theme.get')).source).toBe(
             savedTheme.source,
         );
+
+        // Picking the dark theme here repaints a dark window at once and leaves the light one alone.
+        await running.page.emulateMedia({ colorScheme: 'dark' });
+        await expect.poll(background).toBe('#282a36');
+        await darkPicker.click();
+        await running.page.getByRole('option', { name: 'Monokai', exact: true }).click();
+        await expect.poll(background).toBe('#272822');
+        await running.page.emulateMedia({ colorScheme: 'light' });
+        await expect.poll(background).toBe('#ffffff');
 
         // Choosing a single theme keeps what is on screen and stops following.
         await settingsTab.getByRole('button', { name: 'Use a single theme' }).click();
