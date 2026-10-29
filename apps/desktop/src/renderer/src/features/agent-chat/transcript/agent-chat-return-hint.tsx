@@ -1,8 +1,13 @@
 import { ArrowUp, X } from 'lucide-react';
+import { AnimatePresence, domAnimation, LazyMotion } from 'motion/react';
+import * as m from 'motion/react-m';
+
+import { useShouldReduceMotion } from '@/hooks/use-should-reduce-motion';
 
 import { Button } from '../../../components/ui/button';
 import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
+import { motionDurationMs, motionEasing } from '../../../lib/motion';
 import { cn } from '../../../lib/utilities';
 import type { AgentChatReturnHintData } from '../hooks/use-agent-chat-return-hint';
 
@@ -14,8 +19,53 @@ import type { AgentChatReturnHintData } from '../hooks/use-agent-chat-return-hin
  *
  * It reads as short as the round Jump to latest beside it: an up arrow and the count (`2 new replies`), with what the
  * jump lands on left to the tooltip, since the arrow already says the pill moves the view.
+ *
+ * It fades and rises in on the overlay tokens like Jump to latest, and `AnimatePresence` keeps it mounted long enough
+ * to fade back down when the hint clears, so a jump or dismissal does not make it blink out. Reduced motion skips
+ * both.
  */
 export function AgentChatReturnHint({
+    hint,
+    onDismiss,
+    onJump,
+}: {
+    hint: AgentChatReturnHintData | undefined;
+    onDismiss: () => void;
+    onJump: (turnId: string) => void;
+}) {
+    const shouldReduceMotion = useShouldReduceMotion();
+    const enter = shouldReduceMotion
+        ? { duration: 0 }
+        : {
+              duration: motionDurationMs('--motion-overlay-enter') / 1000,
+              ease: motionEasing('--motion-ease-enter'),
+          };
+    const exit = shouldReduceMotion
+        ? { duration: 0 }
+        : {
+              duration: motionDurationMs('--motion-overlay-exit') / 1000,
+              ease: motionEasing('--motion-ease-exit'),
+          };
+    return (
+        <LazyMotion strict features={domAnimation}>
+            <AnimatePresence initial={false}>
+                {hint && (
+                    <m.div
+                        key="return-hint"
+                        animate={{ opacity: 1, y: 0, transition: enter }}
+                        className="absolute bottom-2 left-1/2 z-10 -translate-x-1/2"
+                        exit={{ opacity: 0, y: 4, transition: exit }}
+                        initial={{ opacity: 0, y: 4 }}
+                    >
+                        <ReturnHintPill hint={hint} onDismiss={onDismiss} onJump={onJump} />
+                    </m.div>
+                )}
+            </AnimatePresence>
+        </LazyMotion>
+    );
+}
+
+function ReturnHintPill({
     hint,
     onDismiss,
     onJump,
@@ -33,11 +83,8 @@ export function AgentChatReturnHint({
     return (
         <div
             className={cn(
-                'absolute bottom-2 left-1/2 z-10 flex -translate-x-1/2 items-center gap-0.5 rounded-full border border-border bg-elevated pr-0.5 text-xs text-foreground shadow-[0_8px_24px_var(--shadow)]',
+                'flex items-center gap-0.5 rounded-full border border-border bg-elevated pr-0.5 text-xs text-foreground shadow-[0_8px_24px_var(--shadow)]',
                 anchorTurnId === undefined ? 'pl-3' : 'pl-0.5',
-                // Fades and rises in on the overlay tokens like Jump to latest. The pane unmounts the hint, so only the
-                // enter can animate here.
-                'transition-[opacity,translate] duration-(--motion-overlay-enter) ease-(--motion-ease-enter) motion-safe:starting:translate-y-1 motion-safe:starting:opacity-0',
             )}
             role="status"
         >
