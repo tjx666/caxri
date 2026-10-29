@@ -373,13 +373,13 @@ export function AgentChatPane({
                         </div>
                         <div aria-hidden data-agent-chat-turn-space ref={spacerReference} />
                     </div>
-                    {returnHint && terminal && (
-                        <AgentChatReturnHint
-                            hint={returnHint}
-                            onDismiss={() => dismissReturn(terminal.sessionId)}
-                            onJump={rail.jumpToTurn}
-                        />
-                    )}
+                    <AgentChatReturnHint
+                        hint={terminal ? returnHint : undefined}
+                        onDismiss={() => {
+                            if (terminal) dismissReturn(terminal.sessionId);
+                        }}
+                        onJump={rail.jumpToTurn}
+                    />
                     <AgentChatSelectionToolbar
                         contentReference={contentReference}
                         scrollReference={scrollReference}
