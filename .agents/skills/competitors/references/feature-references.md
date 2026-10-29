@@ -24,7 +24,8 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 ## VS Code (MIT; Codicons CC BY 4.0)
 
 - **VS Code theme import; tab, list, badge, Git roles**: Theme keys and registry default colors. Evidence: `DESIGN.md` (theme roles); `apps/server/src/domains/theme/vscode-defaults.ts`; `packages/protocol/src/domain/theme.ts`.
-- **Built-in Monokai, Solarized, Dark+ themes**: Theme definitions (copied; in `THIRD_PARTY_NOTICES.md`). Evidence: `packages/protocol/src/configuration/builtin-themes/monokai.ts`.
+- **Built-in Monokai, Solarized, Dark+, Light+ themes**: Theme definitions (copied; in `THIRD_PARTY_NOTICES.md`); Light+ is the conventional light preset, with Terminal ANSI hues darkened to clear WCAG AA. Evidence: `packages/protocol/src/configuration/builtin-themes/monokai.ts`; `vscode-light-plus.ts`.
+- **Follow system appearance**: A switch plus a preferred light and dark theme, resolved on the client so a system switch writes nothing and an explicit single-theme choice turns it off (VS Code `window.autoDetectColorScheme` with `workbench.preferredLightColorTheme` and `workbench.preferredDarkColorTheme`). Evidence: `packages/protocol/src/configuration/theme-appearance.ts`; `theme-settings-spec.ts`.
 - **Tab strip**: Filled rail, 2px accent top border, close-button visibility, middle-click close, `fit` sizing, duplicate hint. Evidence: `apps/desktop/src/renderer/src/features/tabs/work-tab.tsx`; `docs/adr/0002-unified-pane-layout.md`.
 - **Tab drag and pane movement**: Hover-to-preview delay, drop overlay, grid neighbor navigation, next tab after close. Evidence: `apps/desktop/src/renderer/src/features/workbench/use-pane-tab-drag.ts`; `packages/protocol/src/domain/pane-layout-reducer.ts`.
 - **Panel (Logs, Info) and `Cmd+J`**: Side Bar versus Panel split. Evidence: `apps/desktop/src/renderer/src/stores/chrome-layout.ts`; `packages/protocol/src/domain/default-keybindings.ts`.

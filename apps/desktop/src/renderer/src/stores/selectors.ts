@@ -1,3 +1,5 @@
+import { useMemo } from 'react';
+
 import type {
     AppSettings,
     BootstrapState,
@@ -10,9 +12,15 @@ import type {
     ThemeTokens,
     ViewContainerId,
 } from '@caxri/protocol';
-import { activeTab } from '@caxri/protocol';
+import {
+    activeTab,
+    defaultDarkThemeId,
+    defaultLightThemeId,
+    resolveEffectiveTheme,
+} from '@caxri/protocol';
 import { useShallow } from 'zustand/react/shallow';
 
+import { useSystemColorScheme } from '../hooks/use-system-color-scheme';
 import { useWorkbenchStore } from './workbench';
 
 const NO_TERMINALS: TerminalRecord[] = [];
@@ -250,8 +258,34 @@ export function useTerminal(terminalId: string): TerminalRecord | undefined {
     );
 }
 
+/**
+ * The theme every Workbench surface paints: the persisted `theme.json`, or the light/dark preset paired with the live
+ * system appearance while "Follow system appearance" is on (see `resolveEffectiveTheme`).
+ */
 export function useTheme(): ThemeTokens | undefined {
-    return useWorkbenchStore((state) => state.bootstrap?.theme);
+    const theme = useWorkbenchStore((state) => state.bootstrap?.theme);
+    const isFollowingSystem = useWorkbenchStore(
+        (state) => state.bootstrap?.settings['workbench.theme.followSystem'],
+    );
+    const lightThemeId = useWorkbenchStore(
+        (state) => state.bootstrap?.settings['workbench.theme.light'],
+    );
+    const darkThemeId = useWorkbenchStore(
+        (state) => state.bootstrap?.settings['workbench.theme.dark'],
+    );
+    const systemScheme = useSystemColorScheme();
+    return useMemo(() => {
+        if (!theme) return;
+        return resolveEffectiveTheme(
+            theme,
+            {
+                'workbench.theme.followSystem': isFollowingSystem === true,
+                'workbench.theme.light': lightThemeId ?? defaultLightThemeId,
+                'workbench.theme.dark': darkThemeId ?? defaultDarkThemeId,
+            },
+            systemScheme,
+        );
+    }, [theme, isFollowingSystem, lightThemeId, darkThemeId, systemScheme]);
 }
 
 export function useSettings(): AppSettings | undefined {

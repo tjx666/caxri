@@ -33,6 +33,15 @@ describe('mainWindowChromeOptions', () => {
         expect(mainWindowChromeOptions(1, 'linux')).toMatchObject({ backgroundColor: '#282a36' });
         expect(mainWindowChromeOptions(1, 'linux')).not.toHaveProperty('vibrancy');
     });
+
+    it('paints the light canvas behind a light appearance on platforms without vibrancy', () => {
+        expect(mainWindowChromeOptions(1, 'linux', false)).toMatchObject({
+            backgroundColor: '#ffffff',
+        });
+        expect(mainWindowChromeOptions(1, 'darwin', false)).toMatchObject({
+            backgroundColor: '#00000000',
+        });
+    });
 });
 
 describe('createWindowZoomController', () => {

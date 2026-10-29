@@ -69,6 +69,7 @@ import * as useScrollEdges from '@/hooks/use-scroll-edges';
 import * as useSessionExcerpts from '@/hooks/use-session-excerpts';
 import * as useShouldReduceMotion from '@/hooks/use-should-reduce-motion';
 import * as useStartupLoaderRemoval from '@/hooks/use-startup-loader-removal';
+import * as useSystemColorScheme from '@/hooks/use-system-color-scheme';
 import * as useWorkbenchAppearance from '@/hooks/use-workbench-appearance';
 import * as motionLib from '@/lib/motion';
 import * as utilities from '@/lib/utilities';
@@ -137,5 +138,6 @@ export default {
     '@/hooks/use-session-excerpts': useSessionExcerpts,
     '@/hooks/use-should-reduce-motion': useShouldReduceMotion,
     '@/hooks/use-startup-loader-removal': useStartupLoaderRemoval,
+    '@/hooks/use-system-color-scheme': useSystemColorScheme,
     '@/hooks/use-workbench-appearance': useWorkbenchAppearance,
 };

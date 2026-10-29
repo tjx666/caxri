@@ -11,6 +11,7 @@ import { oscuraMidnightTheme } from './oscura-midnight.js';
 import { solarizedDarkTheme, solarizedLightTheme } from './solarized.js';
 import { tokyoNightTheme } from './tokyo-night.js';
 import { vscodeDarkPlusTheme } from './vscode-dark-plus.js';
+import { vscodeLightPlusTheme } from './vscode-light-plus.js';
 
 /**
  * Stable user-facing order for the built-in theme picker.
@@ -24,6 +25,7 @@ export const builtinThemes = [
     tokyoNightTheme,
     oscuraMidnightTheme,
     vscodeDarkPlusTheme,
+    vscodeLightPlusTheme,
 ] as const satisfies readonly ThemeTokens[];
 
 export const builtinThemeIds = [
@@ -35,6 +37,7 @@ export const builtinThemeIds = [
     'tokyo-night',
     'oscura-midnight',
     'vscode-dark-plus',
+    'vscode-light-plus',
 ] as const;
 
 export type BuiltinThemeId = (typeof builtinThemeIds)[number];
@@ -70,5 +73,9 @@ export const builtinThemeSources = {
     'vscode-dark-plus': {
         license: 'MIT',
         url: 'https://github.com/microsoft/vscode/blob/main/extensions/theme-defaults/themes/dark_plus.json',
+    },
+    'vscode-light-plus': {
+        license: 'MIT',
+        url: 'https://github.com/microsoft/vscode/blob/main/extensions/theme-defaults/themes/light_plus.json',
     },
 } as const satisfies Record<BuiltinThemeId, { license: 'MIT'; url: string }>;

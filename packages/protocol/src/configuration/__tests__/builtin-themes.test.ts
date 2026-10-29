@@ -7,6 +7,7 @@ import {
     builtinThemes,
     builtinThemeSources,
     solarizedLightTheme,
+    vscodeLightPlusTheme,
 } from '../builtin-themes/index.js';
 import {
     findMatchingBuiltinTheme,
@@ -71,13 +72,30 @@ describe('built-in themes', () => {
             ).toBeGreaterThanOrEqual(4.5);
         }
 
-        for (const role of ['green', 'yellow', 'blue', 'cyan'] as const)
+        for (const light of [solarizedLightTheme, vscodeLightPlusTheme])
+            for (const role of ['green', 'yellow', 'blue', 'cyan'] as const)
+                expect(
+                    contrastRatio(light.terminal[role], light.terminal.background),
+                    `${light.id} Terminal ${role}`,
+                ).toBeGreaterThanOrEqual(4.5);
+        // Light+ also keeps its bright hues and the coded editor tokens legible on its white canvas.
+        for (const role of ['red', 'green', 'yellow', 'blue', 'magenta', 'cyan'] as const)
             expect(
                 contrastRatio(
-                    solarizedLightTheme.terminal[role],
-                    solarizedLightTheme.terminal.background,
+                    vscodeLightPlusTheme.terminal[
+                        `bright${role[0].toUpperCase()}${role.slice(1)}` as 'brightRed'
+                    ],
+                    vscodeLightPlusTheme.terminal.background,
                 ),
-                `solarized-light Terminal ${role}`,
+                `vscode-light-plus Terminal bright ${role}`,
+            ).toBeGreaterThanOrEqual(4.5);
+        for (const token of ['comment', 'keyword', 'string', 'number'] as const)
+            expect(
+                contrastRatio(
+                    vscodeLightPlusTheme.editor[token],
+                    vscodeLightPlusTheme.editor.background,
+                ),
+                `vscode-light-plus editor ${token}`,
             ).toBeGreaterThanOrEqual(4.5);
     });
 

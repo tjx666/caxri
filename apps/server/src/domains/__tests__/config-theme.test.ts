@@ -1,9 +1,9 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { ServerEvent } from '@caxri/protocol';
-import { solarizedLightTheme } from '@caxri/protocol';
+import { draculaTheme, solarizedLightTheme } from '@caxri/protocol';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { ConfigService } from '../config';
@@ -106,5 +106,43 @@ describe('ConfigurationService built-in themes', () => {
         expect(restarted.getTheme().value).not.toHaveProperty('warnings');
         expect(restarted.getTheme().source).not.toContain('warnings');
         await restarted.close();
+    });
+});
+
+describe('ConfigurationService follow-system appearance default', () => {
+    async function freshDirectory(): Promise<string> {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-config-follow-system-'));
+        temporaryDirectories.push(directory);
+        return directory;
+    }
+
+    it('follows the system appearance for a profile that never chose a theme', async () => {
+        const directory = await freshDirectory();
+        const first = new ConfigService(directory, () => {});
+        await first.initialize();
+        expect(first.getSettings().value['workbench.theme.followSystem']).toBe(true);
+        expect(first.getSettings().value['workbench.theme.light']).toBe('vscode-light-plus');
+        expect(first.getSettings().value['workbench.theme.dark']).toBe('dracula');
+        expect(await readFile(first.settingsPath, 'utf8')).toContain(
+            '"workbench.theme.followSystem": true',
+        );
+        await first.close();
+
+        // The flag is persisted, and a restart finds both files, so nothing is rewritten.
+        const restarted = new ConfigService(directory, () => {});
+        await restarted.initialize();
+        expect(restarted.getSettings().value['workbench.theme.followSystem']).toBe(true);
+        await restarted.close();
+    });
+
+    it('treats an existing theme.json as an explicit choice, even when it is exactly Dracula', async () => {
+        const directory = await freshDirectory();
+        await mkdir(join(directory, 'config'), { recursive: true });
+        await writeFile(join(directory, 'config', 'theme.json'), serializeTheme(draculaTheme));
+        const service = new ConfigService(directory, () => {});
+        await service.initialize();
+        expect(service.getSettings().value['workbench.theme.followSystem']).toBe(false);
+        expect(service.getTheme().value).toEqual(draculaTheme);
+        await service.close();
     });
 });

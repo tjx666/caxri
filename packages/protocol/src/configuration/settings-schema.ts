@@ -218,6 +218,13 @@ export const appSettingsSchema = z.object({
         spec['workbench.confirmWorktreeAuthorization'],
     ),
     'workbench.removeWorktreeOnArchive': booleanField(spec['workbench.removeWorktreeOnArchive']),
+    'workbench.theme.followSystem': booleanField(spec['workbench.theme.followSystem']),
+    'workbench.theme.light': z
+        .enum(enumValues(spec['workbench.theme.light'].options))
+        .default(spec['workbench.theme.light'].default),
+    'workbench.theme.dark': z
+        .enum(enumValues(spec['workbench.theme.dark'].options))
+        .default(spec['workbench.theme.dark'].default),
     'primarySidebar.autoCollapseProjects': z
         .enum(enumValues(spec['primarySidebar.autoCollapseProjects'].options))
         .default(spec['primarySidebar.autoCollapseProjects'].default),

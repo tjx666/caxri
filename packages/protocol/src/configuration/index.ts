@@ -12,6 +12,7 @@ export * from './settings-spec.js';
 export * from './shell-command-patterns.js';
 export * from './shortcuts.js';
 export * from './terminal-reference-links.js';
+export * from './theme-appearance.js';
 export * from './theme-import.js';
 export * from './theme-roles.js';
 export * from './trusted-domains.js';

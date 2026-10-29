@@ -82,6 +82,13 @@ export const settingsCatalog: TranslatedNamespace<typeof source> = {
     'settings.workbench.removeWorktreeOnArchive.description':
         '归档会话时删除它所在的 Worktree，包括 node_modules 等被忽略的文件。未提交的改动会先提交到其分支，分支保留。Pull Request 未合并的 Worktree 需要你确认后才会删除。',
 
+    'settings.workbench.theme.followSystem.title': '跟随系统外观',
+    'settings.workbench.theme.followSystem.description':
+        '系统外观为浅色时使用浅色主题，为深色时使用深色主题，并实时切换。在“主题”页选择单个主题会关闭此项。',
+    'settings.workbench.theme.light.title': '浅色主题',
+    'settings.workbench.theme.light.description': '系统外观为浅色时使用的主题',
+    'settings.workbench.theme.dark.title': '深色主题',
+    'settings.workbench.theme.dark.description': '系统外观为深色时使用的主题',
     'settings.primarySidebar.autoCollapseProjects.title': '自动折叠不活跃的项目',
     'settings.primarySidebar.autoCollapseProjects.description':
         '活跃、运行中、有未读以及手动展开的项目保持展开',
