@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { TerminalSurface } from '@caxri/protocol';
 
@@ -9,13 +9,24 @@ import { mobileErrorMessage } from '../../connection/mobile-error-message';
 import { agentSurfaceSwitchTarget } from '../agent-surface-switch';
 import { useHostSessions } from '../components/host-sessions-provider';
 import type { MobileSessionItem } from '../session-model';
+import type { SessionScoped } from '../session-scoped-state';
+import { patchSessionScoped, readSessionScoped } from '../session-scoped-state';
+
+interface SurfaceSwitchState {
+    isConfirming: boolean;
+    error: string | null;
+    pending: TerminalSurface | null;
+}
+
+const IDLE: SurfaceSwitchState = { error: null, isConfirming: false, pending: null };
 
 /**
  * "Open as Chat" / "Open as Terminal" for the Session's primary Agent, through the same `terminal.switchSurface` the
  * Desktop tab rail calls. A running turn is never ended silently: the Server reports it, `confirmation` becomes
  * non-null so the header can show its confirmation sheet, and only `confirm` ("Stop and Switch") retries with
  * `interruptTurn`. On success the Session is re-read so the detail renders the new surface, and `onSwitched` moves to
- * the tab that shows it.
+ * the tab that shows it. State is kept per Session ID: on a tablet the detail stays mounted while the selection
+ * changes, so a switch started on Session A must not show as pending or failed under Session B.
  */
 export const useAgentSurfaceSwitch = (
     session: MobileSessionItem,
@@ -24,16 +35,25 @@ export const useAgentSurfaceSwitch = (
     const { request } = useMobileClient();
     const { sessions } = useHostSessions();
     const { t } = useTranslation();
-    const [pending, setPending] = useState<TerminalSurface | null>(null);
-    const [error, setError] = useState<string | null>(null);
-    const [isConfirming, setConfirming] = useState(false);
+    const [states, setStates] = useState<SessionScoped<SurfaceSwitchState>>({});
+    const sessionId = session.id;
+    const { error, isConfirming, pending } = readSessionScoped(states, sessionId, IDLE);
+    const patch = useCallback((id: string, next: Partial<SurfaceSwitchState>): void => {
+        setStates((previous) => patchSessionScoped(previous, id, IDLE, next));
+    }, []);
+    /**
+     * A switch finishing on Session A must not move Session B's tab, so completion checks the live selection.
+     */
+    const currentSessionId = useRef(sessionId);
+    useEffect(() => {
+        currentSessionId.current = sessionId;
+    }, [sessionId]);
     const terminal = session.primaryTerminal;
     const target = agentSurfaceSwitchTarget(terminal);
     const run = useCallback(
         async (shouldInterruptTurn: boolean): Promise<void> => {
             if (!terminal || !target || pending) return;
-            setPending(target);
-            setError(null);
+            patch(sessionId, { error: null, pending: target });
             try {
                 const result = await request('mobile.terminal.switchSurface', {
                     terminalId: terminal.id,
@@ -41,14 +61,14 @@ export const useAgentSurfaceSwitch = (
                     interruptTurn: shouldInterruptTurn,
                 });
                 if (result.status === 'turnRunning') {
-                    setConfirming(true);
+                    patch(sessionId, { isConfirming: true });
                     return;
                 }
                 await sessions.refresh();
-                onSwitched(target);
+                if (currentSessionId.current === sessionId) onSwitched(target);
             } catch (error_) {
-                setError(
-                    mobileErrorMessage(
+                patch(sessionId, {
+                    error: mobileErrorMessage(
                         error_,
                         t(
                             target === 'chat'
@@ -56,16 +76,19 @@ export const useAgentSurfaceSwitch = (
                                 : 'sessions.surface.openAsTerminalFailed',
                         ),
                     ),
-                );
+                });
             } finally {
-                setPending(null);
+                patch(sessionId, { pending: null });
             }
         },
-        [onSwitched, pending, request, sessions, t, target, terminal],
+        [onSwitched, patch, pending, request, sessionId, sessions, t, target, terminal],
     );
     const switchSurface = useCallback((): Promise<void> => run(false), [run]);
     const confirm = useCallback((): Promise<void> => run(true), [run]);
-    const dismissConfirmation = useCallback((): void => setConfirming(false), []);
+    const dismissConfirmation = useCallback(
+        (): void => patch(sessionId, { isConfirming: false }),
+        [patch, sessionId],
+    );
     return {
         confirm,
         /**
