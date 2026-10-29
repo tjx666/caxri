@@ -128,6 +128,23 @@ export class ProcessExplorerWindowController {
     }
 
     /**
+     * Sends the open window the current effective theme; a no-op while it is closed.
+     */
+    async refreshTheme(): Promise<void> {
+        const window = this.openWindow();
+        if (!window) return;
+        let theme: ThemeTokens;
+        try {
+            theme = await this.options.theme();
+        } catch {
+            // The window keeps its current theme; the next change tries again.
+            return;
+        }
+        if (!window.isDestroyed())
+            window.webContents.send(PROCESS_EXPLORER_CHANNELS.themeChanged, theme);
+    }
+
+    /**
      * Sends the open window the current `workbench.language` setting. Called on every `settings.changed`, which names
      * no key, so the window may receive an unchanged value; applying it again is a no-op there.
      */

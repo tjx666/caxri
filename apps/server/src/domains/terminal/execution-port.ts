@@ -89,10 +89,15 @@ export interface TerminalExecutionPort {
      * Permanently removes the durable Terminal; its ID will not be reused and its Core generation can be forgotten.
      */
     close(terminalId: string): void;
+    /**
+     * Refreshes a live Terminal's Agent output recovery and, when given, the colors its OSC 10/11 responder answers
+     * with (otherwise fixed at launch, so a running Terminal would keep the appearance it started under).
+     */
     configureOutputRecovery(
         terminalId: string,
         provider: TerminalRecord['provider'],
         settings?: AgentOutputRecoverySettings,
+        colors?: { background: string; foreground: string },
     ): void;
     /**
      * Retires a failed launch while preserving its durable record and the generation required by a later restart.

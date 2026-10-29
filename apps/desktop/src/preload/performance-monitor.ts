@@ -1,4 +1,4 @@
-import type { AppLocale, RENDERER_ERROR_CHANNELS } from '@caxri/protocol';
+import type { AppLocale, RENDERER_ERROR_CHANNELS, ThemeTokens } from '@caxri/protocol';
 import { contextBridge, ipcRenderer } from 'electron';
 
 import type { PerformanceMonitorWindowBridge } from '../shared/performance-monitor';
@@ -29,6 +29,8 @@ const bridge: PerformanceMonitorWindowBridge = {
     setAlwaysOnTop: (value) =>
         ipcRenderer.invoke(PERFORMANCE_MONITOR_CHANNELS.setAlwaysOnTop, value),
     theme: () => ipcRenderer.invoke(PERFORMANCE_MONITOR_CHANNELS.theme),
+    onThemeChanged: (listener) =>
+        subscribe<ThemeTokens>(PERFORMANCE_MONITOR_CHANNELS.themeChanged, listener),
     language: () => ipcRenderer.invoke(PERFORMANCE_MONITOR_CHANNELS.language),
     onLanguageChanged: (listener) =>
         subscribe<AppLocale | null>(PERFORMANCE_MONITOR_CHANNELS.languageChanged, listener),

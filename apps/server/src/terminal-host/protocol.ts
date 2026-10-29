@@ -17,6 +17,7 @@ import { observationContextSchema } from '../observability/context-schema';
 import { isJsonWithinByteLimit } from './json-byte-length';
 import {
     outputRecoverySettingsSchema,
+    terminalColorsSchema,
     terminalGridSizeSchema,
     terminalLaunchPlanSchema,
 } from './launch-plan-schema';
@@ -288,11 +289,12 @@ const terminalRequestSchemas = [
     z.object({ method: z.literal('terminal.resources'), params: z.object({}).strict() }).strict(),
     z
         .object({
-            method: z.literal('terminal.recovery.configure'),
+            method: z.literal('terminal.configure'),
             params: z
                 .object({
                     provider: agentProviderSchema.optional(),
                     settings: outputRecoverySettingsSchema.optional(),
+                    colors: terminalColorsSchema.optional(),
                 })
                 .strict(),
         })
@@ -552,7 +554,7 @@ const terminalHostResultSchemas = {
         .strict(),
     'terminal.reassign': z.object({ reassigned: z.literal(true) }).strict(),
     'terminal.resources': z.object({ resources: terminalResourceUsageSchema.nullable() }).strict(),
-    'terminal.recovery.configure': z.object({ configured: z.literal(true) }).strict(),
+    'terminal.configure': z.object({ configured: z.literal(true) }).strict(),
     'terminal.detachAll': z.object({ detached: z.literal(true) }).strict(),
     'terminal.retire': z.object({ retired: z.literal(true) }).strict(),
     'terminal.runningCount': z.object({ count: z.number().int().nonnegative() }).strict(),

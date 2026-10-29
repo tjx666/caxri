@@ -33,6 +33,10 @@ export const PERFORMANCE_MONITOR_CHANNELS = {
     switchToOverlay: 'caxri:performance-monitor:switch-to-overlay',
     setAlwaysOnTop: 'caxri:performance-monitor:set-always-on-top',
     theme: 'caxri:performance-monitor:theme',
+    /**
+     * Main to monitor window: the effective theme changed (system appearance, saved theme, or theme settings).
+     */
+    themeChanged: 'caxri:performance-monitor:theme-changed',
     language: 'caxri:performance-monitor:language',
     languageChanged: 'caxri:performance-monitor:language-changed',
 } as const;

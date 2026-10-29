@@ -12,6 +12,7 @@ export const desktopServerOperationIds = [
     'agent.replySummary',
     'app.auxiliaryWindowState.get',
     'app.auxiliaryWindowState.update',
+    'app.systemAppearance.update',
     'app.windowState.get',
     'app.windowState.update',
     'bugReport.deliver',

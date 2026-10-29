@@ -166,7 +166,7 @@ launcher's grace period), because the Host authorizes every concurrent request a
 during the wait. A sealed generation is refused with `sealed` for input, Agent input and submit,
 observer input and scroll, resize, observe and take-over, both signals, and a late `terminal.start`;
 it keeps only view reads and binding (`attach`, `detach`, `snapshot`, `waitForAttachedSize`,
-`textTail`, `resources`), observation release, `reassign`, `recovery.configure`, and a repeated
+`textTail`, `resources`), observation release, `reassign`, `configure`, and a repeated
 `terminal.stop`, because Server Core still re-attaches, reassigns, and retries the restart barrier
 of a stopped Terminal before its next reservation. A repeated stop with the same snapshot policy
 joins the one in flight and shares its final snapshot; one with the other policy runs after it

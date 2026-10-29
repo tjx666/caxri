@@ -74,6 +74,11 @@ export interface ProcessExplorerBridge {
     stopTerminal(terminalId: string): Promise<{ suspended: boolean }>;
     theme(): Promise<ThemeTokens>;
     /**
+     * Calls `listener` with the new effective theme each time it changes while the window is open; returns the
+     * unsubscribe.
+     */
+    onThemeChanged(listener: (theme: ThemeTokens) => void): () => void;
+    /**
      * The `workbench.language` setting; `null` follows the system language. The window loads no Workbench snapshot, so
      * this is its only way to speak the language the other windows speak.
      */

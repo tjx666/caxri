@@ -39,6 +39,7 @@ import type {
 } from './execution-contract';
 import { listenExecutionEvent } from './execution-events';
 import { currentIdentity, terminalScope } from './execution-scope';
+import type { HostActionContext } from './host-actions';
 import {
     canSignalHostAgentExact,
     canSignalHostProcessExact,
@@ -54,6 +55,7 @@ import { buildShutdownCaptures } from './shutdown-captures';
 
 export class RemoteTerminalExecution extends EventTarget implements TerminalExecutionPort {
     private readonly discardStops: DiscardStops;
+    private readonly host: HostActionContext;
     private readonly generations = new Map<string, number>();
     private readonly identities = new Map<string, RemoteTerminalIdentity>();
     private readonly inputQueues = new Map<string, TerminalInputQueue<RemoteTerminalIdentity>>();
@@ -79,6 +81,11 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         private readonly logger: StructuredLogger,
     ) {
         super();
+        this.host = {
+            background: (request, method, id) => this.background(request, method, id),
+            identities: this.identities,
+            supervisor,
+        };
         this.discardStops = new DiscardStops(supervisor);
         this.mobileControl = new RemoteMobileTerminalControl(this.identities, supervisor);
         const control = this.mobileControl;
@@ -483,37 +490,17 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         terminalId: string,
         provider: TerminalRecord['provider'],
         settings?: AgentOutputRecoverySettings,
+        colors?: { background: string; foreground: string },
     ): void {
-        configureHostOutputRecovery(
-            this.supervisor,
-            this.identities,
-            terminalId,
-            provider,
-            settings,
-            (request, method, id) => this.background(request, method, id),
-        );
+        configureHostOutputRecovery(this.host, terminalId, provider, settings, colors);
     }
 
     signalExact(terminalId: string, expectedProcessId: number, signal: string): boolean {
-        return canSignalHostProcessExact(
-            this.supervisor,
-            this.identities,
-            terminalId,
-            expectedProcessId,
-            signal,
-            (request, method, id) => this.background(request, method, id),
-        );
+        return canSignalHostProcessExact(this.host, terminalId, expectedProcessId, signal);
     }
 
     signalAgentExact(terminalId: string, expectedLaunchId: string, signal: string): boolean {
-        return canSignalHostAgentExact(
-            this.supervisor,
-            this.identities,
-            terminalId,
-            expectedLaunchId,
-            signal,
-            (request, method, id) => this.background(request, method, id),
-        );
+        return canSignalHostAgentExact(this.host, terminalId, expectedLaunchId, signal);
     }
 
     resize(terminalId: string, cols: number, rows: number): boolean {

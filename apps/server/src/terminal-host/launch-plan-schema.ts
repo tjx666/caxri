@@ -20,6 +20,16 @@ export const terminalGridSizeSchema = z
     })
     .strict();
 
+/**
+ * The default colors the host answers OSC 10/11 queries with; fixed at launch and refreshed by `terminal.configure`.
+ */
+export const terminalColorsSchema = z
+    .object({
+        background: z.string().min(1).max(100),
+        foreground: z.string().min(1).max(100),
+    })
+    .strict();
+
 const environmentSchema = z
     .record(z.string().min(1).max(256), z.string().max(64 * 1024))
     .refine((environment) => Object.keys(environment).length <= 512, {
@@ -55,12 +65,6 @@ export const terminalLaunchPlanSchema = z
         initialSnapshot: terminalSnapshotSchema.optional(),
         initialSize: terminalGridSizeSchema.optional(),
         outputRecovery: outputRecoverySettingsSchema.optional(),
-        colors: z
-            .object({
-                background: z.string().min(1).max(100),
-                foreground: z.string().min(1).max(100),
-            })
-            .strict()
-            .optional(),
+        colors: terminalColorsSchema.optional(),
     })
     .strict();

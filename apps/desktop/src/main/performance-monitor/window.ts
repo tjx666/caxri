@@ -303,6 +303,22 @@ export class PerformanceMonitorWindowController {
     }
 
     /**
+     * Sends the open window the current effective theme; see `ProcessExplorerWindowController`.
+     */
+    async refreshTheme(): Promise<void> {
+        const window = this.openWindow();
+        if (!window) return;
+        let theme: ThemeTokens;
+        try {
+            theme = await this.options.theme();
+        } catch {
+            return;
+        }
+        if (!window.isDestroyed())
+            window.webContents.send(PERFORMANCE_MONITOR_CHANNELS.themeChanged, theme);
+    }
+
+    /**
      * Sends the open window the current `workbench.language` setting; see `ProcessExplorerWindowController`.
      */
     async refreshLanguage(): Promise<void> {

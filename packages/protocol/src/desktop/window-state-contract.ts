@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { systemColorSchemeSchema } from '../configuration/theme-appearance.js';
 import { auxiliaryWindowStateSchema, persistedWindowStateSchema } from '../domain/domain.js';
 import { identifierSchema } from '../domain/identifiers.js';
 import { commandPolicy } from '../transport/method-spec.js';
@@ -37,6 +38,16 @@ export const windowStateInternalMethods = {
         ...serverWrite,
         params: auxiliaryWindowStateSchema,
         result: auxiliaryWindowStateSchema,
+    },
+    /**
+     * The live system appearance Desktop Main observes. Server Core has no display, so it cannot resolve "Follow system
+     * appearance" itself; Main reports it on connect and on every change so the terminal color replies match what the
+     * Renderer paints. Memory only: a Server started without a Desktop keeps answering with the dark default.
+     */
+    'app.systemAppearance.update': {
+        ...serverWrite,
+        params: z.object({ scheme: systemColorSchemeSchema }),
+        result: z.object({ scheme: systemColorSchemeSchema }),
     },
 } as const;
 

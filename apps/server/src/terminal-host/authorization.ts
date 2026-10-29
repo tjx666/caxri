@@ -32,7 +32,7 @@ const requiredCapabilities = {
     'terminal.stop': 'terminal.lifecycle',
     'terminal.reassign': 'terminal.lifecycle',
     'terminal.resources': 'terminal.inspect',
-    'terminal.recovery.configure': 'terminal.lifecycle',
+    'terminal.configure': 'terminal.lifecycle',
     'terminal.detachAll': 'terminal.view',
     'terminal.retire': 'terminal.lifecycle',
     'terminal.runningCount': 'terminal.inspect',
@@ -101,7 +101,7 @@ const SEALED_GENERATION_METHODS: ReadonlySet<TerminalHostRequest['method']> = ne
     'terminal.unobserve',
     'terminal.releaseTakeOver',
     'terminal.reassign',
-    'terminal.recovery.configure',
+    'terminal.configure',
 ]);
 
 /**

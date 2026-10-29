@@ -3,13 +3,22 @@ import type { AgentOutputRecoverySettings, TerminalRecord } from '@caxri/protoco
 import type { RemoteTerminalIdentity, TerminalHostControl } from './execution-contract';
 import { terminalScope } from './execution-scope';
 
+/**
+ * What the fire-and-forget host actions need from `RemoteTerminalExecution`: the host connection, the live identities,
+ * and the owner's observer for a request nobody awaits.
+ */
+export interface HostActionContext {
+    background: (request: Promise<unknown>, method: string, terminalId: string) => void;
+    identities: ReadonlyMap<string, RemoteTerminalIdentity>;
+    supervisor: TerminalHostControl;
+}
+
 export function configureHostOutputRecovery(
-    supervisor: TerminalHostControl,
-    identities: ReadonlyMap<string, RemoteTerminalIdentity>,
+    { background, identities, supervisor }: HostActionContext,
     terminalId: string,
     provider: TerminalRecord['provider'],
     settings: AgentOutputRecoverySettings | undefined,
-    background: (request: Promise<unknown>, method: string, terminalId: string) => void,
+    colors: { background: string; foreground: string } | undefined,
 ): void {
     const identity = identities.get(terminalId);
     if (!identity) return;
@@ -17,23 +26,21 @@ export function configureHostOutputRecovery(
     background(
         supervisor.request(
             {
-                method: 'terminal.recovery.configure',
-                params: { provider, ...(settings && { settings }) },
+                method: 'terminal.configure',
+                params: { provider, ...(settings && { settings }), ...(colors && { colors }) },
             },
             terminalScope(identity, 'terminal.lifecycle'),
         ),
-        'terminal.recovery.configure',
+        'terminal.configure',
         terminalId,
     );
 }
 
 export function canSignalHostProcessExact(
-    supervisor: TerminalHostControl,
-    identities: ReadonlyMap<string, RemoteTerminalIdentity>,
+    { background, identities, supervisor }: HostActionContext,
     terminalId: string,
     expectedProcessId: number,
     signal: string,
-    background: (request: Promise<unknown>, method: string, terminalId: string) => void,
 ): boolean {
     const identity = identities.get(terminalId);
     if (identity?.processId !== expectedProcessId || (signal !== 'SIGINT' && signal !== 'SIGHUP'))
@@ -50,12 +57,10 @@ export function canSignalHostProcessExact(
 }
 
 export function canSignalHostAgentExact(
-    supervisor: TerminalHostControl,
-    identities: ReadonlyMap<string, RemoteTerminalIdentity>,
+    { background, identities, supervisor }: HostActionContext,
     terminalId: string,
     expectedLaunchId: string,
     signal: string,
-    background: (request: Promise<unknown>, method: string, terminalId: string) => void,
 ): boolean {
     const identity = identities.get(terminalId);
     if (

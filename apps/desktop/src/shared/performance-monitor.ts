@@ -122,6 +122,7 @@ export interface PerformanceMonitorWindowBridge {
     switchToOverlay(): Promise<void>;
     setAlwaysOnTop(isOnTop: boolean): Promise<void>;
     theme(): Promise<ThemeTokens>;
+    onThemeChanged(listener: (theme: ThemeTokens) => void): () => void;
     language(): Promise<AppLocale | null>;
     onLanguageChanged(listener: (preference: AppLocale | null) => void): () => void;
     onSnapshot(listener: (snapshot: PerformanceFrameSnapshot) => void): () => void;

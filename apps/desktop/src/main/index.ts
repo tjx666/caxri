@@ -12,7 +12,7 @@ import {
     startEventLoopMonitor,
 } from '@caxri/system';
 import type { BrowserWindow, WebContents } from 'electron';
-import { app, dialog, Menu, powerMonitor, screen } from 'electron';
+import { app, dialog, Menu, nativeTheme, powerMonitor, screen } from 'electron';
 
 import { installAgentChatMediaProtocol } from './agent-chat/media-protocol';
 import { applyDevelopmentAppIdentity } from './app-icon';
@@ -518,6 +518,7 @@ if (ownsProfileInstance) {
                 handleCommand: handleServerDesktopOperation,
                 logger: mainLogger,
                 seedAttachment: (send) => localPresence.seed(send),
+                systemAppearance: () => (nativeTheme.shouldUseDarkColors ? 'dark' : 'light'),
             });
             const logger = mainLogger;
             sshHostEnvironments = composeSshHostEnvironments({

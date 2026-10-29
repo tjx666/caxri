@@ -601,12 +601,12 @@ export class TerminalHostRuntime {
                 const scope = this.requireTerminalScope(envelope);
                 return { resources: await this.engine.resources(scope.terminalId) };
             }
-            case 'terminal.recovery.configure': {
-                const scope = this.requireTerminalScope(envelope);
-                const identity = this.identities.get(scope.terminalId)!;
-                identity.record = { ...identity.record, provider: request.params.provider };
-                if (request.params.provider && request.params.settings)
-                    this.recoverySettings.set(request.params.provider, request.params.settings);
+            case 'terminal.configure': {
+                const { colors, provider, settings } = request.params;
+                const live = this.identities.get(this.requireTerminalScope(envelope).terminalId)!;
+                live.record = { ...live.record, provider };
+                if (colors) this.colors.set(live.record.id, colors);
+                if (provider && settings) this.recoverySettings.set(provider, settings);
                 this.engine.reconcileOutputRecoverySettings();
                 return { configured: true };
             }

@@ -1,8 +1,11 @@
+import { z } from 'zod';
+
 import type { ThemeTokens } from '../domain/domain.js';
 import type { BuiltinThemeId } from './builtin-themes/index.js';
 import { builtinThemes } from './builtin-themes/index.js';
 
-export type SystemColorScheme = 'light' | 'dark';
+export const systemColorSchemeSchema = z.enum(['light', 'dark']);
+export type SystemColorScheme = z.infer<typeof systemColorSchemeSchema>;
 
 /**
  * The appearance each built-in preset belongs to, which decides the list it appears in under "Follow system

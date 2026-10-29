@@ -30,6 +30,7 @@ async function applyInitialLanguage(): Promise<void> {
 }
 
 globalThis.performanceMonitor.onLanguageChanged(applyLanguagePreference);
+globalThis.performanceMonitor.onThemeChanged(applyCssTheme);
 
 void Promise.all([applyInitialLanguage(), applyInitialTheme()]).then(render);
 
