@@ -65,6 +65,56 @@ export function formatLongPasteReference(result: SavedLongPaste): string {
 }
 
 /**
+ * One saved paste in a message or draft (`formatLongPasteReference`): where its text starts and ends, the file it
+ * names, and the size it states.
+ */
+export interface LongPasteReferenceRange {
+    characterCount: number;
+    from: number;
+    lineCount: number;
+    path: string;
+    to: number;
+}
+
+/**
+ * `formatLongPasteReference`'s output; a round-trip test keeps the two in step.
+ */
+const LONG_PASTE_REFERENCE =
+    /\[Long paste saved locally\]\nOriginal file: ("(?:[^"\\\n]|\\.)+")\nOriginal size: (\d+) lines?, (\d+) characters?\n\nRead the original file for the exact content\.\nIf a summary is enough, delegate it to a subagent on a small, fast model so the full text stays out of this conversation\./gu;
+
+/**
+ * Every saved paste in `text`, in order and never overlapping, so Agent Chat clients can draw each as one chip instead
+ * of the multi-line note the Agent receives. A note the user edited into another shape is left as text. Terminal input
+ * stays plain and never calls this.
+ */
+export function longPasteReferenceRanges(text: string): LongPasteReferenceRange[] {
+    const ranges: LongPasteReferenceRange[] = [];
+    for (const match of text.matchAll(LONG_PASTE_REFERENCE)) {
+        const [whole, quotedPath, lines, characters] = match as unknown as [
+            string,
+            string,
+            string,
+            string,
+        ];
+        let path: unknown;
+        try {
+            path = JSON.parse(quotedPath);
+        } catch {
+            continue;
+        }
+        if (typeof path === 'string' && path.startsWith('/'))
+            ranges.push({
+                characterCount: Number(characters),
+                from: match.index,
+                lineCount: Number(lines),
+                path,
+                to: match.index + whole.length,
+            });
+    }
+    return ranges;
+}
+
+/**
  * Long pastes are saved, never summarized.
  *
  * Caxri used to spend a low-cost model call on every long paste before the text reached the Agent, which held Terminal

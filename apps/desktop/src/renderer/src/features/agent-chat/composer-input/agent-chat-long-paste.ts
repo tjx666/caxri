@@ -1,5 +1,7 @@
 import { isLongPasteWithinLimit, MAX_AGENT_CHAT_MESSAGE_LENGTH } from '@caxri/protocol';
 
+import { translate } from '../../../i18n';
+
 /**
  * What a text paste into the composer does: land in the input, be saved to a file the message cites, or be refused
  * because even a saved file would exceed the local file safety limit (`too-large`) or the message has no room left for
@@ -88,4 +90,23 @@ export function draftWithPlainPaste(
     const next = `${draft.slice(0, start)}${text}${draft.slice(end)}`;
     if (next.length > MAX_AGENT_CHAT_MESSAGE_LENGTH) return undefined;
     return { caret: start + text.length, draft: next };
+}
+
+/**
+ * What a saved paste's chip says, in the composer and in a sent message: `Pasted text · N lines`, with the full summary
+ * and character count for its tooltip and screen readers. `isClickable` adds that the chip opens the original.
+ */
+export function agentChatLongPasteChipText(
+    { characterCount, lineCount }: { characterCount: number; lineCount: number },
+    isClickable: boolean,
+): { aria: string; detail: string; label: string } {
+    const label =
+        lineCount === 1
+            ? translate('agentChat.longPaste.chipOne')
+            : translate('agentChat.longPaste.chipOther', { count: lineCount });
+    const detail = translate(
+        isClickable ? 'agentChat.longPaste.detail' : 'agentChat.longPaste.detailStatic',
+        { characters: characterCount, summary: label },
+    );
+    return { aria: translate('agentChat.longPaste.label', { summary: label }), detail, label };
 }

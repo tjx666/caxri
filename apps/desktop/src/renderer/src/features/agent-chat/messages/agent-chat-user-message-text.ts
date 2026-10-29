@@ -1,16 +1,21 @@
 import { proseFileReferences, proseWebLinks } from '@caxri/markdown';
-import { agentChatImageTokenRanges, agentChatSessionReferenceRanges } from '@caxri/protocol';
+import {
+    agentChatImageTokenRanges,
+    agentChatSessionReferenceRanges,
+    longPasteReferenceRanges,
+} from '@caxri/protocol';
 
 import { agentChatAbsolutePaths } from '../attachments/agent-chat-path-pills';
 
 /**
  * A run of a user's message: plain text, a file path that opens in the editor, an absolute path drawn as the pill the
- * composer showed for it, a cited Session drawn as its chip, a web link, or the `[Image #N]` placeholder of one of the
- * message's images.
+ * composer showed for it, a cited Session or a saved long paste drawn as its chip, a web link, or the `[Image #N]`
+ * placeholder of one of the message's images.
  */
 export type AgentChatUserMessageSegment =
     | { kind: 'text'; text: string }
     | { kind: 'session'; text: string; path: string; title: string }
+    | { kind: 'paste'; text: string; path: string; lineCount: number; characterCount: number }
     | { kind: 'image'; text: string; number: number; index: number }
     | { kind: 'file'; text: string; file: string }
     | { kind: 'path'; text: string; path: string; isDirectory: boolean }
@@ -66,6 +71,17 @@ export function agentChatUserMessageSegments(
         ...agentChatSessionReferenceRanges(text).map(({ from, path, title, to }) => ({
             index: from,
             segment: { kind: 'session', text: text.slice(from, to), path, title } as const,
+        })),
+        // Likewise a saved paste's note names its file and is one chip, not a path and instructions.
+        ...longPasteReferenceRanges(text).map(({ characterCount, from, lineCount, path, to }) => ({
+            index: from,
+            segment: {
+                kind: 'paste',
+                text: text.slice(from, to),
+                path,
+                lineCount,
+                characterCount,
+            } as const,
         })),
         // Before the file links: where both start, the path pill wins.
         ...agentChatAbsolutePaths(text).map(({ index, ...segment }) => ({

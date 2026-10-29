@@ -43,6 +43,11 @@ export const agentChatComposer: TranslatedNamespace<typeof source> = {
     'agentChat.pathReference.openFailed': '无法在 Finder 中显示',
     'agentChat.sessionReference.label': '会话引用：{{title}}',
     'agentChat.sessionReference.inProject': '{{project}} 中的 {{title}}',
+    'agentChat.longPaste.chipOne': '粘贴文本 · 1 行',
+    'agentChat.longPaste.chipOther': '粘贴文本 · {{count}} 行',
+    'agentChat.longPaste.label': '已保存的粘贴：{{summary}}',
+    'agentChat.longPaste.detail': '{{summary}}，{{characters}} 个字符。点击打开原文。',
+    'agentChat.longPaste.detailStatic': '{{summary}}，{{characters}} 个字符',
 
     'agentChat.add.tooltip': '添加文件等内容',
     'agentChat.add.add': '添加',

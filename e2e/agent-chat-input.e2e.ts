@@ -348,6 +348,8 @@ test('a Codex Chat attaches picked files and folders as cards and saves a long p
         expect(await readFile(savedPath, 'utf8')).toBe(long);
         expect((await stat(savedPath)).mode & 0o777).toBe(0o600);
         expect(value).not.toContain('log line 1:');
+        // The draft shows the saved paste as a chip while the text the Agent receives stays the note.
+        await expect(message.locator('.cm-long-paste-chip')).toHaveText('Pasted text · 800 lines');
         await page.screenshot({ path: testInfo.outputPath('codex-chat-picked-files.png') });
 
         await message.press('Enter');
@@ -356,6 +358,10 @@ test('a Codex Chat attaches picked files and folders as cards and saves a long p
         const sent = chat.locator('[data-agent-chat-user-message]').last();
         await expect(sent).not.toContainText('Files mentioned by the user');
         await expect(sent).not.toContainText('Skills the user asked you to use');
+        await expect(sent.locator('[data-agent-chat-long-paste]')).toHaveText(
+            'Pasted text · 800 lines',
+        );
+        await expect(sent).not.toContainText('Long paste saved locally');
         // The skill leads the bubble's own text, so the message reads as one bubble rather than a chip row above it.
         await expect(
             sent.locator(
@@ -376,19 +382,10 @@ test('a Codex Chat attaches picked files and folders as cards and saves a long p
                 ['open', folder],
                 ['reveal', notes],
             ]);
-        // The sent reference's path is a link that starts on the same line as the quote before it, not on a line of its
-        // own the way an atomic inline-block link would.
-        const savedLink = chat.getByRole('link', { name: savedPath });
-        await expect(savedLink).toBeVisible();
-        const lineGap = await savedLink.evaluate((element) => {
-            const before = element.previousSibling;
-            if (!before?.textContent) return Infinity;
-            const quote = document.createRange();
-            quote.setStart(before, before.textContent.length - 1);
-            quote.setEnd(before, before.textContent.length);
-            return Math.abs(quote.getBoundingClientRect().top - element.getClientRects()[0].top);
-        });
-        expect(lineGap).toBeLessThan(2);
+        // The chip opens the saved original like a path link does.
+        await expect(
+            sent.getByRole('link', { name: /Saved paste: Pasted text · 800 lines/u }),
+        ).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('codex-chat-sent-files.png') });
         await expect(attached).toHaveCount(0);
         await expectComposerValue(message, '');
