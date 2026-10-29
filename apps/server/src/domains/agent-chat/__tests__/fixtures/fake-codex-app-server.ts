@@ -52,6 +52,7 @@ import { FAKE_MODELS } from './fake-codex-models.ts';
 import { forkThread, revertThread, unsubscribeThread } from './fake-codex-rewind.ts';
 import { fakeCodexScript, findScriptedTurn, playScriptedTurn } from './fake-codex-script.ts';
 import { didHandleSideRequest } from './fake-codex-side.ts';
+import { didHandleSkillsListRequest } from './fake-codex-skills.ts';
 import { answerSteeredMessage } from './fake-codex-steer.ts';
 import { didHandleTaskRequest, wakeFakeWait } from './fake-codex-tasks.ts';
 import {
@@ -265,6 +266,7 @@ function handle(message: RpcMessage) {
     if (didHandleGoalRequest(io, id, method, parameters)) return;
     if (didHandleSideRequest(io, id, method, parameters)) return;
     if (didHandleMcpStatusRequest(io, id, method, parameters)) return;
+    if (didHandleSkillsListRequest(io, id, method, parameters)) return;
     if (didHandleAccountRequest(io, id, method)) return;
     switch (method) {
         case 'initialize': {

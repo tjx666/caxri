@@ -185,7 +185,7 @@ export function createServiceHandlers(services: {
     acknowledgeFileMutation: (sessionId: string, operationId: string) => Promise<void>;
     archivedWorktrees: Pick<ArchivedWorktreeCleanup, 'useSessionPullRequests'>;
     agentChat: PullRequestMergeNoticeOptions['agentChat'] &
-        Pick<AgentChatService, 'readPlanLimits' | 'states'>;
+        Pick<AgentChatService, 'readPlanLimits' | 'readSkills' | 'states'>;
     agentEnvironment: AgentEnvironment;
     agentHooks: AgentHookManager;
     /**
@@ -364,9 +364,12 @@ export function createServiceHandlers(services: {
                 agentEnvironment,
                 configuration.getSettings().value,
                 terminalId,
+                (id) => services.agentChat.readSkills(id),
             ),
         'agentActions.read': ({ invocation, terminalId }) =>
-            readAgentAction(database, agentEnvironment, terminalId, invocation),
+            readAgentAction(database, agentEnvironment, terminalId, invocation, (id) =>
+                services.agentChat.readSkills(id),
+            ),
         'agentActions.recordRecent': ({ invocation, terminalId }) =>
             recordRecentAgentAction(database, configuration, terminalId, invocation),
         'files.list': ({ sessionId, directory }, signal) =>

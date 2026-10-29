@@ -17,6 +17,7 @@ export {
     agentProviderStateRoot,
     defaultAgentEnvironment,
     isOpaqueAgentSessionId,
+    type ReportedAgentSkill,
 } from './contract';
 export { AgentCoordinator } from './coordinator';
 export { delegationAdapter } from './delegation';

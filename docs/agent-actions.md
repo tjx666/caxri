@@ -59,6 +59,14 @@ Codex skills keep their `$name` invocation because the picker sends text to the 
 slash commands remain `/name`. Claude Code skills and commands both use `/name`, with nested custom
 commands represented as `/directory:name`.
 
+The table lists the filesystem scan, which is the whole answer for the Terminal picker. For a Codex
+Chat whose app-server process is already running, `agentActions.list` and `agentActions.read` also ask
+it for the `{"method":"skills/list"}` request (`forceReload`, the Chat's cwd) and let that list win for skills: enabled plugin
+skills appear, a skill Codex has turned off disappears, and a scanned skill Codex does not list is
+dropped. Commands stay from the scan, and each reported `SKILL.md` path stays on the Server. A
+Chat without a running process, or a failed or unsupported `{"method":"skills/list"}` request, falls back to the scan
+alone; listing never starts a provider.
+
 The persisted settings shape is provider-local:
 
 ```jsonc

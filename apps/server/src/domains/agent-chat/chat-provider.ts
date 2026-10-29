@@ -18,7 +18,7 @@ import type {
 } from '@caxri/protocol';
 import { CaxriError, isCaxriError } from '@caxri/protocol';
 
-import type { AgentLifecycleSignal } from '../agents';
+import type { AgentLifecycleSignal, ReportedAgentSkill } from '../agents';
 import type { McpServerReport } from './chat-mcp-servers';
 import type { ProviderGroupRegistration } from './provider-process-groups';
 
@@ -507,6 +507,11 @@ export interface AgentChatProviderSession {
      * call carries, so the timeline can show the server's icon. Providers without an MCP status read omit it.
      */
     readMcpServer?(name: string): Promise<McpServerReport | undefined>;
+    /**
+     * The skills this provider process reports as available now, plugin skills included and per-skill disabling
+     * applied, for the composer's skill menu. Asked only of a running process. Providers without such a list omit it.
+     */
+    readSkills?(): Promise<ReportedAgentSkill[] | undefined>;
     respond(requestId: string, response: AgentChatResponse): void;
     /**
      * Orderly stop requested by Caxri. The provider's record is already durable, so nothing is lost.

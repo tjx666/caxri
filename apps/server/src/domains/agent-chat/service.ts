@@ -367,6 +367,14 @@ export class AgentChatService {
         return session?.isOpen ? session.readPlanLimits?.() : undefined;
     }
 
+    /**
+     * Skills from this Chat's running provider process; never starts one.
+     */
+    async readSkills(terminalId: string) {
+        const session = this.states.get(terminalId)?.session;
+        return session?.isOpen ? session.readSkills?.() : undefined;
+    }
+
     askSideQuestion(terminalId: string, question: string, history: readonly ChatSideExchange[]) {
         const state = this.states.get(terminalId);
         return askChatSideQuestion(this.options, terminalId, state, question, history);

@@ -63,6 +63,7 @@ import { didInterruptTimeout } from './interrupt/codex-interrupt';
 import { JsonRpcConnection } from './json-rpc-connection';
 import { forkCodexThread, revertCodexThread } from './rewind/codex-rewind';
 import { CodexSideQuestions } from './side-question/codex-side-question';
+import { readCodexSkills } from './skills/codex-skills';
 
 type Json = Record<string, unknown>;
 
@@ -109,6 +110,7 @@ class CodexChatSession implements AgentChatProviderSession {
 
     private readonly sideQuestions = new CodexSideQuestions();
     private readonly usageLimits = new CodexUsageLimits();
+    readonly readSkills = () => readCodexSkills(this.connection, this.options.cwd);
 
     constructor(private readonly options: AgentChatSessionHost) {
         const opening = codexOpeningSettings(options);
@@ -579,9 +581,7 @@ class CodexChatSession implements AgentChatProviderSession {
     }
 
     readMcpServer(name: string) {
-        return this.connection?.isOpen && this.threadId
-            ? readCodexMcpServer(this.connection, this.threadId, name)
-            : Promise.resolve(undefined);
+        return readCodexMcpServer(this.connection, this.threadId, name);
     }
 
     respond(requestId: string, response: AgentChatResponse): void {

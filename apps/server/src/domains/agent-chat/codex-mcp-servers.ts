@@ -37,10 +37,11 @@ export function codexMcpServerReport(result: unknown, name: string): McpServerRe
  * server again.
  */
 export async function readCodexMcpServer(
-    connection: JsonRpcConnection,
-    threadId: string,
+    connection: JsonRpcConnection | undefined,
+    threadId: string | undefined,
     name: string,
 ): Promise<McpServerReport | undefined> {
+    if (!threadId || !connection?.isOpen) return undefined;
     const result = await connection.request(
         'mcpServerStatus/list',
         { threadId, serverName: name, detail: 'full' },

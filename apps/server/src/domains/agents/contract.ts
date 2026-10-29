@@ -148,6 +148,24 @@ export interface AgentActionDiscoveryRoot {
     scope: 'global' | 'project' | 'legacy';
 }
 
+/**
+ * One skill a running provider process reports as available, in a shape the provider adapters share. `path` is the
+ * skill's `SKILL.md` and stays on the Server: it is read for the Chat's skill detail and never crosses IPC.
+ */
+export interface ReportedAgentSkill {
+    name: string;
+    description?: string;
+    /**
+     * False when the provider's own configuration turned this skill off.
+     */
+    enabled: boolean;
+    /**
+     * True for a skill from the Project, false for a user, system, or plugin skill.
+     */
+    isProject: boolean;
+    path: string;
+}
+
 export interface AgentActionDiscoveryContext {
     cwd: string;
     projectRoot: string;

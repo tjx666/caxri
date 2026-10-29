@@ -1484,7 +1484,9 @@ skill`, and `Skill`), so a request such as "open a Session for this" needs no pr
   after the user's Settings overrides), ranked by the picker's search. Picker-only commands are
   left out because a Chat runs only what its provider reported, and a skill Claude Code already
   lists keeps its command row. Enter on a skill sends its invocation as the message; Tab inserts it
-  and a space so a request can follow. A Codex `$skill` travels as ordinary text, which Codex
+  and a space so a request can follow. In a running Codex Chat the list of skills is
+  the answer to a `{"method":"skills/list"}` request, so enabled plugin skills appear and disabled ones do not; without a running
+  process or when the call fails it falls back to the scan. A Codex `$skill` travels as ordinary text, which Codex
   resolves to the skill the same way its own composer does.
 - **Recently used.** A bare `/` or `$` leads with a Recently Used group: the commands and skills
   last picked from this menu (Enter, click, or Tab) that it still offers, most recent first, as
