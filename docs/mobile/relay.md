@@ -1,0 +1,114 @@
+---
+kind: living
+status: current
+---
+
+# Mobile Relay
+
+The Relay lets a paired phone reach its Server from outside the LAN or tailnet. It is a separately
+deployed, stateless service (`apps/relay`) that joins a phone's WebSocket to a socket the Server dials
+back, then forwards frames unchanged. The decision and rejected alternatives are in
+[ADR 0021](../adr/0021-blind-splice-relay.md); the end-to-end encrypted stream it carries is the
+unchanged [Mobile transport](transport.md).
+
+## What the Relay can and cannot see
+
+The Relay sees the host ID, a hash of each access key, connection timing, and frame sizes. It cannot
+read or alter gateway frames: the mobile handshake runs end to end between phone and Server with the
+pairing secret or device credential as its preshared key, and every later frame is sealed. The Relay
+stores nothing on disk. Restarting it drops current connections; the Server re-registers and phones
+reconnect on their own.
+
+## Identity and access
+
+- **Host**: the Server generates an Ed25519 host key once and persists it with the Mobile gateway
+  preferences. Its host ID is a hash of the public key. On every registration the Relay sends a fresh
+  challenge and the Server signs it, so nobody without the private key can register or replace that
+  host.
+- **Phone**: the phone presents an access key derived one-way from a secret it already shares with the
+  Server: the pairing secret while a QR link is pending, then the device credential. The Server sends
+  only the key hashes to the Relay as grants. Pending-pairing grants expire with their link. Revoking a
+  device removes its grant, and the Relay closes every relayed connection that grant admitted.
+
+## Connection flow
+
+Wire schemas live in `packages/mobile-transport/src/relay.ts`.
+
+1. The Server keeps one control socket at `/v1/host`, answers `relay-challenge` with `host-register`,
+   and sends `grant-update` as devices and pairings change.
+2. The phone opens `/v1/client` and sends `relay-connect` with the host ID and its access key. The
+   Relay rejects an offline host or an unknown key before the Server hears about the attempt.
+3. The Relay sends `relay-incoming` with a single-use ticket on the control socket. The Server dials
+   `/v1/host-data`, presents the ticket in `host-accept`, and hands that socket to the Mobile gateway as
+   a relayed connection.
+4. The Relay splices both sockets and sends `relay-ready` to the phone, which then starts the ordinary
+   mobile handshake.
+
+Relay decisions use close codes 4400 to 4599 (`relayCloseCodes`). Across a splice the Relay mirrors
+application close codes, so the Server still records the phone's own close reason; a peer that
+vanished without a close frame becomes `peer-gone`.
+
+## Route selection on the phone
+
+A pairing link carries `relay` and `relay-host` when the Server has a Relay configured; the phone
+stores both with its credential. Each connection races the direct addresses first and adds the Relay
+after a 2.5 second grace, or immediately once every direct address has failed. While a session is on
+the Relay and the app is in the foreground, the phone probes the direct addresses every 30 seconds;
+after three consecutive successes, with the Relay session at least 60 seconds old and no request in
+flight, it closes with `route-upgrade` and reconnects directly. Recovery after any switch uses the
+transport's subscribe-then-snapshot rule, so a running Agent is unaffected.
+
+A relayed connection has no LAN address, so plain-HTTP side channels (the Android update download)
+are unavailable over the Relay.
+
+## Configuring a Server
+
+Set `mobile.relayUrl` in Settings › Mobile to the Relay's `wss://` URL (a `ws://` URL is accepted for
+a private or local Relay). The Server connects whenever Mobile access is on and the URL is set,
+reconnects with backoff after failures, and follows changes to the setting immediately. Phones paired
+before the URL was set need to pair again to learn it.
+
+## Running a Relay
+
+The image bundles one Node file and runs as a non-root user. Build and test it from the repository
+root:
+
+```bash
+docker compose -f apps/relay/compose.yaml up --build   # local Relay on ws://localhost:8080
+bun run --cwd apps/relay docker:smoke                  # build, run, and exercise a full splice
+```
+
+Put TLS in front of a public deployment (a platform load balancer or Caddy) and set
+`CAXRI_RELAY_TRUST_PROXY=1` only when that proxy overwrites `X-Forwarded-For`. Any container host
+with long-lived WebSockets works (a VPS, Railway, Fly.io). Choose a region close to both the phone
+and the computer, because every keystroke echo crosses the Relay twice: users in mainland China
+should prefer Hong Kong, Singapore, or Tokyo, measure from both Wi-Fi and cellular before relying on
+it, and avoid serverless edge platforms whose default domains are blocked there. One process handles
+one region; add regions as separate deployments rather than clustering.
+
+| Variable                                 | Default   | Meaning                                                  |
+| ---------------------------------------- | --------- | -------------------------------------------------------- |
+| `CAXRI_RELAY_PORT`                       | `8080`    | Listen port; `0` picks an ephemeral port                 |
+| `CAXRI_RELAY_HOST`                       | `0.0.0.0` | Listen address                                           |
+| `CAXRI_RELAY_BASE_PATH`                  | empty     | Path prefix when the Relay shares an origin              |
+| `CAXRI_RELAY_TRUST_PROXY`                | `0`       | `1` takes the client address from `X-Forwarded-For`      |
+| `CAXRI_RELAY_MAX_HOSTS`                  | `10000`   | Registered hosts per process                             |
+| `CAXRI_RELAY_MAX_CONNECTIONS_PER_HOST`   | `32`      | Relayed phone connections per host                       |
+| `CAXRI_RELAY_SOURCE_ATTEMPTS_PER_MINUTE` | `30`      | Upgrade attempts per source address before rejection     |
+| `CAXRI_RELAY_SOURCE_PENDING_SOCKETS`     | `8`       | Unauthenticated sockets per source address               |
+| `CAXRI_RELAY_HEARTBEAT_INTERVAL_MS`      | `20000`   | WebSocket ping interval; two missed pongs close a socket |
+| `CAXRI_RELAY_MAX_PROCESS_BUFFERED_BYTES` | 64 MiB    | Total queued bytes before the largest backlog is closed  |
+
+Each spliced direction pauses its source above 256 KiB queued, resumes below 64 KiB, and closes
+with `capacity` when one direction stays above 8 MiB or paused for 10 seconds. The 20 second ping
+also keeps idle mappings alive on carrier NATs that drop quiet TCP flows.
+
+## Observability
+
+The Relay writes one JSON line per event to stdout: `relay.host_registered`, `relay.host_ended`
+(cause, duration), `relay.connection_spliced` (setup time), `relay.connection_ended` (cause,
+duration, bytes in each direction), `relay.rejected` (closed reason), and a `relay.summary` every
+minute. Logs never contain addresses, keys, tickets, or payload bytes; a host ID appears only as an
+8-character prefix. `GET /health` returns the protocol version and current host and connection
+counts. On the Server, Mobile connection records carry a `route` of `lan` or `relay`, and the Relay
+connector records each state transition with a closed cause.

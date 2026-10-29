@@ -59,3 +59,17 @@ _Researched 2026-10-21 at `98e7dbecfedb732abc2358c8aff4a5d7e98f642a`._
 - The mobile usage bars use `7d` / `7天` instead, so Orca itself is not consistent across surfaces.
 - Caxri's usage chip follows the desktop chip: `wk` in English, `本周` in Chinese, because `7d` beside a remaining
   share reads as days until reset.
+
+## Mobile relay
+
+_Researched 2026-10-29 from the local clone (2026-10-27). Comparison: [relay-servers.md](relay-servers.md)._
+
+- The relay server is public under `cloud/` (MIT): a director assigns hosts to cells; the desktop keeps
+  `/v1/host/control` and opens `/v1/host/data/<connId>` per phone after a `ConnectionOpen` ticket; frames are
+  spliced raw (`cloud/apps/relay/src/splice-forwarder.ts`).
+- E2EE v2: X25519 against a pinned host key, HKDF transcript keys per direction, NaCl secretbox with counters; the
+  relay host ID derives from the host key. Phones need no account; the desktop needs a JWT from an issuer that is
+  not in the public repo.
+- Backpressure pauses reads at 256 KiB buffered, resumes at 64 KiB, closes at about 8 MiB or 10 s stuck, 64 MiB per
+  process. Direct gets a 2.5 s head start; switching back needs 3 successes over 30 s, 60 s since the last switch,
+  and a 60 s cooldown after failure. Benchmarks: 0.63 s to connected in-region, 10.5 s cross-region.

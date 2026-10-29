@@ -85,6 +85,7 @@ What/why of current shipped behavior, core modules, protocols, and operator know
 | [mobile/host-status.md](mobile/host-status.md)                     | Mobile computer status: CPU, memory, Session load, processes        |
 | [mobile/performance.md](mobile/performance.md)                     | Mobile release performance budgets                                  |
 | [mobile/preview.md](mobile/preview.md)                             | Mobile preview of a Session's local web pages                       |
+| [mobile/relay.md](mobile/relay.md)                                 | Mobile Relay: protocol, route selection, and operator deployment    |
 | [mobile/transport.md](mobile/transport.md)                         | Mobile gateway transport, pairing, and framing                      |
 | [mobile/update.md](mobile/update.md)                               | Mobile app self-update from Desktop                                 |
 
@@ -115,6 +116,7 @@ rewritten, only superseded.
 | [0018](adr/0018-macos-ssh-hosts.md)                           | macOS on Apple silicon is a supported SSH Host                     |
 | [0019](adr/0019-extension-view-request-scope.md)              | Extension view requests carry their own Session scope              |
 | [0020](adr/0020-agent-development-environment.md)             | Caxri is an ADE: product and development principles                |
+| [0021](adr/0021-blind-splice-relay.md)                        | Blind-splice Relay with host-key identity                          |
 
 ## Historical
 

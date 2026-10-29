@@ -53,3 +53,11 @@ _Researched 2026-10-10._
 A window registry gives each window a stable UUID key, with `tabsStateByWindow` holding per-window
 tab state. Terminal sizing and attention track per-client visible and focused state, so a hidden
 client does not drive a resize. Caxri adopts the stable per-window key and the visible/focused pair.
+
+## Relay (2026-10-29)
+
+Comparison: [relay-servers.md](relay-servers.md). `apps/relay` (ELv2, reference only) runs one Durable Object per
+host: a control socket at `/v2/control`, a single-use ticket per stream, and a dial-back at `/v2/dial` spliced
+byte-for-byte. There is no end-to-end encryption; access is checked with account JWTs cached in the Durable Object.
+Mobile always uses the relay. Presence comes from the open control socket (30 s pings, 90 s stale). The relay plan
+reports about 121 ms keystroke echo through Cloudflare.
