@@ -12,6 +12,7 @@ import {
     CircleQuestionMark,
     CircleStop,
     CircleX,
+    Clock,
     Hand,
     HandHelping,
     LoaderCircle,
@@ -51,6 +52,7 @@ type IconComponent = ComponentType<{ size?: number }>;
 const GLYPH_COMPONENTS: Record<AgentActivityGlyphId, IconComponent> = {
     background: BackgroundArc,
     check: CircleCheck,
+    clock: Clock,
     dashed: CircleDashed,
     hollow: Circle,
     question: CircleQuestionMark,

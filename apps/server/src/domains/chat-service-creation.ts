@@ -99,6 +99,11 @@ export function createAgentChatService({
         logger,
         settings: () => configuration.getSettings().value,
         isUsageGuarded: (terminalId) => usage.isBlocked(terminalId),
+        onChange: (terminalId) =>
+            send({
+                event: 'state.changed',
+                payload: { kind: 'records', sessionIds: [], terminalIds: [terminalId] },
+            }),
     });
     const service = new AgentChatService({
         database,

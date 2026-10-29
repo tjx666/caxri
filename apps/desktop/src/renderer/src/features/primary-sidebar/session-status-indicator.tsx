@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { useId } from 'react';
 
 import type { SessionRecord } from '@caxri/protocol';
-import { CircleQuestionMark, Unplug } from 'lucide-react';
+import { CircleQuestionMark, Clock, Unplug } from 'lucide-react';
 
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
@@ -12,8 +12,9 @@ import { sessionStatus } from './session-status';
 
 /**
  * The right-edge lifecycle glyph shared by the PrimarySidebar and the MRU switcher, in the place Codex and most chat
- * lists put it: unread attention pings until it is read, running spins, and a detached Agent shows a static unplugged
- * glyph. The leading Agent icon stays a plain brand-color mark, so its color alone tells Agents apart.
+ * lists put it: unread attention pings until it is read, running spins, a detached Agent shows a static unplugged
+ * glyph, and a Chat waiting for a usage limit to reset shows a clock. The leading Agent icon stays a plain brand-color
+ * mark, so its color alone tells Agents apart.
  *
  * Lifecycle outranks delivery: while a signal shows, the Session's pull request glyph (the `fallback`) steps aside and
  * stays reachable from the hover card and the row menu. It returns the moment the Agent settles and is read.
@@ -78,7 +79,9 @@ export function SessionStatusIndicator({
                         ? 'session-status-attention text-warning'
                         : status.kind === 'detached'
                           ? 'session-status-detached text-muted'
-                          : 'session-status-running text-muted',
+                          : status.kind === 'usageWait'
+                            ? 'session-status-usage-wait text-muted'
+                            : 'session-status-running text-muted',
                     className,
                 )}
                 data-agent-operation={terminal?.agentOperation}
@@ -112,6 +115,7 @@ export function SessionStatusIndicator({
  */
 function SessionStatusGlyph({ status }: { status: Exclude<SessionStatus, { kind: 'default' }> }) {
     if (status.kind === 'detached') return <Unplug aria-hidden="true" size={12} />;
+    if (status.kind === 'usageWait') return <Clock aria-hidden="true" size={12} />;
     if (status.kind === 'running')
         return status.variant === 'background' ? <BackgroundArc /> : <RunningArc />;
     return (

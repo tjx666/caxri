@@ -46,6 +46,18 @@ describe('sessionActivityGroup', () => {
         ).toBe('idle');
     });
 
+    it('files a Chat waiting for a usage limit as idle, even after a failed turn', () => {
+        expect(
+            sessionActivityGroup(
+                session({ isUsageWaiting: true, agentActivityState: 'failed' }),
+                NOW,
+            ),
+        ).toBe('idle');
+        expect(sessionActivityGroup(session({ isUsageWaiting: true, hasUnread: true }), NOW)).toBe(
+            'attention',
+        );
+    });
+
     it('maps running, waiting, and idle states, and ages a finished Session out', () => {
         expect(sessionActivityGroup(session({ isRunning: true }), NOW)).toBe('working');
         expect(sessionActivityGroup(session({ agentActivityState: 'waiting' }), NOW)).toBe(

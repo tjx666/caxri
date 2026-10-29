@@ -1,6 +1,7 @@
 import type { AgentOperation, ProcessState, SessionRecord } from '@caxri/protocol';
 
 import { translate } from '../../i18n';
+import { agentChatMessageTime } from '../agent-chat/transcript/agent-chat-time';
 import { sessionActivityPresentation } from './session-activity';
 
 /**
@@ -30,11 +31,16 @@ export type SessionStatus =
     | (VisibleSessionStatus & { kind: 'attention'; variant: SessionAttentionVariant })
     | (VisibleSessionStatus & { kind: 'detached' })
     | (VisibleSessionStatus & { kind: 'running'; variant: SessionRunningVariant })
+    | (VisibleSessionStatus & { kind: 'usageWait' })
     | { kind: 'default' };
 
 export interface SessionStatusTerminal {
     agentOperation?: AgentOperation;
     lastProcessState?: ProcessState;
+    /**
+     * When the Chat continues on its own after a plan limit resets; present only while it waits.
+     */
+    usageLimitWaitAt?: number;
 }
 
 type SessionStatusSource = Pick<
@@ -44,6 +50,10 @@ type SessionStatusSource = Pick<
 
 /**
  * Projects the detailed Agent lifecycle into the single status slot shared by Session lists.
+ *
+ * A Chat waiting for a plan limit to reset (issue caxri#2220) outranks everything: it asks nothing of the user and
+ * continues by itself, so the clock replaces the failure or unread cue the limit left behind. The cue returns when the
+ * wait ends.
  *
  * The amber attention slot means exactly one thing: an event the user has not opened yet. It is therefore always the
  * animated unread state and always clears once the Session is read; there is deliberately no quieter "still waiting"
@@ -55,6 +65,17 @@ export function sessionStatus(
     terminal: SessionStatusTerminal = {},
 ): SessionStatus {
     const { agentOperation } = terminal;
+
+    if (terminal.usageLimitWaitAt !== undefined) {
+        return {
+            ariaDescription: translate('primarySidebar.status.usageWait.description', {
+                time: agentChatMessageTime(terminal.usageLimitWaitAt),
+            }),
+            ariaLabel: translate('primarySidebar.status.usageWait.label'),
+            kind: 'usageWait',
+        };
+    }
+
     const currentActivity = sessionActivityPresentation(session.agentActivityState, agentOperation);
 
     if (session.hasUnread) {

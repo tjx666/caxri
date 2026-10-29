@@ -270,6 +270,7 @@ export async function createDomainServices(
             coordinator,
             terminals,
             chatStateStore(database).subagents,
+            { waitingAt: (id) => agentChat.states.usageLimitWaits?.waitingAt(id) },
         ),
     });
     const { createAndStartTerminal, newTerminalWorkingDirectory, terminalWorkingDirectory } =

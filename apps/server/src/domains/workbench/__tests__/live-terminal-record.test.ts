@@ -28,7 +28,10 @@ describe('createLiveTerminalRecord', () => {
             { agentOperation: () => {} },
             { processId: () => {} },
             chatStateStore(database).subagents,
+            { waitingAt: (id) => (id === chat.id ? 42 : undefined) },
         );
+        expect(live(chat).usageLimitWaitAt).toBe(42);
+        expect(live(pty).usageLimitWaitAt).toBeUndefined();
         expect(live(chat).subagents).toMatchObject([{ taskId: 't1', status: 'completed' }]);
         expect(live(pty).subagents).toBeUndefined();
         const empty = database.createTerminal(session.id, 'codex', undefined, 'chat');

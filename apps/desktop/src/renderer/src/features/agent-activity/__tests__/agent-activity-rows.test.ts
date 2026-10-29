@@ -273,6 +273,15 @@ describe('agentActivityGroups', () => {
         expect(groups.map((group) => group.id)).toEqual(['failed']);
     });
 
+    it('files a Chat waiting for a usage limit as idle and labels its clock glyph with the time', () => {
+        const groups = groupsOf(
+            [session('waiting-limit', { agentActivityState: 'failed', hasUnread: true })],
+            [terminal('waiting-limit', { usageLimitWaitAt: NOW + 3_600_000 })],
+        );
+        expect(groups.map((group) => group.id)).toEqual(['idle']);
+        expect(groups[0].rows[0].status.kind).toBe('usageWait');
+    });
+
     it('treats a detached Agent as quiet rather than as work in progress', () => {
         const groups = groupsOf(
             [session('handed-over', { agentActivityState: 'running' })],

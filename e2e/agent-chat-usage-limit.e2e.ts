@@ -51,10 +51,15 @@ test('a Claude Chat that used up its 5-hour limit continues in Codex in a new Se
         // The limit resets within a day, so the Chat waits to continue on its own.
         const wait = notice.locator('[data-agent-chat-auto-continue="waiting"]');
         await expect(wait).toContainText(/Continues automatically at .+ \(in /u);
+        // The Session row says so too, with the time it continues, and clears when the wait ends.
+        const rowStatus = page.locator('.session-status[data-session-status="usageWait"]');
+        await expect(rowStatus).toHaveAccessibleName('Waiting for limit reset');
+        await expect(rowStatus).toHaveAccessibleDescription(/^Continues automatically at /u);
         await page.screenshot({ path: testInfo.outputPath('usage-limit-recovery.png') });
         // Cancel ends the wait and leaves the rest of the card as it was.
         await notice.getByRole('button', { name: 'Cancel' }).click();
         await expect(wait).toHaveCount(0);
+        await expect(rowStatus).toHaveCount(0);
         await expect(notice.getByRole('button', { name: 'Continue now' })).toHaveCount(0);
 
         await notice.getByRole('button', { name: 'Continue in Codex' }).click();

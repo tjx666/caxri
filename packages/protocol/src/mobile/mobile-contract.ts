@@ -130,6 +130,7 @@ export const mobileDashboardSessionSchema = z.strictObject({
             provider: true,
             lastProcessState: true,
             failureReason: true,
+            usageLimitWaitAt: true,
             /**
              * `chat` tells the phone to open the Agent Chat projection instead of attaching to a PTY that does not
              * exist; see `docs/agent-chat.md`.

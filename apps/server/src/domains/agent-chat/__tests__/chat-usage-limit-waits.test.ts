@@ -11,6 +11,7 @@ const HOUR_MS = 3_600_000;
 function waits(options: { isGuarded?: boolean; isEnabled?: boolean } = {}) {
     let stored: unknown;
     const write = vi.fn();
+    const onChange = vi.fn();
     const subject = new ChatUsageLimitWaits({
         database: {
             getAppState: () => stored as never,
@@ -23,10 +24,11 @@ function waits(options: { isGuarded?: boolean; isEnabled?: boolean } = {}) {
         logger: { write } as never,
         settings: () => ({ 'agentChat.autoContinueAtUsageLimit': options.isEnabled ?? true }),
         isUsageGuarded: () => options.isGuarded ?? false,
+        onChange,
         now: () => NOW,
         random: () => 1,
     });
-    return { subject, write, stored: () => stored };
+    return { subject, write, onChange, stored: () => stored };
 }
 
 function notice(turnId: string, resetsAt: number | undefined): UsageLimitNotice {
@@ -50,6 +52,24 @@ describe('ChatUsageLimitWaits', () => {
         });
         expect(subject.stateOf('terminal-1', 'turn-0')).toBeUndefined();
         expect(stored()).toEqual([expect.objectContaining({ turnId: 'turn-1', attempt: 1 })]);
+    });
+
+    it('reports when a Chat waits and tells Clients each time that changes', () => {
+        const { subject, onChange } = waits();
+        expect(subject.waitingAt('terminal-1')).toBeUndefined();
+        subject.observeFailure('terminal-1', 'claude', notice('turn-1', NOW + HOUR_MS));
+        expect(subject.waitingAt('terminal-1')).toBe(NOW + HOUR_MS + 120_000);
+        expect(onChange).toHaveBeenCalledWith('terminal-1');
+        onChange.mockClear();
+        subject.cancel('terminal-1', 'cancelled');
+        expect(subject.waitingAt('terminal-1')).toBeUndefined();
+        expect(onChange).toHaveBeenCalledWith('terminal-1');
+    });
+
+    it('does not report a wait that was skipped', () => {
+        const { subject } = waits();
+        subject.observeFailure('terminal-1', 'claude', notice('turn-1', undefined));
+        expect(subject.waitingAt('terminal-1')).toBeUndefined();
     });
 
     it.each([
