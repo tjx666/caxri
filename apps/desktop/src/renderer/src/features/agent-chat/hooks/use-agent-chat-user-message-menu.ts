@@ -5,7 +5,13 @@ import { agentChatTextWithSessionMentions, parseAgentChatPathReferences } from '
 
 import { useContextMenu } from '../../../hooks/use-context-menu';
 import { translate } from '../../../i18n';
-import { agentChatRestoreKey, useAgentChatRestoreStore } from '../agent-chat-commands';
+import { cachedAgentChatSnapshot } from '../agent-chat-client';
+import {
+    agentChatRestoreKey,
+    changeAgentChatGoal,
+    useAgentChatRestoreStore,
+} from '../agent-chat-commands';
+import { isAgentChatGoalOffered } from '../composer-input/agent-chat-slash-commands';
 import {
     agentChatSelectionInside,
     copyAgentChatMessageFromMenu,
@@ -79,6 +85,11 @@ export function useAgentChatUserMessageMenu({
                 terminalId === undefined
                     ? undefined
                     : (value) => quoteAgentChatMessageFromMenu(terminalId, value),
+            onSetGoal:
+                terminalId !== undefined &&
+                isAgentChatGoalOffered(cachedAgentChatSnapshot(terminalId)?.commands)
+                    ? (objective) => changeAgentChatGoal(terminalId, { action: 'set', objective })
+                    : undefined,
             onEdit: () => edit?.startEdit(id, text),
             onFork: fork,
             onRestore: () => {

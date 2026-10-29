@@ -55,6 +55,7 @@ export const agentChatPane: TranslatedNamespace<typeof source> = {
     'agentChat.userMenu.selectionCopied': '已复制所选内容',
     'agentChat.userMenu.messageCopied': '已复制消息',
     'agentChat.userMenu.addToMessage': '添加到消息',
+    'agentChat.userMenu.setAsGoal': '设为目标',
     'agentChat.userMenu.historyUnavailable': '从历史记录加载的较早消息不支持此操作',
     'agentChat.history.loadFailed': '无法加载更早的消息。',
     'agentChat.history.loading': '正在加载更早的消息…',
