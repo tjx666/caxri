@@ -419,6 +419,12 @@ export const agentChatTurnSchema = z.strictObject({
              * Estimated list-price cost of every response in the turn; absent when a response's model has no price.
              */
             costUsd: z.number().nonnegative().optional(),
+            /**
+             * The turn's steps (model responses) and total tokens (`input + output + cacheRead + cacheWrite`), the
+             * running `turnUsage` figures frozen when the turn ended, so its fold row can show them afterwards.
+             */
+            requests: z.number().int().positive().optional(),
+            totalTokens: z.number().int().positive().optional(),
         })
         .optional(),
 });

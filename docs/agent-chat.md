@@ -963,7 +963,11 @@ Request`, `agentChat.focusWaitingRequest`, bound to Cmd+Alt+W, unfolds it and mo
   ([`turn-metrics.ts`](../apps/server/src/domains/usage/turn-metrics.ts)): output
   tokens and generation time come from the transcript throughput read (the responses that completed
   inside the turn's window), and the cost is the turn's `turnUsage` captured at its end. A turn
-  replayed from provider history, or one too short to rate, shows only what it has.
+  replayed from provider history, or one too short to rate, shows only what it has. The same
+  record also freezes the turn's steps and total tokens (`requests`, `totalTokens`), so the turn's
+  `Worked for` fold row ends with the status row's steps, tokens, and cost figures (zero figures
+  and an unpriced cost left out) after the turn finishes, interrupted or failed ones included,
+  and after a restart; the row that closes a steered turn carries them once.
 - Message times follow the Codex app. A centered day break (`Today 17:59`, `Yesterday 09:12`,
   `Oct 3 17:59`) heads the first user message of each day. Under a user message, a hover row shows
   its time and Copy message, mounted only while the pointer or focus is on the message; the row keeps

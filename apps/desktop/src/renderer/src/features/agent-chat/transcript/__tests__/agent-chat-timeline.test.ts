@@ -167,7 +167,13 @@ describe('buildAgentChatTimeline', () => {
     });
 
     it("carries a finished turn's metrics on its final reply and keeps the entry across an equal rebuild", () => {
-        const metrics = { outputTokens: 300, generationMs: 3_000, costUsd: 0.42 };
+        const metrics = {
+            outputTokens: 300,
+            generationMs: 3_000,
+            costUsd: 0.42,
+            requests: 3,
+            totalTokens: 9_000,
+        };
         const turns: AgentChatTurn[] = [
             { id: 't1', status: 'completed', metrics },
             { id: 't2', status: 'running' },
@@ -197,6 +203,13 @@ describe('buildAgentChatTimeline', () => {
         const final = (list: readonly AgentChatTimelineEntry[]) =>
             list.find((entry) => entry.kind === 'item' && entry.item.id === 'a1');
         expect(final(rebuilt)).toBe(final(entries));
+        /**
+         * The fold row that closes the turn carries the same record, and survives the equal rebuild too.
+         */
+        const fold = (list: readonly AgentChatTimelineEntry[]) =>
+            list.find((entry) => entry.kind === 'turn');
+        expect(fold(entries)).toMatchObject({ metrics });
+        expect(fold(rebuilt)).toBe(fold(entries));
     });
 
     it('marks the artifacts of a first turn that lost its start to the budget as partial', () => {

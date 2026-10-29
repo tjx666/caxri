@@ -82,6 +82,11 @@ export type AgentChatTimelineEntry =
           startedAt?: number;
           endedAt?: number;
           /**
+           * The finished turn's recorded steps, tokens, and cost, on the row that closes the turn so a steered turn
+           * shows them once. Absent for a turn that ended before Caxri recorded them.
+           */
+          metrics?: AgentChatTurnMetrics;
+          /**
            * The folded work. Empty for a stopped turn that did no work: its row then only says how it ended.
            */
           entries: ReadonlyArray<Exclude<AgentChatTimelineEntry, { kind: 'turn' }>>;
@@ -171,6 +176,7 @@ function turnEntry(
         status: hasOutcome ? turn.status : 'completed',
         ...(hasOutcome && turn.stoppedBy && { stoppedBy: turn.stoppedBy }),
         ...timing,
+        ...(hasOutcome && turn.metrics && { metrics: turn.metrics }),
         entries,
     };
 }
@@ -420,7 +426,9 @@ function isSameTurnMetrics(
     return (
         left?.outputTokens === right?.outputTokens &&
         left?.generationMs === right?.generationMs &&
-        left?.costUsd === right?.costUsd
+        left?.costUsd === right?.costUsd &&
+        left?.requests === right?.requests &&
+        left?.totalTokens === right?.totalTokens
     );
 }
 
@@ -496,6 +504,7 @@ function reuseAgentChatTimelineEntry(entry: AgentChatTimelineEntry): AgentChatTi
                 previous.durationMs === next.durationMs &&
                 previous.startedAt === next.startedAt &&
                 previous.endedAt === next.endedAt &&
+                isSameTurnMetrics(previous.metrics, next.metrics) &&
                 areSameEntries(previous.entries, next.entries)
             )
                 return previous;

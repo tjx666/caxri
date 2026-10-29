@@ -79,10 +79,28 @@ describe('chatTurnMetricsOperation', () => {
                     turns[0],
                     {
                         ...turn,
-                        metrics: { outputTokens: 300, generationMs: 3_000, costUsd: 0.42 },
+                        metrics: {
+                            outputTokens: 300,
+                            generationMs: 3_000,
+                            costUsd: 0.42,
+                            requests: 3,
+                            totalTokens: 9_000,
+                        },
                     },
                 ],
             },
+        });
+    });
+
+    it('records the steps and tokens of a turn whose models have no price', () => {
+        const operation = chatTurnMetricsOperation(
+            { turns },
+            'turn-2',
+            { turnId: 'turn-2', requests: 2, totalTokens: 500 },
+            null,
+        );
+        expect(operation).toMatchObject({
+            state: { turns: [turns[0], { metrics: { requests: 2, totalTokens: 500 } }] },
         });
     });
 
@@ -123,7 +141,12 @@ describe('recordChatTurnMetrics', () => {
             'turn-2',
         );
         expect(apply).toHaveBeenCalledWith([
-            { op: 'state', state: { turns: [{ ...turn, metrics: { costUsd: 0.1 } }] } },
+            {
+                op: 'state',
+                state: {
+                    turns: [{ ...turn, metrics: { costUsd: 0.1, requests: 1, totalTokens: 100 } }],
+                },
+            },
         ]);
     });
 });

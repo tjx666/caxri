@@ -59,13 +59,16 @@ export function chatTurnMetricsOperation(
     const turn = snapshot.turns.find((candidate) => candidate.id === turnId);
     if (!turn) return undefined;
     const generated = chatTurnThroughput(throughput, turn);
-    const costUsd = usage?.turnId === turnId ? usage.costUsd : undefined;
+    const ownUsage = usage?.turnId === turnId ? usage : undefined;
+    const costUsd = ownUsage?.costUsd;
     const metrics: AgentChatTurnMetrics = {
         ...(generated && {
             outputTokens: generated.outputTokens,
             generationMs: generated.durationMs,
         }),
         ...(costUsd !== undefined && { costUsd }),
+        ...(ownUsage && ownUsage.requests > 0 && { requests: ownUsage.requests }),
+        ...(ownUsage && ownUsage.totalTokens > 0 && { totalTokens: ownUsage.totalTokens }),
     };
     if (Object.keys(metrics).length === 0) return undefined;
     return {
