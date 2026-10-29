@@ -1,6 +1,6 @@
 ---
 name: file-issue
-description: 'Draft and directly file a well-formed GitHub issue for this repository, add it to the owner Caxri project, and keep its Status current as the work moves. Explicit invocation authorizes creation without a preview or confirmation. Use whenever creating an issue with gh (a bug report, an enhancement, or a follow-up task spun out of the current conversation), when the user asks to 提 issue / file an issue, or when starting, blocking, or finishing work tracked by an existing issue.'
+description: 'Draft and directly file a well-formed GitHub issue for this repository, add it to the owner Caxri project, and keep its Status current as the work moves. Explicit invocation authorizes creation without a preview or confirmation. Use whenever creating an issue with gh (a bug report, an enhancement, or a follow-up task spun out of the current conversation), when the user asks to 提 issue / file an issue, or when starting, blocking, finishing, or closing (including stale or not-planned sweeps) work tracked by an existing issue.'
 ---
 
 # File Issue
@@ -271,6 +271,12 @@ When work starts later, flip it in the same turn you start, before writing code,
 **`Backlog` means the owner does not want this done yet.** Never start work on a `Backlog` issue,
 even when it is routed to you. Skip it and say why. The only thing that overrides this is the owner explicitly
 asking for that issue by name in the current conversation; a general "clear the queue" does not.
+
+**An `In Progress` issue belongs to a running session.** A sweep that closes stale or not-planned
+issues skips one whose Status is `In Progress` or whose latest comment announces that work started
+(such as `开始实现`) with no later completion or cancellation, unless the owner names that issue in
+the current conversation. A sibling session once closed an issue as not planned 24 minutes after
+another session started implementing it. This does not stop the merged PR from closing it.
 
 ### Priority (assess, never default)
 

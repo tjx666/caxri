@@ -19,6 +19,11 @@ import { listOrphanedProcesses } from './worktree-orphans';
 import { pruneOrphanProfiles } from './worktree-profile-prune';
 import { reuseWorktree } from './worktree-reuse';
 
+/**
+ * Upper bound for `desktop --wait`, matching `check --e2e-wait`.
+ */
+const MAX_DESKTOP_WAIT_SECONDS = 1800;
+
 const USAGE = `Usage: switch-worktree <command> [options]
 
 Commands:
@@ -33,12 +38,14 @@ Commands:
   remove <branch|path> [--preserve-profile]
                                        Safely remove a checkout and its profile; preserve its branch
   prune-profiles [--apply]             Preview or delete profiles with no registered worktree
-  desktop --label <name> -- <command>  Hold the repository-wide desktop lease
+  desktop --label <name> [--wait <seconds>] -- <command>
+                                       Hold the repository-wide desktop lease
 
 Options:
   --apply                              Apply prune-profiles deletion (default: preview)
   --preserve-profile                   Keep a removed worktree's isolated profile
   --user-data-dir <path>               Run dev against this absolute throwaway profile instead
+  --wait <seconds>                     Let desktop wait up to this long (1-${MAX_DESKTOP_WAIT_SECONDS}) for a busy lease
   --json                               Emit stable JSON for command results
   --help                               Show this message`;
 
@@ -52,6 +59,7 @@ interface ParsedArguments {
     preserveProfile: boolean;
     trailing: string[];
     userDataDirectory?: string;
+    waitSeconds?: number;
 }
 
 /**
@@ -81,6 +89,22 @@ function applyToken(
         case '--preserve-profile': {
             result.preserveProfile = true;
             return index;
+        }
+        case '--wait': {
+            const option = regular[index + 1];
+            const seconds = Number(option);
+            if (
+                !option ||
+                !Number.isSafeInteger(seconds) ||
+                seconds < 1 ||
+                seconds > MAX_DESKTOP_WAIT_SECONDS
+            )
+                throw new CommandError(
+                    `--wait requires whole seconds from 1 to ${MAX_DESKTOP_WAIT_SECONDS}`,
+                    2,
+                );
+            result.waitSeconds = seconds;
+            return index + 1;
         }
         case '--base':
         case '--label':
@@ -178,7 +202,9 @@ async function runDesktop(arguments_: ParsedArguments): Promise<void> {
     if (!arguments_.label) throw new CommandError('desktop requires --label <name>', 2);
     if (arguments_.trailing.length === 0)
         throw new CommandError('desktop requires -- <command>', 2);
-    const lease = await acquireDesktopLease(process.cwd(), arguments_.label);
+    const lease = await acquireDesktopLease(process.cwd(), arguments_.label, process.pid, {
+        waitMs: (arguments_.waitSeconds ?? 0) * 1000,
+    });
     if (arguments_.json) {
         print(
             {

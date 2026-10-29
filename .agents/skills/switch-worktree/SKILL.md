@@ -247,6 +247,10 @@ bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts desktop \
   --label "focused Electron check" -- <command> [args...]
 ```
 
+A launch that finds the lease busy fails at once. To wait for a sibling's run instead, add
+`--wait <seconds>` (up to 1800) to `desktop`; the nested Electron launches run under the acquired
+lease, so this also serves a `bun run benchmark:*` command, which has no wait option of its own.
+
 Never bypass the lease for a task that launches Electron, takes screenshots, opens native dialogs,
 or measures desktop performance. A verified live owner blocks the second task; a stale PID is
 reclaimed only when its process start identity no longer matches.
