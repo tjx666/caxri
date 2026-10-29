@@ -93,6 +93,16 @@ export const desktop = {
         'Only Caxri metadata and snapshots are deleted. The selected folder and its files are never touched.',
     'desktop.delete.message': "Delete '{{title}}'?",
     'desktop.delete.messageRunning': "Delete '{{title}}' and terminate {{running}}?",
+    'desktop.archiveWorktree.title': 'Remove Worktree',
+    'desktop.archiveWorktree.message': 'Remove the worktree of "{{title}}" too?',
+    'desktop.archiveWorktree.reasonOpen': 'Its pull request is not merged yet.',
+    'desktop.archiveWorktree.reasonClosed': 'Its pull request was closed without merging.',
+    'desktop.archiveWorktree.reasonNone': 'No pull request was found for it.',
+    'desktop.archiveWorktree.detail':
+        '{{reason}} Removing deletes {{path}}, including ignored files such as node_modules. Uncommitted changes are committed to {{branch}} first, and the branch is kept.',
+    'desktop.archiveWorktree.remove': 'Archive and Remove',
+    'desktop.archiveWorktree.keep': 'Archive Only',
+
     'desktop.deleteSessions.title': 'Delete Sessions',
     'desktop.deleteSessions.confirm': 'Delete Sessions',
     'desktop.deleteSessions.message': 'Delete {{count}} Sessions?',

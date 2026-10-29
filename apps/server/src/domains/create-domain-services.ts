@@ -24,7 +24,7 @@ import { createIntrospectionServices } from './introspection';
 import { createSessionMaintenanceServices } from './maintenance-services-creation';
 import { createMobileDomainHandlers, MobileTerminalMutationQueue } from './mobile';
 import { createOrderingHandlers } from './ordering-handlers';
-import { createSessionHandlers, createTerminateAllHandler } from './parking-handlers';
+import { createSessionHandlers } from './parking-handlers';
 import {
     createProjectFolderBrowser,
     createProjectHidingHandlers,
@@ -79,6 +79,7 @@ export async function createDomainServices(
     const pid = dependencies.pid ?? process.pid;
     const {
         acknowledgeFileMutation,
+        archivedWorktrees,
         configuration,
         database,
         externalStatus,
@@ -325,6 +326,7 @@ export async function createDomainServices(
      */
     const sessionParking = {
         agentChat,
+        archivedWorktrees,
         botRestores,
         database,
         evictSessions: evictSessionCaches,
@@ -408,7 +410,7 @@ export async function createDomainServices(
         await runStep('terminals', () => terminals.shutdown('orderly'));
         agentCommands.dispatchService.close();
         agentCommands.delegationService.close();
-        await workbenchRoots.close();
+        await Promise.all([archivedWorktrees.close(), workbenchRoots.close()]);
         await agentRuntime.close();
         await dependencies.agentEndpoints?.close();
         await files.close();
@@ -466,7 +468,6 @@ export async function createDomainServices(
         ...createOrderingHandlers({ database, sendFullStateChange }),
         ...createProjectHidingHandlers({ ...sessionParking, bootstrapState: snapshots.bootstrap }),
         ...createSessionHandlers(database, sessionParking, sessionRenames),
-        ...createTerminateAllHandler(sessionParking),
         ...createProjectFolderBrowser(),
         ...createSessionCreationHandlers(database, createSessionForProject),
         ...createMobileDomainHandlers({
@@ -529,6 +530,7 @@ export async function createDomainServices(
             introspection.records.terminal(query, principal),
         ...createServiceHandlers({
             acknowledgeFileMutation,
+            archivedWorktrees,
             agentChat,
             agentEnvironment,
             agentThroughput,

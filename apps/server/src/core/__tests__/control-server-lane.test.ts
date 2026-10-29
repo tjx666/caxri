@@ -232,6 +232,7 @@ const expectedLanes: Record<string, ControlLane> = {
     'session.archive': 'ordered',
     'session.authorizeWorkbenchRoot': 'ordered',
     'session.compactWarm': 'ordered',
+    'session.confirmArchiveWorktree': 'ordered',
     'session.continueInWorktree': 'ordered',
     'session.conversationReference': 'ordered',
     'session.create': 'ordered',

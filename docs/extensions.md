@@ -464,7 +464,8 @@ lifetime, so a pull request merged while Caxri was closed is not announced.
 With the `projectStatus.autoArchiveOnPullRequestSettled` setting on (default on), the same sweep
 archives a Session whose pull request was seen open and then became merged or closed, using the
 sidebar's own Archive operation (metadata only; nothing on disk is deleted, and Archived Sessions
-can restore it). It waits until the Agent is idle: a running or waiting Agent defers the archive
+can restore it). With `workbench.removeWorktreeOnArchive` also on, a merged pull request's worktree
+is then removed as well, after its uncommitted changes are committed to its kept branch. It waits until the Agent is idle: a running or waiting Agent defers the archive
 until its turn ends, and the merge notice's turn gets a 20 second grace window so the Agent can finish
 reacting to it first. A Chat turn that ended while a background shell or subagent it started still
 runs (an Agent watching a deploy in the background) also defers; that work can finish without an

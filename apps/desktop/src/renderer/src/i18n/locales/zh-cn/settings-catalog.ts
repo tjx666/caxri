@@ -78,6 +78,9 @@ export const settingsCatalog: TranslatedNamespace<typeof source> = {
     'settings.workbench.confirmWorktreeAuthorization.title': '授权 Worktree 前确认',
     'settings.workbench.confirmWorktreeAuthorization.description':
         '从状态栏选择未授权的 Worktree 时先询问。关闭后直接授权并切换。',
+    'settings.workbench.removeWorktreeOnArchive.title': '归档时删除 Worktree',
+    'settings.workbench.removeWorktreeOnArchive.description':
+        '归档会话时删除它所在的 Worktree，包括 node_modules 等被忽略的文件。未提交的改动会先提交到其分支，分支保留。Pull Request 未合并的 Worktree 需要你确认后才会删除。',
 
     'settings.primarySidebar.autoCollapseProjects.title': '自动折叠不活跃的项目',
     'settings.primarySidebar.autoCollapseProjects.description':

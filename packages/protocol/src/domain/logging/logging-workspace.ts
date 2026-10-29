@@ -110,6 +110,7 @@ export const workbenchRootLogEvents = {
     sweepSlow: 'workbench_root.sweep_slow',
     topologyFailed: 'workbench_root.topology_failed',
     validationDropped: 'workbench_root.validation_dropped',
+    worktreeArchiveCleanup: 'workbench_root.worktree_archive_cleanup',
 } as const;
 
 export const workbenchRootsLogEvents = {

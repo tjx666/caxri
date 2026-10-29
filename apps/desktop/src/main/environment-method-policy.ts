@@ -131,6 +131,7 @@ const environmentMethodScopes = {
     'project.create': 'remote-override',
     'project.cancelCreate': 'remote-override',
     'project.delete': 'any',
+    'session.confirmArchiveWorktree': 'any',
     'session.delete': 'any',
     'session.deleteMany': 'any',
     'terminal.openFileLink': 'remote-override',

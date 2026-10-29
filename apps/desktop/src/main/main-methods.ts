@@ -24,6 +24,8 @@ import { openAgentChatPathReference, selectAgentChatPaths } from './agent-chat/p
 import { readArgvConfig, updateArgvConfig } from './argv-config';
 import { handleBenchmarkShare, isBenchmarkShare } from './benchmark-share-methods';
 import {
+    archiveWorktreeChoice,
+    archiveWorktreePrompt,
     clearBotDataPrompt,
     deleteProjectPrompt,
     deleteSessionPrompt,
@@ -431,6 +433,13 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                     : await dialog.showMessageBox(mainWindow!, sessionPrompt);
                 if (result.response !== 0) return { canceled: true };
                 return supervisor.request('session.delete', { sessionId });
+            }
+            case 'session.confirmArchiveWorktree': {
+                const result = await dialog.showMessageBox(
+                    requestWindowOr(mainWindow),
+                    archiveWorktreePrompt(request.params),
+                );
+                return { choice: archiveWorktreeChoice(result.response) };
             }
             case 'session.deleteMany': {
                 const { sessionIds } = request.params;

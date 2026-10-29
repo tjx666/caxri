@@ -248,7 +248,9 @@ em-dash-check` enforces this in the `guards` job and the pre-commit hook.
 - A Project owns one local root. Sessions reference the Project by ID and cannot submit a root
   path.
 - Project and Session deletion remove metadata only. They must never remove the Project folder or
-  user files.
+  user files. The one exception is opt-in: with `workbench.removeWorktreeOnArchive` on, archiving a
+  Session may remove a linked worktree Caxri registered for its Project, after its pull request
+  merged or the user confirmed, and only after uncommitted changes are committed to a kept branch.
 - Diagnostic logs, artifacts, and reports must exclude source contents, Terminal output and
   snapshots, Agent transcripts, credentials, environment values, and secret-like settings.
 - Logs must do two jobs: explain a specific failure after it happened, and measure behavior well

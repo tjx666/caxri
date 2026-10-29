@@ -89,6 +89,16 @@ export const desktop: TranslatedNamespace<typeof source> = {
         '只会删除 Caxri 的元数据和快照，所选文件夹及其中的文件不会被改动。',
     'desktop.delete.message': '要删除“{{title}}”吗？',
     'desktop.delete.messageRunning': '要删除“{{title}}”并终止 {{running}}吗？',
+    'desktop.archiveWorktree.title': '删除 Worktree',
+    'desktop.archiveWorktree.message': '同时删除“{{title}}”的 Worktree 吗？',
+    'desktop.archiveWorktree.reasonOpen': '它的 Pull Request 尚未合并。',
+    'desktop.archiveWorktree.reasonClosed': '它的 Pull Request 已关闭且未合并。',
+    'desktop.archiveWorktree.reasonNone': '没有找到它的 Pull Request。',
+    'desktop.archiveWorktree.detail':
+        '{{reason}}删除会移除 {{path}}，包括 node_modules 等被忽略的文件。未提交的改动会先提交到 {{branch}}，分支保留。',
+    'desktop.archiveWorktree.remove': '归档并删除',
+    'desktop.archiveWorktree.keep': '仅归档',
+
     'desktop.deleteSessions.title': '删除会话',
     'desktop.deleteSessions.confirm': '删除会话',
     'desktop.deleteSessions.message': '要删除 {{count}} 个会话吗？',

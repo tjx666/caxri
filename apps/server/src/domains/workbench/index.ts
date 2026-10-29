@@ -1,3 +1,4 @@
+export { ArchivedWorktreeCleanup } from './archive-worktree';
 export { createLiveTerminalRecord } from './live-terminal-record';
 export {
     handleAgentLifecycleSignal,

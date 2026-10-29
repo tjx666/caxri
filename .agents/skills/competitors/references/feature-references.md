@@ -272,6 +272,10 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 
 - **Mobile page preview**: Discover a local web server and preview it in the in-app browser (Port Forwarding). Evidence: `apps/mobile/src/features/browser/preview-chip.tsx`; `docs/mobile/preview.md`.
 
+## Lody (closed product reference)
+
+- **Remove worktree on archive**: Archiving deletes the managed worktree, including `node_modules` and build output, after committing non-ignored uncommitted changes to its branch; the branch is kept and only worktrees the product created qualify. Caxri adds the merged pull request condition and a confirmation otherwise. Evidence: `.agents/skills/project-architecture/references/git.md`; `apps/server/src/domains/workbench/archive-worktree.ts`.
+
 ## Linear (closed product reference)
 
 - **Chat code block folding**: A long fenced block folds to its first lines under a fade, with a centered `Expand (N lines)` pill and a `Collapse` pill below the expanded block. Evidence: `apps/desktop/src/renderer/src/components/markdown/code-collapse.ts`; `apps/desktop/src/renderer/src/components/markdown/code-collapse-toggle.tsx`; `DESIGN.md` (transcript blocks).
