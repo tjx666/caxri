@@ -171,4 +171,7 @@ export const core = {
     'core.usageFormat.resetsNow': 'resets now',
     'core.usageFormat.resetsInDays': 'resets in {{days}}d {{hours}}h',
     'core.usageFormat.resetsIn': 'resets in {{duration}}',
+    'core.usageFormat.expiresNow': 'expires now',
+    'core.usageFormat.expiresInDays': 'expires in {{days}}d {{hours}}h',
+    'core.usageFormat.expiresIn': 'expires in {{duration}}',
 } as const;

@@ -66,3 +66,22 @@ export function localizedLimitReset(at: number, now: number, t: Translate = tran
         });
     return t('core.usageFormat.resetsIn', { duration: localizedDuration(ms, t) });
 }
+
+/**
+ * When a banked reset expires, relative to `now` (`expires in 11h 20m`, `expires in 3d 4h`).
+ */
+export function localizedResetCreditExpiry(
+    at: number,
+    now: number,
+    t: Translate = translate,
+): string {
+    const ms = at - now;
+    if (ms <= 0) return t('core.usageFormat.expiresNow');
+    const hours = Math.floor(ms / 3_600_000);
+    if (hours >= 48)
+        return t('core.usageFormat.expiresInDays', {
+            days: Math.floor(hours / 24),
+            hours: hours % 24,
+        });
+    return t('core.usageFormat.expiresIn', { duration: localizedDuration(ms, t) });
+}

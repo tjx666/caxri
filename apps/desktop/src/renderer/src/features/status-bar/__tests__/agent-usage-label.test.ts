@@ -6,6 +6,8 @@ import {
     agentUsageLabel,
     agentUsageLimitTone,
     agentUsagePaceNote,
+    agentUsageResetCreditsNote,
+    agentUsageResetCreditsValue,
 } from '../agent-usage-label';
 
 const NOW = Date.parse('2026-10-11T12:00:00.000Z');
@@ -181,5 +183,61 @@ describe('agent usage clock signature', () => {
             agentUsageClockSignature(limit, NOW),
         );
         expect(agentUsageClockSignature(limit, NOW + 3_600_000)).toBe('');
+    });
+});
+
+describe('banked reset credits', () => {
+    const limit = (resetCredits: { availableCount: number; nextExpiresAt?: number }) => ({
+        provider: 'codex' as const,
+        observedAt: NOW,
+        windows: [{ windowMinutes: 10_080, usedPercent: 10, resetsAt: NOW + 86_400_000 }],
+        resetCredits,
+    });
+    const DAY = 86_400_000;
+
+    it('states the count and the soonest expiry, or the count alone without one', () => {
+        expect(
+            agentUsageResetCreditsValue(
+                limit({ availableCount: 2, nextExpiresAt: NOW + 3 * DAY + 4 * 3_600_000 }),
+                NOW,
+            ),
+        ).toBe('2 · next expires in 3d 4h');
+        expect(agentUsageResetCreditsValue(limit({ availableCount: 1 }), NOW)).toBe('1');
+        expect(agentUsageResetCreditsValue(undefined, NOW)).toBeUndefined();
+        expect(agentUsageResetCreditsValue(limit({ availableCount: 0 }), NOW)).toBeUndefined();
+        // An expiry that has passed means the count is stale until the next reading.
+        expect(
+            agentUsageResetCreditsValue(limit({ availableCount: 2, nextExpiresAt: NOW - 1 }), NOW),
+        ).toBeUndefined();
+    });
+
+    it('warns on the chip only within a day of the soonest expiry', () => {
+        const tone = (nextExpiresAt: number) =>
+            agentUsageLimitTone(
+                readout({ limit: limit({ availableCount: 1, nextExpiresAt }) }),
+                NOW,
+                DEFAULT_WINDOWS,
+            );
+        expect(tone(NOW + 12 * 3_600_000)).toBe('warning');
+        expect(tone(NOW + 3 * DAY)).toBeUndefined();
+        expect(
+            agentUsageResetCreditsNote(
+                limit({ availableCount: 1, nextExpiresAt: NOW + 12 * 3_600_000 }),
+                NOW,
+            ),
+        ).toContain('expires in 12h');
+        expect(
+            agentUsageResetCreditsNote(
+                limit({ availableCount: 1, nextExpiresAt: NOW + 3 * DAY }),
+                NOW,
+            ),
+        ).toBeUndefined();
+    });
+
+    it('changes the clock signature as the expiry wording moves', () => {
+        const credits = limit({ availableCount: 1, nextExpiresAt: NOW + 3 * DAY });
+        expect(agentUsageClockSignature(credits, NOW)).not.toBe(
+            agentUsageClockSignature(credits, NOW + DAY),
+        );
     });
 });

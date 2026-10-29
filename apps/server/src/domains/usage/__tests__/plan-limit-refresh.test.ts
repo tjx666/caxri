@@ -16,7 +16,10 @@ describe('PlanLimitRefresh', () => {
         let current = reading(1);
         const read = vi.fn(() => Promise.resolve(current));
         const observe = vi.fn();
-        const refresh = new PlanLimitRefresh(read, observe);
+        const refresh = new PlanLimitRefresh(read, {
+            observeLimits: observe,
+            observeResetCredits: vi.fn(),
+        });
         refresh.request('claude', 't1');
         refresh.request('claude', 't1');
         await settle();
@@ -32,16 +35,17 @@ describe('PlanLimitRefresh', () => {
         expect(observe).toHaveBeenLastCalledWith([{ provider: 'claude', ...current }]);
     });
 
-    it('asks again on the next poll when no Chat answered, and never asks for Codex', async () => {
+    it('asks again on the next poll when no Chat answered', async () => {
         const read = vi.fn<NonNullable<ConstructorParameters<typeof PlanLimitRefresh>[0]>>();
         read.mockResolvedValue(undefined);
         const observe = vi.fn();
-        const refresh = new PlanLimitRefresh(read, observe);
+        const refresh = new PlanLimitRefresh(read, {
+            observeLimits: observe,
+            observeResetCredits: vi.fn(),
+        });
         refresh.request('claude', 'pty');
         await settle();
         refresh.request('claude', 'chat');
-        await settle();
-        refresh.request('codex', 'chat');
         await settle();
         expect(read.mock.calls).toEqual([['pty'], ['chat']]);
         expect(observe).not.toHaveBeenCalled();
@@ -49,7 +53,10 @@ describe('PlanLimitRefresh', () => {
 
     it('survives a failed read', async () => {
         const read = vi.fn(() => Promise.reject(new Error('closed')));
-        const refresh = new PlanLimitRefresh(read, vi.fn());
+        const refresh = new PlanLimitRefresh(read, {
+            observeLimits: vi.fn(),
+            observeResetCredits: vi.fn(),
+        });
         refresh.request('claude', 't1');
         await settle();
         refresh.request('claude', 't1');

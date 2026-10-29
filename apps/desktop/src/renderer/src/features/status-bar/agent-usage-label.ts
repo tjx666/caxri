@@ -2,7 +2,9 @@ import type { AgentUsageReadout, UsageLimit } from '@caxri/protocol';
 import {
     agentUsageCostLabel,
     currentLimitWindows,
+    currentResetCredits,
     formatTokens,
+    isResetCreditExpiringSoon,
     LIMIT_WARNING_PERCENT,
     limitPaceShortfall,
     remainingLimitPercent,
@@ -10,9 +12,11 @@ import {
 
 import type { Translate } from '../../i18n';
 import { translate } from '../../i18n';
+import { formatCount } from '../../lib/locale-format';
 import {
     localizedLimitReset,
     localizedLimitWindowName,
+    localizedResetCreditExpiry,
     localizedShortLimitWindowName,
 } from '../../lib/usage-format';
 
@@ -107,7 +111,9 @@ export function agentUsageLimitTone(
         (window) => Math.round(window.usedPercent) >= LIMIT_WARNING_PERCENT,
     );
     const isAheadOfPace = !isPaceDismissed && limitPaceShortfall(readout.limit, now) !== undefined;
-    return isNearlySpent || isAheadOfPace ? 'warning' : undefined;
+    // A banked reset that is about to expire is lost unless the user acts, so the chip asks for a glance.
+    const isCreditExpiring = isResetCreditExpiringSoon(readout.limit, now);
+    return isNearlySpent || isAheadOfPace || isCreditExpiring ? 'warning' : undefined;
 }
 
 /**
@@ -131,6 +137,41 @@ export function agentUsagePaceNote(
 }
 
 /**
+ * The hover card's banked-reset row value, e.g. `2 · next expires in 3d 4h`; the count alone when no expiry is known.
+ * Undefined while the account holds none.
+ */
+export function agentUsageResetCreditsValue(
+    limit: UsageLimit | undefined,
+    now: number,
+    t: Translate = translate,
+): string | undefined {
+    const credits = currentResetCredits(limit, now);
+    if (!credits) return undefined;
+    const count = formatCount(credits.availableCount);
+    if (credits.nextExpiresAt === undefined) return count;
+    return t('statusBar.usage.resetCreditsValue', {
+        count,
+        expiry: localizedResetCreditExpiry(credits.nextExpiresAt, now, t),
+    });
+}
+
+/**
+ * The tooltip sentence that says why the chip warns when a banked reset is about to expire. Undefined otherwise.
+ */
+export function agentUsageResetCreditsNote(
+    limit: UsageLimit | undefined,
+    now: number,
+    t: Translate = translate,
+): string | undefined {
+    const credits = currentResetCredits(limit, now);
+    if (credits?.nextExpiresAt === undefined || !isResetCreditExpiringSoon(limit, now))
+        return undefined;
+    return t('statusBar.usage.resetCreditsExpiringNote', {
+        expiry: localizedResetCreditExpiry(credits.nextExpiresAt, now, t),
+    });
+}
+
+/**
  * Everything the usage chip and its Tooltip derive from the clock: which limit windows are still current and how each
  * one's reset reads. Two instants with the same signature render the same chip, so the chip's clock only advances when
  * this changes instead of on every poll or tick.
@@ -140,11 +181,13 @@ export function agentUsageClockSignature(
     now: number,
     t: Translate = translate,
 ): string {
-    return currentLimitWindows(limit, now)
+    const windows = currentLimitWindows(limit, now)
         .map((window) =>
             window.resetsAt === undefined
                 ? `${window.windowMinutes}`
                 : `${window.windowMinutes}:${localizedLimitReset(window.resetsAt, now, t)}`,
         )
         .join('|');
+    const credits = agentUsageResetCreditsValue(limit, now, t);
+    return credits === undefined ? windows : `${windows}|${credits}`;
 }

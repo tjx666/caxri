@@ -182,3 +182,36 @@ export function agentUsageCostLabel(
     const cost = formatUsd(readout.costUsd);
     return readout.unpricedModels.length > 0 ? `≥${cost}` : cost;
 }
+
+/**
+ * How close to its expiry the soonest banked reset starts to warn: a credit unspent by then is lost.
+ */
+export const RESET_CREDIT_EXPIRY_WARNING_MS = 24 * 3_600_000;
+
+/**
+ * The banked resets still worth showing at `now`: none when no credit is held, and none once the soonest expiry has
+ * passed, because the count then still includes a credit that no longer works until the next reading replaces it.
+ */
+export function currentResetCredits(
+    limit: UsageLimit | null | undefined,
+    now: number,
+): { availableCount: number; nextExpiresAt?: number } | undefined {
+    const credits = limit?.resetCredits;
+    if (!credits || credits.availableCount <= 0) return undefined;
+    if (credits.nextExpiresAt !== undefined && credits.nextExpiresAt <= now) return undefined;
+    return credits;
+}
+
+/**
+ * Whether the soonest banked reset expires within {@link RESET_CREDIT_EXPIRY_WARNING_MS}.
+ */
+export function isResetCreditExpiringSoon(
+    limit: UsageLimit | null | undefined,
+    now: number,
+): boolean {
+    const credits = currentResetCredits(limit, now);
+    return (
+        credits?.nextExpiresAt !== undefined &&
+        credits.nextExpiresAt - now <= RESET_CREDIT_EXPIRY_WARNING_MS
+    );
+}

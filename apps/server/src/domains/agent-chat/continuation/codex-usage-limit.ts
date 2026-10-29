@@ -5,7 +5,7 @@ import type {
     UsageLimit,
 } from '@caxri/protocol';
 
-import { codexCredits } from '../../usage';
+import { codexCredits, codexResetCredits } from '../../usage';
 import { isRecord, stringField } from '../chat-items';
 
 type Json = Record<string, unknown>;
@@ -111,13 +111,8 @@ export class CodexUsageLimits {
         request: CodexRequest,
         now: number = Date.now(),
     ): Promise<Omit<UsageLimit, 'provider'> | undefined> {
-        const limits = generalLimits(
-            await request(
-                'account/rateLimits/read',
-                { excludeResetCreditDetails: true },
-                RATE_LIMITS_READ_TIMEOUT_MS,
-            ),
-        );
+        const result = await request('account/rateLimits/read', {}, RATE_LIMITS_READ_TIMEOUT_MS);
+        const limits = generalLimits(result);
         if (!limits) return undefined;
         this.onNotification('account/rateLimits/updated', { rateLimits: limits });
         const windows: UsageLimit['windows'] = [];
@@ -141,11 +136,18 @@ export class CodexUsageLimits {
                   balance: limits.credits.balance,
               })
             : undefined;
+        // The account-wide summary sits beside the limit buckets, not inside one. Details stay requested (they carry the
+        // expiries), which costs one more backend lookup per read; the reads are a continuation check and the status
+        // bar's occasional refresh, never a per-turn poll.
+        const resetCredits = isRecord(result)
+            ? codexResetCredits(result.rateLimitResetCredits)
+            : undefined;
         return {
             observedAt: now,
             ...(planType && { planType }),
             windows,
             ...(credits && { credits }),
+            ...(resetCredits && { resetCredits }),
         };
     }
 

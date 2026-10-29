@@ -204,6 +204,16 @@ export const usageNoticeSchema = z.enum(['planPace', 'credits']);
 export type UsageNotice = z.infer<typeof usageNoticeSchema>;
 
 /**
+ * Banked rate-limit resets the account holds: a Codex reset credit is a stored, one-time reset of the plan windows that
+ * the user spends when they choose. `nextExpiresAt` is absent when no available credit names an expiry.
+ */
+export const usageResetCreditsSchema = z.object({
+    availableCount: count,
+    nextExpiresAt: count.optional(),
+});
+export type UsageResetCredits = z.infer<typeof usageResetCreditsSchema>;
+
+/**
  * Latest provider-reported plan rate-limit windows: Codex writes them into its own transcript, and a running Claude
  * Code Chat answers them when asked (its `/usage`). Account-wide, not limited to Caxri Sessions.
  */
@@ -216,6 +226,11 @@ export const usageLimitSchema = z.object({
      * Absent when the provider does not report credits, or reports an account without any.
      */
     credits: usageCreditsSchema.optional(),
+    /**
+     * Banked resets the account holds, asked of a running Codex Chat (its transcript records none). Absent when none
+     * are held or the count is not known yet.
+     */
+    resetCredits: usageResetCreditsSchema.optional(),
     /**
      * When the user last dismissed this provider's pace reminder (`usage.dismissNotice`), from any Client. Clients hide
      * the reminder while it falls on their current local day (`isPlanPaceDismissed`).
