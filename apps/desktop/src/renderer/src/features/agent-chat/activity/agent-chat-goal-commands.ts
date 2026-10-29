@@ -10,8 +10,9 @@ const changingGoals = new Set<string>();
 
 /**
  * Sets, pauses, resumes, or clears the Chat's goal outside the composer (its goal row, a user message's Set as Goal),
- * through the same `/goal` command the composer runs. A click while an earlier change is in flight is dropped: a Claude Code clear first stops the goal's turn and waits
- * for it to end, and a second click meanwhile would only queue another `/goal clear`.
+ * through the same `/goal` command the composer runs. A click while an earlier change is in flight is dropped: a Claude
+ * Code clear first stops the goal's turn and waits for it to end, and a second click meanwhile would only queue another
+ * `/goal clear`.
  */
 export async function changeAgentChatGoal(
     terminalId: string,
