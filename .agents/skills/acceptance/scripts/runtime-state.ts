@@ -11,7 +11,12 @@ import { writeJsonAtomic } from '../../../../scripts/atomic-json';
 const ACCEPTANCE_USER_DATA_PREFIX = 'caxri-acceptance-user-';
 const ACCEPTANCE_CASE_ID_PATTERN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,62}[A-Za-z0-9])?$/u;
 const PROCESS_PROBE_MAX_BUFFER_BYTES = 4 * 1024 * 1024;
-const PROCESS_PROBE_TIMEOUT_MS = 2_000;
+/**
+ * Per-attempt wait for a process probe. Measured on an idle 18-core Mac, `lsof` takes about 0.2s and `ps` under 0.05s;
+ * with 36 busy-loop processes `lsof` rose to about 0.6s. Heavy parallel builds and tests slow it further, so the first
+ * attempt waits 10s and a single retry waits 20s instead of the former fixed 2s.
+ */
+const PROCESS_PROBE_ATTEMPT_TIMEOUTS_MS: readonly number[] = [10_000, 20_000];
 const PROCESS_QUERY_EXECUTABLE = '/bin/ps';
 const acceptanceCaseModeSchema = z.enum(['isolated', 'restart']);
 const acceptanceCaseSchema = z.object({
@@ -216,14 +221,15 @@ export function isAlive(pid: number | null | undefined): boolean {
  */
 export async function getProcessIdentity(pid: number): Promise<string | null> {
     try {
-        const { stdout } = await execFileAsync(
-            PROCESS_QUERY_EXECUTABLE,
-            ['-ww', '-p', String(pid), '-o', 'lstart=', '-o', 'command='],
-            {
-                maxBuffer: PROCESS_PROBE_MAX_BUFFER_BYTES,
-                timeout: PROCESS_PROBE_TIMEOUT_MS,
-            },
-        );
+        const { stdout } = await runProcessProbe('process-identity', PROCESS_QUERY_EXECUTABLE, [
+            '-ww',
+            '-p',
+            String(pid),
+            '-o',
+            'lstart=',
+            '-o',
+            'command=',
+        ]);
         return stdout.trim() || null;
     } catch (error: unknown) {
         if (errorCode(error) === '1') return null;
@@ -240,14 +246,13 @@ export async function getProcessCommand(
     executable: string = PROCESS_QUERY_EXECUTABLE,
 ): Promise<string | null> {
     try {
-        const { stdout } = await execFileAsync(
-            executable,
-            ['-ww', '-p', String(pid), '-o', 'command='],
-            {
-                maxBuffer: PROCESS_PROBE_MAX_BUFFER_BYTES,
-                timeout: PROCESS_PROBE_TIMEOUT_MS,
-            },
-        );
+        const { stdout } = await runProcessProbe('process-command', executable, [
+            '-ww',
+            '-p',
+            String(pid),
+            '-o',
+            'command=',
+        ]);
         return stdout.trim() || null;
     } catch (error: unknown) {
         if (errorCode(error) === '1') return null;
@@ -255,12 +260,77 @@ export async function getProcessCommand(
     }
 }
 
+/**
+ * Raised when a process probe exhausted every attempt without finishing, which says nothing about process ownership.
+ */
+export class ProcessProbeTimeoutError extends Error {
+    readonly code = 'probe-timeout';
+
+    constructor(
+        readonly probe: string,
+        readonly elapsedMs: number,
+        readonly attempts: number,
+    ) {
+        super(
+            `Acceptance process probe "${probe}" timed out after ${elapsedMs}ms over ${attempts} attempts (code probe-timeout); the machine is likely overloaded, this is not a "no owner" result`,
+        );
+        this.name = 'ProcessProbeTimeoutError';
+    }
+}
+
+type ProbeExecutor = (
+    file: string,
+    arguments_: string[],
+    options: { maxBuffer: number; timeout: number },
+) => Promise<{ stdout: string }>;
+
+function isTimeoutKill(error: unknown): boolean {
+    return (
+        typeof error === 'object' &&
+        error !== null &&
+        'killed' in error &&
+        error.killed === true &&
+        errorCode(error) === undefined
+    );
+}
+
+/**
+ * Runs one process probe with a generous timeout and one longer retry. A killed-by-timeout attempt is retried; a second
+ * timeout surfaces as `ProcessProbeTimeoutError` so callers can tell it from "no owner" (`lsof`/`ps` exit 1). Every
+ * other failure propagates unchanged on the first attempt.
+ */
+export async function runProcessProbe(
+    probe: string,
+    file: string,
+    arguments_: string[],
+    options: { execute?: ProbeExecutor; timeoutsMs?: readonly number[] } = {},
+): Promise<{ stdout: string }> {
+    const execute: ProbeExecutor = options.execute ?? execFileAsync;
+    const timeoutsMs = options.timeoutsMs ?? PROCESS_PROBE_ATTEMPT_TIMEOUTS_MS;
+    const startedAt = Date.now();
+    for (const timeout of timeoutsMs) {
+        try {
+            // Attempts are intentionally sequential: the retry only runs after the first one timed out.
+            // eslint-disable-next-line no-await-in-loop
+            return await execute(file, arguments_, {
+                maxBuffer: PROCESS_PROBE_MAX_BUFFER_BYTES,
+                timeout,
+            });
+        } catch (error: unknown) {
+            if (!isTimeoutKill(error)) throw error;
+        }
+    }
+    throw new ProcessProbeTimeoutError(probe, Date.now() - startedAt, timeoutsMs.length);
+}
+
 async function inspectPathOwner(path: string): Promise<number | undefined> {
     try {
-        const { stdout } = await execFileAsync('/usr/sbin/lsof', ['-F', 'p', '--', path], {
-            maxBuffer: PROCESS_PROBE_MAX_BUFFER_BYTES,
-            timeout: PROCESS_PROBE_TIMEOUT_MS,
-        });
+        const { stdout } = await runProcessProbe('path-owner', '/usr/sbin/lsof', [
+            '-F',
+            'p',
+            '--',
+            path,
+        ]);
         const processIds = new Set(
             stdout
                 .split(/\r?\n/u)
@@ -279,14 +349,15 @@ async function inspectPathOwner(path: string): Promise<number | undefined> {
 async function listChildProcesses(
     parentPid: number,
 ): Promise<Array<{ command: string; pid: number }>> {
-    const { stdout } = await execFileAsync(
-        PROCESS_QUERY_EXECUTABLE,
-        ['-ww', '-axo', 'pid=', '-o', 'ppid=', '-o', 'command='],
-        {
-            maxBuffer: PROCESS_PROBE_MAX_BUFFER_BYTES,
-            timeout: PROCESS_PROBE_TIMEOUT_MS,
-        },
-    );
+    const { stdout } = await runProcessProbe('child-processes', PROCESS_QUERY_EXECUTABLE, [
+        '-ww',
+        '-axo',
+        'pid=',
+        '-o',
+        'ppid=',
+        '-o',
+        'command=',
+    ]);
     return stdout.split(/\r?\n/u).flatMap((line) => {
         const trimmed = line.trimStart();
         const match = /^(\d+)\s+(\d+)\s+/u.exec(trimmed);

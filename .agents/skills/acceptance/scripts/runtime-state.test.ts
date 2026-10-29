@@ -15,7 +15,9 @@ import {
     isOwnedLauncher,
     isOwnedRuntime,
     prepareAcceptanceUserData,
+    ProcessProbeTimeoutError,
     removeOwnedUserData,
+    runProcessProbe,
     runtimeStateSchema,
 } from './runtime-state';
 
@@ -340,5 +342,51 @@ describe('Acceptance runtime ownership', () => {
         } finally {
             await removeOwnedUserData(profile);
         }
+    });
+});
+
+describe('runProcessProbe', () => {
+    const timeoutKill = () =>
+        Object.assign(new Error('Command failed'), { killed: true, signal: 'SIGTERM' });
+
+    it('retries a timed-out attempt once with the longer timeout', async () => {
+        const execute = vi
+            .fn()
+            .mockRejectedValueOnce(timeoutKill())
+            .mockResolvedValueOnce({ stdout: 'p42\n' });
+
+        await expect(
+            runProcessProbe('path-owner', 'lsof', ['x'], { execute, timeoutsMs: [5, 9] }),
+        ).resolves.toEqual({ stdout: 'p42\n' });
+        expect(execute.mock.calls.map((call) => (call[2] as { timeout: number }).timeout)).toEqual([
+            5, 9,
+        ]);
+    });
+
+    it('classifies repeated timeouts as probe-timeout naming the probe and elapsed wait', async () => {
+        const execute = vi.fn().mockRejectedValue(timeoutKill());
+
+        let error: unknown;
+        try {
+            await runProcessProbe('path-owner', 'lsof', ['x'], { execute, timeoutsMs: [5, 9] });
+        } catch (error_: unknown) {
+            error = error_;
+        }
+
+        expect(error).toBeInstanceOf(ProcessProbeTimeoutError);
+        expect(error).toMatchObject({ attempts: 2, code: 'probe-timeout', probe: 'path-owner' });
+        expect((error as ProcessProbeTimeoutError).elapsedMs).toBeGreaterThanOrEqual(0);
+        expect((error as Error).message).toContain('"path-owner"');
+        expect(execute).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not retry or reclassify a normal exit-1 no-owner result', async () => {
+        const noOwner = Object.assign(new Error('exit 1'), { code: 1 });
+        const execute = vi.fn().mockRejectedValue(noOwner);
+
+        await expect(
+            runProcessProbe('path-owner', 'lsof', ['x'], { execute, timeoutsMs: [5, 9] }),
+        ).rejects.toBe(noOwner);
+        expect(execute).toHaveBeenCalledTimes(1);
     });
 });
