@@ -4,7 +4,13 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Spinner } from '../../components/spinner';
 import { useTranslation } from '../../i18n';
-import { mobileControl, mobileRadius, mobileSpace, mobileType } from '../../theme/scale';
+import {
+    chipHitSlop,
+    mobileControl,
+    mobileRadius,
+    mobileSpace,
+    mobileType,
+} from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
 import { agentChatQueueImagesAttached, canSaveAgentChatQueueEdit } from './agent-chat-queue';
 import type { AgentChatQueueInPlaceEdit } from './use-agent-chat-queue-actions';
@@ -58,6 +64,7 @@ export const AgentChatQueueEditor = ({
                 <Pressable
                     accessibilityRole="button"
                     disabled={isSaving}
+                    hitSlop={chipHitSlop}
                     onPress={onCancel}
                     style={styles.editorButton}
                     testID="agent-chat-queue-editor-cancel"
@@ -70,6 +77,7 @@ export const AgentChatQueueEditor = ({
                     accessibilityRole="button"
                     accessibilityState={{ busy: isSaving, disabled: !canSave }}
                     disabled={!canSave}
+                    hitSlop={chipHitSlop}
                     onPress={() => onSave(value)}
                     style={[
                         styles.editorButton,
@@ -121,7 +129,7 @@ const styles = StyleSheet.create({
     editorButton: {
         alignItems: 'center',
         justifyContent: 'center',
-        minHeight: mobileControl.row,
+        minHeight: mobileControl.chip,
         minWidth: BUTTON_MIN_WIDTH,
         paddingHorizontal: mobileSpace.md,
     },
