@@ -237,7 +237,7 @@ async function measureDocument(
     let previous = afterUp;
     for (let slot = 0; slot < 3; slot += 1) {
         const injections: FlingAttempt[] = [];
-        const isAccepted = false;
+        let isAccepted = false;
         while (!isAccepted) {
             if (injections.length >= FLING_MAX_ATTEMPTS)
                 throw new Error(
@@ -261,6 +261,7 @@ async function measureDocument(
                  */
                 expect(measurement.stepsUp).toBeGreaterThan(measurement.fingerLines.max);
                 flings.push({ ...measurement, injections });
+                isAccepted = true;
             }
             previous = next;
         }
