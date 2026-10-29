@@ -13,8 +13,10 @@ import { StructuredTooltip } from '../../components/structured-tooltip';
 import { Button } from '../../components/ui/button';
 import { useTranslation } from '../../i18n';
 import { textClipboard } from '../../lib/clipboard';
+import { cn } from '../../lib/utilities';
 import { useCaxriQuery } from '../../queries/client';
 import { useSelectedSession } from '../../stores/selectors';
+import { pullRequestChecksPresentation } from '../primary-sidebar/session-pull-request';
 import { AcceptanceStatus } from './acceptance-status';
 import type { ChipVisibility } from './chip-priority';
 import { LinearIssueStatus } from './linear-issue-status';
@@ -118,6 +120,16 @@ function PullRequestUnavailableHint({
 }
 
 /**
+ * The checks dot's fill per tone, the same tones the sidebar hover card colors its CI line with.
+ */
+const CHECKS_DOT_CLASS = {
+    danger: 'bg-danger',
+    neutral: 'bg-muted',
+    success: 'bg-success',
+    warning: 'bg-warning',
+} as const;
+
+/**
  * The pull request chip. A pull request on another branch carries the same mismatch dot as the Workbench Root picker
  * and names its branch in the accessible name; its card then offers the switch when a worktree has that branch.
  */
@@ -133,6 +145,7 @@ function PullRequestStatus({
     const { t } = useTranslation();
     const elsewhereBranch = pullRequestElsewhereBranch(pullRequest, branch);
     const canSwitch = Boolean(elsewhereBranch && sessionId);
+    const checks = pullRequestChecksPresentation(pullRequest.checks);
     return (
         <StatusItem
             icon={
@@ -157,6 +170,16 @@ function PullRequestStatus({
             }
         >
             #{pullRequest.number}
+            {checks && (
+                <span
+                    aria-hidden="true"
+                    className={cn(
+                        'ml-1 inline-block size-1.5 rounded-full',
+                        CHECKS_DOT_CLASS[checks.tone],
+                    )}
+                    data-pull-request-checks={checks.key}
+                />
+            )}
         </StatusItem>
     );
 }

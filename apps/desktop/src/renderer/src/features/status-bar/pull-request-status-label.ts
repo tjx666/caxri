@@ -4,6 +4,7 @@ import type { StructuredTooltipData } from '../../components/structured-tooltip'
 import type { Translate } from '../../i18n';
 import { translate } from '../../i18n';
 import { formatTime } from '../../lib/locale-format';
+import { pullRequestChecksPresentation } from '../primary-sidebar/session-pull-request';
 
 type OverviewPullRequest = NonNullable<
     NonNullable<ProjectStatusOverview['repository']>['pullRequest']
@@ -82,17 +83,22 @@ export function pullRequestElsewhereBranch(
 }
 
 /**
- * The chip's accessible name. A pull request on another branch says which one, because the mismatch dot is visual only.
+ * The chip's accessible name. A pull request on another branch says which one, because the mismatch dot is visual only;
+ * the CI verdict is appended for the same reason, since the checks dot is color alone.
  */
 export function pullRequestAriaLabel(
-    pullRequest: Pick<OverviewPullRequest, 'headBranch' | 'number'>,
+    pullRequest: Pick<OverviewPullRequest, 'checks' | 'headBranch' | 'number'>,
     checkedOutBranch: string,
     t: Translate = translate,
 ): string {
     const branch = pullRequestElsewhereBranch(pullRequest, checkedOutBranch);
-    return branch
+    const label = branch
         ? t('statusBar.pullRequest.ariaLabelElsewhere', { number: pullRequest.number, branch })
         : t('statusBar.pullRequest.ariaLabel', { number: pullRequest.number });
+    const checks = pullRequestChecksPresentation(pullRequest.checks);
+    return checks
+        ? t('statusBar.pullRequest.ariaLabelWithChecks', { label, checks: checks.label })
+        : label;
 }
 
 /**
@@ -106,12 +112,17 @@ export function pullRequestTooltip(
     t: Translate = translate,
 ): StructuredTooltipData {
     const isElsewhere = pullRequestElsewhereBranch(pullRequest, checkedOutBranch) !== undefined;
+    const checks = pullRequestChecksPresentation(pullRequest.checks);
+    const rows = [
+        ...(pullRequest.headBranch
+            ? [{ label: t('statusBar.pullRequest.branch'), value: pullRequest.headBranch }]
+            : []),
+        ...(checks ? [{ label: t('statusBar.pullRequest.checks'), value: checks.label }] : []),
+    ];
     return {
         eyebrow: t('statusBar.pullRequest.eyebrow', { number: pullRequest.number }),
         title: pullRequest.title,
-        rows: pullRequest.headBranch
-            ? [{ label: t('statusBar.pullRequest.branch'), value: pullRequest.headBranch }]
-            : undefined,
+        rows: rows.length > 0 ? rows : undefined,
         notes: [
             ...(pullRequest.source === 'conversation' ? [t('statusBar.source.conversation')] : []),
             ...(isElsewhere

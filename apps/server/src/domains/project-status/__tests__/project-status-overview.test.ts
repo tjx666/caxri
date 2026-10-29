@@ -1,9 +1,15 @@
 import type { GitSummary } from '@caxri/protocol';
+import { defaultAppSettings } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { ExternalStatusRunner } from '../../external-status';
 import { ProjectStatusService } from '..';
-import { cleanupProjectStatusFixtures, gitSummary, logger } from './project-status.fixture';
+import {
+    checkPayload,
+    cleanupProjectStatusFixtures,
+    gitSummary,
+    logger,
+} from './project-status.fixture';
 
 afterEach(cleanupProjectStatusFixtures);
 
@@ -86,5 +92,59 @@ describe('ProjectStatusService overview', () => {
             '--json',
             'number,title,url,state,isDraft,body,statusCheckRollup,baseRefName,headRefName,baseRefOid,headRefOid,mergeCommit,mergedAt,mergeable,mergeStateStatus',
         ]);
+    });
+
+    /**
+     * The chip reads the same filtered rollup as the sidebar row: an ignored failing check must not paint it red, and a
+     * pull request that is not open carries no verdict at all.
+     */
+    describe('pull request checks', () => {
+        async function overviewChecks(
+            payload: unknown,
+            ignoredChecks: string[] = [],
+        ): Promise<string | undefined> {
+            const runner = vi.fn<ExternalStatusRunner>((command) =>
+                Promise.resolve(
+                    command === 'git'
+                        ? 'git@github.com:example/project.git\n'
+                        : JSON.stringify(payload),
+                ),
+            );
+            const service = new ProjectStatusService(
+                { summary: () => Promise.resolve(gitSummary) },
+                await logger(),
+                runner,
+                {
+                    settings: () => ({
+                        ...defaultAppSettings,
+                        'projectStatus.ignoredChecks': ignoredChecks,
+                    }),
+                },
+            );
+            return (await service.overview('session-1')).repository?.pullRequest?.checks;
+        }
+        const failing = { name: 'flaky', conclusion: 'FAILURE', status: 'COMPLETED' };
+        const payload = (extra: Record<string, unknown>): unknown => ({
+            ...(checkPayload(failing) as Record<string, unknown>),
+            ...extra,
+        });
+
+        it('aggregates the checks of an open pull request', async () => {
+            expect(await overviewChecks(payload({ state: 'OPEN' }))).toBe('failure');
+        });
+
+        it('leaves out the checks the user ignores', async () => {
+            expect(await overviewChecks(payload({ state: 'OPEN' }), ['flaky'])).toBeUndefined();
+        });
+
+        it('reports no verdict when GitHub reported no checks', async () => {
+            expect(
+                await overviewChecks(payload({ state: 'OPEN', statusCheckRollup: [] })),
+            ).toBeUndefined();
+        });
+
+        it.each(['MERGED', 'CLOSED'])('reports no verdict for a %s pull request', async (state) => {
+            expect(await overviewChecks(payload({ state }))).toBeUndefined();
+        });
     });
 });

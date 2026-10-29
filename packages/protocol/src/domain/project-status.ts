@@ -381,6 +381,12 @@ const projectStatusOverviewPullRequestSchema = z.object({
      * The branch the pull request was opened from; absent when the provider omitted it.
      */
     headBranch: z.string().min(1).optional(),
+    /**
+     * The CI rollup of an open pull request, aggregated over the checks that survive `projectStatus.ignoredChecks`: the
+     * same value the PrimarySidebar row shows. Absent when GitHub reported no checks, and for a draft, merged, or
+     * closed pull request, whose checks the sidebar suppresses as well.
+     */
+    checks: projectStatusStateSchema.optional(),
     source: pullRequestSourceSchema,
 });
 

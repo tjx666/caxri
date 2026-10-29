@@ -173,6 +173,8 @@ export const statusBar = {
     'statusBar.pullRequest.ariaLabel': 'Open pull request #{{number}}',
     'statusBar.pullRequest.ariaLabelElsewhere':
         'Open pull request #{{number}} for branch {{branch}}, not the checked-out branch',
+    'statusBar.pullRequest.ariaLabelWithChecks': '{{label}}, {{checks}}',
+    'statusBar.pullRequest.checks': 'Checks',
     'statusBar.pullRequest.switchWorktree': 'Switch to {{branch}} Worktree',
     'statusBar.pullRequest.eyebrow': 'Pull request #{{number}}',
     'statusBar.pullRequest.hint': 'Click to open on GitHub',
