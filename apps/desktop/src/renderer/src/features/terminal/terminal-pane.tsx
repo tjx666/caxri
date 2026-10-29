@@ -54,6 +54,7 @@ import {
     terminalSearchReducer,
 } from './terminal-search';
 import { TerminalSearchBar } from './terminal-search-bar';
+import { TerminalUsageGuard } from './terminal-usage-guard';
 
 interface TerminalPaneProperties {
     active: boolean;
@@ -514,6 +515,7 @@ export function TerminalPane({
                     <Spinner size={14} /> {t('terminal.longPaste.saving')}
                 </div>
             )}
+            <TerminalUsageGuard terminal={terminal} />
             <TerminalHookSuggestion provider={provider} settings={settings} terminal={terminal} />
             <TerminalRecoveryBar
                 cwd={terminal?.cwd}

@@ -9,8 +9,8 @@ When a provider account runs out of plan usage, the work in a Chat should not st
 handles two moments: a turn that already failed on a used-up limit (recovery), and a weekly window
 that is about to run out (the weekly usage guard). Both offer the same action: continue the Chat's
 work in a new Session of the same Project with another Agent. A failed turn whose limit resets soon
-also continues on its own in the same Chat once the reset passes. All of it is Chat-first; the PTY
-Terminal surface is not guarded yet.
+also continues on its own in the same Chat once the reset passes. All of it is Chat-first; a PTY
+Terminal only shows the guard (see [PTY Terminals](#pty-terminals)) and is never blocked.
 
 Contract: `packages/protocol/src/agent/agent-usage-continuation.ts`. Server owners:
 `apps/server/src/domains/usage/usage-guard.ts` (the guard) and
@@ -115,6 +115,17 @@ Agent` continues from the deterministic package, with the hand-off document firs
   There is deliberately no "Continue anyway".
 - **Mobile** shows the blocked state as a banner, with the same wait line as the guard card, and disables send. **Caxri Bot window**
   has no Workbench to show a new Session, so it offers the hand-off but no continuation.
+
+### PTY Terminals
+
+A PTY Agent runs the provider CLI directly, so the guard is informational there (issue #2608). While the
+provider's account is at the guard, Server Core projects `TerminalRecord.usageGuard` (`usedPercent`,
+`resetsAt`; runtime-only, PTY Agent Terminals only) and pushes `state.changed` for those Terminals when the
+guard arms or lifts (`usage/terminal-usage-guard-push.ts`). The pane shows a one-line row above the recovery
+row (`terminal/terminal-usage-guard.tsx`): the weekly usage, the reset, and that the Terminal keeps running.
+A new PTY Agent Session of that provider shows the same row from its first frame. Nothing is refused: a
+running PTY is not interrupted, `--resume` still works, and input is not intercepted. There is no hand-off or
+`Open in another Agent` in a PTY, because the continuation brief is built from a Chat's projection.
 
 ### Turns the guard stopped
 

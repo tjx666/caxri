@@ -56,6 +56,7 @@ import {
     TerminalManager,
     TerminalRestoreSupervisor,
 } from './terminal';
+import { pushUsageGuardToPtyTerminals } from './usage';
 import { createPresenceEffects, WindowPresence } from './window-presence';
 import { createWindowStateHandlers } from './window-state-handlers';
 import * as provenance from './workbench';
@@ -127,6 +128,7 @@ export async function createDomainServices(
         hookLaunchEnvironment,
         sessionRenames,
     } = agentRuntime;
+    pushUsageGuardToPtyTerminals({ guards: agentRuntime.usageGuards, database, send });
     const shellIntegration = await createShellIntegration(userDataPath, logger);
     const mobileTerminalMutations = new MobileTerminalMutationQueue();
     const terminals = new TerminalManager(database, send, logger, {
@@ -273,6 +275,7 @@ export async function createDomainServices(
             terminals,
             chatStateStore(database).subagents,
             { waitingAt: (id) => agentChat.states.usageLimitWaits?.waitingAt(id) },
+            agentRuntime.usageGuards,
         ),
     });
     const { createAndStartTerminal, newTerminalWorkingDirectory, terminalWorkingDirectory } =

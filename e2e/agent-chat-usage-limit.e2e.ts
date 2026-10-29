@@ -1,6 +1,8 @@
 import { mkdir, mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import process from 'node:process';
+import { pathToFileURL } from 'node:url';
 
 import { fakeClaudeChatExecutableSource } from '../apps/server/src/domains/agent-chat/__tests__/fixtures/fake-chat-executables.ts';
 import { fakeCodexChatProvider, openAgentChat } from './support/agent-chat-fixture.ts';
@@ -200,6 +202,68 @@ test('a turn the weekly guard stopped waits for the reset on the guard card and 
         await expect(rowStatus).toHaveCount(0);
         // Only Claude is installed here, so the guard's other way forward reads as unavailable.
         await expect(guard.getByText('No other Agent can take this over')).toBeVisible();
+    } finally {
+        await closeAppQuietly(running.app);
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+/**
+ * One fake `claude` for both surfaces: the Chat's stream-json launch runs the deterministic fixture, and any other
+ * launch is a stand-in TUI, which is all the PTY side of a surface switch needs.
+ */
+const CLAUDE_CHAT_AND_PTY_SOURCE = String.raw`#!${process.execPath}
+if (process.argv.includes('--input-format')) {
+  import(${JSON.stringify(pathToFileURL(join(import.meta.dirname, '..', 'apps/server/src/domains/agent-chat/__tests__/fixtures/fake-claude-cli.ts')).href)});
+} else if (process.argv.includes('--version')) {
+  process.stdout.write('2.1.251 (Claude Code)\n');
+} else {
+  process.stdout.write('Fake Claude TUI ready\r\n');
+  process.stdin.setRawMode?.(true);
+  process.stdin.resume();
+}
+`;
+
+// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
+test('a PTY Claude Terminal shows the weekly guard of its account without being interrupted', async ({}, testInfo) => {
+    const created = await mkdtemp(join(tmpdir(), 'caxri-usage-guard-pty-'));
+    const directory = await realpath(created);
+    const userData = join(directory, 'user-data');
+    const root = join(directory, 'project');
+    await mkdir(root, { recursive: true });
+    const agentMode = await createFakeAgentMode({
+        userDataDir: userData,
+        providers: { claude: { executableSource: CLAUDE_CHAT_AND_PTY_SOURCE } },
+    });
+    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    try {
+        const { page } = running;
+        await createProjectSession(page, 'shell');
+        await openAgentChat(page, 'Claude Chat');
+        const session = page.locator(VISIBLE_SESSION);
+        const surfaceSwitch = session.getByRole('group', { name: 'Open as Terminal or Chat' });
+        // Before any reading the account is not at the guard, so the PTY carries no notice.
+        await surfaceSwitch.getByRole('button', { name: 'Terminal' }).click();
+        const rows = session.locator('.terminal-pane .xterm-rows');
+        await expect(rows).toContainText('Fake Claude TUI ready');
+        await expect(session.locator('[data-terminal-usage-guard]')).toHaveCount(0);
+        await surfaceSwitch.getByRole('button', { name: 'Chat' }).click();
+
+        // The fake Claude reports the weekly window at 99.5% before it answers; the Chat is refused from then on.
+        const message = session.getByRole('textbox', { name: 'Message' });
+        await message.fill('weekly nearly used');
+        await message.press('Enter');
+        await expect(session.locator('[data-agent-chat-usage-guard]')).toContainText(
+            'Claude weekly usage at 99%',
+        );
+
+        // The same account in a PTY Terminal: the notice appears, the Terminal keeps running and takes input.
+        await surfaceSwitch.getByRole('button', { name: 'Terminal' }).click();
+        const notice = session.locator('[data-terminal-usage-guard]');
+        await expect(notice).toContainText('Claude weekly usage at 99%');
+        await expect(notice).toContainText(/resets in/u);
+        await expect(rows).toContainText('Fake Claude TUI ready');
+        await page.screenshot({ path: testInfo.outputPath('usage-guard-terminal.png') });
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });
