@@ -129,6 +129,8 @@ export const agentChatTimeline: TranslatedNamespace<typeof source> = {
     'agentChat.request.cwd': '位于 {{cwd}}',
     'agentChat.waiting.announceQuestion': '{{session}} 中的 {{provider}} 有一个问题',
     'agentChat.waiting.announceApproval': '{{session}} 中的 {{provider}} 需要你批准',
+    'agentChat.waiting.announceTerminal': '{{session}} 中的 {{provider}} 正在终端中等你回应',
+    'agentChat.waiting.terminal': '在终端中等待你的回应',
     'agentChat.waiting.openSession': '打开会话',
     'agentChat.waiting.collapse': '最小化',
     'agentChat.waiting.expand': '显示 {{count}} 项等你处理',

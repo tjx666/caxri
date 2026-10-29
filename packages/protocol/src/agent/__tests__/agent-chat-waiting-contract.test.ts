@@ -10,6 +10,7 @@ import {
 const method = agentChatWaitingMethods['agentChat.pendingRequests'];
 
 const chat = {
+    kind: 'chat',
     sessionId: 'session-1',
     terminalId: 'terminal-1',
     requests: [
@@ -39,22 +40,37 @@ describe('agentChat.pendingRequests', () => {
     });
 
     it('keeps a multiSelect question intact', () => {
-        expect(method.result.parse({ chats: [chat] })).toEqual({ chats: [chat] });
+        expect(method.result.parse({ entries: [chat] })).toEqual({ entries: [chat] });
+    });
+
+    it('lists a PTY Terminal as an open-only entry that carries no request', () => {
+        const terminal = { kind: 'terminal', sessionId: 'session-2', terminalId: 'terminal-2' };
+        expect(method.result.parse({ entries: [chat, terminal] })).toEqual({
+            entries: [chat, terminal],
+        });
+        expect(
+            method.result.safeParse({ entries: [{ ...terminal, requests: chat.requests }] })
+                .success,
+        ).toBe(false);
     });
 
     it('rejects a Chat with nothing to answer', () => {
-        expect(method.result.safeParse({ chats: [{ ...chat, requests: [] }] }).success).toBe(false);
+        expect(method.result.safeParse({ entries: [{ ...chat, requests: [] }] }).success).toBe(
+            false,
+        );
     });
 
     it('bounds the listed Chats and the prompt excerpt', () => {
         expect(
             method.result.safeParse({
-                chats: Array.from({ length: AGENT_CHAT_WAITING_MAX_CHATS + 1 }, () => chat),
+                entries: Array.from({ length: AGENT_CHAT_WAITING_MAX_CHATS + 1 }, () => chat),
             }).success,
         ).toBe(false);
         expect(
             method.result.safeParse({
-                chats: [{ ...chat, prompt: 'x'.repeat(AGENT_CHAT_WAITING_PROMPT_MAX_LENGTH + 1) }],
+                entries: [
+                    { ...chat, prompt: 'x'.repeat(AGENT_CHAT_WAITING_PROMPT_MAX_LENGTH + 1) },
+                ],
             }).success,
         ).toBe(false);
     });

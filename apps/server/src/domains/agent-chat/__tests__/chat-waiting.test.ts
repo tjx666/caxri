@@ -1,4 +1,4 @@
-import type { AgentChatItem, AgentChatRequest } from '@caxri/protocol';
+import type { AgentChatItem, AgentChatRequest, TerminalRecord } from '@caxri/protocol';
 import {
     AGENT_CHAT_WAITING_MAX_CHATS,
     AGENT_CHAT_WAITING_PROMPT_MAX_LENGTH,
@@ -6,7 +6,7 @@ import {
 import { describe, expect, it } from 'vitest';
 
 import type { WaitingChatSource } from '../waiting/chat-waiting';
-import { readWaitingChats } from '../waiting/chat-waiting';
+import { readWaitingChats, readWaitingTerminals } from '../waiting/chat-waiting';
 
 const approval: AgentChatRequest = {
     id: 'request-1',
@@ -28,8 +28,8 @@ const sessionOf = (terminalId: string): string | undefined => `session-of-${term
 describe('readWaitingChats', () => {
     it('lists each live Chat with requests under its Session, in the given order', () => {
         expect(readWaitingChats([source('b'), source('a')], sessionOf)).toEqual([
-            { sessionId: 'session-of-b', terminalId: 'b', requests: [approval] },
-            { sessionId: 'session-of-a', terminalId: 'a', requests: [approval] },
+            { kind: 'chat', sessionId: 'session-of-b', terminalId: 'b', requests: [approval] },
+            { kind: 'chat', sessionId: 'session-of-a', terminalId: 'a', requests: [approval] },
         ]);
     });
 
@@ -71,5 +71,50 @@ describe('readWaitingChats', () => {
         const chats = readWaitingChats(many, sessionOf);
         expect(chats).toHaveLength(AGENT_CHAT_WAITING_MAX_CHATS);
         expect(chats[0]?.prompt).toHaveLength(AGENT_CHAT_WAITING_PROMPT_MAX_LENGTH);
+    });
+});
+
+describe('readWaitingTerminals', () => {
+    const waiting = { agentActivityState: 'waiting', primaryAgentTerminalId: 't1' } as const;
+    const pty = { lastAgentProcessState: 'running' } as const;
+
+    it('lists the Primary Agent Terminal of each Session waiting on the user', () => {
+        expect(
+            readWaitingTerminals(
+                [
+                    { id: 's1', ...waiting },
+                    { id: 's2', ...waiting, primaryAgentTerminalId: 't2' },
+                    { id: 's3', ...waiting, agentActivityState: 'running' },
+                    { id: 's4', ...waiting, agentActivityState: 'completed' },
+                ],
+                () => pty,
+            ),
+        ).toEqual([
+            { kind: 'terminal', sessionId: 's1', terminalId: 't1' },
+            { kind: 'terminal', sessionId: 's2', terminalId: 't2' },
+        ]);
+    });
+
+    it('skips a Chat Terminal, an Agent that is no longer running, an archived Session, and a missing Terminal', () => {
+        const terminals: Record<
+            string,
+            Pick<TerminalRecord, 'lastAgentProcessState' | 'surface'>
+        > = {
+            chat: { ...pty, surface: 'chat' },
+            exited: { lastAgentProcessState: 'stopped' },
+            archived: pty,
+        };
+        expect(
+            readWaitingTerminals(
+                [
+                    { id: 'a', ...waiting, primaryAgentTerminalId: 'chat' },
+                    { id: 'b', ...waiting, primaryAgentTerminalId: 'exited' },
+                    { id: 'c', ...waiting, primaryAgentTerminalId: 'archived', archivedAt: 1 },
+                    { id: 'd', ...waiting, primaryAgentTerminalId: 'missing' },
+                    { id: 'e', agentActivityState: 'waiting' },
+                ],
+                (terminalId) => terminals[terminalId],
+            ),
+        ).toEqual([]);
     });
 });

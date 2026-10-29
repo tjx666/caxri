@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 
-import type { AgentChatWaitingChat } from '@caxri/protocol';
+import type { AgentChatWaitingEntry } from '@caxri/protocol';
 
 import { useLatestReference } from '@/hooks/use-latest-reference';
 
@@ -25,7 +25,7 @@ export function useAgentChatWaitingFocus({
     setCollapsed,
 }: {
     count: number;
-    current: AgentChatWaitingChat | undefined;
+    current: AgentChatWaitingEntry | undefined;
     isCollapsed: boolean;
     setCollapsed: (isCollapsed: boolean) => void;
 }) {
@@ -39,7 +39,9 @@ export function useAgentChatWaitingFocus({
     const returnFocusTo = useRef<HTMLElement | null>(null);
     const latestCollapse = useLatestReference(setCollapsed);
     const hasRequest = current !== undefined;
-    const requestKey = current && `${current.terminalId}:${current.requests[0]?.id}`;
+    const requestKey =
+        current &&
+        `${current.terminalId}:${current.kind === 'chat' ? current.requests[0]?.id : 'terminal'}`;
 
     useEffect(() => {
         if (!hasRequest) return;

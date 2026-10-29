@@ -1,4 +1,4 @@
-import type { AgentChatPatch } from '@caxri/protocol';
+import type { AgentChatPatch, SessionRecord } from '@caxri/protocol';
 import type { QueryClient } from '@tanstack/react-query';
 
 import { caxriQueryKey } from '../../../queries/client';
@@ -14,6 +14,22 @@ export function isAgentChatWaitingPatch(patch: Pick<AgentChatPatch, 'operations'
         (operation) =>
             operation.op === 'reset' || (operation.op === 'state' && 'requests' in operation.state),
     );
+}
+
+/**
+ * Which Sessions' Primary Agents wait on the user, as one comparable string. It changes exactly when a PTY Terminal
+ * Agent starts or stops waiting (or its Session appears, goes, or changes Primary Agent), which is when the list behind
+ * the popup must be read again.
+ */
+export function waitingTerminalKey(
+    sessions:
+        | ReadonlyArray<Pick<SessionRecord, 'agentActivityState' | 'id' | 'primaryAgentTerminalId'>>
+        | undefined,
+): string {
+    return (sessions ?? [])
+        .filter((session) => session.agentActivityState === 'waiting')
+        .map((session) => `${session.id}:${session.primaryAgentTerminalId ?? ''}`)
+        .join('|');
 }
 
 /**

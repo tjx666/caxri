@@ -1,7 +1,14 @@
-import type { AgentChatSnapshot, AgentChatWaitingChat } from '@caxri/protocol';
+import type {
+    AgentChatSnapshot,
+    AgentChatWaitingChat,
+    AgentChatWaitingTerminal,
+    SessionRecord,
+    TerminalRecord,
+} from '@caxri/protocol';
 import {
     AGENT_CHAT_WAITING_MAX_CHATS,
     AGENT_CHAT_WAITING_PROMPT_MAX_LENGTH,
+    isChatTerminal,
 } from '@caxri/protocol';
 
 import { clip } from '../chat-items';
@@ -45,6 +52,7 @@ export function readWaitingChats(
         if (!sessionId) continue;
         const prompt = latestPrompt(snapshot.items);
         chats.push({
+            kind: 'chat',
             sessionId,
             terminalId,
             requests: snapshot.requests,
@@ -52,4 +60,31 @@ export function readWaitingChats(
         });
     }
     return chats;
+}
+
+/**
+ * Every PTY Terminal Agent that waits on the user: the Session's Primary Agent Terminal while the validated lifecycle
+ * state says `waiting`, still running, and shown as a PTY (a Chat Terminal asks through its own request list instead).
+ * Archived Sessions are skipped. Only stored rows are read, so it never touches a process. The lifecycle tracks one
+ * Primary Agent per Session, so a secondary PTY Agent has no waiting state to list.
+ */
+export function readWaitingTerminals(
+    sessions: Iterable<
+        Pick<SessionRecord, 'agentActivityState' | 'archivedAt' | 'id' | 'primaryAgentTerminalId'>
+    >,
+    terminalOf: (
+        terminalId: string,
+    ) => Pick<TerminalRecord, 'lastAgentProcessState' | 'surface'> | undefined,
+): AgentChatWaitingTerminal[] {
+    const terminals: AgentChatWaitingTerminal[] = [];
+    for (const session of sessions) {
+        if (session.agentActivityState !== 'waiting' || session.archivedAt !== undefined) continue;
+        const terminalId = session.primaryAgentTerminalId;
+        if (!terminalId) continue;
+        const terminal = terminalOf(terminalId);
+        if (!terminal || isChatTerminal(terminal) || terminal.lastAgentProcessState !== 'running')
+            continue;
+        terminals.push({ kind: 'terminal', sessionId: session.id, terminalId });
+    }
+    return terminals;
 }

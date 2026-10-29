@@ -1,11 +1,11 @@
-import { CaxriError } from '@caxri/protocol';
+import { AGENT_CHAT_WAITING_MAX_CHATS, CaxriError } from '@caxri/protocol';
 
 import type { DomainHandlers } from '../domain-services';
 import type { createSessionCreator } from '../session';
 import { readChatImage } from './chat-images';
 import type { AgentChatService } from './service';
 import type { AgentChatServiceOptions } from './service-options';
-import { readWaitingChats } from './waiting/chat-waiting';
+import { readWaitingChats, readWaitingTerminals } from './waiting/chat-waiting';
 
 /**
  * Core methods a Client uses to read and drive a Chat Terminal. `records` locates the provider's on-disk record, which
@@ -88,17 +88,22 @@ export function createAgentChatHandlers(
         },
         'agentChat.read': ({ terminalId }) => agentChat.read(terminalId),
         'agentChat.pendingRequests': () => ({
-            chats: readWaitingChats(
-                Array.from(agentChat.states.terminalIds(), (terminalId) => {
-                    const state = agentChat.states.get(terminalId)!;
-                    return {
-                        terminalId,
-                        snapshot: state.projection.snapshot,
-                        isOpen: state.session?.isOpen === true,
-                    };
-                }),
-                (terminalId) => records.database.getTerminal(terminalId)?.sessionId,
-            ),
+            entries: [
+                ...readWaitingChats(
+                    Array.from(agentChat.states.terminalIds(), (terminalId) => {
+                        const state = agentChat.states.get(terminalId)!;
+                        return {
+                            terminalId,
+                            snapshot: state.projection.snapshot,
+                            isOpen: state.session?.isOpen === true,
+                        };
+                    }),
+                    (terminalId) => records.database.getTerminal(terminalId)?.sessionId,
+                ),
+                ...readWaitingTerminals(records.database.listSessions(), (terminalId) =>
+                    records.database.getTerminal(terminalId),
+                ),
+            ].slice(0, AGENT_CHAT_WAITING_MAX_CHATS),
         }),
         'agentChat.send': async ({ terminalId, text, images, delivery }) => {
             await agentChat.send(terminalId, { text, ...(images && { images }) }, delivery);

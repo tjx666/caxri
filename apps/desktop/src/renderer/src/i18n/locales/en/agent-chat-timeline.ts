@@ -133,6 +133,9 @@ export const agentChatTimeline = {
     'agentChat.request.cwd': 'in {{cwd}}',
     'agentChat.waiting.announceQuestion': '{{provider}} in {{session}} has a question',
     'agentChat.waiting.announceApproval': '{{provider}} in {{session}} needs your approval',
+    'agentChat.waiting.announceTerminal':
+        '{{provider}} in {{session}} is waiting for your response in Terminal',
+    'agentChat.waiting.terminal': 'Waiting for your response in Terminal',
     'agentChat.waiting.openSession': 'Open Session',
     'agentChat.waiting.collapse': 'Minimize',
     'agentChat.waiting.expand': 'Show {{count}} waiting for you',

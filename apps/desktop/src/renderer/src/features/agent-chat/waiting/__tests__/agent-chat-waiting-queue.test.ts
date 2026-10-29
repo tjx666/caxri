@@ -1,4 +1,8 @@
-import type { AgentChatRequest, AgentChatWaitingChat } from '@caxri/protocol';
+import type {
+    AgentChatRequest,
+    AgentChatWaitingChat,
+    AgentChatWaitingEntry,
+} from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -14,6 +18,7 @@ function approval(id: string): AgentChatRequest {
 
 function chat(terminalId: string, ...requestIds: string[]): AgentChatWaitingChat {
     return {
+        kind: 'chat',
         sessionId: `session-${terminalId}`,
         terminalId,
         requests: (requestIds.length > 0 ? requestIds : [`${terminalId}-request`]).map(approval),
@@ -78,6 +83,31 @@ describe('agentChatWaitingQueue', () => {
         });
         expect(queue).toEqual([{ ...chat('a', 'r1', 'r2'), requests: [approval('r2')] }]);
         expect(agentChatWaitingRequestCount(queue)).toBe(1);
+    });
+
+    it('queues a PTY Terminal with the Chats by arrival, and leaves it out once on screen', () => {
+        const terminal: AgentChatWaitingEntry = {
+            kind: 'terminal',
+            sessionId: 'session-pty',
+            terminalId: 'pty',
+        };
+        const arrivals = new Map([
+            ['a', 1],
+            ['pty', 2],
+            ['b', 3],
+        ]);
+        const queue = agentChatWaitingQueue([chat('b'), terminal, chat('a')], {
+            ...everything,
+            arrivals,
+        });
+        expect(queue.map((each) => each.terminalId)).toEqual(['a', 'pty', 'b']);
+        expect(agentChatWaitingRequestCount(queue)).toBe(3);
+        expect(
+            agentChatWaitingQueue([terminal], { ...everything, isOnScreen: () => true }),
+        ).toEqual([]);
+        expect(
+            agentChatWaitingQueue([terminal], { ...everything, isKnownSession: () => false }),
+        ).toEqual([]);
     });
 
     it('counts every request across Chats', () => {

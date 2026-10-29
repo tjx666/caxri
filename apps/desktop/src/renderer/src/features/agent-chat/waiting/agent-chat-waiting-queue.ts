@@ -1,8 +1,8 @@
-import type { AgentChatPendingAnswer, AgentChatWaitingChat } from '@caxri/protocol';
+import type { AgentChatPendingAnswer, AgentChatWaitingEntry } from '@caxri/protocol';
 
 /**
- * When each waiting Chat first reached this window, as an arrival sequence: the popup asks the oldest first, so a Chat
- * that starts waiting later never jumps ahead of one the user is about to answer.
+ * When each waiting Chat or PTY Terminal first reached this window, as an arrival sequence: the popup asks the oldest
+ * first, so a Chat that starts waiting later never jumps ahead of one the user is about to answer.
  */
 export type AgentChatWaitingArrivals = ReadonlyMap<string, number>;
 
@@ -12,7 +12,7 @@ export type AgentChatWaitingArrivals = ReadonlyMap<string, number>;
  */
 export function nextAgentChatWaitingArrivals(
     previous: AgentChatWaitingArrivals,
-    chats: ReadonlyArray<Pick<AgentChatWaitingChat, 'terminalId'>>,
+    chats: ReadonlyArray<Pick<AgentChatWaitingEntry, 'terminalId'>>,
 ): AgentChatWaitingArrivals {
     let sequence = Math.max(0, ...previous.values());
     const next = new Map<string, number>();
@@ -31,7 +31,8 @@ interface AgentChatWaitingFilter {
      */
     answers: Readonly<Record<string, readonly AgentChatPendingAnswer[] | undefined>>;
     /**
-     * A Chat on screen in this window asks through its own pane, so the popup leaves it out.
+     * A Chat on screen in this window asks through its own pane, and a PTY Terminal on screen shows its own prompt, so
+     * the popup leaves both out.
      */
     isOnScreen: (terminalId: string) => boolean;
     /**
@@ -42,15 +43,20 @@ interface AgentChatWaitingFilter {
 }
 
 /**
- * The Chats the popup asks about, oldest arrival first, each holding only the requests nobody has answered yet.
+ * The entries the popup asks about, oldest arrival first. A Chat holds only the requests nobody has answered yet; a PTY
+ * Terminal entry has none to answer and leaves once its Terminal is on screen or the Agent stops waiting.
  */
 export function agentChatWaitingQueue(
-    chats: readonly AgentChatWaitingChat[],
+    chats: readonly AgentChatWaitingEntry[],
     { answers, arrivals, isKnownSession, isOnScreen }: AgentChatWaitingFilter,
-): AgentChatWaitingChat[] {
-    const queue: AgentChatWaitingChat[] = [];
+): AgentChatWaitingEntry[] {
+    const queue: AgentChatWaitingEntry[] = [];
     for (const chat of chats) {
         if (isOnScreen(chat.terminalId) || !isKnownSession(chat.sessionId)) continue;
+        if (chat.kind === 'terminal') {
+            queue.push(chat);
+            continue;
+        }
         const answered = answers[chat.terminalId] ?? [];
         const requests = chat.requests.filter((request) =>
             answered.every((answer) => answer.requestId !== request.id),
@@ -63,10 +69,13 @@ export function agentChatWaitingQueue(
 }
 
 /**
- * Every request the popup still has to ask, across all its Chats: the pill's count.
+ * Every request the popup still has to ask, across all its entries: the pill's count. A PTY Terminal counts as one.
  */
-export function agentChatWaitingRequestCount(queue: readonly AgentChatWaitingChat[]): number {
-    return queue.reduce((count, chat) => count + chat.requests.length, 0);
+export function agentChatWaitingRequestCount(queue: readonly AgentChatWaitingEntry[]): number {
+    return queue.reduce(
+        (count, chat) => count + (chat.kind === 'chat' ? chat.requests.length : 1),
+        0,
+    );
 }
 
 /**

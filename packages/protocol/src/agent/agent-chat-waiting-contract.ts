@@ -6,8 +6,8 @@ import { commandPolicy } from '../transport/method-spec.js';
 import { agentChatRequestSchema } from './agent-chat-requests.js';
 
 /**
- * Chats one `agentChat.pendingRequests` answer lists. Far more than anyone answers at once; the popup shows one at a
- * time and counts the rest.
+ * Entries (Chats and PTY Terminals together) one `agentChat.pendingRequests` answer lists. Far more than anyone answers
+ * at once; the popup shows one at a time and counts the rest.
  */
 export const AGENT_CHAT_WAITING_MAX_CHATS = 50;
 
@@ -17,6 +17,7 @@ export const AGENT_CHAT_WAITING_MAX_CHATS = 50;
 export const AGENT_CHAT_WAITING_PROMPT_MAX_LENGTH = 2_000;
 
 export const agentChatWaitingChatSchema = z.strictObject({
+    kind: z.literal('chat'),
     sessionId: identifierSchema,
     terminalId: identifierSchema,
     /**
@@ -30,20 +31,40 @@ export const agentChatWaitingChatSchema = z.strictObject({
     prompt: z.string().min(1).max(AGENT_CHAT_WAITING_PROMPT_MAX_LENGTH).optional(),
 });
 
+/**
+ * A PTY Terminal Agent waiting on the user. Server Core knows only that it waits (from the validated lifecycle hooks),
+ * never what it asks, and a Terminal prompt cannot be answered from outside the PTY, so the entry carries no request:
+ * the popup can only take the user to the Terminal.
+ */
+export const agentChatWaitingTerminalSchema = z.strictObject({
+    kind: z.literal('terminal'),
+    sessionId: identifierSchema,
+    terminalId: identifierSchema,
+});
+
+export const agentChatWaitingEntrySchema = z.discriminatedUnion('kind', [
+    agentChatWaitingChatSchema,
+    agentChatWaitingTerminalSchema,
+]);
+
 export const agentChatWaitingMethods = {
     /**
-     * Every live Chat waiting on the user, for the global popup that answers a Chat the user is not looking at. Read
-     * only from Server Core's in-memory projections, so it never starts, resumes, or wakes a provider: a Chat with no
-     * running provider has no pending request to list. The Renderer re-reads it when an `agentChat.patch` changes a
-     * Chat's `requests`. The text is user content: the Server never persists, caches, or logs it.
+     * Everything waiting on the user, for the global popup that answers an Agent the user is not looking at: every live
+     * Chat with a request (`kind: 'chat'`, answerable in place), then every PTY Terminal Agent the Session lifecycle
+     * marks `waiting` (`kind: 'terminal'`, open-only). Read only from Server Core's in-memory projections and stored
+     * Session rows, so it never starts, resumes, or wakes a provider: a Chat with no running provider has no pending
+     * request to list. The Renderer re-reads it when an `agentChat.patch` changes a Chat's `requests` and when a
+     * Session's Agent activity state changes. The text is user content: the Server never persists, caches, or logs it.
      */
     'agentChat.pendingRequests': {
         ...commandPolicy('server', 'read'),
         params: z.strictObject({}),
         result: z.strictObject({
-            chats: z.array(agentChatWaitingChatSchema).max(AGENT_CHAT_WAITING_MAX_CHATS),
+            entries: z.array(agentChatWaitingEntrySchema).max(AGENT_CHAT_WAITING_MAX_CHATS),
         }),
     },
 } as const satisfies Record<string, MethodSpec>;
 
 export type AgentChatWaitingChat = z.infer<typeof agentChatWaitingChatSchema>;
+export type AgentChatWaitingTerminal = z.infer<typeof agentChatWaitingTerminalSchema>;
+export type AgentChatWaitingEntry = z.infer<typeof agentChatWaitingEntrySchema>;
