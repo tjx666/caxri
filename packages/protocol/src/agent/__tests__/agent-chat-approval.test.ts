@@ -30,6 +30,28 @@ describe('agentChatApprovalChoices', () => {
         ]);
     });
 
+    it('adds an Always Allow button naming the command prefix Codex proposes', () => {
+        const request = {
+            id: 'r',
+            kind: 'command' as const,
+            command: 'git push origin main',
+            alwaysAllowPrefix: 'git push',
+            decisions: ['accept' as const, 'acceptAlways' as const, 'decline' as const],
+        };
+        expect(labels(request)).toEqual(['Run', 'Always Allow git push', 'Deny']);
+        expect(agentChatApprovalChoices(request)[1]?.hint).toContain('every Codex Chat');
+        // A long prefix is cut in the label and kept whole in the hint.
+        const long = 'cargo run --release --manifest-path crates/tool/Cargo.toml';
+        const [, choice] = agentChatApprovalChoices({ ...request, alwaysAllowPrefix: long });
+        expect(choice.label.endsWith('…')).toBe(true);
+        expect(choice.hint).toContain(long);
+        // Without `acceptAlways` in the provider's list, or without a prefix, the button is absent.
+        expect(labels({ ...request, decisions: ['accept', 'decline'] })).toEqual(['Run', 'Deny']);
+        expect(labels({ id: 'r', kind: 'command', decisions: ['accept', 'acceptAlways'] })).toEqual(
+            ['Run'],
+        );
+    });
+
     it('allows network access instead of running, and keeps planning instead of denying a plan', () => {
         expect(labels({ id: 'r', kind: 'command', networkHost: 'example.com' })[0]).toBe('Allow');
         expect(labels({ id: 'r', kind: 'tool', name: 'ExitPlanMode' })).toEqual([

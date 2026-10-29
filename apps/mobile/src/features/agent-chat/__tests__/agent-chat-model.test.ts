@@ -309,6 +309,13 @@ describe('Agent Chat model', () => {
         expect(
             agentChatApprovalRows(all.filter((c) => c.decision !== 'acceptForSession')),
         ).toHaveLength(1);
+        expect(
+            agentChatApprovalRows([
+                { decision: 'accept' },
+                { decision: 'acceptAlways' },
+                { decision: 'decline' },
+            ]).map((row) => row.map((c) => c.decision)),
+        ).toEqual([['accept', 'decline'], ['acceptAlways']]);
         expect(agentChatApprovalRows([])).toEqual([]);
     });
 

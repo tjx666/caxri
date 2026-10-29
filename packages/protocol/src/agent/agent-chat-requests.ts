@@ -6,7 +6,17 @@ import { z } from 'zod';
  */
 export const MAX_AGENT_CHAT_QUESTIONS = 10;
 
-export const agentChatDecisionSchema = z.enum(['accept', 'acceptForSession', 'decline', 'cancel']);
+/**
+ * `acceptAlways` runs a command and remembers its command prefix beyond this Chat (Codex's exec policy rules); the
+ * Server keeps the provider's rule, so the Client names the decision without carrying a payload.
+ */
+export const agentChatDecisionSchema = z.enum([
+    'accept',
+    'acceptForSession',
+    'acceptAlways',
+    'decline',
+    'cancel',
+]);
 
 /**
  * Fields shared by approvals. `itemId` links the approval to the timeline item it gates (the command or file change),
@@ -16,7 +26,7 @@ const approvalBase = {
     id: z.string().min(1).max(200),
     itemId: z.string().min(1).max(200).optional(),
     reason: z.string().max(2_000).optional(),
-    decisions: z.array(agentChatDecisionSchema).max(4).optional(),
+    decisions: z.array(agentChatDecisionSchema).max(5).optional(),
 };
 
 /**
@@ -33,6 +43,10 @@ export const agentChatRequestSchema = z.discriminatedUnion('kind', [
          * Host a sandboxed command asks to reach, when the approval is for network access rather than the command.
          */
         networkHost: z.string().max(500).optional(),
+        /**
+         * Command prefix the provider offers to always allow, for display on the `acceptAlways` button only.
+         */
+        alwaysAllowPrefix: z.string().max(500).optional(),
     }),
     z.strictObject({
         ...approvalBase,

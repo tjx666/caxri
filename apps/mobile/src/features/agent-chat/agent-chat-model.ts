@@ -74,6 +74,9 @@ export const agentChatImagesUnsupportedReason = (
 export const isAgentChatFailureRetryable = (reason: AgentChatFailureReason): boolean =>
     reason !== 'executable_not_found' && reason !== 'unsupported_version';
 
+const isStandingChoice = (decision: string): boolean =>
+    decision === 'acceptForSession' || decision === 'acceptAlways';
+
 /**
  * The approval buttons laid out in rows: the one-time answers (Accept, Decline) side by side, then the standing "for
  * this Chat" answer on its own row, as the Desktop request card groups them. Empty rows are dropped.
@@ -82,8 +85,8 @@ export const agentChatApprovalRows = <Choice extends { decision: string }>(
     choices: readonly Choice[],
 ): Choice[][] =>
     [
-        choices.filter((choice) => choice.decision !== 'acceptForSession'),
-        choices.filter((choice) => choice.decision === 'acceptForSession'),
+        choices.filter((choice) => !isStandingChoice(choice.decision)),
+        ...choices.filter((choice) => isStandingChoice(choice.decision)).map((choice) => [choice]),
     ].filter((row) => row.length > 0);
 
 /**

@@ -1,5 +1,4 @@
 import type {
-    AgentChatDecision,
     AgentChatItem,
     AgentChatItemStatus,
     AgentChatPlan,
@@ -18,6 +17,11 @@ import {
     MAX_AGENT_CHAT_TEXT_LENGTH,
 } from '@caxri/protocol';
 
+import {
+    codexAmendmentPrefix,
+    codexApprovalDecisions,
+    codexExecpolicyAmendment,
+} from './approval/codex-decisions';
 import { clip, isRecord, readableToolInputSummary, tail } from './chat-items';
 import { withCacheRewriteEstimate } from './chat-usage';
 import type { CodexComputerUseBindings } from './codex-computer-use';
@@ -372,42 +376,10 @@ export function codexRequestKind(method: string): CodexRequestKind | undefined {
     }
 }
 
-const SIMPLE_DECISIONS = new Set<AgentChatDecision>([
-    'accept',
-    'acceptForSession',
-    'decline',
-    'cancel',
-]);
-
-/**
- * Fields every approval shares. Codex lists `availableDecisions` for prompts that must not offer every choice; only the
- * plain decisions are kept (policy amendments carry payloads Caxri does not offer), and an absent list means all.
- */
-/**
- * The plain decisions Codex lists, plus `decline` whenever it lists `cancel`. Codex's default command approval offers
- * `accept` and `cancel` but not `decline`, yet its app-server answers `decline` for any command approval: the command
- * is marked declined and the turn goes on, which is what the TUI's "No, continue without running it" sends. Without it
- * a Chat card would offer only `Run`, since `cancel` (stopping the whole turn) is the Stop button's job, not a card
- * choice.
- *
- * @see https://github.com/openai/codex/blob/main/codex-rs/app-server/src/bespoke_event_handling.rs
- */
-function approvalDecisions(available: unknown): AgentChatDecision[] | undefined {
-    if (!Array.isArray(available)) return undefined;
-    const decisions = new Set(
-        available.filter(
-            (decision): decision is AgentChatDecision =>
-                typeof decision === 'string' && SIMPLE_DECISIONS.has(decision as AgentChatDecision),
-        ),
-    );
-    if (decisions.has('cancel')) decisions.add('decline');
-    return decisions.size > 0 ? [...decisions] : undefined;
-}
-
 function approvalFields(id: string, parameters: Json) {
     const itemId = optionalText(parameters.itemId, 200);
     const reason = optionalText(parameters.reason, 2_000);
-    const decisions = approvalDecisions(parameters.availableDecisions);
+    const decisions = codexApprovalDecisions(parameters);
     return {
         id,
         ...(itemId && { itemId }),
@@ -428,9 +400,11 @@ export function mapCodexRequest(
             const networkHost = isRecord(parameters.networkApprovalContext)
                 ? optionalText(parameters.networkApprovalContext.host, 500)
                 : undefined;
+            const amendment = codexExecpolicyAmendment(parameters);
             return {
                 ...approvalFields(id, parameters),
                 kind,
+                ...(amendment && { alwaysAllowPrefix: codexAmendmentPrefix(amendment) }),
                 ...(command && { command }),
                 ...(cwd && { cwd }),
                 ...(networkHost && { networkHost }),

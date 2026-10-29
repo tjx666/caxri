@@ -1,6 +1,7 @@
 import type { AgentChatRequest, AgentChatResponse } from '@caxri/protocol';
 import { agentChatAnsweredNotice, CaxriError } from '@caxri/protocol';
 
+import { codexExecpolicyAmendment } from './approval/codex-decisions';
 import { clip, questionAnswers, stringField } from './chat-items';
 import type { AgentChatSessionHost } from './chat-provider';
 import type { CodexRequestKind } from './codex-items';
@@ -11,6 +12,10 @@ interface PendingRequest {
     transportId: number | string;
     kind: CodexRequestKind;
     turnId?: string;
+    /**
+     * The command prefix rule Codex proposed, held here so the Client only names `acceptAlways` and never carries it.
+     */
+    execpolicyAmendment?: string[];
 }
 
 /**
@@ -62,10 +67,12 @@ export class CodexRequestBroker {
         }
         const turnId = stringField(request.params.turnId);
         const isNew = !this.pending.has(key);
+        const amendment = kind === 'command' ? codexExecpolicyAmendment(request.params) : undefined;
         this.pending.set(key, {
             transportId: request.id,
             kind,
             ...(turnId && { turnId: clip(turnId, 200) }),
+            ...(amendment && { execpolicyAmendment: amendment }),
         });
         const mapped: AgentChatRequest = mapCodexRequest(kind, key, request.params);
         const { requests } = this.host.read();
@@ -148,7 +155,20 @@ export class CodexRequestBroker {
         } else {
             if (response.kind !== 'decision')
                 throw new CaxriError('VALIDATION', 'An approval needs a decision');
-            connection.respond(pending.transportId, { decision: response.decision });
+            if (response.decision === 'acceptAlways') {
+                if (!pending.execpolicyAmendment)
+                    throw new CaxriError(
+                        'VALIDATION',
+                        'Codex proposed no command prefix to remember',
+                    );
+                connection.respond(pending.transportId, {
+                    decision: {
+                        acceptWithExecpolicyAmendment: {
+                            execpolicy_amendment: pending.execpolicyAmendment,
+                        },
+                    },
+                });
+            } else connection.respond(pending.transportId, { decision: response.decision });
         }
         this.settle(requestId);
     }

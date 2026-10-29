@@ -795,6 +795,16 @@ several callbacks can share one item, so the transport id is never the key.
   takes `decline` for any command approval and continues the turn without running the command, as
   its own TUI's "No, continue without running it" does. `cancel` itself is never a card button;
   stopping the turn is the Stop button's job. Controls stay disabled while an answer is in flight.
+- A Codex command approval that lists `acceptWithExecpolicyAmendment` (with a usable
+  `execpolicy_amendment`, falling back to `proposedExecpolicyAmendment`) also offers
+  `acceptAlways`, shown as `Always Allow <prefix>` (`alwaysAllowPrefix` on the request, display
+  only; the tooltip carries the whole prefix). Unlike "Always Allow in This Chat", Codex writes
+  the rule to `<CODEX_HOME>/rules/default.rules`, so it applies to every Codex Chat. The Client
+  sends only `acceptAlways`; `CodexRequestBroker` keeps Codex's amendment and answers
+  `{ decision: { acceptWithExecpolicyAmendment: { execpolicy_amendment } } }`, and rejects the
+  decision with `VALIDATION` when none was proposed. Network approvals do not offer it (their rule
+  would be a host rule, `applyNetworkPolicyAmendment`, which Caxri ignores). On Mobile the button
+  gets its own row. There is no Caxri UI to list or revoke the rules; edit `default.rules`.
 - A question form with several questions shows one tab per question. Its primary button reads Next
   while a later question is neither answered nor opened yet, and moves to it; once every question
   has been answered or seen it reads Submit (`questionFormPrimaryAction` in
