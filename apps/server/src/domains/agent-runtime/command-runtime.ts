@@ -170,7 +170,7 @@ export function createAgentCommandRuntime(
         dispatchService,
         delegationService,
         handlers: {
-            ...createDelegationHandlers(delegationService),
+            ...createDelegationHandlers(delegationService, options.database),
             ...createAgentCommandHandlers({
                 ...options,
                 dispatch: dispatchService,
