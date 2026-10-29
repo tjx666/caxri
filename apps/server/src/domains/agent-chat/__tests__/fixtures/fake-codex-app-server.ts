@@ -22,9 +22,10 @@
  * that thread fail as Codex does when another client still holds the thread's writer, a `resume-delay-ms` file delays
  * every `thread/resume` answer by that many milliseconds, and an `unsubscribe-fails` file makes `thread/unsubscribe`
  * answer with an error. `config/read` reports `readFakeConfig`'s workspace-write table. An ephemeral `thread/fork`
- * opens a side thread that answers one `turn/start` (`fake-codex-side.ts`). `thread/goal/*` keeps a thread goal that
- * starts its own turns while active (`fake-codex-goals.ts`). With `FAKE_CODEX_SESSIONS_DIR`, threads get UUIDv7 ids and
- * each user message is also appended to a rollout there, as the real CLI writes it.
+ * opens a side thread that answers one `turn/start` (`fake-codex-side.ts`). `review/start` runs an inline review turn
+ * (`fake-codex-review.ts`). `thread/goal/*` keeps a thread goal that starts its own turns while active
+ * (`fake-codex-goals.ts`). With `FAKE_CODEX_SESSIONS_DIR`, threads get UUIDv7 ids and each user message is also
+ * appended to a rollout there, as the real CLI writes it.
  */
 import crypto from 'node:crypto';
 import process from 'node:process';
@@ -49,6 +50,7 @@ import type {
 import { runKeywordScenario } from './fake-codex-keywords.ts';
 import { didHandleMcpStatusRequest } from './fake-codex-mcp-calls.ts';
 import { FAKE_MODELS } from './fake-codex-models.ts';
+import { didHandleReviewRequest } from './fake-codex-review.ts';
 import { forkThread, revertThread, unsubscribeThread } from './fake-codex-rewind.ts';
 import { fakeCodexScript, findScriptedTurn, playScriptedTurn } from './fake-codex-script.ts';
 import { didHandleSideRequest } from './fake-codex-side.ts';
@@ -264,6 +266,7 @@ function handle(message: RpcMessage) {
     const { id, method, params: parameters = {} } = message;
     if (didHandleTaskRequest(io, id, method, parameters)) return;
     if (didHandleGoalRequest(io, id, method, parameters)) return;
+    if (didHandleReviewRequest(io, id, method, parameters)) return;
     if (didHandleSideRequest(io, id, method, parameters)) return;
     if (didHandleMcpStatusRequest(io, id, method, parameters)) return;
     if (didHandleSkillsListRequest(io, id, method, parameters)) return;

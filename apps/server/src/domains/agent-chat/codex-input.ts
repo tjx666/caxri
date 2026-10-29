@@ -12,11 +12,17 @@ import { isRecord, storedChatImageSchema, stringField } from './chat-items';
 import type { JsonRpcRequestError } from './json-rpc-connection';
 
 /**
- * Slash commands Caxri maps to app-server methods. The Codex TUI's other commands drive its own screen (`/model`
- * pickers, `/status` panels) and have no app-server equivalent, so they are not offered.
+ * Slash commands Caxri maps to app-server methods: `/compact` (`thread/compact/start`), `/goal` (`thread/goal/*`), and
+ * `/review` (`review/start`). The Codex TUI's other commands drive its own screen (`/model` pickers, `/status` panels)
+ * and have no app-server equivalent, so they are not offered.
  */
 export const CODEX_COMMANDS: AgentChatCommand[] = [
     { name: 'compact', description: 'Summarize the conversation to free up context' },
+    {
+        name: 'review',
+        description: 'Review code changes for bugs and risks',
+        argumentHint: '[--base <branch> | --commit <sha> | instructions]',
+    },
     {
         name: AGENT_CHAT_GOAL_COMMAND,
         description: 'Set a goal the Agent keeps working toward',

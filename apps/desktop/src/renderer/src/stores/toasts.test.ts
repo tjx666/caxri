@@ -337,6 +337,12 @@ describe('Sonner notification adapter', () => {
         ).toBe('Open a file failed. Access denied.');
     });
 
+    it('keeps a slash command name in a failure label', () => {
+        expect(describeFailure(new Error("unknown revision 'abc'"), '/review could not run')).toBe(
+            "/review could not run. unknown revision 'abc'.",
+        );
+    });
+
     it('does not show a protocol error enum in the toast', () => {
         expect(describeFailure(new CaxriError('IO', 'IO: write failed'), 'Save failed')).toBe(
             'Save failed. write failed.',
