@@ -34,6 +34,10 @@ export function BlockFullscreenButton({ onOpen }: { onOpen: () => void }) {
  * the ChatGPT and Claude apps open an artifact. The dialog fills the window less a 32px margin, with the block's name
  * and its actions (Copy, word wrap) in a 44px header and the body scrolling under it. Escape, the close button, or a
  * click outside returns to the transcript where the reader left it.
+ *
+ * Nothing mounts while it is closed, not even the dialog root: a long reply carries one per code block and table, and
+ * hundreds of closed Base UI roots held tens of megabytes of hook and store state for a 50 KB streamed reply (`bun run
+ * benchmark:chat-streaming`). The content never had an exit animation to keep the root for.
  */
 export function BlockFullscreenDialog({
     actions,
@@ -54,30 +58,29 @@ export function BlockFullscreenDialog({
     onOpenChange: (isOpen: boolean) => void;
 }) {
     const bodyReference = useRef<HTMLDivElement>(null);
+    if (!isOpen) return null;
     return (
-        <Dialog open={isOpen} onOpenChange={onOpenChange}>
-            {isOpen && (
-                <DialogContent
-                    // Focus the scrolling body, not the first toolbar button: arrow keys and Page Down scroll the
-                    // block at once, and the Copy tooltip does not pop up the moment the dialog opens.
-                    initialFocus={bodyReference}
-                    className="flex h-[calc(100vh-64px)] max-h-none w-[calc(100vw-64px)] flex-col overflow-hidden"
+        <Dialog open onOpenChange={onOpenChange}>
+            <DialogContent
+                // Focus the scrolling body, not the first toolbar button: arrow keys and Page Down scroll the
+                // block at once, and the Copy tooltip does not pop up the moment the dialog opens.
+                initialFocus={bodyReference}
+                className="flex h-[calc(100vh-64px)] max-h-none w-[calc(100vw-64px)] flex-col overflow-hidden"
+            >
+                <div className="flex h-11 shrink-0 items-center gap-1 border-0 border-b border-solid border-border pr-11 pl-4 select-none">
+                    <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-foreground">
+                        {title}
+                    </span>
+                    {actions}
+                </div>
+                <div
+                    ref={bodyReference}
+                    className={cn('min-h-0 flex-1 overflow-auto outline-none', bodyClassName)}
+                    tabIndex={-1}
                 >
-                    <div className="flex h-11 shrink-0 items-center gap-1 border-0 border-b border-solid border-border pr-11 pl-4 select-none">
-                        <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-foreground">
-                            {title}
-                        </span>
-                        {actions}
-                    </div>
-                    <div
-                        ref={bodyReference}
-                        className={cn('min-h-0 flex-1 overflow-auto outline-none', bodyClassName)}
-                        tabIndex={-1}
-                    >
-                        {children}
-                    </div>
-                </DialogContent>
-            )}
+                    {children}
+                </div>
+            </DialogContent>
         </Dialog>
     );
 }
