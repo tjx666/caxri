@@ -57,6 +57,11 @@ export class ClaudeTurns {
      */
     private readonly usageLimits = new ClaudeUsageLimitTracker();
 
+    /**
+     * Callers waiting for the active turn to end (see {@link nextEnd}).
+     */
+    private endWaiters: Array<() => void> = [];
+
     isInterruptRequested = false;
 
     count = 0;
@@ -117,6 +122,9 @@ export class ClaudeTurns {
                 },
             ]);
         host.onTurnFinished(status, finished.durationMs, id);
+        const waiters = this.endWaiters;
+        this.endWaiters = [];
+        for (const resolve of waiters) resolve();
         const agentSessionId = this.options.sessionId();
         const isWaitingOnBackground =
             status === 'completed' &&
@@ -148,6 +156,14 @@ export class ClaudeTurns {
                       ...(isWaitingOnBackground && { agentBackgroundWork: true as const }),
                   },
         );
+    }
+
+    /**
+     * Resolves once the active turn has ended and its finish is in the projection. Never resolves when the process
+     * exits first, so a caller bounds the wait.
+     */
+    nextEnd(): Promise<void> {
+        return new Promise((resolve) => this.endWaiters.push(resolve));
     }
 
     /**

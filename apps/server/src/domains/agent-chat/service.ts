@@ -20,7 +20,6 @@ import type { ChatExitHost } from './chat-exit';
 import type { CreateForkSession } from './chat-fork';
 import { forkChat } from './chat-fork';
 import { readChatTerminalHistory } from './chat-history';
-import { isAgentChatCommandListed } from './chat-items';
 import { requireChatTerminal } from './chat-launch';
 import { ChatMobileWatchers } from './chat-mobile-watchers';
 import { ChatPermissionSwitches } from './chat-permission-switch';
@@ -292,21 +291,9 @@ export class AgentChatService {
     async runCommand(terminalId: string, name: string, arguments_?: string): Promise<void> {
         assertE2EAgentChatInput(readE2EAgentPolicy(), `/${name}`);
         this.states.assertUsage(terminalId, 'chat_command');
-        await this.enqueue(terminalId, async (session, state) => {
-            if (!isAgentChatCommandListed(state.projection.snapshot, name))
-                throw new CaxriError('VALIDATION', `/${name} is not available in this Chat`);
-            const trimmed = arguments_?.trim() ? arguments_ : undefined;
-            if (!session.isImmediateCommand?.(name) && state.followUps.mustWait()) {
-                state.followUps.add({
-                    id: randomUUID(),
-                    kind: 'command',
-                    name,
-                    ...(trimmed !== undefined && { arguments: trimmed }),
-                });
-                return;
-            }
-            await session.runCommand(name, trimmed);
-        });
+        await this.enqueue(terminalId, (session, state) =>
+            queueActions.deliverChatCommand(session, state, name, arguments_),
+        );
     }
 
     async configure(terminalId: string, change: AgentChatModelRequest): Promise<void> {

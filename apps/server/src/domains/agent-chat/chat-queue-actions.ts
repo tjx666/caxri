@@ -1,8 +1,12 @@
+import { randomUUID } from 'node:crypto';
+
 import { CaxriError } from '@caxri/protocol';
 
+import { isAgentChatCommandListed } from './chat-items';
 import { requireChatTerminal } from './chat-launch';
+import type { AgentChatProviderSession } from './chat-provider';
 import type { ChatFollowUpQueue } from './chat-queue';
-import type { ChatStateDelivery, ChatStates } from './chat-states';
+import type { ChatState, ChatStateDelivery, ChatStates } from './chat-states';
 import type { AgentChatServiceOptions } from './service-options';
 
 /**
@@ -88,4 +92,31 @@ export function didResumeQueue(host: ChatQueueActionsHost, terminalId: string): 
     requireChatTerminal(host.options.database, terminalId);
     host.states.assertUsage(terminalId, 'chat_queue');
     return host.states.get(terminalId)?.followUps.resume() ?? false;
+}
+
+/**
+ * Delivers one of the provider's slash commands from the head of the Chat's send chain. It waits in the follow-up queue
+ * while a turn runs, unless the provider runs it beside the turn (`isImmediateCommand`) or has to stop the turn for it
+ * (`stopsTurnForCommand`, labeled as the user's Stop).
+ */
+export async function deliverChatCommand(
+    session: AgentChatProviderSession,
+    state: ChatState,
+    name: string,
+    arguments_: string | undefined,
+): Promise<void> {
+    if (!isAgentChatCommandListed(state.projection.snapshot, name))
+        throw new CaxriError('VALIDATION', `/${name} is not available in this Chat`);
+    const trimmed = arguments_?.trim() ? arguments_ : undefined;
+    if (session.stopsTurnForCommand?.(name, trimmed)) state.projection.noteStopRequest('user');
+    else if (!session.isImmediateCommand?.(name) && state.followUps.mustWait()) {
+        state.followUps.add({
+            id: randomUUID(),
+            kind: 'command',
+            name,
+            ...(trimmed !== undefined && { arguments: trimmed }),
+        });
+        return;
+    }
+    await session.runCommand(name, trimmed);
 }

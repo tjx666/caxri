@@ -1,6 +1,5 @@
 import type {
     AgentChatDefault,
-    AgentChatGoalChange,
     AgentChatMessageInput,
     AgentChatModelRequest,
     AgentChatRequest,
@@ -10,9 +9,7 @@ import type {
     TerminalRecord,
 } from '@caxri/protocol';
 import {
-    AGENT_CHAT_GOAL_COMMAND,
     agentChatAnsweredNotice,
-    agentChatGoalArguments,
     formatLongPasteReference,
     parseAgentChatPathReferences,
 } from '@caxri/protocol';
@@ -242,17 +239,6 @@ export async function didRunAgentChatCommand(
         },
     );
     return isRun;
-}
-
-/**
- * Sets, pauses, resumes, or clears the Chat's goal outside the composer (its goal row, a user message's Set as Goal),
- * through the same `/goal` command the composer runs.
- */
-export function changeAgentChatGoal(terminalId: string, change: AgentChatGoalChange): void {
-    void didRunAgentChatCommand(terminalId, {
-        name: AGENT_CHAT_GOAL_COMMAND,
-        arguments: agentChatGoalArguments(change),
-    });
 }
 
 interface AgentChatStopState {

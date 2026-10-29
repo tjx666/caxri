@@ -215,3 +215,31 @@ export async function streamPacedReply(
     await waitWhileHeld();
     return { isComplete: await io.didStreamFully('Done thinking.', 20) };
 }
+
+/**
+ * `table`: a reply with a Markdown table and a fenced code block. Returns whether `text` asked for it.
+ */
+export async function didStreamTable(
+    io: FakeClaudeIo,
+    startedAt: number,
+    text: string,
+): Promise<boolean> {
+    if (!text.includes('table')) return false;
+    await io.didStreamFully(
+        [
+            'Here are the options:',
+            '',
+            '| Option | Cost |',
+            '| --- | --- |',
+            '| Safe | Low |',
+            '| Fast | High |',
+            '',
+            '```ts',
+            'const choice = "Safe";',
+            '```',
+        ].join('\n'),
+        0,
+    );
+    io.result(startedAt, 'done');
+    return true;
+}

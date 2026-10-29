@@ -392,8 +392,16 @@ export interface AgentChatProviderSession {
      */
     isImmediateCommand?(name: string): boolean;
     /**
+     * Whether `name` has to stop the running turn: it takes effect only once that turn ends, which the turn would not
+     * do by itself (Claude Code's `/goal clear` during the goal's own query). `runCommand` then stops the turn, waits
+     * for it to end, and runs the command instead of letting it wait in the follow-up queue; the service labels the
+     * stopped turn as the user's. False while no turn runs.
+     */
+    stopsTurnForCommand?(name: string, arguments_: string | undefined): boolean;
+    /**
      * Runs one of the commands this session reported in the snapshot's `commands`; the service has already checked that
-     * `name` is listed and that no turn is running, unless `isImmediateCommand` says it runs during one.
+     * `name` is listed and that no turn is running, unless `isImmediateCommand` or `stopsTurnForCommand` says it runs
+     * during one.
      */
     runCommand(
         name: string,

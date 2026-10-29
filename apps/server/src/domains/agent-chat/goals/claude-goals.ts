@@ -2,11 +2,14 @@ import type {
     AgentChatGoal,
     AgentChatGoalReply,
     AgentChatItem,
+    AgentChatSnapshot,
     AgentChatTurn,
 } from '@caxri/protocol';
 import {
+    AGENT_CHAT_GOAL_COMMAND,
     agentChatGoalElapsedSeconds,
     MAX_AGENT_CHAT_GOAL_OBJECTIVE_LENGTH,
+    parseAgentChatGoalArguments,
     parseAgentChatGoalReply,
 } from '@caxri/protocol';
 
@@ -32,6 +35,23 @@ export function claudeGoalNotice(notice: Notice): AgentChatGoalReply | null | un
     const reply = parseAgentChatGoalReply(notice);
     if (!reply) return undefined;
     return reply.action === 'cleared' || reply.action === 'none' ? null : reply;
+}
+
+/**
+ * Whether a command is `/goal clear` sent while a goal is set and a turn runs. Claude Code's SDK mode holds a slash
+ * command until the running query ends (only its interactive `/goal` runs beside a turn), and the goal's query keeps
+ * going until the condition is met, so a clear that waited for the turn would never land.
+ */
+export function isClaudeGoalClearDuringTurn(
+    snapshot: AgentChatSnapshot,
+    name: string,
+    arguments_: string | undefined,
+): boolean {
+    return (
+        Boolean(snapshot.activeTurnId && snapshot.goal) &&
+        name === AGENT_CHAT_GOAL_COMMAND &&
+        parseAgentChatGoalArguments(arguments_)?.action === 'clear'
+    );
 }
 
 /**
