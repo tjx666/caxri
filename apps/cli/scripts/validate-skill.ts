@@ -3,7 +3,13 @@ import { readFile } from 'node:fs/promises';
 import type { CaxriMethod } from '@caxri/protocol';
 import { capabilityIds, methods } from '@caxri/protocol';
 
-import { CLI_COMMANDS, findCliCommand, parseCliArguments } from '../src/commands';
+import {
+    CLI_COMMANDS,
+    findCliCommand,
+    parseCliArguments,
+    resolveGenericRequest,
+    validateRequestParameters,
+} from '../src/commands';
 
 /**
  * Splits an example into argv the way a shell would for the simple forms the skill uses: whitespace-separated words,
@@ -11,8 +17,8 @@ import { CLI_COMMANDS, findCliCommand, parseCliArguments } from '../src/commands
  */
 function tokenize(command: string): string[] {
     return command
-        .matchAll(/"[^"]*"|\S+/gu)
-        .map(([word]) => (word.startsWith('"') ? word.slice(1, -1) : word))
+        .matchAll(/"[^"]*"|'[^']*'|\S+/gu)
+        .map(([word]) => (/^["']/u.test(word) ? word.slice(1, -1) : word))
         .toArray();
 }
 
@@ -87,6 +93,14 @@ export async function validateSkillCommands(skill: string): Promise<{
         if (!command) throw new Error(`Skill references an unknown command: caxri ${source}`);
         // eslint-disable-next-line no-await-in-loop -- examples are validated in order, so the first bad one is reported
         const parameters = await command.parseParams(parsed.tokens.slice(command.path.length));
+        if (command.path[0] === 'request') {
+            // eslint-disable-next-line no-await-in-loop -- examples are validated in order, so the first bad one is reported
+            const generic = await resolveGenericRequest(parsed.tokens.slice(1), {
+                isTTY: false,
+                read: () => Promise.resolve('{}'),
+            });
+            validateRequestParameters(generic.command.method, generic.parameters);
+        }
         // A command-owned flow (`run`) parses its own parameters, such as `secret exec`'s child argv, which are not the
         // request of its declared method.
         if (command.kind === 'remote' && !command.run) {

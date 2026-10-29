@@ -36,6 +36,16 @@ describe('caxri-cli skill validation', () => {
         });
     });
 
+    it('validates generic request examples against the protocol schema', async () => {
+        const valid = `${requiredWorkflows}\ncaxri request session.query --params '{"mode":"list"}'\n${capabilities}`;
+        expect((await validateSkillCommands(valid)).commandCount).toBe(3);
+        await expect(
+            validateSkillCommands(
+                `${requiredWorkflows}\ncaxri request session.query --params '{"mode":"bogus"}'\n${capabilities}`,
+            ),
+        ).rejects.toThrow('Invalid params for session.query');
+    });
+
     it('rejects inline mentions that name only a command group', async () => {
         await expect(
             validateSkillCommands(

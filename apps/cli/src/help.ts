@@ -6,7 +6,7 @@ import { CLI_COMMANDS, CLI_GROUPS, describeCliCommand } from './commands';
 /**
  * Introspection commands meant for scripts and Agents; the top-level help lists them after the everyday commands.
  */
-const ADVANCED_COMMANDS = new Set(['capabilities', 'agent-context']);
+const ADVANCED_COMMANDS = new Set(['capabilities', 'agent-context', 'request']);
 
 const COMMON_TASKS: ReadonlyArray<{ command: string; summary: string }> = [
     { command: 'caxri open .', summary: 'Open the current folder in Caxri' },

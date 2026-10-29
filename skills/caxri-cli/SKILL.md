@@ -109,6 +109,25 @@ caxri settings validate --set terminal.scrollback=10000 --json
 Confirm that the result has `dryRun: true` and inspect `errors` before proposing a real patch. Do not
 turn validation into a write or add `--yes` unless the user explicitly authorizes the mutation.
 
+## Call a Server method that has no dedicated command
+
+Prefer a dedicated command. When none exists for a method that `caxri capabilities --json` lists in
+`requestMethods` and your negotiated commands include, call it by name with schema-validated JSON params:
+
+```bash
+caxri request session.query --params '{"mode":"list"}' --json
+echo '{"mode":"current"}' | caxri request session.query --params - --json
+```
+
+`--params -` reads the JSON from stdin. Find a method's params and result schema in
+`protocolMethods` of `caxri capabilities --json`. An unknown method, invalid JSON, or params that fail
+the schema return `VALIDATION`. A method needing a capability you lack returns `FORBIDDEN`, and an
+owner-only method returns `FORBIDDEN` for every Endpoint credential: the Server decides, so never
+retry it through another route. A method that changes state needs `--yes`, an explicit `--profile`
+outside an interactive terminal, and `--request-id` for retries, exactly like a dedicated mutation;
+use it only when the user authorized that change. `--timeout` becomes the `timeoutMs` of a
+long-poll method. Streaming follow commands stay on `logs follow` and `events watch`.
+
 ## Investigate a Session or Terminal with logs
 
 Needs `diagnostics.read` (a `debug:read` grant includes it). Take opaque IDs from the CLI, never from

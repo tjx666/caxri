@@ -12,3 +12,8 @@ export {
     findCliCommand,
     type RemoteCommandDefinition,
 } from './catalog.js';
+export {
+    assertMethodOffered,
+    resolveGenericRequest,
+    validateRequestParameters,
+} from './request.js';

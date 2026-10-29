@@ -122,6 +122,15 @@ searches every provider's history like Desktop's Session search, `session import
 `session rename <id> --title <text>`, `session pin <id>`, and `session unpin <id>` match the
 sidebar's actions.
 
+`request <method> [--params <json|->]` is the generic entry for any Server method the caller is already
+authorized for and that has no dedicated command, for example `caxri request session.query --params
+'{"mode":"list"}' --json`. `--params -` reads the JSON from stdin. It reuses the normal transport,
+confirmation (`--yes`, explicit `--profile`, `--request-id` for non-read methods), and JSON output, validates
+the params against the protocol schema (`VALIDATION` for an unknown method or invalid params), and adds no
+allowlist: a method the caller lacks the capability for returns `FORBIDDEN`, and an owner-only method refuses
+every Agent Endpoint credential. `caxri capabilities --json` lists the method names under `requestMethods`.
+Use `logs follow` and `events watch` for streams.
+
 Desktop window commands stay behind authenticated Server and Project-root authorization:
 `desktop focus`, `open <path>`, and `reveal <path>`. Path commands accept an optional exact
 `--session <id>`; `open` supports files and directories and launches Desktop by default, while

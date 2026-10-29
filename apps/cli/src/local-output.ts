@@ -15,6 +15,7 @@ function capabilities() {
         protocolVersion: CLI_PROTOCOL_VERSION,
         groups: CLI_GROUPS,
         commands: CLI_COMMANDS.map(describeCliCommand),
+        requestMethods: Object.keys(methods),
         protocolMethods: (Object.keys(methods) as CaxriMethod[]).map(describeCaxriMethod),
     };
 }
@@ -108,6 +109,7 @@ function humanAgentContext(value: AgentContextResult): string {
 }
 
 export function humanRemote(command: RemoteCommandDefinition, value: unknown): string | undefined {
+    if (command.path[0] === 'request') return undefined;
     const records = renderHumanRecords(command.method, command.path.at(-1), value, Date.now());
     if (records !== undefined) return records;
     if (value === null || typeof value !== 'object' || command.method !== 'agent.list')
