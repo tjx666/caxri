@@ -82,6 +82,7 @@ import { queryClient } from './queries/client';
 import { useGitDecorationSync } from './queries/git-decoration-sync';
 import { useRuntimeQueryInvalidation } from './queries/invalidation';
 import {
+    isPrimarySidebarShown,
     PRIMARY_SIDEBAR_DEFAULT_WIDTH,
     PRIMARY_SIDEBAR_MAX_WIDTH,
     PRIMARY_SIDEBAR_MIN_WIDTH,
@@ -175,12 +176,53 @@ function SessionEffects({ isAttached }: { isAttached: boolean }) {
     return null;
 }
 
+/**
+ * The App shell grid's rows and columns. Zen Mode drops the 24px Status Bar row. Outside full screen the traffic lights
+ * still float over the window's top edge, so a title-bar-height band keeps them off the content and gives the frameless
+ * window something to drag by, as VS Code's windowed Zen keeps its title bar.
+ */
+function appShellGridClassName({
+    isZenMode,
+    isFullScreen,
+    isPrimarySidebarVisible,
+    isSecondarySidebarVisible,
+}: {
+    isZenMode: boolean;
+    isFullScreen: boolean;
+    isPrimarySidebarVisible: boolean;
+    isSecondarySidebarVisible: boolean;
+}): string {
+    const rows = isZenMode
+        ? cn('zen-mode grid-rows-[minmax(0,1fr)]', !isFullScreen && 'pt-9')
+        : 'grid-rows-[minmax(0,1fr)_24px]';
+    if (isPrimarySidebarVisible && isSecondarySidebarVisible)
+        return cn(
+            rows,
+            'grid-cols-[var(--primary-sidebar-width,230px)_6px_minmax(320px,1fr)_6px_var(--secondary-sidebar-width,310px)]',
+        );
+    if (isPrimarySidebarVisible)
+        return cn(
+            rows,
+            'secondary-sidebar-collapsed grid-cols-[var(--primary-sidebar-width,230px)_6px_minmax(320px,1fr)]',
+        );
+    if (isSecondarySidebarVisible)
+        return cn(
+            rows,
+            'primary-sidebar-collapsed grid-cols-[minmax(320px,1fr)_6px_var(--secondary-sidebar-width,310px)]',
+        );
+    return cn(
+        rows,
+        'primary-sidebar-collapsed secondary-sidebar-collapsed grid-cols-[minmax(320px,1fr)]',
+    );
+}
+
 export function App() {
     const { t } = useTranslation();
     const isAttached = useWorkbenchStore((state) => state.bootstrap !== undefined);
     const primarySidebarWidth = useChromeLayoutStore((state) => state.primarySidebarWidth);
     const secondarySidebarWidth = useChromeLayoutStore((state) => state.secondarySidebarWidth);
-    const isPrimarySidebarVisible = useChromeLayoutStore((state) => state.primarySidebarVisible);
+    const isPrimarySidebarVisible = useChromeLayoutStore(isPrimarySidebarShown);
+    const isZenMode = useChromeLayoutStore((state) => state.zenMode);
     const isFullScreen = useIsFullScreen();
     const isSecondarySidebarVisible = useIsSecondarySidebarShown();
     const isWorkbenchPaused = isConnectionOverlayVisible(useSshEnvironment());
@@ -258,20 +300,22 @@ export function App() {
                          * drag and through React on commit/reset. The 6px tracks are the divider hit areas; see
                          * `PanelDivider`. `minmax(320px, 1fr)` reserves the main pane so a resize never overlaps it.
                          */
-                        'app-shell grid h-screen w-screen grid-rows-[minmax(0,1fr)_24px] bg-background',
-                        isPrimarySidebarVisible && isSecondarySidebarVisible
-                            ? 'grid-cols-[var(--primary-sidebar-width,230px)_6px_minmax(320px,1fr)_6px_var(--secondary-sidebar-width,310px)]'
-                            : isPrimarySidebarVisible
-                              ? 'secondary-sidebar-collapsed grid-cols-[var(--primary-sidebar-width,230px)_6px_minmax(320px,1fr)]'
-                              : isSecondarySidebarVisible
-                                ? 'primary-sidebar-collapsed grid-cols-[minmax(320px,1fr)_6px_var(--secondary-sidebar-width,310px)]'
-                                : 'primary-sidebar-collapsed secondary-sidebar-collapsed grid-cols-[minmax(320px,1fr)]',
+                        'app-shell grid h-screen w-screen bg-background',
+                        appShellGridClassName({
+                            isZenMode,
+                            isFullScreen,
+                            isPrimarySidebarVisible,
+                            isSecondarySidebarVisible,
+                        }),
                     )}
                 >
                     {!isPrimarySidebarVisible && !isFullScreen && (
                         <div
                             aria-hidden="true"
-                            className="collapsed-primary-sidebar-titlebar fixed top-0 left-0 z-20 h-9 w-(--traffic-light-clearance) [-webkit-app-region:drag]"
+                            className={cn(
+                                'collapsed-primary-sidebar-titlebar fixed top-0 left-0 z-20 h-9 [-webkit-app-region:drag]',
+                                isZenMode ? 'right-0' : 'w-(--traffic-light-clearance)',
+                            )}
                         />
                     )}
                     {isPrimarySidebarVisible && (
@@ -317,7 +361,7 @@ export function App() {
                             <SecondarySidebar />
                         </RendererPerformanceProfiler>
                     )}
-                    <StatusBar />
+                    {!isZenMode && <StatusBar />}
                     <CreateSessionDialog />
                     <ArchivedSessionsDialog />
                     <BotHandoverDialog isFromWorkbench />

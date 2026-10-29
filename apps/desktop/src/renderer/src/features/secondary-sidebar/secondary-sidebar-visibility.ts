@@ -27,27 +27,32 @@ export function getSecondarySidebarYieldScope(): string | undefined {
 }
 
 /**
- * Whether the SecondarySidebar is on screen; every consumer that lays out around it reads this rather than the stored
- * flag. Read in the same render as the Session layout, so opening a pane beside a Chat and the SecondarySidebar
- * stepping aside commit together and the Terminal resizes once.
+ * Whether the SecondarySidebar is on screen (never in Zen mode); every consumer that lays out around it reads this
+ * rather than the stored flag. Read in the same render as the Session layout, so opening a pane beside a Chat and the
+ * SecondarySidebar stepping aside commit together and the Terminal resizes once.
  */
 export function useIsSecondarySidebarShown(): boolean {
     const yieldScope = useWorkbenchStore((state) => secondarySidebarYieldScope(state.bootstrap));
-    return useChromeLayoutStore((state) =>
-        isSecondarySidebarShownFor(
-            state.secondarySidebarVisible,
-            yieldScope,
-            state.secondarySidebarRevealedScope,
-        ),
+    return useChromeLayoutStore(
+        (state) =>
+            !state.zenMode &&
+            isSecondarySidebarShownFor(
+                state.secondarySidebarVisible,
+                yieldScope,
+                state.secondarySidebarRevealedScope,
+            ),
     );
 }
 
 export function isSecondarySidebarShown(): boolean {
     const state = useChromeLayoutStore.getState();
-    return isSecondarySidebarShownFor(
-        state.secondarySidebarVisible,
-        getSecondarySidebarYieldScope(),
-        state.secondarySidebarRevealedScope,
+    return (
+        !state.zenMode &&
+        isSecondarySidebarShownFor(
+            state.secondarySidebarVisible,
+            getSecondarySidebarYieldScope(),
+            state.secondarySidebarRevealedScope,
+        )
     );
 }
 

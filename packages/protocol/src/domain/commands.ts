@@ -104,6 +104,7 @@ export const commandIds = [
     'view.zoomIn',
     'view.zoomOut',
     'view.resetZoom',
+    'view.toggleZenMode',
     'settings.open',
     'usage.open',
     'benchmark.open',

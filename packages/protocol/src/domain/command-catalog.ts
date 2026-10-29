@@ -6,6 +6,7 @@ import { gitCommandDefinitions } from './command-definitions/git-command-definit
 import { helpLinkCommandDefinitions } from './command-definitions/help-link-command-definitions.js';
 import { sessionCommandDefinitions } from './command-definitions/session-command-definitions.js';
 import { terminalCommandDefinitions } from './command-definitions/terminal-command-definitions.js';
+import { viewCommandDefinitions } from './command-definitions/view-command-definitions.js';
 import type { CommandId } from './commands.js';
 import { editorCommandDefinitions } from './editor/command-definitions.js';
 
@@ -311,52 +312,7 @@ export const commandDefinitions: CommandDefinition[] = [
         description: 'Show or hide the Panel',
         nativeMenu: { menu: 'view', group: 0, order: 3 },
     },
-    {
-        id: 'primarySidebar.toggle',
-        title: 'Toggle Primary Side Bar',
-        category: 'View',
-        description: 'Show or hide the Primary Side Bar',
-        nativeMenu: { menu: 'view', group: 0, order: 1 },
-    },
-    {
-        id: 'primarySidebar.toggleActivity',
-        title: 'Toggle Activity',
-        category: 'View',
-        description:
-            'Swap the Primary Side Bar between the Project tree and every Project’s Agent Sessions grouped by what needs attention',
-        keywords: ['activity', 'attention', 'unread', 'waiting', 'inbox'],
-    },
-    {
-        id: 'primarySidebar.focus',
-        title: 'Focus Primary Side Bar',
-        category: 'View',
-        description:
-            'Move keyboard focus into the Primary Side Bar, revealing it first when hidden',
-    },
-    {
-        id: 'view.zoomIn',
-        title: 'Zoom In',
-        category: 'View',
-        description: 'Enlarge the whole interface by one zoom step',
-        keywords: ['zoom', 'bigger', 'larger', 'scale', 'magnify'],
-        nativeMenu: { menu: 'view', group: 2, order: 0 },
-    },
-    {
-        id: 'view.zoomOut',
-        title: 'Zoom Out',
-        category: 'View',
-        description: 'Shrink the whole interface by one zoom step',
-        keywords: ['zoom', 'smaller', 'scale'],
-        nativeMenu: { menu: 'view', group: 2, order: 1 },
-    },
-    {
-        id: 'view.resetZoom',
-        title: 'Reset Zoom',
-        category: 'View',
-        description: 'Return the interface to its original size',
-        keywords: ['zoom', 'actual size', 'scale', 'default'],
-        nativeMenu: { menu: 'view', group: 2, order: 2 },
-    },
+    ...viewCommandDefinitions,
     {
         id: 'usage.open',
         title: 'Open Usage',

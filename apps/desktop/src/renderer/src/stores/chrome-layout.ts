@@ -249,6 +249,15 @@ interface ChromeLayoutState extends ChromeLayout {
      * {@link isSecondarySidebarShownFor}. Window-local and never persisted: it only lasts while that arrangement does.
      */
     secondarySidebarRevealedScope?: string;
+    /**
+     * Zen mode: a window-local overlay that hides both side bars, the Panel, the tab bars, and the status bar without
+     * touching their stored visibility, so leaving it restores the layout exactly. Never persisted; every launch starts
+     * outside it. Read surface visibility through {@link isPrimarySidebarShown} and {@link isPanelShown}, never the raw
+     * flags. Any request that reveals a hidden surface (its toggle, a reveal command) leaves Zen first, so a command
+     * never reveals something the user cannot see.
+     */
+    zenMode: boolean;
+    toggleZenMode(): void;
     setPrimarySidebarWidth(width: number): void;
     setSecondarySidebarWidth(width: number): void;
     setPanelHeight(height: number): void;
@@ -326,6 +335,17 @@ function pickLayout(state: ChromeLayout): ChromeLayout {
 
 export const useChromeLayoutStore = createStore<ChromeLayoutState>('chrome-layout', (set, get) => ({
     ...readPersistedLayout(),
+    zenMode: false,
+    toggleZenMode() {
+        const isEntering = !get().zenMode;
+        if (isEntering) {
+            // Before `set`, so a focused side bar row or Panel view hands the keyboard back before it unmounts.
+            handOffChromeFocus('primarySidebar', false);
+            handOffChromeFocus('secondarySidebar', false);
+            handOffChromeFocus('panel', false);
+        }
+        set({ zenMode: isEntering });
+    },
     setPrimarySidebarWidth(width) {
         const primarySidebarWidth = clampWidth(
             width,
@@ -373,6 +393,10 @@ export const useChromeLayoutStore = createStore<ChromeLayoutState>('chrome-layou
         set({ panelHeight });
     },
     togglePrimarySidebar() {
+        if (get().zenMode) {
+            set({ zenMode: false });
+            if (get().primarySidebarVisible) return;
+        }
         const isPrimarySidebarVisible = !get().primarySidebarVisible;
         const layout = fitCurrentViewport({
             ...pickLayout(get()),
@@ -386,6 +410,18 @@ export const useChromeLayoutStore = createStore<ChromeLayoutState>('chrome-layou
         set(layout);
     },
     toggleSecondarySidebar(yieldScope) {
+        if (get().zenMode) {
+            set({ zenMode: false });
+            const state = get();
+            if (
+                isSecondarySidebarShownFor(
+                    state.secondarySidebarVisible,
+                    yieldScope,
+                    state.secondarySidebarRevealedScope,
+                )
+            )
+                return;
+        }
         const state = get();
         const isRevealing = !isSecondarySidebarShownFor(
             state.secondarySidebarVisible,
@@ -411,7 +447,7 @@ export const useChromeLayoutStore = createStore<ChromeLayoutState>('chrome-layou
             primarySidebarVisible: isVisible,
         });
         writePersistedLayout(layout);
-        set(layout);
+        set({ ...layout, ...(isVisible && { zenMode: false }) });
     },
     setSecondarySidebarVisible(isVisible, yieldScope) {
         const state = get();
@@ -424,7 +460,11 @@ export const useChromeLayoutStore = createStore<ChromeLayoutState>('chrome-layou
             isVisible,
         );
         writePersistedLayout(layout);
-        set({ ...layout, secondarySidebarRevealedScope: isVisible ? yieldScope : undefined });
+        set({
+            ...layout,
+            secondarySidebarRevealedScope: isVisible ? yieldScope : undefined,
+            ...(isVisible && { zenMode: false }),
+        });
     },
     syncSecondarySidebarYieldScope(yieldScope) {
         const revealed = get().secondarySidebarRevealedScope;
@@ -432,6 +472,10 @@ export const useChromeLayoutStore = createStore<ChromeLayoutState>('chrome-layou
             set({ secondarySidebarRevealedScope: undefined });
     },
     togglePanel() {
+        if (get().zenMode) {
+            set({ zenMode: false });
+            if (get().panelVisible) return;
+        }
         const isRevealing = !get().panelVisible;
         const layout = fitCurrentViewport({ ...pickLayout(get()), panelVisible: isRevealing });
         // Before `set`, so the handoff still sees the element that owns focus and the Panel that is about to unmount.
@@ -445,7 +489,7 @@ export const useChromeLayoutStore = createStore<ChromeLayoutState>('chrome-layou
             panelVisible: isVisible,
         });
         writePersistedLayout(layout);
-        set(layout);
+        set({ ...layout, ...(isVisible && { zenMode: false }) });
     },
     togglePrimarySidebarActivityMode() {
         const isActivityMode = !get().primarySidebarActivityMode;
@@ -463,7 +507,7 @@ export const useChromeLayoutStore = createStore<ChromeLayoutState>('chrome-layou
         });
         refocusChromeSurfaceBody('primarySidebar');
         writePersistedLayout(layout);
-        set(layout);
+        set({ ...layout, zenMode: false });
     },
     activatePanelViewContainer(view) {
         const layout = fitCurrentViewport({
@@ -472,7 +516,7 @@ export const useChromeLayoutStore = createStore<ChromeLayoutState>('chrome-layou
             desiredPanelViewContainerId: view,
         });
         writePersistedLayout(layout);
-        set(layout);
+        set({ ...layout, zenMode: false });
     },
     clampToViewport(viewportWidth, viewportHeight, yieldScope) {
         const state = get();
@@ -499,6 +543,22 @@ export const useChromeLayoutStore = createStore<ChromeLayoutState>('chrome-layou
         set(next);
     },
 }));
+
+/**
+ * Whether the Primary Side Bar is on screen: its stored preference, unless Zen mode hides it.
+ */
+export function isPrimarySidebarShown(
+    state: Pick<ChromeLayoutState, 'primarySidebarVisible' | 'zenMode'>,
+): boolean {
+    return state.primarySidebarVisible && !state.zenMode;
+}
+
+/**
+ * Whether the Panel is on screen: its stored preference, unless Zen mode hides it.
+ */
+export function isPanelShown(state: Pick<ChromeLayoutState, 'panelVisible' | 'zenMode'>): boolean {
+    return state.panelVisible && !state.zenMode;
+}
 
 /**
  * Keeps the persisted layout valid as the window resizes. Runs once on mount (a persisted layout from a larger window

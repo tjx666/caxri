@@ -1,5 +1,5 @@
 import { translate } from '../../i18n';
-import { useChromeLayoutStore } from '../../stores/chrome-layout';
+import { isPrimarySidebarShown, useChromeLayoutStore } from '../../stores/chrome-layout';
 import { requestSessionRename } from '../../stores/dialogs';
 import { getSelectedSession } from '../../stores/selectors';
 import { pushToast } from '../../stores/toasts';
@@ -13,7 +13,7 @@ import { canSuggestSessionTitle } from '../primary-sidebar/session-rename-draft'
 export function renameSelectedSession(): void {
     const session = getSelectedSession();
     if (!session) return;
-    if (!useChromeLayoutStore.getState().primarySidebarVisible)
+    if (!isPrimarySidebarShown(useChromeLayoutStore.getState()))
         useChromeLayoutStore.getState().setPrimarySidebarVisible(true);
     requestSessionRename(session.id);
 }
@@ -29,7 +29,7 @@ export function renameSelectedSessionWithAi(): void {
         pushToast('info', translate('session.rename.noConversation'));
         return;
     }
-    if (!useChromeLayoutStore.getState().primarySidebarVisible)
+    if (!isPrimarySidebarShown(useChromeLayoutStore.getState()))
         useChromeLayoutStore.getState().setPrimarySidebarVisible(true);
     requestSessionRename(session.id, { suggest: true });
 }

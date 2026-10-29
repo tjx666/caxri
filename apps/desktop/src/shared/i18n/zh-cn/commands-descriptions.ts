@@ -113,6 +113,8 @@ export const commandDescriptions: TranslatedNamespace<typeof source> = {
         '在项目树与按待处理程度分组的所有项目 Agent 会话之间切换主侧边栏',
     'commands.description.primarySidebar.focus': '将键盘焦点移入主侧边栏，若已隐藏则先显示',
     'commands.description.view.zoomIn': '将整个界面放大一级',
+    'commands.description.view.toggleZenMode':
+        '隐藏侧边栏、面板、标签栏和状态栏，只保留当前对话或终端',
     'commands.description.view.zoomOut': '将整个界面缩小一级',
     'commands.description.view.resetZoom': '将界面恢复为原始大小',
     'commands.description.usage.open': '显示 Caxri 会话的 Token 用量、预估费用和交付统计',

@@ -112,6 +112,9 @@ export function recordingContext(): { calls: string[]; context: CommandContext }
                 activateViewContainer: record('panel.activateViewContainer'),
                 toggle: record('panel.toggle'),
             },
+            zenMode: {
+                toggle: record('zenMode.toggle'),
+            },
             primarySidebar: {
                 focus: record('primarySidebar.focus'),
                 toggle: record('primarySidebar.toggle'),

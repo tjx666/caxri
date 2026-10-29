@@ -421,6 +421,9 @@ const commandContext: CommandContext = {
             useChromeLayoutStore.getState().activatePanelViewContainer(id),
         toggle: () => useChromeLayoutStore.getState().togglePanel(),
     },
+    zenMode: {
+        toggle: () => useChromeLayoutStore.getState().toggleZenMode(),
+    },
     primarySidebar: {
         focus: focusPrimarySidebar,
         toggle: () => useChromeLayoutStore.getState().togglePrimarySidebar(),

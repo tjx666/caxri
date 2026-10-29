@@ -111,6 +111,7 @@ export const commands: TranslatedNamespace<typeof source> = {
     'commands.primarySidebar.toggleActivity': '切换活动视图',
     'commands.primarySidebar.focus': '聚焦到主侧边栏',
     'commands.view.zoomIn': '放大',
+    'commands.view.toggleZenMode': '切换禅模式',
     'commands.view.zoomOut': '缩小',
     'commands.view.resetZoom': '重置缩放',
     'commands.usage.open': '打开用量',
