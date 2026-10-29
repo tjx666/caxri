@@ -122,7 +122,7 @@ function ApprovalBody({
             {request.reason && <p className="m-0 text-muted">{request.reason}</p>}
             {reviewHint && <p className="m-0 text-muted">{reviewHint}</p>}
             <div className="flex flex-wrap gap-2">
-                {choices.map(({ decision, label }) => {
+                {choices.map(({ decision, hint, label }) => {
                     const button = (
                         <Button
                             aria-keyshortcuts={ariaKeyShortcuts(shortcutFor(decision))}
@@ -155,7 +155,11 @@ function ApprovalBody({
                     );
                     if (decision === 'acceptForSession') return button;
                     return (
-                        <Tooltip content={label} key={decision} shortcut={shortcutFor(decision)}>
+                        <Tooltip
+                            content={hint ?? label}
+                            key={decision}
+                            shortcut={shortcutFor(decision)}
+                        >
                             {button}
                         </Tooltip>
                     );

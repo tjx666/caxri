@@ -288,6 +288,9 @@ export const agentChatLabelsEn = {
     'agentChat.approval.startBuilding': 'Start Building',
     'agentChat.approval.alwaysAllow': 'Always Allow in This Chat',
     'agentChat.approval.alwaysAllowSession': 'Always Allow in This Session',
+    'agentChat.approval.alwaysAllowPrefix': 'Always Allow {{prefix}}',
+    'agentChat.approval.alwaysAllowPrefixHint':
+        'Saved to Codex rules: commands starting with "{{prefix}}" will run without asking in every Codex Chat',
     'agentChat.approval.deny': 'Deny',
     'agentChat.approval.keepPlanning': 'Keep Planning',
 

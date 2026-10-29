@@ -12,7 +12,22 @@ export type AgentChatApprovalRequest = Extract<
     { kind: 'command' | 'fileChange' | 'tool' }
 >;
 
-export type AgentChatApprovalDecision = 'accept' | 'acceptForSession' | 'decline';
+export type AgentChatApprovalDecision = 'accept' | 'acceptForSession' | 'acceptAlways' | 'decline';
+
+/**
+ * One approval button. `hint` is the longer explanation a Client shows as the button's tooltip, when the label alone
+ * does not say what the choice does.
+ */
+export interface AgentChatApprovalChoice {
+    decision: AgentChatApprovalDecision;
+    hint?: string;
+    label: string;
+}
+
+/**
+ * Longest command prefix a button label spells out; the tooltip carries the whole prefix.
+ */
+const ALWAYS_ALLOW_PREFIX_LABEL_LENGTH = 28;
 
 /**
  * Claude Code asks to leave plan mode through this tool; its summary is the plan.
@@ -71,18 +86,33 @@ function acceptLabelKey(request: AgentChatApprovalRequest): AgentChatLabelKey {
 export function agentChatApprovalChoices(
     request: AgentChatApprovalRequest,
     t: AgentChatLabelTranslate = translateAgentChatLabel,
-): Array<{ decision: AgentChatApprovalDecision; label: string }> {
+): AgentChatApprovalChoice[] {
     const isPlan = request.kind === 'tool' && request.name === AGENT_CHAT_EXIT_PLAN_TOOL;
-    const choices: Array<{ decision: AgentChatApprovalDecision; label: string }> = [
+    const prefix = request.kind === 'command' ? request.alwaysAllowPrefix : undefined;
+    const choices: AgentChatApprovalChoice[] = [
         { decision: 'accept', label: t(acceptLabelKey(request)) },
         { decision: 'acceptForSession', label: agentApprovalAlwaysAllowLabel('Chat', t) },
+        ...(prefix
+            ? [
+                  {
+                      decision: 'acceptAlways' as const,
+                      label: t('agentChat.approval.alwaysAllowPrefix', {
+                          prefix:
+                              prefix.length > ALWAYS_ALLOW_PREFIX_LABEL_LENGTH
+                                  ? `${prefix.slice(0, ALWAYS_ALLOW_PREFIX_LABEL_LENGTH - 1)}…`
+                                  : prefix,
+                      }),
+                      hint: t('agentChat.approval.alwaysAllowPrefixHint', { prefix }),
+                  },
+              ]
+            : []),
         {
             decision: 'decline',
             label: t(isPlan ? 'agentChat.approval.keepPlanning' : 'agentChat.approval.deny'),
         },
     ];
-    const allowed = request.decisions;
-    return choices.filter((choice) => !allowed || allowed.includes(choice.decision));
+    const allowed = request.decisions && new Set<string>(request.decisions);
+    return choices.filter((choice) => !allowed || allowed.has(choice.decision));
 }
 
 /**

@@ -406,8 +406,28 @@ describe('Codex item mapping', () => {
             id: 'd',
             kind: 'command',
             command: 'git push --force',
-            decisions: ['accept', 'cancel', 'decline'],
+            decisions: ['accept', 'cancel', 'decline', 'acceptAlways'],
+            alwaysAllowPrefix: 'git push',
         });
+        // The top-level proposal fills in when the listed amendment is unusable; a network approval has none.
+        expect(
+            mapCodexRequest('command', 'p', {
+                proposedExecpolicyAmendment: ['npm', 'test'],
+                availableDecisions: [
+                    'accept',
+                    { acceptWithExecpolicyAmendment: { execpolicy_amendment: [] } },
+                ],
+            }),
+        ).toMatchObject({ decisions: ['accept', 'acceptAlways'], alwaysAllowPrefix: 'npm test' });
+        expect(
+            mapCodexRequest('command', 'n', {
+                networkApprovalContext: { host: 'example.com' },
+                availableDecisions: [
+                    'accept',
+                    { acceptWithExecpolicyAmendment: { execpolicy_amendment: ['curl'] } },
+                ],
+            }),
+        ).not.toHaveProperty('alwaysAllowPrefix');
         // No list, or a list with nothing Caxri can offer, means every plain decision applies.
         expect(mapCodexRequest('fileChange', 'f', { availableDecisions: [{ other: 1 }] })).toEqual({
             id: 'f',

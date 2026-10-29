@@ -102,6 +102,7 @@ describe('AgentChatService with a fake Codex app-server', () => {
         if (request.kind !== 'command') throw new Error('expected a command approval');
         expect(agentChatApprovalChoices(request).map((choice) => choice.decision)).toEqual([
             'accept',
+            'acceptAlways',
             'decline',
         ]);
         service.respond(terminal.id, request.id, { kind: 'decision', decision: 'decline' });
@@ -110,6 +111,18 @@ describe('AgentChatService with a fake Codex app-server', () => {
             status: 'declined',
         });
         expect(done.items.at(-1)).toMatchObject({ text: 'The command was declined.' });
+    });
+
+    it('remembers the proposed command prefix by sending Codex its own amendment back', async () => {
+        const { service, terminal, until } = await fixture();
+        await service.send(terminal.id, { text: 'please approve this' });
+        const pending = await until((snapshot) => snapshot.requests.length === 1);
+        const request = pending.requests[0];
+        if (request.kind !== 'command') throw new Error('expected a command approval');
+        expect(request.alwaysAllowPrefix).toBe('echo');
+        service.respond(terminal.id, request.id, { kind: 'decision', decision: 'acceptAlways' });
+        const done = await until((snapshot) => snapshot.turns.at(-1)?.status === 'completed');
+        expect(done.items.at(-1)).toMatchObject({ text: 'The command ran; remembered "echo".' });
     });
 
     it('links a file-change approval to the change it gates and marks an oversized diff', async () => {

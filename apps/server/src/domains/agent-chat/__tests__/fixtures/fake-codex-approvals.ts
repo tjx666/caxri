@@ -10,7 +10,7 @@ import process from 'node:process';
 import type { FakeCodexIo, FakeTurn } from './fake-codex-io.ts';
 
 interface ApprovalResponse {
-    decision?: string;
+    decision?: string | { acceptWithExecpolicyAmendment?: { execpolicy_amendment?: string[] } };
 }
 interface QuestionResponse {
     answers?: Record<string, { answers: string[] } | undefined>;
@@ -38,14 +38,20 @@ export async function runApprovalCommand(io: FakeCodexIo, turn: FakeTurn) {
         command: command.command,
         cwd: command.cwd,
         reason: 'Fake approval',
-        // The list real Codex sends for a command approval: no `decline`, though it accepts one.
+        // What real Codex sends for a command approval: no `decline` (though it accepts one), and the command prefix
+        // rule it proposes remembering, both top level and as the amendment decision's payload.
+        proposedExecpolicyAmendment: ['echo'],
         availableDecisions: [
             'accept',
             { acceptWithExecpolicyAmendment: { execpolicy_amendment: ['echo'] } },
             'cancel',
         ],
     })) as ApprovalResponse | undefined;
-    if (response?.decision === 'accept' || response?.decision === 'acceptForSession') {
+    const amendment =
+        response?.decision !== undefined && typeof response.decision === 'object'
+            ? response.decision.acceptWithExecpolicyAmendment?.execpolicy_amendment
+            : undefined;
+    if (amendment || response?.decision === 'accept' || response?.decision === 'acceptForSession') {
         io.notifyTurn(turn, 'item/commandExecution/outputDelta', {
             turnId: turn.id,
             itemId: command.id,
@@ -58,7 +64,14 @@ export async function runApprovalCommand(io: FakeCodexIo, turn: FakeTurn) {
             exitCode: 0,
             durationMs: 5,
         });
-        await io.streamMessage(turn, 'The command ran.', 0);
+        // Echoes the rule the Client's decision carried, so a test sees the wire shape Codex would receive.
+        await io.streamMessage(
+            turn,
+            amendment
+                ? `The command ran; remembered "${amendment.join(' ')}".`
+                : 'The command ran.',
+            0,
+        );
     } else {
         io.completeItem(turn, { ...command, status: 'declined' });
         await io.streamMessage(turn, 'The command was declined.', 0);
