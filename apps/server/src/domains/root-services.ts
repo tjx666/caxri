@@ -1,5 +1,6 @@
 import { join } from 'node:path';
 
+import type { FullStateChangeReason } from '@caxri/protocol';
 import { CaxriError, errorMessage } from '@caxri/protocol';
 import { logEventCatalog } from '@caxri/system';
 
@@ -179,14 +180,19 @@ export async function createRootServices({
         logger,
         sessionContext: (session) => sessionContext.read(session),
     });
+    /**
+     * Announces a full workbench re-read; `reason` is what the Renderer's command convergence matches on.
+     */
+    const sendFullStateChange = (reason: FullStateChangeReason): void => {
+        send({ event: 'state.changed', payload: { kind: 'full', reason } });
+    };
     const archivedWorktrees = new ArchivedWorktreeCleanup({
         database,
         git,
         isEnabled: () => config.getSettings().value['workbench.removeWorktreeOnArchive'],
         logger,
         removeWorktree: (input) => removeServerLinkedWorktree(logger, input),
-        sendFullStateChange: (reason) =>
-            send({ event: 'state.changed', payload: { kind: 'full', reason } }),
+        sendFullStateChange,
     });
     const files = new FileService(
         database,
@@ -227,6 +233,7 @@ export async function createRootServices({
         externalStatus,
         files,
         git,
+        sendFullStateChange,
         sessionContext,
         timeline,
         transcripts,

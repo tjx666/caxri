@@ -1,8 +1,6 @@
 import { join } from 'node:path';
 import process from 'node:process';
 
-import type { FullStateChangeReason } from '@caxri/protocol';
-
 import { readActiveContext } from './active-context';
 import { chatStateStore, createAgentChatHandlers } from './agent-chat';
 import type { AgentDelegationService } from './agent-delegation';
@@ -85,6 +83,7 @@ export async function createDomainServices(
         externalStatus,
         files,
         git,
+        sendFullStateChange,
         sessionContext,
         timeline,
         transcripts,
@@ -304,12 +303,6 @@ export async function createDomainServices(
         terminalRestores,
         terminalSuspension,
     });
-    /**
-     * Announces a full workbench re-read; `reason` is what the Renderer's command convergence matches on.
-     */
-    const sendFullStateChange = (reason: FullStateChangeReason): void => {
-        send({ event: 'state.changed', payload: { kind: 'full', reason } });
-    };
     const presenceEffects = createPresenceEffects({
         coordinator,
         database,
