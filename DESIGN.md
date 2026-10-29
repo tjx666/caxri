@@ -345,7 +345,7 @@ corner is invisible until the pointer reaches it or keyboard focus lands on it; 
 exit Zen, because it stops a running Chat turn and is an application key in the Terminal. Toasts
 that report a fact or a degradation (`info`, `success`, `warning` with no follow-up button) do not
 pop up in Zen but still enter the notification history; failures, persistent notices, and any toast
-with a follow-up button still appear. Approvals and questions are Chat cards, never toasts.
+with a follow-up button still appear, at the top right below the exit button instead of the bottom right, so they never cover the centered composer. Approvals and questions are Chat cards, never toasts.
 
 **Status bar**: `--surface` background, top hairline, `meta` text in `--muted`. The left side
 shows Project and Git context, plus the delivery chips the current branch resolves to: its pull
