@@ -5,9 +5,10 @@ import type * as MonacoModule from './monaco';
 
 /**
  * Colorized markup keyed by theme, language, and code. A live preview re-renders on every keystroke and a Chat reply on
- * every streamed delta, and only the edited block actually changed.
+ * every streamed delta, and only the edited block actually changed. Colorized markup runs several times the size of its
+ * source, so the cache also stops at about 8 MB of UTF-16 keys and markup.
  */
-const colorizedBlocks = new MemoCache<string>(256);
+const colorizedBlocks = new MemoCache(256, 4 * 1024 * 1024);
 
 /**
  * `monaco.editor.colorize` escapes the source and wraps it only in color-class spans, line breaks, and one container.

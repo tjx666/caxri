@@ -6,16 +6,31 @@
  * Memoizing them by that text turns a re-render into a map lookup for every block the edit did not touch. Insertion
  * order doubles as recency because a re-render re-reads each surviving key, so evicting the oldest entry drops what the
  * document stopped referring to.
+ *
+ * Besides its entry count, the cache is bounded by the characters its keys and values hold together: the key carries
+ * the block's whole source and the value its rendered markup, so a few long blocks would otherwise pin megabytes that
+ * an entry count never notices. An entry larger than the whole budget is not stored. PandaCode bounds its formatted
+ * Markdown cache the same way (`.agents/skills/competitors/references/pandacode.md`).
  */
-export class MemoCache<T> {
-    readonly #entries = new Map<string, T>();
+export class MemoCache {
+    readonly #entries = new Map<string, string>();
     readonly #capacity: number;
+    readonly #maxCharacters: number;
+    #characters = 0;
 
-    constructor(capacity: number) {
+    constructor(capacity: number, maxCharacters: number) {
         this.#capacity = capacity;
+        this.#maxCharacters = maxCharacters;
     }
 
-    get(key: string): T | undefined {
+    #delete(key: string): void {
+        const value = this.#entries.get(key);
+        if (value === undefined) return;
+        this.#entries.delete(key);
+        this.#characters -= key.length + value.length;
+    }
+
+    get(key: string): string | undefined {
         const value = this.#entries.get(key);
         if (value === undefined) return undefined;
         this.#entries.delete(key);
@@ -23,21 +38,32 @@ export class MemoCache<T> {
         return value;
     }
 
-    set(key: string, value: T): void {
-        this.#entries.delete(key);
+    set(key: string, value: string): void {
+        this.#delete(key);
+        const characters = key.length + value.length;
+        if (characters > this.#maxCharacters) return;
         this.#entries.set(key, value);
-        while (this.#entries.size > this.#capacity) {
+        this.#characters += characters;
+        while (this.#entries.size > this.#capacity || this.#characters > this.#maxCharacters) {
             const oldest = this.#entries.keys().next();
             if (oldest.done) return;
-            this.#entries.delete(oldest.value);
+            this.#delete(oldest.value);
         }
     }
 
     clear(): void {
         this.#entries.clear();
+        this.#characters = 0;
     }
 
     get size(): number {
         return this.#entries.size;
+    }
+
+    /**
+     * Characters held by every key and value together.
+     */
+    get characters(): number {
+        return this.#characters;
     }
 }

@@ -9,9 +9,9 @@ import { retryableLoader } from '../../lib/retryable-loader';
 
 /**
  * Rendered SVG keyed by the Mermaid theme seed and diagram source, so a keystroke elsewhere in the document does not
- * re-run Mermaid's layout for every diagram in it.
+ * re-run Mermaid's layout for every diagram in it. Bounded at about 8 MB of UTF-16 source and SVG as well.
  */
-const renderedDiagrams = new MemoCache<string>(48);
+const renderedDiagrams = new MemoCache(48, 4 * 1024 * 1024);
 /**
  * Mermaid owns global theme and layout state, so mounted previews share a single layout permit.
  */

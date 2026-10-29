@@ -4,7 +4,6 @@ import { join, resolve } from 'node:path';
 import process from 'node:process';
 
 import { connectToServer } from '@caxri/client/supervise';
-import { execFileAsync } from '@caxri/system';
 
 import { annotateE2ETimings } from '../scripts/reporters/public-e2e-diagnostics.ts';
 import type { E2EApp as ElectronApp } from './support/electron-app.ts';
@@ -16,6 +15,7 @@ import {
     VISIBLE_TERMINAL_INPUT,
     waitForRuntimeReady,
 } from './support/helpers.ts';
+import { measureServerOwnerResources } from './support/process-resources.ts';
 
 const executablePath = process.env.CAXRI_BENCHMARK_EXECUTABLE;
 const thresholdMs = 3_000;
@@ -47,67 +47,6 @@ async function launch(
 function expectTimedEvent(record: PerformanceLog | undefined): void {
     expect(typeof record?.durationMs).toBe('number');
     expect(record?.durationMs ?? Infinity).toBeLessThan(thresholdMs);
-}
-
-interface ServerOwnerProcess {
-    command: string;
-    pid: number;
-    ppid: number;
-    rssKiB: number;
-}
-
-/**
- * Measures every general Server owner that replaced the legacy Host + Runtime pair. Extension Host remains excluded
- * because it was already independent in A0; Terminal Host is included once A3b splits it from Server Core. This keeps
- * the same memory and descriptor budget meaningful across deliberate process-topology changes.
- */
-async function measureServerOwnerResources(serverCorePid: number): Promise<{
-    memoryMb: number;
-    openDescriptors: number;
-}> {
-    const { stdout } = await execFileAsync('ps', ['-axo', 'pid=,ppid=,rss=,command=']);
-    const processes = stdout
-        .split('\n')
-        .filter(Boolean)
-        .map((line): ServerOwnerProcess => {
-            const [pid, ppid, rssKiB, ...command] = line.trim().split(/\s+/u);
-            if (!pid || !ppid || !rssKiB || command.length === 0)
-                throw new Error(`Unexpected process resource record: ${line}`);
-            return {
-                command: command.join(' '),
-                pid: Number(pid),
-                ppid: Number(ppid),
-                rssKiB: Number(rssKiB),
-            };
-        });
-    const byPid = new Map(processes.map((entry) => [entry.pid, entry]));
-    const isServerDescendant = (entry: ServerOwnerProcess): boolean => {
-        const visited = new Set<number>();
-        let current: ServerOwnerProcess | undefined = entry;
-        while (current && !visited.has(current.pid)) {
-            if (current.ppid === serverCorePid) return true;
-            visited.add(current.pid);
-            current = byPid.get(current.ppid);
-        }
-        return false;
-    };
-    const owners = processes.filter(
-        (entry) =>
-            entry.pid === serverCorePid ||
-            (isServerDescendant(entry) && /(?:^|\/)terminal-host\.js(?:\s|$)/u.test(entry.command)),
-    );
-    if (owners.every((entry) => entry.pid !== serverCorePid))
-        throw new Error('Server Core process disappeared before resource measurement');
-    const descriptorCounts = await Promise.all(
-        owners.map(async ({ pid }) => {
-            const { stdout: openFiles } = await execFileAsync('lsof', ['-p', String(pid)]);
-            return openFiles.split('\n').filter(Boolean).length - 1;
-        }),
-    );
-    return {
-        memoryMb: owners.reduce((total, entry) => total + entry.rssKiB, 0) / 1024,
-        openDescriptors: descriptorCounts.reduce((total, count) => total + count, 0),
-    };
 }
 
 /**

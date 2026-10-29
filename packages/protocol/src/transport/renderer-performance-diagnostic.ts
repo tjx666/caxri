@@ -81,7 +81,11 @@ const terminalStagePerformanceSummarySchema = z.strictObject({
     maxDurationMs: performanceDurationSchema,
 });
 
-export const rendererPerformanceActions = ['session.switch'] as const;
+/**
+ * Bracketed Renderer actions: `session.switch` covers one Session switch, `agentChat.stream` a window in which an Agent
+ * Chat receives a streamed reply or tool updates with no user interaction.
+ */
+export const rendererPerformanceActions = ['session.switch', 'agentChat.stream'] as const;
 
 /**
  * Bounded, content-free performance receipt emitted for one named Renderer scenario. It intentionally excludes

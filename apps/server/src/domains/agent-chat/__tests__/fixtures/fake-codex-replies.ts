@@ -6,7 +6,9 @@
  * past the phone's clip and across a window re-read), `longstream` thinks quietly and then streams a long reply at a
  * reader's pace, `weblink` answers with a Markdown link to the web page the message names (`weblink inline` with its
  * bare URL after a label), `bigdiff` changes one file by 6,000 lines, and `widediff` changes one file with lines wider
- * than a phone, and `manysteps` runs {@link MANY_STEPS} quick commands before a short reply.
+ * than a phone, and `manysteps` runs {@link MANY_STEPS} quick commands before a short reply. `bigstream` and `toolstorm`
+ * are the streaming benchmark's workloads (`e2e/agent-chat-streaming.performance.e2e.ts`): a 50 KB Markdown reply in
+ * token-sized deltas, and {@link TOOL_STORM_COMMANDS} commands that each start and then finish.
  */
 import crypto from 'node:crypto';
 import path from 'node:path';
@@ -359,6 +361,107 @@ export async function runLongStream(io: FakeCodexIo, turn: FakeTurn) {
     while (!turn.interrupted && Date.now() < deadline) await delay(100);
     if (turn.interrupted) return;
     await io.streamMessage(turn, LONG_STREAM_REPLY, LONG_STREAM_WORD_MS);
+}
+
+/**
+ * Bytes the `bigstream` reply reaches, the size a long Agent answer with code and tables grows to.
+ */
+const BIG_STREAM_BYTES = 50 * 1024;
+/**
+ * Characters per `bigstream` delta: about the five or six tokens a provider stream carries per event.
+ */
+const BIG_STREAM_DELTA_CHARACTERS = 24;
+/**
+ * The pause between `bigstream` deltas: about ten seconds for the whole reply, a fast model's pace.
+ */
+const BIG_STREAM_DELTA_MS = 4;
+
+/**
+ * One section of the `bigstream` reply: a heading, prose with inline code and a file link, a list, a table, and a
+ * fenced TypeScript block, so every block kind the transcript renders keeps growing while it streams.
+ */
+function bigStreamSection(index: number): string {
+    const name = `step${String(index).padStart(3, '0')}`;
+    return [
+        `## Section ${index}: ${name}`,
+        '',
+        `The **${name}** change keeps \`src/${name}.ts\` in step with [the plan](src/plan.md:${index}), so the reply has prose, *emphasis*, and links to lay out while it grows.`,
+        '',
+        `- Read the current \`${name}\` state`,
+        '- Apply the change and keep the tests green',
+        `- Record the result in \`notes/${name}.md\``,
+        '',
+        '| Check | Result | Time |',
+        '| :--- | :---: | ---: |',
+        `| lint | pass | ${index % 7}.2 s |`,
+        `| test | pass | ${index % 5}.8 s |`,
+        '',
+        '```ts',
+        `export function ${name}(items: readonly number[]): number {`,
+        '    let total = 0;',
+        '    for (const item of items) total += item * 2;',
+        `    return total + ${index};`,
+        '}',
+        '```',
+        '',
+    ].join('\n');
+}
+
+/**
+ * The `bigstream` reply, cut into token-sized deltas.
+ */
+function bigStreamDeltas(): string[] {
+    let text = '';
+    for (let index = 1; text.length < BIG_STREAM_BYTES; index += 1) text += bigStreamSection(index);
+    const deltas: string[] = [];
+    for (let start = 0; start < text.length; start += BIG_STREAM_DELTA_CHARACTERS)
+        deltas.push(text.slice(start, start + BIG_STREAM_DELTA_CHARACTERS));
+    return deltas;
+}
+
+/**
+ * The `bigstream` turn: a 50 KB Markdown reply streamed in token-sized deltas at a fast model's pace.
+ */
+export async function runBigStream(io: FakeCodexIo, turn: FakeTurn) {
+    await io.streamMessage(turn, bigStreamDeltas(), BIG_STREAM_DELTA_MS);
+}
+
+/**
+ * Commands the `toolstorm` turn runs; each starts and then finishes, so the Chat receives twice as many tool updates.
+ */
+const TOOL_STORM_COMMANDS = 300;
+/**
+ * The pause after each `toolstorm` update: about six seconds for the whole turn.
+ */
+const TOOL_STORM_UPDATE_MS = 10;
+
+/**
+ * The `toolstorm` turn: {@link TOOL_STORM_COMMANDS} commands that each report a running state and then finish with a
+ * line of output, then a one-line reply.
+ */
+export async function runToolStorm(io: FakeCodexIo, turn: FakeTurn) {
+    for (let step = 1; step <= TOOL_STORM_COMMANDS; step += 1) {
+        if (turn.interrupted) return;
+        const item = {
+            type: 'commandExecution',
+            id: crypto.randomUUID(),
+            command: `/bin/zsh -lc "rg -n 'step${step}' src"`,
+            cwd: process.cwd(),
+        };
+        io.startItem(turn, { ...item, status: 'inProgress', aggregatedOutput: '' });
+        // eslint-disable-next-line no-await-in-loop -- updates arrive one at a time on purpose
+        await delay(TOOL_STORM_UPDATE_MS);
+        io.completeItem(turn, {
+            ...item,
+            status: 'completed',
+            aggregatedOutput: `src/step${step}.ts:${step}: export const step${step} = ${step};\n`,
+            exitCode: 0,
+            durationMs: TOOL_STORM_UPDATE_MS,
+        });
+        // eslint-disable-next-line no-await-in-loop -- see above
+        await delay(TOOL_STORM_UPDATE_MS);
+    }
+    await io.streamMessage(turn, `Searched ${TOOL_STORM_COMMANDS} steps.`, 0);
 }
 
 /**

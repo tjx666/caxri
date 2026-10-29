@@ -181,7 +181,7 @@ async function measureWindow(
     return page.evaluate(async (duration) => {
         const performanceApi = (globalThis as RendererPerformanceWindow).caxriPerformance;
         if (!performanceApi) throw new Error('Renderer performance API is unavailable');
-        const scenarioId = performanceApi.begin('session.switch');
+        const scenarioId = performanceApi.begin('agentChat.stream');
         await new Promise((resolve) => setTimeout(resolve, duration));
         const diagnostic = performanceApi.end(scenarioId);
         const { workbench } = diagnostic.react.surfaces;

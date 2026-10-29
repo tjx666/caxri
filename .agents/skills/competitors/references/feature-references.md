@@ -136,6 +136,11 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 - **Mobile computer status CPU**: Whole-machine CPU from the delta between two `os.cpus()` reads. Evidence: `packages/system/src/process/system-resources.ts`.
 - **Claude process entrypoint label**: Overwriting `CLAUDE_CODE_ENTRYPOINT` with the client's own name on every Claude process it starts. Evidence: `apps/server/src/domains/agents/providers/claude/entrypoint.ts`.
 
+## PandaCode (MIT with fork attribution)
+
+- **Agent Chat streaming benchmark**: The workloads and readings of its published T3 Code comparison (a 50 KB streamed reply, 600 tool updates, Renderer work, memory growth while streaming, idle app memory). Evidence: `e2e/agent-chat-streaming.performance.e2e.ts`; `docs/renderer-performance.md`.
+- **Character-bounded render caches**: A size budget beside the entry count for cached rendered markup. Evidence: `apps/desktop/src/renderer/src/lib/memo-cache.ts`.
+
 ## Paseo (Apache-2.0)
 
 - **Activity group headings**: Glyph before each heading. Evidence: `docs/activity-view.md`.
