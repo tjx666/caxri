@@ -177,6 +177,9 @@ export const primarySidebar = {
     'primarySidebar.status.detached.description':
         'The Agent was stopped so another client can resume it.',
 
+    'primarySidebar.status.usageWait.label': 'Waiting for limit reset',
+    'primarySidebar.status.usageWait.description': 'Continues automatically at {{time}}',
+
     // Pull request presentation
     'primarySidebar.pullRequest.state.closed': 'Closed',
     'primarySidebar.pullRequest.state.draft': 'Draft',

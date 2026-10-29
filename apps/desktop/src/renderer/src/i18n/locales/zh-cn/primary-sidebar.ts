@@ -176,6 +176,9 @@ export const primarySidebar: TranslatedNamespace<typeof source> = {
     'primarySidebar.status.detached.label': '已分离',
     'primarySidebar.status.detached.description': 'Agent 已停止，以便其他客户端恢复。',
 
+    'primarySidebar.status.usageWait.label': '等待额度重置',
+    'primarySidebar.status.usageWait.description': '将在 {{time}} 自动继续',
+
     // Pull request presentation
     'primarySidebar.pullRequest.state.closed': '已关闭',
     'primarySidebar.pullRequest.state.draft': '草稿',

@@ -66,10 +66,16 @@ export function sessionActivityGroup(
     session: Pick<SessionRecord, 'hasUnread' | 'agentActivityState' | 'sessionActivityAt'> & {
         isDetached: boolean;
         isRunning: boolean;
+        /**
+         * A Chat waiting for a plan limit to reset continues on its own, so it asks nothing of the user: it is idle,
+         * even when the limit left a failed turn behind. Absent where the caller does not know of waits.
+         */
+        isUsageWaiting?: boolean;
     },
     now: number,
 ): SessionActivityGroupId | undefined {
     if (session.hasUnread) return 'attention';
+    if (session.isUsageWaiting) return 'idle';
     /**
      * Failure survives the hand-over. Detaching stops the Terminal so another client can resume it; it does not resolve
      * anything, and nothing else will ever clear a failed Session, so a detached failure stays in `failed` rather than

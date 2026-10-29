@@ -13,5 +13,7 @@ export function sessionCardStatusLine(
     terminal?: SessionStatusTerminal,
 ): string | undefined {
     const status = sessionStatus(session, terminal);
-    return status.kind === 'default' ? undefined : status.ariaLabel;
+    if (status.kind === 'default') return undefined;
+    // The wait's label alone (`Waiting for limit reset`) leaves out the one thing the card is for: when it continues.
+    return status.kind === 'usageWait' ? status.ariaDescription : status.ariaLabel;
 }

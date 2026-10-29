@@ -66,6 +66,10 @@ interface Options {
      * Whether the Chat's account is at the weekly usage guard, which no reset of a shorter window lifts.
      */
     isUsageGuarded(terminalId: string): boolean;
+    /**
+     * A Chat's wait began, changed, or ended, so Clients re-read its Terminal (the Session row shows the wait).
+     */
+    onChange?(terminalId: string): void;
     now?: () => number;
     random?: () => number;
 }
@@ -108,11 +112,12 @@ export class ChatUsageLimitWaits {
         return MIN_STAGGER_MS + Math.round(random * (MAX_STAGGER_MS - MIN_STAGGER_MS));
     }
 
-    private save(): void {
+    private save(terminalId: string): void {
         this.options.database.setAppState(
             'agentChatUsageLimitWaits',
             this.records.values().toArray(),
         );
+        this.options.onChange?.(terminalId);
     }
 
     private log(
@@ -154,7 +159,7 @@ export class ChatUsageLimitWaits {
     private update(record: StoredWait, autoContinue: AgentChatAutoContinue): void {
         record.autoContinue = autoContinue;
         this.records.set(record.terminalId, record);
-        this.save();
+        this.save(record.terminalId);
         this.refresh(record.terminalId, record.turnId);
     }
 
@@ -320,6 +325,14 @@ export class ChatUsageLimitWaits {
     }
 
     /**
+     * When the Chat continues on its own, or `undefined` unless it is waiting for a plan limit to reset.
+     */
+    waitingAt(terminalId: string): number | undefined {
+        const autoContinue = this.records.get(terminalId)?.autoContinue;
+        return autoContinue?.status === 'waiting' ? autoContinue.at : undefined;
+    }
+
+    /**
      * The notice a history replay must show again: one the user still has to see (a wait, or a missed one), which the
      * provider's own record does not keep (Claude Code's transcript has no failed-turn notice).
      */
@@ -385,7 +398,7 @@ export class ChatUsageLimitWaits {
             autoContinue: this.plan(terminalId, resetsAt, attempt),
         };
         this.records.set(terminalId, record);
-        this.save();
+        this.save(terminalId);
         const { autoContinue } = record;
         if (autoContinue.status === 'skipped')
             this.log(record, 'skipped', { reason: autoContinue.reason });
@@ -401,7 +414,7 @@ export class ChatUsageLimitWaits {
             throw new CaxriError('CONFLICT', 'This usage limit is no longer waiting to continue');
         if (!record) return;
         this.records.delete(terminalId);
-        this.save();
+        this.save(terminalId);
         if (record.autoContinue.status === 'waiting') this.log(record, 'cancelled', { reason });
         // A settled notice (continued, skipped) keeps saying what happened; only its actions go.
         if (['missed', 'waiting'].includes(record.autoContinue.status))
@@ -424,7 +437,7 @@ export class ChatUsageLimitWaits {
         )
             throw new CaxriError('CONFLICT', 'This usage limit is no longer waiting to continue');
         this.records.delete(terminalId);
-        this.save();
+        this.save(terminalId);
         this.refresh(terminalId, turnId);
         onHumanInput();
         try {
@@ -433,7 +446,7 @@ export class ChatUsageLimitWaits {
             // A busy Chat or a failed start keeps the notice's Continue, unless something else replaced the wait.
             if (!this.records.has(terminalId)) {
                 this.records.set(terminalId, { ...record, autoContinue: { status: 'missed' } });
-                this.save();
+                this.save(terminalId);
                 this.refresh(terminalId, turnId);
             }
             throw error;

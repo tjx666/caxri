@@ -11,7 +11,15 @@ import type { AgentActivityRow } from './agent-activity-rows';
 import { isAgentActivityActionable } from './agent-activity-rows';
 
 export type AgentActivityGlyphId =
-    'background' | 'check' | 'dashed' | 'hollow' | 'question' | 'spinner' | 'unplug' | 'x';
+    | 'background'
+    | 'check'
+    | 'clock'
+    | 'dashed'
+    | 'hollow'
+    | 'question'
+    | 'spinner'
+    | 'unplug'
+    | 'x';
 
 export interface AgentActivityGlyph {
     id: AgentActivityGlyphId;
@@ -62,6 +70,12 @@ export function agentActivityGlyph(
     t: Translate = translate,
 ): AgentActivityGlyph {
     const { groupId, session, status, statusPresentation } = row;
+    if (status.kind === 'usageWait')
+        return {
+            id: 'clock',
+            label: status.ariaDescription,
+            toneClassName: TONE_TEXT_CLASSNAME.neutral,
+        };
     if (status.kind === 'detached')
         return {
             id: 'unplug',

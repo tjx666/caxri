@@ -34,6 +34,28 @@ describe('Session list status', () => {
         });
     });
 
+    it('shows the wait for a usage limit ahead of unread attention and a failed turn', () => {
+        const usageLimitWaitAt = Date.UTC(2026, 9, 30, 12, 0);
+        const status = sessionStatus(
+            sessionSource('failed', { hasUnread: true, lastAttentionKind: 'failed' }),
+            { usageLimitWaitAt },
+        );
+        expect(status).toMatchObject({
+            ariaLabel: 'Waiting for limit reset',
+            kind: 'usageWait',
+        });
+        expect(status).toHaveProperty(
+            'ariaDescription',
+            expect.stringMatching(/^Continues automatically at \d/) as string,
+        );
+        // The wait ends: the unread failure shows again.
+        expect(
+            sessionStatus(
+                sessionSource('failed', { hasUnread: true, lastAttentionKind: 'failed' }),
+            ),
+        ).toMatchObject({ kind: 'attention' });
+    });
+
     it('keeps the unread name short for waiting and unknown attention', () => {
         expect(
             sessionStatus(

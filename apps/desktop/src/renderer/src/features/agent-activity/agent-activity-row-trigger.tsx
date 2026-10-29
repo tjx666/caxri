@@ -7,6 +7,7 @@ import {
     CircleDashed,
     CircleQuestionMark,
     CircleX,
+    Clock,
     FolderTree,
     Unplug,
 } from 'lucide-react';
@@ -33,6 +34,7 @@ import type { AgentActivityRow } from './agent-activity-rows';
 const GLYPH_COMPONENTS: Record<AgentActivityGlyphId, ComponentType<{ size?: number }>> = {
     background: BackgroundArc,
     check: CircleCheck,
+    clock: Clock,
     dashed: CircleDashed,
     hollow: Circle,
     question: CircleQuestionMark,

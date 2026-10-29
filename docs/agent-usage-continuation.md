@@ -50,6 +50,12 @@ by itself once the limit resets (issue #2220). Owner: `continuation/chat-usage-l
   guard. Otherwise the notice says why it will not continue (`skipped`: reset unknown, reset too far
   away, attempts used, or the usage guard). The wait fires 30 to 120 seconds after the reset, a
   random stagger so several Chats on one account do not hit the provider in the same second.
+- **Where it shows.** Besides the notice's clock line, a waiting Chat's Terminal record carries
+  `usageLimitWaitAt` (runtime-only, projected from the wait record). Desktop's Session list and
+  Activity view show a clock in the status slot with "Continues automatically at <time>", outranking
+  the failed or unread cue the limit left; every wait transition pushes `state.changed` for the
+  Terminal, so the cue returns in one push when the wait ends. The phone receives the field but does
+  not render it yet.
 - **What it sends.** Nothing the user wrote. Claude Code gets a fixed hidden prompt asking it to pick
   up where it left off; its uuid carries a marker (`queued-prompt-uuid.ts`) so a history replay
   hides it too. Codex starts a turn with empty input, which runs the model on the thread as it

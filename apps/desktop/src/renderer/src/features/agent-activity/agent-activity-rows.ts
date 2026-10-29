@@ -202,6 +202,7 @@ function groupForSession(
         {
             hasUnread: status.kind === 'attention',
             isDetached: status.kind === 'detached',
+            isUsageWaiting: status.kind === 'usageWait',
             isRunning: status.kind === 'running',
             agentActivityState: session.agentActivityState,
             sessionActivityAt: session.sessionActivityAt,

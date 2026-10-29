@@ -151,6 +151,20 @@ describe('agentActivityGlyph', () => {
         ).toMatchObject({ groupId: 'attention', id: 'check', toneClassName: 'text-muted' });
     });
 
+    it('shows a clock with the continuation time for a Chat waiting for a usage limit', () => {
+        const waiting = session('limit-wait', { agentActivityState: 'failed' });
+        const terminal = {
+            id: 'terminal-limit-wait',
+            sessionId: 'limit-wait',
+            usageLimitWaitAt: Date.UTC(2026, 9, 30, 12, 0),
+        } as TerminalRecord;
+        expect(glyphOf(waiting, [terminal])).toMatchObject({
+            id: 'clock',
+            label: expect.stringMatching(/^Continues automatically at /) as string,
+            toneClassName: 'text-muted',
+        });
+    });
+
     it('labels a detached Agent as handed over rather than by its frozen state', () => {
         /*
          * Detaching stops the Terminal without rewriting `agentActivityState`, so this Session still claims to be

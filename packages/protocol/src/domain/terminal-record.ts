@@ -95,6 +95,12 @@ export const terminalRecordSchema = z.object({
      */
     agentOperation: agentOperationSchema.optional(),
     /**
+     * Live Runtime-only: when a Chat on this Terminal continues on its own after a used-up plan limit resets (epoch
+     * milliseconds). Present only while that wait is `waiting`; a continued, cancelled, or missed wait removes it.
+     * Projected from the wait records when the Terminal is read and never stored on the Terminal row.
+     */
+    usageLimitWaitAt: z.number().optional(),
+    /**
      * Present only on a Chat Terminal that has started subagents: their persisted summaries, in no particular order.
      * Projected from the `agent_chat_subagents` table when the record is read, never stored on the Terminal row, so
      * listing them starts no provider (unlike `agentChat.read`). Running ones are marked `stopped` on Server Core
