@@ -85,6 +85,11 @@ or cancels the delivery, or a concrete blocker requires their input.
    every spec that relies on what it changed: search `e2e/` for specs reading that value or helper
    and list them too. Changing `e2e/support/e2e-profile.ts` defaults while listing only
    `editor-auto-save.e2e.ts` left `settings.e2e.ts` failing on `main`.
+   The same holds for the shared fake Agents under `apps/server/src/domains/agent-chat/__tests__/fixtures/`
+   and their helper modules, which the import graph never links to a spec: when a message or
+   command's handling changes, search `e2e/` for specs sending it, list them, and run each complete
+   spec without `--e2e-grep`. Teaching the fake Claude Code to run `/goal` broke a sibling case in
+   `agent-chat-goal.e2e.ts` that a grep-narrowed run of the new case skipped.
    A diff that changes a default keybinding or what a key does in a surface breaks specs that
    press that key for the old meaning: search `e2e/` for `press('<key>')` (with and without
    modifiers, such as `'Enter'` and `'Meta+Enter'`) and list every spec it reaches. Making plain
