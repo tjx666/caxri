@@ -2,7 +2,6 @@ import type { BotInboxItem } from '@caxri/protocol';
 import { botInboxKindLabel, isBotInboxQuestion } from '@caxri/protocol';
 
 import type { Translate, TranslationKey } from '../../i18n';
-import { translate } from '../../i18n';
 import type { CaretMention, SuggestionOption } from '../../lib/suggestion-options';
 
 type BotInboxSectionId = 'merge' | 'questions';
@@ -22,10 +21,7 @@ const SECTION_TITLE_KEYS: Record<BotInboxSectionId, TranslationKey> = {
  * Open items in two sections, questions first (the order `orderBotInboxItems` shares with the phone). Within each, the
  * Server's newest-first order is kept.
  */
-export function botInboxSections(
-    items: readonly BotInboxItem[],
-    t: Translate = translate,
-): BotInboxSection[] {
+export function botInboxSections(items: readonly BotInboxItem[], t: Translate): BotInboxSection[] {
     const open = items.filter((item) => item.status === 'open');
     const sections: BotInboxSection[] = [];
     for (const id of ['questions', 'merge'] as const) {
@@ -66,10 +62,7 @@ export interface BotInboxMergeState {
  * wrong disable it: a stale report, a draft, or a conflict. Pending or failing checks stay mergeable because the
  * repository's own branch protection decides whether they block, and GitHub answers that on the merge itself.
  */
-export function botInboxMergeState(
-    item: BotInboxItem,
-    t: Translate = translate,
-): BotInboxMergeState {
+export function botInboxMergeState(item: BotInboxItem, t: Translate): BotInboxMergeState {
     if (item.staleReason === 'headMoved')
         return {
             canMerge: false,
@@ -122,7 +115,7 @@ export function botInboxMergeState(
 export function inboxMentionCandidates(
     items: readonly BotInboxItem[],
     query: string,
-    t: Translate = translate,
+    t: Translate,
 ): BotInboxItem[] {
     const needle = query.toLocaleLowerCase();
     return items.filter(
@@ -161,10 +154,7 @@ export function insertInboxMentionTrigger(
 /**
  * An `@` picker row for an Inbox item: its title, with its kind beside it.
  */
-export function inboxMentionSuggestion(
-    item: BotInboxItem,
-    t: Translate = translate,
-): SuggestionOption {
+export function inboxMentionSuggestion(item: BotInboxItem, t: Translate): SuggestionOption {
     return {
         key: item.id,
         label: item.title,
@@ -194,7 +184,7 @@ export function inboxReplyTarget(
  */
 export function inboxSendTooltip(
     { draft, hasTarget }: { draft: string; hasTarget: boolean },
-    t: Translate = translate,
+    t: Translate,
 ): string {
     if (!hasTarget) return t('caxriBot.composer.sendNeedsTarget');
     if (draft.trim() === '') return t('caxriBot.composer.sendNeedsText');

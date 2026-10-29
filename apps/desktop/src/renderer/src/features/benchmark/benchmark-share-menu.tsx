@@ -48,7 +48,7 @@ export function BenchmarkShareMenu({
                 mostEfficient: t('benchmark.chart.mostEfficient'),
                 quality: qualityLabel(t, source),
                 subtitle: [
-                    formatDate(run.createdAt),
+                    formatDate(run.createdAt, t.locale),
                     judge &&
                         t('benchmark.run.judgedBy', { model: judgeModelLabel(catalog, judge) }),
                 ]

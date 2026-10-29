@@ -59,7 +59,9 @@ export function ContextTiles({
             />
             <StatTile
                 label={t('agentChat.contextPage.tile.misses')}
-                value={analysis.points.length > 0 ? formatCount(analysis.misses) : undefined}
+                value={
+                    analysis.points.length > 0 ? formatCount(analysis.misses, t.locale) : undefined
+                }
                 detail={
                     analysis.misses > 0
                         ? [

@@ -84,7 +84,7 @@ export function pullRequestTileDetail(
     formatLines: (count: number) => string,
 ): string[] {
     const opened = t('usage.pullRequests.opened', {
-        count: formatCount(totals.pullRequestsCreated),
+        count: formatCount(totals.pullRequestsCreated, t.locale),
     });
     if (totals.linesAdded === 0 && totals.linesDeleted === 0) return [opened];
     return [

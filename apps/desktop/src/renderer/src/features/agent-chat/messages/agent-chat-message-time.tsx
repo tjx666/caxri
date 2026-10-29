@@ -17,7 +17,8 @@ import {
  * element's accessible name.
  */
 export function AgentChatMessageTime({ timestamp }: { timestamp: number }) {
-    const fullTime = agentChatMessageFullTime(timestamp);
+    const { locale } = useTranslation();
+    const fullTime = agentChatMessageFullTime(timestamp, locale);
     return (
         <Tooltip content={fullTime}>
             {/* The full date as its name too: a screen reader hears it without the hover tooltip. */}
@@ -26,7 +27,7 @@ export function AgentChatMessageTime({ timestamp }: { timestamp: number }) {
                 className="px-1 text-[11px] leading-6 text-muted tabular-nums"
                 dateTime={new Date(timestamp).toISOString()}
             >
-                {agentChatMessageTime(timestamp)}
+                {agentChatMessageTime(timestamp, locale)}
             </time>
         </Tooltip>
     );

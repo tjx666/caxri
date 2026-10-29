@@ -1,7 +1,6 @@
 import type { ControlledViewPresentation } from '@caxri/protocol';
 
 import type { Translate, TranslationKey } from '../../i18n';
-import { translate } from '../../i18n';
 
 /**
  * The view catalog arrives from the Server with English titles: the built-in panel containers (`apps/server`'s
@@ -48,10 +47,7 @@ function lookup(
 /**
  * A container's tab title in the interface language.
  */
-export function viewContainerTitle(
-    container: { id: string; title: string },
-    t: Translate = translate,
-): string {
+export function viewContainerTitle(container: { id: string; title: string }, t: Translate): string {
     const key = lookup(CONTAINER_TITLE_KEYS, container.id);
     return key ? t(key) : container.title;
 }
@@ -59,7 +55,7 @@ export function viewContainerTitle(
 /**
  * A view's caption in the interface language.
  */
-export function viewTitle(view: { id: string; title: string }, t: Translate = translate): string {
+export function viewTitle(view: { id: string; title: string }, t: Translate): string {
     const key = lookup(VIEW_TITLE_KEYS, view.id);
     return key ? t(key) : view.title;
 }
@@ -70,7 +66,7 @@ export function viewTitle(view: { id: string; title: string }, t: Translate = tr
 export function viewPresentation(
     viewId: string,
     presentation: ControlledViewPresentation | undefined,
-    t: Translate = translate,
+    t: Translate,
 ): ControlledViewPresentation | undefined {
     const keys = Object.hasOwn(VIEW_PRESENTATION_KEYS, viewId)
         ? VIEW_PRESENTATION_KEYS[viewId]

@@ -2,6 +2,7 @@ import type { AgentChatSnapshot } from '@caxri/protocol';
 import { emptyAgentChatSnapshot } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../../i18n';
 import { agentChatEmptyMessage, isAgentChatConversationLoading } from '../agent-chat-presentation';
 
 function snapshot(status: AgentChatSnapshot['status']): AgentChatSnapshot {
@@ -10,15 +11,17 @@ function snapshot(status: AgentChatSnapshot['status']): AgentChatSnapshot {
 
 describe('agentChatEmptyMessage', () => {
     it('invites the first message only once an empty Chat is ready', () => {
-        expect(agentChatEmptyMessage(snapshot('ready'), 'running', 'Codex')).toBe(
+        expect(agentChatEmptyMessage(snapshot('ready'), 'running', 'Codex', translate)).toBe(
             'Send a message to start working with Codex.',
         );
-        expect(agentChatEmptyMessage(snapshot('starting'), 'starting', 'Codex')).toBeUndefined();
-        expect(agentChatEmptyMessage(undefined, 'running', 'Codex')).toBeUndefined();
+        expect(
+            agentChatEmptyMessage(snapshot('starting'), 'starting', 'Codex', translate),
+        ).toBeUndefined();
+        expect(agentChatEmptyMessage(undefined, 'running', 'Codex', translate)).toBeUndefined();
     });
 
     it('explains the blank transcript of a Chat handed to another client', () => {
-        expect(agentChatEmptyMessage(snapshot('stopped'), 'detached', 'Codex')).toBe(
+        expect(agentChatEmptyMessage(snapshot('stopped'), 'detached', 'Codex', translate)).toBe(
             'Messages appear here once the Chat resumes.',
         );
     });
@@ -28,7 +31,7 @@ describe('agentChatEmptyMessage', () => {
             ...snapshot('stopped'),
             items: [{ id: 'item-1', type: 'userMessage', text: 'hello' }],
         };
-        expect(agentChatEmptyMessage(withItem, 'detached', 'Codex')).toBeUndefined();
+        expect(agentChatEmptyMessage(withItem, 'detached', 'Codex', translate)).toBeUndefined();
     });
 });
 

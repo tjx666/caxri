@@ -1,7 +1,6 @@
 import { omit } from 'es-toolkit';
 
 import type { Translate, TranslationKey } from '../../i18n';
-import { translate } from '../../i18n';
 import { createStore } from '../../lib/store';
 
 export interface EditorStatus {
@@ -87,10 +86,9 @@ const LANGUAGE_LABELS: Record<string, string> = {
 };
 
 /**
- * `t` defaults to `translate()` for callers outside React; a component passes its `useTranslation()` `t` so the label
- * follows a language change.
+ * A component passes its `useTranslation()` `t` so the label follows a language change.
  */
-export function editorLanguageLabel(languageId: string, t: Translate = translate): string {
+export function editorLanguageLabel(languageId: string, t: Translate): string {
     const translatedKey = Object.hasOwn(TRANSLATED_LANGUAGE_LABELS, languageId)
         ? TRANSLATED_LANGUAGE_LABELS[languageId]
         : undefined;

@@ -1,7 +1,6 @@
 import type { AgentChatSnapshot, ProcessState } from '@caxri/protocol';
 
 import type { Translate } from '../../../../i18n';
-import { translate } from '../../../../i18n';
 
 /**
  * One line of the Send button's tooltip while a turn runs: what a key does, beside its keycap.
@@ -44,7 +43,7 @@ export function agentChatSendTooltip(
         isResume?: boolean;
         isSending: boolean;
     },
-    t: Translate = translate,
+    t: Translate,
 ): string {
     return sendBlockedReason(state, t) ?? action.tooltip;
 }

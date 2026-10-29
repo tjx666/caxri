@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import { translate } from '../i18n';
 import {
     confirmationLabels,
     resolveConfirm,
@@ -81,12 +82,15 @@ describe('confirmation store', () => {
     });
 
     it('falls back to the shared button labels when the request omits them', () => {
-        expect(confirmationLabels(request)).toEqual({ cancel: 'Cancel', confirm: 'OK' });
+        expect(confirmationLabels(request, translate)).toEqual({ cancel: 'Cancel', confirm: 'OK' });
     });
 
     it('keeps the caller labels when the request names them', () => {
         expect(
-            confirmationLabels({ ...request, cancelLabel: 'Not Now', confirmLabel: 'Turn On' }),
+            confirmationLabels(
+                { ...request, cancelLabel: 'Not Now', confirmLabel: 'Turn On' },
+                translate,
+            ),
         ).toEqual({ cancel: 'Not Now', confirm: 'Turn On' });
     });
 });

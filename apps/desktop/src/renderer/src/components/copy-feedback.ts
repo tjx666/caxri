@@ -6,7 +6,6 @@
  */
 
 import type { Translate } from '../i18n';
-import { translate } from '../i18n';
 import type { ClipboardContent } from '../lib/clipboard';
 
 export type CopyFeedbackStatus = 'idle' | 'copied' | 'failed';
@@ -57,7 +56,7 @@ export async function writeRichToClipboardWithFeedback(
 export function copyButtonLabel(
     status: CopyFeedbackStatus,
     idleLabel: string,
-    t: Translate = translate,
+    t: Translate,
 ): string {
     switch (status) {
         case 'copied':

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../../i18n';
 import { agentChatSendBlock } from '../../composer/send/agent-chat-send-tooltip';
 import {
     agentChatAutoContinueLabel,
@@ -23,12 +24,15 @@ describe('agentChatContinuationChoice', () => {
         // The Chat's own Agent is never a choice, not even a disabled one.
         expect(choice.targets.map(({ provider }) => provider)).toEqual(['codex', 'grok']);
         expect(
-            choice.targets.map((target) => agentChatContinuationUnavailableLabel(target, NOW)),
+            choice.targets.map((target) =>
+                agentChatContinuationUnavailableLabel(target, NOW, translate),
+            ),
         ).toEqual(['Weekly usage at the guard, resets in 2h', undefined]);
         expect(
             agentChatContinuationUnavailableLabel(
                 { provider: 'grok', unavailable: 'notInstalled' },
                 NOW,
+                translate,
             ),
         ).toBe('Not installed');
     });
@@ -45,13 +49,13 @@ describe('agentChatContinuationChoice', () => {
 
 describe('agentChatUsageLimitHeadline', () => {
     it('names the window the provider used up', () => {
-        expect(agentChatUsageLimitHeadline({ window: 'session' }, 'Claude')).toBe(
+        expect(agentChatUsageLimitHeadline({ window: 'session' }, 'Claude', translate)).toBe(
             'Claude used up its 5-hour limit',
         );
-        expect(agentChatUsageLimitHeadline({ window: 'weekly' }, 'Codex')).toBe(
+        expect(agentChatUsageLimitHeadline({ window: 'weekly' }, 'Codex', translate)).toBe(
             'Codex used up its weekly limit',
         );
-        expect(agentChatUsageLimitHeadline({ window: 'unknown' }, 'Codex')).toBe(
+        expect(agentChatUsageLimitHeadline({ window: 'unknown' }, 'Codex', translate)).toBe(
             'Codex used up its usage limit',
         );
     });
@@ -105,21 +109,31 @@ describe('agentChatSendBlock', () => {
 
 describe('agentChatAutoContinueLabel', () => {
     it('says when a waiting Chat continues, that it did, or why it will not', () => {
-        expect(agentChatAutoContinueLabel({ status: 'waiting', at: NOW + 7_380_000 }, NOW)).toMatch(
-            /^Continues automatically at .+ \(in 2h 3m\)$/u,
+        expect(
+            agentChatAutoContinueLabel({ status: 'waiting', at: NOW + 7_380_000 }, NOW, translate),
+        ).toMatch(/^Continues automatically at .+ \(in 2h 3m\)$/u);
+        expect(
+            agentChatAutoContinueLabel({ status: 'waiting', at: NOW + 30_000 }, NOW, translate),
+        ).toBe('Continuing automatically…');
+        expect(
+            agentChatAutoContinueLabel({ status: 'continued', at: NOW }, NOW, translate),
+        ).toMatch(/^Continued automatically at /u);
+        expect(agentChatAutoContinueLabel({ status: 'missed' }, NOW, translate)).toBe(
+            'The limit has reset',
         );
-        expect(agentChatAutoContinueLabel({ status: 'waiting', at: NOW + 30_000 }, NOW)).toBe(
-            'Continuing automatically…',
-        );
-        expect(agentChatAutoContinueLabel({ status: 'continued', at: NOW }, NOW)).toMatch(
-            /^Continued automatically at /u,
-        );
-        expect(agentChatAutoContinueLabel({ status: 'missed' }, NOW)).toBe('The limit has reset');
-        expect(agentChatAutoContinueLabel({ status: 'skipped', reason: 'attemptsUsed' }, NOW)).toBe(
-            'Stopped continuing automatically after 3 tries into the limit',
-        );
-        expect(agentChatAutoContinueLabel({ status: 'skipped', reason: 'resetTooFar' }, NOW)).toBe(
-            "Won't continue automatically: the limit resets more than 24 hours from now",
-        );
+        expect(
+            agentChatAutoContinueLabel(
+                { status: 'skipped', reason: 'attemptsUsed' },
+                NOW,
+                translate,
+            ),
+        ).toBe('Stopped continuing automatically after 3 tries into the limit');
+        expect(
+            agentChatAutoContinueLabel(
+                { status: 'skipped', reason: 'resetTooFar' },
+                NOW,
+                translate,
+            ),
+        ).toBe("Won't continue automatically: the limit resets more than 24 hours from now");
     });
 });

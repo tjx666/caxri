@@ -5,7 +5,7 @@ import type {
 } from '@caxri/protocol';
 
 import type { Translate } from '../../i18n';
-import { isTranslationKey, translate } from '../../i18n';
+import { isTranslationKey } from '../../i18n';
 import { localeDateTimeFormat } from '../../lib/locale-format';
 
 type ProviderStatusTone = 'danger' | 'success' | 'warning';
@@ -38,7 +38,7 @@ const TONE_DOT_CLASS_NAMES: Record<ProviderStatusTone, string> = {
  */
 export function providerServiceStatusLabel(
     status: AgentProviderServiceStatus,
-    t: Translate = translate,
+    t: Translate,
 ): string {
     return t(`agentStatus.service.${status}`);
 }
@@ -59,10 +59,10 @@ export function providerUptimeBarClassName(status: AgentProviderServiceStatus | 
  */
 export function describeUptimeDay(
     day: { start: number; status: AgentProviderServiceStatus | 'noData' },
-    t: Translate = translate,
+    t: Translate,
 ): string {
     return t('agentStatus.provider.uptimeDay', {
-        date: localeDateTimeFormat({ dateStyle: 'medium' }).format(day.start),
+        date: localeDateTimeFormat({ dateStyle: 'medium' }, t.locale).format(day.start),
         status:
             day.status === 'noData'
                 ? t('agentStatus.provider.uptimeNoData')
@@ -90,7 +90,7 @@ export interface ProviderStatusAlert {
  */
 export function providerStatusAlert(
     status: AgentProviderStatus | null | undefined,
-    t: Translate = translate,
+    t: Translate,
 ): ProviderStatusAlert | undefined {
     if (status?.state !== 'available') return undefined;
     const tone = STATUS_TONES[status.status];
@@ -108,7 +108,7 @@ export function providerStatusAlert(
  */
 export function providerStatusFailureLabel(
     reason: AgentProviderStatusFailureReason,
-    t: Translate = translate,
+    t: Translate,
 ): string {
     return t(`agentStatus.failure.${reason}`);
 }
@@ -119,7 +119,7 @@ export function providerStatusFailureLabel(
  */
 export function describeProviderStatus(
     status: Extract<AgentProviderStatus, { state: 'available' }>,
-    t: Translate = translate,
+    t: Translate,
 ): string {
     const affected = status.components.filter((component) => component.status !== 'operational');
     const label = providerServiceStatusLabel(status.status, t);
@@ -135,7 +135,7 @@ export function describeProviderStatus(
  * An incident's phase as both the status-bar card and the Agent status tab print it: `Identified`. The page words it in
  * lower case; one casing keeps the two surfaces reading as the same fact.
  */
-export function incidentPhaseLabel(phase: string, t: Translate = translate): string {
+export function incidentPhaseLabel(phase: string, t: Translate): string {
     // Phases are open-ended page text; the common Statuspage phases are translated and anything else stays verbatim.
     const key = `agentStatus.phase.${phase}`;
     if (isTranslationKey(key)) return t(key);
@@ -147,7 +147,7 @@ export function incidentPhaseLabel(phase: string, t: Translate = translate): str
  */
 export function summarizeIncidents<T>(
     incidents: readonly T[],
-    t: Translate = translate,
+    t: Translate,
 ): {
     first: T | undefined;
     moreLabel: string | undefined;

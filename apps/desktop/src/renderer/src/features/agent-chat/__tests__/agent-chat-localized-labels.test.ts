@@ -14,19 +14,18 @@ import {
 } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { translate, useLocaleStore } from '../../../i18n';
+import { translate, useLocaleStore, withLocale } from '../../../i18n';
 import { trackerExcerptText, trackerReferenceText } from '../tools/agent-chat-tracker-labels';
 import {
     agentChatLocalizedFileListToggle,
     agentChatVisibleEditedFiles,
 } from '../turns/agent-chat-file-list-fold';
 
-const translateIn =
-    (locale: AppLocale): typeof translate =>
-    (...parameters) => {
+const translateIn = (locale: AppLocale): typeof translate =>
+    withLocale((...parameters) => {
         useLocaleStore.setState({ locale });
         return translate(...parameters);
-    };
+    }, locale);
 
 describe('Desktop Agent Chat labels through the shared protocol catalog', () => {
     it("writes a turn duration in the language's own units, as the Codex app does", () => {

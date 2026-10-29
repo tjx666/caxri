@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { translate } from '../../i18n';
 import {
     copyButtonLabel,
     writeRichToClipboardWithFeedback,
@@ -38,14 +39,14 @@ describe('writeRichToClipboardWithFeedback', () => {
 
 describe('copyButtonLabel', () => {
     it('returns the idle label when idle', () => {
-        expect(copyButtonLabel('idle', 'Copy details')).toBe('Copy details');
+        expect(copyButtonLabel('idle', 'Copy details', translate)).toBe('Copy details');
     });
 
     it('returns Copied when copied', () => {
-        expect(copyButtonLabel('copied', 'Copy details')).toBe('Copied');
+        expect(copyButtonLabel('copied', 'Copy details', translate)).toBe('Copied');
     });
 
     it('returns Copy failed when failed', () => {
-        expect(copyButtonLabel('failed', 'Copy details')).toBe('Copy failed');
+        expect(copyButtonLabel('failed', 'Copy details', translate)).toBe('Copy failed');
     });
 });

@@ -6,6 +6,7 @@ import type {
 } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../i18n';
 import {
     botBoardRowsInScope,
     botBoardSections,
@@ -51,12 +52,15 @@ function pullRequest(overrides: Partial<SessionPullRequest> = {}): SessionPullRe
 
 describe('botBoardSections', () => {
     it('orders groups by the protocol, labels them, and drops empty ones', () => {
-        const sections = botBoardSections([
-            row({ group: 'idle', sessionId: 'idle-1' }),
-            row({ group: 'attention', sessionId: 'attention-1' }),
-            row({ group: 'finished', sessionId: 'finished-1' }),
-            row({ group: 'attention', sessionId: 'attention-2' }),
-        ]);
+        const sections = botBoardSections(
+            [
+                row({ group: 'idle', sessionId: 'idle-1' }),
+                row({ group: 'attention', sessionId: 'attention-1' }),
+                row({ group: 'finished', sessionId: 'finished-1' }),
+                row({ group: 'attention', sessionId: 'attention-2' }),
+            ],
+            translate,
+        );
 
         expect(sections.map((section) => [section.id, section.label])).toEqual([
             ['attention', 'Needs attention'],
@@ -66,16 +70,19 @@ describe('botBoardSections', () => {
     });
 
     it("keeps the Server's order within a group", () => {
-        const [attention] = botBoardSections([
-            row({ group: 'attention', sessionId: 'newer' }),
-            row({ group: 'attention', sessionId: 'older' }),
-        ]);
+        const [attention] = botBoardSections(
+            [
+                row({ group: 'attention', sessionId: 'newer' }),
+                row({ group: 'attention', sessionId: 'older' }),
+            ],
+            translate,
+        );
 
         expect(attention.rows.map((entry) => entry.sessionId)).toEqual(['newer', 'older']);
     });
 
     it('returns no sections for an empty board', () => {
-        expect(botBoardSections([])).toEqual([]);
+        expect(botBoardSections([], translate)).toEqual([]);
     });
 });
 
@@ -83,6 +90,7 @@ describe('botRowPresentation', () => {
     it("draws a live turn in the sidebar's muted running vocabulary and names its Agent", () => {
         const presentation = botRowPresentation(
             row({ activityState: 'running', group: 'working' }),
+            translate,
         );
 
         expect(presentation).toMatchObject({
@@ -106,6 +114,7 @@ describe('botRowPresentation', () => {
                 },
                 group: 'working',
             }),
+            translate,
         );
 
         expect(presentation.statePhrase).toBe('Compacting');
@@ -125,6 +134,7 @@ describe('botRowPresentation', () => {
                 },
                 group: 'working',
             }),
+            translate,
         );
 
         expect(presentation).toMatchObject({
@@ -138,6 +148,7 @@ describe('botRowPresentation', () => {
         expect(
             botRowPresentation(
                 row({ activityState: 'waiting', group: 'attention', hasUnread: true }),
+                translate,
             ),
         ).toMatchObject({
             glyph: 'question',
@@ -145,10 +156,11 @@ describe('botRowPresentation', () => {
             toneClassName: 'text-warning',
         });
         expect(
-            botRowPresentation(row({ activityState: 'failed', group: 'failed' })).toneClassName,
+            botRowPresentation(row({ activityState: 'failed', group: 'failed' }), translate)
+                .toneClassName,
         ).toBe('text-danger');
         expect(
-            botRowPresentation(row({ activityState: 'completed', group: 'finished' })),
+            botRowPresentation(row({ activityState: 'completed', group: 'finished' }), translate),
         ).toMatchObject({ glyph: 'check', statePhrase: 'Finished', toneClassName: 'text-muted' });
     });
 
@@ -164,6 +176,7 @@ describe('botRowPresentation', () => {
                 },
                 group: 'finished',
             }),
+            translate,
         );
 
         expect(presentation).toMatchObject({
@@ -192,6 +205,7 @@ describe('botRowPresentation', () => {
                             title: 'Codex',
                         },
                     }),
+                    translate,
                 );
 
                 expect(presentation.glyph).toBe('hollow');
@@ -218,6 +232,7 @@ describe('botRowPresentation', () => {
                             title: 'Codex',
                         },
                     }),
+                    translate,
                 ),
             ).toMatchObject({ processIcon: icon, statePhrase: phrase });
         },
@@ -225,7 +240,8 @@ describe('botRowPresentation', () => {
 
     it('draws no process icon for a running Agent', () => {
         expect(
-            botRowPresentation(row({ activityState: 'running', group: 'working' })).processIcon,
+            botRowPresentation(row({ activityState: 'running', group: 'working' }), translate)
+                .processIcon,
         ).toBeUndefined();
     });
 
@@ -239,6 +255,7 @@ describe('botRowPresentation', () => {
                     title: 'Codex',
                 },
             }),
+            translate,
         );
 
         expect(presentation).toMatchObject({ glyph: 'unplug', statePhrase: 'Detached' });
@@ -247,7 +264,7 @@ describe('botRowPresentation', () => {
     });
 
     it('names a Session without a Terminal and a plain shell', () => {
-        expect(botRowPresentation(row({ agent: null }))).toMatchObject({
+        expect(botRowPresentation(row({ agent: null }), translate)).toMatchObject({
             agentLabel: 'Shell',
             statePhrase: 'No Terminal',
         });
@@ -261,6 +278,7 @@ describe('botRowPresentation', () => {
                         title: 'zsh',
                     },
                 }),
+                translate,
             ).agentLabel,
         ).toBe('Shell');
     });
@@ -268,20 +286,25 @@ describe('botRowPresentation', () => {
 
 describe('botPullRequestBadge', () => {
     it('has nothing to show without a pull request', () => {
-        expect(botPullRequestBadge({})).toBeUndefined();
+        expect(botPullRequestBadge({}, translate)).toBeUndefined();
     });
 
     it('hides a cached pull request whose last lookup failed', () => {
         expect(
-            botPullRequestBadge({
-                pullRequest: pullRequest({ checks: 'success' }),
-                pullRequestUnavailable: { reason: 'network' },
-            }),
+            botPullRequestBadge(
+                {
+                    pullRequest: pullRequest({ checks: 'success' }),
+                    pullRequestUnavailable: { reason: 'network' },
+                },
+                translate,
+            ),
         ).toBeUndefined();
     });
 
     it('shows number, lifecycle, and checks with independent tones', () => {
-        expect(botPullRequestBadge({ pullRequest: pullRequest({ checks: 'failure' }) })).toEqual({
+        expect(
+            botPullRequestBadge({ pullRequest: pullRequest({ checks: 'failure' }) }, translate),
+        ).toEqual({
             ariaLabel: 'Pull request #42 open, checks failing. Open in browser.',
             checksIcon: 'failed',
             checksLabel: 'Checks failing',
@@ -295,9 +318,12 @@ describe('botPullRequestBadge', () => {
     });
 
     it('omits checks a merged pull request no longer reports', () => {
-        const badge = botPullRequestBadge({
-            pullRequest: pullRequest({ checks: 'failure', state: 'merged' }),
-        });
+        const badge = botPullRequestBadge(
+            {
+                pullRequest: pullRequest({ checks: 'failure', state: 'merged' }),
+            },
+            translate,
+        );
 
         expect(badge).toMatchObject({ stateLabel: 'Merged', toneClassName: 'text-merged' });
         expect(badge?.checksLabel).toBeUndefined();
@@ -308,7 +334,7 @@ describe('botPullRequestBadge', () => {
 
 describe('botTaskBadge', () => {
     it('shows nothing for a Session Caxri Bot never delegated into', () => {
-        expect(botTaskBadge(undefined)).toBeUndefined();
+        expect(botTaskBadge(undefined, translate)).toBeUndefined();
     });
 
     it.each([
@@ -318,7 +344,9 @@ describe('botTaskBadge', () => {
         ['blocked', 'Blocked', 'text-warning'],
         ['answer_unavailable', 'Failed', 'text-danger'],
     ] as const)('labels a %s task as %s', (status, label, toneClassName) => {
-        expect(botTaskBadge({ delegationId: 'task-1', status, updatedAt: 1 })).toMatchObject({
+        expect(
+            botTaskBadge({ delegationId: 'task-1', status, updatedAt: 1 }, translate),
+        ).toMatchObject({
             label,
             toneClassName,
         });
@@ -326,22 +354,28 @@ describe('botTaskBadge', () => {
 
     it('names the failure reason in the tooltip without the internal task ID', () => {
         expect(
-            botTaskBadge({
-                delegationId: 'task-1',
-                status: 'failed',
-                failure: 'startup_not_ready',
-                updatedAt: 1,
-            })?.title,
+            botTaskBadge(
+                {
+                    delegationId: 'task-1',
+                    status: 'failed',
+                    failure: 'startup_not_ready',
+                    updatedAt: 1,
+                },
+                translate,
+            )?.title,
         ).toBe('Failed. The task failed. Reason: startup not ready.');
     });
 
     it('tints a takeover and explains that Caxri Bot let the Session go', () => {
-        const badge = botTaskBadge({
-            delegationId: 'task-1',
-            status: 'human_intervened',
-            failure: 'human_input',
-            updatedAt: 1,
-        });
+        const badge = botTaskBadge(
+            {
+                delegationId: 'task-1',
+                status: 'human_intervened',
+                failure: 'human_input',
+                updatedAt: 1,
+            },
+            translate,
+        );
         expect(badge).toMatchObject({
             icon: 'taken-over',
             label: 'Taken back by you',
@@ -353,12 +387,15 @@ describe('botTaskBadge', () => {
 
     it('asks the user to open a Session whose Agent waits at startup', () => {
         expect(
-            botTaskBadge({
-                delegationId: 'task-1',
-                status: 'blocked',
-                failure: 'startup_waiting',
-                updatedAt: 1,
-            }),
+            botTaskBadge(
+                {
+                    delegationId: 'task-1',
+                    status: 'blocked',
+                    failure: 'startup_waiting',
+                    updatedAt: 1,
+                },
+                translate,
+            ),
         ).toMatchObject({ label: 'Waiting at startup', toneClassName: 'text-warning' });
     });
 });
@@ -440,7 +477,7 @@ describe('patchBotBoardPullRequests', () => {
 
         expect(after.rows[0]).toBe(quiet);
         expect(after.rows[1]).toEqual({ ...target, pullRequestUnavailable: unavailable });
-        expect(botPullRequestBadge(after.rows[1])).toBeUndefined();
+        expect(botPullRequestBadge(after.rows[1], translate)).toBeUndefined();
     });
 
     it('drops the pull request and the failure once the snapshot no longer has them', () => {
@@ -468,16 +505,21 @@ describe('patchBotBoardPullRequests', () => {
 
 describe('botHandoverDescription', () => {
     it('says whether a handed-over Session has a conversation Caxri Bot can continue', () => {
-        expect(botHandoverDescription(undefined)).toBeUndefined();
-        expect(botHandoverDescription({ handoverId: 'handover-1', state: 'continuable' })).toMatch(
-            /continue/i,
-        );
+        expect(botHandoverDescription(undefined, translate)).toBeUndefined();
         expect(
-            botHandoverDescription({
-                handoverId: 'handover-1',
-                state: 'ownership_only',
-                ownershipReason: 'agent_missing',
-            }),
-        ).not.toBe(botHandoverDescription({ handoverId: 'handover-1', state: 'continuable' }));
+            botHandoverDescription({ handoverId: 'handover-1', state: 'continuable' }, translate),
+        ).toMatch(/continue/i);
+        expect(
+            botHandoverDescription(
+                {
+                    handoverId: 'handover-1',
+                    state: 'ownership_only',
+                    ownershipReason: 'agent_missing',
+                },
+                translate,
+            ),
+        ).not.toBe(
+            botHandoverDescription({ handoverId: 'handover-1', state: 'continuable' }, translate),
+        );
     });
 });

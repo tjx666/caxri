@@ -90,7 +90,7 @@ export async function writeReportingNewFailures<Result>(
         result = await write();
     } catch (error) {
         if (isCancelledRequest(error)) throw error;
-        const reason = describeFailureNotice(error, '').message;
+        const reason = describeFailureNotice(error, '', translate).message;
         if (!tracker.shouldReport(documentKey, reason, { force: !isAutomatic })) return undefined;
         throw error;
     }

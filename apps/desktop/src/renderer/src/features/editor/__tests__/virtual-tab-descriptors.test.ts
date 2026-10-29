@@ -17,6 +17,7 @@ import {
 } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
+import { withLocale } from '../../../i18n';
 import { virtualTabDescriptors } from '../virtual-tab-descriptors';
 
 /**
@@ -48,7 +49,11 @@ describe('virtual tab descriptors', () => {
             expect(['cursorOnly', 'hidden']).toContain(descriptor.statusBar);
             expect(descriptor).toHaveProperty('loading');
             expect(virtualEditorTabScheme(samplePaths[scheme])).toBe(scheme);
-            const presentation = descriptor.present(samplePaths[scheme], {}, (key) => key);
+            const presentation = descriptor.present(
+                samplePaths[scheme],
+                {},
+                withLocale((key) => key),
+            );
             expect(presentation.label).not.toBe('');
             expect(presentation.labelTooltip).not.toBe('');
             expect(presentation.icon === 'file' ? presentation.fileIconName : 'glyph').toBeTruthy();
@@ -68,8 +73,7 @@ describe('virtual tab descriptors', () => {
     });
 
     it('names an untitled buffer by its first line and shows its detected language icon', () => {
-        const t = (key: string, values?: Record<string, unknown>) =>
-            `${key}:${String(values?.index)}`;
+        const t = withLocale((key, values) => `${key}:${String(values?.index)}`);
         const path = untitledEditorTabPath(3);
         expect(virtualTabDescriptors.untitled.present(path, {}, t)).toMatchObject({
             label: 'editor.tab.untitled:3',

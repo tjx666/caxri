@@ -283,7 +283,7 @@ export const useWorkbenchStore = createStore<WorkbenchState>('workbench', (set, 
             // A cancelled write has nothing for the user to act on and usually arrives with no window left to show it
             // on; `tryCommand` applies the same rule to every other Renderer-initiated write.
             if (shouldReportFailure && isLatestAttempt && !isCancelledRequest(error))
-                pushToast('error', describeFailure(error, failureLabel));
+                pushToast('error', describeFailure(error, failureLabel, translate));
             return false;
         } finally {
             // Only the newest link owns the entry; an older one deleting it would let the next write skip the queue.

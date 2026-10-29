@@ -1,6 +1,6 @@
 import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
-import { describeFailure, pushToast } from '../../stores/toasts';
+import { describeFailureKey, pushToast } from '../../stores/toasts';
 import { refreshWorkbench } from '../../stores/workbench';
 import type { WorkbenchRootCandidate } from './workbench-root-prompt-store';
 import { dismissWorkbenchRootCandidate } from './workbench-root-prompt-store';
@@ -24,7 +24,7 @@ export async function continueSessionInWorktree(
         dismissWorkbenchRootCandidate(sessionId);
         pushToast(
             'error',
-            describeFailure(error, translate('workbench.rootPrompt.continueFailed')),
+            describeFailureKey(error, 'workbench.rootPrompt.continueFailed', translate),
         );
     }
 }
@@ -43,7 +43,10 @@ export async function dismissWorkbenchCandidate(
             sessionId: candidate.sessionId,
         });
     } catch (error) {
-        pushToast('error', describeFailure(error, translate('workbench.rootPrompt.dismissFailed')));
+        pushToast(
+            'error',
+            describeFailureKey(error, 'workbench.rootPrompt.dismissFailed', translate),
+        );
     } finally {
         dismissWorkbenchRootCandidate(sessionId);
     }

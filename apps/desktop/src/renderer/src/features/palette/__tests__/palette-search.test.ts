@@ -3,12 +3,13 @@ import { commands as zhCommands } from '@desktop-shared/i18n/zh-cn/commands';
 import { describe, expect, it } from 'vitest';
 
 import type { Translate } from '../../../i18n';
+import { withLocale } from '../../../i18n';
 import { staticCommandSearchEntry } from '../command-palette-commands';
 import type { PaletteSearchEntry } from '../palette-search';
 import { paletteSearchScore } from '../palette-search';
 
 const zhCN: Readonly<Record<string, string>> = zhCommands;
-const translateZhCN: Translate = (key) => zhCN[key] ?? key;
+const translateZhCN: Translate = withLocale((key) => zhCN[key] ?? key, 'zh-CN');
 
 function rank(entries: ReadonlyArray<[string, PaletteSearchEntry]>, query: string): string[] {
     return entries

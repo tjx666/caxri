@@ -53,7 +53,7 @@ export function AgentChatFindBar({
         <>
             <FindBar
                 ariaLabel={t('agentChat.find.label')}
-                countLabel={agentChatFindCountLabel(query, count, activeIndex, { isPartial, t })}
+                countLabel={agentChatFindCountLabel(query, count, activeIndex, t, { isPartial })}
                 focusRevision={focusRevision}
                 hasMatches={count > 0}
                 inputLabel={t('agentChat.find.label')}

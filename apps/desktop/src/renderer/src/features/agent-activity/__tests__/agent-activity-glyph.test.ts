@@ -42,7 +42,7 @@ function glyphOf(
     });
     expect(groups).toHaveLength(1);
     const row = groups[0].rows[0];
-    return { ...agentActivityGlyph(row), groupId: row.groupId };
+    return { ...agentActivityGlyph(row, translate), groupId: row.groupId };
 }
 
 describe('agentActivityGlyph', () => {

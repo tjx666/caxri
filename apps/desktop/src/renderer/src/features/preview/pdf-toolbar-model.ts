@@ -3,7 +3,6 @@
  * keeps following the pane as it resizes; a number is a fixed scale, 1 being the page's natural size.
  */
 import type { Translate } from '../../i18n';
-import { translate } from '../../i18n';
 
 export type PdfZoomChoice = 'page-fit' | 'page-width' | number;
 
@@ -66,7 +65,7 @@ export function describePdfView(
     pageNumber: number,
     pageCount: number,
     scale: number,
-    t: Translate = translate,
+    t: Translate,
 ): string {
     return t('preview.pdf.viewAnnouncement', {
         page: pageNumber,

@@ -5,7 +5,7 @@ import type { ITheme, Terminal } from '@xterm/xterm';
 import type { TranslationKey } from '../../i18n';
 import { translate } from '../../i18n';
 import { openExternalUrl } from '../../lib/external-link';
-import { describeFailure, pushToast } from '../../stores/toasts';
+import { describeFailure, describeFailureKey, pushToast } from '../../stores/toasts';
 import {
     dispatchExtensionViewAction,
     executeViewCatalogShortcut,
@@ -58,7 +58,7 @@ export const onError = (message: string): void => pushToast('error', message);
  */
 export function reportTerminalOperationError(error: unknown, fallback: TranslationKey): void {
     if (isCaxriError(error) && error.code === 'CANCELLED') return;
-    onError(describeFailure(error, translate(fallback)));
+    onError(describeFailure(error, translate(fallback), translate));
 }
 
 /**
@@ -232,7 +232,7 @@ export function registerTerminalPaneLinks(
                 false,
             );
         } catch (error) {
-            onError(describeFailure(error, translate('terminal.links.commitLinkFailed')));
+            onError(describeFailureKey(error, 'terminal.links.commitLinkFailed', translate));
         }
     };
     const previews = new TerminalReferencePreviewStore(loadTerminalReferencePreview);

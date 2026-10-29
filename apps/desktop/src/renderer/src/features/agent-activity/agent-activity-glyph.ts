@@ -1,7 +1,6 @@
 import type { AgentActivityState } from '@caxri/protocol';
 
 import type { Translate } from '../../i18n';
-import { translate } from '../../i18n';
 import type { SessionActivityPresentation } from '../primary-sidebar/session-activity';
 import {
     sessionActivityPresentation,
@@ -65,10 +64,7 @@ const TONE_TEXT_CLASSNAME: Record<SessionActivityPresentation['tone'], string> =
  * answers the second question, and its answer is `neutral` for a completed turn, the commonest attention reason of
  * all.
  */
-export function agentActivityGlyph(
-    row: AgentActivityRow,
-    t: Translate = translate,
-): AgentActivityGlyph {
+export function agentActivityGlyph(row: AgentActivityRow, t: Translate): AgentActivityGlyph {
     const { groupId, session, status, statusPresentation } = row;
     if (status.kind === 'usageWait')
         return {

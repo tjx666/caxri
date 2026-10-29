@@ -1,5 +1,4 @@
 import type { Translate } from '../../i18n';
-import { translate } from '../../i18n';
 
 export interface PeerApprovalChipCopy {
     /**
@@ -18,7 +17,7 @@ export interface PeerApprovalChipCopy {
  */
 export function peerApprovalChipCopy(
     deferredCount: number,
-    t: Translate = translate,
+    t: Translate,
 ): PeerApprovalChipCopy | undefined {
     if (deferredCount < 1) return undefined;
     const parameters = { count: deferredCount };

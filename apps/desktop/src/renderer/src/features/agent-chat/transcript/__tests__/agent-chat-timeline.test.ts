@@ -2,6 +2,7 @@ import type { AgentChatItem, AgentChatTurn } from '@caxri/protocol';
 import { agentChatTurnLabel } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../../i18n';
 import type { AgentChatTimelineEntry } from '../agent-chat-timeline';
 import {
     agentChatTurnStartId,
@@ -405,9 +406,11 @@ describe('buildAgentChatTimeline', () => {
             undefined,
         );
         expect(fold).toMatchObject({ kind: 'turn', startedAt: 1000, endedAt: 3500 });
-        expect(agentChatTurnTimeTooltip({ startedAt: 1000, endedAt: 3500 })).toMatch(/^Finished /);
-        expect(agentChatTurnTimeTooltip({ startedAt: 1000 })).toMatch(/^Started /);
-        expect(agentChatTurnTimeTooltip({})).toBeUndefined();
+        expect(agentChatTurnTimeTooltip({ startedAt: 1000, endedAt: 3500 }, translate)).toMatch(
+            /^Finished /,
+        );
+        expect(agentChatTurnTimeTooltip({ startedAt: 1000 }, translate)).toMatch(/^Started /);
+        expect(agentChatTurnTimeTooltip({}, translate)).toBeUndefined();
     });
 
     it('skips empty reasoning', () => {

@@ -20,6 +20,7 @@ import {
     SelectValue,
 } from '../../components/ui/select';
 import { useLatestReference } from '../../hooks/use-latest-reference';
+import type { TranslationKey } from '../../i18n';
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import { readMihomoNodes } from '../environment-monitor/environment-monitor-client';
@@ -94,7 +95,10 @@ export function EnvironmentMihomoRoutesForm({
     const nodeNames = new Set(nodes);
     const expectedNode = nodeCache.accessKey === persistedAccessKey ? nodeCache.expectedNode : '';
     const [domain, setDomain] = useState('');
-    const [error, setError] = useState<string>();
+    /**
+     * A translation key rather than text, so a language switch re-words an error already shown.
+     */
+    const [error, setError] = useState<TranslationKey>();
     const [loading, setLoading] = useState(false);
 
     const loadNodes = async (): Promise<void> => {
@@ -104,16 +108,16 @@ export function EnvironmentMihomoRoutesForm({
             secret: controllerDraft.secret,
         });
         if (!parsed.success) {
-            setError(t('settings.environmentMonitor.mihomo.invalidController'));
+            setError('settings.environmentMonitor.mihomo.invalidController');
             return;
         }
         setLoading(true);
         setError(undefined);
         const result = await loadControllerNodes(parsed.data);
         if (!result) {
-            setError(t('settings.environmentMonitor.mihomo.unavailable'));
+            setError('settings.environmentMonitor.mihomo.unavailable');
         } else if (result.nodes.length === 0) {
-            setError(t('settings.environmentMonitor.mihomo.noNodes'));
+            setError('settings.environmentMonitor.mihomo.noNodes');
         } else {
             const accessKey = controllerAccessKey(parsed.data.endpoint, parsed.data.secret);
             setNodeCache({
@@ -131,15 +135,15 @@ export function EnvironmentMihomoRoutesForm({
     const addAssertion = (): void => {
         const normalizedDomain = normalizeEnvironmentMonitorDomain(domain);
         if (!normalizedDomain) {
-            setError(t('settings.environmentMonitor.mihomo.invalidDomain'));
+            setError('settings.environmentMonitor.mihomo.invalidDomain');
             return;
         }
         if (value.assertions.some((assertion) => assertion.domain === normalizedDomain)) {
-            setError(t('settings.environmentMonitor.mihomo.duplicateDomain'));
+            setError('settings.environmentMonitor.mihomo.duplicateDomain');
             return;
         }
         if (!expectedNode) {
-            setError(t('settings.environmentMonitor.mihomo.chooseNode'));
+            setError('settings.environmentMonitor.mihomo.chooseNode');
             return;
         }
         const parsed = environmentMonitorMihomoSettingsFileSchema.safeParse({
@@ -148,7 +152,7 @@ export function EnvironmentMihomoRoutesForm({
             assertions: [...value.assertions, { domain: normalizedDomain, expectedNode }],
         });
         if (!parsed.success) {
-            setError(t('settings.environmentMonitor.mihomo.invalidRule'));
+            setError('settings.environmentMonitor.mihomo.invalidRule');
             return;
         }
         onChange(parsed.data);
@@ -322,7 +326,7 @@ export function EnvironmentMihomoRoutesForm({
             </div>
             {error ? (
                 <FieldDescription className="mt-2" role="status" tone="danger">
-                    {error}
+                    {t(error)}
                 </FieldDescription>
             ) : null}
         </section>

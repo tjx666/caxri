@@ -89,7 +89,11 @@ export function AgentMessageApprovalDialog() {
                     setDetailFailed(true);
                     pushToast(
                         'error',
-                        describeFailure(error, translate('agentInbox.dialog.loadBodyFailed')),
+                        describeFailure(
+                            error,
+                            translate('agentInbox.dialog.loadBodyFailed'),
+                            translate,
+                        ),
                     );
                 },
                 onStale: () =>
@@ -201,6 +205,7 @@ export function AgentMessageApprovalDialog() {
                             ? 'agentInbox.dialog.approveFailed'
                             : 'agentInbox.dialog.denyFailed',
                     ),
+                    t,
                 ),
             );
             // Computed outside the closure: React Compiler cannot track a catch binding captured by one.

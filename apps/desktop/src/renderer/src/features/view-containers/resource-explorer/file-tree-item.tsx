@@ -98,7 +98,12 @@ function InlineFileName({
     onSubmit: (value: string) => Promise<void>;
 }) {
     const inputReference = useRef<HTMLInputElement>(null);
-    const [error, setError] = useState<string>();
+    const { t } = useTranslation();
+    /**
+     * The raw failure, described at render with the current `t` so a language switch re-words an error already shown.
+     */
+    const [failure, setFailure] = useState<{ error: unknown }>();
+    const error = failure && describeFailure(failure.error, failureLabel, t);
     const [pending, setPending] = useState(false);
     const [value, setValue] = useState(initialValue);
     useEffect(() => {
@@ -110,11 +115,11 @@ function InlineFileName({
         event.preventDefault();
         if (pending) return;
         setPending(true);
-        setError(undefined);
+        setFailure(undefined);
         try {
             await onSubmit(value);
         } catch (submissionError) {
-            setError(describeFailure(submissionError, failureLabel));
+            setFailure({ error: submissionError });
         }
         // After the try/catch rather than in a `finally`, which React Compiler cannot lower; the catch never rethrows.
         setPending(false);
@@ -242,7 +247,7 @@ export function FileTreeNotice({
             className="px-2 py-1 text-[11px] text-muted italic"
             style={{ paddingLeft: fileTreeLeafIndent(depth) }}
         >
-            {t('viewContainers.files.truncated', { count: formatCount(truncatedCount) })}
+            {t('viewContainers.files.truncated', { count: formatCount(truncatedCount, t.locale) })}
         </div>
     );
 }

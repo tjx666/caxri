@@ -65,7 +65,7 @@ const onApplied = (): void => {
  */
 export function reportSettingsError(error: unknown, label: string): void {
     if (isCancelledRequest(error)) return;
-    pushToast('error', describeFailure(error, label));
+    pushToast('error', describeFailure(error, label, translate));
 }
 
 export function useSettingsPageController() {

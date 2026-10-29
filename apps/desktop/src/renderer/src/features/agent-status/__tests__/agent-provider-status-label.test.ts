@@ -1,6 +1,7 @@
 import type { AgentProviderStatus } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../i18n';
 import {
     describeProviderStatus,
     incidentPhaseLabel,
@@ -37,6 +38,7 @@ describe('describeProviderStatus', () => {
                     ],
                     'operational',
                 ),
+                translate,
             ),
         ).toBe('Operational');
     });
@@ -52,6 +54,7 @@ describe('describeProviderStatus', () => {
                     ],
                     'partialOutage',
                 ),
+                translate,
             ),
         ).toBe('Partial outage: Codex API, CLI');
     });
@@ -59,26 +62,26 @@ describe('describeProviderStatus', () => {
 
 describe('providerStatusAlert', () => {
     it('raises no dot while the provider is operational', () => {
-        expect(providerStatusAlert(available([], 'operational'))).toBeUndefined();
+        expect(providerStatusAlert(available([], 'operational'), translate)).toBeUndefined();
     });
 
     it('warns for maintenance and degraded performance', () => {
-        expect(providerStatusAlert(available([], 'maintenance'))).toEqual({
+        expect(providerStatusAlert(available([], 'maintenance'), translate)).toEqual({
             label: 'API status: Under maintenance',
             tone: 'warning',
         });
-        expect(providerStatusAlert(available([], 'degraded'))).toEqual({
+        expect(providerStatusAlert(available([], 'degraded'), translate)).toEqual({
             label: 'API status: Degraded performance',
             tone: 'warning',
         });
     });
 
     it('flags a partial or major outage as danger', () => {
-        expect(providerStatusAlert(available([], 'partialOutage'))).toEqual({
+        expect(providerStatusAlert(available([], 'partialOutage'), translate)).toEqual({
             label: 'API status: Partial outage',
             tone: 'danger',
         });
-        expect(providerStatusAlert(available([], 'majorOutage'))).toEqual({
+        expect(providerStatusAlert(available([], 'majorOutage'), translate)).toEqual({
             label: 'API status: Major outage',
             tone: 'danger',
         });
@@ -86,17 +89,20 @@ describe('providerStatusAlert', () => {
 
     it('stays quiet when there is no reading to trust', () => {
         // Pending first read, no public status page, and an unreadable page: none of them is evidence of an incident.
-        expect(providerStatusAlert(undefined)).toBeUndefined();
-        expect(providerStatusAlert(null)).toBeUndefined();
+        expect(providerStatusAlert(undefined, translate)).toBeUndefined();
+        expect(providerStatusAlert(null, translate)).toBeUndefined();
         expect(
-            providerStatusAlert({
-                provider: 'codex',
-                pageName: 'OpenAI',
-                pageUrl: 'https://status.example.test',
-                checkedAt: 0,
-                state: 'unavailable',
-                reason: 'network',
-            }),
+            providerStatusAlert(
+                {
+                    provider: 'codex',
+                    pageName: 'OpenAI',
+                    pageUrl: 'https://status.example.test',
+                    checkedAt: 0,
+                    state: 'unavailable',
+                    reason: 'network',
+                },
+                translate,
+            ),
         ).toBeUndefined();
     });
 
@@ -109,7 +115,7 @@ describe('providerStatusAlert', () => {
 
 describe('providerStatusFailureLabel', () => {
     it('says why the status is missing', () => {
-        expect(providerStatusFailureLabel('network')).toBe(
+        expect(providerStatusFailureLabel('network', translate)).toBe(
             'Status unavailable: the status page could not be reached',
         );
     });
@@ -117,13 +123,19 @@ describe('providerStatusFailureLabel', () => {
 
 describe('incident lines', () => {
     it('capitalizes the phase the same way on the card and the tab', () => {
-        expect(incidentPhaseLabel('identified')).toBe('Identified');
+        expect(incidentPhaseLabel('identified', translate)).toBe('Identified');
     });
 
     it('keeps the first incident and counts the rest', () => {
-        expect(summarizeIncidents([])).toEqual({ first: undefined, moreLabel: undefined });
-        expect(summarizeIncidents(['a'])).toEqual({ first: 'a', moreLabel: undefined });
-        expect(summarizeIncidents(['a', 'b', 'c'])).toEqual({ first: 'a', moreLabel: '+2 more' });
+        expect(summarizeIncidents([], translate)).toEqual({
+            first: undefined,
+            moreLabel: undefined,
+        });
+        expect(summarizeIncidents(['a'], translate)).toEqual({ first: 'a', moreLabel: undefined });
+        expect(summarizeIncidents(['a', 'b', 'c'], translate)).toEqual({
+            first: 'a',
+            moreLabel: '+2 more',
+        });
     });
 });
 

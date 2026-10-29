@@ -1,4 +1,8 @@
-import type { AgentProviderServiceStatus, AgentProviderStatusUptime } from '@caxri/protocol';
+import type {
+    AgentProviderServiceStatus,
+    AgentProviderStatusUptime,
+    AppLocale,
+} from '@caxri/protocol';
 import { agentProviderServiceStatuses } from '@caxri/protocol';
 
 import { localeNumberFormat } from '../../lib/locale-format';
@@ -56,6 +60,6 @@ export function providerUptimeDays(
 /**
  * `99.95`, or `100` rather than `100.00`, as the status page itself prints it, in the interface language.
  */
-export function formatUptimePercent(percent: number): string {
-    return localeNumberFormat({ maximumFractionDigits: 2 }).format(percent);
+export function formatUptimePercent(percent: number, locale: AppLocale): string {
+    return localeNumberFormat({ maximumFractionDigits: 2 }, locale).format(percent);
 }

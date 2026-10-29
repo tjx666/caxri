@@ -1,4 +1,4 @@
-import type { UpdateState } from '@caxri/protocol';
+import type { AppLocale, UpdateState } from '@caxri/protocol';
 import { isUpdateVersionSkipped } from '@caxri/protocol';
 import { formatBytes } from '@caxri/utils';
 
@@ -24,10 +24,11 @@ import { formatTime } from '../../lib/locale-format';
  */
 export function updateRetryTimeLabel(
     retryAt: number | undefined,
+    locale: AppLocale,
     now: number = Date.now(),
 ): string | undefined {
     if (retryAt === undefined || !Number.isFinite(retryAt) || retryAt <= now) return undefined;
-    return formatTime(retryAt);
+    return formatTime(retryAt, {}, locale);
 }
 
 export interface UpdateStatusCopy {
@@ -43,14 +44,13 @@ export interface UpdateStatusCopy {
  * would get past it. A manual check bypasses the recorded window, so the copy says so and the action stays live:
  * deliberately unlike the Project Status budget rows, where retrying is the very request the limiter is refusing.
  *
- * `t` defaults to the out-of-React `translate` so tests and non-render callers need not pass one; a component passes
- * its `useTranslation()` `t` so a language change re-renders the copy.
+ * A component passes its `useTranslation()` `t` so a language change re-renders the copy.
  */
 export function describeUpdateStatus(
     state: UpdateState | undefined,
-    options: { now?: number; skippedVersion?: string | null; t?: Translate } = {},
+    options: { now?: number; skippedVersion?: string | null; t: Translate },
 ): UpdateStatusCopy {
-    const t = options.t ?? translate;
+    const { t } = options;
     if (!state)
         return {
             title: t('updates.status.loading.title'),
@@ -70,7 +70,7 @@ export function describeUpdateStatus(
         case 'unavailable': {
             if (!state.rateLimited)
                 return { title: t('updates.status.unavailable.title'), description: state.reason };
-            const resumesAt = updateRetryTimeLabel(state.retryAt, options.now);
+            const resumesAt = updateRetryTimeLabel(state.retryAt, t.locale, options.now);
             return {
                 title: t('updates.status.paused.title'),
                 description: t('updates.status.paused.description', {
@@ -207,8 +207,8 @@ export interface UpdateChip {
  */
 export function describeUpdateChip(
     state: UpdateState | undefined,
-    skippedVersion?: string | null,
-    t: Translate = translate,
+    skippedVersion: string | null | undefined,
+    t: Translate,
 ): UpdateChip | undefined {
     if (!state) return undefined;
     if (state.status === 'available') {

@@ -2,10 +2,8 @@ import { useEffect, useState } from 'react';
 
 import { debounce } from 'es-toolkit';
 
-import { translate } from '../../../i18n';
 import { caxri } from '../../../lib/caxri';
 import { caxriQueryKey, queryClient } from '../../../queries/client';
-import { describeFailure } from '../../../stores/toasts';
 import { syncWindowFullScreen } from '../../../stores/window-full-screen';
 import { refreshWorkbench, useWorkbenchStore } from '../../../stores/workbench';
 import { ensureCaxriBot, refreshBotBoardPullRequests, useCaxriBotStore } from '../bot-client';
@@ -21,7 +19,7 @@ import { revealBotInbox } from '../bot-inbox-store';
 const BOARD_REFRESH_DEBOUNCE_MS = 500;
 
 export type CaxriBotStatus =
-    { kind: 'error'; message: string } | { kind: 'loading' } | { kind: 'ready' };
+    { kind: 'error'; error: unknown } | { kind: 'loading' } | { kind: 'ready' };
 
 const LOADING: CaxriBotStatus = { kind: 'loading' };
 const READY: CaxriBotStatus = { kind: 'ready' };
@@ -117,11 +115,7 @@ export function useCaxriBot(): { retry: () => void; status: CaxriBotStatus } {
             try {
                 await ensureCaxriBot();
             } catch (error) {
-                if (run.isCurrent)
-                    setStatus({
-                        kind: 'error',
-                        message: describeFailure(error, translate('caxriBot.terminal.startFailed')),
-                    });
+                if (run.isCurrent) setStatus({ kind: 'error', error });
                 return;
             }
             if (!run.isCurrent) return;

@@ -6,6 +6,7 @@ import { Button } from '../../components/ui/button';
 import { Spinner } from '../../components/ui/spinner';
 import { useTranslation } from '../../i18n';
 import { useTerminal } from '../../stores/selectors';
+import { describeFailure } from '../../stores/toasts';
 import { AgentChatTerminalContent } from '../agent-chat/tasks/agent-chat-terminal-content';
 import { didPasteDropIntoTerminal, isTerminalPasteDrag } from '../terminal/terminal-drop';
 import { TerminalPane } from '../terminal/terminal-pane';
@@ -40,7 +41,13 @@ export function BotTerminal({ onRetry, status }: { onRetry: () => void; status: 
                 </span>
                 {/* The raw failure stays available as a secondary detail for a bug report, never as the headline. */}
                 <span className="max-w-[460px] text-[11px] break-words select-text">
-                    {t('caxriBot.terminal.failureDetail', { message: status.message })}
+                    {t('caxriBot.terminal.failureDetail', {
+                        message: describeFailure(
+                            status.error,
+                            t('caxriBot.terminal.startFailed'),
+                            t,
+                        ),
+                    })}
                 </span>
                 <Button size="sm" variant="secondary" onClick={onRetry}>
                     {t('common.retry')}

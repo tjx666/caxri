@@ -15,14 +15,13 @@ describe('locale formatters', () => {
 
     it('formats in the interface language rather than the system locale', () => {
         useLocaleStore.setState({ locale: 'en' });
-        expect(formatCount(12_345)).toBe('12,345');
-        expect(localeDateTimeFormat({ dateStyle: 'medium', timeZone: 'UTC' }).format(0)).toBe(
+        expect(formatCount(12_345, 'en')).toBe('12,345');
+        expect(localeDateTimeFormat({ dateStyle: 'medium', timeZone: 'UTC' }, 'en').format(0)).toBe(
             'Jan 1, 1970',
         );
-        useLocaleStore.setState({ locale: 'zh-CN' });
-        expect(localeDateTimeFormat({ dateStyle: 'medium', timeZone: 'UTC' }).format(0)).toBe(
-            '1970年1月1日',
-        );
+        expect(
+            localeDateTimeFormat({ dateStyle: 'medium', timeZone: 'UTC' }, 'zh-CN').format(0),
+        ).toBe('1970年1月1日');
     });
 
     it('reuses one formatter per locale and option set', () => {
@@ -56,11 +55,12 @@ describe('locale formatters', () => {
             );
         });
 
-        it('defaults to the interface language from the store', () => {
-            useLocaleStore.setState({ locale: 'en' });
-            const en = formatDateTime(moment);
+        /**
+         * React Compiler memoizes by inputs, so the locale is an argument and the global store is never consulted.
+         */
+        it('formats in the locale it is given whatever the store holds', () => {
             useLocaleStore.setState({ locale: 'zh-CN' });
-            expect(formatDateTime(moment)).not.toBe(en);
+            expect(formatDateTime(moment, 'en')).toBe('1/5/2024, 7:04:09 AM');
         });
     });
 });

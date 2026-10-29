@@ -3,7 +3,7 @@ import type { AgentHeldMessage } from '@caxri/protocol';
 import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import { createStore } from '../../lib/store';
-import { describeFailure, pushToast } from '../../stores/toasts';
+import { describeFailureKey, pushToast } from '../../stores/toasts';
 import { listHeldAgentMessages } from './agent-message-approval-client';
 import type { HeldMessageQueue } from './agent-message-approval-state';
 import {
@@ -89,7 +89,7 @@ export function subscribeHeldMessageQueue(): () => void {
             if (isActive)
                 pushToast(
                     'error',
-                    describeFailure(error, translate('agentInbox.store.loadFailed')),
+                    describeFailureKey(error, 'agentInbox.store.loadFailed', translate),
                 );
         }
     }

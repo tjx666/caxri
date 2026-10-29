@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 
+import type { AppLocale } from '@caxri/protocol';
 import { Archive, ArchiveRestore, Search, Trash2 } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
@@ -46,8 +47,8 @@ import { sessionTitleForDisplay } from './session-title';
 
 const NO_RECORDS: never[] = [];
 const EMPTY_SELECTION: ReadonlySet<string> = new Set();
-function archivedTimestamp(value: number): string {
-    return localeDateTimeFormat({ dateStyle: 'medium', timeStyle: 'short' }).format(value);
+function archivedTimestamp(value: number, locale: AppLocale): string {
+    return localeDateTimeFormat({ dateStyle: 'medium', timeStyle: 'short' }, locale).format(value);
 }
 
 /**
@@ -270,7 +271,7 @@ function ArchivedSessionRow({
                         {resolveAgentIcon(item.agent).label}
                         {' · '}
                         {t('session.archived.archivedAt', {
-                            time: archivedTimestamp(item.archivedAt),
+                            time: archivedTimestamp(item.archivedAt, t.locale),
                         })}
                     </p>
                 </div>

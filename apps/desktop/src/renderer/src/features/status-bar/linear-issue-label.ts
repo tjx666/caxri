@@ -2,7 +2,6 @@ import type { LinearIssueSource, ProjectStatusOverviewLinearIssue } from '@caxri
 
 import type { StructuredTooltipData } from '../../components/structured-tooltip';
 import type { Translate, TranslationKey } from '../../i18n';
-import { translate } from '../../i18n';
 
 /**
  * How the chip names each source. The wording is the sentence a reader needs in order to decide how much to trust the
@@ -20,8 +19,8 @@ const SOURCE_LABEL_KEYS: Record<LinearIssueSource, TranslationKey> = {
  */
 export function linearIssueAriaLabel(
     issue: ProjectStatusOverviewLinearIssue,
-    extraCount = 0,
-    t: Translate = translate,
+    extraCount: number,
+    t: Translate,
 ): string {
     const identifier = { identifier: issue.identifier };
     return [
@@ -57,8 +56,8 @@ export function hasOpenableLinearIssue(
  */
 export function linearIssueTooltip(
     issue: ProjectStatusOverviewLinearIssue,
-    extra: readonly ProjectStatusOverviewLinearIssue[] = [],
-    t: Translate = translate,
+    extra: readonly ProjectStatusOverviewLinearIssue[],
+    t: Translate,
 ): StructuredTooltipData {
     return {
         eyebrow: issue.title ? issue.identifier : undefined,

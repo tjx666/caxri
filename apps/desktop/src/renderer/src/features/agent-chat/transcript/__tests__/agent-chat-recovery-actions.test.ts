@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../../i18n';
 import { agentChatRecoveryActions, agentChatRecoveryNotice } from '../agent-chat-presentation';
 
 describe('agentChatRecoveryActions', () => {
@@ -31,6 +32,7 @@ describe('agentChatRecoveryNotice for a missing CLI', () => {
             },
             { isLoadError: false, processState: 'failed' },
             'Claude Code',
+            translate,
         );
         expect(notice).toEqual({
             kind: 'failed',

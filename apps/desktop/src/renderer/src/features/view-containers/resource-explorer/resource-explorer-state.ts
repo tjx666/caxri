@@ -2,7 +2,6 @@ import type { FileEntry, PaneTab } from '@caxri/protocol';
 import { collectTreeSubtree, pathBasename } from '@caxri/utils';
 
 import type { Translate } from '../../../i18n';
-import { translate } from '../../../i18n';
 import { isDirectoryEntry } from '../../../lib/file-entry';
 import type { GitChildRepoKind, GitDecoration } from '../../../lib/git-decorations';
 import { gitChildRepoDescription, gitDecorationDescription } from '../../../lib/git-decorations';
@@ -144,12 +143,12 @@ export function isFileTreeDirectory(
  *
  * @param entry The row the tooltip describes.
  * @param childRepo Set when the directory is a repository of its own, which the icon shows but does not name.
- * @param t The caller's `useTranslation()` function; defaults to the snapshot `translate` for non-React callers.
+ * @param t The caller's `useTranslation()` function.
  */
 export function fileTreeRowTooltip(
     entry: Pick<FileEntry, 'gitIgnored' | 'kind' | 'linkKind' | 'linkTarget' | 'path'>,
-    childRepo?: GitChildRepoKind,
-    t: Translate = translate,
+    childRepo: GitChildRepoKind | undefined,
+    t: Translate,
 ): string {
     if (entry.kind !== 'symlink') {
         const qualifiers = [
@@ -174,7 +173,7 @@ export function fileTreeRowTooltip(
  */
 export function symlinkRowDescription(
     entry: Pick<FileEntry, 'linkKind' | 'linkTarget'>,
-    t: Translate = translate,
+    t: Translate,
 ): string {
     const isBroken = entry.linkKind === 'broken';
     if (entry.linkTarget === undefined)
@@ -207,7 +206,7 @@ export function fileTreeRowDescription(
     entry: Pick<FileEntry, 'kind' | 'linkKind' | 'linkTarget'>,
     childRepo: GitChildRepoKind | undefined,
     decoration: GitDecoration | undefined,
-    t: Translate = translate,
+    t: Translate,
 ): string {
     return [
         entry.kind === 'symlink' ? symlinkRowDescription(entry, t) : undefined,

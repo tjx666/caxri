@@ -1,5 +1,5 @@
 import { translate } from '../i18n';
-import { describeFailure } from '../stores/toasts';
+import { describeFailureKey } from '../stores/toasts';
 import { caxri } from './caxri';
 
 type ExternalOpenRejectionReason =
@@ -32,6 +32,6 @@ export async function openExternalUrl(
         if (result.status !== 'rejected') return;
         onError(externalOpenRejectionMessage(result.reason));
     } catch (error) {
-        onError(describeFailure(error, translate('core.externalLink.openFailed')));
+        onError(describeFailureKey(error, 'core.externalLink.openFailed', translate));
     }
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../i18n';
 import {
     EMPTY_PDF_FIND_RESULT,
     isPdfFindMiss,
@@ -36,14 +37,20 @@ describe('pdfFindEvent', () => {
 
 describe('pdfFindCountLabel', () => {
     it('stays empty without a query and while the first results are pending', () => {
-        expect(pdfFindCountLabel('', { current: 1, total: 3, isPending: false })).toBe('');
-        expect(pdfFindCountLabel('needle', { ...EMPTY_PDF_FIND_RESULT, isPending: true })).toBe('');
+        expect(pdfFindCountLabel('', { current: 1, total: 3, isPending: false }, translate)).toBe(
+            '',
+        );
+        expect(
+            pdfFindCountLabel('needle', { ...EMPTY_PDF_FIND_RESULT, isPending: true }, translate),
+        ).toBe('');
         expect(isPdfFindMiss('needle', { ...EMPTY_PDF_FIND_RESULT, isPending: true })).toBe(false);
     });
 
     it('shows the current match of the total, and No results once the search settled empty', () => {
-        expect(pdfFindCountLabel('needle', { current: 2, total: 5, isPending: true })).toBe('2/5');
-        expect(pdfFindCountLabel('needle', EMPTY_PDF_FIND_RESULT)).toBe('No results');
+        expect(
+            pdfFindCountLabel('needle', { current: 2, total: 5, isPending: true }, translate),
+        ).toBe('2/5');
+        expect(pdfFindCountLabel('needle', EMPTY_PDF_FIND_RESULT, translate)).toBe('No results');
         expect(isPdfFindMiss('needle', EMPTY_PDF_FIND_RESULT)).toBe(true);
         expect(isPdfFindMiss('', EMPTY_PDF_FIND_RESULT)).toBe(false);
     });

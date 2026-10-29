@@ -21,6 +21,7 @@ export function reportSnapshotFailure(error: unknown, hasSnapshot: boolean): voi
                     ? 'core.workbench.snapshotRefreshFailed'
                     : 'core.workbench.snapshotLoadFailed',
             ),
+            translate,
         ),
     );
 }

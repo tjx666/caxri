@@ -58,7 +58,10 @@ export function AgentMessageApprovalWaitingList({
                                     dateTime={new Date(approval.expiresAt).toISOString()}
                                 >
                                     {t('agentInbox.waitingList.until', {
-                                        time: heldMessageDeadlineLabel(approval.expiresAt),
+                                        time: heldMessageDeadlineLabel(
+                                            approval.expiresAt,
+                                            t.locale,
+                                        ),
                                     })}
                                 </time>
                             </div>

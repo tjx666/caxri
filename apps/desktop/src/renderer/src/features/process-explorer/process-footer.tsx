@@ -28,7 +28,7 @@ export function ProcessFooter({
                 {sampledAt === undefined
                     ? t('processExplorer.footer.noSample')
                     : t('processExplorer.footer.updated', {
-                          time: formatTime(sampledAt, { withSeconds: true }),
+                          time: formatTime(sampledAt, { withSeconds: true }, t.locale),
                       })}
             </span>
         </footer>

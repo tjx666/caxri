@@ -41,6 +41,13 @@ describe('translate', () => {
         expect(translate('common.close')).toBe('Close');
     });
 
+    it('exposes the locale it translates into, so formatters can take it from `t`', () => {
+        useLocaleStore.setState({ locale: 'zh-CN' });
+        expect(translate.locale).toBe('zh-CN');
+        useLocaleStore.setState({ locale: 'en' });
+        expect(translate.locale).toBe('en');
+    });
+
     it('names the shared command list in the UI language instead of the cmdk English default', () => {
         useLocaleStore.setState({ locale: 'zh-CN' });
         expect(translate('core.command.suggestions')).toBe('建议');

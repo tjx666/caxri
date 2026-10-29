@@ -1,9 +1,8 @@
-import type { AgentAvailability, CodexGlobalReset } from '@caxri/protocol';
+import type { AgentAvailability, AppLocale, CodexGlobalReset } from '@caxri/protocol';
 import { CODEX_GLOBAL_RESET_SOURCE } from '@caxri/protocol';
 
 import type { StructuredTooltipData } from '../../components/structured-tooltip';
 import type { Translate } from '../../i18n';
-import { translate } from '../../i18n';
 import { formatDateTime } from '../../lib/locale-format';
 import { localizedDuration } from '../../lib/usage-format';
 
@@ -29,8 +28,8 @@ export interface CodexGlobalResetChipCopy {
 export function codexGlobalResetChipCopy(
     reset: CodexGlobalReset | undefined,
     now: number,
-    t: Translate = translate,
-    formatTime: (at: number) => string = formatDateTime,
+    t: Translate,
+    formatTime: (at: number, locale: AppLocale) => string = formatDateTime,
 ): CodexGlobalResetChipCopy | undefined {
     if (reset?.state !== 'scheduled' || reset.targetAt <= now) return undefined;
     const duration = localizedDuration(reset.targetAt - now, t);
@@ -58,11 +57,11 @@ export function codexGlobalResetChipCopy(
                             ? 'statusBar.codexGlobalReset.targetDeadline'
                             : 'statusBar.codexGlobalReset.targetExact',
                     ),
-                    value: formatTime(reset.targetAt),
+                    value: formatTime(reset.targetAt, t.locale),
                 },
                 {
                     label: t('statusBar.codexGlobalReset.announcedAt'),
-                    value: formatTime(reset.announcedAt),
+                    value: formatTime(reset.announcedAt, t.locale),
                 },
             ],
             notes: [t('statusBar.codexGlobalReset.note')],

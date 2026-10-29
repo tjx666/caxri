@@ -2,7 +2,6 @@ import type { RemoteDebuggingState } from '@caxri/protocol';
 
 import type { StructuredTooltipData } from '../../components/structured-tooltip';
 import type { Translate } from '../../i18n';
-import { translate } from '../../i18n';
 
 export interface RemoteDebuggingChipCopy {
     /**
@@ -26,7 +25,7 @@ export interface RemoteDebuggingChipCopy {
  */
 export function remoteDebuggingChipCopy(
     state: RemoteDebuggingState,
-    t: Translate = translate,
+    t: Translate,
 ): RemoteDebuggingChipCopy | undefined {
     if (state.transport === 'disabled') return undefined;
     const where =

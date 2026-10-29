@@ -3,7 +3,6 @@ import { createContext } from 'react';
 import { escapeRegExp, throttle } from 'es-toolkit';
 
 import type { Translate } from '../../../i18n';
-import { translate } from '../../../i18n';
 import type { AgentChatTimelineEntry } from '../transcript/agent-chat-timeline';
 
 /**
@@ -64,7 +63,8 @@ export function agentChatFindCountLabel(
     query: string,
     count: number,
     activeIndex: number,
-    { isPartial = false, t = translate }: { isPartial?: boolean; t?: Translate } = {},
+    t: Translate,
+    { isPartial = false }: { isPartial?: boolean } = {},
 ): string {
     if (!query) return '';
     if (count === 0)

@@ -6,7 +6,6 @@ import type {
 } from '@caxri/protocol';
 
 import type { Translate } from '../../../i18n';
-import { translate } from '../../../i18n';
 import { localizeExtensionParts, localizeExtensionText } from '../extension-text';
 
 type Provider = SourceControlViewModel['providers'][number];
@@ -20,7 +19,7 @@ type Resource = Group['resources'][number];
  */
 function localizeSourceControlAction(
     action: SourceControlAction,
-    t: Translate = translate,
+    t: Translate,
 ): SourceControlAction {
     return {
         ...action,
@@ -40,7 +39,7 @@ function localizeSourceControlAction(
 
 function localizeSourceControlHistoryDescriptor(
     descriptor: SourceControlHistoryDescriptor,
-    t: Translate = translate,
+    t: Translate,
 ): SourceControlHistoryDescriptor {
     const text = (value: string) => localizeExtensionText(value, t);
     return {
@@ -132,7 +131,7 @@ function localizeProvider(provider: Provider, t: Translate): Provider {
  */
 export function localizeSourceControlModel(
     model: SourceControlViewModel,
-    t: Translate = translate,
+    t: Translate,
 ): SourceControlViewModel {
     return {
         ...model,
@@ -170,7 +169,7 @@ export function localizeSourceControlModel(
 /**
  * A history details summary (`3 files changed+ · 1 hidden`): the Git extension appends `+` to a truncated count.
  */
-export function localizeHistorySummary(summary: string, t: Translate = translate): string {
+export function localizeHistorySummary(summary: string, t: Translate): string {
     return summary
         .split(' · ')
         .map((part) => {
@@ -186,7 +185,7 @@ export function localizeHistorySummary(summary: string, t: Translate = translate
  */
 export function localizeActionEffect(
     effect: SourceControlActionEffect,
-    t: Translate = translate,
+    t: Translate,
 ): SourceControlActionEffect {
     return effect.kind === 'toast'
         ? { ...effect, message: localizeExtensionText(effect.message, t) }

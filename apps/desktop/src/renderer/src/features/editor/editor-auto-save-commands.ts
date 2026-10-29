@@ -7,6 +7,7 @@ import {
 import { pathBasename } from '@caxri/utils';
 import type { EditorDocument } from '@desktop-shared/editor-state';
 
+import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import { getBootstrap } from '../../stores/selectors';
 import { isSavableEditorPath } from './document-write-commands';
@@ -55,7 +56,7 @@ export async function resolveDirtyEditorClose(
     if (!isUntitled && isAutoSaveOnFocusChange()) return 'save';
     const { choice } = await caxri.request('editor.confirmDiscard', {
         name: isUntitled
-            ? untitledDisplayName(path, content)
+            ? untitledDisplayName(path, content, translate)
             : (parseExternalEditorTab(path)?.name ?? pathBasename(path)),
     });
     return choice;

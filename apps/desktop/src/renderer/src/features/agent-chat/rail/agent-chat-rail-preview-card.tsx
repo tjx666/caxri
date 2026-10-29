@@ -87,9 +87,10 @@ function PreviewContent({
     const time =
         mark.createdAt === undefined
             ? undefined
-            : localeDateTimeFormat(agentChatRailTimeFormatOptions(mark.createdAt, now)).format(
-                  mark.createdAt,
-              );
+            : localeDateTimeFormat(
+                  agentChatRailTimeFormatOptions(mark.createdAt, now),
+                  t.locale,
+              ).format(mark.createdAt);
     const text = agentChatRailCardText(
         mark,
         agentChatRailCaption(position, total, loadedCount, time, t),

@@ -36,8 +36,8 @@ interface ParityRow {
 }
 
 /**
- * Runs both sides over the same inputs. Each side is called with the input alone, so a Desktop helper's optional `t`
- * parameter never receives the array index and the default English `translate` applies.
+ * Runs both sides over the same inputs. Each side is called with the input alone, so a helper's trailing parameter
+ * never receives the array index.
  */
 function pair<T>(
     inputs: readonly T[],
@@ -68,7 +68,7 @@ const ROWS: ParityRow[] = [
         run: () =>
             pair(
                 DIFF_TAB_PATHS,
-                (path) => documentTabPresentation(path, {}).label,
+                (path) => documentTabPresentation(path, {}, translate).label,
                 (path) => {
                     const tab = parseGitDiffTab(path);
                     return tab && gitDiffTabLabel(tab);

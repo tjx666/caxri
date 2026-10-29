@@ -1,6 +1,7 @@
 import type { WorkbenchRootOption } from '@caxri/protocol';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { translate } from '../../../i18n';
 import { selectWorkbenchRoot } from '../workbench-root-commands';
 import { visibleWorkbenchRoots, workbenchRootLabel } from '../workbench-root-options';
 
@@ -80,13 +81,17 @@ describe('Workbench Root picker', () => {
         const alpha = option('alpha');
         const beta = option('beta');
         expect(visibleWorkbenchRoots([beta, alpha], undefined, true)).toEqual([alpha, beta]);
-        expect(workbenchRootLabel(alpha, [alpha, beta])).toBe('feature/alpha');
-        expect(workbenchRootLabel(option('detached-folder', { branch: 'detached' }), [])).toBe(
-            'Detached · detached-folder',
-        );
-        expect(workbenchRootLabel(alpha, [alpha, option('other', { branch: alpha.branch })])).toBe(
-            'feature/alpha · alpha',
-        );
+        expect(workbenchRootLabel(alpha, [alpha, beta], translate)).toBe('feature/alpha');
+        expect(
+            workbenchRootLabel(option('detached-folder', { branch: 'detached' }), [], translate),
+        ).toBe('Detached · detached-folder');
+        expect(
+            workbenchRootLabel(
+                alpha,
+                [alpha, option('other', { branch: alpha.branch })],
+                translate,
+            ),
+        ).toBe('feature/alpha · alpha');
     });
     it('cancels first authorization without submitting or refreshing state', async () => {
         mocks.confirm.mockResolvedValue({ isConfirmed: false, dontAskAgain: false });

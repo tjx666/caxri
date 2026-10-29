@@ -127,7 +127,11 @@ export function useFileTreeRows({
             toastedErrors.current.add(error);
             pushToast(
                 'error',
-                describeFailure(error, translate('viewContainers.files.readDirectoryFailed')),
+                describeFailure(
+                    error,
+                    translate('viewContainers.files.readDirectoryFailed'),
+                    translate,
+                ),
             );
         }
     }, [listings]);

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../i18n';
 import {
     workPanelId,
     workTabDescription,
@@ -30,15 +31,18 @@ describe('work tab accessibility', () => {
     });
 
     it('describes the detail, hidden fact, Git state, and unsaved buffer in a stable order', () => {
-        expect(workTabDescription({})).toBe('');
+        expect(workTabDescription({}, translate)).toBe('');
         expect(
-            workTabDescription({
-                accessibleDetail: 'Outside every Project',
-                detail: 'docs',
-                dirty: true,
-                gitDecoration: { kind: 'modified' },
-            }),
+            workTabDescription(
+                {
+                    accessibleDetail: 'Outside every Project',
+                    detail: 'docs',
+                    dirty: true,
+                    gitDecoration: { kind: 'modified' },
+                },
+                translate,
+            ),
         ).toBe('In docs. Outside every Project. Git: modified. Unsaved changes.');
-        expect(workTabDescription({ dirty: true })).toBe('Unsaved changes.');
+        expect(workTabDescription({ dirty: true }, translate)).toBe('Unsaved changes.');
     });
 });

@@ -190,7 +190,7 @@ function CacheTimeline({
                 <span className="text-foreground">
                     {t('agentChat.contextPage.cache.request', {
                         index: index + 1,
-                        time: agentChatMessageFullTime(point.at),
+                        time: agentChatMessageFullTime(point.at, t.locale),
                     })}
                 </span>
                 <span>
@@ -280,8 +280,10 @@ function CacheTimeline({
               times in full. The legend gets a row below, each label on one line so a CJK label cannot break mid-word.
             */}
             <div className="mt-1 flex flex-wrap justify-between gap-x-3 pl-8 text-[10px] text-muted tabular-nums">
-                <span>{agentChatMessageFullTime(points[0].at)}</span>
-                <span className="text-right">{agentChatMessageFullTime(points.at(-1)!.at)}</span>
+                <span>{agentChatMessageFullTime(points[0].at, t.locale)}</span>
+                <span className="text-right">
+                    {agentChatMessageFullTime(points.at(-1)!.at, t.locale)}
+                </span>
             </div>
             <div className="mt-1 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 pl-8 text-[10px] whitespace-nowrap text-muted">
                 <span className="inline-flex items-center gap-1">
@@ -324,7 +326,7 @@ function CacheBreakRow({
             onPointerLeave={() => onFocus(undefined)}
         >
             <td className="p-0 tabular-nums">
-                <Tooltip content={agentChatMessageFullTime(item.at)}>
+                <Tooltip content={agentChatMessageFullTime(item.at, t.locale)}>
                     <span>{agentChatDayLabel(item.at, now, t)}</span>
                 </Tooltip>
             </td>

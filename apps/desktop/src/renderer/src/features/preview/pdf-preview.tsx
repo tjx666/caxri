@@ -10,7 +10,7 @@ import { LoadingSkeleton } from '../../components/loading-skeleton';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Tooltip } from '../../components/ui/tooltip';
-import { useTranslation } from '../../i18n';
+import { translate, useTranslation } from '../../i18n';
 import { documentLoadRecoveryAction } from '../editor/document-load-recovery';
 import { EditorLoadFailure } from '../editor/editor-load-failure';
 import { usePdfDocument } from './hooks/use-pdf-document';
@@ -171,7 +171,9 @@ function PdfDocumentView({
                 });
                 if (!isAnnouncementPendingReference.current) return;
                 isAnnouncementPendingReference.current = false;
-                setAnnouncement(describePdfView(next.pageNumber, next.pageCount, next.scale));
+                setAnnouncement(
+                    describePdfView(next.pageNumber, next.pageCount, next.scale, translate),
+                );
             },
         })
             .then((session) => {

@@ -2,6 +2,7 @@ import type { ProcessState, TerminalKind, TerminalRecord, TerminalSurface } from
 import { agentProviderIds, canUseAgentChat, terminalKindSchema } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../i18n';
 import {
     agentChoiceMarker,
     agentInstallHint,
@@ -160,16 +161,16 @@ describe('resolveNewTerminalTarget with Open in Chat', () => {
 
 describe('newTerminalActionLabel', () => {
     it('names the Agent and the view a press creates', () => {
-        expect(newTerminalActionLabel({ kind: 'codex', surface: 'chat' }, 'Codex')).toBe(
+        expect(newTerminalActionLabel({ kind: 'codex', surface: 'chat' }, 'Codex', translate)).toBe(
             'New Codex Chat',
         );
-        expect(newTerminalActionLabel({ kind: 'claude', surface: 'pty' }, 'Claude Code')).toBe(
-            'New Claude Code Terminal',
-        );
+        expect(
+            newTerminalActionLabel({ kind: 'claude', surface: 'pty' }, 'Claude Code', translate),
+        ).toBe('New Claude Code Terminal');
     });
 
     it('keeps a Shell as a plain New Terminal', () => {
-        expect(newTerminalActionLabel({ kind: 'shell', surface: 'pty' }, 'Shell')).toBe(
+        expect(newTerminalActionLabel({ kind: 'shell', surface: 'pty' }, 'Shell', translate)).toBe(
             'New Terminal',
         );
     });
@@ -177,8 +178,8 @@ describe('newTerminalActionLabel', () => {
 
 describe('newTerminalButtonText', () => {
     it('says New Chat only when the press opens a Chat', () => {
-        expect(newTerminalButtonText('chat')).toBe('New Chat');
-        expect(newTerminalButtonText('pty')).toBe('New Terminal');
+        expect(newTerminalButtonText('chat', translate)).toBe('New Chat');
+        expect(newTerminalButtonText('pty', translate)).toBe('New Terminal');
     });
 });
 
@@ -198,13 +199,13 @@ describe('newTerminalCommandTarget', () => {
 
 describe('newSessionActionLabel', () => {
     it('names the Agent and, for a Chat, the view', () => {
-        expect(newSessionActionLabel({ kind: 'codex', surface: 'chat' }, 'Codex')).toBe(
+        expect(newSessionActionLabel({ kind: 'codex', surface: 'chat' }, 'Codex', translate)).toBe(
             'New Codex Chat Session',
         );
-        expect(newSessionActionLabel({ kind: 'codex', surface: 'pty' }, 'Codex')).toBe(
+        expect(newSessionActionLabel({ kind: 'codex', surface: 'pty' }, 'Codex', translate)).toBe(
             'New Codex Session',
         );
-        expect(newSessionActionLabel({ kind: 'shell', surface: 'pty' }, 'Shell')).toBe(
+        expect(newSessionActionLabel({ kind: 'shell', surface: 'pty' }, 'Shell', translate)).toBe(
             'New Shell Session',
         );
     });
@@ -212,10 +213,12 @@ describe('newSessionActionLabel', () => {
 
 describe('agentChoiceMarker', () => {
     it('merges the Chat and Default markers into one suffix', () => {
-        expect(agentChoiceMarker({ isDefault: true, surface: 'chat' })).toBe('Chat · Default');
-        expect(agentChoiceMarker({ isDefault: false, surface: 'chat' })).toBe('Chat');
-        expect(agentChoiceMarker({ isDefault: true, surface: 'pty' })).toBe('Default');
-        expect(agentChoiceMarker({ isDefault: false, surface: 'pty' })).toBeUndefined();
+        expect(agentChoiceMarker({ isDefault: true, surface: 'chat' }, translate)).toBe(
+            'Chat · Default',
+        );
+        expect(agentChoiceMarker({ isDefault: false, surface: 'chat' }, translate)).toBe('Chat');
+        expect(agentChoiceMarker({ isDefault: true, surface: 'pty' }, translate)).toBe('Default');
+        expect(agentChoiceMarker({ isDefault: false, surface: 'pty' }, translate)).toBeUndefined();
     });
 });
 
@@ -249,21 +252,24 @@ describe('Agent availability annotations', () => {
     });
 
     it('puts the Not installed suffix first and leaves installed rows unchanged', () => {
-        expect(agentChoiceMarker({ isDefault: false, isUnavailable: true, surface: 'pty' })).toBe(
-            'Not installed',
-        );
-        expect(agentChoiceMarker({ isDefault: true, isUnavailable: true, surface: 'chat' })).toBe(
-            'Not installed · Chat · Default',
-        );
-        expect(agentChoiceMarker({ isDefault: true, isUnavailable: false, surface: 'chat' })).toBe(
-            'Chat · Default',
-        );
+        expect(
+            agentChoiceMarker({ isDefault: false, isUnavailable: true, surface: 'pty' }, translate),
+        ).toBe('Not installed');
+        expect(
+            agentChoiceMarker({ isDefault: true, isUnavailable: true, surface: 'chat' }, translate),
+        ).toBe('Not installed · Chat · Default');
+        expect(
+            agentChoiceMarker(
+                { isDefault: true, isUnavailable: false, surface: 'chat' },
+                translate,
+            ),
+        ).toBe('Chat · Default');
     });
 
     it('offers an install hint for each Agent CLI and none for Shell', () => {
-        expect(agentInstallHint('claude')).toContain('Claude Code');
-        expect(agentInstallHint('codex')).toContain('@openai/codex');
-        expect(agentInstallHint('grok')).toContain('Grok Build');
-        expect(agentInstallHint('shell')).toBeUndefined();
+        expect(agentInstallHint('claude', translate)).toContain('Claude Code');
+        expect(agentInstallHint('codex', translate)).toContain('@openai/codex');
+        expect(agentInstallHint('grok', translate)).toContain('Grok Build');
+        expect(agentInstallHint('shell', translate)).toBeUndefined();
     });
 });

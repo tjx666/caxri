@@ -1,6 +1,7 @@
 import type { ServerEvent } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../i18n';
 import {
     botSessionMarker,
     inputTakeBackNotice,
@@ -66,13 +67,15 @@ describe('isBotManagedSessionsEvent', () => {
 
 describe('inputTakeBackNotice', () => {
     it('names the Session typing took back and offers to hand it back', () => {
-        expect(inputTakeBackNotice({ sessionId: 'session-1' }, 'Fix login')).toEqual({
+        expect(inputTakeBackNotice({ sessionId: 'session-1' }, 'Fix login', translate)).toEqual({
             message: 'Took Fix login back from Caxri Bot',
             action: { id: 'caxriBot.handBack', params: { sessionId: 'session-1' } },
         });
-        expect(inputTakeBackNotice({ sessionId: 'session-2' }, undefined)).toMatchObject({
-            message: 'Took a Session back from Caxri Bot',
-            action: { params: { sessionId: 'session-2' } },
-        });
+        expect(inputTakeBackNotice({ sessionId: 'session-2' }, undefined, translate)).toMatchObject(
+            {
+                message: 'Took a Session back from Caxri Bot',
+                action: { params: { sessionId: 'session-2' } },
+            },
+        );
     });
 });

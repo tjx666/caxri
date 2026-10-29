@@ -1,7 +1,6 @@
 import { once } from 'es-toolkit';
 
 import type { Translate, TranslationKey } from '../../i18n';
-import { translate } from '../../i18n';
 import { statusBar as englishStatusBar } from '../../i18n/locales/en/status-bar';
 import { viewContainersExtensionText as englishExtensionText } from '../../i18n/locales/en/view-containers-extension-text';
 
@@ -109,7 +108,7 @@ export function extensionTextKey(text: string): TranslationKey | undefined {
 /**
  * Translates one extension sentence; returns it unchanged when no catalog entry matches.
  */
-export function localizeExtensionText(text: string, t: Translate = translate): string {
+export function localizeExtensionText(text: string, t: Translate): string {
     const { exact, templates } = textIndex();
     const exactKey = exact.get(text);
     if (exactKey) return t(exactKey);
@@ -127,7 +126,7 @@ export function localizeExtensionText(text: string, t: Translate = translate): s
  * Translates a hover sentence the extension composed from several parts (`main · tracking origin/main · 2 ahead`). The
  * whole string is tried first; otherwise each part is. A part that matches nothing (the branch name) stays as sent.
  */
-export function localizeExtensionParts(text: string, t: Translate = translate): string {
+export function localizeExtensionParts(text: string, t: Translate): string {
     const whole = localizeExtensionText(text, t);
     if (whole !== text) return whole;
     return text

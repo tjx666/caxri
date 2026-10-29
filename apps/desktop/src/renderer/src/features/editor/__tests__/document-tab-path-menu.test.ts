@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../../lib/caxri', () => ({ caxri: { request: vi.fn() } }));
 
+import { translate } from '../../../i18n';
 import { serializeContextMenu } from '../../../lib/context-menu';
 import { useEnvironmentStore } from '../../../stores/environment';
 import { documentTabPathMenu } from '../document-tab-path-menu';
@@ -37,20 +38,26 @@ describe('documentTabPathMenu', () => {
         clipboard.writeText = writeText;
 
         await item(
-            documentTabPathMenu({
-                resolution: { absolutePath: '/project/src/notes.ts', relativeRoot: '/project' },
-                unavailableReason: 'unavailable',
-            }),
+            documentTabPathMenu(
+                {
+                    resolution: { absolutePath: '/project/src/notes.ts', relativeRoot: '/project' },
+                    unavailableReason: 'unavailable',
+                },
+                translate,
+            ),
             'Copy Name',
         )?.run?.();
         expect(writeText).toHaveBeenLastCalledWith('notes.ts');
 
         await item(
-            documentTabPathMenu({
-                resolution: { absolutePath: '/outside/guide.md' },
-                unavailableReason: 'unavailable',
-                externalDocumentId: 'external-1',
-            }),
+            documentTabPathMenu(
+                {
+                    resolution: { absolutePath: '/outside/guide.md' },
+                    unavailableReason: 'unavailable',
+                    externalDocumentId: 'external-1',
+                },
+                translate,
+            ),
             'Copy Name',
         )?.run?.();
         expect(writeText).toHaveBeenLastCalledWith('guide.md');
@@ -58,7 +65,8 @@ describe('documentTabPathMenu', () => {
 
     it('disables Copy Name while the path is unresolved', () => {
         expect(
-            item(documentTabPathMenu({ unavailableReason: 'unavailable' }), 'Copy Name')?.enabled,
+            item(documentTabPathMenu({ unavailableReason: 'unavailable' }, translate), 'Copy Name')
+                ?.enabled,
         ).toBe(false);
     });
 });

@@ -8,7 +8,6 @@ import type {
 
 import type { StructuredTooltipData } from '../../components/structured-tooltip';
 import type { Translate, TranslationKey } from '../../i18n';
-import { translate } from '../../i18n';
 
 /**
  * How the chip names each source, in the wording a reader needs to decide how much to trust it: a pull request states
@@ -60,10 +59,7 @@ function moreReports(count: number, t: Translate): string {
  * The id is deliberately never shown. It is an opaque UUID that tells a reader nothing, and it names a private
  * acceptance record: the identifier that earns the Linear chip its place has no counterpart here.
  */
-export function acceptanceChipLabel(
-    acceptance: ProjectStatusAcceptance,
-    t: Translate = translate,
-): string {
+export function acceptanceChipLabel(acceptance: ProjectStatusAcceptance, t: Translate): string {
     if (acceptance.state === 'unknown') return t('common.unknown');
     if (acceptance.totalChecks !== undefined && acceptance.passedChecks !== undefined)
         return `${acceptance.passedChecks}/${acceptance.totalChecks}`;
@@ -77,8 +73,8 @@ export function acceptanceChipLabel(
  */
 export function acceptanceAriaLabel(
     acceptance: ProjectStatusOverviewAcceptance,
-    extraCount = 0,
-    t: Translate = translate,
+    extraCount: number,
+    t: Translate,
 ): string {
     return [
         t(acceptance.url ? 'statusBar.acceptance.openReport' : 'statusBar.acceptance.report'),
@@ -107,8 +103,8 @@ export function acceptanceAriaLabel(
  */
 export function acceptanceTooltip(
     acceptance: ProjectStatusOverviewAcceptance,
-    extra: readonly ProjectStatusOverviewAcceptance[] = [],
-    t: Translate = translate,
+    extra: readonly ProjectStatusOverviewAcceptance[],
+    t: Translate,
 ): StructuredTooltipData {
     const round =
         acceptance.round === undefined

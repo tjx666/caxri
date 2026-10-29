@@ -87,7 +87,7 @@ export function BenchmarkHistory({
                                 <span className="truncate tabular-nums">
                                     {t('benchmark.history.meta', {
                                         configs: run.entries.length,
-                                        date: formatDate(run.createdAt),
+                                        date: formatDate(run.createdAt, t.locale),
                                     })}
                                 </span>
                             </span>

@@ -3,7 +3,6 @@
  * that opens it. The viewer side lives in `pdf-document.ts` and the React state in `use-pdf-find.ts`.
  */
 import type { Translate } from '../../i18n';
-import { translate } from '../../i18n';
 
 /**
  * What the find controller last reported. `current` is 1-based and is 0 only while `total` is 0.
@@ -59,11 +58,7 @@ export function pdfFindEvent(query: string, step: PdfFindStep): PdfFindEvent {
  * The count beside the query: empty before a query is typed and while the first results are still coming in, then
  * `3/12`, or "No results" once the whole document was searched.
  */
-export function pdfFindCountLabel(
-    query: string,
-    result: PdfFindResult,
-    t: Translate = translate,
-): string {
+export function pdfFindCountLabel(query: string, result: PdfFindResult, t: Translate): string {
     if (!query) return '';
     if (result.total === 0) return result.isPending ? '' : t('preview.pdf.findNoResults');
     return `${result.current}/${result.total}`;

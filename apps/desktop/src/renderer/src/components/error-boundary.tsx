@@ -153,7 +153,11 @@ export class ErrorBoundary extends Component<ErrorBoundaryProperties, ErrorBound
         if (!this.state.hasError) return this.props.children;
         const { componentStack, copyStatus, error } = this.state;
         const message = error === undefined ? '' : describeThrown(error);
-        const copyLabel = copyButtonLabel(copyStatus, translate('core.errorBoundary.copyDetails'));
+        const copyLabel = copyButtonLabel(
+            copyStatus,
+            translate('core.errorBoundary.copyDetails'),
+            translate,
+        );
         return (
             <main className="renderer-crash-screen flex h-screen w-screen flex-col items-center justify-center gap-3 bg-background px-6 text-foreground">
                 <div className="flex w-full max-w-2xl min-w-0 flex-col gap-3">

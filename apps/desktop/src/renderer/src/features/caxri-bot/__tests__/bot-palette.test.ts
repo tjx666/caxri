@@ -31,6 +31,7 @@ vi.mock('../bot-data-commands', async (importOriginal) => ({
 }));
 
 import type { Translate } from '../../../i18n';
+import { withLocale } from '../../../i18n';
 import { caxriBot as enCaxriBot } from '../../../i18n/locales/en/caxri-bot';
 import { terminal as enTerminal } from '../../../i18n/locales/en/terminal';
 import { useDialogStore } from '../../../stores/dialogs';
@@ -50,10 +51,11 @@ const english: Readonly<Record<string, string>> = {
     ...enTerminal,
     ...enCaxriBot,
 };
-const t: Translate = (key, parameters) =>
+const t: Translate = withLocale((key, parameters) =>
     (english[key] ?? key).replaceAll(/\{\{(\w+)\}\}/g, (_, name: string) =>
         String(parameters?.[name] ?? ''),
-    );
+    ),
+);
 
 const context: BotPaletteContext = {
     agent: 'codex',

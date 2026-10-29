@@ -2,7 +2,6 @@ import { filePreviewExtension } from '@caxri/protocol';
 import Papa from 'papaparse';
 
 import type { Translate } from '../../i18n';
-import { translate } from '../../i18n';
 import { formatCount } from '../../lib/locale-format';
 
 /**
@@ -113,11 +112,7 @@ function columnLabel(value: string | undefined, index: number, t: Translate): st
  * Parse. A malformed record (an unclosed quote, say) is reported as an issue rather than thrown: the reader still sees
  * every record the parser could recover, the way a spreadsheet opens a damaged file.
  */
-export function parseDelimitedTable(
-    source: string,
-    path: string,
-    t: Translate = translate,
-): DelimitedTable {
+export function parseDelimitedTable(source: string, path: string, t: Translate): DelimitedTable {
     const result = Papa.parse<string[]>(source, {
         delimiter: delimiterFor(path),
         // The header plus one record past the bound, so the view can tell a full table from a truncated one.
@@ -178,13 +173,13 @@ export function parseDelimitedTable(
 
 function rowsLabel(count: number, t: Translate): string {
     return t(count === 1 ? 'preview.table.rowsOne' : 'preview.table.rowsOther', {
-        count: formatCount(count),
+        count: formatCount(count, t.locale),
     });
 }
 
 function columnsLabel(count: number, t: Translate): string {
     return t(count === 1 ? 'preview.table.columnsOne' : 'preview.table.columnsOther', {
-        count: formatCount(count),
+        count: formatCount(count, t.locale),
     });
 }
 
@@ -195,14 +190,14 @@ function columnsLabel(count: number, t: Translate): string {
  */
 export function describeTableSize(
     table: DelimitedTable,
-    t: Translate = translate,
+    t: Translate,
     visibleRows: number = table.rows.length,
 ): string {
     const rows =
         visibleRows === table.rows.length
             ? rowsLabel(table.rows.length, t)
             : t('preview.table.filteredRows', {
-                  visible: formatCount(visibleRows),
+                  visible: formatCount(visibleRows, t.locale),
                   total: rowsLabel(table.rows.length, t),
               });
     return `${rows} × ${columnsLabel(table.header.length, t)}`;
@@ -211,10 +206,7 @@ export function describeTableSize(
 /**
  * The warning-bar sentence when parsing stopped at a bound, so the reader knows the table is not the whole file.
  */
-export function describeTableLimits(
-    table: DelimitedTable,
-    t: Translate = translate,
-): string | undefined {
+export function describeTableLimits(table: DelimitedTable, t: Translate): string | undefined {
     const rows = rowsLabel(MAX_TABLE_ROWS, t);
     const columns = columnsLabel(MAX_TABLE_COLUMNS, t);
     if (table.truncatedRows && table.truncatedColumns)
@@ -271,21 +263,18 @@ export function isCellClipped(value: string, columnWidth: number): boolean {
  * The warning above the table when the parser had to recover, naming the first issue so the reader knows where to look
  * in the source.
  */
-export function describeTableIssues(
-    table: DelimitedTable,
-    t: Translate = translate,
-): string | undefined {
+export function describeTableIssues(table: DelimitedTable, t: Translate): string | undefined {
     const first = table.issues.at(0);
     if (!first) return undefined;
     const location =
         first.row === undefined
             ? ''
-            : t('preview.table.issueLocation', { row: formatCount(first.row) });
+            : t('preview.table.issueLocation', { row: formatCount(first.row, t.locale) });
     const moreCount = table.issueCount - 1;
     const more =
         moreCount > 0
             ? t(moreCount === 1 ? 'preview.table.moreIssuesOne' : 'preview.table.moreIssuesOther', {
-                  count: formatCount(moreCount),
+                  count: formatCount(moreCount, t.locale),
               })
             : '';
     // Papa Parse's own message stays English: it is the parser's diagnostic, quoted as-is.

@@ -130,7 +130,7 @@ function ActiveFileBlame({
                             // attribute would, so the three-line author/sha/subject summary needs
                             // an explicit `whitespace-pre-line` wrapper to keep its line breaks.
                             <span className="whitespace-pre-line">
-                                {`${blame.author} · ${formatDateTime(blame.authoredAt)}\n${blame.sha}\n${blame.subject}`}
+                                {`${blame.author} · ${formatDateTime(blame.authoredAt, t.locale)}\n${blame.sha}\n${blame.subject}`}
                             </span>
                         )
                     }

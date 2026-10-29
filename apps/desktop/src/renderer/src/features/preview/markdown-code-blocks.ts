@@ -46,7 +46,7 @@ function attachCopyButton(element: HTMLElement, code: string, signal: AbortSigna
     const copy = async (): Promise<void> => {
         const status = await writeToClipboardWithFeedback(textClipboard, code);
         button.innerHTML = status === 'copied' ? CHECK_GLYPH : COPY_GLYPH;
-        button.title = copyButtonLabel(status, translate('common.copy'));
+        button.title = copyButtonLabel(status, translate('common.copy'), translate);
         button.dataset.state = status;
         clearTimeout(state.reset);
         state.reset = setTimeout(() => {

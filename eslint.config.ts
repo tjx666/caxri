@@ -665,7 +665,7 @@ export default defineConfig(
     {
         files: [
             'apps/desktop/src/renderer/src/**/*.{ts,tsx}',
-            'scripts/fixtures/eslint/no-render-translate/**/*.tsx',
+            'scripts/fixtures/eslint/no-render-translate/**/*.{ts,tsx}',
         ],
         ignores: ['**/__tests__/**', '**/*.test.{ts,tsx}'],
         plugins: {

@@ -1,6 +1,7 @@
 import type { ProjectStatusOverviewAcceptance } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../i18n';
 import { acceptanceAriaLabel, acceptanceChipLabel, acceptanceTooltip } from '../acceptance-label';
 
 const ID = 'a1b2c3d4-5e6f-4a7b-8c9d-0e1f2a3b4c5d';
@@ -16,25 +17,38 @@ describe('acceptance chip label', () => {
         expect(
             acceptanceChipLabel(
                 acceptance({ passedChecks: 11, totalChecks: 12, status: 'delivered' }),
+                translate,
             ),
         ).toBe('11/12');
     });
 
     it('falls back to the lifecycle word when no round has produced a tally', () => {
-        expect(acceptanceChipLabel(acceptance({ status: 'verifying' }))).toBe('Verifying');
-        expect(acceptanceChipLabel(acceptance({ status: 'delivered' }))).toBe('Awaiting review');
+        expect(acceptanceChipLabel(acceptance({ status: 'verifying' }), translate)).toBe(
+            'Verifying',
+        );
+        expect(acceptanceChipLabel(acceptance({ status: 'delivered' }), translate)).toBe(
+            'Awaiting review',
+        );
     });
 
     it('says the report could not be read rather than naming the bare noun', () => {
-        expect(acceptanceChipLabel(acceptance({ state: 'unknown' }))).toBe('Unknown');
+        expect(acceptanceChipLabel(acceptance({ state: 'unknown' }), translate)).toBe('Unknown');
     });
 
     it('never prints the report id, which names a private record and tells a reader nothing', () => {
         for (const value of [
-            acceptanceChipLabel(acceptance({ status: 'accepted' })),
-            acceptanceAriaLabel(acceptance({ status: 'accepted', title: 'Fix the diff' })),
+            acceptanceChipLabel(acceptance({ status: 'accepted' }), translate),
+            acceptanceAriaLabel(
+                acceptance({ status: 'accepted', title: 'Fix the diff' }),
+                0,
+                translate,
+            ),
             JSON.stringify(
-                acceptanceTooltip(acceptance({ status: 'accepted', title: 'Fix the diff' })),
+                acceptanceTooltip(
+                    acceptance({ status: 'accepted', title: 'Fix the diff' }),
+                    [],
+                    translate,
+                ),
             ),
         ])
             expect(value).not.toContain(ID);
@@ -54,6 +68,8 @@ describe('acceptance chip accessible name', () => {
                     passedChecks: 11,
                     totalChecks: 12,
                 }),
+                0,
+                translate,
             ),
         ).toBe(
             'Open acceptance report, Recover a stalled diff, Round 2, Awaiting review, Checks passed, 11 of 12 checks passed, From the pull request description',
@@ -61,7 +77,7 @@ describe('acceptance chip accessible name', () => {
     });
 
     it('does not promise a destination a link without a URL cannot offer, and counts the rest', () => {
-        expect(acceptanceAriaLabel(acceptance({ status: 'verifying' }), 2)).toBe(
+        expect(acceptanceAriaLabel(acceptance({ status: 'verifying' }), 2, translate)).toBe(
             'Acceptance report, Verifying, From the pull request description, 2 more reports',
         );
     });
@@ -72,6 +88,8 @@ describe('acceptance hover card', () => {
         expect(
             acceptanceTooltip(
                 acceptance({ title: 'Recover a stalled diff', round: 2, status: 'repairing' }),
+                [],
+                translate,
             ),
         ).toEqual({
             eyebrow: 'Acceptance report',
@@ -86,6 +104,8 @@ describe('acceptance hover card', () => {
         expect(
             acceptanceTooltip(
                 acceptance({ roundCount: 3, status: 'accepted', url: 'https://example.com/a' }),
+                [],
+                translate,
             ),
         ).toEqual({
             eyebrow: undefined,
@@ -98,8 +118,11 @@ describe('acceptance hover card', () => {
 
     it('names the source and counts the reports it is leading', () => {
         expect(
-            acceptanceTooltip(acceptance({ source: 'conversation' }), [acceptance(), acceptance()])
-                .notes,
+            acceptanceTooltip(
+                acceptance({ source: 'conversation' }),
+                [acceptance(), acceptance()],
+                translate,
+            ).notes,
         ).toEqual(['From this conversation', 'Also referenced: 2 more reports']);
     });
 });

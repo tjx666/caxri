@@ -3,6 +3,7 @@ import { interpolate } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import type { Translate } from '../../../i18n';
+import { withLocale } from '../../../i18n';
 import { viewContainersExtensionText } from '../../../i18n/locales/en/view-containers-extension-text';
 import { localeDictionaries } from '../../../i18n/resources';
 import { extensionTextKey, localizeExtensionParts, localizeExtensionText } from '../extension-text';
@@ -13,10 +14,13 @@ import {
     localizeSourceControlModel,
 } from '../source-control/source-control-model-text';
 
-const zh: Translate = (key, parameters) =>
-    interpolate(localeDictionaries['zh-CN'][key] ?? key, parameters);
-const en: Translate = (key, parameters) =>
-    interpolate(localeDictionaries.en[key] ?? key, parameters);
+const zh: Translate = withLocale(
+    (key, parameters) => interpolate(localeDictionaries['zh-CN'][key] ?? key, parameters),
+    'zh-CN',
+);
+const en: Translate = withLocale((key, parameters) =>
+    interpolate(localeDictionaries.en[key] ?? key, parameters),
+);
 
 /**
  * Fills each placeholder with a sample (digits for numeric ones) so a template can be matched against its own rendered

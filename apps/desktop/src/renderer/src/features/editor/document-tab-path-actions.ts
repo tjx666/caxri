@@ -8,7 +8,6 @@ import {
 } from '@caxri/protocol';
 
 import type { Translate } from '../../i18n';
-import { translate } from '../../i18n';
 import { relativePathRoot } from '../../lib/copy-file-path';
 import { resolveRepositoryFilePath as resolveRepoFilePath } from '../../lib/repository-file-path';
 
@@ -31,7 +30,7 @@ export function editorTabActionsPath(tab: PaneTab | undefined): string | undefin
 export function documentTabPathMenuState(
     path: string,
     query: { isError: boolean; isPending: boolean },
-    t: Translate = translate,
+    t: Translate,
 ): { externalDocumentId?: string; showMenu: boolean; unavailableReason: string } {
     const external = parseExternalEditorTab(path);
     const diff = parseGitDiffTab(path);

@@ -1,5 +1,4 @@
 import type { Translate } from '../../../i18n';
-import { translate } from '../../../i18n';
 
 /**
  * File rows a multi-file turn card lists before the rest fold behind a `Show N more files` row, as the Codex app's card
@@ -26,10 +25,7 @@ export function agentChatVisibleEditedFiles<T>(
 /**
  * `Show 2 more files` under a folded list, or `Show fewer files` once it is unfolded.
  */
-export function agentChatLocalizedFileListToggle(
-    hiddenCount: number,
-    t: Translate = translate,
-): string {
+export function agentChatLocalizedFileListToggle(hiddenCount: number, t: Translate): string {
     if (hiddenCount === 0) return t('agentChat.changes.showFewerFiles');
     return t(
         hiddenCount === 1

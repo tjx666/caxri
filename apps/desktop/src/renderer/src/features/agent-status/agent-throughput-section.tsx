@@ -36,8 +36,8 @@ import {
 
 const CHART_HEIGHT = 128;
 
-function rateValue(rate: number | undefined): string | undefined {
-    return rate === undefined ? undefined : formatThroughputRate(rate);
+function rateValue(rate: number | undefined, t: Translate): string | undefined {
+    return rate === undefined ? undefined : formatThroughputRate(rate, t.locale);
 }
 
 /**
@@ -64,7 +64,9 @@ function ThroughputChart({
     const averageLabel =
         average === undefined
             ? undefined
-            : t('agentStatus.throughput.averageLine', { rate: formatThroughputRate(average) });
+            : t('agentStatus.throughput.averageLine', {
+                  rate: formatThroughputRate(average, t.locale),
+              });
     return (
         <>
             <div className="flex gap-2">
@@ -73,7 +75,7 @@ function ThroughputChart({
                     className="flex flex-none flex-col justify-between text-right text-[11px] text-muted tabular-nums"
                     style={{ height: CHART_HEIGHT }}
                 >
-                    <span>{formatThroughputRate(max)}</span>
+                    <span>{formatThroughputRate(max, t.locale)}</span>
                     <span>0</span>
                 </div>
                 <div
@@ -170,9 +172,9 @@ const BY_MODEL_COLUMNS: readonly ByModelColumn[] = [
         isNumeric: true,
         width: 'w-24',
         cellClassName: () => numericCellClass,
-        value: (variant) => {
+        value: (variant, t) => {
             const rate = throughputRate(variant);
-            return rate === undefined ? '—' : formatThroughputRate(rate);
+            return rate === undefined ? '—' : formatThroughputRate(rate, t.locale);
         },
     },
     {
@@ -180,14 +182,14 @@ const BY_MODEL_COLUMNS: readonly ByModelColumn[] = [
         isNumeric: true,
         width: 'w-24',
         cellClassName: () => numericCellClass,
-        value: (variant) => formatCount(variant.responseCount),
+        value: (variant, t) => formatCount(variant.responseCount, t.locale),
     },
     {
         key: 'tokens',
         isNumeric: true,
         width: 'w-28',
         cellClassName: () => numericCellClass,
-        value: (variant) => formatCount(variant.outputTokens),
+        value: (variant, t) => formatCount(variant.outputTokens, t.locale),
     },
 ];
 
@@ -288,12 +290,12 @@ export function AgentThroughputSection({
                 <div className="grid grid-cols-2 gap-2 @xl:grid-cols-3 @4xl:grid-cols-5">
                     <StatTile
                         label={t('agentStatus.throughput.recentAverage')}
-                        value={rateValue(recent)}
+                        value={rateValue(recent, t)}
                         detail={recentAverageLabel(throughput.recent.responseCount, t)}
                     />
                     <StatTile
                         label={t('agentStatus.throughput.lastResponse')}
-                        value={rateValue(throughputRate(state.latest))}
+                        value={rateValue(throughputRate(state.latest), t)}
                         detail={
                             <>
                                 {describeThroughputSample(state.latest, t)}
@@ -305,7 +307,7 @@ export function AgentThroughputSection({
                     />
                     <StatTile
                         label={t('agentStatus.throughput.thisTurn')}
-                        value={rateValue(throughputRate(throughput.turn))}
+                        value={rateValue(throughputRate(throughput.turn), t)}
                         detail={
                             throughput.turn.responseCount > 0
                                 ? describeThroughputAggregate(throughput.turn, t)
@@ -327,7 +329,7 @@ export function AgentThroughputSection({
                     />
                     <StatTile
                         label={t('agentStatus.throughput.agentSession')}
-                        value={rateValue(throughputRate(throughput.session))}
+                        value={rateValue(throughputRate(throughput.session), t)}
                         detail={describeThroughputAggregate(throughput.session, t)}
                     />
                 </div>

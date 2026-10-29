@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../../i18n';
 import { controlledViewQueryKey } from '../../view-operation-client';
 import type { PendingFileOperation } from '../file-operation-state';
 import {
@@ -184,74 +185,106 @@ describe('Resource Explorer state', () => {
 
     it('explains where a trusted workspace symlink points', () => {
         expect(
-            fileTreeRowTooltip({
-                kind: 'symlink',
-                linkKind: 'directory',
-                linkTarget: '../../example/.agents/skills/acceptance',
-                path: '/project/.agents/skills/acceptance',
-            }),
+            fileTreeRowTooltip(
+                {
+                    kind: 'symlink',
+                    linkKind: 'directory',
+                    linkTarget: '../../example/.agents/skills/acceptance',
+                    path: '/project/.agents/skills/acceptance',
+                },
+                undefined,
+                translate,
+            ),
         ).toBe(
             '/project/.agents/skills/acceptance → ../../example/.agents/skills/acceptance (symlink)',
         );
         expect(
-            fileTreeRowTooltip({
-                kind: 'symlink',
-                linkKind: 'broken',
-                linkTarget: './missing',
-                path: '/project/stale',
-            }),
+            fileTreeRowTooltip(
+                {
+                    kind: 'symlink',
+                    linkKind: 'broken',
+                    linkTarget: './missing',
+                    path: '/project/stale',
+                },
+                undefined,
+                translate,
+            ),
         ).toContain('(broken symlink)');
-        expect(fileTreeRowTooltip({ kind: 'symlink', path: '/project/stale' })).toBe(
-            '/project/stale (symlink)',
-        );
+        expect(
+            fileTreeRowTooltip({ kind: 'symlink', path: '/project/stale' }, undefined, translate),
+        ).toBe('/project/stale (symlink)');
     });
 
     it('tells a screen reader the same link facts the tooltip shows', () => {
         expect(
-            symlinkRowDescription({ linkKind: 'directory', linkTarget: '../shared/skills' }),
+            symlinkRowDescription(
+                { linkKind: 'directory', linkTarget: '../shared/skills' },
+                translate,
+            ),
         ).toBe('Symlink to ../shared/skills.');
-        expect(symlinkRowDescription({ linkKind: 'broken', linkTarget: './missing' })).toBe(
-            'Symlink to ./missing, which does not resolve.',
-        );
-        expect(symlinkRowDescription({})).toBe('Symlink.');
+        expect(
+            symlinkRowDescription({ linkKind: 'broken', linkTarget: './missing' }, translate),
+        ).toBe('Symlink to ./missing, which does not resolve.');
+        expect(symlinkRowDescription({}, translate)).toBe('Symlink.');
     });
 
     it('shows the path plus the Git-ignored qualifier for an ordinary row', () => {
-        expect(fileTreeRowTooltip({ kind: 'file', path: '/project/a.ts' })).toBe('/project/a.ts');
         expect(
-            fileTreeRowTooltip({
-                gitIgnored: true,
-                kind: 'directory',
-                path: '/project/out',
-            }),
+            fileTreeRowTooltip({ kind: 'file', path: '/project/a.ts' }, undefined, translate),
+        ).toBe('/project/a.ts');
+        expect(
+            fileTreeRowTooltip(
+                {
+                    gitIgnored: true,
+                    kind: 'directory',
+                    path: '/project/out',
+                },
+                undefined,
+                translate,
+            ),
         ).toBe('/project/out (Git ignored)');
     });
 
     it('names a child repository in the tooltip, alongside any other qualifier', () => {
         expect(
-            fileTreeRowTooltip({ kind: 'directory', path: '/project/example' }, 'submodule'),
+            fileTreeRowTooltip(
+                { kind: 'directory', path: '/project/example' },
+                'submodule',
+                translate,
+            ),
         ).toBe('/project/example (Git submodule)');
-        expect(fileTreeRowTooltip({ kind: 'directory', path: '/project/vendor' }, 'nested')).toBe(
-            '/project/vendor (nested Git repository)',
-        );
+        expect(
+            fileTreeRowTooltip({ kind: 'directory', path: '/project/vendor' }, 'nested', translate),
+        ).toBe('/project/vendor (nested Git repository)');
         expect(
             fileTreeRowTooltip(
                 { gitIgnored: true, kind: 'directory', path: '/project/vendor' },
                 'nested',
+                translate,
             ),
         ).toBe('/project/vendor (nested Git repository, Git ignored)');
     });
 
     it('speaks only what the row name cannot say, and stays empty for a plain row', () => {
-        expect(fileTreeRowDescription({ kind: 'file' }, undefined, undefined)).toBe('');
+        expect(fileTreeRowDescription({ kind: 'file' }, undefined, undefined, translate)).toBe('');
         expect(
-            fileTreeRowDescription({ kind: 'directory' }, 'submodule', {
-                kind: 'modified',
-                letter: 'M',
-            }),
+            fileTreeRowDescription(
+                { kind: 'directory' },
+                'submodule',
+                {
+                    kind: 'modified',
+                    letter: 'M',
+                },
+                translate,
+            ),
         ).toBe('Git submodule. Git: modified.');
         expect(
-            fileTreeRowDescription({ kind: 'symlink', linkKind: 'directory' }, 'nested', undefined),
+            fileTreeRowDescription(
+                { kind: 'symlink', linkKind: 'directory' },
+                'nested',
+                undefined,
+                translate,
+            ),
         ).toBe('Symlink. Nested Git repository.');
     });
 

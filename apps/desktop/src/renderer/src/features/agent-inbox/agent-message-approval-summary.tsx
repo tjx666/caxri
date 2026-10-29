@@ -45,7 +45,7 @@ export function AgentMessageApprovalSummary({
             </dt>
             <dd className="m-0">
                 <time dateTime={new Date(message.expiresAt).toISOString()}>
-                    {heldMessageDeadlineLabel(message.expiresAt)}
+                    {heldMessageDeadlineLabel(message.expiresAt, t.locale)}
                 </time>
             </dd>
         </dl>

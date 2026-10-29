@@ -2,7 +2,6 @@ import type { ProjectStatusOverview, PullRequestUnavailable } from '@caxri/proto
 
 import type { StructuredTooltipData } from '../../components/structured-tooltip';
 import type { Translate } from '../../i18n';
-import { translate } from '../../i18n';
 import { formatTime } from '../../lib/locale-format';
 import { pullRequestChecksPresentation } from '../primary-sidebar/session-pull-request';
 
@@ -24,7 +23,7 @@ type OverviewPullRequest = NonNullable<
  */
 export function pullRequestUnavailableLabel(
     reason: PullRequestUnavailable['reason'],
-    t: Translate = translate,
+    t: Translate,
 ): string {
     return t(`statusBar.pullRequest.unavailable.${reason}`);
 }
@@ -57,12 +56,14 @@ export function pullRequestRecoveryCommand(
  */
 export function pullRequestUnavailableHint(
     unavailable: Pick<PullRequestUnavailable, 'reason' | 'retryAt'>,
-    t: Translate = translate,
+    t: Translate,
     now: number = Date.now(),
 ): string {
     const { reason, retryAt } = unavailable;
     if (reason === 'rate-limited' && retryAt !== undefined && retryAt > now)
-        return t('statusBar.pullRequest.hint.rate-limitedUntil', { time: formatTime(retryAt) });
+        return t('statusBar.pullRequest.hint.rate-limitedUntil', {
+            time: formatTime(retryAt, {}, t.locale),
+        });
     const command = pullRequestRecoveryCommand(reason);
     return command
         ? t(`statusBar.pullRequest.hint.${reason}`, { command })
@@ -89,7 +90,7 @@ export function pullRequestElsewhereBranch(
 export function pullRequestAriaLabel(
     pullRequest: Pick<OverviewPullRequest, 'checks' | 'headBranch' | 'number'>,
     checkedOutBranch: string,
-    t: Translate = translate,
+    t: Translate,
 ): string {
     const branch = pullRequestElsewhereBranch(pullRequest, checkedOutBranch);
     const label = branch
@@ -109,7 +110,7 @@ export function pullRequestAriaLabel(
 export function pullRequestTooltip(
     pullRequest: OverviewPullRequest,
     checkedOutBranch: string,
-    t: Translate = translate,
+    t: Translate,
 ): StructuredTooltipData {
     const isElsewhere = pullRequestElsewhereBranch(pullRequest, checkedOutBranch) !== undefined;
     const checks = pullRequestChecksPresentation(pullRequest.checks, t);

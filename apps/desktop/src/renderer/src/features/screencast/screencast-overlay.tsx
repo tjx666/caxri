@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { getRegisteredCommand } from '../../commands/registry';
 import { leadingChordAtLastKeystroke } from '../../commands/use-command-shortcuts';
 import { ShortcutBadge } from '../../components/shortcut-badge';
+import { translate } from '../../i18n';
 import { isEditableEventTarget, isTerminalEventTarget } from '../../lib/keybindings';
 import { useWorkbenchStore } from '../../stores/workbench';
 import type { ScreencastKeyDescription } from './screencast';
@@ -41,15 +42,20 @@ function ActiveScreencastOverlay() {
             timers.add(timer);
         };
         const onKeyDown = (event: KeyboardEvent): void => {
-            const description = describeScreencastKey(event, keybindings, {
-                commandAllowsEditable: (commandId) =>
-                    getRegisteredCommand(commandId)?.allowInEditable === true,
-                editable: isEditableEventTarget(event.target),
-                // Dispatch owns the chord state machine and runs first, so a sequence is captioned once, on the
-                // keystroke that completes it, with the command that actually ran.
-                leadingChord: leadingChordAtLastKeystroke(),
-                terminalFocus: isTerminalEventTarget(event.target),
-            });
+            const description = describeScreencastKey(
+                event,
+                keybindings,
+                {
+                    commandAllowsEditable: (commandId) =>
+                        getRegisteredCommand(commandId)?.allowInEditable === true,
+                    editable: isEditableEventTarget(event.target),
+                    // Dispatch owns the chord state machine and runs first, so a sequence is captioned once, on the
+                    // keystroke that completes it, with the command that actually ran.
+                    leadingChord: leadingChordAtLastKeystroke(),
+                    terminalFocus: isTerminalEventTarget(event.target),
+                },
+                translate,
+            );
             if (!description) return;
             setKeyOverlay({ ...description, id: ++nextId.current });
             if (keyTimer.current !== undefined) clearTimeout(keyTimer.current);

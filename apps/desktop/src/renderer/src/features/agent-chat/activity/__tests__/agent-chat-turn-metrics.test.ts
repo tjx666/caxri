@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../../i18n';
 import {
     agentChatReplyMetrics,
     agentChatTurnMetrics,
@@ -55,7 +56,10 @@ describe('formatAgentChatTurnCost', () => {
 describe('agentChatReplyMetrics', () => {
     it('reads the speed and the cost, with the totals and the estimate caveat as detail lines', () => {
         expect(
-            agentChatReplyMetrics({ outputTokens: 3_210, generationMs: 52_000, costUsd: 0.4234 }),
+            agentChatReplyMetrics(
+                { outputTokens: 3_210, generationMs: 52_000, costUsd: 0.4234 },
+                translate,
+            ),
         ).toEqual({
             cost: '0.42',
             rate: '62\u{A0}tok/s',
@@ -69,14 +73,19 @@ describe('agentChatReplyMetrics', () => {
     it('shows whichever figure the turn has, and nothing for a turn that has neither', () => {
         // Too short to rate: the token count alone would not tell how fast the Agent answered.
         expect(
-            agentChatReplyMetrics({ outputTokens: 40, generationMs: 100, costUsd: 0.01 }),
+            agentChatReplyMetrics(
+                { outputTokens: 40, generationMs: 100, costUsd: 0.01 },
+                translate,
+            ),
         ).toMatchObject({ cost: '0.01', rate: undefined });
-        expect(agentChatReplyMetrics({ outputTokens: 600, generationMs: 10_000 })).toMatchObject({
+        expect(
+            agentChatReplyMetrics({ outputTokens: 600, generationMs: 10_000 }, translate),
+        ).toMatchObject({
             cost: undefined,
             rate: '60\u{A0}tok/s',
         });
         // An unpriced model's zero is not "free".
-        expect(agentChatReplyMetrics({ costUsd: 0 })).toBeUndefined();
-        expect(agentChatReplyMetrics(undefined)).toBeUndefined();
+        expect(agentChatReplyMetrics({ costUsd: 0 }, translate)).toBeUndefined();
+        expect(agentChatReplyMetrics(undefined, translate)).toBeUndefined();
     });
 });

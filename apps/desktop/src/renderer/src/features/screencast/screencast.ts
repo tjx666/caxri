@@ -64,7 +64,7 @@ export function describeScreencastKey(
     event: ScreencastKeyboardInput,
     keybindings: readonly Keybinding[],
     options: ScreencastKeyOptions,
-    t: Translate = translate,
+    t: Translate,
 ): ScreencastKeyDescription | undefined {
     if (
         isImeComposing(event) ||

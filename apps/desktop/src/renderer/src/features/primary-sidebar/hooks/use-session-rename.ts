@@ -3,7 +3,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { SessionRecord } from '@caxri/protocol';
 
 import { useLatestReference } from '../../../hooks/use-latest-reference';
-import { translate } from '../../../i18n';
+import type { TranslationKey } from '../../../i18n';
+import { translate, useTranslation } from '../../../i18n';
 import { clearSessionRenameRequest, useDialogStore } from '../../../stores/dialogs';
 import { didRenameSession } from '../../session/session-commands';
 import { sessionTitleForDisplay } from '../../session/session-title';
@@ -60,7 +61,12 @@ export function useSessionRename(
 ): SessionRenameController {
     const [renamingRowId, setRenamingRowId] = useState<string>();
     const [renameValue, setRenameValue] = useState('');
-    const [renameError, setRenameError] = useState<string>();
+    /**
+     * A translation key rather than text, so a language switch re-words an error already shown.
+     */
+    const [renameErrorKey, setRenameError] = useState<TranslationKey>();
+    const { t } = useTranslation();
+    const renameError = renameErrorKey && t(renameErrorKey);
     const [renameSuggestingSessionId, setRenameSuggestingSessionId] = useState<string>();
     /**
      * Identity of the suggestion in flight. A result applies only while this still holds the same object: Escape, a
@@ -192,7 +198,7 @@ export function useSessionRename(
         if (suggestionReference.current?.sessionId === sessionId) return;
         const decision = decideSessionRename(renameValue, renameBaselineReference.current);
         if (decision.kind === 'empty') {
-            setRenameError(translate('primarySidebar.rename.required'));
+            setRenameError('primarySidebar.rename.required');
             return;
         }
         finishRename(sessionId, true);

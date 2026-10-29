@@ -2,7 +2,6 @@ import type { TerminalRecord } from '@caxri/protocol';
 import { isChatTerminal } from '@caxri/protocol';
 
 import type { Translate } from '../../i18n';
-import { translate } from '../../i18n';
 
 /**
  * The hover title of a Terminal tab: its untruncated title, plus "(Chat)" for an Agent shown as a Chat. Only the active
@@ -14,7 +13,7 @@ import { translate } from '../../i18n';
 export function terminalTabTooltip(
     title: string,
     terminal: Pick<TerminalRecord, 'provider' | 'surface'>,
-    t: Translate = translate,
+    t: Translate,
 ): string {
     return terminal.provider && isChatTerminal(terminal)
         ? t('terminal.tab.chatTooltip', { title })

@@ -84,7 +84,9 @@ function ComponentRow({ component }: { component: AgentProviderStatusComponent }
     const percent =
         uptime?.percent === undefined
             ? undefined
-            : t('agentStatus.provider.uptime', { percent: formatUptimePercent(uptime.percent) });
+            : t('agentStatus.provider.uptime', {
+                  percent: formatUptimePercent(uptime.percent, t.locale),
+              });
     return (
         <li className="min-w-0 py-1.5 text-[12px]">
             <div className="flex min-w-0 items-center justify-between gap-3">

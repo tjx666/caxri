@@ -35,7 +35,7 @@ function runCaption(
     catalog: BenchmarkCatalog | undefined,
 ): string {
     const parts = [
-        formatDateTime(run.createdAt),
+        formatDateTime(run.createdAt, t.locale),
         run.settings.workspace.kind === 'project'
             ? t('benchmark.run.inProject', {
                   project: run.projectTitle ?? t('benchmark.run.projectGone'),

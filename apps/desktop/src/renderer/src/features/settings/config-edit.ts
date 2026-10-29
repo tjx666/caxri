@@ -1,3 +1,4 @@
+import type { AppLocale } from '@caxri/protocol';
 import type { JSONPath } from 'jsonc-parser';
 import { applyEdits, modify } from 'jsonc-parser';
 
@@ -52,6 +53,6 @@ export function mebibytesToBytes(mebibytes: number): number {
  * Names the unit of the number in the field. The stored value is a raw byte count, but the field is unit-aware and the
  * UI never says "bytes" at the user.
  */
-export function formatByteHint(bytes: number): string {
-    return `${formatCount(bytesToMebibytes(bytes))} MB`;
+export function formatByteHint(bytes: number, locale: AppLocale): string {
+    return `${formatCount(bytesToMebibytes(bytes), locale)} MB`;
 }

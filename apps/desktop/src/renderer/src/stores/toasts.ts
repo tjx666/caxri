@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 
 import { ToastCopyLabel } from '../components/toast-copy-label';
 import type { Translate, TranslationKey } from '../i18n';
-import { translate, useLocaleStore } from '../i18n';
+import { translate } from '../i18n';
 import { caxri } from '../lib/caxri';
 import type { NotificationType } from './notifications';
 import {
@@ -326,11 +326,7 @@ export interface FailureNotice {
  * @param t Components and hooks pass the `t` from `useTranslation()`; the `translate` default serves event handlers and
  *   stores, whose result is used immediately and never cached across a language switch.
  */
-export function describeFailureNotice(
-    error: unknown,
-    label: string,
-    t: Translate = translate,
-): FailureNotice {
+export function describeFailureNotice(error: unknown, label: string, t: Translate): FailureNotice {
     const rawMessage = errorMessage(error, '');
     const errorCode = (error as { code?: unknown } | null)?.code;
     const knownReason =
@@ -344,7 +340,7 @@ export function describeFailureNotice(
     const fallback = t(
         isCaxriError(error) ? caxriErrorReasons[error.code] : 'toasts.failure.couldNotComplete',
     );
-    const isServerTextShown = useLocaleStore.getState().locale === 'en';
+    const isServerTextShown = t.locale === 'en';
     let reason: string;
     let detail: string | undefined;
     if (knownReason) reason = t(knownReason);
@@ -377,8 +373,15 @@ export function describeFailureNotice(
 /**
  * The toast sentence of {@link describeFailureNotice}, for callers that raise their own toast without a details action.
  */
-export function describeFailure(error: unknown, label: string, t: Translate = translate): string {
+export function describeFailure(error: unknown, label: string, t: Translate): string {
     return describeFailureNotice(error, label, t).message;
+}
+
+/**
+ * {@link describeFailure} with the label given as a translation key, translated by the same `t` that words the reason.
+ */
+export function describeFailureKey(error: unknown, key: TranslationKey, t: Translate): string {
+    return describeFailure(error, t(key), t);
 }
 
 /**
@@ -420,7 +423,7 @@ export async function tryCommand<T>(
     } catch (error) {
         if (!isCancelledRequest(error)) {
             const recovery = options.recovery?.(error);
-            const notice = describeFailureNotice(error, label);
+            const notice = describeFailureNotice(error, label, translate);
             const copyDetails: ToastAction | undefined =
                 notice.detail === undefined || recovery?.id === 'diagnostics.copyFailure'
                     ? undefined

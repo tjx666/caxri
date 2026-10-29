@@ -3,7 +3,6 @@ import { useCallback, useSyncExternalStore } from 'react';
 import { notifyListeners } from '@caxri/utils';
 
 import type { Translate } from '../../i18n';
-import { translate } from '../../i18n';
 import type { TerminalGpuAcceleration, TerminalRendererStatus } from './terminal-renderer';
 
 export interface TerminalRendererIndicator {
@@ -85,8 +84,8 @@ function openHardwareAccelerationSettings(t: Translate): TerminalRendererSetting
  */
 export function terminalRendererIndicator(
     status: TerminalRendererStatus | undefined,
-    options: TerminalRendererIndicatorOptions = {},
-    t: Translate = translate,
+    options: TerminalRendererIndicatorOptions,
+    t: Translate,
 ): TerminalRendererIndicator | undefined {
     if (status?.mode !== 'dom' || status.reason === 'disposed') return undefined;
     const isBootDisabled = status.reason === 'unsupported' && options.isHardwareAccelerationOff;

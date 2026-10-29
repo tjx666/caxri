@@ -6,7 +6,6 @@ import {
 import { pathBasename } from '@caxri/utils';
 
 import type { Translate } from '../../i18n';
-import { translate } from '../../i18n';
 import type { VirtualTabPresentationOptions } from './virtual-tab-descriptors';
 import { virtualTabDescriptors } from './virtual-tab-descriptors';
 
@@ -50,7 +49,7 @@ export function documentTabPresentation(
          */
         externalDisplayPaths?: readonly string[];
     },
-    t: Translate = translate,
+    t: Translate,
 ) {
     const scheme = virtualEditorTabScheme(path);
     const external = parseExternalEditorTab(path);

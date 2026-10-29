@@ -5,6 +5,7 @@ import type { SourceControlHistoryDescriptor, SourceControlHistoryPage } from '@
 
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 
+import { useTranslation } from '../../../../i18n';
 import { describeFailure } from '../../../../stores/toasts';
 import { useSourceControlClient } from '../../controlled-view-context';
 import { useIsViewContainerActive } from '../../view-container-activity';
@@ -43,7 +44,13 @@ export function useSourceControlHistory(
         selectedId: undefined,
     });
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string>();
+    /**
+     * The raw failure and its label, not the described text: the text is derived at render with the current `t`, so a
+     * language switch re-words an error that is already on screen.
+     */
+    const [failure, setFailure] = useState<{ error: unknown; label: string }>();
+    const { t } = useTranslation();
+    const error = failure && describeFailure(failure.error, failure.label, t);
     const activeRequest = useRef<AbortController | undefined>(undefined);
     const isContainerActive = useIsViewContainerActive();
     const scopePath = debouncedPath.trim() || undefined;
@@ -56,7 +63,7 @@ export function useSourceControlHistory(
             const request = new AbortController();
             activeRequest.current = request;
             setLoading(true);
-            setError(undefined);
+            setFailure(undefined);
             // Built before the `try`: React Compiler cannot lower a conditional or logical expression inside a try/catch.
             const historyRequest = {
                 historyId: descriptor.id,
@@ -85,7 +92,7 @@ export function useSourceControlHistory(
             setLoading((current) => (isCurrentRequest ? false : current));
             if (!isCurrentRequest) return;
             if (!result.ok) {
-                setError(describeFailure(result.error, descriptor.loadErrorMessage));
+                setFailure({ error: result.error, label: descriptor.loadErrorMessage });
                 return;
             }
             if (result.page.revision !== descriptor.revision) return;

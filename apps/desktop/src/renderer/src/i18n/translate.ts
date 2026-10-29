@@ -4,14 +4,19 @@ import { interpolate } from '@caxri/protocol';
 import { useLocaleStore } from './locale-store';
 import type { TranslationKey } from './resources';
 import { localeDictionaries } from './resources';
+import type { Translate } from './use-translation';
 
 /**
  * Translates `key` into the active locale outside React. Components call `useTranslation()` instead, which re-renders
  * them when the language changes; a value computed here is a snapshot and will not update by itself, so never call this
  * at module top level.
  */
-export function translate(key: TranslationKey, parameters?: TranslationParameters): string {
+function translateNow(key: TranslationKey, parameters?: TranslationParameters): string {
     const { locale } = useLocaleStore.getState();
     const template = localeDictionaries[locale][key] ?? localeDictionaries.en[key] ?? key;
     return interpolate(template, parameters);
 }
+
+export const translate: Translate = Object.defineProperty(translateNow, 'locale', {
+    get: () => useLocaleStore.getState().locale,
+}) as Translate;

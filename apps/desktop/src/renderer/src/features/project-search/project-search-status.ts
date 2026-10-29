@@ -48,7 +48,7 @@ export function projectSearchTerminationMessage(
             ? 'projectSearch.termination.showingPartial'
             : 'projectSearch.termination.narrowSearch',
     );
-    const count = formatCount(scannedFiles);
+    const count = formatCount(scannedFiles, t.locale);
     switch (reason) {
         case 'completed':
             return;

@@ -1,6 +1,7 @@
 import type { UpdateState } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../i18n';
 import {
     canRetryUpdateCheck,
     describeUpdateChip,
@@ -86,10 +87,10 @@ describe('resolveReadyAnnouncement', () => {
         expect(resolveReadyAnnouncement(resetting)?.message).toBe(
             'Caxri 1.1.0 is ready. It clears your Projects and Sessions, so export them before restarting to update.',
         );
-        expect(describeUpdateChip(resetting, '1.1.0')?.description).toBe(
+        expect(describeUpdateChip(resetting, '1.1.0', translate)?.description).toBe(
             'Caxri 1.1.0 is ready and clears your Projects and Sessions. Click to export them and update.',
         );
-        expect(describeUpdateStatus(resetting).description).toMatch(
+        expect(describeUpdateStatus(resetting, { t: translate }).description).toMatch(
             /clears the Project and Session list.*quitting Caxri does not install it/u,
         );
     });
@@ -103,12 +104,14 @@ describe('resolveReadyAnnouncement', () => {
 
 describe('describeUpdateChip', () => {
     it('names the available release and drops it once skipped', () => {
-        expect(describeUpdateChip(available, null)?.label).toBe('Update 1.1.0');
-        expect(describeUpdateChip(available, '1.1.0')).toBeUndefined();
+        expect(describeUpdateChip(available, null, translate)?.label).toBe('Update 1.1.0');
+        expect(describeUpdateChip(available, '1.1.0', translate)).toBeUndefined();
     });
 
     it('keeps an announced release on the chip, because Close is not a skip', () => {
-        expect(describeUpdateChip({ ...available, announced: true }, null)?.kind).toBe('available');
+        expect(describeUpdateChip({ ...available, announced: true }, null, translate)?.kind).toBe(
+            'available',
+        );
     });
 
     it('reports download progress, and omits the percentage without a known total', () => {
@@ -123,6 +126,7 @@ describe('describeUpdateChip', () => {
                     totalBytes: 100,
                 },
                 null,
+                translate,
             ),
         ).toEqual({
             label: 'Updating 25%',
@@ -139,6 +143,7 @@ describe('describeUpdateChip', () => {
                     receivedBytes: 25,
                 },
                 null,
+                translate,
             )?.label,
         ).toBe('Updating…');
     });
@@ -155,6 +160,7 @@ describe('describeUpdateChip', () => {
                     message: 'net::ERR_CONNECTION_RESET',
                 },
                 null,
+                translate,
             ),
         ).toEqual({
             label: 'Update failed',
@@ -172,6 +178,7 @@ describe('describeUpdateChip', () => {
                     message: 'The disk image could not be opened.',
                 },
                 null,
+                translate,
             )?.description,
         ).toContain('could not be installed');
     });
@@ -187,6 +194,7 @@ describe('describeUpdateChip', () => {
                     message: 'GitHub is unreachable.',
                 },
                 null,
+                translate,
             ),
         ).toBeUndefined();
     });
@@ -203,14 +211,17 @@ describe('describeUpdateChip', () => {
                     totalBytes: 100,
                 },
                 '1.1.0',
+                translate,
             )?.kind,
         ).toBe('downloading');
-        expect(describeUpdateChip({ ...ready, installMode: 'manual' }, '1.1.0')).toEqual({
-            label: 'Update ready',
-            description: 'Caxri 1.1.0 is downloaded and verified. Click to continue.',
-            kind: 'ready',
-        });
-        expect(describeUpdateChip(ready, '1.1.0')).toEqual({
+        expect(describeUpdateChip({ ...ready, installMode: 'manual' }, '1.1.0', translate)).toEqual(
+            {
+                label: 'Update ready',
+                description: 'Caxri 1.1.0 is downloaded and verified. Click to continue.',
+                kind: 'ready',
+            },
+        );
+        expect(describeUpdateChip(ready, '1.1.0', translate)).toEqual({
             label: 'Restart to update',
             description: 'Caxri 1.1.0 is ready. Click to restart and finish updating.',
             kind: 'ready',
@@ -218,15 +229,15 @@ describe('describeUpdateChip', () => {
     });
 
     it('shows nothing for the transient and healthy statuses', () => {
-        expect(describeUpdateChip(undefined, null)).toBeUndefined();
+        expect(describeUpdateChip(undefined, null, translate)).toBeUndefined();
         expect(
-            describeUpdateChip({ status: 'idle', currentVersion: '1.0.0' }, null),
+            describeUpdateChip({ status: 'idle', currentVersion: '1.0.0' }, null, translate),
         ).toBeUndefined();
         expect(
-            describeUpdateChip({ status: 'checking', currentVersion: '1.0.0' }, null),
+            describeUpdateChip({ status: 'checking', currentVersion: '1.0.0' }, null, translate),
         ).toBeUndefined();
         expect(
-            describeUpdateChip({ status: 'up-to-date', currentVersion: '1.0.0' }, null),
+            describeUpdateChip({ status: 'up-to-date', currentVersion: '1.0.0' }, null, translate),
         ).toBeUndefined();
         expect(
             describeUpdateChip(
@@ -238,6 +249,7 @@ describe('describeUpdateChip', () => {
                     message: 'Nope.',
                 },
                 null,
+                translate,
             ),
         ).toBeUndefined();
     });
@@ -247,13 +259,13 @@ describe('updateRetryTimeLabel', () => {
     const noon = Date.UTC(2026, 0, 2, 12, 0, 0);
 
     it('names the clock time a paused check resumes at', () => {
-        expect(updateRetryTimeLabel(noon + 600_000, noon)).toMatch(/^\d{1,2}:\d{2}/u);
+        expect(updateRetryTimeLabel(noon + 600_000, 'en', noon)).toMatch(/^\d{1,2}:\d{2}/u);
     });
 
     it('returns nothing for a deadline that already passed or was never reported', () => {
-        expect(updateRetryTimeLabel(noon - 1, noon)).toBeUndefined();
-        expect(updateRetryTimeLabel(undefined, noon)).toBeUndefined();
-        expect(updateRetryTimeLabel(NaN, noon)).toBeUndefined();
+        expect(updateRetryTimeLabel(noon - 1, 'en', noon)).toBeUndefined();
+        expect(updateRetryTimeLabel(undefined, 'en', noon)).toBeUndefined();
+        expect(updateRetryTimeLabel(NaN, 'en', noon)).toBeUndefined();
     });
 });
 
@@ -268,30 +280,36 @@ describe('describeUpdateStatus', () => {
     const now = Date.UTC(2026, 0, 2, 12, 0, 0);
 
     it('names the resume time and says a manual check does not wait for it', () => {
-        const copy = describeUpdateStatus(rateLimited, { now });
+        const copy = describeUpdateStatus(rateLimited, { now, t: translate });
         expect(copy.title).toBe('Update checks are paused');
         expect(copy.description).toContain('Automatic checks resume after');
         expect(copy.description).toContain('without waiting');
     });
 
     it('still explains the pause when GitHub reported no deadline', () => {
-        const copy = describeUpdateStatus({ ...rateLimited, retryAt: undefined }, { now });
+        const copy = describeUpdateStatus(
+            { ...rateLimited, retryAt: undefined },
+            { now, t: translate },
+        );
         expect(copy.description).toContain('resume once the limit clears');
         expect(copy.description).toContain('without waiting');
     });
 
     it('does not promise a resume time that already passed', () => {
-        const copy = describeUpdateStatus(rateLimited, { now: rateLimited.retryAt });
+        const copy = describeUpdateStatus(rateLimited, { now: rateLimited.retryAt, t: translate });
         expect(copy.description).toContain('resume once the limit clears');
     });
 
     it('leaves a non-rate-limited unavailable state on its own reason', () => {
         expect(
-            describeUpdateStatus({
-                status: 'unavailable',
-                currentVersion: '1.0.0',
-                reason: 'Update checks are available in packaged Caxri builds.',
-            }),
+            describeUpdateStatus(
+                {
+                    status: 'unavailable',
+                    currentVersion: '1.0.0',
+                    reason: 'Update checks are available in packaged Caxri builds.',
+                },
+                { t: translate },
+            ),
         ).toEqual({
             title: 'Update checks unavailable',
             description: 'Update checks are available in packaged Caxri builds.',
@@ -299,12 +317,12 @@ describe('describeUpdateStatus', () => {
     });
 
     it('explains why a skipped release is not being offered', () => {
-        expect(describeUpdateStatus(available, { skippedVersion: '1.1.0' }).description).toContain(
-            'You skipped this version',
-        );
-        expect(describeUpdateStatus(available, { skippedVersion: null }).description).toContain(
-            'Download Caxri-1.1.0-arm64.dmg',
-        );
+        expect(
+            describeUpdateStatus(available, { skippedVersion: '1.1.0', t: translate }).description,
+        ).toContain('You skipped this version');
+        expect(
+            describeUpdateStatus(available, { skippedVersion: null, t: translate }).description,
+        ).toContain('Download Caxri-1.1.0-arm64.dmg');
     });
 });
 
@@ -422,7 +440,7 @@ describe('update failure recovery copy', () => {
             action: 'download',
             message: 'net::ERR_CONNECTION_RESET',
         };
-        const copy = describeUpdateStatus(state);
+        const copy = describeUpdateStatus(state, { t: translate });
         expect(copy.description).not.toContain('ERR_CONNECTION_RESET');
         expect(copy.description).toContain('try again');
     });
@@ -435,12 +453,12 @@ it('explains network and integrity failures separately', () => {
         action: 'download',
         message: 'internal',
     } as const;
-    expect(describeUpdateStatus({ ...base, failureKind: 'network' }).description).toContain(
-        'Check your network',
-    );
-    expect(describeUpdateStatus({ ...base, failureKind: 'integrity' }).description).toContain(
-        'was not opened',
-    );
+    expect(
+        describeUpdateStatus({ ...base, failureKind: 'network' }, { t: translate }).description,
+    ).toContain('Check your network');
+    expect(
+        describeUpdateStatus({ ...base, failureKind: 'integrity' }, { t: translate }).description,
+    ).toContain('was not opened');
 });
 
 describe('release notes', () => {

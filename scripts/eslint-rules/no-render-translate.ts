@@ -82,6 +82,25 @@ function isRenderTimeCallback(node: FunctionNode): boolean {
 }
 
 /**
+ * Whether `node` is the fallback in `t = translate` (a parameter or destructuring default) or `x.t ?? translate`: a
+ * presentation helper that quietly falls back to the global snapshot instead of requiring its caller's `t`.
+ */
+function isDefaultTranslate(node: Rule.Node, parent: LooseNode): boolean {
+    if (parent.type === 'AssignmentPattern') {
+        return (parent as unknown as { right?: unknown }).right === node;
+    }
+    if (parent.type !== 'LogicalExpression') return false;
+    const { left, operator, right } = parent as unknown as {
+        left: { name?: string; property?: { name?: string }; type: string };
+        operator: string;
+        right: unknown;
+    };
+    if (right !== node || (operator !== '??' && operator !== '||')) return false;
+    const leftName = left.type === 'Identifier' ? left.name : left.property?.name;
+    return leftName === 't';
+}
+
+/**
  * The module-level `translate()` reads the locale store once and returns a snapshot. The React Compiler memoizes a
  * component or hook by its inputs, and the locale is not an input, so a render-time `translate()` keeps the previous
  * language after a runtime language switch. Components and hooks must use the `t` from `useTranslation()`; helpers they
@@ -90,6 +109,8 @@ function isRenderTimeCallback(node: FunctionNode): boolean {
 const rule: Rule.RuleModule = {
     meta: {
         messages: {
+            defaultTranslate:
+                'Do not default a `t` parameter to the module-level `translate`: a caller that forgets to pass `t` silently renders the previous language after a runtime language switch. Make `t` required and pass `useTranslation().t` from components or `translate` from an event or store entry point.',
             renderTranslate:
                 'Do not use the module-level `translate` while rendering: React Compiler caches the result across a language switch. Use `t` from `useTranslation()` and pass it to helpers.',
         },
@@ -119,6 +140,10 @@ const rule: Rule.RuleModule = {
             Identifier(node) {
                 if (!translateBindings.has(node.name)) return;
                 const parent = (node as unknown as LooseNode).parent as LooseNode;
+                if (isDefaultTranslate(node, parent)) {
+                    context.report({ messageId: 'defaultTranslate', node });
+                    return;
+                }
                 // Declarations and non-reference positions (`obj.translate`, `{ translate: 1 }`) are not uses.
                 if (
                     parent.type === 'ImportSpecifier' ||

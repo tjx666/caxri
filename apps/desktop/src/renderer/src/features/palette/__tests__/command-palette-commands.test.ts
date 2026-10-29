@@ -4,6 +4,7 @@ import { commands as enCommands } from '@desktop-shared/i18n/en/commands';
 import { describe, expect, it } from 'vitest';
 
 import type { Translate } from '../../../i18n';
+import { withLocale } from '../../../i18n';
 import { terminal as enTerminal } from '../../../i18n/locales/en/terminal';
 import {
     botPaletteWhenContext,
@@ -297,7 +298,7 @@ describe('staticCommandSearchEntry', () => {
 
 describe('paletteCommandTitle', () => {
     const english: Readonly<Record<string, string>> = { ...enCommands, ...enTerminal };
-    const t: Translate = (key) => english[key] ?? key;
+    const t: Translate = withLocale((key) => english[key] ?? key);
     const restart = commandDefinitions.find(({ id }) => id === 'terminal.restart');
     const newFile = commandDefinitions.find(({ id }) => id === 'session.create');
     if (!restart || !newFile) throw new Error('commands are missing from the catalog');
