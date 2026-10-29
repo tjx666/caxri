@@ -10,7 +10,7 @@ import { parseGitHubPullRequest } from './parse';
  * Pure projections from GitHub CLI output to the sidebar's per-Session pull-request row.
  */
 
-function projectedChecks(
+export function projectedChecks(
     checks: ReadonlyArray<{ state: ProjectStatusState }> | undefined,
     aggregate: ProjectStatusState | undefined,
 ): ProjectStatusState | undefined {

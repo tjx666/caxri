@@ -81,6 +81,38 @@ describe('pull request status bar tooltip', () => {
     });
 });
 
+describe('pull request checks', () => {
+    const pullRequest = {
+        number: 12,
+        title: 'Add worktree hint',
+        url: 'https://github.com/example/app/pull/12',
+        source: 'branch' as const,
+    };
+
+    it('lists the rollup in the hover card with the sidebar wording', () => {
+        expect(pullRequestTooltip({ ...pullRequest, checks: 'failure' }, 'main').rows).toEqual([
+            { label: 'Checks', value: 'Checks failing' },
+        ]);
+        expect(pullRequestTooltip({ ...pullRequest, checks: 'success' }, 'main').rows).toEqual([
+            { label: 'Checks', value: 'Checks passing' },
+        ]);
+    });
+
+    it('draws no row for a missing or wordless rollup', () => {
+        expect(pullRequestTooltip(pullRequest, 'main').rows).toBeUndefined();
+        expect(
+            pullRequestTooltip({ ...pullRequest, checks: 'neutral' }, 'main').rows,
+        ).toBeUndefined();
+    });
+
+    it('says the verdict in the accessible name, since the dot is color alone', () => {
+        expect(pullRequestAriaLabel({ number: 12, checks: 'pending' }, 'main')).toBe(
+            'Open pull request #12, Checks running',
+        );
+        expect(pullRequestAriaLabel({ number: 12 }, 'main')).toBe('Open pull request #12');
+    });
+});
+
 describe('pull request on another branch', () => {
     const pullRequest = { number: 12, headBranch: 'feat/hint' };
 

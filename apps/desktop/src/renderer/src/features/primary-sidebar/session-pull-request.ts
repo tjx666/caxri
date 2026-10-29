@@ -117,6 +117,44 @@ function deployedPresentation(
     }
 }
 
+type ChecksKey = 'cancelled' | 'failing' | 'passing' | 'queued' | 'running';
+type ChecksTone = NonNullable<SessionPullRequestPresentation['checksTone']>;
+
+/**
+ * Keyed by the protocol rollup. `neutral` and `unknown` are absent on purpose: they say nothing worth a badge.
+ */
+const CHECKS_PRESENTATION: Partial<
+    Record<NonNullable<SessionPullRequest['checks']>, { key: ChecksKey; tone: ChecksTone }>
+> = {
+    cancelled: { key: 'cancelled', tone: 'neutral' },
+    failure: { key: 'failing', tone: 'danger' },
+    pending: { key: 'running', tone: 'warning' },
+    /*
+     * A row this narrow has space for one word about CI, and "waiting for a runner" and "running" are the same answer
+     * to the only question it is asked: is CI still deciding? The Status panel is where the two are drawn apart.
+     * Without this entry the fallback drops the CI state entirely, which is how a repository reporting through commit
+     * statuses (always `queued` until it concludes) lost its badge for the whole run.
+     */
+    queued: { key: 'queued', tone: 'warning' },
+    success: { key: 'passing', tone: 'success' },
+};
+
+/**
+ * How an open pull request's CI rollup reads: the locale key stem, the hover-card sentence, and the color tone. The
+ * sidebar row and the status bar chip both call this, so one rollup can never read differently in the two places.
+ * Returns `undefined` when the rollup has nothing to say.
+ */
+export function pullRequestChecksPresentation(
+    checks: SessionPullRequest['checks'],
+): { key: ChecksKey; label: string; tone: ChecksTone } | undefined {
+    const entry = checks && CHECKS_PRESENTATION[checks];
+    if (!entry) return undefined;
+    return {
+        ...entry,
+        label: translate(`primarySidebar.pullRequest.checks.${entry.key}.label`),
+    };
+}
+
 /**
  * Keeps lifecycle color independent of CI: a red open glyph was mistaken for a closed PR at sidebar size. Checks use a
  * hover-card text; terminal lifecycle states suppress stale checks. Project-level failures belong to the Status tab.
@@ -127,10 +165,6 @@ export function sessionPullRequestPresentation(
     const label = translate(`primarySidebar.pullRequest.state.${pullRequest.state}`);
     const { number } = pullRequest;
     const base = translate(`primarySidebar.pullRequest.base.${pullRequest.state}`, { number });
-    const withChecks = (checks: 'cancelled' | 'failing' | 'passing' | 'queued' | 'running') => ({
-        ariaLabel: translate(`primarySidebar.pullRequest.checks.${checks}.ariaLabel`, { base }),
-        checksLabel: translate(`primarySidebar.pullRequest.checks.${checks}.label`),
-    });
     const sentence = translate('primarySidebar.pullRequest.sentence', { base });
     switch (pullRequest.state) {
         case 'merged':
@@ -147,52 +181,20 @@ export function sessionPullRequestPresentation(
         case 'draft':
             return { ariaLabel: sentence, icon: 'draft', label, tone: 'neutral' };
         case 'open': {
-            if (pullRequest.checks === 'cancelled')
+            const checks = pullRequestChecksPresentation(pullRequest.checks);
+            if (checks)
                 return {
-                    ...withChecks('cancelled'),
+                    ariaLabel: translate(
+                        `primarySidebar.pullRequest.checks.${checks.key}.ariaLabel`,
+                        {
+                            base,
+                        },
+                    ),
+                    checksLabel: checks.label,
+                    checksTone: checks.tone,
                     icon: 'open',
                     label,
                     tone: 'success',
-                    checksTone: 'neutral',
-                };
-            if (pullRequest.checks === 'failure')
-                return {
-                    ...withChecks('failing'),
-                    icon: 'open',
-                    label,
-                    tone: 'success',
-                    checksTone: 'danger',
-                };
-            if (pullRequest.checks === 'pending')
-                return {
-                    ...withChecks('running'),
-                    icon: 'open',
-                    label,
-                    tone: 'success',
-                    checksTone: 'warning',
-                };
-            /*
-             * A row this narrow has space for one word about CI, and "waiting for a runner" and "running" are the same
-             * answer to the only question it is asked: is CI still deciding? The Status panel is where the two are
-             * drawn apart. Without this branch the fallback below drops the CI state entirely, which is how a
-             * repository reporting through commit statuses (always `queued` until it concludes) lost its badge for
-             * the whole run.
-             */
-            if (pullRequest.checks === 'queued')
-                return {
-                    ...withChecks('queued'),
-                    icon: 'open',
-                    label,
-                    tone: 'success',
-                    checksTone: 'warning',
-                };
-            if (pullRequest.checks === 'success')
-                return {
-                    ...withChecks('passing'),
-                    icon: 'open',
-                    label,
-                    tone: 'success',
-                    checksTone: 'success',
                 };
             return { ariaLabel: sentence, icon: 'open', label, tone: 'success' };
         }

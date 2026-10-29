@@ -35,7 +35,7 @@ const githubCheckSchema = z.object({
 
 export type GitHubCheck = z.infer<typeof githubCheckSchema>;
 
-export const githubPullRequestSchema = z.object({
+const githubPullRequestSchema = z.object({
     baseRefName: z.string().optional(),
     body: z.string().optional(),
     headRefName: z.string().optional(),

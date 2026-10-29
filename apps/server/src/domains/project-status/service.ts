@@ -202,17 +202,13 @@ export class ProjectStatusService {
         // Independent reads; both usually join the same in-flight transcript pass in `SessionContextService`.
         const [{ pullRequest, pullRequestBody, pullRequestUnavailable }, conversation] =
             await Promise.all([
-                (async () => {
-                    const target = await resolvePullRequestTarget(
-                        this.resolveSessionPullRequest,
-                        sessionId,
-                    );
-                    return loadOverviewPullRequest(this.github, this.logger, {
-                        github,
-                        repo,
-                        target,
-                    });
-                })(),
+                loadOverviewPullRequest(this.github, this.logger, {
+                    github,
+                    ignoredChecks: this.ignoredChecks(),
+                    repo,
+                    resolver: this.resolveSessionPullRequest,
+                    sessionId,
+                }),
                 this.readConversation(sessionId),
             ]);
         const [linearIssues, acceptances] = await Promise.all([

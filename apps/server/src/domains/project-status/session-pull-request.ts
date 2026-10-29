@@ -9,12 +9,12 @@ import { logEventCatalog } from '@caxri/system';
 import type { GitHubPullRequestStore } from '../external-status';
 import {
     isNoPullRequest,
-    parseExternalJson,
     pullRequestUnavailable as describePullRequestUnavailable,
 } from '../external-status';
-import { githubPullRequestSchema } from './parse';
+import { parseGitHubPullRequest } from './parse';
 import { pullRequestOrigin } from './session-pull-request-deployment';
 import type { SessionPullRequestResolution } from './session-pull-request-parse';
+import { projectedChecks } from './session-pull-request-parse';
 
 /**
  * Reads the pull request a Session delivers from `SessionPullRequestService`, the one owner of that answer. The sidebar
@@ -101,18 +101,29 @@ export async function loadOverviewPullRequest(
     logger: StructuredLogger,
     {
         github: remote,
+        ignoredChecks,
         repo,
-        target,
+        resolver,
+        sessionId,
     }: {
         github: { owner: string; repo: string } | undefined;
+        /**
+         * `projectStatus.ignoredChecks`, so the chip's CI state is the one the sidebar row and Status panel derive.
+         */
+        ignoredChecks: readonly string[];
         repo: { branch: string; rootPath: string };
-        target: PullRequestTarget;
+        /**
+         * The Session's pull request resolver; the loader resolves the target itself.
+         */
+        resolver: SessionPullRequestResolver | undefined;
+        sessionId: string;
     },
 ): Promise<
     Pick<OverviewRepo, 'pullRequest' | 'pullRequestUnavailable'> & {
         pullRequestBody?: string;
     }
 > {
+    const target = await resolvePullRequestTarget(resolver, sessionId);
     if (target.kind === 'none')
         return target.unavailable ? { pullRequestUnavailable: target.unavailable } : {};
     // A branch lookup needs the primary repository's own GitHub remote; the Session's pull request names its own.
@@ -129,25 +140,27 @@ export async function loadOverviewPullRequest(
                 ? { number: target.number, owner: target.owner, repo: target.repo }
                 : { branch: repo.branch, owner: remote?.owner ?? '', repo: remote?.repo ?? '' }),
         });
-        const parsed = output
-            ? parseExternalJson(output, githubPullRequestSchema, 'GitHub pull request')
-            : undefined;
+        const parsed = output ? parseGitHubPullRequest(output, ignoredChecks) : undefined;
+        const parsedPullRequest = parsed?.pullRequest;
+        const checks = projectedChecks(parsedPullRequest?.checks, parsedPullRequest?.state);
         return {
             pullRequestBody: parsed?.body,
-            ...(parsed?.number &&
-                parsed.title &&
-                parsed.url && {
-                    pullRequest: {
-                        number: parsed.number,
-                        title: parsed.title,
-                        url: parsed.url,
-                        ...(parsed.headRefName && { headBranch: parsed.headRefName }),
-                        source:
-                            target.kind === 'number' && target.source === 'agent'
-                                ? ('conversation' as const)
-                                : ('branch' as const),
-                    },
-                }),
+            ...(parsedPullRequest && {
+                pullRequest: {
+                    number: parsedPullRequest.number,
+                    title: parsedPullRequest.title,
+                    url: parsedPullRequest.url,
+                    ...(parsedPullRequest.headBranch && {
+                        headBranch: parsedPullRequest.headBranch,
+                    }),
+                    // The sidebar suppresses checks outside an open pull request; the chip follows it.
+                    ...(parsedPullRequest.lifecycle === 'open' && checks && { checks }),
+                    source:
+                        target.kind === 'number' && target.source === 'agent'
+                            ? ('conversation' as const)
+                            : ('branch' as const),
+                },
+            }),
         };
     } catch (error) {
         if (isNoPullRequest(error)) return {};

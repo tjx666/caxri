@@ -169,6 +169,8 @@ export const statusBar: TranslatedNamespace<typeof source> = {
     'statusBar.pullRequest.ariaLabel': '打开 Pull Request #{{number}}',
     'statusBar.pullRequest.ariaLabelElsewhere':
         '打开分支 {{branch}} 的 Pull Request #{{number}}（不是当前检出的分支）',
+    'statusBar.pullRequest.ariaLabelWithChecks': '{{label}}，{{checks}}',
+    'statusBar.pullRequest.checks': '检查',
     'statusBar.pullRequest.switchWorktree': '切换到 {{branch}} 的 Worktree',
     'statusBar.pullRequest.eyebrow': 'Pull Request #{{number}}',
     'statusBar.pullRequest.hint': '点击在 GitHub 上打开',
