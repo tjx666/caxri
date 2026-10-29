@@ -12,6 +12,12 @@ import type { MobileTerminalAcceptanceFixture } from './mobile-terminal-acceptan
 import { createMobileTerminalAcceptanceFixture } from './mobile-terminal-acceptance-fixture';
 import type { Environment } from './mobile-terminal-scenarios';
 import { prepareMobileTerminalFixture } from './mobile-terminal-scenarios';
+import type { FlingAttempt } from './mobile-terminal-scroll-fling';
+import {
+    classifyFlingInjection,
+    FLING_INJECTION_BUDGET_MS,
+    FLING_MAX_ATTEMPTS,
+} from './mobile-terminal-scroll-fling';
 
 type MenuState = Awaited<ReturnType<MobileTerminalAcceptanceFixture['menuState']>>;
 type DocumentInput = 'keys' | 'mouse';
@@ -42,6 +48,10 @@ interface DragMeasurement {
      */
     stepsDown: number;
     stepsUp: number;
+    /**
+     * Fling injection attempts, including discarded ones, with their wall-clock injection time.
+     */
+    injections?: FlingAttempt[];
 }
 
 const stepsOf = (state: MenuState, input: DocumentInput) =>
@@ -225,20 +235,35 @@ async function measureDocument(
 
     const flings: DragMeasurement[] = [];
     let previous = afterUp;
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-        // eslint-disable-next-line no-await-in-loop -- each flick starts from the previous settled document.
-        await fling(serial, viewport.x, at(0.3), at(0.6));
-        // eslint-disable-next-line no-await-in-loop -- the glide must end before the next flick.
-        const next = await settledState(fixture);
-        const measurement = measure(input, previous, next, at(0.6) - at(0.3), viewport);
-        expect(measurement.stepsDown).toBe(0);
-        expect(Math.abs(measurement.documentLines)).toBe(measurement.stepsUp);
-        /**
-         * Released while moving, the document glides past the finger's own span.
-         */
-        expect(measurement.stepsUp).toBeGreaterThan(measurement.fingerLines.max);
-        flings.push(measurement);
-        previous = next;
+    for (let slot = 0; slot < 3; slot += 1) {
+        const injections: FlingAttempt[] = [];
+        const isAccepted = false;
+        while (!isAccepted) {
+            if (injections.length >= FLING_MAX_ATTEMPTS)
+                throw new Error(
+                    `Environment invalid: ${FLING_MAX_ATTEMPTS} fling injections exceeded ${FLING_INJECTION_BUDGET_MS} ms (${injections.map(({ injectMs }) => injectMs).join(', ')} ms); the host is too loaded to measure inertial scrolling (#1463)`,
+                );
+            const startedAt = Date.now();
+            // eslint-disable-next-line no-await-in-loop -- each flick starts from the previous settled document.
+            await fling(serial, viewport.x, at(0.3), at(0.6));
+            const injectMs = Date.now() - startedAt;
+            const verdict = classifyFlingInjection(injectMs);
+            injections.push({ injectMs, verdict });
+            // eslint-disable-next-line no-await-in-loop -- the glide must end before the next flick.
+            const next = await settledState(fixture);
+            // A late gesture still moved the document; judge nothing and retry from the new position.
+            if (verdict === 'valid') {
+                const measurement = measure(input, previous, next, at(0.6) - at(0.3), viewport);
+                expect(measurement.stepsDown).toBe(0);
+                expect(Math.abs(measurement.documentLines)).toBe(measurement.stepsUp);
+                /**
+                 * Released while moving, the document glides past the finger's own span.
+                 */
+                expect(measurement.stepsUp).toBeGreaterThan(measurement.fingerLines.max);
+                flings.push({ ...measurement, injections });
+            }
+            previous = next;
+        }
     }
     await capture(environment, `${input}-fling-settled`, artifacts);
     return { flings, slowDragDown: slowDown, slowDragUp: slowUp };
