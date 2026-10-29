@@ -201,6 +201,14 @@ export function FileTree({ controller }: { controller: ResourceExplorerControlle
                 const target = fileTreeNavigationTarget(current, from, action);
                 if (target !== undefined) focus(target);
             },
+            pathFor: (path, action) => {
+                const { indexByPath: indexes, rows: current } = latestNavigation.current;
+                const from = indexes.get(path);
+                if (from === undefined) return;
+                const target = fileTreeNavigationTarget(current, from, action);
+                const row = target === undefined ? undefined : current.at(target);
+                return row?.kind === 'entry' ? row.entry.path : undefined;
+            },
         }),
         [latestNavigation],
     );

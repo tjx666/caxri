@@ -120,4 +120,18 @@ describe('fileTreeNavigationTarget', () => {
         expect(fileTreeNavigationTarget(nested, 1, 'parent')).toBe(0);
         expect(fileTreeNavigationTarget(nested, 0, 'parent')).toBeUndefined();
     });
+
+    it('lands focus past a removed folder, or before the last row', () => {
+        const tree = flatten(
+            {
+                '/p': [directory('/p/src'), file('/p/readme.md')],
+                '/p/src': [file('/p/src/a.ts')],
+            },
+            ['/p/src'],
+        ).rows;
+        // 0: /p/src, 1: /p/src/a.ts, 2: /p/readme.md
+
+        expect(fileTreeNavigationTarget(tree, 0, 'afterRemoval')).toBe(2);
+        expect(fileTreeNavigationTarget(tree, 2, 'afterRemoval')).toBe(1);
+    });
 });

@@ -8,9 +8,13 @@ export interface FileTreeNavigator {
      * a row outside the virtualized window mounts and then takes the focus request.
      */
     move: (path: string, action: FileTreeNavigation) => void;
+    /**
+     * Path of the entry row `action` resolves to from `path`, without moving focus; `undefined` when there is none.
+     */
+    pathFor: (path: string, action: FileTreeNavigation) => string | undefined;
 }
 
-const noop: FileTreeNavigator = { move: () => {} };
+const noop: FileTreeNavigator = { move: () => {}, pathFor: () => {} };
 
 /**
  * Hands rows the tree-level navigator without threading it through props: the tree owns the flattened model and the

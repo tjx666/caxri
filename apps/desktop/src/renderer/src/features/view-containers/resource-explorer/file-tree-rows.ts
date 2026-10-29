@@ -125,7 +125,11 @@ export function flattenFileTree({
     return { directories, rows };
 }
 
-export type FileTreeNavigation = 'next' | 'previous' | 'first' | 'last' | 'parent';
+/**
+ * `afterRemoval` is where focus should land once the row (and its subtree) is gone: the next row past the subtree, else
+ * the one before it.
+ */
+export type FileTreeNavigation = 'next' | 'previous' | 'first' | 'last' | 'parent' | 'afterRemoval';
 
 /**
  * Resolves a keyboard movement against the flattened model. Only entry rows take focus; the inline create field and the
@@ -157,6 +161,14 @@ export function fileTreeNavigationTarget(
         }
         case 'parent': {
             return rows.at(from)?.parentRow;
+        }
+        case 'afterRemoval': {
+            const row = rows.at(from);
+            const subtreeEnd = row?.kind === 'entry' ? row.lastDescendant : from;
+            return (
+                fileTreeNavigationTarget(rows, subtreeEnd, 'next') ??
+                fileTreeNavigationTarget(rows, from, 'previous')
+            );
         }
     }
 }
