@@ -258,7 +258,11 @@ trace is the next step before optimizing it. A heap snapshot diff
 showed the retained growth is mostly React hook state of controls that every code block and table
 renders, not the Markdown itself. The fullscreen dialog behind each block's View Full Screen button was mounted
 while closed; mounting it only while open lowered `bigstream` heap growth from 46.4 MB to about
-41 MB. Most of the remainder is one tooltip root per toolbar button. The highlighted-code and diagram
+41 MB. The remainder was one Base UI tooltip Root per toolbar button, link, and path. Triggers are now
+detached from the Root: `TooltipProvider` mounts one shared Root per variant (element, hover-only, cursor)
+and every `Tooltip` renders only a Trigger carrying its content as the payload. On the same machine and
+build, three runs of `bigstream` heap growth went from 46.6–47.4 MB to 38.4–38.6 MB; Workbench renders
+vary by about 80 between identical runs (3,547–3,628 before, 3,622–3,640 after). The highlighted-code and diagram
 caches (`MemoCache`) are bounded by characters as well as entries, so a few very large blocks cannot
 hold an unbounded amount of markup.
 

@@ -31,7 +31,7 @@ const BUDGETS: Record<
     StreamingWorkload,
     { workbenchRenders: number; workbenchActualDurationMs: number; heapGrowthMb: number }
 > = {
-    bigstream: { workbenchRenders: 3600, workbenchActualDurationMs: 1000, heapGrowthMb: 45 },
+    bigstream: { workbenchRenders: 3800, workbenchActualDurationMs: 1000, heapGrowthMb: 42 },
     toolstorm: { workbenchRenders: 800, workbenchActualDurationMs: 400, heapGrowthMb: 8 },
 };
 
