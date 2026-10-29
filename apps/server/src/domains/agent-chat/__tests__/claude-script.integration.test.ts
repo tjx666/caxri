@@ -314,7 +314,7 @@ describe('a fake Claude started with a malformed script', () => {
                 cwd: directory,
                 env: {
                     ...process.env,
-                    CLAUDE_CONFIG_DIR: join(directory, 'claude'),
+                    CLAUDE_CONFIG_DIR: join(directory, 'claude-config'),
                     ...(scriptPath && { FAKE_CLAUDE_SCRIPT: scriptPath }),
                 },
                 timeout: 10_000,
