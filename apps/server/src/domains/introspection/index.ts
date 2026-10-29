@@ -17,6 +17,11 @@ export function createIntrospectionServices(
     database: CaxriDatabase,
     logger: StructuredLogger,
     currentSessionId: () => string | undefined,
+    /**
+     * When a Chat continues after a plan limit resets; only a running Server Core knows it, so it is not a stored
+     * column.
+     */
+    usageLimitWaitAt: (terminalId: string) => number | undefined,
 ) {
     return {
         logs: new LogQueryService(dirname(logger.path)),
@@ -35,7 +40,13 @@ export function createIntrospectionServices(
                 // Hidden Projects stay out of CLI queries exactly as they stay out of the Workbench.
                 projects: () => database.listVisibleProjects(),
                 sessions: () => database.listVisibleSessions(),
-                terminals: () => database.listTerminals(),
+                terminals: () =>
+                    database.listTerminals().map((terminal) => {
+                        const waitingAt = usageLimitWaitAt(terminal.id);
+                        return waitingAt === undefined
+                            ? terminal
+                            : { ...terminal, usageLimitWaitAt: waitingAt };
+                    }),
             },
             homedir(),
         ),

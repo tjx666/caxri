@@ -88,6 +88,16 @@ describe('Session status on a saved copy', () => {
 
     it('never spins for a running Session read from the saved copy', () => {
         const running = { hasUnread: false, agentActivityState: 'running' } as const;
+        expect(
+            sessionStatusGlyphKind(
+                {
+                    hasUnread: true,
+                    agentActivityState: 'failed',
+                    primaryTerminal: { usageLimitWaitAt: 1 },
+                },
+                false,
+            ),
+        ).toBe('usage-wait');
         expect(sessionStatusGlyphKind(running, false)).toBe('running');
         expect(sessionStatusGlyphKind(running, true)).toBe('running-saved');
         expect(sessionStatusGlyphKind({ ...running, hasUnread: true }, true)).toBe('attention');

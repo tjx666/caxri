@@ -178,6 +178,7 @@ export const effectfulCommandRecovery = {
     'mobile.agentChat.send': 'memory',
     'mobile.agentChat.interrupt': 'memory',
     'mobile.agentChat.stopTask': 'memory',
+    'mobile.agentChat.implementPlan': 'memory',
     'mobile.agentChat.respond': 'memory',
     'mobile.agentChat.retry': 'memory',
     'mobile.agentChat.dismissPlanPace': 'durable',

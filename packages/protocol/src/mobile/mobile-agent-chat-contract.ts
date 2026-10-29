@@ -20,7 +20,10 @@ import { projectDisplayPath } from '../domain/project-path.js';
 import { agentUsageReadoutSchema } from '../domain/usage-contract.js';
 import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
-import { mobileAgentChatRequestsMethod } from './mobile-agent-chat-requests-contract.js';
+import {
+    mobileAgentChatImplementPlanMethod,
+    mobileAgentChatRequestsMethod,
+} from './mobile-agent-chat-requests-contract.js';
 import {
     clipAgentChatStateForMobile,
     MOBILE_AGENT_CHAT_CLIP_MARKER,
@@ -327,6 +330,7 @@ export const mobileAgentChatMethods = {
         result: agentChatSnapshotSchema,
     },
     'mobile.agentChat.requests': mobileAgentChatRequestsMethod,
+    'mobile.agentChat.implementPlan': mobileAgentChatImplementPlanMethod,
     /**
      * The page of history right before `beforeItemId`, the oldest item the phone holds (its window's first item, or the
      * first item of the last page read), cut to one mobile frame by `windowAgentChatHistoryPageForMobile`. The Server

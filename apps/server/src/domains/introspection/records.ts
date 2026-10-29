@@ -234,6 +234,7 @@ export class RecordQueryService {
                     lastProcessState,
                     failureReason,
                     surface,
+                    usageLimitWaitAt,
                 }) => ({
                     id,
                     sessionId,
@@ -243,6 +244,7 @@ export class RecordQueryService {
                     lastProcessState,
                     ...(failureReason && { failureReason }),
                     ...(surface && { surface }),
+                    ...(usageLimitWaitAt !== undefined && { usageLimitWaitAt }),
                 }),
             ),
         };

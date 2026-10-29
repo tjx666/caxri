@@ -1,13 +1,70 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
+
+import { agentChatImplementablePlanId, agentChatProposedPlanRequest } from '@caxri/protocol';
 
 import { useTranslation } from '../../i18n';
 import { mobileSpace } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
 import type { agentChatRequestBlockedReason } from './agent-chat-model';
+import { dismissAgentChatPlan, dismissedAgentChatPlanId } from './agent-chat-plan-dismissals';
 import { AgentChatRequestCard } from './agent-chat-request-card';
 import { agentChatRequestDock } from './agent-chat-request-flow';
 import type { AgentChatController } from './use-agent-chat';
+
+/**
+ * The approval card for the Chat's latest proposed plan (Codex's plan-mode reply): the same `Start with this plan?`
+ * card Claude Code's `ExitPlanMode` request shows, and Desktop's. Start Building leaves plan mode and starts the build
+ * in one Server step; Keep Planning only hides the card, since plan mode stays on.
+ */
+const AgentChatPlanApproval = ({
+    blockedReason,
+    chat,
+    isExpanded,
+    provider,
+    theme,
+}: {
+    blockedReason: ReturnType<typeof agentChatRequestBlockedReason>;
+    chat: AgentChatController;
+    isExpanded: boolean;
+    provider: string;
+    theme: MobileTheme;
+}) => {
+    const { pendingKey, snapshot } = chat;
+    const [, setVersion] = useState(0);
+    const itemId = snapshot && agentChatImplementablePlanId(snapshot);
+    // A real request takes the dock first; the plan's card comes back when it is answered.
+    if (!itemId || !pendingKey || snapshot.requests.length > 0) return null;
+    if (dismissedAgentChatPlanId(pendingKey) === itemId) return null;
+    const hide = () => {
+        dismissAgentChatPlan(pendingKey, itemId);
+        setVersion((version) => version + 1);
+    };
+    return (
+        <View
+            key={itemId}
+            style={[styles.dock, isExpanded && styles.dockExpanded]}
+            testID="agent-chat-plan-approval"
+        >
+            <AgentChatRequestCard
+                blockedReason={blockedReason}
+                items={[]}
+                onRespond={async (_target, response) => {
+                    if (response.kind !== 'decision') return;
+                    if (response.decision === 'accept') {
+                        await chat.implementPlan(itemId);
+                        // The snapshot catches up a moment later; keep the card from coming back meanwhile.
+                    }
+                    hide();
+                }}
+                provider={provider}
+                request={agentChatProposedPlanRequest(itemId)}
+                theme={theme}
+            />
+        </View>
+    );
+};
 
 /**
  * The pending requests docked above the composer, one card at a time (`agentChatRequestDock`), so a phone never scrolls
@@ -38,7 +95,16 @@ export const AgentChatRequests = ({
     const { pending, respond, snapshot } = chat;
     const { answeredRequestIds } = pending;
     const requests = snapshot?.requests ?? [];
-    if (requests.length === 0) return null;
+    if (requests.length === 0)
+        return (
+            <AgentChatPlanApproval
+                blockedReason={blockedReason}
+                chat={chat}
+                isExpanded={isExpanded}
+                provider={provider}
+                theme={theme}
+            />
+        );
     const dock = agentChatRequestDock(requests, answeredRequestIds, t);
     return (
         <View

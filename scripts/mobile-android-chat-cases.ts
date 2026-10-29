@@ -292,6 +292,18 @@ export const androidChatCases = {
         recordingOwner: 'scenario',
         scenario: 'agent-chat-usage-guard',
     },
+    'MOB-CHAT-USAGE-WAIT-01': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'agent-chat-usage-wait',
+    },
+    'MOB-CHAT-PLAN-APPROVAL-01': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'agent-chat-plan-approval',
+    },
     'MOB-CHAT-USAGE-01': {
         appLocale: 'zh-CN',
         desktopProfile: 'managed-by-isolated-e2e',

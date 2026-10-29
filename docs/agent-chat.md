@@ -1929,7 +1929,10 @@ such request (its TUI's `Implement this plan?` step is client-side), so Server C
 - `Keep Planning` only dismisses the card in the Renderer (not persisted, so it can return after a restart); plan mode
   stays on.
 
-Mobile does not show the card yet.
+Mobile shows the same card above the composer for exactly that item (`agentChatImplementablePlanId` over the Chat
+snapshot, so Desktop and the phone cannot disagree). `Start Building` calls `mobile.agentChat.implementPlan`, forwarded to
+`agentChat.implementPlan` (control devices only, like `mobile.agentChat.respond`); `Keep Planning` hides the card for that
+plan in the phone's memory only.
 
 ## Lifecycle signals
 
@@ -2062,6 +2065,5 @@ when the window resets within a day; see
 Claude Code's agent picker (its `initialize` response already lists the agents). Grok Build's
 plan mode and images (its ACP agent advertises `image: false`). Grok Build stays out
 of the real-Agent smoke. On mobile, a
-Chat shows no plan or context usage yet, offers no
-`Start with this plan?` card for a Codex plan (`agentChat.implementPlan` has no `mobile.` mirror), cannot edit or fork from an earlier message, and older history beyond the window stays on
+Chat shows no plan or context usage yet, cannot edit or fork from an earlier message, and older history beyond the window stays on
 the computer.

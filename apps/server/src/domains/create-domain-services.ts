@@ -250,8 +250,11 @@ export async function createDomainServices(
         startedAt,
         () => watchHub.snapshot(),
     );
-    const introspection = createIntrospectionServices(database, logger, () =>
-        presence.currentSessionId(),
+    const introspection = createIntrospectionServices(
+        database,
+        logger,
+        () => presence.currentSessionId(),
+        (terminalId) => agentChat.states.usageLimitWaits?.waitingAt(terminalId),
     );
     const forgetSessionRuntime = createSessionRuntimeForgetter({
         agentChat,

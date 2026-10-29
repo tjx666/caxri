@@ -254,3 +254,55 @@ describe('buildMobileArchivedSessions', () => {
         );
     });
 });
+
+describe('buildMobileDashboard usage-limit waits', () => {
+    it('sends when a Chat continues and ranks the waiting Session as idle, not attention or failed', () => {
+        const waitingAt = 5_000_000;
+        const base = {
+            projectId: 'project-1',
+            title: 'Session',
+            lastVisitedAt: 1,
+            sessionActivityAt: 1,
+            attentionGeneration: 0,
+        };
+        const terminal = (id: string, sessionId: string, usageLimitWaitAt?: number) => ({
+            id,
+            sessionId,
+            kind: 'claude' as const,
+            provider: 'claude' as const,
+            title: id,
+            lastProcessState: 'running' as const,
+            ...(usageLimitWaitAt !== undefined && { usageLimitWaitAt }),
+        });
+        const result = buildMobileDashboard({
+            hostDisplayName: 'Workstation',
+            deviceRole: 'control',
+            now: 1_000,
+            projects: [{ id: 'project-1', title: 'Granted' }],
+            sessions: [
+                {
+                    ...base,
+                    id: 'waiting',
+                    agentActivityState: 'failed' as const,
+                    hasUnread: true,
+                    primaryAgentTerminalId: 'terminal-waiting',
+                },
+                {
+                    ...base,
+                    id: 'failed',
+                    sessionActivityAt: 2,
+                    agentActivityState: 'failed' as const,
+                    hasUnread: false,
+                    primaryAgentTerminalId: 'terminal-failed',
+                },
+            ],
+            terminals: [
+                terminal('terminal-waiting', 'waiting', waitingAt),
+                terminal('terminal-failed', 'failed'),
+            ],
+        });
+        expect(result.sessions.map(({ id }) => id)).toEqual(['failed', 'waiting']);
+        expect(result.sessions[1]?.primaryTerminal?.usageLimitWaitAt).toBe(waitingAt);
+        expect(result.sessions[0]?.primaryTerminal).not.toHaveProperty('usageLimitWaitAt');
+    });
+});

@@ -156,4 +156,28 @@ describe('mobile session model', () => {
         expect(performance.now() - startedAt).toBeLessThan(100);
         expect(result.sessions).toHaveLength(1_000);
     });
+
+    it('files a Chat waiting for a usage limit under Idle with the continuation time, even when unread', () => {
+        const waiting = session({
+            agentActivityState: 'failed',
+            hasUnread: true,
+            primaryTerminal: { ...terminal, usageLimitWaitAt: Date.UTC(2026, 9, 30, 12, 0) },
+        });
+        const result = buildMobileSessionSections({
+            total: 1,
+            truncated: false,
+            sessions: [waiting],
+        });
+        expect(result.groups.idle.map((item) => item.id)).toEqual(['session-1']);
+        expect(result.groups.failed).toEqual([]);
+        expect(result.groups.attention).toEqual([]);
+        expect(result.sessions[0].stateLabel).toMatch(/^Continues automatically at /);
+        // The wait ends: the unread failure shows again.
+        const ended = buildMobileSessionSections({
+            total: 1,
+            truncated: false,
+            sessions: [{ ...waiting, primaryTerminal: terminal }],
+        });
+        expect(ended.groups.attention).toHaveLength(1);
+    });
 });

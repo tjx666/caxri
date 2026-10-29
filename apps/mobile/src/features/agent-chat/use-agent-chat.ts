@@ -280,6 +280,17 @@ export const useAgentChat = ({
         },
         [request, terminalId],
     );
+    /**
+     * Approves the Chat's proposed plan (Codex): Core turns plan mode off and starts the build turn in one step, and
+     * refuses a plan that is no longer the latest with `CONFLICT`.
+     */
+    const implementPlan = useCallback(
+        async (itemId: string): Promise<void> => {
+            if (terminalId === null) return;
+            await request('mobile.agentChat.implementPlan', { terminalId, itemId });
+        },
+        [request, terminalId],
+    );
     const restart = useCallback(async (): Promise<void> => {
         if (terminalId === null) return;
         await request('mobile.agentChat.retry', { terminalId });
@@ -386,6 +397,7 @@ export const useAgentChat = ({
     return {
         ...state,
         configure,
+        implementPlan,
         interrupt,
         pending,
         pendingKey,

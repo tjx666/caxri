@@ -258,6 +258,17 @@ describe('Runtime record queries', () => {
         );
     });
 
+    it('reports when a Chat waiting for a plan limit continues', () => {
+        const [stored] = source.terminals();
+        const service = new RecordQueryService(
+            { ...source, terminals: () => [{ ...stored, usageLimitWaitAt: 123 }] },
+            '/Users/test',
+        );
+        expect(service.terminal({ mode: 'list', sessionId: 'session-1' }, agent).terminals).toEqual(
+            [expect.objectContaining({ id: 'terminal-1', usageLimitWaitAt: 123 })],
+        );
+    });
+
     it('lists every top-level Project and its Sessions to an Agent, without paths', () => {
         const service = new RecordQueryService(source, '/Users/test');
 

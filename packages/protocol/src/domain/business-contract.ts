@@ -90,6 +90,10 @@ const terminalSummarySchema = terminalRecordSchema.pick({
     lastProcessState: true,
     failureReason: true,
     /**
+     * Present only while a Chat waits for a plan limit to reset, so the phone's Session list can show the wait.
+     */
+    usageLimitWaitAt: true,
+    /**
      * Present only for an Agent Chat, so a Client (or a paired phone) can tell it from a PTY before attaching.
      */
     surface: true,

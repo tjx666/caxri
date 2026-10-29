@@ -88,6 +88,7 @@ const CORE_ROUTED_METHODS = [
     'mobile.agentChat.send',
     'mobile.agentChat.interrupt',
     'mobile.agentChat.stopTask',
+    'mobile.agentChat.implementPlan',
     'mobile.agentChat.respond',
     'mobile.agentChat.retry',
     'mobile.agentChat.configure',
