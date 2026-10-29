@@ -2,10 +2,11 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { AppSettings } from '@caxri/protocol';
 import { execFileAsync } from '@caxri/system';
 
 import { expect, test } from './support/fixtures.ts';
-import { createShellSession, launchCaxri, typeTerminal } from './support/helpers.ts';
+import { createShellSession, launchCaxri, pageRequest, typeTerminal } from './support/helpers.ts';
 
 /**
  * Agent CLIs (Codex) probe the terminal's default colors with OSC 10/11 right after spawn and give up within ~100ms.
@@ -65,6 +66,15 @@ test('Runtime OSC 11 reply follows the system appearance while the Terminal stay
         );
     };
     try {
+        // The E2E profile pins one explicit theme; opt in to following the system like a fresh install does.
+        const current = await pageRequest<{ value: AppSettings }>(running.page, 'settings.get');
+        await pageRequest(running.page, 'settings.update', {
+            source: JSON.stringify(
+                { ...current.value, 'workbench.theme.followSystem': true },
+                null,
+                2,
+            ),
+        });
         await setSystemAppearance('light');
         await createShellSession(running.page);
         await queryBackground();
