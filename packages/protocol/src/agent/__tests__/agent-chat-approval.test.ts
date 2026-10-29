@@ -1,12 +1,17 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+    AGENT_CHAT_EXIT_PLAN_TOOL,
     agentApprovalAlwaysAllowLabel,
     agentChatAnsweredNotice,
     agentChatApprovalChoices,
+    agentChatImplementablePlanId,
+    agentChatProposedPlanRequest,
     agentChatRequestTitle,
     agentChatWaitingText,
+    isAgentChatApprovalRequest,
 } from '../agent-chat-approval';
+import type { AgentChatItem } from '../agent-chat-contract';
 
 const labels = (request: Parameters<typeof agentChatApprovalChoices>[0]) =>
     agentChatApprovalChoices(request).map((choice) => choice.label);
@@ -199,5 +204,60 @@ describe('agentChatAnsweredNotice', () => {
                 {},
             ),
         ).toBeUndefined();
+    });
+});
+
+const user = (id: string): AgentChatItem => ({ id, type: 'userMessage', text: 'go' });
+const plan = (id: string, isStreaming = false): AgentChatItem => ({
+    id,
+    type: 'agentMessage',
+    text: '1. Read',
+    streaming: isStreaming,
+    proposedPlan: true,
+});
+const reply = (id: string): AgentChatItem => ({
+    id,
+    type: 'agentMessage',
+    text: 'Hi',
+    streaming: false,
+});
+
+describe('agentChatImplementablePlanId', () => {
+    it('returns the latest finished proposed plan while plan mode is on and idle', () => {
+        expect(
+            agentChatImplementablePlanId({
+                planMode: true,
+                items: [user('u1'), plan('p1'), reply('a1'), user('u2'), plan('p2'), reply('a2')],
+            }),
+        ).toBe('p2');
+    });
+
+    it('is absent once the user spoke after the plan', () => {
+        expect(
+            agentChatImplementablePlanId({ planMode: true, items: [plan('p1'), user('u2')] }),
+        ).toBeUndefined();
+    });
+
+    it.each([
+        ['plan mode is off', { planMode: false, items: [plan('p1')] }],
+        ['plan mode is unknown', { items: [plan('p1')] }],
+        ['a turn is running', { planMode: true, activeTurnId: 't', items: [plan('p1')] }],
+        ['the plan is still streaming', { planMode: true, items: [plan('p1', true)] }],
+        ['the reply is not a plan', { planMode: true, items: [user('u'), reply('a')] }],
+    ])('is absent when %s', (_name, snapshot) => {
+        expect(agentChatImplementablePlanId(snapshot)).toBeUndefined();
+    });
+});
+
+describe('agentChatProposedPlanRequest', () => {
+    it('reads as the Claude plan approval card with only Start Building and Keep Planning', () => {
+        const request = agentChatProposedPlanRequest('p1');
+        expect(request).toMatchObject({ kind: 'tool', name: AGENT_CHAT_EXIT_PLAN_TOOL });
+        if (!isAgentChatApprovalRequest(request)) throw new Error('expected an approval');
+        expect(agentChatRequestTitle(request, 'Codex')).toBe('Start with this plan?');
+        expect(agentChatApprovalChoices(request).map((choice) => choice.label)).toEqual([
+            'Start Building',
+            'Keep Planning',
+        ]);
     });
 });

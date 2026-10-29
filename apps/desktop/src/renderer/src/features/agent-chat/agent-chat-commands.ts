@@ -503,6 +503,22 @@ export function sendAgentChatQueuedNow(terminalId: string, id: string): void {
 }
 
 /**
+ * Approves the Chat's proposed plan: Server Core turns plan mode off and sends `Implement the plan.` in one step.
+ * Resolves `true` once it accepted; a stale plan fails as `CONFLICT` and reports itself.
+ */
+export async function didImplementAgentChatPlan(
+    terminalId: string,
+    itemId: string,
+): Promise<boolean> {
+    let isStarted = false;
+    await tryCommand(translate('agentChat.commands.implementPlanFailed'), async () => {
+        await caxri.request('agentChat.implementPlan', { terminalId, itemId });
+        isStarted = true;
+    });
+    return isStarted;
+}
+
+/**
  * Resumes a queue an interrupt paused.
  */
 export function resumeAgentChatQueue(terminalId: string): void {

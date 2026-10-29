@@ -463,6 +463,18 @@ export const agentChatMethods = {
         result: z.null(),
     },
     /**
+     * Approves the Chat's proposed plan (Codex's `plan` item, `proposedPlan` on its reply): turns plan mode off, then
+     * sends `Implement the plan.` as the next turn, in one Server step so a Client never splices the two. `itemId` must
+     * be the Chat's latest proposed plan (`agentChatImplementablePlanId`) with plan mode on and no turn running; a
+     * stale plan, or a second call for the same plan, fails with `CONFLICT`. The permission level is unchanged. Claude
+     * Code needs no such method: its plan approval is a provider request answered through `agentChat.respond`.
+     */
+    'agentChat.implementPlan': {
+        ...commandPolicy('server', 'control'),
+        params: z.strictObject({ ...terminalTarget, itemId: z.string().min(1).max(200) }),
+        result: z.null(),
+    },
+    /**
      * Answers one pending approval or question. A request that is no longer pending fails with `CONFLICT`.
      */
     'agentChat.respond': {

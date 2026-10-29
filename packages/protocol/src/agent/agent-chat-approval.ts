@@ -1,4 +1,4 @@
-import type { AgentChatItem } from './agent-chat-contract.js';
+import type { AgentChatItem, AgentChatSnapshot } from './agent-chat-contract.js';
 import type { AgentChatLabelKey, AgentChatLabelTranslate } from './agent-chat-labels.js';
 import { translateAgentChatLabel } from './agent-chat-labels.js';
 import type { AgentChatRequest } from './agent-chat-requests.js';
@@ -225,5 +225,44 @@ export function agentChatAnsweredNotice(
             question: (question.question || question.header).slice(0, 2_000),
             answer: answer.slice(0, 2_000),
         })),
+    };
+}
+
+/**
+ * The fixed message that starts the build once the user approves a proposed plan, as Codex's own TUI sends it.
+ */
+export const AGENT_CHAT_IMPLEMENT_PLAN_MESSAGE = 'Implement the plan.';
+
+/**
+ * The proposed plan a Chat can still be told to build: the latest finished `proposedPlan` reply, while plan mode is on,
+ * no turn runs, and nothing the user said came after it. Anything else (a new message, plan mode turned off by hand, a
+ * running turn) makes the plan stale. Server Core checks this before acting, and a Client shows its approval card only
+ * for the returned item, so the two cannot disagree.
+ */
+export function agentChatImplementablePlanId(
+    snapshot: Pick<AgentChatSnapshot, 'activeTurnId' | 'items' | 'planMode'>,
+): string | undefined {
+    if (snapshot.planMode !== true || snapshot.activeTurnId) return undefined;
+    for (let index = snapshot.items.length - 1; index >= 0; index -= 1) {
+        const item = snapshot.items[index];
+        if (item.type === 'userMessage') return undefined;
+        if (item.type === 'agentMessage' && item.proposedPlan && !item.streaming) return item.id;
+    }
+    return undefined;
+}
+
+/**
+ * The approval card a Client shows for an implementable plan, shaped as Claude Code's `ExitPlanMode` request so both
+ * Agents share one card, title (`Start with this plan?`), and buttons (`Start Building`, `Keep Planning`). It is never
+ * in a snapshot's `requests`: the Client answers it with `agentChat.implementPlan` instead of `agentChat.respond`, and
+ * the plan itself is already the reply above it, so the card carries no summary.
+ */
+export function agentChatProposedPlanRequest(itemId: string): AgentChatRequest {
+    return {
+        id: `plan:${itemId}`,
+        itemId,
+        kind: 'tool',
+        name: AGENT_CHAT_EXIT_PLAN_TOOL,
+        decisions: ['accept', 'decline'],
     };
 }

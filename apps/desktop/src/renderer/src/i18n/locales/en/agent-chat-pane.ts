@@ -42,6 +42,7 @@ export const agentChatPane = {
     'agentChat.commands.queuedRemoved': 'Queued message removed',
     'agentChat.commands.restoreQueuedFailed': 'Unable to restore the queued message',
     'agentChat.commands.editQueuedFailed': 'Unable to edit the queued message',
+    'agentChat.commands.implementPlanFailed': 'Unable to start building the plan',
     'agentChat.commands.sendQueuedFailed': 'Unable to send the queued message',
     'agentChat.commands.resumeQueueFailed': 'Unable to resume the queue',
     'agentChat.commands.findTranscriptFailed': 'Unable to find the transcript',

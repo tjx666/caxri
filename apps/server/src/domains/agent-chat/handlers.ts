@@ -27,6 +27,7 @@ export function createAgentChatHandlers(
     | 'agentChat.continuationTargets'
     | 'agentChat.continueInAgent'
     | 'agentChat.generateHandoff'
+    | 'agentChat.implementPlan'
     | 'agentChat.fork'
     | 'agentChat.interrupt'
     | 'agentChat.pendingRequests'
@@ -107,6 +108,10 @@ export function createAgentChatHandlers(
         }),
         'agentChat.send': async ({ terminalId, text, images, delivery }) => {
             await agentChat.send(terminalId, { text, ...(images && { images }) }, delivery);
+            return null;
+        },
+        'agentChat.implementPlan': async ({ terminalId, itemId }) => {
+            await agentChat.implementPlan(terminalId, itemId);
             return null;
         },
         'agentChat.rewind': async ({ terminalId, itemId, restoreFiles, text, images }) => {

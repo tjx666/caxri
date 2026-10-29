@@ -1851,7 +1851,8 @@ mid-Chat differs per provider:
   thread last ran in plan mode (as `thread/resume` reports or the last turn sent). Without a reported
   model plan mode cannot be sent, so the Chat shows it off and refuses to turn it on until Codex
   reports one. Codex's `plan`
-  item shows as an Agent message. A real-Agent E2E ignores the choice and keeps its fixed read-only
+  item shows as an Agent message marked `proposedPlan`, which is what makes it approvable (see
+  [Approving a proposed plan](#approving-a-proposed-plan)). A real-Agent E2E ignores the choice and keeps its fixed read-only
   thread. Because a running turn keeps its level, a switch made during one says so: the menu notes
   `Applies to the next turn.`, and the trigger adds a `from next turn` caption until that turn
   ends.
@@ -1890,6 +1891,25 @@ too; a Chat that already has a
 choice keeps it, and changing the default never touches existing Chats. Without a default, a new
 Chat follows its provider's launch settings. Caxri Bot window omits the row: its Chat
 runs under Caxri Bot policy, which refuses Project writes.
+
+### Approving a proposed plan
+
+"Plans first and changes nothing until you approve" holds for both Agents, and both end a plan with the same
+`Start with this plan?` card (`Start Building` / `Keep Planning`), but the mechanism differs because the providers differ.
+Claude Code raises an `ExitPlanMode` approval request, which the Chat answers through `agentChat.respond`. Codex has no
+such request (its TUI's `Implement this plan?` step is client-side), so Server Core orchestrates it:
+
+- `mapCodexItem` marks the `plan` item's Agent message `proposedPlan: true`.
+- `agentChatImplementablePlanId` names the one plan a Chat can still build: the latest finished proposed plan, while plan
+  mode is on, no turn runs, and no user message came after it. The Desktop dock shows the shared approval card
+  (`agentChatProposedPlanRequest`, shaped as an `ExitPlanMode` request with only the two buttons) for exactly that item.
+- `Start Building` calls `agentChat.implementPlan { terminalId, itemId }`. In one Server step it re-checks the plan, turns
+  plan mode off (saved as the Chat's choice, permission level unchanged), and sends `Implement the plan.`, so the next
+  `turn/start` carries `collaborationMode: default`. A stale plan, or a second call, fails with `CONFLICT`.
+- `Keep Planning` only dismisses the card in the Renderer (not persisted, so it can return after a restart); plan mode
+  stays on.
+
+Mobile does not show the card yet.
 
 ## Lifecycle signals
 
@@ -2012,6 +2032,6 @@ new requests behind the weekly usage guard; see
 Claude Code's agent picker (its `initialize` response already lists the agents). Grok Build's
 plan mode and images (its ACP agent advertises `image: false`). Grok Build stays out
 of the real-Agent smoke. On mobile, a
-Chat shows no plan or context usage yet,
-cannot edit or fork from an earlier message, and older history beyond the window stays on
+Chat shows no plan or context usage yet, offers no
+`Start with this plan?` card for a Codex plan (`agentChat.implementPlan` has no `mobile.` mirror), cannot edit or fork from an earlier message, and older history beyond the window stays on
 the computer.

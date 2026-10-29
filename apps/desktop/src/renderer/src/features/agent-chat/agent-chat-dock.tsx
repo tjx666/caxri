@@ -1,5 +1,9 @@
 import type { AgentChatSnapshot } from '@caxri/protocol';
-import { agentProviderSchema } from '@caxri/protocol';
+import {
+    agentChatImplementablePlanId,
+    agentChatProposedPlanRequest,
+    agentProviderSchema,
+} from '@caxri/protocol';
 import { CircleAlert, Info, RotateCcw, Settings2, SquareTerminal, Unplug } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
@@ -7,6 +11,11 @@ import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import { useDialogStore } from '../../stores/dialogs';
 import { useTerminal } from '../../stores/selectors';
+import { didImplementAgentChatPlan } from './agent-chat-commands';
+import {
+    dismissAgentChatPlan,
+    useDismissedAgentChatPlanId,
+} from './permissions/agent-chat-plan-dismissals';
 import type { AgentChatRecoveryNotice } from './transcript/agent-chat-presentation';
 import { agentChatRecoveryActions } from './transcript/agent-chat-presentation';
 import { AgentChatRequestCard } from './transcript/agent-chat-request-card';
@@ -106,9 +115,50 @@ function AgentChatRecoveryBanner({
 }
 
 /**
- * What docks above the composer, outside the scrolling timeline: the recovery banner and each pending approval or
- * question. The Agent's plan, background work, and queued messages join the composer's strip instead
- * (`AgentChatComposer`).
+ * The approval card for the Chat's latest proposed plan (Codex's plan-mode reply), the counterpart of Claude Code's
+ * `ExitPlanMode` request and the same card. Start Building leaves plan mode and starts the build in one Server step;
+ * Keep Planning only dismisses the card, since plan mode stays on.
+ */
+function AgentChatPlanApproval({
+    onAnswered,
+    projectRoot,
+    providerName,
+    snapshot,
+    terminalId,
+}: {
+    onAnswered: () => void;
+    projectRoot: string | undefined;
+    providerName: string;
+    snapshot: AgentChatSnapshot | undefined;
+    terminalId: string;
+}) {
+    const dismissedId = useDismissedAgentChatPlanId(terminalId);
+    const itemId = snapshot && agentChatImplementablePlanId(snapshot);
+    if (!itemId || itemId === dismissedId) return null;
+    return (
+        <AgentChatRequestCard
+            key={itemId}
+            linkedItem={undefined}
+            onAnswered={onAnswered}
+            onDecision={async (decision) => {
+                if (decision === 'decline') {
+                    dismissAgentChatPlan(terminalId, itemId);
+                    return true;
+                }
+                return didImplementAgentChatPlan(terminalId, itemId);
+            }}
+            projectRoot={projectRoot}
+            providerName={providerName}
+            request={agentChatProposedPlanRequest(itemId)}
+            terminalId={terminalId}
+        />
+    );
+}
+
+/**
+ * What docks above the composer, outside the scrolling timeline: the recovery banner, each pending approval or
+ * question, and the proposed plan's approval. The Agent's plan, background work, and queued messages join the
+ * composer's strip instead (`AgentChatComposer`).
  */
 export function AgentChatDock({
     answeredRequestIds,
@@ -159,6 +209,13 @@ export function AgentChatDock({
                         terminalId={terminalId}
                     />
                 ))}
+            <AgentChatPlanApproval
+                onAnswered={onAnswered}
+                projectRoot={projectRoot}
+                providerName={providerName}
+                snapshot={snapshot}
+                terminalId={terminalId}
+            />
         </div>
     );
 }

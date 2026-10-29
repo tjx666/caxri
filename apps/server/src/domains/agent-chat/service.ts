@@ -33,6 +33,7 @@ import { ChatStates } from './chat-states';
 import { ChatIdleMaintenance, leaseReadStart } from './chat-suspension';
 import type { ChatTaskHost } from './chat-task-read';
 import { readChatTask, readChatTaskHistory, stopChatTask } from './chat-task-read';
+import { ChatPlanImplementations } from './plan/chat-plan-implement';
 import type { ChatRewindHost, ChatRewindRequest } from './rewind/chat-rewind';
 import { restoreChatFiles, rewindChat } from './rewind/chat-rewind';
 import { previewChatRestore } from './rewind/chat-rewind-preview';
@@ -58,6 +59,12 @@ export class AgentChatService {
     private readonly mobileWatchers = new ChatMobileWatchers();
 
     private readonly permissionSwitches: ChatPermissionSwitches;
+
+    private readonly planImplementations = new ChatPlanImplementations({
+        admit: (id) => this.states.admitOpen(id),
+        leavePlanMode: (id) => this.setPermission(id, { planMode: false }),
+        send: (id, message) => this.send(id, message),
+    });
 
     private readonly endpoint: ChatEndpointLease;
 
@@ -310,6 +317,13 @@ export class AgentChatService {
      */
     setPermission(terminalId: string, request: AgentChatPermissionRequest): Promise<void> {
         return this.permissionSwitches.switch(terminalId, request);
+    }
+
+    /**
+     * Approves the proposed plan; see {@link ChatPlanImplementations}.
+     */
+    implementPlan(terminalId: string, itemId: string): Promise<void> {
+        return this.planImplementations.implement(terminalId, itemId);
     }
 
     /**
