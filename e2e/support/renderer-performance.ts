@@ -5,7 +5,7 @@ import type { RendererPerformanceScenarioDiagnostic } from '@caxri/protocol';
  * `docs/renderer-performance.md`. React Profiler counts are real only in a `CAXRI_REACT_PROFILING=1` build.
  */
 interface RendererPerformanceBrowserApi {
-    begin(action: 'session.switch'): string;
+    begin(action: RendererPerformanceScenarioDiagnostic['action']): string;
     end(scenarioId: string): RendererPerformanceScenarioDiagnostic;
     status(): {
         frameSampleCount: number;

@@ -182,6 +182,60 @@ first frame at the line the user left. Its wrapper carries no `inert` and no des
 either one makes Chromium restyle the whole subtree when the Session shows again. The `cached` scenario's longest frame is the remount
 rendering the whole transcript at once.
 
+## Agent Chat streaming
+
+What a visible Agent Chat costs while a reply streams into it has its own profiling-build benchmark:
+
+```bash
+bun run benchmark:chat-streaming
+```
+
+The fake Codex Chat first answers one Markdown-heavy turn, so the Chat's lazy code is loaded, and the
+app then sits idle for five seconds. Two workloads follow in the same Chat, each bracketed as a
+Renderer `agentChat.stream` scenario:
+
+- `bigstream`: a reply of about 50 KB of Markdown (headings, lists, tables, links, inline code, and
+  fenced TypeScript) streamed in 24-character deltas;
+- `toolstorm`: 300 commands that each start and complete, 600 tool updates in all, followed by a
+  short reply.
+
+Each window ends only after the workload's final text is visible and two more frames have painted.
+The receipt records wall time, Renderer main-thread time from `Performance.getMetrics` (task, script,
+style recalculation, layout), the Renderer JS heap after two forced collections before and after the
+turn, whole-app resident memory (every Electron process from `app.getAppMetrics()` plus Server Core,
+Terminal Host, and Extension Host; Agent processes excluded), React Profiler renders and duration,
+Long Animation Frames, and missed frames. The command prints one receipt prefixed by
+`CAXRI_AGENT_CHAT_STREAMING_BENCHMARK` and writes the same JSON to
+`test-results/receipts/agent-chat-streaming.json`.
+
+The gates are the per-workload Workbench render and React-duration budgets and the Renderer heap
+growth budget in `e2e/agent-chat-streaming.performance.e2e.ts`. Main-thread time, frames, and
+resident memory stay diagnostic: resident memory moves by tens of megabytes with allocator and GPU
+behavior between identical runs, and frame readings depend on the machine.
+
+The workloads and readings follow PandaCode's published comparison with T3 Code (see the
+competitors skill's `pandacode.md`). Its numbers came from a different machine and harness, so
+compare Caxri only against its own receipts.
+
+Three local profiling runs on 2026-10-29 (Apple Silicon, hidden window) measured:
+
+| Workload    |  Wall (s) | Renderer task (ms) |        Script / style / layout (ms) | Heap growth (MB) | Workbench renders | Workbench React (ms) | LoAFs |
+| ----------- | --------: | -----------------: | ----------------------------------: | ---------------: | ----------------: | -------------------: | ----: |
+| `bigstream` | 10.2–10.6 |        9,154–9,315 | 2,427–2,597 / 1,635–1,682 / 270–282 |        40.3–41.4 |       2,595–2,791 |              594–644 |     1 |
+| `toolstorm` |   6.7–6.8 |        2,117–2,238 |           600–662 / 122–126 / 51–54 |          0.8–0.9 |               618 |              164–178 |     0 |
+
+Idle, the app held 1,344–1,436 MB resident (Electron 1,044–1,135 MB, Server 300 MB) with a 42 MB
+Renderer heap.
+
+Two findings shaped the code. React accounts for well under a tenth of the `bigstream` main-thread
+time; most of the rest is style recalculation and other non-React work. A heap snapshot diff
+showed the retained growth is mostly React hook state of controls that every code block and table
+renders, not the Markdown itself. The fullscreen dialog behind each block's Expand button was mounted
+while closed; mounting it only while open lowered `bigstream` heap growth from 46.4 MB to about
+41 MB. Most of the remainder is one tooltip root per toolbar button. The highlighted-code and diagram
+caches (`MemoCache`) are bounded by characters as well as entries, so a few very large blocks cannot
+hold an unbounded amount of markup.
+
 ## Development investigation
 
 The small `caxriPerformance` API is available in development, E2E, and profiling builds. For an
@@ -199,7 +253,8 @@ const scenarioId = globalThis.caxriPerformance.begin('session.switch');
 JSON.stringify(globalThis.caxriPerformance.end(scenarioId), null, 2);
 ```
 
-`session.switch` is the only supported action. Starting a second scenario before ending the first
+The supported actions are `session.switch`, for one Session switch, and `agentChat.stream`, for a
+window in which a Chat receives streamed text or tool updates without user input. Starting a second scenario before ending the first
 fails clearly. A scenario is automatically finalized after two minutes so observers cannot grow
 without bound.
 

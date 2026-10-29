@@ -24,6 +24,7 @@ REPOS=(
     superset-sh/superset
     getpaseo/paseo
     pingdotgg/t3code
+    aicodeking/pandacode
     Emanuele-web04/synara
     coollabsio/jean
     omnara-ai/omnara
