@@ -6,6 +6,7 @@ import type { AgentChatPathReference, AgentChatSkillReference } from '@caxri/pro
 import { File, Folder, Sparkles } from 'lucide-react-native';
 
 import { useTranslation } from '../../i18n';
+import { mobileControl, mobileRadius, mobileSpace, mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
 import { agentChatPathChips } from './agent-chat-path-chip-list';
 
@@ -78,20 +79,30 @@ export const AgentChatPathChips = ({
     );
 };
 
+/**
+ * A long file name truncates inside the chip at this width instead of widening the row.
+ */
+const CHIP_MAX_WIDTH = 240;
+
 const styles = StyleSheet.create({
-    root: { alignItems: 'flex-end', gap: 4, maxWidth: '85%' },
-    chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'flex-end' },
+    root: { alignItems: 'flex-end', gap: mobileSpace.xs, maxWidth: '85%' },
+    chips: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: mobileSpace.sm,
+        justifyContent: 'flex-end',
+    },
     chip: {
         alignItems: 'center',
-        borderRadius: 16,
+        borderRadius: mobileRadius.lg,
         borderWidth: 1,
         flexDirection: 'row',
-        gap: 6,
-        maxWidth: 240,
-        minHeight: 32,
-        paddingHorizontal: 10,
+        gap: mobileSpace.sm,
+        maxWidth: CHIP_MAX_WIDTH,
+        minHeight: mobileControl.chip,
+        paddingHorizontal: mobileSpace.md,
     },
-    name: { flexShrink: 1, fontSize: 13 },
-    path: { fontSize: 12, lineHeight: 17, textAlign: 'right' },
+    name: { ...mobileType.meta, flexShrink: 1 },
+    path: { ...mobileType.caption, textAlign: 'right' },
 });
 /* eslint-enable no-use-before-define, @typescript-eslint/no-use-before-define */

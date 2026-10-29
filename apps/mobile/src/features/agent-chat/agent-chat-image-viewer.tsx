@@ -19,6 +19,7 @@ import { X } from 'lucide-react-native';
 
 import { Spinner } from '../../components/spinner';
 import { useTranslation } from '../../i18n';
+import { mobileControl, mobileRadius, mobileSpace, mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
 import type { AgentChatImageTarget, AgentChatViewerSwipe } from './agent-chat-images';
 import {
@@ -503,6 +504,11 @@ const MessageImagePage = ({
     );
 };
 
+/**
+ * Keeps the centered counter clear of the close button on the right.
+ */
+const COUNTER_INSET = 72;
+
 const styles = StyleSheet.create({
     backdrop: { flex: 1 },
     fill: { flex: 1, height: '100%', width: '100%' },
@@ -512,42 +518,41 @@ const styles = StyleSheet.create({
     placeholder: { opacity: 0.6, ...StyleSheet.absoluteFill },
     center: {
         alignItems: 'center',
-        gap: 12,
+        gap: mobileSpace.md,
         justifyContent: 'center',
         ...StyleSheet.absoluteFill,
     },
     note: {
-        fontSize: 13,
-        left: 24,
+        ...mobileType.meta,
+        left: mobileSpace.xl,
         position: 'absolute',
-        right: 24,
+        right: mobileSpace.xl,
         textAlign: 'center',
     },
     counter: {
-        fontSize: 15,
+        ...mobileType.bodyStrong,
         fontVariant: ['tabular-nums'],
-        fontWeight: '600',
-        left: 72,
+        left: COUNTER_INSET,
         position: 'absolute',
-        right: 72,
+        right: COUNTER_INSET,
         textAlign: 'center',
     },
-    status: { fontSize: 15, fontVariant: ['tabular-nums'], textAlign: 'center' },
+    status: { ...mobileType.body, fontVariant: ['tabular-nums'], textAlign: 'center' },
     retry: {
-        borderRadius: 10,
+        borderRadius: mobileRadius.md,
         justifyContent: 'center',
-        minHeight: 48,
-        paddingHorizontal: 18,
+        minHeight: mobileControl.row,
+        paddingHorizontal: mobileSpace.lg,
     },
-    retryText: { fontSize: 15, fontWeight: '600' },
+    retryText: { ...mobileType.bodyStrong },
     close: {
         alignItems: 'center',
-        borderRadius: 20,
-        height: 40,
+        borderRadius: mobileRadius.pill,
+        height: mobileControl.row,
         justifyContent: 'center',
         position: 'absolute',
-        right: 16,
-        width: 40,
+        right: mobileSpace.lg,
+        width: mobileControl.row,
     },
 });
 /* eslint-enable no-use-before-define, @typescript-eslint/no-use-before-define */

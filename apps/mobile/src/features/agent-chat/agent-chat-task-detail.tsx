@@ -11,6 +11,7 @@ import { ConfirmSheet } from '../../components/confirm-sheet';
 import { Spinner } from '../../components/spinner';
 import { useTranslation } from '../../i18n';
 import { MONOSPACE_FONT } from '../../theme/monospace';
+import { mobileControl, mobileRadius, mobileSpace, mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
 import { isScrolledToBottom } from './agent-chat-task-output';
 import { AgentChatTaskTranscript } from './agent-chat-task-transcript';
@@ -330,39 +331,47 @@ export const AgentChatTaskDetailBody = ({
     );
 };
 
+/**
+ * The captured output scrolls inside this height so a long log never pushes the controls off screen.
+ */
+const OUTPUT_MAX_HEIGHT = 320;
+
 const styles = StyleSheet.create({
-    body: { gap: 10, paddingBottom: 16 },
-    facts: { alignItems: 'center', flexDirection: 'row', gap: 8, minHeight: 48 },
-    status: { alignItems: 'center', flex: 1, flexDirection: 'row', gap: 8 },
-    factsText: { flex: 1, fontSize: 13, fontVariant: ['tabular-nums'] },
+    body: { gap: mobileSpace.md, paddingBottom: mobileSpace.lg },
+    facts: {
+        alignItems: 'center',
+        flexDirection: 'row',
+        gap: mobileSpace.sm,
+        minHeight: mobileControl.row,
+    },
+    status: { alignItems: 'center', flex: 1, flexDirection: 'row', gap: mobileSpace.sm },
+    factsText: { ...mobileType.meta, flex: 1, fontVariant: ['tabular-nums'] },
     // A full 48dp box, like the queue card's Resume, so the target never depends on hit slop.
     stop: {
         alignItems: 'center',
         flexDirection: 'row',
-        gap: 6,
-        minHeight: 48,
-        paddingHorizontal: 10,
+        gap: mobileSpace.sm,
+        minHeight: mobileControl.row,
+        paddingHorizontal: mobileSpace.md,
     },
-    stopText: { fontSize: 14, fontWeight: '700' },
+    stopText: { ...mobileType.bodyStrong, fontWeight: '700' },
     command: {
-        borderRadius: 8,
+        ...mobileType.meta,
+        borderRadius: mobileRadius.sm,
         fontFamily: MONOSPACE_FONT,
-        fontSize: 12,
-        lineHeight: 18,
-        paddingHorizontal: 10,
-        paddingVertical: 8,
+        paddingHorizontal: mobileSpace.md,
+        paddingVertical: mobileSpace.sm,
     },
-    summary: { fontSize: 14, lineHeight: 20 },
-    identity: { fontSize: 12, fontVariant: ['tabular-nums'], lineHeight: 16, marginTop: -6 },
-    output: { borderRadius: 8, flexGrow: 0, maxHeight: 320 },
+    summary: { ...mobileType.body },
+    identity: { ...mobileType.caption, fontVariant: ['tabular-nums'], marginTop: -mobileSpace.sm },
+    output: { borderRadius: mobileRadius.sm, flexGrow: 0, maxHeight: OUTPUT_MAX_HEIGHT },
     outputText: {
+        ...mobileType.meta,
         fontFamily: MONOSPACE_FONT,
-        fontSize: 12,
-        lineHeight: 18,
-        paddingHorizontal: 10,
-        paddingVertical: 8,
+        paddingHorizontal: mobileSpace.md,
+        paddingVertical: mobileSpace.sm,
     },
-    note: { fontSize: 13, lineHeight: 18 },
-    loading: { alignSelf: 'flex-start', paddingVertical: 8 },
+    note: { ...mobileType.meta },
+    loading: { alignSelf: 'flex-start', paddingVertical: mobileSpace.sm },
 });
 /* eslint-enable no-use-before-define, @typescript-eslint/no-use-before-define */

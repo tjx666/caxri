@@ -6,43 +6,44 @@ import { agentChatMenuGroupHeading } from '@caxri/protocol';
 import { Spinner } from '../../components/spinner';
 import type { Translate } from '../../i18n';
 import { useTranslation } from '../../i18n';
+import { mobileControl, mobileRadius, mobileSpace, mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
 import type { AgentChatSkillNotice } from './agent-chat-commands';
 import { MOBILE_AGENT_CHAT_COMMAND_ROWS } from './agent-chat-commands';
 
-const ROW_HEIGHT = 48;
+const ROW_HEIGHT = mobileControl.row;
 
 const styles = StyleSheet.create({
     list: {
-        borderRadius: 12,
+        borderRadius: mobileRadius.md,
         borderWidth: StyleSheet.hairlineWidth,
         maxHeight: ROW_HEIGHT * MOBILE_AGENT_CHAT_COMMAND_ROWS,
         overflow: 'hidden',
     },
     heading: {
-        fontSize: 12,
+        ...mobileType.caption,
         fontWeight: '600',
-        paddingHorizontal: 12,
-        paddingTop: 8,
-        paddingBottom: 2,
+        paddingHorizontal: mobileSpace.md,
+        paddingTop: mobileSpace.sm,
+        paddingBottom: mobileSpace.xxs,
         textTransform: 'uppercase',
     },
     row: {
         justifyContent: 'center',
         minHeight: ROW_HEIGHT,
-        paddingHorizontal: 12,
-        paddingVertical: 6,
+        paddingHorizontal: mobileSpace.md,
+        paddingVertical: mobileSpace.xs,
     },
-    name: { fontSize: 15, fontWeight: '600' },
-    detail: { fontSize: 13 },
+    name: { ...mobileType.bodyStrong },
+    detail: { ...mobileType.meta },
     notice: {
         alignItems: 'center',
         flexDirection: 'row',
-        gap: 8,
+        gap: mobileSpace.sm,
         minHeight: ROW_HEIGHT,
-        paddingHorizontal: 12,
+        paddingHorizontal: mobileSpace.md,
     },
-    noticeText: { fontSize: 13 },
+    noticeText: { ...mobileType.meta },
 });
 
 const rowHint = (action: AgentAction, t: Translate): string =>
