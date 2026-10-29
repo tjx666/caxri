@@ -85,7 +85,11 @@ const mobileReadySchema = z.strictObject({
     generation: z.number().int().positive(),
 });
 
-export type MobileGatewayTermination = 'disconnected' | 'revoked';
+/**
+ * How a connection ended. `route-upgrade` is a planned hand-over from the Relay to a direct route, not a loss: the
+ * owner reconnects without showing the connection as lost.
+ */
+export type MobileGatewayTermination = 'disconnected' | 'revoked' | 'route-upgrade';
 
 /**
  * A liveness or mutation failure held back while a mutation is outstanding, with the close reason it ends with.
@@ -145,10 +149,10 @@ export class MobileGatewayConnection {
                 probe: options.directProbe,
                 readyAt: Date.now(),
                 canUpgrade: () => !this.hasOutstandingMutation(),
-                // Ends like any lost connection: the owner's reconnect path tries direct routes first again.
+                // The owner's reconnect path tries direct routes first again, while it keeps showing "connected".
                 onUpgrade: () =>
                     this.#finish(
-                        'disconnected',
+                        'route-upgrade',
                         new Error('A direct route to Caxri is available.'),
                         'route-upgrade',
                     ),

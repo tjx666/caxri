@@ -1,6 +1,7 @@
 import type { Translate } from '../../i18n';
 import { translate } from '../../i18n';
 import type { MobileConnectionStatus } from '../connection/connection-state';
+import type { MobileRelayFailureKind } from '../connection/relay-failure';
 
 /**
  * Whether the app-wide connection banner explains the screen. A version mismatch has its own update banner instead.
@@ -19,8 +20,12 @@ export const connectionNoticeMessage = (
     status: 'stale' | 'unverified',
     savedLabel: string | null,
     t: Translate = translate,
+    relayFailure: MobileRelayFailureKind | null = null,
 ): string => {
     if (status === 'unverified') return t('sessions.banner.unverified');
+    if (relayFailure === 'host-offline') return t('sessions.banner.hostOffline');
+    if (relayFailure === 'unauthorized') return t('sessions.banner.relayUnauthorized');
+    if (relayFailure === 'busy') return t('sessions.banner.relayBusy');
     return savedLabel === null
         ? t('sessions.banner.stale')
         : t('sessions.banner.staleSaved', { saved: savedLabel });

@@ -8,10 +8,17 @@ import {
     retryAttemptAfterConnectionEnded,
     runReconnectAttempt,
     STABLE_CONNECTION_MS,
+    terminationOutcome,
 } from '../reconnect-lifecycle';
 import { shouldScheduleMobileReconnect } from '../use-mobile-reconnect';
 
 describe('mobile reconnect lifecycle', () => {
+    it('treats a route upgrade as a planned hand-over, not a lost connection', () => {
+        expect(terminationOutcome('route-upgrade')).toEqual({ kind: 'route-upgrade' });
+        expect(terminationOutcome('disconnected')).toEqual({ kind: 'lost' });
+        expect(terminationOutcome('revoked')).toEqual({ kind: 'revoked' });
+    });
+
     it('schedules the first reconnect immediately and later retries with bounded backoff', () => {
         expect(reconnectWaitForAttempt(0, reconnectDelay)).toBe(0);
         expect(reconnectWaitForAttempt(1, reconnectDelay)).toBe(500);

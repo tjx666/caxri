@@ -3,6 +3,7 @@ import { View } from 'react-native';
 import { NoticeBanner } from '../../../components/notice-banner';
 import { useTranslation } from '../../../i18n';
 import type { MobileTheme } from '../../../theme/tokens';
+import { useMobileClient } from '../../connection/mobile-client-provider';
 import type { MobileUpdateNotice } from '../../update/use-mobile-update-notice';
 import { allMobileSessions } from '../hooks/use-session-polling';
 import type { selectHomeNotice } from '../session-notices';
@@ -58,12 +59,18 @@ export const ConnectionBanner = ({
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
+    const { relayFailure } = useMobileClient();
     const isSavedCopyShown = status === 'stale' && isListVisible && saved !== null;
     const banner = (
         <NoticeBanner
             actionLabel={status === 'unverified' ? t('common.retry') : undefined}
             actionTestID="connection-retry-button"
-            message={connectionNoticeMessage(status, isSavedCopyShown ? saved : null, t)}
+            message={connectionNoticeMessage(
+                status,
+                isSavedCopyShown ? saved : null,
+                t,
+                relayFailure,
+            )}
             onAction={onRetry}
             testID="connection-stale-banner"
             theme={theme}

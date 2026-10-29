@@ -37,8 +37,12 @@ import {
     foregroundRecoveryAction,
     observeMobileConnectionTermination,
     retryAttemptAfterConnectionEnded,
+    runReconnectAttempt,
+    terminationOutcome,
 } from './reconnect-lifecycle';
 import { recoverMobileUpdate } from './recover-mobile-update';
+import type { MobileRelayFailureKind } from './relay-failure';
+import { relayFailureKindOf } from './relay-failure';
 import { useMobileReconnect } from './use-mobile-reconnect';
 
 export interface MobileClientContextValue {
@@ -60,6 +64,11 @@ export interface MobileClientContextValue {
         method: M,
         ...arguments_: ParametersArgument<M>
     ) => Promise<MethodResult<M>>;
+    /**
+     * Why the Relay refused the last reconnect, while the connection is down; `null` when it is connected or the
+     * failure is not a specific Relay refusal.
+     */
+    relayFailure: MobileRelayFailureKind | null;
     retryConnection: () => void;
     retryCredentialLoad: () => void;
     status: MobileConnectionStatus;
@@ -105,6 +114,7 @@ export const useMobileClientController = (): MobileClientContextValue => {
     const [credentialLoadAttempt, setCredentialLoadAttempt] = useState(0);
     const [status, setStatus] = useState<MobileConnectionStatus>('booting');
     const [isDesktopNewer, setIsDesktopNewer] = useState(false);
+    const [relayFailure, setRelayFailure] = useState<MobileRelayFailureKind | null>(null);
     const [isForeground, setIsForeground] = useState(AppState.currentState === 'active');
     const connection = useRef<MobileGatewayConnection | null>(null);
     const [pairingAttempts] = useState(createPairingAttemptOwner);
@@ -115,6 +125,10 @@ export const useMobileClientController = (): MobileClientContextValue => {
     const deferredNetworkWake = useRef(false);
     const removeTerminationListener = useRef<() => void>(() => {});
     const removeObservationListener = useRef<() => void>(() => {});
+    /**
+     * Reconnects after a planned Relay to direct hand-over; assigned once the reconnect callbacks exist.
+     */
+    const startRouteUpgrade = useRef<() => void>(() => {});
     const readCache = useReadCache();
 
     /**
@@ -188,9 +202,15 @@ export const useMobileClientController = (): MobileClientContextValue => {
                 if (connection.current !== next) return;
                 // Already terminated, so this close sends nothing; the reason only satisfies the signature.
                 replaceConnection(null, 'superseded');
+                const outcome = terminationOutcome(reason);
+                if (outcome.kind === 'route-upgrade') {
+                    // Planned route change: status and freshness stay "connected" while the direct route opens.
+                    startRouteUpgrade.current();
+                    return;
+                }
                 setLastSeenAt(null);
                 backOffAfterConnectionEnded();
-                if (reason === 'revoked') {
+                if (outcome.kind === 'revoked') {
                     // The saved copy belongs to the revoked pairing; nothing of it stays on the phone.
                     readCache.clear();
                     setCredential(null);
@@ -237,6 +257,8 @@ export const useMobileClientController = (): MobileClientContextValue => {
         (next: MobileGatewayConnection): void => {
             if (!adoptConnection(next)) return;
             setLastSeenAt(Date.now());
+            setRelayFailure(null);
+            setRelayFailure(null);
             // The attempt count survives until this connection proves stable; see `retryAttemptAfterConnectionEnded`.
             setStatus('connected');
         },
@@ -255,8 +277,27 @@ export const useMobileClientController = (): MobileClientContextValue => {
             return;
         }
         setRetryAttempt((attempt) => attempt + 1);
+        setRelayFailure(relayFailureKindOf(error));
         setStatus('stale');
     }, []);
+    const credentialReference = useRef(credential);
+    useEffect(() => {
+        credentialReference.current = credential;
+    }, [credential]);
+    useEffect(() => {
+        startRouteUpgrade.current = () => {
+            const stored = credentialReference.current;
+            if (!stored) return;
+            void runReconnectAttempt({
+                connect: () => reconnect(stored),
+                // A newer connection, a reset, or a forgotten pairing makes this hand-over obsolete.
+                isActive: () =>
+                    connection.current === null && credentialReference.current === stored,
+                onConnected: acceptReconnection,
+                onFailed: rejectReconnection,
+            });
+        };
+    }, [acceptReconnection, reconnect, rejectReconnection]);
     useMobileReconnect({
         connect: reconnect,
         credential,
@@ -405,6 +446,7 @@ export const useMobileClientController = (): MobileClientContextValue => {
         readCache.clear();
         await expoMobileCredentialStore.clear();
         setCredential(null);
+        setRelayFailure(null);
         setLastSeenAt(null);
         setRetryAttempt(0);
         setStatus('unpaired');
@@ -521,6 +563,7 @@ export const useMobileClientController = (): MobileClientContextValue => {
             pair,
             paired: credential !== null,
             recoverUpdate,
+            relayFailure,
             request,
             retryConnection,
             retryCredentialLoad,
@@ -538,6 +581,7 @@ export const useMobileClientController = (): MobileClientContextValue => {
             getLastSeenAt,
             pair,
             recoverUpdate,
+            relayFailure,
             request,
             retryConnection,
             retryCredentialLoad,

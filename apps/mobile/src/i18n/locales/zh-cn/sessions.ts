@@ -33,7 +33,12 @@ export const sessions: TranslatedNamespace<typeof source> = {
     'sessions.banner.stale': '正在重新连接… 正在显示最后已知的状态。回复已暂停。',
     'sessions.banner.staleSaved': '正在重新连接… 显示的是{{saved}}的会话。回复已暂停。',
     'sessions.banner.unverified':
-        '无法验证此配对。如果此设备已在电脑上被撤销，请忘记它并重新配对。',
+        '配对未验证。如果这台手机已在电脑上被撤销，请在设置中选择“忘记这台电脑”，然后重新配对。',
+    'sessions.banner.hostOffline':
+        '电脑上的 Caxri 当前离线。请在电脑上打开 Caxri，这台手机会自动重新连接。',
+    'sessions.banner.relayUnauthorized':
+        '中继服务器不接受这台手机。请在电脑上打开 Caxri 的“设置 → 移动设备”，确认它没有被撤销，或点击“生成配对码”重新配对。',
+    'sessions.banner.relayBusy': '中继服务器繁忙，正在自动重试。',
     'sessions.composer.agentNotRunning': '主 Agent 未在运行。',
     'sessions.composer.attachImage': '添加图片',
     'sessions.composer.controlCharacters': '请先移除控制字符再发送。',

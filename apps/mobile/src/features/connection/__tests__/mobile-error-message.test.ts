@@ -11,7 +11,9 @@ describe('mobileErrorMessage', () => {
         setLocale('zh-CN');
         const error = new MobileGatewayRequestError('NOT_FOUND', 'Inbox item not found');
         expect(mobileErrorMessage(error, '无法发送回复。')).toBe('该项目在电脑上已不存在。');
-        expect(mobileErrorMessage(new MobileGatewayTimeoutError(), 'x')).toBe('Caxri 未及时响应。');
+        expect(mobileErrorMessage(new MobileGatewayTimeoutError(), 'x')).toBe(
+            'Caxri 未及时响应。请确认电脑上的 Caxri 正在运行，然后重试。',
+        );
     });
 
     it('uses the entry fallback for an unknown code or a foreign error', () => {
