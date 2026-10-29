@@ -59,6 +59,7 @@ const expectedLanes: Record<string, ControlLane> = {
     'agentChat.editQueued': 'ordered',
     'agentChat.fork': 'ordered',
     'agentChat.generateHandoff': 'ordered',
+    'agentChat.implementPlan': 'ordered',
     'agentChat.interrupt': 'ordered',
     'agentChat.openPathReference': 'ordered',
     'agentChat.removeQueued': 'ordered',

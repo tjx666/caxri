@@ -225,7 +225,14 @@ describe('Codex item mapping', () => {
             turnId: 't',
             type: 'agentMessage',
             text: '1. Read',
+            proposedPlan: true,
         });
+    });
+
+    it('marks only a plan item as a proposed plan', () => {
+        expect(
+            mapCodexItem({ type: 'agentMessage', id: 'm', text: 'Hi' }, 't', false),
+        ).not.toHaveProperty('proposedPlan');
     });
 
     it('skips items that are not conversation content and malformed input', () => {

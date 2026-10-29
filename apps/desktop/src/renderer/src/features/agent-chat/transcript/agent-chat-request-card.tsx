@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 
-import type { AgentChatItem, AgentChatRequest, AgentChatResponse } from '@caxri/protocol';
+import type {
+    AgentChatApprovalDecision,
+    AgentChatItem,
+    AgentChatRequest,
+    AgentChatResponse,
+} from '@caxri/protocol';
 import {
     AGENT_CHAT_EXIT_PLAN_TOOL,
     agentChatApprovalChoices,
@@ -182,6 +187,7 @@ export function AgentChatRequestCard({
     isWindowWide = false,
     linkedItem,
     onAnswered,
+    onDecision,
     onEscape,
     projectRoot,
     providerName,
@@ -223,6 +229,12 @@ export function AgentChatRequestCard({
      * document body when its focused button unmounts.
      */
     onAnswered: () => void;
+    /**
+     * Takes the user's decision instead of `agentChat.respond`, for a card Server Core did not raise as a request (the
+     * proposed plan's approval, see `agentChatProposedPlanRequest`). The card goes inert on the first decision and
+     * comes back if the handler resolves `false`.
+     */
+    onDecision?: (decision: AgentChatApprovalDecision) => Promise<boolean> | void;
     projectRoot: string | undefined;
     /**
      * The provider catalog's display name, which a question names as the one asking.
@@ -237,7 +249,11 @@ export function AgentChatRequestCard({
     const respond = (response: AgentChatResponse): void => {
         if (isAnswering) return;
         setAnswering(true);
-        void answerAgentChatRequest(terminalId, request, response);
+        if (onDecision && response.kind === 'decision' && response.decision !== 'cancel') {
+            void Promise.resolve(onDecision(response.decision)).then((isDone) => {
+                if (isDone === false) setAnswering(false);
+            });
+        } else void answerAgentChatRequest(terminalId, request, response);
         // The card leaves with this click; focus inside it moves on rather than dropping to the document body.
         const focused = document.activeElement;
         if (focused === document.body || cardReference.current?.contains(focused)) onAnswered();

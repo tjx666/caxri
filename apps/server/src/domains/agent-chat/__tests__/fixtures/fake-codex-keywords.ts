@@ -21,6 +21,8 @@
  *   seconds, the streaming benchmark's reply workload.
  * - `toolstorm`: 300 commands that each start and then finish, 600 tool updates over about six seconds, then a short
  *   reply: the streaming benchmark's tool workload.
+ * - `proposeplan`: a plan-mode turn's proposed plan, a `plan` item that arrives whole with `item/completed`, so a Client
+ *   can offer to build it.
  * - `weblink`: a reply that only links the message's first `http(s)` URL; matched before any keyword the URL may hold.
  * - `fail`: a failed turn with a provider error.
  * - `crash`: the process exits mid-turn, after saving the turn's user message as an interrupted turn.
@@ -67,6 +69,7 @@ import {
     runLongStream,
     runManySteps,
     runMarkdownTable,
+    runProposedPlan,
     runTestCommands,
     runToolStorm,
     runWebLink,
@@ -100,6 +103,8 @@ export async function runKeywordScenario(
         );
     } else if (text.includes('weblink')) {
         await runWebLink(io, turn, text);
+    } else if (text.includes('proposeplan')) {
+        runProposedPlan(io, turn);
     } else if (text.includes('burststream')) {
         await runBurstStream(io, turn, { isClipped: text.includes('clip') });
     } else if (text.includes('longstream')) {

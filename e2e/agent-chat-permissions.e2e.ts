@@ -142,3 +142,53 @@ test('a Codex Chat switches its permission level and plan mode, and a new Chat s
         await rm(directory, { recursive: true, force: true });
     }
 });
+
+// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
+test('a Codex Chat offers to build a proposed plan: Keep Planning keeps plan mode, Start Building leaves it and sends the build turn', async ({}, testInfo) => {
+    const created = await mkdtemp(join(tmpdir(), 'caxri-agent-chat-plan-approval-'));
+    const directory = await realpath(created);
+    const userData = join(directory, 'user-data');
+    const root = join(directory, 'project');
+    await mkdir(root, { recursive: true });
+    const agentMode = await fakeCodexChatAgentMode(directory, userData);
+    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    try {
+        const { page } = running;
+        await createProjectSession(page, 'shell');
+        await openAgentChat(page, 'Codex Chat');
+        const chat = page.locator(VISIBLE_SESSION);
+        const message = chat.getByRole('textbox', { name: 'Message' }).filter({ visible: true });
+        const planChip = chat
+            .getByRole('button', { name: 'Plan mode', exact: true, pressed: true })
+            .filter({ visible: true });
+        await message.focus();
+        await page.keyboard.press('Meta+Alt+p');
+        await expect(planChip).toBeVisible();
+
+        // `proposeplan` makes the fake Codex end its plan-mode turn with a `plan` item.
+        await message.fill('proposeplan refactor the parser');
+        await message.press('Enter');
+        const card = chat.getByRole('region', { name: 'Start with this plan?' });
+        await expect(card).toBeVisible();
+        await expect(chat.getByText('Split the tokenizer from the grammar rules.')).toBeVisible();
+        await page.screenshot({ path: testInfo.outputPath('codex-chat-plan-approval.png') });
+
+        // Keep Planning only dismisses the card; plan mode stays on.
+        await card.getByRole('button', { name: 'Keep Planning' }).click();
+        await expect(card).toBeHidden();
+        await expect(planChip).toBeVisible();
+
+        // A fresh plan gets its own card; Start Building leaves plan mode and sends the build turn.
+        await message.fill('proposeplan again');
+        await message.press('Enter');
+        await expect(card).toBeVisible();
+        await card.getByRole('button', { name: 'Start Building' }).click();
+        await expect(card).toBeHidden();
+        await expect(planChip).toBeHidden();
+        await expect(chat.getByText('Implement the plan.').first()).toBeVisible();
+        await page.screenshot({ path: testInfo.outputPath('codex-chat-plan-started.png') });
+    } finally {
+        await closeAppQuietly(running.app);
+        await rm(directory, { recursive: true, force: true });
+    }
+});

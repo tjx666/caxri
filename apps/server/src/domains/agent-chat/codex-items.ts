@@ -200,8 +200,7 @@ export function mapCodexItem(
             };
         }
         /**
-         * Plan mode's proposed plan (`collaborationMode: plan`) reads as the reply it is. Its deltas are opted out, so
-         * the text arrives whole with `item/completed`.
+         * A plan-mode plan reads as a reply marked `proposedPlan`; its deltas are opted out, so its text arrives whole.
          */
         case 'plan':
         case 'agentMessage': {
@@ -210,6 +209,7 @@ export function mapCodexItem(
                 type: 'agentMessage',
                 text: clip(text(raw.text), MAX_AGENT_CHAT_TEXT_LENGTH),
                 streaming: isStreaming,
+                ...(raw.type === 'plan' && { proposedPlan: true as const }),
             };
         }
         case 'reasoning': {

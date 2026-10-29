@@ -42,6 +42,7 @@ export const agentChatPane: TranslatedNamespace<typeof source> = {
     'agentChat.commands.queuedRemoved': '已移除排队的消息',
     'agentChat.commands.restoreQueuedFailed': '无法恢复排队的消息',
     'agentChat.commands.editQueuedFailed': '无法编辑排队的消息',
+    'agentChat.commands.implementPlanFailed': '无法开始按方案构建',
     'agentChat.commands.sendQueuedFailed': '无法发送排队的消息',
     'agentChat.commands.resumeQueueFailed': '无法恢复队列',
     'agentChat.commands.findTranscriptFailed': '找不到对话记录',

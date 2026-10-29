@@ -33,6 +33,7 @@ import { ChatStates } from './chat-states';
 import { ChatIdleMaintenance, leaseReadStart } from './chat-suspension';
 import type { ChatTaskHost } from './chat-task-read';
 import { readChatTask, readChatTaskHistory, stopChatTask } from './chat-task-read';
+import { ChatPlanImplementations } from './plan/chat-plan-implement';
 import type { ChatRewindHost, ChatRewindRequest } from './rewind/chat-rewind';
 import { restoreChatFiles, rewindChat } from './rewind/chat-rewind';
 import { previewChatRestore } from './rewind/chat-rewind-preview';
@@ -58,6 +59,8 @@ export class AgentChatService {
     private readonly mobileWatchers = new ChatMobileWatchers();
 
     private readonly permissionSwitches: ChatPermissionSwitches;
+
+    readonly plans = new ChatPlanImplementations(this);
 
     private readonly endpoint: ChatEndpointLease;
 

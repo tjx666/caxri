@@ -489,6 +489,25 @@ export async function runWebLink(io: FakeCodexIo, turn: FakeTurn, text: string) 
 }
 
 /**
+ * `proposeplan`: the proposed plan a plan-mode turn ends with. Real Codex opts the plan out of deltas, so the item
+ * starts empty and its text arrives whole with `item/completed`.
+ */
+export function runProposedPlan(io: FakeCodexIo, turn: FakeTurn) {
+    const plan = { type: 'plan', id: crypto.randomUUID(), text: '' };
+    io.startItem(turn, { ...plan });
+    io.completeItem(turn, {
+        ...plan,
+        text: [
+            '# Refactor the parser',
+            '',
+            '1. Split the tokenizer from the grammar rules.',
+            '2. Move error recovery into its own module.',
+            '3. Cover both with focused unit tests.',
+        ].join('\n'),
+    });
+}
+
+/**
  * `bigdiff`: one file change of 6,000 added lines, so the Chat's diff view has to bound what it renders.
  */
 export async function runBigDiff(io: FakeCodexIo, turn: FakeTurn) {

@@ -69,6 +69,7 @@ const TERMINAL_METHODS = new Set<string>([
     'agentActions.read',
     'agentChat.configure',
     'agentChat.generateHandoff',
+    'agentChat.implementPlan',
     'agentChat.interrupt',
     'agentChat.previewRestoreFiles',
     'agentChat.read',

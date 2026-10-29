@@ -123,6 +123,85 @@ describe('Agent Chat permission level and plan mode with a fake Codex app-server
         expect(database.getChatPermission(terminal.id)).toEqual({ planMode: true });
     });
 
+    describe('approving a proposed plan', () => {
+        async function proposePlan() {
+            const context = await fixture();
+            const { service, terminal, until } = context;
+            await until((snapshot) => snapshot.models !== undefined);
+            await service.setPermission(terminal.id, {
+                permissionMode: 'readOnly',
+                planMode: true,
+            });
+            await until((snapshot) => snapshot.planMode === true);
+            await service.send(terminal.id, { text: 'proposeplan refactor the parser' });
+            const snapshot = await until(
+                (current) =>
+                    current.turns.at(-1)?.status === 'completed' &&
+                    current.items.some((item) => item.type === 'agentMessage' && item.proposedPlan),
+            );
+            const planItem = snapshot.items.find(
+                (item) => item.type === 'agentMessage' && item.proposedPlan,
+            )!;
+            return { ...context, planId: planItem.id };
+        }
+
+        it('leaves plan mode and starts the build turn once, keeping the permission level', async () => {
+            const { database, fakeLog, planId, service, terminal, until } = await proposePlan();
+
+            await service.plans.implement(terminal.id, planId);
+            const snapshot = await until(
+                (current) =>
+                    current.turns.length === 2 && current.turns.at(-1)?.status === 'completed',
+            );
+
+            expect(snapshot).toMatchObject({ planMode: false, permissionMode: 'readOnly' });
+            expect(snapshot.items.findLast((item) => item.type === 'userMessage')).toMatchObject({
+                text: 'Implement the plan.',
+            });
+            expect(database.getChatPermission(terminal.id)).toMatchObject({
+                permissionMode: 'readOnly',
+                planMode: false,
+            });
+            const starts = await fakeLog('codex', 'turn-starts.jsonl');
+            expect(starts.map((start) => start.collaborationMode)).toEqual([
+                expect.objectContaining({ mode: 'plan' }),
+                expect.objectContaining({ mode: 'default' }),
+            ]);
+
+            // The same plan cannot start a second turn.
+            await expect(service.plans.implement(terminal.id, planId)).rejects.toMatchObject({
+                code: 'CONFLICT',
+            });
+            expect(service.read(terminal.id).turns).toHaveLength(2);
+        });
+
+        it('refuses a plan that is not the latest, was left by hand, or follows a new message', async () => {
+            const { planId, service, terminal, until } = await proposePlan();
+
+            await expect(service.plans.implement(terminal.id, 'other-item')).rejects.toMatchObject({
+                code: 'CONFLICT',
+            });
+
+            await service.send(terminal.id, { text: 'one more thing' });
+            await until(
+                (current) =>
+                    current.turns.length === 2 && current.turns.at(-1)?.status === 'completed',
+            );
+            await expect(service.plans.implement(terminal.id, planId)).rejects.toMatchObject({
+                code: 'CONFLICT',
+            });
+        });
+
+        it('refuses once plan mode was turned off by hand', async () => {
+            const { planId, service, terminal, until } = await proposePlan();
+            await service.setPermission(terminal.id, { planMode: false });
+            await until((current) => current.planMode === false);
+            await expect(service.plans.implement(terminal.id, planId)).rejects.toMatchObject({
+                code: 'CONFLICT',
+            });
+        });
+    });
+
     it('shows a launch configuration no level matches as no level', async () => {
         const { until } = await fixture({ launchArgs: ['--ask-for-approval', 'untrusted'] });
         const snapshot = await until((current) => current.models !== undefined);

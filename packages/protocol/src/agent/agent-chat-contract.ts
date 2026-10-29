@@ -194,6 +194,11 @@ export const agentChatItemSchema = z.discriminatedUnion('type', [
          * True while deltas may still append to `text`.
          */
         streaming: z.boolean(),
+        /**
+         * True when the message is the plan an Agent proposed in plan mode (Codex's `plan` item), so a Client can offer
+         * to start building it (`agentChat.implementPlan`). Absent on every other reply.
+         */
+        proposedPlan: z.literal(true).optional(),
     }),
     z.strictObject({
         ...itemBase,
