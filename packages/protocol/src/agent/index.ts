@@ -61,6 +61,7 @@ export * from './delegation/agent-delegation-usage.js';
 export * from './delegation/delegation-access-contract.js';
 export * from './provider-autonomy.js';
 export * from './provider-messaging-contract.js';
+export * from './secret/secret-contract.js';
 export * from './streaming/agent-chat-revealed-runs.js';
 export * from './streaming/agent-chat-stream-pacing.js';
 export type {

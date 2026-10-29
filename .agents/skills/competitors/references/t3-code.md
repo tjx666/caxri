@@ -20,6 +20,18 @@ _Researched 2026-08-06._
 - **Tech stack**: TypeScript/Node.js monorepo (Effect-based server), React web app, Electron desktop app, native mobile app; Effect RPC over WebSocket connects all clients to one Node server; SQLite (Node's experimental built-in) for server state; optional Tailscale integration and a hosted "T3 Cloud" relay (private beta) for remote pairing/notifications.
 - **License**: MIT.
 
+## Agent secret requests (2026-10-29)
+
+- An Agent asks for a secret through an Orchestrator tool; the Chat timeline shows a pending card
+  with a masked input (`data-1p-ignore`), the reason, and a privacy note, then collapses to a
+  one-line `saved` or declined row (`apps/web/src/components/chat/SecretRequestCard.tsx`).
+- Answers live in the server secret store behind HMAC-derived one-use refs with a 24-hour TTL; a
+  consuming tool redeems the ref, so values stay out of transcripts, projections, clients, and
+  model context. A `file` request instead writes the value to an owner-only file for the Agent's
+  own shell (`apps/server/src/secrets/SecretRequests.ts`).
+- Caxri took the card and masking, but stores named, reusable secrets and resolves them through
+  `caxri secret exec`, since its Agents run in their own CLIs rather than one orchestrator.
+
 ## Architecture highlights
 
 - Single Node.js server (`apps/server`) is the sole execution boundary: every provider process, terminal, git operation, and filesystem read happens server-side, never in any client; web/desktop/mobile are thin clients sharing `packages/client-runtime` (connection supervisor, RPC session, Atom-based state) so they differ only in platform layer, not logic.

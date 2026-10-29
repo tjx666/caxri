@@ -188,3 +188,21 @@ describe('parseCliArguments happy paths', () => {
         );
     });
 });
+
+describe('parseCliArguments -- separator', () => {
+    it('keeps every argument after -- for the child command, including Caxri option names', () => {
+        const parsed = parseCliArguments([
+            'secret',
+            'exec',
+            'A',
+            '--json',
+            '--',
+            'cmd',
+            '--json',
+            '-h',
+        ]);
+        expect(parsed.json).toBe(true);
+        expect(parsed.help).toBe(false);
+        expect(parsed.tokens).toEqual(['secret', 'exec', 'A', '--', 'cmd', '--json', '-h']);
+    });
+});

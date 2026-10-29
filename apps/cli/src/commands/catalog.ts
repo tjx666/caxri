@@ -20,6 +20,7 @@ import {
 } from './parameters';
 import { RECORD_COMMANDS } from './records';
 import { rejectOptions } from './reject-options';
+import { SECRET_COMMANDS } from './secret';
 import { SKILL_COMMANDS } from './skills';
 import type { CliCommandDefinition } from './types';
 
@@ -288,6 +289,7 @@ export const CLI_COMMANDS = [
         parseParams: (tokens) => booleanFlag(tokens, '--launch', 'launchIfNeeded'),
     },
     ...RECORD_COMMANDS,
+    ...SECRET_COMMANDS,
     {
         kind: 'remote',
         path: ['terminal', 'send'],

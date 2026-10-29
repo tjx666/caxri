@@ -96,6 +96,7 @@ export function isRowModified(binding: SettingRowBinding, context: SettingsValue
         case 'archived-sessions':
         case 'mobile-access':
         case 'claude-windows':
+        case 'agent-secrets':
         case 'provider-skill-health':
             return false;
     }
@@ -109,6 +110,7 @@ export function isRowResettable(binding: SettingRowBinding): boolean {
         'archived-sessions',
         'mobile-access',
         'claude-windows',
+        'agent-secrets',
         'provider-skill-health',
     ].includes(binding.type);
 }
@@ -234,6 +236,7 @@ export function rowResetAction(
         case 'archived-sessions':
         case 'mobile-access':
         case 'claude-windows':
+        case 'agent-secrets':
         case 'provider-skill-health':
             return undefined;
     }

@@ -1,8 +1,8 @@
 import { Button } from '../../components/ui/button';
 import { Spinner } from '../../components/ui/spinner';
 import { useTranslation } from '../../i18n';
+import { useMobileAccessController } from './hooks/use-mobile-access-controller';
 import { MobileAccessSections } from './mobile-access-sections';
-import { useMobileAccessController } from './use-mobile-access-controller';
 
 export function MobileAccessForm() {
     const { t } = useTranslation();

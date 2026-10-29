@@ -82,6 +82,9 @@ export const settingsPage = {
         'How many times in a row an Agent may hand part of its job to another Agent.',
     'settings.row.delegationDepth.detail':
         '1 lets the Agent you started bring in one helper, which then finishes alone; 2 lets that helper bring in one more. Which Agents may be brought in is set by the delegation presets, in the Source view.',
+    'settings.row.agentSecrets.title': 'Secrets',
+    'settings.row.agentSecrets.description':
+        'API keys and tokens Agents can use in the commands they run. Values never appear in the conversation.',
 
     'settings.row.providerActions.title': 'Agent commands & skills',
     'settings.row.providerActions.description':

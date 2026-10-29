@@ -39,6 +39,7 @@ export const EVENT_AUDIENCE = {
     'botInbox.changed': 'all',
     'benchmark.changed': 'all',
     'claudeWindow.changed': 'all',
+    'agentSecrets.changed': 'all',
     'gitReview.changed': 'all',
     'workbench.candidate': 'focused',
     'workbench.changed': 'all',

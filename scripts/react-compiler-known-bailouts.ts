@@ -31,7 +31,7 @@ export const knownReactCompilerBailouts: Record<string, readonly string[]> = {
         'Use of incompatible library',
     ],
     // lazy ref initialisation with `??=`; an expanded `if` and a `useState` initializer both fail with "Cannot access refs during render".
-    'apps/desktop/src/renderer/src/features/settings/use-settings-page-controller.ts': [
+    'apps/desktop/src/renderer/src/features/settings/hooks/use-settings-page-controller.ts': [
         '(BuildHIR::lowerExpression) Handle ??= operators in AssignmentExpression',
         '(BuildHIR::lowerExpression) Handle ??= operators in AssignmentExpression',
     ],

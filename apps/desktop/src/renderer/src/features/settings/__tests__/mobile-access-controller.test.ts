@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { initialMobileAccessState, mobileAccessReducer } from '../use-mobile-access-controller';
+import {
+    initialMobileAccessState,
+    mobileAccessReducer,
+} from '../hooks/use-mobile-access-controller';
 
 describe('mobile access controller load state', () => {
     it('distinguishes an initial failure from loading and allows a clean retry', () => {

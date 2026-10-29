@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import process from 'node:process';
 
 import type {
@@ -22,6 +21,7 @@ import {
     agentCommandRequest,
     agentControlRequest,
     agentCurrentQuery,
+    agentSecretRequest,
     agentSessionRequest,
 } from './agent-command-request';
 import { createAgentEndpointControl } from './agent-endpoints/control';
@@ -33,6 +33,7 @@ import { createAgentMessaging } from './create-agent-messaging';
 import { createServerDomainService } from './create-domain-service';
 import { invokeDelegationAccess, isDelegationAccessRequest } from './delegation-access';
 import { ServerDesktopRouter } from './desktop-router';
+import { DispatchWaits } from './dispatch-waits';
 import {
     invokeExtensionControlRequest,
     isExtensionControlRequest,
@@ -40,7 +41,10 @@ import {
 import { createExtensionService } from './extensions/create-service';
 import { routeActiveContextChange, routeExtensionDomainEvent } from './extensions/domain-events';
 import type { ExtensionService } from './extensions/service';
-import { createDomainOperationForwarder } from './forward-domain-operation';
+import {
+    createDomainOperationForwarder,
+    disconnectableForwarder,
+} from './forward-domain-operation';
 import { readHostStatus } from './host-status';
 import { acceptHostStop } from './host-stop';
 import { createIdleExitConnectionTracker, createIdleTimeoutMonitor } from './idle-exit';
@@ -121,12 +125,16 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
     const mutationAdmission = new MutationAdmission();
     const { promise: stopped, resolve: resolveStopped } = Promise.withResolvers<void>();
     const { promise: stopping, resolve: resolveStopping } = Promise.withResolvers<void>();
-    const dispatchWaitIds = new Map<string, Set<string>>();
+    const dispatchWaits = new DispatchWaits(domainService);
     const requestCancellations = new RequestCancellationRegistry();
     const forwardDomainOperation = createDomainOperationForwarder(
         domainService,
         mutationAdmission,
         agentEndpoints,
+    );
+    const forwardDisconnectable = disconnectableForwarder(
+        requestCancellations,
+        forwardDomainOperation,
     );
     const logContextRefreshFailure = (error: unknown): void =>
         logger.write('error', logEventCatalog.extensionHost.contextRefreshFailed, {
@@ -276,42 +284,24 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                     return forwardDomainOperation(
                         agentCommandRequest(request, context, invocation.requestId, agentEndpoints),
                     );
-                case 'agent.delegation.wait': {
-                    const operation = agentCommandRequest(
-                        request,
+                case 'agent.delegation.wait':
+                    return forwardDisconnectable(
                         context,
                         invocation.requestId,
-                        agentEndpoints,
+                        agentCommandRequest(request, context, invocation.requestId, agentEndpoints),
                     );
-                    return requestCancellations.runDisconnectable(
-                        principalRequestKey(context, invocation.requestId),
-                        (signal) => forwardDomainOperation(operation, signal),
-                    );
-                }
                 case 'agent.dispatch.status':
                     return domainService.request('agent.dispatch.statusInternal', {
                         dispatchId: request.params.dispatchId,
                         projectScope: projectScope(context),
                     });
-                case 'agent.dispatch.wait': {
-                    const key = principalRequestKey(context, invocation.requestId);
-                    const waitId = randomUUID();
-                    const waitIds = dispatchWaitIds.get(key) ?? new Set<string>();
-                    waitIds.add(waitId);
-                    dispatchWaitIds.set(key, waitIds);
-                    try {
-                        return await domainService.request('agent.dispatch.waitInternal', {
-                            afterRevision: request.params.afterRevision,
-                            dispatchId: request.params.dispatchId,
-                            projectScope: projectScope(context),
-                            timeoutMs: request.params.timeoutMs,
-                            waitId,
-                        });
-                    } finally {
-                        waitIds.delete(waitId);
-                        if (waitIds.size === 0) dispatchWaitIds.delete(key);
-                    }
-                }
+                case 'agent.dispatch.wait':
+                    return dispatchWaits.wait(principalRequestKey(context, invocation.requestId), {
+                        afterRevision: request.params.afterRevision,
+                        dispatchId: request.params.dispatchId,
+                        projectScope: projectScope(context),
+                        timeoutMs: request.params.timeoutMs,
+                    });
                 case 'agent.control.interrupt':
                 case 'agent.control.stop':
                     return forwardDomainOperation(
@@ -323,6 +313,15 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                     return forwardDomainOperation(
                         agentSessionRequest(request, context, agentEndpoints),
                     );
+                case 'agent.secret.list':
+                case 'agent.secret.request':
+                case 'agent.secret.resolve':
+                case 'agent.secret.wait': {
+                    const operation = agentSecretRequest(request, context, agentEndpoints);
+                    if (request.method !== 'agent.secret.wait')
+                        return forwardDomainOperation(operation);
+                    return forwardDisconnectable(context, invocation.requestId, operation);
+                }
                 case 'terminal.send': {
                     if (context.principal.kind === 'paired-device')
                         throw new CaxriError(
@@ -579,7 +578,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                 agentInbox,
                 commandStopFallbackReference,
                 delegationAccess: credentials.delegation(),
-                dispatchWaitIds,
+                dispatchWaits,
                 domainService,
                 requestCancellations,
                 stop,

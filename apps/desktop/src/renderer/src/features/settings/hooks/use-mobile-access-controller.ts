@@ -3,12 +3,12 @@ import { useCallback, useEffect, useMemo, useReducer } from 'react';
 import type { MobileAccessStatus, MobileDeviceSummary, ProjectQueryResult } from '@caxri/protocol';
 import { MOBILE_MAX_PROJECT_GRANTS } from '@caxri/protocol';
 
-import { executeCommand } from '../../commands/execute';
-import type { TranslationKey } from '../../i18n';
-import { translate, useTranslation } from '../../i18n';
-import { writeClipboardText } from '../../lib/clipboard';
-import { showConfirm } from '../../stores/confirmations';
-import { pushToast } from '../../stores/toasts';
+import { executeCommand } from '../../../commands/execute';
+import type { TranslationKey } from '../../../i18n';
+import { translate, useTranslation } from '../../../i18n';
+import { writeClipboardText } from '../../../lib/clipboard';
+import { showConfirm } from '../../../stores/confirmations';
+import { pushToast } from '../../../stores/toasts';
 import {
     createMobilePairing,
     listMobileDevices,
@@ -16,13 +16,13 @@ import {
     mobileAccessStatus,
     revokeMobileDevice,
     setMobileAccessEnabled,
-} from './mobile-access-client';
+} from '../mobile-access-client';
 import {
     describeMobileFailure,
     findNewlyPairedDevice,
     splitGrantableProjects,
     summarizeProjectAccess,
-} from './mobile-access-summary';
+} from '../mobile-access-summary';
 
 export interface MobilePairingState {
     expiresAt: number;

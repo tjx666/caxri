@@ -1,12 +1,13 @@
 import { join } from 'node:path';
 import process from 'node:process';
 
-import { readActiveContext } from './active-context';
 import { chatStateStore, createAgentChatHandlers } from './agent-chat';
 import type { AgentDelegationService } from './agent-delegation';
 import { createAgentLifecycleFanOut } from './agent-lifecycle-fan-out';
 import { createAgentCommandRuntime, createAgentRuntime } from './agent-runtime';
+import { AgentSecretService, createAgentSecretHandlers } from './agent-secrets';
 import { AgentAttentionRequests, CompactionReadiness, createLongPasteService } from './agents';
+import { createAppHandlers } from './app-handlers';
 import { createBenchmarkService } from './benchmark-service-creation';
 import { botHostOptions, BotTerminalHooks, createBotServices } from './bot';
 import { createBugReportDeliveryHandler } from './bug-report-delivery';
@@ -15,7 +16,7 @@ import { createChatTerminalCreator } from './chat-terminal-creation';
 import { createClaudeWindowService } from './claude-window-service-creation';
 import { coreRoutedHandlers } from './core-routed';
 import { createDeletionHandlers } from './deletion-handlers';
-import { DiagnosticsService, lastDatabaseRebuildReport } from './diagnostics';
+import { DiagnosticsService } from './diagnostics';
 import type { DomainDependencies, DomainHandlers, DomainServices } from './domain-services';
 import { createGitReviewHandlers } from './git-review';
 import { createIntrospectionServices } from './introspection';
@@ -205,6 +206,7 @@ export async function createDomainServices(
     const providerServiceOptions = { agentRuntime, database, dependencies, logger, send };
     const benchmark = createBenchmarkService(providerServiceOptions);
     const claudeWindows = createClaudeWindowService(providerServiceOptions);
+    const agentSecrets = new AgentSecretService({ database, logger, send, userDataPath });
     const terminalRestores = new TerminalRestoreSupervisor();
     const terminalSupervision = createTerminalSupervision({
         agentChat,
@@ -397,6 +399,7 @@ export async function createDomainServices(
         await agentChat.shutdown();
         await benchmark.service.shutdown();
         claudeWindows.service.shutdown();
+        agentSecrets.close();
         await terminalSupervision.close();
         await coordinator.close();
         longPastes.close();
@@ -425,17 +428,7 @@ export async function createDomainServices(
         ...coreRoutedHandlers,
         ...sessionMaintenance.handlers,
         ...agentCommands.handlers,
-        'app.bootstrap': ({ windowKey }) => snapshots.bootstrap(windowKey),
-        'app.activeContext': () => readActiveContext(database, () => presence.currentSessionId()),
-        'app.sessionContext': ({ sessionId }) => readActiveContext(database, () => sessionId),
-        'app.records': ({ sessionIds, terminalIds }) => snapshots.records(sessionIds, terminalIds),
-        'app.health': () => ({
-            ready: true,
-            pid,
-            startedAt,
-            activePtyCount: countRunning(),
-            lastDatabaseRebuild: lastDatabaseRebuildReport(database),
-        }),
+        ...createAppHandlers({ countRunning, database, pid, presence, snapshots, startedAt }),
         ...createAgentChatHandlers(agentChat, {
             database,
             agentEnvironment,
@@ -443,6 +436,7 @@ export async function createDomainServices(
         }),
         ...benchmark.handlers,
         ...claudeWindows.handlers,
+        ...createAgentSecretHandlers(agentSecrets),
         ...createWindowStateHandlers(database),
         ...presenceEffects.handlers,
         ...createWorkbenchRootHandlers(workbenchRoots),
@@ -501,6 +495,9 @@ export async function createDomainServices(
             forgetSessionRuntime,
             evictSessions: evictSessionCaches,
             projectDeleted: (ids) => workbenchRoots.projectDeleted(ids),
+            projectMetadataDeleted: () => {
+                void agentSecrets.pruneDeletedProjects();
+            },
             restoreSelection: presenceEffects.restoreWindowSelections,
             send,
         }),

@@ -4,6 +4,7 @@ import type { AgentEndpointRegistry } from './agent-endpoints/registry';
 import type { AgentInboxRegistry } from './agent-inbox/registry';
 import type { ControlServerOptions } from './control-server-support';
 import type { DelegationAccessRegistry } from './delegation-access-registry';
+import type { DispatchWaits } from './dispatch-waits';
 import type { ServerDomainService } from './domain-service';
 import type { RequestCancellationRegistry } from './request-cancellation';
 import { principalRequestKey } from './request-cancellation';
@@ -22,7 +23,7 @@ export interface ServerCoreControlCallbacksDependencies {
     agentInbox: AgentInboxRegistry;
     commandStopFallbackReference: CommandStopFallbackReference;
     delegationAccess: DelegationAccessRegistry;
-    dispatchWaitIds: Map<string, Set<string>>;
+    dispatchWaits: DispatchWaits;
     domainService: ServerDomainService;
     requestCancellations: RequestCancellationRegistry;
     stop: (reason?: string) => Promise<void>;
@@ -71,21 +72,7 @@ export function createServerCoreControlCallbacks(
             dependencies.agentInbox.cancelWait(requestId);
             const key = principalRequestKey(context, requestId);
             dependencies.requestCancellations.disconnect(key);
-            const waitIds = dependencies.dispatchWaitIds.get(key) ?? new Set<string>();
-            await Promise.all(
-                [...waitIds].map(async (waitId) => {
-                    try {
-                        await dependencies.domainService.request(
-                            'agent.dispatch.cancelWaitInternal',
-                            {
-                                waitId,
-                            },
-                        );
-                    } catch {
-                        // Best-effort cancel: the wait may have already resolved.
-                    }
-                }),
-            );
+            await dependencies.dispatchWaits.cancel(key);
         },
         refreshContext: (context: CommandExecutionContext) =>
             context.principal.kind === 'delegation-client'

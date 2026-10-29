@@ -13,6 +13,10 @@ interface DeletionHandlerOptions {
     forgetSessionRuntime(sessionId: string): void;
     evictSessions(sessionIds: readonly string[]): void;
     projectDeleted(workbenchSessionIds: string[]): void;
+    /**
+     * Runs after the Project's metadata is gone; failures are the callee's to log.
+     */
+    projectMetadataDeleted?(): void;
     restoreSelection(): void;
     send(event: ServerEvent): void;
 }
@@ -57,6 +61,7 @@ export function createDeletionHandlers(
                             options.evictSessions(affected);
                             database.deleteProject(projectId);
                             options.projectDeleted(workbench.map((session) => session.id));
+                            options.projectMetadataDeleted?.();
                             return finish('project.delete', windowKey);
                         }),
                 );

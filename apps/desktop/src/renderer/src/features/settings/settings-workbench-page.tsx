@@ -8,14 +8,14 @@ import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
 import { useIsLocalOnlyAvailable } from '../../stores/environment';
 import { ConfigSourceView } from './config-source-view';
+import type { SettingsPageController } from './hooks/use-settings-page-controller';
+import { useSettingsPageController } from './hooks/use-settings-page-controller';
 import { KeybindingsForm } from './keybindings-form';
 import { SettingsNavigation } from './settings-navigation';
 import type { SettingsNavigationState } from './settings-page';
 import { SettingsPage } from './settings-page';
 import { useSettingsRegistry } from './settings-registry';
 import { ThemeForm } from './theme-form';
-import type { SettingsPageController } from './use-settings-page-controller';
-import { useSettingsPageController } from './use-settings-page-controller';
 
 /**
  * Same header copy and classes as the former `DialogHeader`/`DialogTitle`/`DialogDescription` trio, reproduced as plain

@@ -30,6 +30,7 @@ import {
     delegationAccessInternalMethods,
     delegationAccessMethods,
 } from '../agent/delegation/delegation-access-contract.js';
+import { agentSecretInternalMethods, agentSecretMethods } from '../agent/secret/secret-contract.js';
 import {
     configurationSourceSchema as configSourceSchema,
     MAX_KEYBINDINGS,
@@ -108,7 +109,7 @@ import {
 import { terminalReferenceMethods } from '../domain/terminal-reference-contract.js';
 import { terminalRelaunchMethods } from '../domain/terminal-relaunch-contract.js';
 import { terminalSurfaceSchema } from '../domain/terminal-surface.js';
-import { updateStateSchema } from '../domain/update-state.js';
+import { updateMethods } from '../domain/update-state.js';
 import { usageMethods } from '../domain/usage-contract.js';
 import { extensionErrorSchema, extensionIdSchema } from '../domain/views.js';
 import { windowKeyParameter } from '../domain/window-presence-contract.js';
@@ -131,7 +132,6 @@ const serverControl = commandPolicy('server', 'control');
  * which leaves the remounted Terminal blank (#571).
  */
 const terminalStreamControl = { ...serverControl, idempotency: 'none' as const };
-const desktopRead = commandPolicy('desktop', 'read');
 const desktopWrite = commandPolicy('desktop', 'write');
 const desktopControl = commandPolicy('desktop', 'control');
 const serverStatusRead = commandPolicy('server', 'read', ['host.read']);
@@ -168,6 +168,7 @@ export const methods = {
     ...agentDispatchMethods,
     ...agentDelegationMethods,
     ...agentSessionMethods,
+    ...agentSecretMethods,
     ...botMethods,
     ...botDataMethods,
     ...delegationAccessMethods,
@@ -306,19 +307,7 @@ export const methods = {
         params: noParameters,
         result: exportedFile.nullable(),
     },
-    'updates.getState': { ...desktopRead, params: noParameters, result: updateStateSchema },
-    'updates.check': { ...desktopRead, params: noParameters, result: updateStateSchema },
-    /**
-     * Records that a window has already offered the currently available version in this app process, so a reload does
-     * not prompt a second time. Deliberately an explicit Renderer call rather than a side effect of publishing the
-     * state: an `available` state pushed before any window subscribed would otherwise be marked as delivered to a
-     * listener that never existed, and the user would never hear about the release at all.
-     */
-    'updates.acknowledge': { ...desktopControl, params: noParameters, result: updateStateSchema },
-    'updates.download': { ...desktopWrite, params: noParameters, result: updateStateSchema },
-    'updates.cancel': { ...desktopControl, params: noParameters, result: updateStateSchema },
-    'updates.open': { ...desktopControl, params: noParameters, result: updateStateSchema },
-    'updates.install': { ...desktopControl, params: noParameters, result: updateStateSchema },
+    ...updateMethods,
     'project.create': {
         ...desktopWrite,
         params: z.object({
@@ -533,6 +522,7 @@ export const internalMethods = {
     ...agentDispatchInternalMethods,
     ...agentDelegationInternalMethods,
     ...agentSessionInternalMethods,
+    ...agentSecretInternalMethods,
     ...botDataInternalMethods,
     ...delegationAccessInternalMethods,
     ...businessInternalMethods,
