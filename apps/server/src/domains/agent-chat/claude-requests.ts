@@ -207,6 +207,10 @@ export class ClaudeRequestBroker {
             if (response.kind !== 'decision')
                 throw new CaxriError('VALIDATION', 'An approval needs a decision');
             switch (response.decision) {
+                case 'acceptAlways':
+                    // Only Codex offers this (its exec policy rules); a Claude approval never lists it, so a client
+                    // sending it is wrong. Throw before resolving so the request stays pending for a valid decision.
+                    throw new CaxriError('VALIDATION', 'Claude does not offer always-allow');
                 case 'accept':
                 case 'acceptForSession': {
                     const updates = approvalUpdates(
