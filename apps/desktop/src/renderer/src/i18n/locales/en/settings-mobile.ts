@@ -1,6 +1,19 @@
 export const settingsMobile = {
     // Form shell
     'settings.mobileAccess.loading': 'Loading mobile access…',
+    // Relay server row
+    'settings.mobile.relayStatus.connected': 'Connected to the Relay',
+    'settings.mobile.relayStatus.connecting': 'Connecting to the Relay…',
+    'settings.mobile.relayStatus.failed': 'Cannot reach the Relay.',
+    'settings.mobile.relayStatus.reason.networkError':
+        'The address did not answer; check the address and your network.',
+    'settings.mobile.relayStatus.reason.registrationRejected': 'The Relay rejected this computer.',
+    'settings.mobile.relayStatus.reason.closedByRelay':
+        'The Relay closed the connection. Retrying.',
+    'settings.mobile.relayStatus.reason.heartbeatTimeout':
+        'The Relay stopped responding. Retrying.',
+    'settings.mobile.relayStatus.reason.protocolError':
+        'The address is not a compatible Caxri Relay.',
     // Status card
     'settings.mobileAccess.status.available': 'Available on this network',
     'settings.mobileAccess.status.off': 'Off',

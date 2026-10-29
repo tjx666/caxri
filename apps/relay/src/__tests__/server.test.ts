@@ -56,6 +56,24 @@ describe('relay host registration', () => {
         expect(JSON.stringify(lines)).not.toContain(host.hostId);
     });
 
+    it('records heartbeat-timeout when a client stops answering pings', async () => {
+        const { baseUrl, lines } = await relayUp({
+            heartbeatIntervalMs: 20,
+            heartbeatMissLimit: 2,
+        });
+        const host = new FakeHost(baseUrl);
+        await host.register([{ keyHash: device.keyHash }]);
+        // A silent peer: the client never answers the Relay's pings, as behind a NAT that dropped its mapping.
+        const { frames } = await connectClient(baseUrl, host.hostId, device.accessKey, {
+            autoPong: false,
+        });
+        expect(await frames.next()).toEqual({ type: 'relay-ready', version: 1 });
+        await waitFor(() => lines.some((line) => line.event === 'relay.connection_ended'));
+        expect(lines.find((line) => line.event === 'relay.connection_ended')).toMatchObject({
+            cause: 'heartbeat-timeout',
+        });
+    });
+
     it('rejects a forged proof and replaces an older verified registration', async () => {
         const { baseUrl } = await relayUp();
         const host = new FakeHost(baseUrl);

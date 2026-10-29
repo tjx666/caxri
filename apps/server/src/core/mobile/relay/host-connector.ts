@@ -18,6 +18,7 @@ import {
     relayPaths,
     signRelayHostChallenge,
 } from '@caxri/mobile-transport';
+import type { MobileRelayFailure } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 import WebSocket from 'ws';
@@ -38,6 +39,11 @@ export type RelayStateCause =
     | 'registered'
     | 'registration-rejected'
     | 'started';
+
+/**
+ * The subset of state causes that mean the registration was lost or refused; `MobileRelayFailure` is its wire form.
+ */
+export type RelayFailure = MobileRelayFailure & RelayStateCause;
 
 export type RelayDialFailure = 'accept-rejected' | 'capacity' | 'dial-failed';
 
@@ -114,6 +120,7 @@ export class RelayHostConnector {
     #attempt = 0;
     #control?: WebSocket;
     #isStarted = false;
+    #lastFailure?: RelayFailure;
     #lastPongAt = 0;
     #pingTimer?: ReturnType<typeof setInterval>;
     #reconnectTimer?: ReturnType<typeof setTimeout>;
@@ -135,6 +142,13 @@ export class RelayHostConnector {
 
     get state(): RelayConnectorState {
         return this.#state;
+    }
+
+    /**
+     * Why the registration last went offline; cleared once a registration succeeds.
+     */
+    get lastFailure(): RelayFailure | undefined {
+        return this.#lastFailure;
     }
 
     start(): void {
@@ -193,8 +207,8 @@ export class RelayHostConnector {
         const control = this.#createSocket(relayEndpoint(this.#options.url, relayPaths.host));
         this.#control = control;
         let challenge: Uint8Array | undefined;
-        let closeCause: RelayStateCause | undefined;
-        const fail = (reason: RelayStateCause): void => {
+        let closeCause: RelayFailure | undefined;
+        const fail = (reason: RelayFailure): void => {
             closeCause ??= reason;
             control.terminate();
         };
@@ -242,7 +256,7 @@ export class RelayHostConnector {
         control.on('close', (code) => {
             if (this.#control !== control) return;
             const relayReason = relayCloseReasonOf(code);
-            const cause =
+            const cause: RelayFailure =
                 closeCause ??
                 (relayReason === 'unauthorized'
                     ? 'registration-rejected'
@@ -257,6 +271,7 @@ export class RelayHostConnector {
 
     #onRegistered(control: WebSocket): void {
         this.#registeredAt = this.#now();
+        this.#lastFailure = undefined;
         this.#transition('online', 'registered');
         clearTimeout(this.#stableTimer);
         this.#stableTimer = setTimeout(() => {
@@ -349,7 +364,7 @@ export class RelayHostConnector {
         if (control && control.readyState !== WebSocket.CLOSED) control.terminate();
     }
 
-    #scheduleReconnect(cause: RelayStateCause, relayReason?: RelayCloseReason): void {
+    #scheduleReconnect(cause: RelayFailure, relayReason?: RelayCloseReason): void {
         if (!this.#isStarted) return;
         this.#attempt += 1;
         const ceiling = Math.min(
@@ -357,6 +372,7 @@ export class RelayHostConnector {
             this.#timing.initialBackoffMs * 2 ** Math.min(this.#attempt - 1, 16),
         );
         const delay = Math.round(ceiling * (0.5 + this.#random() * 0.5));
+        this.#lastFailure = cause;
         this.#transition('offline', cause, relayReason);
         this.#reconnectTimer = setTimeout(() => this.#connect(cause), delay);
         this.#reconnectTimer.unref();

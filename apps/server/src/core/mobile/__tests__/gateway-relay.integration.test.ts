@@ -270,10 +270,12 @@ describe('MobileGateway over a real Relay', () => {
                 const { port } = relay;
                 await stopRelay(relay);
                 await vi.waitFor(() => expect(gateway.status().relay?.state).not.toBe('online'));
+                expect(gateway.status().relay?.lastFailure).toBeDefined();
                 relay = await startRelay(port);
                 await vi.waitFor(() => expect(gateway.status().relay?.state).toBe('online'), {
                     timeout: 5_000,
                 });
+                expect(gateway.status().relay?.lastFailure).toBeUndefined();
             }
 
             const logged = JSON.stringify(write.mock.calls);

@@ -40,6 +40,7 @@ import { NotificationHelperStatus } from './notification-helper-status';
 import { hookHealthCaption, hookHealthTone, isHookAdapterAvailable } from './provider-health';
 import { ProviderRecoveryEditor } from './provider-recovery-editor';
 import { ProviderSkillHealth } from './provider-skill-health';
+import { RelayConnectionStatus } from './relay-connection-status';
 import { SettingRowChrome } from './setting-row-chrome';
 import { isFullWidthRow } from './setting-row-layout';
 import { settingTitle } from './setting-spec-text';
@@ -228,6 +229,8 @@ function rowControl(
                 }
                 return {
                     labelFor: controlId,
+                    status:
+                        binding.key === 'mobile.relayUrl' ? <RelayConnectionStatus /> : undefined,
                     control: (
                         <StringControl
                             id={controlId}

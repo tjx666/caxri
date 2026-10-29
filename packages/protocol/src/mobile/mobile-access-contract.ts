@@ -1,6 +1,21 @@
 import { z } from 'zod';
 
 /**
+ * Why the Server's outbound Relay registration last went offline. A closed enum that mirrors the `cause` of the offline
+ * `mobile_gateway.relay_state` log event, so Settings can name the reason without free text, and never carries the
+ * Relay address or any credential.
+ */
+export const mobileRelayFailureSchema = z.enum([
+    'closed-by-relay',
+    'heartbeat-timeout',
+    'network-error',
+    'protocol-error',
+    'registration-rejected',
+]);
+
+export type MobileRelayFailure = z.infer<typeof mobileRelayFailureSchema>;
+
+/**
  * Desktop-facing state of Mobile access: the LAN listener, paired and pending counts, and the optional Relay route.
  */
 export const mobileAccessStatusSchema = z.strictObject({
@@ -16,6 +31,10 @@ export const mobileAccessStatusSchema = z.strictObject({
     relay: z
         .strictObject({
             state: z.enum(['connecting', 'online', 'offline']),
+            /**
+             * Present until the registration succeeds, including while the next attempt is `connecting`.
+             */
+            lastFailure: mobileRelayFailureSchema.optional(),
             hostId: z.string().regex(/^[0-9a-f]{32}$/u),
         })
         .optional(),
