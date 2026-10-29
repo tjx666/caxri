@@ -22,6 +22,7 @@ export const cliTestFiles = ['apps/cli/{scripts,src}/**/*.test.ts'];
 export const mobileTestFiles = ['apps/mobile/{plugins,scripts,src}/**/*.test.ts'];
 export const mobileTransportTestFiles = ['packages/mobile-transport/src/**/*.test.ts'];
 export const markdownTestFiles = ['packages/markdown/src/**/*.test.ts'];
+export const relayTestFiles = ['apps/relay/{scripts,src}/**/*.test.ts'];
 export const testProjectNames = [
     'desktop-parallel',
     'agent-skills',
@@ -36,6 +37,7 @@ export const testProjectNames = [
     'mobile',
     'mobile-transport',
     'markdown',
+    'relay',
 ];
 const serialNativeTestPrefix = [
     'apps/server/src/domains/__tests__/agent-hooks.integration.test.ts',
@@ -246,6 +248,14 @@ export default defineConfig({
                 test: {
                     name: 'markdown',
                     include: markdownTestFiles,
+                    maxWorkers: parallelMaxWorkers,
+                },
+            },
+            {
+                extends: true,
+                test: {
+                    name: 'relay',
+                    include: relayTestFiles,
                     maxWorkers: parallelMaxWorkers,
                 },
             },

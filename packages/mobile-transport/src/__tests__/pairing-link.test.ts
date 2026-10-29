@@ -19,6 +19,20 @@ describe('mobile pairing links', () => {
         expect(parseMobilePairingLink(serializeMobilePairingLink(pairing))).toEqual(pairing);
     });
 
+    it('round-trips a Relay fallback and requires both Relay parameters', () => {
+        const relayed: MobilePairingLink = {
+            ...pairing,
+            relay: { url: 'wss://relay.example.com', hostId: 'cd'.repeat(16) },
+        };
+        const link = serializeMobilePairingLink(relayed);
+
+        expect(parseMobilePairingLink(link)).toEqual(relayed);
+        expect(() => parseMobilePairingLink(link.replace(/&relay-host=[0-9a-f]+/u, ''))).toThrow();
+        expect(() =>
+            parseMobilePairingLink(link.replace('wss%3A%2F%2Frelay', 'https%3A%2F%2Frelay')),
+        ).toThrow();
+    });
+
     it.each([
         'https://pair?addresses=192.168.1.3',
         `${serializeMobilePairingLink(pairing)}&unknown=value`,

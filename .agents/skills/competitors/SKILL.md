@@ -53,6 +53,10 @@ editor-adjacent surfaces. Both are shallow-cloned into `competitors/` by `script
   and the Agent workbenches above keep a streaming reply's Markdown cheap to parse and render. Read
   it before changing Agent Chat Markdown rendering. Their clones are synced alongside the
   references above.
+- **Relay servers for mobile remote control**
+  ([references/relay-servers.md](references/relay-servers.md)): how Orca, Paseo, T3 Code, Superset,
+  Happy, Codex, and Claude Code let a phone reach a host behind NAT, and what users ask of them. Read
+  it before changing the Caxri Relay or mobile route selection.
 - **Cross-Agent session history search**
   ([references/session-history-search.md](references/session-history-search.md)): how Wake, Orca,
   cmux, Kooky, Jean, Paseo, agentsview, and agent-sessions discover, index, and reopen Agent

@@ -22,6 +22,10 @@ The same HTTP server also serves `GET /mobile/update/<token>` for the update APK
 no application frames: the bearer token is issued over the sealed channel and the payload is checked
 against a sealed MD5; see [update.md](update.md).
 
+Outside the LAN or tailnet, a phone can reach the same gateway through a Relay that splices its
+socket to one the Server dials back; the handshake and every frame above stay end to end. See
+[relay.md](relay.md).
+
 ## Pairing key agreement
 
 Pairing links expire after two minutes and are single-use. X25519 key agreement, the pairing secret,

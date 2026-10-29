@@ -66,15 +66,22 @@ export function settingNullLabel(
     return t(`settings.${spec.key as NullLabeledSettingKey}.nullLabel`);
 }
 
+type LiteralPlaceholderKey = 'mobile.relayUrl' | 'terminal.fontFamily' | 'workbench.externalEditor';
+const literalPlaceholderKeys = new Set<SettingKey>([
+    'mobile.relayUrl',
+    'terminal.fontFamily',
+    'workbench.externalEditor',
+] satisfies LiteralPlaceholderKey[]);
+const isLiteralPlaceholderKey = (key: SettingKey): key is LiteralPlaceholderKey =>
+    literalPlaceholderKeys.has(key);
+
 /**
- * Placeholders that are literal values rather than prose (a command name, a font name) stay as written.
+ * Placeholders that are literal values rather than prose (a command name, a font name, a URL) stay as written.
  */
 export function settingPlaceholder(t: Translate, spec: StringSettingSpec): string | undefined {
     if (spec.placeholder === undefined) return undefined;
     const key = spec.key as PlaceholderSettingKey;
-    return key === 'terminal.fontFamily' || key === 'workbench.externalEditor'
-        ? spec.placeholder
-        : t(`settings.${key}.placeholder`);
+    return isLiteralPlaceholderKey(key) ? spec.placeholder : t(`settings.${key}.placeholder`);
 }
 
 /**

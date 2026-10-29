@@ -9,6 +9,7 @@ status: accepted
 - Implementation plan: [Server architecture refactor plan](../server-refactor-plan.md)
 - Amended by: [ADR 0013](0013-editable-external-documents.md) (external documents are editable and can open a Terminal in their folder)
 - Amended by: [ADR 0014](0014-ssh-remote-server.md) (adds an SSH access path beside local, direct, and Relay)
+- Amended by: [ADR 0021](0021-blind-splice-relay.md) (the Relay is a blind splice for the Mobile gateway, with host-key identity)
 
 Local, direct, and Relay access establish the same public Server protocol. Local access uses a private
 loopback bootstrap credential. Direct access uses TLS with a pairing-delivered certificate pin,

@@ -56,3 +56,10 @@ _Researched 2026-09-24 from OpenAI help and developer docs plus public issues._
 - The relay carries JSON-RPC over TLS to OpenAI without end-to-end encryption, unlike Codex's Noise-based `exec-server` channel; a public issue asks for parity. Another asks for re-authentication before destructive actions from a phone.
 - Mobile UX: unified Session list across hosts, live transcript with diffs and approvals, one-screen new Session (host, workspace, branch, optional worktree), explicit Queue vs Steer for follow-ups sent mid-turn, `/side` tangent threads, and a model/effort picker. The Terminal is a read-only stream.
 - Public sentiment (X, Aug–Sept 2026): praised as the most complete remote experience (especially starting work from the phone and voice) and heavily criticized for disconnects, reconnect loops, and desync, with Android behind iOS.
+
+## Remote control relay protocol (2026-10-29)
+
+Comparison: [relay-servers.md](relay-servers.md). `codex-rs/app-server-transport/src/transport/remote_control/`
+enrolls the host with the ChatGPT backend for a short-lived bearer token and keeps one WebSocket carrying JSON-RPC
+envelopes with `client_id`, `stream_id`, `seq_id`, acks, and base64 chunking for large messages. The protocol has no
+application-layer encryption, and hosts are restricted to the vendor domain, so self-hosting is impossible.

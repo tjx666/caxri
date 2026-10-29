@@ -19,7 +19,7 @@ export const pairing: TranslatedNamespace<typeof source> = {
     'pairing.error.invalidLink': '这不是有效的 Caxri 配对链接。请复制或扫描新的配对码。',
     'pairing.error.rejected': '配对被拒绝。请在 Caxri 设置中生成新的配对码后重试。',
     'pairing.error.unreachable':
-        '无法连接到 Caxri。请确认已开启移动设备访问，且两台设备位于同一网络。',
+        '无法连接到 Caxri。请确认已开启移动设备访问，且两台设备位于同一网络或已配置中继。',
     'pairing.error.versionMismatch':
         '需要更新。此应用与电脑上的 Caxri 版本不一致，请将两者都更新到最新版本。',
     'pairing.failedTitle': '配对失败',

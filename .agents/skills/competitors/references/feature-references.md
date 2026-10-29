@@ -104,6 +104,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 - **Mobile computer status Session load**: Per-Session sum of PTY descendant CPU and memory; 2-second poll only while visible (also: Superset, cmux). Evidence: `apps/server/src/core/mobile/host-status.ts`; `apps/mobile/src/features/host-status/host-status-model.ts`.
 - **Banked reset credits in the usage hover card**: Count of Codex reset credits and the soonest expiry beside the plan windows (Orca's status-bar tooltip, `formatResetCreditExpiry`); Caxri adds a warning tone on the chip within 24 hours of expiry and reads the count from a running Chat's `account/rateLimits/read`. No consume action. Evidence: `apps/server/src/domains/usage/codex-reset-credits.ts`; `docs/usage.md`.
 - **PTY slot usage**: Machine-wide PTY use against the kernel limit, with per-process holders so the user can find what to close (Orca's Resource Manager "PTY manager"); Caxri adds the near-limit alert and the `pty_exhausted` launch reason. Evidence: `docs/process-explorer.md`.
+- **Mobile Relay splice and route switching**: A host control socket plus a single-use ticketed dial-back socket per phone, spliced without parsing; 256 KiB / 64 KiB backpressure watermarks; a 2.5 second direct-route grace and a switch back to direct after three probes and 60 seconds. Borrowed: the topology and values only, no code. Evidence: `docs/mobile/relay.md`; `apps/relay/src/splice.ts`; `apps/mobile/src/features/connection/gateway-routes.ts`.
 
 ## Wake (MIT)
 
@@ -153,6 +154,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 - **Agent Chat feedback callouts**: Paseo notification severity uses an icon and a tinted container; Caxri preserves provider warning/error levels, source headings, and full readable details. Evidence: `apps/desktop/src/renderer/src/features/agent-chat/messages/agent-chat-message.tsx`; `apps/mobile/src/features/agent-chat/agent-chat-feedback.tsx`.
 - **Window presence**: Client heartbeat of visible and focused state, used to decide what a user is looking at. Evidence: `docs/adr/0017-per-window-session-presence.md`; `apps/server/src/domains/window-presence/window-presence.ts`.
 - **Consecutive reasoning as one thought**: A thought chunk appends to the previous thought instead of starting a new row. Evidence: `packages/protocol/src/agent/agent-chat-work.ts` (`mergeAgentChatReasoning`).
+- **Mobile Relay control and data sockets**: Separate host control and per-connection data sockets; Caxri adds an Ed25519 host proof because Paseo's unauthenticated host ID lets anyone evict the real daemon. Evidence: `docs/adr/0021-blind-splice-relay.md`; `relay-servers.md`.
 
 ## Superset, Synara, Muxy, Herdr, Kero
 

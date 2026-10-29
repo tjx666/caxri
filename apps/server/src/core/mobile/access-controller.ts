@@ -34,6 +34,7 @@ import { invokeMobilePanelRequest } from './panel-requests';
 import { createMobilePreviewRequests } from './preview';
 import { createMobilePairing, invokeMobileProjectRequest } from './project-requests';
 import { mergeMobilePullRequest, readMobilePullRequest } from './pull-request-requests';
+import { createRelaySettingFollower } from './relay';
 import { isMobileGatewayMethodAllowedForRole } from './role-methods';
 import {
     applyMobileSessionManagement,
@@ -87,6 +88,7 @@ export const openMobileAccessController = (options: {
     });
     const readHostStatus = createMobileHostStatusReader(options.logger);
     let isClosed = false;
+    let applyRelaySetting: (() => void) | undefined;
     const assertOpen = (): void => {
         if (isClosed) throw new CaxriError('UNAVAILABLE', 'Mobile access is shutting down');
     };
@@ -184,6 +186,8 @@ export const openMobileAccessController = (options: {
                 ...(options.selectAddress && { selectAddress: options.selectAddress }),
                 updateSource: updateRequests.readSource,
             });
+            applyRelaySetting = createRelaySettingFollower(gateway, domainService);
+            applyRelaySetting();
             void withAuthority(() => accessPersistence.restore(isClosed ? undefined : gateway));
         },
         close: () =>
@@ -192,7 +196,10 @@ export const openMobileAccessController = (options: {
                 abortOperations();
                 await Promise.all([gateway?.close(), previews.clear()]);
             }),
-        publish: (event) => gateway?.publish(event),
+        publish: (event) => {
+            if (event.event === 'settings.changed') applyRelaySetting?.();
+            gateway?.publish(event);
+        },
         invokeControl: async (
             request,
             context,

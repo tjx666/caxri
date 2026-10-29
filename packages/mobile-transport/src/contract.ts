@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { relayHostIdSchema, relayUrlSchema } from './relay.js';
+
 export const MOBILE_TRANSPORT_VERSION = 3 as const;
 export const MOBILE_GATEWAY_MAX_FRAME_BYTES = 64 * 1024;
 export const MOBILE_GATEWAY_MAX_PLAINTEXT_BYTES = MOBILE_GATEWAY_MAX_FRAME_BYTES - 16;
@@ -65,6 +67,15 @@ export const mobilePairingLinkSchema = z.strictObject({
     pairingId: fixedHex(16),
     secret: fixedHex(PAIRING_SECRET_BYTES),
     expiresAt: z.number().int().positive(),
+    /**
+     * Present when the Server is registered with a Relay; the phone falls back to it when no LAN address answers.
+     */
+    relay: z
+        .strictObject({
+            url: relayUrlSchema,
+            hostId: relayHostIdSchema,
+        })
+        .optional(),
 });
 
 export const mobileClientHelloSchema = z.discriminatedUnion('mode', [

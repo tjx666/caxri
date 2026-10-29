@@ -8,6 +8,8 @@ import {
 } from '@caxri/mobile-transport';
 import WebSocket from 'ws';
 
+import type { GatewaySession } from './gateway-session';
+
 const FINAL_FRAME_CLOSE_TIMEOUT_MS = 1_000;
 
 interface ServerSealedPayloadContext {
@@ -18,7 +20,7 @@ interface ServerSealedPayloadContext {
     key: Uint8Array;
 }
 
-export const createServerSealedPayload = (
+const createServerSealedPayload = (
     context: ServerSealedPayloadContext,
     payload: unknown,
 ): string => {
@@ -82,3 +84,18 @@ export const sendFinalSealedPayload = async (
         });
     });
 };
+
+/**
+ * Seals one server-to-client payload with the session's key and takes the next outbound counter.
+ */
+export const sealSessionPayload = (session: GatewaySession, payload: unknown): string =>
+    createServerSealedPayload(
+        {
+            connectionId: session.transcript.connectionId,
+            connectionIdHex: session.connection.connectionId,
+            counter: session.outbound.take(),
+            deviceId: session.deviceId,
+            key: session.keys.serverToClient,
+        },
+        payload,
+    );

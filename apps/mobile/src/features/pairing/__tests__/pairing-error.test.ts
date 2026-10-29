@@ -18,7 +18,7 @@ describe('pairingErrorMessage', () => {
         ['invalid-link', 'This is not a valid Caxri pairing link. Copy or scan a new code.'],
         [
             'unreachable',
-            'Caxri could not be reached. Check that Mobile access is on and both devices are on the same network.',
+            'Caxri could not be reached. Check that Mobile access is on and that both devices share a network, or that a Relay is set up.',
         ],
         ['rejected', 'Pairing was rejected. Create a new code in Caxri Settings and try again.'],
     ] as const)('maps %s without exposing credential details', (code, expected) => {

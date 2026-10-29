@@ -16,7 +16,7 @@ export const pairing = {
     'pairing.error.rejected':
         'Pairing was rejected. Create a new code in Caxri Settings and try again.',
     'pairing.error.unreachable':
-        'Caxri could not be reached. Check that Mobile access is on and both devices are on the same network.',
+        'Caxri could not be reached. Check that Mobile access is on and that both devices share a network, or that a Relay is set up.',
     'pairing.error.versionMismatch':
         'Update required. This app and Caxri on your computer use different versions. Update both to the latest build.',
     'pairing.failedTitle': 'Pairing failed',

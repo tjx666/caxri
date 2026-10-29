@@ -163,6 +163,23 @@ const nullableStringField = (spec: StringSettingSpec) =>
 
 const spec = settingsSpecByKey;
 
+const isRelayUrlShape = (value: string): boolean => {
+    let url: URL;
+    try {
+        url = new URL(value);
+    } catch {
+        return false;
+    }
+    return (
+        (url.protocol === 'ws:' || url.protocol === 'wss:') &&
+        url.hostname.length > 0 &&
+        url.username === '' &&
+        url.password === '' &&
+        url.search === '' &&
+        url.hash === ''
+    );
+};
+
 /**
  * The canonical `AppSettings` schema shared by the IPC wire contract and the settings registry. Scalar bounds and
  * defaults come from `settings-spec.ts`; only values too rich for a generic control keep a hand-written sub-schema
@@ -211,6 +228,13 @@ export const appSettingsSchema = z.object({
     'workbench.fontFamily': nullableStringField(spec['workbench.fontFamily']),
     'workbench.externalEditor': nullableStringField(spec['workbench.externalEditor']),
     'updates.skippedVersion': nullableStringField(spec['updates.skippedVersion']),
+    /**
+     * Only the URL shape is checked here; Server Core validates it again with the Relay contract before dialing.
+     */
+    'mobile.relayUrl': nullableStringField(spec['mobile.relayUrl']).refine(
+        (value) => value === null || isRelayUrlShape(value),
+        'Expected a ws:// or wss:// URL without credentials, query, or fragment',
+    ),
     'agents.providers': agentProvidersSchema,
     'agents.delegation': agentDelegationSettingsSchema,
     'agents.longRunningShellCommands': longRunningShellCommandsSchema,

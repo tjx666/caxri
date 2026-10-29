@@ -16,6 +16,7 @@ import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
 import { principalSchema } from '../transport/principal.js';
 import { mobileDeviceRoleSchema } from './device-role.js';
+import { mobileAccessStatusSchema } from './mobile-access-contract.js';
 import { mobileAgentChatMethods } from './mobile-agent-chat-contract.js';
 import { mobileAgentUsageMethods } from './mobile-agent-usage-contract.js';
 import {
@@ -49,6 +50,7 @@ import { mobileUpdateMethods } from './mobile-update-contract.js';
 
 export type { MobileDeviceRole } from './device-role.js';
 export { mobileDeviceRoleSchema } from './device-role.js';
+export * from './mobile-access-contract.js';
 export * from './mobile-agent-chat-contract.js';
 export * from './mobile-agent-chat-state-clip.js';
 export * from './mobile-agent-usage-contract.js';
@@ -95,14 +97,6 @@ export const mobileDeviceSummarySchema = z.strictObject({
     createdAt: z.number().int().positive(),
     lastConnectedAt: z.number().int().positive().optional(),
     revokedAt: z.number().int().positive().optional(),
-});
-
-export const mobileAccessStatusSchema = z.strictObject({
-    enabled: z.boolean(),
-    address: z.ipv4().optional(),
-    port: z.number().int().min(1).max(65_535).optional(),
-    pairedDeviceCount: z.number().int().nonnegative().max(128),
-    pendingPairingCount: z.number().int().nonnegative().max(8),
 });
 
 export const mobileDashboardSessionSchema = z.strictObject({
@@ -589,7 +583,6 @@ export const mobileInternalMethods = {
     ...mobileBotInboxInternalMethods,
 } as const satisfies Record<string, MethodSpec>;
 
-export type MobileAccessStatus = z.infer<typeof mobileAccessStatusSchema>;
 export type MobileDashboardResult = z.infer<typeof mobileDashboardResultSchema>;
 export type MobileArchivedSessionsResult = z.infer<typeof mobileArchivedSessionsResultSchema>;
 export type MobileDeviceSummary = z.infer<typeof mobileDeviceSummarySchema>;

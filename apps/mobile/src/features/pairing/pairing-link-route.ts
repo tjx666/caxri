@@ -12,6 +12,10 @@ const pairingRouteParameterNames = [
     'server',
     'v',
 ] as const;
+/**
+ * Present together only when the computer advertised a Relay; see `parseMobilePairingLink`.
+ */
+const relayRouteParameterNames = ['relay', 'relay-host'] as const;
 
 export type PairingRouteParameters = Record<string, string | string[] | undefined>;
 
@@ -21,22 +25,19 @@ export type PairingRouteParameters = Record<string, string | string[] | undefine
  */
 export const pairingLinkFromRouteParameters = (parameters: PairingRouteParameters): string => {
     const keys = Object.keys(parameters);
-    if (
-        keys.length !== pairingRouteParameterNames.length ||
-        keys.some(
-            (key) =>
-                !pairingRouteParameterNames.includes(
-                    key as (typeof pairingRouteParameterNames)[number],
-                ),
-        )
-    )
+    const hasRelay = relayRouteParameterNames.some((name) => name in parameters);
+    const expectedNames: readonly string[] = hasRelay
+        ? [...pairingRouteParameterNames, ...relayRouteParameterNames]
+        : pairingRouteParameterNames;
+    const expected = new Set(expectedNames);
+    if (keys.length !== expected.size || keys.some((key) => !expected.has(key)))
         throw new MobilePairingError(
             'invalid-link',
             'Pairing route parameters do not match the protocol',
         );
 
     const search = new URLSearchParams();
-    for (const name of pairingRouteParameterNames) {
+    for (const name of expectedNames) {
         const value = parameters[name];
         if (typeof value !== 'string')
             throw new MobilePairingError(

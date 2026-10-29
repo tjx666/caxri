@@ -83,3 +83,12 @@ long and a short label (`plugins/claude-usage-source/server/usage.ts`): `Session
 model-scoped weekly window as `Weekly · <model>`. The sidebar shows the short form after the share (`31% 5h`); the
 usage modal shows the long form (`Weekly`, Chinese `每周`). The Codex usage source has no short label and names its
 windows `Primary limit` / `Secondary limit`.
+
+## Relay (2026-10-29)
+
+Comparison: [relay-servers.md](relay-servers.md). The in-repo Cloudflare relay is legacy and forwards to a separate
+Elixir service; it still documents the protocol. Both sides dial `relay.paseo.sh`; the daemon keeps a control socket
+and opens one data socket per client; frames are opaque. Encryption is `Noise_NK_25519_ChaChaPoly_SHA256` with a
+legacy NaCl fallback (`docs/relay-endpoint-security.md`). The relay authenticates nobody: connecting as `role=server`
+with a known `serverId` replaces the real daemon's control socket, a denial-of-service but not an impersonation.
+Self-hosting uses `PASEO_RELAY_ENDPOINT`. Direct routes are added by hand and ranked by probe latency.

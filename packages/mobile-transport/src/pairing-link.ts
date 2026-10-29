@@ -1,7 +1,7 @@
 import type { MobilePairingLink } from './contract.js';
 import { mobilePairingLinkSchema } from './contract.js';
 
-const expectedParameters = [
+const directParameters = [
     'addresses',
     'expires',
     'pairing',
@@ -10,6 +10,10 @@ const expectedParameters = [
     'server',
     'v',
 ] as const;
+/**
+ * The Relay pair is all-or-nothing: a link carries both its URL and host ID, or neither.
+ */
+const relayParameters = ['relay', 'relay-host'] as const;
 
 export const serializeMobilePairingLink = (input: MobilePairingLink): string => {
     const value = mobilePairingLinkSchema.parse(input);
@@ -21,6 +25,7 @@ export const serializeMobilePairingLink = (input: MobilePairingLink): string => 
         secret: value.secret,
         server: value.serverId,
         v: String(value.version),
+        ...(value.relay && { 'relay': value.relay.url, 'relay-host': value.relay.hostId }),
     });
     return `caxri://pair?${parameters.toString()}`;
 };
@@ -40,6 +45,10 @@ export const parseMobilePairingLink = (source: string): MobilePairingLink => {
         parameterCount += 1;
         keys.add(key);
     }
+    const hasRelay = relayParameters.some((parameter) => keys.has(parameter));
+    const expectedParameters = hasRelay
+        ? [...directParameters, ...relayParameters]
+        : [...directParameters];
     if (
         parameterCount !== expectedParameters.length ||
         keys.size !== expectedParameters.length ||
@@ -54,5 +63,11 @@ export const parseMobilePairingLink = (source: string): MobilePairingLink => {
         pairingId: url.searchParams.get('pairing'),
         secret: url.searchParams.get('secret'),
         expiresAt: Number(url.searchParams.get('expires')),
+        ...(hasRelay && {
+            relay: {
+                url: url.searchParams.get('relay'),
+                hostId: url.searchParams.get('relay-host'),
+            },
+        }),
     });
 };

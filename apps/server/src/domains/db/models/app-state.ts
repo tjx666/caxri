@@ -83,6 +83,14 @@ const appStateValueSchemas = {
     mobileGateway: z.strictObject({
         accessEnabled: z.literal(true).optional(),
         preferredPort: z.number().int().min(1).max(65_535).optional(),
+        /**
+         * Ed25519 secret key behind this profile's Relay host ID. Kept across restarts because paired phones store the
+         * host ID it derives; losing it would strand them until they pair again.
+         */
+        relayHostKey: z
+            .string()
+            .regex(/^[0-9a-f]{64}$/u)
+            .optional(),
     }),
     /**
      * Each provider account's weekly usage guard, so a restart neither lifts it early nor grants a second hand-off in

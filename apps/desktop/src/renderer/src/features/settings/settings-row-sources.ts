@@ -281,6 +281,7 @@ export const settingRowSources: SettingRowSource[] = [
             'local network',
         ]),
     },
+    specRow('mobile.relayUrl'),
     specRow('terminal.fontFamily'),
     specRow('terminal.fontSize'),
     {

@@ -5,9 +5,11 @@ import {
     decodeHex,
     deriveMobileSessionKeys,
     HANDSHAKE_NONCE_BYTES,
+    MOBILE_TRANSPORT_VERSION,
     MobileFrameCounter,
     mobilePublicKey,
     MobileReplayGuard,
+    mobileVersionMismatchSchema,
     PAIRING_SECRET_BYTES,
     X25519_KEY_BYTES,
 } from '@caxri/mobile-transport';
@@ -56,7 +58,7 @@ interface MobileHandshakeDependencies {
 export function beginMobileHandshake(
     hello: MobileClientHello,
     dependencies: MobileHandshakeDependencies,
-): GatewaySession {
+): Omit<GatewaySession, 'route'> {
     const connectionId = Buffer.from(dependencies.random(16)).toString('hex');
     const serverSecretKey = dependencies.random(X25519_KEY_BYTES);
     const serverPublicKey = mobilePublicKey(serverSecretKey);
@@ -133,4 +135,28 @@ export function beginMobileHandshake(
         transcript,
         valid: isValid,
     };
+}
+
+/**
+ * The version-gate reply for a hello from another transport version, or `undefined` for anything else. It answers
+ * before authentication, so it cannot disclose pairing or device state.
+ */
+export function versionMismatchFrame(raw: unknown): string | undefined {
+    if (
+        typeof raw !== 'object' ||
+        raw === null ||
+        !('type' in raw) ||
+        raw.type !== 'hello' ||
+        !('version' in raw) ||
+        typeof raw.version !== 'number' ||
+        !Number.isSafeInteger(raw.version) ||
+        raw.version === MOBILE_TRANSPORT_VERSION
+    )
+        return undefined;
+    return JSON.stringify(
+        mobileVersionMismatchSchema.parse({
+            type: 'version-mismatch',
+            supportedVersion: MOBILE_TRANSPORT_VERSION,
+        }),
+    );
 }

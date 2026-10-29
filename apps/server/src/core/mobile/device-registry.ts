@@ -10,6 +10,7 @@ import {
     mobileDeviceRoleSchema,
     mobileProjectIdsSchema,
 } from '@caxri/protocol';
+import { notifyListeners } from '@caxri/utils';
 import { z } from 'zod';
 
 import type { MobileDeviceStore } from '../../domains/db';
@@ -39,6 +40,7 @@ export type MobileDeviceRecord = z.infer<typeof mobileDeviceRecordSchema>;
 interface MobileGatewayPreferences {
     isAccessEnabled: boolean;
     preferredPort: number | undefined;
+    relayHostKey?: string;
 }
 export type MobileDeviceSummary = Omit<MobileDeviceRecord, 'credential'>;
 
@@ -72,6 +74,7 @@ function writeStore(
     store.write(mobileDeviceRecordsSchema.parse(records), {
         ...(preferences.preferredPort && { preferredPort: preferences.preferredPort }),
         ...(preferences.isAccessEnabled && { accessEnabled: true }),
+        ...(preferences.relayHostKey && { relayHostKey: preferences.relayHostKey }),
     });
 }
 
@@ -88,6 +91,7 @@ export class MobileDeviceRegistry {
         return new MobileDeviceRegistry(options, parsed.data, {
             isAccessEnabled: preferences.accessEnabled === true,
             preferredPort: preferences.preferredPort,
+            ...(preferences.relayHostKey && { relayHostKey: preferences.relayHostKey }),
         });
     }
 
@@ -96,6 +100,7 @@ export class MobileDeviceRegistry {
     readonly #random: (bytes: number) => Uint8Array;
     #preferences: MobileGatewayPreferences;
     #records: Map<string, MobileDeviceRecord>;
+    readonly #deviceListeners = new Set<() => void>();
     #writeTail = Promise.resolve();
 
     private constructor(
@@ -131,6 +136,7 @@ export class MobileDeviceRegistry {
             const result = change(records);
             writeStore(this.#options.store, records.values(), this.#preferences);
             this.#records = records;
+            notifyListeners(this.#deviceListeners, undefined);
             return result;
         })();
         this.#writeTail = (async (): Promise<void> => {
@@ -146,7 +152,8 @@ export class MobileDeviceRegistry {
     async #rememberPreferences(next: MobileGatewayPreferences): Promise<void> {
         if (
             this.#preferences.preferredPort === next.preferredPort &&
-            this.#preferences.isAccessEnabled === next.isAccessEnabled
+            this.#preferences.isAccessEnabled === next.isAccessEnabled &&
+            this.#preferences.relayHostKey === next.relayHostKey
         )
             return;
         const previousWrite = this.#writeTail;
@@ -188,6 +195,39 @@ export class MobileDeviceRegistry {
 
     async rememberAccessEnabled(isAccessEnabled: boolean): Promise<void> {
         await this.#rememberPreferences({ ...this.#preferences, isAccessEnabled });
+    }
+
+    /**
+     * The Relay host secret key, created and persisted on first use. Concurrent first calls share the serialized write
+     * queue, so they converge on whichever key reached the store first.
+     */
+    async relayHostKey(): Promise<string> {
+        if (this.#preferences.relayHostKey) return this.#preferences.relayHostKey;
+        const candidate = Buffer.from(this.#random(32)).toString('hex');
+        await this.#writeTail;
+        if (this.#preferences.relayHostKey) return this.#preferences.relayHostKey;
+        await this.#rememberPreferences({ ...this.#preferences, relayHostKey: candidate });
+        return this.#preferences.relayHostKey ?? candidate;
+    }
+
+    /**
+     * Credentials of every device that may currently connect; the Relay grants are one-way derivations of these.
+     */
+    activeCredentials(): string[] {
+        return this.#records
+            .values()
+            .filter((record) => record.revokedAt === undefined)
+            .map((record) => record.credential)
+            .toArray();
+    }
+
+    /**
+     * Notifies after every committed device mutation (pairing, revocation, grant, connection stamp). Listeners
+     * recompute derived state such as Relay grants; they receive no record data.
+     */
+    onDevicesChanged(listener: () => void): () => void {
+        this.#deviceListeners.add(listener);
+        return () => this.#deviceListeners.delete(listener);
     }
 
     async pair(input: {

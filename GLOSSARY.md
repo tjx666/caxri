@@ -26,6 +26,15 @@ Desktop shows it in a separate window titled `SSH: <destination>`; its Projects,
 Agents live on that machine.
 _Avoid_: Remote, remote machine, Remote Server, Remote SSH, Remote Environment
 
+**Relay**:
+A separately deployed rendezvous service that lets a paired phone reach a Server from outside its
+network by joining the two connections without being able to read them.
+_Avoid_: Gateway, tunnel, proxy, relay server, 中转服务器
+
+**Route**:
+The network path one Mobile connection took to its Server: direct (LAN or Tailscale) or Relay.
+_Avoid_: Transport, channel, path
+
 **Environment**:
 The Server a Workbench window is attached to: the Server on this machine, or the Server of one SSH
 Host. A window has exactly one Environment, and features that cannot work across machines are

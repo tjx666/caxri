@@ -53,3 +53,11 @@ _Researched 2026-09-24 from source `1de563c1` (2026-09-21). The README still say
 - Voice uses on-device transcription into the draft with a revision guard so late results never overwrite edits. Live Activities and Android ongoing cards; push requires the hosted relay.
 - Tablet: adaptive split with a clamped sidebar, resizable inspector, hardware keyboard shortcuts, and a command palette.
 - Public sentiment (X, Aug–Sept 2026): most praised for near-zero-latency sync and Live Activities; criticized for reconnect loops on cellular networks and slow reconnect after Android process death.
+
+## Relay (2026-10-29)
+
+Comparison: [relay-servers.md](relay-servers.md). `infra/relay` is a Cloudflare Worker control plane (PlanetScale,
+Queues, Durable Objects) that never carries session traffic: data goes through a per-environment Cloudflare Tunnel
+to the host's loopback port, so TLS ends at Cloudflare. It signs DPoP-bound bootstrap credentials, sends APNs, FCM,
+and Live Activity pushes, and buffers webhooks for 24 h. Clients order routes loopback, LAN, tailnet, public, SSH,
+relay, give direct routes a 500 ms head start, and re-check better routes every 60 s.

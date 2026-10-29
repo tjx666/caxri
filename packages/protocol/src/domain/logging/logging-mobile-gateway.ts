@@ -48,9 +48,22 @@ export const mobileGatewayLogEvents = {
     /**
      * An established connection ended, with its `durationMs` and a closed `cause` (`peer-closed`, `peer-dropped`,
      * `heartbeat-idle`, `server-terminated` with `failureReason`, `revoked`, `gateway-disabled`). A `peer-closed`
-     * record adds the numeric `closeCode` and, for a phone's private-range code, the decoded `clientReason`.
+     * record adds the numeric `closeCode` and, for a phone's private-range code, the decoded `clientReason`. Both this
+     * and `connectionEstablished` carry the `route` (`lan` or `relay`) the phone reached the Server on.
      */
     connectionEnded: 'mobile_gateway.connection_ended',
+    /**
+     * The Server's outbound Relay registration changed state: `state` (`connecting`, `online`, `offline`, `stopped`)
+     * with a closed `cause` (`started`, `registered`, `registration-rejected`, `closed-by-relay` with `relayReason`,
+     * `network-error`, `heartbeat-timeout`, `protocol-error`, `disabled`), the reconnect `attempt`, the previous
+     * registration's `connectedMs`, and the URL `scheme`. Never the Relay address, host key, grants, or tickets.
+     */
+    relayState: 'mobile_gateway.relay_state',
+    /**
+     * A phone reached the Server through the Relay but its dial-back failed, with a closed `reason` (`dial-failed`,
+     * `accept-rejected`, `capacity`).
+     */
+    relayDialFailed: 'mobile_gateway.relay_dial_failed',
     pairingOutcome: 'mobile_gateway.pairing_outcome',
     pairingSummary: 'mobile_gateway.pairing_summary',
 } as const;

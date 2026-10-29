@@ -230,6 +230,19 @@ export const settingsSpec = [
     },
     {
         kind: 'string',
+        key: 'mobile.relayUrl',
+        title: 'Relay server',
+        description:
+            'ws:// or wss:// address of a Caxri Relay. Paired phones fall back to it when no local network address answers; traffic stays end-to-end encrypted. Leave empty to use local networks only.',
+        category: 'mobile',
+        keywords: ['relay', 'remote', 'internet', 'cellular', 'tunnel', 'nat', 'outside'],
+        nullable: true,
+        maxLength: 512,
+        default: null,
+        placeholder: 'wss://relay.example.com',
+    },
+    {
+        kind: 'string',
         key: 'updates.skippedVersion',
         title: 'Skipped update version',
         /**
