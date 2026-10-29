@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Spinner } from '../../components/spinner';
 import { useTranslation } from '../../i18n';
+import { mobileControl, mobileRadius, mobileSpace, mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
 import { agentChatQueueImagesAttached, canSaveAgentChatQueueEdit } from './agent-chat-queue';
 import type { AgentChatQueueInPlaceEdit } from './use-agent-chat-queue-actions';
@@ -90,30 +91,42 @@ export const AgentChatQueueEditor = ({
     );
 };
 
+/**
+ * The editor input grows with its text up to this height, then scrolls.
+ */
+const INPUT_MAX_HEIGHT = 140;
+/**
+ * Keeps Cancel and Save the same width whichever label is shorter.
+ */
+const BUTTON_MIN_WIDTH = 64;
+
 const styles = StyleSheet.create({
-    editor: { gap: 8, paddingHorizontal: 12, paddingVertical: 8 },
+    editor: {
+        gap: mobileSpace.sm,
+        paddingHorizontal: mobileSpace.md,
+        paddingVertical: mobileSpace.sm,
+    },
     editorInput: {
-        borderRadius: 10,
+        ...mobileType.body,
+        borderRadius: mobileRadius.md,
         borderWidth: 1,
-        fontSize: 14,
-        lineHeight: 19,
-        maxHeight: 140,
-        minHeight: 44,
-        paddingHorizontal: 10,
-        paddingVertical: 8,
+        maxHeight: INPUT_MAX_HEIGHT,
+        minHeight: mobileControl.row,
+        paddingHorizontal: mobileSpace.md,
+        paddingVertical: mobileSpace.sm,
         textAlignVertical: 'top',
     },
-    editorFooter: { alignItems: 'center', flexDirection: 'row', gap: 8 },
-    note: { flex: 1, fontSize: 12 },
+    editorFooter: { alignItems: 'center', flexDirection: 'row', gap: mobileSpace.sm },
+    note: { ...mobileType.caption, flex: 1 },
     editorButton: {
         alignItems: 'center',
         justifyContent: 'center',
-        minHeight: 40,
-        minWidth: 64,
-        paddingHorizontal: 12,
+        minHeight: mobileControl.row,
+        minWidth: BUTTON_MIN_WIDTH,
+        paddingHorizontal: mobileSpace.md,
     },
-    cancelText: { fontSize: 13, fontWeight: '700' },
-    editorSave: { borderRadius: 20 },
-    saveText: { fontSize: 13, fontWeight: '700' },
+    cancelText: { ...mobileType.meta, fontWeight: '700' },
+    editorSave: { borderRadius: mobileRadius.pill },
+    saveText: { ...mobileType.meta, fontWeight: '700' },
 });
 /* eslint-enable no-use-before-define, @typescript-eslint/no-use-before-define */
