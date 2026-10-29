@@ -154,6 +154,10 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
             name: 'destination',
             exact: true,
         });
+        // Focusing `createdRow` above opens its path tooltip, which can sit over `draftRow` and
+        // intercept the click. Escape dismisses it without moving focus off the tree.
+        await running.page.keyboard.press('Escape');
+        await expect(running.page.getByRole('tooltip')).toHaveCount(0);
         await draftRow.click({ button: 'right' });
         await chooseContextMenuItem(running.app, 'Copy Path');
         await expect.poll(() => running.clipboard.textEquals(join(root, 'draft.txt'))).toBe(true);
