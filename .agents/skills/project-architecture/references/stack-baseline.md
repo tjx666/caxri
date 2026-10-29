@@ -27,14 +27,6 @@ the update bundle's signer check, and two Release runs failed after the upgrade 
 Keep these compatibility exceptions:
 
 - `@xterm/*`: exact beta versions from one verified upstream commit, with matching core peers.
-- `electron`: exact prerelease while Caxri tracks the Electron 45 prerelease line (now beta),
-  adopted for Chromium 155. A caret is unsafe on a prerelease: `^45.0.0-beta.1` would resolve
-  forward to any later 45 prerelease, so an unrelated install could silently change the Chromium
-  and Node under the Renderer and Main. The matching `minimumReleaseAgeExclude` entry exists because
-  the prerelease line publishes faster than the release-age floor. Drop the pin back to `^` once Electron 45 is stable.
-  The native add-ons are not part of this risk: `better-sqlite3`, `node-pty`, and `@parcel/watcher`
-  load in the Server artifact's own bundled Node runtime (`runtime/bin/node`), never in Main or the
-  Renderer, so they follow that runtime's ABI rather than Electron's.
 - `@tensorflow/tfjs-*`: caret ranges held on major 3 (`^3.21.0`). The bundled
   `@vscode/vscode-languagedetection` model was exported for TensorFlow.js 3, as VS Code still ships
   it; 4.x fails to run it. Upgrade only together with a model that 4.x loads.

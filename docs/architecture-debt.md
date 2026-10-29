@@ -57,13 +57,6 @@ Full audit 2026-10-26 @ `c23b63b9d` revalidated all seven as still present; its 
 - **First seen:** 2026-10-21 @ d0e5f01fc · **Last verified:** 2026-10-26 @ c23b63b9d (still present)
 - **Remediation target / Acceptance:** [issue caxri#2335](https://github.com/tjx666/caxri/issues/2335): route provider-specific branching through the provider registry or capability flags; a guard fails on new literal comparisons.
 
-### AD-toolchain-electron-45-stable-pin: [OPEN · Modernization opportunity · S]
-
-- **Summary:** Electron is still pinned to `45.0.0-beta.6` although the stack baseline's exit condition (45.0.0 stable, published 2026-10-21) is met and the 24-hour `minimumReleaseAge` has passed. Docs also cite Chromium 155 while the runtime is Chromium 156.
-- **Evidence:** `electron` in the root `package.json` and `apps/desktop/package.json`; the `minimumReleaseAge` exclusion in `pnpm-workspace.yaml`; `.agents/skills/project-architecture/references/stack-baseline.md`; `docs/startup-performance.md`.
-- **First seen:** 2026-10-21 @ d0e5f01fc · **Last verified:** 2026-10-26 @ c23b63b9d (still present)
-- **Remediation target / Acceptance:** [issue caxri#2333](https://github.com/tjx666/caxri/issues/2333): move to Electron 45 stable once native modules and the packaging checks pass, then update the stack baseline.
-
 ### AD-contract-mobile-view-reply-roles: [OPEN · Contract drift · S]
 
 - **Summary:** Mobile pairing defines `view` and `reply` roles, but every new pairing is granted `control` and no API changes a role, so the weaker roles cannot be assigned.
@@ -88,6 +81,13 @@ Full audit 2026-10-26 @ `c23b63b9d` revalidated all seven as still present; its 
 ---
 
 ## RESOLVED
+
+### AD-toolchain-electron-45-stable-pin: [RESOLVED · Modernization opportunity · S]
+
+- **Summary:** Electron was pinned to the prerelease `45.0.0-beta.6` after 45.0.0 stable shipped, and docs cited Chromium 155 while the runtime was Chromium 156.
+- **Evidence:** `electron` in the root `package.json` and `apps/desktop/package.json` is now `^45.0.0`; the `minimumReleaseAgeExclude` entry in `pnpm-workspace.yaml` and the prerelease exception in `stack-baseline.md` are gone; `docs/startup-performance.md` names Chromium 156.
+- **First seen:** 2026-10-21 @ d0e5f01fc · **Last verified:** 2026-10-30 with the fix
+- **Resolved:** 2026-10-30 via [issue caxri#2333](https://github.com/tjx666/caxri/issues/2333).
 
 ### AD-ui-render-crash-session-loop: [RESOLVED · Architecture debt · M]
 
