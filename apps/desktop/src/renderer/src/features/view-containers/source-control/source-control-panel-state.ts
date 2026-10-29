@@ -1,6 +1,6 @@
 import type { SourceControlViewModel } from '@caxri/protocol';
 
-import { translate } from '../../../i18n';
+import type { Translate } from '../../../i18n';
 import { isCancelledRequest } from '../../../stores/toasts';
 
 export type SourceControlPanelState =
@@ -22,6 +22,7 @@ export function resolveSourceControlPanelState({
     hasSnapshotError,
     isSnapshotSuperseded = false,
     model,
+    t,
 }: {
     hasSession: boolean;
     hasSnapshotError: boolean;
@@ -30,12 +31,13 @@ export function resolveSourceControlPanelState({
      */
     isSnapshotSuperseded?: boolean;
     model?: Pick<SourceControlViewModel, 'emptyKind' | 'emptyMessage'>;
+    t: Translate;
 }): SourceControlPanelState {
     if (!hasSession) return { status: 'no-session' };
     if (hasSnapshotError && !(isSnapshotSuperseded && model))
         return {
             status: 'unavailable',
-            message: translate('viewContainers.sourceControl.unavailable'),
+            message: t('viewContainers.sourceControl.unavailable'),
         };
     if (!model) return { status: 'loading' };
     if (model.emptyKind === 'no-repository') return { status: 'no-repository' };

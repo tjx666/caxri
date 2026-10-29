@@ -1,3 +1,4 @@
+import type { Translate } from '../../i18n';
 import type { SessionStatusTerminal } from './session-status';
 import { sessionStatus } from './session-status';
 
@@ -10,9 +11,10 @@ import { sessionStatus } from './session-status';
  */
 export function sessionCardStatusLine(
     session: Parameters<typeof sessionStatus>[0],
-    terminal?: SessionStatusTerminal,
+    terminal: SessionStatusTerminal | undefined,
+    t: Translate,
 ): string | undefined {
-    const status = sessionStatus(session, terminal);
+    const status = sessionStatus(session, terminal ?? {}, t);
     if (status.kind === 'default') return undefined;
     // The wait's label alone (`Waiting for limit reset`) leaves out the one thing the card is for: when it continues.
     return status.kind === 'usageWait' ? status.ariaDescription : status.ariaLabel;

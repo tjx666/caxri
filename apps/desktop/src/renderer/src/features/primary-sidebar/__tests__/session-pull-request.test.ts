@@ -1,6 +1,7 @@
 import type { SessionPullRequest, SessionPullRequests } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../i18n';
 import {
     NO_SESSION_PULL_REQUEST,
     selectSessionPullRequest,
@@ -21,25 +22,31 @@ function pullRequest(overrides: Partial<SessionPullRequest> = {}): SessionPullRe
 
 describe('Session pull request presentation', () => {
     it('describes cancelled checks with a neutral tone', () => {
-        expect(sessionPullRequestPresentation(pullRequest({ checks: 'cancelled' }))).toMatchObject({
+        expect(
+            sessionPullRequestPresentation(pullRequest({ checks: 'cancelled' }), translate),
+        ).toMatchObject({
             ariaLabel: 'Pull request #42 open, checks cancelled.',
             checksLabel: 'Checks cancelled',
             checksTone: 'neutral',
         });
     });
     it('encodes merged and closed in the glyph with merged and danger tones', () => {
-        expect(sessionPullRequestPresentation(pullRequest({ state: 'merged' }))).toEqual({
-            ariaLabel: 'Pull request #42 merged.',
-            icon: 'merged',
-            label: 'Merged',
-            tone: 'merged',
-        });
-        expect(sessionPullRequestPresentation(pullRequest({ state: 'closed' }))).toEqual({
-            ariaLabel: 'Pull request #42 closed.',
-            icon: 'closed',
-            label: 'Closed',
-            tone: 'danger',
-        });
+        expect(sessionPullRequestPresentation(pullRequest({ state: 'merged' }), translate)).toEqual(
+            {
+                ariaLabel: 'Pull request #42 merged.',
+                icon: 'merged',
+                label: 'Merged',
+                tone: 'merged',
+            },
+        );
+        expect(sessionPullRequestPresentation(pullRequest({ state: 'closed' }), translate)).toEqual(
+            {
+                ariaLabel: 'Pull request #42 closed.',
+                icon: 'closed',
+                label: 'Closed',
+                tone: 'danger',
+            },
+        );
     });
 
     /**
@@ -51,6 +58,7 @@ describe('Session pull request presentation', () => {
         expect(
             sessionPullRequestPresentation(
                 pullRequest({ state: 'merged', deployment: { state: 'success' } }),
+                translate,
             ),
         ).toEqual({
             ariaLabel: 'Pull request #42 merged and deployed to production.',
@@ -63,44 +71,56 @@ describe('Session pull request presentation', () => {
         expect(
             sessionPullRequestPresentation(
                 pullRequest({ state: 'merged', deployment: { state: 'pending' } }),
+                translate,
             ),
         ).toMatchObject({ icon: 'deployed', label: 'Deploying', tone: 'warning' });
         expect(
             sessionPullRequestPresentation(
                 pullRequest({ state: 'merged', deployment: { state: 'failure' } }),
+                translate,
             ),
         ).toMatchObject({ icon: 'deployed', label: 'Deploy failed', tone: 'danger' });
         expect(
             sessionPullRequestPresentation(
                 pullRequest({ state: 'merged', deployment: { state: 'neutral' } }),
+                translate,
             ),
         ).toMatchObject({ icon: 'merged', tone: 'merged' });
     });
 
     it('keeps open PRs green and reports checks separately from lifecycle state', () => {
-        expect(sessionPullRequestPresentation(pullRequest({ checks: 'failure' }))).toMatchObject({
+        expect(
+            sessionPullRequestPresentation(pullRequest({ checks: 'failure' }), translate),
+        ).toMatchObject({
             ariaLabel: 'Pull request #42 open, checks failing.',
             icon: 'open',
             tone: 'success',
             checksLabel: 'Checks failing',
             checksTone: 'danger',
         });
-        expect(sessionPullRequestPresentation(pullRequest({ checks: 'pending' }))).toMatchObject({
+        expect(
+            sessionPullRequestPresentation(pullRequest({ checks: 'pending' }), translate),
+        ).toMatchObject({
             icon: 'open',
             tone: 'success',
             checksLabel: 'Checks running',
             checksTone: 'warning',
         });
-        expect(sessionPullRequestPresentation(pullRequest({ checks: 'success' }))).toMatchObject({
+        expect(
+            sessionPullRequestPresentation(pullRequest({ checks: 'success' }), translate),
+        ).toMatchObject({
             icon: 'open',
             tone: 'success',
         });
-        expect(sessionPullRequestPresentation(pullRequest())).toMatchObject({
+        expect(sessionPullRequestPresentation(pullRequest(), translate)).toMatchObject({
             icon: 'open',
             tone: 'success',
         });
         expect(
-            sessionPullRequestPresentation(pullRequest({ state: 'merged', checks: 'failure' })),
+            sessionPullRequestPresentation(
+                pullRequest({ state: 'merged', checks: 'failure' }),
+                translate,
+            ),
         ).toMatchObject({ icon: 'merged', tone: 'merged' });
     });
 
@@ -109,7 +129,9 @@ describe('Session pull request presentation', () => {
      * a badge that only knows `pending` showed such a PR no CI state at all until it concluded.
      */
     it('keeps a badge on a run that has not started yet', () => {
-        expect(sessionPullRequestPresentation(pullRequest({ checks: 'queued' }))).toMatchObject({
+        expect(
+            sessionPullRequestPresentation(pullRequest({ checks: 'queued' }), translate),
+        ).toMatchObject({
             ariaLabel: 'Pull request #42 open, checks queued.',
             icon: 'open',
             tone: 'success',
@@ -123,6 +145,7 @@ describe('Session pull request presentation', () => {
         (state) => {
             const presentation = sessionPullRequestPresentation(
                 pullRequest({ state, checks: 'failure' }),
+                translate,
             );
             expect(presentation.checksLabel).toBeUndefined();
             expect(presentation.checksTone).toBeUndefined();
@@ -134,8 +157,11 @@ describe('Session pull request presentation', () => {
      * indistinguishable from a green CI run at glyph size.
      */
     it('separates merged from a passing open PR by color, not only shape', () => {
-        const merged = sessionPullRequestPresentation(pullRequest({ state: 'merged' }));
-        const passing = sessionPullRequestPresentation(pullRequest({ checks: 'success' }));
+        const merged = sessionPullRequestPresentation(pullRequest({ state: 'merged' }), translate);
+        const passing = sessionPullRequestPresentation(
+            pullRequest({ checks: 'success' }),
+            translate,
+        );
         expect(sessionPullRequestToneClassName(merged.tone)).toBe('text-merged');
         expect(sessionPullRequestToneClassName(passing.tone)).toBe('text-success');
         expect(sessionPullRequestToneClassName(merged.tone)).not.toBe(
@@ -145,7 +171,10 @@ describe('Session pull request presentation', () => {
 
     it('keeps drafts neutral regardless of checks', () => {
         expect(
-            sessionPullRequestPresentation(pullRequest({ state: 'draft', checks: 'failure' })),
+            sessionPullRequestPresentation(
+                pullRequest({ state: 'draft', checks: 'failure' }),
+                translate,
+            ),
         ).toEqual({
             ariaLabel: 'Pull request #42 draft.',
             icon: 'draft',

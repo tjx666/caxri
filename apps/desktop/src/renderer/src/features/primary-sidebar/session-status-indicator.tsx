@@ -44,9 +44,8 @@ export function SessionStatusIndicator({
     terminal?: SessionStatusTerminal;
 }) {
     const descriptionId = useId();
-    // `sessionStatus` words its labels through `translate()`; subscribing re-renders them on a language change.
-    useTranslation();
-    const status = sessionStatus(session, terminal);
+    const { t } = useTranslation();
+    const status = sessionStatus(session, terminal ?? {}, t);
     if (status.kind === 'default')
         return (
             <>

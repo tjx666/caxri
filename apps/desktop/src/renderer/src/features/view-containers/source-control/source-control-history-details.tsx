@@ -44,7 +44,7 @@ export function SourceControlHistoryDetails({
     if (details.isError)
         return (
             <div className="px-3 py-2 text-[11px] text-danger">
-                {describeFailure(details.error, descriptor.detailsErrorMessage)}
+                {describeFailure(details.error, descriptor.detailsErrorMessage, t)}
             </div>
         );
     return (

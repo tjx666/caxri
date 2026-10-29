@@ -204,10 +204,11 @@ export function AgentChatLongPastePill({
     onOpen: ((path: string) => void) | undefined;
     path: string;
 }) {
-    useTranslation();
+    const { t } = useTranslation();
     const { aria, detail, label } = agentChatLongPasteChipText(
         { characterCount, lineCount },
         onOpen !== undefined,
+        t,
     );
     const content = (
         <>

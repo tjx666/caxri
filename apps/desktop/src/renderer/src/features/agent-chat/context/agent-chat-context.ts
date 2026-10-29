@@ -7,7 +7,7 @@ import {
     formatUsd,
 } from '@caxri/protocol';
 
-import { translate } from '../../../i18n';
+import type { Translate } from '../../../i18n';
 import { localizedDuration } from '../../../lib/usage-format';
 
 /**
@@ -74,7 +74,8 @@ export interface AgentChatContextAlerts {
 export function agentChatContextAlerts(
     usage: AgentChatUsage | undefined,
     now: number,
-    idleCompactionAt?: number,
+    idleCompactionAt: number | undefined,
+    t: Translate,
 ): AgentChatContextAlerts {
     if (!usage || usage.totalTokens <= 0) return {};
     const alerts: AgentChatContextAlerts = {};
@@ -90,34 +91,34 @@ export function agentChatContextAlerts(
         const cost =
             usage.cacheRewriteUsd === undefined
                 ? ''
-                : translate('agentChat.context.cacheCost', {
+                : t('agentChat.context.cacheCost', {
                       cost: formatUsd(usage.cacheRewriteUsd),
                   });
-        const costNote = cost && translate('agentChat.context.cacheDetailCost');
+        const costNote = cost && t('agentChat.context.cacheDetailCost');
         if (idleMs >= ttlMs) {
             alerts.cache = {
                 state: 'expired',
-                text: translate('agentChat.context.cacheText', {
-                    duration: localizedDuration(idleMs),
+                text: t('agentChat.context.cacheText', {
+                    duration: localizedDuration(idleMs, t),
                     cost,
                 }),
-                detail: `${translate('agentChat.context.cacheDetail', { minutes: cacheTtlMinutes, tokens })}${costNote}`,
+                detail: `${t('agentChat.context.cacheDetail', { minutes: cacheTtlMinutes, tokens })}${costNote}`,
             };
         } else if (idleCompactionAt !== undefined && now < idleCompactionAt) {
             if (idleMs >= ttlMs - CACHE_EXPIRY_LEAD_MS) {
-                const remaining = roundedUpDuration(idleCompactionAt - now);
+                const remaining = roundedUpDuration(idleCompactionAt - now, t);
                 alerts.cache = {
                     state: 'compacting',
-                    text: translate('agentChat.context.cacheCompactingText', { remaining }),
-                    detail: `${translate('agentChat.context.cacheCompactingDetail', { minutes: cacheTtlMinutes, remaining, tokens })}${costNote}`,
+                    text: t('agentChat.context.cacheCompactingText', { remaining }),
+                    detail: `${t('agentChat.context.cacheCompactingDetail', { minutes: cacheTtlMinutes, remaining, tokens })}${costNote}`,
                 };
             }
         } else if (idleMs >= ttlMs - Math.min(CACHE_EXPIRY_LEAD_MS, ttlMs / 2)) {
-            const remaining = roundedUpDuration(ttlMs - idleMs);
+            const remaining = roundedUpDuration(ttlMs - idleMs, t);
             alerts.cache = {
                 state: 'expiring',
-                text: translate('agentChat.context.cacheExpiringText', { remaining, cost }),
-                detail: `${translate('agentChat.context.cacheExpiringDetail', { minutes: cacheTtlMinutes, remaining, tokens })}${costNote}`,
+                text: t('agentChat.context.cacheExpiringText', { remaining, cost }),
+                detail: `${t('agentChat.context.cacheExpiringDetail', { minutes: cacheTtlMinutes, remaining, tokens })}${costNote}`,
             };
         }
     }
@@ -125,11 +126,11 @@ export function agentChatContextAlerts(
     const limit = window && agentChatContextLimit(window, usage.autoCompactThreshold);
     if (limit && usage.totalTokens / limit >= AGENT_CHAT_HIGH_CONTEXT_SHARE)
         alerts.pressure = {
-            text: translate('agentChat.context.pressureText', {
+            text: t('agentChat.context.pressureText', {
                 tokens,
                 window: formatTokens(limit),
             }),
-            detail: translate('agentChat.context.pressureDetail', {
+            detail: t('agentChat.context.pressureDetail', {
                 percent: agentChatContextPercent(usage.totalTokens, limit),
             }),
         };
@@ -139,8 +140,8 @@ export function agentChatContextAlerts(
 /**
  * A countdown rounded up to the minute, so it never claims `0m` while there is still time left.
  */
-function roundedUpDuration(ms: number): string {
-    return localizedDuration(Math.ceil(ms / 60_000) * 60_000);
+function roundedUpDuration(ms: number, t: Translate): string {
+    return localizedDuration(Math.ceil(ms / 60_000) * 60_000, t);
 }
 
 /**
@@ -215,11 +216,11 @@ export function agentChatContextRowState(
  * visible row ticks every minute, and a live region holding it would announce each tick; this text changes only when a
  * notice appears, the cache goes from expiring to expired, or a notice goes away.
  */
-export function agentChatContextAnnouncement(alerts: AgentChatContextAlerts): string {
+export function agentChatContextAnnouncement(alerts: AgentChatContextAlerts, t: Translate): string {
     const parts: string[] = [];
     if (alerts.cache)
         parts.push(
-            translate(
+            t(
                 (
                     {
                         compacting: 'agentChat.context.cacheCompactingAnnouncement',
@@ -229,7 +230,7 @@ export function agentChatContextAnnouncement(alerts: AgentChatContextAlerts): st
                 )[alerts.cache.state],
             ),
         );
-    if (alerts.pressure) parts.push(translate('agentChat.context.pressureAnnouncement'));
+    if (alerts.pressure) parts.push(t('agentChat.context.pressureAnnouncement'));
     return parts.join('. ');
 }
 

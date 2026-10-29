@@ -1,6 +1,7 @@
 import type { AgentActivityState } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../i18n';
 import {
     currentSessionActivityPresentation,
     sessionActivityPresentation,
@@ -36,7 +37,7 @@ describe('Session activity presentation', () => {
             'text-muted',
         ],
     ])('maps %s to one complete presentation', (state, label, description, tone, className) => {
-        expect(sessionActivityPresentation(state)).toEqual({
+        expect(sessionActivityPresentation(state, undefined, translate)).toEqual({
             ariaLabel: `${label}. ${description}`,
             description,
             indicatorClassName: className,
@@ -46,7 +47,7 @@ describe('Session activity presentation', () => {
     });
 
     it('presents compaction as a successful Working subphase', () => {
-        expect(sessionActivityPresentation('running', 'compacting')).toEqual({
+        expect(sessionActivityPresentation('running', 'compacting', translate)).toEqual({
             ariaLabel: 'Compacting. The Agent is summarizing earlier context before continuing.',
             description: 'The Agent is summarizing earlier context before continuing.',
             indicatorClassName: 'text-success',
@@ -69,19 +70,25 @@ describe('Session activity presentation', () => {
 
 describe('current Session activity', () => {
     it('names the current activity, with compaction and detachment overriding the stored state', () => {
-        expect(currentSessionActivityPresentation({ agentActivityState: 'running' }).label).toBe(
-            'Working',
-        );
+        expect(
+            currentSessionActivityPresentation(
+                { agentActivityState: 'running' },
+                undefined,
+                translate,
+            ).label,
+        ).toBe('Working');
         expect(
             currentSessionActivityPresentation(
                 { agentActivityState: 'running' },
                 { agentOperation: 'compacting' },
+                translate,
             ).label,
         ).toBe('Compacting');
         expect(
             currentSessionActivityPresentation(
                 { agentActivityState: 'running' },
                 { lastProcessState: 'detached' },
+                translate,
             ).label,
         ).toBe('Detached');
     });
@@ -90,6 +97,7 @@ describe('current Session activity', () => {
         const activity = currentSessionActivityPresentation(
             { agentActivityState: 'idle' },
             { kind: 'claude', lastProcessState: 'suspended' },
+            translate,
         );
         expect(activity.label).toBe('Suspended');
         expect(activity.description).toContain('Settings › Agents');
@@ -99,12 +107,16 @@ describe('current Session activity', () => {
         const activity = currentSessionActivityPresentation(
             { agentActivityState: 'idle' },
             { kind: 'shell' },
+            translate,
         );
         expect(activity.label).toBe('No Agent');
         expect(activity.ariaLabel).not.toContain('currently idle');
         expect(
-            currentSessionActivityPresentation({ agentActivityState: 'idle' }, { kind: 'codex' })
-                .label,
+            currentSessionActivityPresentation(
+                { agentActivityState: 'idle' },
+                { kind: 'codex' },
+                translate,
+            ).label,
         ).toBe('Idle');
     });
 });

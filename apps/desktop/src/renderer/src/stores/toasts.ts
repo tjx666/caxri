@@ -7,7 +7,7 @@ import type { ToastT } from 'sonner';
 import { toast } from 'sonner';
 
 import { ToastCopyLabel } from '../components/toast-copy-label';
-import type { TranslationKey } from '../i18n';
+import type { Translate, TranslationKey } from '../i18n';
 import { translate, useLocaleStore } from '../i18n';
 import { caxri } from '../lib/caxri';
 import type { NotificationType } from './notifications';
@@ -320,8 +320,17 @@ export interface FailureNotice {
  * (paths and error enums removed). In any other locale quoting it would leave an English sentence inside a translated
  * toast, so the reason comes from the `CaxriError` code or the errno instead, and the raw text moves to
  * {@link FailureNotice.detail}.
+ *
+ * @param error Failure to describe.
+ * @param label Short name of the action that failed.
+ * @param t Components and hooks pass the `t` from `useTranslation()`; the `translate` default serves event handlers and
+ *   stores, whose result is used immediately and never cached across a language switch.
  */
-export function describeFailureNotice(error: unknown, label: string): FailureNotice {
+export function describeFailureNotice(
+    error: unknown,
+    label: string,
+    t: Translate = translate,
+): FailureNotice {
     const rawMessage = errorMessage(error, '');
     const errorCode = (error as { code?: unknown } | null)?.code;
     const knownReason =
@@ -332,13 +341,13 @@ export function describeFailureNotice(error: unknown, label: string): FailureNot
             )?.[0] ?? ''
         ] ??
         messageReasons.find(([pattern]) => pattern.test(rawMessage))?.[1];
-    const fallback = translate(
+    const fallback = t(
         isCaxriError(error) ? caxriErrorReasons[error.code] : 'toasts.failure.couldNotComplete',
     );
     const isServerTextShown = useLocaleStore.getState().locale === 'en';
     let reason: string;
     let detail: string | undefined;
-    if (knownReason) reason = translate(knownReason);
+    if (knownReason) reason = t(knownReason);
     else if (isServerTextShown)
         reason =
             redactAbsolutePaths(rawMessage)
@@ -357,7 +366,7 @@ export function describeFailureNotice(error: unknown, label: string): FailureNot
     // Server message can lack one, so the appended mark is the English period.
     const sentence = /[.!?。！？]$/u.test(reason) ? reason : `${reason}.`;
     return {
-        message: translate('toasts.failure.withReason', {
+        message: t('toasts.failure.withReason', {
             label: redactAbsolutePaths(label).replaceAll(/[.:!?。：！？\s]+$/gu, ''),
             reason: sentence,
         }),
@@ -368,8 +377,8 @@ export function describeFailureNotice(error: unknown, label: string): FailureNot
 /**
  * The toast sentence of {@link describeFailureNotice}, for callers that raise their own toast without a details action.
  */
-export function describeFailure(error: unknown, label: string): string {
-    return describeFailureNotice(error, label).message;
+export function describeFailure(error: unknown, label: string, t: Translate = translate): string {
+    return describeFailureNotice(error, label, t).message;
 }
 
 /**

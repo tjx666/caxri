@@ -1,6 +1,6 @@
 import { isLongPasteWithinLimit, MAX_AGENT_CHAT_MESSAGE_LENGTH } from '@caxri/protocol';
 
-import { translate } from '../../../i18n';
+import type { Translate } from '../../../i18n';
 
 /**
  * What a text paste into the composer does: land in the input, be saved to a file the message cites, or be refused
@@ -99,14 +99,15 @@ export function draftWithPlainPaste(
 export function agentChatLongPasteChipText(
     { characterCount, lineCount }: { characterCount: number; lineCount: number },
     isClickable: boolean,
+    t: Translate,
 ): { aria: string; detail: string; label: string } {
     const label =
         lineCount === 1
-            ? translate('agentChat.longPaste.chipOne')
-            : translate('agentChat.longPaste.chipOther', { count: lineCount });
-    const detail = translate(
+            ? t('agentChat.longPaste.chipOne')
+            : t('agentChat.longPaste.chipOther', { count: lineCount });
+    const detail = t(
         isClickable ? 'agentChat.longPaste.detail' : 'agentChat.longPaste.detailStatic',
         { characters: characterCount, summary: label },
     );
-    return { aria: translate('agentChat.longPaste.label', { summary: label }), detail, label };
+    return { aria: t('agentChat.longPaste.label', { summary: label }), detail, label };
 }

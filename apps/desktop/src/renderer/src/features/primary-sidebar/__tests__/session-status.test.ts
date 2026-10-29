@@ -1,6 +1,7 @@
 import type { AgentActivityState, SessionRecord } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../i18n';
 import { sessionStatus, summarizeSessionStatuses } from '../session-status';
 
 function sessionSource(
@@ -25,6 +26,8 @@ describe('Session list status', () => {
                     hasUnread: true,
                     lastAttentionKind: 'completed',
                 }),
+                {},
+                translate,
             ),
         ).toEqual({
             ariaDescription: 'The Agent finished its latest turn. Current status: Working.',
@@ -39,6 +42,7 @@ describe('Session list status', () => {
         const status = sessionStatus(
             sessionSource('failed', { hasUnread: true, lastAttentionKind: 'failed' }),
             { usageLimitWaitAt },
+            translate,
         );
         expect(status).toMatchObject({
             ariaLabel: 'Waiting for limit reset',
@@ -52,6 +56,8 @@ describe('Session list status', () => {
         expect(
             sessionStatus(
                 sessionSource('failed', { hasUnread: true, lastAttentionKind: 'failed' }),
+                {},
+                translate,
             ),
         ).toMatchObject({ kind: 'attention' });
     });
@@ -60,13 +66,17 @@ describe('Session list status', () => {
         expect(
             sessionStatus(
                 sessionSource('waiting', { hasUnread: true, lastAttentionKind: 'waiting' }),
+                {},
+                translate,
             ),
         ).toMatchObject({
             ariaDescription: 'The Agent is waiting for input or confirmation.',
             ariaLabel: 'Unread, waiting for you',
             variant: 'waiting',
         });
-        expect(sessionStatus(sessionSource('idle', { hasUnread: true }))).toMatchObject({
+        expect(
+            sessionStatus(sessionSource('idle', { hasUnread: true }), {}, translate),
+        ).toMatchObject({
             ariaLabel: 'Unread',
             variant: 'result',
         });
@@ -85,29 +95,33 @@ describe('Session list status', () => {
                 lastAttentionKind: 'completed',
             });
 
-            expect(sessionStatus(acknowledged)).not.toMatchObject({ kind: 'attention' });
+            expect(sessionStatus(acknowledged, {}, translate)).not.toMatchObject({
+                kind: 'attention',
+            });
         },
     );
 
     it('maps running and compaction to the running slot', () => {
-        expect(sessionStatus(sessionSource('running'))).toEqual({
+        expect(sessionStatus(sessionSource('running'), {}, translate)).toEqual({
             ariaDescription: 'The Agent is running.',
             ariaLabel: 'Working',
             kind: 'running',
             variant: 'active',
         });
-        expect(sessionStatus(sessionSource('completed'), { agentOperation: 'compacting' })).toEqual(
-            {
-                ariaDescription: 'The Agent is summarizing earlier context before continuing.',
-                ariaLabel: 'Compacting',
-                kind: 'running',
-                variant: 'active',
-            },
-        );
+        expect(
+            sessionStatus(sessionSource('completed'), { agentOperation: 'compacting' }, translate),
+        ).toEqual({
+            ariaDescription: 'The Agent is summarizing earlier context before continuing.',
+            ariaLabel: 'Compacting',
+            kind: 'running',
+            variant: 'active',
+        });
     });
 
     it('shows a turn waiting on background work as the quiet running variant', () => {
-        expect(sessionStatus(sessionSource('running'), { agentOperation: 'background' })).toEqual({
+        expect(
+            sessionStatus(sessionSource('running'), { agentOperation: 'background' }, translate),
+        ).toEqual({
             ariaDescription:
                 'The turn ended while background work it started is still running; the Agent continues once that work reports back.',
             ariaLabel: 'In background',
@@ -119,17 +133,21 @@ describe('Session list status', () => {
     it.each<AgentActivityState>(['completed', 'failed', 'idle', 'unknown', 'waiting'])(
         'maps a read %s lifecycle state to the blank default slot',
         (state) => {
-            expect(sessionStatus(sessionSource(state))).toEqual({ kind: 'default' });
+            expect(sessionStatus(sessionSource(state), {}, translate)).toEqual({ kind: 'default' });
         },
     );
 
     it('shows a detached Agent as a static detached slot instead of stale activity', () => {
-        expect(sessionStatus(sessionSource('running'), { lastProcessState: 'detached' })).toEqual({
+        expect(
+            sessionStatus(sessionSource('running'), { lastProcessState: 'detached' }, translate),
+        ).toEqual({
             ariaDescription: 'The Agent was stopped so another client can resume it.',
             ariaLabel: 'Detached',
             kind: 'detached',
         });
-        expect(sessionStatus(sessionSource('waiting'), { lastProcessState: 'detached' })).toEqual({
+        expect(
+            sessionStatus(sessionSource('waiting'), { lastProcessState: 'detached' }, translate),
+        ).toEqual({
             ariaDescription: 'The Agent was stopped so another client can resume it.',
             ariaLabel: 'Detached',
             kind: 'detached',
@@ -141,6 +159,7 @@ describe('Session list status', () => {
             sessionStatus(
                 sessionSource('completed', { hasUnread: true, lastAttentionKind: 'completed' }),
                 { lastProcessState: 'detached' },
+                translate,
             ),
         ).toMatchObject({ kind: 'attention' });
     });
@@ -149,6 +168,8 @@ describe('Session list status', () => {
         expect(
             sessionStatus(
                 sessionSource('failed', { hasUnread: true, lastAttentionKind: 'failed' }),
+                {},
+                translate,
             ),
         ).toMatchObject({ kind: 'attention', variant: 'result' });
     });
@@ -157,6 +178,8 @@ describe('Session list status', () => {
         expect(
             sessionStatus(
                 sessionSource('failed', { hasUnread: true, lastAttentionKind: 'failed' }),
+                {},
+                translate,
             ),
         ).toMatchObject({ kind: 'attention' });
     });
@@ -174,17 +197,24 @@ describe('summarizeSessionStatuses', () => {
         ];
         const compacting = sessions[3];
         expect(
-            summarizeSessionStatuses(sessions, (session) =>
-                session === compacting ? { agentOperation: 'compacting' } : undefined,
+            summarizeSessionStatuses(
+                sessions,
+                (session) =>
+                    session === compacting ? { agentOperation: 'compacting' } : undefined,
+                translate,
             ),
         ).toEqual({ attention: 2, running: 2 });
     });
 
     it('leaves a detached Agent out of the running count', () => {
         expect(
-            summarizeSessionStatuses([sessionSource('running')], () => ({
-                lastProcessState: 'detached',
-            })),
+            summarizeSessionStatuses(
+                [sessionSource('running')],
+                () => ({
+                    lastProcessState: 'detached',
+                }),
+                translate,
+            ),
         ).toEqual({ attention: 0, running: 0 });
     });
 });

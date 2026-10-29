@@ -211,8 +211,7 @@ export function AgentChatContextAlerts({
     terminalId: string;
     usage: AgentChatUsage | undefined;
 }) {
-    // The alert text comes from the global `translate`; subscribing here re-renders it when the language changes.
-    useTranslation();
+    const { t } = useTranslation();
     const dismissedResponseAt = useAgentChatCacheNoticeDismissals(
         (state) => state.dismissedResponseAt[terminalId],
     );
@@ -220,7 +219,7 @@ export function AgentChatContextAlerts({
     const idleCompactionAt = useAgentChatIdleCompactionAt(terminalId, usage, items);
     const lastResponseAt = usage?.lastResponseAt;
     const alerts = agentChatUndismissedContextAlerts(
-        agentChatContextAlerts(usage, now, idleCompactionAt),
+        agentChatContextAlerts(usage, now, idleCompactionAt, t),
         lastResponseAt,
         dismissedResponseAt,
     );
@@ -232,7 +231,7 @@ export function AgentChatContextAlerts({
     return (
         <>
             <span aria-live="polite" className="sr-only" role="status">
-                {isVisible ? agentChatContextAnnouncement(alerts) : undefined}
+                {isVisible ? agentChatContextAnnouncement(alerts, t) : undefined}
             </span>
             {isVisible && (
                 <div

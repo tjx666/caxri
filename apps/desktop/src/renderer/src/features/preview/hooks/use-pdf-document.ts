@@ -4,8 +4,8 @@ import { delay } from 'es-toolkit';
 import type { PDFDocumentLoadingTask, PDFDocumentProxy } from 'pdfjs-dist';
 
 import { loadPdfDocument } from '../pdf-document';
-import type { PdfFailure, PdfPasswordPrompt } from '../pdf-failure';
-import { describePdfFailure, pdfPasswordPrompt } from '../pdf-failure';
+import type { PdfPasswordPrompt } from '../pdf-failure';
+import { pdfPasswordPrompt } from '../pdf-failure';
 import type { PdfReadCause, PdfSettledRead } from '../pdf-reload';
 import { PDF_FAILURE_CONFIRM_MS, pdfReadFailureAction, shownPdfRead } from '../pdf-reload';
 import type { PreviewAssetSource } from '../preview-asset-client';
@@ -14,7 +14,7 @@ import { usePreviewSourceRevision } from './use-preview-source-revision';
 
 export type PdfDocumentState =
     | PdfPasswordPrompt
-    | { status: 'failed'; failure: PdfFailure }
+    | { status: 'failed'; error: unknown }
     | { status: 'loading' }
     | { status: 'ready'; document: PDFDocumentProxy };
 
@@ -125,7 +125,7 @@ export function usePdfDocument(
                     return;
                 }
                 if (pdfReadFailureAction(request.cause) !== 'confirm') {
-                    settle({ status: 'failed', failure: describePdfFailure(error) });
+                    settle({ status: 'failed', error });
                     return;
                 }
                 try {

@@ -2,6 +2,7 @@ import type { ProcessState } from '@caxri/protocol';
 import { settingCategories, settingsSpecByKey } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../i18n';
 import { getTerminalExitPresentation, suspendedDetail } from '../terminal-exit-presentation';
 
 describe('getTerminalExitPresentation', () => {
@@ -20,7 +21,7 @@ describe('getTerminalExitPresentation', () => {
         [
             'suspended',
             {
-                detail: suspendedDetail(),
+                detail: suspendedDetail(translate),
                 icon: 'pending',
                 label: 'Suspended in the background, resuming',
                 tone: 'neutral',
@@ -37,14 +38,18 @@ describe('getTerminalExitPresentation', () => {
     ] satisfies Array<[ProcessState, ReturnType<typeof getTerminalExitPresentation>]>)(
         'maps %s to a distinct recovery presentation',
         (state, expected) => {
-            expect(getTerminalExitPresentation(state)).toEqual(expected);
+            expect(
+                getTerminalExitPresentation(state, undefined, undefined, undefined, translate),
+            ).toEqual(expected);
         },
     );
 
     it.each(['starting', 'running'] satisfies ProcessState[])(
         'does not render recovery UI while the Terminal is %s',
         (state) => {
-            expect(getTerminalExitPresentation(state)).toBeUndefined();
+            expect(
+                getTerminalExitPresentation(state, undefined, undefined, undefined, translate),
+            ).toBeUndefined();
         },
     );
 
@@ -53,7 +58,9 @@ describe('getTerminalExitPresentation', () => {
         ['executable_not_found', 'Agent CLI executable was not found'],
         ['spawn_failed', 'Terminal process could not be started'],
     ] as const)('maps failure reason %s to actionable copy', (failureReason, label) => {
-        expect(getTerminalExitPresentation('failed', failureReason)).toEqual({
+        expect(
+            getTerminalExitPresentation('failed', failureReason, undefined, undefined, translate),
+        ).toEqual({
             icon: 'failed',
             label,
             tone: 'danger',
@@ -61,7 +68,9 @@ describe('getTerminalExitPresentation', () => {
     });
 
     it('falls back to the generic message when a failed Terminal has no failure reason', () => {
-        expect(getTerminalExitPresentation('failed', undefined)).toEqual({
+        expect(
+            getTerminalExitPresentation('failed', undefined, undefined, undefined, translate),
+        ).toEqual({
             icon: 'failed',
             label: 'Terminal failed to start',
             tone: 'danger',
@@ -74,6 +83,8 @@ describe('getTerminalExitPresentation', () => {
                 'failed',
                 'executable_not_found',
                 'Claude CLI was not found',
+                undefined,
+                translate,
             ),
         ).toEqual({
             icon: 'failed',
@@ -90,72 +101,126 @@ describe('getTerminalExitPresentation', () => {
         const category = settingsSpecByKey['terminal.idleSuspension.enabled'].category;
         expect(settingsSpecByKey['terminal.suspendUntouchedAgents'].category).toBe(category);
         const title = settingCategories.find((entry) => entry.id === category)?.title;
-        expect(suspendedDetail()).toContain(`Settings › ${title}.`);
+        expect(suspendedDetail(translate)).toContain(`Settings › ${title}.`);
     });
 
     describe('with exit context', () => {
         it('names the exit code of a failed process', () => {
             expect(
-                getTerminalExitPresentation('dead', undefined, undefined, {
-                    exit: { exitCode: 2 },
-                })?.label,
+                getTerminalExitPresentation(
+                    'dead',
+                    undefined,
+                    undefined,
+                    {
+                        exit: { exitCode: 2 },
+                    },
+                    translate,
+                )?.label,
             ).toBe('Terminal stopped unexpectedly (exit code 2)');
         });
 
         it('names the signal that ended the process', () => {
             expect(
-                getTerminalExitPresentation('dead', undefined, undefined, {
-                    exit: { exitCode: 0, signal: 9 },
-                })?.label,
+                getTerminalExitPresentation(
+                    'dead',
+                    undefined,
+                    undefined,
+                    {
+                        exit: { exitCode: 0, signal: 9 },
+                    },
+                    translate,
+                )?.label,
             ).toBe('Terminal stopped unexpectedly (signal SIGKILL)');
             expect(
-                getTerminalExitPresentation('dead', undefined, undefined, {
-                    exit: { exitCode: 0, signal: 99 },
-                })?.label,
+                getTerminalExitPresentation(
+                    'dead',
+                    undefined,
+                    undefined,
+                    {
+                        exit: { exitCode: 0, signal: 99 },
+                    },
+                    translate,
+                )?.label,
             ).toBe('Terminal stopped unexpectedly (signal 99)');
         });
 
         it('flags an Agent that exits within seconds of launch', () => {
             expect(
-                getTerminalExitPresentation('dead', undefined, undefined, {
-                    exit: { exitCode: 1, ranForMs: 1_200 },
-                    isAgent: true,
-                })?.label,
+                getTerminalExitPresentation(
+                    'dead',
+                    undefined,
+                    undefined,
+                    {
+                        exit: { exitCode: 1, ranForMs: 1_200 },
+                        isAgent: true,
+                    },
+                    translate,
+                )?.label,
             ).toBe('The Agent exited right after starting (exit code 1)');
         });
 
         it('does not claim an early exit for a shell, a long run, or an unseen launch', () => {
             const early = { exitCode: 1, ranForMs: 1_200 };
             expect(
-                getTerminalExitPresentation('dead', undefined, undefined, { exit: early })?.label,
+                getTerminalExitPresentation(
+                    'dead',
+                    undefined,
+                    undefined,
+                    { exit: early },
+                    translate,
+                )?.label,
             ).toBe('Terminal stopped unexpectedly (exit code 1)');
             expect(
-                getTerminalExitPresentation('dead', undefined, undefined, {
-                    exit: { exitCode: 1, ranForMs: 60_000 },
-                    isAgent: true,
-                })?.label,
+                getTerminalExitPresentation(
+                    'dead',
+                    undefined,
+                    undefined,
+                    {
+                        exit: { exitCode: 1, ranForMs: 60_000 },
+                        isAgent: true,
+                    },
+                    translate,
+                )?.label,
             ).toBe('Terminal stopped unexpectedly (exit code 1)');
             expect(
-                getTerminalExitPresentation('dead', undefined, undefined, {
-                    exit: { exitCode: 1 },
-                    isAgent: true,
-                })?.label,
+                getTerminalExitPresentation(
+                    'dead',
+                    undefined,
+                    undefined,
+                    {
+                        exit: { exitCode: 1 },
+                        isAgent: true,
+                    },
+                    translate,
+                )?.label,
             ).toBe('Terminal stopped unexpectedly (exit code 1)');
         });
 
         it('keeps a clean exit neutral', () => {
             expect(
-                getTerminalExitPresentation('stopped', undefined, undefined, {
-                    exit: { exitCode: 0 },
-                }),
+                getTerminalExitPresentation(
+                    'stopped',
+                    undefined,
+                    undefined,
+                    {
+                        exit: { exitCode: 0 },
+                    },
+                    translate,
+                ),
             ).toEqual({ icon: 'completed', label: 'Process exited normally', tone: 'neutral' });
         });
 
         it('shows the missing folder when the working directory is gone', () => {
             expect(
-                getTerminalExitPresentation('failed', 'working_directory_unavailable', undefined, {
-                    cwd: '/work/gone',
-                })?.label,
+                getTerminalExitPresentation(
+                    'failed',
+                    'working_directory_unavailable',
+                    undefined,
+                    {
+                        cwd: '/work/gone',
+                    },
+                    translate,
+                )?.label,
             ).toBe('Folder no longer exists: /work/gone');
         });
     });

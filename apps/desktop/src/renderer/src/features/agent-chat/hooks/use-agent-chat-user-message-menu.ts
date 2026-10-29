@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { agentChatTextWithSessionMentions, parseAgentChatPathReferences } from '@caxri/protocol';
 
 import { useContextMenu } from '../../../hooks/use-context-menu';
-import { translate } from '../../../i18n';
 import { changeAgentChatGoal } from '../activity/agent-chat-goal-commands';
 import { cachedAgentChatSnapshot } from '../agent-chat-client';
 import { agentChatRestoreKey, useAgentChatRestoreStore } from '../agent-chat-commands';
@@ -59,9 +58,7 @@ export function useAgentChatUserMessageMenu({
          * disabled with why, rather than leave the menu looking as if they never existed.
          */
         const historyReason =
-            !edit && readBackHistory
-                ? translate('agentChat.userMenu.historyUnavailable')
-                : undefined;
+            !edit && readBackHistory ? 'agentChat.userMenu.historyUnavailable' : undefined;
         // Copy takes the user's words, not the file and folder references the provider received ahead of them, and
         // names each cited Session by its `@title` rather than its reference file.
         const words = agentChatTextWithSessionMentions(parseAgentChatPathReferences(text).text);

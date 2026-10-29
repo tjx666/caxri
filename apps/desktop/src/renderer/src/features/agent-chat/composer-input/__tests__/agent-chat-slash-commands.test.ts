@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../../i18n';
 import {
     agentChatGoalModeDraft,
     agentChatLeadingInvocation,
@@ -11,16 +12,20 @@ import {
 
 describe('Agent Chat slash commands', () => {
     it('explains missing skills until discovery answers', () => {
-        expect(agentChatSkillDiscoveryNotice({ isAgentRunning: false, isLoading: false })).toEqual({
+        expect(
+            agentChatSkillDiscoveryNotice({ isAgentRunning: false, isLoading: false }, translate),
+        ).toEqual({
             text: 'Skills appear once the Agent is running',
             isLoading: false,
         });
-        expect(agentChatSkillDiscoveryNotice({ isAgentRunning: true, isLoading: true })).toEqual({
+        expect(
+            agentChatSkillDiscoveryNotice({ isAgentRunning: true, isLoading: true }, translate),
+        ).toEqual({
             text: 'Loading skills…',
             isLoading: true,
         });
         expect(
-            agentChatSkillDiscoveryNotice({ isAgentRunning: true, isLoading: false }),
+            agentChatSkillDiscoveryNotice({ isAgentRunning: true, isLoading: false }, translate),
         ).toBeUndefined();
     });
 });
@@ -99,10 +104,10 @@ describe('Goal mode', () => {
             requiresArguments: false,
             source: 'builtIn',
         } as const;
-        const actions = withAgentChatBuiltInActions([
-            review,
-            { ...review, invocation: '/new-session' },
-        ]);
+        const actions = withAgentChatBuiltInActions(
+            [review, { ...review, invocation: '/new-session' }],
+            translate,
+        );
         expect(actions.map(({ invocation }) => invocation)).toEqual(['/new-session', '/review']);
         expect(actions[0]).toMatchObject({
             description: 'Hand the next task to a new Session and stop here',

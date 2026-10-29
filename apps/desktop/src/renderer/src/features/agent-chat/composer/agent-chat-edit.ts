@@ -1,7 +1,7 @@
 import type { AgentChatSnapshot } from '@caxri/protocol';
 import { agentChatRewindableMessageIds, agentChatRewindTarget } from '@caxri/protocol';
 
-import type { Translate } from '../../../i18n';
+import type { Translate, TranslationKey } from '../../../i18n';
 import { translate } from '../../../i18n';
 import { readLocalStorageJson, writeLocalStorageJson } from '../../../lib/local-storage';
 import { currentAgentChatComposerScope } from '../attachments/agent-chat-attachment-persistence';
@@ -162,21 +162,23 @@ export function retainAgentChatEdits(chatTerminalIds: ReadonlySet<string>): void
 type EditSnapshot = Pick<AgentChatSnapshot, 'activeTurnId' | 'items' | 'turns'>;
 
 /**
- * Whether a message's "Edit from here" action is enabled, and the reason shown on it when it is not.
+ * Whether a message's "Edit from here" action is enabled, and the reason shown on it when it is not. The reason is a
+ * translation key rather than text: the availability table is cached by its serialized form, so a string would keep its
+ * language after a runtime language switch. Consumers translate it with their own `t`.
  */
 export function agentChatEditAvailability(
     snapshot: EditSnapshot,
     itemId: string,
-): { canEdit: true } | { canEdit: false; reason: string } {
+): { canEdit: true } | { canEdit: false; reason: TranslationKey } {
     const item = snapshot.items.find((candidate) => candidate.id === itemId);
     // Images stay on Server Core and never come back to the composer, as with an edited queued message.
     if (item?.type === 'userMessage' && (item.images?.length ?? 0) > 0)
-        return { canEdit: false, reason: translate('agentChat.edit.imagesUnsupported') };
+        return { canEdit: false, reason: 'agentChat.edit.imagesUnsupported' };
     const result = agentChatRewindTarget(snapshot, itemId);
     if ('target' in result) return { canEdit: true };
     if (result.refusal === 'turnRunning')
-        return { canEdit: false, reason: translate('agentChat.edit.stopToEdit') };
-    return { canEdit: false, reason: translate('agentChat.edit.cannotEdit') };
+        return { canEdit: false, reason: 'agentChat.edit.stopToEdit' };
+    return { canEdit: false, reason: 'agentChat.edit.cannotEdit' };
 }
 
 /**
@@ -186,12 +188,12 @@ export function agentChatEditAvailability(
 export function agentChatForkAvailability(
     snapshot: EditSnapshot,
     itemId: string,
-): { canFork: true } | { canFork: false; reason: string } {
+): { canFork: true } | { canFork: false; reason: TranslationKey } {
     const result = agentChatRewindTarget(snapshot, itemId);
     if ('target' in result) return { canFork: true };
     if (result.refusal === 'turnRunning')
-        return { canFork: false, reason: translate('agentChat.edit.stopToFork') };
-    return { canFork: false, reason: translate('agentChat.edit.cannotFork') };
+        return { canFork: false, reason: 'agentChat.edit.stopToFork' };
+    return { canFork: false, reason: 'agentChat.edit.cannotFork' };
 }
 
 /**
@@ -202,12 +204,11 @@ export function agentChatForkAvailability(
 export function agentChatRestoreAvailability(
     snapshot: EditSnapshot,
     itemId: string,
-): { restoredTurns: number } | { reason: string } {
+): { restoredTurns: number } | { reason: TranslationKey } {
     const result = agentChatRewindTarget(snapshot, itemId);
     if ('target' in result) return { restoredTurns: result.target.removedTurns };
-    if (result.refusal === 'turnRunning')
-        return { reason: translate('agentChat.edit.stopToRestore') };
-    return { reason: translate('agentChat.edit.cannotRestore') };
+    if (result.refusal === 'turnRunning') return { reason: 'agentChat.edit.stopToRestore' };
+    return { reason: 'agentChat.edit.cannotRestore' };
 }
 
 /**
@@ -250,13 +251,13 @@ export function agentChatEditSendAction(
 }
 
 /**
- * What one rewindable user message offers. `edit` and `fork` are `null` when enabled, otherwise the reason they are
- * disabled; `restore` is the number of turns it undoes when enabled, otherwise the reason it is disabled.
+ * What one rewindable user message offers. `edit` and `fork` are `null` when enabled, otherwise the translation key of
+ * the reason they are disabled; `restore` is the number of turns it undoes when enabled, otherwise that key.
  */
 export interface AgentChatEditAvailabilityRow {
-    edit: string | null;
-    fork: string | null;
-    restore: string | number;
+    edit: TranslationKey | null;
+    fork: TranslationKey | null;
+    restore: TranslationKey | number;
 }
 
 /**

@@ -1,6 +1,6 @@
 import { isPathAtOrBelow } from '@caxri/protocol';
 
-import { translate } from '../../../i18n';
+import type { Translate } from '../../../i18n';
 import { createStore } from '../../../lib/store';
 
 export interface PendingFileOperation {
@@ -103,23 +103,26 @@ export function useIsPathBlockedByFileOperations(projectId: string, path: string
 /**
  * Shared copy for every Paste/Duplicate menu entry disabled by an in-flight file operation.
  */
-export function fileOperationBusyReason(): string {
-    return translate('viewContainers.files.busyReason');
+export function fileOperationBusyReason(t: Translate): string {
+    return t('viewContainers.files.busyReason');
 }
 
 /**
  * Why Paste cannot run into a directory, or `undefined` while it can. An empty clipboard wins over a busy target:
  * waiting for the operation would not give the user anything to paste.
  */
-export function pasteDisabledReason({
-    isBlocked,
-    isClipboardEmpty,
-}: {
-    isBlocked: boolean;
-    isClipboardEmpty: boolean;
-}): string | undefined {
-    if (isClipboardEmpty) return translate('viewContainers.files.nothingToPaste');
-    if (isBlocked) return fileOperationBusyReason();
+export function pasteDisabledReason(
+    {
+        isBlocked,
+        isClipboardEmpty,
+    }: {
+        isBlocked: boolean;
+        isClipboardEmpty: boolean;
+    },
+    t: Translate,
+): string | undefined {
+    if (isClipboardEmpty) return t('viewContainers.files.nothingToPaste');
+    if (isBlocked) return fileOperationBusyReason(t);
     return undefined;
 }
 

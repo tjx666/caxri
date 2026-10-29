@@ -83,9 +83,10 @@ export function AgentActivityView() {
                 // would point at a row the user has no other way to reach.
                 projects: topLevelProjects(allProjects ?? NO_RECORDS),
                 sessions,
+                t,
                 terminals,
             }),
-        [allProjects, now, sessions, terminals],
+        [allProjects, now, sessions, t, terminals],
     );
     /**
      * Capture the unread generation on the selection render, before the visibility acknowledgement reaches the Server.
@@ -126,6 +127,7 @@ export function AgentActivityView() {
                       projects: topLevelProjects(allProjects ?? NO_RECORDS),
                       selectionAnchor,
                       sessions,
+                      t,
                       terminals,
                   })
                 : canonicalGroups,
@@ -136,6 +138,7 @@ export function AgentActivityView() {
             selectedSessionId,
             selectionAnchor,
             sessions,
+            t,
             terminals,
         ],
     );

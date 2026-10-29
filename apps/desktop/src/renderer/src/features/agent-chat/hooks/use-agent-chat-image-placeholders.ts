@@ -1,6 +1,7 @@
 import type { RefObject } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
+import { useTranslation } from '../../../i18n';
 import {
     agentChatComposerImagePills,
     agentChatImagePlaceholderChanges,
@@ -30,6 +31,7 @@ export function useAgentChatImagePlaceholders({
     inputReference: RefObject<AgentChatComposerInput | null>;
     setDraft: (update: (current: string) => string) => void;
 }) {
+    const { t } = useTranslation();
     /**
      * The image whose preview is open, from its thumbnail or its pill.
      */
@@ -37,7 +39,7 @@ export function useAgentChatImagePlaceholders({
     /**
      * Keeps its identity while the images stay the same, since a new array redraws every pill.
      */
-    const pills = useMemo(() => agentChatComposerImagePills(attachments), [attachments]);
+    const pills = useMemo(() => agentChatComposerImagePills(attachments, t), [attachments, t]);
     const removed = useRef(new Map<number, AgentChatImageAttachment>());
     /**
      * The last number handed out, so images pasted again before the first ones finish reading get numbers of their own.

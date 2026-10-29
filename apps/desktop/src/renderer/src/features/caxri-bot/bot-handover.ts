@@ -7,8 +7,7 @@ import type {
     BotHandoverResult,
 } from '@caxri/protocol';
 
-import type { TranslationKey } from '../../i18n';
-import { translate } from '../../i18n';
+import type { Translate, TranslationKey } from '../../i18n';
 import { sessionTitleForDisplay } from '../session/session-title';
 
 /**
@@ -85,7 +84,8 @@ function groupCandidates(
 export function handoverSessionGroups(
     rows: readonly BotBoardRow[],
     query: string,
-    keep: ReadonlySet<string> = new Set(),
+    keep: ReadonlySet<string>,
+    t: Translate,
 ): HandoverCandidateGroup[] {
     return groupCandidates(
         rows
@@ -98,7 +98,7 @@ export function handoverSessionGroups(
                 group: { key: row.projectId, title: row.projectTitle },
                 candidate: {
                     key: row.sessionId,
-                    title: sessionTitleForDisplay(row.sessionTitle, translate),
+                    title: sessionTitleForDisplay(row.sessionTitle, t),
                     agentKind: row.agent?.kind ?? 'shell',
                     updatedAt: row.lastActivityAt,
                     sessionId: row.sessionId,

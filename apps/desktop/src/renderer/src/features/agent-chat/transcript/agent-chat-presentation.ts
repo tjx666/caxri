@@ -167,7 +167,8 @@ export function agentChatRecoveryNotice(
         return {
             kind: 'detached',
             message:
-                getTerminalExitPresentation('detached')?.label ?? t('agentChat.timeline.detached'),
+                getTerminalExitPresentation('detached', undefined, undefined, undefined, t)
+                    ?.label ?? t('agentChat.timeline.detached'),
             recovery: 'restart',
         };
     const isFailed = snapshot?.status === 'failed';

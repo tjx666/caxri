@@ -658,4 +658,21 @@ export default defineConfig(
             'caxri/native-title': 'error',
         },
     },
+    /**
+     * The module-level `translate()` is a snapshot that React Compiler memoization never refreshes, so rendering code
+     * reads `t` from `useTranslation()` instead (see `docs/i18n.md`).
+     */
+    {
+        files: [
+            'apps/desktop/src/renderer/src/**/*.{ts,tsx}',
+            'scripts/fixtures/eslint/no-render-translate/**/*.tsx',
+        ],
+        ignores: ['**/__tests__/**', '**/*.test.{ts,tsx}'],
+        plugins: {
+            caxri,
+        },
+        rules: {
+            'caxri/no-render-translate': 'error',
+        },
+    },
 );

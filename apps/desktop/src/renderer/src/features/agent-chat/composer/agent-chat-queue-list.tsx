@@ -318,7 +318,7 @@ export function AgentChatQueueList({
     terminalId: string;
 }) {
     const { t } = useTranslation();
-    const entries = agentChatQueueEntries(queue, isTurnRunning, pending);
+    const entries = agentChatQueueEntries(queue, isTurnRunning, pending, t);
     if (entries.length === 0) return null;
     const header = agentChatQueueHeader(snapshot, t);
     const isFailed = header?.tone === 'failed';

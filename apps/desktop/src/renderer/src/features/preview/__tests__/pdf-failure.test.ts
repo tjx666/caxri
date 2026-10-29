@@ -1,6 +1,7 @@
 import { CaxriError } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../i18n';
 import { describePdfFailure, pdfPasswordPrompt } from '../pdf-failure';
 
 /**
@@ -22,7 +23,7 @@ function namedError(name: string, code?: number): Error {
 
 describe('describePdfFailure', () => {
     it('names a damaged document', () => {
-        expect(describePdfFailure(namedError('InvalidPDFException'))).toEqual({
+        expect(describePdfFailure(namedError('InvalidPDFException'), translate)).toEqual({
             reason: 'This file is not a valid PDF, or it is damaged.',
             tone: 'failed',
             recovery: 'openWithDefaultApp',
@@ -31,7 +32,10 @@ describe('describePdfFailure', () => {
 
     it('states the size ceiling in megabytes', () => {
         expect(
-            describePdfFailure(new CaxriError('CAPACITY', 'Asset exceeds the 33554432 byte limit')),
+            describePdfFailure(
+                new CaxriError('CAPACITY', 'Asset exceeds the 33554432 byte limit'),
+                translate,
+            ),
         ).toEqual({
             reason: 'This PDF is larger than the 32.0 MB preview limit.',
             tone: 'failed',
@@ -40,7 +44,10 @@ describe('describePdfFailure', () => {
     });
 
     it('keeps the editor wording for an ordinary read failure', () => {
-        const failure = describePdfFailure(new CaxriError('NOT_FOUND', 'File not found'));
+        const failure = describePdfFailure(
+            new CaxriError('NOT_FOUND', 'File not found'),
+            translate,
+        );
 
         expect(failure.tone).toBe('failed');
         expect(failure.reason).toMatch(/^Couldn't open this file/);

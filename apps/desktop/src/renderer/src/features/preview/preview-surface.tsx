@@ -84,7 +84,7 @@ function TextPreviewSurface({
     if (!document)
         return failure ? (
             <EditorLoadFailure
-                {...describeDocumentReadFailure(failure.error)}
+                {...describeDocumentReadFailure(failure.error, t)}
                 {...documentLoadRecoveryAction(documentReadRecovery(failure.error), path, retry, t)}
             />
         ) : (

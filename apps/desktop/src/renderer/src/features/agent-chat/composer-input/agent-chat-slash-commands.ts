@@ -1,7 +1,7 @@
 import type { AgentAction, AgentChatCommand } from '@caxri/protocol';
 import { AGENT_CHAT_GOAL_COMMAND, AGENT_CHAT_SESSION_HANDOFF_COMMAND } from '@caxri/protocol';
 
-import { translate } from '../../../i18n';
+import type { Translate } from '../../../i18n';
 
 /**
  * The Desktop Chat composer's slash-command and skill menu helpers that are Desktop-only. Runnable commands are the
@@ -13,14 +13,17 @@ import { translate } from '../../../i18n';
  * The menu's status line for skills, or `undefined` when discovery has answered: skills are discovered only from a
  * running Agent, and the first discovery takes a moment.
  */
-export function agentChatSkillDiscoveryNotice(state: {
-    isAgentRunning: boolean;
-    isLoading: boolean;
-}): { text: string; isLoading: boolean } | undefined {
+export function agentChatSkillDiscoveryNotice(
+    state: {
+        isAgentRunning: boolean;
+        isLoading: boolean;
+    },
+    t: Translate,
+): { text: string; isLoading: boolean } | undefined {
     if (!state.isAgentRunning)
-        return { text: translate('agentChat.slash.skillsNeedAgent'), isLoading: false };
+        return { text: t('agentChat.slash.skillsNeedAgent'), isLoading: false };
     return state.isLoading
-        ? { text: translate('agentChat.slash.loadingSkills'), isLoading: true }
+        ? { text: t('agentChat.slash.loadingSkills'), isLoading: true }
         : undefined;
 }
 
@@ -70,14 +73,17 @@ export function agentChatGoalModeDraft(draft: string): string {
  * `parseAgentChatSessionHandoffCommand`), then the provider's commands and the discovered skills. A provider command of
  * the same name loses to Caxri's, which the composer runs anyway.
  */
-export function withAgentChatBuiltInActions(actions: readonly AgentAction[]): AgentAction[] {
+export function withAgentChatBuiltInActions(
+    actions: readonly AgentAction[],
+    t: Translate,
+): AgentAction[] {
     const invocation = `/${AGENT_CHAT_SESSION_HANDOFF_COMMAND}`;
     return [
         {
             invocation,
             kind: 'command',
-            description: translate('agentChat.slash.newSessionDescription'),
-            argumentHint: translate('agentChat.slash.newSessionHint'),
+            description: t('agentChat.slash.newSessionDescription'),
+            argumentHint: t('agentChat.slash.newSessionHint'),
             requiresArguments: false,
             source: 'builtIn',
         },

@@ -84,7 +84,14 @@ export function resolveNewTerminalAgent(defaultAgent: ConfiguredDefaultAgent): T
 function isLiveAgentTerminal(terminal: TerminalRecord): boolean {
     return (
         terminal.kind !== 'shell' &&
-        getTerminalExitPresentation(terminal.lastProcessState) === undefined
+        // Only whether a presentation exists matters; the text is discarded, so the snapshot `translate` is fine.
+        getTerminalExitPresentation(
+            terminal.lastProcessState,
+            undefined,
+            undefined,
+            undefined,
+            translate,
+        ) === undefined
     );
 }
 

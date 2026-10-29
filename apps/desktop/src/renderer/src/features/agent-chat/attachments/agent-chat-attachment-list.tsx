@@ -72,7 +72,7 @@ function AttachmentThumbnail({
     onPreview: () => void;
 }) {
     const { t } = useTranslation();
-    const label = agentChatAttachmentLabel(attachment, index);
+    const label = agentChatAttachmentLabel(attachment, index, t);
     const thumbnail = (
         <span className="relative block">
             <img
@@ -108,7 +108,7 @@ function AttachmentThumbnail({
         </span>
     );
     return attachment.isResized ? (
-        <Tooltip content={agentChatImageResizedNote()}>{thumbnail}</Tooltip>
+        <Tooltip content={agentChatImageResizedNote(t)}>{thumbnail}</Tooltip>
     ) : (
         thumbnail
     );
@@ -263,6 +263,7 @@ export function AgentChatAttachmentList({
                                                     name: agentChatAttachmentName(
                                                         attachment,
                                                         index,
+                                                        t,
                                                     ),
                                                 })}
                                                 onRemove={() => onRemove(attachment.id)}
@@ -293,10 +294,10 @@ export function AgentChatAttachmentList({
                     {preview && (
                         <>
                             <DialogTitle className="mb-2 truncate pr-8 text-[13px] font-normal text-muted">
-                                {agentChatAttachmentLabel(preview, previewIndex)}
+                                {agentChatAttachmentLabel(preview, previewIndex, t)}
                             </DialogTitle>
                             <img
-                                alt={agentChatAttachmentLabel(preview, previewIndex)}
+                                alt={agentChatAttachmentLabel(preview, previewIndex, t)}
                                 className="block max-h-[calc(100vh-120px)] max-w-full rounded-md object-contain"
                                 src={`data:${preview.image.mediaType};base64,${preview.image.data}`}
                             />

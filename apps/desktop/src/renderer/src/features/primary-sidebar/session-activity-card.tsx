@@ -118,11 +118,15 @@ export function SessionActivityCard({
     const { closeDelay, delay, motionClassName, onPointerEnter, setOpen, visible } =
         useSidebarDetailCard(suppressed);
     const agent = terminal?.kind ?? 'shell';
-    const activity = currentSessionActivityPresentation(session, {
-        agentOperation: terminal?.agentOperation,
-        kind: agent,
-        lastProcessState: terminal?.lastProcessState,
-    });
+    const activity = currentSessionActivityPresentation(
+        session,
+        {
+            agentOperation: terminal?.agentOperation,
+            kind: agent,
+            lastProcessState: terminal?.lastProcessState,
+        },
+        t,
+    );
     const agentLabel = resolveAgentIcon(agent).label;
     const accessibleDescription = sessionCardDescription(t, {
         agentLabel,
@@ -130,17 +134,21 @@ export function SessionActivityCard({
         inPinnedGroup,
         project,
         pullRequestLabel: pullRequest
-            ? sessionPullRequestPresentation(pullRequest).ariaLabel
+            ? sessionPullRequestPresentation(pullRequest, t).ariaLabel
             : undefined,
         pullRequestUnavailable,
         worktreeProject,
     });
-    const statusLine = sessionCardStatusLine(session, terminal);
+    const statusLine = sessionCardStatusLine(session, terminal, t);
     // The list's status slot collapses every attention kind into one signal; the description names the exact one.
     const unreadSentence = session.hasUnread
         ? t('primarySidebar.card.sentence', {
               text: t('primarySidebar.card.unreadAttention', {
-                  label: sessionActivityPresentation(session.lastAttentionKind ?? 'unknown').label,
+                  label: sessionActivityPresentation(
+                      session.lastAttentionKind ?? 'unknown',
+                      undefined,
+                      t,
+                  ).label,
               }),
           })
         : undefined;

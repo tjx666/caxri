@@ -43,7 +43,7 @@ export function BotInboxView() {
             </div>
             {!data && inbox.isError && (
                 <div className="bot-inbox-status flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-6 text-center text-xs text-muted">
-                    <span>{describeFailure(inbox.error, t('caxriBot.inbox.loadFailed'))}</span>
+                    <span>{describeFailure(inbox.error, t('caxriBot.inbox.loadFailed'), t)}</span>
                     <Button
                         size="sm"
                         variant="secondary"

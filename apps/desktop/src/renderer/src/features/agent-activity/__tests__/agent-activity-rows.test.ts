@@ -2,6 +2,7 @@ import type { ProjectRecord, SessionRecord, TerminalRecord } from '@caxri/protoc
 import { SESSION_FINISHED_RETENTION_MS } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../i18n';
 import { sessionAgentTerminal } from '../../session/session-agent-terminal';
 import type { AgentActivitySelectionAnchor } from '../agent-activity-rows';
 import {
@@ -56,6 +57,7 @@ function groupsOf(
         selectionAnchor,
         sessions,
         terminals,
+        t: translate,
     });
 }
 
@@ -430,7 +432,13 @@ describe('agentAttentionCount', () => {
             session('also-waiting', { hasUnread: true, projectId: 'beta' }),
             session('quiet'),
         ];
-        const groups = agentActivityGroups({ now: NOW, projects, sessions, terminals: [] });
+        const groups = agentActivityGroups({
+            now: NOW,
+            projects,
+            sessions,
+            terminals: [],
+            t: translate,
+        });
 
         expect(agentAttentionCount(projects, sessions)).toBe(2);
         expect(groups.find((group) => group.id === 'attention')?.rows).toHaveLength(2);

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../../../lib/caxri', () => ({ caxri: { request: vi.fn() } }));
 
+import { translate } from '../../../../i18n';
 import type { ContextMenuEntries } from '../../../../lib/context-menu';
 import { serializeContextMenu } from '../../../../lib/context-menu';
 import { useDialogStore } from '../../../../stores/dialogs';
@@ -122,7 +123,7 @@ describe('fileTreeItemMenu', () => {
         expect(paste?.shortcut).toBeUndefined();
         expect(items.find((item) => item.label === 'Duplicate')).toMatchObject({
             enabled: false,
-            disabledReason: fileOperationBusyReason(),
+            disabledReason: fileOperationBusyReason(translate),
         });
     });
 
@@ -148,13 +149,15 @@ describe('fileTreeItemMenu', () => {
 
 describe('pasteDisabledReason', () => {
     it('explains an empty clipboard before a busy target, and nothing while Paste can run', () => {
-        expect(pasteDisabledReason({ isBlocked: true, isClipboardEmpty: true })).toBe(
+        expect(pasteDisabledReason({ isBlocked: true, isClipboardEmpty: true }, translate)).toBe(
             'Nothing to paste',
         );
-        expect(pasteDisabledReason({ isBlocked: true, isClipboardEmpty: false })).toBe(
-            fileOperationBusyReason(),
+        expect(pasteDisabledReason({ isBlocked: true, isClipboardEmpty: false }, translate)).toBe(
+            fileOperationBusyReason(translate),
         );
-        expect(pasteDisabledReason({ isBlocked: false, isClipboardEmpty: false })).toBeUndefined();
+        expect(
+            pasteDisabledReason({ isBlocked: false, isClipboardEmpty: false }, translate),
+        ).toBeUndefined();
     });
 });
 

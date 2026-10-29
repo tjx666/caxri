@@ -130,7 +130,7 @@ export function ImagePreview({
     if (state.status === 'failed')
         return (
             <EditorLoadFailure
-                {...describeDocumentReadFailure(state.error)}
+                {...describeDocumentReadFailure(state.error, t)}
                 {...documentLoadRecoveryAction(documentReadRecovery(state.error), path, retry, t)}
             />
         );

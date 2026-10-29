@@ -142,7 +142,7 @@ function UnmeasuredThroughputStatus({
             ariaLabel={t('statusBar.throughput.unmeasuredAriaLabel', {
                 tab: tabLabel,
                 agent: agentName,
-                status: describeProviderStatus(status),
+                status: describeProviderStatus(status, t),
             })}
             className="statusbar-agent-throughput text-muted [&>span]:min-w-[8ch]"
             icon={<ThroughputGlyph alert={alert} />}

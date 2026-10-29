@@ -5,6 +5,7 @@ import {
 } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../../i18n';
 import { attachmentsAfterSend } from '../../composer-input/agent-chat-drafts';
 import {
     agentChatAttachmentLabel,
@@ -119,10 +120,10 @@ describe('Agent Chat image attachments', () => {
     });
 
     it('notes a resized image in its alt text', () => {
-        expect(agentChatAttachmentLabel({ name: 'shot.png', isResized: true }, 0)).toBe(
+        expect(agentChatAttachmentLabel({ name: 'shot.png', isResized: true }, 0, translate)).toBe(
             'shot.png (resized to fit the 5 MB limit)',
         );
-        expect(agentChatAttachmentLabel({ name: '' }, 1)).toBe('Attachment 2');
+        expect(agentChatAttachmentLabel({ name: '' }, 1, translate)).toBe('Attachment 2');
     });
 
     it('sizes thumbnails to cover their previews at 2x while keeping the aspect ratio', () => {

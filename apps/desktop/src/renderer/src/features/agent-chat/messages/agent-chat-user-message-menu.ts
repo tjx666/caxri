@@ -1,12 +1,13 @@
+import type { TranslationKey } from '../../../i18n';
 import { translate } from '../../../i18n';
 import type { ContextMenuEntries, ContextMenuEntry } from '../../../lib/context-menu';
 import { CONTEXT_MENU_SEPARATOR } from '../../../lib/context-menu';
 
 /**
- * One rewind action as a user message offers it: `undefined` when the message does not offer it at all, a reason string
- * while it is disabled, `null` while it can run. The same shape `AgentChatEditActions` reports.
+ * One rewind action as a user message offers it: `undefined` when the message does not offer it at all, the translation
+ * key of its reason while it is disabled, `null` while it can run. The same shape `AgentChatEditActions` reports.
  */
-type ActionAvailability = string | null | undefined;
+type ActionAvailability = TranslationKey | null | undefined;
 
 /**
  * What the copy part of a message's right-click menu needs, shared by the user's messages and the Agent's replies.
@@ -61,7 +62,7 @@ function rewindEntry(
     busyReason?: string,
 ): ContextMenuEntry | undefined {
     if (availability === undefined) return undefined;
-    const reason = availability ?? busyReason;
+    const reason = availability === null ? busyReason : translate(availability);
     return reason === undefined
         ? { label, onSelect }
         : { label, onSelect, disabled: true, disabledReason: reason };

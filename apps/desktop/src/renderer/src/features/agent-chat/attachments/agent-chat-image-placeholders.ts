@@ -1,6 +1,6 @@
 import { agentChatImageTokenRanges, agentChatTextWithRenumberedImages } from '@caxri/protocol';
 
-import { translate } from '../../../i18n';
+import type { Translate } from '../../../i18n';
 import type { AgentChatComposerImagePill } from '../composer/agent-chat-composer-extensions';
 import type { AgentChatTextEdit } from '../composer/agent-chat-composer-list';
 import { agentChatDraftChange } from '../composer/agent-chat-composer-view';
@@ -137,12 +137,13 @@ export function agentChatTextWithSentImageNumbers(
  */
 export function agentChatComposerImagePills(
     attachments: readonly AgentChatAttachment[],
+    t: Translate,
 ): AgentChatComposerImagePill[] {
     return attachments.flatMap((attachment) =>
         isAgentChatImageAttachment(attachment) && attachment.token !== undefined
             ? [
                   {
-                      label: translate('agentChat.attachments.imageNumber', {
+                      label: t('agentChat.attachments.imageNumber', {
                           number: attachment.token,
                       }),
                       thumbnail: attachment.image.thumbnail,

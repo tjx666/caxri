@@ -58,7 +58,7 @@ function FileDiffResult({
         return (
             <EditorLoadFailure
                 actionLabel={t(resolvedGitDiffActionLabel(isFetching))}
-                reason={describeFailure(error, t('editor.gitDiff.openFailed'))}
+                reason={describeFailure(error, t('editor.gitDiff.openFailed'), t)}
                 onAction={onRetry}
             />
         );
@@ -158,7 +158,7 @@ function WorkingFileDiffEditor({
                 actionLabel={t(resolvedGitDiffActionLabel(isFetching))}
                 reason={
                     isFailed
-                        ? describeFailure(error, t('editor.gitDiff.openFailed'))
+                        ? describeFailure(error, t('editor.gitDiff.openFailed'), t)
                         : t(RESOLVED_GIT_DIFF_REASON_KEY)
                 }
                 tone={isFailed ? 'failed' : 'interrupted'}

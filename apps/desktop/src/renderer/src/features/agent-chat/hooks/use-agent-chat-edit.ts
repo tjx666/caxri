@@ -2,6 +2,7 @@ import { createContext, useContext, useMemo, useRef, useState } from 'react';
 
 import type { AgentChatSnapshot } from '@caxri/protocol';
 
+import type { TranslationKey } from '../../../i18n';
 import { forkAgentChat, restoreAgentChatFiles } from '../agent-chat-commands';
 import {
     parseAgentChatEditAvailability,
@@ -19,7 +20,7 @@ export interface AgentChatEditActions {
     /**
      * `undefined` when the message offers no edit; otherwise the reason the action is disabled, or `null` when enabled.
      */
-    availability: (itemId: string) => string | null | undefined;
+    availability: (itemId: string) => TranslationKey | null | undefined;
     editingId: string | undefined;
     startEdit: (itemId: string, text: string) => void;
     /**
@@ -27,7 +28,7 @@ export interface AgentChatEditActions {
      * `availability` follows the same shape as the edit's.
      */
     fork?: {
-        availability: (itemId: string) => string | null | undefined;
+        availability: (itemId: string) => TranslationKey | null | undefined;
         run: (itemId: string, text: string) => Promise<void>;
     };
     /**
@@ -35,7 +36,7 @@ export interface AgentChatEditActions {
      * the edit's: `undefined` offers no action, a string disables it with that reason, `null` enables it.
      */
     restore?: {
-        availability: (itemId: string) => string | null | undefined;
+        availability: (itemId: string) => TranslationKey | null | undefined;
         run: (itemId: string) => void;
     };
 }

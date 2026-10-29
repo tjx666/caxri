@@ -1,6 +1,7 @@
 import { CaxriError } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../../i18n';
 import {
     isSupersededSnapshotError,
     resolveSourceControlPanelState,
@@ -9,12 +10,20 @@ import {
 describe('resolveSourceControlPanelState', () => {
     it('keeps no Session distinct from loading', () => {
         expect(
-            resolveSourceControlPanelState({ hasSession: false, hasSnapshotError: false }),
+            resolveSourceControlPanelState({
+                hasSession: false,
+                hasSnapshotError: false,
+                t: translate,
+            }),
         ).toEqual({
             status: 'no-session',
         });
         expect(
-            resolveSourceControlPanelState({ hasSession: true, hasSnapshotError: false }),
+            resolveSourceControlPanelState({
+                hasSession: true,
+                hasSnapshotError: false,
+                t: translate,
+            }),
         ).toEqual({
             status: 'loading',
         });
@@ -29,6 +38,7 @@ describe('resolveSourceControlPanelState', () => {
                     emptyKind: 'no-repository',
                     emptyMessage: 'This folder is not a Git repository.',
                 },
+                t: translate,
             }),
         ).toEqual({ status: 'no-repository' });
         expect(
@@ -40,6 +50,7 @@ describe('resolveSourceControlPanelState', () => {
                     emptyMessage:
                         'Source Control is unavailable right now. The Git operation timed out.',
                 },
+                t: translate,
             }),
         ).toEqual({
             status: 'unavailable',
@@ -49,7 +60,11 @@ describe('resolveSourceControlPanelState', () => {
 
     it('offers recovery after a snapshot failure without provider data', () => {
         expect(
-            resolveSourceControlPanelState({ hasSession: true, hasSnapshotError: true }),
+            resolveSourceControlPanelState({
+                hasSession: true,
+                hasSnapshotError: true,
+                t: translate,
+            }),
         ).toEqual({
             status: 'unavailable',
             message: 'Source Control is unavailable right now.',
@@ -62,6 +77,7 @@ describe('resolveSourceControlPanelState', () => {
                 hasSession: true,
                 hasSnapshotError: true,
                 model: { emptyKind: 'no-repository', emptyMessage: 'Old result' },
+                t: translate,
             }),
         ).toEqual({
             status: 'unavailable',
@@ -76,6 +92,7 @@ describe('resolveSourceControlPanelState', () => {
                 hasSnapshotError: true,
                 isSnapshotSuperseded: true,
                 model: { emptyKind: undefined, emptyMessage: undefined },
+                t: translate,
             }),
         ).toEqual({ status: 'ready' });
     });
@@ -86,6 +103,7 @@ describe('resolveSourceControlPanelState', () => {
                 hasSession: true,
                 hasSnapshotError: true,
                 isSnapshotSuperseded: true,
+                t: translate,
             }).status,
         ).toBe('unavailable');
     });
@@ -103,6 +121,7 @@ describe('resolveSourceControlPanelState', () => {
                 hasSession: true,
                 hasSnapshotError: false,
                 model: {},
+                t: translate,
             }),
         ).toEqual({ status: 'ready' });
     });

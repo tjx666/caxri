@@ -231,12 +231,18 @@ export function agentActivityGroups({
     projects,
     selectionAnchor,
     sessions,
+    t,
     terminals,
 }: {
     now: number;
     projects: readonly ProjectRecord[];
     selectionAnchor?: AgentActivitySelectionAnchor;
     sessions: readonly SessionRecord[];
+    /**
+     * The caller's `useTranslation()` function, or `translate` outside React. Rows carry translated status text, so a
+     * component must rebuild the groups when `t` changes.
+     */
+    t: Translate;
     terminals: readonly TerminalRecord[];
 }): AgentActivityGroup[] {
     const projectsById = new Map(projects.map((project) => [project.id, project]));
@@ -248,7 +254,7 @@ export function agentActivityGroups({
         const project = projectsById.get(session.projectId);
         if (project === undefined) continue;
         const terminal = indexedSessionAgentTerminal(session, terminalsBySession);
-        const status = sessionStatus(session, terminal);
+        const status = sessionStatus(session, terminal ?? {}, t);
         const groupId = groupForSession(
             session,
             status,
@@ -270,6 +276,7 @@ export function agentActivityGroups({
             statusPresentation: sessionActivityPresentation(
                 session.agentActivityState,
                 terminal?.agentOperation,
+                t,
             ),
             terminal,
         };

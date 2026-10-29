@@ -145,7 +145,7 @@ function PullRequestStatus({
     const { t } = useTranslation();
     const elsewhereBranch = pullRequestElsewhereBranch(pullRequest, branch);
     const canSwitch = Boolean(elsewhereBranch && sessionId);
-    const checks = pullRequestChecksPresentation(pullRequest.checks);
+    const checks = pullRequestChecksPresentation(pullRequest.checks, t);
     return (
         <StatusItem
             icon={

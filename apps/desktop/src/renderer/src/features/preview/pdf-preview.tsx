@@ -17,6 +17,7 @@ import { usePdfDocument } from './hooks/use-pdf-document';
 import { usePdfFind } from './hooks/use-pdf-find';
 import type { PdfViewerSession, PdfViewState } from './pdf-document';
 import { createPdfViewerSession } from './pdf-document';
+import { describePdfFailure } from './pdf-failure';
 import { isPdfFindMiss, isPdfFindShortcut, pdfFindCountLabel } from './pdf-find';
 import { PdfPasswordForm } from './pdf-password-form';
 import {
@@ -325,14 +326,16 @@ export function PdfPreview({
         path,
         external,
     );
-    if (state.status === 'failed')
+    if (state.status === 'failed') {
+        const failure = describePdfFailure(state.error, t);
         return (
             <EditorLoadFailure
-                {...documentLoadRecoveryAction(state.failure.recovery, path, retry, t)}
-                reason={state.failure.reason}
-                tone={state.failure.tone}
+                {...documentLoadRecoveryAction(failure.recovery, path, retry, t)}
+                reason={failure.reason}
+                tone={failure.tone}
             />
         );
+    }
     if (state.status === 'password')
         return (
             <PdfPasswordForm

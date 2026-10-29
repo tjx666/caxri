@@ -1,7 +1,7 @@
 import { isCaxriError, MAX_PREVIEW_DOCUMENT_BYTES } from '@caxri/protocol';
 import { formatBytes } from '@caxri/utils';
 
-import { translate } from '../../i18n';
+import type { Translate } from '../../i18n';
 import { describeDocumentReadFailure } from '../../lib/document-read-failure';
 import type { DocumentLoadRecovery } from '../editor/document-load-recovery';
 import { documentReadRecovery } from '../editor/document-load-recovery';
@@ -24,25 +24,25 @@ export interface PdfFailure {
  * (see {@link pdfPasswordPrompt}); a damaged one is named here. A read failure keeps the editor's wording, except the
  * size ceiling, which is restated against the limit the reader would compare with the file's size in Finder.
  *
- * Runs when the asynchronous load settles, outside render, so the sentence is translated as a snapshot.
+ * Runs during render from the stored error, so the sentence follows a runtime language switch.
  */
-export function describePdfFailure(error: unknown): PdfFailure {
+export function describePdfFailure(error: unknown, t: Translate): PdfFailure {
     const name = (error as { name?: unknown } | null)?.name;
     if (name === 'InvalidPDFException')
         return {
-            reason: translate('preview.pdf.invalid'),
+            reason: t('preview.pdf.invalid'),
             tone: 'failed',
             recovery: 'openWithDefaultApp',
         };
     if (isCaxriError(error) && error.code === 'CAPACITY')
         return {
-            reason: translate('preview.pdf.tooLarge', {
+            reason: t('preview.pdf.tooLarge', {
                 limit: formatBytes(MAX_PREVIEW_DOCUMENT_BYTES),
             }),
             tone: 'failed',
             recovery: 'openWithDefaultApp',
         };
-    return { ...describeDocumentReadFailure(error), recovery: documentReadRecovery(error) };
+    return { ...describeDocumentReadFailure(error, t), recovery: documentReadRecovery(error) };
 }
 
 /**

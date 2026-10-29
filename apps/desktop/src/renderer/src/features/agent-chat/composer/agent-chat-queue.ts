@@ -34,19 +34,21 @@ export interface AgentChatQueueEntryView extends AgentChatQueueEntry {
 export function agentChatQueueEntries(
     queue: readonly AgentChatQueuedMessage[] | undefined,
     isTurnRunning: boolean,
-    pending: readonly AgentChatPendingMessage[] = [],
+    pending: readonly AgentChatPendingMessage[],
+    t: Translate,
 ): AgentChatQueueEntryView[] {
     const pendingEntries = pending.map((message) => ({
         ...queueEntryView(
             { id: message.id, text: message.text, imageCount: message.images.length },
             isTurnRunning,
+            t,
         ),
         canEdit: false,
         canSendNow: false,
         isPending: true as const,
     }));
     return [
-        ...(queue ?? []).map((message) => queueEntryView(message, isTurnRunning)),
+        ...(queue ?? []).map((message) => queueEntryView(message, isTurnRunning, t)),
         ...pendingEntries,
     ];
 }
@@ -67,6 +69,7 @@ export function agentChatNextQueuedId(
 function queueEntryView(
     message: AgentChatQueuedMessage,
     isTurnRunning: boolean,
+    t: Translate,
 ): AgentChatQueueEntryView {
     const imageCount = message.imageCount ?? 0;
     return {
@@ -78,8 +81,8 @@ function queueEntryView(
             imageCount === 0
                 ? undefined
                 : imageCount === 1
-                  ? translate('agentChat.queue.imageCountOne')
-                  : translate('agentChat.queue.imageCountOther', { count: imageCount }),
+                  ? t('agentChat.queue.imageCountOne')
+                  : t('agentChat.queue.imageCountOther', { count: imageCount }),
     };
 }
 

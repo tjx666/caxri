@@ -95,7 +95,7 @@ export function pullRequestAriaLabel(
     const label = branch
         ? t('statusBar.pullRequest.ariaLabelElsewhere', { number: pullRequest.number, branch })
         : t('statusBar.pullRequest.ariaLabel', { number: pullRequest.number });
-    const checks = pullRequestChecksPresentation(pullRequest.checks);
+    const checks = pullRequestChecksPresentation(pullRequest.checks, t);
     return checks
         ? t('statusBar.pullRequest.ariaLabelWithChecks', { label, checks: checks.label })
         : label;
@@ -112,7 +112,7 @@ export function pullRequestTooltip(
     t: Translate = translate,
 ): StructuredTooltipData {
     const isElsewhere = pullRequestElsewhereBranch(pullRequest, checkedOutBranch) !== undefined;
-    const checks = pullRequestChecksPresentation(pullRequest.checks);
+    const checks = pullRequestChecksPresentation(pullRequest.checks, t);
     const rows = [
         ...(pullRequest.headBranch
             ? [{ label: t('statusBar.pullRequest.branch'), value: pullRequest.headBranch }]

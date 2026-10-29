@@ -37,6 +37,7 @@ function EditorBreadcrumbPickerOption({
     onClick: () => void;
     onPointerMove: () => void;
 }) {
+    const { t } = useTranslation();
     const pathDecoration = useGitDecoration(entry.path);
     const decoration = !isDirectoryEntry(entry) && !entry.gitIgnored ? pathDecoration : undefined;
     const decorationDescriptionId = useId();
@@ -70,7 +71,7 @@ function EditorBreadcrumbPickerOption({
                 <>
                     <GitFileStatusLetter decoration={decoration} />
                     <span id={decorationDescriptionId} className="sr-only">
-                        {gitDecorationDescription(decoration.kind)}
+                        {gitDecorationDescription(decoration.kind, t)}
                     </span>
                 </>
             )}
@@ -142,7 +143,7 @@ export function EditorBreadcrumbPicker({
                         role="option"
                     >
                         <span role="alert">
-                            {describeFailure(error, t('editor.breadcrumbs.readFolderFailed'))}
+                            {describeFailure(error, t('editor.breadcrumbs.readFolderFailed'), t)}
                         </span>
                     </div>
                 )}
