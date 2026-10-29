@@ -18,6 +18,11 @@ export const session: TranslatedNamespace<typeof source> = {
     'session.createDialog.fullAccessNotice':
         'Agent 以完全访问权限启动：无需询问即可编辑文件和运行命令。可在“设置 > Agent”中更改。',
     'session.createDialog.alwaysUseAgent': '始终使用此 Agent',
+    'session.createDialog.configureAgent': '在设置中配置 {{agent}}',
+    'session.createDialog.suspended': '配置好 Agent 后继续。已选的文件夹会保留。',
+    'session.createDialog.grantExpired': '文件夹选择已过期，请重新选择。',
+    'session.createDialog.resume': '继续',
+    'session.createDialog.cancel': '取消',
     'session.createDialog.makeDefaultFailed': '无法更改默认 Agent',
     'session.openInChat.label': '始终在对话中打开 Agent',
     'session.openInChat.failed': '无法更改 Agent 的打开方式',

@@ -43,6 +43,7 @@ import { useStatusOnNewPullRequest } from './features/secondary-sidebar/status-o
 import { AirplaneModeDialog } from './features/session/airplane-mode/airplane-mode-dialog';
 import { ArchivedSessionsDialog } from './features/session/archived-sessions-dialog';
 import { CreateSessionDialog } from './features/session/create-session-dialog';
+import { CreateSessionResumeBanner } from './features/session/create-session-resume-banner';
 import { createDesktopOpenQueue } from './features/session/desktop-open';
 import { useSessionLookTracker } from './features/session/hooks/use-session-look-tracker';
 import { useSessionMruSwitcherLifecycle } from './features/session/hooks/use-session-mru-switcher-lifecycle';
@@ -363,6 +364,7 @@ export function App() {
                     )}
                     {!isZenMode && <StatusBar />}
                     <CreateSessionDialog />
+                    <CreateSessionResumeBanner />
                     <ArchivedSessionsDialog />
                     <BotHandoverDialog isFromWorkbench />
                     <SessionSearchDialog />

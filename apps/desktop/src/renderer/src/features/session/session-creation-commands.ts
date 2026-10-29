@@ -1,4 +1,4 @@
-import type { TerminalKind } from '@caxri/protocol';
+import type { AgentProvider, TerminalKind } from '@caxri/protocol';
 
 import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
@@ -7,7 +7,7 @@ import type { CreateSessionAnchor } from '../../stores/dialogs';
 import { clearPendingSession, useDialogStore } from '../../stores/dialogs';
 import { isLocalOnlyAvailable, isSshHost } from '../../stores/environment';
 import { getBootstrap } from '../../stores/selectors';
-import { tryCommand } from '../../stores/toasts';
+import { pushToast, tryCommand } from '../../stores/toasts';
 import { refreshWorkbench } from '../../stores/workbench';
 import { pickSshHostFolder } from '../ssh-host/ssh-host-dialogs-store';
 import { newAgentSurface } from '../terminal/new-terminal-agent';
@@ -144,6 +144,45 @@ export function cancelPendingSession(): void {
         void caxri.request('project.cancelCreate', { rootPath: pendingRoot });
     }
     clearPendingSession();
+}
+
+/**
+ * Main keeps the folder-picker grant for 60 seconds (`ProjectRootGrants`, apps/desktop/src/main/root-grants.ts). The
+ * margin leaves room for the resume click and the `project.create` round trip.
+ */
+const ROOT_GRANT_RESUME_WINDOW_MS = 50_000;
+
+/**
+ * Whether a pending folder grant from `grantedAt` is too old to survive a resume. Only the Add Project path holds a
+ * grant; an existing Project (`pendingProjectId`) never expires.
+ */
+export function isPendingRootGrantStale(grantedAt: number | undefined, now: number): boolean {
+    return grantedAt !== undefined && now - grantedAt > ROOT_GRANT_RESUME_WINDOW_MS;
+}
+
+/**
+ * Hides the Agent dialog and opens Settings at the uninstalled Agent's executable row. Unlike a dismissal it keeps the
+ * pending Project and its folder grant, so the user returns to the same choice instead of picking the folder again.
+ */
+export function configurePendingAgent(provider: AgentProvider): void {
+    const dialogs = useDialogStore.getState();
+    dialogs.suspendPending();
+    dialogs.openSettings('agent-executable', provider);
+}
+
+/**
+ * Brings the Agent dialog back after Settings. A lapsed folder grant cannot be spent, so it is dropped and the folder
+ * picker reopens with an explanation instead of failing later with `PATH_DENIED` on the Agent click.
+ */
+export function resumePendingSession(): void {
+    const { pendingRoot, pendingRootGrantedAt } = useDialogStore.getState();
+    if (pendingRoot && isPendingRootGrantStale(pendingRootGrantedAt, Date.now())) {
+        cancelPendingSession();
+        pushToast('warning', translate('session.createDialog.grantExpired'), { history: false });
+        void chooseProjectFolder();
+        return;
+    }
+    useDialogStore.getState().resumePending();
 }
 
 export function confirmPendingSession(kind: TerminalKind | null): void {

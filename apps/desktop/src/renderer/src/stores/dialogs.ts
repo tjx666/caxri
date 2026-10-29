@@ -70,6 +70,16 @@ interface DialogState {
      */
     pendingProjectId?: string;
     /**
+     * When {@link DialogState.pendingRoot} was granted, so a resume can tell that Main's single-use folder grant (60
+     * seconds) has lapsed before the user is walked back into a dialog whose choice would fail with `PATH_DENIED`.
+     */
+    pendingRootGrantedAt?: number;
+    /**
+     * True while the user is in Settings configuring an Agent for the pending creation: the Agent dialog is hidden but
+     * the pending Project (or folder grant) is kept, and a banner offers Resume or Cancel.
+     */
+    isPendingSuspended: boolean;
+    /**
      * The open Session-creation menu, named by its Project _and_ the trigger it hangs from rather than by a boolean.
      * Both halves are load-bearing: the menu must appear under the control the user actually clicked, and a Project
      * with no Sessions renders a second New Session button below its heading, so a Project id alone would let both rows
@@ -132,6 +142,8 @@ interface DialogState {
     askAgentForRoot(rootPath: string): void;
     askAgentForProject(projectId: string): void;
     clearPending(): void;
+    suspendPending(): void;
+    resumePending(): void;
     openCreateSessionMenu(projectId: string, anchor: CreateSessionAnchor): void;
     requestSessionRename(sessionId: string, options?: { suggest?: boolean }): void;
     clearSessionRenameRequest(): void;
@@ -168,6 +180,8 @@ export const useDialogStore = createStore<DialogState>('dialogs', (set, get) => 
     projectIconProjectId: undefined,
     pendingRoot: undefined,
     pendingProjectId: undefined,
+    pendingRootGrantedAt: undefined,
+    isPendingSuspended: false,
     createSessionMenu: undefined,
     renameSessionRequest: undefined,
     statusBarPickerRequest: undefined,
@@ -200,9 +214,28 @@ export const useDialogStore = createStore<DialogState>('dialogs', (set, get) => 
     setBugReportOpen: (bugReportOpen) => set({ bugReportOpen }),
     openProjectIcon: (projectIconProjectId) => set({ projectIconProjectId }),
     closeProjectIcon: () => set({ projectIconProjectId: undefined }),
-    askAgentForRoot: (rootPath) => set({ pendingRoot: rootPath, pendingProjectId: undefined }),
-    askAgentForProject: (projectId) => set({ pendingProjectId: projectId, pendingRoot: undefined }),
-    clearPending: () => set({ pendingRoot: undefined, pendingProjectId: undefined }),
+    askAgentForRoot: (rootPath) =>
+        set({
+            pendingRoot: rootPath,
+            pendingRootGrantedAt: Date.now(),
+            pendingProjectId: undefined,
+            isPendingSuspended: false,
+        }),
+    askAgentForProject: (projectId) =>
+        set({
+            pendingProjectId: projectId,
+            pendingRoot: undefined,
+            pendingRootGrantedAt: undefined,
+        }),
+    clearPending: () =>
+        set({
+            pendingRoot: undefined,
+            pendingProjectId: undefined,
+            pendingRootGrantedAt: undefined,
+            isPendingSuspended: false,
+        }),
+    suspendPending: () => set({ isPendingSuspended: true }),
+    resumePending: () => set({ isPendingSuspended: false }),
     openCreateSessionMenu: (projectId, anchor) => set({ createSessionMenu: { anchor, projectId } }),
     closeCreateSessionMenu: () => set({ createSessionMenu: undefined }),
     requestSessionRename: (sessionId, options) =>
