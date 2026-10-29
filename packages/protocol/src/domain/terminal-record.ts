@@ -101,6 +101,15 @@ export const terminalRecordSchema = z.object({
      */
     usageLimitWaitAt: z.number().optional(),
     /**
+     * Live Runtime-only: set on a PTY Agent Terminal while its provider's account is at the weekly usage guard (issue
+     * #2608), so the Terminal can say so. Chat Terminals carry the guard in their own snapshot and never get it.
+     * Informational: a running PTY is not interrupted and `--resume` is not refused. Projected when the Terminal is
+     * read and never stored on the Terminal row.
+     */
+    usageGuard: z
+        .object({ usedPercent: z.number().min(0).max(100), resetsAt: z.number().int().positive() })
+        .optional(),
+    /**
      * Present only on a Chat Terminal that has started subagents: their persisted summaries, in no particular order.
      * Projected from the `agent_chat_subagents` table when the record is read, never stored on the Terminal row, so
      * listing them starts no provider (unlike `agentChat.read`). Running ones are marked `stopped` on Server Core

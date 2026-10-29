@@ -70,6 +70,9 @@ export const terminal = {
     'terminal.hookSuggestion.enable': 'Turn On Hooks',
     'terminal.hookSuggestion.enableAndRestart': 'Turn On Hooks and Restart',
     'terminal.hookSuggestion.dontAskAgain': "Don't Ask Again",
+    'terminal.usageGuard.headline': '{{provider}} weekly usage at {{percent}}%',
+    'terminal.usageGuard.detail':
+        'Chats on this account are paused, {{reset}}. This Terminal keeps running; the last percent may run out.',
     'terminal.hookSuggestion.dismiss': 'Dismiss',
     'terminal.hookSuggestion.enableFailed': 'Could not turn on lifecycle hooks',
     'terminal.hookSuggestion.dontAskAgainFailed':

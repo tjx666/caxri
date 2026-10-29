@@ -29,7 +29,16 @@ describe('createLiveTerminalRecord', () => {
             { processId: () => {} },
             chatStateStore(database).subagents,
             { waitingAt: (id) => (id === chat.id ? 42 : undefined) },
+            {
+                current: (provider) =>
+                    provider === 'claude'
+                        ? { provider, usedPercent: 99.4, resetsAt: 9_000, handoff: 'available' }
+                        : undefined,
+            },
         );
+        expect(live(pty).usageGuard).toEqual({ usedPercent: 99.4, resetsAt: 9_000 });
+        expect(live(chat).usageGuard).toBeUndefined();
+        expect(live(database.createTerminal(session.id, 'codex')).usageGuard).toBeUndefined();
         expect(live(chat).usageLimitWaitAt).toBe(42);
         expect(live(pty).usageLimitWaitAt).toBeUndefined();
         expect(live(chat).subagents).toMatchObject([{ taskId: 't1', status: 'completed' }]);
