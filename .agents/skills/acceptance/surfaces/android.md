@@ -140,7 +140,9 @@ check exact native text through the sanitized observer, then require the React-v
 and resulting product effect. The runner must accept an explicit disposable emulator serial, select
 the fixture IME only after saving the previous default, and restore that default, disable the fixture,
 and uninstall it in cleanup after every outcome. Never select the fixture IME on a real phone; a
-native-only draft remains an execution failure.
+native-only draft remains an execution failure. When leftover fixture IME state (a stale fixture
+package or an unusable default input method) blocks startup, recover with the task-owned emulator's
+clean-start launch above (`-wipe-data`); do not add another cleanup path.
 After installing the fixture, discover it with `ime list -a -s`: plain `ime list -s` lists enabled
 methods only, so it hides the newly installed fixture until `ime enable` runs.
 The fixture IME draws no keyboard, yet `dumpsys input_method` still reports `mInputShown=true` while

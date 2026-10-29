@@ -74,6 +74,14 @@ or cancels the delivery, or a concrete blocker requires their input.
    (`opened`, `synchronize`, `ready_for_review`, and the like), and editing the body starts none: put the line in the body passed
    to `gh pr create`, and update it before a later push, not after. A ready PR only records these
    specs (`runE2E: false`); a skipped `e2e` job is expected, so run them locally.
+   Write every `--body-file` to a fresh quoted `mktemp` file and remove it after use; never a
+   fixed path such as `/tmp/pr-body.md`, which two parallel sessions overwrote into each other's PR
+   body. A per-PR-number name still does not isolate concurrent updates of the same PR.
+   A shared UI primitive that changes locator attributes or overlay opening or pointer behavior
+   (`title` becoming the shared Tooltip; a focus tooltip now intercepting a right-click) reaches
+   every caller: trace them into `e2e/`, search obsolete locators (`getByTitle`) and the affected
+   interactions, and list and locally run every affected spec in `CI-E2E-Tests`. The Tooltip
+   refactor broke `file-operations.e2e.ts` on `main`.
    A diff that rewrites user-visible text or removes or renames a control also breaks specs that
    assert the old text or accessible name, and nothing selects them: search `e2e/` for each old
    string, then list and run every match. Rewording the return hint to "since you left" left
@@ -123,7 +131,11 @@ or cancels the delivery, or a concrete blocker requires their input.
    `--workflow Guards`, so the watcher returns as soon as the required check does instead of
    waiting on the slower `checks` job. Use `--run <id>` for a single known run. After a merge,
    `--sha <merge commit>` (full or short) follows every run of that commit, including a
-   `workflow_run` downstream such as the Release macOS run, and prints which run failed. Concurrent sessions, including other
+   `workflow_run` downstream such as the Release macOS run, and prints which run failed. After
+   merging a code PR, run `bun run scripts/watch-ci.ts --sha <merge-sha>` (without
+   `--workflow Guards`) and adjudicate its result before declaring delivery complete: individually
+   green PRs merged minutes apart left `main` red when a call added in one missed a parameter the
+   other made required. Concurrent sessions, including other
    worktrees, share one GitHub poller
    through `~/.cache/caxri/ci-watch/`. A watcher reports the run attempt it was watching, so start a
    new one after `gh run rerun`. Failed jobs raise an immediate macOS notification. Polling
@@ -172,7 +184,8 @@ or cancels the delivery, or a concrete blocker requires their input.
    (`gh api repos/<owner>/<repo>/actions/runs/<id> --jq .conclusion` equals `success`) or on a
    recorded waiver. Never pipe the watcher into `tail` and trust the exit status: without
    `pipefail` it is `tail`'s, and a red run once merged that way. Verify the remote merged state
-   and merge commit before reporting completion.
+   and merge commit before reporting completion. For a code PR, completion also needs the
+   post-merge `watch-ci.ts --sha <merge-sha>` result from step 6.
 8. After the current task's PR is merged, inspect whether the task is running in the primary
    checkout or a linked worktree. In the primary checkout, normally switch back to `main` and
    fast-forward it to `origin/main`. In a linked worktree, leave its branch and checkout in place;
