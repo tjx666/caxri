@@ -182,13 +182,13 @@ test('a Codex Chat sends pasted and dropped images, restores their previews on r
         );
         await page.screenshot({ path: testInfo.outputPath('codex-chat-restored-images.png') });
 
-        // The `/` menu reuses the Agent Commands & Skills discovery, so a Project skill sits beside the commands, after
-        // Caxri's own `/new-session`.
+        // The `/` menu reuses Agent Commands & Skills discovery, so a Project skill follows Caxri's `/new-session`.
         await message.fill('/');
         const commands = chat.getByRole('listbox', { name: 'Commands and skills' });
         await expect(commands.getByRole('option')).toHaveText([
             /^\/new-session/u,
             /^\/compact/u,
+            /^\/review/u,
             /^\/goal/u,
             /^\$review-pr\s*Review the open pull request$/u,
         ]);
@@ -205,13 +205,13 @@ test('a Codex Chat sends pasted and dropped images, restores their previews on r
         await message.press('Tab');
         await expectComposerValue(message, '$review-pr ');
         await expect(commands).toHaveCount(0);
-
         // A row picked from the menu leads a bare `/` next time, under its own heading, and is not repeated below.
         await message.fill('/');
         await expect(commands.getByRole('option')).toHaveText([
             /^\$review-pr/u,
             /^\/new-session/u,
             /^\/compact/u,
+            /^\/review/u,
             /^\/goal/u,
         ]);
         await expect(commands.getByText('Recently Used', { exact: true })).toBeVisible();

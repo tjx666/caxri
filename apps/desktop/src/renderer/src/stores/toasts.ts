@@ -271,13 +271,14 @@ const messageReasons: ReadonlyArray<readonly [RegExp, TranslationKey]> = [
 ];
 
 /**
- * Keeps a rejected filesystem path out of fallback copy while retaining the rest of an unknown reason.
+ * Keeps a rejected filesystem path out of fallback copy while retaining the rest of an unknown reason. A lone `/name`
+ * word is a slash command such as `/review`, not a path that can carry a directory or user name, so it stays readable.
  */
 function redactAbsolutePaths(message: string): string {
     return message
         .replaceAll(/(['"])(?:file:\/\/\/|\/|[A-Za-z]:[\\/])[^'"]+\1/gu, 'a file')
         .replaceAll(/file:\/\/\/[^\s'",;)\]]+/gu, 'a file')
-        .replaceAll(/(?<![A-Za-z0-9:/])\/[^\s'",;)\]]+/gu, 'a file')
+        .replaceAll(/(?<![A-Za-z0-9:/])\/(?![\w:.-]+(?:\s|$))[^\s'",;)\]]+/gu, 'a file')
         .replaceAll(/(?<![A-Za-z0-9])[A-Za-z]:[\\/][^\s'",;)\]]+/gu, 'a file');
 }
 

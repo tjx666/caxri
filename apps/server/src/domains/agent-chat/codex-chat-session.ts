@@ -61,6 +61,7 @@ import { applyCodexNotice } from './feedback/codex-feedback';
 import { CodexGoals } from './goals/codex-goals';
 import { didInterruptTimeout } from './interrupt/codex-interrupt';
 import { JsonRpcConnection } from './json-rpc-connection';
+import { startCodexReview } from './review/codex-review';
 import { forkCodexThread, revertCodexThread } from './rewind/codex-rewind';
 import { CodexSideQuestions } from './side-question/codex-side-question';
 import { readCodexSkills } from './skills/codex-skills';
@@ -500,13 +501,12 @@ class CodexChatSession implements AgentChatProviderSession {
             await this.goals.change(this.requireConnection(), change);
             return;
         }
-        if (name !== 'compact')
+        if (name !== 'compact' && name !== 'review')
             throw new CaxriError('VALIDATION', `/${name} is not available in Codex Chat`);
         if (this.options.read().activeTurnId)
-            throw new CaxriError(
-                'CONFLICT',
-                'Wait for the current turn to finish before compacting',
-            );
+            throw new CaxriError('CONFLICT', `Wait for the current turn to finish before /${name}`);
+        if (name === 'review')
+            return startCodexReview(this.requireConnection(), this.threadId, arguments_);
         await this.usage.compact(this.requireConnection(), this.threadId);
     }
 

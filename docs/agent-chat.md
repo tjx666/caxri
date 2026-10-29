@@ -1472,7 +1472,15 @@ skill`, and `Skill`), so a request such as "open a Session for this" needs no pr
   insertion such as a picked Session reference can be undone like typing.
 - **Slash commands.** The snapshot's `commands` is the list the composer offers after a leading
   `/`. Codex lists `/compact`, which runs `thread/compact/start`; issued during a turn it waits in the
-  queue. Codex also lists `/goal` (see [Goals](#goals)).
+  queue. Codex also lists `/review [--base <branch> | --commit <sha> | instructions]`, which runs
+  `review/start` inline on the thread (`review/codex-review.ts`): bare `/review` reviews the uncommitted
+  changes, `--base` and `--commit` take exactly one value (a missing or extra one is a `VALIDATION`
+  error before any request), and other text is custom instructions. Codex rejects an unknown branch or
+  commit and its message is the command's error. The review is a turn, so it waits in the queue behind
+  a running one. `enteredReviewMode` shows as a notice ("Reviewing current changes") and
+  `exitedReviewMode` as an agent message holding the review's Markdown conclusion, so a resumed
+  history shows both; target pickers and a dedicated results card are not built. Codex also lists
+  `/goal` (see [Goals](#goals)).
   Claude Code reports its own list (built-in commands, skills, and custom commands) from the SDK's
   `initialize` response and `commands_changed`, minus the `terminal_slash_commands` that only make
   sense in its terminal UI; the command runs as prompt text, as in Claude Code itself.

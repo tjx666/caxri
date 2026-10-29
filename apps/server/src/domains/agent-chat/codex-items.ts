@@ -27,6 +27,7 @@ import { withCacheRewriteEstimate } from './chat-usage';
 import type { CodexComputerUseBindings } from './codex-computer-use';
 import { codexComputerUseCall } from './codex-computer-use';
 import { codexDelivery, codexUserImageCount, isCodexNotice, userMessageText } from './codex-input';
+import { mapCodexReviewItem } from './review/codex-review';
 
 /**
  * Pure translation from Codex app-server v2 `ThreadItem`s and server requests into the provider-neutral Agent Chat
@@ -165,8 +166,8 @@ function mapCollabAgentToolCall(
 
 /**
  * Maps one `ThreadItem`. Returns `undefined` for item kinds the Chat does not render (plans arrive through
- * `turn/plan/updated`; review markers and hook prompts are not conversation content). `computerUse` is the live Chat's
- * memory of Computer Use variables, which names a running step's surface before its result arrives.
+ * `turn/plan/updated`; hook prompts are not conversation content). `computerUse` is the live Chat's memory of Computer
+ * Use variables, which names a running step's surface before its result arrives.
  */
 export function mapCodexItem(
     raw: unknown,
@@ -341,6 +342,10 @@ export function mapCodexItem(
                 status: 'completed',
                 ...(summary && { summary }),
             };
+        }
+        case 'enteredReviewMode':
+        case 'exitedReviewMode': {
+            return mapCodexReviewItem(raw, base);
         }
         default: {
             return undefined;
