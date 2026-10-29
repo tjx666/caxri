@@ -1,7 +1,7 @@
 import type { AgentChatModelRequest, AgentChatSnapshot } from '@caxri/protocol';
 import { agentChatEffortLabel, agentChatMenuModel, agentChatModelLabel } from '@caxri/protocol';
 
-import type { Translate } from '../../i18n';
+import type { Translate, TranslationKey } from '../../i18n';
 import { translate } from '../../i18n';
 
 type ModelSnapshot = Pick<
@@ -76,9 +76,33 @@ export interface AgentChatModelOption {
 export interface AgentChatEffortOption {
     value: string;
     label: string;
+    /**
+     * One line on what the level trades off, or `undefined` for a level the phone has no wording for.
+     */
+    description?: string;
     isDefault: boolean;
     isSelected: boolean;
 }
+
+const EFFORT_DESCRIPTIONS = {
+    none: 'chat.model.effortDescription.none',
+    minimal: 'chat.model.effortDescription.minimal',
+    low: 'chat.model.effortDescription.low',
+    medium: 'chat.model.effortDescription.medium',
+    high: 'chat.model.effortDescription.high',
+    xhigh: 'chat.model.effortDescription.xhigh',
+    max: 'chat.model.effortDescription.max',
+    ultra: 'chat.model.effortDescription.ultra',
+} as const satisfies Record<string, TranslationKey>;
+
+/**
+ * What a reasoning effort level means. The provider snapshot lists only the level names, so the wording comes from the
+ * phone's own catalog.
+ */
+const agentChatEffortDescription = (effort: string, t: Translate): string | undefined =>
+    Object.hasOwn(EFFORT_DESCRIPTIONS, effort)
+        ? t(EFFORT_DESCRIPTIONS[effort as keyof typeof EFFORT_DESCRIPTIONS])
+        : undefined;
 
 /**
  * The sheet's two lists, in the provider's order. Efforts belong to the model in use. Pass the snapshot with any
@@ -101,10 +125,32 @@ export const agentChatModelOptions = (
         efforts: (current?.efforts ?? []).map((effort) => ({
             value: effort,
             label: agentChatEffortLabel(effort, t),
+            ...(agentChatEffortDescription(effort, t) && {
+                description: agentChatEffortDescription(effort, t),
+            }),
             isDefault: effort === current?.defaultEffort,
             isSelected: effort === snapshot?.effort,
         })),
     };
+};
+
+/**
+ * The footer's disabled reasons for the sheet's two sections. A dropped connection blocks both the same way, so it is
+ * said once for the model and permissions together instead of twice; any other reason (access, handed off, failed) is
+ * kept per section, and identical wording is still shown once.
+ */
+export const agentChatSettingsDisabledReasons = (
+    reasons: { configure: string | undefined; permission: string | undefined },
+    t: Translate = translate,
+): { model: string | undefined; permission: string | undefined } => {
+    const { configure, permission } = reasons;
+    if (
+        configure !== undefined &&
+        configure === t('chat.disabled.configure.offline') &&
+        permission === t('chat.disabled.permission.offline')
+    )
+        return { model: t('chat.disabled.settings.offline'), permission: undefined };
+    return { model: configure, permission: permission === configure ? undefined : permission };
 };
 
 /**

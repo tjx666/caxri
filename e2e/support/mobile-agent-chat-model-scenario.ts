@@ -50,8 +50,9 @@ async function waitForCheckedOptions(serial: string, checkIds: string[]): Promis
 /**
  * `MOB-CHAT-04`: a phone chooses the model and effort of a new Codex Chat before its first message, changes them again
  * between turns and while a turn runs (the sheet says the change applies from the next turn, and the next turn keeps
- * it), and sees the sheet disabled with its reason when the connection drops. Each choice is proven on the phone's
- * checked options and against the Server's Chat projection, which Desktop's menu reads.
+ * it), and sees the sheet disabled with one shared reason when the connection drops, and each effort explained. Each
+ * choice is proven on the phone's checked options and against the Server's Chat projection, which Desktop's menu
+ * reads.
  */
 export async function executeMobileChatModelScenario(
     environment: MobileAgentScenarioEnvironment,
@@ -188,6 +189,8 @@ export async function executeMobileChatModelScenario(
         await setMobileNetworkAvailable(serial, false);
         isNetworkDisabled = true;
         await waitForCheck(serial, 'agent-chat-model-disabled-reason', 60_000);
+        // One footer line says the connection is down; the permission section no longer repeats it.
+        await waitForNoCheck(serial, 'agent-chat-permission-disabled-reason');
         const options = (await mobileSemantics(serial)).filter(({ checkId }) =>
             /^agent-chat-(?:model-fake|effort-)/u.test(checkId),
         );

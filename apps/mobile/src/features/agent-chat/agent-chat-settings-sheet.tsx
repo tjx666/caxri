@@ -16,6 +16,7 @@ import {
     agentChatEffortHint,
     agentChatModelOptions,
     agentChatModelSheetNote,
+    agentChatSettingsDisabledReasons,
     agentChatUltracodeToggle,
 } from './agent-chat-model-choice';
 import {
@@ -106,6 +107,10 @@ export const AgentChatSettingsSheet = ({
         ? agentChatPlanModeToggle(permission.snapshot, provider, t)
         : undefined;
     const isPermissionDisabled = permission.busy !== null || permissionReason !== undefined;
+    const footerReasons = agentChatSettingsDisabledReasons(
+        { configure: configureReason, permission: permissionReason },
+        t,
+    );
     const modelNote = agentChatModelSheetNote(modelSnapshot, t);
     const select = (change: AgentChatModelRequest, isSelected: boolean): void => {
         if (!isSelected) void model.didConfigure(change);
@@ -160,6 +165,7 @@ export const AgentChatSettingsSheet = ({
                         ) : null}
                         {efforts.map((effort) => (
                             <SheetOptionRow
+                                description={effort.description}
                                 isBusy={model.busy?.effort === effort.value}
                                 isDisabled={isModelDisabled}
                                 isSelected={effort.isSelected}
@@ -238,7 +244,7 @@ export const AgentChatSettingsSheet = ({
                     where the list scrolls under the footer instead of leaving a row cut off mid-line. */}
                     <View style={[styles.footer, { borderTopColor: theme.border }]}>
                         <SheetMessages
-                            disabledReason={configureReason}
+                            disabledReason={footerReasons.model}
                             error={model.error}
                             note={
                                 modelNote ??
@@ -250,9 +256,7 @@ export const AgentChatSettingsSheet = ({
                             theme={theme}
                         />
                         <SheetMessages
-                            disabledReason={
-                                permissionReason === configureReason ? undefined : permissionReason
-                            }
+                            disabledReason={footerReasons.permission}
                             error={permission.error}
                             note={undefined}
                             testIDPrefix="agent-chat-permission"
