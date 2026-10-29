@@ -13,13 +13,16 @@ import { openExternalUrl } from '../../lib/external-link';
 import { formatDateTime } from '../../lib/locale-format';
 import { cn } from '../../lib/utilities';
 import { pushToast } from '../../stores/toasts';
+import type {
+    MobilePairingState,
+    useMobileAccessController,
+} from './hooks/use-mobile-access-controller';
 import {
     describeMobileStatus,
     isTailscalePairingLink,
     MOBILE_PAIRING_MINUTES,
     MOBILE_RELEASES_URL,
 } from './mobile-access-summary';
-import type { MobilePairingState, useMobileAccessController } from './use-mobile-access-controller';
 
 /**
  * The QR code's own two colors, and the only place in the Renderer where a color is not a theme token: a scanner reads

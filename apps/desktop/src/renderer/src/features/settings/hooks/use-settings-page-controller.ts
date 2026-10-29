@@ -10,28 +10,28 @@ import type {
 } from '@caxri/protocol';
 import { builtinThemes, findMatchingBuiltinTheme } from '@caxri/protocol';
 
-import { translate } from '../../i18n';
-import { caxri } from '../../lib/caxri';
-import { useDialogStore } from '../../stores/dialogs';
+import { translate } from '../../../i18n';
+import { caxri } from '../../../lib/caxri';
+import { useDialogStore } from '../../../stores/dialogs';
 import {
     describeFailure,
     dismissToastsMatching,
     isCancelledRequest,
     pushToast,
-} from '../../stores/toasts';
-import { refreshWorkbench } from '../../stores/workbench';
+} from '../../../stores/toasts';
+import { refreshWorkbench } from '../../../stores/workbench';
 import {
     argvRestartNotice,
     isArgvRestartNotice,
     rememberArgvRestartNotice,
-} from './argv-restart-notice';
-import type { ConfigKind } from './config-edit';
-import { applyFormEdit, CONFIG_FILE_NAMES, CONFIG_KINDS } from './config-edit';
+} from '../argv-restart-notice';
+import type { ConfigKind } from '../config-edit';
+import { applyFormEdit, CONFIG_FILE_NAMES, CONFIG_KINDS } from '../config-edit';
 import {
     appendKeybindingSource,
     removeKeybindingSource,
     updateKeybindingSource,
-} from './keybinding-editor';
+} from '../keybinding-editor';
 import {
     getAgentHookHealth,
     getAgentSkillHealth,
@@ -44,15 +44,15 @@ import {
     updateSettings,
     updateTheme,
     writeArgvConfig,
-} from './settings-client';
-import type { ConfigAction, ConfigSourceError } from './settings-drafts';
-import { configReducer, initialConfigState, parseConfigSource } from './settings-drafts';
-import { rowFocusRequest, settingsSectionForRequest } from './settings-focus-requests';
-import { createSettingsWriteCoordinator } from './settings-write-coordinator';
-import { applyBuiltinTheme, applyThemeColorEdit } from './theme-edit';
-import type { ThemeImportResult } from './theme-import-error';
-import { describeThemeImportFailure } from './theme-import-error';
-import { resetThemeImportWarningDismissals } from './theme-import-warnings';
+} from '../settings-client';
+import type { ConfigAction, ConfigSourceError } from '../settings-drafts';
+import { configReducer, initialConfigState, parseConfigSource } from '../settings-drafts';
+import { rowFocusRequest, settingsSectionForRequest } from '../settings-focus-requests';
+import { createSettingsWriteCoordinator } from '../settings-write-coordinator';
+import { applyBuiltinTheme, applyThemeColorEdit } from '../theme-edit';
+import type { ThemeImportResult } from '../theme-import-error';
+import { describeThemeImportFailure } from '../theme-import-error';
+import { resetThemeImportWarningDismissals } from '../theme-import-warnings';
 
 const onApplied = (): void => {
     // Fire-and-forget: `refreshWorkbench` reports failures through its own request pipeline, so

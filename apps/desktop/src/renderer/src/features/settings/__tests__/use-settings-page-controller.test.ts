@@ -8,7 +8,7 @@ import {
     argvRestartNoticePrefix,
     settingTitleForArgvKey,
 } from '../argv-restart-notice';
-import { reportSettingsError } from '../use-settings-page-controller';
+import { reportSettingsError } from '../hooks/use-settings-page-controller';
 
 const BOOT_BASELINE: ArgvConfig = { hardwareAcceleration: true, remoteDebugging: true };
 
