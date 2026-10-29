@@ -5,6 +5,7 @@ import type { ObservationContext, SingleFlight } from '@caxri/system';
 import { logEventCatalog, runWithObservationContext } from '@caxri/system';
 
 import type { AgentRunAutonomy } from '../agents';
+import { agentProviderStateRoot } from '../agents';
 import { recordChatTurnMetrics } from '../usage';
 import type { ChatDelegationLinks } from './chat-delegation';
 import { agentChatDrivers } from './chat-drivers';
@@ -113,7 +114,12 @@ async function startChat(
             delegation.launchSettings(terminalId) ?? options.launchSettings(provider, terminal),
             shouldKeepAgentAutonomy,
         );
-        const prepared = await prepareChatLaunch(options, provider, launch, terminal.cwd);
+        const prepared = await prepareChatLaunch(
+            options,
+            provider,
+            launch,
+            agentProviderStateRoot(terminal),
+        );
         const { cwd, executable, isRealAgentE2E } = prepared;
         const environment = await endpoint.environment(terminal, launchId, prepared.environment);
         // Preparing awaited; the Chat may have been closed, deleted, detached, or archived meanwhile.

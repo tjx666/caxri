@@ -97,7 +97,8 @@ describe('withClaudeShellHooks', () => {
         expect(hooks.PreToolUse).toHaveLength(2);
         expect(hooks.PreToolUse?.[0]).toBe(effort);
         expect(hooks.Stop).toEqual([effort]);
-        expect(hooks.PostToolUse).toHaveLength(1);
+        // The Bash hook plus the EnterWorktree/ExitWorktree hook.
+        expect(hooks.PostToolUse).toHaveLength(2);
         expect(hooks.PostToolUseFailure).toHaveLength(1);
     });
 

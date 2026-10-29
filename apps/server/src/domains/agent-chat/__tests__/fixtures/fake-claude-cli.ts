@@ -15,6 +15,7 @@
  * - `crash`: the process exits mid-turn.
  * - `table`: a reply with a Markdown table and a fenced code block.
  * - `use chrome`: three Claude in Chrome (`mcp__claude-in-chrome__*`) browser steps, the last one failing, then a reply.
+ * - `enter worktree <path>` / `exit worktree <path>`: `EnterWorktree` / `ExitWorktree` (`fake-claude-worktree.ts`).
  * - `subagent`: a foreground `Agent` subagent whose own frames carry `parent_tool_use_id`, with `task_*` frames and a
  *   subagent transcript (`subagents/agent-<id>.jsonl` plus `.meta.json`) beside the session transcript.
  * - `workflow`: a `Workflow` tool call whose `local_workflow` task runs until `stop_task`; `quick workflow` finishes it.
@@ -85,6 +86,7 @@ import { answerSideQuestion } from './fake-claude-side.ts';
 import { didStartBackgroundTask, runSubagent, taskControl } from './fake-claude-tasks.ts';
 import { didRunUsageLimitScenario } from './fake-claude-usage-limit.ts';
 import { noteFakeClaudeWindowRequest } from './fake-claude-window.ts';
+import { didRunWorktreeScenario } from './fake-claude-worktree.ts';
 
 type Json = Record<string, unknown>;
 
@@ -115,7 +117,7 @@ const configDirectory = process.env.CLAUDE_CONFIG_DIR ?? path.join(os.homedir(),
 const controlDirectory = process.env.FAKE_CLAUDE_CONTROL_DIR;
 const isControlled = (name: string) =>
     controlDirectory !== undefined && fs.existsSync(path.join(controlDirectory, name));
-const transcriptPath = path.join(
+let transcriptPath = path.join(
     configDirectory,
     'projects',
     process.cwd().replaceAll(/[^a-z0-9]/giu, '-'),
@@ -350,6 +352,9 @@ const scenarioIo: FakeClaudeIo = {
     result: (startedAt, text, isError) => result(startedAt, text, isError),
     didStreamFully,
     controlRequest,
+    fireHook,
+    // eslint-disable-next-line unicorn/no-top-level-assignment-in-function -- EnterWorktree relocates the transcript
+    transcript: (next) => (transcriptPath = next ?? transcriptPath),
     isInterrupted,
     markInterrupted: () => {
         state.interrupted = true;
@@ -441,6 +446,7 @@ async function runTurn({ text, content, priority, uuid, isAuto = false }: Queued
         return;
     }
     if (await didRunApprovalScenario(scenarioIo, startedAt, text)) return;
+    if (await didRunWorktreeScenario(scenarioIo, startedAt, text)) return;
     if (await didStreamTable(scenarioIo, startedAt, text)) return;
     if (await didRunCompactingTurn(scenarioIo, startedAt, text)) return;
     if (text.includes('use chrome')) {

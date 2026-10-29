@@ -4,6 +4,7 @@ import { commandCreatesWorktree, isOpaqueAgentSessionId } from '../agents';
 import { isRecord } from './chat-items';
 import type { AgentChatSessionHost } from './chat-provider';
 import { withTimeout } from './claude-prompt-queue';
+import { withClaudeWorktreeHooks } from './worktree/enter-worktree-hooks';
 
 type ClaudeHooks = Partial<Record<HookEvent, HookCallbackMatcher[]>>;
 type ShellPhase = 'shellToolFailed' | 'shellToolFinished' | 'shellToolStarted';
@@ -30,18 +31,20 @@ const SHELL_HOOK_PHASES = {
  *
  * The hook's `cwd` is deliberately not reported as `agentCwd`. A Chat locates its transcript through
  * `agentProviderStateRoot`, and a Bash `cd` into a worktree root moves the hook cwd without moving the transcript, so a
- * persisted divergence would make the Chat unable to resume.
+ * persisted divergence would make the Chat unable to resume. `EnterWorktree` and `ExitWorktree` are the exception and
+ * are added here from `worktree/enter-worktree-hooks.ts`, because they move the transcript with the directory.
  */
 export function withClaudeShellHooks(
     hooks: ClaudeHooks,
     observe: AgentChatSessionHost['observeLifecycle'],
 ): ClaudeHooks {
-    const merged: ClaudeHooks = { ...hooks };
+    const base = withClaudeWorktreeHooks(hooks, observe);
+    const merged: ClaudeHooks = { ...base };
     for (const [event, phase] of Object.entries(SHELL_HOOK_PHASES) as Array<
         [keyof typeof SHELL_HOOK_PHASES, ShellPhase]
     >)
         merged[event] = [
-            ...(hooks[event] ?? []),
+            ...(base[event] ?? []),
             { matcher: '^Bash$', hooks: [shellHook(phase, observe)] },
         ];
     return merged;

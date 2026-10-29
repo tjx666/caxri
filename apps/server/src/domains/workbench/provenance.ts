@@ -4,7 +4,7 @@ import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
 import type { AgentEndpointLifecycle } from '../agent-endpoints';
-import type { AgentCoordinator, AgentLifecycleSignal, AgentSignalDecision } from '../agents';
+import type { AgentLifecycleSignal, AgentSignalDecision } from '../agents';
 import type { CaxriDatabase } from '../db';
 import type { GitService, GitWorktreeTopology } from '../git';
 import type { WorkbenchRootService } from './roots';
@@ -592,27 +592,6 @@ export class AgentWorktreeAttribution {
         this.provenanceBaselines.clear();
         this.creationOverflowedUntil = 0;
     }
-}
-
-export function handleAgentLifecycleSignal(
-    coordinator: AgentCoordinator,
-    workbenchRoots: WorkbenchRootService,
-    signal: AgentLifecycleSignal,
-): AgentSignalDecision | Promise<AgentSignalDecision> {
-    /**
-     * Runs on every phase, ahead of phase routing: the provider reports its own working directory on all of them, so an
-     * Agent that moved itself is observable without depending on which tool did it. The check short-circuits on an
-     * unchanged directory and never blocks the phase's own handling.
-     */
-    workbenchRoots.observeAgentCwd(signal);
-    if (signal.phase === 'shellToolStarted')
-        return workbenchRoots.observeShellToolStarted(signal, () =>
-            coordinator.isCurrentTerminalLaunch(signal.terminalId, signal.launchId),
-        );
-    if (signal.phase === 'shellToolFinished')
-        return workbenchRoots.observeShellToolFinished(signal);
-    if (signal.phase === 'shellToolFailed') return workbenchRoots.observeShellToolFailed(signal);
-    return coordinator.observeLifecycleSignal(signal);
 }
 
 export async function retireAgentWorkbenchProvenance(options: {
