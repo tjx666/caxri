@@ -6,6 +6,7 @@ export const agentChatUsageLimit: TranslatedNamespace<typeof source> = {
     'agentChat.usageLimit.session': '{{provider}} 的 5 小时额度已用完',
     'agentChat.usageLimit.weekly': '{{provider}} 的每周额度已用完',
     'agentChat.usageLimit.unknown': '{{provider}} 的额度已用完',
+    'agentChat.usageLimit.guardStopped': '{{provider}} 每周额度保护已停止这一回合',
     'agentChat.usageLimit.continueIn': '在 {{provider}} 中继续',
     'agentChat.usageLimit.continueElsewhere': '在其他 Agent 中继续',
     'agentChat.usageLimit.chooseAgent': '选择其他 Agent',

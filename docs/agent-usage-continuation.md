@@ -105,21 +105,47 @@ requests continue on credits, 1,250 left` (Claude: `... on extra usage, $37.40 l
   Chat send, steer, queued follow-ups, slash commands, side questions, delegation, dispatch, Session
   auto-naming, and idle compaction. Arming interrupts the account's running turns (recorded as
   stopped by the usage guard) and pauses their follow-up queues with reason `usageGuard`; the reset
-  resumes them.
+  resumes them. The interrupted turn itself continues after the reset when it fits the 24-hour
+  horizon (see [Turns the guard stopped](#turns-the-guard-stopped)).
 - **What the user can still do.** The composer shows the guard card: how much of the week is used,
   when it resets, and two ways forward. `Generate hand-off` (`agentChat.generateHandoff`) spends the
   kept budget on one tool-less turn in which the Chat's own model writes a hand-off document; the
   lease is one per account per weekly window, shared by every Chat of that account. `Open in another
 Agent` continues from the deterministic package, with the hand-off document first when one exists.
   There is deliberately no "Continue anyway".
-- **Mobile** shows the blocked state as a banner and disables send. **Caxri Bot window**
+- **Mobile** shows the blocked state as a banner, with the same wait line as the guard card, and disables send. **Caxri Bot window**
   has no Workbench to show a new Session, so it offers the hand-off but no continuation.
+
+### Turns the guard stopped
+
+A turn that Caxri's own guard interrupted (`stoppedBy: 'usageGuard'`, status `interrupted`; a turn that
+finished before the stop landed never counts) continues after the window resets, as a 5-hour failure
+does (issue #2733). It reuses the same `ChatUsageLimitWaits` record with `source: 'usageGuard'`, so the
+stagger, the 30-minute `missed` rule, the attempt cap, the `usageLimitWaitAt` clock in the Session list,
+and the hidden continue prompt are the same.
+
+- **When it waits.** `guard.resetsAt` within `AGENT_CHAT_AUTO_CONTINUE_HORIZON_MS` (24 hours), with
+  the setting on. Beyond that the guard card says `Won't continue automatically` and the wait is
+  `skipped` with `resetTooFar`; the week is not waited for, as the user may have left. Unlike a 5-hour
+  failure, an armed guard does not skip the wait: the guard lifting is what it waits for. If a new
+  weekly window re-arms the guard at the due time, the wait is `skipped` with `usageGuard` and sends
+  nothing.
+- **Where it shows.** While the guard holds, `AgentChatUsageGuard.autoContinue` and
+  `autoContinueTurnId` put the wait line and a `Cancel` on the guard card (no `Continue now`: the
+  guard still refuses requests). When the guard lifts, the stopped turn gets a notice
+  (`usageLimit.trigger: 'usageGuard'`) with the usual `Continues automatically at ...` card; a history
+  replay re-adds it while the wait is `waiting` or `missed`.
+- **Queued messages.** If the guard's reset releases queued follow-ups, they continue the Chat
+  themselves: the wait ends (`cancelled`, reason `queueResumed`) and no hidden prompt is sent.
+- **Cancel paths** are the 5-hour wait's: Cancel, a user message, `Open in another Agent`, the
+  setting turned off, closing or archiving the Terminal, or switching to the PTY surface.
+- **Not covered:** PTY Terminals, and a reset beyond 24 hours.
 
 ## Observability
 
 All four events are content-free and use closed enums (`packages/protocol/src/domain/logging/logging-usage.ts`):
 
-- `usage.guard`: `provider` and `outcome` (`armed`, `window_reset` or `credits_available` with its
+- `usage.guard`: `provider` and `outcome` (`armed` with `resetsInMs`, the distance to the window's reset, `window_reset` or `credits_available` with its
   duration, `refused` with
   its closed `path`, `handoff_started`, `handoff_generated`, `handoff_failed` with its closed
   `reason`).
@@ -127,7 +153,7 @@ All four events are content-free and use closed enums (`packages/protocol/src/do
   hid the credits notice.
 - `usage.continuation`: source and target `provider`, `trigger` (`usageLimit`, `usageGuard`), and
   `outcome` (`created`, `existing`, `failed` with the error `code`), with the duration.
-- `usage.auto_continue`: `provider`, `window`, `attempt`, and `outcome` (`waiting`, `continued`,
+- `usage.auto_continue`: `provider`, `window`, `trigger` (`usageLimit`, `usageGuard`), `attempt`, and `outcome` (`waiting`, `continued`,
   `rescheduled`, `missed`, `skipped` or `cancelled` with its closed `reason`, `failed` with the
   error `code`), with the time waited.
 

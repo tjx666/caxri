@@ -14,14 +14,16 @@ const BUTTON_CLASS = 'min-h-6 gap-1.5 px-2 text-[12px]';
 
 /**
  * Continue now (or Continue, once missed) and Cancel for a Chat that waits for its limit to reset. Renders nothing for
- * a settled state.
+ * a settled state. The weekly usage guard's card offers Cancel alone: while the guard holds, nothing can continue now.
  */
 export function AgentChatAutoContinueActions({
     autoContinue,
+    canContinueNow = true,
     terminalId,
     turnId,
 }: {
     autoContinue: AutoContinue | undefined;
+    canContinueNow?: boolean;
     terminalId: string;
     turnId: string;
 }) {
@@ -37,21 +39,25 @@ export function AgentChatAutoContinueActions({
     };
     return (
         <>
-            <Button
-                aria-disabled={pending !== undefined || undefined}
-                className={BUTTON_CLASS}
-                data-agent-chat-auto-continue-now=""
-                size="sm"
-                variant="secondary"
-                onClick={() => run('continueNow')}
-            >
-                {pending === 'continueNow' && <Spinner className="size-3.5" role="presentation" />}
-                {t(
-                    autoContinue.status === 'waiting'
-                        ? 'agentChat.usageLimit.auto.continueNow'
-                        : 'agentChat.usageLimit.auto.continue',
-                )}
-            </Button>
+            {canContinueNow && (
+                <Button
+                    aria-disabled={pending !== undefined || undefined}
+                    className={BUTTON_CLASS}
+                    data-agent-chat-auto-continue-now=""
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => run('continueNow')}
+                >
+                    {pending === 'continueNow' && (
+                        <Spinner className="size-3.5" role="presentation" />
+                    )}
+                    {t(
+                        autoContinue.status === 'waiting'
+                            ? 'agentChat.usageLimit.auto.continueNow'
+                            : 'agentChat.usageLimit.auto.continue',
+                    )}
+                </Button>
+            )}
             {autoContinue.status === 'waiting' && (
                 <Tooltip content={t('agentChat.usageLimit.auto.cancelTooltip')}>
                     <Button

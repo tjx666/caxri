@@ -6,6 +6,7 @@ export const agentChatUsageLimit = {
     'agentChat.usageLimit.session': '{{provider}} used up its 5-hour limit',
     'agentChat.usageLimit.weekly': '{{provider}} used up its weekly limit',
     'agentChat.usageLimit.unknown': '{{provider}} used up its usage limit',
+    'agentChat.usageLimit.guardStopped': '{{provider}} weekly usage guard stopped this turn',
     'agentChat.usageLimit.continueIn': 'Continue in {{provider}}',
     'agentChat.usageLimit.continueElsewhere': 'Continue in another Agent',
     'agentChat.usageLimit.chooseAgent': 'Choose another Agent',

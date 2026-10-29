@@ -180,6 +180,91 @@ describe('ChatUsageLimitWaits', () => {
     });
 });
 
+describe('ChatUsageLimitWaits for a turn the weekly guard stopped', () => {
+    it('waits for the guard to reset even though the guard is armed', () => {
+        const { subject, write, onChange } = waits({ isGuarded: true });
+        subject.observeGuardStop('terminal-1', 'claude', 'turn-1', NOW + 2 * HOUR_MS);
+        const at = NOW + 2 * HOUR_MS + 120_000;
+        expect(subject.guardWait('terminal-1')).toEqual({
+            turnId: 'turn-1',
+            autoContinue: { status: 'waiting', at },
+        });
+        expect(subject.waitingAt('terminal-1')).toBe(at);
+        expect(onChange).toHaveBeenCalledWith('terminal-1');
+        expect(write).toHaveBeenCalledWith('info', 'usage.auto_continue', {
+            fields: expect.objectContaining({
+                window: 'weekly',
+                trigger: 'usageGuard',
+                outcome: 'waiting',
+            }) as unknown,
+        });
+        // The guard card carries the wait while the guard holds; the turn's notice comes when it lifts.
+        expect(subject.replayNotice('terminal-1')).toBeUndefined();
+    });
+
+    it('shows the notice on a replay once the guard lifted', () => {
+        const { subject } = waits();
+        subject.observeGuardStop('terminal-1', 'codex', 'turn-1', NOW + HOUR_MS);
+        expect(subject.replayNotice('terminal-1')).toMatchObject({
+            id: 'turn-1:error',
+            usageLimit: { window: 'weekly', trigger: 'usageGuard' },
+        });
+    });
+
+    it('does not wait for a reset beyond a day, and repeats of the same stop change nothing', () => {
+        const { subject, write } = waits({ isGuarded: true });
+        subject.observeGuardStop('terminal-1', 'claude', 'turn-1', NOW + 25 * HOUR_MS);
+        subject.observeGuardStop('terminal-1', 'claude', 'turn-1', NOW + HOUR_MS);
+        expect(subject.guardWait('terminal-1')?.autoContinue).toEqual({
+            status: 'skipped',
+            reason: 'resetTooFar',
+        });
+        expect(write).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not wait while the setting is off', () => {
+        const { subject } = waits({ isEnabled: false });
+        subject.observeGuardStop('terminal-1', 'claude', 'turn-1', NOW + HOUR_MS);
+        expect(subject.guardWait('terminal-1')).toBeUndefined();
+    });
+
+    it('leaves a 5-hour failure on an armed guard skipped', () => {
+        const { subject } = waits({ isGuarded: true });
+        subject.observeFailure('terminal-1', 'claude', notice('turn-1', NOW + HOUR_MS));
+        expect(subject.stateOf('terminal-1', 'turn-1')).toEqual({
+            status: 'skipped',
+            reason: 'usageGuard',
+        });
+        expect(subject.guardWait('terminal-1')).toBeUndefined();
+    });
+
+    it('ends the wait when the guard lifts into queued messages, and keeps it otherwise', () => {
+        const queued = waits();
+        queued.subject.attach({
+            states: {
+                get: () => ({
+                    projection: { snapshot: { items: [], queue: [{ id: 'q', kind: 'message' }] } },
+                }),
+            } as never,
+            deliver: () => Promise.resolve(),
+        });
+        queued.subject.observeGuardStop('terminal-1', 'claude', 'turn-1', NOW + HOUR_MS);
+        queued.subject.guardLifted('terminal-1', true);
+        expect(queued.subject.guardWait('terminal-1')).toBeUndefined();
+        expect(queued.write).toHaveBeenCalledWith('info', 'usage.auto_continue', {
+            fields: expect.objectContaining({
+                outcome: 'cancelled',
+                reason: 'queueResumed',
+            }) as unknown,
+        });
+
+        const idle = waits();
+        idle.subject.observeGuardStop('terminal-1', 'claude', 'turn-1', NOW + HOUR_MS);
+        idle.subject.guardLifted('terminal-1', false);
+        expect(idle.subject.guardWait('terminal-1')?.autoContinue.status).toBe('waiting');
+    });
+});
+
 describe('stampUsageContinuations', () => {
     const operation = (item: UsageLimitNotice): AgentChatPatchOperation => ({
         op: 'upsertItem',

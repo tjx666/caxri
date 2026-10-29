@@ -153,7 +153,12 @@ export class ChatUsageContinuation {
                 state.followUps.pause('usageGuard');
                 if (state.projection.snapshot.activeTurnId)
                     void chat.interrupt(terminalId, 'usageGuard').catch(() => {});
-            } else if (state.followUps.pausedFor === 'usageGuard') state.followUps.resume();
+            } else {
+                // The wait of a turn the guard stopped ends here when the queue it releases continues the Chat itself.
+                const isReleasing = state.followUps.pausedFor === 'usageGuard';
+                chat.states.usageLimitWaits?.guardLifted(terminalId, isReleasing);
+                if (isReleasing) state.followUps.resume();
+            }
         }
     }
 
@@ -206,6 +211,13 @@ export class ChatUsageContinuation {
     }
 
     /**
+     * Publishes the guard view again after something it shows changed outside the guard (a wait began or ended).
+     */
+    republish(terminalId: string): void {
+        if (this.view(terminalId)) this.publish(terminalId);
+    }
+
+    /**
      * A plan-limit reading a running Chat reported itself (Claude Code's `rate_limit_event`).
      */
     observe(provider: AgentProvider, reading: Pick<UsageLimit, 'windows'>): void {
@@ -246,10 +258,12 @@ export class ChatUsageContinuation {
         const continuedIn = this.continuation(
             continuationDelegationId(terminalId, `guard:${guard.resetsAt}`),
         );
+        const wait = this.chat?.states.usageLimitWaits?.guardWait(terminalId);
         return {
             ...guard,
             ...(document && { document }),
             ...(continuedIn && { continuedIn }),
+            ...(wait && { autoContinue: wait.autoContinue, autoContinueTurnId: wait.turnId }),
         };
     }
 

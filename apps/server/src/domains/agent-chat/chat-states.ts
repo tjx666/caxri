@@ -173,6 +173,13 @@ export class ChatStates {
         return {
             stateOf: (turnId) => waits.stateOf(terminalId, turnId),
             replayNotice: () => waits.replayNotice(terminalId),
+            observeGuardStop: (turnId) => {
+                const provider = this.options.database.getTerminal(terminalId)?.provider;
+                const guard = this.options.usage?.view(terminalId);
+                // A guard that lifted before the stop landed leaves nothing to wait for.
+                if (provider && guard)
+                    waits.observeGuardStop(terminalId, provider, turnId, guard.resetsAt);
+            },
             observeFailure: (notice) => {
                 const provider = this.options.database.getTerminal(terminalId)?.provider;
                 if (provider) waits.observeFailure(terminalId, provider, notice);
