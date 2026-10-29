@@ -53,6 +53,73 @@ const COMPOSED: Readonly<Record<string, readonly string[]>> = {
     'viewContainers.extensionText.status.ciQueued': ['CI ${stateLabels['],
     'viewContainers.extensionText.status.ciNeutral': ['CI ${stateLabels['],
     'viewContainers.extensionText.status.ciUnknown': ['CI ${stateLabels['],
+    'viewContainers.extensionText.status.mergeFailedOne': [
+        "'check' : 'checks'}",
+        ' failed: ${names}.',
+    ],
+    'viewContainers.extensionText.status.mergeFailedOther': [
+        "'check' : 'checks'}",
+        ' failed: ${names}.',
+    ],
+    'viewContainers.extensionText.status.mergeFailedOneMore': [', and ${rest} more'],
+    'viewContainers.extensionText.status.mergeFailedOtherMore': [', and ${rest} more'],
+    'viewContainers.extensionText.status.mergeSquash': ["action: 'Squash and merge'"],
+    'viewContainers.extensionText.status.mergeSquashInto': [
+        "action: 'Squash and merge'",
+        '` into ${pullRequest.baseBranch}`',
+    ],
+    'viewContainers.extensionText.status.mergeCommit': ["action: 'Create a merge commit'"],
+    'viewContainers.extensionText.status.mergeCommitInto': [
+        "action: 'Create a merge commit'",
+        '` into ${pullRequest.baseBranch}`',
+    ],
+    'viewContainers.extensionText.status.mergeRebase': ["action: 'Rebase and merge'"],
+    'viewContainers.extensionText.status.mergeRebaseInto': [
+        "action: 'Rebase and merge'",
+        '` into ${pullRequest.baseBranch}`',
+    ],
+    'viewContainers.extensionText.status.mergedSquash': ["squash: 'Squash-merged'"],
+    'viewContainers.extensionText.status.mergedRebase': ["rebase: 'Rebase-merged'"],
+    'viewContainers.extensionText.status.agentTooltipCommentOne': [
+        "to this Session's Agent to review",
+    ],
+    'viewContainers.extensionText.status.agentTooltipCommentOther': [
+        "to this Session's Agent to review",
+    ],
+    'viewContainers.extensionText.status.reviewAllResolvedLower': [
+        "'All resolved'",
+        "(description ?? 'reviewing').toLowerCase()",
+    ],
+    'viewContainers.extensionText.status.reviewNoCommentsLower': [
+        "'No comments'",
+        "(description ?? 'reviewing').toLowerCase()",
+    ],
+    'viewContainers.extensionText.status.reviewFailedLower': [
+        "'Review failed'",
+        "(description ?? 'reviewing').toLowerCase()",
+    ],
+    'viewContainers.extensionText.status.checksIgnoredHiddenOne': [
+        "ignored check${count === 1 ? '' : 's'}",
+        '} hidden`',
+    ],
+    'viewContainers.extensionText.status.checksIgnoredHiddenOther': [
+        "ignored check${count === 1 ? '' : 's'}",
+        '} hidden`',
+    ],
+    'viewContainers.extensionText.status.previousFilesChangedOne': [
+        '${filesLabel(files.length)} changed since',
+    ],
+    'viewContainers.extensionText.status.previousFilesChangedOther': [
+        '${filesLabel(files.length)} changed since',
+    ],
+    'viewContainers.extensionText.status.deployCountOnProduction': ['} on ${environments[0]}`'],
+    'viewContainers.extensionText.status.deployCountOnPreview': ['} on ${environments[0]}`'],
+    'viewContainers.extensionText.status.badgeFailedCheckOther': [
+        " failed ${checks.size === 1 ? 'check' : 'checks'}",
+    ],
+    'viewContainers.extensionText.status.badgeFailedDeploymentOther': [
+        " failed ${deployments.size === 1 ? 'deployment' : 'deployments'}",
+    ],
     'viewContainers.extensionText.sourceControl.hideExcluded': [
         "'Hide' : 'Show'} excluded files (",
     ],
