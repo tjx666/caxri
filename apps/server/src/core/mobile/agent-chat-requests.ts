@@ -17,6 +17,7 @@ import {
     CaxriError,
     clipAgentChatTaskSnapshotForMobile,
     MOBILE_AGENT_CHAT_IMAGE_CHUNK_LENGTH,
+    readMobileMessageChunk,
     windowAgentChatHistoryPageForMobile,
     windowAgentChatSnapshotForMobile,
 } from '@caxri/protocol';
@@ -487,9 +488,7 @@ export async function invokeMobileAgentChatRequest(
                 throw new CaxriError('NOT_FOUND', 'This message is no longer in the Chat');
             const text =
                 item.type === 'userMessage' ? agentChatQueuedTextEdit(item.text).body : item.text;
-            if (!canMobileAgentChatSend(text))
-                throw new CaxriError('VALIDATION', 'This message is too long to read on a phone');
-            return { text };
+            return readMobileMessageChunk(text, request.params.offset);
         }
         case 'mobile.agentChat.rewind': {
             /**

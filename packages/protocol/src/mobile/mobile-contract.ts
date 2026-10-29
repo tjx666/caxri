@@ -46,6 +46,10 @@ import {
     mobileTimelineReadParametersSchema,
     mobileTimelineReadResultSchema,
 } from './mobile-timeline-contract.js';
+import {
+    mobileTimelineMessageInternalMethods,
+    mobileTimelineMessageMethods,
+} from './mobile-timeline-message-contract.js';
 import { mobileUpdateMethods } from './mobile-update-contract.js';
 
 export type { MobileDeviceRole } from './device-role.js';
@@ -61,11 +65,13 @@ export { MOBILE_FILES_MAX_ENTRIES, MOBILE_FILES_READ_MAX_BYTES } from './mobile-
 export * from './mobile-files-contract.js';
 export * from './mobile-host-status-contract.js';
 export * from './mobile-image-contract.js';
+export * from './mobile-message-read-contract.js';
 export * from './mobile-panels-contract.js';
 export * from './mobile-preview-contract.js';
 export * from './mobile-pull-request-contract.js';
 export * from './mobile-terminal-contract.js';
 export * from './mobile-timeline-contract.js';
+export * from './mobile-timeline-message-contract.js';
 export * from './mobile-update-contract.js';
 
 const noParameters = z.strictObject({}).default({});
@@ -444,6 +450,7 @@ export const mobileMethods = {
     ...mobilePullRequestMethods,
     ...mobileAgentUsageMethods,
     ...mobileFilesMethods,
+    ...mobileTimelineMessageMethods,
     ...mobileUpdateMethods,
     ...mobileBotInboxMethods,
     ...mobileHostStatusMethods,
@@ -580,6 +587,7 @@ export const mobileInternalMethods = {
         result: mobileProjectAddResultSchema,
     },
     ...mobileFilesInternalMethods,
+    ...mobileTimelineMessageInternalMethods,
     ...mobilePreviewInternalMethods,
     ...mobileBotInboxInternalMethods,
 } as const satisfies Record<string, MethodSpec>;

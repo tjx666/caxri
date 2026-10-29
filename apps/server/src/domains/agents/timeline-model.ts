@@ -1,10 +1,11 @@
 import type { AgentTimelineItem, AgentTimelineTurnOutcome } from '@caxri/protocol';
+import { MOBILE_TIMELINE_MESSAGE_PREVIEW_LENGTH } from '@caxri/protocol';
 
 import { ownedSlice } from '../owned-string';
 import type { SystemEventProjection } from './system-event';
 import { stripInjectedTranscriptContent } from './visible-transcript-message';
 
-const MAX_MESSAGE_CHARS = 4_096;
+const MAX_MESSAGE_CHARS = MOBILE_TIMELINE_MESSAGE_PREVIEW_LENGTH;
 const MAX_DETAIL_CHARS = 2_048;
 
 interface TimelineEntry {
@@ -53,7 +54,14 @@ export class TimelineBuilder {
     readonly #calls = new Map<string, string>();
     readonly entries: TimelineEntry[] = [];
 
-    constructor(readonly generation: string) {}
+    /**
+     * `messageLimit` is the most characters a message keeps. The default is the short preview the phone's timeline
+     * holds; reading one message in full raises it (`AgentTimelineService.readMessage`).
+     */
+    constructor(
+        readonly generation: string,
+        private readonly messageLimit = MAX_MESSAGE_CHARS,
+    ) {}
 
     #id(offset: number, part: number): string {
         return `${this.generation}:${offset.toString(36)}:${part.toString(36)}`;
@@ -68,7 +76,7 @@ export class TimelineBuilder {
         timestamp?: number,
     ): void {
         const type = role === 'user' ? 'userMessage' : 'agentMessage';
-        const message = bounded(text, MAX_MESSAGE_CHARS);
+        const message = bounded(text, this.messageLimit);
         if (!message) return;
         const existing = key ? this.#keys.get(`message:${key}`) : undefined;
         if (existing !== undefined) {
@@ -79,7 +87,7 @@ export class TimelineBuilder {
                 ? message
                 : previous.endsWith(message)
                   ? previous
-                  : bounded(`${previous}${message}`, MAX_MESSAGE_CHARS);
+                  : bounded(`${previous}${message}`, this.messageLimit);
             entry.item = { ...entry.item, text: next };
             return;
         }

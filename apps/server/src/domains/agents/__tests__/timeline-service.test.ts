@@ -62,6 +62,47 @@ describe('AgentTimelineService', () => {
         expect(second.items[0]?.id).toBe(first.items.at(-1)?.id);
     });
 
+    it('reads a message the page cut short in full, joined across the records that stream it', async () => {
+        const head = 'H'.repeat(5_000);
+        const tail = `${'T'.repeat(30_000)}\nlast line`;
+        await writeFile(
+            transcript,
+            [
+                line(1),
+                line(2, head),
+                `${JSON.stringify(claude('assistant', 'fixture-reply', [{ type: 'text', text: tail }]))}\n`,
+            ].join(''),
+        );
+        const page = await service.read('session-fixture', 'terminal-fixture', undefined, 10);
+        const cut = page.items.find(
+            (item) => item.type === 'userMessage' && item.text.startsWith('HH'),
+        );
+        expect(cut).toMatchObject({ type: 'userMessage' });
+        expect(cut?.type === 'userMessage' ? cut.text.length : 0).toBe(4_096);
+        await expect(
+            service.readMessage('session-fixture', 'terminal-fixture', cut?.id ?? ''),
+        ).resolves.toBe(head);
+        const reply = page.items.find((item) => item.type === 'agentMessage');
+        await expect(
+            service.readMessage('session-fixture', 'terminal-fixture', reply?.id ?? ''),
+        ).resolves.toBe(tail);
+        const tailItem = reply?.type === 'agentMessage' ? reply.text : '';
+        expect(tailItem.length).toBe(4_096);
+    });
+
+    it('does not read a message for an id from a rewritten transcript or a non-message item', async () => {
+        await writeFile(transcript, line(1) + line(2));
+        const page = await service.read('session-fixture', 'terminal-fixture', undefined, 10);
+        const id = page.items[0]?.id ?? '';
+        await writeFile(transcript, line(9));
+        await expect(
+            service.readMessage('session-fixture', 'terminal-fixture', id),
+        ).resolves.toBeUndefined();
+        await expect(
+            service.readMessage('session-fixture', 'terminal-fixture', 'not-an-id'),
+        ).resolves.toBeUndefined();
+    });
+
     it('projects only appended records on a repeat read and still settles an earlier tool call', async () => {
         const toolUse = claude('assistant', 'fixture-tool', [
             { type: 'tool_use', id: 'call-1', name: 'Bash', input: { command: 'ls' } },

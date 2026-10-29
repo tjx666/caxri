@@ -19,6 +19,7 @@ import {
     visibleConversationStatus,
 } from './conversation-model';
 import { startConversationReader } from './conversation-observation';
+import { readWholeMessage } from './read-whole-message';
 
 export interface ConversationTimelineState {
     error: string | null;
@@ -56,6 +57,11 @@ export interface ConversationLoadOlderOptions {
  */
 export type ConversationPagedTimeline = ConversationTimelineState & {
     loadOlder: (options?: ConversationLoadOlderOptions) => Promise<void>;
+    /**
+     * Reads the whole text of a Terminal Agent message from the computer. Absent on a timeline with nothing to read
+     * from (an Agent Chat's older history already carries whole messages).
+     */
+    readMessage?: (itemId: string) => Promise<string>;
 };
 
 const initialState = (): ConversationTimelineState => ({
@@ -267,5 +273,17 @@ export const useConversationTimeline = ({
         if (connectionStatus === 'connected') setRetry((value) => value + 1);
         else retryConnection();
     }, [connectionStatus, retryConnection]);
-    return { ...state, loadOlder, refresh };
+    /**
+     * The whole text of a message the timeline kept only the start of, for Copy and Select Text.
+     */
+    const readMessage = useCallback(
+        (itemId: string): Promise<string> => {
+            if (sessionId === null) return Promise.reject(new Error('No Session is open'));
+            return readWholeMessage((offset) =>
+                request('mobile.timeline.readMessage', { sessionId, itemId, offset }),
+            );
+        },
+        [request, sessionId],
+    );
+    return { ...state, loadOlder, readMessage, refresh };
 };

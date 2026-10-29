@@ -28,7 +28,10 @@ import {
 } from './mobile-agent-chat-image-scenario';
 import { executeMobileChatInlineLinkScenario } from './mobile-agent-chat-inline-link-scenario';
 import { executeMobileChatListApprovalScenario } from './mobile-agent-chat-list-approval-scenario';
-import { executeMobileChatMessageActionsScenario } from './mobile-agent-chat-message-actions-scenario';
+import {
+    executeMobileChatLongCopyScenario,
+    executeMobileChatMessageActionsScenario,
+} from './mobile-agent-chat-message-actions-scenario';
 import {
     executeMobileChatModelScenario,
     executeMobileClaudeModelScenario,
@@ -554,6 +557,8 @@ export async function executeMobileAgentChatCase(
             return executeMobileBotInboxScenario(environment, artifacts);
         case 'MOB-CHAT-35':
             return executeMobileChatMessageActionsScenario(environment, artifacts);
+        case 'MOB-CHAT-COPY-LONG-01':
+            return executeMobileChatLongCopyScenario(environment, artifacts);
         case 'MOB-CHAT-36':
             return executeMobileSessionPreviewScenario(environment, artifacts);
         case 'MOB-CHAT-LINK-WRAP-01':

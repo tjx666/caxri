@@ -174,4 +174,62 @@ describe('mobile timeline authorization', () => {
             }),
         ).resolves.toMatchObject({ status: 'missing' });
     });
+
+    it('reads one Terminal message in slices through the granted Session only', async () => {
+        const text = 'x'.repeat(20_000);
+        const readMessage = vi.fn((_session: string, _terminal: string, itemId: string) =>
+            Promise.resolve(itemId === 'item-1' ? text : undefined),
+        );
+        const handlers = createMobileDomainHandlers({
+            configuration: {} as ConfigService,
+            emit: vi.fn(),
+            files: {} as FileService,
+            database: {
+                getSession: (id: string) =>
+                    id === 'session-granted'
+                        ? {
+                              id,
+                              projectId: 'project-granted',
+                              primaryAgentTerminalId: 'terminal-1',
+                          }
+                        : { id, projectId: 'project-other', primaryAgentTerminalId: 'terminal-2' },
+                listVisibleProjects: () => [{ id: 'project-granted' }, { id: 'project-other' }],
+            } as unknown as CaxriDatabase,
+            git: {} as GitService,
+            queue: {} as MobileTerminalMutationQueue,
+            terminals: {} as TerminalManager,
+            timeline: { readMessage } as unknown as AgentTimelineService,
+            transcripts: {} as AgentTranscriptWatcher,
+        });
+        const principal = {
+            kind: 'paired-device' as const,
+            id: 'paired-device:fixture',
+            deviceId: 'fixture',
+            generation: 1,
+            role: 'view' as const,
+            projectIds: ['project-granted'],
+        };
+        const read = (sessionId: string, itemId: string, offset: number) =>
+            handlers['mobile.timeline.readMessageInternal']({
+                sessionId,
+                itemId,
+                offset,
+                principal,
+            });
+        await expect(read('session-granted', 'item-1', 0)).resolves.toMatchObject({
+            totalLength: 20_000,
+            nextOffset: 16_000,
+        });
+        await expect(read('session-granted', 'item-1', 16_000)).resolves.toEqual({
+            text: 'x'.repeat(4_000),
+            totalLength: 20_000,
+        });
+        await expect(read('session-granted', 'gone', 0)).rejects.toMatchObject({
+            code: 'NOT_FOUND',
+        });
+        await expect(read('session-other', 'item-1', 0)).rejects.toMatchObject({
+            code: 'NOT_FOUND',
+        });
+        expect(readMessage).not.toHaveBeenCalledWith('session-other', 'terminal-2', 'item-1');
+    });
 });
