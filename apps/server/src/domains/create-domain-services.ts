@@ -17,7 +17,7 @@ import { createChatTerminalCreator } from './chat-terminal-creation';
 import { createClaudeWindowService } from './claude-window-service-creation';
 import { coreRoutedHandlers } from './core-routed';
 import { createDeletionHandlers } from './deletion-handlers';
-import { DiagnosticsService } from './diagnostics';
+import { DiagnosticsService, lastDatabaseRebuildReport } from './diagnostics';
 import type { DomainDependencies, DomainHandlers, DomainServices } from './domain-services';
 import { createGitReviewHandlers } from './git-review';
 import { createIntrospectionServices } from './introspection';
@@ -438,6 +438,7 @@ export async function createDomainServices(
             pid,
             startedAt,
             activePtyCount: countRunning(),
+            lastDatabaseRebuild: lastDatabaseRebuildReport(database),
         }),
         ...createAgentChatHandlers(agentChat, {
             database,

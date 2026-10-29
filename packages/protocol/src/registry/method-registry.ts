@@ -117,6 +117,7 @@ import { mobileInternalMethods, mobileMethods } from '../mobile/mobile-contract.
 import { eventRecoveryRequestSchema, eventRecoverySchema } from '../transport/event-journal.js';
 import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
+import { lastDatabaseRebuildSchema } from './database-rebuild.js';
 import { extensionViewMethods } from './view-methods.js';
 
 const serverRead = commandPolicy('server', 'read');
@@ -219,6 +220,7 @@ export const methods = {
             pid: z.number(),
             startedAt: z.number(),
             activePtyCount: z.number(),
+            lastDatabaseRebuild: lastDatabaseRebuildSchema.optional(),
         }),
     },
     'host.status': {
@@ -244,6 +246,7 @@ export const methods = {
             protocolVersion: z.number().int().positive(),
             protocolCompatible: z.boolean(),
             desktop: desktopStatusResultSchema,
+            lastDatabaseRebuild: lastDatabaseRebuildSchema.optional(),
         }),
     },
     'host.stop': {

@@ -37,6 +37,8 @@ marks them first, so nonzero counts mean the previous Server Core was killed; th
 log at `warn`. `domains/db` stays logger-free and reports through `onOpened`, which
 `root-services.ts` turns into the record.
 
+A rebuild also writes the `lastDatabaseRebuild` `app_state` cell (`at`, `fromVersion`, `backupPath`) inside the rebuild transaction, and `db.opened` carries `droppedTableCount`. Only the latest rebuild is kept; `host.status` and the diagnostics snapshot expose it with the backup path home-normalized, and omit it when no rebuild ever happened. There is no restore path: the `.bak` is for hand recovery.
+
 Renaming a table makes `drizzle-kit generate` ask, per new table, whether it is created or renamed
 from an old one, and it needs a TTY to ask. An agent shell has none, so drive it through a PTY with
 `expect` and answer each prompt from an explicit old-to-new table mapping, never a fixed key

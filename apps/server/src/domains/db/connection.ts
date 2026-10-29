@@ -147,10 +147,14 @@ interface ProcessGroupRow {
  * including ones a later schema renamed or removed, so nothing of the old shape can collide with the baseline. Project
  * folders and user files are never touched, and `backupBeforeRebuild` kept a copy of the old database beside it.
  *
- * Returns the provider process-group ledger first: a Server Core that was killed left those Agent process groups
- * running, and the startup sweep (`reapStaleProviderGroups`) can only stop what the rebuilt ledger still lists.
+ * Returns the provider process-group ledger first, plus how many tables were dropped: a Server Core that was killed
+ * left those Agent process groups running, and the startup sweep (`reapStaleProviderGroups`) can only stop what the
+ * rebuilt ledger still lists.
  */
-function dropPreBaselineTables(database: Database.Database): ProcessGroupRow[] {
+function dropPreBaselineTables(database: Database.Database): {
+    droppedTableCount: number;
+    processGroups: ProcessGroupRow[];
+} {
     const tables = database
         .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'")
         .pluck()
@@ -159,7 +163,7 @@ function dropPreBaselineTables(database: Database.Database): ProcessGroupRow[] {
         ? readProcessGroups(database)
         : [];
     for (const table of tables) database.exec(`DROP TABLE "${table.replaceAll('"', '""')}"`);
-    return processGroups;
+    return { droppedTableCount: tables.length, processGroups };
 }
 
 /**
@@ -201,7 +205,25 @@ function schemaOutcome(version: number): DatabaseSchemaOutcome {
     return version < BASELINE_SCHEMA_VERSION ? 'rebuilt' : 'migrated';
 }
 
-function initializeSchema(database: Database.Database): number {
+/**
+ * Records the rebuild in the fresh `app_state` table, inside the rebuild transaction, so the record exists exactly when
+ * the rebuild committed. Replaces any earlier record (a rebuilt database starts empty, so none survives anyway).
+ */
+function recordRebuild(
+    database: Database.Database,
+    rebuild: { at: number; backupPath: string; fromVersion: number },
+): void {
+    database
+        .prepare(
+            "INSERT INTO app_state (key, value_json) VALUES ('lastDatabaseRebuild', ?) ON CONFLICT (key) DO UPDATE SET value_json = excluded.value_json",
+        )
+        .run(JSON.stringify(rebuild));
+}
+
+function initializeSchema(database: Database.Database): {
+    droppedTableCount: number;
+    version: number;
+} {
     const version = database.pragma('user_version', { simple: true }) as number;
     if (version > CURRENT_SCHEMA_VERSION) {
         throw new Error(
@@ -211,23 +233,31 @@ function initializeSchema(database: Database.Database): number {
     /**
      * Nothing to migrate: skipping keeps the whole-database `foreign_key_check` off the ordinary startup path.
      */
-    if (version === CURRENT_SCHEMA_VERSION) return version;
+    if (version === CURRENT_SCHEMA_VERSION) return { droppedTableCount: 0, version };
     // `VACUUM INTO` cannot run inside the migration transaction, so the copy is taken first.
-    if (version > 0 && version < BASELINE_SCHEMA_VERSION && database.name !== ':memory:')
-        backupBeforeRebuild(database, database.name, version);
+    const backupPath =
+        version > 0 && version < BASELINE_SCHEMA_VERSION && database.name !== ':memory:'
+            ? backupBeforeRebuild(database, database.name, version)
+            : undefined;
+    let droppedTableCount = 0;
     // Every pending step commits atomically or not at all, with foreign keys off; see migrateWithForeignKeysOff.
     migrateWithForeignKeysOff(database, CURRENT_SCHEMA_VERSION, () => {
-        const processGroups =
-            version > 0 && version < BASELINE_SCHEMA_VERSION ? dropPreBaselineTables(database) : [];
+        const dropped =
+            version > 0 && version < BASELINE_SCHEMA_VERSION
+                ? dropPreBaselineTables(database)
+                : { droppedTableCount: 0, processGroups: [] };
+        droppedTableCount = dropped.droppedTableCount;
         if (version < BASELINE_SCHEMA_VERSION) {
             installCurrentSchema(database);
-            restoreProcessGroups(database, processGroups);
+            restoreProcessGroups(database, dropped.processGroups);
+            if (backupPath)
+                recordRebuild(database, { at: Date.now(), backupPath, fromVersion: version });
         } else
             for (const migration of migrationsAfterBaseline)
                 if (migration.version > version) runGeneratedSql(database, migration.sql);
         database.pragma(`user_version = ${CURRENT_SCHEMA_VERSION}`);
     });
-    return version;
+    return { droppedTableCount, version };
 }
 
 /**
@@ -270,6 +300,10 @@ export function markShutdown(
  * Core did not stop cleanly.
  */
 export interface DatabaseOpening extends ShutdownMarks {
+    /**
+     * Tables the clean-install cutoff dropped; 0 unless `outcome` is `rebuilt`.
+     */
+    droppedTableCount: number;
     durationMs: number;
     fromVersion: number;
     outcome: DatabaseSchemaOutcome;
@@ -316,7 +350,7 @@ export function openDatabase(path: string): OpenedDatabase {
          * loss merely loses the last transactions.
          */
         database.pragma('synchronous = NORMAL');
-        const fromVersion = initializeSchema(database);
+        const { droppedTableCount, version: fromVersion } = initializeSchema(database);
         const database_ = drizzle(database, { schema });
         const marks = markShutdown(database_, Date.now(), 'unclean');
         if (path !== ':memory:') {
@@ -328,6 +362,7 @@ export function openDatabase(path: string): OpenedDatabase {
             db: database_,
             opening: {
                 ...marks,
+                droppedTableCount,
                 durationMs: performance.now() - startedAt,
                 fromVersion,
                 outcome: schemaOutcome(fromVersion),
