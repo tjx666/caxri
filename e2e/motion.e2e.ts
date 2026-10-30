@@ -315,6 +315,8 @@ test('Overlay popups animate with --motion-overlay-enter/--motion-overlay-exit t
         // for the generic `--motion-overlay-enter`/`-exit` contract; nothing below depends on what
         // the dialog's own content is.
         const settingsTab = await openSettingsTab(running.page);
+        // The Settings list is virtualized, so search to render the row before clicking it.
+        await settingsTab.getByLabel('Search settings').fill('archived sessions');
         await settingsTab.locator('.archived-sessions-entry').click();
         // The manager floats over Settings rather than closing it first: Settings is a Workbench
         // tab now, not a dialog, so there is no modal layer underneath it to clear.
@@ -475,6 +477,8 @@ test('prefers-reduced-motion disables the overlay keyframe animation', async () 
         // comment on the equivalent step above for why the Archived Sessions manager, opened from a
         // row inside Settings, stands in here for the generic overlay keyframe contract instead.
         const settingsTab = await openSettingsTab(running.page);
+        // The Settings list is virtualized, so search to render the row before clicking it.
+        await settingsTab.getByLabel('Search settings').fill('archived sessions');
         await settingsTab.locator('.archived-sessions-entry').click();
         await expect(settingsTab).toBeVisible();
         const dialogPopup = running.page.getByRole('dialog');
