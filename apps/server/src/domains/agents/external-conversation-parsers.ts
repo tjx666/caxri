@@ -44,6 +44,11 @@ export interface ParsedConversation {
      * the outside-conversation list never does, since another application's SDK runs are usually scripted.
      */
     isHosted?: boolean;
+    /**
+     * The provider conversation ID this one was forked from (Claude `--fork-session`, Codex fork, Grok session fork).
+     * Absent for a conversation that is not a fork, and for a fork whose transcript does not name its source.
+     */
+    forkedFromId?: string;
 }
 
 /**
@@ -267,6 +272,7 @@ async function parseClaudeConversation(
     let firstCwd: string | undefined;
     let resumableCwd: string | undefined;
     let firstEntrypoint: string | undefined;
+    let forkedFromId: string | undefined;
     let hasStoppedEarly = false;
     /**
      * Folds one record into the scan, returning an exclusion reason, `true` once every needed field is found, or
@@ -280,6 +286,8 @@ async function parseClaudeConversation(
          * appends one to an Agent Chat transcript (`caxri` now, `sdk-cli` in transcripts older builds wrote).
          */
         firstEntrypoint ??= stringField(record, 'entrypoint');
+        // A fork copies its parent's records into the new file, each stamped with the conversation it came from.
+        forkedFromId ??= claudeForkSource(record, candidate.providerSessionId);
         if (firstEntrypoint === 'sdk-cli') return 'scripted';
         if (record.type === 'user' && record.isSidechain === true && !prompt.prompt)
             return 'sidechain';
@@ -339,9 +347,21 @@ async function parseClaudeConversation(
         prompt.prompt,
         head,
     );
-    return typeof conversation !== 'string' && isHostedClaudeEntrypoint(firstEntrypoint)
-        ? { ...conversation, isHosted: true }
-        : conversation;
+    if (typeof conversation === 'string') return conversation;
+    return {
+        ...conversation,
+        ...(isHostedClaudeEntrypoint(firstEntrypoint) && { isHosted: true }),
+        ...(forkedFromId !== undefined && { forkedFromId }),
+    };
+}
+
+/**
+ * The conversation a Claude record was copied from: `forkedFrom.sessionId` on a record of a `--fork-session` file. A
+ * record naming its own conversation is not a fork.
+ */
+function claudeForkSource(record: Record<string, unknown>, ownId: string): string | undefined {
+    const source = stringField(objectField(record, 'forkedFrom'), 'sessionId');
+    return source && source !== ownId ? source : undefined;
 }
 
 // Codex
@@ -355,6 +375,7 @@ async function parseCodexConversation(
     const head: HeadReadOutcome = { hasDroppedRecord: false };
     const prompt = new FirstPromptCollector();
     let cwd: string | undefined;
+    let forkedFromId: string | undefined;
     let hasMeta = false;
     try {
         for await (const record of readHeadRecords(opened.handle, opened.size, head)) {
@@ -369,6 +390,7 @@ async function parseCodexConversation(
                 if (source !== undefined && typeof source !== 'string') return 'scripted';
                 if (source && CODEX_SKIPPED_SOURCES.has(source)) return 'scripted';
                 cwd = stringField(payload, 'cwd');
+                forkedFromId = stringField(payload, 'forked_from_id');
                 continue;
             }
             prompt.accept(record);
@@ -378,7 +400,13 @@ async function parseCodexConversation(
         await opened.handle.close();
     }
     if (!hasMeta) return head.hasDroppedRecord ? 'oversizedRecord' : 'missingMetadata';
-    return finishConversation(cwd, threadName, prompt.prompt, head);
+    return withForkSource(finishConversation(cwd, threadName, prompt.prompt, head), forkedFromId);
+}
+
+function withForkSource(conversation: ConversationParse, forkedFromId: string | undefined) {
+    return typeof conversation === 'string' || forkedFromId === undefined
+        ? conversation
+        : { ...conversation, forkedFromId };
 }
 
 export interface CodexThreadIndex {
@@ -521,5 +549,8 @@ async function parseGrokConversation(candidate: ConversationCandidate): Promise<
     } finally {
         await opened.handle.close();
     }
-    return finishConversation(cwd, stringField(summary, 'generated_title'), prompt.prompt, head);
+    return withForkSource(
+        finishConversation(cwd, stringField(summary, 'generated_title'), prompt.prompt, head),
+        stringField(summary, 'parent_session_id'),
+    );
 }

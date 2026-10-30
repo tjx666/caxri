@@ -33,6 +33,7 @@ import {
 import type { CaxriDatabase } from '../db';
 import type { WorktreeTopologyReader } from './import-conversation';
 import { importExternalConversation, isInside, OUTSIDE_SCOPE_MESSAGE } from './import-conversation';
+import { collapseForkGroups, keepForkIdentity } from './search-fork-groups';
 
 /**
  * Index hits requested per search: several conversations can fold into one Session row, so ask for more than one page.
@@ -92,6 +93,10 @@ interface RankedEntry {
     entry: SessionSearchEntry;
     isCurrentProject?: boolean;
     isPhraseMatch?: boolean;
+    /**
+     * The fork tree the conversation belongs to, from the index; entries sharing it are branches of one conversation.
+     */
+    forkGroup?: string;
     score: number;
 }
 
@@ -389,7 +394,8 @@ export class SessionSearchService {
         const ranked = new Map<string, RankedEntry>();
         const offer = (key: string, candidate: RankedEntry) => {
             const existing = ranked.get(key);
-            if (!existing || compareRanked(candidate, existing) < 0) ranked.set(key, candidate);
+            if (!existing || compareRanked(candidate, existing) < 0)
+                ranked.set(key, existing ? keepForkIdentity(candidate, existing) : candidate);
         };
         const isInWindow = (updatedAt: number) =>
             (scope.beforeMs === undefined || updatedAt < scope.beforeMs) &&
@@ -405,10 +411,7 @@ export class SessionSearchService {
         }
         for (const entry of sessions) offer(`session:${entry.entry.sessionId}`, entry);
         return {
-            entries: ranked
-                .values()
-                .toArray()
-                .toSorted(compareRanked)
+            entries: collapseForkGroups(ranked.values().toArray().toSorted(compareRanked))
                 .slice(0, MAX_SESSION_SEARCH_RESULTS)
                 .map(({ entry, isCurrentProject }) =>
                     isCurrentProject ? { ...entry, isCurrentProject: true as const } : entry,
@@ -534,9 +537,11 @@ function heldEntry(
         entry: {
             ...sessionEntry(held.session, held, hit.field, updatedAt),
             ...(hit.cwd !== undefined && { cwd: hit.cwd }),
+            ...(hit.totalMessages !== undefined && { totalMessages: hit.totalMessages }),
             match: matchOf(hit),
         },
         ...(hit.isPhraseMatch && { isPhraseMatch: true }),
+        ...(hit.forkGroup !== undefined && { forkGroup: hit.forkGroup }),
         ...(scope.current?.id === held.session.projectId && { isCurrentProject: true }),
         score: hit.field === 'recent' ? updatedAt : hit.score,
     };
@@ -552,9 +557,11 @@ function externalEntry(hit: IndexedConversationHit, scope: SearchScope): RankedE
             agentSessionId: hit.agentSessionId,
             ...(hit.cwd !== undefined && { cwd: hit.cwd }),
             updatedAt: Math.trunc(hit.updatedAt),
+            ...(hit.totalMessages !== undefined && { totalMessages: hit.totalMessages }),
             match: matchOf(hit),
         },
         ...(hit.isPhraseMatch && { isPhraseMatch: true }),
+        ...(hit.forkGroup !== undefined && { forkGroup: hit.forkGroup }),
         ...(scope.current && hit.isCurrentProject && { isCurrentProject: true }),
         score: hit.score,
     };

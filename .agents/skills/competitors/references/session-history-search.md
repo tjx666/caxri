@@ -49,7 +49,12 @@ Claude Code, Codex, and other CLIs leave on disk. Caxri's resulting design is
 
 ## Pitfalls observed
 
-- Forks and continuations copy their parent's history, so per-message results duplicate.
+- Forks and continuations copy their parent's history, so per-message results duplicate. Each Agent
+  names a fork's source in its own transcript (verified 2026-10-31 against real files): Claude stamps
+  every copied record with `forkedFrom: { sessionId, messageUuid }`; Codex writes
+  `session_meta.payload.forked_from_id` (a spawned subagent thread sets it too, but those are
+  excluded already); Grok writes `parent_session_id` and `forked_at` in `summary.json`. Orca folds
+  forks by content hash; Caxri follows the recorded source (`docs/session-search.md`).
 - Codex `response_item` user messages carry the injected AGENTS.md; titles should come from the
   thread name or the first real prompt.
 - Claude encodes the folder lossily in its directory name; read `cwd` from records instead.

@@ -92,7 +92,7 @@ const sessionSearchSnippetSchema = z.object({
 });
 export type SessionSearchSnippet = z.infer<typeof sessionSearchSnippetSchema>;
 
-const sessionSearchEntrySchema = z.object({
+const sessionSearchBranchSchema = z.object({
     /**
      * Stable row identity: `<provider>:<conversation id>`, or `session:<Session id>` for a Session without an Agent
      * conversation.
@@ -129,6 +129,20 @@ const sessionSearchEntrySchema = z.object({
          */
         messageCount: z.number().int().nonnegative().optional(),
     }),
+    /**
+     * Messages in the conversation's transcript; only set on the members of a fork group, so a branch list can show how
+     * far each branch went.
+     */
+    totalMessages: z.number().int().nonnegative().optional(),
+});
+
+const sessionSearchEntrySchema = sessionSearchBranchSchema.extend({
+    /**
+     * Set when this result stands for several branches of one conversation (Claude `--fork-session`, Codex and Grok
+     * forks, which all copy the earlier messages into a new conversation ID). The entry is the most recently active
+     * branch; this lists every matching branch, that one included, newest first.
+     */
+    branches: z.array(sessionSearchBranchSchema).min(2).max(MAX_SESSION_SEARCH_RESULTS).optional(),
 });
 export type SessionSearchEntry = z.infer<typeof sessionSearchEntrySchema>;
 

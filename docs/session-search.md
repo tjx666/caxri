@@ -72,6 +72,27 @@ there is one), prefixed by who wrote it
 where the conversation lives (open, archived, or not in Caxri), its folder, how many messages
 matched, and when it last changed.
 
+## Branches of one conversation
+
+Claude `--fork-session`, Codex forks, and Grok session forks copy the earlier messages into a new
+conversation ID, so a phrase said before the fork matches the original and every branch. Results
+fold such a family into one row: the most recently active branch, with the label "N other
+branches" (a held Session counts as active as of its last activity). `Right` expands the row into
+one line per branch (including the latest), each showing its location, last activity, and message
+count; `Enter` acts on the selected line, so a branch is opened, restored, or added exactly like
+any other result, and the preview follows it. `Left` collapses (from a branch line, back to its
+group). The arrows only act when the query caret is at the end of the input, so editing the query
+is unaffected. The family ranks where its best-ranked branch ranks, and a branch whose own messages
+do not match the query is not listed.
+
+The index records each conversation's fork source from its transcript, as the Claude records'
+`forkedFrom.sessionId`, Codex `session_meta.payload.forked_from_id`, and Grok `summary.json`
+`parent_session_id`, and groups conversations by the oldest source it can follow. A family whose
+original is gone (or never indexed) still groups, by the missing original's ID. There is no
+heuristic grouping by identical opening messages, because all three providers name the source; a
+fork that does not name it stays a separate row. A conversation in a different folder is never
+merged by content.
+
 ## Acting on a result
 
 | Row          | Enter or click                                                               |

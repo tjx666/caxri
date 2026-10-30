@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { SessionSearchEntry } from '@caxri/protocol';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import type { LucideIcon } from 'lucide-react';
-import { Archive, Check, CircleDot, Copy, Unlink } from 'lucide-react';
+import { Archive, Check, ChevronDown, ChevronRight, CircleDot, Copy, Unlink } from 'lucide-react';
 
 import {
     COPY_FEEDBACK_RESET_MS,
@@ -19,7 +19,7 @@ import { textClipboard } from '../../../lib/clipboard';
 import { cn } from '../../../lib/utilities';
 import { sessionTitleForDisplay } from '../session-title';
 import { runSessionSearchAction } from './session-search-commands';
-import type { SessionSearchAction } from './session-search-model';
+import type { SessionSearchAction, SessionSearchRow } from './session-search-model';
 import { sessionSearchAction, shortFolder, snippetSegments } from './session-search-model';
 
 const actionLabelKeys = {
@@ -110,6 +110,11 @@ function StatusLabel({ status }: { status: SessionSearchEntry['status'] }) {
     );
 }
 
+function BranchChevron({ isExpanded }: { isExpanded: boolean }) {
+    const Icon = isExpanded ? ChevronDown : ChevronRight;
+    return <Icon aria-hidden="true" className="text-muted" size={14} />;
+}
+
 function CopyIdButton({ id }: { id: string }) {
     const { t } = useTranslation();
     const [isCopied, setCopied] = useState(false);
@@ -139,14 +144,14 @@ function CopyIdButton({ id }: { id: string }) {
  * selected or hovered row reveals its action and Copy ID, so a dense list stays quiet until the user points at a row.
  */
 export function SessionSearchResults({
-    entries,
+    rows,
     id,
     query,
     rowId,
     selectedIndex,
     onSelect,
 }: {
-    entries: readonly SessionSearchEntry[];
+    rows: readonly SessionSearchRow[];
     id: string;
     /**
      * The query the entries answer, handed to find in the Chat a row opens.
@@ -158,16 +163,16 @@ export function SessionSearchResults({
 }) {
     const { t } = useTranslation();
     const times = useRelativeTimes(
-        entries.map((entry) => entry.updatedAt),
+        rows.map(({ entry }) => entry.updatedAt),
         'narrow',
     );
     const scrollReference = useRef<HTMLDivElement>(null);
     // TanStack Virtual is knowingly incompatible with React Compiler memoization; the compiler skips this component.
     // eslint-disable-next-line react-hooks/incompatible-library -- documented, expected behavior
     const virtualizer = useVirtualizer({
-        count: entries.length,
+        count: rows.length,
         estimateSize: () => ESTIMATED_ROW_HEIGHT,
-        getItemKey: (index) => entries[index].key,
+        getItemKey: (index) => rows[index].key,
         getScrollElement: () => scrollReference.current,
         overscan: 8,
         paddingStart: LIST_PADDING,
@@ -188,7 +193,8 @@ export function SessionSearchResults({
             <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
                 {virtualizer.getVirtualItems().map((item) => {
                     const index = item.index;
-                    const entry = entries[index];
+                    const row = rows[index];
+                    const { entry } = row;
                     const action = sessionSearchAction(entry);
                     const isSelected = index === selectedIndex;
                     const copyableId = entry.agentSessionId ?? entry.sessionId;
@@ -198,11 +204,18 @@ export function SessionSearchResults({
                             ref={virtualizer.measureElement}
                             aria-posinset={index + 1}
                             aria-selected={isSelected}
-                            aria-setsize={entries.length}
+                            aria-setsize={rows.length}
                             data-index={index}
                             style={{ transform: `translateY(${item.start}px)` }}
-                            className="group absolute top-0 left-0 grid w-full cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] gap-x-2.5 px-3 py-2 hover:bg-list-hover-background aria-selected:bg-list-active-selection-background aria-selected:text-list-active-selection-foreground"
-                            data-session-search-key={entry.key}
+                            className={cn(
+                                'group absolute top-0 left-0 grid w-full cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] gap-x-2.5 py-2 pr-3 hover:bg-list-hover-background aria-selected:bg-list-active-selection-background aria-selected:text-list-active-selection-foreground',
+                                row.parentKey === undefined ? 'pl-3' : 'pl-9',
+                            )}
+                            data-session-search-branch={
+                                row.parentKey === undefined ? undefined : ''
+                            }
+                            data-session-search-expanded={row.group?.isExpanded}
+                            data-session-search-key={row.key}
                             data-session-search-status={entry.status}
                             id={rowId(index)}
                             role="option"
@@ -215,7 +228,14 @@ export function SessionSearchResults({
                             }}
                         >
                             <span className="pt-0.5">
-                                <AgentIdentityIcon identity={entry.provider ?? 'shell'} size={14} />
+                                {row.group ? (
+                                    <BranchChevron isExpanded={row.group.isExpanded} />
+                                ) : (
+                                    <AgentIdentityIcon
+                                        identity={entry.provider ?? 'shell'}
+                                        size={14}
+                                    />
+                                )}
                             </span>
                             <span className="grid min-w-0 gap-0.5">
                                 <span className="flex min-w-0 items-center gap-2">
@@ -223,15 +243,37 @@ export function SessionSearchResults({
                                         {entryTitle(entry, t)}
                                     </span>
                                     <StatusLabel status={entry.status} />
+                                    {row.group && (
+                                        <span className="flex-none text-[11px] text-muted">
+                                            {t(
+                                                row.group.otherBranches === 1
+                                                    ? 'session.search.branchesOne'
+                                                    : 'session.search.branchesOther',
+                                                { count: row.group.otherBranches },
+                                            )}
+                                        </span>
+                                    )}
                                 </span>
-                                <MatchLine entry={entry} />
+                                {row.parentKey === undefined && <MatchLine entry={entry} />}
                                 <span className="flex min-w-0 items-center gap-1.5 text-[11px] text-muted">
-                                    {entry.cwd && (
+                                    {entry.cwd && row.parentKey === undefined && (
                                         <span className="truncate">
                                             {isSelected ? entry.cwd : shortFolder(entry.cwd)}
                                         </span>
                                     )}
-                                    {entry.match.messageCount !== undefined &&
+                                    {row.parentKey !== undefined &&
+                                        entry.totalMessages !== undefined && (
+                                            <span className="flex-none">
+                                                {t(
+                                                    entry.totalMessages === 1
+                                                        ? 'session.search.branchMessagesOne'
+                                                        : 'session.search.branchMessagesOther',
+                                                    { count: entry.totalMessages },
+                                                )}
+                                            </span>
+                                        )}
+                                    {row.parentKey === undefined &&
+                                        entry.match.messageCount !== undefined &&
                                         entry.match.messageCount > 1 && (
                                             <span className="flex-none">
                                                 ·{' '}

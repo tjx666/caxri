@@ -396,6 +396,7 @@ export class SessionSearchIndexer {
             state: parsed.isHosted ? 'hosted' : 'conversation',
             cwd: parsed.cwd,
             ...(parsed.title !== undefined && { title: parsed.title }),
+            ...(parsed.forkedFromId !== undefined && { forkedFromId: parsed.forkedFromId }),
         };
         /**
          * Another application's SDK runs would otherwise fill the index with conversations nobody can open, so a hosted

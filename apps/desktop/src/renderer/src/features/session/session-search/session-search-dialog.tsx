@@ -54,7 +54,7 @@ function SessionSearchBody() {
     const rowIdPrefix = useId();
     const resultsId = useId();
     const rowId = (index: number) => `${rowIdPrefix}-${index}`;
-    const { entries, selected, selectedIndex, setSelectedIndex } = search;
+    const { rows, selected, selectedIndex, setSelectedIndex } = search;
     const preview = useSessionSearchPreview(selected, search.searchedQuery);
 
     const onKeyDown = (event: KeyboardEvent<HTMLInputElement>): void => {
@@ -66,12 +66,16 @@ function SessionSearchBody() {
                 return;
             }
             setSelectedIndex(
-                nextSelectionIndex(
-                    entries.length,
-                    selectedIndex,
-                    event.key === 'ArrowDown' ? 1 : -1,
-                ),
+                nextSelectionIndex(rows.length, selectedIndex, event.key === 'ArrowDown' ? 1 : -1),
             );
+            return;
+        }
+        if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
+            // The arrows keep editing the query unless the caret sits at its end, where nothing is left to move over.
+            const { selectionEnd, selectionStart, value } = event.currentTarget;
+            if (selectionStart !== value.length || selectionEnd !== value.length) return;
+            if (search.toggleBranches(event.key === 'ArrowRight' ? 'expand' : 'collapse'))
+                event.preventDefault();
             return;
         }
         if (event.key === 'Tab') {
@@ -122,7 +126,7 @@ function SessionSearchBody() {
                         aria-label={t('session.search.title')}
                         aria-autocomplete="list"
                         aria-controls={resultsId}
-                        aria-expanded={entries.length > 0}
+                        aria-expanded={rows.length > 0}
                         aria-activedescendant={selected ? rowId(selectedIndex) : undefined}
                         maxLength={200}
                         placeholder={t('session.search.placeholder')}
@@ -155,6 +159,9 @@ function SessionSearchBody() {
                 <span>{t('session.search.helpMatch')}</span>
                 <span>{t('session.search.helpFilter')}</span>
                 <span>{t('session.search.helpSort')}</span>
+                {search.entries.some((entry) => entry.branches) && (
+                    <span>{t('session.search.helpBranches')}</span>
+                )}
                 {search.result && (
                     <span
                         className="ml-auto truncate"
@@ -239,7 +246,7 @@ function SessionSearchContent({
                 </div>
             )}
             <SessionSearchResults
-                entries={search.entries}
+                rows={search.rows}
                 query={search.searchedQuery}
                 id={resultsId}
                 rowId={rowId}

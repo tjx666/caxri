@@ -7,7 +7,7 @@ import Database from 'better-sqlite3';
  * Bumped whenever the schema or what is extracted from a transcript changes. The index is derived data, so a mismatch
  * drops the file and rebuilds it from the providers' transcripts instead of migrating.
  */
-const INDEX_VERSION = 5;
+const INDEX_VERSION = 6;
 
 const SCHEMA = `
 CREATE TABLE transcripts (
@@ -27,6 +27,7 @@ CREATE TABLE transcripts (
     state TEXT NOT NULL,
     cwd TEXT,
     title TEXT,
+    forked_from_id TEXT,
     indexed_chars INTEGER NOT NULL
 );
 CREATE INDEX transcripts_conversation ON transcripts(provider, agent_session_id);
@@ -82,6 +83,10 @@ export interface StoredTranscript {
     state: IndexedTranscriptState;
     cwd?: string;
     title?: string;
+    /**
+     * The provider conversation ID this transcript's conversation was forked from, when its metadata names one.
+     */
+    forkedFromId?: string;
     indexedChars: number;
 }
 
@@ -119,6 +124,7 @@ interface TranscriptRow {
     state: string;
     cwd: string | null;
     title: string | null;
+    forked_from_id: string | null;
     indexed_chars: number;
 }
 
@@ -140,6 +146,7 @@ function fromRow(row: TranscriptRow): StoredTranscript {
         state: row.state as IndexedTranscriptState,
         ...(row.cwd !== null && { cwd: row.cwd }),
         ...(row.title !== null && { title: row.title }),
+        ...(row.forked_from_id !== null && { forkedFromId: row.forked_from_id }),
         indexedChars: row.indexed_chars,
     };
 }
@@ -161,6 +168,7 @@ function toParameters(transcript: TranscriptUpsert) {
         state: transcript.state,
         cwd: transcript.cwd ?? null,
         title: transcript.title ?? null,
+        forkedFromId: transcript.forkedFromId ?? null,
         indexedChars: transcript.indexedChars,
     };
 }
@@ -291,10 +299,10 @@ export class SessionSearchStore {
             .prepare(
                 `INSERT INTO transcripts (
                     path, provider, agent_session_id, anchor_root, base_root, root, is_continuation, inode, size,
-                    mtime_ms, scan_offset, skipping_line, state, cwd, title, indexed_chars
+                    mtime_ms, scan_offset, skipping_line, state, cwd, title, forked_from_id, indexed_chars
                 ) VALUES (
                     @path, @provider, @agentSessionId, @anchorRoot, @baseRoot, @root, @isContinuation, @inode, @size,
-                    @mtimeMs, @scanOffset, @skippingLine, @state, @cwd, @title, @indexedChars
+                    @mtimeMs, @scanOffset, @skippingLine, @state, @cwd, @title, @forkedFromId, @indexedChars
                 )
                 ON CONFLICT(path) DO UPDATE SET
                     provider = excluded.provider,
@@ -311,6 +319,7 @@ export class SessionSearchStore {
                     state = excluded.state,
                     cwd = excluded.cwd,
                     title = excluded.title,
+                    forked_from_id = excluded.forked_from_id,
                     indexed_chars = excluded.indexed_chars
                 RETURNING id`,
             )
@@ -408,6 +417,19 @@ export class SessionSearchStore {
                 WHERE messages_fts MATCH ? AND f.rowid = CAST(? AS INTEGER)`,
             )
             .get(ftsQuery, messageId) as { role: string; snippet: string } | undefined;
+    }
+
+    /**
+     * How many messages are indexed for a conversation, continuation files included.
+     */
+    conversationMessageCount(provider: AgentProvider, agentSessionId: string): number {
+        const row = this.database
+            .prepare(
+                `SELECT COUNT(*) AS count FROM messages m JOIN transcripts t ON t.id = m.transcript
+                WHERE t.provider = ? AND t.agent_session_id = ? AND t.state IN ${SEARCHABLE_STATES}`,
+            )
+            .get(provider, agentSessionId) as { count: number };
+        return row.count;
     }
 
     /**

@@ -13,6 +13,7 @@ import type { ContentHit, Conversation } from './conversations';
 import {
     compareHits,
     foldContentHit,
+    forkRoots,
     groupConversations,
     isWithinRoot,
     recencyBoost,
@@ -94,6 +95,15 @@ export interface IndexedConversationHit {
      * The conversation ran inside the request's `preferredRoot`.
      */
     isCurrentProject?: boolean;
+    /**
+     * Key of the fork tree this conversation belongs to, set only when the index holds a fork relation involving it:
+     * hits sharing the value are branches of one conversation.
+     */
+    forkGroup?: string;
+    /**
+     * Messages indexed for the conversation; set with `forkGroup`, so a branch list can show how far each one went.
+     */
+    totalMessages?: number;
     /**
      * Orders hits that matched on the same field and phrase; higher is better.
      */
@@ -409,6 +419,22 @@ export class SessionSearchEngine {
         const restricted = request.restrict ? new Set(request.restrict.keys) : undefined;
         const isAllowed = (conversation: Conversation) =>
             this.isAllowed(request, held, restricted, conversation);
+        const roots = forkRoots(conversations);
+        const treeSizes = new Map<string, number>();
+        for (const root of roots.values()) treeSizes.set(root, (treeSizes.get(root) ?? 0) + 1);
+        const withFork = (hit: IndexedConversationHit): IndexedConversationHit => {
+            const root = roots.get(hit.key);
+            // Sibling forks of a deleted original share its key as their root, so a root need not be an indexed one.
+            if (root === undefined || (treeSizes.get(root) ?? 0) < 2) return hit;
+            return {
+                ...hit,
+                forkGroup: root,
+                totalMessages: this.store.conversationMessageCount(
+                    hit.provider,
+                    hit.agentSessionId,
+                ),
+            };
+        };
         const finish = (hits: IndexedConversationHit[]) =>
             hits
                 .map((hit) =>
@@ -417,7 +443,8 @@ export class SessionSearchEngine {
                         : hit,
                 )
                 .toSorted(compareHits)
-                .slice(0, request.limit);
+                .slice(0, request.limit)
+                .map((hit) => withFork(hit));
         const parsed = parseSessionQuery(request.query);
         const status = this.status();
         if (parsed.terms.length === 0) {
