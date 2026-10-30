@@ -252,7 +252,7 @@ describe('AgentChatService with a fake Codex app-server', () => {
     });
 
     it('resumes the bound thread with its history after the process stops', async () => {
-        const { service, terminal, spawnProcess, until } = await fixture();
+        const { logWrite, service, terminal, spawnProcess, until } = await fixture();
         await service.send(terminal.id, { text: 'remember me' });
         await until((snapshot) => snapshot.turns.at(-1)?.status === 'completed');
         await service.restart(terminal.id);
@@ -261,6 +261,10 @@ describe('AgentChatService with a fake Codex app-server', () => {
         expect(resumed.items.find((item) => item.type === 'userMessage')).toMatchObject({
             text: 'remember me',
         });
+        // The history is paged: resuming it whole would make Codex push a deprecation notice into the Chat.
+        expect(
+            logWrite.mock.calls.filter(([, event]) => event === 'agent_chat.provider_notice'),
+        ).toEqual([]);
         expect(spawnProcess).toHaveBeenCalledTimes(2);
     });
 

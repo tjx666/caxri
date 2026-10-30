@@ -31,13 +31,14 @@ export function wireTurn(turn: FakeTurn): Json {
 /**
  * The thread, model, effort, and service tier `thread/start` and `thread/resume` answer with.
  */
-export function threadResponse(thread: FakeThread): Json {
+export function threadResponse(thread: FakeThread, { excludeTurns = false } = {}): Json {
     return {
         thread: {
             id: thread.id,
             status: { type: 'idle' },
             cwd: process.cwd(),
-            turns: thread.turns.map((turn) => wireTurn(turn)),
+            historyMode: 'paginated',
+            turns: excludeTurns ? [] : thread.turns.map((turn) => wireTurn(turn)),
         },
         model: thread.model ?? DEFAULT_MODEL_ID,
         reasoningEffort: thread.effort ?? null,
@@ -56,12 +57,28 @@ export function threadResponse(thread: FakeThread): Json {
 }
 
 /**
- * The newest turns first, with their items, as `thread/turns/list` returns them.
+ * A page of turns with their items, as `thread/turns/list` returns them: newest first unless `sortDirection` is `asc`.
+ * The cursor is the offset of the next page.
  */
 export function listThreadTurns(thread: FakeThread, parameters: Json): Json {
-    const turns = thread.turns.toReversed().slice(0, pageLimit(parameters));
-    return { data: turns.map((turn) => wireTurn(turn)), nextCursor: null, backwardsCursor: null };
+    const ordered = parameters.sortDirection === 'asc' ? thread.turns : thread.turns.toReversed();
+    const start = typeof parameters.cursor === 'string' ? Number(parameters.cursor) : 0;
+    const end = start + pageLimit(parameters);
+    return {
+        data: ordered.slice(start, end).map((turn) => wireTurn(turn)),
+        nextCursor: end < ordered.length ? String(end) : null,
+        backwardsCursor: null,
+    };
 }
+
+/**
+ * What Codex pushes when a client asks for a paginated thread's full history.
+ */
+export const FULL_HISTORY_DEPRECATION = {
+    summary:
+        'Full-history hydration is deprecated for paginated threads; use `excludeTurns: true`, then page with `thread/turns/list` and `thread/items/list`.',
+    details: null,
+};
 
 /**
  * The newest items first, each with when it started, as `thread/items/list` returns them.

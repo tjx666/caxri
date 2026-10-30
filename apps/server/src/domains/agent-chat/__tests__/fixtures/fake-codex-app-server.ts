@@ -16,13 +16,14 @@
  *
  * With `FAKE_CODEX_SCRIPT`, a message equal to a scripted turn's prompt plays that turn (`fake-codex-script.ts`).
  *
- * Threads persist to `FAKE_CODEX_STATE_DIR` (or the OS temp directory) so `thread/resume` returns real history. Each
- * thread open also appends its method, sandbox, and approval policy to `thread-opens.jsonl` there, so tests can assert
- * the configuration Caxri asked for (`fake-codex-threads.ts`). A `<threadId>.writer-held` file there makes resuming
- * that thread fail as Codex does when another client still holds the thread's writer, a `resume-delay-ms` file delays
- * every `thread/resume` answer by that many milliseconds, and an `unsubscribe-fails` file makes `thread/unsubscribe`
- * answer with an error. `config/read` reports `readFakeConfig`'s workspace-write table. An ephemeral `thread/fork`
- * opens a side thread that answers one `turn/start` (`fake-codex-side.ts`). `review/start` runs an inline review turn
+ * Threads persist to `FAKE_CODEX_STATE_DIR` (or the OS temp directory) so `thread/resume` returns real history. They
+ * report paginated history, so resuming or forking one with its turns pushes Codex's `deprecationNotice`. Each thread
+ * open also appends its method, sandbox, and approval policy to `thread-opens.jsonl` there, so tests can assert the
+ * configuration Caxri asked for (`fake-codex-threads.ts`). A `<threadId>.writer-held` file there makes resuming that
+ * thread fail as Codex does when another client still holds the thread's writer, a `resume-delay-ms` file delays every
+ * `thread/resume` answer by that many milliseconds, and an `unsubscribe-fails` file makes `thread/unsubscribe` answer
+ * with an error. `config/read` reports `readFakeConfig`'s workspace-write table. An ephemeral `thread/fork` opens a
+ * side thread that answers one `turn/start` (`fake-codex-side.ts`). `review/start` runs an inline review turn
  * (`fake-codex-review.ts`). `thread/goal/*` keeps a thread goal that starts its own turns while active
  * (`fake-codex-goals.ts`). With `FAKE_CODEX_SESSIONS_DIR`, threads get UUIDv7 ids and each user message is also
  * appended to a rollout there, as the real CLI writes it.
@@ -34,6 +35,7 @@ import readline from 'node:readline';
 import { didHandleAccountRequest } from './fake-codex-account.ts';
 import { didHandleGoalRequest } from './fake-codex-goals.ts';
 import {
+    FULL_HISTORY_DEPRECATION,
     listThreadItems,
     listThreadTurns,
     threadResponse,
@@ -292,9 +294,14 @@ function handle(message: RpcMessage) {
                 send({ id, error: resumed.error });
                 return;
             }
+            const isExcludeTurns = parameters.excludeTurns === true;
             const reply = () => {
                 state.thread = resumed.thread;
-                send({ id, result: threadResponse(currentThread()) });
+                if (!isExcludeTurns) notify('deprecationNotice', FULL_HISTORY_DEPRECATION);
+                send({
+                    id,
+                    result: threadResponse(currentThread(), { excludeTurns: isExcludeTurns }),
+                });
             };
             const wait = resumeDelayMs();
             if (wait > 0) setTimeout(reply, wait);
@@ -313,6 +320,8 @@ function handle(message: RpcMessage) {
             return;
         }
         case 'thread/fork': {
+            if (parameters.excludeTurns !== true)
+                notify('deprecationNotice', FULL_HISTORY_DEPRECATION);
             send({
                 id,
                 ...forkThread(currentThread(), parameters.beforeTurnId, {

@@ -58,7 +58,10 @@ export async function forkCodexThread(
     try {
         forked = await connection.request(
             'thread/fork',
-            target ? { threadId, beforeTurnId: target.turnId } : { threadId },
+            // The fork's turns go unused, and a paginated thread forked with them gets a `deprecationNotice`.
+            target
+                ? { threadId, beforeTurnId: target.turnId, excludeTurns: true }
+                : { threadId, excludeTurns: true },
             REVERT_REQUEST_TIMEOUT_MS,
         );
     } catch (error) {
