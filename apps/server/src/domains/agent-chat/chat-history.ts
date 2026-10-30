@@ -5,7 +5,7 @@ import { chatHistoryPageStart, chatHistoryTurns } from './chat-history-archive';
 import { readChatTranscript, requireChatTerminal } from './chat-launch';
 import type { ChatProjection } from './chat-projection';
 import type { ChatStates } from './chat-states';
-import { claudeHistoryItems } from './claude-history';
+import { claudeHistoryItems } from './history/claude-history';
 import type { AgentChatServiceOptions } from './service-options';
 
 /**

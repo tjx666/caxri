@@ -35,7 +35,6 @@ import type {
 import { AgentChatStartError } from './chat-provider';
 import { claudeResponseUsage } from './claude-context';
 import { ClaudeContextTracker } from './claude-context-report';
-import { claudeHistoryOperations, claudeTaskHistoryOperations } from './claude-history';
 import {
     CLAUDE_USAGE_LIMIT_CONTINUE_PROMPT,
     ClaudeCommandList,
@@ -69,6 +68,7 @@ import { ClaudeTasks } from './claude-tasks';
 import { applyClaudeToolResults, ClaudeToolClock } from './claude-tool-results';
 import { ClaudeTurns } from './claude-turns';
 import { isClaudeGoalClearDuringTurn } from './goals/claude-goals';
+import { claudeHistoryOperations, claudeTaskHistoryOperations } from './history/claude-history';
 import { didClaudeInterruptTimeout, stopClaudeTurn } from './interrupt/claude-interrupt';
 import type { ClaudeChatSettings } from './launch-settings';
 import { claudeChatSettings } from './launch-settings';

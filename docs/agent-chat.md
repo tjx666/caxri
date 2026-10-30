@@ -364,6 +364,11 @@ pending permission prompts and questions until the user answers:
 - Usage is the latest model request's input plus cache plus output tokens; the context window
   comes from the result's per-model usage. See [Context usage and cache](#context-usage-and-cache)
   for the breakdown, compaction window, and cache lifetime.
+- A replayed turn's duration comes from the transcript's `turn_duration` record when present. Claude
+  Code writes that record only in its interactive CLI, never for an SDK-driven Chat, so otherwise
+  `history/claude-turn-clock.ts` sums the span from the turn's prompt to its last main-thread
+  record. An `enqueue` queue operation or a background task notification opens a new span, so the
+  idle wait before a wake-up does not count.
 
 ## Grok Build mapping
 
@@ -1610,8 +1615,8 @@ error` warning drop it.
   `met: false` (written when the goal is set and after each check that found it unmet) or a
   `Goal set:` reply keeps the goal active, while `met: true`, `failed: true`, `Goal cleared:`, and
   the error warning drop it. A goal still active at the end comes back as the snapshot's `goal`
-  without Pause, its `timeUsedSeconds` summing the `turn_duration` of the turns opened after it was
-  set (0 when the transcript recorded none).
+  without Pause, its `timeUsedSeconds` summing the replayed durations of the turns opened after it was
+  set.
 
 ## Side chat
 
