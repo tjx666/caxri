@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { describeSessionHomeEmptyState } from '../session-home-empty-state';
+import {
+    describeSessionHomeEmptyState,
+    isAwaitingFirstLoad,
+    SESSION_LOAD_STALL_MS,
+} from '../session-home-empty-state';
 
 describe('Session home empty state', () => {
     it('keeps the loaded Project empty state actionable', () => {
@@ -44,5 +48,31 @@ describe('Session home empty state', () => {
             showSpinner: true,
             testID: 'session-list-loading',
         });
+    });
+});
+
+describe('Session home stalled first load', () => {
+    it('only waits on a down or dialing connection with nothing loaded', () => {
+        expect(isAwaitingFirstLoad('stale', false)).toBe(true);
+        expect(isAwaitingFirstLoad('connecting', false)).toBe(true);
+        expect(isAwaitingFirstLoad('connected', false)).toBe(false);
+        expect(isAwaitingFirstLoad('stale', true)).toBe(false);
+    });
+
+    it('replaces the endless spinner with an unreachable screen and a reconnect action', () => {
+        const input = {
+            activeProjectId: null,
+            error: null,
+            hasLoaded: false,
+            status: 'stale' as const,
+        };
+        expect(describeSessionHomeEmptyState(input)).toMatchObject({ showSpinner: true });
+        expect(describeSessionHomeEmptyState({ ...input, isStalled: true })).toMatchObject({
+            action: 'reconnect',
+            showSpinner: false,
+            testID: 'session-list-unreachable',
+            title: "Can't reach your computer",
+        });
+        expect(SESSION_LOAD_STALL_MS).toBe(8000);
     });
 });

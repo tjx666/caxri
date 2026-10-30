@@ -55,7 +55,7 @@ export const NoticeBanner = ({
     tone: 'danger' | 'muted' | 'warning';
 }) => (
     <View
-        accessibilityRole="alert"
+        accessibilityRole={tone === 'muted' ? undefined : 'alert'}
         style={[styles.banner, { borderColor: theme.border }]}
         testID={testID}
     >

@@ -1,5 +1,7 @@
 import { View } from 'react-native';
 
+import { useRouter } from 'expo-router';
+
 import { NoticeBanner } from '../../../components/notice-banner';
 import { useTranslation } from '../../../i18n';
 import type { MobileTheme } from '../../../theme/tokens';
@@ -7,7 +9,7 @@ import { useMobileClient } from '../../connection/mobile-client-provider';
 import type { MobileUpdateNotice } from '../../update/use-mobile-update-notice';
 import { allMobileSessions } from '../hooks/use-session-polling';
 import type { selectHomeNotice } from '../session-notices';
-import { connectionNoticeMessage } from '../session-notices';
+import { connectionBannerModel, connectionNoticeMessage } from '../session-notices';
 import { useHostSessions } from './host-sessions-provider';
 
 /**
@@ -60,10 +62,22 @@ export const ConnectionBanner = ({
 }) => {
     const { t } = useTranslation();
     const { relayFailure } = useMobileClient();
+    const { hostId } = useHostSessions();
+    const router = useRouter();
+    const model = connectionBannerModel(status, relayFailure);
+    const actionLabels = {
+        reconnect: t('sessions.banner.reconnectNow'),
+        retry: t('common.retry'),
+        settings: t('sessions.banner.openSettings'),
+    };
+    const openSettings = (): void => {
+        router.navigate(`/h/${encodeURIComponent(hostId)}/settings`);
+    };
+    const onAction = model.action === 'settings' ? openSettings : onRetry;
     const isSavedCopyShown = status === 'stale' && isListVisible && saved !== null;
     const banner = (
         <NoticeBanner
-            actionLabel={status === 'unverified' ? t('common.retry') : undefined}
+            actionLabel={actionLabels[model.action]}
             actionTestID="connection-retry-button"
             message={connectionNoticeMessage(
                 status,
@@ -71,10 +85,10 @@ export const ConnectionBanner = ({
                 t,
                 relayFailure,
             )}
-            onAction={onRetry}
+            onAction={onAction}
             testID="connection-stale-banner"
             theme={theme}
-            tone={status === 'unverified' ? 'warning' : 'muted'}
+            tone={model.tone}
         />
     );
     // The saved copy is a fact this message now carries; the wrapper keeps its own id for the Android scenarios.

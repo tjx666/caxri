@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+    connectionBannerModel,
     connectionNoticeMessage,
     isConnectionBannerShown,
     isSessionListErrorShown,
@@ -130,5 +131,27 @@ describe('selectHomeNotice', () => {
         expect(selectHomeNotice({ ...none, connection: 'stale', isListVisible: false })).toBe(
             'connection-stale',
         );
+    });
+});
+
+describe('connection banner model', () => {
+    it('offers an immediate reconnect on a stale connection and warns on actionable Relay failures', () => {
+        expect(connectionBannerModel('stale')).toEqual({ action: 'reconnect', tone: 'muted' });
+        expect(connectionBannerModel('stale', 'busy')).toEqual({
+            action: 'reconnect',
+            tone: 'muted',
+        });
+        expect(connectionBannerModel('stale', 'host-offline')).toEqual({
+            action: 'reconnect',
+            tone: 'warning',
+        });
+        expect(connectionBannerModel('stale', 'unauthorized')).toEqual({
+            action: 'settings',
+            tone: 'warning',
+        });
+        expect(connectionBannerModel('unverified', 'unauthorized')).toEqual({
+            action: 'retry',
+            tone: 'warning',
+        });
     });
 });
