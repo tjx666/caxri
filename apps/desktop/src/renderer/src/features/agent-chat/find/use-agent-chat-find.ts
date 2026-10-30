@@ -45,6 +45,10 @@ const AGENT_CHAT_FIND_WINDOW_INTERVAL_MS = 80;
 interface FindResult {
     count: number;
     activeIndex: number;
+    /**
+     * A Session search handoff is still loading older pages to look for a match, so an empty count is not final.
+     */
+    isAutoLoading: boolean;
 }
 
 /**
@@ -80,15 +84,20 @@ function createFindSession(): FindSession {
         ranges: [],
         activeIndex: 0,
         pendingReveal: undefined,
-        result: { count: 0, activeIndex: 0 },
+        result: { count: 0, activeIndex: 0, isAutoLoading: false },
         listeners: new Set(),
         isAwaitingEarlier: false,
         isAutoLoadingEarlier: false,
     };
 }
 
-function publish(session: FindSession, result: FindResult): void {
-    if (result.count === session.result.count && result.activeIndex === session.result.activeIndex)
+function publish(session: FindSession, found: Omit<FindResult, 'isAutoLoading'>): void {
+    const result: FindResult = { ...found, isAutoLoading: session.isAutoLoadingEarlier };
+    if (
+        result.count === session.result.count &&
+        result.activeIndex === session.result.activeIndex &&
+        result.isAutoLoading === session.result.isAutoLoading
+    )
         return;
     session.result = result;
     // One throwing subscriber must not keep the find bar's other subscribers on a stale count; Desktop mirrors
@@ -104,6 +113,7 @@ function requestReveal(session: FindSession, reveal: 'start' | 'active'): void {
 
 function setAutoLoadingEarlier(session: FindSession, isAutoLoading: boolean): void {
     session.isAutoLoadingEarlier = isAutoLoading;
+    publish(session, session.result);
 }
 
 function setAwaitingEarlier(session: FindSession, isAwaiting: boolean): void {
@@ -428,6 +438,7 @@ export function useAgentChatFind({
             ? {
                   activeIndex: result.activeIndex,
                   count: result.count,
+                  isAutoLoading: result.isAutoLoading,
                   focusRevision,
                   query,
                   onClose: close,

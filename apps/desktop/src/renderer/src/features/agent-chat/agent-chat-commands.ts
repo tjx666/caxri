@@ -200,8 +200,8 @@ function setRestoring(key: string, isRestoring: boolean): void {
 /**
  * "Restore code to here": puts back the files the turns from message `itemId` onward changed and keeps the
  * conversation. It overwrites the user's own edits since, so it asks first in the same native dialog an edit that
- * reverts files uses; Cancel is the default. A success toast confirms it, since the transcript itself does not change.
- * While one runs for a message, a second request for it is ignored.
+ * reverts files uses; Return confirms the restore the user asked for and Escape cancels. A success toast confirms it,
+ * since the transcript itself does not change. While one runs for a message, a second request for it is ignored.
  */
 export async function restoreAgentChatFiles(
     terminalId: string,

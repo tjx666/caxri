@@ -16,6 +16,8 @@ export function AgentChatFindBar({
     activeIndex,
     count,
     focusRevision,
+    hasEarlierLoadFailed,
+    isAutoLoading,
     isLoadingEarlier,
     isPartial,
     query,
@@ -28,6 +30,14 @@ export function AgentChatFindBar({
     activeIndex: number;
     count: number;
     focusRevision: number;
+    /**
+     * The last page of older history failed to load, so an empty result may only be missing that page.
+     */
+    hasEarlierLoadFailed: boolean;
+    /**
+     * A Session search handoff is loading older pages on its own to look for a match.
+     */
+    isAutoLoading: boolean;
     isLoadingEarlier: boolean;
     /**
      * Older history exists that find has not searched, because it is not loaded or cannot be shown in Chat.
@@ -49,11 +59,17 @@ export function AgentChatFindBar({
         count,
         onSearchEarlier !== undefined,
     );
+    const isEmpty = query !== '' && count === 0;
+    const isSearching = isEmpty && (isLoadingEarlier || isAutoLoading);
+    const hasLoadFailed = isEmpty && hasEarlierLoadFailed && !isSearching && canSearchEarlier;
     return (
         <>
             <FindBar
                 ariaLabel={t('agentChat.find.label')}
-                countLabel={agentChatFindCountLabel(query, count, activeIndex, t, { isPartial })}
+                countLabel={agentChatFindCountLabel(query, count, activeIndex, t, {
+                    isPartial,
+                    isSearching,
+                })}
                 focusRevision={focusRevision}
                 hasMatches={count > 0}
                 inputLabel={t('agentChat.find.label')}
@@ -65,7 +81,22 @@ export function AgentChatFindBar({
                 onPrevious={onPrevious}
                 onQueryChange={onQueryChange}
             />
-            {canSearchEarlier && (
+            {hasLoadFailed && (
+                <p
+                    className="m-0 flex shrink-0 justify-end gap-1 px-2 pt-1 text-[12px] text-muted"
+                    role="status"
+                >
+                    {t('agentChat.find.loadFailed')}
+                    <button
+                        className="cursor-pointer border-0 bg-transparent p-0 text-foreground hover:underline focus-visible:outline focus-visible:outline-accent"
+                        type="button"
+                        onClick={() => onSearchEarlier?.()}
+                    >
+                        {t('common.retry')}
+                    </button>
+                </p>
+            )}
+            {canSearchEarlier && !hasLoadFailed && (
                 <div className="flex shrink-0 justify-end px-2 pt-1">
                     <Button
                         aria-disabled={isLoadingEarlier}

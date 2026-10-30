@@ -41,6 +41,43 @@ type ProcessExplorerError = { kind: 'sample' } | { kind: 'stop'; name: string };
 const processMessageClassName = 'process-message grid min-h-[120px] place-items-center text-muted';
 
 /**
+ * A non-modal line above the rows for a failure that leaves the last table readable: a sample that failed after at
+ * least one succeeded (the stale rows stay, Retry resamples), or a Terminal that could not be suspended (kept apart
+ * from sampling so the next successful poll does not wipe it).
+ */
+function ProcessErrorLine({
+    error,
+    isRefreshing,
+    onDismiss,
+    onRetry,
+}: {
+    error: ProcessExplorerError;
+    isRefreshing: boolean;
+    onDismiss: () => void;
+    onRetry: () => void;
+}) {
+    const { t } = useTranslation();
+    const isSample = error.kind === 'sample';
+    return (
+        <div className="process-error-line flex items-center gap-2 border-b border-border px-4 py-1.5 text-[12px] text-danger">
+            <p role="alert" className="min-w-0 flex-1 truncate">
+                {isSample
+                    ? t('processExplorer.error.sampleStale')
+                    : t('processExplorer.error.stop', { name: error.name })}
+            </p>
+            <Button
+                size="sm"
+                variant="secondary"
+                aria-disabled={isSample ? isRefreshing : undefined}
+                onClick={isSample ? onRetry : onDismiss}
+            >
+                {t(isSample ? 'common.retry' : 'common.dismiss')}
+            </Button>
+        </div>
+    );
+}
+
+/**
  * The one status line the list shows instead of rows: loading, a sampling failure with Retry, nothing sampled, or
  * nothing matching the filter or the shown categories.
  */
@@ -105,7 +142,8 @@ export function ProcessExplorerApp() {
      * Not persisted: every window opens showing everything, and hiding a category is a one-off investigation.
      */
     const [scopes, setScopes] = useState<ProcessScope[]>(() => [...PROCESS_SCOPES]);
-    const [error, setError] = useState<ProcessExplorerError>();
+    const [sampleFailed, setSampleFailed] = useState(false);
+    const [stopFailure, setStopFailure] = useState<string>();
     const [refreshing, setRefreshing] = useState(false);
     const refreshInFlight = useRef(false);
     const rowsReference = useRef<HTMLDivElement>(null);
@@ -123,14 +161,14 @@ export function ProcessExplorerApp() {
             try {
                 const nextSnapshot = await globalThis.processExplorer.snapshot();
                 setSnapshot(nextSnapshot);
-                setError(undefined);
+                setSampleFailed(false);
             } catch (error_: unknown) {
                 // The visible copy is deliberately plain, so this is the only place the cause survives. Main mirrors
                 // Renderer error-level console records into `desktop.jsonl` as an error class plus a stable digest
                 // (`console-error-fields.ts`), which is what separates a one-off sampling failure from a repeating one.
                 console.error('processExplorer.snapshot failed', error_);
-                setSnapshot(undefined);
-                setError({ kind: 'sample' });
+                // Keep the last snapshot: one failed sample must not blank a table the user is reading.
+                setSampleFailed(true);
             }
             // After the try/catch rather than in a `finally`, which React Compiler cannot lower; the catch never rethrows.
             refreshInFlight.current = false;
@@ -186,9 +224,10 @@ export function ProcessExplorerApp() {
                 await globalThis.processExplorer.stopTerminal(terminalId);
             } catch (error_: unknown) {
                 console.error('processExplorer.stopTerminal failed', error_);
-                setError({ kind: 'stop', name });
+                setStopFailure(name);
                 return;
             }
+            setStopFailure(undefined);
             refresh();
         }
         void runStop();
@@ -237,8 +276,28 @@ export function ProcessExplorerApp() {
                             role="presentation"
                             onFocusCapture={handleRowsFocus}
                         >
+                            {sampleFailed && snapshot !== undefined && (
+                                <ProcessErrorLine
+                                    error={{ kind: 'sample' }}
+                                    isRefreshing={refreshing}
+                                    onDismiss={() => setStopFailure(undefined)}
+                                    onRetry={refresh}
+                                />
+                            )}
+                            {stopFailure !== undefined && (
+                                <ProcessErrorLine
+                                    error={{ kind: 'stop', name: stopFailure }}
+                                    isRefreshing={refreshing}
+                                    onDismiss={() => setStopFailure(undefined)}
+                                    onRetry={refresh}
+                                />
+                            )}
                             <ProcessListMessage
-                                error={error}
+                                error={
+                                    sampleFailed && snapshot === undefined
+                                        ? { kind: 'sample' }
+                                        : undefined
+                                }
                                 filter={filter}
                                 hasProcesses={roots.length > 0}
                                 hasRows={rows.length > 0}
@@ -261,7 +320,7 @@ export function ProcessExplorerApp() {
                 </div>
                 <ProcessFooter
                     intervalSeconds={SAMPLE_INTERVAL_MS / 1_000}
-                    isLive={snapshot !== undefined && !error}
+                    isLive={snapshot !== undefined && !sampleFailed}
                     sampledAt={snapshot?.sampledAt}
                 />
             </main>

@@ -22,13 +22,13 @@ export const pairing: TranslatedNamespace<typeof source> = {
     'pairing.error.rejected':
         '配对被拒绝。配对码仅可使用一次，不能重复使用。请在电脑上打开 Caxri 的“设置 → 移动设备”，点击“生成配对码”后重试。',
     'pairing.error.unreachable':
-        '无法连接到 Caxri。请让电脑上的 Caxri 保持运行并开启移动设备访问，然后连接到同一网络；离开家时请使用 Tailscale 或中继服务器。',
+        '无法连接到 Caxri。请让电脑上的 Caxri 保持运行并开启移动设备访问，然后连接到同一网络；离开家时请使用 Tailscale 或中继。',
     'pairing.error.versionMismatch':
         '需要更新。此应用与电脑上的 Caxri 版本不一致，请将两者都更新到最新版本。',
     'pairing.error.hostOffline': '电脑上的 Caxri 当前离线。请先在电脑上打开 Caxri，然后重试。',
     'pairing.error.relayUnauthorized':
-        '中继服务器不接受这台手机。请在电脑上打开 Caxri 的“设置 → 移动设备”，点击“生成配对码”重新配对。',
-    'pairing.error.relayBusy': '中继服务器繁忙，请稍后再试。',
+        '中继不接受这台手机。请在电脑上打开 Caxri 的“设置 → 移动设备”，点击“生成配对码”重新配对。',
+    'pairing.error.relayBusy': '中继繁忙，请稍后再试。',
     'pairing.failedTitle': '配对失败',
     'pairing.footnote': '在电脑上打开“设置 → 移动设备”，并开启移动设备访问。',
     'pairing.inProgress': '正在配对…',

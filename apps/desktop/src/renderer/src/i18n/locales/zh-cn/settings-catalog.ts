@@ -105,10 +105,10 @@ export const settingsCatalog: TranslatedNamespace<typeof source> = {
     'settings.primarySidebar.translucent.inactive.themeLightSystemDark':
         '未生效：当前主题为浅色，而 macOS 使用深色外观。',
 
-    'settings.zen.fullScreen.title': '进入 Zen 模式时全屏',
+    'settings.zen.fullScreen.title': '进入禅模式时全屏',
     'settings.zen.fullScreen.description': '禅模式同时进入原生全屏。',
 
-    'settings.zen.restore.title': '启动时恢复 Zen 模式',
+    'settings.zen.restore.title': '启动时恢复禅模式',
     'settings.zen.restore.description': '退出时处于禅模式，下次启动仍进入禅模式。',
 
     'settings.statusBar.usage.limitWindows.title': '状态栏用量限额',

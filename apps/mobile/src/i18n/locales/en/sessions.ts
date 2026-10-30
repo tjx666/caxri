@@ -26,6 +26,8 @@ export const sessions = {
     'sessions.archived.restoreLabel': 'Restore {{title}}',
     'sessions.archived.truncated': 'Showing the {{shown}} most recent of {{total}}.',
     'sessions.backToSessions': 'Back to Sessions',
+    'sessions.banner.openSettings': 'Open Settings',
+    'sessions.banner.reconnectNow': 'Reconnect now',
     'sessions.banner.stale': 'Reconnecting… Showing the last known state. Replies are paused.',
     'sessions.banner.staleSaved': 'Reconnecting… Showing Sessions {{saved}}. Replies are paused.',
     'sessions.banner.unverified':
@@ -68,12 +70,12 @@ export const sessions = {
     'sessions.composer.submitForbidden':
         'This device no longer has access to this Agent. Your message was kept.',
     'sessions.composer.submitNotFound':
-        'The Agent target changed. Refresh the Session before sending again.',
+        'The Agent target changed. Reopen the Session before sending again.',
     'sessions.composer.submitUnavailable': 'The Agent is unavailable. Your message was kept.',
     'sessions.composer.suggestionsUnavailable':
         'Suggestions are unavailable. You can still type the command or path.',
     'sessions.composer.targetUnavailable':
-        'The current Agent target is unavailable. Refresh the Session.',
+        'The current Agent target is unavailable. Reopen the Session.',
     'sessions.composer.tooLong': 'Messages can be at most {{size}}.',
     'sessions.composer.viewOnly': 'This device can only view Sessions.',
     'sessions.detail.backHint': 'Returns to the Session list.',
@@ -104,6 +106,9 @@ export const sessions = {
     'sessions.home.errorBody': 'Check the connection to your computer, then try again.',
     'sessions.home.errorTitle': 'Unable to load Sessions',
     'sessions.home.listError': '{{error}} Showing the last known state.',
+    'sessions.home.unreachableBody':
+        'Open Caxri on your computer and check it is online, then reconnect.',
+    'sessions.home.unreachableTitle': "Can't reach your computer",
     'sessions.home.loading': 'Loading Sessions…',
     'sessions.home.needsYou': 'Needs you',
     'sessions.home.computerStatus': 'Computer status',

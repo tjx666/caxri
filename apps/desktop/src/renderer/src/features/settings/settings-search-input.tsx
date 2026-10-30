@@ -2,14 +2,10 @@ import type { Ref } from 'react';
 
 import { Search, X } from 'lucide-react';
 
+import { Button } from '../../components/ui/button';
 import { Input, InputGroup } from '../../components/ui/input';
 import { Tooltip } from '../../components/ui/tooltip';
-
-/**
- * Clear-search affordance shared with `ProjectSearch`'s `searchOptionClassName`.
- */
-const clearSearchButtonClassName =
-    'grid size-6 shrink-0 place-items-center rounded border-0 bg-transparent p-0 text-muted cursor-pointer hover:bg-elevated hover:text-foreground';
+import { isImeComposing } from '../../lib/ime';
 
 interface SettingsSearchInputProperties {
     inputRef: Ref<HTMLInputElement>;
@@ -44,17 +40,25 @@ export function SettingsSearchInput({
                 size="dense"
                 value={value}
                 onChange={(event) => onChange(event.target.value)}
+                onKeyDown={(event) => {
+                    if (!value || event.key !== 'Escape' || isImeComposing(event)) return;
+                    // Clear first; with an empty field Escape keeps its usual meaning (closing the surface).
+                    event.preventDefault();
+                    event.stopPropagation();
+                    onChange('');
+                }}
             />
             {value && (
                 <Tooltip content={clearTooltip}>
-                    <button
-                        type="button"
-                        className={clearSearchButtonClassName}
+                    <Button
                         aria-label={clearLabel}
+                        className="shrink-0 text-muted hover:text-foreground"
+                        size="icon"
+                        variant="ghost"
                         onClick={() => onChange('')}
                     >
                         <X size={13} />
-                    </button>
+                    </Button>
                 </Tooltip>
             )}
         </InputGroup>

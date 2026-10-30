@@ -5,13 +5,21 @@ import type { SuggestionKeyHint, SuggestionOption } from '../../../lib/suggestio
 import type { SessionReferenceCandidate } from '../../session/session-reference';
 import { isAgentChatGoalAction } from './agent-chat-slash-commands';
 
-export function agentChatActionSuggestion(action: AgentAction): SuggestionOption {
+/**
+ * A command row. A Caxri-run row ends its description with a `Caxri` tag, so it reads apart from the provider's own
+ * commands; a row that cannot run now (`unavailableReason`) shows that reason in place of its description.
+ */
+export function agentChatActionSuggestion(
+    action: AgentAction,
+    { isCaxri = false, unavailableReason }: { isCaxri?: boolean; unavailableReason?: string } = {},
+): SuggestionOption {
+    const description = unavailableReason ?? action.description;
     return {
         key: action.invocation,
         label: action.invocation,
         isLabelLiteral: true,
         ...(action.argumentHint && { hint: action.argumentHint }),
-        ...(action.description && { description: action.description }),
+        ...(description && { description: isCaxri ? `${description} · Caxri` : description }),
     };
 }
 

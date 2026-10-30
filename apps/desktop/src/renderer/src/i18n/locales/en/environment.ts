@@ -8,6 +8,7 @@ export const environment = {
     'environment.checkNow': 'Check Now',
     'environment.useCurrentIp': 'Use Current IP',
     'environment.actionFailed': "Couldn't update environment information",
+    'environment.loadFailed': "Couldn't read environment information. Try again.",
     'environment.loading': 'Reading environment information…',
 
     'environment.current.title': 'Current exit',

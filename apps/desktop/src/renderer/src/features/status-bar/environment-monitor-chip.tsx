@@ -1,5 +1,6 @@
 import { ShieldAlert } from 'lucide-react';
 
+import { StructuredTooltip } from '../../components/structured-tooltip';
 import { Tooltip } from '../../components/ui/tooltip';
 import { usePolledQuery } from '../../hooks/use-polled-query';
 import { useTranslation } from '../../i18n';
@@ -20,9 +21,13 @@ export function EnvironmentMonitorChip() {
     const state = query.data;
     if (state?.state !== 'warning') return null;
 
-    const tooltip = state.issues
-        .map((issue) => environmentIssueLabel(issue, t, state.publicIp))
-        .join('\n');
+    const tooltip = (
+        <StructuredTooltip
+            title={t('statusBar.environmentMonitor.label')}
+            details={state.issues.map((issue) => environmentIssueLabel(issue, t, state.publicIp))}
+            hint={t('statusBar.environmentMonitor.clickToOpen')}
+        />
+    );
     return (
         <Tooltip content={tooltip}>
             <button

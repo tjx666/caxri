@@ -274,6 +274,17 @@ export function removeSessionSearchOperator(query: string, chip: SessionSearchFi
     return normalizeSessionSearchWhitespace(removed);
 }
 
+/**
+ * The query without any of the operators the given chips stand for, so "Clear filters" can also undo `agent:codex`
+ * style filters that left an empty result with nothing else to click.
+ */
+export function removeSessionSearchOperators(
+    query: string,
+    chips: readonly SessionSearchFilterChip[],
+): string {
+    return chips.reduce(removeSessionSearchOperator, query);
+}
+
 const relaxationNoticeKeys = {
     phrase: undefined,
     allWords: 'session.search.relaxed.allWords',

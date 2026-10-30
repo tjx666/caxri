@@ -27,6 +27,7 @@ import {
     agentUsagePaceNote,
     agentUsageResetCreditsNote,
     agentUsageResetCreditsValue,
+    agentUsageWarningReason,
 } from './agent-usage-label';
 import { useAgentUsageClock } from './hooks/use-agent-usage-clock';
 import { StatusItem } from './status-item';
@@ -82,13 +83,17 @@ export function AgentUsageStatus({ terminalId }: { terminalId: string }) {
     const limitWindows = currentLimitWindows(readout.limit, now);
     const isPaceDismissed = isPlanPaceDismissed(readout.limit, now);
     const limitTone = agentUsageLimitTone(readout, now, chipOptions, isPaceDismissed);
+    const warningReason = agentUsageWarningReason(readout, now, chipOptions, t, isPaceDismissed);
+    const ariaLabel = warningReason
+        ? t('statusBar.usage.ariaLabelWarning', { agent: agentName, label, reason: warningReason })
+        : t('statusBar.usage.ariaLabel', { agent: agentName, label });
     // The pace note explains why the chip warns; once the user dismisses that warning the tooltip stops repeating it.
     const paceNote = isPaceDismissed ? undefined : agentUsagePaceNote(readout, now, t);
     const resetCredits = agentUsageResetCreditsValue(readout.limit, now, t);
     const resetCreditsNote = agentUsageResetCreditsNote(readout.limit, now, t);
     return (
         <StatusItem
-            ariaLabel={t('statusBar.usage.ariaLabel', { agent: agentName, label })}
+            ariaLabel={ariaLabel}
             className={cn('statusbar-agent-usage', limitTone === 'warning' && 'text-warning')}
             icon={<ChartColumn />}
             isUrgent={limitTone === 'warning'}

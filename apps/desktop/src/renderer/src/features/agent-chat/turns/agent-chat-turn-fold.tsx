@@ -113,7 +113,7 @@ function TurnFoldHeader({
     return (
         <div
             className={cn(
-                'group/turn-fold flex min-w-0 items-center gap-2.5 border-b border-solid border-border pb-1',
+                'group/turn-fold @container flex min-w-0 items-center gap-2.5 border-b border-solid border-border pb-1',
                 // Expanded, the row pins to the top of the transcript so a run several screens long can be folded
                 // from wherever the reader stopped (LibreChat's activity groups do the same). Its containing block is
                 // the fold, so it lets go where the fold's last row ends and never covers the final reply.

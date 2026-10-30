@@ -237,12 +237,12 @@ export function AgentChatPane({
         history.history,
     );
     const { start: mountedFrom, mountAll } = useAgentChatTailFirstMount(timeline.length);
-    const railMarkIds = useMemo(() => railMarks.map((mark) => mark.id), [railMarks]);
     const rail = useAgentChatMessageRail(
         scrollReference,
         contentReference,
-        railMarkIds,
+        railMarks,
         stopFollowing,
+        mountAll,
     );
     const readBackHistory = useMemo(() => ({ canFork }), [canFork]);
     const taskLinks = useAgentChatTaskLinks(snapshot?.tasks, terminalId, canOpenBesideChat);

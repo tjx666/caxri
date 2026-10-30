@@ -40,6 +40,8 @@ import {
     fileTreeRowTooltip,
     inlineFileNameBlurAction,
 } from './resource-explorer-state';
+import { fileTreeDropDirectory } from './tree-row/file-drop-target';
+import { renameSelectionEnd } from './tree-row/file-name-selection';
 
 /**
  * Expansion, selection, focus requests, and file-operation blocking are not props: every row subscribes to its own
@@ -98,6 +100,7 @@ const treeRowClassName =
 function InlineFileName({
     depth = 0,
     initialValue,
+    isFile = false,
     label,
     failureLabel,
     onCancel,
@@ -105,6 +108,10 @@ function InlineFileName({
 }: {
     depth: number;
     initialValue: string;
+    /**
+     * Whether the field renames a file, whose extension then stays out of the initial selection.
+     */
+    isFile?: boolean;
     label: string;
     failureLabel: string;
     onCancel: (options: InlineFileNameSettleOptions) => void;
@@ -126,8 +133,8 @@ function InlineFileName({
     const [value, setValue] = useState(initialValue);
     useEffect(() => {
         inputReference.current?.focus();
-        inputReference.current?.select();
-    }, []);
+        inputReference.current?.setSelectionRange(0, renameSelectionEnd(initialValue, isFile));
+    }, [initialValue, isFile]);
 
     const commit = async (options: InlineFileNameSettleOptions): Promise<void> => {
         if (isSettled.current) return;
@@ -429,6 +436,7 @@ export function FileTreeItem({
             <InlineFileName
                 depth={depth}
                 initialValue={entry.name}
+                isFile={entry.kind === 'file'}
                 label={t('viewContainers.files.renameLabel', { name: entry.name })}
                 failureLabel={t('viewContainers.files.renameFailed')}
                 onCancel={({ restoreFocus }) => {
@@ -509,7 +517,7 @@ export function FileTreeItem({
                 rememberFile(entry.path, 'cut');
             }}
             onDragEnter={(event) => {
-                if (pasteBlocked || entry.kind !== 'directory' || !fileTreeDropEffect(event))
+                if (pasteBlocked || !fileTreeDropDirectory(entry) || !fileTreeDropEffect(event))
                     return;
                 setIsDropTarget(true);
             }}
@@ -521,7 +529,7 @@ export function FileTreeItem({
             }}
             onDragOver={(event) => {
                 const dropEffect = fileTreeDropEffect(event);
-                if (!dropEffect || pasteBlocked || entry.kind !== 'directory') return;
+                if (!dropEffect || pasteBlocked || !fileTreeDropDirectory(entry)) return;
                 event.preventDefault();
                 event.dataTransfer.dropEffect = dropEffect;
             }}

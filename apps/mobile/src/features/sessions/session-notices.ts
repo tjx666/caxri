@@ -32,6 +32,25 @@ export const connectionNoticeMessage = (
 };
 
 /**
+ * What the connection banner draws besides its sentence: the tone and the one action that can help. A stale connection
+ * retries on a backoff of up to 30 seconds, so `reconnect` skips the wait; a Relay that does not accept this phone
+ * cannot be fixed by retrying, so `settings` opens where the user can forget the computer and pair again. A busy Relay
+ * keeps its muted tone because the app is already retrying and nothing needs the user.
+ */
+export const connectionBannerModel = (
+    status: 'stale' | 'unverified',
+    relayFailure: MobileRelayFailureKind | null = null,
+): {
+    action: 'reconnect' | 'retry' | 'settings';
+    tone: 'muted' | 'warning';
+} => {
+    if (status === 'unverified') return { action: 'retry', tone: 'warning' };
+    if (relayFailure === 'unauthorized') return { action: 'settings', tone: 'warning' };
+    if (relayFailure === 'host-offline') return { action: 'reconnect', tone: 'warning' };
+    return { action: 'reconnect', tone: 'muted' };
+};
+
+/**
  * Whether the Session list shows its own `Unable to load Sessions` notice with Retry. While the connection banner is up
  * it already explains the outage, and a list Retry cannot reach the computer anyway.
  */

@@ -57,15 +57,17 @@ function PtySummaryReading({ pty }: { pty: ProcessExplorerSnapshot['pty'] }) {
     if (!pty) return null;
     const isHigh = isPtyUsageHigh(pty);
     return (
-        <span className="process-summary-pty">
-            <SummaryReading
-                isWarning={isHigh}
-                label={t('processExplorer.summary.pty')}
-                value={String(pty.inUse)}
-            />
-            <span className={cn('tabular-nums', isHigh && 'text-warning')}> / {pty.limit}</span>
-            {isHigh && <span className="sr-only">{t('processExplorer.summary.ptyHigh')}</span>}
-        </span>
+        <Tooltip content={t('processExplorer.summary.ptyTooltip')}>
+            <span className="process-summary-pty">
+                <SummaryReading
+                    isWarning={isHigh}
+                    label={t('processExplorer.summary.pty')}
+                    value={String(pty.inUse)}
+                />
+                <span className={cn('tabular-nums', isHigh && 'text-warning')}> / {pty.limit}</span>
+                {isHigh && <span className="sr-only">{t('processExplorer.summary.ptyHigh')}</span>}
+            </span>
+        </Tooltip>
     );
 }
 

@@ -4,7 +4,7 @@ import type { connection as source } from '../en/connection';
 
 export const connection: TranslatedNamespace<typeof source> = {
     'connection.error.capacity': 'Caxri 当前无法处理更多此类请求，请稍后再试。',
-    'connection.error.conflict': '电脑上的内容已发生变化，请刷新后重试。',
+    'connection.error.conflict': '电脑上的内容已发生变化，请重新打开后重试。',
     'connection.error.forbidden': '此手机无权执行该操作。',
     'connection.error.notFound': '该项目在电脑上已不存在。',
     'connection.error.pathDenied': 'Caxri 无法使用该位置。',

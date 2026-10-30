@@ -1,3 +1,4 @@
+import { Button } from '../../../components/ui/button';
 import { useTranslation } from '../../../i18n';
 import type { PendingFileOperation } from './file-operation-state';
 
@@ -21,13 +22,9 @@ export function PendingFileOperationStatus({
         >
             <span className="truncate">{operation.label}</span>
             {isCancelRevealed && (
-                <button
-                    className="shrink-0 text-foreground underline decoration-dotted underline-offset-2 hover:text-accent"
-                    type="button"
-                    onClick={onCancel}
-                >
+                <Button className="shrink-0" size="sm" variant="ghost" onClick={onCancel}>
                     {t('common.cancel')}
-                </button>
+                </Button>
             )}
         </div>
     );

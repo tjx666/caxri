@@ -349,7 +349,10 @@ export function EnvironmentWorkbenchPage({ headerAction }: { headerAction?: Reac
                         result,
                     );
             })
-            .catch(() => {});
+            .catch((error: unknown) => {
+                // The polled query below owns the visible error state; this keeps the cause for diagnostics.
+                console.error('environmentMonitor.check failed on mount', error);
+            });
         return () => {
             isDisposed = true;
         };
@@ -421,6 +424,23 @@ export function EnvironmentWorkbenchPage({ headerAction }: { headerAction?: Reac
                             <ChangesCard changes={environmentChanges(state)} />
                             <ChecksCard state={state} />
                         </div>
+                    </div>
+                ) : query.isError ? (
+                    <div
+                        role="alert"
+                        className="mx-auto grid min-h-40 w-full max-w-6xl place-items-center content-center gap-3 text-center text-muted"
+                    >
+                        <p className="m-0 text-[12px] text-danger">{t('environment.loadFailed')}</p>
+                        <Button
+                            aria-disabled={query.isFetching}
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => {
+                                if (!query.isFetching) void query.refetch();
+                            }}
+                        >
+                            {t('common.retry')}
+                        </Button>
                     </div>
                 ) : (
                     <LoadingSkeleton variant="page" label={t('environment.loading')} />

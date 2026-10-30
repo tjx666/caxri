@@ -7,6 +7,7 @@ import { FlashList } from '@shopify/flash-list';
 import { useRouter } from 'expo-router';
 import { Plus } from 'lucide-react-native';
 
+import { showToast } from '../../../components/toast-store';
 import { useTranslation } from '../../../i18n';
 import { mobileRadius, mobileSpace, mobileType } from '../../../theme/scale';
 import type { MobileTheme } from '../../../theme/tokens';
@@ -58,11 +59,6 @@ const styles = StyleSheet.create({
         minHeight: 56,
     },
     tabletNewText: mobileType.bodyStrong,
-    listError: {
-        ...mobileType.meta,
-        paddingHorizontal: mobileSpace.lg,
-        paddingVertical: mobileSpace.sm,
-    },
 });
 
 const entryKey = (entry: SessionListRow): string => entry.id;
@@ -100,6 +96,15 @@ export const SessionHome = ({
     const management = useSessionManagement();
     const [actionSession, setActionSession] = useState<MobileSessionItem | null>(null);
     const { archive, clearError } = management;
+    const archiveError = management.error;
+    /**
+     * The actions sheet reports its own failures; a swipe archive has no sheet to show one in, so it uses the toast.
+     */
+    useEffect(() => {
+        if (actionSession !== null || !archiveError) return;
+        showToast('error', archiveError);
+        clearError();
+    }, [actionSession, archiveError, clearError]);
     const [swipe] = useState(createOpenSwipeRow);
     const { closeOpen: closeOpenSwipe, hasOpen: hasOpenSwipe } = swipe;
     const handleSwipeOpen = useCallback(
@@ -324,17 +329,6 @@ export const SessionHome = ({
                 status={status}
                 theme={theme}
             />
-            {/* The actions sheet reports its own failures; a swipe archive has no sheet to show one in. */}
-            {actionSession === null && management.error ? (
-                <Text
-                    accessibilityRole="alert"
-                    onPress={clearError}
-                    style={[styles.listError, { color: theme.danger }]}
-                    testID="session-list-archive-error"
-                >
-                    {management.error}
-                </Text>
-            ) : null}
             {!hasLoaded || filtered.length === 0 ? (
                 <SessionHomeEmpty
                     activeProjectId={activeProjectId}

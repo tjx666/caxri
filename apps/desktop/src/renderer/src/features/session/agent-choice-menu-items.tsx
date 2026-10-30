@@ -7,6 +7,7 @@ import { resolveAgentIcon } from '../../icons/agents/agent-icon-registry';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { useAgentAvailability } from '../terminal/hooks/use-agent-availability';
 import { agentInstallHint, newTerminalAgentChoices } from '../terminal/new-terminal-agent';
+import { isLastUsedAgentRow } from './last-agent-choice-store';
 import { AgentChoiceMarker } from './open-in-chat-menu-item';
 
 /**
@@ -18,10 +19,15 @@ import { AgentChoiceMarker } from './open-in-chat-menu-item';
 export function AgentChoiceMenuItems({
     defaultAgent,
     openInChat,
+    repeatedKind,
     onChoose,
 }: {
     defaultAgent: Parameters<typeof newTerminalAgentChoices>[0];
     openInChat: Parameters<typeof newTerminalAgentChoices>[1];
+    /**
+     * The Agent a press of the split button repeats, so its row can say so. Omitted where no press repeats a pick.
+     */
+    repeatedKind?: TerminalKind;
     onChoose: (kind: TerminalKind, surface: TerminalSurface) => void;
 }) {
     const { t } = useTranslation();
@@ -41,6 +47,9 @@ export function AgentChoiceMenuItems({
                             isUnavailable={isUnavailable}
                             surface={surface}
                         />
+                        {isLastUsedAgentRow(kind, { isDefault, repeatedKind }) && (
+                            <span className="text-muted">{t('session.create.lastUsed')}</span>
+                        )}
                     </MenuItem>
                 </Tooltip>
             );

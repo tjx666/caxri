@@ -11,6 +11,7 @@ export const session: TranslatedNamespace<typeof source> = {
     'session.create.newInProject': '在 {{project}} 中新建会话',
     'session.create.actionInProject': '在 {{project}} 中{{action}}',
     'session.create.withoutTerminal': '空会话',
+    'session.create.lastUsed': '上次使用',
     'session.create.importFromHistory': '从历史导入…',
     'session.createDialog.title': '开始会话',
     'session.createDialog.titleInProject': '在 {{project}} 中开始会话',
@@ -131,6 +132,9 @@ export const session: TranslatedNamespace<typeof source> = {
     'session.search.preview.later': '更晚的消息未显示',
     'session.search.helpMatch': '⌥↑↓ 切换匹配',
     'session.search.clearFilters': '清除筛选',
+    'session.search.retry': '重试',
+    'session.search.operatorHint':
+        '可用 agent:codex、project:名称、before:2026-10-01、after:2026-09-01 缩小范围',
     'session.search.importFailed': '无法将对话加入 Caxri',
     'session.search.imported': '已将“{{title}}”加入 Caxri',
 

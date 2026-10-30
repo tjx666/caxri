@@ -73,6 +73,7 @@ export function AgentChatFindScope({
                 {find.bar && (
                     <AgentChatFindBar
                         {...find.bar}
+                        hasEarlierLoadFailed={earlierStatus === 'failed'}
                         isLoadingEarlier={earlierStatus === 'loading'}
                         isPartial={hasUnsearchedHistory}
                     />

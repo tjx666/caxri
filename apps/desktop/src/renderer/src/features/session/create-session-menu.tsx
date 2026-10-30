@@ -26,6 +26,16 @@ import {
 } from './session-creation-commands';
 
 /**
+ * The kind the heading's split press would repeat, marked "Last used" in its list; other anchors have no split.
+ */
+function headingRepeatedKind<Kind>(
+    anchor: CreateSessionAnchor,
+    splitKind: Kind | null | undefined,
+) {
+    return anchor === 'heading' ? (splitKind ?? undefined) : undefined;
+}
+
+/**
  * The Terminal-choice menu for a new Session, hung from whichever control opened it.
  *
  * The menu replaces a centered modal so the choice lands where the pointer already is. Its open state lives in the
@@ -214,6 +224,7 @@ function SessionCreationMenu({
                 <AgentChoiceMenuItems
                     defaultAgent={defaultAgent}
                     openInChat={openInChat}
+                    repeatedKind={headingRepeatedKind(anchor, splitKind)}
                     onChoose={(kind) => chooseSessionTerminalKind(project.id, kind)}
                 />
                 <MenuSeparator />

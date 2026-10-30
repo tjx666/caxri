@@ -3,7 +3,7 @@ import { translate } from '../../i18n';
 import type { MobileConnectionStatus } from '../connection/connection-state';
 
 interface SessionHomeEmptyState {
-    action: 'new' | 'retry' | null;
+    action: 'new' | 'reconnect' | 'retry' | null;
     body: string;
     showSpinner: boolean;
     testID: string;
@@ -11,16 +11,34 @@ interface SessionHomeEmptyState {
     titleRole?: 'alert' | 'header';
 }
 
+/**
+ * How long the first Session read may stay silent while the connection is stale or connecting before the home stops
+ * promising a list and says the computer is unreachable.
+ */
+export const SESSION_LOAD_STALL_MS = 8_000;
+
+/**
+ * Whether the first Session read is still waiting on a connection that is down or being dialed: the only situation in
+ * which silence can mean the computer is unreachable, so the only one the stall timer runs in.
+ */
+export const isAwaitingFirstLoad = (status: MobileConnectionStatus, hasLoaded: boolean): boolean =>
+    !hasLoaded && (status === 'stale' || status === 'connecting');
+
 export const describeSessionHomeEmptyState = (
     {
         activeProjectId,
         error,
         hasLoaded,
+        isStalled = false,
         status,
     }: {
         activeProjectId: string | null;
         error: string | null;
         hasLoaded: boolean;
+        /**
+         * The first load has waited past {@link SESSION_LOAD_STALL_MS} while the connection is down.
+         */
+        isStalled?: boolean;
         status: MobileConnectionStatus;
     },
     t: Translate = translate,
@@ -61,6 +79,15 @@ export const describeSessionHomeEmptyState = (
             showSpinner: false,
             testID: 'session-list-error',
             title: t('sessions.home.errorTitle'),
+            titleRole: 'alert',
+        };
+    if (isStalled)
+        return {
+            action: 'reconnect',
+            body: t('sessions.home.unreachableBody'),
+            showSpinner: false,
+            testID: 'session-list-unreachable',
+            title: t('sessions.home.unreachableTitle'),
             titleRole: 'alert',
         };
     return {

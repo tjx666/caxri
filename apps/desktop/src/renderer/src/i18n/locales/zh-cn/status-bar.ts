@@ -63,6 +63,10 @@ export const statusBar: TranslatedNamespace<typeof source> = {
     'statusBar.usage.listSeparator': '，',
     'statusBar.usage.tokensSummary': '{{total}}：{{parts}}',
     'statusBar.usage.ariaLabel': '打开用量：{{agent}} 对话用量 {{label}}',
+    'statusBar.usage.ariaLabelWarning': '打开用量：{{agent}} 对话用量 {{label}}。警告：{{reason}}',
+    'statusBar.usage.warningReason.nearlySpent': '某个速率限制即将用完',
+    'statusBar.usage.warningReason.pace': '某个速率限制将在重置前用完',
+    'statusBar.usage.warningReason.creditExpiring': '已存的重置次数即将过期',
     'statusBar.usage.eyebrow': '{{agent}} 对话用量',
     'statusBar.usage.tokens': 'Token',
     'statusBar.usage.estimatedCost': '预估费用',
@@ -124,6 +128,7 @@ export const statusBar: TranslatedNamespace<typeof source> = {
     'statusBar.botInbox.descriptionOther':
         '打开收件箱：Caxri Bot 有 {{count}} 项需要你回答或合并。',
     'statusBar.environmentMonitor.label': '环境异常',
+    'statusBar.environmentMonitor.clickToOpen': '点击打开环境信息',
     'statusBar.environmentMonitor.ariaLabel': '打开环境信息：{{count}} 项异常',
     'statusBar.environmentMonitor.issue.publicIpChanged': '本次启动期间公网 IP 发生了变化。',
     'statusBar.environmentMonitor.issue.publicIpChangedDetail':
