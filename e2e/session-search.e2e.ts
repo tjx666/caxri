@@ -6,7 +6,7 @@ import type { BootstrapState } from '@caxri/protocol';
 import type { Page } from '@playwright/test';
 import Database from 'better-sqlite3';
 
-import { highlightedText } from './support/agent-chat-find.ts';
+import { highlightedText, isActiveFindMatchInView } from './support/agent-chat-find.ts';
 import { fakeClaudeChatAgentMode } from './support/agent-chat-fixture.ts';
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
@@ -49,6 +49,44 @@ async function writeClaudeTranscript(
             message: { role: 'assistant', content: [{ type: 'text', text: messages[1] }] },
         },
     ];
+    await mkdir(dirname(path), { recursive: true });
+    await writeFile(path, `${records.map((record) => JSON.stringify(record)).join('\n')}\n`);
+}
+
+/**
+ * A long Claude transcript whose only mention of `needle` is in its first reply, so Chat loads it behind several
+ * older-history pages (a live window of 1000 items, then pages of 200).
+ */
+async function writeLongClaudeTranscript(
+    configDirectory: string,
+    cwd: string,
+    sessionId: string,
+    turns: number,
+    needle: string,
+): Promise<void> {
+    const path = join(
+        configDirectory,
+        'projects',
+        cwd.replaceAll(/[^a-z0-9]/giu, '-'),
+        `${sessionId}.jsonl`,
+    );
+    const base = { cwd, entrypoint: 'sdk-ts', isSidechain: false, sessionId };
+    const records = Array.from({ length: turns }, (_, index) => [
+        { ...base, type: 'user', message: { role: 'user', content: `Question ${index}` } },
+        {
+            ...base,
+            type: 'assistant',
+            message: {
+                role: 'assistant',
+                content: [
+                    {
+                        type: 'text',
+                        text: index === 0 ? needle : `Routine answer number ${index}.`,
+                    },
+                ],
+            },
+        },
+    ]).flat();
     await mkdir(dirname(path), { recursive: true });
     await writeFile(path, `${records.map((record) => JSON.stringify(record)).join('\n')}\n`);
 }
@@ -309,6 +347,75 @@ test('Session search finds an Agent Chat conversation by message text and opens 
             .poll(() => highlightedText(page, 'agent-chat-find-active'))
             .toEqual(['probe with only 21']);
         await page.screenshot({ path: testInfo.outputPath('session-search-chat-find.png') });
+    } finally {
+        await running.app.close();
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+/**
+ * A match in older history that Chat has not loaded: opening the result pages the history back until find lands on it,
+ * without the user clicking Search earlier messages.
+ */
+// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
+test('Session search result in unloaded older Chat history loads it and lands on the match', async ({}, testInfo) => {
+    const directory = await mkdtemp(join(tmpdir(), 'caxri-session-search-older-e2e-'));
+    const userData = join(directory, 'profile');
+    const root = join(directory, 'workspace');
+    await mkdir(root, { recursive: true });
+    const agentMode = await fakeClaudeChatAgentMode(userData);
+    const options = { agentMode, userDataDir: userData, testRootPath: root };
+    let running = await launchCaxri(options);
+    try {
+        await createProjectSession(running.page);
+        const sessionId = await selectedSessionId(running.page);
+        await pageRequest(running.page, 'session.rename', { sessionId, title: 'Long audit' });
+        const bootstrap = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');
+        const cwd = bootstrap.sessions.find((session) => session.id === sessionId)!.rootPath;
+        await running.app.close();
+
+        await writeLongClaudeTranscript(
+            agentMode.environment.CLAUDE_CONFIG_DIR!,
+            cwd,
+            CHAT,
+            1500,
+            'The zebra quota was raised during the first week.',
+        );
+        const terminal = bootstrap.terminals.find((entry) => entry.sessionId === sessionId);
+        if (!terminal) throw new Error('Synthetic Terminal missing');
+        const database = new Database(join(userData, 'caxri.db'));
+        try {
+            database
+                .prepare(
+                    'UPDATE terminals SET kind = ?, agent_session_id = ?, last_process_state = ?, surface = ? WHERE id = ?',
+                )
+                .run('claude', CHAT, 'stopped', 'chat', terminal.id);
+            database
+                .prepare('UPDATE sessions SET primary_agent_terminal_id = ? WHERE id = ?')
+                .run(terminal.id, sessionId);
+        } finally {
+            database.close();
+        }
+
+        running = await launchCaxri(options);
+        const { page } = running;
+        const search = await openSearch(page);
+        await search.input.fill('zebra quota was raised');
+        // The long transcript is indexed in the background, so the row first matches on metadata alone.
+        await expect(search.results.locator('.session-search-snippet')).toContainText(
+            'zebra quota was raised',
+            { timeout: 60_000 },
+        );
+        await page.screenshot({ path: testInfo.outputPath('session-search-older-match.png') });
+        await search.input.press('Enter');
+        await expect(search.dialog).toHaveCount(0);
+        const find = page.locator(VISIBLE_SESSION).getByRole('search', { name: 'Find in Chat' });
+        await expect(find.getByText('1/1')).toBeVisible({ timeout: 30_000 });
+        await expect
+            .poll(() => highlightedText(page, 'agent-chat-find-active'))
+            .toEqual(['zebra quota was raised']);
+        await expect.poll(() => isActiveFindMatchInView(page)).toBe(true);
+        await page.screenshot({ path: testInfo.outputPath('session-search-older-find.png') });
     } finally {
         await running.app.close();
         await rm(directory, { recursive: true, force: true });

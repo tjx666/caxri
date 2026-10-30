@@ -12,6 +12,7 @@ import {
     hasAgentChatFindEarlierLoadSettled,
     isAgentChatTurnFoldMatch,
     locateAgentChatFindMatch,
+    nextAgentChatFindAutoLoad,
     stepAgentChatFindIndex,
 } from '../agent-chat-find';
 
@@ -191,6 +192,40 @@ describe('hasAgentChatFindEarlierLoadSettled', () => {
         expect(hasAgentChatFindEarlierLoadSettled(true, true, true)).toBe(false);
         expect(hasAgentChatFindEarlierLoadSettled(false, false, true)).toBe(false);
         expect(hasAgentChatFindEarlierLoadSettled(true, false, false)).toBe(false);
+    });
+});
+
+describe('nextAgentChatFindAutoLoad', () => {
+    const ready = {
+        isActive: true,
+        hasQuery: true,
+        hasContent: true,
+        matchCount: 0,
+        hasFailed: false,
+        isLoading: false,
+        canLoadEarlier: true,
+    };
+
+    it('loads the next older page while no loaded message matches', () => {
+        expect(nextAgentChatFindAutoLoad(ready)).toBe('load');
+    });
+
+    it('waits for the conversation, a page in flight, or the snapshot that reports older history', () => {
+        expect(nextAgentChatFindAutoLoad({ ...ready, hasContent: false })).toBe('wait');
+        expect(nextAgentChatFindAutoLoad({ ...ready, isLoading: true })).toBe('wait');
+        expect(nextAgentChatFindAutoLoad({ ...ready, canLoadEarlier: false })).toBe('wait');
+    });
+
+    it('stops once a match is found, a page failed, or the handoff is no longer active', () => {
+        expect(nextAgentChatFindAutoLoad({ ...ready, matchCount: 1 })).toBe('stop');
+        expect(nextAgentChatFindAutoLoad({ ...ready, hasFailed: true })).toBe('stop');
+        expect(nextAgentChatFindAutoLoad({ ...ready, isActive: false })).toBe('stop');
+    });
+
+    it('stops when a load it requested leaves no older page', () => {
+        const exhausted = { ...ready, canLoadEarlier: false, hasLoaded: true };
+        expect(nextAgentChatFindAutoLoad(exhausted)).toBe('stop');
+        expect(nextAgentChatFindAutoLoad({ ...exhausted, isLoading: true })).toBe('wait');
     });
 });
 

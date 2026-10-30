@@ -21,6 +21,7 @@ import {
     createAgentChatFindRepaintScheduler,
     hasAgentChatFindEarlierLoadSettled,
     measureAgentChatFindRange,
+    nextAgentChatFindAutoLoad,
     stepAgentChatFindIndex,
 } from './agent-chat-find';
 import { registerAgentChatFindHandoff } from './agent-chat-find-handoff';
@@ -66,6 +67,11 @@ interface FindSession {
      * adds does not scroll the view.
      */
     isAwaitingEarlier: boolean;
+    /**
+     * Set by a Session search handoff: when the loaded messages hold no match, older pages keep loading one after
+     * another until a match appears, the history ends, or a page fails. Typing, closing, or the first match clears it.
+     */
+    isAutoLoadingEarlier: boolean;
 }
 
 function createFindSession(): FindSession {
@@ -76,6 +82,7 @@ function createFindSession(): FindSession {
         result: { count: 0, activeIndex: 0 },
         listeners: new Set(),
         isAwaitingEarlier: false,
+        isAutoLoadingEarlier: false,
     };
 }
 
@@ -92,6 +99,10 @@ function publish(session: FindSession, result: FindResult): void {
 
 function requestReveal(session: FindSession, reveal: 'start' | 'active'): void {
     session.pendingReveal = reveal;
+}
+
+function setAutoLoadingEarlier(session: FindSession, isAutoLoading: boolean): void {
+    session.isAutoLoadingEarlier = isAutoLoading;
 }
 
 function setAwaitingEarlier(session: FindSession, isAwaiting: boolean): void {
@@ -174,13 +185,16 @@ function paintFind({
 }): void {
     if (!content || !view || !query) {
         session.isAwaitingEarlier = false;
+        session.isAutoLoadingEarlier = false;
         session.ranges = [];
         clearAgentChatFindHighlights(owner);
         publish(session, { count: 0, activeIndex: 0 });
         return;
     }
     const ranges = collectAgentChatFindRanges(content, query);
-    if (session.isAwaitingEarlier && ranges.length > 0) {
+    if (ranges.length > 0) session.isAutoLoadingEarlier = false;
+    const isEarlierPageMatch = session.isAwaitingEarlier && ranges.length > 0;
+    if (isEarlierPageMatch) {
         // Loaded history sits above the view, so the first match at or below its top is the nearest earlier one.
         session.isAwaitingEarlier = false;
         requestReveal(session, 'start');
@@ -197,6 +211,14 @@ function paintFind({
     if (active && session.pendingReveal) {
         stopFollowing();
         reveal(active, view);
+        if (isEarlierPageMatch) {
+            // The pane puts the reader's previous view top back in a layout effect that runs after this one in the
+            // same commit, which would scroll the match away again; reveal once that commit has finished.
+            queueMicrotask(() => {
+                const current = session.ranges.at(session.activeIndex);
+                if (current && view.isConnected) reveal(current, view);
+            });
+        }
     }
     session.pendingReveal = undefined;
 }
@@ -216,6 +238,7 @@ export function useAgentChatFind({
     stopFollowing,
     focusComposer,
     isLoadingEarlier,
+    hasEarlierLoadFailed,
     loadEarlier,
     onOpen,
 }: {
@@ -232,6 +255,10 @@ export function useAgentChatFind({
      * A page of older history is being read.
      */
     isLoadingEarlier: boolean;
+    /**
+     * The last page of older history failed to load, which stops a handoff from loading further pages on its own.
+     */
+    hasEarlierLoadFailed: boolean;
     /**
      * Loads the next page of older history, or `undefined` when there is none to load.
      */
@@ -323,6 +350,30 @@ export function useAgentChatFind({
         settleEarlierLoad(wasLoading);
     }, [isLoadingEarlier]);
 
+    const canLoadEarlier = loadEarlier !== undefined;
+    const hasAutoLoaded = useRef(false);
+    const autoLoadEarlier = useEffectEvent((): void => {
+        const next = nextAgentChatFindAutoLoad({
+            isActive: session.isAutoLoadingEarlier,
+            hasQuery: searched !== '',
+            hasContent: Boolean(contentReference.current?.textContent),
+            matchCount: session.ranges.length,
+            hasFailed: hasEarlierLoadFailed,
+            isLoading: isLoadingEarlier,
+            canLoadEarlier,
+            hasLoaded: hasAutoLoaded.current,
+        });
+        if (next === 'stop') setAutoLoadingEarlier(session, false);
+        if (next !== 'load') return;
+        hasAutoLoaded.current = true;
+        setAwaitingEarlier(session, true);
+        loadEarlier?.();
+    });
+    // Runs after the layout effects above have painted the page that just loaded, so `session.ranges` is current.
+    useEffect(() => {
+        autoLoadEarlier();
+    }, [isLoadingEarlier, canLoadEarlier, hasEarlierLoadFailed, searched, result.count]);
+
     const open = useCallback(() => {
         onOpen?.();
         setOpen(true);
@@ -335,7 +386,9 @@ export function useAgentChatFind({
      */
     const openWithQuery = useCallback(
         (next: string) => {
+            hasAutoLoaded.current = false;
             setAwaitingEarlier(session, true);
+            setAutoLoadingEarlier(session, true);
             requestReveal(session, 'start');
             setQuery(next);
             open();
@@ -351,7 +404,9 @@ export function useAgentChatFind({
     );
 
     const changeQuery = (next: string): void => {
+        hasAutoLoaded.current = false;
         setAwaitingEarlier(session, false);
+        setAutoLoadingEarlier(session, false);
         requestReveal(session, 'start');
         setQuery(next);
     };
@@ -359,6 +414,7 @@ export function useAgentChatFind({
         if (didStepFind(session, delta)) paint();
     };
     const close = (): void => {
+        setAutoLoadingEarlier(session, false);
         setOpen(false);
         focusComposer();
     };
