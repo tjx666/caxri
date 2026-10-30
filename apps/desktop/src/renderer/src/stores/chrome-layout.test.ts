@@ -11,7 +11,7 @@ import {
     MIN_MAIN_WIDTH,
     MIN_WORK_SURFACE_HEIGHT,
     PANEL_DEFAULT_HEIGHT,
-    PANEL_DIVIDER_WIDTH,
+    PANEL_DIVIDER_HEIGHT,
     PANEL_MAX_HEIGHT,
     PANEL_MIN_HEIGHT,
     PRIMARY_SIDEBAR_DEFAULT_WIDTH,
@@ -58,11 +58,7 @@ describe('clampLayoutToViewport', () => {
 
     it('shrinks the SecondarySidebar before the PrimarySidebar as the viewport narrows', () => {
         const viewportWidth =
-            PRIMARY_SIDEBAR_DEFAULT_WIDTH +
-            SECONDARY_SIDEBAR_DEFAULT_WIDTH +
-            MIN_MAIN_WIDTH +
-            PANEL_DIVIDER_WIDTH * 2 -
-            40;
+            PRIMARY_SIDEBAR_DEFAULT_WIDTH + SECONDARY_SIDEBAR_DEFAULT_WIDTH + MIN_MAIN_WIDTH - 40;
 
         const next = clampLayoutToViewport(wideLayout, viewportWidth);
 
@@ -72,11 +68,7 @@ describe('clampLayoutToViewport', () => {
 
     it('shrinks the PrimarySidebar once the SecondarySidebar has reached its minimum', () => {
         const viewportWidth =
-            PRIMARY_SIDEBAR_DEFAULT_WIDTH +
-            SECONDARY_SIDEBAR_MIN_WIDTH +
-            MIN_MAIN_WIDTH +
-            PANEL_DIVIDER_WIDTH * 2 -
-            20;
+            PRIMARY_SIDEBAR_DEFAULT_WIDTH + SECONDARY_SIDEBAR_MIN_WIDTH + MIN_MAIN_WIDTH - 20;
 
         const next = clampLayoutToViewport(wideLayout, viewportWidth);
 
@@ -93,8 +85,7 @@ describe('clampLayoutToViewport', () => {
 
     it('ignores the SecondarySidebar width in the overflow budget once it is collapsed', () => {
         const collapsed: ChromeLayout = { ...wideLayout, secondarySidebarVisible: false };
-        const viewportWidth =
-            PRIMARY_SIDEBAR_DEFAULT_WIDTH + MIN_MAIN_WIDTH + PANEL_DIVIDER_WIDTH + 10;
+        const viewportWidth = PRIMARY_SIDEBAR_DEFAULT_WIDTH + MIN_MAIN_WIDTH + 10;
 
         const next = clampLayoutToViewport(collapsed, viewportWidth);
 
@@ -104,8 +95,7 @@ describe('clampLayoutToViewport', () => {
 
     it('ignores the PrimarySidebar width in the overflow budget once it is collapsed', () => {
         const collapsed: ChromeLayout = { ...wideLayout, primarySidebarVisible: false };
-        const viewportWidth =
-            SECONDARY_SIDEBAR_DEFAULT_WIDTH + MIN_MAIN_WIDTH + PANEL_DIVIDER_WIDTH + 10;
+        const viewportWidth = SECONDARY_SIDEBAR_DEFAULT_WIDTH + MIN_MAIN_WIDTH + 10;
 
         const next = clampLayoutToViewport(collapsed, viewportWidth);
 
@@ -147,8 +137,8 @@ describe('clampPanelHeight', () => {
 
         const height = clampPanelHeight(500, viewportHeight);
 
-        expect(height).toBe(viewportHeight - MIN_WORK_SURFACE_HEIGHT - PANEL_DIVIDER_WIDTH);
-        expect(height + MIN_WORK_SURFACE_HEIGHT + PANEL_DIVIDER_WIDTH).toBeLessThanOrEqual(
+        expect(height).toBe(viewportHeight - MIN_WORK_SURFACE_HEIGHT - PANEL_DIVIDER_HEIGHT);
+        expect(height + MIN_WORK_SURFACE_HEIGHT + PANEL_DIVIDER_HEIGHT).toBeLessThanOrEqual(
             viewportHeight,
         );
     });

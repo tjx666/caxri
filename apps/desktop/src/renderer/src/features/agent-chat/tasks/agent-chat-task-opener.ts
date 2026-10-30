@@ -7,7 +7,7 @@ import {
     findResourceTabs,
 } from '@caxri/protocol';
 
-import { PANEL_DIVIDER_WIDTH, useChromeLayoutStore } from '../../../stores/chrome-layout';
+import { useChromeLayoutStore } from '../../../stores/chrome-layout';
 import { openEditorTab } from '../../editor/document-commands';
 import {
     getSecondarySidebarYieldScope,
@@ -65,15 +65,15 @@ function willSecondarySidebarYield(): boolean {
 
 /**
  * The width the Chat's split will have once committed: the Chat pane as laid out now, plus its share of the
- * SecondarySidebar and divider when they are about to yield. In a layout the user already split, the released width
- * spreads across the panes by their split ratios (see {@link workbenchWidthShare}), so a Chat stacked above a Terminal
- * receives all of it and a Chat beside a file only its own fraction.
+ * SecondarySidebar when it is about to yield. In a layout the user already split, the released width spreads across the
+ * panes by their split ratios (see {@link workbenchWidthShare}), so a Chat stacked above a Terminal receives all of it
+ * and a Chat beside a file only its own fraction.
  */
 function measureBesideChatSplitHost(layout: PaneLayout, chatPaneId: string): number {
     const slot = document.querySelector(`[data-pane-slot="${CSS.escape(chatPaneId)}"]`);
     const width = slot?.getBoundingClientRect().width ?? 0;
     if (!willSecondarySidebarYield()) return width;
-    const released = useChromeLayoutStore.getState().secondarySidebarWidth + PANEL_DIVIDER_WIDTH;
+    const released = useChromeLayoutStore.getState().secondarySidebarWidth;
     return width + released * workbenchWidthShare(layout, chatPaneId);
 }
 

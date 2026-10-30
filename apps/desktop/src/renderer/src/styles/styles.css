@@ -776,7 +776,6 @@ html[data-translucent-sidebar] .workbench-column {
 html[data-translucent-sidebar] .app-shell.zen-mode {
     background: var(--background);
 }
-html[data-translucent-sidebar] .session-primary-sidebar,
-html[data-translucent-sidebar] .session-primary-sidebar + .panel-divider {
+html[data-translucent-sidebar] .session-primary-sidebar {
     background: var(--sidebar-translucent-fill);
 }
