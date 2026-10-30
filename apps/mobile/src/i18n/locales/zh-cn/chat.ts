@@ -66,6 +66,8 @@ export const chat: TranslatedNamespace<typeof source> = {
     'chat.disabled.send.offline': '重新连接后才能发送消息。',
     'chat.disabled.send.usageGuard': '每周额度即将用完，请在电脑上交接。',
     'chat.disabled.settings.offline': '重新连接后才能更改模型和权限。',
+    'chat.dock.collapse': '收起为一行',
+    'chat.dock.expand': '展开目标、活动和队列',
     'chat.usage.cache': '提示缓存',
     'chat.usage.cacheExpired': '已过期 · 空闲 {{idle}}',
     'chat.usage.cacheHitRate': '缓存命中率',

@@ -25,7 +25,7 @@ import { conversationActionText } from '../conversation/conversation-user-text';
 import { ConversationList } from '../conversation/conversation-view';
 import { MessageReadOfflineError } from '../conversation/read-whole-message';
 import { SavedCopyNote } from '../read-cache/saved-copy-note';
-import { AgentChatGoalBar } from './agent-chat-goal-bar';
+import { AgentChatDock } from './agent-chat-dock';
 import { AgentChatMcpServersContext } from './agent-chat-mcp-icons';
 import type { AgentChatEditTarget } from './agent-chat-message-edit';
 import {
@@ -43,10 +43,7 @@ import {
     shouldShowAgentChatStaleNotice,
 } from './agent-chat-model';
 import { AgentChatPlanCard } from './agent-chat-plan-card';
-import { AgentChatQueueList } from './agent-chat-queue-list';
-import { AgentChatRequests } from './agent-chat-request-dock';
 import { createAgentChatEntryStabilizer } from './agent-chat-stable-entries';
-import { AgentChatStatusRow } from './agent-chat-status-row';
 import type { AgentChatTimelineEntry as TimelineEntry } from './agent-chat-timeline';
 import {
     agentChatRunningTurnIds,
@@ -505,25 +502,15 @@ export const AgentChatView = ({
                     theme={theme}
                 />
             ) : null}
-            <AgentChatGoalBar canAct={canActOnQueue} chat={chat} theme={theme} />
-            <AgentChatRequests
+            <AgentChatDock
                 blockedReason={blockedReason}
-                chat={chat}
-                isExpanded={isTimelineYielding}
-                provider={provider}
-                theme={theme}
-            />
-            <AgentChatStatusRow
+                canAct={canActOnQueue}
                 chat={chat}
                 deviceRole={deviceRole}
                 isConnected={isConnected}
+                isTimelineYielding={isTimelineYielding}
+                onEditQueued={onEditQueued}
                 provider={provider}
-                theme={theme}
-            />
-            <AgentChatQueueList
-                canAct={canActOnQueue}
-                chat={chat}
-                onEdit={onEditQueued}
                 theme={theme}
             />
         </View>

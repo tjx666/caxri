@@ -66,6 +66,8 @@ export const chat = {
     'chat.disabled.send.offline': 'Reconnect to send messages.',
     'chat.disabled.send.usageGuard': 'Weekly usage is nearly used up. Hand off on your computer.',
     'chat.disabled.settings.offline': 'Reconnect to change the model and permissions.',
+    'chat.dock.collapse': 'Fold the goal, activity, and queue into one row',
+    'chat.dock.expand': 'Show the goal, activity, and queue rows',
     'chat.usage.cache': 'Prompt cache',
     'chat.usage.cacheExpired': 'Expired · idle {{idle}}',
     'chat.usage.cacheHitRate': 'Cache hit rate',
