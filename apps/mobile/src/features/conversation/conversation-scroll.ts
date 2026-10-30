@@ -227,6 +227,13 @@ export const createConversationFollower = ({
             return isFollowing;
         },
         /**
+         * Stops following without a touch, as when the reader expands a row: the end may move, the reader's place must
+         * not. A later scroll that reaches the end, a send, or Jump to latest follows again.
+         */
+        hold: (): void => {
+            isFollowing = false;
+        },
+        /**
          * Follows again from wherever the reader was, as after the user's own send or Jump to latest.
          */
         follow: (): void => {

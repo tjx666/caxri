@@ -1,6 +1,7 @@
 import { memo } from 'react';
 
 import type { MobileTheme } from '../../theme/tokens';
+import { useConversationDisclosure } from '../conversation/conversation-disclosure';
 import { ConversationEntry } from '../conversation/conversation-entry';
 import { AgentChatAnsweredQuestions } from './agent-chat-answered-questions';
 import { AgentChatDelegatedMessage } from './agent-chat-delegated-message';
@@ -37,6 +38,11 @@ export const AgentChatTimelineEntry = memo(
         provider: string;
         theme: MobileTheme;
     }) => {
+        const disclose = useConversationDisclosure();
+        const toggle = (id: string): void => {
+            disclose();
+            onToggle(id);
+        };
         switch (entry.kind) {
             case 'feedback': {
                 return <AgentChatFeedback item={entry.notice} provider={provider} theme={theme} />;
@@ -59,9 +65,7 @@ export const AgentChatTimelineEntry = memo(
                 );
             }
             case 'answered': {
-                return (
-                    <AgentChatAnsweredQuestions entry={entry} onToggle={onToggle} theme={theme} />
-                );
+                return <AgentChatAnsweredQuestions entry={entry} onToggle={toggle} theme={theme} />;
             }
             case 'delegated': {
                 return (
@@ -69,7 +73,7 @@ export const AgentChatTimelineEntry = memo(
                         body={entry.body}
                         id={entry.id}
                         isExpanded={entry.isExpanded}
-                        onToggle={onToggle}
+                        onToggle={toggle}
                         task={entry.task}
                         text={entry.text}
                         theme={theme}
@@ -104,7 +108,7 @@ export const AgentChatTimelineEntry = memo(
                 return <AgentChatReplyPlaceholder theme={theme} />;
             }
             case 'turn': {
-                return <AgentChatTurnFold entry={entry} onToggle={onToggle} theme={theme} />;
+                return <AgentChatTurnFold entry={entry} onToggle={toggle} theme={theme} />;
             }
         }
     },

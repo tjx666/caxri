@@ -226,6 +226,19 @@ describe('createConversationFollower', () => {
         return { follower, flush, scrolls: () => scrolls };
     };
 
+    it('holds the reader in place after a disclosure until the end is reached again', () => {
+        const { follower, flush, scrolls } = setup();
+        follower.hold();
+        follower.request();
+        flush();
+        expect(scrolls()).toBe(0);
+        expect(follower.isFollowing).toBe(false);
+        expect(follower.recordScroll(true)).toBe(true);
+        follower.request();
+        flush();
+        expect(scrolls()).toBe(1);
+    });
+
     it('coalesces content changes in one frame into one scroll', () => {
         const { follower, flush, scrolls } = setup();
         follower.request();

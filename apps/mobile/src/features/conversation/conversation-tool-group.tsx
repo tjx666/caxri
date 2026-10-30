@@ -9,6 +9,7 @@ import { ChevronDown, ChevronRight } from 'lucide-react-native';
 import { ShimmerText } from '../../components/shimmer-text';
 import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
+import { useConversationDisclosure } from './conversation-disclosure';
 import type { ConversationEntry } from './conversation-model';
 import { conversationStyles as styles } from './conversation-styles';
 import { ConversationStatusGlyph, ConversationToolIcon } from './conversation-tool-icon';
@@ -56,6 +57,7 @@ export const ConversationToolGroupView = ({
 }) => {
     const { t } = useTranslation();
     const [expanded, setExpanded] = useRecyclingState(false, [id]);
+    const disclose = useConversationDisclosure();
     const Chevron = expanded ? ChevronDown : ChevronRight;
     return (
         <View>
@@ -68,7 +70,10 @@ export const ConversationToolGroupView = ({
                 )}`}
                 accessibilityRole="button"
                 accessibilityState={{ expanded }}
-                onPress={() => setExpanded((current) => !current)}
+                onPress={() => {
+                    disclose();
+                    setExpanded((current) => !current);
+                }}
                 style={({ pressed }) => [
                     styles.toolRow,
                     pressed ? { backgroundColor: theme.surface } : null,

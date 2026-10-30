@@ -14,6 +14,7 @@ import { NoticeBanner } from '../../components/notice-banner';
 import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { SavedCopyNote } from '../read-cache/saved-copy-note';
+import { ConversationDisclosure } from './conversation-disclosure';
 import { ConversationEntry } from './conversation-entry';
 import type { ConversationMessageTarget } from './conversation-message-actions';
 import { ConversationMessageActions } from './conversation-message-actions';
@@ -380,6 +381,16 @@ export const ConversationList = <Entry extends { id: string }>({
         ),
         [renderEntry],
     );
+    /**
+     * The reader opened or closed a row. While the latest turn's spacer still has room the row grows into it and the
+     * end does not move, so the list keeps following; once the turn fills the viewport, following on would slide the
+     * tapped row away, so the list holds its place and offers Jump to latest instead (`ConversationDisclosure`).
+     */
+    const holdForDisclosure = useCallback((): void => {
+        if (appliedSpacerHeight.current > 0 || !follower.isFollowing) return;
+        follower.hold();
+        setIsAtBottom(false);
+    }, [follower, setIsAtBottom]);
     const jumpToLatest = useCallback((): void => {
         follower.follow();
         setIsAtBottom(true);
@@ -429,71 +440,77 @@ export const ConversationList = <Entry extends { id: string }>({
         [hasTurnSpacer, spacerHeight],
     );
     return (
-        <View style={styles.root} testID="conversation-view">
-            {/*
-             * Notices sit above the timeline, as on a Chat. Offline, the app-wide Reconnecting banner already explains
-             * a stale Conversation, so this one appears only when the connection is up but the read failed.
-             */}
-            <SavedCopyNote savedAt={timeline.savedAt} testID="conversation-saved" theme={theme} />
-            {isConnected && timeline.status === 'stale' ? (
-                <NoticeBanner
-                    actionLabel={t('common.retry')}
-                    message={t('conversation.staleNotice')}
-                    onAction={onRetry}
-                    testID="conversation-status-stale"
+        <ConversationDisclosure value={holdForDisclosure}>
+            <View style={styles.root} testID="conversation-view">
+                {/*
+                 * Notices sit above the timeline, as on a Chat. Offline, the app-wide Reconnecting banner already explains
+                 * a stale Conversation, so this one appears only when the connection is up but the read failed.
+                 */}
+                <SavedCopyNote
+                    savedAt={timeline.savedAt}
+                    testID="conversation-saved"
                     theme={theme}
-                    tone="muted"
                 />
-            ) : null}
-            <Animated.View onLayout={onViewportLayout} style={[styles.list, revealStyle]}>
-                <FlashList
-                    contentContainerStyle={styles.listContent}
-                    data={entries}
-                    /**
-                     * Dragging the timeline dismisses the composer keyboard (following the finger on iOS), and a tap on
-                     * a row's button lands on the first touch instead of only closing the keyboard.
-                     */
-                    keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
-                    keyboardShouldPersistTaps="handled"
-                    keyExtractor={conversationEntryKey}
-                    ListFooterComponent={footer}
-                    ListHeaderComponent={header}
-                    maintainVisibleContentPosition={MAINTAIN_VISIBLE_CONTENT_POSITION}
-                    onCommitLayoutEffect={onCommitLayout}
-                    onContentSizeChange={pin}
-                    onLoad={onLoad}
-                    onMomentumScrollBegin={follower.beginMomentum}
-                    onMomentumScrollEnd={follower.endMomentum}
-                    onScroll={onScroll}
-                    onScrollBeginDrag={onScrollBeginDrag}
-                    onScrollEndDrag={follower.endDrag}
-                    onStartReached={onStartReached}
-                    onStartReachedThreshold={0.25}
-                    ref={list}
-                    renderItem={renderItem}
-                    scrollEventThrottle={32}
-                    style={styles.list}
-                />
-            </Animated.View>
-            {shouldShowConversationJump(isAtBottom, entries.length > 0) ? (
-                <Pressable
-                    accessibilityLabel={t('conversation.jumpToLatest')}
-                    accessibilityRole="button"
-                    onPress={jumpToLatest}
-                    style={[
-                        styles.jump,
-                        {
-                            backgroundColor: theme.elevated,
-                            borderColor: theme.border,
-                            boxShadow: `0px 2px 8px ${theme.shadow}`,
-                        },
-                    ]}
-                    testID="conversation-jump-latest"
-                >
-                    <ArrowDown color={theme.text} size={20} />
-                </Pressable>
-            ) : null}
-        </View>
+                {isConnected && timeline.status === 'stale' ? (
+                    <NoticeBanner
+                        actionLabel={t('common.retry')}
+                        message={t('conversation.staleNotice')}
+                        onAction={onRetry}
+                        testID="conversation-status-stale"
+                        theme={theme}
+                        tone="muted"
+                    />
+                ) : null}
+                <Animated.View onLayout={onViewportLayout} style={[styles.list, revealStyle]}>
+                    <FlashList
+                        contentContainerStyle={styles.listContent}
+                        data={entries}
+                        /**
+                         * Dragging the timeline dismisses the composer keyboard (following the finger on iOS), and a
+                         * tap on a row's button lands on the first touch instead of only closing the keyboard.
+                         */
+                        keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+                        keyboardShouldPersistTaps="handled"
+                        keyExtractor={conversationEntryKey}
+                        ListFooterComponent={footer}
+                        ListHeaderComponent={header}
+                        maintainVisibleContentPosition={MAINTAIN_VISIBLE_CONTENT_POSITION}
+                        onCommitLayoutEffect={onCommitLayout}
+                        onContentSizeChange={pin}
+                        onLoad={onLoad}
+                        onMomentumScrollBegin={follower.beginMomentum}
+                        onMomentumScrollEnd={follower.endMomentum}
+                        onScroll={onScroll}
+                        onScrollBeginDrag={onScrollBeginDrag}
+                        onScrollEndDrag={follower.endDrag}
+                        onStartReached={onStartReached}
+                        onStartReachedThreshold={0.25}
+                        ref={list}
+                        renderItem={renderItem}
+                        scrollEventThrottle={32}
+                        style={styles.list}
+                    />
+                </Animated.View>
+                {shouldShowConversationJump(isAtBottom, entries.length > 0) ? (
+                    <Pressable
+                        accessibilityLabel={t('conversation.jumpToLatest')}
+                        accessibilityRole="button"
+                        onPress={jumpToLatest}
+                        style={[
+                            styles.jump,
+                            {
+                                backgroundColor: theme.elevated,
+                                borderColor: theme.border,
+                                boxShadow: `0px 2px 8px ${theme.shadow}`,
+                            },
+                        ]}
+                        testID="conversation-jump-latest"
+                    >
+                        <ArrowDown color={theme.text} size={20} />
+                    </Pressable>
+                ) : null}
+            </View>
+        </ConversationDisclosure>
     );
 };
 
