@@ -99,6 +99,28 @@ export function hasAgentChatFindEarlierLoadSettled(
 }
 
 /**
+ * What a Session search handoff does next while no loaded message matches its query: `load` the next older page, `wait`
+ * for the conversation, a page in flight, or the snapshot that says whether older history exists, or `stop` once a
+ * match was found or a page failed. Without a next page the history is exhausted or its snapshot has not arrived, so it
+ * waits rather than giving up.
+ */
+export function nextAgentChatFindAutoLoad(state: {
+    isActive: boolean;
+    hasQuery: boolean;
+    hasContent: boolean;
+    matchCount: number;
+    hasFailed: boolean;
+    isLoading: boolean;
+    canLoadEarlier: boolean;
+}): 'load' | 'wait' | 'stop' {
+    if (!state.isActive || state.matchCount > 0) return 'stop';
+    if (state.hasFailed) return 'stop';
+    if (!state.hasQuery || !state.hasContent || state.isLoading || !state.canLoadEarlier)
+        return 'wait';
+    return 'load';
+}
+
+/**
  * The match after (`delta` 1) or before (`delta` -1) `index`, wrapping around at either end.
  */
 export function stepAgentChatFindIndex(index: number, count: number, delta: 1 | -1): number {

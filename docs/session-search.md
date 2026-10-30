@@ -54,7 +54,9 @@ Opening a message match also opens find in the conversation's Agent Chat with th
 query when the quoted message holds it as one phrase, written as the message spaces it, otherwise
 its longest matched term. The first
 match is highlighted and scrolled into view, and Enter steps through the rest. When the match lies
-in older history than the Chat has loaded, find offers Search earlier messages. A conversation shown
+in older history than the Chat has loaded, find loads older pages one after another until the match
+appears, the history ends, or a page fails, then lands on it; typing a new query or closing find
+stops the loading. Search earlier messages stays available for a manual search. A conversation shown
 as a PTY Terminal opens as before.
 
 `Tab` and `Shift+Tab` cycle the **All / In Caxri / Archived / Not in Caxri** filter; the Agent
