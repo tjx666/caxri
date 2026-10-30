@@ -2,6 +2,7 @@ import type { AgentChatItem, AgentChatRequest, TerminalRecord } from '@caxri/pro
 import {
     AGENT_CHAT_WAITING_MAX_CHATS,
     AGENT_CHAT_WAITING_PROMPT_MAX_LENGTH,
+    agentChatProposedPlanRequest,
 } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
@@ -71,6 +72,40 @@ describe('readWaitingChats', () => {
         const chats = readWaitingChats(many, sessionOf);
         expect(chats).toHaveLength(AGENT_CHAT_WAITING_MAX_CHATS);
         expect(chats[0]?.prompt).toHaveLength(AGENT_CHAT_WAITING_PROMPT_MAX_LENGTH);
+    });
+});
+
+describe('readWaitingChats proposed plans', () => {
+    const plan: AgentChatItem = {
+        id: 'plan-1',
+        type: 'agentMessage',
+        text: 'Step one',
+        streaming: false,
+        proposedPlan: true,
+    };
+    const planned = (overrides: Partial<WaitingChatSource['snapshot']> = {}) =>
+        source('a', {
+            snapshot: { items: [plan], requests: [], planMode: true, ...overrides },
+        });
+
+    it('lists a finished proposed plan awaiting approval as a request of its Chat', () => {
+        expect(readWaitingChats([planned()], sessionOf)[0]?.requests).toEqual([
+            agentChatProposedPlanRequest('plan-1'),
+        ]);
+    });
+
+    it('lists it after the Chat real requests and drops it once the plan is stale', () => {
+        const withApproval = planned({ requests: [approval] });
+        expect(readWaitingChats([withApproval], sessionOf)[0]?.requests).toEqual([
+            approval,
+            agentChatProposedPlanRequest('plan-1'),
+        ]);
+        for (const stale of [
+            { planMode: false },
+            { activeTurnId: 'turn-2' },
+            { items: [plan, { id: 'u', type: 'userMessage' as const, text: 'More' }] },
+        ])
+            expect(readWaitingChats([planned(stale)], sessionOf)).toEqual([]);
     });
 });
 

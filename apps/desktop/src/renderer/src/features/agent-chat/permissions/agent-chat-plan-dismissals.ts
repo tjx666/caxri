@@ -21,3 +21,10 @@ export function dismissAgentChatPlan(terminalId: string, itemId: string): void {
 export function useDismissedAgentChatPlanId(terminalId: string): string | undefined {
     return useAgentChatPlanDismissalStore((state) => state[terminalId]);
 }
+
+/**
+ * Every Chat's dismissed plan item, so the waiting popup can drop a plan whose card was dismissed in its pane.
+ */
+export function useAgentChatPlanDismissals(): Readonly<Record<string, string>> {
+    return useAgentChatPlanDismissalStore((state) => state);
+}

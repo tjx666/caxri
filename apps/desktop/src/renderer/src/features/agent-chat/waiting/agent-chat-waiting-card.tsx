@@ -1,4 +1,4 @@
-import type { AgentChatWaitingEntry } from '@caxri/protocol';
+import type { AgentChatApprovalDecision, AgentChatWaitingEntry } from '@caxri/protocol';
 import { agentProviderCatalog } from '@caxri/protocol';
 import { ChevronUp, SquareArrowOutUpRight } from 'lucide-react';
 
@@ -8,6 +8,8 @@ import { useTranslation } from '../../../i18n';
 import { AgentIdentityIcon } from '../../../icons/agents/agent-identity-icon';
 import { useProjectById, useSessionById, useTerminal } from '../../../stores/selectors';
 import { sessionTitleForDisplay } from '../../session/session-title';
+import { didImplementAgentChatPlan } from '../agent-chat-commands';
+import { dismissAgentChatPlan } from '../permissions/agent-chat-plan-dismissals';
 import { AGENT_CHAT_APPROVAL_ARM_DELAY_MS } from '../transcript/agent-chat-presentation';
 import { AgentChatRequestCard } from '../transcript/agent-chat-request-card';
 import { openAgentChatWaiting } from './agent-chat-waiting-commands';
@@ -104,6 +106,14 @@ export function AgentChatWaitingCard({
                                     : undefined
                             }
                             onEscape={onCollapse}
+                            onDecision={
+                                request.id.startsWith('plan:')
+                                    ? planDecision(
+                                          chat.terminalId,
+                                          request.id.slice('plan:'.length),
+                                      )
+                                    : undefined
+                            }
                             linkedItem={undefined}
                             onAnswered={onAnswered}
                             projectRoot={session?.rootPath}
@@ -123,4 +133,21 @@ export function AgentChatWaitingCard({
             )}
         </div>
     );
+}
+
+/**
+ * The decision handler of a proposed plan's approval card, which is answered through `agentChat.implementPlan` rather
+ * than `agentChat.respond` (see `agentChatProposedPlanRequest`); Keep Planning only dismisses it.
+ */
+function planDecision(
+    terminalId: string,
+    itemId: string,
+): (decision: AgentChatApprovalDecision) => Promise<boolean> {
+    return async (decision) => {
+        if (decision === 'decline') {
+            dismissAgentChatPlan(terminalId, itemId);
+            return true;
+        }
+        return didImplementAgentChatPlan(terminalId, itemId);
+    };
 }
