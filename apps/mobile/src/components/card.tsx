@@ -8,15 +8,17 @@ import type { MobileTheme } from '../theme/tokens';
 
 /**
  * Card emphasis. `attention` is reserved for the one thing that blocks the Agent on the user (a permission request or a
- * question), so exactly one card on screen draws the amber edge; `danger` marks a failure the user must act on.
+ * question), so exactly one card on screen draws the amber border; `danger` marks a failure the user must act on.
  */
 export type CardTone = 'attention' | 'danger' | 'default';
 
 /**
  * The app's one bounded surface: docked Chat panels (plan, goal, queue, request), result cards (pull request, issue,
  * artifact), notices inside the timeline, and the grouped rows of Settings, Agent usage, and Computer status. One
- * radius, one border, and one fill, so siblings never disagree by a few points. A non-default tone adds a 3dp leading
- * edge rather than recoloring the whole card, so the state never rests on fill color alone.
+ * radius, one border, and one fill, so siblings never disagree by a few points. A non-default tone colors the border
+ * rather than the fill, as Desktop frames a Chat request, so the state never rests on fill color alone. It is not a
+ * thicker leading edge: Android draws a 3dp left border under a 12dp radius as a crescent that bends into the top and
+ * bottom borders.
  */
 export const Card = ({
     accessibilityLabel,
@@ -49,13 +51,15 @@ export const Card = ({
         style={[
             styles.card,
             padded ? styles.padded : null,
-            { backgroundColor: theme.surface, borderColor: theme.border },
-            tone === 'default'
-                ? null
-                : {
-                      borderLeftColor: tone === 'attention' ? theme.warning : theme.danger,
-                      borderLeftWidth: 3,
-                  },
+            {
+                backgroundColor: theme.surface,
+                borderColor:
+                    tone === 'attention'
+                        ? theme.warning
+                        : tone === 'danger'
+                          ? theme.danger
+                          : theme.border,
+            },
             style,
         ]}
         testID={testID}
