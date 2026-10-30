@@ -60,11 +60,14 @@ interface ScannedTitleMessage extends TitleMessage {
  * Claude Code records a skill or custom prompt command as `<command-message>` markup, while built-in commands such as
  * `/model` or `/effort` start with `<command-name>`. A Session opened by `/add-model gpt 6` has no other user message,
  * so the invocation is restored as the typed command instead of being discarded with the built-ins.
+ *
+ * `/goal` is the one built-in whose arguments are the user's request: a Session opened by `/goal <condition>` has no
+ * other user message, so dropping it with the built-ins left the Session `Untitled` for its whole run.
  */
 function restorePromptCommandInvocation(text: string): string | undefined {
-    if (!text.startsWith('<command-message>')) return;
     const name = /<command-name>([^<]+)<\/command-name>/u.exec(text)?.[1]?.trim();
     if (!name) return;
+    if (name !== '/goal' && !text.startsWith('<command-message>')) return;
     const arguments_ = /<command-args>([\s\S]*?)<\/command-args>/u.exec(text)?.[1]?.trim();
     return arguments_ ? `${name} ${arguments_}` : name;
 }

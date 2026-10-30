@@ -101,6 +101,19 @@ describe('Session title material', () => {
             extractAgentTitleMessage({
                 type: 'user',
                 message: {
+                    content:
+                        '<command-name>/goal</command-name>\n            <command-message>goal</command-message>\n            <command-args>Close stale issues\n\n- stop by 9am</command-args>',
+                },
+            }),
+        ).toEqual({
+            isChunk: false,
+            role: 'user',
+            text: '/goal Close stale issues\n\n- stop by 9am',
+        });
+        expect(
+            extractAgentTitleMessage({
+                type: 'user',
+                message: {
                     content: '<local-command-stdout>Set effort level</local-command-stdout>',
                 },
             }),
