@@ -21,24 +21,24 @@ import { createStore } from '../../../lib/store';
 export interface AgentChatPendingMessage extends AgentChatPendingMessageBase {
     images: ReadonlyArray<{ thumbnail: string }>;
     /**
-     * Sent as steering into a running turn. A provider such as Codex records steered input only once the turn's current
-     * step ends, so this row can wait on that step rather than on delivery.
+     * What the message waits for, decided when it was sent (see {@link agentChatPendingWait}).
      */
-    steersTurn?: boolean;
+    wait?: AgentChatPendingWait;
 }
 
 /**
- * What a message on its way is waiting for, for the hint behind its sending clock: the running turn's current step
- * (steering), the Agent starting or resuming (a stopped Chat resumes on its next message), or plain delivery.
+ * What a message on its way is waiting for, for the hint behind its sending clock: the running turn's current step when
+ * it steers that turn (Codex records steered input only once the step ends), the Agent starting or resuming (a stopped
+ * Chat resumes on its next message), or plain delivery.
  */
 export type AgentChatPendingWait = 'step' | 'start' | 'delivery';
 
 export function agentChatPendingWait(
-    message: Pick<AgentChatPendingMessage, 'steersTurn'>,
-    status: AgentChatSnapshot['status'] | undefined,
+    snapshot: Pick<AgentChatSnapshot, 'activeTurnId' | 'status'> | undefined,
+    delivery: 'queue' | 'steer' | undefined,
 ): AgentChatPendingWait {
-    if (message.steersTurn) return 'step';
-    return status === 'ready' || status === 'failed' ? 'delivery' : 'start';
+    if (delivery === 'steer' && snapshot?.activeTurnId) return 'step';
+    return snapshot?.status === 'ready' || snapshot?.status === 'failed' ? 'delivery' : 'start';
 }
 
 interface AgentChatPendingState {
@@ -159,7 +159,7 @@ export function showAgentChatPendingMessage(
         imageCount: message.imageCount ?? message.images.length,
         placement: agentChatPendingPlacement(snapshot, message.delivery, ahead.length > 0),
         knownIds: agentChatPendingKnownIds(snapshot),
-        ...(message.delivery === 'steer' && snapshot?.activeTurnId && { steersTurn: true }),
+        wait: agentChatPendingWait(snapshot, message.delivery),
     });
     return id;
 }

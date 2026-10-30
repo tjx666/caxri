@@ -1,4 +1,3 @@
-import type { AgentChatSnapshot } from '@caxri/protocol';
 import { parseAgentChatPathReferences } from '@caxri/protocol';
 
 import { Tooltip } from '../../../components/ui/tooltip';
@@ -8,7 +7,6 @@ import type { useAgentChatPending } from '../hooks/use-agent-chat-pending';
 import { AgentChatUserMessageBubble } from '../messages/agent-chat-user-message';
 import { AgentChatSessionHandoffBubble } from '../session-handoff/agent-chat-session-handoff-bubble';
 import type { AgentChatPendingMessage, AgentChatPendingWait } from './agent-chat-pending';
-import { agentChatPendingWait } from './agent-chat-pending';
 import { AgentChatTimelineEntryView } from './agent-chat-timeline-entry-view';
 import { AgentChatAskingQuestions } from './questions/agent-chat-answered-questions';
 
@@ -49,11 +47,9 @@ function AgentChatSendingClock({ wait }: { wait: AgentChatPendingWait }) {
  */
 function AgentChatPendingUserMessage({
     message,
-    status,
     onOpenFile,
 }: {
     message: AgentChatPendingMessage;
-    status: AgentChatSnapshot['status'] | undefined;
     onOpenFile: (target: string) => void;
 }) {
     const { handoff, references, skills, text } = parseAgentChatPathReferences(message.text);
@@ -75,7 +71,7 @@ function AgentChatPendingUserMessage({
                     onOpenFile={onOpenFile}
                 />
             </div>
-            <AgentChatSendingClock wait={agentChatPendingWait(message, status)} />
+            <AgentChatSendingClock wait={message.wait ?? 'delivery'} />
         </div>
     );
 }
@@ -87,14 +83,9 @@ function AgentChatPendingUserMessage({
  */
 export function AgentChatPendingTimeline({
     pending,
-    status,
     onOpenFile,
 }: {
     pending: Pick<ReturnType<typeof useAgentChatPending>, 'asking' | 'notices' | 'timeline'>;
-    /**
-     * The Chat's provider status, which says whether a message on its way waits for the Agent to start.
-     */
-    status: AgentChatSnapshot['status'] | undefined;
     onOpenFile: (target: string) => void;
 }) {
     return (
@@ -117,7 +108,6 @@ export function AgentChatPendingTimeline({
                 <AgentChatPendingUserMessage
                     key={message.id}
                     message={message}
-                    status={status}
                     onOpenFile={onOpenFile}
                 />
             ))}

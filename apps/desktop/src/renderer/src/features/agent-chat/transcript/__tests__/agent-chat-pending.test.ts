@@ -279,15 +279,13 @@ describe('what a message on its way waits for', () => {
     it('waits on the running step when it steers a turn', () => {
         const message = sent('steer', snapshot({ activeTurnId: 'turn-1' }));
         expect(message.placement).toBe('timeline');
-        expect(agentChatPendingWait(message, 'ready')).toBe('step');
+        expect(message.wait).toBe('step');
     });
 
     it('waits on delivery when it starts a turn, and on the Agent while it starts or resumes', () => {
-        const message = sent('steer', snapshot());
-        expect(message.steersTurn).toBeUndefined();
-        expect(agentChatPendingWait(message, 'ready')).toBe('delivery');
-        expect(agentChatPendingWait(message, 'starting')).toBe('start');
-        expect(agentChatPendingWait(message, 'stopped')).toBe('start');
-        expect(agentChatPendingWait(message, undefined)).toBe('start');
+        expect(sent('steer', snapshot()).wait).toBe('delivery');
+        expect(sent(undefined, snapshot({ status: 'starting' })).wait).toBe('start');
+        expect(sent(undefined, snapshot({ status: 'stopped' })).wait).toBe('start');
+        expect(agentChatPendingWait(undefined, undefined)).toBe('start');
     });
 });
