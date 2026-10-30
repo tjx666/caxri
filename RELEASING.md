@@ -110,7 +110,9 @@ override in macOS Privacy & Security only for an artifact you built and verified
 
 The ad-hoc signature is load-bearing: without it, the arm64 bundle carries only the linker's
 per-binary signature with no sealed resources, and Gatekeeper reports a quarantined copy as
-"damaged" with no Open Anyway route. `package:release-dmgs` fails the release when the bundle
+"damaged" with no Open Anyway route. Signing skips `Contents/Resources/server/` so the embedded Server artifact stays byte-identical
+to its integrity manifest, and skips the Share extension, which is already signed with its sandbox
+entitlements. `package:release-dmgs` fails the release when the bundle
 signature is not sealed or the Share extension loses its sandbox entitlement.
 
 An unnotarized DMG can be offered for public download, but recipients must handle the Gatekeeper
