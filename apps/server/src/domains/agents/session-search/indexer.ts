@@ -84,6 +84,22 @@ interface ChangedTranscript {
     stored?: StoredTranscript;
 }
 
+/**
+ * `<provider>:<conversation id>` keys of the conversations Caxri Sessions hold, whose hosted bodies the index reads.
+ */
+type HeldKeys = ReadonlySet<string>;
+
+function transcriptKey(provider: string, agentSessionId: string): string {
+    return `${provider}:${agentSessionId}`;
+}
+
+/**
+ * Whether the stored row is a hosted transcript whose body was skipped, so it is not counted as pending work.
+ */
+function isSkippedHosted(stored: StoredTranscript | undefined): boolean {
+    return stored?.state === 'hosted' && stored.scanOffset === 0;
+}
+
 async function fileIdentity(path: string): Promise<FileIdentity | undefined> {
     try {
         const stats = await lstat(path);
@@ -207,16 +223,16 @@ export class SessionSearchIndexer {
         );
     }
 
-    private async runPassOnce(): Promise<IndexerPassReport> {
+    private async runPassOnce(held: HeldKeys): Promise<IndexerPassReport> {
         try {
-            return await this.runPass();
+            return await this.runPass(held);
         } finally {
             this.running = undefined;
             this.pending = 0;
         }
     }
 
-    private async runPass(): Promise<IndexerPassReport> {
+    private async runPass(held: HeldKeys): Promise<IndexerPassReport> {
         const started = this.now();
         const discovered = await discoverTranscripts(this.environment);
         const stored = new Map(this.store.transcripts().map((row) => [row.path, row]));
@@ -224,8 +240,14 @@ export class SessionSearchIndexer {
         const changed: ChangedTranscript[] = [];
         await mapWithConcurrency(discovered, IDENTITY_CONCURRENCY, async (found) => {
             const identity = await fileIdentity(found.main.path);
+            if (!identity) return;
             const row = stored.get(found.main.path);
-            if (identity && !isUnchanged(row, identity))
+            // A hosted body skipped while no Session held it is read once a Session takes the conversation over.
+            const isNowHeld =
+                identity.size > 0 &&
+                held.has(transcriptKey(found.provider, found.agentSessionId)) &&
+                isSkippedHosted(row);
+            if (isNowHeld || !isUnchanged(row, identity))
                 changed.push({ found, identity, stored: row });
         });
         let removed = 0;
@@ -240,7 +262,16 @@ export class SessionSearchIndexer {
             removed += 1;
         });
         changed.sort((left, right) => right.identity.mtimeMs - left.identity.mtimeMs);
-        this.pending = changed.length;
+        /**
+         * A hosted conversation no Session holds is never read, so it is no work the user waits for. A transcript first
+         * seen this pass is counted until its classification shows it is hosted.
+         */
+        const isCounted = (entry: ChangedTranscript) =>
+            !(
+                isSkippedHosted(entry.stored) &&
+                !held.has(transcriptKey(entry.found.provider, entry.found.agentSessionId))
+            );
+        this.pending = changed.filter((entry) => isCounted(entry)).length;
         const codex = await readCodexThreadIndex(
             this.environment,
             changed.flatMap(({ found }) =>
@@ -252,12 +283,12 @@ export class SessionSearchIndexer {
         for (const entry of changed) {
             try {
                 // eslint-disable-next-line no-await-in-loop -- one file at a time bounds memory and open handles
-                const reason = await this.indexTranscript(entry, codex);
+                const reason = await this.indexTranscript(entry, codex, held);
                 if (reason) excluded[reason] = (excluded[reason] ?? 0) + 1;
             } catch {
                 failed += 1;
             }
-            this.pending -= 1;
+            if (isCounted(entry)) this.pending -= 1;
             // eslint-disable-next-line no-await-in-loop -- lets queued queries run between files
             await yieldToEventLoop();
         }
@@ -294,6 +325,7 @@ export class SessionSearchIndexer {
     private async indexTranscript(
         { found, identity, stored }: ChangedTranscript,
         codex: CodexThreadIndex,
+        held: HeldKeys,
     ): Promise<ConversationExclusionReason | undefined> {
         const isSameFile =
             stored !== undefined &&
@@ -342,6 +374,21 @@ export class SessionSearchIndexer {
             cwd: parsed.cwd,
             ...(parsed.title !== undefined && { title: parsed.title }),
         };
+        /**
+         * Another application's SDK runs would otherwise fill the index with conversations nobody can open, so a hosted
+         * transcript's body is read only while a Session holds it. The row keeps its identity, so the file is not
+         * inspected again until it changes or a Session takes it over.
+         */
+        if (parsed.isHosted && !held.has(transcriptKey(found.provider, found.agentSessionId))) {
+            if (stored) this.store.clearMessages(stored.id);
+            this.store.saveTranscript({
+                ...conversation,
+                scanOffset: 0,
+                isSkippingLine: false,
+                indexedChars: 0,
+            });
+            return undefined;
+        }
         /**
          * Until the scan finishes the row keeps a size that can never match, so a pass interrupted by a Worker shutdown
          * reads the rest of the file next time instead of trusting a half-indexed one.
@@ -441,8 +488,8 @@ export class SessionSearchIndexer {
     /**
      * Runs one pass, or joins the pass already running.
      */
-    refresh(): Promise<IndexerPassReport> {
-        this.running ??= this.runPassOnce();
+    refresh(held: HeldKeys = new Set()): Promise<IndexerPassReport> {
+        this.running ??= this.runPassOnce(held);
         return this.running;
     }
 

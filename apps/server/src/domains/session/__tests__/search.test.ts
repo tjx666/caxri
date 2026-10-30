@@ -57,6 +57,7 @@ async function fixture(
             hits,
             status: { state: 'ready', conversations: hits.length, pending: 0 },
             usedSubstringScan: false,
+            relaxation: 'phrase',
         }),
     );
     const inspect = vi.fn();
@@ -112,6 +113,106 @@ describe('SessionSearchService', () => {
         await expect(
             f.service.preview({ provider: 'codex', agentSessionId: EXTERNAL, query: '' }),
         ).rejects.toMatchObject({ code: 'UNAVAILABLE' });
+    });
+
+    it('hands the index the query without operators and reports the parsed filters', async () => {
+        const f = await fixture();
+
+        const result = await f.service.search({
+            query: 'invoice agent:codex project:Billing before:2026-10-01 after:2026-09-01',
+        });
+
+        expect(f.search).toHaveBeenCalledWith(
+            expect.objectContaining({
+                query: 'invoice',
+                providers: ['codex'],
+                projects: ['billing'],
+                beforeMs: new Date(2026, 9, 1).getTime(),
+                afterMs: new Date(2026, 8, 1).getTime(),
+            }),
+            undefined,
+        );
+        expect(result.filters).toEqual({
+            agents: ['codex'],
+            projects: ['billing'],
+            before: '2026-10-01',
+            after: '2026-09-01',
+        });
+        expect(result.relaxation).toBe('phrase');
+    });
+
+    it('narrows the providers parameter by the agent operator and searches nothing when they are disjoint', async () => {
+        const f = await fixture();
+
+        await f.service.search({ query: 'agent:codex', providers: ['codex', 'claude'] });
+        expect(f.search).toHaveBeenLastCalledWith(
+            expect.objectContaining({ providers: ['codex'] }),
+            undefined,
+        );
+
+        f.search.mockClear();
+        const result = await f.service.search({ query: 'agent:grok', providers: ['codex'] });
+        expect(f.search).not.toHaveBeenCalled();
+        expect(result.entries).toEqual([]);
+        expect(result.filters.agents).toEqual(['grok']);
+    });
+
+    it('filters Session titles by project folder and date window', async () => {
+        const f = await fixture();
+
+        const inProject = await f.service.search({ query: 'invoice project:billing' });
+        const elsewhere = await f.service.search({ query: 'invoice project:nowhere' });
+        const longAgo = await f.service.search({ query: 'invoice before:2000-01-01' });
+
+        expect(inProject.entries.map((entry) => entry.sessionId)).toEqual([f.open.session.id]);
+        expect(elsewhere.entries).toEqual([]);
+        expect(longAgo.entries).toEqual([]);
+    });
+
+    it('ranks the current Project ahead of a newer match elsewhere and passes its root to the index', async () => {
+        const f = await fixture([hit(EXTERNAL, { score: 9, field: 'title', cwd: '/elsewhere' })]);
+        const otherRoot = join(f.directory, 'other');
+        await mkdir(otherRoot, { recursive: true });
+        const other = f.database.createProject(otherRoot);
+        const session = f.database.createSession(other.id, 'codex');
+        f.database.renameSession(session.session.id, 'Invoice in another Project');
+
+        const withHint = await f.service.search({
+            query: 'invoice',
+            currentProjectId: f.open.session.projectId,
+        });
+        const withoutHint = await f.service.search({ query: 'invoice' });
+
+        expect(f.search).toHaveBeenNthCalledWith(
+            1,
+            expect.objectContaining({ preferredRoot: f.repo }),
+            undefined,
+        );
+        // The other Project's Session is newer, so without the hint it leads.
+        expect(withoutHint.entries[0].sessionId).toBe(session.session.id);
+        expect(withHint.entries[0].sessionId).toBe(f.open.session.id);
+    });
+
+    it('strips operators from the preview query', async () => {
+        const f = await fixture();
+        f.preview.mockResolvedValue({
+            messages: [],
+            matchCount: 0,
+            matchIndex: 0,
+            hasEarlier: false,
+            hasLater: false,
+        });
+
+        await f.service.preview({
+            provider: 'codex',
+            agentSessionId: EXTERNAL,
+            query: 'agent:codex invoice',
+        });
+
+        expect(f.preview).toHaveBeenCalledWith(
+            expect.objectContaining({ query: 'invoice' }),
+            undefined,
+        );
     });
 
     it('reports a held conversation as its Session and the rest as external', async () => {

@@ -47,6 +47,11 @@ export const sessionSearchParametersSchema = z.object({
      */
     providers: z.array(agentProviderSchema).max(16).optional(),
     status: sessionSearchStatusFilterSchema.optional(),
+    /**
+     * The Project the user is working in. A ranking hint only: results whose folder lies inside that Project's root
+     * sort ahead of otherwise equal ones, and nothing is dropped.
+     */
+    currentProjectId: identifierSchema.optional(),
 });
 export type SessionSearchParameters = z.infer<typeof sessionSearchParametersSchema>;
 
@@ -115,6 +120,28 @@ export const sessionSearchIndexStatusSchema = z.object({
 });
 export type SessionSearchIndexStatus = z.infer<typeof sessionSearchIndexStatusSchema>;
 
+/**
+ * How far the Server loosened the query to find results, from strictest to loosest: `phrase` is the query as typed
+ * (every word, with a message holding them as one phrase when there is one); `allWords` found no phrase, so results
+ * hold every word apart; `anyWord` found none holding every word, so results hold at least one.
+ */
+export const sessionSearchRelaxations = ['phrase', 'allWords', 'anyWord'] as const;
+export const sessionSearchRelaxationSchema = z.enum(sessionSearchRelaxations);
+export type SessionSearchRelaxation = z.infer<typeof sessionSearchRelaxationSchema>;
+
+/**
+ * The filter operators the Server parsed out of the query (`agent:`, `project:`, `before:`, `after:`), so the dialog
+ * can show them as removable chips. Dates are local calendar days (`YYYY-MM-DD`): `before` excludes that day and
+ * `after` includes it.
+ */
+export const sessionSearchFiltersSchema = z.object({
+    agents: z.array(agentProviderSchema).max(16),
+    projects: z.array(z.string().max(200)).max(8),
+    before: z.string().max(10).optional(),
+    after: z.string().max(10).optional(),
+});
+export type SessionSearchFilters = z.infer<typeof sessionSearchFiltersSchema>;
+
 export const sessionSearchResultSchema = z.object({
     entries: z.array(sessionSearchEntrySchema).max(MAX_SESSION_SEARCH_RESULTS),
     index: sessionSearchIndexStatusSchema,
@@ -122,6 +149,8 @@ export const sessionSearchResultSchema = z.object({
      * A term shorter than three characters cannot use the full-text index, so message text was scanned instead.
      */
     usedSubstringScan: z.boolean(),
+    filters: sessionSearchFiltersSchema,
+    relaxation: sessionSearchRelaxationSchema,
 });
 export type SessionSearchResult = z.infer<typeof sessionSearchResultSchema>;
 

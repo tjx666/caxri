@@ -28,8 +28,28 @@ both the indexed text and the query, so a sentence copied from a rendered Agent 
 matches. Scripted runs (a Claude conversation whose first entry point is `sdk-cli`, Codex subagent
 threads) are not conversations the user had and never appear. A Claude conversation an application
 started (Caxri's own `caxri` entry point, which every Claude process Caxri starts carries, or any
-other `sdk-*` entry point) is indexed but appears only while a Caxri Session holds it, so Agent
-Chat conversations are searchable by content while another application's SDK runs stay out.
+other `sdk-*` entry point) appears only while a Caxri Session holds it, so Agent Chat conversations
+are searchable by content while another application's SDK runs stay out. The index reads such a
+transcript's messages only once a Session holds it (a hosted file nobody holds keeps a row but no
+text, so scripted SDK runs add nothing to the index), and the "still indexing" count leaves out the
+hosted conversations no Session holds.
+
+### Operators, relaxation, and the current Project
+
+The query accepts `agent:claude|codex|grok`, `project:<text>` (or `project:"two words"`),
+`before:YYYY-MM-DD`, and `after:YYYY-MM-DD`. They narrow the search and are not matched as words:
+`agent:` repeats widen to several Agents and combine with the Agent chips by intersection,
+`project:` keeps conversations whose folder contains the text (case-insensitive), `before:` excludes
+the given local day and later, and `after:` includes that day and later. An operator with an unusable
+value (an unknown Agent, a date that does not exist, an empty project) stays in the query as plain
+words. The result carries the parsed `filters` so a client can show them as removable chips; the
+operators work in the CLI's `session search` as well.
+
+When no conversation holds every word, the Server loosens the query one step and reports it in
+`relaxation`: `phrase` (the query as typed, including a message holding the whole phrase), `allWords`
+(every word, but never as one phrase), or `anyWord` (at least one word, only when nothing holds them
+all). A request may also pass `currentProjectId`; conversations inside that Project (and its Sessions)
+then sort ahead of every other result, and none is dropped.
 
 A message match quotes the message with every matched term highlighted (the phrase message when
 there is one), prefixed by who wrote it
