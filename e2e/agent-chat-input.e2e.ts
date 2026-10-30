@@ -6,7 +6,12 @@ import process from 'node:process';
 
 import type { Locator } from '@playwright/test';
 
-import { composerValue, expectComposerValue } from './support/agent-chat-composer.ts';
+import {
+    BUILT_IN_COMMAND_ROWS,
+    composerValue,
+    expectComposerValue,
+    pressTimes,
+} from './support/agent-chat-composer.ts';
 import {
     fakeClaudeChatAgentMode,
     fakeCodexChatAgentMode,
@@ -186,7 +191,7 @@ test('a Codex Chat sends pasted and dropped images, restores their previews on r
         await message.fill('/');
         const commands = chat.getByRole('listbox', { name: 'Commands and skills' });
         await expect(commands.getByRole('option')).toHaveText([
-            /^\/new-session/u,
+            ...BUILT_IN_COMMAND_ROWS,
             /^\/compact/u,
             /^\/review/u,
             /^\/goal/u,
@@ -209,15 +214,14 @@ test('a Codex Chat sends pasted and dropped images, restores their previews on r
         await message.fill('/');
         await expect(commands.getByRole('option')).toHaveText([
             /^\$review-pr/u,
-            /^\/new-session/u,
+            ...BUILT_IN_COMMAND_ROWS,
             /^\/compact/u,
             /^\/review/u,
             /^\/goal/u,
         ]);
         await expect(commands.getByText('Recently Used', { exact: true })).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('codex-chat-recent-commands.png') });
-        await message.press('ArrowDown');
-        await message.press('ArrowDown');
+        await pressTimes(message, 'ArrowDown', BUILT_IN_COMMAND_ROWS.length + 1);
         await message.press('Enter');
         await expect(commands).toHaveCount(0);
         await expect(chat.getByText('Context compacted')).toBeVisible();
@@ -427,13 +431,12 @@ test("a Claude Code Chat sends an image, restores its preview on resume, and off
         const commands = chat.getByRole('listbox', { name: 'Commands and skills' });
         // Commands that only make sense in Claude Code's own terminal UI (here /exit) are not offered.
         await expect(commands.getByRole('option')).toHaveText([
-            /^\/new-session/u,
+            ...BUILT_IN_COMMAND_ROWS,
             /^\/compact/u,
             /^\/review/u,
             /^\/goal/u,
         ]);
-        await message.press('ArrowDown');
-        await message.press('ArrowDown');
+        await pressTimes(message, 'ArrowDown', BUILT_IN_COMMAND_ROWS.length + 1);
         await expect(commands.getByRole('option', { name: /^\/review/u })).toHaveAttribute(
             'aria-selected',
             'true',

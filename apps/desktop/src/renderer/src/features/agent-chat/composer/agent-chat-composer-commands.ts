@@ -1,3 +1,5 @@
+import { notifyListeners } from '@caxri/utils';
+
 /**
  * The composer controls a command can reach: the model picker, the permission menu, the plan mode toggle, the side
  * chat, and sending the message (used by the turn review's "Back to Chat and Send").
@@ -14,6 +16,26 @@ export type AgentChatComposerCommand =
  */
 const handlers = new Map<string, Map<AgentChatComposerCommand, () => void>>();
 
+/**
+ * Notified whenever a control registers or leaves, so a surface that lists the commands (the composer's `/` menu) can
+ * follow a control that mounts after it, such as the model picker once the first snapshot arrives.
+ */
+const listeners = new Set<() => void>();
+
+function notifyAgentChatComposerCommandsChanged(): void {
+    notifyListeners(listeners, undefined);
+}
+
+/**
+ * Subscribes to registrations, in the shape `useSyncExternalStore` expects.
+ */
+export function subscribeAgentChatComposerCommands(listener: () => void): () => void {
+    listeners.add(listener);
+    return () => {
+        listeners.delete(listener);
+    };
+}
+
 export function registerAgentChatComposerCommand(
     terminalId: string,
     command: AgentChatComposerCommand,
@@ -25,11 +47,13 @@ export function registerAgentChatComposerCommand(
         handlers.set(terminalId, commands);
     }
     commands.set(command, run);
+    notifyAgentChatComposerCommandsChanged();
     return () => {
         const current = handlers.get(terminalId);
         if (current?.get(command) !== run) return;
         current.delete(command);
         if (current.size === 0) handlers.delete(terminalId);
+        notifyAgentChatComposerCommandsChanged();
     };
 }
 

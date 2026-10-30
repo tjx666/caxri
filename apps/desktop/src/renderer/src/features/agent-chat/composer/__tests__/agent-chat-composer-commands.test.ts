@@ -5,9 +5,22 @@ import {
     canRunAgentChatComposerCommand,
     registerAgentChatComposerCommand,
     runAgentChatComposerCommand,
+    subscribeAgentChatComposerCommands,
 } from '../agent-chat-composer-commands';
 
 describe('Agent Chat composer commands', () => {
+    it('tells subscribers when a control registers or leaves, until they unsubscribe', () => {
+        let changes = 0;
+        const unsubscribe = subscribeAgentChatComposerCommands(() => (changes += 1));
+        const unregister = registerAgentChatComposerCommand('chat-1', 'openSideChat', () => {});
+        expect(changes).toBe(1);
+        unregister();
+        expect(changes).toBe(2);
+        unsubscribe();
+        registerAgentChatComposerCommand('chat-1', 'openSideChat', () => {})();
+        expect(changes).toBe(2);
+    });
+
     it('reaches only the control the Chat registered, and only while it stays registered', () => {
         const ran: string[] = [];
         const unregister = registerAgentChatComposerCommand('chat-1', 'changeModel', () =>

@@ -14,6 +14,7 @@ import { cn } from '../../../lib/utilities';
 import { useTerminal } from '../../../stores/selectors';
 import { usePaneViewSession } from '../../workbench/pane-view-session';
 import { agentChatLiveGoalActivity } from '../activity/agent-chat-goal-row';
+import { useAgentChatAppCommands } from '../app-commands/use-agent-chat-app-commands';
 import { AgentChatAttachmentList } from '../attachments/agent-chat-attachment-list';
 import { isAgentChatSkillAttachment } from '../composer-input/agent-chat-drafts';
 import { AgentChatSuggestionMenu } from '../composer-input/agent-chat-suggestion-menu';
@@ -220,7 +221,9 @@ export function AgentChatComposer({
      * left open stays over whatever the user moved to, such as the edit bar's controls.
      */
     const [isInputFocused, setInputFocused] = useState(false);
+    const appCommands = useAgentChatAppCommands(terminalId);
     const menu = useAgentChatCommandMenu({
+        appActions: appCommands.actions,
         commands,
         draft,
         isInputFocused,
@@ -280,7 +283,9 @@ export function AgentChatComposer({
         submit,
         submitForm,
     } = useAgentChatComposerSend({
+        appCommandFor: appCommands.commandFor,
         canSend: sendBlock === undefined,
+        clearDraft,
         commands,
         draft,
         edit: {

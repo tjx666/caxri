@@ -37,3 +37,31 @@ export async function expectComposerValue(
     const poll = expect.poll(() => composerValue(composer), options);
     await (typeof expected === 'string' ? poll.toBe(expected) : poll.toMatch(expected));
 }
+
+/**
+ * The rows Caxri itself puts at the top of a Chat's `/` menu, ahead of the provider's commands: `/new-session`, then
+ * the app commands (`agentChatAppCommandActions`) a Chat with a conversation offers.
+ */
+export const BUILT_IN_COMMAND_ROWS = [
+    /^\/new-session/u,
+    /^\/status/u,
+    /^\/usage/u,
+    /^\/model/u,
+    /^\/plan/u,
+    /^\/btw/u,
+    /^\/fork/u,
+    /^\/new(?!-)/u,
+    /^\/rename/u,
+    /^\/archive/u,
+    /^\/pin/u,
+];
+
+/**
+ * Presses `key` `times` times, to walk the `/` menu past its built-in rows.
+ */
+export async function pressTimes(target: Locator, key: string, times: number): Promise<void> {
+    for (let index = 0; index < times; index += 1) {
+        // eslint-disable-next-line no-await-in-loop -- each press moves the selection one row
+        await target.press(key);
+    }
+}

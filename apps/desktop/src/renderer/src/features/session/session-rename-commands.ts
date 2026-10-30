@@ -12,10 +12,17 @@ import { canSuggestSessionTitle } from '../primary-sidebar/session-rename-draft'
  */
 export function renameSelectedSession(): void {
     const session = getSelectedSession();
-    if (!session) return;
+    if (session) renameSession(session.id);
+}
+
+/**
+ * Puts one Session's sidebar row into rename mode, revealing a hidden Primary Side Bar first as
+ * {@link renameSelectedSession} does. The Chat composer's `/rename` names its own Session rather than the selected one.
+ */
+export function renameSession(sessionId: string): void {
     if (!isPrimarySidebarShown(useChromeLayoutStore.getState()))
         useChromeLayoutStore.getState().setPrimarySidebarVisible(true);
-    requestSessionRename(session.id);
+    requestSessionRename(sessionId);
 }
 
 /**
