@@ -411,7 +411,8 @@
             "icon": "build/icon.icns",
             "identity": "-",
             "signIgnore": [
-                "Caxri Share\\.appex"
+                "Caxri Share\\.appex",
+                "Contents/Resources/server/"
             ],
             "target": [
                 "dir"
