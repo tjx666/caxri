@@ -132,8 +132,9 @@ test('Archived Sessions manager deletes only after native confirmation', async (
         await archivedSourceRow.getByRole('button', { name: /^Archive / }).click();
         await expect(sessionCard(running.page, archivedSessionId)).toHaveCount(0);
 
-        // The manager's global entry point lives in Settings now, not in the primarySidebar.
         const settingsTab = await openSettingsTab(running.page);
+        // The Settings list is virtualized, so search to render the row before clicking it.
+        await settingsTab.getByLabel('Search settings').fill('archived sessions');
         await settingsTab.locator('.archived-sessions-entry').click();
         // The manager is its own dialog, floating over the Settings tab like any other modal
         // opened over a document (issue caxri#1289): Settings is a Workbench tab now, not a
