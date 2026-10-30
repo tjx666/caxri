@@ -6,6 +6,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import {
     agentChatDockedPlan,
     agentChatFailureMessage,
+    agentChatSnapshotBeforeItem,
     sentenceStartProvider,
 } from '@caxri/protocol';
 
@@ -95,11 +96,19 @@ const AgentChatBody = ({
     /**
      * The window with the older pages the reader loaded in front of it; turn folds and artifacts build over both.
      */
-    const { snapshot, timeline } = useAgentChatHistory(
+    const { snapshot: loadedSnapshot, timeline } = useAgentChatHistory(
         chat.snapshot,
         isConnected && chat.status === 'ready' && chat.savedAt === undefined,
     );
     const { retryConnection } = useMobileClient();
+    /**
+     * What the timeline shows: while an edit is on its way, the message it replaces and everything after it are already
+     * gone, as they will be once Server Core rewinds.
+     */
+    const snapshot = useMemo(
+        () => agentChatSnapshotBeforeItem(loadedSnapshot, pending.replacedFrom),
+        [loadedSnapshot, pending.replacedFrom],
+    );
     /**
      * The finished turns the user unfolded, by turn id. The list owns it so FlashList can recycle a row for any turn.
      */

@@ -136,18 +136,38 @@ const useComposerAction = ({
             return;
         }
         /**
-         * An edit sends its text as the replacement message, never as a command, and leaves no pending row: the rewound
-         * timeline arrives with the new message in it. The composer gets back the draft the edit held.
+         * An edit sends its text as the replacement message, never as a command. It shows at once as a pending row
+         * while the message it replaces and everything after it leave the timeline (`replaces`); the composer gets back
+         * the draft the edit held. A failed edit brings the old content back and puts the edit, with its text, back.
          */
         const edit = chat.editing;
         if (edit) {
+            if (chat.pendingKey === null) return;
+            const text = draft.trim();
             setSendingEdit(true);
             try {
-                await chat.rewind(edit.itemId, draft.trim());
-                chat.setEditing(undefined);
-                onDraftChange(edit.previousDraft);
-            } catch {
-                setError(t('chat.edit.failed'));
+                await sendAgentChatMessageOptimistically({
+                    clearComposer: () => {
+                        chat.setEditing(undefined);
+                        onDraftChange(edit.previousDraft);
+                    },
+                    key: chat.pendingKey,
+                    message: {
+                        id: Crypto.randomUUID(),
+                        text,
+                        imageUris: [],
+                        delivery: undefined,
+                        replaces: edit.itemId,
+                    },
+                    reportError: (message) =>
+                        setError(message === null ? null : t('chat.edit.failed')),
+                    returnUnsent: () => {
+                        chat.setEditing(edit);
+                        onDraftChange(text);
+                    },
+                    send: () => chat.rewind(edit.itemId, text),
+                    snapshot: chat.snapshot,
+                });
             } finally {
                 setSendingEdit(false);
             }
