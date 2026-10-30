@@ -20,6 +20,8 @@ import { ContextSuggestionsCard } from './context-suggestions-card';
 import { ContextTiles } from './context-tiles';
 import { ContextWindowCard } from './context-window-card';
 import { contextSuggestions } from './suggestions';
+import { ContextTurnsCard } from './turns/context-turns-card';
+import { analyzeContextTurns } from './turns/turn-analysis';
 import { useAgentContextReport } from './use-agent-context-report';
 
 /**
@@ -107,6 +109,11 @@ function ContextReportView({ terminalId }: { terminalId: string }) {
                             isHistoryTruncated={data.isHistoryTruncated}
                             now={now}
                             segments={composition && contextWindowSegments(composition)}
+                        />
+                        <ContextTurnsCard
+                            analysis={analyzeContextTurns(data.requests)}
+                            autoCompactThreshold={composition?.autoCompactThreshold}
+                            isHistoryTruncated={data.isHistoryTruncated}
                         />
                         {composition && <ContextDetailCards composition={composition} />}
                     </div>

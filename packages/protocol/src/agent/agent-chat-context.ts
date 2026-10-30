@@ -7,6 +7,11 @@ import { z } from 'zod';
 export const MAX_AGENT_CHAT_CONTEXT_REQUESTS = 1_000;
 
 /**
+ * Upper bound of the per-tool results a request's turn breakdown names.
+ */
+export const MAX_AGENT_CHAT_CONTEXT_TURN_TOOLS = 20;
+
+/**
  * Upper bound of the context changes a live Chat remembers between reports.
  */
 export const MAX_AGENT_CHAT_CONTEXT_CHANGES = 100;
@@ -116,6 +121,31 @@ export const agentChatContextCompositionSchema = z.strictObject({
 });
 
 /**
+ * What one request added to the prompt since the previous request, split by where it came from. An estimate: the
+ * transcript's text is weighed by length and normalized so the parts sum to the real prompt growth.
+ */
+const agentChatContextTurnSchema = z.strictObject({
+    /**
+     * The user's own messages.
+     */
+    user: tokens,
+    /**
+     * The previous response: text, thinking, and tool call arguments.
+     */
+    modelOutput: tokens,
+    /**
+     * Everything tools returned.
+     */
+    toolResults: tokens,
+    /**
+     * The heaviest tools within `toolResults`, largest first; the rest are left out.
+     */
+    tools: z
+        .array(z.strictObject({ name: toolName, tokens }))
+        .max(MAX_AGENT_CHAT_CONTEXT_TURN_TOOLS),
+});
+
+/**
  * One model request of the main conversation as its usage reports it. The prompt is `input + cacheRead + cacheWrite`; a
  * request that reads less of the cache than the previous prompt held is where the cache broke.
  */
@@ -138,6 +168,11 @@ const agentChatContextRequestSchema = z.strictObject({
      * The first request after the conversation was compacted, which rewrites the cache by design.
      */
     afterCompaction: z.boolean().optional(),
+    /**
+     * What this request added to the window over the previous one. Absent for the oldest request replayed, after a
+     * compaction (the window was rewritten), and when the prompt did not grow.
+     */
+    turn: agentChatContextTurnSchema.optional(),
 });
 
 /**
@@ -185,6 +220,7 @@ export const agentChatContextReportSchema = z.strictObject({
 });
 
 export type AgentChatContextComposition = z.infer<typeof agentChatContextCompositionSchema>;
+export type AgentChatContextTurn = z.infer<typeof agentChatContextTurnSchema>;
 export type AgentChatContextRequest = z.infer<typeof agentChatContextRequestSchema>;
 export type AgentChatContextChange = z.infer<typeof agentChatContextChangeSchema>;
 export type AgentChatContextReport = z.infer<typeof agentChatContextReportSchema>;

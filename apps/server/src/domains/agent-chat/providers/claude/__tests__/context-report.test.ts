@@ -79,6 +79,87 @@ describe('claudeContextRequests', () => {
     });
 });
 
+describe('claudeContextRequests turn breakdown', () => {
+    const at = (second: number) => `2026-01-01T00:00:${String(second).padStart(2, '0')}.000Z`;
+    const usage = (prompt: number) => ({
+        input_tokens: 0,
+        cache_read_input_tokens: prompt,
+        cache_creation_input_tokens: 0,
+        output_tokens: 10,
+    });
+    const reply = (id: string, second: number, prompt: number, content: unknown[], extra = {}) =>
+        JSON.stringify({
+            type: 'assistant',
+            timestamp: at(second),
+            message: { id, model: 'claude-opus-4-5', usage: usage(prompt), content },
+            ...extra,
+        });
+    const user = (content: unknown, extra = {}) =>
+        JSON.stringify({ type: 'user', message: { role: 'user', content }, ...extra });
+    const toolUse = (id: string, name: string) => ({ type: 'tool_use', id, name, input: {} });
+    const toolResult = (id: string, text: string) => ({
+        type: 'tool_result',
+        tool_use_id: id,
+        content: text,
+    });
+
+    it('splits the prompt growth by source and names tool results, summing to the real growth', () => {
+        const transcript = [
+            user('hello'),
+            reply('m1', 1, 1_000, [toolUse('t1', 'Read'), toolUse('t2', 'Bash')]),
+            user([toolResult('t1', 'x'.repeat(3_000)), toolResult('t2', 'y'.repeat(1_000))]),
+            user('keep going'),
+            reply('m2', 2, 1_900, [{ type: 'text', text: 'ok' }]),
+        ].join('\n');
+
+        const [first, second] = claudeContextRequests(transcript);
+
+        expect(first.turn).toBeUndefined();
+        const turn = second.turn!;
+        expect(turn.user + turn.modelOutput + turn.toolResults).toBe(900);
+        expect(turn.toolResults).toBeGreaterThan(turn.user + turn.modelOutput);
+        expect(turn.tools.map((tool) => tool.name)).toEqual(['Read', 'Bash']);
+        expect(turn.tools[0].tokens).toBeGreaterThan(turn.tools[1].tokens);
+    });
+
+    it('credits later blocks of a repeated response to the next request, and skips sidechains', () => {
+        const transcript = [
+            reply('m1', 1, 1_000, [{ type: 'text', text: 'a' }]),
+            reply('m1', 1, 1_000, [{ type: 'text', text: 'b'.repeat(400) }]),
+            user('c'.repeat(400), { isSidechain: true }),
+            user('d'.repeat(400)),
+            reply('m2', 2, 1_200, []),
+        ].join('\n');
+
+        const turn = claudeContextRequests(transcript)[1].turn!;
+
+        expect(turn.modelOutput).toBe(100);
+        expect(turn.user).toBe(100);
+        expect(turn.toolResults).toBe(0);
+    });
+
+    it('leaves out the turn after a compaction, a shrinking prompt, and unattributed growth', () => {
+        const transcript = [
+            reply('m1', 1, 5_000, [{ type: 'text', text: 'a' }]),
+            user('summary'),
+            JSON.stringify({ type: 'system', subtype: 'compact_boundary' }),
+            reply('m2', 2, 800, [{ type: 'text', text: 'a' }]),
+            user('more'),
+            reply('m3', 3, 700, []),
+            reply('m4', 4, 900, []),
+        ].join('\n');
+
+        const requests = claudeContextRequests(transcript);
+
+        expect(requests.map((request) => request.turn)).toEqual([
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+        ]);
+    });
+});
+
 describe('claudeContextComposition', () => {
     it('keeps every list Claude Code reports, within the protocol bounds', () => {
         const composition = claudeContextComposition({
