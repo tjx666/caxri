@@ -3,7 +3,7 @@ import process from 'node:process';
 
 import { configDefaults, defineConfig } from 'vitest/config';
 
-import { lowerLocalTestPriority } from './scripts/local-test-priority';
+import { lowerLocalTestPriority } from './scripts/local-test-priority.ts';
 
 export const desktopTestFiles = [
     'apps/desktop/src/**/*.test.ts',
