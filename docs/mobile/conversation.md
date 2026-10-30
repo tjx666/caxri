@@ -71,6 +71,16 @@ pace reminder and the Session usage sheet's Plan limits use. The context and cos
 `@caxri/protocol`, shared with Desktop's composer meter, Context tab, and status bar chip, so both
 Clients show the same figures.
 
+**Context notice.** While no turn runs, one banner above the composer carries Desktop's context
+reminders: the prompt cache is about to expire (counting down its last minutes) or has expired with
+the estimated rewrite cost, and the context is nearly full (85% of the compaction limit). Which
+notices show comes from `agentChatContextAlertsState` in `@caxri/protocol`, the function Desktop's
+composer words differently, so both Clients raise the same conditions. Usage opens the Session usage
+sheet; Dismiss hides the cache line until the next reply restarts the cache, while the full-context
+line stays. Unlike Desktop, the phone does not know the Server's idle-compaction setting, so it
+never shows the "auto-compacts in" state and counts down to the expiry instead, and its dismissal
+is kept in memory per app run rather than shared with Desktop (Desktop's is also memory-only).
+
 The Project file preview exposes **Edit** only to `control` devices for bounded editable text.
 `mobile.files.write` carries the hash of the content originally read. The existing document writer
 checks that precondition inside its ordered, atomic save path and rejects an external change with

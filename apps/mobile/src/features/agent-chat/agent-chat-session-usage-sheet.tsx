@@ -98,7 +98,7 @@ const UsageRow = ({ row, theme }: { row: AgentChatSessionUsageRow; theme: Mobile
     </View>
 );
 
-const AgentChatSessionUsageSheet = ({
+export const AgentChatSessionUsageSheet = ({
     onClose,
     terminalId,
     theme,
