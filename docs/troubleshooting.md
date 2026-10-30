@@ -7,15 +7,18 @@ status: current
 
 ## macOS says Caxri is "damaged" or blocks it
 
-Caxri is unsigned and unnotarized, so Gatekeeper may refuse the first launch. After verifying the
-download against its `.sha256` file, either run
+Caxri is ad-hoc signed but not notarized, so Gatekeeper refuses the first launch of a browser
+download with "Apple could not verify Caxri is free of malware". After verifying the download
+against its `.sha256` file, open **System Settings → Privacy & Security**, find the message about
+Caxri, click **Open Anyway** and confirm, or run
 
 ```bash
 xattr -dr com.apple.quarantine /Applications/Caxri.app
 ```
 
-and open it again, or open **System Settings → Privacy & Security**, find the message about Caxri,
-click **Open Anyway** and confirm.
+and open it again. Releases up to v0.0.143 lacked the ad-hoc signature, so macOS called them
+"damaged" and offered no Open Anyway; only the `xattr` command works for those, and it must target
+the copy in Applications rather than the app inside the mounted disk image.
 
 ## No notifications appear
 

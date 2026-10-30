@@ -98,7 +98,7 @@ hdiutil detach "$mount"
 xattr -dr com.apple.quarantine /Applications/Caxri.app 2>/dev/null || true
 ```
 
-Caxri is unsigned and unnotarized. A file fetched with `curl` normally carries no quarantine flag,
+Caxri is ad-hoc signed but not notarized. A file fetched with `curl` normally carries no quarantine flag,
 and the `xattr` line clears it if one is present, so macOS should open it without a warning. If
 macOS still blocks it, see [Troubleshooting](troubleshooting.md#macos-says-caxri-is-damaged-or-blocks-it).
 

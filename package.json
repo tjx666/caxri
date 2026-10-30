@@ -406,7 +406,12 @@
                     "to": "PlugIns/Caxri Share.appex"
                 }
             ],
+            "hardenedRuntime": false,
             "icon": "build/icon.icns",
+            "identity": "-",
+            "signIgnore": [
+                "Caxri Share\\.appex"
+            ],
             "target": [
                 "dir"
             ]

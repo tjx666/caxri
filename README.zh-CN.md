@@ -63,14 +63,14 @@ Agent 会检查你的 Mac，下载并校验最新版本，完成安装，并提�
 命令，以及语言、默认 Agent、字号等初始设置。若要手动安装，请按同一页面操作：
 [docs/install.md](docs/install.md)。
 
-**Caxri 目前尚未经过 Apple 签名。** 如果 macOS 提示 Caxri"已损坏"或无法打开，运行一次下面的命令，然后重新打开：
+**Caxri 目前尚未经过 Apple 公证。** 如果 macOS 提示 Apple 无法验证 Caxri，打开**系统设置 → 隐私与安全性**点击**仍要打开**，或者运行一次下面的命令，然后重新打开：
 
 ```bash
 xattr -dr com.apple.quarantine /Applications/Caxri.app
 ```
 
 如果你是手动下载的磁盘映像，请先用对应的 `.sha256` 文件校验它。
-[故障排查](docs/troubleshooting.md#macos-says-caxri-is-damaged-or-blocks-it)还介绍了在系统设置中使用**仍要打开**的方法。
+[故障排查](docs/troubleshooting.md#macos-says-caxri-is-damaged-or-blocks-it)还说明了被 macOS 报告为"已损坏"的旧版本如何处理。
 
 ### 在 Android 上安装
 

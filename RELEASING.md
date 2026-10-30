@@ -1,6 +1,6 @@
 # Releasing Caxri
 
-Caxri currently produces two unsigned Apple Silicon DMGs and one release-signed Android arm64 APK,
+Caxri currently produces two ad-hoc signed, unnotarized Apple Silicon DMGs and one release-signed Android arm64 APK,
 each with a SHA-256 companion. The APK is copied from the verified update bundle embedded in both
 DMGs, so first installs from GitHub Releases and paired updates share one signing identity and
 version. See [Mobile installation and updates](docs/mobile/update.md#install-from-github-releases).
@@ -75,8 +75,9 @@ smoke steps are exercised by the read-only no-publish rehearsal before publicati
 ## Install a release
 
 Install from the Release's DMG as its notes describe, then update through the in-app updater
-([Desktop updates](docs/desktop-updates.md)). Browser downloads of the unsigned DMG receive a
-`com.apple.quarantine` flag, so Gatekeeper may report the app as "damaged"; clear it once with
+([Desktop updates](docs/desktop-updates.md)). Browser downloads of the DMG receive a
+`com.apple.quarantine` flag, so Gatekeeper reports that Apple could not verify the app; choose
+**Open Anyway** in System Settings → Privacy & Security, or clear the flag once with
 `xattr -dr com.apple.quarantine /Applications/Caxri.app`.
 
 ## Backfill Android for an existing release
@@ -102,11 +103,17 @@ no-publish rehearsal behavior.
 
 ## Current distribution boundary
 
-The DMG is intentionally unsigned. After downloading it on your own Mac, verify the accompanying
-SHA-256 file before opening the application. Gatekeeper will identify it as an unnotarized app; use
-the explicit override in macOS Privacy & Security only for an artifact you built and verified.
+The app is ad-hoc signed (`mac.identity: "-"`) but carries no Developer ID signature or
+notarization. After downloading it on your own Mac, verify the accompanying SHA-256 file before
+opening the application. Gatekeeper will identify it as an unnotarized app; use the explicit
+override in macOS Privacy & Security only for an artifact you built and verified.
 
-An unsigned DMG can be offered for public download, but recipients must handle the Gatekeeper
+The ad-hoc signature is load-bearing: without it, the arm64 bundle carries only the linker's
+per-binary signature with no sealed resources, and Gatekeeper reports a quarantined copy as
+"damaged" with no Open Anyway route. `package:release-dmgs` fails the release when the bundle
+signature is not sealed or the Share extension loses its sandbox entitlement.
+
+An unnotarized DMG can be offered for public download, but recipients must handle the Gatekeeper
 friction described above. Signing and notarization may be added later to remove that friction; they
 are not a prerequisite for making the approved artifacts downloadable. Distribution permissions
 come only from the published `LICENSE` and any explicit commercial authorization, not from this
