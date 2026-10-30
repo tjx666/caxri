@@ -14,10 +14,14 @@ import { dirname, join } from 'node:path';
 import process from 'node:process';
 import { promisify } from 'node:util';
 
+import { parse as parseJsonc } from 'jsonc-parser';
 import { satisfies } from 'semver';
 import { describe, expect, it } from 'vitest';
 
 import { discoverReleaseManifestPaths } from '../../.agents/skills/release/scripts/prepare-release';
+import serverConfigText from '../../apps/server/tsconfig.json?raw';
+import extensionsConfigText from '../../extensions/tsconfig.base.json?raw';
+import nodeConfigText from '../../tsconfig.node.json?raw';
 
 interface ReleaseManifest {
     engines?: { caxri: string };
@@ -104,37 +108,34 @@ describe('workspace package manifests', () => {
     });
 
     it('resolves workspace caxri typechecks from current source', async () => {
+        // TypeScript reads these as JSONC, so a comment in one must not break this contract. The `?raw` imports let
+        // changed-file discovery select this test when a tsconfig changes.
         const mappings = [
             {
+                config: nodeConfigText,
                 configPath: 'tsconfig.node.json',
                 sourcePath: './packages/extension-api/src/index.ts',
             },
             {
+                config: extensionsConfigText,
                 configPath: 'extensions/tsconfig.base.json',
                 sourcePath: '../packages/extension-api/src/index.ts',
             },
         ];
 
-        const configs = await Promise.all(
-            mappings.map(async ({ configPath, sourcePath }) => {
-                const configText = await readFile(join(workspaceRoot, configPath), 'utf8');
-                const config = JSON.parse(configText) as {
-                    compilerOptions: { paths: Record<string, string[]> };
-                };
-                const sourceFile = join(workspaceRoot, dirname(configPath), sourcePath);
-                await access(sourceFile);
-                return { config, sourcePath };
-            }),
+        await Promise.all(
+            mappings.map(({ configPath, sourcePath }) =>
+                access(join(workspaceRoot, dirname(configPath), sourcePath)),
+            ),
         );
-        for (const { config, sourcePath } of configs) {
-            expect(config.compilerOptions.paths.caxri).toEqual([sourcePath]);
+        for (const { config, sourcePath } of mappings) {
+            const parsed = parseJsonc(config) as {
+                compilerOptions: { paths: Record<string, string[]> };
+            };
+            expect(parsed.compilerOptions.paths.caxri).toEqual([sourcePath]);
         }
 
-        const serverConfigText = await readFile(
-            join(workspaceRoot, 'apps/server/tsconfig.json'),
-            'utf8',
-        );
-        const serverConfig = JSON.parse(serverConfigText) as {
+        const serverConfig = parseJsonc(serverConfigText) as {
             exclude: string[];
             include: string[];
         };
