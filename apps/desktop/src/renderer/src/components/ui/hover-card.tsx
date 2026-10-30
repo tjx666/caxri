@@ -1,3 +1,6 @@
+import type { ReactElement, ReactNode } from 'react';
+import { createContext, useContext, useState } from 'react';
+
 import { PreviewCard as PreviewCardPrimitive } from '@base-ui/react/preview-card';
 
 import { cn } from '@/lib/utilities';
@@ -62,5 +65,97 @@ export function HoverCardContent({
                 />
             </PreviewCardPrimitive.Positioner>
         </PreviewCardPrimitive.Portal>
+    );
+}
+
+type HoverCardContentProperties = Omit<Parameters<typeof HoverCardContent>[0], 'children'>;
+
+/**
+ * What a {@link SharedHoverCard} trigger hands the shared Root it opens: everything its popup renders.
+ */
+interface HoverCardPayload {
+    content: ReactNode;
+    contentProps: HoverCardContentProperties;
+}
+
+type HoverCardHandle = PreviewCardPrimitive.Handle<HoverCardPayload>;
+
+const HoverCardHandleContext = createContext<HoverCardHandle | undefined>(undefined);
+
+/**
+ * Mounts the one Root every {@link SharedHoverCard} below it opens. A long Agent Chat reply carries hundreds of link and
+ * skill cards, and a Base UI Root per card kept about a fifth of the reply's retained heap (measured by `bun run
+ * benchmark:chat-streaming`'s `richreply` workload); detached triggers keep only a Trigger each.
+ */
+export function HoverCardProvider({ children }: { children: ReactNode }) {
+    const [handle] = useState(() => PreviewCardPrimitive.createHandle<HoverCardPayload>());
+    return (
+        <HoverCardHandleContext value={handle}>
+            {children}
+            <PreviewCardPrimitive.Root handle={handle}>
+                {({ payload }) =>
+                    payload && (
+                        <HoverCardContent {...payload.contentProps}>
+                            {/*
+                             * A card inside this popup (a link in a skill's instructions) opens a Root of its own;
+                             * sharing this one would replace the card the user is reading.
+                             */}
+                            <HoverCardHandleContext value={undefined}>
+                                {payload.content}
+                            </HoverCardHandleContext>
+                        </HoverCardContent>
+                    )
+                }
+            </PreviewCardPrimitive.Root>
+        </HoverCardHandleContext>
+    );
+}
+
+/**
+ * An uncontrolled hover card whose popup the nearest {@link HoverCardProvider} renders, so a trigger costs no Root of
+ * its own. Use it for a card that repeats with the content it sits in (a transcript's links and skills). `content`
+ * renders outside the trigger's React tree and may only read app-wide context (translation, queries), so a card whose
+ * content needs a narrower provider (a view container's) or whose open state the caller owns keeps the {@link HoverCard}
+ * parts. Without a provider (a secondary window's root) it falls back to a Root of its own.
+ */
+export function SharedHoverCard({
+    children,
+    closeDelay,
+    content,
+    contentProps: contentProperties = {},
+    delay,
+    render,
+}: {
+    children?: ReactNode;
+    closeDelay?: number;
+    content: ReactNode;
+    /**
+     * The popup's placement and classes, as {@link HoverCardContent} takes them.
+     */
+    contentProps?: HoverCardContentProperties;
+    delay?: number;
+    render: ReactElement;
+}) {
+    const handle = useContext(HoverCardHandleContext);
+    if (!handle)
+        return (
+            <HoverCard>
+                <HoverCardTrigger closeDelay={closeDelay} delay={delay} render={render}>
+                    {children}
+                </HoverCardTrigger>
+                <HoverCardContent {...contentProperties}>{content}</HoverCardContent>
+            </HoverCard>
+        );
+    return (
+        <PreviewCardPrimitive.Trigger
+            closeDelay={closeDelay}
+            data-slot="hover-card-trigger"
+            delay={delay}
+            handle={handle}
+            payload={{ content, contentProps: contentProperties }}
+            render={render}
+        >
+            {children}
+        </PreviewCardPrimitive.Trigger>
     );
 }

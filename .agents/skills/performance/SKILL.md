@@ -29,13 +29,18 @@ description: Measure and protect Caxri startup, Server Core responsiveness, Rend
    build, gates per-surface React budgets, and writes
    `test-results/receipts/agent-chat-session-switch.json`; see
    [Agent Chat Session switch](../../../docs/renderer-performance.md#agent-chat-session-switch).
-   For what a visible Chat costs while it streams (a 50 KB Markdown reply, 600 tool updates), run
+   For what a visible Chat costs while it streams (a 50 KB Markdown reply, 600 tool updates, a reply
+   full of pull request, issue, file, and skill references after forty tracker cards), run
    `bun run benchmark:chat-streaming` and record `CAXRI_AGENT_CHAT_STREAMING_BENCHMARK`. It reads
    Renderer main-thread time, heap growth after a forced collection, whole-app resident memory, and
    React budgets, and writes `test-results/receipts/agent-chat-streaming.json`; see
    [Agent Chat streaming](../../../docs/renderer-performance.md#agent-chat-streaming). To attribute
    heap growth, diff `HeapProfiler.takeHeapSnapshot` captures from before and after a workload by
-   constructor and Fiber component name.
+   constructor and Fiber component name. To compare two builds on a busy machine, alternate them
+   run by run instead of running each three times in a row: load swings moved main-thread time and
+   missed frames more than the change did. Swap every `OUTPUT_ROOTS` tree (`scripts/build-receipt.ts`)
+   with `cp -Rp` together with `.cache/build-receipt.json` and the matching sources; a plain copy
+   changes mtimes, and the launch then fails as a stale build.
    For Claude Agent-state probe latency, run `bun run benchmark:agent-probe` and record
    `CAXRI_AGENT_PROBE_BENCHMARK`. It runs below Electron against a synthetic 512-file
    `sessions/` directory and rewrites one file every ten probes; the production `agent.probe` log

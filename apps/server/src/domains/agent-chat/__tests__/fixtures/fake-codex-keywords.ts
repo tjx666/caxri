@@ -21,6 +21,9 @@
  *   seconds, the streaming benchmark's reply workload.
  * - `toolstorm`: 300 commands that each start and then finish, 600 tool updates over about six seconds, then a short
  *   reply: the streaming benchmark's tool workload.
+ * - `richreply`: twenty pull requests and twenty issues opened through `gh`, forty edited files, then a reply of 120
+ *   sections linking pull requests, issues, files, and a skill: the streaming benchmark's reference workload
+ *   (`fake-codex-rich-reply.ts`).
  * - `proposeplan`: a plan-mode turn's proposed plan, a `plan` item that arrives whole with `item/completed`, so a Client
  *   can offer to build it.
  * - `weblink`: a reply that only links the message's first `http(s)` URL; matched before any keyword the URL may hold.
@@ -76,6 +79,7 @@ import {
     runWideDiff,
     runWorkRowCommands,
 } from './fake-codex-replies.ts';
+import { runRichReply } from './fake-codex-rich-reply.ts';
 import { runSlow } from './fake-codex-slow.ts';
 import {
     dropTerminalsSilently,
@@ -113,6 +117,8 @@ export async function runKeywordScenario(
         await runBigStream(io, turn);
     } else if (text.includes('toolstorm')) {
         await runToolStorm(io, turn);
+    } else if (text.includes('richreply')) {
+        await runRichReply(io, turn);
     } else if (text.includes('manyagents')) {
         await runManySubagents(io, turn);
     } else if (text.includes('subagent')) {

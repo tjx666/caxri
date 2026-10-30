@@ -192,6 +192,20 @@ test('a turn card lists its first three files and folds the rest behind a Show m
         await expect(
             changes.getByRole('button', { name: /^Show changes: notes\/note-5\.md/ }),
         ).toHaveAttribute('aria-expanded', 'false');
+
+        // A reply's link cards share one popup: moving from one link to the next swaps its content.
+        await message.fill(
+            'Read [first](https://docs.example.test/first) and [second](https://docs.example.test/second).',
+        );
+        await message.press('Enter');
+        const reply = chat.locator('[data-agent-chat-reply]').filter({ hasText: 'second' });
+        const card = page.locator('[data-slot="hover-card-content"]');
+        await reply.getByRole('button', { name: 'first' }).hover();
+        await expect(card.getByText('https://docs.example.test/first')).toBeVisible();
+        await reply.getByRole('button', { name: 'second' }).hover();
+        await expect(card.getByText('https://docs.example.test/second')).toBeVisible();
+        await expect(card).toHaveCount(1);
+        await page.screenshot({ path: testInfo.outputPath('reply-link-card.png') });
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });
