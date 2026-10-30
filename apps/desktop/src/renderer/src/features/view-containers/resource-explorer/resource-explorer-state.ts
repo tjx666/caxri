@@ -230,3 +230,26 @@ export function fileTreeRootCaption(rootPath: string): string {
 export function paneTabFilePath(tab: PaneTab | undefined): string | undefined {
     return tab?.resource.kind === 'file' ? tab.resource.path : undefined;
 }
+
+/**
+ * What the inline New File / New Folder / Rename field does when it loses focus, following VS Code: an empty or
+ * unchanged name is dropped and an edited one is committed, so the field never lingers after the user moved on.
+ *
+ * Losing focus to another application keeps the field (`isWindowFocused` is false), so switching apps mid-name does not
+ * commit a half-typed name. A field already submitting or closing has settled and ignores the blur its own unmount or
+ * `disabled` state may cause.
+ */
+export function inlineFileNameBlurAction({
+    initialValue,
+    isSettled,
+    isWindowFocused,
+    value,
+}: {
+    initialValue: string;
+    isSettled: boolean;
+    isWindowFocused: boolean;
+    value: string;
+}): 'cancel' | 'keep' | 'submit' {
+    if (isSettled || !isWindowFocused) return 'keep';
+    return value === initialValue || value.trim() === '' ? 'cancel' : 'submit';
+}
