@@ -83,7 +83,10 @@ export interface RelayHostConnectorOptions {
      * Receives the spliced host-data socket synchronously after `host-accept` is written, so its listeners are attached
      * before the first phone frame can arrive.
      */
-    onConnection: (socket: WebSocket) => void;
+    /**
+     * Receives each dial-back socket once it opened, with how long the dial took since `relay-incoming`.
+     */
+    onConnection: (socket: WebSocket, dialMs: number) => void;
     logger?: Pick<StructuredLogger, 'write'>;
     now?: () => number;
     random?: () => number;
@@ -301,6 +304,7 @@ export class RelayHostConnector {
             this.#dialFailed('capacity');
             return;
         }
+        const startedAt = this.#now();
         const socket = this.#createSocket(relayEndpoint(this.#options.url, relayPaths.hostData));
         let isHandedOff = false;
         const timeout = setTimeout(() => {
@@ -341,7 +345,7 @@ export class RelayHostConnector {
             isHandedOff = true;
             socket.removeAllListeners('error');
             socket.removeAllListeners('close');
-            this.#options.onConnection(socket);
+            this.#options.onConnection(socket, this.#now() - startedAt);
         });
     }
 

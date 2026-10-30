@@ -37,7 +37,16 @@ describe('mobile Conversation subscription', () => {
             payload: { terminalId: 'terminal-fixture' },
         });
         expect(send).not.toHaveBeenCalled();
+        // The change before activation arrives as one re-read hint once the phone holds the subscription.
         subscriptions.activate(id);
+        await vi.waitFor(() =>
+            expect(send).toHaveBeenCalledWith({
+                type: 'event',
+                subscriptionId: id,
+                sequence: 0,
+                kind: 'conversation.changed',
+            }),
+        );
         subscriptions.publish({
             event: 'agentTranscript.changed',
             payload: { terminalId: 'terminal-fixture' },
@@ -46,7 +55,7 @@ describe('mobile Conversation subscription', () => {
             expect(send).toHaveBeenCalledWith({
                 type: 'event',
                 subscriptionId: id,
-                sequence: 0,
+                sequence: 1,
                 kind: 'conversation.changed',
             }),
         );
@@ -56,7 +65,7 @@ describe('mobile Conversation subscription', () => {
             event: 'agentTranscript.changed',
             payload: { terminalId: 'terminal-fixture' },
         });
-        expect(send).toHaveBeenCalledOnce();
+        expect(send).toHaveBeenCalledTimes(2);
         subscriptions.close();
         expect(close).toHaveBeenCalledOnce();
     });

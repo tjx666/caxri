@@ -9,8 +9,10 @@ The Mobile gateway is a separate, default-off WebSocket endpoint on a private IP
 owner turns it on, the device registry remembers that choice (`accessEnabled`) and the next Server
 start reopens the gateway on its own; turning it off clears the flag. A failed reopen logs
 `mobile_gateway.access_persistence` and leaves access off, as the Settings switch then shows. Pairing
-and reconnect use the versioned encrypted handshake in `@caxri/mobile-transport`. Version 3 adds
-Terminal observer snapshots, Host output sequences, and generation-fenced control. A mismatched `hello` receives a plaintext
+and reconnect use the versioned encrypted handshake in `@caxri/mobile-transport`. Version 4 lets a
+reconnect `hello` carry a timing-only `trace` (the route grace the phone used and how long its socket
+took to open) and registers a subscription before its authorization check, as described under
+[Authority and lifecycle](#authority-and-lifecycle). A mismatched `hello` receives a plaintext
 `version-mismatch` frame before authentication; all application frames after authentication are
 sealed with the session key and monotonically increasing counters. A paired phone refused by a
 newer Desktop can instead open the frozen, version-independent `update-recovery-v1` exchange as the
@@ -107,8 +109,13 @@ The client sends a heartbeat every three seconds while foregrounded and treats a
 after five seconds as a connection failure. The Server closes a socket after 12 seconds without a
 valid authenticated client frame. The client considers its view stale after five seconds without a
 valid authenticated Server observation, retains the last snapshot, and disables mutations until
-fresh data arrives. On reconnect, a visible view subscribes first and then queries its snapshot;
-an event arriving during that query triggers another refresh. Background or unmounted views
+fresh data arrives. On reconnect, a visible view sends its subscribe and then its snapshot read
+right behind it, without waiting for the acknowledgement, so the two cost one round trip instead of
+two; several subscribes may await acknowledgement at once. The gateway registers a non-Terminal
+subscription while it dispatches the subscribe frame, before the asynchronous authorization check,
+and a change it observes before the acknowledgement was delivered becomes one content-free
+`*.changed` hint right after it, because the read may have taken its snapshot first. An event
+arriving during that query triggers another refresh. Background or unmounted views
 unsubscribe. A push can reach the socket before its subscribe reply; the client buffers a bounded
 number of such frames by subscription ID and replays them when the reply installs the listener.
 An early `resync-required` takes precedence over an acknowledgement and restarts subscription and

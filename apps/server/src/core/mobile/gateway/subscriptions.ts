@@ -25,6 +25,11 @@ interface Subscription {
     active: boolean;
     activated: boolean;
     /**
+     * Whether the subscribe passed authorization. A dashboard pushes from then on, before its acknowledgement; the
+     * phone holds those pushes until it has the subscription ID.
+     */
+    authorized: boolean;
+    /**
      * The Session's Project root an Agent Chat subscription names changed files against.
      */
     agentChatProjectRoot?: string;
@@ -39,6 +44,12 @@ interface Subscription {
      */
     closeWatch?: () => void;
     id: string;
+    /**
+     * The latest change published before the phone saw this subscription's acknowledgement. It is sent as one re-read
+     * hint on activation, because the phone may have sent its first read alongside the subscribe and taken a snapshot
+     * older than the change.
+     */
+    missed?: { body: QueuedBody; event: ServerEvent };
     pendingBytes: number;
     pendingFrames: number;
     resource: MobileSubscriptionResource;
@@ -102,9 +113,22 @@ export class MobileGatewaySubscriptions {
         this.#assertOpen();
         if (this.#subscriptions.size >= MAXIMUM_SUBSCRIPTIONS)
             throw new CaxriError('CAPACITY', 'Too many mobile subscriptions');
-        await this.#options.authorize(this.#options.currentPrincipal(), resource);
-        this.#assertOpen();
-        if (this.#subscriptions.size >= MAXIMUM_SUBSCRIPTIONS)
+        /**
+         * Registered before the asynchronous authorization, while the frame is still being dispatched, so a read the
+         * phone sent right after this subscribe cannot observe a change this subscription then misses; such a change
+         * becomes a re-read hint on activation. A Terminal stream keeps its own ordering through its observer.
+         */
+        const early = resource.kind === 'terminal' ? undefined : this.#register(resource);
+        try {
+            await this.#options.authorize(this.#options.currentPrincipal(), resource);
+            this.#assertOpen();
+        } catch (error) {
+            if (early) this.unsubscribe(early.id);
+            throw error;
+        }
+        if (early && !early.active) throw new CaxriError('CANCELLED', 'Mobile subscription closed');
+        if (early) early.authorized = true;
+        if (!early && this.#subscriptions.size >= MAXIMUM_SUBSCRIPTIONS)
             throw new CaxriError('CAPACITY', 'Too many mobile subscriptions');
         if (resource.kind === 'terminal') {
             let terminalCount = 0;
@@ -120,20 +144,8 @@ export class MobileGatewaySubscriptions {
             if (terminalCount >= MAXIMUM_TERMINAL_SUBSCRIPTIONS)
                 throw new CaxriError('CAPACITY', 'Too many Terminal subscriptions');
         }
-        const id = this.#options.randomId();
-        if (this.#subscriptions.has(id))
-            throw new CaxriError('INTERNAL', 'Mobile subscription identity collided');
-        const subscription: Subscription = {
-            active: true,
-            activated: false,
-            id,
-            pendingBytes: 0,
-            pendingFrames: 0,
-            resource,
-            sequence: 0,
-            tail: Promise.resolve(),
-        };
-        this.#subscriptions.set(id, subscription);
+        const subscription = early ?? this.#register(resource);
+        const { id } = subscription;
         if (resource.kind === 'agentChat' && this.#options.agentChatProjectRoot) {
             // The first lookup holds the same token a later refresh would replace, so a `workbench.changed` that arrives
             // while it is pending wins even when this slower lookup returns last.
@@ -223,6 +235,45 @@ export class MobileGatewaySubscriptions {
         if (!subscription) return;
         subscription.activated = true;
         subscription.terminal?.activate();
+        const { missed } = subscription;
+        subscription.missed = undefined;
+        if (missed) this.#queue(subscription, missed.event, missed.body);
+    }
+
+    #register(resource: MobileSubscriptionResource): Subscription {
+        const id = this.#options.randomId();
+        if (this.#subscriptions.has(id))
+            throw new CaxriError('INTERNAL', 'Mobile subscription identity collided');
+        const subscription: Subscription = {
+            active: true,
+            activated: false,
+            authorized: resource.kind === 'terminal',
+            id,
+            pendingBytes: 0,
+            pendingFrames: 0,
+            resource,
+            sequence: 0,
+            tail: Promise.resolve(),
+        };
+        this.#subscriptions.set(id, subscription);
+        return subscription;
+    }
+
+    /**
+     * Sends a change to an activated subscription, or remembers it as the re-read hint `activate` sends.
+     */
+    #deliver(subscription: Subscription, event: ServerEvent, body: QueuedBody): void {
+        if (
+            subscription.activated ||
+            (subscription.authorized && subscription.resource.kind === 'dashboard')
+        ) {
+            this.#queue(subscription, event, body);
+            return;
+        }
+        subscription.missed = {
+            event,
+            body: body.kind === 'agentChat.patch' ? { kind: 'agentChat.changed' } : body,
+        };
     }
 
     publishObserverEvent(event: TerminalObserverEvent): void {
@@ -301,17 +352,17 @@ export class MobileGatewaySubscriptions {
                     event.event === 'state.changed' ||
                     event.event === 'sessionPullRequests.changed'
                 )
-                    this.#queue(subscription, event, { kind: 'dashboard.changed' });
+                    this.#deliver(subscription, event, { kind: 'dashboard.changed' });
                 break;
             }
             case 'conversation': {
-                if (subscription.activated && event.event === 'agentTranscript.changed')
-                    this.#queue(subscription, event, { kind: 'conversation.changed' });
+                if (event.event === 'agentTranscript.changed')
+                    this.#deliver(subscription, event, { kind: 'conversation.changed' });
                 break;
             }
             case 'changes': {
-                if (subscription.activated && changedSessionIds?.has(resource.sessionId))
-                    this.#queue(subscription, event, { kind: 'changes.changed' });
+                if (changedSessionIds?.has(resource.sessionId))
+                    this.#deliver(subscription, event, { kind: 'changes.changed' });
                 break;
             }
             case 'agentChat': {
@@ -320,7 +371,6 @@ export class MobileGatewaySubscriptions {
                     break;
                 }
                 if (
-                    subscription.activated &&
                     event.event === 'agentChat.patch' &&
                     event.payload.terminalId === resource.terminalId
                 ) {
@@ -330,7 +380,7 @@ export class MobileGatewaySubscriptions {
                               event.payload,
                               subscription.agentChatProjectRoot,
                           );
-                    this.#queue(
+                    this.#deliver(
                         subscription,
                         event,
                         patch ? { kind: 'agentChat.patch', patch } : { kind: 'agentChat.changed' },
@@ -339,8 +389,8 @@ export class MobileGatewaySubscriptions {
                 break;
             }
             case 'botInbox': {
-                if (subscription.activated && event.event === 'botInbox.changed')
-                    this.#queue(subscription, event, { kind: 'botInbox.changed' });
+                if (event.event === 'botInbox.changed')
+                    this.#deliver(subscription, event, { kind: 'botInbox.changed' });
                 break;
             }
             case 'terminal': {

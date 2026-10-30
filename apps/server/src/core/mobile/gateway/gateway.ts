@@ -5,16 +5,13 @@ import { createServer } from 'node:http';
 import type { Socket } from 'node:net';
 
 import {
-    decodeHex,
     encodeHex,
     handshakeConfirmation,
     MOBILE_GATEWAY_MAX_WIRE_BYTES,
     MOBILE_TRANSPORT_VERSION,
     mobileClientHelloSchema,
     mobileRevokedSchema,
-    mobileSealedFrameSchema,
     mobileServerHelloSchema,
-    openMobileFrame,
     serializeMobilePairingLink,
 } from '@caxri/mobile-transport';
 import type {
@@ -51,10 +48,16 @@ import { mobileConnectionEnd, MobileGatewayDiagnostics } from './diagnostics';
 import type { MobileGatewayOptions } from './gateway-options';
 import type { GatewaySession } from './gateway-session';
 import { beginMobileHandshake, versionMismatchFrame } from './handshake';
+import { handshakeTimingFields } from './handshake-timing';
 import { MobilePairingLedger } from './pairing-ledger';
 import { adoptCurrentPairedPrincipal, currentPrincipalAdapter } from './principal-grant';
 import { mobileCapabilitiesByRole } from './role-capabilities';
-import { sealSessionPayload, sendFinalSealedPayload } from './sealed-payload';
+import {
+    MobileFrameReplayRejected,
+    openSessionPayload,
+    sealSessionPayload,
+    sendFinalSealedPayload,
+} from './sealed-payload';
 import { messageByteLength, messageText } from './socket-message';
 import { MobileSocketQueueBudget } from './socket-queue-budget';
 import { SourceAttemptLimiter } from './source-attempt-limiter';
@@ -69,11 +72,6 @@ export { selectMobileGatewayAddress } from './address-selection';
 export { boundedMobileReply } from './reply';
 
 const HANDSHAKE_TIMEOUT_MS = 10_000;
-
-/**
- * Marker for `MobileReplayGuard`'s counter-sequence rejection so it logs as `replayRejected`, not `invalidFrame`.
- */
-class MobileFrameReplayRejected extends Error {}
 
 /**
  * Default-off LAN transport for one Server profile. The loopback control transport is never reused.
@@ -143,7 +141,7 @@ export class MobileGateway {
             registry: options.registry,
             pendingPairingSecrets: () => this.#pairings.pending(),
             canAccept: () => hasMobileSocketCapacity(this.#sockets.size, this.#handshakes),
-            onConnection: (socket) => this.#accept(socket, undefined, 'relay'),
+            onConnection: (socket, dialMs) => this.#accept(socket, undefined, 'relay', dialMs),
             ...(options.logger && { logger: options.logger }),
             now: this.#now,
             ...(options.relayTiming && { timing: options.relayTiming }),
@@ -411,7 +409,9 @@ export class MobileGateway {
         socket: WebSocket,
         localAddress: string | undefined,
         route: MobileConnectionRoute = 'lan',
+        dialMs?: number,
     ): void {
+        const acceptedAt = this.#now();
         this.#sockets.add(socket);
         this.#handshakes += 1;
         let session: GatewaySession | undefined;
@@ -518,6 +518,12 @@ export class MobileGateway {
                         }),
                         localAddress,
                         route,
+                        timing: {
+                            acceptedAt,
+                            dialMs,
+                            helloAt: this.#now(),
+                            trace: hello.mode === 'connect' ? hello.trace : undefined,
+                        },
                     };
                     const confirmation = handshakeConfirmation(session.keys, 'server');
                     const challenge = mobileServerHelloSchema.parse({
@@ -531,9 +537,11 @@ export class MobileGateway {
                         confirmation: encodeHex(confirmation),
                     });
                     socket.send(JSON.stringify(challenge));
+                    session.timing.challengeAt = this.#now();
                     return;
                 }
                 if (!isReady) {
+                    session.timing.confirmAt ??= this.#now();
                     const app = await authenticateConnection(
                         this.#authenticationDependencies,
                         session,
@@ -546,7 +554,11 @@ export class MobileGateway {
                     session.application = app;
                     isReady = true;
                     session.readyAt = this.#now();
-                    this.#diagnostics.connectionEstablished(session.deviceId, session.route);
+                    this.#diagnostics.connectionEstablished(
+                        session.deviceId,
+                        session.route,
+                        handshakeTimingFields(session.timing, session.readyAt),
+                    );
                     this.#handshakes = Math.max(0, this.#handshakes - 1);
                     clearTimeout(timer);
                     const active =
@@ -557,7 +569,7 @@ export class MobileGateway {
                     this.#notifyConnectionCount();
                     return;
                 }
-                this.#handleSealed(session, raw);
+                session.application?.accept(openSessionPayload(session, raw));
             })();
             queue = (async (): Promise<void> => {
                 try {
@@ -591,31 +603,6 @@ export class MobileGateway {
             this.#diagnostics.updateRecovery('invalid-frame');
             throw error;
         }
-    }
-
-    #handleSealed(session: GatewaySession, raw: unknown): void {
-        const frame = mobileSealedFrameSchema.parse(raw);
-        if (frame.connectionId !== session.connection.connectionId)
-            throw new Error('Encrypted frame connection identity changed');
-        // Narrowed to a distinct error type so the outer catch can log `replayRejected` instead of folding a replayed
-        // or out-of-order counter into the generic `invalidFrame` bucket it shares with malformed payloads.
-        try {
-            session.inbound.assertAndAdvance(frame.counter);
-        } catch (error) {
-            throw new MobileFrameReplayRejected(error instanceof Error ? error.message : undefined);
-        }
-        const plaintext = openMobileFrame(
-            session.keys.clientToServer,
-            {
-                connectionId: session.transcript.connectionId,
-                counter: frame.counter,
-                deviceId: session.deviceId,
-                direction: 'client-to-server',
-            },
-            decodeHex(frame.ciphertext),
-        );
-        const source = new TextDecoder().decode(plaintext);
-        session.application?.accept(JSON.parse(source) as unknown);
     }
 
     #authenticatedSession(context: CommandExecutionContext): GatewaySession {

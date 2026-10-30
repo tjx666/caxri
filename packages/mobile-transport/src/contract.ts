@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { relayHostIdSchema, relayUrlSchema } from './relay.js';
 
-export const MOBILE_TRANSPORT_VERSION = 3 as const;
+export const MOBILE_TRANSPORT_VERSION = 4 as const;
 export const MOBILE_GATEWAY_MAX_FRAME_BYTES = 64 * 1024;
 export const MOBILE_GATEWAY_MAX_PLAINTEXT_BYTES = MOBILE_GATEWAY_MAX_FRAME_BYTES - 16;
 export const MOBILE_GATEWAY_MAX_WIRE_BYTES = MOBILE_GATEWAY_MAX_FRAME_BYTES * 2 + 2_048;
@@ -78,6 +78,23 @@ export const mobilePairingLinkSchema = z.strictObject({
         .optional(),
 });
 
+/**
+ * How the phone reached this socket, reported in its reconnect hello so the Server log can explain a slow reconnect end
+ * to end. Timing only: no address, URL, or network name.
+ */
+export const mobileConnectTraceSchema = z.strictObject({
+    /**
+     * How long direct routes raced alone before the Relay could join.
+     */
+    graceMs: z.number().int().min(0).max(60_000),
+    /**
+     * From starting the route race until this socket was open (for the Relay, until `relay-ready`).
+     */
+    openMs: z.number().int().min(0).max(120_000),
+});
+
+export type MobileConnectTrace = z.infer<typeof mobileConnectTraceSchema>;
+
 export const mobileClientHelloSchema = z.discriminatedUnion('mode', [
     z.strictObject({
         type: z.literal('hello'),
@@ -97,6 +114,7 @@ export const mobileClientHelloSchema = z.discriminatedUnion('mode', [
         generation: z.number().int().positive(),
         clientPublicKey: fixedHex(X25519_KEY_BYTES),
         clientNonce: fixedHex(HANDSHAKE_NONCE_BYTES),
+        trace: mobileConnectTraceSchema.optional(),
     }),
 ]);
 

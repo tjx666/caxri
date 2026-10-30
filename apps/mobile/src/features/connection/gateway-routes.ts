@@ -40,6 +40,34 @@ const SOCKET_OPEN_TIMEOUT_MS = 4_000;
  */
 export const DIRECT_ROUTE_GRACE_MS = 2_500;
 /**
+ * The head start left when the direct addresses are probably unreachable. A LAN socket that answers at all opens well
+ * inside it, so a phone back home still connects directly, while a phone that is away waits a fraction of the full
+ * grace.
+ */
+export const SHORT_DIRECT_ROUTE_GRACE_MS = 300;
+
+/**
+ * Tailscale's CGNAT range, the only stored address kind a phone on cellular data can still reach directly.
+ */
+const isTailnetAddress = (address: string): boolean => {
+    const [first, second] = address.split('.').map(Number);
+    return first === 100 && second >= 64 && second <= 127;
+};
+
+/**
+ * How long direct candidates race alone. The full grace applies unless the Relay won last time for this computer, or
+ * the phone is on cellular data and no stored address is on a tailnet.
+ */
+export const directRouteGraceFor = (input: {
+    addresses: readonly string[];
+    isCellular: boolean;
+    lastRoute: MobileGatewayRouteKind | undefined;
+}): number =>
+    input.lastRoute === 'relay' ||
+    (input.isCellular && input.addresses.every((address) => !isTailnetAddress(address)))
+        ? SHORT_DIRECT_ROUTE_GRACE_MS
+        : DIRECT_ROUTE_GRACE_MS;
+/**
  * The Relay answers `relay-ready` only after the computer dialed back, so this covers two Relay round trips plus the
  * Relay's own host dial-back deadline; a slower answer is a closed `host-timeout` from the Relay itself.
  */

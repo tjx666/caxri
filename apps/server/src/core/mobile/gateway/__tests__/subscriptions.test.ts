@@ -65,6 +65,40 @@ describe('MobileGatewaySubscriptions', () => {
         subscriptions.close();
     });
 
+    it('turns a change published while the subscribe is authorized into one re-read hint', async () => {
+        const sent: MobileServerPayload[] = [];
+        const { promise: authorized, resolve: allow } = Promise.withResolvers<void>();
+        const subscriptions = new MobileGatewaySubscriptions({
+            authorize: () => authorized,
+            currentPrincipal: () => principal,
+            matches: async () => true,
+            randomId: () => 'changes-subscription',
+            send: async (payload) => {
+                sent.push(payload);
+            },
+            terminate: vi.fn(),
+            connectionId: 'connection-1',
+        });
+        const subscribed = subscriptions.subscribe({ kind: 'changes', sessionId: 'session-1' });
+        // The phone's read, sent right behind the subscribe, can take its snapshot before this change.
+        const changed: ServerEvent = {
+            event: 'git.changed',
+            payload: { repositoryIds: ['repo-1'], sessionIds: ['session-1'], scope: 'status' },
+        };
+        subscriptions.publish(changed);
+        subscriptions.publish(changed);
+        allow();
+        const id = await subscribed;
+        expect(sent).toEqual([]);
+        subscriptions.activate(id);
+        await vi.waitFor(() =>
+            expect(sent).toEqual([
+                { type: 'event', subscriptionId: id, sequence: 0, kind: 'changes.changed' },
+            ]),
+        );
+        subscriptions.close();
+    });
+
     it('forwards only the subscribed Chat patches, shortened for the phone', async () => {
         const sent: MobileServerPayload[] = [];
         const subscriptions = new MobileGatewaySubscriptions({
@@ -98,14 +132,20 @@ describe('MobileGatewaySubscriptions', () => {
                 ],
             },
         });
-        // Not activated yet: the phone has not installed its read, so nothing is sent.
+        // Not activated yet: the phone's first read may predate this patch, so activation asks it to read again.
         subscriptions.publish(patch('terminal-1', 1));
+        expect(sent).toHaveLength(0);
         subscriptions.activate(id);
         subscriptions.publish(patch('terminal-other', 2));
         subscriptions.publish(patch('terminal-1', 2));
-        await vi.waitFor(() => expect(sent).toHaveLength(1));
-        const [event] = sent as Array<Extract<MobileServerPayload, { kind: 'agentChat.patch' }>>;
-        expect(event).toMatchObject({ kind: 'agentChat.patch', sequence: 0, subscriptionId: id });
+        await vi.waitFor(() => expect(sent).toHaveLength(2));
+        expect(sent[0]).toMatchObject({
+            kind: 'agentChat.changed',
+            sequence: 0,
+            subscriptionId: id,
+        });
+        const event = sent[1] as Extract<MobileServerPayload, { kind: 'agentChat.patch' }>;
+        expect(event).toMatchObject({ kind: 'agentChat.patch', sequence: 1, subscriptionId: id });
         const forwarded = event.patch as { operations: Array<{ item: { text: string } }> };
         expect(forwarded.operations[0]?.item.text.length).toBeLessThan(10_000);
         subscriptions.close();

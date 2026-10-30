@@ -58,7 +58,7 @@ interface MobileHandshakeDependencies {
 export function beginMobileHandshake(
     hello: MobileClientHello,
     dependencies: MobileHandshakeDependencies,
-): Omit<GatewaySession, 'route'> {
+): Omit<GatewaySession, 'route' | 'timing'> {
     const connectionId = Buffer.from(dependencies.random(16)).toString('hex');
     const serverSecretKey = dependencies.random(X25519_KEY_BYTES);
     const serverPublicKey = mobilePublicKey(serverSecretKey);

@@ -1,9 +1,11 @@
 import { Buffer } from 'node:buffer';
 
 import {
+    decodeHex,
     encodeHex,
     MOBILE_TRANSPORT_VERSION,
     mobileSealedFrameSchema,
+    openMobileFrame,
     sealMobileFrame,
 } from '@caxri/mobile-transport';
 import WebSocket from 'ws';
@@ -11,6 +13,38 @@ import WebSocket from 'ws';
 import type { GatewaySession } from './gateway-session';
 
 const FINAL_FRAME_CLOSE_TIMEOUT_MS = 1_000;
+
+/**
+ * Marker for `MobileReplayGuard`'s counter-sequence rejection so it logs as `replayRejected`, not `invalidFrame`.
+ */
+export class MobileFrameReplayRejected extends Error {}
+
+/**
+ * Opens one sealed frame from the phone and returns its parsed application payload.
+ */
+export const openSessionPayload = (session: GatewaySession, raw: unknown): unknown => {
+    const frame = mobileSealedFrameSchema.parse(raw);
+    if (frame.connectionId !== session.connection.connectionId)
+        throw new Error('Encrypted frame connection identity changed');
+    // Narrowed to a distinct error type so the outer catch can log `replayRejected` instead of folding a replayed
+    // or out-of-order counter into the generic `invalidFrame` bucket it shares with malformed payloads.
+    try {
+        session.inbound.assertAndAdvance(frame.counter);
+    } catch (error) {
+        throw new MobileFrameReplayRejected(error instanceof Error ? error.message : undefined);
+    }
+    const plaintext = openMobileFrame(
+        session.keys.clientToServer,
+        {
+            connectionId: session.transcript.connectionId,
+            counter: frame.counter,
+            deviceId: session.deviceId,
+            direction: 'client-to-server',
+        },
+        decodeHex(frame.ciphertext),
+    );
+    return JSON.parse(new TextDecoder().decode(plaintext)) as unknown;
+};
 
 interface ServerSealedPayloadContext {
     connectionId: Uint8Array;

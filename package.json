@@ -56,6 +56,7 @@
         "benchmark:markdown": "pnpm --filter @caxri/markdown run benchmark",
         "benchmark:server-footprint": "bun run scripts/server-footprint.ts",
         "benchmark:ssh-link": "bun run scripts/ssh-link-benchmark.ts",
+        "benchmark:relay-link": "bun run scripts/relay-link-benchmark.ts",
         "performance:baseline:collect": "bun run scripts/performance-baseline-collect.ts",
         "performance:baseline:derive": "bun run scripts/performance-baseline-derive.ts",
         "performance:baseline:gate": "bun run scripts/performance-baseline-gate.ts",

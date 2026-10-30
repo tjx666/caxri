@@ -2,7 +2,11 @@
  * Opening a gateway socket and running the encrypted handshake, plus the sealed-frame codec an established session
  * uses.
  */
-import type { HandshakeTranscript, MobileSessionKeys } from '@caxri/mobile-transport';
+import type {
+    HandshakeTranscript,
+    MobileConnectTrace,
+    MobileSessionKeys,
+} from '@caxri/mobile-transport';
 import {
     decodeHex,
     deriveMobileSessionKeys,
@@ -24,7 +28,7 @@ import {
 } from '@caxri/mobile-transport';
 
 import type { MobileGatewayRoute, MobileGatewayRouteKind } from './gateway-routes';
-import { gatewayRoutes, openGatewaySocket } from './gateway-routes';
+import { DIRECT_ROUTE_GRACE_MS, gatewayRoutes, openGatewaySocket } from './gateway-routes';
 import type { MobileGatewayRuntime } from './mobile-gateway-client';
 import { MobileServerVerificationError, MobileVersionMismatchError } from './mobile-gateway-errors';
 import type { SocketReader } from './socket-reader';
@@ -110,16 +114,28 @@ export const establish = async (input: {
     clientHello: Record<string, unknown>;
     clientNonce: Uint8Array;
     clientSecretKey: Uint8Array;
+    /**
+     * How long direct routes race alone before the Relay joins; defaults to the full grace.
+     */
+    directGraceMs?: number;
     expectedServerId: string;
     mode: 'connect' | 'pair';
     presharedKey: Uint8Array;
     routes: MobileGatewayRoute[];
     runtime: MobileGatewayRuntime;
 }): Promise<EstablishedSession> => {
-    const { route, socket } = await openGatewaySocket(input.routes, input.runtime);
+    const graceMs = input.directGraceMs ?? DIRECT_ROUTE_GRACE_MS;
+    const startedAt = Date.now();
+    const { route, socket } = await openGatewaySocket(input.routes, input.runtime, graceMs);
     const reader = createSocketReader(socket);
     try {
-        socket.send(JSON.stringify(input.clientHello));
+        // A reconnect tells the Server how it got here, so its log can explain a slow reconnect from both ends.
+        const trace: MobileConnectTrace = { graceMs, openMs: Date.now() - startedAt };
+        socket.send(
+            JSON.stringify(
+                input.mode === 'connect' ? { ...input.clientHello, trace } : input.clientHello,
+            ),
+        );
         const response = await reader.next(HANDSHAKE_TIMEOUT_MS);
         const mismatch = mobileVersionMismatchSchema.safeParse(response);
         if (mismatch.success) throw new MobileVersionMismatchError(mismatch.data.supportedVersion);

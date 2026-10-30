@@ -84,7 +84,7 @@ What/why of current shipped behavior, core modules, protocols, and operator know
 | [mobile/conversation.md](mobile/conversation.md)                   | Mobile read-only Agent conversation timeline                        |
 | [mobile/design.md](mobile/design.md)                               | Caxri Mobile design and interaction spec                            |
 | [mobile/host-status.md](mobile/host-status.md)                     | Mobile computer status: CPU, memory, Session load, processes        |
-| [mobile/performance.md](mobile/performance.md)                     | Mobile release performance budgets                                  |
+| [mobile/performance.md](mobile/performance.md)                     | Mobile release performance budgets and Relay reconnect latency      |
 | [mobile/preview.md](mobile/preview.md)                             | Mobile preview of a Session's local web pages                       |
 | [mobile/relay.md](mobile/relay.md)                                 | Mobile Relay: protocol, route selection, and operator deployment    |
 | [mobile/transport.md](mobile/transport.md)                         | Mobile gateway transport, pairing, and framing                      |

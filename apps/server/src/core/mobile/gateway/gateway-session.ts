@@ -9,6 +9,7 @@ import type { Principal, ProtocolConnectionIdentity } from '@caxri/protocol';
 import type { MobileDeviceRecord } from '../device-registry';
 import type { MobileConnectionRoute } from './diagnostics';
 import type { MobileGatewayFrameRouter } from './frame-router';
+import type { MobileHandshakeTiming } from './handshake-timing';
 
 /**
  * One accepted mobile socket, from its handshake through its active application session.
@@ -37,6 +38,7 @@ export interface GatewaySession {
      */
     readyAt?: number;
     revoking?: boolean;
+    timing: MobileHandshakeTiming;
     transcript: HandshakeTranscript;
     valid: boolean;
 }

@@ -64,9 +64,9 @@ function harness() {
 describe('Agent Chat reader', () => {
     afterEach(() => vi.useRealTimers());
 
-    it('reads after the ACK and streams patches onto that read', async () => {
+    it('reads right behind the subscribe and streams patches onto that read', async () => {
         const chat = harness();
-        expect(chat.read).not.toHaveBeenCalled();
+        expect(chat.read).toHaveBeenCalledOnce();
         chat.ack();
         await flush();
         expect(chat.read).toHaveBeenCalledOnce();
@@ -75,6 +75,19 @@ describe('Agent Chat reader', () => {
         chat.emit({ kind: 'agentChat.patch', patch: append(1, ' there') });
         expect(textOf(chat.latest())).toBe('Hi there');
         expect(chat.latest()?.revision).toBe(2);
+        chat.stop();
+    });
+
+    it('reads again when the Server reports a change the pipelined first read may predate', async () => {
+        const chat = harness();
+        chat.reads[0]?.resolve(snapshot(1));
+        await flush();
+        chat.ack();
+        chat.emit({ kind: 'agentChat.changed' });
+        expect(chat.read).toHaveBeenCalledTimes(2);
+        chat.reads[1]?.resolve(snapshot(2, 'newer'));
+        await flush();
+        expect(textOf(chat.latest())).toBe('newer');
         chat.stop();
     });
 

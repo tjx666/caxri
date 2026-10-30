@@ -32,7 +32,7 @@ export interface MobileRelayRouteOptions {
     registry: Pick<MobileDeviceRegistry, 'activeCredentials' | 'onDevicesChanged' | 'relayHostKey'>;
     pendingPairingSecrets: () => Array<{ expiresAt: number; secret: string }>;
     canAccept: () => boolean;
-    onConnection: (socket: WebSocket) => void;
+    onConnection: (socket: WebSocket, dialMs: number) => void;
     logger?: Pick<StructuredLogger, 'write'>;
     now?: () => number;
     timing?: Partial<RelayConnectorTiming>;
