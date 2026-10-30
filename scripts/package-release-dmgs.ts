@@ -167,6 +167,43 @@ export function releaseDmgArtifact(
     };
 }
 
+/**
+ * Gatekeeper reports a quarantined bundle whose signature does not seal its resources as "damaged" and offers no Open
+ * Anyway route. A bare arm64 Electron build carries only the linker's per-binary signature, so the release must prove
+ * the whole bundle is ad-hoc signed and that the Share extension kept the sandbox entitlement macOS requires to load
+ * it.
+ */
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/package-release-dmgs.test.ts
+export function assertReleaseSignature(input: {
+    appDisplay: string;
+    shareExtensionEntitlements: string;
+}): void {
+    if (!/^Identifier=com\.caxri\.app$/m.test(input.appDisplay))
+        throw new Error('Caxri.app is not signed with its own bundle identifier.');
+    if (!/^Sealed Resources version=/m.test(input.appDisplay))
+        throw new Error('Caxri.app signature does not seal its resources.');
+    if (!input.shareExtensionEntitlements.includes('com.apple.security.app-sandbox'))
+        throw new Error('Caxri Share.appex lost its sandbox entitlement during signing.');
+}
+
+async function verifyReleaseSignature(appPath: string, cwd: string): Promise<void> {
+    await runRequired('codesign', ['--verify', '--deep', '--strict', appPath], cwd);
+    // `codesign --display` writes its report to stderr.
+    const { stderr: appDisplay } = await execFileAsync('codesign', [
+        '--display',
+        '--verbose=2',
+        appPath,
+    ]);
+    const { stdout: shareExtensionEntitlements } = await execFileAsync('codesign', [
+        '--display',
+        '--entitlements',
+        '-',
+        '--xml',
+        join(appPath, 'Contents', 'PlugIns', 'Caxri Share.appex'),
+    ]);
+    assertReleaseSignature({ appDisplay, shareExtensionEntitlements });
+}
+
 async function runRequired(
     command: string,
     arguments_: readonly string[],
@@ -210,6 +247,7 @@ async function packageFlavor(
         cwd,
         environment,
     );
+    await verifyReleaseSignature(artifact.appPath, cwd);
     assertPackagedDesktopMaps(await packagedAsarSourceMaps(artifact.appPath), flavor);
     await verifyServerSourceMaps(join(artifact.appPath, 'Contents', 'Resources', 'server'), flavor);
     await runRequired('hdiutil', ['verify', artifact.dmgPath], cwd);

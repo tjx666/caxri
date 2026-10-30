@@ -89,16 +89,17 @@ optional setup: notification banners, the `caxri` command, and initial settings 
 default Agent, and font sizes. To install by hand, follow the same page:
 [docs/install.md](docs/install.md).
 
-**Caxri is not signed by Apple yet.** If macOS says Caxri "is damaged" or cannot be opened, run
-this once and open it again:
+**Caxri is not notarized by Apple yet.** If macOS says Apple could not verify Caxri, open
+**System Settings → Privacy & Security** and click **Open Anyway**, or run this once and open it
+again:
 
 ```bash
 xattr -dr com.apple.quarantine /Applications/Caxri.app
 ```
 
 If you downloaded the disk image by hand, verify it against its `.sha256` file first.
-[Troubleshooting](docs/troubleshooting.md#macos-says-caxri-is-damaged-or-blocks-it) also covers the
-**Open Anyway** route in System Settings.
+[Troubleshooting](docs/troubleshooting.md#macos-says-caxri-is-damaged-or-blocks-it) also covers
+older releases that macOS reported as "damaged".
 
 ### Install on Android
 

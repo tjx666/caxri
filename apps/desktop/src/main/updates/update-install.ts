@@ -134,9 +134,9 @@ export interface StageUpdateBundleInput {
  * Unpacks the verified DMG into `stagingDirectory` ahead of time, so the restart itself is only two renames. The copy
  * must carry the expected version and the installed app's bundle identifier, and its main executable must be in place.
  *
- * Integrity comes from the DMG's SHA-256 check before this runs, not from `codesign --verify`: the release bundles are
- * only linker-signed with no sealed resources, so even the installed app fails `--strict` verification and a signature
- * check cannot tell a complete copy from a truncated one.
+ * Integrity comes from the DMG's SHA-256 check before this runs, not from `codesign --verify`: release bundles are
+ * ad-hoc signed, so a signature names no publisher to pin, and releases up to v0.0.143 were only linker-signed with no
+ * sealed resources at all.
  */
 export async function stageUpdateBundle(input: StageUpdateBundleInput): Promise<string> {
     const run = input.run ?? runInstallCommand;
