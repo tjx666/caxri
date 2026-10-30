@@ -911,7 +911,9 @@ the previous row while the Workbench content switches instantly; overlays enter 
 ease-in-out); live Agent Chat text sweeps on `--motion-activity-shimmer` (2200ms, linear), or by default sweeps on
 `--motion-activity-dwell-sweep` (1400ms) and rests for `--motion-activity-dwell-rest` (2600ms); loading
 skeleton blocks pulse on `--motion-skeleton-pulse` (2000ms, ease-in-out) after fading in on
-`--motion-overlay-enter`; live figures roll on `--motion-number-roll` (600ms); a phrase joining a Chat work
+`--motion-overlay-enter`; a Chat message on its way turns its sending clock's minute hand once per
+`--motion-sending-clock` (1200ms, linear; the hour hand twelve times slower) after fading in once
+`--motion-sending-reveal-delay` (400ms) has passed; live figures roll on `--motion-number-roll` (600ms); a phrase joining a Chat work
 summary fades in from a slight blur on `--motion-summary-phrase-enter` (320ms, enter curve); a streaming
 Agent Chat reply fades in on `--motion-text-reveal` (500ms, linear). JS resolves tokens
 through `lib/motion.ts` (`motionDurationMs`);

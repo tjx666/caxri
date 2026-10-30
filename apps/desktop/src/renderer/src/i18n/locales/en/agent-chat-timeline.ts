@@ -51,6 +51,8 @@ export const agentChatTimeline = {
     'agentChat.message.preparingReference': 'Preparing Session reference…',
     'agentChat.message.attaching': 'Attaching…',
     'agentChat.message.sending': 'Sending…',
+    'agentChat.message.sendingAfterStep': 'Sends when the current step finishes',
+    'agentChat.message.sendingAfterStart': 'Sends once the Agent starts',
     'agentChat.message.typeToSend': 'Type a message to send',
     'agentChat.message.steered': 'Steered',
     'agentChat.message.steeredHint':

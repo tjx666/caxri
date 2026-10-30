@@ -365,6 +365,7 @@ export function AgentChatPane({
                                         pending={pending}
                                         readBackHistory={readBackHistory}
                                         settledChunks={settledChunks}
+                                        status={snapshot?.status}
                                         terminalId={terminalId}
                                         timeline={timeline}
                                         onOpenFile={openFile}
@@ -529,6 +530,7 @@ function AgentChatTimelineBody({
     pending,
     readBackHistory,
     settledChunks,
+    status,
     terminalId,
     timeline,
 }: {
@@ -545,6 +547,7 @@ function AgentChatTimelineBody({
     pending: ComponentProps<typeof AgentChatPendingTimeline>['pending'];
     readBackHistory: ComponentProps<typeof AgentChatReadBackHistoryContext>['value'];
     settledChunks: ComponentProps<typeof AgentChatSettledTimeline>['chunks'];
+    status: AgentChatSnapshot['status'] | undefined;
     terminalId: string;
     timeline: readonly AgentChatTimelineEntry[];
 }) {
@@ -575,7 +578,11 @@ function AgentChatTimelineBody({
                                 onOpenFile={onOpenFile}
                             />
                             {isAwaitingReply && <AgentChatReplyPlaceholder turnId={activeTurnId} />}
-                            <AgentChatPendingTimeline pending={pending} onOpenFile={onOpenFile} />
+                            <AgentChatPendingTimeline
+                                pending={pending}
+                                status={status}
+                                onOpenFile={onOpenFile}
+                            />
                         </AgentChatEditContext>
                     </AgentChatReferencesContext>
                 </AgentChatSkillsContext>
