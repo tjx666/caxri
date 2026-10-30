@@ -25,7 +25,7 @@ export const MOBILE_SESSION_SEARCH_MAX_HIGHLIGHTS = 16;
  * Which Sessions the phone searches: `caxri` keeps open and archived together, as on Desktop. External conversations
  * stay Desktop-only, since they belong to no Project a device can be granted.
  */
-export const mobileSessionSearchStatusSchema = z.enum(['caxri', 'archived']);
+const mobileSessionSearchStatusSchema = z.enum(['caxri', 'archived']);
 export type MobileSessionSearchStatus = z.infer<typeof mobileSessionSearchStatusSchema>;
 
 const offsetSchema = z.number().int().nonnegative();
@@ -38,7 +38,7 @@ const mobileSessionSearchSnippetSchema = z.strictObject({
     highlights: z.array(highlightSchema).max(MOBILE_SESSION_SEARCH_MAX_HIGHLIGHTS),
 });
 
-export const mobileSessionSearchEntrySchema = z.strictObject({
+const mobileSessionSearchEntrySchema = z.strictObject({
     sessionId: identifierSchema,
     projectId: identifierSchema,
     title: z.string().max(MOBILE_SESSION_SEARCH_TITLE_MAX_LENGTH),

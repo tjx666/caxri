@@ -77,7 +77,7 @@ export type SessionSearchParameters = z.infer<typeof sessionSearchParametersSche
  * Which field made the conversation a result. `recent` marks an empty query's listing.
  */
 const sessionSearchMatchFields = ['recent', 'id', 'title', 'path', 'content'] as const;
-const sessionSearchMatchFieldSchema = z.enum(sessionSearchMatchFields);
+export const sessionSearchMatchFieldSchema = z.enum(sessionSearchMatchFields);
 export type SessionSearchMatchField = z.infer<typeof sessionSearchMatchFieldSchema>;
 
 /**
@@ -180,7 +180,7 @@ export function snippetSegments(snippet: {
  * results may be missing their newest messages; `unavailable` when the index could not be opened at all, in which case
  * only Caxri's own Session titles are searched.
  */
-const sessionSearchIndexStatusSchema = z.object({
+export const sessionSearchIndexStatusSchema = z.object({
     state: z.enum(['indexing', 'ready', 'unavailable']),
     conversations: z.number().int().nonnegative(),
     pending: z.number().int().nonnegative(),
@@ -193,7 +193,7 @@ export type SessionSearchIndexStatus = z.infer<typeof sessionSearchIndexStatusSc
  * hold every word apart; `anyWord` found none holding every word, so results hold at least one.
  */
 const sessionSearchRelaxations = ['phrase', 'allWords', 'anyWord'] as const;
-const sessionSearchRelaxationSchema = z.enum(sessionSearchRelaxations);
+export const sessionSearchRelaxationSchema = z.enum(sessionSearchRelaxations);
 export type SessionSearchRelaxation = z.infer<typeof sessionSearchRelaxationSchema>;
 
 /**
