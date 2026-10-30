@@ -2,7 +2,7 @@ import type { AgentChatGoal } from '@caxri/protocol';
 import { agentChatGoalToggle } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { claudeHistoryOperations } from '../claude-history';
+import { claudeHistoryOperations } from '../history/claude-history';
 
 /**
  * Transcript records in the shapes Claude Code 2.1.310 writes for `/goal` (read from real session transcripts; the

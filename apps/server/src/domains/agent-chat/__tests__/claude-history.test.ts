@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
+import { CLAUDE_DECLINED_MESSAGE } from '../claude-tool-results';
 import {
     claudeHistoryImage,
     claudeHistoryOperations,
     claudeRewindPoint,
     claudeTaskHistoryOperations,
-} from '../claude-history';
-import { CLAUDE_DECLINED_MESSAGE } from '../claude-tool-results';
+} from '../history/claude-history';
 
 function jsonl(records: unknown[]): string {
     return records.map((record) => JSON.stringify(record)).join('\n');
@@ -51,6 +51,72 @@ describe('Claude transcript history', () => {
             ['agentMessage', Date.parse('2026-10-11T10:00:00.000Z')],
             ['agentMessage', undefined],
             ['notice', Date.parse('2026-10-11T10:01:00.000Z')],
+        ]);
+    });
+
+    it('times each turn from its records when Claude Code wrote no turn duration, as for an SDK-driven Chat', () => {
+        const at = (minute: number, second = 0) =>
+            `2026-10-11T10:${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}.000Z`;
+        const prompt = (uuid: string, minute: number) => ({
+            type: 'user',
+            uuid,
+            timestamp: at(minute),
+            message: { role: 'user', content: uuid },
+        });
+        const reply = (uuid: string, minute: number, second = 0) => ({
+            type: 'assistant',
+            uuid,
+            timestamp: at(minute, second),
+            message: { id: uuid, content: [{ type: 'text', text: 'Done.' }] },
+        });
+        const operations = claudeHistoryOperations(
+            jsonl([
+                prompt('u1', 0),
+                reply('a1', 2, 1),
+                // A background task finished while the Agent sat idle and woke it for another minute.
+                { type: 'queue-operation', operation: 'enqueue', timestamp: at(30) },
+                {
+                    type: 'attachment',
+                    uuid: 'n1',
+                    timestamp: at(30),
+                    attachment: {
+                        type: 'queued_command',
+                        prompt: '<task-notification>done</task-notification>',
+                        commandMode: 'task-notification',
+                        origin: { kind: 'task-notification' },
+                    },
+                },
+                reply('a2', 31),
+                {
+                    type: 'assistant',
+                    uuid: 'side',
+                    isSidechain: true,
+                    timestamp: at(45),
+                    message: { id: 'side', content: [{ type: 'text', text: 'Subagent' }] },
+                },
+                // The next prompt is queued long after the reply; the wait belongs to neither turn.
+                { type: 'queue-operation', operation: 'enqueue', timestamp: at(39, 59) },
+                prompt('u2', 40),
+                reply('a3', 40, 5),
+                // A transcript the interactive CLI wrote keeps its own measurement.
+                {
+                    type: 'system',
+                    subtype: 'turn_duration',
+                    durationMs: 9_000,
+                    timestamp: at(40, 6),
+                },
+            ]),
+            false,
+        );
+        const state = operations.find((operation) => operation.op === 'state');
+        expect(state?.op === 'state' && state.state.turns).toEqual([
+            {
+                id: 'u1',
+                status: 'completed',
+                startedAt: Date.parse(at(0)),
+                durationMs: 121_000 + 60_000,
+            },
+            { id: 'u2', status: 'completed', startedAt: Date.parse(at(40)), durationMs: 9_000 },
         ]);
     });
 

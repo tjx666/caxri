@@ -4,8 +4,8 @@ import { SingleFlight } from '@caxri/system';
 import { MAX_HISTORY_TRANSCRIPT_BYTES } from './chat-history';
 import { readChatTranscript, requireChatTerminal } from './chat-launch';
 import type { AgentChatTranscript } from './chat-provider';
-import { claudeHistoryImage } from './claude-history';
 import { codexHistoryImage } from './codex-input';
+import { claudeHistoryImage } from './history/claude-history';
 import type { AgentChatServiceOptions } from './service-options';
 
 const fullTranscripts = new SingleFlight<string, AgentChatTranscript | undefined>();

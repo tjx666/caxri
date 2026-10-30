@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { claudeHistoryItems } from '../claude-history';
+import { claudeHistoryItems } from '../history/claude-history';
 
 /**
  * Public-safe shapes verified with Claude Code 2.1.301, including its persisted field names.

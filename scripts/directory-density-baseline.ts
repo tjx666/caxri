@@ -31,7 +31,7 @@ export interface DirectoryDensityFamily extends DirectoryDensityOwner {
 
 export const DIRECTORY_DENSITY_OWNERS: readonly DirectoryDensityOwner[] = [
     { cap: 109, directory: 'apps/desktop/src/main' },
-    { cap: 88, directory: 'apps/server/src/domains/agent-chat' },
+    { cap: 87, directory: 'apps/server/src/domains/agent-chat' },
     { cap: 9, directory: 'apps/desktop/src/renderer/src/features/agent-chat' },
     { cap: 20, directory: 'apps/desktop/src/main/ssh' },
     { cap: 81, directory: 'packages/protocol/src/domain' },
@@ -60,7 +60,7 @@ export const DIRECTORY_DENSITY_NESTED_THRESHOLD = 12;
 
 export const DIRECTORY_DENSITY_FAMILIES: readonly DirectoryDensityFamily[] = [
     { cap: 32, directory: 'apps/server/src/domains/agent-chat', prefix: 'chat-' },
-    { cap: 26, directory: 'apps/server/src/domains/agent-chat', prefix: 'claude-' },
+    { cap: 25, directory: 'apps/server/src/domains/agent-chat', prefix: 'claude-' },
     { cap: 15, directory: 'apps/server/src/domains/agent-chat', prefix: 'codex-' },
     { cap: 6, directory: 'apps/server/src/domains/agent-chat', prefix: 'grok-' },
     { cap: 8, directory: 'apps/desktop/src/main', prefix: 'external-' },

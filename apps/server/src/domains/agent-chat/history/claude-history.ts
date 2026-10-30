@@ -9,26 +9,28 @@ import type {
 } from '@caxri/protocol';
 import { MAX_AGENT_CHAT_GOAL_OBJECTIVE_LENGTH, MAX_AGENT_CHAT_TEXT_LENGTH } from '@caxri/protocol';
 
-import { extractVisibleTranscriptMessage } from '../agents';
+import { extractVisibleTranscriptMessage } from '../../agents';
 import {
     clip,
     closeDanglingItem,
     isRecord,
     storedChatImageSchema,
     stringField,
-} from './chat-items';
-import { claudeResponseUsage } from './claude-context';
+} from '../chat-items';
+import { claudeResponseUsage } from '../claude-context';
 import {
     claudeUserImageCount,
     isClaudeCompactCommand,
     isClaudeUsageLimitContinuePrompt,
+    isHumanQueuedClaudePrompt,
     isQueuedClaudePrompt,
-} from './claude-input';
-import { claudeAssistantItems, ClaudeBlockIds, claudeUsageTokens, text } from './claude-items';
-import { claudeCompaction } from './claude-system-notices';
-import { settleClaudeToolItem } from './claude-tool-results';
-import { claudeFeedbackItems, claudeFeedbackToolUseId } from './feedback/claude-feedback';
-import { claudeGoalNotice } from './goals/claude-goals';
+} from '../claude-input';
+import { claudeAssistantItems, ClaudeBlockIds, claudeUsageTokens, text } from '../claude-items';
+import { claudeCompaction } from '../claude-system-notices';
+import { settleClaudeToolItem } from '../claude-tool-results';
+import { claudeFeedbackItems, claudeFeedbackToolUseId } from '../feedback/claude-feedback';
+import { claudeGoalNotice } from '../goals/claude-goals';
+import { ClaudeTurnClock } from './claude-turn-clock';
 
 /**
  * Rebuilds a resumed Claude Code Chat from its session JSONL transcript. Claude Code's resume returns no history, so
@@ -57,6 +59,7 @@ interface HistoryState {
      * sum of those turns' durations.
      */
     goal?: { objective: string; sinceTurn: number };
+    turnClock: ClaudeTurnClock;
 }
 
 /**
@@ -205,11 +208,7 @@ function recordTime(record: Json): { createdAt?: number } {
 function applySteeredRecord(state: HistoryState, attachment: Json, record: Json): void {
     const uuid = stringField(attachment.source_uuid);
     if (!uuid || !state.turnId) return;
-    // Claude Code queues background task notifications and peer Agent messages the same way; only a human prompt is
-    // the user's steered message.
-    const origin = isRecord(attachment.origin) ? attachment.origin.kind : undefined;
-    if ((attachment.commandMode ?? 'prompt') !== 'prompt' || (origin ?? 'human') !== 'human')
-        return;
+    if (!isHumanQueuedClaudePrompt(attachment)) return;
     const { prompt } = attachment;
     const blocks = Array.isArray(prompt) ? prompt.filter(isRecord) : [];
     const promptText =
@@ -377,6 +376,7 @@ function readHistory(transcript: string, isSidechain: boolean, resumeAt?: string
         ids: new ClaudeBlockIds(),
         turns: [],
         items: new Map(),
+        turnClock: new ClaudeTurnClock(),
     };
     const records = transcript
         .split('\n')
@@ -385,8 +385,17 @@ function readHistory(transcript: string, isSidechain: boolean, resumeAt?: string
     const abandoned = isSidechain ? new Set<string>() : abandonedRecordIds(records, resumeAt);
     for (const record of records) {
         const uuid = stringField(record.uuid);
-        if (uuid === undefined || !abandoned.has(uuid)) applyHistoryRecord(state, record);
+        if (uuid !== undefined && abandoned.has(uuid)) continue;
+        const turnCount = state.turns.length;
+        applyHistoryRecord(state, record);
+        if (record.isSidechain !== true || state.isSidechain)
+            state.turnClock.tick(
+                record,
+                recordTime(record).createdAt,
+                state.turns.length > turnCount ? state.turns.at(-1) : undefined,
+            );
     }
+    state.turnClock.settle();
     return state;
 }
 

@@ -20,7 +20,7 @@ import type {
     ChatResumePoint,
     ChatRewindTarget,
 } from '../chat-provider';
-import { claudeRewindPoint } from '../claude-history';
+import { claudeRewindPoint } from '../history/claude-history';
 
 /**
  * Claude Code rewinds a conversation only by resuming it at an earlier record (`resumeSessionAt`), so this finds that

@@ -132,6 +132,15 @@ export function isQueuedClaudePrompt(uuid: string): boolean {
 }
 
 /**
+ * Whether a transcript `queued_command` attachment is a prompt the user typed. Claude Code queues background task
+ * notifications and peer Agent messages the same way.
+ */
+export function isHumanQueuedClaudePrompt(attachment: Record<string, unknown>): boolean {
+    const origin = isRecord(attachment.origin) ? attachment.origin.kind : undefined;
+    return (attachment.commandMode ?? 'prompt') === 'prompt' && (origin ?? 'human') === 'human';
+}
+
+/**
  * What a Claude Chat sends on its own once a used-up plan limit resets (issue #2220), instead of repeating the user's
  * last message. Hidden from the timeline live and on a history replay, where its uuid
  * ({@link claudeUsageLimitContinueUuid}) marks it, so the turn reads as the Agent continuing rather than the user
