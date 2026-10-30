@@ -25,6 +25,11 @@ export const usageLogEvents = {
      * text.
      */
     autoContinue: 'usage.auto_continue',
+    /**
+     * One sync of the Agent transcripts outside the ledger: discovered, hosted, and per-outcome file counts, the rescan
+     * count, and the closed compressed-rollout read failures `decompressFailed` and `decompressLimit`. Never carries
+     * paths or transcript content.
+     */
     externalScan: 'usage.external_scan',
     /**
      * The user dismissed a provider's plan pace reminder from any Client, with `provider` and the weekly window's

@@ -2,13 +2,10 @@ import { opendir } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 
 import type { AgentEnvironment } from '../../contract';
+import { COMPRESSED_TRANSCRIPT_SUFFIX } from '../../transcript-compression';
 import type { AgentTranscriptLocation } from '../../transcript-security';
 import { resolveCodexHome, resolveCodexStateDirectories } from './paths';
-import {
-    CODEX_ROLLOUT_NAME_PATTERN,
-    parseCodexRolloutName,
-    readCodexCurrentRolloutId,
-} from './rollouts';
+import { parseCodexRolloutFile, readCodexCurrentRolloutId } from './rollouts';
 
 /**
  * One day of local Codex activity is a few hundred rollouts; a folder past this budget fails closed.
@@ -34,6 +31,12 @@ function uuidV7Timestamp(value: string): number | undefined {
     return Number.parseInt(`${match[1]}${match[2]}`, 16);
 }
 
+function stripCompressedSuffix(name: string): string {
+    return name.endsWith(COMPRESSED_TRANSCRIPT_SUFFIX)
+        ? name.slice(0, -COMPRESSED_TRANSCRIPT_SUFFIX.length)
+        : name;
+}
+
 function pad(value: number): string {
     return String(value).padStart(2, '0');
 }
@@ -54,9 +57,9 @@ async function listRolloutNames(
             scanned += 1;
             if (scanned > MAX_CODEX_SESSION_DAY_ENTRIES) return [];
             const name = entry.name.toLowerCase();
-            if (entry.isFile() && CODEX_ROLLOUT_NAME_PATTERN.test(name) && isWanted(name)) {
+            if (entry.isFile() && parseCodexRolloutFile(name) && isWanted(name)) {
                 names.push(entry.name);
-                if (names.length >= limit) return names;
+                if (names.length >= limit) break;
             }
         }
     } catch {
@@ -69,7 +72,20 @@ async function listRolloutNames(
             // Async directory iteration already closes an exhausted handle.
         }
     }
-    return names;
+    return dropShadowedCompressed(names);
+}
+
+/**
+ * Codex materializes a compressed rollout back to `.jsonl` before appending and removes the `.zst` afterwards, so while
+ * both exist the plain file is current and the compressed one must not be counted again.
+ */
+function dropShadowedCompressed(names: string[]): string[] {
+    const plain = new Set(names.map((name) => name.toLowerCase()));
+    return names.filter(
+        (name) =>
+            !name.toLowerCase().endsWith(COMPRESSED_TRANSCRIPT_SUFFIX) ||
+            !plain.has(name.toLowerCase().slice(0, -COMPRESSED_TRANSCRIPT_SUFFIX.length)),
+    );
 }
 
 async function findRolloutName(
@@ -77,10 +93,12 @@ async function findRolloutName(
     suffix: string,
     signal?: AbortSignal,
 ): Promise<string | undefined> {
-    const names = await listRolloutNames(directory, (name) => name.endsWith(suffix), {
-        limit: 1,
-        signal,
-    });
+    const names = await listRolloutNames(
+        directory,
+        (name) =>
+            name.endsWith(suffix) || name.endsWith(`${suffix}${COMPRESSED_TRANSCRIPT_SUFFIX}`),
+        { limit: MAX_CODEX_SESSION_DAY_ENTRIES, signal },
+    );
     return names[0];
 }
 
@@ -99,17 +117,18 @@ export async function locateEarlierCodexRollouts(
     current: AgentTranscriptLocation,
     environment: AgentEnvironment,
 ): Promise<AgentTranscriptLocation[]> {
-    const rollout = parseCodexRolloutName(basename(current.path));
+    const rollout = parseCodexRolloutFile(basename(current.path));
     if (!rollout || rollout.rolloutId === rollout.threadId) return [];
     const threadCreatedAt = uuidV7Timestamp(rollout.threadId);
     if (threadCreatedAt === undefined) return [];
     const sessionsRoot = codexSessionsRoot(environment);
     const thread = rollout.threadId.toLowerCase();
     const currentName = basename(current.path);
+    const currentStem = stripCompressedSuffix(currentName.toLowerCase());
     const isEarlierRollout = (name: string) =>
-        parseCodexRolloutName(name)?.threadId.toLowerCase() === thread &&
-        name !== currentName.toLowerCase() &&
-        name < currentName.toLowerCase();
+        parseCodexRolloutFile(name)?.threadId.toLowerCase() === thread &&
+        stripCompressedSuffix(name) !== currentStem &&
+        stripCompressedSuffix(name) < currentStem;
     const first = new Date(threadCreatedAt);
     first.setDate(first.getDate() - 1);
     const last = dirname(current.path);
@@ -139,11 +158,11 @@ export async function locateEarlierCodexRollouts(
 
 /**
  * Codex writes each thread to `sessions/YYYY/MM/DD/rollout-<wall clock>-<thread id>.jsonl` (see
- * {@link CODEX_ROLLOUT_NAME_PATTERN} for the reverted-thread form). The wall clock and the day folder use the machine's
- * local time and are sampled separately from the UUIDv7 thread id (about 3% of local rollouts land one second apart),
- * so the path cannot be derived purely. The thread id's own timestamp picks the day folder, which is then listed for
- * the file carrying that id; the neighbouring days absorb midnight and timezone drift. Only directory entries are read
- * here, never transcript contents.
+ * `CODEX_ROLLOUT_NAME_PATTERN` for the reverted-thread form). The wall clock and the day folder use the machine's local
+ * time and are sampled separately from the UUIDv7 thread id (about 3% of local rollouts land one second apart), so the
+ * path cannot be derived purely. The thread id's own timestamp picks the day folder, which is then listed for the file
+ * carrying that id; the neighbouring days absorb midnight and timezone drift. Only directory entries are read here,
+ * never transcript contents.
  */
 export async function locateCodexTranscript(
     context: { agentSessionId: string },

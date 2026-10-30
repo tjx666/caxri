@@ -3,13 +3,19 @@ import { basename, dirname, join } from 'node:path';
 
 import type { AgentProvider } from '@caxri/protocol';
 
-import type { AgentEnvironment, AgentTranscriptLocation, TranscriptScanCursor } from '../agents';
+import type {
+    AgentEnvironment,
+    AgentTranscriptLocation,
+    TranscriptScanCursor,
+    TranscriptScanFailureReason,
+} from '../agents';
 import {
     agentProviders,
     locateAgentTranscriptForIdentity,
     locateEarlierCodexRollouts,
     scanTranscriptLines,
 } from '../agents';
+import { isCompressedTranscriptPath } from '../agents/transcript-compression';
 import type { RateLimitObservation } from './accumulator';
 import { UsageAccumulator } from './accumulator';
 import type { ClaudeMessageUsage, UsageLineParser, UsageParserOptions } from './parsers';
@@ -251,6 +257,7 @@ interface UsageStream {
      * A side file's own share of the aggregate, set only for side files.
      */
     side?: UsageAccumulator;
+    onFailure?: (reason: TranscriptScanFailureReason) => void;
 }
 
 /**
@@ -283,7 +290,12 @@ class SideUsageAccumulator extends UsageAccumulator {
     }
 }
 
-export type UsageScanOptions = Pick<UsageParserOptions, 'isContinuation' | 'isCountedElsewhere'>;
+export type UsageScanOptions = Pick<UsageParserOptions, 'isContinuation' | 'isCountedElsewhere'> & {
+    /**
+     * Reports why reading a transcript stopped early (for example a corrupt `.jsonl.zst`), without its content.
+     */
+    onFailure?: (reason: TranscriptScanFailureReason) => void;
+};
 
 /**
  * Folds one Agent Session's transcript files into a {@link UsageRecord} and can resume where it stopped: each file keeps
@@ -340,6 +352,7 @@ export class IncrementalUsageScan {
                         claudeMessages: this.claudeMessages,
                     }),
                     ...(side && { side }),
+                    ...(this.options.onFailure && { onFailure: this.options.onFailure }),
                 };
                 this.streams.set(location.path, stream);
             }
@@ -409,10 +422,17 @@ async function readPass(stream: UsageStream): Promise<ReadPass> {
             onReset: () => {
                 reset.isReset = true;
             },
+            ...(stream.onFailure && { onFailure: stream.onFailure }),
         },
     );
-    // Past an oversized record the reader delivers no remainder, so the last line it delivered was complete.
-    if (pending && cursor.skippingOversizedLine && !reset.isReset) parser.line(pending);
+    // Past an oversized record, and at the end of a compressed transcript (never appended to), the reader delivers no
+    // remainder, so the last line it delivered was complete.
+    if (
+        pending &&
+        (cursor.skippingOversizedLine || isCompressedTranscriptPath(location.path)) &&
+        !reset.isReset
+    )
+        parser.line(pending);
     return { size, isReset: reset.isReset };
 }
 
@@ -443,4 +463,15 @@ export async function scanUsage(
     const scan = new IncrementalUsageScan(provider, options);
     await scan.advance(files);
     return scan.toRecord();
+}
+
+/**
+ * Counts the closed reasons a compressed transcript could not be fully read, for the `usage.external_scan` event.
+ */
+export function compressedFailureCounter() {
+    const counts = { decompressFailed: 0, decompressLimit: 0 };
+    const onFailure = (reason: TranscriptScanFailureReason) => {
+        if (reason === 'decompressFailed' || reason === 'decompressLimit') counts[reason] += 1;
+    };
+    return { counts, onFailure };
 }
