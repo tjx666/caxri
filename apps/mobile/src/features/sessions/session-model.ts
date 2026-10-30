@@ -57,12 +57,17 @@ export const emptyMobileSessionGroups = (): Record<
     idle: [],
 });
 
-const labelForState = (state: MobileSession['agentActivityState'], t: Translate): string => {
-    switch (state) {
+const labelForState = (session: MobileSession, t: Translate): string => {
+    switch (session.agentActivityState) {
         case 'waiting':
             return t('sessions.state.waiting');
         case 'running':
-            return t('sessions.state.working');
+            // Desktop's `background` activity: the turn ended while work it started still runs.
+            return t(
+                session.primaryTerminal?.agentOperation === 'background'
+                    ? 'sessions.state.background'
+                    : 'sessions.state.working',
+            );
         case 'failed':
             return t('sessions.state.failed');
         case 'completed':
@@ -115,7 +120,7 @@ export const buildMobileSessionSections = (
                           getLocale(),
                       ),
                   })
-                : labelForState(session.agentActivityState, t),
+                : labelForState(session, t),
         };
         // Desktop repeats a pinned Session that has news under its status group; the phone lists each Session once
         // (no duplicate entries to the same data), and the row's status glyph still shows the state under Pinned.

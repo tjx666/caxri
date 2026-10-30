@@ -269,6 +269,17 @@ describe('Runtime record queries', () => {
         );
     });
 
+    it('reports when an Agent only waits on its own background work', () => {
+        const [stored] = source.terminals();
+        const service = new RecordQueryService(
+            { ...source, terminals: () => [{ ...stored, agentOperation: 'background' as const }] },
+            '/Users/test',
+        );
+        expect(service.terminal({ mode: 'list', sessionId: 'session-1' }, agent).terminals).toEqual(
+            [expect.objectContaining({ id: 'terminal-1', agentOperation: 'background' })],
+        );
+    });
+
     it('lists every top-level Project and its Sessions to an Agent, without paths', () => {
         const service = new RecordQueryService(source, '/Users/test');
 

@@ -398,3 +398,44 @@ describe('buildMobileDashboard usage-limit waits', () => {
         expect(result.sessions[0]?.primaryTerminal).not.toHaveProperty('usageLimitWaitAt');
     });
 });
+
+describe('buildMobileDashboard background work', () => {
+    it('sends when a running Agent only waits on its own background work', () => {
+        const base = {
+            projectId: 'project-1',
+            workbenchRootProjectId: 'project-1',
+            title: 'Session',
+            lastVisitedAt: 1,
+            sessionActivityAt: 1,
+            attentionGeneration: 0,
+            agentActivityState: 'running' as const,
+            hasUnread: false,
+        };
+        const terminal = (id: string, sessionId: string, agentOperation?: 'background') => ({
+            id,
+            sessionId,
+            kind: 'claude' as const,
+            provider: 'claude' as const,
+            title: id,
+            lastProcessState: 'running' as const,
+            ...(agentOperation && { agentOperation }),
+        });
+        const result = buildMobileDashboard({
+            hostDisplayName: 'Workstation',
+            deviceRole: 'control',
+            now: 1_000,
+            projects: [{ id: 'project-1', title: 'Granted' }],
+            sessions: [
+                { ...base, id: 'background', primaryAgentTerminalId: 'terminal-background' },
+                { ...base, id: 'working', primaryAgentTerminalId: 'terminal-working' },
+            ],
+            terminals: [
+                terminal('terminal-background', 'background', 'background'),
+                terminal('terminal-working', 'working'),
+            ],
+        });
+        const byId = new Map(result.sessions.map((session) => [session.id, session]));
+        expect(byId.get('background')?.primaryTerminal?.agentOperation).toBe('background');
+        expect(byId.get('working')?.primaryTerminal).not.toHaveProperty('agentOperation');
+    });
+});

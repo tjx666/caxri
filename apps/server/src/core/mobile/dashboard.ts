@@ -146,6 +146,9 @@ export const buildMobileDashboard = (input: {
                   ...(primaryTerminal.usageLimitWaitAt !== undefined && {
                       usageLimitWaitAt: primaryTerminal.usageLimitWaitAt,
                   }),
+                  ...(primaryTerminal.agentOperation !== undefined && {
+                      agentOperation: primaryTerminal.agentOperation,
+                  }),
               }
             : undefined;
         const pullRequest = input.pullRequests?.[session.id];

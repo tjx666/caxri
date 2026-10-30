@@ -1,6 +1,7 @@
 import { homedir } from 'node:os';
 import { dirname } from 'node:path';
 
+import type { TerminalRecord } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 
 import type { CaxriDatabase } from '../db';
@@ -18,10 +19,14 @@ export function createIntrospectionServices(
     logger: StructuredLogger,
     currentSessionId: () => string | undefined,
     /**
-     * When a Chat continues after a plan limit resets; only a running Server Core knows it, so it is not a stored
-     * column.
+     * The live Runtime-only fields only a running Server Core knows, so they are not stored columns: when a Chat
+     * continues after a plan limit resets, and the Agent's current subphase (`background` lets the phone tell an Agent
+     * waiting on its own background work from a live turn).
      */
-    usageLimitWaitAt: (terminalId: string) => number | undefined,
+    live: {
+        agentOperation: (terminalId: string) => TerminalRecord['agentOperation'];
+        usageLimitWaitAt: (terminalId: string) => number | undefined;
+    },
 ) {
     return {
         logs: new LogQueryService(dirname(logger.path)),
@@ -42,10 +47,13 @@ export function createIntrospectionServices(
                 sessions: () => database.listVisibleSessions(),
                 terminals: () =>
                     database.listTerminals().map((terminal) => {
-                        const waitingAt = usageLimitWaitAt(terminal.id);
-                        return waitingAt === undefined
-                            ? terminal
-                            : { ...terminal, usageLimitWaitAt: waitingAt };
+                        const waitingAt = live.usageLimitWaitAt(terminal.id);
+                        const agentOperation = live.agentOperation(terminal.id);
+                        return {
+                            ...terminal,
+                            ...(waitingAt !== undefined && { usageLimitWaitAt: waitingAt }),
+                            ...(agentOperation !== undefined && { agentOperation }),
+                        };
                     }),
             },
             homedir(),

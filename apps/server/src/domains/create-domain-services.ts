@@ -255,7 +255,10 @@ export async function createDomainServices(
         database,
         logger,
         () => presence.currentSessionId(),
-        (terminalId) => agentChat.states.usageLimitWaits?.waitingAt(terminalId),
+        {
+            agentOperation: (id) => coordinator.agentOperation(id),
+            usageLimitWaitAt: (id) => agentChat.states.usageLimitWaits?.waitingAt(id),
+        },
     );
     const forgetSessionRuntime = createSessionRuntimeForgetter({
         agentChat,

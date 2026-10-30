@@ -100,6 +100,13 @@ describe('Session status on a saved copy', () => {
             ),
         ).toBe('usage-wait');
         expect(sessionStatusGlyphKind(running, false)).toBe('running');
+        const background = {
+            ...running,
+            primaryTerminal: { agentOperation: 'background' as const },
+        };
+        expect(sessionStatusGlyphKind(background, false)).toBe('running-background');
+        expect(sessionStatusGlyphKind(background, true)).toBe('running-saved');
+        expect(sessionStatusGlyphKind(background, false, true)).toBeNull();
         expect(sessionStatusGlyphKind(running, true)).toBe('running-saved');
         expect(sessionStatusGlyphKind({ ...running, hasUnread: true }, true)).toBe(
             'attention-result',
