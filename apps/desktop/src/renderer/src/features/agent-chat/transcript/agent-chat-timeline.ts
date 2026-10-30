@@ -52,6 +52,11 @@ export type AgentChatTimelineEntry =
            * renders as its own row; an open one keeps the summary so a second call does not reshape the row.
            */
           isOpen?: true;
+          /**
+           * The thinking the Agent answered a steered message with before going straight back to tools
+           * (`agentChatSteerReplyThoughtIds`), which renders expanded because it is the only answer the user gets.
+           */
+          isSteerReply?: true;
       }
     | {
           /**
@@ -93,13 +98,43 @@ export type AgentChatTimelineEntry =
 
 type FlatEntry = Exclude<AgentChatTimelineEntry, { kind: 'turn' }>;
 
+const NO_STEER_REPLIES: ReadonlySet<string> = new Set();
+
+/**
+ * The reasoning that opens the Agent's response to each message steered into its turn, when a tool call rather than an
+ * Agent message follows it. A model sometimes answers the steer only in its thinking and goes straight back to work,
+ * and a collapsed `Thought` row then hides the only answer the user got, which reads as the steer being ignored. A
+ * reasoning run still streaming, or one followed by a reply, is left alone: the reply is the answer.
+ */
+function agentChatSteerReplyThoughtIds(items: readonly AgentChatItem[]): ReadonlySet<string> {
+    const ids = new Set<string>();
+    let pending: string[] | undefined;
+    for (const item of items) {
+        if (!isAgentChatItemVisible(item)) continue;
+        if (item.type === 'userMessage') {
+            pending = item.delivery === 'steered' ? [] : undefined;
+            continue;
+        }
+        if (!pending) continue;
+        if (item.type === 'reasoning') {
+            pending.push(item.id);
+            continue;
+        }
+        if (isAgentChatWorkItem(item)) for (const id of pending) ids.add(id);
+        pending = undefined;
+    }
+    return ids.size === 0 ? NO_STEER_REPLIES : ids;
+}
+
 function groupWork(
     items: readonly AgentChatItem[],
     finalReplyId?: string,
     isRunning = false,
+    steerReplies = NO_STEER_REPLIES,
 ): FlatEntry[] {
     const entries: FlatEntry[] = [];
     let work: AgentChatWorkItem[] = [];
+    let isSteerReply = false;
     const flush = (isOpen = false): void => {
         const first = work.at(0);
         if (first)
@@ -108,12 +143,18 @@ function groupWork(
                 id: `work:${first.id}`,
                 items: work,
                 ...(isOpen && { isOpen: true as const }),
+                ...(isSteerReply && { isSteerReply: true as const }),
             });
         work = [];
     };
     for (const item of items) {
         if (!isAgentChatItemVisible(item)) continue;
         if (isAgentChatWorkItem(item)) {
+            // A steer's reply thought gets its own entry, so it renders as an expanded row instead of joining the
+            // collapsed summary of the tool calls after it.
+            const isReply = steerReplies.has(item.id);
+            if (isReply !== isSteerReply) flush();
+            isSteerReply = isReply;
             work.push(item);
             continue;
         }
@@ -198,12 +239,20 @@ function foldTurn(
 ): AgentChatTimelineEntry[] {
     const visible = items.filter((item) => isAgentChatItemVisible(item));
     const parts = foldAgentChatTurn(visible, finalReplyId);
+    const steerReplies = agentChatSteerReplyThoughtIds(visible);
     const entries: AgentChatTimelineEntry[] = parts.every((part) => part.kind === 'kept')
-        ? groupWork(visible, finalReplyId)
+        ? groupWork(visible, finalReplyId, false, steerReplies)
         : parts.flatMap((part): AgentChatTimelineEntry[] =>
               part.kind === 'kept'
                   ? groupWork([part.item], finalReplyId)
-                  : [turnEntry(turn, groupWork(part.items), part.segment, part.segment.closesTurn)],
+                  : [
+                        turnEntry(
+                            turn,
+                            groupWork(part.items, undefined, false, steerReplies),
+                            part.segment,
+                            part.segment.closesTurn,
+                        ),
+                    ],
           );
     const closing = parts.at(-1)?.segment ?? WHOLE_TURN;
     if (
@@ -340,7 +389,12 @@ export function buildAgentChatTimeline(
         entries.push(
             ...(turn && folded
                 ? withTurnMetrics(folded, turn.metrics)
-                : groupWork(segment, finalReplyId, turnId !== undefined && running.has(turnId))),
+                : groupWork(
+                      segment,
+                      finalReplyId,
+                      turnId !== undefined && running.has(turnId),
+                      agentChatSteerReplyThoughtIds(segment),
+                  )),
         );
         start = end;
     }
@@ -477,6 +531,7 @@ function reuseAgentChatTimelineEntry(entry: AgentChatTimelineEntry): AgentChatTi
                 previous &&
                 previous.id === entry.id &&
                 previous.isOpen === entry.isOpen &&
+                previous.isSteerReply === entry.isSteerReply &&
                 previous.items.length === entry.items.length &&
                 previous.items.every((item, index) => item === entry.items[index])
             )

@@ -63,7 +63,8 @@ const WORK_LIST_FADE = '24px';
 
 /**
  * A one-line disclosure row: a glyph, the title, and trailing facts, with the detail mounted only while expanded. Work
- * is secondary to the conversation, so every row starts collapsed and the reply stays what the eye lands on.
+ * is secondary to the conversation, so every row starts collapsed and the reply stays what the eye lands on; the one
+ * exception is a thought that stands in for the reply (`isDefaultExpanded`).
  *
  * The toggle is a transparent button stretched over the whole row rather than the row's wrapper, so the title can hold
  * a control of its own (a file the row names) without nesting a button inside another; that control sits above the
@@ -80,6 +81,7 @@ function DisclosureRow({
     disclosureKind,
     expansionKey,
     glyph,
+    isDefaultExpanded = false,
     isList = false,
     isRunning = false,
     itemId,
@@ -99,6 +101,10 @@ function DisclosureRow({
     expansionKey: string;
     glyph: ReactNode;
     /**
+     * Opens the row until the user collapses it, for the one row the user must read (a steer's reply thought).
+     */
+    isDefaultExpanded?: boolean;
+    /**
      * A summary whose detail is its list of rows. As in the Codex app, its chevron follows the title and stays shown
      * while expanded, and the rows continue at the header's own pitch instead of after a gap.
      */
@@ -116,7 +122,10 @@ function DisclosureRow({
     title: ReactNode;
     trailing?: ReactNode;
 }) {
-    const { isExpanded, toggle } = useAgentChatExpansion(expansionKey, { containedItems });
+    const { isExpanded, toggle } = useAgentChatExpansion(expansionKey, {
+        containedItems,
+        isDefaultExpanded,
+    });
     const detailId = useId();
     const titleId = useId();
     const trailingId = useId();
@@ -249,7 +258,15 @@ function AgentChatWorkTrailing({ item, task }: { item: AgentChatWorkItem; task?:
  * diff.
  */
 const AgentChatWorkRow = memo(
-    ({ item, onOpenFile }: { item: AgentChatWorkItem; onOpenFile?: (target: string) => void }) => {
+    ({
+        isDefaultExpanded,
+        item,
+        onOpenFile,
+    }: {
+        isDefaultExpanded?: boolean;
+        item: AgentChatWorkItem;
+        onOpenFile?: (target: string) => void;
+    }) => {
         const { t } = useTranslation();
         const presentation = describeAgentChatWorkRow(item, t);
         const link = useAgentChatTaskLink(item);
@@ -272,6 +289,7 @@ const AgentChatWorkRow = memo(
                         mcpToolName={item.type === 'toolCall' ? item.name : undefined}
                     />
                 }
+                isDefaultExpanded={isDefaultExpanded}
                 isRunning={isRunning}
                 itemId={item.id}
                 title={
@@ -415,6 +433,7 @@ function AgentChatWorkSummary({
  */
 export function AgentChatWorkGroup({
     isOpen = false,
+    isSteerReply = false,
     items,
     onOpenFile,
 }: {
@@ -422,6 +441,10 @@ export function AgentChatWorkGroup({
      * Whether the next tool call can still join this run (the running turn's trailing work).
      */
     isOpen?: boolean;
+    /**
+     * The thought the Agent answered a steered message with instead of a reply, shown expanded so the answer is seen.
+     */
+    isSteerReply?: boolean;
     items: readonly AgentChatWorkItem[];
     onOpenFile?: (target: string) => void;
 }) {
@@ -444,7 +467,12 @@ export function AgentChatWorkGroup({
                 />
             )}
             {rows.map((item) => (
-                <AgentChatWorkRow item={item} key={item.id} onOpenFile={onOpenFile} />
+                <AgentChatWorkRow
+                    isDefaultExpanded={isSteerReply && item.type === 'reasoning'}
+                    item={item}
+                    key={item.id}
+                    onOpenFile={onOpenFile}
+                />
             ))}
         </div>
     );

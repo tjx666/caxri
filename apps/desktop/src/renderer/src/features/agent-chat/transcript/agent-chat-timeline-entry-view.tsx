@@ -99,6 +99,7 @@ const MemoizedTimelineEntry = memo(
                 return (
                     <AgentChatWorkGroup
                         isOpen={entry.isOpen}
+                        isSteerReply={entry.isSteerReply}
                         items={entry.items}
                         onOpenFile={onOpenFile}
                     />
