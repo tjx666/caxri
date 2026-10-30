@@ -33,7 +33,10 @@ Validate the smallest observable behavior below the Electron desktop boundary.
    it with `fs`, so `check --test` and Vitest's module graph select the test when the file changes.
 3. Do not unit-test React components by default. Extract meaningful state into a hook or pure
    function; route rendering and interaction to `e2e-testing`.
-4. Run the narrowest relevant files:
+4. Run the narrowest relevant files from the repository root, so `vitest.config.ts` maps workspace
+   packages to their sources. Inside a workspace without its own Vitest config, such as
+   `apps/mobile`, imports can load a stale `dist` build: a newly added
+   `@caxri/mobile-transport` enum member then reads as `undefined`.
 
    ```bash
    bunx vitest run --silent='passed-only' <test-file...>
