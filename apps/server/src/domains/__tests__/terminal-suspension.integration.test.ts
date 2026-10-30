@@ -259,9 +259,12 @@ describe('background Agent suspension', () => {
             });
             await domains.handlers['session.select']({ sessionId: other.session.id });
             await domains.handlers['session.archive']({ sessionId: created.session.id });
-            const state = await domains.handlers['app.bootstrap']({});
-            const record = state.terminals.find((entry) => entry.id === terminalId);
-            expect(record?.lastProcessState).toBe('suspended');
+            // An archived Session's Terminal is no longer in `app.bootstrap`; read the full record by id.
+            const { terminals } = await domains.handlers['app.records']({
+                sessionIds: [],
+                terminalIds: [terminalId],
+            });
+            expect(terminals[0]?.lastProcessState).toBe('suspended');
             expect(runtime.kills[0]).toHaveBeenCalled();
         } finally {
             await domains.close();

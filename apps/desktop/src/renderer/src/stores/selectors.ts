@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 
 import type {
     AppSettings,
+    ArchivedTerminal,
     BootstrapState,
     ExtensionTreeViewState,
     ProjectRecord,
@@ -24,6 +25,7 @@ import { useSystemColorScheme } from '../hooks/use-system-color-scheme';
 import { useWorkbenchStore } from './workbench';
 
 const NO_TERMINALS: TerminalRecord[] = [];
+const NO_ARCHIVED_TERMINALS: ArchivedTerminal[] = [];
 
 export function selectSelectedSession(bootstrap?: BootstrapState): SessionRecord | undefined {
     return bootstrap?.sessions.find((session) => session.id === bootstrap.selectedSessionId);
@@ -302,6 +304,15 @@ export function useSessions(): SessionRecord[] | undefined {
 
 export function useTerminals(): TerminalRecord[] {
     return useWorkbenchStore((state) => state.bootstrap?.terminals ?? NO_TERMINALS);
+}
+
+/**
+ * Slim Terminal summaries of archived Sessions: Agent kind and Chat identity, no live state.
+ */
+export function useArchivedTerminals(): ArchivedTerminal[] {
+    return useWorkbenchStore(
+        (state) => state.bootstrap?.archivedTerminals ?? NO_ARCHIVED_TERMINALS,
+    );
 }
 
 /**

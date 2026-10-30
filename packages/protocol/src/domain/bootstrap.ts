@@ -38,6 +38,19 @@ export type AutomaticNamingNotice = z.infer<typeof automaticNamingNoticeSchema>;
  */
 export const bootstrapParameters = z.object(windowKeyParameter).default({});
 
+/**
+ * What the client keeps of an archived Session's Terminal: enough to name its Agent in the Archived Sessions dialog and
+ * to keep its Chat's composer state, nothing else. The full record returns with `session.unarchive`'s refresh.
+ */
+export const archivedTerminalSchema = terminalRecordSchema.pick({
+    id: true,
+    kind: true,
+    orderIndex: true,
+    sessionId: true,
+    surface: true,
+});
+export type ArchivedTerminal = z.infer<typeof archivedTerminalSchema>;
+
 export const bootstrapStateSchema = z.object({
     /**
      * Suppressed automatic-naming launches that are still in force, newest last. Absent when nothing is blocked, the
@@ -46,7 +59,11 @@ export const bootstrapStateSchema = z.object({
     automaticNamingUnavailable: z.array(automaticNamingNoticeSchema).optional(),
     projects: z.array(projectRecordSchema),
     sessions: z.array(sessionRecordSchema),
+    /**
+     * Terminals of unarchived Sessions only. An archived Session's Terminals are in `archivedTerminals`.
+     */
     terminals: z.array(terminalRecordSchema),
+    archivedTerminals: z.array(archivedTerminalSchema),
     selectedProjectId: z.string().optional(),
     /**
      * The requesting window's active Session. Per window, not global: two windows each show their own Session.

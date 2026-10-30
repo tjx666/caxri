@@ -1,4 +1,5 @@
 import type {
+    ArchivedTerminal,
     AutomaticNamingNotice,
     BootstrapState,
     BotIdentity,
@@ -44,22 +45,36 @@ export function createWorkbenchSnapshots(dependencies: {
         const theme = configuration.getTheme();
         const visibleSessionIds = new Set(sessions.map((session) => session.id));
         // A hidden Project's Sessions keep their Terminal and layout rows, but none reaches the Workbench.
-        // Archived Sessions keep their record and Terminal rows (the Archived Sessions dialog and Chat draft retention
-        // read them) but no `session_state`: `session.unarchive` sends a full refresh that brings the state back.
-        const terminalRecords = database
-            .listTerminals()
-            .filter((terminal) => visibleSessionIds.has(terminal.sessionId));
+        // Archived Sessions keep their record and a slim Terminal summary (the Archived Sessions dialog and Chat draft
+        // retention read it) but no full Terminal rows and no `session_state`: `session.unarchive` sends a full refresh
+        // that brings both back.
+        const archivedSessionIds = new Set(
+            sessions.filter((session) => session.archivedAt !== undefined).map(({ id }) => id),
+        );
+        const terminalRecords: TerminalRecord[] = [];
+        const archivedTerminals: ArchivedTerminal[] = [];
+        for (const terminal of database.listTerminals()) {
+            if (!visibleSessionIds.has(terminal.sessionId)) continue;
+            if (archivedSessionIds.has(terminal.sessionId)) {
+                archivedTerminals.push({
+                    id: terminal.id,
+                    kind: terminal.kind,
+                    orderIndex: terminal.orderIndex,
+                    sessionId: terminal.sessionId,
+                    ...(terminal.surface && { surface: terminal.surface }),
+                });
+            } else terminalRecords.push(terminal);
+        }
         const notices = dependencies.automaticNamingNotices();
         const sessionStates = database
             .listSessionStates(terminalRecords, true)
             .filter((state) => visibleSessionIds.has(state.sessionId));
-        const archivedSessionCount = sessions.filter(
-            (session) => session.archivedAt !== undefined,
-        ).length;
+        const archivedSessionCount = archivedSessionIds.size;
         const state: BootstrapState = {
             projects,
             sessions,
             terminals: terminalRecords.map(liveTerminalRecord),
+            archivedTerminals,
             ...selection,
             sessionStates,
             settings: settings.value,
@@ -77,6 +92,7 @@ export function createWorkbenchSnapshots(dependencies: {
                 archivedSessions: archivedSessionCount,
                 sessions: sessions.length - archivedSessionCount,
                 sessionStates: sessionStates.length,
+                archivedTerminals: archivedTerminals.length,
                 terminals: terminalRecords.length,
             },
         });
