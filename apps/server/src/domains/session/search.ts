@@ -410,7 +410,9 @@ export class SessionSearchService {
                 .toArray()
                 .toSorted(compareRanked)
                 .slice(0, MAX_SESSION_SEARCH_RESULTS)
-                .map(({ entry }) => entry),
+                .map(({ entry, isCurrentProject }) =>
+                    isCurrentProject ? { ...entry, isCurrentProject: true as const } : entry,
+                ),
             index: index.status,
             usedSubstringScan: index.usedSubstringScan,
             filters: scope.filters,

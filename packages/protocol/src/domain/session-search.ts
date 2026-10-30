@@ -23,6 +23,24 @@ export function normalizeSessionSearchText(text: string): string {
 }
 
 /**
+ * Collapses every run of whitespace (spaces, tabs, newlines, paragraph breaks, no-break spaces) into one space and
+ * trims the ends. A sentence copied across rendered paragraphs carries line breaks the query box and the Chat find bar
+ * hold as single spaces, so the result row, the handoff, and find all compare text through this one rule.
+ */
+export function normalizeSessionSearchWhitespace(text: string): string {
+    return text.replaceAll(/\s+/gu, ' ').trim();
+}
+
+/**
+ * The filter operators a query may carry. Used by the Server to parse them and by the Renderer to remove one when its
+ * chip is dismissed, so both read the same syntax. Matches `name:value` or `name:"value with spaces"` at the start of
+ * the query or after whitespace; a colon inside a word ("http://", "error:42") never starts an operator because only
+ * the four names qualify. Global: use it only with `replaceAll`, never with `exec` or `test`.
+ */
+export const SESSION_SEARCH_OPERATOR_PATTERN =
+    /(^|\s)(agent|project|before|after):(?:"([^"]*)"|(\S+))/giu;
+
+/**
  * Where a found conversation lives: an open Session, an archived Session, or only in an Agent CLI's own history on this
  * machine (started outside Caxri, or left behind by a Session that was deleted).
  */
@@ -97,6 +115,12 @@ export const sessionSearchEntrySchema = z.object({
      */
     cwd: pathSchema.optional(),
     updatedAt: z.number().int().nonnegative(),
+    /**
+     * Set when the request named a `currentProjectId` and this conversation belongs to that Project (a Session in it,
+     * or an external conversation whose folder lies inside its root), so a client that re-sorts results can keep them
+     * first.
+     */
+    isCurrentProject: z.literal(true).optional(),
     match: z.object({
         field: sessionSearchMatchFieldSchema,
         snippet: sessionSearchSnippetSchema.optional(),

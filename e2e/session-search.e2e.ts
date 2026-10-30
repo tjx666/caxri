@@ -201,6 +201,57 @@ test('Session search finds open, archived, and external conversations and acts o
             mask: [page.locator('.xterm')],
         });
 
+        // Operators in the query become removable chips; dismissing one deletes it from the query text.
+        await search.input.fill('agent:claude invoice before:2000-01-01');
+        const operators = search.dialog.getByRole('group', { name: 'Parsed filters' });
+        await expect(operators).toContainText('Agent: Claude');
+        await expect(operators).toContainText('Before 2000-01-01');
+        await expect(search.results.getByRole('option')).toHaveCount(0);
+        await search.dialog
+            .getByRole('button', { name: 'Remove filter Before 2000-01-01', exact: true })
+            .click();
+        await expect(search.input).toHaveValue('agent:claude invoice');
+        await expect(search.results.getByRole('option')).toHaveCount(3);
+        await search.dialog
+            .getByRole('button', { name: 'Remove filter Agent: Claude', exact: true })
+            .click();
+        await expect(search.input).toHaveValue('invoice');
+        await expect(operators).toHaveCount(0);
+
+        // Words found apart rather than as a phrase, then only some of the words, each say how the search loosened.
+        const relaxation = search.dialog.locator('[data-session-search-relaxation]');
+        await search.input.fill('invoice refund');
+        await expect(relaxation).toHaveText(
+            'No exact phrase match; showing results containing all words',
+        );
+        await search.input.fill('invoice zebra');
+        await expect(relaxation).toHaveText(
+            'No result contains every word; showing results containing any word',
+        );
+        await search.input.fill('invoice');
+        await expect(relaxation).toHaveCount(0);
+        await expect(search.results.getByRole('option')).toHaveCount(3);
+
+        // Sort and Project scope switch from the filter bar or with Option+S and Option+P.
+        const sortRecent = search.dialog.locator('[data-session-search-sort="recent"]');
+        const sortRelevance = search.dialog.locator('[data-session-search-sort="relevance"]');
+        await expect(sortRelevance).toHaveAttribute('aria-pressed', 'true');
+        await sortRecent.click();
+        await expect(sortRecent).toHaveAttribute('aria-pressed', 'true');
+        await expect(search.results.getByRole('option')).toHaveCount(3);
+        await search.input.press('Alt+S');
+        await expect(sortRelevance).toHaveAttribute('aria-pressed', 'true');
+        const currentProjectScope = search.dialog.locator(
+            '[data-session-search-scope="currentProject"]',
+        );
+        const allProjectsScope = search.dialog.locator('[data-session-search-scope="allProjects"]');
+        await expect(currentProjectScope).toHaveAttribute('aria-pressed', 'true');
+        await allProjectsScope.click();
+        await expect(allProjectsScope).toHaveAttribute('aria-pressed', 'true');
+        await search.input.press('Alt+P');
+        await expect(currentProjectScope).toHaveAttribute('aria-pressed', 'true');
+        await expect(search.results.getByRole('option')).toHaveCount(3);
+
         await search.dialog.locator('[data-session-search-status-filter="external"]').click();
         await expect(search.results.getByRole('option')).toHaveCount(1);
         await expect(row(EXTERNAL)).toBeVisible();

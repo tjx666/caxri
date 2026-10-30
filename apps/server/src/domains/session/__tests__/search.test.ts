@@ -191,6 +191,9 @@ describe('SessionSearchService', () => {
         // The other Project's Session is newer, so without the hint it leads.
         expect(withoutHint.entries[0].sessionId).toBe(session.session.id);
         expect(withHint.entries[0].sessionId).toBe(f.open.session.id);
+        expect(withHint.entries[0].isCurrentProject).toBe(true);
+        expect(withHint.entries[1].isCurrentProject).toBeUndefined();
+        expect(withoutHint.entries.some((entry) => entry.isCurrentProject)).toBe(false);
     });
 
     it('relaxes to any word on a Session title when the index holds nothing', async () => {

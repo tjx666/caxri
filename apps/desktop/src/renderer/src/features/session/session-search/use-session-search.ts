@@ -1,11 +1,22 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import type { AgentProvider, SessionSearchStatusFilter } from '@caxri/protocol';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 
 import { useDebouncedValue } from '../../../hooks/use-debounced-value';
 import { caxri } from '../../../lib/caxri';
-import { retainedSelectionIndex } from './session-search-model';
+import { selectSelectedProject } from '../../../stores/selectors';
+import { useWorkbenchStore } from '../../../stores/workbench';
+import type {
+    SessionSearchFilterChip,
+    SessionSearchScope,
+    SessionSearchSort,
+} from './session-search-model';
+import {
+    removeSessionSearchOperator,
+    retainedSelectionIndex,
+    sortSessionSearchEntries,
+} from './session-search-model';
 
 /**
  * Debounce for typing. The index answers in milliseconds, so this only spares the Worker a query per keystroke.
@@ -25,15 +36,26 @@ export function useSessionSearch() {
     const [query, setQuery] = useState('');
     const [status, setStatus] = useState<SessionSearchStatusFilter>('all');
     const [provider, setProvider] = useState<AgentProvider>();
+    const [sort, setSort] = useState<SessionSearchSort>('relevance');
+    const [scope, setScope] = useState<SessionSearchScope>('currentProject');
     const [selectedKey, setSelectedKey] = useState<string>();
+    const selectedProjectId = useWorkbenchStore(
+        (state) => selectSelectedProject(state.bootstrap)?.id,
+    );
+    /**
+     * The Project the Server ranks first, or undefined when every Project ranks alike (the user chose All Projects, or
+     * no Project is selected).
+     */
+    const currentProjectId = scope === 'currentProject' ? selectedProjectId : undefined;
     const debounced = useDebouncedValue(query.trim(), QUERY_DEBOUNCE_MS);
     const response = useQuery({
-        queryKey: ['session-search', debounced, status, provider],
+        queryKey: ['session-search', debounced, status, provider, currentProjectId],
         queryFn: ({ signal }) =>
             caxri.requestWithSignal('session.search', signal, {
                 query: debounced,
                 status,
                 ...(provider && { providers: [provider] }),
+                ...(currentProjectId && { currentProjectId }),
             }),
         placeholderData: keepPreviousData,
         refetchInterval: (current) =>
@@ -42,18 +64,21 @@ export function useSessionSearch() {
         gcTime: 0,
         staleTime: 0,
     });
-    const entries = response.data?.entries ?? [];
+    const entries = useMemo(
+        () => sortSessionSearchEntries(response.data?.entries ?? [], sort),
+        [response.data, sort],
+    );
     /**
      * The selection follows a conversation, not a row number: a refresh while history is still indexing re-ranks the
      * rows, and Enter must still act on the conversation the user picked. Only a new query or filter starts back at the
      * best match, once its own results (not the previous query's placeholder) arrive.
      */
-    const scope = response.isPlaceholderData
+    const selectionKey = response.isPlaceholderData
         ? undefined
-        : JSON.stringify([debounced, status, provider]);
-    const [selectionScope, setSelectionScope] = useState(scope);
-    if (scope !== undefined && scope !== selectionScope) {
-        setSelectionScope(scope);
+        : JSON.stringify([debounced, status, provider, currentProjectId, sort]);
+    const [selectionScope, setSelectionScope] = useState(selectionKey);
+    if (selectionKey !== undefined && selectionKey !== selectionScope) {
+        setSelectionScope(selectionKey);
         setSelectedKey(undefined);
     }
     const selectedIndex = retainedSelectionIndex(entries, selectedKey);
@@ -68,6 +93,19 @@ export function useSessionSearch() {
         setStatus,
         provider,
         setProvider,
+        sort,
+        setSort,
+        scope,
+        setScope,
+        /**
+         * Whether a Project is selected, which is what the scope toggle needs to mean anything.
+         */
+        hasCurrentProject: selectedProjectId !== undefined,
+        /**
+         * Dismisses a parsed operator chip by deleting its operator from the query text.
+         */
+        removeFilterChip: (chip: SessionSearchFilterChip) =>
+            setQuery((current) => removeSessionSearchOperator(current, chip)),
         clearFilters: () => {
             setStatus('all');
             setProvider(undefined);

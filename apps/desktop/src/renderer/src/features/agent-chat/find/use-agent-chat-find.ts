@@ -10,6 +10,7 @@ import {
     useSyncExternalStore,
 } from 'react';
 
+import { normalizeSessionSearchWhitespace } from '@caxri/protocol';
 import { notifyListeners } from '@caxri/utils';
 import { throttle } from 'es-toolkit';
 
@@ -280,7 +281,7 @@ export function useAgentChatFind({
         },
         () => session.result,
     );
-    const searched = isOpen ? query : '';
+    const searched = isOpen ? normalizeSessionSearchWhitespace(query) : '';
     const paint = (): void =>
         paintFind({
             content: contentReference.current,
