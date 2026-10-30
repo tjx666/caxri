@@ -69,6 +69,28 @@ describe('server domain contract selection', () => {
     });
 });
 
+describe('method registry contract selection', () => {
+    it('runs the registry-enumerating tests for any protocol source change', async () => {
+        const contract = 'apps/server/src/core/__tests__/control-server-lane.test.ts';
+
+        await expect(
+            selectedTestCandidates(process.cwd(), [
+                'packages/protocol/src/domain/session-contract.ts',
+            ]),
+        ).resolves.toContain(contract);
+        await expect(
+            selectedTestCandidates(
+                process.cwd(),
+                ['apps/server/src/domains/theme.ts'],
+                ['packages/protocol/src/domain/removed-contract.ts'],
+            ),
+        ).resolves.toContain(contract);
+        await expect(
+            selectedTestCandidates(process.cwd(), ['packages/utils/src/index.ts']),
+        ).resolves.not.toContain(contract);
+    });
+});
+
 describe('removed-path test selection', () => {
     it('routes removed paths and path-reference configs through the doctor path contract', async () => {
         const contract = 'scripts/__tests__/doctor-config-paths.test.ts';

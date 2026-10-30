@@ -27,6 +27,7 @@ export function contractTestCandidates(
     return [
         ...rendererContractTestCandidates(files),
         ...serverDomainContractTestCandidates(files),
+        ...methodRegistryContractTestCandidates(files, removedFiles),
         ...pathReferenceContractTestCandidates(files, removedFiles),
         ...dependencyManifestContractTestCandidates(files),
         ...directoryDensityContractTestCandidates(files, removedFiles),
@@ -73,6 +74,37 @@ function reactCompilerContractTestCandidates(files: readonly string[]): string[]
 function serverDomainContractTestCandidates(files: readonly string[]): string[] {
     return files.some((file) => file.replaceAll('\\', '/').startsWith('apps/server/src/domains/'))
         ? ['apps/server/src/domains/__tests__/structure.test.ts']
+        : [];
+}
+
+/**
+ * Tests that enumerate every method in the protocol registry and assert each one is classified (lane, dispatcher,
+ * domain handler, mobile role, Caxri Bot and Benchmark window policy).
+ */
+const METHOD_REGISTRY_CONTRACT_TESTS = [
+    'apps/desktop/src/main/__tests__/benchmark-window-policy.test.ts',
+    'apps/desktop/src/main/__tests__/caxri-bot-policy.test.ts',
+    'apps/server/src/core/__tests__/control-server-lane.test.ts',
+    'apps/server/src/core/__tests__/domain-service.test.ts',
+    'apps/server/src/core/__tests__/operation-dispatcher.test.ts',
+    'apps/server/src/core/mobile/__tests__/role-capabilities.test.ts',
+];
+
+/**
+ * Method specs reach these tests through the `@caxri/protocol` registry, which aggregates each contract file with
+ * ordinary imports and object spreads that import discovery does not follow. A new internal method once passed `check`
+ * while `control-server-lane.test.ts` still lacked its lane (#3141). Any protocol source can declare or move a method,
+ * so every non-test protocol change selects them.
+ */
+function methodRegistryContractTestCandidates(
+    files: readonly string[],
+    removedFiles: readonly string[],
+): string[] {
+    return [...files, ...removedFiles].some((file) => {
+        const path = file.replaceAll('\\', '/');
+        return path.startsWith('packages/protocol/src/') && !path.includes('/__tests__/');
+    })
+        ? [...METHOD_REGISTRY_CONTRACT_TESTS]
         : [];
 }
 

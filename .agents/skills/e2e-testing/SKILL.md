@@ -175,7 +175,7 @@ evidence rather than automated test or Acceptance evidence.
   exception is `e2e/startup.performance.e2e.ts` in the `release-packaged` and `release-rehearsal`
   pools: it may retry once because hosted-runner jitter alone has failed its 3 s budget. The receipt
   keeps the first attempt as `firstFailure`, the run shows a `Flaky E2E pass` warning, and each such
-  pass is recorded on issue #1418. `scripts/__tests__/e2e-retry-exception.test.ts` rejects any other
+  pass is recorded on that spec's flaky-test issue. `scripts/__tests__/e2e-retry-exception.test.ts` rejects any other
   spec or pool that configures retries.
 - Map a CI failure to the repository-relative location and closed status in that run's public log,
   plus the receipt's spec and stable error classification, before naming the failed stage. Inspect
@@ -237,12 +237,12 @@ delivery: stop investigating it here. This holds whether or not the case covers 
 behavior. When it does, the delivery's own focused specs must also pass two repetitions in the same
 round. Preserve the case, CI run and
 failure evidence, local reproduction command, result, and whether the case touches the changed
-behavior for
-[issue #1418](https://github.com/tjx666/caxri/issues/1418), then continue delivery. Create or update
-that remote record only when the current request or an active delivery workflow authorizes issue
-mutation; otherwise include copy-ready evidence in the local report. Search existing comments first
-when publication is authorized, and append a new occurrence to the matching case comment instead of
-creating another comment for the same test.
+behavior in one GitHub issue per flaky case, then continue delivery. The shared tracker
+([issue #1418](https://github.com/tjx666/caxri/issues/1418)) is closed and takes no new occurrences.
+Create or update that remote record only when the current request or an active delivery workflow
+authorizes issue mutation; otherwise include copy-ready evidence in the local report. Search open
+issues for the test file first when publication is authorized, and append a new occurrence to a
+matching issue instead of filing another one for the same test.
 
 Two repetitions are the entire local budget, and they cover the related cases only: the failed CI
 cases plus, when they touch the changed behavior, the delivery's focused specs. Repairing CI never
@@ -251,7 +251,7 @@ is intermittent. A local full run occupies the machine the user is working on; o
 explicit request authorizes one. A `hosted-full` dispatch is also never inferred from risk, failure,
 or another agent's verdict: every run or retry requires fresh, explicit maintainer authorization.
 Hosted runs are metered while the repository is private. Repair from the preserved first failure
-and the #1418 record instead of redispatching until the cause is addressed.
+and the case's issue instead of redispatching until the cause is addressed.
 
 CI publishes only content-safe JSON receipts for failures. Its `public-e2e-reporter.ts` console
 reporter prints bounded locations, statuses, durations, counts, and run state while dropping titles,
