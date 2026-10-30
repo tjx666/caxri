@@ -1,0 +1,13 @@
+# Cold launch with cleared app data must land on the unpaired entry screen with both pairing methods.
+appId: com.caxri.mobile
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: pairing-entry-screen
+    timeout: 20000
+- assertVisible:
+    id: pairing-scan-button
+- assertVisible:
+    id: pairing-paste-button

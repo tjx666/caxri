@@ -22,6 +22,9 @@ a release build with that instrumentation, and add the checking code in the same
 device-driver observations remain diagnostic until repeated runs on the same runner prove a stable
 measurement.
 
+Release-build frame rate, CPU, RAM, and jank for a scripted flow come from `android:benchmark`
+([testing.md](testing.md#benchmark)).
+
 ## Development-client sampler
 
 Authenticated frames update a ref-backed last-observation timestamp without publishing a new

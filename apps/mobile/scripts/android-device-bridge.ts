@@ -31,7 +31,7 @@ type AndroidAdbSpawn = (
     },
 ) => { error?: unknown; status: number | null; stdout?: string };
 
-const androidAdbPath = (): string => {
+export const androidAdbPath = (): string => {
     const androidSdkRoot: unknown = Reflect.get(process.env, 'ANDROID_SDK_ROOT');
     const androidHome: unknown = Reflect.get(process.env, 'ANDROID_HOME');
     const sdkRoot =

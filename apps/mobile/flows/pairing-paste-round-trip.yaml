@@ -1,0 +1,16 @@
+# Opening the paste method and returning must restore the entry screen without pairing anything.
+appId: com.caxri.mobile
+---
+- runFlow: launch-to-pairing.yaml
+- tapOn:
+    id: pairing-paste-button
+- extendedWaitUntil:
+    visible:
+      id: pairing-paste-screen
+    timeout: 5000
+- tapOn:
+    id: pairing-paste-back-button
+- extendedWaitUntil:
+    visible:
+      id: pairing-entry-screen
+    timeout: 5000

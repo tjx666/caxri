@@ -87,6 +87,7 @@ What/why of current shipped behavior, core modules, protocols, and operator know
 | [mobile/performance.md](mobile/performance.md)                     | Mobile release performance budgets and Relay reconnect latency      |
 | [mobile/preview.md](mobile/preview.md)                             | Mobile preview of a Session's local web pages                       |
 | [mobile/relay.md](mobile/relay.md)                                 | Mobile Relay: protocol, route selection, and operator deployment    |
+| [mobile/testing.md](mobile/testing.md)                             | Android flows and device benchmarks on a disposable emulator        |
 | [mobile/transport.md](mobile/transport.md)                         | Mobile gateway transport, pairing, and framing                      |
 | [mobile/update.md](mobile/update.md)                               | Mobile app self-update from Desktop                                 |
 
