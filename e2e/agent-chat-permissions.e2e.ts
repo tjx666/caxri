@@ -6,6 +6,7 @@ import { fakeCodexChatAgentMode, openAgentChat } from './support/agent-chat-fixt
 import { expect, test } from './support/fixtures.ts';
 import {
     closeAppQuietly,
+    createAdditionalShellSession,
     createProjectSession,
     launchCaxri,
     VISIBLE_SESSION,
@@ -187,6 +188,41 @@ test('a Codex Chat offers to build a proposed plan: Keep Planning keeps plan mod
         await expect(planChip).toBeHidden();
         await expect(chat.getByText('Implement the plan.').first()).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('codex-chat-plan-started.png') });
+    } finally {
+        await closeAppQuietly(running.app);
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
+test('a Codex proposed plan waits in the popup and status bar count of another Session until it is approved', async ({}, testInfo) => {
+    const created = await mkdtemp(join(tmpdir(), 'caxri-agent-chat-plan-waiting-'));
+    const directory = await realpath(created);
+    const userData = join(directory, 'user-data');
+    const root = join(directory, 'project');
+    await mkdir(root, { recursive: true });
+    const agentMode = await fakeCodexChatAgentMode(directory, userData);
+    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    try {
+        const { page } = running;
+        await createProjectSession(page, 'shell');
+        await openAgentChat(page, 'Codex Chat');
+        const chat = page.locator(VISIBLE_SESSION);
+        const message = chat.getByRole('textbox', { name: 'Message' }).filter({ visible: true });
+        await message.focus();
+        await page.keyboard.press('Meta+Alt+p');
+        await message.fill('proposeplan refactor the parser');
+        await message.press('Enter');
+        await expect(chat.getByRole('region', { name: 'Start with this plan?' })).toBeVisible();
+
+        // Another Session leaves the plan off screen, so the popup carries its approval.
+        await createAdditionalShellSession(page);
+        const popup = page.locator('[data-agent-chat-waiting="card"]');
+        await expect(popup).toContainText('Start with this plan?');
+        await page.screenshot({ path: testInfo.outputPath('plan-waiting-popup.png') });
+
+        await popup.getByRole('button', { name: 'Start Building' }).click();
+        await expect(popup).toHaveCount(0);
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });
