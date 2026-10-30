@@ -113,11 +113,13 @@ vi.mock('../../../stores/workbench', () => ({
 
 import type { CreateSessionAnchor } from '../../../stores/dialogs';
 import { useEnvironmentStore } from '../../../stores/environment';
+import { useLastAgentChoiceStore } from '../last-agent-choice-store';
 import {
     beginSessionCreation,
     chooseProjectFolder,
     chooseSessionTerminalKind,
     confirmPendingSession,
+    pressHeadingNewSession,
 } from '../session-creation-commands';
 
 describe('Session creation commands', () => {
@@ -145,6 +147,7 @@ describe('Session creation commands', () => {
         mocks.pendingProjectId = undefined;
         mocks.pendingRoot = undefined;
         mocks.primarySidebarVisible = true;
+        useLastAgentChoiceStore.setState({ kind: undefined });
     });
 
     afterEach(() => {
@@ -303,6 +306,92 @@ describe('Session creation commands', () => {
         expect(mocks.caxriRequest).toHaveBeenCalledWith('session.create', {
             projectId: 'project-2',
             defaultAgent: 'codex',
+        });
+    });
+
+    describe('the Project heading press', () => {
+        it('opens the list before any Agent was picked', () => {
+            mocks.getBootstrap.mockReturnValue({ settings: { 'session.defaultAgent': null } });
+
+            pressHeadingNewSession('project-1');
+
+            expect(mocks.openCreateSessionMenu).toHaveBeenCalledWith('project-1', 'heading');
+            expect(mocks.caxriRequest).not.toHaveBeenCalled();
+        });
+
+        it('repeats the kind last picked from the list', async () => {
+            mocks.getBootstrap.mockReturnValue({
+                settings: { 'session.defaultAgent': null, 'session.openAgentsInChat': true },
+            });
+            chooseSessionTerminalKind('project-1', 'codex');
+            await mocks.tryCommand.mock.results[0]?.value;
+            mocks.caxriRequest.mockClear();
+
+            pressHeadingNewSession('project-2');
+            await mocks.tryCommand.mock.results[1]?.value;
+
+            expect(mocks.caxriRequest).toHaveBeenCalledWith('session.create', {
+                projectId: 'project-2',
+                defaultAgent: 'codex',
+                surface: 'chat',
+            });
+            expect(mocks.openCreateSessionMenu).not.toHaveBeenCalled();
+        });
+
+        it('remembers a pick from the centered dialog too', async () => {
+            mocks.getBootstrap.mockReturnValue({ settings: { 'session.defaultAgent': null } });
+            mocks.pendingProjectId = 'project-2';
+            confirmPendingSession('grok');
+            await mocks.tryCommand.mock.results[0]?.value;
+            mocks.caxriRequest.mockClear();
+
+            pressHeadingNewSession('project-1');
+            await mocks.tryCommand.mock.results[1]?.value;
+
+            expect(mocks.caxriRequest).toHaveBeenCalledWith('session.create', {
+                projectId: 'project-1',
+                defaultAgent: 'grok',
+            });
+        });
+
+        it('keeps the last Agent when the user starts an Empty Session', async () => {
+            mocks.getBootstrap.mockReturnValue({ settings: { 'session.defaultAgent': null } });
+            chooseSessionTerminalKind('project-1', 'shell');
+            chooseSessionTerminalKind('project-1', null);
+            await mocks.tryCommand.mock.results[0]?.value;
+            await mocks.tryCommand.mock.results[1]?.value;
+            mocks.caxriRequest.mockClear();
+
+            pressHeadingNewSession('project-1');
+            await mocks.tryCommand.mock.results[2]?.value;
+
+            expect(mocks.caxriRequest).toHaveBeenCalledWith('session.create', {
+                projectId: 'project-1',
+                defaultAgent: 'shell',
+            });
+        });
+
+        it('prefers a configured default Agent over the last pick', async () => {
+            useLastAgentChoiceStore.setState({ kind: 'codex' });
+            mocks.getBootstrap.mockReturnValue({ settings: { 'session.defaultAgent': 'claude' } });
+
+            pressHeadingNewSession('project-1');
+            await mocks.tryCommand.mock.results[0]?.value;
+
+            expect(mocks.caxriRequest).toHaveBeenCalledWith('session.create', {
+                projectId: 'project-1',
+                defaultAgent: 'claude',
+            });
+        });
+
+        it('leaves the session.create command asking each time', () => {
+            useLastAgentChoiceStore.setState({ kind: 'codex' });
+            mocks.getBootstrap.mockReturnValue({ settings: { 'session.defaultAgent': null } });
+
+            beginSessionCreation('project-1');
+
+            expect(mocks.openCreateSessionMenu).toHaveBeenCalledWith('project-1', 'heading');
+            expect(mocks.caxriRequest).not.toHaveBeenCalled();
         });
     });
 });

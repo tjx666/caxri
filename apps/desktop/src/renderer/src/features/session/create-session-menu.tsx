@@ -16,11 +16,13 @@ import { useSettings } from '../../stores/selectors';
 import { sessionRowActionButton } from '../primary-sidebar/session-row-actions';
 import { newAgentSurface, newSessionActionLabel } from '../terminal/new-terminal-agent';
 import { AgentChoiceMenuItems } from './agent-choice-menu-items';
+import { useLastAgentChoiceStore } from './last-agent-choice-store';
 import { OpenInChatMenuItem } from './open-in-chat-menu-item';
 import {
     beginSessionCreation,
     chooseSessionTerminalKind,
     openSessionCreationMenu,
+    pressHeadingNewSession,
 } from './session-creation-commands';
 
 /**
@@ -31,9 +33,9 @@ import {
  * a different picker would be the "two ways to do one thing" this repository forbids. That store entry names the
  * trigger as well as the Project, because one Project can render more than one of these at a time.
  *
- * The Project heading's button opens the list on hover, so picking an Agent needs no extra click. With a configured
- * default Agent it splits: a press creates the default and the tooltip names it; without one a press opens the same
- * list.
+ * The Project heading's button opens the list on hover, so picking an Agent needs no extra click. It splits once it has
+ * a Terminal to repeat: a press creates the configured default Agent, else the kind last picked from a list, and the
+ * tooltip names it. With neither, a press opens the same list.
  */
 function SessionCreationMenu({
     anchor,
@@ -60,6 +62,7 @@ function SessionCreationMenu({
     const settings = useSettings();
     const defaultAgent = settings?.['session.defaultAgent'];
     const openInChat = settings?.['session.openAgentsInChat'];
+    const lastChoice = useLastAgentChoiceStore((state) => state.kind);
     const sessionCreateShortcut = useCommandShortcut('session.create');
     /**
      * A Project can leave the bootstrap while its menu is open: removed from another window, or dropped by a Server
@@ -89,13 +92,14 @@ function SessionCreationMenu({
         });
     }
     /**
-     * The heading's split: a press creates the default Agent, hover opens the list. The press is vetoed with
-     * `details.cancel()` before Base UI opens anything, the same way the tab strip's `+` does it, so the menu's
-     * internal state never diverges from the store claim (the #905 desync above needed an open request that was
+     * The heading's split: a press creates the default Agent or the last pick, hover opens the list. The press is
+     * vetoed with `details.cancel()` before Base UI opens anything, the same way the tab strip's `+` does it, so the
+     * menu's internal state never diverges from the store claim (the #905 desync above needed an open request that was
      * silently dropped, not a canceled one).
      */
-    const splitTarget = defaultAgent
-        ? { kind: defaultAgent, surface: newAgentSurface(defaultAgent, openInChat) }
+    const splitKind = anchor === 'heading' ? (defaultAgent ?? lastChoice) : defaultAgent;
+    const splitTarget = splitKind
+        ? { kind: splitKind, surface: newAgentSurface(splitKind, openInChat) }
         : undefined;
     const splitLabel = splitTarget
         ? newSessionActionLabel(splitTarget, resolveAgentIcon(splitTarget.kind).label, t)
@@ -128,16 +132,29 @@ function SessionCreationMenu({
                               action: splitLabel,
                               project: project.title,
                           }),
+                          /**
+                           * Hover opens the heading's list after 100ms, so nearly every real press lands on an open
+                           * list, and Base UI ignores a press within 500ms of a hover open (its "patient click"
+                           * threshold) without reporting anything to `onOpenChange`. Handling the press here keeps it
+                           * creating the split target every time; the list closes behind it.
+                           */
+                          'onClick':
+                              anchor === 'heading'
+                                  ? () => {
+                                        closeCreateSessionMenu();
+                                        pressHeadingNewSession(project.id);
+                                    }
+                                  : undefined,
                       })
                     : trigger
             }
         />
     );
     /**
-     * Only the split names its press in a tooltip. Without a default Agent, hover already opens the list the press
-     * would open, so a tooltip would only cover its first row, the same reason the tab strip's `+` shows none in that
-     * case. The Tooltip wraps the trigger element here rather than this component, because Base UI's tooltip trigger
-     * reaches its child through `render` and a plain function component drops the props it injects.
+     * Only the split names its press in a tooltip. Without one, hover already opens the list the press would open, so a
+     * tooltip would only cover its first row, the same reason the tab strip's `+` shows none in that case. The Tooltip
+     * wraps the trigger element here rather than this component, because Base UI's tooltip trigger reaches its child
+     * through `render` and a plain function component drops the props it injects.
      */
     const triggerWithTooltip = splitLabel ? (
         <Tooltip content={splitLabel} shortcut={sessionCreateShortcut}>
@@ -156,11 +173,16 @@ function SessionCreationMenu({
              */
             onOpenChange={(nextOpen, details) => {
                 /**
-                 * Hover already opened the heading's list, so a press that follows is the user reaching for it, not
-                 * asking to dismiss it. Base UI would toggle the menu closed under the pointer; Escape, an outside
-                 * press, or leaving the trigger still close it.
+                 * The heading's split press is handled by the trigger's own `onClick` (see `render` above), so every
+                 * press-driven open or close is vetoed here. Without a split, hover already opened the list, so a press
+                 * that follows is the user reaching for it, not asking to dismiss it. Base UI would toggle the menu
+                 * closed under the pointer; Escape, an outside press, or leaving the trigger still close it.
                  */
-                if (!nextOpen && anchor === 'heading' && details.reason === 'trigger-press') {
+                if (
+                    anchor === 'heading' &&
+                    details.reason === 'trigger-press' &&
+                    (splitTarget || !nextOpen)
+                ) {
                     details.cancel();
                     return;
                 }
