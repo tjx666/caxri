@@ -92,15 +92,30 @@ export function findEmDashes(grepLine: string): EmDashFinding | undefined {
 }
 
 /**
- * Lists every disallowed em-dash in the files Git tracks under `cwd`. Exported for tests.
+ * Lists every disallowed em-dash in the files Git tracks under `cwd`. With `staged` (the pre-commit hook's `--staged`
+ * mode) it reads the index instead of the working tree, so an unstaged edit can neither block nor pass a commit that
+ * leaves it out. Exported for tests.
  */
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/em-dash-check.test.ts
-export async function collectEmDashFindings(cwd: string): Promise<EmDashFinding[]> {
+export async function collectEmDashFindings(
+    cwd: string,
+    { staged = false }: { staged?: boolean } = {},
+): Promise<EmDashFinding[]> {
     let stdout: string;
     try {
         ({ stdout } = await execFileAsync(
             'git',
-            ['grep', '-n', '-I', '--fixed-strings', EM_DASH, '--', '.', ...EXCLUDED_PATHSPECS],
+            [
+                'grep',
+                ...(staged ? ['--cached'] : []),
+                '-n',
+                '-I',
+                '--fixed-strings',
+                EM_DASH,
+                '--',
+                '.',
+                ...EXCLUDED_PATHSPECS,
+            ],
             { cwd, maxBuffer: 16 * 1024 * 1024 },
         ));
     } catch (error) {
@@ -116,7 +131,9 @@ export async function collectEmDashFindings(cwd: string): Promise<EmDashFinding[
 }
 
 async function main(): Promise<void> {
-    const findings = await collectEmDashFindings(projectRoot);
+    const findings = await collectEmDashFindings(projectRoot, {
+        staged: process.argv.includes('--staged'),
+    });
     if (findings.length === 0) {
         console.log('em-dash-check: no em-dashes found.');
         return;

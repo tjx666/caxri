@@ -172,7 +172,9 @@ a standalone or repository-wide run.
   existing file under 600 that your edit pushes to 600 or more, or a new path (including a rename
   target) that lands at or above 600. Git rename detection keeps a pure move from counting as growth.
   `check --lint` runs it when the changed set includes source, and the pre-commit hook runs it when
-  the staged set does -- a one-line test fix is exactly the edit that skips `check`. It
+  the staged set does -- a one-line test fix is exactly the edit that skips `check`. The hook passes
+  `--staged`, which measures the index instead of the working tree and ignores untracked files, so
+  committing one slice of a larger split is judged on that slice alone. It
   never fails a file that shrank, even while still above 600 lines: it is a growth ratchet, not a
   restatement of ESLint's absolute `max-lines: 800` ceiling. To fix: split the flagged file by
   responsibility into smaller, cohesively-owned files (see the source-layout skill) -- do not
@@ -192,7 +194,7 @@ a standalone or repository-wide run.
   vendored `licenses/` and `tools/` trees. Rewrite the sentence with a colon, semicolon, comma,
   period, or parentheses. Product copy (string literals and JSX text in code) is out of scope. It
   scans the whole tree in one `git grep`, so `check --lint`, the pre-commit hook, and the `guards`
-  job run it unscoped.
+  job run it unscoped; the hook passes `--staged` to read the index instead of the working tree.
 
 The pre-commit hook additionally runs two `guards` tests when the staged set can affect them, so a
 violation fails locally instead of in CI: `scripts/__tests__/directory-density-ratchet.test.ts` when
