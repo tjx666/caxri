@@ -63,6 +63,10 @@ test('Continue after a stopped turn is a quiet play button in the same slot as S
         await page.keyboard.down('Meta');
         const queue = chat.getByRole('button', { name: 'Queue message', exact: true });
         await expect(queue).toBeVisible();
+        // The label flips at once but the fill eases over 150ms, so a single read can still see Send's colour.
+        await expect
+            .poll(async () => (await primaryAction(queue)).background)
+            .not.toBe(sendState.background);
         const queueState = await primaryAction(queue);
         await page.keyboard.up('Meta');
         await message.fill('');
