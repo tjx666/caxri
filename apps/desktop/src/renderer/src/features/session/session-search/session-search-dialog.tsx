@@ -34,6 +34,7 @@ import { useSessionSearchPreview } from './use-session-search-preview';
  */
 export function SessionSearchDialog() {
     const isOpen = useDialogStore((state) => state.sessionSearchOpen);
+    const requestId = useDialogStore((state) => state.sessionSearchRequest.id);
     const { t } = useTranslation();
     return (
         <Dialog open={isOpen} onOpenChange={setSessionSearchOpen}>
@@ -41,7 +42,7 @@ export function SessionSearchDialog() {
                 aria-label={t('session.search.title')}
                 className="top-[12%] flex h-[min(620px,76vh)] w-[min(1080px,calc(100vw-48px))] flex-col"
             >
-                <SessionSearchBody />
+                <SessionSearchBody key={requestId} />
             </PickerDialogContent>
         </Dialog>
     );

@@ -5,6 +5,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 
 import { useDebouncedValue } from '../../../hooks/use-debounced-value';
 import { caxri } from '../../../lib/caxri';
+import { useDialogStore } from '../../../stores/dialogs';
 import { selectSelectedProject } from '../../../stores/selectors';
 import { useWorkbenchStore } from '../../../stores/workbench';
 import type {
@@ -33,15 +34,25 @@ const INDEXING_REFRESH_MS = 1_500;
  * loads, so typing never flashes an empty list; the consumed AbortSignal cancels a superseded search in the Worker.
  */
 export function useSessionSearch() {
+    /**
+     * Read without subscribing: the seed only decides where this open starts, and the overlay remounts per open
+     * request.
+     */
+    const [seed] = useState(() => useDialogStore.getState().sessionSearchRequest.seed);
     const [query, setQuery] = useState('');
-    const [status, setStatus] = useState<SessionSearchStatusFilter>('all');
+    const [status, setStatus] = useState<SessionSearchStatusFilter>(seed.status ?? 'all');
     const [provider, setProvider] = useState<AgentProvider>();
     const [sort, setSort] = useState<SessionSearchSort>('relevance');
     const [scope, setScope] = useState<SessionSearchScope>('currentProject');
     const [selectedKey, setSelectedKey] = useState<string>();
-    const selectedProjectId = useWorkbenchStore(
+    const workbenchProjectId = useWorkbenchStore(
         (state) => selectSelectedProject(state.bootstrap)?.id,
     );
+    /**
+     * A Project-scoped opener (the New Session menu's import row) ranks its own Project first, which need not be the
+     * selected one.
+     */
+    const selectedProjectId = seed.projectId ?? workbenchProjectId;
     /**
      * The Project the Server ranks first, or undefined when every Project ranks alike (the user chose All Projects, or
      * no Project is selected).

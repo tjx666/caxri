@@ -11,6 +11,7 @@ export const session: TranslatedNamespace<typeof source> = {
     'session.create.newInProject': '在 {{project}} 中新建会话',
     'session.create.actionInProject': '在 {{project}} 中{{action}}',
     'session.create.withoutTerminal': '空会话',
+    'session.create.importFromHistory': '从历史导入…',
     'session.createDialog.title': '开始会话',
     'session.createDialog.titleInProject': '在 {{project}} 中开始会话',
     'session.createDialog.description':

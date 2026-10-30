@@ -81,3 +81,30 @@ describe('modal registration', () => {
         expect(useDialogStore.getState().isModalOpen()).toBe(true);
     });
 });
+
+describe('Session search seed', () => {
+    beforeEach(() => {
+        useDialogStore.setState({
+            sessionSearchOpen: false,
+            sessionSearchRequest: { id: 0, seed: {} },
+        });
+    });
+
+    it('opens on the Where filter and Project the opener names', () => {
+        useDialogStore.getState().openSessionSearch({ status: 'external', projectId: 'project-1' });
+
+        expect(useDialogStore.getState()).toMatchObject({
+            sessionSearchOpen: true,
+            sessionSearchRequest: { id: 1, seed: { status: 'external', projectId: 'project-1' } },
+        });
+    });
+
+    it('drops an earlier seed when the next open names nothing', () => {
+        const store = useDialogStore.getState();
+        store.openSessionSearch({ status: 'external', projectId: 'project-1' });
+        store.setSessionSearchOpen(false);
+        store.openSessionSearch();
+
+        expect(useDialogStore.getState().sessionSearchRequest).toEqual({ id: 2, seed: {} });
+    });
+});

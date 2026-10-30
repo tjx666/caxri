@@ -2,7 +2,7 @@ import type { MouseEventHandler, ReactElement } from 'react';
 import { cloneElement, useEffect } from 'react';
 
 import type { ProjectRecord } from '@caxri/protocol';
-import { SquareDashed, SquarePen } from 'lucide-react';
+import { History, SquareDashed, SquarePen } from 'lucide-react';
 
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from '../../components/ui/menu';
 import { Tooltip } from '../../components/ui/tooltip';
@@ -11,7 +11,7 @@ import { resolveAgentIcon } from '../../icons/agents/agent-icon-registry';
 import { useCommandShortcut } from '../../lib/keybindings';
 import { cn } from '../../lib/utilities';
 import type { CreateSessionAnchor } from '../../stores/dialogs';
-import { closeCreateSessionMenu, useDialogStore } from '../../stores/dialogs';
+import { closeCreateSessionMenu, openSessionSearch, useDialogStore } from '../../stores/dialogs';
 import { useSettings } from '../../stores/selectors';
 import { sessionRowActionButton } from '../primary-sidebar/session-row-actions';
 import { newAgentSurface, newSessionActionLabel } from '../terminal/new-terminal-agent';
@@ -224,6 +224,16 @@ function SessionCreationMenu({
                 <MenuItem onClick={() => chooseSessionTerminalKind(project.id, null)}>
                     <SquareDashed className="text-muted" size={14} />
                     <span className="flex-1 truncate">{t('session.create.withoutTerminal')}</span>
+                </MenuItem>
+                {/**
+                 * Picks up a conversation started outside Caxri: Session search opened on the conversations not yet in Caxri, this
+                 * Project's first, where Enter imports one as a new Session.
+                 */}
+                <MenuItem
+                    onClick={() => openSessionSearch({ status: 'external', projectId: project.id })}
+                >
+                    <History className="text-muted" size={14} />
+                    <span className="flex-1 truncate">{t('session.create.importFromHistory')}</span>
                 </MenuItem>
                 <MenuSeparator />
                 <OpenInChatMenuItem />

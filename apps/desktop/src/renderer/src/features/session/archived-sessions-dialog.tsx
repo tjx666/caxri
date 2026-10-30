@@ -24,11 +24,7 @@ import { useTranslation } from '../../i18n';
 import { resolveAgentIcon } from '../../icons/agents/agent-icon-registry';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { localeDateTimeFormat } from '../../lib/locale-format';
-import {
-    setArchivedSessionsOpen,
-    setSessionSearchOpen,
-    useDialogStore,
-} from '../../stores/dialogs';
+import { openSessionSearch, setArchivedSessionsOpen, useDialogStore } from '../../stores/dialogs';
 import { useArchivedTerminals, useProjects, useSessions } from '../../stores/selectors';
 import type {
     ArchivedSessionFilters,
@@ -343,7 +339,7 @@ function ArchivedEmptyState({
 
 function openSessionSearchFromArchive(): void {
     setArchivedSessionsOpen(false);
-    setSessionSearchOpen(true);
+    openSessionSearch();
 }
 
 function ArchivedSessionsDialogBody() {
