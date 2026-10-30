@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 
 import { useCaxriQuery } from '../../../queries/client';
 import { useSessions } from '../../../stores/selectors';
+import { useAgentChatPlanDismissals } from '../permissions/agent-chat-plan-dismissals';
 import { useAgentChatPendingStore } from '../transcript/agent-chat-pending';
 import { isAgentChatOnScreen, useAgentChatOnScreenStore } from './agent-chat-on-screen';
 import { invalidateAgentChatWaiting, waitingTerminalKey } from './agent-chat-waiting-client';
@@ -42,6 +43,7 @@ export function useAgentChatWaiting(): AgentChatWaiting {
     const { data } = useCaxriQuery('agentChat.pendingRequests', {}, { staleTime: Infinity });
     const chats = data?.entries ?? NO_ENTRIES;
     const answers = useAgentChatPendingStore((state) => state.answers);
+    const dismissedPlans = useAgentChatPlanDismissals();
     const onScreen = useAgentChatOnScreenStore((state) => state.counts);
     const sessions = useSessions();
     const queryClient = useQueryClient();
@@ -65,10 +67,11 @@ export function useAgentChatWaiting(): AgentChatWaiting {
         return agentChatWaitingQueue(chats, {
             answers,
             arrivals,
+            dismissedPlans,
             isKnownSession: (sessionId) => sessionIds.has(sessionId),
             isOnScreen: (terminalId) => isAgentChatOnScreen(onScreen, terminalId),
         });
-    }, [answers, arrivals, chats, onScreen, sessions]);
+    }, [answers, arrivals, chats, dismissedPlans, onScreen, sessions]);
     const count = agentChatWaitingRequestCount(queue);
     const [storedView, setView] = useState<AgentChatWaitingView>({ isCollapsed: false, count: 0 });
     const view = nextAgentChatWaitingView(storedView, count);

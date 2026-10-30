@@ -10,6 +10,11 @@ describe('isAgentChatWaitingPatch', () => {
         expect(isAgentChatWaitingPatch({ operations: [{ op: 'reset' }] })).toBe(true);
     });
 
+    it('re-reads it when a turn starts or ends or plan mode flips, which decides a proposed plan', () => {
+        for (const state of [{ activeTurnId: 't1' }, { planMode: false }])
+            expect(isAgentChatWaitingPatch({ operations: [{ op: 'state', state }] })).toBe(true);
+    });
+
     it('ignores streamed text and state that leaves requests alone', () => {
         expect(
             isAgentChatWaitingPatch({

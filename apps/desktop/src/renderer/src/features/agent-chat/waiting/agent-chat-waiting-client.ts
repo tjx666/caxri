@@ -6,13 +6,18 @@ import { caxriQueryKey } from '../../../queries/client';
 const AGENT_CHAT_WAITING_QUERY_KEY = caxriQueryKey('agentChat.pendingRequests', {});
 
 /**
- * Whether a patch can change which Chats wait on the user: it replaces a Chat's requests, or starts its projection
- * over. Every other patch (streamed text, items, usage) leaves the waiting list as it was, so it costs no read.
+ * Whether a patch can change which Chats wait on the user: it replaces a Chat's requests, changes whether a proposed
+ * plan still awaits approval (turn or plan mode), or starts its projection over. Every other patch (streamed text,
+ * items, usage) leaves the waiting list as it was, so it costs no read.
  */
 export function isAgentChatWaitingPatch(patch: Pick<AgentChatPatch, 'operations'>): boolean {
     return patch.operations.some(
         (operation) =>
-            operation.op === 'reset' || (operation.op === 'state' && 'requests' in operation.state),
+            operation.op === 'reset' ||
+            (operation.op === 'state' &&
+                ('requests' in operation.state ||
+                    'activeTurnId' in operation.state ||
+                    'planMode' in operation.state)),
     );
 }
 

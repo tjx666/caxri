@@ -1,4 +1,5 @@
 import type { AgentChatPendingAnswer, AgentChatWaitingEntry } from '@caxri/protocol';
+import { agentChatProposedPlanRequest } from '@caxri/protocol';
 
 /**
  * When each waiting Chat or PTY Terminal first reached this window, as an arrival sequence: the popup asks the oldest
@@ -27,6 +28,10 @@ export function nextAgentChatWaitingArrivals(
 interface AgentChatWaitingFilter {
     arrivals: AgentChatWaitingArrivals;
     /**
+     * Per Terminal, the proposed plan item whose approval the user dismissed with Keep Planning; its request leaves.
+     */
+    dismissedPlans?: Readonly<Record<string, string | undefined>>;
+    /**
      * Answers sent from this window whose request Server Core still lists, per Terminal; those requests leave at once.
      */
     answers: Readonly<Record<string, readonly AgentChatPendingAnswer[] | undefined>>;
@@ -48,7 +53,7 @@ interface AgentChatWaitingFilter {
  */
 export function agentChatWaitingQueue(
     chats: readonly AgentChatWaitingEntry[],
-    { answers, arrivals, isKnownSession, isOnScreen }: AgentChatWaitingFilter,
+    { answers, arrivals, dismissedPlans = {}, isKnownSession, isOnScreen }: AgentChatWaitingFilter,
 ): AgentChatWaitingEntry[] {
     const queue: AgentChatWaitingEntry[] = [];
     for (const chat of chats) {
@@ -58,8 +63,12 @@ export function agentChatWaitingQueue(
             continue;
         }
         const answered = answers[chat.terminalId] ?? [];
-        const requests = chat.requests.filter((request) =>
-            answered.every((answer) => answer.requestId !== request.id),
+        const dismissedPlan = dismissedPlans[chat.terminalId];
+        const requests = chat.requests.filter(
+            (request) =>
+                answered.every((answer) => answer.requestId !== request.id) &&
+                (dismissedPlan === undefined ||
+                    request.id !== agentChatProposedPlanRequest(dismissedPlan).id),
         );
         if (requests.length === 0) continue;
         queue.push(requests.length === chat.requests.length ? chat : { ...chat, requests });

@@ -8,6 +8,8 @@ import type {
 import {
     AGENT_CHAT_WAITING_MAX_CHATS,
     AGENT_CHAT_WAITING_PROMPT_MAX_LENGTH,
+    agentChatImplementablePlanId,
+    agentChatProposedPlanRequest,
     isChatTerminal,
 } from '@caxri/protocol';
 
@@ -18,7 +20,7 @@ import { clip } from '../chat-items';
  */
 export interface WaitingChatSource {
     terminalId: string;
-    snapshot: Pick<AgentChatSnapshot, 'items' | 'requests'>;
+    snapshot: Pick<AgentChatSnapshot, 'activeTurnId' | 'items' | 'planMode' | 'requests'>;
     isOpen: boolean;
 }
 
@@ -47,7 +49,16 @@ export function readWaitingChats(
     const chats: AgentChatWaitingChat[] = [];
     for (const { isOpen, snapshot, terminalId } of sources) {
         if (chats.length >= AGENT_CHAT_WAITING_MAX_CHATS) break;
-        if (!isOpen || snapshot.requests.length === 0) continue;
+        if (!isOpen) continue;
+        /**
+         * Codex raises no server request for a proposed plan; the approval card is derived from the transcript. It
+         * still waits on the user, so it lists beside real requests (answered through `agentChat.implementPlan`).
+         */
+        const planId = agentChatImplementablePlanId(snapshot);
+        const requests = planId
+            ? [...snapshot.requests, agentChatProposedPlanRequest(planId)]
+            : snapshot.requests;
+        if (requests.length === 0) continue;
         const sessionId = sessionOf(terminalId);
         if (!sessionId) continue;
         const prompt = latestPrompt(snapshot.items);
@@ -55,7 +66,7 @@ export function readWaitingChats(
             kind: 'chat',
             sessionId,
             terminalId,
-            requests: snapshot.requests,
+            requests,
             ...(prompt && { prompt }),
         });
     }

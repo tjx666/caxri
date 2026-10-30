@@ -3,6 +3,7 @@ import type {
     AgentChatWaitingChat,
     AgentChatWaitingEntry,
 } from '@caxri/protocol';
+import { agentChatProposedPlanRequest } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -31,6 +32,20 @@ const everything = {
     isKnownSession: () => true,
     isOnScreen: () => false,
 };
+
+describe('agentChatWaitingQueue dismissed plans', () => {
+    it('drops the proposed plan request the user kept planning on, and the Chat with it', () => {
+        const planned: AgentChatWaitingChat = {
+            ...chat('a'),
+            requests: [agentChatProposedPlanRequest('p1')],
+        };
+        const dismissed = { ...everything, dismissedPlans: { a: 'p1' } };
+        expect(agentChatWaitingQueue([planned], dismissed)).toEqual([]);
+        expect(
+            agentChatWaitingQueue([planned], { ...everything, dismissedPlans: { a: 'p0' } }),
+        ).toEqual([planned]);
+    });
+});
 
 describe('nextAgentChatWaitingArrivals', () => {
     it('keeps waiting Chats in place, queues new ones last, and forgets the ones that stopped', () => {
