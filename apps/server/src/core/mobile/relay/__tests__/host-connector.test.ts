@@ -32,18 +32,23 @@ interface FakeHost {
 /**
  * A minimal Relay double: issues a challenge on `/v1/host`, records frames, and lets each test decide the reply.
  */
-async function fakeRelay(options: { autoPong?: boolean } = {}) {
+async function fakeRelay(options: { autoPong?: boolean; dataPong?: boolean } = {}) {
+    const controlPong = options.autoPong ?? true;
+    const dataPong = options.dataPong ?? controlPong;
     const server = new WebSocketServer({
         port: 0,
         host: '127.0.0.1',
-        autoPong: options.autoPong ?? true,
+        // Pongs are answered per socket below so control and data sockets can be silenced independently.
+        autoPong: false,
     });
     await new Promise<void>((resolve) => server.once('listening', () => resolve()));
     const hosts: FakeHost[] = [];
     const dataSockets: Array<{ socket: WebSocket; first: Promise<unknown> }> = [];
     let nonceByte = 1;
     server.on('connection', (socket, request) => {
-        if (request.url === '/v1/host-data') {
+        const isData = request.url === '/v1/host-data';
+        if (isData ? dataPong : controlPong) socket.on('ping', () => socket.pong());
+        if (isData) {
             dataSockets.push({
                 socket,
                 first: new Promise((resolve) =>
@@ -126,12 +131,13 @@ describe('RelayHostConnector', () => {
     const setup = async (
         options: {
             autoPong?: boolean;
+            dataPong?: boolean;
             canAccept?: () => boolean;
             grants?: () => Array<{ keyHash: string; expiresAt?: number }>;
             timing?: ConstructorParameters<typeof RelayHostConnector>[0]['timing'];
         } = {},
     ) => {
-        const relay = await fakeRelay({ autoPong: options.autoPong });
+        const relay = await fakeRelay({ autoPong: options.autoPong, dataPong: options.dataPong });
         cleanups.push(() => relay.close());
         const write = vi.fn();
         const onConnection = vi.fn<(socket: WebSocket, dialMs: number) => void>();
@@ -288,6 +294,26 @@ describe('RelayHostConnector', () => {
         );
         await vi.waitFor(() => expect(relay.dataSockets).toHaveLength(2));
         expect(onConnection).not.toHaveBeenCalled();
+    });
+
+    it('terminates a parked standby whose pongs stop and parks a replacement', async () => {
+        const { connector, relay, write } = await setup({
+            dataPong: false,
+            timing: { pingIntervalMs: 10, pongTimeoutMs: 40 },
+        });
+        const hostArrived = relay.nextHost();
+        connector.start();
+        const host = await hostArrived;
+        await relay.accept(host, connector.hostId);
+        host.socket.send(JSON.stringify({ type: 'relay-standby', ticket: 'e'.repeat(64) }));
+        await vi.waitFor(() => expect(relay.dataSockets).toHaveLength(1));
+        await vi.waitFor(() =>
+            expect(write).toHaveBeenCalledWith('warn', 'mobile_gateway.relay_dial_failed', {
+                fields: { reason: 'standby-failed' },
+            }),
+        );
+        await vi.waitFor(() => expect(relay.dataSockets.length).toBeGreaterThanOrEqual(2));
+        expect(connector.state).toBe('online');
     });
 
     it('forgets earlier failed parks once a standby has stayed parked', async () => {

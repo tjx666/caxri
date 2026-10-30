@@ -401,8 +401,16 @@ export class RelayHostConnector {
         // Server whose standby drops now and then never drifts toward the maximum backoff.
         let timer = setTimeout(() => socket.terminate(), this.#timing.dialTimeoutMs);
         timer.unref();
+        // Server-side liveness: a one-sided path failure leaves a parked socket open here while the Relay already
+        // dropped it, so without our own pong deadline every later phone reconnect falls back to a dial-back.
+        let pingTimer: ReturnType<typeof setInterval> | undefined;
+        let lastPongAt = this.#now();
+        const onPong = (): void => {
+            lastPongAt = this.#now();
+        };
         const onClose = (): void => {
             clearTimeout(timer);
+            clearInterval(pingTimer);
             if (this.#standby !== socket) return;
             this.#standby = undefined;
             this.#dialFailed('standby-failed');
@@ -417,6 +425,8 @@ export class RelayHostConnector {
                 return;
             }
             clearTimeout(timer);
+            clearInterval(pingTimer);
+            socket.off('pong', onPong);
             socket.off('message', onMessage);
             socket.off('close', onClose);
             socket.removeAllListeners('error');
@@ -432,8 +442,19 @@ export class RelayHostConnector {
         socket.on('error', () => {});
         socket.on('message', onMessage);
         socket.on('close', onClose);
+        socket.on('pong', onPong);
         socket.once('open', () => {
             clearTimeout(timer);
+            lastPongAt = this.#now();
+            pingTimer = setInterval(() => {
+                if (this.#standby !== socket) return;
+                if (this.#now() - lastPongAt > this.#timing.pongTimeoutMs) {
+                    socket.terminate();
+                    return;
+                }
+                if (socket.readyState === WebSocket.OPEN) socket.ping();
+            }, this.#timing.pingIntervalMs);
+            pingTimer.unref();
             timer = setTimeout(() => {
                 if (this.#standby === socket) this.#standbyAttempt = 0;
             }, this.#timing.stableAfterMs);
