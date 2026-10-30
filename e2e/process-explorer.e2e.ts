@@ -187,8 +187,9 @@ test('Process Explorer opens one live Caxri process tree and closes independentl
         });
         try {
             await processPage.getByRole('button', { name: 'Refresh processes' }).click();
-            await expect(processPage.locator('.process-error')).toBeVisible();
-            await expect(processPage.locator('.process-row')).toHaveCount(0);
+            // A failed resample keeps the last table readable and flags it as stale above the rows.
+            await expect(processPage.locator('.process-error-line')).toBeVisible();
+            await expect(caxriRows).toHaveCount(expandedRowCount);
             const retry = processPage.getByRole('button', { name: 'Retry', exact: true });
             await expect(retry).toBeVisible();
         } finally {
@@ -205,7 +206,7 @@ test('Process Explorer opens one live Caxri process tree and closes independentl
         const retry = processPage.getByRole('button', { name: 'Retry', exact: true });
         await retry.focus();
         await retry.press('Enter');
-        await expect(processPage.locator('.process-error')).toHaveCount(0);
+        await expect(processPage.locator('.process-error-line')).toHaveCount(0);
         await expect(caxriRows).toHaveCount(expandedRowCount);
         await expect(processPage.getByText('Live · updates every 2 seconds')).toBeVisible();
         await expect(processPage.getByText(/^Updated /)).toBeVisible();
