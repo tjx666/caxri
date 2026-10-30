@@ -1,13 +1,12 @@
 import type { ReactNode } from 'react';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
-import { Platform, Pressable, Text, View } from 'react-native';
+import { Platform, Text, View } from 'react-native';
 import type { SharedValue } from 'react-native-reanimated';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 
 import type { FlashListRef, ListRenderItemInfo } from '@shopify/flash-list';
 import { FlashList } from '@shopify/flash-list';
-import { ArrowDown } from 'lucide-react-native';
 
 import { Button } from '../../components/button';
 import { NoticeBanner } from '../../components/notice-banner';
@@ -16,6 +15,7 @@ import type { MobileTheme } from '../../theme/tokens';
 import { SavedCopyNote } from '../read-cache/saved-copy-note';
 import { ConversationDisclosure } from './conversation-disclosure';
 import { ConversationEntry } from './conversation-entry';
+import { ConversationJumpLatest } from './conversation-jump-latest';
 import type { ConversationMessageTarget } from './conversation-message-actions';
 import { ConversationMessageActions } from './conversation-message-actions';
 import { ConversationMessageSheet } from './conversation-message-sheet';
@@ -28,7 +28,7 @@ import {
     isNewConversationSend,
     shouldShowConversationJump,
 } from './conversation-model';
-import { conversationEndOffset, createConversationFollower } from './conversation-scroll';
+import { createConversationFollower } from './conversation-scroll';
 import { conversationStyles as styles } from './conversation-styles';
 import { isTimelineMessageClipped, MessageReadOfflineError } from './read-whole-message';
 import { useConversationOlderPages } from './use-conversation-older-pages';
@@ -271,37 +271,21 @@ export const ConversationList = <Entry extends { id: string }>({
     useLayoutEffect(() => {
         latest.current = { entries, isTurnStart, timeline };
     });
-    const { endSpacerHeight, markRevealed, measureSpacer, spacerHeight, spacerReserve } =
-        useConversationTurnSpacer({
-            bottomInset: CONTENT_BOTTOM_INSET,
-            largestViewportHeight,
-            latest,
-            list,
-            viewportHeight,
-        });
-    /**
-     * Scrolls to the list's end as `conversationEndOffset` places it. FlashList's own `scrollToEnd` targets the native
-     * end, which while the keyboard is up lies past it by the spacer's reserve and hid a just-sent message above the
-     * viewport.
-     */
-    const scrollToLatest = useCallback(
-        (isAnimated: boolean): void => {
-            const reference = list.current;
-            if (!reference || viewportHeight.current <= 0) return;
-            reference.scrollToOffset({
-                animated: isAnimated,
-                offset: conversationEndOffset({
-                    bottomInset: CONTENT_BOTTOM_INSET,
-                    contentHeight: reference.getChildContainerDimensions().height,
-                    firstItemOffset: reference.getFirstItemOffset(),
-                    isBottomAligned: !hasTurnSpacer,
-                    spacerHeight: endSpacerHeight(),
-                    viewportHeight: viewportHeight.current,
-                }),
-            });
-        },
-        [endSpacerHeight, hasTurnSpacer],
-    );
+    const {
+        endSpacerHeight,
+        markRevealed,
+        measureSpacer,
+        scrollToLatest,
+        spacerHeight,
+        spacerReserve,
+    } = useConversationTurnSpacer({
+        bottomInset: CONTENT_BOTTOM_INSET,
+        isBottomAligned: !hasTurnSpacer,
+        largestViewportHeight,
+        latest,
+        list,
+        viewportHeight,
+    });
     useEffect(() => follower.connect(() => scrollToLatest(false)), [follower, scrollToLatest]);
     /**
      * Re-measures the spacer and, while the list follows, returns to the end on the next frame.
@@ -438,6 +422,9 @@ export const ConversationList = <Entry extends { id: string }>({
             timeline.truncated,
         ],
     );
+    const maintainPosition = hasTurnSpacer
+        ? MAINTAIN_TURN_POSITION
+        : MAINTAIN_VISIBLE_CONTENT_POSITION;
     const footer = useMemo(
         () => (hasTurnSpacer ? <ConversationTurnSpacer height={spacerHeight} /> : null),
         [hasTurnSpacer, spacerHeight],
@@ -478,11 +465,7 @@ export const ConversationList = <Entry extends { id: string }>({
                         ListFooterComponent={footer}
                         ListHeaderComponent={header}
                         initialScrollIndex={initialScrollIndex}
-                        maintainVisibleContentPosition={
-                            hasTurnSpacer
-                                ? MAINTAIN_TURN_POSITION
-                                : MAINTAIN_VISIBLE_CONTENT_POSITION
-                        }
+                        maintainVisibleContentPosition={maintainPosition}
                         onCommitLayoutEffect={onCommitLayout}
                         onContentSizeChange={pin}
                         onLoad={onLoad}
@@ -500,22 +483,7 @@ export const ConversationList = <Entry extends { id: string }>({
                     />
                 </Animated.View>
                 {shouldShowConversationJump(isAtBottom, entries.length > 0) ? (
-                    <Pressable
-                        accessibilityLabel={t('conversation.jumpToLatest')}
-                        accessibilityRole="button"
-                        onPress={jumpToLatest}
-                        style={[
-                            styles.jump,
-                            {
-                                backgroundColor: theme.elevated,
-                                borderColor: theme.border,
-                                boxShadow: `0px 2px 8px ${theme.shadow}`,
-                            },
-                        ]}
-                        testID="conversation-jump-latest"
-                    >
-                        <ArrowDown color={theme.text} size={20} />
-                    </Pressable>
+                    <ConversationJumpLatest onPress={jumpToLatest} theme={theme} />
                 ) : null}
             </View>
         </ConversationDisclosure>

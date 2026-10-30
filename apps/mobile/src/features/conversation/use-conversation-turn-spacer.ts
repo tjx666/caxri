@@ -6,6 +6,7 @@ import { useSharedValue } from 'react-native-reanimated';
 import type { FlashListRef } from '@shopify/flash-list';
 
 import {
+    conversationEndOffset,
     conversationTurnSpacerHeight,
     isConversationTurnFromOlderPage,
     latestConversationTurnStart,
@@ -23,6 +24,7 @@ import {
  */
 export function useConversationTurnSpacer<Entry extends { id: string }>({
     bottomInset,
+    isBottomAligned,
     largestViewportHeight,
     latest,
     list,
@@ -32,6 +34,11 @@ export function useConversationTurnSpacer<Entry extends { id: string }>({
      * The list content's bottom padding, which sits between the rows and the spacer.
      */
     bottomInset: number;
+    /**
+     * Whether rows shorter than the viewport sit at its bottom (`startRenderingFromBottom`), as in a list without
+     * turns.
+     */
+    isBottomAligned: boolean;
     largestViewportHeight: RefObject<number>;
     latest: RefObject<{
         entries: readonly Entry[];
@@ -50,6 +57,12 @@ export function useConversationTurnSpacer<Entry extends { id: string }>({
      * not laid out yet keeps the current spacer; the next layout commit measures again.
      */
     measureSpacer: () => boolean;
+    /**
+     * Scrolls to the list's end as `conversationEndOffset` places it. FlashList's own `scrollToEnd` targets the native
+     * end, which while the keyboard is up lies past it by the spacer's reserve and hid a just-sent message above the
+     * viewport.
+     */
+    scrollToLatest: (isAnimated: boolean) => void;
     spacerHeight: SharedValue<number>;
     spacerReserve: () => number;
 } {
@@ -107,12 +120,31 @@ export function useConversationTurnSpacer<Entry extends { id: string }>({
         spacerHeight.set(drawn);
         return true;
     }, [bottomInset, largestViewportHeight, latest, list, spacerHeight, viewportHeight]);
+    const scrollToLatest = useCallback(
+        (isAnimated: boolean): void => {
+            const reference = list.current;
+            if (!reference || viewportHeight.current <= 0) return;
+            reference.scrollToOffset({
+                animated: isAnimated,
+                offset: conversationEndOffset({
+                    bottomInset,
+                    contentHeight: reference.getChildContainerDimensions().height,
+                    firstItemOffset: reference.getFirstItemOffset(),
+                    isBottomAligned,
+                    spacerHeight: endHeight.current,
+                    viewportHeight: viewportHeight.current,
+                }),
+            });
+        },
+        [bottomInset, isBottomAligned, list, viewportHeight],
+    );
     return {
         endSpacerHeight: () => endHeight.current,
         markRevealed: () => {
             isRevealed.current = true;
         },
         measureSpacer,
+        scrollToLatest,
         spacerHeight,
         spacerReserve: () => drawnHeight.current - endHeight.current,
     };
