@@ -158,7 +158,6 @@ export const coreForwardedMethods = [
     'session.create',
     'session.detach',
     'session.dismissWorkbenchCandidate',
-    'session.importConversation',
     'session.markRead',
     'session.permissionAutoAllowStatus',
     'session.reorder',

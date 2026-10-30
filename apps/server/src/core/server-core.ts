@@ -23,6 +23,7 @@ import {
     agentCurrentQuery,
     agentSecretRequest,
     agentSessionRequest,
+    sessionImportRequest,
 } from './agent-command-request';
 import { createAgentEndpointControl } from './agent-endpoints/control';
 import { AgentEndpointRegistry } from './agent-endpoints/registry';
@@ -307,6 +308,8 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                     return forwardDomainOperation(
                         agentControlRequest(request, context, agentEndpoints, credentials.mobile()),
                     );
+                case 'session.importConversation':
+                    return forwardDomainOperation(sessionImportRequest(request, context));
                 case 'agent.session.rename':
                 case 'agent.session.archive':
                 case 'agent.session.unarchive':
@@ -322,24 +325,17 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                         return forwardDomainOperation(operation);
                     return forwardDisconnectable(context, invocation.requestId, operation);
                 }
-                case 'terminal.send': {
-                    if (context.principal.kind === 'paired-device')
-                        throw new CaxriError(
-                            'FORBIDDEN',
-                            'Use mobile.agent.submit for mobile input',
-                        );
-                    const invoke = (signal?: AbortSignal) =>
-                        forwardDomainOperation(
-                            { method: 'terminal.sendInternal', params: request.params },
-                            signal,
-                        );
+                case 'terminal.send':
                     return invokeTerminalSend({
-                        invoke,
+                        invoke: () =>
+                            forwardDomainOperation({
+                                method: 'terminal.sendInternal',
+                                params: request.params,
+                            }),
                         logger,
                         parameters: request.params,
                         principalKind: context.principal.kind,
                     });
-                }
                 case 'agent.message.send':
                     return sendAgentMessage({
                         agentEndpoints,

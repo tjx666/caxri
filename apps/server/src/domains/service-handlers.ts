@@ -150,7 +150,7 @@ type ServiceHandlerMethods =
     | 'session.refreshDeliveryOnFocus'
     | 'session.search'
     | 'session.searchPreview'
-    | 'session.importConversation'
+    | 'session.importConversationInternal'
     | 'session.agentHistory'
     | 'session.reopenConversation'
     | 'session.conversationReference'
@@ -404,8 +404,8 @@ export function createServiceHandlers(services: {
         'files.write': ({ sessionId, path, content }) => files.write(sessionId, path, content),
         'session.search': (parameters, signal) => sessionSearch.search(parameters, signal),
         'session.searchPreview': (parameters, signal) => sessionSearch.preview(parameters, signal),
-        'session.importConversation': ({ provider, agentSessionId }) =>
-            sessionSearch.importConversation(provider, agentSessionId),
+        'session.importConversationInternal': ({ provider, agentSessionId, projectScope }) =>
+            sessionSearch.importConversation(provider, agentSessionId, projectScope),
         'session.agentHistory': ({ sessionId }, signal) =>
             sessionAgentHistory.list(sessionId, signal),
         'session.reopenConversation': ({ sessionId, provider, agentSessionId }) =>

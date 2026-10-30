@@ -8,7 +8,7 @@ import { CaxriError } from '@caxri/protocol';
 
 import type { AgentEndpointRegistry } from './agent-endpoints/registry';
 import type { MobileAccessController } from './mobile/access-controller-contract';
-import { assertProjectScope } from './principal-project-scope';
+import { assertProjectScope, projectScope } from './principal-project-scope';
 import { dispatchIdFor } from './request-cancellation';
 
 type AgentCommandRequest = Extract<
@@ -187,6 +187,26 @@ export function agentSessionRequest(
             sessionId: request.params.sessionId,
             operation,
         },
+    };
+}
+
+type SessionImportRequest = Extract<ServerRequest, { method: 'session.importConversation' }>;
+
+/**
+ * Binds a conversation import to the caller's Project scope. The owner's clients import anywhere, adding a Project when
+ * none holds the folder; an Agent imports only into a Project it already works in, so "restore that conversation" from
+ * its own Session works without widening its scope. Every other principal is refused.
+ */
+export function sessionImportRequest(
+    request: SessionImportRequest,
+    context: CommandExecutionContext,
+): ServerOperationRequest {
+    const { kind } = context.principal;
+    if (kind !== 'desktop' && kind !== 'human-cli' && kind !== 'agent')
+        throw new CaxriError('FORBIDDEN', 'Only the owner or an Agent imports a conversation');
+    return {
+        method: 'session.importConversationInternal',
+        params: { ...request.params, projectScope: projectScope(context) },
     };
 }
 

@@ -2,10 +2,16 @@ import { lstat, realpath } from 'node:fs/promises';
 import { sep } from 'node:path';
 
 import type { AgentProvider, ProjectRecord, SessionRecord, TerminalRecord } from '@caxri/protocol';
-import { isTopLevelProject } from '@caxri/protocol';
+import { CaxriError, isTopLevelProject } from '@caxri/protocol';
 
 import type { CaxriDatabase } from '../db';
 import type { GitWorktreeTopology } from '../git';
+
+/**
+ * Why an Agent's import was refused, and the way forward it can relay to the user.
+ */
+export const OUTSIDE_SCOPE_MESSAGE =
+    'This conversation ran outside your Project; ask the user to import it from Caxri';
 
 /**
  * The deepest visible top-level Project whose root contains `path`.
@@ -102,19 +108,24 @@ export function isInside(path: string, root: string): boolean {
  * opening the Session resumes it. Reuses the Project containing the conversation's folder, else the Project whose
  * linked worktree it ran in (with that worktree as the Workbench Root), or adds a Project for it. The transcript's
  * title starts as the Session's automatic title, so naming the conversation later still replaces it. Selection stays
- * where the user is. Returns `undefined` when the folder no longer resolves to a top-level Project root.
+ * where the user is. Returns `undefined` when the folder no longer resolves to a top-level Project root. With a
+ * `projectScope`, throws `FORBIDDEN` before creating anything when the conversation would land outside those Projects,
+ * including when it would need a new top-level Project.
  */
 export async function importExternalConversation(
     database: CaxriDatabase,
     conversation: ImportableConversation,
     resolveProjectRoot: (path: string) => Promise<string>,
     readTopology?: WorktreeTopologyReader,
+    projectScope: readonly string[] | null = null,
 ): Promise<{ session: SessionRecord; terminal: TerminalRecord } | undefined> {
     const projects = database.listVisibleProjects();
     const containing = await conversationProject(projects, conversation.cwd);
     let placement: ConversationPlacement | undefined = containing && { project: containing };
     if (!placement && readTopology)
         placement = await worktreePlacement(projects, conversation.cwd, readTopology);
+    if (projectScope && (!placement || !projectScope.includes(placement.project.id)))
+        throw new CaxriError('FORBIDDEN', OUTSIDE_SCOPE_MESSAGE);
     if (!placement) {
         let rootPath: string;
         try {

@@ -120,7 +120,9 @@ The owner's own CLI (not an Agent Endpoint or a paired phone) can also find and 
 searches every provider's history like Desktop's Session search, `session import <key>` adds an
 `external` result (its `key`, `<provider>:<conversation-id>`) as a Session, and
 `session rename <id> --title <text>`, `session pin <id>`, and `session unpin <id>` match the
-sidebar's actions.
+sidebar's actions. An Agent may also run `session import` for a conversation that ran inside its own
+Project, so a user can ask it to restore one; a conversation elsewhere, or one that would need a new
+top-level Project, is `FORBIDDEN` and stays the owner's to import.
 
 `request <method> [--params <json|->]` is the generic entry for any Server method the caller is already
 authorized for and that has no dedicated command, for example `caxri request session.query --params
