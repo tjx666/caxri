@@ -1,15 +1,20 @@
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 
 import type { AgentChatUsage } from '@caxri/protocol';
 import { Gauge } from 'lucide-react-native';
 
 import { BottomSheet, SheetCancel, SheetTitle } from '../../components/bottom-sheet';
-import { Chip } from '../../components/chip';
 import { Meter } from '../../components/meter';
 import { useTranslation } from '../../i18n';
-import { mobileSpace, mobileType } from '../../theme/scale';
+import {
+    chipHitSlop,
+    mobileControl,
+    mobileSpace,
+    mobileType,
+    PRESSED_OPACITY,
+} from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
 import { AgentChatPlanLimitsSection } from './agent-chat-plan-limits-section';
 import type { AgentChatSessionUsageRow } from './agent-chat-session-usage';
@@ -19,10 +24,10 @@ import { sheetStyles } from './agent-chat-sheet-styles';
 import { useAgentChatUsage } from './use-agent-chat-plan-limits';
 
 /**
- * The ring Desktop's composer meter draws, at the phone's trigger size: a faint full track and an arc of the share
- * used.
+ * The ring Desktop's composer meter draws, at the phone's trigger size: a full track and an arc of the share used. The
+ * track stays clearly visible so a low share still reads as a gauge, not as a spinner's lone arc.
  */
-const RING_SIZE = 16;
+const RING_SIZE = 18;
 const RING_STROKE = 2;
 const RING_RADIUS = (RING_SIZE - RING_STROKE) / 2;
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
@@ -33,7 +38,15 @@ const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 const CLOCK_TICK_MS = 30_000;
 
 const styles = StyleSheet.create({
-    trigger: { marginLeft: 'auto' },
+    trigger: {
+        alignItems: 'center',
+        flexDirection: 'row',
+        gap: mobileSpace.xs,
+        marginLeft: 'auto',
+        minHeight: mobileControl.chip,
+        paddingHorizontal: mobileSpace.sm,
+    },
+    percent: { ...mobileType.meta, fontVariant: ['tabular-nums'] },
     row: {
         gap: mobileSpace.xxs,
         paddingHorizontal: mobileSpace.md,
@@ -56,7 +69,7 @@ const ContextRing = ({ color, used }: { color: string; used: number }) => (
             cx={RING_SIZE / 2}
             cy={RING_SIZE / 2}
             fill="none"
-            opacity={0.3}
+            opacity={0.45}
             r={RING_RADIUS}
             stroke={color}
             strokeWidth={RING_STROKE}
@@ -215,7 +228,8 @@ export const AgentChatSessionUsageSheet = ({
  * until the context reaches the share where compacting is suggested, then the warning tone with the percentage. Before
  * the provider reports a window size (or for one that never does) a gauge stands in once the conversation recorded
  * usage, so tokens and cost stay one tap away. Tapping opens the Session usage sheet. Nothing renders before the first
- * usage read, which also carries the plan limits.
+ * usage read, which also carries the plan limits. It is drawn bare, without the Chip fill the model and permission
+ * settings use, so a readout does not weigh the same as a choice; the hit slop keeps the 48dp touch target.
  */
 export const AgentChatSessionUsageButton = ({
     terminalId,
@@ -234,23 +248,27 @@ export const AgentChatSessionUsageButton = ({
     const color = ring?.isWarning ? theme.warning : theme.muted;
     return (
         <>
-            <View style={styles.trigger}>
-                <Chip
-                    accessibilityHint={t('chat.usage.openHint')}
-                    accessibilityLabel={ring?.accessibilityLabel ?? t('chat.usage.open')}
-                    label={ring?.isWarning ? `${ring.percent}%` : undefined}
-                    onPress={() => setOpen(true)}
-                    testID="agent-chat-usage-button"
-                    theme={theme}
-                    tint={color}
-                >
-                    {ring ? (
-                        <ContextRing color={color} used={ring.used} />
-                    ) : (
-                        <Gauge color={color} size={16} />
-                    )}
-                </Chip>
-            </View>
+            <Pressable
+                accessibilityHint={t('chat.usage.openHint')}
+                accessibilityLabel={ring?.accessibilityLabel ?? t('chat.usage.open')}
+                accessibilityRole="button"
+                hitSlop={chipHitSlop}
+                onPress={() => setOpen(true)}
+                style={({ pressed }) => [
+                    styles.trigger,
+                    { opacity: pressed ? PRESSED_OPACITY : 1 },
+                ]}
+                testID="agent-chat-usage-button"
+            >
+                {ring ? (
+                    <ContextRing color={color} used={ring.used} />
+                ) : (
+                    <Gauge color={color} size={RING_SIZE} />
+                )}
+                {ring?.isWarning ? (
+                    <Text style={[styles.percent, { color }]}>{`${ring.percent}%`}</Text>
+                ) : null}
+            </Pressable>
             {isOpen ? (
                 <AgentChatSessionUsageSheet
                     onClose={() => setOpen(false)}

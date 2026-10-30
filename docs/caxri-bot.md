@@ -534,8 +534,8 @@ and `resolve`. Only the owner's window can `reply`, `dismiss`, and `merge`: thos
 commands Caxri Bot window admits, and the CLI exposes none of them, so Caxri Bot can
 never merge its own report.
 
-**Mobile.** A paired phone with the `control` role opens the same list as "Needs you" from the
-computer menu on its Sessions screen. It shows the open items, questions first, with Desktop's kind
+**Mobile.** A paired phone with the `control` role opens the same list from a `Caxri Bot · N items need
+you` row under the Project filters on its Sessions screen; the row appears only while items are open. It shows the open items, questions first, with Desktop's kind
 labels, the pull request as `repo#number`, Caxri Bot's Markdown, numbered options, and the
 owner's replies with the same read state. Reply on a card opens a composer; the reply is stored
 with source `mobile` and reaches Caxri Bot exactly like a Desktop reply. Merge and Dismiss stay

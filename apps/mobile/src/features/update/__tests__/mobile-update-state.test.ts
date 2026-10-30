@@ -6,6 +6,8 @@ import {
     installMobileUpdate,
     mobileUpdateBannerKind,
     mobileUpdateBannerView,
+    mobileUpdateCheckLabel,
+    mobileUpdateCheckStatus,
     mobileUpdateNoticeView,
     mobileUpdateSizeLabel,
     mobileUpdateStatusLabel,
@@ -294,5 +296,44 @@ describe('mobileUpdateNoticeView', () => {
             testID: 'mobile-version-mismatch',
         });
         expect(notice.message).toContain('Update required');
+    });
+});
+
+describe('mobileUpdateCheckStatus', () => {
+    const idle = {
+        canUpdate: true,
+        hasAnswer: false,
+        isError: false,
+        isFetching: false,
+        update: undefined,
+    };
+
+    it('says the build is current once Desktop answered without a newer one', () => {
+        expect(mobileUpdateCheckStatus({ ...idle, hasAnswer: true })).toBe('upToDate');
+        expect(mobileUpdateCheckLabel('upToDate')).toBe('Up to date');
+    });
+
+    it('stays silent before the first answer and on builds that never ask', () => {
+        expect(mobileUpdateCheckStatus(idle)).toBe('idle');
+        expect(mobileUpdateCheckStatus({ ...idle, canUpdate: false, hasAnswer: true })).toBe(
+            'unsupported',
+        );
+        expect(mobileUpdateCheckLabel('idle')).toBeUndefined();
+        expect(mobileUpdateCheckLabel('unsupported')).toBeUndefined();
+    });
+
+    it('shows a manual check in flight over a previous answer, and its failure', () => {
+        expect(mobileUpdateCheckStatus({ ...idle, hasAnswer: true, isFetching: true })).toBe(
+            'checking',
+        );
+        expect(mobileUpdateCheckStatus({ ...idle, hasAnswer: true, isError: true })).toBe('failed');
+        expect(mobileUpdateCheckLabel('failed')).toBe("Couldn't check");
+    });
+
+    it('leaves a newer build to the update row', () => {
+        expect(mobileUpdateCheckStatus({ ...idle, isFetching: true, update: bundle })).toBe(
+            'available',
+        );
+        expect(mobileUpdateCheckLabel('available')).toBeUndefined();
     });
 });

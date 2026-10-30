@@ -8,7 +8,6 @@ import {
     EllipsisVertical,
     FolderPlus,
     Gauge,
-    MessageSquareWarning,
     Settings,
 } from 'lucide-react-native';
 
@@ -19,7 +18,7 @@ import { usePopoverAnchor } from '../../../components/use-popover-anchor';
 import { useTranslation } from '../../../i18n';
 import { mobileSpace, mobileType } from '../../../theme/scale';
 import type { MobileTheme } from '../../../theme/tokens';
-import type { MobileConnectionStatus } from '../../connection/connection-state';
+import { BotInboxHomeEntry } from '../../bot-inbox/bot-inbox-home-entry';
 import type { useSessionPolling } from '../hooks/use-session-polling';
 
 type Project = ReturnType<typeof useSessionPolling>['projects'][number];
@@ -32,21 +31,22 @@ const styles = StyleSheet.create({
     header: {
         alignItems: 'center',
         flexDirection: 'row',
-        justifyContent: 'space-between',
-        minHeight: 60,
-        paddingLeft: mobileSpace.lg,
         paddingRight: mobileSpace.xs,
+        paddingTop: mobileSpace.sm,
     },
-    heading: { ...mobileType.title, flexShrink: 1 },
-    connectionDot: { borderRadius: 4, height: 8, marginRight: mobileSpace.md, width: 8 },
-    headingRow: { alignItems: 'center', flex: 1, flexDirection: 'row', minWidth: 0 },
+    menuCaption: {
+        ...mobileType.meta,
+        paddingBottom: mobileSpace.sm,
+        paddingHorizontal: mobileSpace.lg,
+        paddingTop: mobileSpace.xs,
+    },
     chips: {
         gap: mobileSpace.sm,
         paddingBottom: mobileSpace.sm,
         paddingHorizontal: mobileSpace.lg,
         paddingTop: mobileSpace.xs,
     },
-    chipsScroll: { flexGrow: 0 },
+    chipsScroll: { flex: 1 },
 });
 
 export const SessionHomeHeader = ({
@@ -60,7 +60,6 @@ export const SessionHomeHeader = ({
     onOpenStatus,
     onOpenUsage,
     projects,
-    status,
     theme,
 }: {
     activeProjectId: string | null;
@@ -72,7 +71,8 @@ export const SessionHomeHeader = ({
     onChooseProject: (projectId: string | null) => void;
     onOpenArchived: () => void;
     /**
-     * Present only for a control device: the Bot Inbox spans every Project, beyond a narrower device grant.
+     * Present only for a control device: the Bot Inbox spans every Project, beyond a narrower device grant. Its entry
+     * appears under the filters only while Caxri Bot has raised something.
      */
     onOpenInbox?: () => void;
     onOpenSettings: () => void;
@@ -85,7 +85,6 @@ export const SessionHomeHeader = ({
      */
     onOpenUsage: () => void;
     projects: Project[];
-    status: MobileConnectionStatus;
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
@@ -115,30 +114,16 @@ export const SessionHomeHeader = ({
     return (
         <>
             <View style={styles.header}>
-                <View style={styles.headingRow}>
-                    <View
-                        accessibilityLabel={t(
-                            status === 'connected'
-                                ? 'sessions.home.connected'
-                                : 'sessions.home.notConnected',
-                        )}
-                        accessible
-                        style={[
-                            styles.connectionDot,
-                            {
-                                backgroundColor:
-                                    status === 'connected' ? theme.success : theme.muted,
-                            },
-                        ]}
-                    />
-                    <Text
-                        accessibilityRole="header"
-                        numberOfLines={1}
-                        style={[styles.heading, { color: theme.text }]}
-                    >
-                        {hostDisplayName}
-                    </Text>
-                </View>
+                <FlatList
+                    contentContainerStyle={styles.chips}
+                    data={projectChoices}
+                    horizontal
+                    keyExtractor={(item) => item.id ?? 'all'}
+                    renderItem={renderProject}
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.chipsScroll}
+                    testID="session-project-filters"
+                />
                 <View collapsable={false} ref={menuAnchor}>
                     <IconButton
                         accessibilityHint={t('sessions.home.computerMenuHint')}
@@ -151,24 +136,24 @@ export const SessionHomeHeader = ({
                     />
                 </View>
             </View>
+            {onOpenInbox ? <BotInboxHomeEntry onOpen={onOpenInbox} theme={theme} /> : null}
             <PopoverMenu
                 closeLabel={t('sessions.home.closeComputerMenu')}
                 onClose={closeMenu}
                 placement={menu.placement}
                 theme={theme}
             >
-                {onOpenInbox ? (
-                    <PopoverAction
-                        icon={MessageSquareWarning}
-                        label={t('sessions.home.needsYou')}
-                        onPress={() => {
-                            closeMenu();
-                            onOpenInbox();
-                        }}
-                        testID="bot-inbox-action"
-                        theme={theme}
-                    />
-                ) : null}
+                <Text
+                    accessibilityLabel={t('sessions.home.pairedComputer', {
+                        host: hostDisplayName,
+                    })}
+                    numberOfLines={1}
+                    style={[styles.menuCaption, { color: theme.muted }]}
+                    testID="computer-menu-name"
+                >
+                    {hostDisplayName}
+                </Text>
+                <PopoverDivider theme={theme} />
                 <PopoverAction
                     accessibilityHint={t('usage.openHint')}
                     icon={Gauge}
@@ -227,16 +212,6 @@ export const SessionHomeHeader = ({
                     theme={theme}
                 />
             </PopoverMenu>
-            <FlatList
-                contentContainerStyle={styles.chips}
-                data={projectChoices}
-                horizontal
-                keyExtractor={(item) => item.id ?? 'all'}
-                renderItem={renderProject}
-                showsHorizontalScrollIndicator={false}
-                style={styles.chipsScroll}
-                testID="session-project-filters"
-            />
         </>
     );
 };

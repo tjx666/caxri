@@ -34,12 +34,25 @@ const mobileUpdateCheckResultSchema = z.strictObject({
 });
 
 /**
+ * The public source repository. Release downloads, release notes, and issue reports all live under it.
+ */
+export const CAXRI_REPOSITORY_URL = 'https://github.com/tjx666/caxri';
+
+/**
+ * The public GitHub Release page for `version`, or the latest Release when the version is unknown.
+ */
+export const caxriReleaseUrl = (version: string | undefined): string =>
+    version
+        ? `${CAXRI_REPOSITORY_URL}/releases/tag/v${version}`
+        : `${CAXRI_REPOSITORY_URL}/releases/latest`;
+
+/**
  * The public GitHub Release asset for `version`. Every release publishes the exact release-signed APK it embeds in the
  * Desktop build, so a phone that cannot reach the gateway's HTTP endpoint (a Relay connection) downloads the same bytes
  * there and still verifies them against the sealed MD5.
  */
 export const mobileReleaseApkUrl = (version: string): string =>
-    `https://github.com/tjx666/caxri/releases/download/v${version}/Caxri-Mobile-${version}-android-arm64.apk`;
+    `${CAXRI_REPOSITORY_URL}/releases/download/v${version}/Caxri-Mobile-${version}-android-arm64.apk`;
 
 /**
  * Over a direct connection, `url` is a short-lived plain-HTTP address on the gateway endpoint the phone is already

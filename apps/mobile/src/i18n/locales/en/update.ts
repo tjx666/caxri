@@ -2,6 +2,9 @@ export const update = {
     'update.action': 'Update',
     'update.available': 'Update available',
     'update.availableDetail': 'Version {{version}} from your computer · {{size}}',
+    'update.checkFailed': "Couldn't check",
+    'update.checkHint': 'Asks your computer whether a newer version is available.',
+    'update.checking': 'Checking…',
     'update.downloadIncomplete': 'The download was incomplete. Try again.',
     'update.downloading': 'Downloading {{percent}}%',
     'update.failed':
@@ -16,5 +19,6 @@ export const update = {
     'update.settingsRowHint':
         'Downloads the new version from your computer and opens the Android installer.',
     'update.unreachable': "Couldn't reach your computer for the update.",
+    'update.upToDate': 'Up to date',
     'update.updateTo': 'Update to {{version}}',
 } as const;

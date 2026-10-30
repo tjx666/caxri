@@ -31,7 +31,7 @@ export const useMobileUpdateNotice = (): MobileUpdateNotice | null => {
         isDismissed,
         isRecovering,
         phase,
-        retryCheck,
+        checkNow,
         update,
     } = useMobileUpdate();
     const kind = mobileUpdateBannerKind({
@@ -50,6 +50,6 @@ export const useMobileUpdateNotice = (): MobileUpdateNotice | null => {
         dismiss,
         dismissLabel: t('update.later'),
         kind,
-        run: view.action === 'retry-check' ? retryCheck : install,
+        run: view.action === 'retry-check' ? checkNow : install,
     };
 };
