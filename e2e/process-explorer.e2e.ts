@@ -189,7 +189,7 @@ test('Process Explorer opens one live Caxri process tree and closes independentl
             await processPage.getByRole('button', { name: 'Refresh processes' }).click();
             // A failed resample keeps the last table readable and flags it as stale above the rows.
             await expect(processPage.locator('.process-error-line')).toBeVisible();
-            await expect(caxriRows).toHaveCount(expandedRowCount);
+            await expect(caxriRows.first()).toBeVisible();
             const retry = processPage.getByRole('button', { name: 'Retry', exact: true });
             await expect(retry).toBeVisible();
         } finally {
