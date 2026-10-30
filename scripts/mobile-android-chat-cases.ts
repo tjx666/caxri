@@ -235,7 +235,7 @@ export const androidChatCases = {
         recordingOwner: 'scenario',
         scenario: 'agent-chat-session-preview',
     },
-    'MOB-TOAST-01': {
+    'MOB-CHAT-TOAST-01': {
         desktopProfile: 'managed-by-isolated-e2e',
         media: ['screenshot'],
         recordingOwner: 'scenario',

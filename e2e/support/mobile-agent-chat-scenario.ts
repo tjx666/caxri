@@ -566,7 +566,7 @@ export async function executeMobileAgentChatCase(
             return executeMobileChatLongCopyScenario(environment, artifacts);
         case 'MOB-CHAT-36':
             return executeMobileSessionPreviewScenario(environment, artifacts);
-        case 'MOB-TOAST-01':
+        case 'MOB-CHAT-TOAST-01':
             return executeMobileToastScenario(environment, artifacts);
         case 'MOB-CHAT-LINK-WRAP-01':
             return executeMobileChatInlineLinkScenario(environment, artifacts);

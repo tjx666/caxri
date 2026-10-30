@@ -30,7 +30,7 @@ const waitForNativeText = (serial: string, text: string) =>
     );
 
 /**
- * `MOB-TOAST-01`: result feedback arrives as one transient Toast, never a system dialog. Copy link in the in-app
+ * `MOB-CHAT-TOAST-01`: result feedback arrives as one transient Toast, never a system dialog. Copy link in the in-app
  * browser's menu answers `Link copied`; tapping the preview chip after its server stopped answers `Couldn't open the
  * preview` with the reason beneath it, over the dark app and without a system alert.
  */
