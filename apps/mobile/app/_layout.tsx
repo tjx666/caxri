@@ -9,6 +9,7 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 
 import { RouteErrorScreen } from '../src/components/route-error-screen';
+import { ToastHost } from '../src/components/toast';
 import { MobileClientProvider } from '../src/features/connection/mobile-client-provider';
 import { expoReadCache } from '../src/features/read-cache/expo-read-cache';
 import { ReadCacheContext } from '../src/features/read-cache/read-cache-context';
@@ -73,6 +74,7 @@ export default function RootLayout() {
                                     }}
                                 />
                             </Stack>
+                            <ToastHost />
                         </MobileClientProvider>
                     </ReadCacheContext.Provider>
                 </QueryClientProvider>

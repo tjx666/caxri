@@ -24,6 +24,7 @@ import {
 import { IconButton } from '../../components/icon-button';
 import { PopoverMenu } from '../../components/popover-menu';
 import { ScreenState } from '../../components/screen-state';
+import { showToast } from '../../components/toast-store';
 import { usePopoverAnchor } from '../../components/use-popover-anchor';
 import { useTranslation } from '../../i18n';
 import { openExternalLink } from '../../lib/open-external-link';
@@ -305,7 +306,12 @@ export const InAppBrowserScreen = () => {
                 <MenuAction
                     icon={Copy}
                     label={t('browser.copyLink')}
-                    onPress={() => runMenuAction(() => Clipboard.setStringAsync(page.url))}
+                    onPress={() =>
+                        runMenuAction(async () => {
+                            await Clipboard.setStringAsync(page.url);
+                            showToast('success', t('browser.copied'));
+                        })
+                    }
                     testID="in-app-browser-copy"
                     theme={theme}
                 />

@@ -6,6 +6,7 @@ import * as Clipboard from 'expo-clipboard';
 import { Copy, Pencil, TextCursor } from 'lucide-react-native';
 
 import { BottomSheet, SheetAction, SheetCancel, SheetTitle } from '../../components/bottom-sheet';
+import { showToast } from '../../components/toast-store';
 import { useTranslation } from '../../i18n';
 import { mobileRadius, mobileSpace, mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
@@ -86,6 +87,7 @@ export const ConversationMessageSheet = ({
                                 void run('copy', async (text) => {
                                     await Clipboard.setStringAsync(text);
                                     dismiss();
+                                    showToast('success', t('conversation.message.copied'));
                                 });
                             }}
                             testID="conversation-message-copy"

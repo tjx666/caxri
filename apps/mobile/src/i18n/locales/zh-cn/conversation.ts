@@ -50,6 +50,7 @@ export const conversation: TranslatedNamespace<typeof source> = {
     'conversation.loadingEarlier': '正在加载更早的消息…',
     'conversation.message.actions': '消息操作',
     'conversation.message.close': '关闭消息操作',
+    'conversation.message.copied': '已复制消息',
     'conversation.message.copy': '复制消息',
     'conversation.message.copyFailed': '无法复制消息，请重试。',
     'conversation.message.readFailed': '无法读取整条消息，请重试。',

@@ -80,6 +80,7 @@ import {
 import { executeMobileSessionPinScenario } from './mobile-session-pin-scenario';
 import { executeMobileSessionPreviewScenario } from './mobile-session-preview-scenario';
 import { executeMobileSessionUsageScenario } from './mobile-session-usage-scenario';
+import { executeMobileToastScenario } from './mobile-toast-scenario';
 
 /**
  * Waits for the answered question list's `index`th answer to read `answer`.
@@ -565,6 +566,8 @@ export async function executeMobileAgentChatCase(
             return executeMobileChatLongCopyScenario(environment, artifacts);
         case 'MOB-CHAT-36':
             return executeMobileSessionPreviewScenario(environment, artifacts);
+        case 'MOB-CHAT-TOAST-01':
+            return executeMobileToastScenario(environment, artifacts);
         case 'MOB-CHAT-LINK-WRAP-01':
             return executeMobileChatInlineLinkScenario(environment, artifacts);
         case 'MOB-CHAT-CLIP-REREAD-01':
