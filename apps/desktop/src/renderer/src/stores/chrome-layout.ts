@@ -34,10 +34,10 @@ export const PANEL_MAX_HEIGHT = 900;
 export const PANEL_DEFAULT_HEIGHT = 220;
 
 /**
- * Width of each visible PrimarySidebar/SecondarySidebar resize track in `app.tsx`, and the height of the Panel's
- * horizontal track in `workbench-column.tsx`. Both seams share one thickness so the chrome reads as a single system.
+ * Height of the Panel's horizontal resize track in `workbench-column.tsx`. The PrimarySidebar/SecondarySidebar seams in
+ * `app.tsx` take no width: their hit bands straddle a 0px track (see `PanelDivider`).
  */
-export const PANEL_DIVIDER_WIDTH = 6;
+export const PANEL_DIVIDER_HEIGHT = 6;
 
 /**
  * The main pane must keep at least this much room; see `clampLayoutToViewport`.
@@ -126,15 +126,8 @@ export function clampLayoutToViewport(layout: ChromeLayout, viewportWidth: numbe
     );
     const reservedPrimarySidebar = layout.primarySidebarVisible ? primarySidebarWidth : 0;
     const reservedSecondarySidebar = layout.secondarySidebarVisible ? secondarySidebarWidth : 0;
-    const dividerWidth =
-        Number(layout.primarySidebarVisible) * PANEL_DIVIDER_WIDTH +
-        Number(layout.secondarySidebarVisible) * PANEL_DIVIDER_WIDTH;
     let overflow =
-        reservedPrimarySidebar +
-        reservedSecondarySidebar +
-        dividerWidth +
-        MIN_MAIN_WIDTH -
-        viewportWidth;
+        reservedPrimarySidebar + reservedSecondarySidebar + MIN_MAIN_WIDTH - viewportWidth;
     if (overflow > 0 && layout.secondarySidebarVisible) {
         const shrink = Math.min(overflow, secondarySidebarWidth - SECONDARY_SIDEBAR_MIN_WIDTH);
         secondarySidebarWidth -= shrink;
@@ -155,7 +148,7 @@ export function clampLayoutToViewport(layout: ChromeLayout, viewportWidth: numbe
 export function clampPanelHeight(height: number, viewportHeight: number): number {
     const bounded = clampWidth(height, PANEL_MIN_HEIGHT, PANEL_MAX_HEIGHT);
     if (!Number.isFinite(viewportHeight)) return bounded;
-    const available = viewportHeight - MIN_WORK_SURFACE_HEIGHT - PANEL_DIVIDER_WIDTH;
+    const available = viewportHeight - MIN_WORK_SURFACE_HEIGHT - PANEL_DIVIDER_HEIGHT;
     // A viewport too short for both keeps the panel at its own minimum rather than collapsing it to nothing;
     // the work surface yields instead, matching how the horizontal pass never shrinks a panel past its minimum.
     return Math.max(Math.min(bounded, available), PANEL_MIN_HEIGHT);

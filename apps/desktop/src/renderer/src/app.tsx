@@ -204,17 +204,17 @@ function appShellGridClassName({
     if (isPrimarySidebarVisible && isSecondarySidebarVisible)
         return cn(
             rows,
-            'grid-cols-[var(--primary-sidebar-width,230px)_6px_minmax(320px,1fr)_6px_var(--secondary-sidebar-width,310px)]',
+            'grid-cols-[var(--primary-sidebar-width,230px)_0px_minmax(320px,1fr)_0px_var(--secondary-sidebar-width,310px)]',
         );
     if (isPrimarySidebarVisible)
         return cn(
             rows,
-            'secondary-sidebar-collapsed grid-cols-[var(--primary-sidebar-width,230px)_6px_minmax(320px,1fr)]',
+            'secondary-sidebar-collapsed grid-cols-[var(--primary-sidebar-width,230px)_0px_minmax(320px,1fr)]',
         );
     if (isSecondarySidebarVisible)
         return cn(
             rows,
-            'primary-sidebar-collapsed grid-cols-[minmax(320px,1fr)_6px_var(--secondary-sidebar-width,310px)]',
+            'primary-sidebar-collapsed grid-cols-[minmax(320px,1fr)_0px_var(--secondary-sidebar-width,310px)]',
         );
     return cn(
         rows,
@@ -306,8 +306,8 @@ export function App() {
                             /*
                              * PrimarySidebar/SecondarySidebar widths are device-local UI state (`stores/chrome-layout.ts`), not part
                              * of the Server-synced Session; each panel writes its own custom property directly on
-                             * drag and through React on commit/reset. The 6px tracks are the divider hit areas; see
-                             * `PanelDivider`. `minmax(320px, 1fr)` reserves the main pane so a resize never overlaps it.
+                             * drag and through React on commit/reset. The 0px tracks hold the divider hit bands, which
+                             * straddle the seam; see `PanelDivider`. `minmax(320px, 1fr)` reserves the main pane so a resize never overlaps it.
                              */
                             'app-shell grid h-screen w-screen bg-background',
                             appShellGridClassName({

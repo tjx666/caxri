@@ -11,23 +11,27 @@ const DRAG_CLASS = 'panel-resize-active';
 
 /**
  * The seam is invisible at rest (like VS Code's unset `sideBar.border`), the adjacent `bg-surface`/`bg-background` step
- * alone marks the boundary, while a 6px hit band stays comfortable to grab. The band paints `bg-surface` (not
- * transparent): the grid behind it is `bg-background`, which would otherwise show through as a light stripe where both
- * neighbors are surface-colored chrome (PrimarySidebar title beside the tab strip). Hover/focus/drag reveal a centered
- * hairline using a foreground tint, never `--accent`: the divider is chrome, not the one focus indicator (DESIGN.md
- * "One accent focus per screen").
+ * alone marks the boundary, while a 6px hit band stays comfortable to grab. Hover/focus/drag reveal a centered hairline
+ * using a foreground tint, never `--accent`: the divider is chrome, not the one focus indicator (DESIGN.md "One accent
+ * focus per screen").
  */
 const dividerClassName =
-    'panel-divider relative bg-surface touch-none ' +
+    'panel-divider relative touch-none ' +
     "after:content-[''] after:absolute after:bg-transparent after:pointer-events-none";
 
 /**
  * Axis-specific geometry for the same seam: which side the 6px band is thin on, and which way the revealed hairline
  * stretches. Kept as two whole strings rather than interpolated fragments so Tailwind's scanner sees every class.
+ *
+ * A column seam takes no width: its band straddles the boundary with -3px margins on a 0px track, above both neighbors,
+ * like VS Code's sash. A 6px track painted as sidebar chrome made the sidebar's inner edge read 6px wider than its
+ * outer one, so rows sat visibly off-center against the 8px list padding. The row seam (work surface and Panel) keeps
+ * its 6px track and paints `bg-surface`, because the grid behind it is `bg-background` and would otherwise show through
+ * as a light stripe.
  */
 const axisClassName = {
     horizontal:
-        'h-1.5 min-h-1.5 cursor-row-resize ' +
+        'h-1.5 min-h-1.5 bg-surface cursor-row-resize ' +
         'after:inset-x-0 after:top-1/2 after:h-px after:-translate-y-1/2 ' +
         'hover:after:h-[3px] hover:after:bg-state-handle-hover ' +
         'data-[dragging=true]:after:h-[3px] data-[dragging=true]:after:bg-state-handle-hover ' +
@@ -35,7 +39,7 @@ const axisClassName = {
         'focus-visible:after:bg-state-handle-focus ' +
         'focus-visible:after:shadow-[0_0_0_2px_var(--state-handle-halo)]',
     vertical:
-        'w-1.5 min-w-1.5 cursor-col-resize ' +
+        'z-10 -mx-0.75 w-1.5 min-w-1.5 cursor-col-resize ' +
         'after:inset-y-0 after:left-1/2 after:w-px after:-translate-x-1/2 ' +
         'hover:after:w-[3px] hover:after:bg-state-handle-hover ' +
         'data-[dragging=true]:after:w-[3px] data-[dragging=true]:after:bg-state-handle-hover ' +
