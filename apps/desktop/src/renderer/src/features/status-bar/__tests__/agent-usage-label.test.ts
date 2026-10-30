@@ -9,6 +9,7 @@ import {
     agentUsagePaceNote,
     agentUsageResetCreditsNote,
     agentUsageResetCreditsValue,
+    agentUsageWarningReason,
 } from '../agent-usage-label';
 
 const NOW = Date.parse('2026-10-11T12:00:00.000Z');
@@ -198,8 +199,53 @@ describe('agent usage limit tone', () => {
     });
 
     it('follows only the windows the chip shows', () => {
-        expect(agentUsageLimitTone(withWindows(95, 40), NOW, DEFAULT_WINDOWS)).toBeUndefined();
+        expect(agentUsageLimitTone(withWindows(95, 40), NOW, { limitWindows: 'weekly' })).toBe(
+            undefined,
+        );
+        expect(agentUsageLimitTone(withWindows(10, 95), NOW, { limitWindows: 'fiveHour' })).toBe(
+            undefined,
+        );
         expect(agentUsageLimitTone(withWindows(10, 95), NOW, DEFAULT_WINDOWS)).toBe('warning');
+    });
+
+    describe('auto mode on a five-hour-bound plan', () => {
+        const proUsage = (fiveHour: number, weekly: number) =>
+            readout({
+                provider: 'claude',
+                limit: {
+                    provider: 'claude',
+                    planType: 'pro',
+                    observedAt: NOW,
+                    windows: [
+                        { windowMinutes: 10_080, usedPercent: weekly, resetsAt: NOW + 86_400_000 },
+                        { windowMinutes: 300, usedPercent: fiveHour, resetsAt: NOW + 3_600_000 },
+                    ],
+                },
+            });
+
+        it('promotes a nearly spent weekly window into the chip text so colour and text agree', () => {
+            const usage = proUsage(10, 97);
+            expect(agentUsageLabel(usage, NOW, DEFAULT_WINDOWS, translate)).toBe(
+                '1.2M · $3.40 · 5h 90% left · wk 3% left',
+            );
+            expect(agentUsageLimitTone(usage, NOW, DEFAULT_WINDOWS)).toBe('warning');
+            // 97% used one day into the week also projects past the limit, so both causes are named.
+            expect(agentUsageWarningReason(usage, NOW, DEFAULT_WINDOWS, translate)).toBe(
+                'a rate limit is nearly used up; a rate limit will run out before it resets',
+            );
+            expect(agentUsageWarningReason(usage, NOW, DEFAULT_WINDOWS, translate, true)).toBe(
+                'a rate limit is nearly used up',
+            );
+        });
+
+        it('keeps showing only the five-hour window while the week has room', () => {
+            const usage = proUsage(10, 50);
+            expect(agentUsageLabel(usage, NOW, DEFAULT_WINDOWS, translate)).toBe(
+                '1.2M · $3.40 · 5h 90% left',
+            );
+            expect(agentUsageLimitTone(usage, NOW, DEFAULT_WINDOWS)).toBeUndefined();
+            expect(agentUsageWarningReason(usage, NOW, DEFAULT_WINDOWS, translate)).toBeUndefined();
+        });
     });
 
     it('has no tone without a live window', () => {

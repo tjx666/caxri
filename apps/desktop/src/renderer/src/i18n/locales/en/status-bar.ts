@@ -64,6 +64,11 @@ export const statusBar = {
     'statusBar.usage.listSeparator': ', ',
     'statusBar.usage.tokensSummary': '{{total}}: {{parts}}',
     'statusBar.usage.ariaLabel': 'Open Usage — {{agent}} conversation usage: {{label}}',
+    'statusBar.usage.ariaLabelWarning':
+        'Open Usage — {{agent}} conversation usage: {{label}}. Warning: {{reason}}',
+    'statusBar.usage.warningReason.nearlySpent': 'a rate limit is nearly used up',
+    'statusBar.usage.warningReason.pace': 'a rate limit will run out before it resets',
+    'statusBar.usage.warningReason.creditExpiring': 'a banked reset is about to expire',
     'statusBar.usage.eyebrow': '{{agent}} conversation usage',
     'statusBar.usage.tokens': 'Tokens',
     'statusBar.usage.estimatedCost': 'Est. cost',
@@ -126,6 +131,7 @@ export const statusBar = {
     'statusBar.botInbox.descriptionOther':
         'Open Inbox: {{count}} Caxri Bot items need your answer or merge.',
     'statusBar.environmentMonitor.label': 'Environment warning',
+    'statusBar.environmentMonitor.clickToOpen': 'Click to open Environment',
     'statusBar.environmentMonitor.ariaLabel': 'Open Environment: {{count}} warnings',
     'statusBar.environmentMonitor.issue.publicIpChanged':
         'The public IP changed during this launch.',

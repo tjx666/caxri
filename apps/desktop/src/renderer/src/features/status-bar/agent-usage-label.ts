@@ -10,7 +10,7 @@ import {
     remainingLimitPercent,
 } from '@caxri/protocol';
 
-import type { Translate } from '../../i18n';
+import type { Translate, TranslationKey } from '../../i18n';
 import { formatCount } from '../../lib/locale-format';
 import {
     localizedLimitReset,
@@ -46,9 +46,17 @@ function isFiveHourBoundPlan(limit: UsageLimit | undefined): boolean {
 }
 
 /**
+ * Whether a window is at or past the share where the Usage page's limit bars turn to warning.
+ */
+function isNearlySpentWindow(window: { usedPercent: number }): boolean {
+    return Math.round(window.usedPercent) >= LIMIT_WARNING_PERCENT;
+}
+
+/**
  * The live limit windows the chip itself shows: {@link currentLimitWindows} filtered by the Setting. `auto` shows the
  * 5-hour window for {@link isFiveHourBoundPlan} plans and every other window otherwise, and falls back to every live
- * window when its pick has none, so a reading without a 5-hour window still shows its weekly one.
+ * window when its pick has none, so a reading without a 5-hour window still shows its weekly one. In `auto`, a live
+ * window at or over the warning threshold is added to the pick, so the chip text never hides the reason it warns.
  */
 function agentUsageChipWindows(
     limit: UsageLimit | undefined,
@@ -68,7 +76,12 @@ function agentUsageChipWindows(
         case 'auto': {
             const isFiveHourBound = isFiveHourBoundPlan(limit);
             const picked = windows.filter((window) => isFiveHour(window) === isFiveHourBound);
-            return picked.length > 0 ? picked : windows;
+            if (picked.length === 0) return windows;
+            // A nearly spent window the pick left out is promoted into the chip so its colour and its text agree: a
+            // Pro or Max 5x chip showing only `5h` must not stay silent while the week is almost gone.
+            return windows.filter(
+                (window) => picked.includes(window) || isNearlySpentWindow(window),
+            );
         }
     }
 }
@@ -130,18 +143,57 @@ export function agentUsageLimitTone(
     options: AgentUsageChipOptions,
     isPaceDismissed = false,
 ): AgentUsageLimitTone | undefined {
+    const causes = agentUsageWarningCauses(readout, now, options, isPaceDismissed);
+    return causes.length > 0 ? 'warning' : undefined;
+}
+
+/**
+ * Why the chip warns, in display order. {@link agentUsageLimitTone} and {@link agentUsageWarningReason} share it so the
+ * colour and the screen-reader text can never disagree.
+ */
+type AgentUsageWarningCause = 'nearlySpent' | 'pace' | 'creditExpiring';
+
+function agentUsageWarningCauses(
+    readout: AgentUsageReadout,
+    now: number,
+    options: AgentUsageChipOptions,
+    isPaceDismissed: boolean,
+): AgentUsageWarningCause[] {
     const windows = agentUsageChipWindows(readout.limit, now, options);
-    const isNearlySpent = windows.some(
-        (window) => Math.round(window.usedPercent) >= LIMIT_WARNING_PERCENT,
-    );
+    const causes: AgentUsageWarningCause[] = [];
+    if (windows.some((window) => isNearlySpentWindow(window))) causes.push('nearlySpent');
     // Only a window the chip shows may colour it, so a 5-hour-only chip never warns about the week it does not show.
     const shortfall = isPaceDismissed ? undefined : limitPaceShortfall(readout.limit, now);
-    const isAheadOfPace =
+    if (
         shortfall !== undefined &&
-        windows.some((window) => window.windowMinutes === shortfall.window.windowMinutes);
+        windows.some((window) => window.windowMinutes === shortfall.window.windowMinutes)
+    )
+        causes.push('pace');
     // A banked reset that is about to expire is lost unless the user acts, so the chip asks for a glance.
-    const isCreditExpiring = isResetCreditExpiringSoon(readout.limit, now);
-    return isNearlySpent || isAheadOfPace || isCreditExpiring ? 'warning' : undefined;
+    if (isResetCreditExpiringSoon(readout.limit, now)) causes.push('creditExpiring');
+    return causes;
+}
+
+const WARNING_REASON_KEYS = {
+    nearlySpent: 'statusBar.usage.warningReason.nearlySpent',
+    pace: 'statusBar.usage.warningReason.pace',
+    creditExpiring: 'statusBar.usage.warningReason.creditExpiring',
+} as const satisfies Record<AgentUsageWarningCause, TranslationKey>;
+
+/**
+ * The plain-words reason the chip is coloured, for its accessible name, since the colour alone reaches no screen
+ * reader. Undefined while the chip is not warning.
+ */
+export function agentUsageWarningReason(
+    readout: AgentUsageReadout,
+    now: number,
+    options: AgentUsageChipOptions,
+    t: Translate,
+    isPaceDismissed = false,
+): string | undefined {
+    const causes = agentUsageWarningCauses(readout, now, options, isPaceDismissed);
+    if (causes.length === 0) return undefined;
+    return causes.map((cause) => t(WARNING_REASON_KEYS[cause])).join('; ');
 }
 
 /**

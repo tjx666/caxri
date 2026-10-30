@@ -65,7 +65,7 @@ test('Process Explorer opens one live Caxri process tree and closes independentl
         await expect(summary).toContainText(/CPU [\d.]+%/);
         await expect(summary).toContainText(/Memory [\d.]+ [KMG]B \/ [\d.]+ [KMG]B/);
         await expect(summary).toContainText(/Processes \d+/);
-        await expect(summary).toContainText(/PTY \d+ \/ \d+/);
+        await expect(summary).toContainText(/Terminal slots \d+ \/ \d+/);
         /**
          * Caxri's own processes read as role labels, never artifact paths, and the Terminal the Session runs is grouped
          * under that Session instead of nested five levels deep under Main.
@@ -88,7 +88,7 @@ test('Process Explorer opens one live Caxri process tree and closes independentl
             '.process-row:has(.process-name-cell[data-process-name="zsh"], .process-name-cell[data-process-name="bash"], .process-name-cell[data-process-name="sh"])',
         );
         await expect(shellRow).toHaveCount(0);
-        // Name, CPU, memory, then PTY: the Terminal row counts at least its own PTY, held by Terminal Host.
+        // Name, CPU, memory, then Slots: the Terminal row counts at least its own PTY, held by Terminal Host.
         await expect(terminalRow.getByRole('gridcell').nth(3)).toHaveText(/^[1-9]\d*$/);
         await terminalRow.click();
         await expect(terminalRow).toHaveAttribute('aria-expanded', 'true');
@@ -457,18 +457,18 @@ test('PTY alert warns near the machine limit, opens Process Explorer, and clears
         const processPage = running.app.windows().find((window) => window !== page)!;
         await processPage.waitForLoadState('domcontentloaded');
         const summary = processPage.getByRole('region', { name: 'Resource summary' });
-        await expect(summary).toContainText('PTY 450 / 511');
-        await expect(summary).toContainText('nearly out of PTY slots');
+        await expect(summary).toContainText('Terminal slots 450 / 511');
+        await expect(summary).toContainText('nearly out of Terminal slots');
         await processPage.screenshot({ path: test.info().outputPath('pty-summary-high.png') });
 
         // 400 of 511 is still above the 75% clear line, so the notice stays; 300 clears it.
         await injectReading({ inUse: 400, limit: 511 });
-        await expect(summary).toContainText('PTY 400 / 511');
+        await expect(summary).toContainText('Terminal slots 400 / 511');
         await expect(alert).toHaveCount(1);
         await injectReading({ inUse: 300, limit: 511 });
         await expect(alert).toHaveCount(0);
-        await expect(summary).toContainText('PTY 300 / 511');
-        await expect(summary).not.toContainText('nearly out of PTY slots');
+        await expect(summary).toContainText('Terminal slots 300 / 511');
+        await expect(summary).not.toContainText('nearly out of Terminal slots');
     } finally {
         try {
             await running.app.close();

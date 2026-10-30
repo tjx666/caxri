@@ -9,6 +9,7 @@ export const environment: TranslatedNamespace<typeof source> = {
     'environment.checkNow': '立即检查',
     'environment.useCurrentIp': '使用当前 IP',
     'environment.actionFailed': '无法更新环境信息',
+    'environment.loadFailed': '无法读取环境信息，请重试。',
     'environment.loading': '正在读取环境信息…',
 
     'environment.current.title': '当前出口',

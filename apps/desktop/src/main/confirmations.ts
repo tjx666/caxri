@@ -501,7 +501,10 @@ function revertPreviewDetail(preview?: RevertPreview, isFailed?: boolean): strin
 
 /**
  * "Edit from here" with file restore: the provider puts back the files the removed turns changed, which overwrites the
- * current contents, the user's own edits since included. Cancel is the default so Enter never reverts files.
+ * current contents, the user's own edits since included. Return confirms the asked action (reverting files) and Escape
+ * cancels, per the file-level rule; the sheet lists the affected files so the choice is informed. The same sheet also
+ * serves "Restore code to here", where reverting is the whole request, so it offers no "edit without restoring"
+ * choice.
  */
 export function revertAgentChatFilesPrompt({
     providerName,
