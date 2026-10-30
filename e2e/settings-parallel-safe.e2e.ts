@@ -247,7 +247,7 @@ test('Settings opens before the first Project exists and closes back to the Welc
         testRootPath: root,
     });
     try {
-        const welcome = running.page.getByRole('heading', { name: 'Project-first development.' });
+        const welcome = running.page.locator('[data-workbench-welcome]');
         await expect(welcome).toBeVisible();
         await running.page.keyboard.press('Meta+,');
         const settingsPage = running.page.locator('[data-settings-page]');

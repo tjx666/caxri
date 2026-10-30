@@ -167,17 +167,20 @@ describe('buildAgentChatTimeline', () => {
         expect(artifactsOf(buildAgentChatTimeline([...items], turns, undefined).at(2))).toBe(final);
     });
 
-    it("carries a finished turn's metrics on its final reply and keeps the entry across an equal rebuild", () => {
+    it("shows a finished turn's metrics once, on its fold row or on the reply of a turn with nothing to fold", () => {
         const metrics = {
             outputTokens: 300,
             generationMs: 3_000,
+            speed: 'fast' as const,
             costUsd: 0.42,
             requests: 3,
             totalTokens: 9_000,
         };
+        const answered = { ...metrics, requests: 1, totalTokens: 900 };
         const turns: AgentChatTurn[] = [
             { id: 't1', status: 'completed', metrics },
-            { id: 't2', status: 'running' },
+            { id: 't2', status: 'completed', metrics: answered },
+            { id: 't3', status: 'running' },
         ];
         const items = [
             user('u1', 't1'),
@@ -186,6 +189,8 @@ describe('buildAgentChatTimeline', () => {
             reply('a1', 't1'),
             user('u2', 't2'),
             reply('a2', 't2'),
+            user('u3', 't3'),
+            reply('a3', 't3'),
         ];
         const metricsById = (entries: readonly AgentChatTimelineEntry[]) =>
             Object.fromEntries(
@@ -193,23 +198,24 @@ describe('buildAgentChatTimeline', () => {
                     entry.kind === 'item' && entry.metrics ? [[entry.item.id, entry.metrics]] : [],
                 ),
             );
-        const entries = buildAgentChatTimeline(items, turns, 't2');
-        expect(metricsById(entries)).toEqual({ a1: metrics });
-        // The next `state` patch hands over a fresh but equal metrics object: the reply entry stays the same object.
-        const rebuilt = buildAgentChatTimeline(
-            items,
-            [{ ...turns[0], metrics: { ...metrics } }, turns[1]],
-            't2',
-        );
-        const final = (list: readonly AgentChatTimelineEntry[]) =>
-            list.find((entry) => entry.kind === 'item' && entry.item.id === 'a1');
-        expect(final(rebuilt)).toBe(final(entries));
-        /**
-         * The fold row that closes the turn carries the same record, and survives the equal rebuild too.
-         */
+        const entries = buildAgentChatTimeline(items, turns, 't3');
+        expect(metricsById(entries)).toEqual({ a2: answered });
         const fold = (list: readonly AgentChatTimelineEntry[]) =>
             list.find((entry) => entry.kind === 'turn');
         expect(fold(entries)).toMatchObject({ metrics });
+        // The next `state` patch hands over fresh but equal metrics objects: both entries stay the same objects.
+        const rebuilt = buildAgentChatTimeline(
+            items,
+            [
+                { ...turns[0], metrics: { ...metrics } },
+                { ...turns[1], metrics: { ...answered } },
+                turns[2],
+            ],
+            't3',
+        );
+        const answer = (list: readonly AgentChatTimelineEntry[]) =>
+            list.find((entry) => entry.kind === 'item' && entry.item.id === 'a2');
+        expect(answer(rebuilt)).toBe(answer(entries));
         expect(fold(rebuilt)).toBe(fold(entries));
     });
 

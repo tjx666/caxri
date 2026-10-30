@@ -1,11 +1,5 @@
 export const workbench = {
-    'workbench.welcome.title': 'Project-first development.',
-    'workbench.welcome.description':
-        'Add a folder as a Project, then keep every Agent and Shell Session together beneath it.',
     'workbench.welcome.addProject': 'Add Project',
-    'workbench.welcome.returningTitle': 'Pick up where you left off.',
-    'workbench.welcome.returningDescription':
-        'Start a new Session in {{project}}, or add another folder as a Project.',
     'workbench.welcome.newSession': 'New Session in {{project}}',
     'workbench.welcome.commandPalette': 'Command Palette',
     'workbench.welcome.keyboardShortcuts': 'Keyboard Shortcuts',

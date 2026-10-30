@@ -53,6 +53,8 @@ export const agentChatTimeline = {
     'agentChat.message.sending': 'Sending…',
     'agentChat.message.typeToSend': 'Type a message to send',
     'agentChat.message.steered': 'Steered',
+    'agentChat.message.steeredHint':
+        'Steered: sent while the Agent was working, so it joined the running turn',
     'agentChat.message.copy': 'Copy message',
     'agentChat.message.turnCost': 'Estimated cost of this turn at API list prices: {{cost}}',
     'agentChat.message.showLess': 'Show less',
@@ -112,6 +114,7 @@ export const agentChatTimeline = {
     'agentChat.fold.finishedAt': 'Finished {{time}}',
     'agentChat.fold.startedAt': 'Started {{time}}',
     'agentChat.fold.subagent': 'Subagent',
+    'agentChat.fold.subagents': 'Subagents in this turn: {{count}}',
     'agentChat.fold.openSubagent': 'Open subagent {{name}}',
     'agentChat.fold.showSubagent': 'Show subagent {{name}} in this turn',
     'agentChat.questions.askingOne': 'Asking a question',

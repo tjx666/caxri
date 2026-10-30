@@ -12,8 +12,7 @@ export const themeSettingsSpec = [
         kind: 'boolean',
         key: 'workbench.theme.followSystem',
         title: 'Follow system appearance',
-        description:
-            'Uses the light theme when the system appearance is light and the dark theme when it is dark, switching live. Choosing a single theme in the Theme tab turns this off.',
+        description: 'Switch between the light and dark theme with macOS.',
         category: 'general',
         keywords: ['theme', 'appearance', 'dark', 'light', 'auto', 'system', 'mode', 'color'],
         default: false,
@@ -22,7 +21,7 @@ export const themeSettingsSpec = [
         kind: 'enum',
         key: 'workbench.theme.light',
         title: 'Light theme',
-        description: 'Theme used while the system appearance is light',
+        description: 'Used while macOS is in light mode.',
         category: 'general',
         keywords: ['theme', 'appearance', 'light', 'preferred', 'color'],
         options: [
@@ -35,7 +34,7 @@ export const themeSettingsSpec = [
         kind: 'enum',
         key: 'workbench.theme.dark',
         title: 'Dark theme',
-        description: 'Theme used while the system appearance is dark',
+        description: 'Used while macOS is in dark mode.',
         category: 'general',
         keywords: ['theme', 'appearance', 'dark', 'preferred', 'color'],
         options: [

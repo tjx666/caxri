@@ -122,8 +122,7 @@ export const settingsSpec = [
         kind: 'enum',
         key: 'session.defaultAgent',
         title: 'Default Agent',
-        description:
-            'Starts new Sessions and new Terminals with this Agent. Ask each time opens the list instead, and the New Terminal button always offers the other Agents.',
+        description: 'Used for new Sessions and Terminals.',
         category: 'general',
         keywords: [...agentProviderIds, 'shell', 'provider', 'terminal', 'session'],
         options: [
@@ -140,8 +139,7 @@ export const settingsSpec = [
         kind: 'boolean',
         key: 'session.openAgentsInChat',
         title: 'Open Agents in Chat',
-        description:
-            'Starts new Agents as a Chat instead of a Terminal. Shell always opens in a Terminal. The New Session and New Terminal menus toggle this too.',
+        description: 'Start Agents as a Chat instead of a Terminal.',
         category: 'general',
         keywords: ['chat', 'surface', 'terminal', 'claude', 'codex', 'grok', 'conversation', 'tui'],
         default: true,
@@ -152,7 +150,7 @@ export const settingsSpec = [
         key: 'workbench.newWorktreeBehavior',
         title: 'New worktree behavior',
         description:
-            'Choose whether to follow detected worktrees. Continue automatically authorizes new worktree folders without asking.',
+            'Whether to follow a new worktree; Continue automatically authorizes it without asking.',
         category: 'general',
         keywords: ['git', 'branch', 'checkout'],
         options: [
@@ -167,8 +165,7 @@ export const settingsSpec = [
         kind: 'boolean',
         key: 'workbench.confirmWorktreeAuthorization',
         title: 'Confirm worktree authorization',
-        description:
-            'Ask before authorizing a worktree picked from the status bar. Turn off to authorize and switch right away.',
+        description: 'Ask before authorizing a worktree picked from the status bar.',
         category: 'general',
         keywords: ['git', 'branch', 'worktree', 'authorize', 'confirm', 'workbench root'],
         default: true,
@@ -178,7 +175,7 @@ export const settingsSpec = [
         key: 'workbench.removeWorktreeOnArchive',
         title: 'Remove worktree on archive',
         description:
-            "Delete the worktree a Session works in when you archive it, including ignored files such as node_modules. Uncommitted changes are committed to its branch first and the branch is kept. A worktree whose pull request isn't merged is removed only after you confirm.",
+            "Delete a Session's worktree on archive after committing its changes to the kept branch; an unmerged one asks first.",
         category: 'general',
         keywords: ['git', 'worktree', 'archive', 'cleanup', 'delete', 'remove', 'node_modules'],
         default: false,
@@ -216,8 +213,7 @@ export const settingsSpec = [
         kind: 'integer',
         key: 'window.zoomLevel',
         title: 'Zoom level',
-        description:
-            'Scales the whole interface. 0 is the original size; each step up or down zooms by 20%. View › Zoom In, Zoom Out, and Reset Zoom change it too.',
+        description: '0 is the original size; each step zooms by 20%.',
         category: 'general',
         keywords: ['zoom', 'scale', 'size', 'magnify', 'ui', 'interface'],
         min: -5,
@@ -228,7 +224,7 @@ export const settingsSpec = [
         kind: 'string',
         key: 'workbench.fontFamily',
         title: 'Font family',
-        description: 'Workbench UI font; leave empty for the system font',
+        description: 'Leave empty for the system font.',
         category: 'general',
         keywords: ['font', 'typeface', 'ui', 'workbench'],
         nullable: true,
@@ -240,7 +236,7 @@ export const settingsSpec = [
         kind: 'string',
         key: 'workbench.externalEditor',
         title: 'External editor',
-        description: 'Command used by “Open Project in External Editor” (e.g. code, cursor, subl)',
+        description: 'Command for Open Project in External Editor, such as code or cursor.',
         category: 'general',
         keywords: ['editor', 'vscode', 'cursor', 'ide', 'open', 'reveal'],
         nullable: true,
@@ -273,8 +269,7 @@ export const settingsSpec = [
          * this is app-written state to undo, not a value worth typing by hand; "Reset" replaces the old "Clear the
          * field" instruction now that there is no field.
          */
-        description:
-            'Caxri stops offering this release until a newer one appears. Reset to be offered it again.',
+        description: 'Caxri stops offering this release until a newer one appears.',
         category: 'general',
         keywords: ['update', 'upgrade', 'skip', 'skipped', 'version', 'release', 'ignore'],
         nullable: true,

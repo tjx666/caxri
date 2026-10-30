@@ -15,6 +15,7 @@ import {
     agentChatRailTickCapacity,
     agentChatRailTimeFormatOptions,
     isAgentChatMessageRailShown,
+    isAgentChatRailGutter,
     MAX_AGENT_CHAT_RAIL_MARKS,
     sampleAgentChatRailMarks,
 } from '../agent-chat-rail-marks';
@@ -324,5 +325,15 @@ describe('agentChatRailTimeFormatOptions', () => {
             month: 'short',
             day: 'numeric',
         });
+    });
+});
+
+describe('isAgentChatRailGutter', () => {
+    it("reveals the rail only while the pointer is within the area's left gutter", () => {
+        expect(isAgentChatRailGutter(100, 100)).toBe(true);
+        expect(isAgentChatRailGutter(140, 100)).toBe(true);
+        expect(isAgentChatRailGutter(141, 100)).toBe(false);
+        // Left of the area: another pane or the sidebar.
+        expect(isAgentChatRailGutter(99, 100)).toBe(false);
     });
 });

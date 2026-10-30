@@ -105,13 +105,13 @@ export function SessionSubagentRows({
             void openSessionSubagent(sessionId, terminalId, subagent.taskId);
         };
         const isSelected = subagent.taskId === activeTaskId;
+        const status = agentChatItemStatusLabel(glyphStatus, t);
+        // The row names only the task, so a long title keeps the row's width; the Agent type waits in the tooltip.
+        const tooltip = [title, subagent.agentType, status].filter(Boolean).join(' · ');
         return (
-            <Tooltip key={subagent.taskId} content={title} hoverOnly>
+            <Tooltip key={subagent.taskId} content={tooltip} hoverOnly>
                 <button
-                    aria-label={t('primarySidebar.subagents.rowAriaLabel', {
-                        status: agentChatItemStatusLabel(glyphStatus, t),
-                        title,
-                    })}
+                    aria-label={t('primarySidebar.subagents.rowAriaLabel', { status, title })}
                     aria-level={3}
                     aria-selected={isSelected}
                     className={cn(
@@ -126,14 +126,6 @@ export function SessionSubagentRows({
                 >
                     <AgentChatStatusGlyph status={glyphStatus} />
                     <span className="min-w-0 flex-1 truncate">{title}</span>
-                    {subagent.agentType && (
-                        <span
-                            aria-hidden="true"
-                            className="max-w-[40%] shrink-0 truncate text-[11px]"
-                        >
-                            {subagent.agentType}
-                        </span>
-                    )}
                 </button>
             </Tooltip>
         );

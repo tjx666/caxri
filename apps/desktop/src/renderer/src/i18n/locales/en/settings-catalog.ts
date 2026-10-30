@@ -25,8 +25,7 @@ export const settingsCatalog = {
     'settings.unit.seconds': 'seconds',
 
     'settings.workbench.language.title': 'Language',
-    'settings.workbench.language.description':
-        'Display language of the interface. Follow system uses Simplified Chinese when the system language is Chinese.',
+    'settings.workbench.language.description': 'Follow system picks Chinese on a Chinese system.',
     'settings.workbench.language.nullLabel': 'Follow system',
     'settings.workbench.language.nullLabelResolved': 'Follow system ({{language}})',
 
@@ -38,13 +37,12 @@ export const settingsCatalog = {
         'Show a popup after automatic Agent recovery. Turn on to restore muted reminders. Applies to all Projects; failures always appear.',
 
     'settings.session.defaultAgent.title': 'Default Agent',
-    'settings.session.defaultAgent.description':
-        'Starts new Sessions and new Terminals with this Agent. Ask each time opens the list instead, and the New Terminal button always offers the other Agents.',
+    'settings.session.defaultAgent.description': 'Used for new Sessions and Terminals.',
     'settings.session.defaultAgent.nullLabel': 'Ask each time',
 
     'settings.session.openAgentsInChat.title': 'Open Agents in Chat',
     'settings.session.openAgentsInChat.description':
-        'Starts new Agents as a Chat instead of a Terminal. Shell always opens in a Terminal. The New Session and New Terminal menus toggle this too.',
+        'Start Agents as a Chat instead of a Terminal.',
 
     'settings.agentChat.longPasteThreshold.title': 'Chat long paste threshold',
     'settings.agentChat.longPasteThreshold.description':
@@ -72,7 +70,7 @@ export const settingsCatalog = {
 
     'settings.workbench.newWorktreeBehavior.title': 'New worktree behavior',
     'settings.workbench.newWorktreeBehavior.description':
-        'Choose whether to follow detected worktrees. Continue automatically authorizes new worktree folders without asking.',
+        'Whether to follow a new worktree; Continue automatically authorizes it without asking.',
     'settings.workbench.newWorktreeBehavior.option.ask': 'Ask',
     'settings.workbench.newWorktreeBehavior.option.continueWhenAuthorized':
         'Continue when authorized',
@@ -81,32 +79,32 @@ export const settingsCatalog = {
 
     'settings.workbench.confirmWorktreeAuthorization.title': 'Confirm worktree authorization',
     'settings.workbench.confirmWorktreeAuthorization.description':
-        'Ask before authorizing a worktree picked from the status bar. Turn off to authorize and switch right away.',
+        'Ask before authorizing a worktree picked from the status bar.',
     'settings.workbench.removeWorktreeOnArchive.title': 'Remove worktree on archive',
     'settings.workbench.removeWorktreeOnArchive.description':
-        "Delete the worktree a Session works in when you archive it, including ignored files such as node_modules. Uncommitted changes are committed to its branch first and the branch is kept. A worktree whose pull request isn't merged is removed only after you confirm.",
+        "Delete a Session's worktree on archive after committing its changes to the kept branch; an unmerged one asks first.",
 
     'settings.workbench.theme.followSystem.title': 'Follow system appearance',
     'settings.workbench.theme.followSystem.description':
-        'Uses the light theme when the system appearance is light and the dark theme when it is dark, switching live. Choosing a single theme in the Theme tab turns this off.',
+        'Switch between the light and dark theme with macOS.',
     'settings.workbench.theme.light.title': 'Light theme',
-    'settings.workbench.theme.light.description': 'Theme used while the system appearance is light',
+    'settings.workbench.theme.light.description': 'Used while macOS is in light mode.',
     'settings.workbench.theme.dark.title': 'Dark theme',
-    'settings.workbench.theme.dark.description': 'Theme used while the system appearance is dark',
+    'settings.workbench.theme.dark.description': 'Used while macOS is in dark mode.',
     'settings.primarySidebar.autoCollapseProjects.title': 'Auto-collapse inactive Projects',
     'settings.primarySidebar.autoCollapseProjects.description':
-        'Keeps active, working, unread, and manually expanded Projects open',
+        'Active, working, unread, and expanded Projects stay open.',
     'settings.primarySidebar.autoCollapseProjects.option.off': 'Off',
     'settings.primarySidebar.autoCollapseProjects.option.30m': 'After 30 minutes',
     'settings.primarySidebar.autoCollapseProjects.option.2h': 'After 2 hours',
 
     'settings.primarySidebar.showSubagents.title': 'Show subagents under Sessions',
     'settings.primarySidebar.showSubagents.description':
-        'Lists the subagents a Chat Agent started as indented rows under its Session in the Primary Side Bar',
+        "List a Chat Agent's subagents under its Session.",
 
     'settings.primarySidebar.translucent.title': 'Translucent sidebar',
     'settings.primarySidebar.translucent.description':
-        'On macOS, blur the desktop through the sidebar like frosted glass when the theme matches the system light or dark appearance.',
+        'Blur the desktop through the sidebar while the theme matches macOS.',
     'settings.primarySidebar.translucent.inactive.fullScreen':
         'Not active: the window is full screen, so there is no desktop to blur.',
     'settings.primarySidebar.translucent.inactive.themeDarkSystemLight':
@@ -115,12 +113,10 @@ export const settingsCatalog = {
         'Not active: the theme is light while macOS uses the dark appearance.',
 
     'settings.zen.fullScreen.title': 'Enter full screen with Zen Mode',
-    'settings.zen.fullScreen.description':
-        'Zen Mode also puts the window in native full screen, and leaving Zen Mode leaves full screen again unless the window was already full screen.',
+    'settings.zen.fullScreen.description': 'Zen Mode also enters native full screen.',
 
     'settings.zen.restore.title': 'Restore Zen Mode on launch',
-    'settings.zen.restore.description':
-        'Reopening Caxri while Zen Mode was on starts in Zen Mode again. Turn off to always start with the full layout.',
+    'settings.zen.restore.description': 'Start in Zen Mode when it was on at quit.',
 
     'settings.statusBar.usage.limitWindows.title': 'Status bar usage limits',
     'settings.statusBar.usage.limitWindows.description':
@@ -131,17 +127,15 @@ export const settingsCatalog = {
     'settings.statusBar.usage.limitWindows.option.both': '5-hour and weekly',
 
     'settings.window.zoomLevel.title': 'Zoom level',
-    'settings.window.zoomLevel.description':
-        'Scales the whole interface. 0 is the original size; each step up or down zooms by 20%. View › Zoom In, Zoom Out, and Reset Zoom change it too.',
+    'settings.window.zoomLevel.description': '0 is the original size; each step zooms by 20%.',
 
     'settings.workbench.fontFamily.title': 'Font family',
-    'settings.workbench.fontFamily.description':
-        'Workbench UI font; leave empty for the system font',
+    'settings.workbench.fontFamily.description': 'Leave empty for the system font.',
     'settings.workbench.fontFamily.placeholder': 'System font',
 
     'settings.workbench.externalEditor.title': 'External editor',
     'settings.workbench.externalEditor.description':
-        'Command used by “Open Project in External Editor” (e.g. code, cursor, subl)',
+        'Command for Open Project in External Editor, such as code or cursor.',
 
     'settings.mobile.relayUrl.title': 'Relay server',
     'settings.mobile.relayUrl.description':
@@ -149,7 +143,7 @@ export const settingsCatalog = {
 
     'settings.updates.skippedVersion.title': 'Skipped update version',
     'settings.updates.skippedVersion.description':
-        'Caxri stops offering this release until a newer one appears. Reset to be offered it again.',
+        'Caxri stops offering this release until a newer one appears.',
 
     'settings.terminal.fontFamily.title': 'Font family',
     'settings.terminal.fontFamily.description':

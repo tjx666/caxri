@@ -16,7 +16,7 @@ export const primarySidebar: TranslatedNamespace<typeof source> = {
 
     // Project tree
     'primarySidebar.tree.ariaLabel': '主侧边栏',
-    'primarySidebar.tree.addFirstProject': '添加第一个项目',
+    'primarySidebar.tree.noProjects': '还没有项目',
     'primarySidebar.reveal.showMore': '再显示 {{count}} 个',
     'primarySidebar.subagents.ariaLabel': '子 Agent',
     'primarySidebar.subagents.rowAriaLabel': '子 Agent {{title}}，{{status}}',

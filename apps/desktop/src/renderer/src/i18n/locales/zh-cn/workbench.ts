@@ -3,13 +3,7 @@ import type { TranslatedNamespace } from '@caxri/protocol';
 import type { workbench as source } from '../en/workbench';
 
 export const workbench: TranslatedNamespace<typeof source> = {
-    'workbench.welcome.title': '以项目为中心的开发。',
-    'workbench.welcome.description':
-        '将一个文件夹添加为项目，然后把所有 Agent 和 Shell 会话集中放在它下面。',
     'workbench.welcome.addProject': '添加项目',
-    'workbench.welcome.returningTitle': '从上次的地方继续。',
-    'workbench.welcome.returningDescription':
-        '在“{{project}}”中开始新的会话，或添加另一个文件夹作为项目。',
     'workbench.welcome.newSession': '在“{{project}}”中新建会话',
     'workbench.welcome.commandPalette': '命令面板',
     'workbench.welcome.keyboardShortcuts': '键盘快捷键',

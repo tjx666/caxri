@@ -6,8 +6,10 @@ import type {
     AgentChatTurnUsage,
     AgentThroughput,
     AgentThroughputAggregate,
+    AgentThroughputSample,
+    AgentThroughputSpeed,
 } from '@caxri/protocol';
-import { AGENT_THROUGHPUT_SAMPLE_LIMIT } from '@caxri/protocol';
+import { AGENT_THROUGHPUT_SAMPLE_LIMIT, agentThroughputSpeeds } from '@caxri/protocol';
 
 /**
  * How far past the turn's end a response may complete and still count as the turn's. The transcript stamps a response
@@ -16,33 +18,67 @@ import { AGENT_THROUGHPUT_SAMPLE_LIMIT } from '@caxri/protocol';
 const TURN_END_GRACE_MS = 5_000;
 
 /**
+ * The speed tier most of `samples` ran at, counted by response, so one Fast response in a Standard turn does not
+ * relabel it. A tie goes to the tier listed first in `agentThroughputSpeeds`; responses without a recorded tier count
+ * as their own group, and a turn where they are the most common has no tier to name.
+ */
+export function majorityThroughputSpeed(
+    samples: Iterable<Pick<AgentThroughputSample, 'speed'>>,
+): AgentThroughputSpeed | undefined {
+    const counts = new Map<AgentThroughputSpeed | undefined, number>();
+    for (const sample of samples) counts.set(sample.speed, (counts.get(sample.speed) ?? 0) + 1);
+    let best: AgentThroughputSpeed | undefined;
+    let bestCount = counts.get(undefined) ?? 0;
+    for (const speed of agentThroughputSpeeds) {
+        const count = counts.get(speed) ?? 0;
+        if (count > bestCount) {
+            best = speed;
+            bestCount = count;
+        }
+    }
+    return best;
+}
+
+/**
  * The finished turn's generation totals from the transcript throughput read at its end. The responses whose completion
  * falls inside the turn's own window are summed, so a queued follow-up that already started the next turn in the
  * transcript cannot leak into this one. When the sample window is full and starts inside the turn, earlier responses
- * were dropped from it, so the scanner's running `turn` total covers the turn instead.
+ * were dropped from it, so the scanner's running `turn` total covers the turn instead, and the tier comes from the
+ * responses the window still holds.
  */
 export function chatTurnThroughput(
     throughput: Pick<AgentThroughput, 'samples' | 'turn'> | null | undefined,
     turn: Pick<AgentChatTurn, 'durationMs' | 'startedAt'>,
-): Pick<AgentThroughputAggregate, 'durationMs' | 'outputTokens'> | undefined {
+):
+    | (Pick<AgentThroughputAggregate, 'durationMs' | 'outputTokens'> & {
+          speed?: AgentThroughputSpeed;
+      })
+    | undefined {
     if (!throughput || turn.startedAt === undefined || turn.durationMs === undefined)
         return undefined;
     const startedAt = turn.startedAt;
     const endedAt = startedAt + turn.durationMs + TURN_END_GRACE_MS;
+    const inWindow = throughput.samples.filter(
+        (sample) => sample.completedAt >= startedAt && sample.completedAt <= endedAt,
+    );
+    const speed = majorityThroughputSpeed(inWindow);
     const oldest = throughput.samples.at(0);
     const isWindowTruncated =
         throughput.samples.length >= AGENT_THROUGHPUT_SAMPLE_LIMIT &&
         oldest !== undefined &&
         oldest.completedAt >= startedAt;
-    if (isWindowTruncated) return throughput.turn.outputTokens > 0 ? throughput.turn : undefined;
+    if (isWindowTruncated) {
+        if (throughput.turn.outputTokens <= 0) return undefined;
+        const { durationMs, outputTokens } = throughput.turn;
+        return { durationMs, outputTokens, ...(speed && { speed }) };
+    }
     let outputTokens = 0;
     let durationMs = 0;
-    for (const sample of throughput.samples) {
-        if (sample.completedAt < startedAt || sample.completedAt > endedAt) continue;
+    for (const sample of inWindow) {
         outputTokens += sample.outputTokens;
         durationMs += sample.durationMs;
     }
-    return outputTokens > 0 ? { outputTokens, durationMs } : undefined;
+    return outputTokens > 0 ? { outputTokens, durationMs, ...(speed && { speed }) } : undefined;
 }
 
 /**
@@ -65,6 +101,7 @@ export function chatTurnMetricsOperation(
         ...(generated && {
             outputTokens: generated.outputTokens,
             generationMs: generated.durationMs,
+            ...(generated.speed && { speed: generated.speed }),
         }),
         ...(costUsd !== undefined && { costUsd }),
         ...(ownUsage && ownUsage.requests > 0 && { requests: ownUsage.requests }),

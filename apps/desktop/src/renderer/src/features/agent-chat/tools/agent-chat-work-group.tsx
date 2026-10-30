@@ -62,9 +62,10 @@ const WORK_LIST_CLASS_NAME = 'max-h-60 overflow-y-auto';
 const WORK_LIST_FADE = '24px';
 
 /**
- * A one-line disclosure row: a glyph, the title, and trailing facts, with the detail mounted only while expanded. Work
- * is secondary to the conversation, so every row starts collapsed and the reply stays what the eye lands on; the one
- * exception is a thought that stands in for the reply (`isDefaultExpanded`).
+ * A one-line disclosure row: a glyph, the title, and trailing facts, with the detail mounted only while expanded. A
+ * `subtitle` adds a second, muted line under the title (a subagent's result), with the glyph and facts on the first.
+ * Work is secondary to the conversation, so every row starts collapsed and the reply stays what the eye lands on; the
+ * one exception is a thought that stands in for the reply (`isDefaultExpanded`).
  *
  * The toggle is a transparent button stretched over the whole row rather than the row's wrapper, so the title can hold
  * a control of its own (a file the row names) without nesting a button inside another; that control sits above the
@@ -85,6 +86,7 @@ function DisclosureRow({
     isList = false,
     isRunning = false,
     itemId,
+    subtitle,
     title,
     trailing,
 }: {
@@ -119,6 +121,10 @@ function DisclosureRow({
      * into view (see `AgentChatTurnFold`).
      */
     itemId?: string;
+    /**
+     * A second line under the title, in muted text that truncates rather than wraps.
+     */
+    subtitle?: ReactNode;
     title: ReactNode;
     trailing?: ReactNode;
 }) {
@@ -128,12 +134,16 @@ function DisclosureRow({
     });
     const detailId = useId();
     const titleId = useId();
+    const hasSubtitle = subtitle !== undefined;
+    // A two-line row keeps its glyph, facts, and actions on the first line instead of centering them on both.
+    const alignClassName = hasSubtitle ? 'items-start' : 'items-center';
     const trailingId = useId();
     const chevron = (
         <ChevronRight
             aria-hidden="true"
             className={cn(
                 'size-3.5 shrink-0 text-muted opacity-0 group-hover/row:opacity-100 group-has-[>button:focus-visible]/row:opacity-100',
+                hasSubtitle && !isList && 'mt-0.75',
                 agentChatChevronMotion(isExpanded),
                 isExpanded && 'rotate-90',
                 isList && isExpanded && 'opacity-100',
@@ -141,7 +151,12 @@ function DisclosureRow({
         />
     );
     const row = (
-        <div className="group/row relative flex w-full min-w-0 items-center gap-2 rounded px-1 py-0.5 text-muted hover:bg-list-hover-background hover:text-list-hover-foreground has-[>button:focus-visible]:outline has-[>button:focus-visible]:outline-accent">
+        <div
+            className={cn(
+                'group/row relative flex w-full min-w-0 gap-2 rounded px-1 py-0.5 text-muted hover:bg-list-hover-background hover:text-list-hover-foreground has-[>button:focus-visible]:outline has-[>button:focus-visible]:outline-accent',
+                alignClassName,
+            )}
+        >
             <button
                 aria-controls={detailId}
                 aria-expanded={isExpanded}
@@ -150,18 +165,20 @@ function DisclosureRow({
                 type="button"
                 onClick={(event) => toggle(event.currentTarget)}
             />
-            <span className="flex size-4 shrink-0 items-center justify-center">{glyph}</span>
-            <span
-                className={cn(
-                    'flex min-w-0 flex-1 items-center gap-1.5',
-                    isRunning && RUNNING_TITLE_CLASS_NAME,
-                )}
-                id={titleId}
-            >
-                {title}
-                {isList && chevron}
+            <span className="flex h-5 w-4 shrink-0 items-center justify-center">{glyph}</span>
+            <span className="flex min-w-0 flex-1 flex-col" id={titleId}>
+                <span
+                    className={cn(
+                        'flex min-w-0 items-center gap-1.5',
+                        isRunning && RUNNING_TITLE_CLASS_NAME,
+                    )}
+                >
+                    {title}
+                    {isList && chevron}
+                </span>
+                {hasSubtitle && <span className="min-w-0 truncate text-muted">{subtitle}</span>}
             </span>
-            <span className="flex shrink-0 items-center gap-2" id={trailingId}>
+            <span className="flex h-5 shrink-0 items-center gap-2" id={trailingId}>
                 {trailing}
             </span>
             {/*
@@ -175,7 +192,7 @@ function DisclosureRow({
     return (
         <div className="text-[12px] leading-5" data-agent-chat-work-item={itemId}>
             {action ? (
-                <div className="flex min-w-0 items-center gap-1">
+                <div className={cn('flex min-w-0 gap-1', alignClassName)}>
                     {row}
                     {action}
                 </div>
@@ -253,9 +270,10 @@ function AgentChatWorkTrailing({ item, task }: { item: AgentChatWorkItem; task?:
 }
 
 /**
- * One piece of work: the tool's glyph, its past-tense verb, and what it acted on (`Ran git status`, `Read app.ts`).
- * Expanded, it shows the full command and its output painted in the output's language, the reasoning text, or the
- * diff.
+ * One piece of work: the tool's glyph, its past-tense verb, and what it acted on (`Ran git status`, `Read app.ts`). A
+ * subagent's row names its task after a dot (`Ran agent · Survey the project`) and puts what it is doing, or its
+ * result, on a second line, so a long summary never pushes the task's name out of the row. Expanded, it shows the full
+ * command and its output painted in the output's language, the reasoning text, or the diff.
  */
 const AgentChatWorkRow = memo(
     ({
@@ -292,9 +310,11 @@ const AgentChatWorkRow = memo(
                 isDefaultExpanded={isDefaultExpanded}
                 isRunning={isRunning}
                 itemId={item.id}
+                subtitle={taskActivity}
                 title={
                     <>
                         <span className="shrink-0">{verb}</span>
+                        {task && subject && <span aria-hidden="true">·</span>}
                         {subject &&
                             (path && onOpenFile && !isRunning ? (
                                 <AgentChatWorkFileLink
@@ -305,7 +325,6 @@ const AgentChatWorkRow = memo(
                             ) : (
                                 <span className="min-w-0 truncate">{subject}</span>
                             ))}
-                        {taskActivity && <span className="min-w-0 truncate">{taskActivity}</span>}
                     </>
                 }
                 trailing={<AgentChatWorkTrailing item={item} task={task} />}

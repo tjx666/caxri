@@ -226,7 +226,7 @@ app and editor tokens.
 
 | Tier    | Size | Usage                                                      |
 | ------- | ---- | ---------------------------------------------------------- |
-| `title` | 15px | dialog titles and the welcome heading                      |
+| `title` | 15px | dialog titles and Settings section headings                |
 | `base`  | 13px | default UI text, standard inputs, list rows                |
 | `dense` | 12px | compact workbench fields, menus, tooltips, and path chrome |
 | `meta`  | 11px | secondary lines, captions, tab labels, status bar          |
@@ -316,9 +316,13 @@ this row when the centered overlay took the job: a caption 34px tall has to shar
 Project name, and a shortcut, a menu and the palette all reach the overlay already, so a glyph there
 bought nothing.
 
-**Welcome**: heading "Project-first development." Body copy uses "folder" to match VS Code's
-Open Folder / Add Folder to Workspace, not "directory" or "local folder". The primary action is
-Add Project.
+**Welcome**: after VS Code's empty editor, with no heading or slogan: a faint single-color Caxri
+mark, one primary button, and a short list of entry points a newcomer cannot guess (Command Palette,
+Keyboard Shortcuts, Documentation), each with its live shortcut or an external-link glyph. With no
+Project the button is Add Project with `Cmd+O`; once a Project exists it is New Session in the most
+recently used Project, with Add Project beside it as a secondary button. Copy uses "folder" to match
+VS Code's Open Folder / Add Folder to Workspace, not "directory" or "local folder". With no Project
+the PrimarySidebar shows a 12px `--muted` `No Projects yet` instead of an empty list.
 
 **Path browser**: `Cmd+P` opens one 44px palette input with the current Project rendered as a
 removable leading anchor. With an empty field and the caret at its start, Backspace or Delete removes
@@ -1097,7 +1101,10 @@ Source Control caption drops it, repository rows take a repository mark (`Folder
 vendored `archive` codicon for a submodule) regardless of panel mode, and the mode switch's
 working-tree segment takes a diff mark. The Settings tab takes the gear (`Settings`) because
 `SlidersHorizontal` is the Settings page's own UI view switch; the Agent status tab and the `tok/s`
-chip share `Gauge` because they show the same measurement. Where lucide has no equivalent glyph, vendor the VS Code
+chip share `Gauge` because they show the same measurement. A Chat turn's rate in its fold row takes
+the glyph of the service tier most of its responses ran on (`Rabbit` for fast, `Gauge` for standard
+or unknown, `Turtle` for flex), never a threshold on the number, since what counts as fast differs by
+model. Where lucide has no equivalent glyph, vendor the VS Code
 codicon inline (`apps/desktop/src/renderer/src/icons/codicons`) rather than bending a lucide icon
 to fit.
 
@@ -1365,7 +1372,9 @@ description of it (Claude Code's `Bash` or `Monitor` description) when there is 
 its tab's output, and by the command line in monospace otherwise; clicking one, or the Open action on
 its timeline row, opens it as
 a read-only tab split to the right of the Chat, reusing that side pane for later tasks. A user
-message steered into a running turn carries an 11px `--muted` `Steered` caption; a queued one is an
+message steered into a running turn carries a `--muted` `CornerDownRight` glyph before its bubble,
+with a tooltip saying it was sent while the Agent was working and joined the running turn, and the
+same accessible name; a queued one is an
 ordinary message once delivered and carries none, since `Queued` would read as pending. Escape
 interrupts a running turn regardless, from the composer or anywhere else in the Chat pane that is
 not an editable field or an open menu, list, or dialog. Once Stop is requested the Stop button shows
@@ -1516,7 +1525,12 @@ review` with the skill glyph. A test run (`Ran tests a.test.ts`, flask glyph), a
 step (`Opened PR`, `Merged PR #12`, `Checked PR`) name the step the same way, through wrappers
 such as `rtk`, `bunx`, `cd dir &&`, environment assignments, and `2>&1`; while running they keep
 the command's live glyph. A finished turn folds everything except the prompt, the final reply, and
-notices behind one `Worked for 2m 1s` row with a bottom hairline. Expanded, the row pins to the
+notices behind one `Worked for 2m 1s` row with a bottom hairline. Hovering or focusing the row
+reveals the turn's figures at its right edge in 11px `--muted`, separated by hairlines: the subagent
+count (a `Bot` glyph and the number; one subagent opens it, several open a menu listing them), steps,
+tokens, estimated cost, and the output rate last, matching the composer strip's order. Hidden figures
+keep their width so the row never reflows, and a count with a running subagent stays visible.
+Expanded, the row pins to the
 top of the transcript on `--background` until the fold's last row scrolls past (LibreChat's activity
 groups), so a run several screens long folds from wherever the reader stopped, and folding holds
 the row where it was clicked; a failed or stopped turn's row
@@ -1535,8 +1549,8 @@ turn has shown nothing after the prompt, a small figure holds the place where th
 by default; or three 6px `--muted` dots breathing in turn, a caret, a braille spinner, or an orbit;
 all still under reduced motion), hidden from assistive technology since the composer's status line
 already announces the turn. The most recent
-turn's final reply, like every earlier one, shows Copy only on hover or keyboard focus, in a row
-that keeps its height. Replies add no Tab stops: `Option+ArrowUp`/`Option+ArrowDown` in the
+turn's final reply, like every earlier one, shows Copy and the reply's time only on hover or
+keyboard focus, in a row that keeps its height; the turn's figures live on its fold row instead. Replies add no Tab stops: `Option+ArrowUp`/`Option+ArrowDown` in the
 transcript focus the latest or the adjacent reply, revealing its row, and Tab reaches Copy. Between the final
 reply and Copy, a finished turn shows what it left behind as `--surface` cards with a 36px
 `--background` glyph tile: `Edited 3 files` over the turn's `+N -M` (hovered, the counts become

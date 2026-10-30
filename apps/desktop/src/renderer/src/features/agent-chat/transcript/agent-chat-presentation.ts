@@ -465,15 +465,16 @@ export function shouldAgentChatPaneEscapeStop(
 }
 
 /**
- * The caption under a user message in the timeline. A message reaches the timeline only once it was delivered (a
- * pending follow-up waits in the queue cards above the composer), so a queued one is now an ordinary message and a
- * `Queued` caption would read as still pending. Only `Steered` says something still true: it joined a running turn.
+ * What the mark beside a user message in the timeline says, on hover and as its accessible name. A message reaches the
+ * timeline only once it was delivered (a pending follow-up waits in the queue cards above the composer), so a queued
+ * one is now an ordinary message and a `Queued` mark would read as still pending. Only `Steered` says something still
+ * true: it joined a running turn.
  */
 export function agentChatDeliveryCaption(
     delivery: 'queued' | 'steered' | undefined,
     t: Translate,
 ): string | undefined {
-    return delivery === 'steered' ? t('agentChat.message.steered') : undefined;
+    return delivery === 'steered' ? t('agentChat.message.steeredHint') : undefined;
 }
 
 /**

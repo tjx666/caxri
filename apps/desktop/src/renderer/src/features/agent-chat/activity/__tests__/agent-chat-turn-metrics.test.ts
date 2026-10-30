@@ -1,9 +1,12 @@
+import { Gauge, Rabbit, Turtle } from 'lucide-react';
 import { describe, expect, it } from 'vitest';
 
 import { translate } from '../../../../i18n';
 import {
+    AGENT_CHAT_SPEED_ICONS,
     agentChatReplyMetrics,
     agentChatTurnMetrics,
+    agentChatTurnRate,
     formatAgentChatTurnCost,
 } from '../agent-chat-turn-metrics';
 
@@ -87,5 +90,43 @@ describe('agentChatReplyMetrics', () => {
         // An unpriced model's zero is not "free".
         expect(agentChatReplyMetrics({ costUsd: 0 }, translate)).toBeUndefined();
         expect(agentChatReplyMetrics(undefined, translate)).toBeUndefined();
+    });
+});
+
+describe('AGENT_CHAT_SPEED_ICONS', () => {
+    it('picks the glyph by speed tier, with the Gauge for an unrecorded one', () => {
+        expect(AGENT_CHAT_SPEED_ICONS).toEqual({
+            fast: Rabbit,
+            standard: Gauge,
+            flex: Turtle,
+            unknown: Gauge,
+        });
+    });
+});
+
+describe('agentChatTurnRate', () => {
+    it('names the tier before the measured totals', () => {
+        expect(
+            agentChatTurnRate(
+                { outputTokens: 3_210, generationMs: 52_000, speed: 'fast' },
+                translate,
+            ),
+        ).toEqual({
+            value: '62\u{A0}tok/s',
+            speed: 'fast',
+            tooltip: 'Fast · 3,210 tokens in 52s · 62\u{A0}tok/s',
+        });
+    });
+
+    it('leaves out an unrecorded tier and rates nothing too short to measure', () => {
+        expect(agentChatTurnRate({ outputTokens: 600, generationMs: 10_000 }, translate)).toEqual({
+            value: '60\u{A0}tok/s',
+            speed: undefined,
+            tooltip: '600 tokens in 10s · 60\u{A0}tok/s',
+        });
+        expect(
+            agentChatTurnRate({ outputTokens: 40, generationMs: 100 }, translate),
+        ).toBeUndefined();
+        expect(agentChatTurnRate({ costUsd: 0.1 }, translate)).toBeUndefined();
     });
 });

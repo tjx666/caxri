@@ -245,8 +245,12 @@ function PaneBox({
             className={cn(
                 'workbench-pane flex flex-col bg-background',
                 fullBleedClassName,
+                isActivePane && 'active',
+                // The frame only tells split panes apart; around a lone pane it outlines the whole editor area and
+                // reads as a second focus ring.
                 isActivePane &&
-                    'active shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--accent)_55%,transparent)]',
+                    layout.root.type === 'split' &&
+                    'shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--accent)_55%,transparent)]',
             )}
             data-pane-id={pane.id}
             onPointerDownCapture={() => {

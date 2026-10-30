@@ -3,14 +3,14 @@ import { use, useId, useMemo, useRef, useState } from 'react';
 
 import type { AgentChatTurnMetrics } from '@caxri/protocol';
 import { agentChatTurnLabel } from '@caxri/protocol';
-import { Bot, ChevronRight, CircleStop, CircleX } from 'lucide-react';
+import { ChevronRight, CircleStop, CircleX } from 'lucide-react';
 
 import { DisclosureMotion } from '../../../components/disclosure-motion';
-import { Button } from '../../../components/ui/button';
 import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
 import { cn } from '../../../lib/utilities';
 import { AgentChatTurnMetricList } from '../activity/agent-chat-turn-metric-list';
+import { agentChatTurnRate } from '../activity/agent-chat-turn-metrics';
 import { AgentChatFindQueryContext, isAgentChatTurnFoldMatch } from '../find/agent-chat-find';
 import {
     useAgentChatExpansion,
@@ -19,6 +19,7 @@ import {
 import { AgentChatTaskLinksContext } from '../hooks/use-agent-chat-task-link';
 import type { AgentChatTurnSubagent } from '../tasks/agent-chat-tasks';
 import { agentChatTurnSubagents } from '../tasks/agent-chat-tasks';
+import { AgentChatTurnSubagents } from '../tasks/agent-chat-turn-subagents';
 import { agentChatChevronMotion } from '../transcript/agent-chat-disclosure';
 import {
     agentChatRevealItemKeys,
@@ -27,6 +28,14 @@ import {
 } from '../transcript/agent-chat-expansion';
 import type { AgentChatTimelineEntry } from '../transcript/agent-chat-timeline';
 import { agentChatTurnTimeTooltip, agentChatTurnTone } from '../transcript/agent-chat-timeline';
+
+/**
+ * Keeps the fold row's figures out of sight until the reader points at the row or moves focus into it, so a settled
+ * transcript reads as `Worked for 58s` rows and replies. They keep their width while hidden, so revealing them never
+ * shifts the row, and they stay shown while the subagent list they anchor is open.
+ */
+const REVEAL_CLASS_NAME =
+    'pointer-events-none opacity-0 transition-opacity group-focus-within/turn-fold:pointer-events-auto group-focus-within/turn-fold:opacity-100 group-hover/turn-fold:pointer-events-auto group-hover/turn-fold:opacity-100 group-has-[[data-popup-open]]/turn-fold:pointer-events-auto group-has-[[data-popup-open]]/turn-fold:opacity-100';
 
 type TurnEntry = Extract<AgentChatTimelineEntry, { kind: 'turn' }>;
 
@@ -38,65 +47,8 @@ function* turnItems(entry: TurnEntry) {
 }
 
 /**
- * One of the turn's subagents, named by its own title, with the activity sweep while it still runs. Where the host can
- * open a tab beside the Chat it reopens the subagent there; elsewhere (Caxri Bot window) it expands the fold and
- * scrolls to the subagent's row instead, and says so, since nothing opens (issue caxri#1952). With neither it is a
- * plain label rather than a button.
- */
-function TurnSubagentButton({
-    onOpen,
-    onReveal,
-    subagent,
-}: {
-    onOpen: ((taskId: string) => void) | undefined;
-    onReveal: ((itemId: string, element: HTMLElement) => void) | undefined;
-    subagent: AgentChatTurnSubagent;
-}) {
-    const { t } = useTranslation();
-    const title = subagent.title ?? t('agentChat.fold.subagent');
-    const content = (
-        <>
-            <Bot aria-hidden="true" className="size-3.5 shrink-0" />
-            <span className={cn('min-w-0 truncate', subagent.isRunning && 'activity-shimmer')}>
-                {title}
-            </span>
-        </>
-    );
-    const className = 'min-h-6 max-w-48 min-w-0 shrink gap-1 px-1.5 text-muted';
-    if (onOpen) {
-        return (
-            <Tooltip content={t('agentChat.timeline.openNamed', { name: title })}>
-                <Button
-                    aria-label={t('agentChat.fold.openSubagent', { name: title })}
-                    className={className}
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => onOpen(subagent.taskId)}
-                >
-                    {content}
-                </Button>
-            </Tooltip>
-        );
-    }
-    if (!onReveal) return <span className={cn('flex items-center', className)}>{content}</span>;
-    const label = t('agentChat.fold.showSubagent', { name: title });
-    return (
-        <Tooltip content={label}>
-            <Button
-                aria-label={label}
-                className={className}
-                size="sm"
-                variant="ghost"
-                onClick={(event) => onReveal(subagent.itemId, event.currentTarget)}
-            >
-                {content}
-            </Button>
-        </Tooltip>
-    );
-}
-
-/**
- * The fold's `Worked for 2m 1s` toggle, with an entry per subagent the turn started.
+ * The fold's `Worked for 2m 1s` toggle. Pointing at the row reveals, at its end, how many subagents the turn started
+ * and what it spent: steps, tokens, estimated cost, and output rate. A subagent still running keeps its count in view.
  */
 function TurnFoldHeader({
     detailId,
@@ -127,9 +79,10 @@ function TurnFoldHeader({
     timeTooltip: string | undefined;
     tone: ReturnType<typeof agentChatTurnTone>;
 }) {
+    const { t } = useTranslation();
     const ToneIcon = tone === 'danger' ? CircleX : CircleStop;
-    // The toggle keeps its label's width; the subagent chips beside it are what shrink and truncate when a turn
-    // spawned more of them than the row fits.
+    const rate = agentChatTurnRate(metrics, t);
+    const isSubagentRunning = subagents.some((subagent) => subagent.isRunning);
     const toggleButton = (
         <button
             aria-controls={detailId}
@@ -160,7 +113,7 @@ function TurnFoldHeader({
     return (
         <div
             className={cn(
-                'flex min-w-0 items-center gap-1 border-b border-solid border-border pb-1',
+                'group/turn-fold flex min-w-0 items-center gap-2.5 border-b border-solid border-border pb-1',
                 // Expanded, the row pins to the top of the transcript so a run several screens long can be folded
                 // from wherever the reader stopped (LibreChat's activity groups do the same). Its containing block is
                 // the fold, so it lets go where the fold's last row ends and never covers the final reply.
@@ -174,22 +127,27 @@ function TurnFoldHeader({
             ) : (
                 toggleButton
             )}
-            {subagents.map((subagent) => (
-                <TurnSubagentButton
-                    key={subagent.taskId}
-                    subagent={subagent}
-                    onOpen={onOpenSubagent}
-                    onReveal={onRevealSubagent}
-                />
-            ))}
+            {subagents.length > 0 && (
+                <span className={cn('flex', !isSubagentRunning && REVEAL_CLASS_NAME)}>
+                    <AgentChatTurnSubagents
+                        subagents={subagents}
+                        onOpen={onOpenSubagent}
+                        onReveal={onRevealSubagent}
+                    />
+                </span>
+            )}
             {metrics && (
-                <AgentChatTurnMetricList
-                    usage={{
-                        requests: metrics.requests ?? 0,
-                        totalTokens: metrics.totalTokens ?? 0,
-                        costUsd: metrics.costUsd,
-                    }}
-                />
+                <span className={cn('flex text-muted', REVEAL_CLASS_NAME)}>
+                    <AgentChatTurnMetricList
+                        hasLeadingDivider={subagents.length > 0}
+                        rate={rate}
+                        usage={{
+                            requests: metrics.requests ?? 0,
+                            totalTokens: metrics.totalTokens ?? 0,
+                            costUsd: metrics.costUsd,
+                        }}
+                    />
+                </span>
             )}
         </div>
     );
@@ -256,10 +214,11 @@ function useTurnFoldFindExpansion(entry: TurnEntry, isExpandedByUser: boolean) {
  * A finished turn's work and commentary behind one `Worked for 2m 1s` row with a hairline, so the prompt and the final
  * reply read as one exchange. A failed or stopped turn carries its tone in the glyph and the words, so a turn that did
  * not finish is not read as one that did. Expanded, it renders the folded entries exactly as they looked while the turn
- * ran. A subagent the turn started stays named on the row itself, one click from its tab or its row, since it may have
- * left the Background work strip by the time the turn folds. A row the user opened while the turn ran keeps the fold
- * open when the turn ends, so finishing never hides what they were reading; hovering the row says when the turn
- * finished. A finished turn's steps, tokens, and estimated cost sit at the row's end in the status row's figures.
+ * ran. A subagent the turn started stays counted on the row itself, one click from its tab or its row, since it may
+ * have left the Background work strip by the time the turn folds. A row the user opened while the turn ran keeps the
+ * fold open when the turn ends, so finishing never hides what they were reading; hovering the row says when the turn
+ * finished. A finished turn's steps, tokens, estimated cost, and output rate sit at the row's end in the status row's
+ * figures, shown on hover.
  */
 export function AgentChatTurnFold({
     entry,

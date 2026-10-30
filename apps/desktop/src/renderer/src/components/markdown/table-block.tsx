@@ -21,10 +21,12 @@ const alignClassName = {
 
 /**
  * A GFM table. The transcript variant sets it open, as the Codex app does: no frame or header tint, only row hairlines,
- * with the first column flush to the prose. Its Copy and View Full Screen buttons float over the top-right corner only
- * while the pointer is over the table or focus is inside it, on a `--background` pill so they never print over a header
- * cell. Copy puts both Markdown text and an HTML table on the clipboard, so it pastes as a table into a spreadsheet and
- * as Markdown into an editor; full screen lays the table out at the window's width in 13px text.
+ * with the first column flush to the prose. It is as wide as its content rather than the column, so a two-column table
+ * does not stretch its hairlines across the transcript; a wider one scrolls sideways. Its Copy and View Full Screen
+ * buttons float over the top-right corner only while the pointer is over the table or focus is inside it, on a
+ * `--background` pill so they never print over a header cell. Copy puts both Markdown text and an HTML table on the
+ * clipboard, so it pastes as a table into a spreadsheet and as Markdown into an editor; full screen lays the table out
+ * at the window's width in 13px text.
  */
 export function TableBlock({ block }: { block: TableBlockNode }) {
     const { t } = useTranslation();
@@ -83,7 +85,8 @@ function Table({
                 className={cn(
                     'border-collapse leading-5',
                     isFullscreen ? 'text-[13px]' : 'text-[12px]',
-                    isTranscript && 'min-w-full [&_tbody_tr:last-child>td]:border-b-0',
+                    isTranscript && '[&_tbody_tr:last-child>td]:border-b-0',
+                    isFullscreen && 'min-w-full',
                 )}
             >
                 <thead>

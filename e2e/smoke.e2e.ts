@@ -43,9 +43,7 @@ test('smoke: launches, creates a shell Session, and runs a Terminal command', as
                 );
             }
         }
-        await expect(
-            running.page.getByRole('heading', { name: 'Project-first development.' }),
-        ).toBeVisible();
+        await expect(running.page.locator('[data-workbench-welcome]')).toBeVisible();
         await createShellSession(running.page);
         await typeTerminal(running.page, 'echo caxri-smoke-ok');
         await expect(running.page.locator('.xterm-rows')).toContainText('caxri-smoke-ok');

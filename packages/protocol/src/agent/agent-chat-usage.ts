@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { SessionPullRequest } from '../domain/session-pull-request.js';
 import type { AgentChatItem } from './agent-chat-contract.js';
 import { MAX_AGENT_CHAT_GOAL_OBJECTIVE_LENGTH } from './agent-chat-goal-contract.js';
+import { agentThroughputSpeedSchema } from './agent-throughput-contract.js';
 import type { AgentProvider } from './agents.js';
 
 export const MAX_AGENT_CHAT_USAGE_BREAKDOWN = 16;
@@ -73,6 +74,35 @@ export const agentChatTurnUsageSchema = z.strictObject({
 });
 
 export type AgentChatTurnUsage = z.infer<typeof agentChatTurnUsageSchema>;
+
+/**
+ * What a finished turn produced and cost, recorded on the turn once when it ends so its fold row can show them.
+ */
+export const agentChatTurnMetricsSchema = z.strictObject({
+    /**
+     * Output tokens over the time the model spent generating them, summed across the turn's responses (tool runs
+     * excluded), from the provider's transcript; both absent when it records no timing.
+     */
+    outputTokens: z.number().int().nonnegative().optional(),
+    generationMs: z.number().nonnegative().optional(),
+    /**
+     * The speed tier most of the turn's measured responses ran at, so the fold row can say whether the rate came from
+     * Fast mode; absent when the transcript recorded no tier for most of them.
+     */
+    speed: agentThroughputSpeedSchema.optional(),
+    /**
+     * Estimated list-price cost of every response in the turn; absent when a response's model has no price.
+     */
+    costUsd: z.number().nonnegative().optional(),
+    /**
+     * The turn's steps (model responses) and total tokens (`input + output + cacheRead + cacheWrite`), the running
+     * {@link agentChatTurnUsageSchema} figures frozen when the turn ended, so its fold row can show them afterwards.
+     */
+    requests: z.number().int().positive().optional(),
+    totalTokens: z.number().int().positive().optional(),
+});
+
+export type AgentChatTurnMetrics = z.infer<typeof agentChatTurnMetricsSchema>;
 
 /**
  * What the goal has spent across every turn that worked on it while it was active, in the same figures as

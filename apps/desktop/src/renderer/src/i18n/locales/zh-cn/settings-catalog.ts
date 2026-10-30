@@ -22,8 +22,7 @@ export const settingsCatalog: TranslatedNamespace<typeof source> = {
     'settings.unit.seconds': '秒',
 
     'settings.workbench.language.title': '语言',
-    'settings.workbench.language.description':
-        '界面的显示语言。跟随系统时，系统语言为中文则使用简体中文。',
+    'settings.workbench.language.description': '跟随系统时，中文系统使用简体中文。',
     'settings.workbench.language.nullLabel': '跟随系统',
     'settings.workbench.language.nullLabelResolved': '跟随系统（{{language}}）',
 
@@ -35,13 +34,11 @@ export const settingsCatalog: TranslatedNamespace<typeof source> = {
         'Agent 自动恢复后显示弹窗。开启可恢复已静音的提醒。对所有项目生效；失败始终会显示。',
 
     'settings.session.defaultAgent.title': '默认 Agent',
-    'settings.session.defaultAgent.description':
-        '新会话和新终端使用此 Agent 启动。选择“每次询问”则改为打开列表；“新建终端”按钮始终提供其他 Agent。',
+    'settings.session.defaultAgent.description': '用于新会话和新终端。',
     'settings.session.defaultAgent.nullLabel': '每次询问',
 
     'settings.session.openAgentsInChat.title': '在对话中打开 Agent',
-    'settings.session.openAgentsInChat.description':
-        '新 Agent 以对话而非终端的形式启动。Shell 始终在终端中打开。“新建会话”和“新建终端”菜单也可切换此项。',
+    'settings.session.openAgentsInChat.description': '以对话而非终端的形式启动 Agent。',
 
     'settings.agentChat.longPasteThreshold.title': '对话长文本粘贴阈值',
     'settings.agentChat.longPasteThreshold.description':
@@ -69,7 +66,7 @@ export const settingsCatalog: TranslatedNamespace<typeof source> = {
 
     'settings.workbench.newWorktreeBehavior.title': '新 Worktree 行为',
     'settings.workbench.newWorktreeBehavior.description':
-        '选择是否跟随检测到的 Worktree。“自动继续”会直接授权新的 Worktree 文件夹，不再询问。',
+        '是否跟随新的 Worktree；“自动继续”会直接授权，不再询问。',
     'settings.workbench.newWorktreeBehavior.option.ask': '询问',
     'settings.workbench.newWorktreeBehavior.option.continueWhenAuthorized': '已授权时继续',
     'settings.workbench.newWorktreeBehavior.option.continueAutomatically': '自动继续',
@@ -77,32 +74,30 @@ export const settingsCatalog: TranslatedNamespace<typeof source> = {
 
     'settings.workbench.confirmWorktreeAuthorization.title': '授权 Worktree 前确认',
     'settings.workbench.confirmWorktreeAuthorization.description':
-        '从状态栏选择未授权的 Worktree 时先询问。关闭后直接授权并切换。',
+        '从状态栏选择未授权的 Worktree 时先询问。',
     'settings.workbench.removeWorktreeOnArchive.title': '归档时删除 Worktree',
     'settings.workbench.removeWorktreeOnArchive.description':
-        '归档会话时删除它所在的 Worktree，包括 node_modules 等被忽略的文件。未提交的改动会先提交到其分支，分支保留。Pull Request 未合并的 Worktree 需要你确认后才会删除。',
+        '归档时先把改动提交到保留的分支，再删除会话的 Worktree；未合并的会先询问。',
 
     'settings.workbench.theme.followSystem.title': '跟随系统外观',
-    'settings.workbench.theme.followSystem.description':
-        '系统外观为浅色时使用浅色主题，为深色时使用深色主题，并实时切换。在“主题”页选择单个主题会关闭此项。',
+    'settings.workbench.theme.followSystem.description': '随 macOS 在浅色和深色主题间切换。',
     'settings.workbench.theme.light.title': '浅色主题',
-    'settings.workbench.theme.light.description': '系统外观为浅色时使用的主题',
+    'settings.workbench.theme.light.description': 'macOS 处于浅色模式时使用。',
     'settings.workbench.theme.dark.title': '深色主题',
-    'settings.workbench.theme.dark.description': '系统外观为深色时使用的主题',
+    'settings.workbench.theme.dark.description': 'macOS 处于深色模式时使用。',
     'settings.primarySidebar.autoCollapseProjects.title': '自动折叠不活跃的项目',
     'settings.primarySidebar.autoCollapseProjects.description':
-        '活跃、运行中、有未读以及手动展开的项目保持展开',
+        '活跃、运行中、有未读和已展开的项目保持展开。',
     'settings.primarySidebar.autoCollapseProjects.option.off': '关闭',
     'settings.primarySidebar.autoCollapseProjects.option.30m': '30 分钟后',
     'settings.primarySidebar.autoCollapseProjects.option.2h': '2 小时后',
 
     'settings.primarySidebar.showSubagents.title': '在会话下显示子 Agent',
-    'settings.primarySidebar.showSubagents.description':
-        '在主侧边栏中，把对话中的 Agent 启动的子 Agent 作为缩进行列在其会话下方',
+    'settings.primarySidebar.showSubagents.description': '在会话下列出对话 Agent 启动的子 Agent。',
 
     'settings.primarySidebar.translucent.title': '半透明侧边栏',
     'settings.primarySidebar.translucent.description':
-        '在 macOS 上，主题与系统的浅色或深色外观一致时，侧边栏透出模糊的桌面，呈磨砂玻璃效果。',
+        '主题与 macOS 外观一致时，侧栏透出模糊的桌面。',
     'settings.primarySidebar.translucent.inactive.fullScreen':
         '未生效：窗口处于全屏，没有可模糊的桌面。',
     'settings.primarySidebar.translucent.inactive.themeDarkSystemLight':
@@ -111,12 +106,10 @@ export const settingsCatalog: TranslatedNamespace<typeof source> = {
         '未生效：当前主题为浅色，而 macOS 使用深色外观。',
 
     'settings.zen.fullScreen.title': '进入 Zen 模式时全屏',
-    'settings.zen.fullScreen.description':
-        '进入 Zen 模式时同时让窗口进入原生全屏；退出 Zen 模式时一并退出全屏，除非进入前窗口已经是全屏。',
+    'settings.zen.fullScreen.description': '禅模式同时进入原生全屏。',
 
     'settings.zen.restore.title': '启动时恢复 Zen 模式',
-    'settings.zen.restore.description':
-        '关闭 Caxri 时处于 Zen 模式，重新打开后仍进入 Zen 模式。关闭后每次启动都显示完整布局。',
+    'settings.zen.restore.description': '退出时处于禅模式，下次启动仍进入禅模式。',
 
     'settings.statusBar.usage.limitWindows.title': '状态栏用量限额',
     'settings.statusBar.usage.limitWindows.description':
@@ -127,24 +120,22 @@ export const settingsCatalog: TranslatedNamespace<typeof source> = {
     'settings.statusBar.usage.limitWindows.option.both': '5 小时和每周',
 
     'settings.window.zoomLevel.title': '缩放级别',
-    'settings.window.zoomLevel.description':
-        '缩放整个界面。0 为原始大小；每增减一级缩放 20%。“视图 › 放大”“缩小”和“重置缩放”也会更改此项。',
+    'settings.window.zoomLevel.description': '0 为原始大小；每级缩放 20%。',
 
     'settings.workbench.fontFamily.title': '字体',
-    'settings.workbench.fontFamily.description': '工作台界面字体；留空则使用系统字体',
+    'settings.workbench.fontFamily.description': '留空则使用系统字体。',
     'settings.workbench.fontFamily.placeholder': '系统字体',
 
     'settings.workbench.externalEditor.title': '外部编辑器',
     'settings.workbench.externalEditor.description':
-        '“在外部编辑器中打开项目”使用的命令（例如 code、cursor、subl）',
+        '“在外部编辑器中打开项目”使用的命令，例如 code 或 cursor。',
 
     'settings.mobile.relayUrl.title': '中继服务器',
     'settings.mobile.relayUrl.description':
         'Caxri 中继的 ws:// 或 wss:// 地址。局域网地址都连不上时，已配对的手机会改走中继；流量始终端到端加密。留空则只使用局域网。',
 
     'settings.updates.skippedVersion.title': '已跳过的更新版本',
-    'settings.updates.skippedVersion.description':
-        '在出现更新的版本之前，Caxri 不再推荐此版本。重置后会再次推荐。',
+    'settings.updates.skippedVersion.description': '在出现更新的版本之前，Caxri 不再推荐此版本。',
 
     'settings.terminal.fontFamily.title': '字体',
     'settings.terminal.fontFamily.description': '优先于内置的 JetBrains Mono 后备字体使用',
