@@ -63,6 +63,9 @@ export const viewContainersFiles: TranslatedNamespace<typeof source> = {
         '无法恢复“{{name}}”：原位置已存在同名项目。废纸篓里的副本没有被改动。',
     'viewContainers.files.restoreGone':
         '无法恢复“{{name}}”：原文件夹或废纸篓里的副本已不存在，或此撤销已过期。',
+    'viewContainers.files.replaced': '已替换“{{name}}”，旧文件在废纸篓中。',
+    'viewContainers.files.undoReplaceConflict':
+        '无法撤销：旧文件夹中已存在同名“{{name}}”，无法移回。被替换的文件仍在废纸篓中。',
     'viewContainers.files.createFailed': '无法创建',
     'viewContainers.files.copyFailed': '无法复制',
     'viewContainers.files.renameFailed': '无法重命名',

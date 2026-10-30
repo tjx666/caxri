@@ -91,6 +91,17 @@ export interface ToastActionParameters {
      * name for messages: Server decides whether the item can still be restored.
      */
     'files.undoTrash': { sessionId: string; undoToken: string; name: string };
+    /**
+     * Reverses a Files Replace move: moves the file back, then returns the overwritten file from the Trash. `undoToken`
+     * is Server's opaque Trash receipt; Server decides whether the overwritten file can still be restored.
+     */
+    'files.undoReplace': {
+        sessionId: string;
+        undoToken: string;
+        name: string;
+        path: string;
+        previousPath: string;
+    };
     'processExplorer.open': undefined;
     'session.unarchive': { sessionId: string };
     'settings.open': undefined;
@@ -178,6 +189,7 @@ export const toastActionLabelKeys: Record<ToastActionId, TranslationKey> = {
     'diagnostics.revealExport': 'toasts.action.revealInFinder',
     'editor.restoreDiscardedChanges': 'toasts.action.restoreDiscardedChanges',
     'editor.retrySave': 'common.retry',
+    'files.undoReplace': 'toasts.action.undo',
     'files.undoTrash': 'toasts.action.undo',
     'github.open': 'toasts.action.openOnGitHub',
     'processExplorer.open': 'toasts.action.viewDetails',

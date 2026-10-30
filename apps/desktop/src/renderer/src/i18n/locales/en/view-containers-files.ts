@@ -63,6 +63,9 @@ export const viewContainersFiles = {
         "Couldn't restore '{{name}}': something with that name already exists at its old place. The copy in Trash was left untouched.",
     'viewContainers.files.restoreGone':
         "Couldn't restore '{{name}}': its old folder or its copy in Trash is gone, or this Undo has expired.",
+    'viewContainers.files.replaced': "Replaced '{{name}}'. The old file is in Trash.",
+    'viewContainers.files.undoReplaceConflict':
+        "Couldn't undo: '{{name}}' can't return to its old folder because something with that name is there. The replaced file is still in Trash.",
     'viewContainers.files.createFailed': 'Unable to create item',
     'viewContainers.files.copyFailed': 'Unable to copy item',
     'viewContainers.files.renameFailed': 'Unable to rename item',

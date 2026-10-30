@@ -38,7 +38,10 @@ import {
     openReleaseNotes,
     showUpdateDialog,
 } from '../features/updates/update-commands';
-import { didUndoTrashedFile } from '../features/view-containers/resource-explorer/file-actions';
+import {
+    didUndoReplacedMove,
+    didUndoTrashedFile,
+} from '../features/view-containers/resource-explorer/file-actions';
 import { activeResourceExplorerClient } from '../features/view-containers/resource-explorer-catalog-client';
 import { translate } from '../i18n';
 import { caxri } from '../lib/caxri';
@@ -130,6 +133,23 @@ export const toastActionHandlers: ToastActionHandlers = {
     'github.open': {
         run: ({ url }) => {
             void openExternalUrl(url, (message) => pushToast('error', message));
+        },
+    },
+    'files.undoReplace': {
+        unavailable: ({ sessionId }) =>
+            hasSession(sessionId)
+                ? undefined
+                : translate('toasts.actionUnavailable.missingSession'),
+        run: ({ name, path, previousPath, undoToken }) => {
+            // Fire-and-forget: didUndoReplacedMove reports every outcome itself.
+            void tryCommand(translate('viewContainers.files.moveFailed'), async () =>
+                didUndoReplacedMove(await activeResourceExplorerClient(), {
+                    name,
+                    path,
+                    previousPath,
+                    undoToken,
+                }),
+            );
         },
     },
     'files.undoTrash': {

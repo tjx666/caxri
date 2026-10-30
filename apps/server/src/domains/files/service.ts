@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import { stat } from 'node:fs/promises';
 import { basename, dirname, resolve } from 'node:path';
 
 import type {
@@ -35,6 +34,7 @@ import { FileMutationJournal } from './mutation-journal';
 import type { FileMutationServiceOptions } from './mutations';
 import { FileMutationService } from './mutations';
 import { FileOperationQueue } from './operation-queue';
+import { resolveImportSpecifier } from './resolve-import-specifier';
 import type {
     ProjectFileSuffixSearchResult,
     ProjectSuffixLeafKind,
@@ -87,7 +87,7 @@ export class FileService {
     private readonly importFiles: ImportConfigFiles;
     private readonly packageImports: PackageImports;
     /**
-     * Moves into the host Trash and restores from it (Files tree Undo); see {@link TrashUndo}.
+     * Host Trash moves and restores for the Files tree's Undo; see {@link TrashUndo}.
      */
     readonly trashUndo: TrashUndo;
 
@@ -136,7 +136,10 @@ export class FileService {
             options.listing,
         );
         this.searcher = new SearchService(resolveSessionPath, logger, maxFileBytes, options.search);
-        this.mutations = new FileMutationService(resolveSessionPath, logger, options.mutations);
+        this.mutations = new FileMutationService(resolveSessionPath, logger, {
+            ...options.mutations,
+            trashReplacedTarget: (id, path) => this.trashUndo.trashReplacedTarget(id, path),
+        });
         this.trashUndo = new TrashUndo(this.projectRoots, this.operations, (parameters) =>
             this.mutations.authorizeTrash(parameters),
         );
@@ -147,37 +150,6 @@ export class FileService {
             sessionId,
             workbenchRootProjectId: this.projectRoots.getSessionWorkbenchRootProjectId(sessionId),
         };
-    }
-
-    private async resolveImportSpecifier(
-        parameters: ServerOperationParameters<'files.resolveImports'>,
-        candidates: string[],
-        budget: { remaining: number },
-    ): Promise<string | undefined> {
-        for (const candidate of candidates) {
-            if (budget.remaining-- <= 0) return undefined;
-            try {
-                // eslint-disable-next-line no-await-in-loop -- first existing candidate wins, see resolveImports
-                const resolved = await this.projectRoots.resolveSessionPath(
-                    parameters.sessionId,
-                    candidate,
-                    true,
-                );
-                // eslint-disable-next-line no-await-in-loop -- first existing candidate wins, see resolveImports
-                if ((await stat(resolved.path)).isFile())
-                    return resolved.workspacePath ?? resolved.path;
-            } catch (error) {
-                /**
-                 * A missing candidate is the expected answer for every extension the target does not use, so the loop
-                 * moves on. Anything else (notably a path the Session is not allowed to reach) stops this specifier
-                 * instead of falling through to the next guess, which would turn one refusal into a probe sequence.
-                 */
-                if (error instanceof CaxriError && error.code === 'NOT_FOUND') continue;
-                if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue;
-                return undefined;
-            }
-        }
-        return undefined;
     }
 
     resolveSessionPath(
@@ -440,7 +412,13 @@ export class FileService {
                 ? relativeImportCandidatePaths(from.workspacePath ?? from.path, specifier)
                 : tsconfigImportTargets(config, specifier).flatMap(importCandidatePaths);
             // oxlint-disable-next-line react-doctor/async-await-in-loop
-            let path = await this.resolveImportSpecifier(parameters, candidates, budget); // eslint-disable-line no-await-in-loop -- see above
+            // eslint-disable-next-line no-await-in-loop -- see above
+            let path = await resolveImportSpecifier(
+                this.projectRoots,
+                parameters,
+                candidates,
+                budget,
+            );
             if (!path && !isRelativeImportSpecifier(specifier) && budget.remaining > 0) {
                 // oxlint-disable-next-line react-doctor/async-await-in-loop
                 // eslint-disable-next-line no-await-in-loop -- package fallback follows alias resolution
@@ -450,7 +428,13 @@ export class FileService {
                     specifier,
                 );
                 // oxlint-disable-next-line react-doctor/async-await-in-loop
-                path = await this.resolveImportSpecifier(parameters, packageCandidates, budget); // eslint-disable-line no-await-in-loop -- first authorized target wins
+                // eslint-disable-next-line no-await-in-loop -- first authorized target wins
+                path = await resolveImportSpecifier(
+                    this.projectRoots,
+                    parameters,
+                    packageCandidates,
+                    budget,
+                );
             }
             if (path) resolved.push({ path, specifier });
         }

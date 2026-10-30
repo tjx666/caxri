@@ -52,6 +52,39 @@ describe('FileService Trash Undo', () => {
         return undoToken;
     }
 
+    it('trashes the file a Replace move overwrites and gives both files back on Undo', async () => {
+        const sourceFolder = join(root, 'a');
+        const targetFolder = join(root, 'b');
+        await mkdir(sourceFolder);
+        await mkdir(targetFolder);
+        const source = join(sourceFolder, 'x.txt');
+        const target = join(targetFolder, 'x.txt');
+        await writeFile(source, 'moved');
+        await writeFile(target, 'overwritten');
+
+        const moved = await service.move({
+            sessionId,
+            path: source,
+            directory: targetFolder,
+            conflict: 'replace',
+        });
+
+        expect(moved.path).toBe(target);
+        expect(moved.replacedUndoToken).toBeTruthy();
+        expect(await readFile(target, 'utf8')).toBe('moved');
+
+        await service.move({
+            sessionId,
+            path: moved.path,
+            directory: sourceFolder,
+            conflict: 'reject',
+        });
+        await service.trashUndo.restoreTrashed({ sessionId, undoToken: moved.replacedUndoToken! });
+
+        expect(await readFile(source, 'utf8')).toBe('moved');
+        expect(await readFile(target, 'utf8')).toBe('overwritten');
+    });
+
     it('puts a trashed file back at its original path', async () => {
         const target = join(root, 'notes.txt');
         await writeFile(target, 'keep me');

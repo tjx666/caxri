@@ -341,7 +341,7 @@ export async function moveFile(
             folderGated: isFolderGatedConflict(sourceKind, targetKind),
         });
         if (choice === 'cancel') return undefined;
-        return attemptMove(
+        const moved = await attemptMove(
             client,
             sessionId,
             path,
@@ -350,7 +350,60 @@ export async function moveFile(
             false,
             source,
         );
+        /**
+         * Undo reverses the move inside the one Project both ends belong to; a cross-Project move has no single Session
+         * that could authorize moving the file back, so it keeps the Trash copy for Finder's Put Back instead.
+         */
+        if (!source && moved?.replacedUndoToken)
+            pushToast('info', translate('viewContainers.files.replaced', { name: moved.name }), {
+                action: {
+                    id: 'files.undoReplace',
+                    params: {
+                        sessionId,
+                        undoToken: moved.replacedUndoToken,
+                        name: moved.name,
+                        path: moved.path,
+                        previousPath: moved.previousPath,
+                    },
+                },
+            });
+        return moved;
     }
+}
+
+/**
+ * Takes a Replace move back from the Undo button on its notification, in two steps that each report their own failure:
+ * the moved file returns to its old folder first (freeing the name), then the overwritten file leaves the Trash for
+ * that same name. A failed first step leaves the overwritten file in Trash with its receipt intact, so nothing is
+ * lost.
+ */
+export async function didUndoReplacedMove(
+    client: ResourceExplorerClient,
+    undo: { name: string; path: string; previousPath: string; undoToken: string },
+): Promise<boolean> {
+    const restoredDirectory = parentDirectoryPath(undo.previousPath);
+    const operationId = crypto.randomUUID();
+    try {
+        await client.move({
+            operationId,
+            path: undo.path,
+            directory: restoredDirectory,
+            conflict: 'reject',
+        });
+    } catch (error) {
+        pushToast(
+            'error',
+            isCaxriError(error) && error.code === 'CONFLICT'
+                ? translate('viewContainers.files.undoReplaceConflict', { name: undo.name })
+                : describeFailureKey(error, 'viewContainers.files.moveFailed', translate),
+        );
+        await invalidateDirectory(client, restoredDirectory);
+        return false;
+    }
+    const restored = await didUndoTrashedFile(client, undo.undoToken, undo.name);
+    await invalidateDirectory(client, parentDirectoryPath(undo.path));
+    await invalidateDirectory(client, restoredDirectory);
+    return restored;
 }
 
 /**
