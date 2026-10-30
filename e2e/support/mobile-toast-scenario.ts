@@ -69,8 +69,10 @@ export async function executeMobileToastScenario(
         await tapMobileCheckByBounds(serial, 'in-app-browser-close');
         await waitForNoCheck(serial, 'in-app-browser');
         // The chip outlives its server for up to one poll, so a tap right after the stop reaches the failure path.
-        await inside.stop();
+        await waitForCheck(serial, 'preview-chip');
+        const stopped = inside.stop();
         await tapMobileCheck(serial, 'preview-chip');
+        await stopped;
         if (!(await waitForNativeText(serial, "Couldn't open the preview")))
             throw new Error('A failed preview did not show a Toast');
         await capture(environment, 'preview-failed', artifacts);
