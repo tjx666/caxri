@@ -58,8 +58,9 @@ after three consecutive successes, with the Relay session at least 60 seconds ol
 flight, it closes with `route-upgrade` and reconnects directly. Recovery after any switch uses the
 transport's subscribe-then-snapshot rule, so a running Agent is unaffected.
 
-A relayed connection has no LAN address, so plain-HTTP side channels (the Android update download)
-are unavailable over the Relay.
+A relayed connection has no LAN address, so the gateway's plain-HTTP side channels are unavailable
+over the Relay. The Android update download falls back to the matching GitHub Release asset
+([Mobile updates](update.md#transport)); web previews stay direct-only.
 
 ## Configuring a Server
 

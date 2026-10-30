@@ -193,8 +193,21 @@ describe('MobileGateway over a real Relay', () => {
             const write = vi.fn();
             const holder: { gateway?: MobileGateway } = {};
             const invoke = vi.fn<CommandAdapter['invoke']>((request, context) => {
-                if (request.method === 'mobile.update.prepare')
-                    return holder.gateway!.connectionAddress(context);
+                if (request.method === 'mobile.update.prepare') {
+                    const bundle = {
+                        md5: '0'.repeat(32),
+                        sizeBytes: 1,
+                        version: '0.0.143',
+                        versionCode: 143,
+                    };
+                    return {
+                        bundle,
+                        ...holder.gateway!.prepareUpdateDownload(context, {
+                            apkPath: '/unused',
+                            bundle,
+                        }),
+                    };
+                }
                 return {
                     hostDisplayName: 'Test computer',
                     deviceRole: 'control',
@@ -244,13 +257,19 @@ describe('MobileGateway over a real Relay', () => {
                 params: {},
             })) as { ok: boolean };
             expect(reply.ok).toBe(true);
-            const unavailable = (await client.request({
+            // The gateway's HTTP endpoint is unreachable over the Relay, so the APK comes from its GitHub Release.
+            const update = (await client.request({
                 protocolVersion: CAXRI_PROTOCOL_VERSION,
                 id: 'update',
                 method: 'mobile.update.prepare',
                 params: {},
-            })) as { ok: boolean; error?: { code: string } };
-            expect(unavailable).toMatchObject({ ok: false, error: { code: 'UNAVAILABLE' } });
+            })) as { ok: boolean; result?: { url: string } };
+            expect(update).toMatchObject({
+                ok: true,
+                result: {
+                    url: 'https://github.com/tjx666/caxri/releases/download/v0.0.143/Caxri-Mobile-0.0.143-android-arm64.apk',
+                },
+            });
             expect(write).toHaveBeenCalledWith('info', 'mobile_gateway.connection_established', {
                 fields: { deviceId: device.deviceId, route: 'relay' },
             });

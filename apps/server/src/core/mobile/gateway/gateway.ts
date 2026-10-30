@@ -233,13 +233,10 @@ export class MobileGateway {
     }
 
     prepareUpdateDownload(context: CommandExecutionContext, source: MobileUpdateSource) {
-        const address = this.connectionAddress(context);
-        const { deviceId, generation } = this.#authenticatedSession(context);
-        return this.#updateDownloads.issue(
-            { deviceId, generation },
-            source,
-            `http://${address}:${this.#port}`,
-        );
+        const { deviceId, generation, route } = this.#authenticatedSession(context);
+        if (route === 'relay') return this.#updateDownloads.releaseAsset(source);
+        const origin = `http://${this.connectionAddress(context)}:${this.#port}`;
+        return this.#updateDownloads.issue({ deviceId, generation }, source, origin);
     }
 
     async enable(): Promise<MobileAccessStatus> {
