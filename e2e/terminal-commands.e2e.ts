@@ -19,6 +19,7 @@ import {
     typeTerminal,
     waitForNewTerminalId,
 } from './support/helpers.ts';
+import { openProjectNewSessionMenu } from './support/project-new-session-menu.ts';
 
 function terminalSurface(page: Page, terminalId: string): Locator {
     return page.locator(`.terminal-pane[data-terminal-id="${terminalId}"] .terminal-surface`);
@@ -537,11 +538,7 @@ test('unsupported shells and Agent Terminals remain usable without inferred boun
 
         const shellSessionId = await selectedSessionId(running.page);
         const shellTerminalId = await activeTerminalId(running.page);
-        await running.page
-            .locator('.project-heading')
-            .filter({ has: running.page.getByRole('button', { name: /^New Session in /u }) })
-            .hover();
-        await running.page.getByRole('button', { name: /^New Session in /u }).click();
+        await openProjectNewSessionMenu(running.page);
         await chooseTerminalFromCreateMenu(running.page, 'Codex');
         await expect.poll(() => selectedSessionId(running.page)).not.toBe(shellSessionId);
         const agentTerminalId = await waitForNewTerminalId(running.page, [shellTerminalId]);

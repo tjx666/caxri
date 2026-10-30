@@ -37,6 +37,7 @@ import type { E2EApp } from './electron-app.ts';
 import { flushE2EErrorToasts, registerE2ELaunch } from './error-gate.ts';
 import { releaseE2EHost } from './host-shutdown.ts';
 import type { E2EAgentMode, LaunchCaxriOptions } from './launch-options.ts';
+import { openProjectNewSessionMenu } from './project-new-session-menu.ts';
 import { waitForRuntimeReady } from './runtime-ready.ts';
 import { resolveE2ELaunchPolicy, resolveE2EWorkerIsolation } from './worker-isolation.ts';
 
@@ -513,19 +514,8 @@ export async function createAdditionalShellSession(page: Page): Promise<void> {
         terminals: Array<{ id: string }>;
     }>(page, 'app.bootstrap');
     if (!before.selectedSessionId) throw new Error('No Session selected before creation');
-    await page
-        .locator('.project-heading')
-        .filter({ has: page.getByRole('button', { name: /^New Session in / }) })
-        .hover();
-    await page.getByRole('button', { name: /^New Session in / }).click();
+    await openProjectNewSessionMenu(page);
     await chooseTerminalFromCreateMenu(page, 'Shell');
-    /**
-     * Opening the action requires hovering the Project heading. Park the pointer in the Workbench after activation so
-     * the trigger's delayed tooltip cannot cover a caller's next click or leave the Project in a synthetic hover
-     * state.
-     */
-    await page.mouse.move(500, 300);
-    await expect(page.locator('.tooltip-popup')).toHaveCount(0);
     const terminalId = await waitForNewTerminalId(
         page,
         before.terminals.map((terminal) => terminal.id),

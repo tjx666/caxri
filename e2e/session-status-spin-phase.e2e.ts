@@ -16,6 +16,7 @@ import {
     pageRequest,
     waitForCreatedSession,
 } from './support/helpers.ts';
+import { openProjectNewSessionMenu } from './support/project-new-session-menu.ts';
 
 async function readFileIfPresent(path: string): Promise<string> {
     try {
@@ -200,11 +201,7 @@ process.stdout.write('Fake Claude spin phase ready\r\n');
         await fireHook(config, 'turn-started');
         await expect(firstStatus.locator('[data-session-status-arc]')).toBeVisible();
 
-        await page
-            .locator('.project-heading')
-            .filter({ has: page.getByRole('button', { name: /^New Session in / }) })
-            .hover();
-        await page.getByRole('button', { name: /^New Session in / }).click();
+        await openProjectNewSessionMenu(page);
         await chooseTerminalFromCreateMenu(page, 'Claude');
         await page.mouse.move(900, 600);
         const secondId = await waitForCreatedSession(page, firstId);

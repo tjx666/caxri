@@ -11,6 +11,7 @@ import { pushToast, tryCommand } from '../../stores/toasts';
 import { refreshWorkbench } from '../../stores/workbench';
 import { pickSshHostFolder } from '../ssh-host/ssh-host-dialogs-store';
 import { newAgentSurface } from '../terminal/new-terminal-agent';
+import { rememberLastAgentChoice, useLastAgentChoiceStore } from './last-agent-choice-store';
 import { selectProject } from './session-commands';
 
 async function createSession(projectId: string, defaultAgent: TerminalKind | null): Promise<void> {
@@ -78,6 +79,31 @@ export function beginSessionCreation(
 }
 
 /**
+ * The Terminal a press on the Project heading's New Session button starts: the configured default Agent, else the kind
+ * the user last picked from a New Session list. `undefined` means the press opens the list instead. Only the heading
+ * falls back to the last pick, because its hover still offers the full list; the empty-Project row and the
+ * `session.create` command keep "Ask each time" literal.
+ */
+function headingPressKind(): TerminalKind | undefined {
+    return (
+        getBootstrap()?.settings['session.defaultAgent'] ?? useLastAgentChoiceStore.getState().kind
+    );
+}
+
+/**
+ * Handles a press on the Project heading's New Session button; see `headingPressKind`.
+ */
+export function pressHeadingNewSession(projectId: string): void {
+    const kind = headingPressKind();
+    if (!kind) {
+        openSessionCreationMenu(projectId, 'heading');
+        return;
+    }
+    // Fire-and-forget: `createSession` funnels its own failures into a toast via `tryCommand`.
+    void createSession(projectId, kind);
+}
+
+/**
  * Opens the anchored Agent list even when a default Agent is configured: the Project heading's button creates the
  * default on press and opens this list on hover.
  */
@@ -88,11 +114,12 @@ export function openSessionCreationMenu(projectId: string, anchor: CreateSession
 }
 
 /**
- * Commits the anchored Session-creation menu's choice. `null` is the deliberate "no Terminal" escape hatch and is not
- * recorded as a preference, since it names no Terminal the menu could lead with next time.
+ * Commits the anchored Session-creation menu's choice and remembers it for the heading button's press. `null` is the
+ * deliberate "no Terminal" escape hatch and is not remembered (see `rememberLastAgentChoice`).
  */
 export function chooseSessionTerminalKind(projectId: string, kind: TerminalKind | null): void {
     useDialogStore.getState().closeCreateSessionMenu();
+    rememberLastAgentChoice(kind);
     // Fire-and-forget: `createSession` funnels its own failures into a toast via `tryCommand`.
     void createSession(projectId, kind);
 }
@@ -187,6 +214,7 @@ export function resumePendingSession(): void {
 
 export function confirmPendingSession(kind: TerminalKind | null): void {
     const { pendingRoot, pendingProjectId } = useDialogStore.getState();
+    rememberLastAgentChoice(kind);
     // Fire-and-forget: both `createProjectSession` and `createSession` funnel their own failures
     // into a toast via `tryCommand`.
     if (pendingRoot) {

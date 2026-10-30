@@ -1,0 +1,16 @@
+import { describe, expect, it } from 'vitest';
+
+import { parseLastAgentChoice } from '../last-agent-choice-store';
+
+describe('parseLastAgentChoice', () => {
+    it('keeps a Terminal kind Caxri ships', () => {
+        expect(parseLastAgentChoice('codex')).toEqual({ kind: 'codex' });
+        expect(parseLastAgentChoice('shell')).toEqual({ kind: 'shell' });
+    });
+
+    it('reads a missing, retired, or corrupt entry as no choice', () => {
+        expect(parseLastAgentChoice(undefined)).toEqual({ kind: undefined });
+        expect(parseLastAgentChoice('retired-agent')).toEqual({ kind: undefined });
+        expect(parseLastAgentChoice({ kind: 'codex' })).toEqual({ kind: undefined });
+    });
+});

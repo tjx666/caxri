@@ -15,6 +15,7 @@ import {
     VISIBLE_SESSION,
     waitForCreatedSession,
 } from './support/helpers.ts';
+import { openProjectNewSessionMenu } from './support/project-new-session-menu.ts';
 import { runningWork } from './support/running-work.ts';
 
 // eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
@@ -270,11 +271,7 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
 
         // The sidebar's New Session menu shares the preference, so a whole Session can start as a Chat.
         const previous = await pageRequest<{ selectedSessionId?: string }>(page, 'app.bootstrap');
-        const newSession = page.getByRole('button', { name: /^New Session in / });
-        // Opened from the keyboard: on the CI runner a synthesized pointer over the sidebar heading lands on `<html>`
-        // even though `elementFromPoint` hits the heading, so a hover-then-click never reaches the trigger.
-        await newSession.focus();
-        await newSession.press('Enter');
+        await openProjectNewSessionMenu(page);
         const sessionMenu = page.getByRole('menu', { name: /^New Session in / });
         await expect(
             sessionMenu.getByRole('menuitemcheckbox', { name: 'Open Agents in Chat' }),
