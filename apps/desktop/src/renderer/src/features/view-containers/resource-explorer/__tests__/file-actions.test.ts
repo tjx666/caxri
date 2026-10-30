@@ -13,14 +13,7 @@ import { useSessionViewStore } from '../../../../stores/session-view';
 import { dismissToast, getToasts } from '../../../../stores/toasts';
 import { useWorkbenchStore } from '../../../../stores/workbench';
 import { controlledViewQueryKey } from '../../view-operation-client';
-import {
-    createItem,
-    didTrashFile,
-    duplicateFile,
-    moveFile,
-    pasteFile,
-    renameFile,
-} from '../file-actions';
+import { createItem, didTrashFile, duplicateFile, moveFile, renameFile } from '../file-actions';
 import { useFileClipboardStore } from '../file-clipboard';
 import {
     resolveFileConflictChoice,
@@ -31,6 +24,7 @@ import {
     reconcileFileMutation,
 } from '../file-operation-reconciliation';
 import { useFileOperationStore } from '../file-operation-state';
+import { pasteFile } from '../file-paste-actions';
 import type { ResourceExplorerClient } from '../resource-explorer-client';
 
 function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {

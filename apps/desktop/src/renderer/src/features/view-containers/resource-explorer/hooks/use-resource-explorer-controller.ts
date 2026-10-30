@@ -16,7 +16,7 @@ import {
     useResourceExplorerClient,
 } from '../../controlled-view-context';
 import { subscribeCoreViewCommands } from '../../core-view-commands';
-import { cancelFileOperation, importOsFiles, moveFile, pasteIntoDirectory } from '../file-actions';
+import { cancelFileOperation, moveFile } from '../file-actions';
 import { useFileClipboardStore } from '../file-clipboard';
 import type { PendingFileOperation } from '../file-operation-state';
 import {
@@ -24,6 +24,7 @@ import {
     isPathBlockedByFileOperations,
     useFileOperationStore,
 } from '../file-operation-state';
+import { importOsFiles, pasteIntoDirectory } from '../file-paste-actions';
 import type { EditRequest, FocusTarget } from '../file-tree-item-types';
 import {
     activeResourceExplorerScope,

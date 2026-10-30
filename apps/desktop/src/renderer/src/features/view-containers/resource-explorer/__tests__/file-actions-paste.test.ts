@@ -1,16 +1,37 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type * as FileActions from '../file-actions';
+
+type MoveFile = typeof FileActions.moveFile;
+
 const mocks = vi.hoisted(() => ({
+    closeOpenEditorsUnderPath: vi.fn<(projectId: string, path: string) => void>(),
+    dirtyPaths: new Set<string>(),
+    moveFile: vi.fn<MoveFile>(),
+    projectIds: new Map<string, string>(),
     request: vi.fn<(method: string, parameters: Record<string, unknown>) => Promise<unknown>>(),
 }));
 
 vi.mock('../../../../lib/caxri', () => ({ caxri: { request: mocks.request } }));
+vi.mock(import('../../../../stores/selectors'), async (importOriginal) => ({
+    ...(await importOriginal()),
+    getSessionProjectId: (sessionId: string) => mocks.projectIds.get(sessionId),
+}));
+vi.mock('../../../editor/document-trash', () => ({
+    closeOpenEditorsUnderPath: mocks.closeOpenEditorsUnderPath,
+    hasUnsavedChangesUnderPath: (projectId: string, path: string) =>
+        mocks.dirtyPaths.has(`${projectId}:${path}`),
+}));
+vi.mock(import('../file-actions'), async (importOriginal) => ({
+    ...(await importOriginal()),
+    moveFile: mocks.moveFile,
+}));
 
 import { queryClient } from '../../../../queries/client';
 import { useEnvironmentStore } from '../../../../stores/environment';
-import { dismissToast } from '../../../../stores/toasts';
-import { importOsFiles, pasteFile, pasteIntoDirectory, rememberFile } from '../file-actions';
+import { dismissToast, getToasts } from '../../../../stores/toasts';
 import { useFileClipboardStore } from '../file-clipboard';
+import { importOsFiles, pasteFile, pasteIntoDirectory, rememberFile } from '../file-paste-actions';
 import type { ResourceExplorerClient } from '../resource-explorer-client';
 import { setResourceExplorerActiveScope } from '../resource-explorer-scope-store';
 
@@ -18,6 +39,8 @@ const client = {
     viewId: 'publisher.files.explorer',
     copy: (options: Parameters<ResourceExplorerClient['copy']>[0]) =>
         mocks.request('files.copy', options),
+    forgetEditorPath: (projectId: string, path: string) =>
+        mocks.request('editor.forget', { projectId, path }),
 } as unknown as ResourceExplorerClient;
 
 /**
@@ -52,6 +75,10 @@ beforeEach(() => {
 afterEach(() => {
     vi.unstubAllGlobals();
     mocks.request.mockReset();
+    mocks.moveFile.mockReset();
+    mocks.closeOpenEditorsUnderPath.mockReset();
+    mocks.dirtyPaths.clear();
+    mocks.projectIds.clear();
     queryClient.clear();
     useFileClipboardStore.getState().clear();
     useEnvironmentStore.setState({ state: undefined });
@@ -100,6 +127,57 @@ describe('Cut or Copy across Projects', () => {
             },
             { path: '/a/notes.md', directory: '/a/docs' },
         ]);
+    });
+});
+
+describe('Cut and paste into another Project', () => {
+    const cut = { mode: 'cut', path: '/a/notes.md', sessionId: 'session-a' } as const;
+
+    beforeEach(() => {
+        stubRequests();
+        mocks.projectIds.set('session-a', 'project-a').set('session-b', 'project-b');
+        mocks.moveFile.mockResolvedValue({
+            kind: 'file',
+            name: 'notes.md',
+            path: '/b/notes.md',
+            previousPath: '/a/notes.md',
+        });
+    });
+
+    it('closes and forgets the tabs the moved item left behind in its old Project', async () => {
+        useFileClipboardStore.getState().set(cut);
+
+        await pasteFile(client, 'session-b', '/b', cut);
+
+        expect(mocks.closeOpenEditorsUnderPath).toHaveBeenCalledWith('project-a', '/a/notes.md');
+        expect(mocks.request).toHaveBeenCalledWith('editor.forget', {
+            projectId: 'project-a',
+            path: '/a/notes.md',
+        });
+        expect(useFileClipboardStore.getState().entry).toBeUndefined();
+    });
+
+    it('refuses while the item has unsaved edits in its old Project', async () => {
+        mocks.dirtyPaths.add('project-a:/a/notes.md');
+
+        await expect(pasteFile(client, 'session-b', '/b', cut)).resolves.toBeUndefined();
+
+        expect(mocks.moveFile).not.toHaveBeenCalled();
+        expect(getToasts()).toEqual([
+            expect.objectContaining({
+                type: 'error',
+                title: 'Save or close the file before moving it to another Project',
+            }),
+        ]);
+    });
+
+    it('leaves the tabs to the move itself when both Sessions share a Project', async () => {
+        mocks.projectIds.set('session-b', 'project-a');
+
+        await pasteFile(client, 'session-b', '/a/docs', cut);
+
+        expect(mocks.moveFile).toHaveBeenCalled();
+        expect(mocks.closeOpenEditorsUnderPath).not.toHaveBeenCalled();
     });
 });
 

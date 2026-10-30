@@ -67,6 +67,9 @@ export const viewContainersFiles = {
     'viewContainers.files.copyFailed': 'Unable to copy item',
     'viewContainers.files.renameFailed': 'Unable to rename item',
     'viewContainers.files.moveFailed': 'Unable to move item',
+    'viewContainers.files.moveUnsavedToProject':
+        'Save or close the file before moving it to another Project',
+    'viewContainers.files.moveCleanupFailed': 'Moved item could not be closed in its old Project',
     'viewContainers.files.cancelFailed': 'Unable to cancel item operation',
     'viewContainers.files.trashFailed': 'Unable to move item to Trash',
     'viewContainers.files.trashCleanupFailed': 'Trashed editor state could not be cleaned up',

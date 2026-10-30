@@ -15,8 +15,8 @@ import { isLocalOnlyAvailable } from '../../../stores/environment';
 import { openFilePreview } from '../../preview/preview-commands';
 import { canPreviewPath } from '../../preview/preview-registry';
 import { projectSearchFolderInclude } from '../../project-search/project-search-seed';
-import { rememberFile } from './file-actions';
 import { fileOperationBusyReason } from './file-operation-state';
+import { rememberFile } from './file-paste-actions';
 
 export interface FileTreeItemMenuOptions {
     confirmTrash: () => Promise<void>;

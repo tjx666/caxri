@@ -10,18 +10,11 @@ import { parentDirectoryPath } from '../../../../lib/file-path';
 import { tryCommand } from '../../../../stores/toasts';
 import { openFileForSession } from '../../../editor/document-commands';
 import { useResourceExplorerClient } from '../../controlled-view-context';
-import {
-    didTrashFile,
-    duplicateFile,
-    importOsFiles,
-    moveFile,
-    pasteIntoDirectory,
-    rememberFile,
-    undoLatestTrash,
-} from '../file-actions';
+import { didTrashFile, duplicateFile, moveFile, undoLatestTrash } from '../file-actions';
 import type { FileClipboardEntry } from '../file-clipboard';
 import { useFileClipboardStore } from '../file-clipboard';
 import { pasteDisabledReason, useIsPathBlockedByFileOperations } from '../file-operation-state';
+import { importOsFiles, pasteIntoDirectory, rememberFile } from '../file-paste-actions';
 import type { EditRequest } from '../file-tree-item-types';
 import { useFileTreeNavigator } from '../file-tree-navigation-context';
 import {

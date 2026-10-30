@@ -67,6 +67,8 @@ export const viewContainersFiles: TranslatedNamespace<typeof source> = {
     'viewContainers.files.copyFailed': '无法复制',
     'viewContainers.files.renameFailed': '无法重命名',
     'viewContainers.files.moveFailed': '无法移动',
+    'viewContainers.files.moveUnsavedToProject': '请先保存或关闭文件，再移动到其他项目',
+    'viewContainers.files.moveCleanupFailed': '无法在原项目中关闭已移动的文件',
     'viewContainers.files.cancelFailed': '无法取消此操作',
     'viewContainers.files.trashFailed': '无法移到废纸篓',
     'viewContainers.files.trashCleanupFailed': '无法清理已删除文件的编辑器状态',
