@@ -345,11 +345,17 @@ layout the top 36px stays a drag band for the traffic lights; full screen drops 
 `zen.fullScreen` (default on) entering Zen also enters native full screen, and leaving Zen by any
 path gives it back only when Zen took it. With `zen.restore` (default on) a window that was in Zen
 when it closed starts in Zen again (one device-wide flag, like the chrome layout, so the last window to toggle Zen decides). A ghost `Exit Zen Mode` icon button in the top right
-corner is invisible until the pointer reaches it or keyboard focus lands on it; Escape does not
+corner shows for 1.5s on entering Zen as an exit cue, then stays invisible until the pointer
+reaches it or keyboard focus lands on it; Escape does not
 exit Zen, because it stops a running Chat turn and is an application key in the Terminal. Toasts
 that report a fact or a degradation (`info`, `success`, `warning` with no follow-up button) do not
 pop up in Zen but still enter the notification history; failures, persistent notices, and any toast
 with a follow-up button still appear, at the top right below the exit button instead of the bottom right, so they never cover the centered composer. Approvals and questions are Chat cards, never toasts.
+
+**Airplane Mode** (`Enter Airplane Mode`): a state in which the window is not meant to be used. Its
+modal blocks the whole window in every phase and offers no close button, Escape, or outside click;
+the only exits are resuming Sessions or leaving without resuming. This is deliberate, so an audit
+must not report the blocking modal or the missing in-mode browsing as a defect.
 
 **Status bar**: `--surface` background, top hairline, `meta` text in `--muted`. The left side
 shows Project and Git context, plus the delivery chips the current branch resolves to: its pull
