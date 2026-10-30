@@ -2,6 +2,7 @@ import type { ComponentProps } from 'react';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { AgentChatSnapshot } from '@caxri/protocol';
+import { agentChatSnapshotBeforeItem } from '@caxri/protocol';
 
 import { LoadingSkeleton } from '../../components/loading-skeleton';
 import { useTranslation } from '../../i18n';
@@ -187,6 +188,14 @@ export function AgentChatPane({
         { canFork, providerName, supportsRewindFiles },
     );
     const pending = useAgentChatPending(terminalId, snapshot);
+    /**
+     * What the timeline shows: while an edit is on its way, the message it replaces and everything after it are already
+     * gone, as they will be once Server Core rewinds the projection.
+     */
+    const shownSnapshot = useMemo(
+        () => agentChatSnapshotBeforeItem(snapshot, pending.replacedFrom),
+        [snapshot, pending.replacedFrom],
+    );
     // The waiting popup leaves out a Chat on screen here, whose own request card already asks.
     useEffect(
         () => (isSessionVisible ? markAgentChatOnScreen(terminalId) : undefined),
@@ -203,7 +212,7 @@ export function AgentChatPane({
         anchor,
     } = useAgentChatScroll(snapshot?.revision, {
         isTurnLive: isAgentChatBusy(snapshot) || pending.timeline.length > 0,
-        latestPromptId: snapshot?.items.findLast((item) => item.type === 'userMessage')?.id,
+        latestPromptId: shownSnapshot?.items.findLast((item) => item.type === 'userMessage')?.id,
         turnSelector: AGENT_CHAT_TURN_SELECTOR,
     });
     /**
@@ -233,7 +242,7 @@ export function AgentChatPane({
     });
     const olderItems = history.history.items;
     const { settledChunks, timeline, dayBreaks, railMarks } = useAgentChatTimelines(
-        snapshot,
+        shownSnapshot,
         history.history,
     );
     const { start: mountedFrom, mountAll } = useAgentChatTailFirstMount(timeline.length);
@@ -358,7 +367,10 @@ export function AgentChatPane({
                                         activeTurnId={snapshot?.activeTurnId}
                                         isAwaitingReply={
                                             pending.timeline.length === 0 &&
-                                            isAgentChatAwaitingReplyInTimeline(snapshot, timeline)
+                                            isAgentChatAwaitingReplyInTimeline(
+                                                shownSnapshot,
+                                                timeline,
+                                            )
                                         }
                                         mcpServers={snapshot?.mcpServers}
                                         mountedFrom={mountedFrom}

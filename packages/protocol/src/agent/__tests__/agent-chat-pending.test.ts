@@ -7,6 +7,7 @@ import {
     agentChatPendingKnownIds,
     agentChatPendingPlacement,
     agentChatPendingView,
+    agentChatSnapshotBeforeItem,
     isAgentChatPendingAnswerSettled,
     isAgentChatPendingMessageSettled,
     unsettledAgentChatPendingMessages,
@@ -249,6 +250,59 @@ describe('agentChatPendingView', () => {
     it('keeps the same array when nothing settled', () => {
         const messages = [pending()];
         expect(unsettledAgentChatPendingMessages(messages, snapshot())).toBe(messages);
+    });
+});
+
+describe('an edit on its way', () => {
+    const before = snapshot({
+        items: [
+            { id: 'u1', turnId: 't1', type: 'userMessage', text: 'First' },
+            { id: 'a1', turnId: 't1', type: 'agentMessage', text: 'Reply', streaming: false },
+            { id: 'u2', turnId: 't2', type: 'userMessage', text: 'Second' },
+            { id: 'a2', turnId: 't2', type: 'agentMessage', text: 'Reply', streaming: false },
+        ],
+        turns: [
+            { id: 't1', status: 'completed' },
+            { id: 't2', status: 'completed' },
+        ],
+    });
+    const edit = pending({
+        text: 'Second, edited',
+        knownIds: new Set(['u1', 'u2']),
+        replaces: 'u2',
+    });
+
+    it('hides the replaced message and what follows until the projection rewinds', () => {
+        const view = agentChatPendingView([edit], [], before);
+        expect(view.replacedFrom).toBe('u2');
+        expect(view.timeline.map((message) => message.id)).toEqual(['pending-1']);
+        const shown = agentChatSnapshotBeforeItem(before, view.replacedFrom);
+        expect(shown?.items.map((item) => item.id)).toEqual(['u1', 'a1']);
+        expect(shown?.turns.map((turn) => turn.id)).toEqual(['t1']);
+    });
+
+    it('stops hiding once the rewound projection no longer holds the replaced message', () => {
+        const rewound = snapshot({
+            items: before.items.slice(0, 2),
+            turns: before.turns.slice(0, 1),
+            activeTurnId: 't3',
+        });
+        const view = agentChatPendingView([edit], [], rewound);
+        expect(view.replacedFrom).toBeUndefined();
+        expect(view.timeline.map((message) => message.id)).toEqual(['pending-1']);
+        expect(agentChatSnapshotBeforeItem(rewound, view.replacedFrom)).toBe(rewound);
+    });
+
+    it('hands over to the edited message once the projection shows it', () => {
+        const sent = snapshot({
+            items: [
+                ...before.items.slice(0, 2),
+                { id: 'u3', turnId: 't3', type: 'userMessage', text: 'Second, edited' },
+            ],
+        });
+        const view = agentChatPendingView([edit], [], sent);
+        expect(view.timeline).toEqual([]);
+        expect(view.replacedFrom).toBeUndefined();
     });
 });
 

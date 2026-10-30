@@ -148,6 +148,10 @@ export function showAgentChatPendingMessage(
          */
         imageCount?: number;
         delivery: 'queue' | 'steer' | undefined;
+        /**
+         * The user message an edit sends this one in place of; see `AgentChatPendingMessageBase.replaces`.
+         */
+        replaces?: string;
     },
 ): string {
     const ahead = selectAgentChatPendingMessages(terminalId)(useAgentChatPendingStore.getState());
@@ -160,6 +164,7 @@ export function showAgentChatPendingMessage(
         placement: agentChatPendingPlacement(snapshot, message.delivery, ahead.length > 0),
         knownIds: agentChatPendingKnownIds(snapshot),
         wait: agentChatPendingWait(snapshot, message.delivery),
+        ...(message.replaces !== undefined && { replaces: message.replaces }),
     });
     return id;
 }

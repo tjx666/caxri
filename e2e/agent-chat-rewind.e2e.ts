@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, realpath, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -170,6 +170,61 @@ test('a Codex Chat edits only the conversation and Escape cancels', async ({}, t
         await message.press('Escape');
         await expectComposerValue(message, 'unsent draft');
         await expect(chat.locator('[data-agent-chat-edit-bar]')).toHaveCount(0);
+    } finally {
+        await closeAppQuietly(running.app);
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+/**
+ * Sends `text` to a Codex Chat and waits for the turn to end; the fake Codex reply does not repeat the message.
+ */
+async function sendCodexTurn(chat: Locator, text: string): Promise<void> {
+    const message = chat.getByRole('textbox', { name: 'Message' });
+    await message.fill(text);
+    await message.press('Enter');
+    await expect(userMessage(chat, text)).toBeVisible();
+    await expect(chat.getByRole('button', { name: 'Stop' })).toHaveCount(0);
+}
+
+// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
+test('a Codex Chat shows an edit at once while the Agent restarts', async ({}, testInfo) => {
+    const created = await mkdtemp(join(tmpdir(), 'caxri-agent-chat-rewind-'));
+    const directory = await realpath(created);
+    const userData = join(directory, 'user-data');
+    const root = join(directory, 'project');
+    await mkdir(root);
+    const agentMode = await fakeCodexChatAgentMode(directory, userData);
+    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    try {
+        const { page } = running;
+        await createProjectSession(page, 'shell');
+        await openAgentChat(page, 'Codex Chat');
+        const chat = page.locator(VISIBLE_SESSION);
+        await sendCodexTurn(chat, 'first question');
+        await sendCodexTurn(chat, 'second question');
+
+        await userMessage(chat, 'second question').hover();
+        await chat.getByRole('button', { name: 'Edit from here' }).click();
+        const message = chat.getByRole('textbox', { name: 'Message' });
+        await expectComposerValue(message, 'second question');
+        // The restart after the rewind resumes slowly, holding the edit request open, as a slow startup hook does.
+        await writeFile(join(directory, 'codex-threads', 'resume-delay-ms'), '4000');
+        await message.fill('a better second question');
+        await message.press('Enter');
+        // The pending row, before Server Core has rewound, restarted, and sent.
+        await expect(chat.getByText('a better second question', { exact: true })).toBeVisible({
+            timeout: 1500,
+        });
+        await expect(userMessage(chat, /^second question$/u)).toHaveCount(0, { timeout: 1500 });
+        await expect(userMessage(chat, 'first question')).toHaveCount(1);
+        await page.screenshot({ path: testInfo.outputPath('codex-edit-pending.png') });
+
+        await expect(chat.getByRole('button', { name: 'Stop' })).toHaveCount(0, {
+            timeout: 15_000,
+        });
+        await expect(userMessage(chat, 'a better second question')).toHaveCount(1);
+        await expect(userMessage(chat, /^second question$/u)).toHaveCount(0);
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });
