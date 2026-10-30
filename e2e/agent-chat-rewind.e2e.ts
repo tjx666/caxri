@@ -27,7 +27,7 @@ async function sendAndSettle(chat: Locator, text: string, reply: RegExp): Promis
     await expect(chat.getByRole('button', { name: 'Send' })).toBeVisible();
 }
 
-function userMessage(chat: Locator, text: string): Locator {
+function userMessage(chat: Locator, text: RegExp | string): Locator {
     return chat.locator('[data-agent-chat-user-message]').filter({ hasText: text });
 }
 
