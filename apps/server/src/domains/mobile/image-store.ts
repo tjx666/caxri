@@ -1,9 +1,11 @@
 import { Buffer } from 'node:buffer';
-import { chmod, lstat, mkdir, readdir, readFile, stat, unlink, writeFile } from 'node:fs/promises';
+import { readdir, readFile, stat, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir, userInfo } from 'node:os';
 import { join } from 'node:path';
 
 import { CaxriError } from '@caxri/protocol';
+
+import { ensurePrivateUploadDirectory } from './private-upload-directory';
 
 const MAX_IMAGE_BYTES = 3 * 1_024 * 1_024;
 const MAX_PENDING_UPLOADS = 16;
@@ -55,12 +57,7 @@ export class MobileImageStore {
     }
 
     async #cleanExpiredFiles(): Promise<void> {
-        await mkdir(this.#root, { recursive: true, mode: 0o700 });
-        // A planted symlink or foreign directory would expose uploaded images to another account.
-        const metadata = await lstat(this.#root);
-        if (!metadata.isDirectory() || metadata.isSymbolicLink() || metadata.uid !== userInfo().uid)
-            throw new CaxriError('CONFLICT', 'The mobile image directory is not owned by you.');
-        await chmod(this.#root, 0o700);
+        await ensurePrivateUploadDirectory(this.#root);
         const entries = await readdir(this.#root);
         for (const name of entries) {
             if (!/^image_[0-9a-f]{32}\.jpg$/u.test(name)) continue;

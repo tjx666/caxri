@@ -32,6 +32,13 @@ import {
     mobileChangesListResultSchema,
 } from './mobile-changes-contract.js';
 import { mobileDashboardSessionSchema } from './mobile-dashboard-session-contract.js';
+import {
+    MAX_MOBILE_FILE_ATTACHMENTS,
+    mobileFileAttachmentIdSchema,
+    mobileFilePathsInternalParametersSchema,
+    mobileFileUploadParametersSchema,
+    mobileFileUploadResultSchema,
+} from './mobile-file-upload-contract.js';
 import { mobileFilesInternalMethods, mobileFilesMethods } from './mobile-files-contract.js';
 import { mobileHostStatusMethods } from './mobile-host-status-contract.js';
 import {
@@ -58,12 +65,14 @@ export { mobileDeviceRoleSchema } from './device-role.js';
 export * from './mobile-access-contract.js';
 export * from './mobile-agent-chat-contract.js';
 export * from './mobile-agent-chat-state-clip.js';
+export * from './mobile-agent-chat-window.js';
 export * from './mobile-agent-usage-contract.js';
 export * from './mobile-attention-contract.js';
 export * from './mobile-bot-inbox-contract.js';
 export * from './mobile-changes-contract.js';
 export * from './mobile-dashboard-session-contract.js';
 export { MOBILE_FILES_MAX_ENTRIES, MOBILE_FILES_READ_MAX_BYTES } from './mobile-file-limits.js';
+export * from './mobile-file-upload-contract.js';
 export * from './mobile-files-contract.js';
 export * from './mobile-host-status-contract.js';
 export * from './mobile-image-contract.js';
@@ -163,6 +172,13 @@ const mobileAgentSubmitParametersSchema = z.strictObject({
     endpoint: agentEndpointReferenceSchema,
     clientMutationId: identifierSchema,
     attachmentIds: z.array(mobileAttachmentIdSchema).max(3).optional(),
+    /**
+     * Uploaded files (`mobile.file.upload`) the Agent receives as paths after the text.
+     */
+    fileAttachmentIds: z
+        .array(mobileFileAttachmentIdSchema)
+        .max(MAX_MOBILE_FILE_ATTACHMENTS)
+        .optional(),
     text: z
         .string()
         .min(1)
@@ -353,6 +369,15 @@ export const mobileMethods = {
         params: mobileImageUploadParametersSchema,
         result: z.strictObject({ ready: z.boolean() }),
     },
+    /**
+     * One chunk of a file of any type. Chunks may arrive in any order and several at once; the file is written under
+     * its own name once every chunk arrived, and kept for an hour for a message to cite.
+     */
+    'mobile.file.upload': {
+        ...commandPolicy('server', 'write', ['terminals.steer']),
+        params: mobileFileUploadParametersSchema,
+        result: mobileFileUploadResultSchema,
+    },
     'mobile.session.create': {
         ...commandPolicy('server', 'write', ['sessions.write']),
         params: z.strictObject({
@@ -510,6 +535,16 @@ export const mobileInternalMethods = {
         ...commandPolicy('server', 'write'),
         params: mobileImageUploadParametersSchema.extend({ principal: principalSchema }),
         result: mobileMethods['mobile.image.upload'].result,
+    },
+    'mobile.file.uploadInternal': {
+        ...commandPolicy('server', 'write'),
+        params: mobileFileUploadParametersSchema.extend({ principal: principalSchema }),
+        result: mobileFileUploadResultSchema,
+    },
+    'mobile.file.pathsInternal': {
+        ...commandPolicy('server', 'read'),
+        params: mobileFilePathsInternalParametersSchema,
+        result: z.array(z.string().min(1)),
     },
     'mobile.image.readInternal': {
         ...commandPolicy('server', 'read'),

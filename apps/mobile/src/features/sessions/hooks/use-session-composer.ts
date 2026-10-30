@@ -45,6 +45,7 @@ const refreshAfterAcceptedAction = async (onRefresh: () => Promise<void>): Promi
 export const useSessionComposer = ({
     attachmentIds,
     attachmentWaitReason,
+    fileAttachmentIds,
     onAttachmentsSent,
     deviceRole,
     draft,
@@ -59,6 +60,10 @@ export const useSessionComposer = ({
      * Why Send waits on the attached images, or `null` once they are all uploaded.
      */
     attachmentWaitReason: string | null;
+    /**
+     * Uploaded files the Agent receives as paths after the text.
+     */
+    fileAttachmentIds: string[];
     onAttachmentsSent: () => void;
     deviceRole: 'view' | 'reply' | 'control' | null;
     draft: string;
@@ -96,6 +101,7 @@ export const useSessionComposer = ({
         isRunning &&
         draft.trim().length === 0 &&
         attachmentIds.length === 0 &&
+        fileAttachmentIds.length === 0 &&
         !hasPendingAttachment;
     const targetReason = isShowStop
         ? stopDisabledReason(session, isConnected, deviceRole, t)
@@ -108,7 +114,10 @@ export const useSessionComposer = ({
     const canSubmit =
         !isBusy &&
         !disabledReason &&
-        (isShowStop || draft.trim().length > 0 || attachmentIds.length > 0);
+        (isShowStop ||
+            draft.trim().length > 0 ||
+            attachmentIds.length > 0 ||
+            fileAttachmentIds.length > 0);
 
     const updateDraft = useCallback(
         (value: string): void => {
@@ -146,8 +155,13 @@ export const useSessionComposer = ({
             return;
         }
         if (!session.primaryAgentTerminalId) return;
-        const text = draft.trim().length > 0 ? draft : 'Please inspect the attached image.';
-        const attemptKey = JSON.stringify([text, attachmentIds]);
+        const text =
+            draft.trim().length > 0
+                ? draft
+                : fileAttachmentIds.length > 0
+                  ? 'Please inspect the attached files.'
+                  : 'Please inspect the attached image.';
+        const attemptKey = JSON.stringify([text, attachmentIds, fileAttachmentIds]);
         const mutationId = composerMutationIdForAttempt(
             current,
             attemptKey,
@@ -166,6 +180,7 @@ export const useSessionComposer = ({
                 clientMutationId: mutationId,
                 text,
                 attachmentIds,
+                ...(fileAttachmentIds.length > 0 && { fileAttachmentIds }),
             });
             if (result.outcome === 'unknown') {
                 sessionComposerDeliveryStore.set(stateKey, {
@@ -192,6 +207,7 @@ export const useSessionComposer = ({
     }, [
         attachmentIds,
         canSubmit,
+        fileAttachmentIds,
         draft,
         onAttachmentsSent,
         onDraftChange,

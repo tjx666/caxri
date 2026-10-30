@@ -17,6 +17,7 @@ import {
     CaxriError,
     clipAgentChatTaskSnapshotForMobile,
     MOBILE_AGENT_CHAT_IMAGE_CHUNK_LENGTH,
+    parseAgentChatPathReferences,
     readMobileMessageChunk,
     windowAgentChatHistoryPageForMobile,
     windowAgentChatSnapshotForMobile,
@@ -298,9 +299,10 @@ export async function invokeMobileAgentChatRequest(
         }
         case 'mobile.agentChat.send': {
             const attachments = request.params.attachments ?? [];
-            const uploaded =
+            const files = request.params.files ?? [];
+            const [uploaded, filePaths] = await Promise.all([
                 attachments.length > 0
-                    ? await domainService.request('mobile.image.readInternal', {
+                    ? domainService.request('mobile.image.readInternal', {
                           sessionId: terminal.sessionId,
                           attachmentIds: attachments.flatMap((attachment) => [
                               attachment.attachmentId,
@@ -308,8 +310,23 @@ export async function invokeMobileAgentChatRequest(
                           ]),
                           principal,
                       })
-                    : [];
+                    : [],
+                files.length > 0
+                    ? domainService.request('mobile.file.pathsInternal', {
+                          sessionId: terminal.sessionId,
+                          attachmentIds: files,
+                          principal,
+                      })
+                    : [],
+            ]);
             reauthorize();
+            const cited = new Set(
+                parseAgentChatPathReferences(request.params.text).references.map(
+                    (reference) => reference.path,
+                ),
+            );
+            if (filePaths.some((path) => !cited.has(path)))
+                throw new CaxriError('VALIDATION', 'The message does not cite every attached file');
             const images = attachments.map((_, index) => ({
                 mediaType: 'image/jpeg' as const,
                 data: uploaded[index * 2],

@@ -96,6 +96,7 @@ describe('pnpm dependency contract', () => {
             '@types/ws',
             '@yutengjing/eslint-config-typescript',
             'eslint-plugin-import-x',
+            'expo-document-picker',
             'expo-file-system',
             'expo-image-manipulator',
             'expo-image-picker',

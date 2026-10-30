@@ -45,6 +45,7 @@ export type MobileControlRequest = Extract<
             | 'mobile.attention.autoAllowRevoke'
             | 'mobile.agent.submit'
             | 'mobile.image.upload'
+            | 'mobile.file.upload'
             | 'mobile.session.create'
             | 'mobile.session.rename'
             | 'mobile.session.archive'

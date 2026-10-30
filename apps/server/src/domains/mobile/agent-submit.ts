@@ -7,6 +7,7 @@ import type { AgentEndpointLifecycle } from '../agent-endpoints';
 import type { CaxriDatabase } from '../db';
 import { assertPtyTerminal } from '../pty-guard';
 import type { TerminalManager } from '../terminal';
+import type { MobileFileStore } from './file-store';
 import type { MobileImageStore } from './image-store';
 import type { MobileTerminalMutationQueue } from './terminal-mutation-queue';
 
@@ -16,6 +17,7 @@ export function createMobileAgentSubmitHandler(options: {
     database: CaxriDatabase;
     endpoints?: AgentEndpointLifecycle;
     images?: Pick<MobileImageStore, 'paths'>;
+    uploads?: Pick<MobileFileStore, 'paths'>;
     queue: Pick<MobileTerminalMutationQueue, 'runProjectSessionTerminal'>;
     terminals: Pick<TerminalManager, 'submitAgentExact'>;
 }) {
@@ -24,6 +26,7 @@ export function createMobileAgentSubmitHandler(options: {
         if (principal.kind !== 'paired-device' || principal.role === 'view')
             throw new CaxriError('FORBIDDEN', 'Device cannot submit Agent input');
         const attachmentIds = parameters.attachmentIds ?? [];
+        const fileAttachmentIds = parameters.fileAttachmentIds ?? [];
         const session = options.database.getSession(sessionId);
         if (
             !session ||
@@ -38,25 +41,38 @@ export function createMobileAgentSubmitHandler(options: {
             deviceGeneration: principal.generation,
             clientMutationId,
             requestFingerprint: createHash('sha256')
-                .update(JSON.stringify([sessionId, terminalId, endpoint, text, attachmentIds]))
+                .update(
+                    JSON.stringify([
+                        sessionId,
+                        terminalId,
+                        endpoint,
+                        text,
+                        attachmentIds,
+                        fileAttachmentIds,
+                    ]),
+                )
                 .digest('hex'),
         };
         const previous = options.database.mobileAgentSubmitReceipts.find(identity);
         if (previous) return { terminalId, outcome: previous } as const;
         if (attachmentIds.length > 0 && !options.images)
             throw new CaxriError('UNAVAILABLE', 'Image attachments are unavailable');
+        if (fileAttachmentIds.length > 0 && !options.uploads)
+            throw new CaxriError('UNAVAILABLE', 'File attachments are unavailable');
+        const owner = `${principal.deviceId}:${principal.generation}`;
         const attachmentPaths =
-            attachmentIds.length > 0
-                ? options.images!.paths(
-                      `${principal.deviceId}:${principal.generation}`,
-                      sessionId,
-                      attachmentIds,
-                  )
+            attachmentIds.length > 0 ? options.images!.paths(owner, sessionId, attachmentIds) : [];
+        const filePaths =
+            fileAttachmentIds.length > 0
+                ? options.uploads!.paths(owner, sessionId, fileAttachmentIds)
                 : [];
-        const submission =
-            attachmentPaths.length > 0
-                ? `${text}\n\nAttached image paths:\n${attachmentPaths.join('\n')}`
-                : text;
+        const submission = [
+            text,
+            ...(attachmentPaths.length > 0
+                ? [`Attached image paths:\n${attachmentPaths.join('\n')}`]
+                : []),
+            ...(filePaths.length > 0 ? [`Attached file paths:\n${filePaths.join('\n')}`] : []),
+        ].join('\n\n');
         const terminal = options.database.getTerminal(terminalId);
         if (!terminal || terminal.sessionId !== sessionId)
             throw new CaxriError('NOT_FOUND', 'Terminal not found');

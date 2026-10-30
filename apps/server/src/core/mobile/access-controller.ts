@@ -49,6 +49,7 @@ import {
 import { invokeMobileTerminalRequest } from './terminal-requests';
 import { invokeMobileTimelineRequest } from './timeline-requests';
 import { createMobileUpdateRequests } from './update-bundle';
+import { invokeMobileUploadRequest } from './upload-requests';
 
 const requiredGateway = (gateway: MobileGateway | undefined): MobileGateway => {
     if (!gateway) throw new CaxriError('UNAVAILABLE', 'Mobile access is unavailable');
@@ -362,21 +363,14 @@ export const openMobileAccessController = (options: {
                         },
                     );
                 }
-                case 'mobile.image.upload': {
+                case 'mobile.image.upload':
+                case 'mobile.file.upload': {
                     return withAuthority(async () => {
                         assertOpen();
                         const principal = currentPairedPrincipal(context.principal, request.method);
-                        await sessionForPrincipal(
-                            domainService,
-                            principal,
-                            request.params.sessionId,
-                        );
-                        const result = await domainService.request('mobile.image.uploadInternal', {
-                            ...request.params,
-                            principal,
+                        return invokeMobileUploadRequest(request, principal, domainService, () => {
+                            currentPairedPrincipal(principal, request.method);
                         });
-                        currentPairedPrincipal(principal, request.method);
-                        return result;
                     });
                 }
                 case 'mobile.session.create': {

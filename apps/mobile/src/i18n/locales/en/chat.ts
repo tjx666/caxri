@@ -29,7 +29,7 @@ export const chat = {
     'chat.commands.skillHint': 'Adds the skill to your message so you can say what to do.',
     'chat.commands.skills': 'Skills',
     'chat.commands.skillsNeedAgent': 'Skills appear once the Agent is running',
-    'chat.composer.attachImage': 'Attach image',
+    'chat.composer.attach': 'Attach',
     'chat.composer.holdToQueueHint': "Hold to queue it until {{provider}}'s current turn ends.",
     'chat.composer.imageLimit': 'Up to {{count}} images per message.',
     'chat.composer.imagesTotalLimit': 'Images in one message must add up to {{size}} MB or less.',
@@ -179,7 +179,6 @@ export const chat = {
     'chat.image.zoomHint': 'Pinch or double-tap to zoom.',
     'chat.image.zoomHintPaged':
         'Swipe up or down to see the next or previous image. Pinch or double-tap to zoom.',
-    'chat.imagesUnsupported': '{{provider}} Chat does not accept images',
     'chat.loadFailed': 'Unable to load this Chat.',
     'chat.loading': 'Loading Chat…',
     'chat.model.appliesNextTurn': 'Applies to the next turn.',

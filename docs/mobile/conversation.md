@@ -57,6 +57,19 @@ submission fingerprint alongside the text, so an uncertain retry cannot silently
 payload. Interrupted uploads expire after two idle minutes without writing a file; completed
 temporary images expire after one hour.
 
+The same device may also attach up to ten files of any type, each up to 100 MB: videos from the
+photo library, or audio, PDFs, and other documents from the system Files picker (Files). A file
+uploads unchanged in `mobile.file.upload` chunks that Server Core writes straight to their offset in
+a private temporary file, so a large video never sits in memory whole, and moves into place under
+its picked name once every chunk has arrived. The Agent reads it by path: the Terminal composer
+lists the paths after the prompt (`fileAttachmentIds` on `mobile.agent.submit`), and an Agent Chat
+cites them ahead of the text the way Desktop cites a file card
+(`agentChatTextWithPathReferences`), so the sent message and its pending row show them as file
+chips. Server Core refuses a Chat message whose text leaves out one of its `files`. For a provider
+without Chat image input, photos from the library and camera go as files and the clipboard source
+is hidden. Unfinished uploads expire after two idle minutes and uploaded files after one hour; the
+composer marks a file older than 55 minutes as expired, and Retry uploads the phone's copy again.
+
 **Session usage.** The Agent Chat composer's model row ends with Desktop's context ring: a quiet
 neutral ring until the context reaches the share where compacting is suggested (85% of the window
 the provider compacts at), then the warning tone with the percentage. Before the provider reports a

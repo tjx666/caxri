@@ -11,52 +11,36 @@ import type { MobileTheme } from '../../theme/tokens';
 import { sessionDetailStyles as styles } from '../sessions/components/session-detail-styles';
 import type { AgentChatComposerButtonLook } from './agent-chat-composer-button-look';
 import { agentChatComposerButtonLook } from './agent-chat-composer-button-look';
-import { agentChatComposerButton, agentChatImagesUnsupportedReason } from './agent-chat-model';
+import { agentChatComposerButton } from './agent-chat-model';
 
 /**
- * A provider that cannot read images in a Chat (Grok Build) keeps the button, disabled, so the reader learns why
- * instead of wondering where attaching went.
+ * Opens the attachment sources. Every provider takes files, so a provider without image input (Grok Build) still gets
+ * the button; its photos go as files.
  */
 export const AttachButton = ({
     canAdd,
     isEditable,
     onPress,
-    onUnsupported,
-    provider,
-    supportsImages,
     theme,
 }: {
     canAdd: boolean;
     isEditable: boolean;
     onPress: () => void;
-    /**
-     * Receives the reason a provider without image support gives when its disabled button is tapped; the composer shows
-     * it on its status line instead of in a system dialog.
-     */
-    onUnsupported: (reason: string) => void;
-    provider: string;
-    supportsImages: boolean;
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
-    const unsupportedReason = agentChatImagesUnsupportedReason(provider, t);
     return (
         <View style={styles.attachSlot}>
             <IconButton
                 accessibilityHint={
-                    !supportsImages
-                        ? unsupportedReason
-                        : canAdd
-                          ? undefined
-                          : t('chat.composer.imageLimit', { count: MAX_AGENT_CHAT_IMAGES })
+                    canAdd
+                        ? undefined
+                        : t('chat.composer.imageLimit', { count: MAX_AGENT_CHAT_IMAGES })
                 }
-                accessibilityLabel={t('chat.composer.attachImage')}
+                accessibilityLabel={t('chat.composer.attach')}
                 color={theme.muted}
-                disabled={!supportsImages || !isEditable || !canAdd}
+                disabled={!isEditable || !canAdd}
                 icon={Paperclip}
-                onDisabledPress={
-                    supportsImages ? undefined : () => onUnsupported(unsupportedReason)
-                }
                 onPress={onPress}
                 size={22}
                 testID="agent-chat-attach-image"

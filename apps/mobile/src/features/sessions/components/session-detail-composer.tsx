@@ -10,11 +10,12 @@ import { useTranslation } from '../../../i18n';
 import type { MobileTheme } from '../../../theme/tokens';
 import { mobileAgentDisplayName } from '../agent-display-name';
 import { useComposerSuggestions } from '../hooks/use-composer-suggestions';
+import { useFileAttachments } from '../hooks/use-file-attachments';
 import { useImageAttachments } from '../hooks/use-image-attachments';
 import { useSessionComposer } from '../hooks/use-session-composer';
 import type { ComposerDelivery } from '../session-composer-state';
 import type { MobileSessionItem } from '../session-model';
-import { ImageSourceSheet } from './image-source-sheet';
+import { AttachmentSourceSheet } from './attachment-source-sheet';
 import { SessionComposerAttachments, SessionComposerSuggestions } from './session-composer-extras';
 import { SessionComposerStatus } from './session-composer-status';
 import { sessionDetailStyles as styles } from './session-detail-styles';
@@ -157,13 +158,21 @@ export const SessionDetailComposer = ({
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
-    const images = useImageAttachments(session.id);
+    const files = useFileAttachments(session.id);
+    const images = useImageAttachments(session.id, {
+        files: { add: files.add, imagesAsFiles: false, remaining: files.remaining },
+    });
+    const canAttach = images.canAdd || files.canAdd;
     const [isChoosingImage, setChoosingImage] = useState(false);
     const { byteLength, canSubmit, delivery, disabledReason, showStop, submit, updateDraft } =
         useSessionComposer({
             attachmentIds: images.readyIds,
-            attachmentWaitReason: images.waitReason,
-            onAttachmentsSent: images.clear,
+            attachmentWaitReason: images.waitReason ?? files.waitReason,
+            fileAttachmentIds: files.readyIds,
+            onAttachmentsSent: () => {
+                images.clear();
+                files.clear();
+            },
             deviceRole,
             draft,
             hostId,
@@ -179,7 +188,7 @@ export const SessionDetailComposer = ({
             style={[styles.composerBlock, { borderColor: theme.border }]}
             testID="session-composer"
         >
-            <SessionComposerAttachments images={images} theme={theme} />
+            <SessionComposerAttachments files={files} images={images} theme={theme} />
             <SessionComposerSuggestions
                 draft={draft}
                 suggestions={suggestions}
@@ -191,11 +200,11 @@ export const SessionDetailComposer = ({
                     <View style={styles.attachSlot}>
                         <IconButton
                             accessibilityHint={
-                                images.canAdd ? undefined : t('sessions.composer.imageLimit')
+                                canAttach ? undefined : t('sessions.composer.imageLimit')
                             }
-                            accessibilityLabel={t('sessions.composer.attachImage')}
+                            accessibilityLabel={t('sessions.composer.attach')}
                             color={theme.muted}
-                            disabled={!images.canAdd}
+                            disabled={!canAttach}
                             icon={Paperclip}
                             onPress={() => setChoosingImage(true)}
                             size={22}
@@ -223,17 +232,17 @@ export const SessionDetailComposer = ({
                 />
             </View>
             <SessionComposerStatus
-                attachError={images.attachError}
+                attachError={images.attachError ?? files.attachError}
                 byteLength={byteLength}
                 delivery={delivery}
                 disabledReason={disabledReason}
                 theme={theme}
             />
             {isChoosingImage ? (
-                <ImageSourceSheet
+                <AttachmentSourceSheet
                     onClose={() => setChoosingImage(false)}
                     onPick={(source) => {
-                        void images.add(source);
+                        void (source === 'files' ? files.pick() : images.add(source));
                     }}
                     theme={theme}
                 />

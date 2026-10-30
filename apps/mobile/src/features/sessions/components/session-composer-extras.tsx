@@ -12,6 +12,7 @@ import type { MobileTheme } from '../../../theme/tokens';
 import { LocalImageViewer } from '../../agent-chat/agent-chat-image-viewer';
 import { insertComposerSuggestion } from '../composer-suggestions';
 import type { useComposerSuggestions } from '../hooks/use-composer-suggestions';
+import type { FileAttachments } from '../hooks/use-file-attachments';
 import type { useImageAttachments } from '../hooks/use-image-attachments';
 import { imageAttachmentAccessibilityLabel } from '../image-attachment-store';
 import {
@@ -22,7 +23,8 @@ import {
     IMAGE_STRIP_REMOVE_TARGET,
     IMAGE_STRIP_THUMBNAIL,
 } from '../image-strip-layout';
-import { ImageFailureSheet } from './image-failure-sheet';
+import { ComposerFileCard } from './composer-file-card';
+import { UploadFailureSheet } from './upload-failure-sheet';
 
 type Images = ReturnType<typeof useImageAttachments>;
 type Suggestions = ReturnType<typeof useComposerSuggestions>;
@@ -79,20 +81,23 @@ const styles = StyleSheet.create({
  * progress, and failure sit on a scrim over the picture. The failed scrim opens the failure reason with Retry and
  * Remove. A Chat message carries up to `MAX_AGENT_CHAT_IMAGES`, more than a phone's width holds, so the strip scrolls
  * sideways and brings each newly attached image into view. A tap on a picture opens the pending images at full size, as
- * a sent message's images open, so the user can check one before sending.
+ * a sent message's images open, so the user can check one before sending. Pending files follow the images as cards with
+ * their name, size, and upload progress.
  */
 export const SessionComposerAttachments = ({
+    files,
     images,
     theme,
 }: {
+    files: FileAttachments;
     images: Images;
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
     const strip = useRef<ScrollViewInstance>(null);
-    const shownCount = useRef(images.attachments.length);
+    const shownCount = useRef(images.attachments.length + files.attachments.length);
     const [openIndex, setOpenIndex] = useState<number | null>(null);
-    if (images.attachments.length === 0) return null;
+    if (images.attachments.length === 0 && files.attachments.length === 0) return null;
     return (
         <>
             <ScrollView
@@ -100,7 +105,7 @@ export const SessionComposerAttachments = ({
                 horizontal
                 keyboardShouldPersistTaps="handled"
                 onContentSizeChange={() => {
-                    const count = images.attachments.length;
+                    const count = images.attachments.length + files.attachments.length;
                     // Only a new image scrolls the strip; removing one leaves the reader where they were.
                     if (count > shownCount.current) strip.current?.scrollToEnd({ animated: true });
                     shownCount.current = count;
@@ -110,7 +115,7 @@ export const SessionComposerAttachments = ({
                 style={styles.strip}
                 testID="session-image-attachments"
             >
-                {/* react-doctor-disable-next-line react-doctor/rn-no-scrollview-mapped-list -- At most 20 images; virtualizing would only break the strip's layout animation. */}
+                {/* react-doctor-disable-next-line react-doctor/rn-no-scrollview-mapped-list -- At most 20 images and 10 files; virtualizing would only break the strip's layout animation. */}
                 {images.attachments.map((attachment, index) => {
                     const label = imageAttachmentAccessibilityLabel(
                         attachment,
@@ -201,9 +206,39 @@ export const SessionComposerAttachments = ({
                         </Animated.View>
                     );
                 })}
+                {/* react-doctor-disable-next-line react-doctor/rn-no-scrollview-mapped-list -- See the images above. */}
+                {files.attachments.map((file) => (
+                    <Animated.View
+                        entering={FadeIn.duration(160)}
+                        exiting={FadeOut.duration(120)}
+                        key={file.id}
+                        layout={LinearTransition.duration(180)}
+                    >
+                        <ComposerFileCard
+                            file={file}
+                            onExplainFailure={() => files.explainFailure(file.id)}
+                            onRemove={() => files.remove(file.id)}
+                            theme={theme}
+                        />
+                    </Animated.View>
+                ))}
             </ScrollView>
+            {files.failure ? (
+                <UploadFailureSheet
+                    onClose={files.dismissFailure}
+                    onRemove={() => {
+                        if (files.failure) files.remove(files.failure.id);
+                    }}
+                    onRetry={() => {
+                        if (files.failure) void files.retry(files.failure.id);
+                    }}
+                    reason={files.failure.error ?? t('sessions.image.uploadFailed')}
+                    theme={theme}
+                    title={t('sessions.file.uploadFailedTitle')}
+                />
+            ) : null}
             {images.failure ? (
-                <ImageFailureSheet
+                <UploadFailureSheet
                     onClose={images.dismissFailure}
                     onRemove={() => {
                         if (images.failure) images.remove(images.failure.id);
@@ -213,6 +248,7 @@ export const SessionComposerAttachments = ({
                     }}
                     reason={images.failure.error ?? t('sessions.image.uploadFailed')}
                     theme={theme}
+                    title={t('sessions.image.uploadFailedTitle')}
                 />
             ) : null}
             <LocalImageViewer

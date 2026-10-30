@@ -5,6 +5,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import type { AgentAction, AgentProvider } from '@caxri/protocol';
 import {
     agentChatDraftWithReturnedMessage,
+    agentChatTextWithPathReferences,
     MAX_AGENT_CHAT_IMAGES,
     MAX_AGENT_CHAT_IMAGES_TOTAL_BASE64_LENGTH,
     MAX_AGENT_CHAT_IMAGES_TOTAL_BYTES,
@@ -17,9 +18,11 @@ import type { Translate } from '../../i18n';
 import { useTranslation } from '../../i18n';
 import { mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
-import { ImageSourceSheet } from '../sessions/components/image-source-sheet';
+import { AttachmentSourceSheet } from '../sessions/components/attachment-source-sheet';
 import { SessionComposerAttachments } from '../sessions/components/session-composer-extras';
 import { sessionDetailStyles as styles } from '../sessions/components/session-detail-styles';
+import type { FileAttachments } from '../sessions/hooks/use-file-attachments';
+import { useFileAttachments } from '../sessions/hooks/use-file-attachments';
 import { useImageAttachments } from '../sessions/hooks/use-image-attachments';
 import { imageAttachmentBudgetNote } from '../sessions/image-attachment-store';
 import { AgentChatCommandList } from './agent-chat-command-list';
@@ -55,7 +58,6 @@ import type { AgentChatController } from './use-agent-chat';
 import { useAgentChatCommandRun } from './use-agent-chat-command-run';
 import { useAgentChatHandoffSource } from './use-agent-chat-handoff-source';
 import { useAgentChatSkills } from './use-agent-chat-skills';
-import { useTransientNotice } from './use-transient-notice';
 
 /**
  * A Chat message's images, as many and as large in total as the protocol takes. The strip scrolls sideways, and an
@@ -77,16 +79,19 @@ const chatImageLimits = (t: Translate) =>
 /**
  * Runs the composer's one action (send, or Stop on an empty draft during a turn) and keeps its error state. A message
  * leaves the composer at once and shows as `Sending…` where it lands, as on Desktop (`agent-chat-pending.ts`); a failed
- * send puts its text and images back ahead of anything typed since. Stop stays pending, keyed by the turn it stopped,
- * until that turn ends, like the Desktop composer and the Terminal composer's "Stopping Agent…" state; the interrupt
- * request returning only means the provider was asked. A draft naming a listed slash command runs it instead of sending
- * (`useAgentChatCommandRun`); a bare `/word` the menu has no row for is held once, as Desktop's first Enter is, and a
- * second tap on the same draft sends it as text (`shouldHoldAgentChatSendAsText`).
+ * send puts its text, images, and files back ahead of anything typed since. Files reach the Agent as paths cited ahead
+ * of the text, as Desktop's file cards do, so the pending row already shows them as the chips the sent message will
+ * have. Stop stays pending, keyed by the turn it stopped, until that turn ends, like the Desktop composer and the
+ * Terminal composer's "Stopping Agent…" state; the interrupt request returning only means the provider was asked. A
+ * draft naming a listed slash command runs it instead of sending (`useAgentChatCommandRun`); a bare `/word` the menu
+ * has no row for is held once, as Desktop's first Enter is, and a second tap on the same draft sends it as text
+ * (`shouldHoldAgentChatSendAsText`).
  */
 const useComposerAction = ({
     activeTurnId,
     chat,
     draft,
+    files,
     images,
     handoffSource,
     isStopAction,
@@ -97,6 +102,7 @@ const useComposerAction = ({
     activeTurnId: string | undefined;
     chat: AgentChatController;
     draft: string;
+    files: FileAttachments;
     images: ReturnType<typeof useImageAttachments>;
     /**
      * What a `/new-session` draft names: this Chat's Session, its Project, and its Agent.
@@ -207,15 +213,22 @@ const useComposerAction = ({
         const sentText = handoff ?? text;
         const sentImages = images.attachments;
         const references = images.readyChatImages;
+        const sentFiles = files.attachments;
+        const message = agentChatTextWithPathReferences(
+            sentText,
+            files.readyPaths.map((path) => ({ path, isDirectory: false })),
+            provider,
+        );
         await sendAgentChatMessageOptimistically({
             clearComposer: () => {
                 onDraftChange('');
                 images.clear();
+                files.clear();
             },
             key: chat.pendingKey,
             message: {
                 id: Crypto.randomUUID(),
-                text: sentText,
+                text: message,
                 imageUris: sentImages.map((image) => image.uri),
                 delivery,
             },
@@ -224,8 +237,9 @@ const useComposerAction = ({
                 if (text)
                     onDraftChange(agentChatDraftWithReturnedMessage(latestDraft.current, text));
                 images.restore(sentImages);
+                files.restore(sentFiles);
             },
-            send: () => chat.send(sentText, references, delivery),
+            send: () => chat.send(message, references, delivery, files.readyIds),
             snapshot: chat.snapshot,
         });
     };
@@ -390,18 +404,20 @@ export const AgentChatComposer = ({
 }) => {
     const { t } = useTranslation();
     const imageLimits = useMemo(() => chatImageLimits(t), [t]);
-    const images = useImageAttachments(sessionId, imageLimits);
+    const files = useFileAttachments(sessionId, { surface: 'chat' });
+    // A provider without image input still takes photos, as files it reads by path.
+    const images = useImageAttachments(sessionId, {
+        ...imageLimits,
+        files: { add: files.add, imagesAsFiles: !supportsImages, remaining: files.remaining },
+    });
     const [isChoosingImage, setChoosingImage] = useState(false);
-    /**
-     * Why a disabled attach button cannot attach, shown on the status line for a few seconds after a tap on it.
-     */
-    const [attachNotice, showAttachNotice] = useTransientNotice();
     const handoffSource = useAgentChatHandoffSource(sessionId, providerId);
     const access = { deviceRole, isConnected, isHandedOff, snapshot: chat.snapshot };
     const availability = agentChatComposerAvailability(access, t);
     const activeTurnId = chat.snapshot?.activeTurnId;
     const isRunning = activeTurnId !== undefined;
-    const hasDraft = draft.trim().length > 0 || images.attachments.length > 0;
+    const hasDraft =
+        draft.trim().length > 0 || images.attachments.length > 0 || files.attachments.length > 0;
     const canStop = isRunning && deviceRole === 'control';
     const isStopAction = canStop && !hasDraft;
     const { editing } = chat;
@@ -424,6 +440,7 @@ export const AgentChatComposer = ({
         activeTurnId,
         chat,
         draft,
+        files,
         images,
         handoffSource,
         isStopAction,
@@ -450,6 +467,7 @@ export const AgentChatComposer = ({
         hasDraft:
             hasDraft &&
             !images.hasUnsentAttachment &&
+            files.waitReason === null &&
             // An edit replaces the message with text only; Core refuses an empty one.
             (!editing || (draft.trim().length > 0 && editWaitReason === undefined)),
         isEditable,
@@ -476,10 +494,10 @@ export const AgentChatComposer = ({
     const showsAttach = rowControls.showsAttach && !editing;
     const isMenuOpen = menu.matches !== undefined || menu.notice !== undefined;
     const statusReason =
-        attachNotice ??
         availability.reason ??
         editWaitReason ??
         images.waitReason ??
+        files.waitReason ??
         imageAttachmentBudgetNote(
             images.attachments,
             MAX_AGENT_CHAT_IMAGES_TOTAL_BASE64_LENGTH,
@@ -536,7 +554,7 @@ export const AgentChatComposer = ({
                     theme={theme}
                 />
             ) : null}
-            <SessionComposerAttachments images={images} theme={theme} />
+            <SessionComposerAttachments files={files} images={images} theme={theme} />
             <AgentChatCommandList
                 confirmsSendAsText={confirmsSendAsText}
                 isEnabled={isEditable}
@@ -548,12 +566,9 @@ export const AgentChatComposer = ({
             <View style={styles.composerRow}>
                 {showsAttach ? (
                     <AttachButton
-                        canAdd={images.canAdd}
+                        canAdd={images.canAdd || files.canAdd}
                         isEditable={isEditable}
                         onPress={() => setChoosingImage(true)}
-                        onUnsupported={showAttachNotice}
-                        provider={provider}
-                        supportsImages={supportsImages}
                         theme={theme}
                     />
                 ) : null}
@@ -585,17 +600,19 @@ export const AgentChatComposer = ({
                 />
             </View>
             <AgentChatComposerStatus
-                error={error ?? images.attachError}
+                error={error ?? images.attachError ?? files.attachError}
                 isStopping={isStopping}
                 provider={provider}
                 reason={statusReason}
                 theme={theme}
             />
             {isChoosingImage ? (
-                <ImageSourceSheet
+                <AttachmentSourceSheet
+                    // A pasted image has no file to fall back to.
+                    hidden={supportsImages ? [] : ['clipboard']}
                     onClose={() => setChoosingImage(false)}
                     onPick={(source) => {
-                        void images.add(source);
+                        void (source === 'files' ? files.pick() : images.add(source));
                     }}
                     theme={theme}
                 />
