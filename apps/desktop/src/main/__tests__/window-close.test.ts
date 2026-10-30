@@ -78,7 +78,7 @@ describe('windowClosePrompt', () => {
             message: 'Close this window while 1 Terminal is running?',
             buttons: ['Keep Running', 'Terminate and Close', 'Cancel'],
             cancelId: 2,
-            defaultId: 2,
+            defaultId: 0,
         });
         const prompt = windowClosePrompt({ terminals: 1, chats: 2 });
         expect(prompt.message).toBe('Close this window while 1 Terminal and 2 Chats are running?');
