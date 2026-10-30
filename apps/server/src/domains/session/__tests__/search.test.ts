@@ -334,6 +334,41 @@ describe('SessionSearchService', () => {
         ]);
     });
 
+    it("keeps a paired device's search inside its Project grant", async () => {
+        const OTHER = '019a0000-0000-7000-8000-00000000a004';
+        const f = await fixture([
+            hit(EXTERNAL, { score: 9 }),
+            hit(OTHER, { score: 8 }),
+            hit(ARCHIVED, { score: 1 }),
+        ]);
+        const otherRepo = join(f.directory, 'payroll');
+        await mkdir(otherRepo, { recursive: true });
+        const other = f.database.createSession(f.database.createProject(otherRepo).id, 'codex');
+        f.database.rebindAgentSession(other.terminal!.id, 'codex', OTHER);
+        f.database.renameSession(other.session.id, 'Invoice export');
+        const grant = [f.open.session.projectId];
+
+        const result = await f.service.search(
+            { query: 'invoice', status: 'all' },
+            undefined,
+            grant,
+        );
+
+        expect(result.entries.map(({ sessionId }) => sessionId)).toEqual([
+            f.open.session.id,
+            f.archived.session.id,
+        ]);
+        const [{ restrict }] = f.search.mock.calls[0];
+        expect(restrict?.mode).toBe('include');
+        expect(restrict?.keys.toSorted((left, right) => left.localeCompare(right))).toEqual([
+            `codex:${HELD}`,
+            `codex:${ARCHIVED}`,
+        ]);
+        await expect(
+            f.service.search({ query: 'invoice', status: 'external' }, undefined, grant),
+        ).resolves.toMatchObject({ entries: [] });
+    });
+
     it('still finds Caxri Sessions by title when the index is unavailable', async () => {
         const f = await fixture();
         f.search.mockRejectedValueOnce(new SessionSearchIndexUnavailableError());

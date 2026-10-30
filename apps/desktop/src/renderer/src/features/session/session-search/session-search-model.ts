@@ -4,7 +4,6 @@ import type {
     SessionSearchFilters,
     SessionSearchRelaxation,
     SessionSearchResult,
-    SessionSearchSnippet,
     SessionSearchStatusFilter,
 } from '@caxri/protocol';
 import {
@@ -13,6 +12,7 @@ import {
     normalizeSessionSearchWhitespace,
     SESSION_SEARCH_OPERATOR_PATTERN,
     sessionSearchStatusFilters,
+    snippetSegments,
 } from '@caxri/protocol';
 
 import type { Translate } from '../../../i18n';
@@ -27,31 +27,6 @@ export function sessionSearchAction(entry: SessionSearchEntry): SessionSearchAct
     if (entry.status === 'open') return entry.sessionId ? 'open' : undefined;
     if (entry.status === 'archived') return entry.sessionId ? 'restore' : undefined;
     return entry.cwd && entry.provider && entry.agentSessionId ? 'import' : undefined;
-}
-
-export interface SnippetSegment {
-    text: string;
-    isMatch: boolean;
-}
-
-/**
- * Splits a snippet at its highlight ranges. Ranges arrive sorted and disjoint from the Server; anything out of bounds
- * or overlapping is clamped rather than trusted, so a bad range can never drop text.
- */
-export function snippetSegments(snippet: SessionSearchSnippet): SnippetSegment[] {
-    const segments: SnippetSegment[] = [];
-    let cursor = 0;
-    for (const [rawStart, rawEnd] of snippet.highlights) {
-        const start = Math.max(cursor, Math.min(rawStart, snippet.text.length));
-        const end = Math.max(start, Math.min(rawEnd, snippet.text.length));
-        if (start > cursor)
-            segments.push({ text: snippet.text.slice(cursor, start), isMatch: false });
-        if (end > start) segments.push({ text: snippet.text.slice(start, end), isMatch: true });
-        cursor = end;
-    }
-    if (cursor < snippet.text.length)
-        segments.push({ text: snippet.text.slice(cursor), isMatch: false });
-    return segments;
 }
 
 /**

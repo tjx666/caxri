@@ -318,6 +318,7 @@ export const SessionHome = ({
                         ? () => router.navigate(`/h/${encodeURIComponent(hostId)}/inbox`)
                         : undefined
                 }
+                onOpenSearch={() => router.navigate(`/h/${encodeURIComponent(hostId)}/search`)}
                 onOpenSettings={() => router.navigate(`/h/${encodeURIComponent(hostId)}/settings`)}
                 onOpenStatus={
                     deviceRole === 'control'

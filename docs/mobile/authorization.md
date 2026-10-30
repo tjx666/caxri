@@ -89,7 +89,11 @@ places the Session at the top of its Project, as Desktop does, and a pin made on
 same pin Desktop's Pinned group shows. All four require the control role.
 Each returns only `sessionId`, and the dashboard carries the new state. `mobile.session.archived` is
 a read that lists archived Sessions of granted Projects, newest first, bounded to 64 items within
-one frame.
+one frame. `mobile.session.search`, a read for every role, runs Desktop's Session search through
+`session.searchInternal` with the device's Project grant as its scope: the search drops other
+Projects' Sessions and every external conversation before its result limit, and the reply is cut to
+30 rows with snippets clipped around their first match so it fits one frame. A tap on an archived
+result restores it through `mobile.session.restore`, so only a control device can open one.
 
 `mobile.session.delete` follows the same rule and calls Desktop's `session.delete`, which removes the
 Session's metadata only, never Project files. It skips the native confirmation dialog Desktop opens

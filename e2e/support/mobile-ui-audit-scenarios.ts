@@ -445,6 +445,75 @@ async function hostStatus(
 }
 
 /**
+ * Session search from the home header: the recent listing, a title match, no results, an archived result that a control
+ * device restores by opening it, and the offline state.
+ */
+async function sessionSearch(
+    environment: UiAuditScenarioEnvironment,
+    artifacts: string[],
+    fixture: MobileAcceptanceFixture,
+    sessionId: string,
+) {
+    const { serial } = environment;
+    const result = `session-search-result-${sessionId}`;
+    await pageRequest(fixture.running.page, 'session.rename', {
+        sessionId,
+        title: 'Fix invoice rounding',
+    });
+    await tapMobileCheck(serial, 'session-search-button');
+    await waitFor(
+        serial,
+        (nodes) => hasCheck(nodes, 'session-search-input') && hasCheck(nodes, result),
+    );
+    await capture(environment, 'recent', artifacts, result);
+    await adbShell(serial, ['input', 'text', 'invoice']);
+    await waitFor(
+        serial,
+        (nodes) => hasCheck(nodes, 'session-search-clear') && hasCheck(nodes, result),
+    );
+    await capture(environment, 'title-match', artifacts, result);
+    await tapMobileCheck(serial, 'session-search-clear');
+    await adbShell(serial, ['input', 'text', 'zzqxnomatch']);
+    await waitFor(serial, (nodes) => hasCheck(nodes, 'session-search-empty'));
+    await capture(environment, 'no-results', artifacts, 'session-search-empty');
+    await tapMobileCheck(serial, 'session-search-clear');
+
+    await pageRequest(fixture.running.page, 'session.archive', { sessionId });
+    if ((await sessionTitle(fixture, sessionId)).archivedAt === undefined)
+        throw new Error('The Desktop Session was not archived');
+    await tapMobileCheck(serial, 'session-search-filter-archived');
+    await waitFor(serial, (nodes) => hasCheck(nodes, result));
+    await capture(environment, 'archived-filter', artifacts, result);
+    await tapMobileCheck(serial, result);
+    await waitFor(serial, (nodes) => hasCheck(nodes, 'session-detail-back'));
+    if ((await sessionTitle(fixture, sessionId)).archivedAt !== undefined)
+        throw new Error('Opening the archived result did not restore the Session');
+    await capture(environment, 'restored-opened', artifacts, 'session-detail-back');
+
+    await tapMobileCheck(serial, 'session-detail-back');
+    await waitFor(serial, (nodes) => hasCheck(nodes, 'session-search-input'));
+    await tapMobileCheck(serial, 'session-search-back');
+    await waitFor(serial, (nodes) => hasCheck(nodes, 'session-search-button'));
+    await setMobileNetworkAvailable(serial, false);
+    try {
+        await waitFor(serial, (nodes) => hasCheck(nodes, 'connection-stale-banner'));
+        await tapMobileCheck(serial, 'session-search-button');
+        await waitFor(serial, (nodes) => hasCheck(nodes, 'session-search-offline'));
+        await capture(environment, 'offline', artifacts, 'session-search-offline');
+    } finally {
+        await setMobileNetworkAvailable(serial, true);
+    }
+    await finish(environment, artifacts, {
+        archivedResult: 'restored-and-opened',
+        noResults: 'empty-state',
+        offline: 'reconnect-message',
+        recent: 'listed-without-query',
+        status: 'passed',
+        titleMatch: 'listed',
+    });
+}
+
+/**
  * Runs the synthetic Acceptance cases for the page-by-page mobile UI audit.
  */
 export async function executeMobileUiAuditScenario(
@@ -490,6 +559,10 @@ export async function executeMobileUiAuditScenario(
             case 'MOB-UI-09':
             case 'MOB-UI-10':
                 await hostStatus(environment, artifacts, sessionId);
+                break;
+            case 'MOB-SESSION-SEARCH-01':
+            case 'MOB-SESSION-SEARCH-ZH-01':
+                await sessionSearch(environment, artifacts, fixture, sessionId);
                 break;
             default:
                 throw new Error(`Unsupported UI audit Acceptance case: ${environment.caseId}`);

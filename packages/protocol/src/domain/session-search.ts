@@ -146,6 +146,35 @@ const sessionSearchEntrySchema = sessionSearchBranchSchema.extend({
 });
 export type SessionSearchEntry = z.infer<typeof sessionSearchEntrySchema>;
 
+export interface SnippetSegment {
+    text: string;
+    isMatch: boolean;
+}
+
+/**
+ * Splits a snippet at its highlight ranges, for Desktop's search dialog and the phone's search screen alike. Ranges
+ * arrive sorted and disjoint from the Server; anything out of bounds or overlapping is clamped rather than trusted, so
+ * a bad range can never drop text.
+ */
+export function snippetSegments(snippet: {
+    text: string;
+    highlights: ReadonlyArray<readonly [number, number]>;
+}): SnippetSegment[] {
+    const segments: SnippetSegment[] = [];
+    let cursor = 0;
+    for (const [rawStart, rawEnd] of snippet.highlights) {
+        const start = Math.max(cursor, Math.min(rawStart, snippet.text.length));
+        const end = Math.max(start, Math.min(rawEnd, snippet.text.length));
+        if (start > cursor)
+            segments.push({ text: snippet.text.slice(cursor, start), isMatch: false });
+        if (end > start) segments.push({ text: snippet.text.slice(start, end), isMatch: true });
+        cursor = end;
+    }
+    if (cursor < snippet.text.length)
+        segments.push({ text: snippet.text.slice(cursor), isMatch: false });
+    return segments;
+}
+
 /**
  * The background index's progress: `indexing` while transcripts changed since the last pass are still being read, so
  * results may be missing their newest messages; `unavailable` when the index could not be opened at all, in which case

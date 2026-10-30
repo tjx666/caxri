@@ -66,6 +66,7 @@ const CORE_ROUTED_METHODS = [
     'mobile.dashboard',
     'mobile.agent.actions',
     'mobile.session.archived',
+    'mobile.session.search',
     'mobile.session.rename',
     'mobile.session.archive',
     'mobile.session.restore',

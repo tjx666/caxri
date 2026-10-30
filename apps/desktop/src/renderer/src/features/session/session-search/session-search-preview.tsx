@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 
 import type { SessionSearchEntry } from '@caxri/protocol';
+import { snippetSegments } from '@caxri/protocol';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 
 import { LoadingSkeleton } from '../../../components/loading-skeleton';
@@ -10,7 +11,6 @@ import { useTranslation } from '../../../i18n';
 import { resolveAgentIcon } from '../../../icons/agents/agent-icon-registry';
 import { cn } from '../../../lib/utilities';
 import { sessionTitleForDisplay } from '../session-title';
-import { snippetSegments } from './session-search-model';
 import type { SessionSearchPreviewModel } from './use-session-search-preview';
 
 function speakerLabel(role: 'assistant' | 'user', entry: SessionSearchEntry, t: Translate): string {

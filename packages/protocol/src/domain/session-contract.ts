@@ -361,4 +361,15 @@ export const sessionInternalMethods = {
         }),
         result: sessionImportConversationResultSchema,
     },
+    /**
+     * `session.search` bound to a paired device's Project grant: only open and archived Sessions inside `projectScope`
+     * are searched, so neither another Project's Sessions nor an external conversation can reach the device.
+     */
+    'session.searchInternal': {
+        ...commandPolicy('server', 'read'),
+        params: sessionSearchParametersSchema.extend({
+            projectScope: z.array(identifierSchema).max(128),
+        }),
+        result: sessionSearchResultSchema,
+    },
 } as const satisfies Record<string, MethodSpec>;

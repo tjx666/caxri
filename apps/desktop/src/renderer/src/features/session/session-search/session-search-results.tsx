@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 import type { SessionSearchEntry } from '@caxri/protocol';
+import { snippetSegments } from '@caxri/protocol';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import type { LucideIcon } from 'lucide-react';
 import { Archive, Check, ChevronDown, ChevronRight, CircleDot, Copy, Unlink } from 'lucide-react';
@@ -20,7 +21,7 @@ import { cn } from '../../../lib/utilities';
 import { sessionTitleForDisplay } from '../session-title';
 import { runSessionSearchAction } from './session-search-commands';
 import type { SessionSearchAction, SessionSearchRow } from './session-search-model';
-import { sessionSearchAction, shortFolder, snippetSegments } from './session-search-model';
+import { sessionSearchAction, shortFolder } from './session-search-model';
 
 const actionLabelKeys = {
     open: 'session.search.action.open',

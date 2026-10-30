@@ -3,27 +3,17 @@ import { stat } from 'node:fs/promises';
 import type {
     AgentProvider,
     SessionImportConversationResult,
-    SessionRecord,
-    SessionSearchEntry,
-    SessionSearchFilters,
     SessionSearchIndexStatus,
     SessionSearchParameters,
     SessionSearchPreviewParameters,
     SessionSearchPreviewResult,
     SessionSearchRelaxation,
     SessionSearchResult,
-    SessionSearchStatus,
 } from '@caxri/protocol';
 import { CaxriError, MAX_SESSION_SEARCH_RESULTS } from '@caxri/protocol';
 
-import type {
-    IndexedConversationHit,
-    IndexSearchResponse,
-    InspectedConversation,
-    SessionSearchIndex,
-} from '../agents';
+import type { IndexSearchResponse, InspectedConversation, SessionSearchIndex } from '../agents';
 import {
-    compareHits,
     conversationKey,
     metadataMatch,
     parseSessionOperators,
@@ -34,12 +24,20 @@ import type { CaxriDatabase } from '../db';
 import type { WorktreeTopologyReader } from './import-conversation';
 import { importExternalConversation, isInside, OUTSIDE_SCOPE_MESSAGE } from './import-conversation';
 import { collapseForkGroups, keepForkIdentity } from './search-fork-groups';
+import type { HeldConversation, Holdings, RankedEntry, SearchScope } from './search-entries';
+import {
+    compareRanked,
+    externalEntry,
+    heldEntry,
+    scopedHoldings,
+    sessionEntry,
+    sessionStatus,
+} from './search-entries';
 
 /**
  * Index hits requested per search: several conversations can fold into one Session row, so ask for more than one page.
  */
 const INDEX_RESULT_LIMIT = MAX_SESSION_SEARCH_RESULTS * 2;
-const MAX_TITLE_LENGTH = 1_024;
 
 const unavailableIndex: SessionSearchIndexStatus = {
     state: 'unavailable',
@@ -47,73 +45,12 @@ const unavailableIndex: SessionSearchIndexStatus = {
     pending: 0,
 };
 
-interface HeldConversation {
-    session: SessionRecord;
-    provider: AgentProvider;
-    agentSessionId: string;
-}
-
-interface Holdings {
-    /**
-     * Provider conversations a visible Session holds, by `<provider>:<conversation id>`.
-     */
-    byKey: Map<string, HeldConversation>;
-    /**
-     * Each visible Session's conversations, its current Primary Agent binding first.
-     */
-    bySession: Map<string, HeldConversation[]>;
-    /**
-     * Conversations held by a Session in a hidden Project (such as Caxri Bot's): never offered as external.
-     */
-    hiddenKeys: Set<string>;
-}
-
-/**
- * What the query's operators and the caller's hint ask of one search, resolved once.
- */
-interface SearchScope {
-    /**
-     * The query without its operators.
-     */
-    text: string;
-    filters: SessionSearchFilters;
-    /**
-     * The Agent providers to search: the `providers` parameter narrowed by `agent:` operators; empty means none match.
-     */
-    providers: AgentProvider[] | undefined;
-    beforeMs?: number;
-    afterMs?: number;
-    /**
-     * The Project the user is working in, when the caller named a known one.
-     */
-    current?: { id: string; rootPath: string };
-}
-
-interface RankedEntry {
-    entry: SessionSearchEntry;
-    isCurrentProject?: boolean;
-    isPhraseMatch?: boolean;
-    /**
-     * The fork tree the conversation belongs to, from the index; entries sharing it are branches of one conversation.
-     */
-    forkGroup?: string;
-    score: number;
-}
-
 export async function isDirectory(path: string): Promise<boolean> {
     try {
         return (await stat(path)).isDirectory();
     } catch {
         return false;
     }
-}
-
-function sessionStatus(session: SessionRecord): SessionSearchStatus {
-    return session.archivedAt === undefined ? 'open' : 'archived';
-}
-
-function bounded(title: string): string {
-    return title.length > MAX_TITLE_LENGTH ? title.slice(0, MAX_TITLE_LENGTH) : title;
 }
 
 function isAbort(signal: AbortSignal | undefined): boolean {
@@ -224,6 +161,7 @@ export class SessionSearchService {
         const { terms } = parseSessionQuery(scope.text);
         const allowedProviders = scope.providers && new Set(scope.providers);
         return this.options.database.listVisibleSessions().flatMap((session) => {
+            if (scope.projects && !scope.projects.has(session.projectId)) return [];
             if (status === 'archived' && session.archivedAt === undefined) return [];
             if (
                 (scope.beforeMs !== undefined && session.sessionActivityAt >= scope.beforeMs) ||
@@ -327,7 +265,10 @@ export class SessionSearchService {
     /**
      * Resolves the query's operators, the `providers` parameter, and the current-Project hint into one scope.
      */
-    private scopeOf(parameters: SessionSearchParameters): SearchScope {
+    private scopeOf(
+        parameters: SessionSearchParameters,
+        projectScope: readonly string[] | undefined,
+    ): SearchScope {
         const operators = parseSessionOperators(parameters.query);
         const requested = parameters.providers?.length ? parameters.providers : undefined;
         const operatorAgents = operators.filters.agents;
@@ -338,7 +279,8 @@ export class SessionSearchService {
                 : // Both a filter button and an `agent:` operator narrow the search, so only their overlap remains.
                   operatorAgents.filter((agent) => !requested || requestedSet.has(agent));
         const project =
-            parameters.currentProjectId === undefined
+            parameters.currentProjectId === undefined ||
+            (projectScope && !projectScope.includes(parameters.currentProjectId))
                 ? undefined
                 : this.options.database.getProject(parameters.currentProjectId);
         return {
@@ -348,17 +290,24 @@ export class SessionSearchService {
             ...(operators.beforeMs !== undefined && { beforeMs: operators.beforeMs }),
             ...(operators.afterMs !== undefined && { afterMs: operators.afterMs }),
             ...(project && { current: { id: project.id, rootPath: project.rootPath } }),
+            ...(projectScope && { projects: new Set(projectScope) }),
         };
     }
 
+    /**
+     * A `projectScope` (a paired device's grant) limits the search to open and archived Sessions in those Projects:
+     * `all` narrows to `caxri`, and `external` finds nothing.
+     */
     async search(
         parameters: SessionSearchParameters,
         signal?: AbortSignal,
+        projectScope?: readonly string[],
     ): Promise<SessionSearchResult> {
-        const status = parameters.status ?? 'all';
-        const scope = this.scopeOf(parameters);
+        const requested = parameters.status ?? 'all';
+        const status = projectScope && requested === 'all' ? 'caxri' : requested;
+        const scope = this.scopeOf(parameters, projectScope);
         // `agent:` operators that exclude every requested provider leave nothing to search.
-        if (scope.providers?.length === 0)
+        if (scope.providers?.length === 0 || (projectScope && status === 'external'))
             return {
                 entries: [],
                 index: unavailableIndex,
@@ -366,7 +315,9 @@ export class SessionSearchService {
                 filters: scope.filters,
                 relaxation: 'phrase',
             };
-        const holdings = this.holdings();
+        const holdings = scope.projects
+            ? scopedHoldings(this.holdings(), scope.projects)
+            : this.holdings();
         let index = await this.searchIndex(scope, status, holdings, signal);
         let { relaxation } = index;
         let sessions =
@@ -406,7 +357,11 @@ export class SessionSearchService {
                 const candidate = heldEntry(held, hit, scope);
                 if (isInWindow(candidate.entry.updatedAt))
                     offer(`session:${held.session.id}`, candidate);
-            } else if (!holdings.hiddenKeys.has(hit.key) && !this.isInternal(hit.cwd))
+            } else if (
+                !scope.projects &&
+                !holdings.hiddenKeys.has(hit.key) &&
+                !this.isInternal(hit.cwd)
+            )
                 offer(hit.key, externalEntry(hit, scope));
         }
         for (const entry of sessions) offer(`session:${entry.entry.sessionId}`, entry);
@@ -500,93 +455,4 @@ export class SessionSearchService {
         this.options.onSessionImported();
         return { sessionId: imported.session.id, projectId: imported.session.projectId };
     }
-}
-
-function compareRanked(left: RankedEntry, right: RankedEntry): number {
-    return compareHits(
-        {
-            field: left.entry.match.field,
-            isCurrentProject: left.isCurrentProject,
-            isPhraseMatch: left.isPhraseMatch,
-            score: left.score,
-        },
-        {
-            field: right.entry.match.field,
-            isCurrentProject: right.isCurrentProject,
-            isPhraseMatch: right.isPhraseMatch,
-            score: right.score,
-        },
-    );
-}
-
-function matchOf(hit: IndexedConversationHit): SessionSearchEntry['match'] {
-    return {
-        field: hit.field,
-        ...(hit.snippet && { snippet: hit.snippet }),
-        ...(hit.messageCount !== undefined && { messageCount: hit.messageCount }),
-    };
-}
-
-function heldEntry(
-    held: HeldConversation,
-    hit: IndexedConversationHit,
-    scope: SearchScope,
-): RankedEntry {
-    const updatedAt = Math.trunc(Math.max(hit.updatedAt, held.session.sessionActivityAt));
-    return {
-        entry: {
-            ...sessionEntry(held.session, held, hit.field, updatedAt),
-            ...(hit.cwd !== undefined && { cwd: hit.cwd }),
-            ...(hit.totalMessages !== undefined && { totalMessages: hit.totalMessages }),
-            match: matchOf(hit),
-        },
-        ...(hit.isPhraseMatch && { isPhraseMatch: true }),
-        ...(hit.forkGroup !== undefined && { forkGroup: hit.forkGroup }),
-        ...(scope.current?.id === held.session.projectId && { isCurrentProject: true }),
-        score: hit.field === 'recent' ? updatedAt : hit.score,
-    };
-}
-
-function externalEntry(hit: IndexedConversationHit, scope: SearchScope): RankedEntry {
-    return {
-        entry: {
-            key: hit.key,
-            title: bounded(hit.title ?? ''),
-            status: 'external',
-            provider: hit.provider,
-            agentSessionId: hit.agentSessionId,
-            ...(hit.cwd !== undefined && { cwd: hit.cwd }),
-            updatedAt: Math.trunc(hit.updatedAt),
-            ...(hit.totalMessages !== undefined && { totalMessages: hit.totalMessages }),
-            match: matchOf(hit),
-        },
-        ...(hit.isPhraseMatch && { isPhraseMatch: true }),
-        ...(hit.forkGroup !== undefined && { forkGroup: hit.forkGroup }),
-        ...(scope.current && hit.isCurrentProject && { isCurrentProject: true }),
-        score: hit.score,
-    };
-}
-
-function sessionEntry(
-    session: SessionRecord,
-    conversation: HeldConversation | undefined,
-    field: SessionSearchEntry['match']['field'],
-    updatedAt: number,
-): SessionSearchEntry {
-    return {
-        key: conversation
-            ? conversationKey(conversation.provider, conversation.agentSessionId)
-            : `session:${session.id}`,
-        title: bounded(session.title),
-        status: sessionStatus(session),
-        sessionId: session.id,
-        projectId: session.projectId,
-        ...(conversation && {
-            provider: conversation.provider,
-            agentSessionId: conversation.agentSessionId,
-        }),
-        cwd: session.rootPath,
-        updatedAt,
-        match: { field },
-    };
 }
