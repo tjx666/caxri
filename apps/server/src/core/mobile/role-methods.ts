@@ -152,6 +152,19 @@ const mobileGatewayMethodsByRole = {
         'mobile.session.restore',
         'mobile.session.setPinned',
         /**
+         * Deleting removes the Session's metadata for good, so it stays with the role that can already archive it.
+         * Rename with AI only fills the rename field, so it rides with Rename.
+         */
+        'mobile.session.delete',
+        'mobile.session.suggestTitle',
+        /**
+         * Fork and Continue in Another Agent start an Agent in a new Session, as `mobile.session.create` does, so they
+         * carry its grant; the targets read only feeds the continue menu.
+         */
+        'mobile.agentChat.fork',
+        'mobile.agentChat.continuationTargets',
+        'mobile.agentChat.continueInAgent',
+        /**
          * Merging publishes the Session's work on GitHub and cannot be undone from Caxri, so it carries the control
          * grant, like archiving the Session that produced it.
          */

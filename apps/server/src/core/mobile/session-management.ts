@@ -10,6 +10,7 @@ export type MobileSessionManagementRequest = Extract<
     {
         method:
             | 'mobile.session.archive'
+            | 'mobile.session.delete'
             | 'mobile.session.rename'
             | 'mobile.session.restore'
             | 'mobile.session.setPinned'
@@ -62,9 +63,23 @@ export const readMobileArchivedSessions = async (
 };
 
 /**
+ * Rename with AI for a granted Session: the provider's suggestion, which the phone applies through Rename.
+ */
+export const suggestMobileSessionTitle = async (
+    domainService: ServerDomainService,
+    principal: Principal,
+    sessionId: string,
+): Promise<{ title: string }> => {
+    await sessionForPrincipal(domainService, principal, sessionId);
+    const { title } = await domainService.request('session.suggestTitle', { sessionId });
+    return { title };
+};
+
+/**
  * Session management reuses Desktop's own handlers so rename, archive, restore, and pinning keep one implementation;
  * the gateway only adds the grant check in front of them. Restore lands at the top of the Project, matching Desktop's
- * dialog. Reopening the Session's Agent on its other surface shares the same admission from the Session menu.
+ * dialog. Delete skips Desktop Main's native confirmation, which would open on the computer; the phone confirms first.
+ * Reopening the Session's Agent on its other surface shares the same admission from the Session menu.
  */
 export const applyMobileSessionManagement = async (
     domainService: ServerDomainService,
@@ -86,6 +101,9 @@ export const applyMobileSessionManagement = async (
             break;
         case 'mobile.session.archive':
             await domainService.requestWithSignal('session.archive', { sessionId }, signal);
+            break;
+        case 'mobile.session.delete':
+            await domainService.requestWithSignal('session.delete', { sessionId }, signal);
             break;
         case 'mobile.session.restore':
             await domainService.requestWithSignal(

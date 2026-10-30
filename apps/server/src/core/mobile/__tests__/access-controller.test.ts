@@ -224,6 +224,8 @@ describe('MobileAccessController role and resource authority', () => {
             'mobile.session.archive',
             'mobile.session.restore',
             'mobile.session.setPinned',
+            'mobile.session.delete',
+            'mobile.session.suggestTitle',
             'mobile.terminal.switchSurface',
         ]) {
             expect(isMobileGatewayMethodAllowedForRole('view', method)).toBe(false);

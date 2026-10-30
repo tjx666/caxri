@@ -1,4 +1,5 @@
 import type {
+    AgentChatContinuationTarget,
     AgentChatHistoryPage,
     AgentChatImageMediaType,
     AgentChatRequest,
@@ -49,6 +50,7 @@ const mobileAgentChatReads: ReadonlySet<MobileAgentChatRequest['method']> = new 
     'mobile.agentChat.readHistory',
     'mobile.agentChat.readUsage',
     'mobile.agentChat.readMessage',
+    'mobile.agentChat.continuationTargets',
 ]);
 
 export const isMobileAgentChatRead = (request: MobileAgentChatRequest): boolean =>
@@ -228,6 +230,8 @@ export async function invokeMobileAgentChatRequest(
     | { requests: AgentChatRequest[] }
     | { text: string }
     | { text: string; imageCount: number; hasReferences: boolean }
+    | { sessionId: string; terminalId?: string }
+    | { targets: AgentChatContinuationTarget[] }
     | null
 > {
     if (!forwardOperation)
@@ -534,6 +538,32 @@ export async function invokeMobileAgentChatRequest(
                 },
             });
             return null;
+        }
+        case 'mobile.agentChat.fork': {
+            const forked = agentChatMethods['agentChat.fork'].result.parse(
+                await forward({ method: 'agentChat.fork', params: { terminalId } }),
+            );
+            return { sessionId: forked.sessionId, terminalId: forked.terminalId };
+        }
+        case 'mobile.agentChat.continuationTargets': {
+            const { targets } = await domainService.request('agentChat.continuationTargets', {
+                terminalId,
+            });
+            reauthorize();
+            return { targets };
+        }
+        case 'mobile.agentChat.continueInAgent': {
+            /**
+             * Always the menu's `manual` continuation: the phone has no usage-limit card, and `manual` refuses a
+             * running turn instead of handing over work still in progress.
+             */
+            const continued = agentChatMethods['agentChat.continueInAgent'].result.parse(
+                await forward({
+                    method: 'agentChat.continueInAgent',
+                    params: { terminalId, provider: request.params.provider, manual: true },
+                }),
+            );
+            return { sessionId: continued.sessionId };
         }
         case 'mobile.agentChat.retry': {
             /**

@@ -12,11 +12,11 @@ dispatcher also grants only the capabilities for that role.
 
 ## Current method grants
 
-| Role      | Additional methods beyond the preceding role                                                                                                                                                                                                                                                                                                                     |
-| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `view`    | Dashboard, Session, timeline, changes, Terminal preview, Project panel reads, `mobile.agent.actions`, `mobile.files.search`, `mobile.attention.list`, `mobile.agentChat.read`, `mobile.agentChat.readHistory`, `mobile.agentChat.readImage`, `mobile.agentChat.readTask`, `mobile.pullRequest.read`, and `mobile.agentUsage.read`                                |
-| `reply`   | `session.markRead`, `mobile.agent.submit`, `mobile.image.upload`, `mobile.agentChat.send`, `mobile.agentChat.configure`, `mobile.agentChat.retry`, `mobile.agentChat.{removeQueued,sendQueuedNow,resumeQueue}`, `mobile.agentChat.{takeQueued,readQueued,editQueued}`, and `mobile.agentChat.runCommand`                                                         |
-| `control` | Agent interrupt, Session management, Terminal control, Project add, `mobile.files.write`, `mobile.attention.answer`, `mobile.agentChat.respond`, `mobile.agentChat.implementPlan`, `mobile.agentChat.interrupt`, `mobile.agentChat.stopTask`, `mobile.botInbox.{list,reply}`, `mobile.host.status`, `mobile.preview.{list,open}`, and `mobile.pullRequest.merge` |
+| Role      | Additional methods beyond the preceding role                                                                                                                                                                                                                                                                                                                                                                                    |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `view`    | Dashboard, Session, timeline, changes, Terminal preview, Project panel reads, `mobile.agent.actions`, `mobile.files.search`, `mobile.attention.list`, `mobile.agentChat.read`, `mobile.agentChat.readHistory`, `mobile.agentChat.readImage`, `mobile.agentChat.readTask`, `mobile.pullRequest.read`, and `mobile.agentUsage.read`                                                                                               |
+| `reply`   | `session.markRead`, `mobile.agent.submit`, `mobile.image.upload`, `mobile.agentChat.send`, `mobile.agentChat.configure`, `mobile.agentChat.retry`, `mobile.agentChat.{removeQueued,sendQueuedNow,resumeQueue}`, `mobile.agentChat.{takeQueued,readQueued,editQueued}`, and `mobile.agentChat.runCommand`                                                                                                                        |
+| `control` | Agent interrupt, Session management, Terminal control, Project add, `mobile.files.write`, `mobile.attention.answer`, `mobile.agentChat.respond`, `mobile.agentChat.implementPlan`, `mobile.agentChat.interrupt`, `mobile.agentChat.stopTask`, `mobile.agentChat.{fork,continuationTargets,continueInAgent}`, `mobile.botInbox.{list,reply}`, `mobile.host.status`, `mobile.preview.{list,open}`, and `mobile.pullRequest.merge` |
 
 `mobile.agentChat.configure` carries one field-level rule: a `reply` device may switch the model,
 effort, and ultracode, but a `permissionMode` or `planMode` change needs `control`, because a
@@ -90,6 +90,19 @@ same pin Desktop's Pinned group shows. All four require the control role.
 Each returns only `sessionId`, and the dashboard carries the new state. `mobile.session.archived` is
 a read that lists archived Sessions of granted Projects, newest first, bounded to 64 items within
 one frame.
+
+`mobile.session.delete` follows the same rule and calls Desktop's `session.delete`, which removes the
+Session's metadata only, never Project files. It skips the native confirmation dialog Desktop opens
+on the computer, so the phone asks first in its own sheet. `mobile.session.suggestTitle` is the
+read behind Rename with AI: it calls `session.suggestTitle` and returns the suggested name without
+saving it, so the user still reviews and saves it through `mobile.session.rename`.
+
+`mobile.agentChat.fork` and `mobile.agentChat.continueInAgent` resolve the Chat Terminal through the
+device grant first, then call Desktop's `agentChat.fork` (the whole conversation, no message
+anchor) and `agentChat.continueInAgent` (always a manual continuation). Each returns the new
+Session's id so the phone opens it. `mobile.agentChat.continuationTargets` lists the other Agents
+with Desktop's availability reasons for the Continue in Another Agent picker. All three require the
+control role.
 
 `mobile.terminal.switchSurface` reopens a granted Agent Terminal on the other surface (PTY or
 Chat). It resolves the Terminal through the principal-scoped query first, so a Terminal outside

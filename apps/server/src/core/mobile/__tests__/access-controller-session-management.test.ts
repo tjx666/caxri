@@ -62,6 +62,7 @@ const open = async () => {
                             ? sessions.filter(({ id }) => id === parameters.query?.selector)
                             : sessions,
                 });
+            if (method === 'session.suggestTitle') return Promise.resolve({ title: 'Suggested' });
             if (method === 'terminal.queryForPrincipal')
                 return Promise.resolve({
                     terminals:
@@ -86,7 +87,7 @@ const open = async () => {
 };
 
 describe('MobileAccessController Session management', () => {
-    it('forwards rename, archive, and restore to the Desktop Session handlers', async () => {
+    it('forwards rename, archive, restore, pin, and delete to the Desktop Session handlers', async () => {
         const { controller, context, domainService, requestWithSignal } = await open();
         try {
             await expect(
@@ -117,6 +118,11 @@ describe('MobileAccessController Session management', () => {
                 context,
                 domainService,
             );
+            await controller.invokeControl(
+                { method: 'mobile.session.delete', params: { sessionId: 'session-granted' } },
+                context,
+                domainService,
+            );
             expect(
                 requestWithSignal.mock.calls.map(([method, parameters]) => [method, parameters]),
             ).toEqual([
@@ -124,6 +130,7 @@ describe('MobileAccessController Session management', () => {
                 ['session.archive', { sessionId: 'session-granted' }],
                 ['session.unarchive', { sessionId: 'session-granted', placement: 'top' }],
                 ['session.setPinned', { sessionId: 'session-granted', pinned: true }],
+                ['session.delete', { sessionId: 'session-granted' }],
             ]);
         } finally {
             await controller.close();
@@ -141,6 +148,34 @@ describe('MobileAccessController Session management', () => {
                 ),
             ).rejects.toMatchObject({ code: 'NOT_FOUND' });
             expect(requestWithSignal).not.toHaveBeenCalled();
+        } finally {
+            await controller.close();
+        }
+    });
+
+    it('suggests a title only for a granted Session', async () => {
+        const { controller, context, domainService } = await open();
+        try {
+            await expect(
+                controller.invokeControl(
+                    {
+                        method: 'mobile.session.suggestTitle',
+                        params: { sessionId: 'session-granted' },
+                    },
+                    context,
+                    domainService,
+                ),
+            ).resolves.toEqual({ title: 'Suggested' });
+            await expect(
+                controller.invokeControl(
+                    {
+                        method: 'mobile.session.suggestTitle',
+                        params: { sessionId: 'session-hidden' },
+                    },
+                    context,
+                    domainService,
+                ),
+            ).rejects.toMatchObject({ code: 'NOT_FOUND' });
         } finally {
             await controller.close();
         }

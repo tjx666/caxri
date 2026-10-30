@@ -32,6 +32,7 @@ import { useSessionPullRequest } from '../../pull-request/use-session-pull-reque
 import { useSavedClock } from '../../read-cache/use-saved-age';
 import { segmentForAgentSurface } from '../agent-surface-switch';
 import { useAgentSurfaceSwitch } from '../hooks/use-agent-surface-switch';
+import type { SessionMenuActions } from '../session-management-model';
 import type { MobileSessionItem } from '../session-model';
 import { sessionStateLabel, sessionTitleForDisplay } from '../session-row-model';
 import type { SessionScoped } from '../session-scoped-state';
@@ -48,6 +49,7 @@ import {
     AgentSurfaceSwitchStatus,
 } from './agent-surface-switch-controls';
 import { sessionDetailStyles as styles } from './session-detail-styles';
+import { SessionMenuActionEntries } from './session-menu-actions';
 import { SessionStatusGlyph } from './session-status-glyph';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -195,6 +197,7 @@ export const SessionDetailHeader = ({
     segment,
     segments,
     session,
+    sessionActions,
     theme,
 }: {
     changesCount: number | null;
@@ -218,6 +221,10 @@ export const SessionDetailHeader = ({
      */
     segments: readonly SessionSegment[];
     session: MobileSessionItem;
+    /**
+     * Fork, Continue in Another Agent, and Delete; only a control device passes them.
+     */
+    sessionActions?: SessionMenuActions;
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
@@ -369,6 +376,15 @@ export const SessionDetailHeader = ({
                         testID="session-mark-read"
                         theme={theme}
                     />
+                    {sessionActions ? (
+                        <SessionMenuActionEntries
+                            actions={sessionActions}
+                            isConnected={isConnected}
+                            onClose={closeMenu}
+                            session={session}
+                            theme={theme}
+                        />
+                    ) : null}
                     {!isConnected ? (
                         <Text style={[styles.sendState, { color: theme.muted }]}>
                             {t('sessions.detail.reconnectForActions')}
@@ -390,6 +406,15 @@ export const SessionDetailHeader = ({
                     pending={surfaceSwitch.pending}
                     theme={theme}
                 />
+                {sessionActions?.error ? (
+                    <Text
+                        accessibilityRole="alert"
+                        style={[styles.sendState, { color: theme.danger }]}
+                        testID="session-menu-error"
+                    >
+                        {sessionActions.error}
+                    </Text>
+                ) : null}
                 {markReadError ? (
                     <Text
                         accessibilityRole="alert"
