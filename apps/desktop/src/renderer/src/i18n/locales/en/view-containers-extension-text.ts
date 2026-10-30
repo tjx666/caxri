@@ -147,6 +147,7 @@ export const viewContainersExtensionText = {
     'viewContainers.extensionText.status.deployments': 'Deployments',
     'viewContainers.extensionText.status.noNetwork': 'No network connection',
     'viewContainers.extensionText.status.rowBranch': 'branch',
+    'viewContainers.extensionText.status.rowBase': 'base',
     'viewContainers.extensionText.status.rowRepository': 'repository',
     'viewContainers.extensionText.status.rowPullRequest': 'pull request',
     'viewContainers.extensionText.status.rowComparedBranch': 'compared branch',

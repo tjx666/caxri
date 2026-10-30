@@ -135,6 +135,7 @@ export const viewContainersExtensionText: TranslatedNamespace<typeof source> = {
     'viewContainers.extensionText.status.deployments': '部署',
     'viewContainers.extensionText.status.noNetwork': '没有网络连接',
     'viewContainers.extensionText.status.rowBranch': '分支',
+    'viewContainers.extensionText.status.rowBase': '合并到',
     'viewContainers.extensionText.status.rowRepository': '仓库',
     'viewContainers.extensionText.status.rowPullRequest': 'Pull Request',
     'viewContainers.extensionText.status.rowComparedBranch': '对比分支',
