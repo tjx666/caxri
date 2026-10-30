@@ -16,6 +16,7 @@ import { useCaxriQuery } from '../../../queries/client';
 import { useSettings, useTerminal } from '../../../stores/selectors';
 import type { AgentChatComposerKeyEvent } from '../composer/agent-chat-composer-view';
 import {
+    agentChatCaxriInvocations,
     agentChatLeadingInvocation,
     agentChatSkillDiscoveryNotice,
     withAgentChatBuiltInActions,
@@ -64,6 +65,7 @@ export function useAgentChatCommandMenu({
     draft,
     isInputFocused,
     terminalId,
+    unavailable,
 }: {
     /**
      * Caxri's app command rows for this Chat (`useAgentChatAppCommands`).
@@ -73,6 +75,11 @@ export function useAgentChatCommandMenu({
     draft: string;
     isInputFocused: boolean;
     terminalId: string;
+    /**
+     * Why each app command row that cannot run now is unavailable, by invocation. Such rows stay listed, and choosing
+     * one does nothing.
+     */
+    unavailable: ReadonlyMap<string, string>;
 }) {
     const { t } = useTranslation();
     const listId = useId();
@@ -102,6 +109,7 @@ export function useAgentChatCommandMenu({
         () => new Set(actions.map((action) => action.invocation)),
         [actions],
     );
+    const caxriInvocations = useMemo(() => agentChatCaxriInvocations(appActions), [appActions]);
     const [dismissedDraft, setDismissedDraft] = useState<string>();
     /**
      * The dismissal ends at the first edit. Comparing against the dismissed text alone would keep the list closed
@@ -157,7 +165,16 @@ export function useAgentChatCommandMenu({
          * How many leading `matches` are the recently used group (`agentChatMenuGroupHeading`).
          */
         recentCount,
-        suggestions: matches.map(agentChatActionSuggestion),
+        suggestions: matches.map((action) =>
+            agentChatActionSuggestion(action, {
+                isCaxri: caxriInvocations.has(action.invocation),
+                unavailableReason: unavailable.get(action.invocation),
+            }),
+        ),
+        /**
+         * Whether choosing `action` does nothing because Caxri's command cannot run in this Chat now.
+         */
+        isUnavailable: (action: AgentAction): boolean => unavailable.has(action.invocation),
         skillNotice: agentChatSkillDiscoveryNotice(
             {
                 isAgentRunning,
@@ -214,7 +231,8 @@ export function useAgentChatCommandMenu({
                     break;
                 }
                 default:
-                    if (activeCommand) handlers[step.handler](activeCommand);
+                    if (activeCommand && !unavailable.has(activeCommand.invocation))
+                        handlers[step.handler](activeCommand);
             }
             return true;
         },

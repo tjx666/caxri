@@ -20,6 +20,11 @@ const JUMP_MARGIN_PX = 12;
 const JUMP_SETTLE_FRAMES = 3;
 
 /**
+ * How many frames a jump to an unmounted target waits for the tail-first mount to finish mounting it.
+ */
+const JUMP_MOUNT_FRAMES = 10;
+
+/**
  * The elements the marks' positions are measured on, by message id, found in one pass. A message in history read back
  * renders inside an entry whose offscreen layout the browser skips (`content-visibility: auto`), and measuring inside
  * it would lay every skipped entry out; the entry's own box has the same top and is always laid out.
@@ -78,13 +83,16 @@ function contentTop(view: HTMLElement, element: HTMLElement): number {
  * Tracks which user message the reader is at and scrolls to one, or to where a turn begins, on request. Positions are
  * measured from the DOM whenever the content resizes, since a streamed reply or an expanded work row moves every
  * message below it without a scroll; a scroll frame only compares them with the reading line. A jump calls
- * `stopFollowing` first, so the view stays where it lands instead of following the latest entry.
+ * `stopFollowing` first, so the view stays where it lands instead of following the latest entry. While the tail-first
+ * mount is still backfilling, the target may not be in the DOM yet; the jump then calls `mountAll` and aligns once the
+ * target renders.
  */
 export function useAgentChatMessageRail(
     scrollReference: RefObject<HTMLDivElement | null>,
     contentReference: RefObject<HTMLDivElement | null>,
     markIds: readonly string[],
     stopFollowing: () => void,
+    mountAll: () => void,
 ): {
     activeIndex: number;
     jumpTo: (id: string) => void;
@@ -144,8 +152,18 @@ export function useAgentChatMessageRail(
     const align = (resolve: (content: HTMLElement) => HTMLElement | null): void => {
         const view = scrollReference.current;
         const content = contentReference.current;
-        const element = content && resolve(content);
-        if (!view || !element) return;
+        if (!view || !content) return;
+        const element = resolve(content);
+        if (!element) {
+            mountAll();
+            const retry = (frames: number): void => {
+                const mounted = scrollReference.current && contentReference.current;
+                if (mounted && resolve(mounted)) align(resolve);
+                else if (frames > 0) requestAnimationFrame(() => retry(frames - 1));
+            };
+            requestAnimationFrame(() => retry(JUMP_MOUNT_FRAMES));
+            return;
+        }
         stopFollowing();
         /**
          * Instant rather than smooth: a smooth scroll's first frames still sit within the follow threshold of the end,

@@ -114,8 +114,8 @@ test('a Claude Chat at 99% of its weekly usage refuses new messages and writes o
         await message.press('Enter');
 
         const guard = chat.locator('[data-agent-chat-usage-guard]');
-        await expect(guard).toContainText('Claude weekly usage at 99%');
-        await expect(guard).toContainText(/New requests are paused, resets in/u);
+        await expect(guard).toContainText('Claude is at 99% of its weekly limit');
+        await expect(guard).toContainText(/Caxri paused new requests, resets in/u);
         await expect(chat.getByRole('button', { name: 'Open in another Agent' })).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('usage-guard.png') });
 
@@ -132,11 +132,12 @@ test('a Claude Chat at 99% of its weekly usage refuses new messages and writes o
         await expect(guard.getByRole('button', { name: 'Generate hand-off' })).toHaveCount(0);
         await page.screenshot({ path: testInfo.outputPath('usage-guard-handoff.png') });
 
-        // The headline folds the document and actions away, leaving one line.
+        // The headline folds the explanation and document away; the actions stay visible.
         const fold = guard.locator('[data-agent-chat-usage-guard-fold]');
         await fold.click();
         await expect(fold).toHaveAttribute('aria-expanded', 'false');
         await expect(document).toHaveCount(0);
+        await expect(chat.getByRole('button', { name: 'Open in another Agent' })).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('usage-guard-folded.png') });
         await fold.click();
         await expect(document).toBeVisible();
@@ -279,13 +280,13 @@ test('a PTY Claude Terminal shows the weekly guard of its account without being 
         await message.fill('weekly nearly used');
         await message.press('Enter');
         await expect(session.locator('[data-agent-chat-usage-guard]')).toContainText(
-            'Claude weekly usage at 99%',
+            'Claude is at 99% of its weekly limit',
         );
 
         // The same account in a PTY Terminal: the notice appears, the Terminal keeps running and takes input.
         await surfaceSwitch.getByRole('button', { name: 'Terminal' }).click();
         const notice = session.locator('[data-terminal-usage-guard]');
-        await expect(notice).toContainText('Claude weekly usage at 99%');
+        await expect(notice).toContainText('Claude is at 99% of its weekly limit');
         await expect(notice).toContainText(/resets in/u);
         await expect(rows).toContainText('Fake Claude TUI ready');
         await page.screenshot({ path: testInfo.outputPath('usage-guard-terminal.png') });

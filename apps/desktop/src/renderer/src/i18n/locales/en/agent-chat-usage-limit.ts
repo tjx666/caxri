@@ -6,7 +6,8 @@ export const agentChatUsageLimit = {
     'agentChat.usageLimit.session': '{{provider}} used up its 5-hour limit',
     'agentChat.usageLimit.weekly': '{{provider}} used up its weekly limit',
     'agentChat.usageLimit.unknown': '{{provider}} used up its usage limit',
-    'agentChat.usageLimit.guardStopped': '{{provider}} weekly usage guard stopped this turn',
+    'agentChat.usageLimit.guardStopped':
+        '{{provider}} is close to its weekly limit, so Caxri stopped this turn',
     'agentChat.usageLimit.continueIn': 'Continue in {{provider}}',
     'agentChat.usageLimit.continueElsewhere': 'Continue in another Agent',
     'agentChat.usageLimit.chooseAgent': 'Choose another Agent',
@@ -29,7 +30,7 @@ export const agentChatUsageLimit = {
     'agentChat.usageLimit.auto.skipped.attemptsUsed':
         'Stopped continuing automatically after {{count}} tries into the limit',
     'agentChat.usageLimit.auto.skipped.usageGuard':
-        "Won't continue automatically while weekly usage is at the guard",
+        "Won't continue automatically while the weekly limit is nearly reached",
     'agentChat.usageLimit.auto.continueNow': 'Continue now',
     'agentChat.usageLimit.auto.continue': 'Continue',
     'agentChat.usageLimit.auto.cancel': 'Cancel',
@@ -39,10 +40,10 @@ export const agentChatUsageLimit = {
     'agentChat.usageLimit.unavailable.current': 'This Chat',
     'agentChat.usageLimit.unavailable.notInstalled': 'Not installed',
     'agentChat.usageLimit.unavailable.unsupported': 'No Chat support',
-    'agentChat.usageLimit.unavailable.usageLimited': 'Weekly usage at the guard',
-    'agentChat.usageLimit.unavailable.usageLimitedUntil': 'Weekly usage at the guard, {{reset}}',
-    'agentChat.message.sendBlockedUsageGuard': 'Weekly usage nearly used up. Hand off below',
-    'agentChat.queue.pausedUsageGuard': 'Queue paused · weekly usage nearly used up',
+    'agentChat.usageLimit.unavailable.usageLimited': 'Close to its weekly limit',
+    'agentChat.usageLimit.unavailable.usageLimitedUntil': 'Close to its weekly limit, {{reset}}',
+    'agentChat.message.sendBlockedUsageGuard': 'Weekly limit nearly reached. Hand off below',
+    'agentChat.queue.pausedUsageGuard': 'Queue paused · weekly limit nearly reached',
     'agentChat.creditsNotice.credits':
         '{{provider}} weekly usage at {{percent}}%: requests continue on credits',
     'agentChat.creditsNotice.creditsLeft':
@@ -54,19 +55,19 @@ export const agentChatUsageLimit = {
     'agentChat.creditsNotice.detail':
         "New requests spend the account's credits until the weekly limit resets ({{reset}}).",
     'agentChat.creditsNotice.dismiss': 'Hide for a day',
-    'agentChat.usageGuard.headline': '{{provider}} weekly usage at {{percent}}%',
+    'agentChat.usageGuard.headline': '{{provider}} is at {{percent}}% of its weekly limit',
     'agentChat.usageGuard.detail':
-        'New requests are paused, {{reset}}. The rest is kept for one hand-off on this account.',
+        'Caxri paused new requests, {{reset}}, so you can hand this work off before it runs out.',
     'agentChat.usageGuard.generate': 'Generate hand-off',
     'agentChat.usageGuard.generateTooltip':
-        '{{provider}} writes a hand-off document on the kept budget. Once per account until the weekly reset',
+        '{{provider}} writes a hand-off document with the last of its weekly allowance. Once per account until the weekly limit resets',
     'agentChat.usageGuard.generating': 'Writing the hand-off…',
-    'agentChat.usageGuard.used': 'This account already used its hand-off this week',
+    'agentChat.usageGuard.used': 'This account already wrote a hand-off this week',
     'agentChat.usageGuard.generateFailed': "Couldn't generate a hand-off",
     'agentChat.usageGuard.openElsewhere': 'Open in another Agent',
     'agentChat.usageGuard.continueAnyway': 'Continue anyway',
     'agentChat.usageGuard.continueAnywayTooltip':
-        'Resume requests on this {{provider}} account until the weekly limit resets, spending the budget kept for a hand-off',
+        'Resume requests on this {{provider}} account until the weekly limit resets. This spends the allowance reserved for a hand-off',
     'agentChat.usageGuard.continueAnywayFailed': "Couldn't resume requests",
     'agentChat.usageGuard.document': 'Hand-off document',
     'agentChat.usageGuard.copy': 'Copy hand-off',

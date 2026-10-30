@@ -8,7 +8,8 @@ vi.mock('../../../../stores/toasts', async (importOriginal) => ({
 }));
 vi.mock('../../../../lib/caxri', () => ({ caxri: { request } }));
 
-const { changeAgentChatGoal } = await import('../agent-chat-goal-commands');
+const { agentChatGoalClearLabelKey, changeAgentChatGoal } =
+    await import('../agent-chat-goal-commands');
 
 describe('changeAgentChatGoal', () => {
     it('drops a second click while the first change is in flight, then accepts the next one', async () => {
@@ -28,5 +29,15 @@ describe('changeAgentChatGoal', () => {
         request.mockResolvedValueOnce(undefined);
         await changeAgentChatGoal('t1', { action: 'clear' });
         expect(request).toHaveBeenCalledTimes(2);
+    });
+});
+
+describe('agentChatGoalClearLabelKey', () => {
+    it('names the stopped turn only for a goal that cannot pause while a turn runs', () => {
+        expect(agentChatGoalClearLabelKey({ pausable: false }, true)).toBe(
+            'agentChat.goal.clearAndStop',
+        );
+        expect(agentChatGoalClearLabelKey({ pausable: false }, false)).toBe('agentChat.goal.clear');
+        expect(agentChatGoalClearLabelKey({}, true)).toBe('agentChat.goal.clear');
     });
 });

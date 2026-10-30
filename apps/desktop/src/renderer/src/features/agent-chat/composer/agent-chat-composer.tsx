@@ -228,6 +228,7 @@ export function AgentChatComposer({
         draft,
         isInputFocused,
         terminalId,
+        unavailable: appCommands.unavailable,
     });
     const sessionMenu = useAgentChatSessionMenu({
         currentSessionId: terminal?.sessionId,
@@ -407,7 +408,10 @@ export function AgentChatComposer({
                         commandMenu={menu}
                         historyMenu={history}
                         sessionMenu={sessionMenu}
-                        onChooseCommand={(index) => choose(menu.matches[index])}
+                        onChooseCommand={(index) => {
+                            const action = menu.matches[index];
+                            if (!menu.isUnavailable(action)) choose(action);
+                        }}
                     />
                     <AgentChatAttachmentList
                         attachments={images.attachments}

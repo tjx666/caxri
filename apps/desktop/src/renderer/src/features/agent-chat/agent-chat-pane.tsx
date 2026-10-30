@@ -243,6 +243,7 @@ export function AgentChatPane({
         contentReference,
         railMarkIds,
         stopFollowing,
+        mountAll,
     );
     const readBackHistory = useMemo(() => ({ canFork }), [canFork]);
     const taskLinks = useAgentChatTaskLinks(snapshot?.tasks, terminalId, canOpenBesideChat);

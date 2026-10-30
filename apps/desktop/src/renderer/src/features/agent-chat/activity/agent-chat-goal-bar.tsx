@@ -134,6 +134,7 @@ export function AgentChatGoalBar({
                 <AgentChatGoalActions
                     goal={goal}
                     isExpanded={isExpanded}
+                    isTurnRunning={turnId !== undefined}
                     terminalId={terminalId}
                     onToggleExpanded={() => setExpanded((current) => !current)}
                 />

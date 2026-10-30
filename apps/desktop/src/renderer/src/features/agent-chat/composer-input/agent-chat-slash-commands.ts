@@ -90,9 +90,10 @@ const AGENT_CHAT_APP_COMMANDS = [
 export type AgentChatAppCommand = (typeof AGENT_CHAT_APP_COMMANDS)[number];
 
 /**
- * What the Chat can do right now, which decides the app commands its menu offers: a row whose control this Chat lacks
- * (a provider without plan mode or side chats, a Chat with no conversation to fork yet) is left out rather than shown
- * and failing.
+ * What the Chat can do right now, which decides which app commands can run: a row whose control this Chat lacks (a
+ * provider without plan mode or side chats, a Chat with no conversation to fork yet) stays in the menu, disabled with
+ * its reason (`agentChatAppCommandUnavailable`), rather than vanishing and leaving a typed `/fork` to read as "no such
+ * command".
  */
 export interface AgentChatAppCommandState {
     canChangeModel: boolean;
@@ -106,7 +107,7 @@ export interface AgentChatAppCommandState {
     isPinned: boolean;
 }
 
-function isAgentChatAppCommandOffered(
+function isAgentChatAppCommandAvailable(
     command: AgentChatAppCommand,
     state: AgentChatAppCommandState,
 ): boolean {
@@ -174,17 +175,47 @@ function agentChatAppCommandDescription(
     }
 }
 
+function agentChatAppCommandUnavailableReason(command: AgentChatAppCommand, t: Translate): string {
+    switch (command) {
+        case 'model':
+        case 'plan':
+        case 'btw': {
+            return t('agentChat.slash.app.unavailableAgent');
+        }
+        case 'fork': {
+            return t('agentChat.slash.app.unavailableFork');
+        }
+        default: {
+            return t('agentChat.slash.app.unavailableSession');
+        }
+    }
+}
+
 /**
- * The app command rows this Chat offers, in {@link AGENT_CHAT_APP_COMMANDS} order. `/btw` keeps its `[question]` hint: a
- * bare `/btw` opens the side chat, and `/btw <question>` asks it straight away.
+ * Why each app command this Chat cannot run right now is unavailable, by invocation (`/fork`). Their rows stay in the
+ * menu with the reason as their description and choosing one does nothing.
+ */
+export function agentChatAppCommandUnavailable(
+    state: AgentChatAppCommandState,
+    t: Translate,
+): ReadonlyMap<string, string> {
+    return new Map(
+        AGENT_CHAT_APP_COMMANDS.filter(
+            (command) => !isAgentChatAppCommandAvailable(command, state),
+        ).map((command) => [`/${command}`, agentChatAppCommandUnavailableReason(command, t)]),
+    );
+}
+
+/**
+ * Every app command row, in {@link AGENT_CHAT_APP_COMMANDS} order, including the ones this Chat cannot run now
+ * (`agentChatAppCommandUnavailable`). `/btw` keeps its `[question]` hint: a bare `/btw` opens the side chat, and `/btw
+ * <question>` asks it straight away.
  */
 export function agentChatAppCommandActions(
     state: AgentChatAppCommandState,
     t: Translate,
 ): AgentAction[] {
-    return AGENT_CHAT_APP_COMMANDS.filter((command) =>
-        isAgentChatAppCommandOffered(command, state),
-    ).map((command) => ({
+    return AGENT_CHAT_APP_COMMANDS.map((command) => ({
         invocation: `/${command}`,
         kind: 'command',
         description: agentChatAppCommandDescription(command, state, t),
@@ -195,14 +226,17 @@ export function agentChatAppCommandActions(
 }
 
 /**
- * The app command a submitted draft runs: a bare `/name` (surrounding whitespace aside) that `offered` lists. Anything
- * after the name, such as `/btw <question>`, leaves the draft to the ordinary send path.
+ * The app command a submitted draft runs: a bare `/name` (surrounding whitespace aside) that `offered` lists and
+ * `unavailable` does not hold back. Anything after the name, such as `/btw <question>`, leaves the draft to the
+ * ordinary send path.
  */
 export function parseAgentChatAppCommand(
     draft: string,
     offered: readonly AgentAction[],
+    unavailable: ReadonlyMap<string, string> = new Map(),
 ): AgentChatAppCommand | undefined {
     const invocation = draft.trim();
+    if (unavailable.has(invocation)) return undefined;
     if (offered.every((action) => action.invocation !== invocation)) return undefined;
     return AGENT_CHAT_APP_COMMANDS.find((command) => `/${command}` === invocation);
 }
@@ -231,4 +265,15 @@ export function withAgentChatBuiltInActions(
     ];
     const invocations = new Set(builtIn.map((action) => action.invocation));
     return [...builtIn, ...actions.filter((action) => !invocations.has(action.invocation))];
+}
+
+/**
+ * The invocations Caxri itself runs (`/new-session` and the app commands), which the menu tags so they read apart from
+ * the provider's own commands.
+ */
+export function agentChatCaxriInvocations(appActions: readonly AgentAction[]): ReadonlySet<string> {
+    return new Set([
+        `/${AGENT_CHAT_SESSION_HANDOFF_COMMAND}`,
+        ...appActions.map((a) => a.invocation),
+    ]);
 }

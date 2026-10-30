@@ -101,6 +101,8 @@ export const agentChatTimeline = {
     'agentChat.rail.loadingPreview': 'Loading message preview',
     'agentChat.find.noResults': 'No results',
     'agentChat.find.noResultsLoaded': 'No results in loaded messages',
+    'agentChat.find.searching': 'Searching…',
+    'agentChat.find.loadFailed': 'Earlier messages could not be loaded.',
     'agentChat.find.searchEarlier': 'Search earlier messages',
     'agentChat.find.searchingEarlier': 'Loading earlier messages…',
     'agentChat.link.open': 'Open Link',

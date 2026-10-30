@@ -76,8 +76,10 @@ function HandoffDocument({ document }: { document: AgentChatHandoff }) {
  * the kept budget once per account on a document this Chat's own model writes; "Open in another Agent" continues from a
  * package Server Core builds without asking the provider anything; "Continue anyway" lifts the guard for the rest of
  * the window, for a user who knows better (another account signed in, the last percent is enough). The headline folds
- * the rest away, remembered per Chat like the strip sections, so a long hand-off document does not keep the transcript
- * short. The row replaces the context alerts, whose Compact and new-Chat actions the guard refuses too.
+ * the explanation and hand-off document away, remembered per Chat like the strip sections, so a long document does not
+ * keep the transcript short. The action buttons stay below the fold: while the guard blocks sending they are the only
+ * way forward, so folding never hides them. The row replaces the context alerts, whose Compact and new-Chat actions the
+ * guard refuses too.
  */
 export function AgentChatUsageGuardCard({
     guard,
@@ -161,62 +163,58 @@ export function AgentChatUsageGuardCard({
                         )}
                     </div>
                     {guard.document && <HandoffDocument document={guard.document} />}
-                    <div className="flex min-w-0 flex-wrap items-center gap-2">
-                        {offer.generate && (
-                            <Tooltip
-                                content={t('agentChat.usageGuard.generateTooltip', {
-                                    provider: providerName,
-                                })}
-                            >
-                                <Button
-                                    aria-disabled={isClaiming || undefined}
-                                    className="min-h-6 gap-1.5 px-2 text-[12px]"
-                                    data-agent-chat-generate-handoff=""
-                                    size="sm"
-                                    variant="secondary"
-                                    onClick={generate}
-                                >
-                                    {isClaiming && (
-                                        <Spinner className="size-3.5" role="presentation" />
-                                    )}
-                                    {t('agentChat.usageGuard.generate')}
-                                </Button>
-                            </Tooltip>
-                        )}
-                        <AgentChatAutoContinueActions
-                            autoContinue={guard.autoContinue}
-                            canContinueNow={false}
-                            terminalId={terminalId}
-                            turnId={guard.autoContinueTurnId ?? ''}
-                        />
-                        <AgentChatContinueInAgent
-                            continuedIn={guard.continuedIn}
-                            label="openElsewhere"
-                            terminalId={terminalId}
-                            turnId={undefined}
-                        />
-                        <Tooltip
-                            content={t('agentChat.usageGuard.continueAnywayTooltip', {
-                                provider: providerName,
-                            })}
-                        >
-                            <Button
-                                aria-disabled={isBypassing || undefined}
-                                className="min-h-6 gap-1.5 px-2 text-[12px]"
-                                data-agent-chat-usage-guard-bypass=""
-                                size="sm"
-                                variant="ghost"
-                                onClick={continueAnyway}
-                            >
-                                {isBypassing && (
-                                    <Spinner className="size-3.5" role="presentation" />
-                                )}
-                                {t('agentChat.usageGuard.continueAnyway')}
-                            </Button>
-                        </Tooltip>
-                    </div>
                 </div>
             </DisclosureMotion>
+            <div className="flex min-w-0 flex-wrap items-center gap-2 pt-1.5 pl-5.5">
+                {offer.generate && (
+                    <Tooltip
+                        content={t('agentChat.usageGuard.generateTooltip', {
+                            provider: providerName,
+                        })}
+                    >
+                        <Button
+                            aria-disabled={isClaiming || undefined}
+                            className="min-h-6 gap-1.5 px-2 text-[12px]"
+                            data-agent-chat-generate-handoff=""
+                            size="sm"
+                            variant="secondary"
+                            onClick={generate}
+                        >
+                            {isClaiming && <Spinner className="size-3.5" role="presentation" />}
+                            {t('agentChat.usageGuard.generate')}
+                        </Button>
+                    </Tooltip>
+                )}
+                <AgentChatAutoContinueActions
+                    autoContinue={guard.autoContinue}
+                    canContinueNow={false}
+                    terminalId={terminalId}
+                    turnId={guard.autoContinueTurnId ?? ''}
+                />
+                <AgentChatContinueInAgent
+                    continuedIn={guard.continuedIn}
+                    label="openElsewhere"
+                    terminalId={terminalId}
+                    turnId={undefined}
+                />
+                <Tooltip
+                    content={t('agentChat.usageGuard.continueAnywayTooltip', {
+                        provider: providerName,
+                    })}
+                >
+                    <Button
+                        aria-disabled={isBypassing || undefined}
+                        className="min-h-6 gap-1.5 px-2 text-[12px]"
+                        data-agent-chat-usage-guard-bypass=""
+                        size="sm"
+                        variant="ghost"
+                        onClick={continueAnyway}
+                    >
+                        {isBypassing && <Spinner className="size-3.5" role="presentation" />}
+                        {t('agentChat.usageGuard.continueAnyway')}
+                    </Button>
+                </Tooltip>
+            </div>
         </div>
     );
 }

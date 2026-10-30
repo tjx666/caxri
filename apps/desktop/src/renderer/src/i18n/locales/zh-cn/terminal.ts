@@ -67,7 +67,7 @@ export const terminal: TranslatedNamespace<typeof source> = {
     'terminal.hookSuggestion.enable': '开启 Hook',
     'terminal.hookSuggestion.enableAndRestart': '开启 Hook 并重启',
     'terminal.hookSuggestion.dontAskAgain': '不再提示',
-    'terminal.usageGuard.headline': '{{provider}} 每周额度已用 {{percent}}%',
+    'terminal.usageGuard.headline': '{{provider}} 已用掉每周额度的 {{percent}}%',
     'terminal.usageGuard.detail':
         '此账号的对话已暂停，{{reset}}。此终端仍会继续运行，最后 1% 可能被耗尽。',
     'terminal.hookSuggestion.dismiss': '关闭',

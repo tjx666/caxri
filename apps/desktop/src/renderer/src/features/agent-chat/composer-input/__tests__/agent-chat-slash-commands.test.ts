@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { translate } from '../../../../i18n';
 import {
     agentChatAppCommandActions,
+    agentChatAppCommandUnavailable,
+    agentChatCaxriInvocations,
     agentChatGoalModeDraft,
     agentChatLeadingInvocation,
     agentChatSkillDiscoveryNotice,
@@ -146,19 +148,40 @@ describe('Goal mode', () => {
             ]);
         });
 
-        it('leaves out the rows whose control this Chat lacks', () => {
-            const invocations = agentChatAppCommandActions(
-                {
-                    canChangeModel: false,
-                    canTogglePlanMode: false,
-                    canOpenSideChat: false,
-                    canFork: false,
-                    hasSession: false,
-                    isPinned: false,
-                },
-                translate,
-            ).map(({ invocation }) => invocation);
-            expect(invocations).toEqual(['/status', '/usage']);
+        it('keeps the rows whose control this Chat lacks, disabled with a plain reason', () => {
+            const lacking = {
+                canChangeModel: false,
+                canTogglePlanMode: false,
+                canOpenSideChat: false,
+                canFork: false,
+                hasSession: false,
+                isPinned: false,
+            };
+            expect(
+                agentChatAppCommandActions(lacking, translate).map(({ invocation }) => invocation),
+            ).toHaveLength(10);
+            const unavailable = agentChatAppCommandUnavailable(lacking, translate);
+            expect(unavailable.keys().toArray()).toEqual([
+                '/model',
+                '/plan',
+                '/btw',
+                '/fork',
+                '/new',
+                '/rename',
+                '/archive',
+                '/pin',
+            ]);
+            expect(unavailable.get('/fork')).toBe('Available after the first message in this Chat');
+            expect(agentChatAppCommandUnavailable(everything, translate).size).toBe(0);
+        });
+
+        it('tags Caxri-run invocations, including /new-session', () => {
+            const caxri = agentChatCaxriInvocations(
+                agentChatAppCommandActions(everything, translate),
+            );
+            expect(caxri.has('/new-session')).toBe(true);
+            expect(caxri.has('/fork')).toBe(true);
+            expect(caxri.has('/review')).toBe(false);
         });
 
         it('describes /pin by whether the Session is pinned and hints a /btw question', () => {
@@ -172,14 +195,13 @@ describe('Goal mode', () => {
         });
 
         it('runs only a bare offered command', () => {
-            const offered = agentChatAppCommandActions(
-                { ...everything, canFork: false },
-                translate,
-            );
-            expect(parseAgentChatAppCommand('/status', offered)).toBe('status');
-            expect(parseAgentChatAppCommand('  /usage \n', offered)).toBe('usage');
+            const state = { ...everything, canFork: false };
+            const offered = agentChatAppCommandActions(state, translate);
+            const unavailable = agentChatAppCommandUnavailable(state, translate);
+            expect(parseAgentChatAppCommand('/status', offered, unavailable)).toBe('status');
+            expect(parseAgentChatAppCommand('  /usage \n', offered, unavailable)).toBe('usage');
             expect(parseAgentChatAppCommand('/btw why?', offered)).toBeUndefined();
-            expect(parseAgentChatAppCommand('/fork', offered)).toBeUndefined();
+            expect(parseAgentChatAppCommand('/fork', offered, unavailable)).toBeUndefined();
             expect(parseAgentChatAppCommand('/statuses', offered)).toBeUndefined();
             expect(parseAgentChatAppCommand('see /status', offered)).toBeUndefined();
         });

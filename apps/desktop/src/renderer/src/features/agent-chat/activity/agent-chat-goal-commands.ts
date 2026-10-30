@@ -1,6 +1,7 @@
-import type { AgentChatGoalChange } from '@caxri/protocol';
+import type { AgentChatGoal, AgentChatGoalChange } from '@caxri/protocol';
 import { AGENT_CHAT_GOAL_COMMAND, agentChatGoalArguments } from '@caxri/protocol';
 
+import type { TranslationKey } from '../../../i18n';
 import { didRunAgentChatCommand } from '../agent-chat-commands';
 
 /**
@@ -28,4 +29,17 @@ export async function changeAgentChatGoal(
     } finally {
         changingGoals.delete(terminalId);
     }
+}
+
+/**
+ * The Clear button's label. Claude Code's goal runs inside the turn (its goals cannot pause), so clearing one while a
+ * turn runs first stops that turn; the label names that consequence before the click.
+ */
+export function agentChatGoalClearLabelKey(
+    goal: Pick<AgentChatGoal, 'pausable'>,
+    isTurnRunning: boolean,
+): TranslationKey {
+    return isTurnRunning && goal.pausable === false
+        ? 'agentChat.goal.clearAndStop'
+        : 'agentChat.goal.clear';
 }
