@@ -2,15 +2,19 @@ import { MAX_AGENT_CHAT_DIFF_LENGTH } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import {
-    grokCommands,
     grokModelState,
-    grokPermissionOutcome,
     grokQuestionAnswers,
+    grokToolPresentation,
     grokUsage,
-    mapGrokPermission,
     mapGrokQuestion,
-    mapGrokToolCall,
-    mergeGrokToolCall,
+} from '../../grok/items';
+import type { AcpToolCall } from '../items';
+import {
+    acpCommands,
+    acpPermissionOutcome,
+    mapAcpPermission,
+    mapAcpToolCall,
+    mergeAcpToolCall,
 } from '../items';
 
 const PERMISSION_OPTIONS = [
@@ -19,13 +23,24 @@ const PERMISSION_OPTIONS = [
     { optionId: 'reject-once', name: 'Reject', kind: 'reject_once' },
 ];
 
+/**
+ * Maps a tool call as a Grok Build Chat presents it.
+ */
+function mapGrokToolCall(call: AcpToolCall, turnId: string | undefined, isDeclined: boolean) {
+    return mapAcpToolCall(call, turnId, isDeclined, grokToolPresentation);
+}
+
+function mapGrokPermission(call: AcpToolCall, options: unknown) {
+    return mapAcpPermission(call, options, grokToolPresentation);
+}
+
 function call(update: Record<string, unknown>) {
-    const merged = mergeGrokToolCall(undefined, { toolCallId: 'call-1', ...update });
+    const merged = mergeAcpToolCall(undefined, { toolCallId: 'call-1', ...update });
     if (!merged) throw new Error('Expected a tool call');
     return merged;
 }
 
-describe('mergeGrokToolCall', () => {
+describe('mergeAcpToolCall', () => {
     it('keeps earlier fields an update leaves out and replaces the ones it carries', () => {
         const first = call({
             title: 'Bash',
@@ -33,7 +48,7 @@ describe('mergeGrokToolCall', () => {
             status: 'pending',
             rawInput: { command: 'ls' },
         });
-        const merged = mergeGrokToolCall(first, {
+        const merged = mergeAcpToolCall(first, {
             toolCallId: 'call-1',
             kind: 'execute',
             status: 'in_progress',
@@ -46,7 +61,7 @@ describe('mergeGrokToolCall', () => {
             rawInput: { command: 'ls' },
             content: [],
         });
-        expect(mergeGrokToolCall(first, { status: 'completed' })).toBeUndefined();
+        expect(mergeAcpToolCall(first, { status: 'completed' })).toBeUndefined();
     });
 });
 
@@ -198,22 +213,22 @@ describe('Grok Build permissions', () => {
     });
 
     it('answers with the matching option, or cancelled when none matches', () => {
-        expect(grokPermissionOutcome(PERMISSION_OPTIONS, 'acceptForSession')).toEqual({
+        expect(acpPermissionOutcome(PERMISSION_OPTIONS, 'acceptForSession')).toEqual({
             outcome: { outcome: 'selected', optionId: 'always-allow' },
         });
-        expect(grokPermissionOutcome([PERMISSION_OPTIONS[0]], 'decline')).toEqual({
+        expect(acpPermissionOutcome([PERMISSION_OPTIONS[0]], 'decline')).toEqual({
             outcome: { outcome: 'cancelled' },
         });
-        expect(grokPermissionOutcome(PERMISSION_OPTIONS, 'cancel')).toEqual({
+        expect(acpPermissionOutcome(PERMISSION_OPTIONS, 'cancel')).toEqual({
             outcome: { outcome: 'cancelled' },
         });
     });
 });
 
-describe('grokCommands', () => {
+describe('acpCommands', () => {
     it('keeps valid, distinct commands with their argument hint', () => {
         expect(
-            grokCommands([
+            acpCommands([
                 { name: '/compact', description: 'Compress', input: null },
                 { name: 'review', input: { hint: '<target>' } },
                 { name: 'review', description: 'Duplicate' },

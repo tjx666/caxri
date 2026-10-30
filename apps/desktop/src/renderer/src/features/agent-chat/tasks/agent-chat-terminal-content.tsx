@@ -42,6 +42,7 @@ export function AgentChatTerminalContent({
                 isShown={isShown}
                 providerName={provider?.displayName ?? 'the Agent'}
                 supportsImages={provider?.capabilities.chatImages ?? false}
+                supportsRewind={provider?.capabilities.chatRewind ?? false}
                 supportsRewindFiles={provider?.capabilities.chatRewindFiles ?? false}
                 terminalId={terminal.id}
             />

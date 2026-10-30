@@ -29,6 +29,7 @@ const E2E_AGENT_STATE_DIRECTORY_NAMES: Record<AgentProvider, string> = {
     grok: 'grok',
     claude: 'claude',
     codex: 'codex',
+    antigravity: 'antigravity',
 };
 
 export const e2eAgentStateEnvironmentKeys = agentProviderIds.flatMap(

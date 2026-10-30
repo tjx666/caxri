@@ -292,6 +292,10 @@ const discoverers: Record<
     claude: discoverClaude,
     codex: discoverCodex,
     grok: discoverGrok,
+    /**
+     * Antigravity keeps each conversation in its own SQLite database, which Session search does not read yet.
+     */
+    antigravity: () => Promise.resolve([]),
 };
 
 /**

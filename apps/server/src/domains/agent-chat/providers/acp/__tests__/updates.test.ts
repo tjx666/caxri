@@ -1,19 +1,29 @@
 import type { AgentChatPatchOperation } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { GrokUpdates } from '../updates';
+import { grokDisplayText, grokToolPresentation } from '../../grok/items';
+import { applyGrokExtensionUpdate } from '../../grok/updates';
+import { AcpUpdates } from '../updates';
+
+/**
+ * The updates of a Grok Build Chat that applies nothing live, for replay assertions.
+ */
+function grokUpdates() {
+    return new AcpUpdates({
+        apply: () => {},
+        activeTurnId: () => {},
+        presentation: grokToolPresentation,
+        displayText: grokDisplayText,
+    });
+}
 
 function text(value: string) {
     return { content: { type: 'text', text: value } };
 }
 
-describe('GrokUpdates replay', () => {
+describe('AcpUpdates replay for Grok Build', () => {
     it('dates replayed items by the frame that first created them', () => {
-        const updates = new GrokUpdates({
-            apply: () => {},
-            activeTurnId: () => {},
-            onInteractionResolved: () => {},
-        });
+        const updates = grokUpdates();
         updates.beginReplay();
         updates.setEventTime(1_000);
         updates.onSessionUpdate({ sessionUpdate: 'user_message_chunk', ...text('hello') });
@@ -36,11 +46,7 @@ describe('GrokUpdates replay', () => {
     });
 
     it('reads a merged replay frame for a rejected call as declined and a broken one as failed', () => {
-        const updates = new GrokUpdates({
-            apply: () => {},
-            activeTurnId: () => {},
-            onInteractionResolved: () => {},
-        });
+        const updates = grokUpdates();
         updates.beginReplay();
         /**
          * Grok Build 1.0.50 replays each tool call as one `tool_call` frame with its final status, no updates.
@@ -76,11 +82,7 @@ describe('GrokUpdates replay', () => {
     });
 
     it('replays an interjection as a steered message inside its turn and marks a queued prompt', () => {
-        const updates = new GrokUpdates({
-            apply: () => {},
-            activeTurnId: () => {},
-            onInteractionResolved: () => {},
-        });
+        const updates = grokUpdates();
         updates.beginReplay();
         updates.onSessionUpdate({ sessionUpdate: 'user_message_chunk', ...text('first') });
         updates.onSessionUpdate({ sessionUpdate: 'agent_message_chunk', ...text('Working. ') });
@@ -94,17 +96,25 @@ describe('GrokUpdates replay', () => {
             },
         });
         updates.onSessionUpdate({ sessionUpdate: 'agent_message_chunk', ...text('Done.') });
-        updates.onExtensionUpdate({
-            sessionUpdate: 'turn_completed',
-            prompt_id: '6b1d3a52-1c5e-4f7e-9d0a-2f6c0a1b2c3d',
-            stop_reason: 'end_turn',
-        });
+        applyGrokExtensionUpdate(
+            updates,
+            {
+                sessionUpdate: 'turn_completed',
+                prompt_id: '6b1d3a52-1c5e-4f7e-9d0a-2f6c0a1b2c3d',
+                stop_reason: 'end_turn',
+            },
+            () => {},
+        );
         updates.onSessionUpdate({ sessionUpdate: 'user_message_chunk', ...text('second') });
-        updates.onExtensionUpdate({
-            sessionUpdate: 'turn_completed',
-            prompt_id: '6b1d3a52-1c5e-8c01-9d0a-2f6c0a1b2c3d',
-            stop_reason: 'end_turn',
-        });
+        applyGrokExtensionUpdate(
+            updates,
+            {
+                sessionUpdate: 'turn_completed',
+                prompt_id: '6b1d3a52-1c5e-8c01-9d0a-2f6c0a1b2c3d',
+                stop_reason: 'end_turn',
+            },
+            () => {},
+        );
         const operations = updates.endReplay(true);
         const items = operations.flatMap((operation) =>
             operation.op === 'upsertItem' ? [operation.item] : [],

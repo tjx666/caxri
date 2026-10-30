@@ -39,6 +39,7 @@ describe('mobile Agent availability', () => {
             { kind: 'claude', available: false, reason: 'Agent CLI is unavailable' },
             { kind: 'codex', available: true },
             { kind: 'grok', available: false, reason: 'Agent CLI is unavailable' },
+            { kind: 'antigravity', available: false, reason: 'Agent CLI is unavailable' },
             { kind: 'shell', available: true },
         ]);
         expect(result.openAgentsInChat).toBe(true);
@@ -88,6 +89,7 @@ describe('desktop Agent availability', () => {
             { kind: 'claude', available: false },
             { kind: 'codex', available: true },
             { kind: 'grok', available: false },
+            { kind: 'antigravity', available: false },
         ]);
         expect(JSON.stringify(result)).not.toContain('/fixture/bin');
     });

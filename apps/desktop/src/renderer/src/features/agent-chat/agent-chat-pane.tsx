@@ -147,6 +147,11 @@ interface AgentChatPaneProperties {
      */
     supportsImages: boolean;
     /**
+     * The provider catalog's `capabilities.chatRewind`: whether user messages offer "Edit from here" and "Fork from
+     * here".
+     */
+    supportsRewind: boolean;
+    /**
      * The provider catalog's `capabilities.chatRewindFiles`: whether "Edit from here" can also revert files.
      */
     supportsRewindFiles: boolean;
@@ -166,6 +171,7 @@ export function AgentChatPane({
     isShown,
     providerName,
     supportsImages,
+    supportsRewind,
     supportsRewindFiles,
     terminalId,
 }: AgentChatPaneProperties) {
@@ -184,7 +190,7 @@ export function AgentChatPane({
     const { composerEdit, editActions, setEditingId } = useAgentChatEditActions(
         terminalId,
         snapshot,
-        { canFork, providerName, supportsRewindFiles },
+        { canFork, providerName, supportsRewind, supportsRewindFiles },
     );
     const pending = useAgentChatPending(terminalId, snapshot);
     // The waiting popup leaves out a Chat on screen here, whose own request card already asks.

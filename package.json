@@ -233,6 +233,7 @@
                     "src/domains/agent-chat/__tests__/fixtures/fake-claude-cli.ts",
                     "src/domains/agent-chat/__tests__/fixtures/fake-codex-app-server.ts",
                     "src/domains/agent-chat/__tests__/fixtures/fake-grok-acp.ts",
+                    "src/domains/agent-chat/__tests__/fixtures/fake-antigravity-acp.ts",
                     "src/terminal-host/agent-launcher/process.ts",
                     "src/extension-host/process.ts",
                     "src/core/bootstrap.ts",

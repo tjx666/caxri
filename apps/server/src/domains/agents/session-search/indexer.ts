@@ -222,6 +222,8 @@ export class SessionSearchIndexer {
         identity: FileIdentity,
         codex: CodexThreadIndex | undefined,
     ): Promise<ParsedConversation | ConversationExclusionReason> {
+        // Antigravity keeps conversations in SQLite, not a transcript; discovery lists none for it.
+        if (transcript.provider === 'antigravity') return 'unreadable';
         return classifyConversationCandidate(
             {
                 provider: transcript.provider,

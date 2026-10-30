@@ -433,14 +433,17 @@ describe('grokUsageParser', () => {
 describe('usageParserFor', () => {
     /**
      * Keyed by `AgentProvider` so a newly catalogued provider fails to compile here until its routing is pinned.
+     * Antigravity keeps no transcript, so it has no record and counts nothing.
      */
-    const ownTranscriptLine: Record<AgentProvider, string> = {
+    const ownTranscriptLine: Record<AgentProvider, string | undefined> = {
         claude: claudeLine(T0, 'm1', { input_tokens: 10, output_tokens: 5 }),
         codex: codexTotals(100, 40, 20),
         grok: grokTurnCompleted('p1'),
+        antigravity: undefined,
     };
     it.each(agentProviderIds)('counts usage only from %s transcript records', (provider) => {
         for (const [source, line] of Object.entries(ownTranscriptLine)) {
+            if (line === undefined) continue;
             const accumulator = new UsageAccumulator();
             const parser = usageParserFor(provider, accumulator);
             parser.line(line);

@@ -1,6 +1,7 @@
 import type { AgentProvider } from '@caxri/protocol';
 
 import type { AgentChatDriver } from './chat-provider';
+import { antigravityChatDriver } from './providers/antigravity/chat-session';
 import { claudeChatDriver } from './providers/claude/chat-session';
 import { codexChatDriver } from './providers/codex/chat-session';
 import { grokChatDriver } from './providers/grok/chat-session';
@@ -13,4 +14,5 @@ export const agentChatDrivers: Record<AgentProvider, AgentChatDriver | undefined
     claude: claudeChatDriver,
     codex: codexChatDriver,
     grok: grokChatDriver,
+    antigravity: antigravityChatDriver,
 };

@@ -119,6 +119,7 @@ describe('prompt cache selection evidence', () => {
             usage: { activityAt, contextTokens: 120_000, ttlMinutes: 30 },
         },
         grok: { status: 'usage_unavailable' },
+        antigravity: { status: 'usage_unavailable' },
     };
     it.each(agentProviderIds)(
         'reads %s transcripts only with its own record shapes',

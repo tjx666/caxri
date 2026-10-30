@@ -1,5 +1,6 @@
 import type { AgentProvider, TerminalKind } from '@caxri/protocol';
 import { agentProviderCatalog, agentProviderIds } from '@caxri/protocol';
+import antigravityColor from '@lobehub/icons-static-svg/icons/antigravity-color.svg?no-inline';
 import claudeCodeColor from '@lobehub/icons-static-svg/icons/claudecode-color.svg?no-inline';
 import codexColor from '@lobehub/icons-static-svg/icons/codex-color.svg?no-inline';
 import grok from '@lobehub/icons-static-svg/icons/grok.svg?no-inline';
@@ -30,6 +31,7 @@ const managedAgentIconAssets: Record<
     claude: { kind: 'color-asset', src: claudeCodeColor },
     codex: { kind: 'color-asset', opticalScale: 0.8, src: codexColor },
     grok: { kind: 'mask-asset', src: grok },
+    antigravity: { kind: 'color-asset', src: antigravityColor },
 };
 
 const managedAgentIcons = Object.fromEntries(

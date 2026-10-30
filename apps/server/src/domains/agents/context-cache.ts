@@ -121,6 +121,10 @@ const contextCacheInspectors: Record<
      * Batch compaction does not touch Grok Sessions; see `docs/session-compaction.md`.
      */
     grok: null,
+    /**
+     * Batch compaction does not touch Antigravity Sessions; their records are SQLite databases, not transcripts.
+     */
+    antigravity: null,
 };
 
 /**

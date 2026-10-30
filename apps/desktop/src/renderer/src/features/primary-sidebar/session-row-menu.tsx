@@ -62,6 +62,7 @@ const FORK_BLOCKER_REASONS = {
     noAgent: 'primarySidebar.sessionMenu.noAgentReason',
     notChat: 'primarySidebar.sessionMenu.forkNeedsChatReason',
     noConversation: 'primarySidebar.sessionMenu.noConversationReason',
+    unsupported: 'primarySidebar.sessionMenu.forkUnsupportedReason',
 } as const satisfies Record<SessionForkBlocker, TranslationKey>;
 
 /**

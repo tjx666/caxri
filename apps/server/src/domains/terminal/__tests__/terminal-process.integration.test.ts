@@ -5,7 +5,7 @@ import process from 'node:process';
 import { setImmediate as waitForImmediate } from 'node:timers/promises';
 import { stripVTControlCharacters } from 'node:util';
 
-import type { ServerEvent } from '@caxri/protocol';
+import type { AgentProvider, ServerEvent } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
 import * as pty from 'node-pty';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -348,7 +348,7 @@ process.stdout.write('FIXTURE_AGENT_READY\r\n');
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const created = database.createSession(database.createProject(directory).id, 'shell');
         const logger = createTestLogger(join(directory, 'logs'));
-        const detectedProviders: Array<'claude' | 'codex' | 'grok' | undefined> = [];
+        const detectedProviders: Array<AgentProvider | undefined> = [];
         const coordinator = new AgentCoordinator(
             database,
             createTestAgentService({

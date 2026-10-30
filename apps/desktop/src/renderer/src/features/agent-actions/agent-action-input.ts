@@ -33,6 +33,7 @@ const agentActionRunSuffixSteps: Record<
     Record<AgentAction['kind'], readonly AgentActionRunSuffixStep[]>
 > = {
     grok: { command: [], skill: [] },
+    antigravity: { command: [], skill: [] },
     claude: {
         command: [{ suffix: '\r' }],
         skill: [{ suffix: '\r' }],

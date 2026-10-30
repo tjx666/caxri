@@ -56,6 +56,7 @@ describe('AgentCoordinator Session Activity', () => {
             claude: { provider: 'claude', renameSession, snapshot },
             codex: { provider: 'codex', renameSession, snapshot },
             grok: { provider: 'grok', renameSession, snapshot },
+            antigravity: { provider: 'antigravity', renameSession, snapshot },
         };
         const coordinator = new AgentCoordinator(
             database,
@@ -107,6 +108,7 @@ describe('AgentCoordinator Session Activity', () => {
             claude: { provider: 'claude', renameSession, snapshot },
             codex: { provider: 'codex', renameSession, snapshot },
             grok: { provider: 'grok', renameSession, snapshot },
+            antigravity: { provider: 'antigravity', renameSession, snapshot },
         };
         const coordinator = new AgentCoordinator(
             database,
@@ -186,6 +188,7 @@ describe('AgentCoordinator Session Activity', () => {
             claude: { provider: 'claude', renameSession, snapshot: claudeSnapshot },
             codex: { provider: 'codex', renameSession, snapshot },
             grok: { provider: 'grok', renameSession, snapshot },
+            antigravity: { provider: 'antigravity', renameSession, snapshot },
         };
         const coordinator = new AgentCoordinator(
             database,

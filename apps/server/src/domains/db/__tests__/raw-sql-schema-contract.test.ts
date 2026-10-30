@@ -27,10 +27,12 @@ const sources = {
 } as Record<string, string>;
 
 /**
- * Tables of other SQLite databases that tests also seed: Codex's own state database and the session-search index.
- * Listed by name instead of skipping whatever the Caxri schema lacks, so a table this schema drops still fails here.
+ * Tables of other SQLite databases that tests also seed: Codex's own state database, Antigravity's conversation
+ * summaries, and the session-search index. Listed by name instead of skipping whatever the Caxri schema lacks, so a
+ * table this schema drops still fails here.
  */
 const FOREIGN_TABLES = new Set([
+    'conversation_summaries',
     'messages',
     'messages_fts',
     'thread_spawn_edges',

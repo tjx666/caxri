@@ -1,11 +1,12 @@
 import type { AgentProvider } from '@caxri/protocol';
+import { agentProviderIds } from '@caxri/protocol';
 
 import { caxri } from '../../lib/caxri';
 import { seriesColor } from './benchmark-presentation';
 import type { ShareCardModel, ShareCardPalette } from './benchmark-share-card';
 import { renderShareCardSvg, SHARE_CARD_SCALE } from './benchmark-share-card';
 
-const PROVIDERS: readonly AgentProvider[] = ['claude', 'codex', 'grok'];
+const PROVIDERS = agentProviderIds;
 
 /**
  * Reads the active theme into concrete values. The share card follows the current theme, but it is rasterized from a

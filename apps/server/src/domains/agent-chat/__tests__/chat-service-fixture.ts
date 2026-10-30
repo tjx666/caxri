@@ -20,11 +20,17 @@ import type { AgentChatEndpoint, AgentChatServiceOptions } from '../service-opti
 const FAKE_APP_SERVER = join(import.meta.dirname, 'fixtures', 'fake-codex-app-server.ts');
 const FAKE_CLAUDE = join(import.meta.dirname, 'fixtures', 'fake-claude-cli.ts');
 const FAKE_GROK = join(import.meta.dirname, 'fixtures', 'fake-grok-acp.ts');
-const FAKE_CLIS = { claude: FAKE_CLAUDE, codex: FAKE_APP_SERVER, grok: FAKE_GROK } as const;
+const FAKE_ANTIGRAVITY = join(import.meta.dirname, 'fixtures', 'fake-antigravity-acp.ts');
+const FAKE_CLIS = {
+    claude: FAKE_CLAUDE,
+    codex: FAKE_APP_SERVER,
+    grok: FAKE_GROK,
+    antigravity: FAKE_ANTIGRAVITY,
+} as const;
 
 /**
- * Builds an AgentChatService over a temporary database that spawns the fake Codex app-server, Claude Code CLI, or Grok
- * Build ACP agent.
+ * Builds an AgentChatService over a temporary database that spawns the fake Codex app-server, Claude Code CLI, Grok
+ * Build ACP agent, or Antigravity ACP agent.
  */
 export async function fixture(
     options: {
@@ -80,6 +86,7 @@ export async function fixture(
     const stateDirectory = join(directory, 'codex');
     const claudeConfigDirectory = join(directory, 'claude');
     const grokStateDirectory = join(directory, 'grok');
+    const antigravityStateDirectory = join(directory, 'antigravity');
     await mkdir(projectRoot);
     const project = database.createProject(projectRoot);
     const { session } = database.createSession(project.id, null);
@@ -121,6 +128,7 @@ export async function fixture(
                     }),
                     ...(options.codexSkills && { FAKE_CODEX_SKILLS: 'list' }),
                     FAKE_GROK_STATE_DIR: grokStateDirectory,
+                    FAKE_ANTIGRAVITY_STATE_DIR: antigravityStateDirectory,
                     CLAUDE_CONFIG_DIR: claudeConfigDirectory,
                     FAKE_CLAUDE_CONTROL_DIR: claudeConfigDirectory,
                 }),
@@ -237,7 +245,15 @@ export async function fixture(
         await writeFile(join(stateDirectory, 'unsubscribe-fails'), '');
     };
     const sessionOpens = async () =>
-        (await readFile(join(grokStateDirectory, 'session-opens.jsonl'), 'utf8'))
+        (
+            await readFile(
+                join(
+                    provider === 'antigravity' ? antigravityStateDirectory : grokStateDirectory,
+                    'session-opens.jsonl',
+                ),
+                'utf8',
+            )
+        )
             .trim()
             .split('\n')
             .map((line) => JSON.parse(line) as { method: string; args: string[] });

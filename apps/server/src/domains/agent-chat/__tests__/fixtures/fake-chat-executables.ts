@@ -2,8 +2,8 @@
  * Executable sources that turn the deterministic Agent Chat fakes in this directory into stand-alone provider binaries.
  * Electron E2E (`e2e/support/agent-chat-fixture.ts`, `e2e/support/mobile-acceptance-agents.ts`) and the desktop
  * Acceptance `agent-chat-v1` fixture (`.agents/skills/acceptance/scripts/agent-fixtures.ts`) write these sources as the
- * fake `claude`, `codex`, and `grok` targets, so every surface drives one protocol implementation instead of drifting
- * copies.
+ * fake `claude`, `codex`, `grok`, and `agy` targets, so every surface drives one protocol implementation instead of
+ * drifting copies.
  */
 import { join } from 'node:path';
 import process from 'node:process';
@@ -12,6 +12,7 @@ import { pathToFileURL } from 'node:url';
 const FAKE_CLAUDE_CLI = join(import.meta.dirname, 'fake-claude-cli.ts');
 const FAKE_CODEX_APP_SERVER = join(import.meta.dirname, 'fake-codex-app-server.ts');
 const FAKE_GROK_ACP = join(import.meta.dirname, 'fake-grok-acp.ts');
+const FAKE_ANTIGRAVITY_ACP = join(import.meta.dirname, 'fake-antigravity-acp.ts');
 
 /**
  * A fake `claude` speaking the Claude Agent SDK's stream-json protocol. Transcripts land under `CLAUDE_CONFIG_DIR`,
@@ -93,5 +94,15 @@ export function fakeGrokChatExecutableSource(options: { stateDirectory: string }
     return `#!${process.execPath}
 process.env.FAKE_GROK_STATE_DIR = ${JSON.stringify(options.stateDirectory)};
 import(${JSON.stringify(pathToFileURL(FAKE_GROK_ACP).href)});
+`;
+}
+
+/**
+ * A fake `agy` whose `acp` is the ACP fixture. Conversations persist under `stateDirectory`.
+ */
+export function fakeAntigravityChatExecutableSource(options: { stateDirectory: string }): string {
+    return `#!${process.execPath}
+process.env.FAKE_ANTIGRAVITY_STATE_DIR = ${JSON.stringify(options.stateDirectory)};
+import(${JSON.stringify(pathToFileURL(FAKE_ANTIGRAVITY_ACP).href)});
 `;
 }

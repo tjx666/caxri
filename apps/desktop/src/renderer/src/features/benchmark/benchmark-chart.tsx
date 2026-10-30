@@ -43,6 +43,13 @@ function Marker({
                 y={cy - size * 0.85}
             />
         );
+    if (shape === 'triangle')
+        return (
+            <path
+                d={`M ${cx} ${cy - size * 1.2} L ${cx + size * 1.1} ${cy + size * 0.8} L ${cx - size * 1.1} ${cy + size * 0.8} Z`}
+                fill={color}
+            />
+        );
     if (shape === 'diamond')
         return (
             <path

@@ -577,6 +577,10 @@ const usageParsers: Record<
     claude: claudeUsageParser,
     codex: codexUsageParser,
     grok: grokUsageParser,
+    /**
+     * Antigravity keeps no transcript file, so usage accounting never streams one; this parser counts nothing.
+     */
+    antigravity: () => ({ line: () => {}, finish: () => {} }),
 };
 
 export function usageParserFor(

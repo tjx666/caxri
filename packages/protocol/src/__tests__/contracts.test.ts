@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { CaxriBridge, CaxriMethod } from '../index';
 import {
+    agentProviderIds,
     CAXRI_PROTOCOL_VERSION,
     CaxriError,
     createCaxriClient,
@@ -180,12 +181,10 @@ describe('method table', () => {
                 claude: entry,
             }).success,
         ).toBe(false);
+        const complete = Object.fromEntries(agentProviderIds.map((provider) => [provider, entry]));
         expect(
-            methods['settings.get'].result.shape.value.shape['agents.providers'].safeParse({
-                claude: entry,
-                codex: entry,
-                grok: entry,
-            }).success,
+            methods['settings.get'].result.shape.value.shape['agents.providers'].safeParse(complete)
+                .success,
         ).toBe(true);
     });
 

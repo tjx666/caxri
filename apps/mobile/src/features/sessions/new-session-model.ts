@@ -50,7 +50,13 @@ export const acknowledgeCheckedUncertainCreate = (
 ): NewSessionCreateState =>
     state.kind === 'uncertain' && state.checkedSessions ? { kind: 'idle' } : state;
 
-export const NEW_SESSION_AGENT_ORDER: TerminalKind[] = ['claude', 'codex', 'grok', 'shell'];
+export const NEW_SESSION_AGENT_ORDER: TerminalKind[] = [
+    'claude',
+    'codex',
+    'grok',
+    'antigravity',
+    'shell',
+];
 
 export const sortNewSessionProjects = (projects: NewSessionProject[]): NewSessionProject[] => {
     // eslint-disable-next-line unicorn/no-array-sort -- The mobile Hermes target does not support ES2023 toSorted.

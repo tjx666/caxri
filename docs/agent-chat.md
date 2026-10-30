@@ -41,14 +41,15 @@ replaced session's late reports are dropped. Shared pieces:
   that ended, the `answered` notice, the replacement diff for a file edit, and the prompt text of a
   slash command that runs as a message.
 - `JsonRpcConnection` (`json-rpc-connection.ts`): newline-delimited JSON-RPC over the child's
-  stdio, shared by Codex (which omits the `jsonrpc` field) and Grok Build's ACP (which requires it).
+  stdio, shared by Codex (which omits the `jsonrpc` field) and the ACP agents (which require it).
   It bounds frame size and pending writes and ignores responses to requests it never sent.
 
-| Provider    | Driver                             | Protocol                                                           |
-| ----------- | ---------------------------------- | ------------------------------------------------------------------ |
-| Codex       | `providers/codex/chat-session.ts`  | `codex app-server --listen stdio://` JSON-RPC                      |
-| Claude Code | `providers/claude/chat-session.ts` | Claude Agent SDK streaming input over the user's own `claude` CLI  |
-| Grok Build  | `providers/grok/chat-session.ts`   | ACP (Agent Client Protocol) v1 over `grok agent --no-leader stdio` |
+| Provider    | Driver                                  | Protocol                                                           |
+| ----------- | --------------------------------------- | ------------------------------------------------------------------ |
+| Codex       | `providers/codex/chat-session.ts`       | `codex app-server --listen stdio://` JSON-RPC                      |
+| Claude Code | `providers/claude/chat-session.ts`      | Claude Agent SDK streaming input over the user's own `claude` CLI  |
+| Grok Build  | `providers/grok/chat-session.ts`        | ACP (Agent Client Protocol) v1 over `grok agent --no-leader stdio` |
+| Antigravity | `providers/antigravity/chat-session.ts` | ACP v1 over `agy acp`                                              |
 
 Adding a provider means:
 
@@ -184,8 +185,8 @@ breaks kept, because Hooks write for the Agent and quote commands in backticks; 
 verbatim so its space-aligned columns survive (`agent-chat-feedback.tsx`).
 
 `AgentChatService` (`apps/server/src/domains/agent-chat/service.ts`) owns one provider child per
-live Chat (`codex app-server --listen stdio://`, `claude` in stream-json mode, or
-`grok agent --no-leader stdio`), spawned by Server Core. Its environment
+live Chat (`codex app-server --listen stdio://`, `claude` in stream-json mode,
+`grok agent --no-leader stdio`, or `agy acp`), spawned by Server Core. Its environment
 (`prepareChatLaunch` in `apps/server/src/domains/agent-chat/chat-launch.ts`) is the same base
 environment as other Agent launches (`agentCommandEnvironment`: the variables the user's interactive
 login shell exports, overlaid by the Server's allowlisted launch context, login-shell `PATH`, and the
@@ -370,9 +371,18 @@ pending permission prompts and questions until the user answers:
   record. An `enqueue` queue operation or a background task notification opens a new span, so the
   idle wait before a wake-up does not count.
 
-## Grok Build mapping
+## ACP mapping
 
-`providers/grok/chat-session.ts` speaks ACP and `providers/grok/items.ts` holds the pure mapping:
+`providers/acp/` holds one provider-neutral ACP client, and each ACP agent's folder holds a thin dialect.
+`AcpChatSession` (`providers/acp/session.ts`) owns the process, `initialize`, `session/new` or `session/load`,
+one `session/prompt` per turn, `session/cancel`, permission requests, and the standard
+`session/update` stream (`providers/acp/updates.ts`); `providers/acp/items.ts` holds the standard mappings (tool calls,
+permission outcomes, slash commands, `configOptions`, usage). A dialect supplies its launch
+arguments, how it names a tool and its subject, how its usage and model state read, and any
+extension methods. The Grok Build and Antigravity details follow; see [Antigravity](antigravity.md)
+for that provider.
+
+`providers/grok/chat-session.ts` is Grok Build's dialect and `providers/grok/items.ts` holds its pure mapping:
 
 - A turn is one `session/prompt`, named by the `promptId` Caxri sends in its `_meta`; the prompt's
   result carries the stop reason (`end_turn`, `cancelled`, `max_tokens`, `refusal`) and the
@@ -2031,7 +2041,7 @@ also names it. Only Server Core mints an Agent Run: request parameters never set
 ## Testing
 
 `apps/server/src/domains/agent-chat/__tests__/fixtures/fake-codex-app-server.ts` and
-`fake-claude-cli.ts`, and `fake-grok-acp.ts` are deterministic stand-ins for each provider, selected by keywords in the
+`fake-claude-cli.ts`, `fake-grok-acp.ts`, and `fake-antigravity-acp.ts` are deterministic stand-ins for each provider, selected by keywords in the
 user's message (approval, file-change approval, edit, oversized diff, question, plan approval,
 table, slow stream, subagent, background shell, Claude workflow, failure, crash). The Claude fake speaks the stream-json control protocol the
 SDK drives and writes a real transcript, so resume is exercised end to end. Both answer a message

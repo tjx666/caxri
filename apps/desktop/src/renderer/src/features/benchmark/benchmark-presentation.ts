@@ -16,22 +16,28 @@ import type { BenchmarkMetric, QualitySource } from './benchmark-results';
 
 /**
  * Each Agent's chart hue, as a turn of the theme's one `--chart` color: the series follow an imported theme instead of
- * a fixed brand palette, and stay a third of the color wheel apart. Lightness and chroma are held to a band, because a
- * near-gray `--chart` would otherwise turn into three near-gray series. The marker shape repeats the distinction, so
- * color is never the only cue.
+ * a fixed brand palette, and stay a quarter of the color wheel apart. Lightness and chroma are held to a band, because
+ * a near-gray `--chart` would otherwise turn into near-gray series. The marker shape repeats the distinction, so color
+ * is never the only cue.
  */
-const SERIES_HUE_TURN: Record<AgentProvider, number> = { claude: 0, codex: 120, grok: 240 };
+const SERIES_HUE_TURN: Record<AgentProvider, number> = {
+    claude: 0,
+    codex: 90,
+    grok: 180,
+    antigravity: 270,
+};
 
 export function seriesColor(provider: AgentProvider): string {
     return `oklch(from var(--chart) clamp(0.6, l, 0.78) max(c, 0.12) calc(h + ${SERIES_HUE_TURN[provider]}))`;
 }
 
-export type MarkerShape = 'circle' | 'square' | 'diamond';
+export type MarkerShape = 'circle' | 'square' | 'diamond' | 'triangle';
 
 const MARKER_SHAPES: Record<AgentProvider, MarkerShape> = {
     claude: 'circle',
     codex: 'square',
     grok: 'diamond',
+    antigravity: 'triangle',
 };
 
 export function markerShape(provider: AgentProvider): MarkerShape {

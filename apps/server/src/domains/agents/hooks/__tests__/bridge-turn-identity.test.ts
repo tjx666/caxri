@@ -33,15 +33,18 @@ const everyTurnKey = {
 /**
  * Keyed by `AgentProvider` so a newly catalogued provider fails to compile here until its turn key is pinned.
  */
-const ownTurnId: Record<AgentProvider, string> = {
+const ownTurnId: Record<AgentProvider, string | undefined> = {
     claude: 'claude-prompt-id',
     codex: 'codex-turn-id',
     grok: 'grok-prompt-id',
+    // Antigravity names no turn, so no other provider's key may stand in for one.
+    antigravity: undefined,
 };
 
 async function deliver(
     provider: AgentProvider,
     payload: Record<string, unknown>,
+    phase = 'turnStarted',
 ): Promise<Array<Record<string, unknown>>> {
     const sharedPath = await mkdtemp(join(tmpdir(), 'caxri-turn-bridge-'));
     temporaryDirectories.push(sharedPath);
@@ -62,20 +65,16 @@ async function deliver(
     server.listen(socketPath);
     await once(server, 'listening');
     try {
-        const invocation = execFileAsync(
-            bridgePath,
-            ['--provider', provider, '--phase', 'turnStarted'],
-            {
-                env: {
-                    CAXRI_HOOK_LAUNCH_ID: 'turn-launch',
-                    CAXRI_HOOK_RUNTIME: process.execPath,
-                    CAXRI_HOOK_SOCKET: socketPath,
-                    CAXRI_HOOK_TERMINAL_ID: 'turn-terminal',
-                    CAXRI_HOOK_TOKEN: 'turn-token',
-                    PATH: process.env.PATH,
-                },
+        const invocation = execFileAsync(bridgePath, ['--provider', provider, '--phase', phase], {
+            env: {
+                CAXRI_HOOK_LAUNCH_ID: 'turn-launch',
+                CAXRI_HOOK_RUNTIME: process.execPath,
+                CAXRI_HOOK_SOCKET: socketPath,
+                CAXRI_HOOK_TERMINAL_ID: 'turn-terminal',
+                CAXRI_HOOK_TOKEN: 'turn-token',
+                PATH: process.env.PATH,
             },
-        );
+        });
         /**
          * An oversized payload is truncated and the bridge stops reading, so the unfinished write ends in `EPIPE`.
          */
@@ -96,6 +95,9 @@ describe('hook bridge turn identity', () => {
         async (provider) => {
             const packets = await deliver(provider, {
                 session_id: 'fixture-session',
+                // Antigravity forwards only a main conversation's first model call.
+                lastUserInput: 'fixture prompt',
+                invocationNum: 0,
                 ...everyTurnKey,
             });
             expect(packets).toHaveLength(1);
@@ -124,4 +126,42 @@ describe('hook bridge turn identity', () => {
             expect(JSON.stringify(packets[0])).not.toContain('private-result');
         },
     );
+});
+
+describe('Antigravity hook bridge', () => {
+    const conversationId = '49cc1001-2b93-4bb3-9ee8-104e8dcdd683';
+    const main = { conversationId, lastUserInput: 'Synthetic prompt', invocationNum: 0 };
+
+    it('identifies the conversation from its first model call without forwarding the prompt', async () => {
+        const [packet] = await deliver('antigravity', main);
+        expect(packet).toMatchObject({ phase: 'turnStarted', agentSessionId: conversationId });
+        expect(JSON.stringify(packet)).not.toContain('Synthetic prompt');
+        expect(await deliver('antigravity', { ...main, invocationNum: 1 })).toEqual([]);
+    });
+
+    it("ignores a subagent's events, which carry no user input", async () => {
+        const subagent = { conversationId: 'subagent-conversation', invocationNum: 0 };
+        expect(await deliver('antigravity', subagent)).toEqual([]);
+        expect(await deliver('antigravity', subagent, 'turnFinished')).toEqual([]);
+    });
+
+    it('ends a turn only once fully idle, and as failed when it stopped on an error', async () => {
+        const stop = { ...main, terminationReason: 'NO_TOOL_CALL', fullyIdle: true };
+        expect(await deliver('antigravity', stop, 'turnFinished')).toMatchObject([
+            { phase: 'turnFinished', agentSessionId: conversationId },
+        ]);
+        expect(await deliver('antigravity', { ...stop, fullyIdle: false }, 'turnFinished')).toEqual(
+            [],
+        );
+        expect(
+            await deliver('antigravity', { ...stop, terminationReason: 'ERROR' }, 'turnFinished'),
+        ).toMatchObject([{ phase: 'turnFailed' }]);
+        expect(
+            await deliver(
+                'antigravity',
+                { ...stop, terminationReason: 'USER_CANCELED' },
+                'turnFinished',
+            ),
+        ).toMatchObject([{ phase: 'turnFailed' }]);
+    });
 });

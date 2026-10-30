@@ -67,6 +67,15 @@ const agentChatPermissionCapabilities = {
      * mode needs ACP extensions Caxri does not handle yet. A switch restarts it and is refused while a turn runs.
      */
     grok: { modes: ['ask', 'auto', 'fullAccess'], planMode: false, appliesOnNextTurn: false },
+    /**
+     * Antigravity's `agy acp` edits workspace files without asking and asks before running a command;
+     * `--dangerously-skip-permissions` asks nothing. A switch restarts it and is refused while a turn runs.
+     */
+    antigravity: {
+        modes: ['acceptEdits', 'fullAccess'],
+        planMode: false,
+        appliesOnNextTurn: false,
+    },
 } as const satisfies Record<AgentProvider, AgentChatPermissionCapabilities>;
 
 /**

@@ -49,9 +49,10 @@ export function useAgentChatEdit(): AgentChatEditActions | undefined {
 
 /**
  * The Chat pane's "Edit from here", "Fork from here", and (when the provider restores files) "Restore code to here"
- * state: the actions its user messages read, the composer handle that starts an edit, and the setter the composer
- * reports the edited message through. The actions derive from the serialized availability table, which a streamed delta
- * leaves equal, so the context value keeps its identity and does not re-render every user message.
+ * state, offered only when the provider can rewind (`supportsRewind`): the actions its user messages read, the composer
+ * handle that starts an edit, and the setter the composer reports the edited message through. The actions derive from
+ * the serialized availability table, which a streamed delta leaves equal, so the context value keeps its identity and
+ * does not re-render every user message.
  */
 export function useAgentChatEditActions(
     terminalId: string,
@@ -59,8 +60,14 @@ export function useAgentChatEditActions(
     {
         canFork,
         providerName,
+        supportsRewind,
         supportsRewindFiles,
-    }: { canFork: boolean; providerName: string; supportsRewindFiles: boolean },
+    }: {
+        canFork: boolean;
+        providerName: string;
+        supportsRewind: boolean;
+        supportsRewindFiles: boolean;
+    },
 ) {
     const composerEdit = useRef<AgentChatComposerEditHandle | null>(null);
     const [editingId, setEditingId] = useState(() => readAgentChatEdit(terminalId)?.itemId);
@@ -74,7 +81,7 @@ export function useAgentChatEditActions(
         [availability],
     );
     const editActions = useMemo<AgentChatEditActions | undefined>(() => {
-        if (!table) return;
+        if (!table || !supportsRewind) return;
         return {
             availability: (itemId) => table.get(itemId)?.edit,
             editingId,
@@ -104,6 +111,6 @@ export function useAgentChatEditActions(
                 },
             }),
         };
-    }, [table, editingId, canFork, supportsRewindFiles, terminalId, providerName]);
+    }, [table, editingId, canFork, supportsRewind, supportsRewindFiles, terminalId, providerName]);
     return { composerEdit, editActions, setEditingId };
 }

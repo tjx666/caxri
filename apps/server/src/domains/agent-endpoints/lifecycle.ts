@@ -49,6 +49,7 @@ const ELEVATED_ARGUMENTS: Record<AgentProvider, ReadonlySet<string>> = {
     grok: new Set(['--always-approve', '--yolo', '--dangerously-skip-permissions']),
     claude: new Set(['--dangerously-skip-permissions']),
     codex: new Set(['--dangerously-bypass-approvals-and-sandbox']),
+    antigravity: new Set(['--dangerously-skip-permissions']),
 };
 
 /**

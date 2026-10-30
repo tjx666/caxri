@@ -198,6 +198,9 @@ function marker(shape: MarkerShape, cx: number, cy: number, size: number, color:
         const side = size * 1.7;
         return `<rect x="${cx - side / 2}" y="${cy - side / 2}" width="${side}" height="${side}" rx="1.5" fill="${color}"/>`;
     }
+    if (shape === 'triangle') {
+        return `<path d="M ${cx} ${cy - size * 1.2} L ${cx + size * 1.1} ${cy + size * 0.8} L ${cx - size * 1.1} ${cy + size * 0.8} Z" fill="${color}"/>`;
+    }
     if (shape === 'diamond') {
         const reach = size * 1.15;
         return `<path d="M ${cx} ${cy - reach} L ${cx + reach} ${cy} L ${cx} ${cy + reach} L ${cx - reach} ${cy} Z" fill="${color}"/>`;
