@@ -20,7 +20,14 @@ import { ProcessRow } from './process-row';
 import { ProcessSummaryBar } from './process-summary-bar';
 import { ProcessTableHeader } from './process-table-header';
 import { ProcessTitleBar } from './process-title-bar';
-import { buildProcessTree, filterProcessTree, processExplorerTotals } from './process-tree';
+import type { ProcessScope } from './process-tree';
+import {
+    buildProcessTree,
+    filterProcessTree,
+    filterProcessTreeByScope,
+    PROCESS_SCOPES,
+    processExplorerTotals,
+} from './process-tree';
 import { useProcessTableState } from './use-process-table-state';
 import { useProcessTreeNavigation } from './use-process-tree-navigation';
 
@@ -35,7 +42,7 @@ const processMessageClassName = 'process-message grid min-h-[120px] place-items-
 
 /**
  * The one status line the list shows instead of rows: loading, a sampling failure with Retry, nothing sampled, or
- * nothing matching the filter.
+ * nothing matching the filter or the shown categories.
  */
 function ProcessListMessage({
     error,
@@ -79,6 +86,8 @@ function ProcessListMessage({
         );
     if (!hasProcesses)
         return <div className={processMessageClassName}>{t('processExplorer.list.empty')}</div>;
+    if (!hasRows && !filter.trim())
+        return <div className={processMessageClassName}>{t('processExplorer.list.noScope')}</div>;
     if (!hasRows)
         return (
             <div className={processMessageClassName}>
@@ -92,6 +101,10 @@ export function ProcessExplorerApp() {
     const { t } = useTranslation();
     const [snapshot, setSnapshot] = useState<ProcessExplorerSnapshot>();
     const [filter, setFilter] = useState('');
+    /**
+     * Not persisted: every window opens showing everything, and hiding a category is a one-off investigation.
+     */
+    const [scopes, setScopes] = useState<ProcessScope[]>(() => [...PROCESS_SCOPES]);
     const [error, setError] = useState<ProcessExplorerError>();
     const [refreshing, setRefreshing] = useState(false);
     const refreshInFlight = useRef(false);
@@ -155,10 +168,13 @@ export function ProcessExplorerApp() {
         () => (snapshot ? buildProcessTree(snapshot, table.sort, t) : []),
         [snapshot, t, table.sort],
     );
-    const visibleRoots = useMemo(() => filterProcessTree(roots, filter), [filter, roots]);
+    const visibleRoots = useMemo(
+        () => filterProcessTree(filterProcessTreeByScope(roots, scopes), filter),
+        [filter, roots, scopes],
+    );
     const totals = useMemo(
-        () => processExplorerTotals(snapshot?.processes ?? []),
-        [snapshot?.processes],
+        () => processExplorerTotals(snapshot?.processes ?? [], scopes),
+        [scopes, snapshot?.processes],
     );
     const widths = useMemo(
         () => resolveProcessColumnWidths(table.widths, gridWidth),
@@ -192,9 +208,11 @@ export function ProcessExplorerApp() {
                 <ProcessTitleBar isRefreshing={refreshing} onRefresh={refresh} />
                 <ProcessSummaryBar
                     filter={filter}
+                    scopes={scopes}
                     snapshot={snapshot}
                     totals={totals}
                     onFilterChange={setFilter}
+                    onScopesChange={setScopes}
                 />
                 <div
                     ref={gridReference}

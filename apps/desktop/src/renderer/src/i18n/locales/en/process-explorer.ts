@@ -12,6 +12,15 @@ export const processExplorer = {
     'processExplorer.summary.ptyHigh': ', nearly out of PTY slots',
     'processExplorer.filter.placeholder': 'Filter',
     'processExplorer.filter.label': 'Filter processes',
+    'processExplorer.scope.label': 'Process categories to show',
+    'processExplorer.scope.caxri': 'Caxri',
+    'processExplorer.scope.caxriTooltip':
+        "Caxri's own processes: windows, Server Core, and helpers",
+    'processExplorer.scope.agents': 'Agents',
+    'processExplorer.scope.agentsTooltip':
+        'Agent CLIs, Terminal shells, and the processes they start',
+    'processExplorer.scope.other': 'Other apps',
+    'processExplorer.scope.otherTooltip': 'Apps outside Caxri that hold PTYs',
     // Table header
     'processExplorer.columns.name': 'Name',
     'processExplorer.columns.cpu': 'CPU',
@@ -24,6 +33,7 @@ export const processExplorer = {
     'processExplorer.gridLabel': 'Caxri processes',
     'processExplorer.list.loading': 'Loading processes…',
     'processExplorer.list.empty': 'No Caxri processes found.',
+    'processExplorer.list.noScope': 'No processes in the shown categories.',
     'processExplorer.list.noMatch': 'No processes match “{{filter}}”.',
     'processExplorer.error.sample': 'Unable to sample processes. Try again.',
     'processExplorer.error.stop': 'Unable to suspend {{name}}. Try again.',

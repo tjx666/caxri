@@ -270,6 +270,47 @@ export function buildProcessTree(
     return groups;
 }
 
+/**
+ * The categories the toolbar can show or hide. `caxri` is what Caxri itself runs (windows, Server Core, helpers),
+ * `agents` is every plain process it hosts (Agent CLIs, Terminal shells, and their children), and `other` is the
+ * read-only group of other apps holding PTYs. Hiding `agents` is how a user checks Caxri's own footprint.
+ */
+export const PROCESS_SCOPES = ['caxri', 'agents', 'other'] as const;
+export type ProcessScope = (typeof PROCESS_SCOPES)[number];
+
+/**
+ * Caxri's own processes carry a role kind; anything it merely hosts is a plain `process`, which is also what every
+ * Session and Terminal row stands for.
+ */
+const HOSTED_NODE_KINDS: ReadonlySet<ProcessTreeNodeKind> = new Set([
+    'process',
+    'session',
+    'terminal',
+]);
+
+function processKindScope(kind: ProcessTreeNodeKind): ProcessScope {
+    return HOSTED_NODE_KINDS.has(kind) ? 'agents' : 'caxri';
+}
+
+/**
+ * Keeps only the categories in `scopes`. The Caxri group mixes Caxri's own processes with Agent processes no running
+ * Terminal claims (a Chat Agent, for example), so it is split row by row and its sums recomputed from what remains.
+ */
+export function filterProcessTreeByScope(
+    roots: readonly ProcessTreeNode[],
+    scopes: readonly ProcessScope[],
+): ProcessTreeNode[] {
+    if (PROCESS_SCOPES.every((scope) => scopes.includes(scope))) return [...roots];
+    return roots.flatMap((root) => {
+        if (root.id === OTHER_PTY_GROUP_ID) return scopes.includes('other') ? [root] : [];
+        if (root.id === SESSIONS_GROUP_ID) return scopes.includes('agents') ? [root] : [];
+        const children = root.children.filter((child) =>
+            scopes.includes(processKindScope(child.kind)),
+        );
+        return children.length > 0 ? [{ ...root, ...sumUsage(children), children }] : [];
+    });
+}
+
 function isQueryMatch(node: ProcessTreeNode, query: string): boolean {
     return (
         node.name.toLowerCase().includes(query) ||
@@ -391,16 +432,24 @@ export interface ProcessExplorerTotals {
     processCount: number;
 }
 
+/**
+ * Sums Caxri's sampled processes, limited to `scopes` so hiding Agents leaves the readings for Caxri alone. Other apps
+ * are never part of the totals.
+ */
 export function processExplorerTotals(
     processes: readonly ProcessExplorerEntry[],
+    scopes: readonly ProcessScope[] = PROCESS_SCOPES,
 ): ProcessExplorerTotals {
     let cpuPercent = 0;
     let memoryMb = 0;
+    let processCount = 0;
     for (const process of processes) {
+        if (!scopes.includes(processKindScope(process.kind))) continue;
+        processCount += 1;
         cpuPercent += process.cpuPercent;
         memoryMb += process.memoryMb;
     }
-    return { cpuPercent, memoryMb, processCount: processes.length };
+    return { cpuPercent, memoryMb, processCount };
 }
 
 export type ProcessRowVerticalKey = 'ArrowDown' | 'ArrowUp' | 'End' | 'Home';

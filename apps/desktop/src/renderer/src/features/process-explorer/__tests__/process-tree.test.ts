@@ -9,9 +9,11 @@ import {
     buildProcessTree,
     CAXRI_GROUP_ID,
     filterProcessTree,
+    filterProcessTreeByScope,
     flattenProcessTree,
     nextProcessRowIndex,
     OTHER_PTY_GROUP_ID,
+    PROCESS_SCOPES,
     processExplorerTotals,
     processRowHorizontalIntent,
     rovingProcessRowId,
@@ -206,6 +208,40 @@ describe('filterProcessTree', () => {
     });
 });
 
+describe('filterProcessTreeByScope', () => {
+    // A Chat Agent no Terminal claims lists flat under Caxri next to Caxri's own processes.
+    const roots = buildProcessTree(
+        {
+            processes: [...processes, process(50, 20, 'claude', { cpuPercent: 3, memoryMb: 400 })],
+            terminals: [terminal],
+            otherPtyHolders: [process(90, 1, 'ghostty', { ptyCount: 1 })],
+        },
+        DEFAULT_PROCESS_SORT,
+        translate,
+    );
+
+    it('returns every root when every category is shown', () => {
+        expect(filterProcessTreeByScope(roots, PROCESS_SCOPES)).toEqual(roots);
+    });
+
+    it("hides Agents, leaving only Caxri's own processes with recomputed sums", () => {
+        const filtered = filterProcessTreeByScope(roots, ['caxri', 'other']);
+        expect(filtered.map((root) => root.id)).toEqual([CAXRI_GROUP_ID, OTHER_PTY_GROUP_ID]);
+        expect(filtered[0].children.map((child) => child.pid)).toEqual([10, 20, 30]);
+        expect(filtered[0]).toMatchObject({ cpuPercent: 8, memoryMb: 310 });
+    });
+
+    it('shows only Agents, including the unclaimed Chat Agent', () => {
+        const filtered = filterProcessTreeByScope(roots, ['agents']);
+        expect(filtered.map((root) => root.id)).toEqual([SESSIONS_GROUP_ID, CAXRI_GROUP_ID]);
+        expect(filtered[1].children.map((child) => child.pid)).toEqual([50]);
+    });
+
+    it('drops everything when no category is shown', () => {
+        expect(filterProcessTreeByScope(roots, [])).toEqual([]);
+    });
+});
+
 describe('flattenProcessTree', () => {
     const roots = buildProcessTree(
         { processes, terminals: [terminal] },
@@ -274,6 +310,14 @@ describe('processExplorerTotals', () => {
             cpuPercent: 260,
             memoryMb: 4_330,
             processCount: 6,
+        });
+    });
+
+    it('counts only the shown categories', () => {
+        expect(processExplorerTotals(processes, ['caxri'])).toEqual({
+            cpuPercent: 8,
+            memoryMb: 310,
+            processCount: 3,
         });
     });
 });
