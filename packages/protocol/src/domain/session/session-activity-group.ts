@@ -110,3 +110,16 @@ export function compareSessionActivityGroupRows(
         (left.id < right.id ? -1 : left.id > right.id ? 1 : 0)
     );
 }
+
+/**
+ * The shape an unread attention glyph takes, so "the Agent is blocked on you" and "there is a result to read" differ
+ * without relying on color. A failed turn or an unknown cause has nothing to answer, so it keeps the result's dot.
+ * Shared by the Desktop sidebar and the phone's Session row.
+ */
+export type SessionAttentionVariant = 'result' | 'waiting';
+
+export function sessionAttentionVariant(
+    lastAttentionKind: string | undefined,
+): SessionAttentionVariant {
+    return lastAttentionKind === 'waiting' ? 'waiting' : 'result';
+}

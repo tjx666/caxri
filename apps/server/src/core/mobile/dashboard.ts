@@ -5,6 +5,7 @@ import type {
     MobileArchivedSessionsResult,
     MobileDashboardResult,
     ProjectQueryResult,
+    SessionPullRequests,
     SessionQueryResult,
     TerminalQueryResult,
 } from '@caxri/protocol';
@@ -71,6 +72,15 @@ export const buildMobileDashboard = (input: {
     sessions: SessionQueryResult['sessions'];
     terminals: TerminalQueryResult['terminals'];
     resolveAgentEndpoint?: (terminalId: string) => AgentEndpointRef | undefined;
+    /**
+     * Desktop's cached pull request snapshot, read once for the whole list so no row costs a request of its own.
+     */
+    pullRequests?: SessionPullRequests['pullRequests'];
+    /**
+     * Every Project including the linked worktree Projects a paired device cannot list, used only to name the worktree
+     * of a Session the device may already see.
+     */
+    worktreeProjects?: ReadonlyArray<{ id: string; title: string }>;
     now?: number;
 }): MobileDashboardResult => {
     const now = input.now ?? Date.now();
@@ -91,6 +101,9 @@ export const buildMobileDashboard = (input: {
     }));
     const projects = new Map(visibleProjects.map((project) => [project.id, project]));
     const terminals = new Map(input.terminals.map((terminal) => [terminal.id, terminal]));
+    const worktreeTitles = new Map(
+        (input.worktreeProjects ?? []).map((project) => [project.id, project.title]),
+    );
     const shellTerminals = new Map<string, (typeof input.terminals)[number]>();
     for (const terminal of input.terminals) {
         if (terminal.kind === 'shell' && !shellTerminals.has(terminal.sessionId))
@@ -135,6 +148,12 @@ export const buildMobileDashboard = (input: {
                   }),
               }
             : undefined;
+        const pullRequest = input.pullRequests?.[session.id];
+        // Desktop's rule: a Session bound to another Workbench Root works in that linked worktree.
+        const worktreeTitle =
+            session.workbenchRootProjectId === session.projectId
+                ? undefined
+                : worktreeTitles.get(session.workbenchRootProjectId);
         const candidate: MobileDashboardResult['sessions'][number] = {
             id: session.id,
             projectId: session.projectId,
@@ -155,6 +174,17 @@ export const buildMobileDashboard = (input: {
             }),
             attentionGeneration: session.attentionGeneration,
             hasUnread: session.hasUnread,
+            ...(session.lastAttentionKind !== undefined && {
+                lastAttentionKind: session.lastAttentionKind,
+            }),
+            ...(pullRequest && {
+                pullRequest: {
+                    number: pullRequest.number,
+                    state: pullRequest.state,
+                    ...(pullRequest.deployment && { deployment: pullRequest.deployment }),
+                },
+            }),
+            ...(worktreeTitle && { worktreeTitle: title(worktreeTitle) }),
             ...(mobileTerminal && { primaryTerminal: mobileTerminal }),
         };
         const next = [...sessions, candidate];

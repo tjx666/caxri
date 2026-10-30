@@ -75,6 +75,14 @@ const sessionSummarySchema = sessionRecordSchema.pick({
     primaryAgentTerminalId: true,
     attentionGeneration: true,
     hasUnread: true,
+    /**
+     * What the unread attention is about, so the phone's Session row draws Desktop's attention shape.
+     */
+    lastAttentionKind: true,
+    /**
+     * The Workbench Root the Session works in; the phone's Session row names it when it is a linked worktree.
+     */
+    workbenchRootProjectId: true,
 });
 export const sessionQueryResultSchema = z.object({
     view: principalViewSchema,

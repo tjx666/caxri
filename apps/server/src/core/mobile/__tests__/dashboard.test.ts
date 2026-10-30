@@ -9,11 +9,57 @@ import {
 } from '../dashboard';
 
 describe('buildMobileDashboard', () => {
+    it('marks each row with its pull request, attention kind, and worktree from data already read', () => {
+        const session = (id: string, workbenchRootProjectId: string) => ({
+            id,
+            projectId: 'project-1',
+            workbenchRootProjectId,
+            title: id,
+            lastVisitedAt: 1,
+            sessionActivityAt: 1,
+            agentActivityState: 'waiting' as const,
+            attentionGeneration: 1,
+            hasUnread: true,
+            lastAttentionKind: 'waiting' as const,
+        });
+        const result = buildMobileDashboard({
+            hostDisplayName: 'Caxri Host',
+            deviceRole: 'view',
+            projects: [{ id: 'project-1', title: 'App' }],
+            sessions: [session('plain', 'project-1'), session('linked', 'worktree-1')],
+            terminals: [],
+            pullRequests: {
+                linked: {
+                    number: 12,
+                    title: 'Do not send',
+                    url: 'https://github.com/example/app/pull/12',
+                    state: 'merged',
+                    checks: 'success',
+                    source: 'branch',
+                },
+            },
+            worktreeProjects: [{ id: 'worktree-1', title: 'app-feature' }],
+        });
+        const [linked, plain] = [
+            result.sessions.find(({ id }) => id === 'linked'),
+            result.sessions.find(({ id }) => id === 'plain'),
+        ];
+        expect(linked).toMatchObject({
+            lastAttentionKind: 'waiting',
+            pullRequest: { number: 12, state: 'merged' },
+            worktreeTitle: 'app-feature',
+        });
+        expect(linked?.pullRequest).toEqual({ number: 12, state: 'merged' });
+        expect(plain?.pullRequest).toBeUndefined();
+        expect(plain?.worktreeTitle).toBeUndefined();
+    });
+
     it('prioritizes attention and stays within one encrypted frame for Desktop-scale inputs', () => {
         const longTitle = '🙂'.repeat(1_024);
         const sessions = Array.from({ length: 1_000 }, (_, index) => ({
             id: `session-${index}`,
             projectId: 'project-1',
+            workbenchRootProjectId: 'project-1',
             title: longTitle,
             lastVisitedAt: index,
             sessionActivityAt: index,
@@ -59,6 +105,7 @@ describe('buildMobileDashboard', () => {
     it('orders pinned Sessions first, then the shared status groups, then recency', () => {
         const base = {
             projectId: 'project-1',
+            workbenchRootProjectId: 'project-1',
             title: 'Session',
             lastVisitedAt: 1,
             attentionGeneration: 0,
@@ -112,6 +159,7 @@ describe('buildMobileDashboard', () => {
                 {
                     id: 'session-1',
                     projectId: 'project-1',
+                    workbenchRootProjectId: 'project-1',
                     title: 'Visible',
                     lastVisitedAt: 1,
                     sessionActivityAt: 1,
@@ -122,6 +170,7 @@ describe('buildMobileDashboard', () => {
                 {
                     id: 'session-2',
                     projectId: 'project-other',
+                    workbenchRootProjectId: 'project-other',
                     title: 'Hidden',
                     lastVisitedAt: 2,
                     sessionActivityAt: 2,
@@ -149,6 +198,7 @@ describe('buildMobileDashboard', () => {
                 {
                     id: 'session-1',
                     projectId: 'project-1',
+                    workbenchRootProjectId: 'project-1',
                     title: 'Shell Session',
                     lastVisitedAt: 1,
                     sessionActivityAt: 1,
@@ -180,6 +230,7 @@ describe('buildMobileArchivedSessions', () => {
         const session = (id: string, projectId: string, archivedAt?: number) => ({
             id,
             projectId,
+            workbenchRootProjectId: projectId,
             title: id,
             lastVisitedAt: 1,
             sessionActivityAt: 1,
@@ -236,6 +287,7 @@ describe('buildMobileArchivedSessions', () => {
             sessions: Array.from({ length: 500 }, (_, index) => ({
                 id: `session-${index}`,
                 projectId: 'project-1',
+                workbenchRootProjectId: 'project-1',
                 title: '🙂'.repeat(1_024),
                 lastVisitedAt: 1,
                 sessionActivityAt: 1,
@@ -260,6 +312,7 @@ describe('buildMobileDashboard usage-limit waits', () => {
         const waitingAt = 5_000_000;
         const base = {
             projectId: 'project-1',
+            workbenchRootProjectId: 'project-1',
             title: 'Session',
             lastVisitedAt: 1,
             sessionActivityAt: 1,

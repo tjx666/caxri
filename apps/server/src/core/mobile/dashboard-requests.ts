@@ -7,8 +7,28 @@ import { sessionForPrincipal } from './session-management';
 
 type DashboardProjection = Omit<
     Parameters<typeof buildMobileDashboard>[0],
-    'projects' | 'sessions' | 'terminals'
+    'projects' | 'pullRequests' | 'sessions' | 'terminals' | 'worktreeProjects'
 >;
+
+/**
+ * The row's pull request and worktree label come from reads Desktop already keeps warm: the cached pull request
+ * snapshot (a stale entry refreshes in the background, as for a Desktop poll) and the full Project list.
+ */
+async function readRowContext(domainService: ServerDomainService) {
+    const [pullRequests, allProjects] = await Promise.all([
+        domainService.request('session.pullRequests', {}),
+        domainService.request('project.list', {}),
+    ]);
+    return {
+        pullRequests: pullRequests.pullRequests,
+        worktreeProjects: allProjects.projects
+            // The in-process handler answers full Project records; the union type only narrows per view.
+            .filter(
+                (project) => 'ownerProjectId' in project && project.ownerProjectId !== undefined,
+            )
+            .map(({ id, title }) => ({ id, title })),
+    };
+}
 
 /**
  * The Session home: every Project, Session, and Terminal the principal may see, narrowed to a paired device's granted
@@ -19,7 +39,7 @@ export async function readMobileDashboard(
     principal: Principal,
     projection: DashboardProjection,
 ) {
-    const [projects, sessions, terminals] = await Promise.all([
+    const [projects, sessions, terminals, rowContext] = await Promise.all([
         domainService.request('project.queryForPrincipal', {
             principal,
             query: { mode: 'list' },
@@ -32,6 +52,7 @@ export async function readMobileDashboard(
             principal,
             query: { mode: 'list' },
         }),
+        readRowContext(domainService),
     ]);
     const grantedProjectIds =
         principal.kind === 'paired-device' ? new Set(principal.projectIds) : undefined;
@@ -40,6 +61,7 @@ export async function readMobileDashboard(
         : projects.projects;
     return buildMobileDashboard({
         ...projection,
+        ...rowContext,
         projects: visibleProjects,
         sessions: sessions.sessions,
         terminals: terminals.terminals,
@@ -58,7 +80,7 @@ export async function showMobileSession(
     reauthorize: () => unknown,
 ) {
     const session = await sessionForPrincipal(domainService, principal, sessionId);
-    const [projects, terminals] = await Promise.all([
+    const [projects, terminals, rowContext] = await Promise.all([
         domainService.request('project.queryForPrincipal', {
             principal,
             query: { mode: 'show', selector: session.projectId },
@@ -72,9 +94,11 @@ export async function showMobileSession(
                   principal,
                   query: { mode: 'list', sessionId: session.id },
               }),
+        readRowContext(domainService),
     ]);
     const projected = buildMobileDashboard({
         ...projection,
+        ...rowContext,
         projects: projects.projects,
         sessions: [session],
         terminals: terminals.terminals,

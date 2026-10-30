@@ -10,7 +10,7 @@ import {
 } from '../domain/domain.js';
 import { identifierSchema } from '../domain/identifiers.js';
 import { sessionRenameTitleSchema } from '../domain/session.js';
-import { terminalKindSchema, terminalRecordSchema } from '../domain/terminal-record.js';
+import { terminalKindSchema } from '../domain/terminal-record.js';
 import { terminalSurfaceSchema } from '../domain/terminal-surface.js';
 import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
@@ -31,6 +31,7 @@ import {
     mobileChangesDiffResultSchema,
     mobileChangesListResultSchema,
 } from './mobile-changes-contract.js';
+import { mobileDashboardSessionSchema } from './mobile-dashboard-session-contract.js';
 import { mobileFilesInternalMethods, mobileFilesMethods } from './mobile-files-contract.js';
 import { mobileHostStatusMethods } from './mobile-host-status-contract.js';
 import {
@@ -61,6 +62,7 @@ export * from './mobile-agent-usage-contract.js';
 export * from './mobile-attention-contract.js';
 export * from './mobile-bot-inbox-contract.js';
 export * from './mobile-changes-contract.js';
+export * from './mobile-dashboard-session-contract.js';
 export { MOBILE_FILES_MAX_ENTRIES, MOBILE_FILES_READ_MAX_BYTES } from './mobile-file-limits.js';
 export * from './mobile-files-contract.js';
 export * from './mobile-host-status-contract.js';
@@ -103,41 +105,6 @@ export const mobileDeviceSummarySchema = z.strictObject({
     createdAt: z.number().int().positive(),
     lastConnectedAt: z.number().int().positive().optional(),
     revokedAt: z.number().int().positive().optional(),
-});
-
-export const mobileDashboardSessionSchema = z.strictObject({
-    id: identifierSchema,
-    projectId: identifierSchema,
-    title: z.string().min(1).max(100),
-    projectTitle: z.string().min(1).max(100),
-    lastVisitedAt: sessionRecordSchema.shape.lastVisitedAt,
-    /**
-     * The Session's work clock, which orders rows inside a group on both Desktop and the phone.
-     */
-    sessionActivityAt: sessionRecordSchema.shape.sessionActivityAt,
-    pinnedAt: sessionRecordSchema.shape.pinnedAt,
-    pinnedOrder: sessionRecordSchema.shape.pinnedOrder,
-    agentActivityState: sessionRecordSchema.shape.agentActivityState,
-    primaryAgentTerminalId: identifierSchema.optional(),
-    primaryAgentEndpoint: agentEndpointReferenceSchema.optional(),
-    attentionGeneration: sessionRecordSchema.shape.attentionGeneration,
-    hasUnread: sessionRecordSchema.shape.hasUnread,
-    primaryTerminal: terminalRecordSchema
-        .pick({
-            id: true,
-            sessionId: true,
-            kind: true,
-            provider: true,
-            lastProcessState: true,
-            failureReason: true,
-            usageLimitWaitAt: true,
-            /**
-             * `chat` tells the phone to open the Agent Chat projection instead of attaching to a PTY that does not
-             * exist; see `docs/agent-chat.md`.
-             */
-            surface: true,
-        })
-        .optional(),
 });
 
 /**

@@ -223,6 +223,16 @@ export const sessions = {
     'sessions.state.waiting': 'Waiting for you',
     'sessions.state.working': 'Working',
     'sessions.status.needsAttention': 'Needs attention: {{state}}',
+    'sessions.pullRequest.open': 'Pull request #{{number}}, open',
+    'sessions.pullRequest.draft': 'Pull request #{{number}}, draft',
+    'sessions.pullRequest.merged': 'Pull request #{{number}}, merged',
+    'sessions.pullRequest.closed': 'Pull request #{{number}}, closed without merging',
+    'sessions.pullRequest.deployed': 'Pull request #{{number}}, merged and deployed',
+    'sessions.pullRequest.deployFailed': 'Pull request #{{number}}, merged, deployment failed',
+    'sessions.pullRequest.deployPending':
+        'Pull request #{{number}}, merged, deployment in progress',
+    'sessions.row.worktree': 'Worktree {{name}}',
+    'sessions.status.waitingForAnswer': 'Needs your answer: {{state}}',
     'sessions.surface.confirmSwitchLabel': 'Stop and Switch',
     'sessions.surface.confirmSwitchToChat':
         '{{provider}} is still working. Switching stops the current turn and continues the conversation in Chat.',

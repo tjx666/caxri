@@ -104,3 +104,37 @@ export const sessionPullRequestMethods = {
         result: z.null(),
     },
 } as const;
+
+export type SessionPullRequestIcon = 'closed' | 'deployed' | 'draft' | 'merged' | 'open';
+export type SessionPullRequestTone = 'danger' | 'merged' | 'neutral' | 'success' | 'warning';
+
+/**
+ * The glyph shape and color role of a Session's pull request, shared by the Desktop sidebar and the phone's Session row
+ * so one pull request can never read as two different states. Lifecycle owns the color (a red open glyph was mistaken
+ * for a closed one); a merged pull request becomes a rocket once production serves its merge commit, with the
+ * deployment outcome moving only the color. A deployment with nothing to report falls back to the merged glyph.
+ */
+export function sessionPullRequestVisual(
+    pullRequest: Pick<SessionPullRequest, 'deployment' | 'state'>,
+): { icon: SessionPullRequestIcon; tone: SessionPullRequestTone } {
+    switch (pullRequest.state) {
+        case 'merged':
+            switch (pullRequest.deployment?.state) {
+                case 'success':
+                    return { icon: 'deployed', tone: 'merged' };
+                case 'failure':
+                    return { icon: 'deployed', tone: 'danger' };
+                case 'pending':
+                case 'queued':
+                    return { icon: 'deployed', tone: 'warning' };
+                default:
+                    return { icon: 'merged', tone: 'merged' };
+            }
+        case 'closed':
+            return { icon: 'closed', tone: 'danger' };
+        case 'draft':
+            return { icon: 'draft', tone: 'neutral' };
+        case 'open':
+            return { icon: 'open', tone: 'success' };
+    }
+}

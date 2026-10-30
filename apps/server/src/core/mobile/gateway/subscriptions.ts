@@ -297,7 +297,10 @@ export class MobileGatewaySubscriptions {
         const resource = subscription.resource;
         switch (resource.kind) {
             case 'dashboard': {
-                if (event.event === 'state.changed')
+                if (
+                    event.event === 'state.changed' ||
+                    event.event === 'sessionPullRequests.changed'
+                )
                     this.#queue(subscription, event, { kind: 'dashboard.changed' });
                 break;
             }

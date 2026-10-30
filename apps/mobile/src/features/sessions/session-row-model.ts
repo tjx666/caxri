@@ -1,6 +1,11 @@
-import { DEFAULT_SESSION_TITLE } from '@caxri/protocol';
+import type { SessionPullRequestIcon, SessionPullRequestTone } from '@caxri/protocol';
+import {
+    DEFAULT_SESSION_TITLE,
+    sessionAttentionVariant,
+    sessionPullRequestVisual,
+} from '@caxri/protocol';
 
-import type { Translate } from '../../i18n';
+import type { Translate, TranslationKey } from '../../i18n';
 import { translate } from '../../i18n';
 import { mobileAgentDisplayName } from './agent-display-name';
 import type { MobileSessionItem } from './session-model';
@@ -72,13 +77,14 @@ export const sessionStateLabel = (
 };
 
 /**
- * Which mark the Session status slot shows. A saved copy cannot know a Session is still running, so it never spins:
+ * Which mark the Session status slot shows. Unread attention is a question mark when the Agent waits on the user and a
+ * ringed dot for a result, as on Desktop. A saved copy cannot know a Session is still running, so it never spins:
  * `running-saved` is a still glyph; `usage-wait` is a clock for a Chat waiting for a usage limit to reset. When the
  * screen below already shows the run (`isRunShownBelow`: the Chat tab's status row, or its `Compacting context…` line),
  * the slot stays empty so the same work does not spin twice.
  */
 export const sessionStatusGlyphKind = (
-    session: Pick<MobileSessionItem, 'hasUnread' | 'agentActivityState'> & {
+    session: Pick<MobileSessionItem, 'hasUnread' | 'agentActivityState' | 'lastAttentionKind'> & {
         primaryTerminal?: Pick<
             NonNullable<MobileSessionItem['primaryTerminal']>,
             'usageLimitWaitAt'
@@ -86,15 +92,61 @@ export const sessionStatusGlyphKind = (
     },
     isSaved: boolean,
     isRunShownBelow = false,
-): 'attention' | 'running' | 'running-saved' | 'failed' | 'usage-wait' | null => {
+):
+    | 'attention-result'
+    | 'attention-waiting'
+    | 'running'
+    | 'running-saved'
+    | 'failed'
+    | 'usage-wait'
+    | null => {
     // A Chat waiting for a plan limit to reset outranks everything: it asks nothing of the user and continues by
     // itself, so the clock replaces the failure or unread cue the limit left behind (Desktop's `usageWait`).
     if (session.primaryTerminal?.usageLimitWaitAt !== undefined) return 'usage-wait';
-    if (session.hasUnread) return 'attention';
+    // The same two shapes as Desktop (`sessionStatus`), so the cause does not rest on color alone.
+    if (session.hasUnread)
+        return sessionAttentionVariant(session.lastAttentionKind) === 'waiting'
+            ? 'attention-waiting'
+            : 'attention-result';
     if (session.agentActivityState === 'running') {
         if (isRunShownBelow) return null;
         return isSaved ? 'running-saved' : 'running';
     }
     if (session.agentActivityState === 'failed') return 'failed';
     return null;
+};
+
+/**
+ * The announcement for a rocket glyph follows the deployment outcome the tone carries, not the glyph alone.
+ */
+const DEPLOYMENT_LABEL_KEY: Partial<Record<SessionPullRequestTone, TranslationKey>> = {
+    danger: 'sessions.pullRequest.deployFailed',
+    warning: 'sessions.pullRequest.deployPending',
+};
+
+/**
+ * The pull request mark a Session row shows beside its status, or `null` when it shows none. A saved copy's pull
+ * request can be hours old (it may have merged since), so a row drawn from one shows no mark rather than a stale one.
+ */
+export const sessionRowPullRequest = (
+    session: Pick<MobileSessionItem, 'pullRequest'>,
+    isSaved: boolean,
+    t: Translate = translate,
+): {
+    icon: SessionPullRequestIcon;
+    label: string;
+    tone: SessionPullRequestTone;
+} | null => {
+    const { pullRequest } = session;
+    if (isSaved || !pullRequest) return null;
+    const visual = sessionPullRequestVisual(pullRequest);
+    return {
+        ...visual,
+        label: t(
+            visual.icon === 'deployed'
+                ? (DEPLOYMENT_LABEL_KEY[visual.tone] ?? 'sessions.pullRequest.deployed')
+                : `sessions.pullRequest.${pullRequest.state}`,
+            { number: pullRequest.number },
+        ),
+    };
 };

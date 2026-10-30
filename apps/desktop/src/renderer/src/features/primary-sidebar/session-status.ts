@@ -1,4 +1,10 @@
-import type { AgentOperation, ProcessState, SessionRecord } from '@caxri/protocol';
+import type {
+    AgentOperation,
+    ProcessState,
+    SessionAttentionVariant,
+    SessionRecord,
+} from '@caxri/protocol';
+import { sessionAttentionVariant } from '@caxri/protocol';
 
 import type { Translate } from '../../i18n';
 import { agentChatMessageTime } from '../agent-chat/transcript/agent-chat-time';
@@ -13,13 +19,6 @@ interface VisibleSessionStatus {
     ariaDescription: string;
     ariaLabel: string;
 }
-
-/**
- * The shape an unread attention glyph takes, so "the Agent is blocked on you" and "there is a result to read" differ
- * without relying on color (issue caxri#1632). A failed turn or an unknown cause has nothing to answer, so it keeps the
- * result's dot.
- */
-type SessionAttentionVariant = 'result' | 'waiting';
 
 /**
  * `background` is a running Session whose turn ended while work that wakes it again (a subagent, workflow, or monitor)
@@ -105,7 +104,7 @@ export function sessionStatus(
                           kind: attentionActivity.label.toLowerCase(),
                       }),
             kind: 'attention',
-            variant: session.lastAttentionKind === 'waiting' ? 'waiting' : 'result',
+            variant: sessionAttentionVariant(session.lastAttentionKind),
         };
     }
 

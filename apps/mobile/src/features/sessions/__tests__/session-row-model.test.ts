@@ -9,6 +9,7 @@ import {
     savedAgeLabel,
     sessionAgeLabel,
     sessionAgentLabel,
+    sessionRowPullRequest,
     sessionStateLabel,
     sessionStatusGlyphKind,
     sessionTitleForDisplay,
@@ -100,7 +101,9 @@ describe('Session status on a saved copy', () => {
         ).toBe('usage-wait');
         expect(sessionStatusGlyphKind(running, false)).toBe('running');
         expect(sessionStatusGlyphKind(running, true)).toBe('running-saved');
-        expect(sessionStatusGlyphKind({ ...running, hasUnread: true }, true)).toBe('attention');
+        expect(sessionStatusGlyphKind({ ...running, hasUnread: true }, true)).toBe(
+            'attention-result',
+        );
         expect(
             sessionStatusGlyphKind({ hasUnread: false, agentActivityState: 'failed' }, true),
         ).toBe('failed');
@@ -114,7 +117,61 @@ describe('Session status on a saved copy', () => {
         expect(sessionStatusGlyphKind(running, false, true)).toBeNull();
         expect(sessionStatusGlyphKind(running, true, true)).toBeNull();
         expect(sessionStatusGlyphKind({ ...running, hasUnread: true }, false, true)).toBe(
-            'attention',
+            'attention-result',
         );
+    });
+
+    it('draws a question mark when the Agent waits on the user and a ringed dot for a result', () => {
+        const unread = { hasUnread: true, agentActivityState: 'waiting' } as const;
+        expect(sessionStatusGlyphKind({ ...unread, lastAttentionKind: 'waiting' }, false)).toBe(
+            'attention-waiting',
+        );
+        expect(sessionStatusGlyphKind({ ...unread, lastAttentionKind: 'completed' }, false)).toBe(
+            'attention-result',
+        );
+        expect(sessionStatusGlyphKind(unread, false)).toBe('attention-result');
+    });
+});
+
+describe('sessionRowPullRequest', () => {
+    const open = { pullRequest: { number: 7, state: 'open' } } as const;
+
+    it('shares Desktop glyph and tone for the same pull request', () => {
+        expect(sessionRowPullRequest(open, false)).toMatchObject({ icon: 'open', tone: 'success' });
+        expect(
+            sessionRowPullRequest({ pullRequest: { number: 7, state: 'merged' } }, false),
+        ).toMatchObject({ icon: 'merged', tone: 'merged' });
+        expect(
+            sessionRowPullRequest({ pullRequest: { number: 7, state: 'closed' } }, false),
+        ).toMatchObject({ icon: 'closed', tone: 'danger' });
+        expect(
+            sessionRowPullRequest(
+                {
+                    pullRequest: { number: 7, state: 'merged', deployment: { state: 'success' } },
+                },
+                false,
+            ),
+        ).toMatchObject({ icon: 'deployed', tone: 'merged' });
+    });
+
+    it('announces the deployment outcome instead of claiming success', () => {
+        const label = (state: 'failure' | 'pending' | 'queued' | 'success') =>
+            sessionRowPullRequest(
+                { pullRequest: { number: 12, state: 'merged', deployment: { state } } },
+                false,
+            )?.label;
+        expect(label('success')).toBe('Pull request #12, merged and deployed');
+        expect(label('failure')).toBe('Pull request #12, merged, deployment failed');
+        expect(label('pending')).toBe('Pull request #12, merged, deployment in progress');
+        expect(label('queued')).toBe('Pull request #12, merged, deployment in progress');
+    });
+
+    it('spells the state out and names the number', () => {
+        expect(sessionRowPullRequest(open, false)?.label).toBe('Pull request #7, open');
+    });
+
+    it('shows nothing without a pull request or on a saved copy that may be out of date', () => {
+        expect(sessionRowPullRequest({}, false)).toBeNull();
+        expect(sessionRowPullRequest(open, true)).toBeNull();
     });
 });
