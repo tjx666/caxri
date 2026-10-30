@@ -71,8 +71,9 @@ The implemented encrypted frame, subscription, and heartbeat contract is documen
   hello. Otherwise it idles until Server's handshake deadline and counts as a false
   `handshakeTimeout`.
 - Foreground recovery: when the app returns to the foreground, probe the current connection. If the
-  app was in the background for more than 10 seconds or the probe fails, open a new connection at
-  once instead of waiting for the backoff timer. Android vendors such as HyperOS cut background
+  app was in the background for more than 10 seconds, open a new connection at once instead of
+  waiting for the backoff timer. If the probe goes unanswered, keep the connection and dial a
+  replacement beside it; whichever proves alive first stays (see `transport.md`). Android vendors such as HyperOS cut background
   sockets aggressively, so foreground recovery is the primary path, not an edge case.
 - A connection that ends after staying up at least 10 seconds reconnects at once. One that ends
   sooner keeps the backoff count growing instead of resetting it, so a screen that closes every

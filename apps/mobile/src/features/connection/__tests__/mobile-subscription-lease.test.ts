@@ -4,13 +4,7 @@ import type {
     MobileGatewayConnection,
     MobileGatewaySubscriptionHandle,
 } from '../mobile-gateway-connection';
-import { acquireMobileSubscription } from '../use-mobile-client-controller';
-
-vi.mock('react-native', () => ({ AppState: { currentState: 'active' } }));
-vi.mock('expo-device', () => ({ modelName: 'Fixture device' }));
-vi.mock('expo-network', () => ({ addNetworkStateListener: vi.fn() }));
-vi.mock('../expo-credential-store', () => ({ expoMobileCredentialStore: {} }));
-vi.mock('../expo-mobile-gateway-runtime', () => ({ expoMobileGatewayRuntime: {} }));
+import { acquireMobileSubscription } from '../mobile-subscription-lease';
 
 describe('mobile subscription ownership', () => {
     it('returns a subscription handle while its connection remains current', async () => {

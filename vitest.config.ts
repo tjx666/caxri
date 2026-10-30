@@ -3,6 +3,8 @@ import process from 'node:process';
 
 import { configDefaults, defineConfig } from 'vitest/config';
 
+import { lowerLocalTestPriority } from './scripts/local-test-priority';
+
 export const desktopTestFiles = [
     'apps/desktop/src/**/*.test.ts',
     'extensions/**/*.test.ts',
@@ -123,142 +125,145 @@ export const workspaceAliases = {
     'caxri': resolve(import.meta.dirname, 'packages/extension-api/src/index.ts'),
 };
 
-export default defineConfig({
-    resolve: {
-        alias: workspaceAliases,
-    },
-    /**
-     * Mirrors the Renderer build's `assetsInclude` (electron.vite.config.ts) so the PDF preview's `?inline` CMaps,
-     * standard fonts, and WebAssembly decoders load in tests exactly as they are bundled.
-     */
-    assetsInclude: ['**/*.bcmap', '**/*.pfb', '**/*.wasm'],
-    test: {
-        globalSetup: ['./vitest.global-setup.ts'],
-        environment: 'node',
-        testTimeout: 15_000,
-        hookTimeout: 15_000,
-        coverage: { reporter: ['text', 'json-summary'] },
+export default defineConfig(() => {
+    lowerLocalTestPriority(process.env);
+    return {
+        resolve: {
+            alias: workspaceAliases,
+        },
         /**
-         * Vitest replaces every CSS import with an empty string unless `css.include` matches it, and that includes
-         * `theme.css?raw`. Contract tests import the stylesheets they assert on with `?raw` so the changed-file check
-         * and watch mode see the dependency; matching only the raw query keeps ordinary style imports empty.
+         * Mirrors the Renderer build's `assetsInclude` (electron.vite.config.ts) so the PDF preview's `?inline` CMaps,
+         * standard fonts, and WebAssembly decoders load in tests exactly as they are bundled.
          */
-        css: { include: [/[?&]raw(?:&|$)/] },
-        projects: [
-            {
-                extends: true,
-                test: {
-                    name: 'desktop-parallel',
-                    include: desktopTestFiles,
-                    exclude: configDefaults.exclude,
-                    maxWorkers: parallelMaxWorkers,
+        assetsInclude: ['**/*.bcmap', '**/*.pfb', '**/*.wasm'],
+        test: {
+            globalSetup: ['./vitest.global-setup.ts'],
+            environment: 'node',
+            testTimeout: 15_000,
+            hookTimeout: 15_000,
+            coverage: { reporter: ['text', 'json-summary'] },
+            /**
+             * Vitest replaces every CSS import with an empty string unless `css.include` matches it, and that includes
+             * `theme.css?raw`. Contract tests import the stylesheets they assert on with `?raw` so the changed-file
+             * check and watch mode see the dependency; matching only the raw query keeps ordinary style imports empty.
+             */
+            css: { include: [/[?&]raw(?:&|$)/] },
+            projects: [
+                {
+                    extends: true,
+                    test: {
+                        name: 'desktop-parallel',
+                        include: desktopTestFiles,
+                        exclude: configDefaults.exclude,
+                        maxWorkers: parallelMaxWorkers,
+                    },
                 },
-            },
-            {
-                extends: true,
-                test: {
-                    name: 'agent-skills',
-                    include: agentSkillsTestFiles,
-                    maxWorkers: parallelMaxWorkers,
+                {
+                    extends: true,
+                    test: {
+                        name: 'agent-skills',
+                        include: agentSkillsTestFiles,
+                        maxWorkers: parallelMaxWorkers,
+                    },
                 },
-            },
-            {
-                extends: true,
-                test: {
-                    name: 'protocol',
-                    include: protocolTestFiles,
-                    maxWorkers: parallelMaxWorkers,
+                {
+                    extends: true,
+                    test: {
+                        name: 'protocol',
+                        include: protocolTestFiles,
+                        maxWorkers: parallelMaxWorkers,
+                    },
                 },
-            },
-            {
-                extends: true,
-                test: {
-                    name: 'api',
-                    include: apiTestFiles,
-                    maxWorkers: parallelMaxWorkers,
+                {
+                    extends: true,
+                    test: {
+                        name: 'api',
+                        include: apiTestFiles,
+                        maxWorkers: parallelMaxWorkers,
+                    },
                 },
-            },
-            {
-                extends: true,
-                test: {
-                    name: 'client',
-                    include: clientTestFiles,
-                    maxWorkers: parallelMaxWorkers,
+                {
+                    extends: true,
+                    test: {
+                        name: 'client',
+                        include: clientTestFiles,
+                        maxWorkers: parallelMaxWorkers,
+                    },
                 },
-            },
-            {
-                extends: true,
-                test: {
-                    name: 'server-parallel',
-                    include: serverTestFiles,
-                    exclude: serverParallelExcludes,
-                    maxWorkers: parallelMaxWorkers,
+                {
+                    extends: true,
+                    test: {
+                        name: 'server-parallel',
+                        include: serverTestFiles,
+                        exclude: serverParallelExcludes,
+                        maxWorkers: parallelMaxWorkers,
+                    },
                 },
-            },
-            {
-                extends: true,
-                test: {
-                    name: 'server-serial-native',
-                    fileParallelism: false,
-                    include: serialNativeTests,
+                {
+                    extends: true,
+                    test: {
+                        name: 'server-serial-native',
+                        fileParallelism: false,
+                        include: serialNativeTests,
+                    },
                 },
-            },
-            {
-                extends: true,
-                test: {
-                    name: 'system',
-                    include: systemTestFiles,
-                    maxWorkers: parallelMaxWorkers,
+                {
+                    extends: true,
+                    test: {
+                        name: 'system',
+                        include: systemTestFiles,
+                        maxWorkers: parallelMaxWorkers,
+                    },
                 },
-            },
-            {
-                extends: true,
-                test: {
-                    name: 'utils',
-                    include: utilitiesTestFiles,
-                    maxWorkers: parallelMaxWorkers,
+                {
+                    extends: true,
+                    test: {
+                        name: 'utils',
+                        include: utilitiesTestFiles,
+                        maxWorkers: parallelMaxWorkers,
+                    },
                 },
-            },
-            {
-                extends: true,
-                test: {
-                    name: 'cli',
-                    include: cliTestFiles,
-                    maxWorkers: parallelMaxWorkers,
+                {
+                    extends: true,
+                    test: {
+                        name: 'cli',
+                        include: cliTestFiles,
+                        maxWorkers: parallelMaxWorkers,
+                    },
                 },
-            },
-            {
-                extends: true,
-                test: {
-                    name: 'mobile',
-                    include: mobileTestFiles,
-                    maxWorkers: parallelMaxWorkers,
+                {
+                    extends: true,
+                    test: {
+                        name: 'mobile',
+                        include: mobileTestFiles,
+                        maxWorkers: parallelMaxWorkers,
+                    },
                 },
-            },
-            {
-                extends: true,
-                test: {
-                    name: 'mobile-transport',
-                    include: mobileTransportTestFiles,
-                    maxWorkers: parallelMaxWorkers,
+                {
+                    extends: true,
+                    test: {
+                        name: 'mobile-transport',
+                        include: mobileTransportTestFiles,
+                        maxWorkers: parallelMaxWorkers,
+                    },
                 },
-            },
-            {
-                extends: true,
-                test: {
-                    name: 'markdown',
-                    include: markdownTestFiles,
-                    maxWorkers: parallelMaxWorkers,
+                {
+                    extends: true,
+                    test: {
+                        name: 'markdown',
+                        include: markdownTestFiles,
+                        maxWorkers: parallelMaxWorkers,
+                    },
                 },
-            },
-            {
-                extends: true,
-                test: {
-                    name: 'relay',
-                    include: relayTestFiles,
-                    maxWorkers: parallelMaxWorkers,
+                {
+                    extends: true,
+                    test: {
+                        name: 'relay',
+                        include: relayTestFiles,
+                        maxWorkers: parallelMaxWorkers,
+                    },
                 },
-            },
-        ],
-    },
+            ],
+        },
+    };
 });

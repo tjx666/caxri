@@ -28,6 +28,7 @@ function createStubbedProbe(describeStall?: EventLoopMonitorOptions['describeSta
             cpuUsage: () => ({ user: cpuMicroseconds, system: 0 }),
             intervalMs: PROBE_INTERVAL_MS,
             now: () => nowMs,
+            systemLoad: () => ({ cpuCount: 18, loadAverage1m: 122.04 }),
             warnMs: PROBE_WARN_MS,
             ...(describeStall && { describeStall }),
         },
@@ -108,6 +109,8 @@ describe('event-loop stall monitor', () => {
                         probeIntervalMs: PROBE_INTERVAL_MS,
                         cpuDeltaMs: 3500,
                         stallKind: 'event-loop-block',
+                        cpuCount: 18,
+                        loadAverage1m: 122,
                     },
                 },
             ]);
@@ -136,6 +139,9 @@ describe('event-loop stall monitor', () => {
                         probeIntervalMs: PROBE_INTERVAL_MS,
                         cpuDeltaMs: 4,
                         stallKind: 'process-suspension',
+                        // A load far above the CPU count marks this gap as CPU starvation rather than a frozen process.
+                        cpuCount: 18,
+                        loadAverage1m: 122,
                     },
                 },
             ]);

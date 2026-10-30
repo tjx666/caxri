@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { createContext, useContext } from 'react';
 
-import type { MobileClientContextValue } from './use-mobile-client-controller';
+import type { MobileClientContextValue } from './mobile-client-context-value';
 import { useMobileClientController } from './use-mobile-client-controller';
 
 const MobileClientContext = createContext<MobileClientContextValue | null>(null);

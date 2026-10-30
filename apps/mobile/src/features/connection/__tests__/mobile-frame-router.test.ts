@@ -242,4 +242,23 @@ describe('mobile frame router', () => {
         expect(onMessage).not.toHaveBeenCalled();
         router.endSubscriptionRequest('subscribe-2');
     });
+
+    it('drops a reply that arrives after its deadline but still rejects an unknown reply', async () => {
+        vi.useFakeTimers();
+        try {
+            const router = new MobileFrameRouter();
+            const onTimeout = vi.fn();
+            const late = router.waitForReply('late', 3_000, onTimeout);
+            const rejected = expect(late).rejects.toThrow('did not respond');
+            await vi.advanceTimersByTimeAsync(3_000);
+            await rejected;
+            expect(onTimeout).toHaveBeenCalledOnce();
+            // A starved Server answers after the deadline; that reply must not read as a protocol violation.
+            expect(() => router.receiveReply(reply('late', {}))).not.toThrow();
+            expect(() => router.receiveReply(reply('late', {}))).toThrow('unexpected reply');
+            expect(() => router.receiveReply(reply('never-sent', {}))).toThrow('unexpected reply');
+        } finally {
+            vi.useRealTimers();
+        }
+    });
 });

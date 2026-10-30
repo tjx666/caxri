@@ -1,3 +1,4 @@
+import { availableParallelism, loadavg } from 'node:os';
 import { performance } from 'node:perf_hooks';
 import process from 'node:process';
 
@@ -56,12 +57,22 @@ export interface EventLoopMonitorOptions {
      * wait (the loop was free and the request queued behind an earlier one).
      */
     describeStall?: (stall: { kind: EventLoopStallKind; stallMs: number }) => LogRecord['fields'];
+    /**
+     * Test seam for the machine's load; production reads `os.loadavg` and `os.availableParallelism`. A process starved
+     * of CPU by other work burns as little CPU as a frozen one, so a `process-suspension` record carries the load that
+     * tells the two apart: a load average far above the CPU count means the process was runnable but not scheduled.
+     */
+    systemLoad?: () => { cpuCount: number; loadAverage1m: number };
     intervalMs?: number;
     /**
      * Test seam for the monotonic clock; production uses `performance.now`.
      */
     now?: () => number;
     warnMs?: number;
+}
+
+function roundedSystemLoad(load: { cpuCount: number; loadAverage1m: number }) {
+    return { cpuCount: load.cpuCount, loadAverage1m: Math.round(load.loadAverage1m * 10) / 10 };
 }
 
 function stallLevel(kind: EventLoopStallKind, stallMs: number, warnMs: number): LogRecord['level'] {
@@ -122,6 +133,9 @@ export function startEventLoopMonitor(
     const warnMs = options.warnMs ?? EVENT_LOOP_STALL_WARN_MS;
     const readNow = options.now ?? (() => performance.now());
     const readCpuUsage = options.cpuUsage ?? (() => process.cpuUsage());
+    const readSystemLoad =
+        options.systemLoad ??
+        (() => ({ cpuCount: availableParallelism(), loadAverage1m: loadavg()[0] ?? 0 }));
     let expectedAt = readNow() + intervalMs;
     let lastCpuUsage = readCpuUsage();
     let blockCount = 0;
@@ -154,6 +168,7 @@ export function startEventLoopMonitor(
                 probeIntervalMs: intervalMs,
                 cpuDeltaMs: Math.round(cpuDeltaMs),
                 stallKind: kind,
+                ...roundedSystemLoad(readSystemLoad()),
             },
         });
     }, intervalMs);

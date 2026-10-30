@@ -297,22 +297,30 @@ describe('RelayHostConnector', () => {
     });
 
     it('terminates a parked standby whose pongs stop and parks a replacement', async () => {
+        // The control socket shares this timing and still answers pings, so the pong deadline leaves room for a
+        // loaded test machine: at 40 ms the control socket itself timed out before the standby was ever requested.
         const { connector, relay, write } = await setup({
             dataPong: false,
-            timing: { pingIntervalMs: 10, pongTimeoutMs: 40 },
+            timing: { pingIntervalMs: 50, pongTimeoutMs: 500 },
         });
         const hostArrived = relay.nextHost();
         connector.start();
         const host = await hostArrived;
         await relay.accept(host, connector.hostId);
         host.socket.send(JSON.stringify({ type: 'relay-standby', ticket: 'e'.repeat(64) }));
-        await vi.waitFor(() => expect(relay.dataSockets).toHaveLength(1));
-        await vi.waitFor(() =>
-            expect(write).toHaveBeenCalledWith('warn', 'mobile_gateway.relay_dial_failed', {
-                fields: { reason: 'standby-failed' },
-            }),
+        const patience = { timeout: 5_000 };
+        await vi.waitFor(() => expect(relay.dataSockets).toHaveLength(1), patience);
+        await vi.waitFor(
+            () =>
+                expect(write).toHaveBeenCalledWith('warn', 'mobile_gateway.relay_dial_failed', {
+                    fields: { reason: 'standby-failed' },
+                }),
+            patience,
         );
-        await vi.waitFor(() => expect(relay.dataSockets.length).toBeGreaterThanOrEqual(2));
+        await vi.waitFor(
+            () => expect(relay.dataSockets.length).toBeGreaterThanOrEqual(2),
+            patience,
+        );
         expect(connector.state).toBe('online');
     });
 
@@ -482,7 +490,8 @@ describe('RelayHostConnector', () => {
 
     it('fails a registration the Relay stalls after its challenge, then retries', async () => {
         const { connector, relay, write } = await setup({
-            timing: { registrationTimeoutMs: 50, pongTimeoutMs: 10_000 },
+            // The retry must be accepted before its own registration deadline; 50 ms lost that race on a loaded host.
+            timing: { registrationTimeoutMs: 500, pongTimeoutMs: 10_000 },
         });
         const first = relay.nextHost();
         connector.start();
@@ -495,7 +504,7 @@ describe('RelayHostConnector', () => {
         expect(connector.lastFailure).toBe('registration-timeout');
         const second = relay.nextHost();
         await relay.accept(await second, connector.hostId);
-        await vi.waitFor(() => expect(connector.state).toBe('online'));
+        await vi.waitFor(() => expect(connector.state).toBe('online'), { timeout: 5_000 });
         expect(connector.lastFailure).toBeUndefined();
     });
 

@@ -97,6 +97,47 @@ export const runReconnectAttempt = async <Connection extends ClosableMobileConne
 };
 
 /**
+ * A connection that missed a probe or read deadline is suspect, not dead: a computer whose Server is starved of CPU
+ * answers seconds late over a socket that still works, and dropping it costs a full handshake on that same overloaded
+ * Server. Dials a replacement while the suspect keeps serving; any authenticated frame on the suspect before the
+ * replacement is ready proves it alive and discards the replacement. A failed replacement also keeps the suspect, whose
+ * heartbeat still ends it if the path is really gone. Orca's mobile client likewise counts any authenticated inbound
+ * frame as proof of life.
+ */
+export const hedgeSuspectConnection = async <Connection extends ClosableMobileConnection>({
+    connect,
+    isCurrent,
+    onReplaced,
+    suspect,
+}: {
+    connect: () => Promise<Connection>;
+    /**
+     * Whether the suspect still owns the phone's connection slot, or left it empty by ending meanwhile.
+     */
+    isCurrent: () => boolean;
+    onReplaced: (connection: Connection) => void;
+    suspect: { onObservation(listener: () => void): () => void };
+}): Promise<'kept' | 'replaced'> => {
+    const observed = { isAlive: false };
+    const stopObserving = suspect.onObservation(() => {
+        observed.isAlive = true;
+    });
+    try {
+        const replacement = await connect();
+        if (observed.isAlive || !isCurrent()) {
+            replacement.close('superseded');
+            return 'kept';
+        }
+        onReplaced(replacement);
+        return 'replaced';
+    } catch {
+        return 'kept';
+    } finally {
+        stopObserving();
+    }
+};
+
+/**
  * Counts reconnect attempts that are still dialing, so a network hint for the same network can leave them alone
  * (`network-recovery.ts`).
  */

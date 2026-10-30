@@ -14,10 +14,6 @@ export const mobileClientCloseReasons = {
      */
     'request-timeout': 4002,
     /**
-     * The foreground probe sent after a wake did not get an answer.
-     */
-    'probe-timeout': 4003,
-    /**
      * A Server frame failed to decrypt, parse, or match the phone's request and subscription state.
      */
     'protocol-error': 4004,
@@ -42,7 +38,7 @@ export const mobileClientCloseReasons = {
      */
     'network-reconnect': 4012,
     /**
-     * A foreground probe failed, so the phone replaced the connection.
+     * A foreground probe or a read went unanswered and a replacement connection was ready before this one answered.
      */
     'probe-failed': 4013,
     /**
