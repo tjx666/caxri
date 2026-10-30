@@ -105,6 +105,59 @@ describe('AgentUsageGuards', () => {
         guards.close();
     });
 
+    it('lifts for an earlier-resetting window below the guard, as after signing in to another account', () => {
+        const { guards, outcomes } = harness();
+        guards.observe('claude', reading(99.2));
+        // The other account's week resets a day sooner than the guarded one.
+        guards.observe('claude', reading(40, RESET - 24 * HOUR));
+        expect(guards.current('claude')).toBeUndefined();
+        expect(() => guards.assertAdmitted('claude', 'chat_send')).not.toThrow();
+        // A stale reading of a week that already reset says nothing about the guard.
+        guards.observe('claude', reading(99.2));
+        guards.observe('claude', reading(40, T0 - 1));
+        expect(guards.current('claude')).toBeDefined();
+        expect(outcomes()).toEqual(['armed', 'window_changed', 'armed']);
+        guards.close();
+    });
+
+    it('admits requests after a bypass until another window arms the guard again', () => {
+        const { guards, outcomes, state } = harness();
+        const listener = vi.fn();
+        guards.subscribe(listener);
+        guards.observe('claude', reading(99.5));
+        guards.bypass('claude');
+        expect(guards.current('claude')).toBeUndefined();
+        expect(() => guards.assertAdmitted('claude', 'chat_send')).not.toThrow();
+        expect(state.agentUsageGuards).toEqual([expect.objectContaining({ bypassed: true })]);
+        expect(listener).toHaveBeenCalledTimes(2);
+
+        // A later reading of the same window keeps the bypass; a second bypass does nothing.
+        guards.observe('claude', reading(99.9, RESET + 60_000));
+        guards.bypass('claude');
+        expect(guards.current('claude')).toBeUndefined();
+        expect(() => guards.claimHandoff('claude', 'terminal-1')).toThrow(
+            expect.objectContaining({ code: 'CONFLICT' }),
+        );
+
+        // The next week at the guard arms it afresh.
+        guards.observe('claude', reading(99.1, RESET + 7 * 24 * HOUR));
+        expect(guards.current('claude')).toMatchObject({ handoff: 'available' });
+        expect(outcomes()).toEqual(['armed', 'bypassed', 'armed']);
+        guards.close();
+    });
+
+    it('keeps a bypass across a restart', () => {
+        const first = harness();
+        first.guards.observe('codex', reading(99.5));
+        first.guards.bypass('codex');
+        first.guards.close();
+        const { guards } = harness(first.state);
+        expect(guards.current('codex')).toBeUndefined();
+        guards.observe('codex', reading(99.6));
+        expect(guards.current('codex')).toBeUndefined();
+        guards.close();
+    });
+
     it('ignores a window that already reset and a reading without a weekly window', () => {
         const { guards } = harness();
         guards.observe('claude', reading(100, T0 - 1));

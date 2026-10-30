@@ -1,9 +1,9 @@
 import { createStore } from '../../../../lib/store';
 
 /**
- * A collapsible section in the composer strip.
+ * A collapsible section in the composer strip, or the usage guard card above it.
  */
-export type AgentChatStripSection = 'plan' | 'tasks';
+export type AgentChatStripSection = 'plan' | 'tasks' | 'usageGuard';
 
 interface AgentChatStripFoldsState {
     /**

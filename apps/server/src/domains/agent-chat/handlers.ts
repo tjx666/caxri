@@ -23,6 +23,7 @@ export function createAgentChatHandlers(
 ): Pick<
     DomainHandlers,
     | 'agentChat.askSideQuestion'
+    | 'agentChat.bypassUsageGuard'
     | 'agentChat.configure'
     | 'agentChat.continuationTargets'
     | 'agentChat.continueInAgent'
@@ -85,6 +86,10 @@ export function createAgentChatHandlers(
         },
         'agentChat.generateHandoff': ({ terminalId }) => {
             usage().generateHandoff(terminalId);
+            return null;
+        },
+        'agentChat.bypassUsageGuard': ({ terminalId }) => {
+            usage().bypassGuard(terminalId);
             return null;
         },
         'agentChat.read': ({ terminalId }) => agentChat.read(terminalId),

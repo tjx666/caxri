@@ -29,6 +29,8 @@ export type UsageGuardPath =
 type GuardOutcome =
     | 'armed'
     | 'window_reset'
+    | 'window_changed'
+    | 'bypassed'
     | 'credits_available'
     | 'refused'
     | 'handoff_started'
@@ -50,8 +52,10 @@ const MAX_TIMER_MS = 2_147_483_647;
  * The weekly usage guard of each provider account (issue #2580). Once the provider's raw weekly figure reaches
  * `AGENT_USAGE_GUARD_PERCENT`, every ordinary model request for that account is refused until the window's `resetsAt`,
  * keeping the last percent for one hand-off. The guard is sticky for its window: a later, lower reading of the same
- * window does not lift it (the remaining budget is what it protects); a reading of a later window, reaching `resetsAt`,
- * or a reading that reports usable credits (the account keeps working past its window by spending them) does.
+ * window does not lift it (the remaining budget is what it protects); a reading of another window, reaching `resetsAt`,
+ * or a reading that reports usable credits (the account keeps working past its window by spending them) does. Another
+ * window may reset earlier as well as later: signing in to another account of the same provider reports that account's
+ * week. The user may also bypass the guard for the rest of its window ({@link AgentUsageGuards.bypass}).
  *
  * The account is the provider for now: Caxri runs one sign-in per provider, and per-account isolation follows once
  * accounts are told apart. Persisted in `app_state` so a restart neither lifts the guard early nor grants a second
@@ -133,7 +137,10 @@ export class AgentUsageGuards {
         this.timer.unref();
     }
 
-    private lift(provider: AgentProvider, outcome: 'window_reset' | 'credits_available'): void {
+    private lift(
+        provider: AgentProvider,
+        outcome: 'window_reset' | 'window_changed' | 'credits_available',
+    ): void {
         const now = this.now();
         const armedAt = this.guards.get(provider)?.armedAt ?? now;
         this.guards.delete(provider);
@@ -142,12 +149,20 @@ export class AgentUsageGuards {
     }
 
     /**
+     * The guard as stored, bypassed or not, while its window lasts.
+     */
+    private armed(provider: AgentProvider): StoredGuard | undefined {
+        const guard = this.guards.get(provider);
+        return guard && guard.resetsAt > this.now() ? guard : undefined;
+    }
+
+    /**
      * One reading of the provider's plan windows, from any source: a transcript, `/usage`, or a live rate-limit event.
      * A reading without a weekly window says nothing about the guard.
      */
     observe(provider: AgentProvider, limit: Pick<UsageLimit, 'windows' | 'credits'>): void {
         const now = this.now();
-        const existing = this.current(provider);
+        const existing = this.armed(provider);
         if (hasUsableCredits(limit.credits)) {
             if (existing) this.lift(provider, 'credits_available');
             return;
@@ -171,16 +186,21 @@ export class AgentUsageGuards {
         if (
             !existing ||
             !weekly?.resetsAt ||
-            weekly.resetsAt <= existing.resetsAt + SAME_WINDOW_TOLERANCE_MS
+            weekly.resetsAt <= now ||
+            Math.abs(weekly.resetsAt - existing.resetsAt) < SAME_WINDOW_TOLERANCE_MS
         )
             return;
-        // A later window below the guard: the account's week reset before the time the guard recorded.
-        this.lift(provider, 'window_reset');
+        // Another window below the guard. A later one means the account's week reset before the recorded time; an
+        // earlier one can only be another account's week, after the user signed in to it.
+        this.lift(
+            provider,
+            weekly.resetsAt > existing.resetsAt ? 'window_reset' : 'window_changed',
+        );
     }
 
     current(provider: AgentProvider): AgentUsageGuard | undefined {
-        const guard = this.guards.get(provider);
-        if (!guard || guard.resetsAt <= this.now()) return undefined;
+        const guard = this.armed(provider);
+        if (!guard || guard.bypassed) return undefined;
         const { usedPercent, resetsAt, handoff } = guard;
         return { provider, usedPercent, resetsAt, handoff };
     }
@@ -206,6 +226,22 @@ export class AgentUsageGuards {
             `${agentProviderCatalog[provider].displayName} weekly usage is at ${Math.floor(guard.usedPercent)}%; new requests are paused until the weekly limit resets`,
             { provider, resetsAt: guard.resetsAt },
         );
+    }
+
+    /**
+     * The user's "Continue anyway": admits every request of the provider's account for the rest of the guard's window.
+     * The record stays, marked bypassed, so a later reading of the same window does not arm the guard again; a reading
+     * of another window replaces it as usual.
+     */
+    bypass(provider: AgentProvider): void {
+        const guard = this.armed(provider);
+        if (!guard || guard.bypassed) return;
+        this.guards.set(provider, { ...guard, bypassed: true });
+        this.log(provider, 'bypassed', {
+            usedPercent: Math.floor(guard.usedPercent),
+            durationMs: this.now() - guard.armedAt,
+        });
+        this.changed(provider);
     }
 
     subscribe(listener: (provider: AgentProvider) => void): () => void {
