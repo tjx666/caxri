@@ -400,6 +400,9 @@ export const commandDefinitions: CommandDefinition[] = [
     fromCatalog('usage.open', (context) => context.dialogs.openUsage(), {
         allowInEditable: true,
     }),
+    fromCatalog('environment.open', (context) => context.dialogs.openEnvironment(), {
+        allowInEditable: true,
+    }),
     fromCatalog('benchmark.open', (context) => context.windows.openBenchmark(), {
         allowInEditable: true,
     }),

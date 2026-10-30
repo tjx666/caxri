@@ -10,6 +10,7 @@ import { useDialogStore } from '../../stores/dialogs';
 import { useSelectedSession } from '../../stores/selectors';
 import { useWorkbenchStore } from '../../stores/workbench';
 import { retainAgentChatComposerState } from '../agent-chat/composer-input/agent-chat-drafts';
+import { EnvironmentWorkbenchPage } from '../environment-monitor/environment-workbench-page';
 import { useReportViewedSession } from '../session/hooks/use-report-viewed-session';
 import { SettingsWorkbenchPage } from '../settings/settings-workbench-page';
 import { retainTerminalProgress } from '../terminal/terminal-progress';
@@ -25,35 +26,41 @@ import {
 import { WelcomeView } from './welcome-view';
 
 /**
- * What the Workbench shows with no selected Session. Settings is normally a Session pane tab
- * (`settings-tab-opener.ts`), but before the first Project exists there is no pane to open it into, and dropping the
- * request would leave a first-run user with no way to reach Settings at all. So a Settings request made in this state
- * replaces the Welcome view with the same Settings page until the user closes it (the button or `Cmd+W`, through
- * `workbench.closeActiveTab`); requests made before this view mounted (a Session was selected then) were already
- * answered by a tab and do not reopen it here.
+ * What the Workbench shows with no selected Session. Global pages are normally Session pane tabs, but before the first
+ * Project exists there is no pane to open them into. A request made in this state replaces Welcome with the same page
+ * until the user closes it (the button or `Cmd+W`, through `workbench.closeActiveTab`). Requests made before this view
+ * mounted were already answered while a Session was selected and do not reopen here.
  */
 function NoSessionSurface() {
     const { t } = useTranslation();
-    const requestId = useDialogStore((state) => state.settingsRequest.id);
-    const dismissedId = useDialogStore((state) => state.sessionlessSettingsDismissedId);
-    const [mountedRequestId] = useState(requestId);
-    if (requestId <= Math.max(mountedRequestId, dismissedId)) return <WelcomeView />;
+    const request = useDialogStore((state) => state.workbenchPageRequest);
+    const dismissedId = useDialogStore((state) => state.sessionlessWorkbenchPageDismissedId);
+    const [mountedRequestId] = useState(request.id);
+    if (request.id <= Math.max(mountedRequestId, dismissedId)) return <WelcomeView />;
+    const closeLabel = t(
+        request.surface === 'environment'
+            ? 'workbench.closeEnvironment'
+            : 'workbench.closeSettings',
+    );
+    const closeButton = (
+        <Tooltip content={closeLabel}>
+            <Button
+                aria-label={closeLabel}
+                size="icon"
+                variant="ghost"
+                onClick={() => useDialogStore.getState().dismissSessionlessWorkbenchPage()}
+            >
+                <X size={14} />
+            </Button>
+        </Tooltip>
+    );
     return (
         <div className="h-full min-h-0">
-            <SettingsWorkbenchPage
-                headerAction={
-                    <Tooltip content={t('workbench.closeSettings')}>
-                        <Button
-                            aria-label={t('workbench.closeSettings')}
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => useDialogStore.getState().dismissSessionlessSettings()}
-                        >
-                            <X size={14} />
-                        </Button>
-                    </Tooltip>
-                }
-            />
+            {request.surface === 'environment' ? (
+                <EnvironmentWorkbenchPage headerAction={closeButton} />
+            ) : (
+                <SettingsWorkbenchPage headerAction={closeButton} />
+            )}
         </div>
     );
 }

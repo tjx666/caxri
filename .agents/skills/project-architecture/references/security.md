@@ -66,7 +66,8 @@ Every path that registers a Project is one of these authorities; a new one belon
 ## Main outbound requests
 
 Electron Main makes only these outbound HTTP requests; a new one belongs in this list with its
-trigger and caps, and every response body is read under a byte cap. None uploads user data. Status
+trigger and caps, and every response body is read under a byte cap. None uploads source or app
+content; the environment profile lookup includes its explicitly observed IP in the fixed URL. Status
 reads use Electron's `net.fetch`, so the system proxy, cookies, and Chromium's HTTP cache apply.
 Link favicons and previews happen without a click, so they go through `createPublicHttpsFetch`
 (`apps/desktop/src/main/public-https-fetch.ts`) over `net.request` (system proxy and HTTP cache, no
@@ -97,6 +98,15 @@ threat model.
   provider is mounted. 10 s timeout, 2 MiB body cap (a larger body reads as `invalidResponse`); cached per
   provider for 60 s after success and 30 s after failure. E2E launches read
   fixtures instead.
+- **Environment public exit** (`apps/desktop/src/main/environment-monitor/public-ip.ts`): a fixed
+  `GET https://api.ipify.org?format=json` through Electron `net.fetch`, once at launch and then at
+  most every 60 s while public-IP change monitoring is enabled, plus an explicit manual check. 5 s
+  timeout, `no-store`, 4 KiB body cap, and the only accepted value is an IP literal. After the first
+  address, a changed address, or a manual check, a fixed `GET https://checkip.me/<observed-ip>`
+  enriches that exact literal with third-party network context. It has the same timeout and cache
+  policy with a 32 KiB body cap; a response for another address is rejected. Either failure retains
+  the last proven state and is not an environment warning. The provider may serve cached context up
+  to 30 days old; the UI reports the fetch time and labels the source as third-party context.
 - **Update check and download** (`apps/desktop/src/main/updates/updates.ts`): the GitHub latest-release API,
   once automatically per packaged launch (skipped in E2E and acceptance discovery) and on a manual
   check. 15 s timeout and 1 MiB response cap; 404 and rate-limit responses degrade to
@@ -181,6 +191,11 @@ URLs (`isAgentChatPlayableVideo`), since its paths name files on the remote mach
   with that variable would expose it. They record no arbitrary requests and persist nothing.
   `__caxriWorktree` is exposed whenever `switch-worktree dev` sets
   `CAXRI_WORKTREE_PATH`; it holds only a local path.
+- **Environment monitor fixture** (`apps/desktop/src/main/environment-monitor/e2e-fixture.ts`):
+  `CAXRI_E2E=1` replaces both fixed public endpoints with documentation-only IP addresses and
+  synthetic provider fields. `CAXRI_E2E_ENVIRONMENT_MONITOR_SCENARIO=changed` deterministically
+  changes the second reading so the report and warning can be verified without network access;
+  `changed-profile-unavailable` also rejects enrichment to prove that IP evidence remains usable.
 - **Acceptance native-dialog fixtures** (`apps/desktop/src/main/acceptance-*.ts`, wired in
   `main-methods.ts` and `desktop-update-service.ts`; `acceptance-accessibility.ts` in `index.ts`).
   They ship in production Main and stay inert unless the isolated Acceptance launcher arms them.

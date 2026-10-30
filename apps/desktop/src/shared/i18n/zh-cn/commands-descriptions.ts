@@ -118,6 +118,7 @@ export const commandDescriptions: TranslatedNamespace<typeof source> = {
     'commands.description.view.zoomOut': '将整个界面缩小一级',
     'commands.description.view.resetZoom': '将界面恢复为原始大小',
     'commands.description.usage.open': '显示 Caxri 会话的 Token 用量、预估费用和交付统计',
+    'commands.description.environment.open': '显示当前公网出口、系统时区和已监测的 Mihomo 路由',
     'commands.description.benchmark.open':
         '用同一个提示词对比多个 Agent 和模型的质量、耗时、Token 和费用',
     'commands.description.settings.open': '打开 Caxri 设置',

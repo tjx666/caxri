@@ -15,6 +15,7 @@ export const workbench: TranslatedNamespace<typeof source> = {
     'workbench.welcome.keyboardShortcuts': '键盘快捷键',
     'workbench.welcome.documentation': '文档',
     'workbench.closeSettings': '关闭设置',
+    'workbench.closeEnvironment': '关闭环境信息',
     'workbench.exitZenMode': '退出禅模式',
     'workbench.resizePanel': '调整面板大小',
     'workbench.resizePrimarySidebar': '调整主侧边栏大小',

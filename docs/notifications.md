@@ -58,9 +58,24 @@ notice persistent.
 
 **Settings → Notifications** also configures three independent environment signals. **Public IP
 changes** is on by default and compares the current public egress address with the first successful
-lookup in this Desktop launch. The address remains in Desktop Main memory: it is not persisted,
-logged, or sent to the Renderer. **Expected system time zone** is off until the user selects one
-IANA time zone, then compares that exact expectation with the system time zone.
+lookup in this Desktop launch. Caxri reads the address from the fixed neutral endpoint
+`https://api.ipify.org?format=json`; users who need this reading to represent an Agent's route
+should send that host through the same Clash or Mihomo node as the Agent. **Expected system time
+zone** is off until the user selects one IANA time zone, then compares that exact expectation with
+the system time zone.
+
+The **Environment** Workbench page opens from the **Open Environment** command or by clicking the
+Status Bar warning. It shows the current public IP, IP version, country and region, ASN, ISP,
+organization, network type, the provider's 0–100 risk score, and its separate anonymous, hosting,
+proxy, VPN, Tor, compromised, and scraper observations. The score is labeled as third-party risk,
+where a higher value means the provider observed more risk signals; it is not renamed or inverted
+into a universal purity rating. The public IP is the value returned by ipify. Caxri asks the fixed
+`checkip.me/<observed-ip>` endpoint to enrich that exact address on the initial reading, an address
+change, or a manual check; an enrichment request routed through a different node therefore cannot
+replace the monitored exit with the enrichment provider's caller address. Provider fields are
+third-party observations, not a universal IP purity score or a conclusion about another service.
+The provider documents that explicit-IP results may be cached for up to 30 days. Unavailable
+enrichment never stops public-IP change detection.
 
 **Domain routes through Mihomo** is also off until at least one exact domain-to-node assertion is
 added. It accepts only a local loopback HTTP Controller or an absolute Unix socket. Node choices
@@ -71,9 +86,14 @@ Controller or failed public-IP lookup is not itself an environment warning.
 
 An enabled signal with contrary evidence raises a generic native notification and keeps an
 **Environment warning** item in the Status Bar until the evidence clears or the expectation is
-disabled. Its popover lists only enabled signals with active warnings and offers **Check Now**.
-When the public IP changed, **Use Current IP** adopts the latest successful address as this launch's
-new baseline without clearing time-zone or route warnings.
+disabled. Hovering that item lists only the concrete active warnings; clicking it opens the full
+Environment page. **Check Now** refreshes the report. When the public IP changed, **Use Current IP**
+adopts the latest successful address as this launch's new baseline without clearing time-zone or
+route warnings.
+
+The address, enrichment response, baseline, and route observations are transient local state. They
+are not persisted, logged, included in diagnostics, or copied into native notification content.
+They cross the local Main-to-Renderer request boundary only while rendering the Environment page.
 
 ### Native Agent banner content
 

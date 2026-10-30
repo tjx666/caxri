@@ -330,7 +330,7 @@ export const settingsCatalog: TranslatedNamespace<typeof source> = {
 
     'settings.environmentMonitor.publicIpChanges.title': '公网 IP 变化',
     'settings.environmentMonitor.publicIpChanges.description':
-        '本次启动期间公网出口 IP 变化时发送通知，并在状态栏持续提示。',
+        '通过 api.ipify.org 观察公网出口变化。请将它路由到目标 Agent 使用的同一个 Clash/Mihomo 节点；checkip.me 会补充第三方网络信息。',
 
     'settings.environmentMonitor.expectedTimeZone.title': '预期系统时区',
     'settings.environmentMonitor.expectedTimeZone.description':

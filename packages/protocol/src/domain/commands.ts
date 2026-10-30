@@ -107,6 +107,7 @@ export const commandIds = [
     'view.toggleZenMode',
     'settings.open',
     'usage.open',
+    'environment.open',
     'benchmark.open',
     'settings.openSource',
     'settings.openKeybindings',

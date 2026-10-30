@@ -9,9 +9,15 @@ import { createDesktopAgentNotifications } from '../agent-notification-runtime';
 import { resolveNotificationAppIconPath } from '../app-icon';
 import { createDesktopBotInboxNotifications } from '../bot-inbox-notification-runtime';
 import { createDesktopDeliveryNotifications } from '../delivery-notification-runtime';
-import type { EnvironmentMonitor } from '../environment-monitor/environment-monitor';
-import { createEnvironmentMonitor, readPublicIp } from '../environment-monitor/environment-monitor';
-import { readMihomoConnections, readMihomoNodes } from '../environment-monitor/mihomo-controller';
+import type { EnvironmentMonitor } from '../environment-monitor';
+import {
+    createEnvironmentMonitor,
+    createEnvironmentMonitorE2EFixture,
+    readMihomoConnections,
+    readMihomoNodes,
+    readPublicIp,
+    readPublicIpProfile,
+} from '../environment-monitor';
 import type { DesktopServerConnection } from '../server-connection';
 import type { NotificationHelperControl } from './agent-notification-delivery';
 import { createAgentNotificationDelivery } from './agent-notification-delivery';
@@ -94,9 +100,17 @@ export function createDesktopNotifications({
         logger,
         supervisor,
     });
+    const environmentFetchers =
+        process.env.CAXRI_E2E === '1'
+            ? createEnvironmentMonitorE2EFixture(process.env.CAXRI_E2E_ENVIRONMENT_MONITOR_SCENARIO)
+            : {
+                  fetchPublicIp: () => readPublicIp((url, init) => net.fetch(url, init)),
+                  fetchPublicIpProfile: (ip: string, checkedAt: number) =>
+                      readPublicIpProfile(ip, checkedAt, (url, init) => net.fetch(url, init)),
+              };
     const environmentMonitor = createEnvironmentMonitor({
         delivery: systemNotifications,
-        fetchPublicIp: () => readPublicIp((url, init) => net.fetch(url, init)),
+        ...environmentFetchers,
         focusMainWindow,
         loadSettings: async () => (await supervisor.request('settings.get')).value,
         readConnections: readMihomoConnections,

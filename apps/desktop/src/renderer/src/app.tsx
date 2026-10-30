@@ -24,6 +24,7 @@ import { subscribeEditorBackups } from './features/editor/editor-backups';
 import { scheduleCodeEditorPreload } from './features/editor/editor-loader';
 import { useExternalDocumentSync } from './features/editor/external-sync';
 import { subscribeUnsavedEditorRequests } from './features/editor/unsaved-editor-commands';
+import { useEnvironmentTabOpener } from './features/environment-monitor/environment-monitor-page-request';
 import { KeyboardShortcutsDialog } from './features/keyboard-shortcuts/keyboard-shortcuts-dialog';
 import { CommandPalette } from './features/palette/command-palette';
 import { PathBrowserDialog } from './features/path-browser/path-browser-dialog';
@@ -237,6 +238,7 @@ export function App() {
     useRuntimeAttachment();
     useStartupLoaderRemoval(isAttached);
     useSettingsTabOpener();
+    useEnvironmentTabOpener();
     useRuntimeQueryInvalidation();
     useEffect(() => subscribeAgentChatPatches(queryClient), []);
     useEffect(() => subscribeClaudeWindowsDefaultNotice(), []);

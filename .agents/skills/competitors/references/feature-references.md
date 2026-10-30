@@ -301,15 +301,19 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 
 ## claude-code-four-o-three (MIT)
 
-- **Environment baseline comparison**: Cache a prior egress reading and report a later change without assigning external-service meaning. Borrowed: the comparison model only, no code. Evidence: `apps/desktop/src/main/environment-monitor/monitor.ts`; `docs/notifications.md`.
+- **Environment baseline comparison**: Cache a prior egress reading and report a later change without assigning external-service meaning. Borrowed: the comparison model only, no code. Evidence: `apps/desktop/src/main/environment-monitor/environment-monitor.ts`; `docs/notifications.md`.
 
 ## claude-env-check-skill (MIT)
 
-- **Optional consistency signals**: Keep public IP as the minimal default and let users independently select additional observable environment signals. Borrowed: the layered signal model only, no code. Evidence: `packages/protocol/src/configuration/environment-monitor-settings-spec.ts`; `apps/desktop/src/main/environment-monitor/types.ts`.
+- **Optional consistency signals**: Keep public IP as the minimal default and let users independently select additional observable environment signals. Borrowed: the layered signal model only, no code. Evidence: `packages/protocol/src/configuration/environment-monitor-settings.ts`; `apps/desktop/src/main/environment-monitor/environment-monitor.ts`.
 
 ## ipcheck (MIT)
 
-- **Read-only environment diagnostics**: Present filtered findings without changing proxy or network configuration. Borrowed: read-only diagnostics only, no code. Evidence: `apps/desktop/src/main/environment-monitor/probe.ts`; `apps/desktop/src/renderer/src/features/status-bar/environment-monitor-chip.tsx`.
+- **Read-only environment diagnostics**: Present filtered findings without changing proxy or network configuration. Borrowed: read-only diagnostics only, no code. Evidence: `apps/desktop/src/main/environment-monitor/environment-monitor.ts`; `apps/desktop/src/renderer/src/features/environment-monitor/environment-workbench-page.tsx`.
+
+## IPQuality (AGPL) and ipregion (MIT)
+
+- **Separate exit context fields**: Show country, region, ASN, network type, provider-specific risk score, and proxy or hosting observations as separate facts instead of inventing one universal purity score. Borrowed: the field set and source caveat only, no code. Evidence: `apps/desktop/src/renderer/src/features/environment-monitor/environment-workbench-page.tsx`; `docs/notifications.md`.
 
 ## CodexBar (MIT)
 

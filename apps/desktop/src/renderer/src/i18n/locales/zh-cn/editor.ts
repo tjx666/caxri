@@ -69,6 +69,7 @@ export const editor: TranslatedNamespace<typeof source> = {
     'editor.load.loadingAgentSideChat': '正在加载旁路对话…',
     'editor.load.loadingSettings': '正在加载设置…',
     'editor.load.loadingUsage': '正在加载用量…',
+    'editor.load.loadingEnvironment': '正在加载环境信息…',
 
     'editor.transcript.loadFailed': '无法加载对话记录',
     'editor.transcript.unbound': '此终端没有可显示的 Agent 对话记录。',
@@ -126,6 +127,7 @@ export const editor: TranslatedNamespace<typeof source> = {
         '已保存到 {{path}}，但文件过大，无法在此重新打开。未命名缓冲区保持打开。',
     'editor.tab.settings': '设置',
     'editor.tab.usage': '用量',
+    'editor.tab.environment': '环境信息',
 
     'editor.pathMenu.openSource': '打开源文件',
     'editor.pathMenu.openPreview': '打开预览',

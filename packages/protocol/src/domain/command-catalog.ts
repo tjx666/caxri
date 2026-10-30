@@ -322,6 +322,14 @@ export const commandDefinitions: CommandDefinition[] = [
         nativeMenu: { menu: 'view', group: 3, order: 0 },
     },
     {
+        id: 'environment.open',
+        title: 'Open Environment',
+        category: 'View',
+        description: 'Show the current public exit, system time zone, and monitored Mihomo routes',
+        keywords: ['environment', 'network', 'public IP', 'ASN', 'proxy', 'VPN', 'Mihomo'],
+        when: 'localMachine',
+    },
+    {
         id: 'benchmark.open',
         title: 'Open Benchmark',
         category: 'View',

@@ -229,7 +229,7 @@ export const environmentMonitorSettingsSpec = [
         key: 'environmentMonitor.publicIpChanges',
         title: 'Public IP changes',
         description:
-            'Notify and keep a status bar warning when the public egress IP changes during this launch.',
+            'Watch api.ipify.org for public-exit changes. Route it through the same Clash/Mihomo node as the Agent you want to monitor; checkip.me adds third-party network context.',
         category: 'notifications',
         keywords: ['environment', 'network', 'egress', 'internet', 'address'],
         default: true,

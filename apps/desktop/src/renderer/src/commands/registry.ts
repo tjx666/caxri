@@ -179,6 +179,7 @@ export interface CommandContext {
         openSettings(view?: SettingsView): void;
         openPalette(): void;
         openUsage(): void;
+        openEnvironment(): void;
         openPathBrowser(): void;
         openProjectSearch(): void;
         openSessionSearch(): void;

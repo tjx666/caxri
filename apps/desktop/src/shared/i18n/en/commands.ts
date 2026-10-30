@@ -118,6 +118,7 @@ export const commands = {
     'commands.view.zoomOut': 'Zoom Out',
     'commands.view.resetZoom': 'Reset Zoom',
     'commands.usage.open': 'Open Usage',
+    'commands.environment.open': 'Open Environment',
     'commands.benchmark.open': 'Open Benchmark',
     'commands.settings.open': 'Open Settings',
     'commands.settings.openSource': 'Open Settings (JSON)',

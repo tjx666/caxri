@@ -205,6 +205,12 @@ export const virtualTabDescriptors: Record<VirtualEditorTabScheme, VirtualTabDes
         loading: { labelKey: 'editor.load.loadingAgentSideChat', variant: 'page' },
         statusBar: 'hidden',
     },
+    environment: {
+        present: (_path, _options, t) =>
+            glyphPresentation(t('editor.tab.environment'), 'environment'),
+        loading: { labelKey: 'editor.load.loadingEnvironment', variant: 'page' },
+        statusBar: 'hidden',
+    },
     external: {
         present: (path, options) => {
             const name = parseExternalEditorTab(path)?.name ?? pathBasename(path);

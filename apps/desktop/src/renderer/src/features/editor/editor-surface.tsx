@@ -116,6 +116,11 @@ const UsageWorkbenchPage = lazy(async () => {
     return { default: module.UsageWorkbenchPage };
 });
 
+const EnvironmentWorkbenchPage = lazy(async () => {
+    const module = await import('../environment-monitor/environment-workbench-page');
+    return { default: module.EnvironmentWorkbenchPage };
+});
+
 const emptyWorkClassName =
     'empty-work flex h-full flex-col items-center justify-center gap-3 text-muted';
 
@@ -308,6 +313,7 @@ const VIRTUAL_TAB_SURFACES: Record<
         const tab = parseAgentSideChatTab(path);
         return tab && <AgentChatSideChatTab key={path} tab={tab} />;
     },
+    environment: () => <EnvironmentWorkbenchPage />,
     external: ({ paneId, path }) => <FileEditorSurface paneId={paneId} path={path} />,
     untitled: ({ paneId, path }) => <FileEditorSurface paneId={paneId} path={path} />,
     filePreview: ({ paneId, path }) => {

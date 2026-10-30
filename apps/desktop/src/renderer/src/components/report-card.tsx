@@ -41,16 +41,26 @@ export function StatTile({
     label,
     value,
     detail,
+    wrapValue = false,
 }: {
     label: string;
     value: string | undefined;
     detail?: ReactNode;
+    /**
+     * Keeps report fields such as a location or network organization fully visible instead of abbreviating them.
+     */
+    wrapValue?: boolean;
 }) {
     const { t } = useTranslation();
     return (
         <div className="min-w-0 rounded-md border border-border bg-surface px-4 py-3">
             <div className="truncate text-[11px] text-muted">{label}</div>
-            <div className="mt-1 truncate text-[15px] font-semibold tabular-nums">
+            <div
+                className={cn(
+                    'mt-1 text-[15px] font-semibold tabular-nums',
+                    wrapValue ? 'wrap-anywhere' : 'truncate',
+                )}
+            >
                 {value ?? (
                     <>
                         <span aria-hidden="true" className="font-normal text-muted">

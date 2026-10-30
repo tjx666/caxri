@@ -115,6 +115,7 @@ export const commands: TranslatedNamespace<typeof source> = {
     'commands.view.zoomOut': '缩小',
     'commands.view.resetZoom': '重置缩放',
     'commands.usage.open': '打开用量',
+    'commands.environment.open': '打开环境信息',
     'commands.benchmark.open': '打开 Benchmark',
     'commands.settings.open': '打开设置',
     'commands.settings.openSource': '打开设置 (JSON)',

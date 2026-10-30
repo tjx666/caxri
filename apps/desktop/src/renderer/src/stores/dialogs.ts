@@ -41,10 +41,14 @@ interface DialogState {
     archivedSessionsOpen: boolean;
     settingsRequest: { id: number; view: SettingsView; provider?: AgentProvider };
     /**
-     * The last {@link DialogState.settingsRequest} id the user closed from the Welcome view's Settings surface
-     * (`NoSessionSurface` in `workbench.tsx`), which stands in for the Settings tab before any Session exists.
+     * The latest global Workbench page request. Before a Session exists, `NoSessionSurface` renders this page in place
+     * of Welcome; with a Session, each page's opener turns the same request into an ordinary document tab.
      */
-    sessionlessSettingsDismissedId: number;
+    workbenchPageRequest: { id: number; surface: 'environment' | 'settings' };
+    /**
+     * The last global Workbench page request the user closed from the Welcome view.
+     */
+    sessionlessWorkbenchPageDismissedId: number;
     paletteOpen: boolean;
     projectSearchOpen: boolean;
     /**
@@ -126,7 +130,8 @@ interface DialogState {
      * through `openEditorTab` by the request listener in `app.tsx`, not tracked here as an open/closed boolean.
      */
     openSettings(view?: SettingsView, provider?: AgentProvider): void;
-    dismissSessionlessSettings(): void;
+    openEnvironment(): void;
+    dismissSessionlessWorkbenchPage(): void;
     setPaletteOpen(isOpen: boolean): void;
     setProjectSearchOpen(isOpen: boolean): void;
     openProjectSearch(seed?: ProjectSearchSeed): void;
@@ -166,7 +171,8 @@ interface DialogState {
 export const useDialogStore = createStore<DialogState>('dialogs', (set, get) => ({
     archivedSessionsOpen: false,
     settingsRequest: { id: 0, view: 'ui' },
-    sessionlessSettingsDismissedId: 0,
+    workbenchPageRequest: { id: 0, surface: 'settings' },
+    sessionlessWorkbenchPageDismissedId: 0,
     paletteOpen: false,
     projectSearchOpen: false,
     projectSearchSeedRequest: { id: 0, seed: {} },
@@ -190,9 +196,22 @@ export const useDialogStore = createStore<DialogState>('dialogs', (set, get) => 
     openSettings: (view = 'ui', provider) =>
         set((state) => ({
             settingsRequest: { id: state.settingsRequest.id + 1, view, provider },
+            workbenchPageRequest: {
+                id: state.workbenchPageRequest.id + 1,
+                surface: 'settings',
+            },
         })),
-    dismissSessionlessSettings: () =>
-        set((state) => ({ sessionlessSettingsDismissedId: state.settingsRequest.id })),
+    openEnvironment: () =>
+        set((state) => ({
+            workbenchPageRequest: {
+                id: state.workbenchPageRequest.id + 1,
+                surface: 'environment',
+            },
+        })),
+    dismissSessionlessWorkbenchPage: () =>
+        set((state) => ({
+            sessionlessWorkbenchPageDismissedId: state.workbenchPageRequest.id,
+        })),
     setPaletteOpen: (paletteOpen) => set({ paletteOpen }),
     setProjectSearchOpen: (projectSearchOpen) => set({ projectSearchOpen }),
     openProjectSearch: (seed = {}) =>
