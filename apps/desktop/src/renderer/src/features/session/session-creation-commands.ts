@@ -84,7 +84,7 @@ export function beginSessionCreation(
  * falls back to the last pick, because its hover still offers the full list; the empty-Project row and the
  * `session.create` command keep "Ask each time" literal.
  */
-export function headingPressKind(): TerminalKind | undefined {
+function headingPressKind(): TerminalKind | undefined {
     return (
         getBootstrap()?.settings['session.defaultAgent'] ?? useLastAgentChoiceStore.getState().kind
     );
