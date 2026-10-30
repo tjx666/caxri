@@ -23,6 +23,7 @@ import {
     typeTerminal,
     waitForNewTerminalId,
 } from './support/helpers.ts';
+import { openProjectNewSessionMenu } from './support/project-new-session-menu.ts';
 import { openSettingsSection, openSettingsTab } from './support/settings.ts';
 
 async function terminalIds(page: Page): Promise<string[]> {
@@ -157,8 +158,7 @@ test('Command+Shift+K and Command+T/W affect only the active Terminal and pause 
         await running.page.keyboard.press('Meta+W');
         await expect(running.page.locator('.work-tab[data-terminal-id]')).toHaveCount(2);
 
-        await running.page.locator('.project-heading').hover();
-        await running.page.getByRole('button', { name: /^New Session in / }).click();
+        await openProjectNewSessionMenu(running.page);
         // The Terminal choice is an anchored menu, which registers as a modal for the same reason a dialog does: it
         // traps focus, so app-wide Terminal shortcuts must stand down while it owns the keyboard.
         const createMenu = running.page.getByRole('menu');

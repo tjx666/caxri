@@ -17,7 +17,9 @@ test('Project actions reveal on hover or focus', async () => {
     try {
         await createProjectSession(running.page);
         const projectHeading = running.page.locator('.project-heading');
-        const newSession = projectHeading.getByRole('button', { name: 'New Session in project' });
+        const newSession = projectHeading.getByRole('button', {
+            name: /^New (?:.+ )?Session in project$/u,
+        });
         const projectDisclosure = projectHeading.getByRole('button', {
             name: 'Collapse project',
         });

@@ -18,6 +18,7 @@ import {
     VISIBLE_SESSION,
 } from './support/helpers.ts';
 import { dismissContextMenu, waitForContextMenu } from './support/native-context-menu.ts';
+import { projectNewSessionButton } from './support/project-new-session-menu.ts';
 import { openSettingsTab } from './support/settings.ts';
 
 test('primarySidebar titlebar is logo-free, holds only history and the Activity toggle, and stays draggable', async () => {
@@ -212,9 +213,7 @@ test('Session rows support keyboard selection independently from rename', async 
         expect(secondSessionId).not.toBe(firstSessionId);
 
         const firstCard = sessionCard(running.page, firstSessionId);
-        const newSession = running.page.getByRole('button', {
-            name: 'New Session in project',
-        });
+        const newSession = projectNewSessionButton(running.page);
         const disclosure = running.page.locator('.project-disclosure');
         // The PrimarySidebar tree collapses to a single roving Tab stop: inner controls stay
         // mouse/arrow-key accessible but leave the Tab order entirely.

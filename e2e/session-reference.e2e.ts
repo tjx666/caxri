@@ -23,6 +23,7 @@ import {
     VISIBLE_SESSION,
     waitForNewTerminalId,
 } from './support/helpers.ts';
+import { openProjectNewSessionMenu } from './support/project-new-session-menu.ts';
 
 const CITED_TITLE = 'Login bug investigation';
 const CITED_AGENT_SESSION = 'synthetic-cited-claude';
@@ -155,11 +156,7 @@ test('typing @ cites another Session from Agent Chat and from the Agent Commands
         const { page } = running;
 
         // Terminal: the Agent CLI owns its own `@` list, so Sessions are cited from Caxri's picker.
-        await page
-            .locator('.project-heading')
-            .filter({ has: page.getByRole('button', { name: /^New Session in /u }) })
-            .hover();
-        await page.getByRole('button', { name: /^New Session in /u }).click();
+        await openProjectNewSessionMenu(page);
         await chooseTerminalFromCreateMenu(page, 'Claude');
         const citingTerminalId = await waitForNewTerminalId(
             page,
