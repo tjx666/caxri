@@ -20,8 +20,6 @@ import { useGitChildRepo, useGitDecoration } from '../../../stores/git-decoratio
 import { describeFailure } from '../../../stores/toasts';
 import { useResourceExplorerClient } from '../controlled-view-context';
 import { createItem, renameFile } from './file-actions';
-import { fileTreeDropDirectory } from './file-drop-target';
-import { renameSelectionEnd } from './file-name-selection';
 import { rememberFile } from './file-paste-actions';
 import { fileTreeItemMenu } from './file-tree-item-menu';
 import type { EditRequest, FocusTarget } from './file-tree-item-types';
@@ -42,6 +40,8 @@ import {
     fileTreeRowTooltip,
     inlineFileNameBlurAction,
 } from './resource-explorer-state';
+import { fileTreeDropDirectory } from './tree-row/file-drop-target';
+import { renameSelectionEnd } from './tree-row/file-name-selection';
 
 /**
  * Expansion, selection, focus requests, and file-operation blocking are not props: every row subscribes to its own

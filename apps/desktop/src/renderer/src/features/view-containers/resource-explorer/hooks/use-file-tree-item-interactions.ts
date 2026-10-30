@@ -13,7 +13,6 @@ import { useResourceExplorerClient } from '../../controlled-view-context';
 import { didTrashFile, duplicateFile, moveFile, undoLatestTrash } from '../file-actions';
 import type { FileClipboardEntry } from '../file-clipboard';
 import { useFileClipboardStore } from '../file-clipboard';
-import { fileTreeDropDirectory } from '../file-drop-target';
 import { pasteDisabledReason, useIsPathBlockedByFileOperations } from '../file-operation-state';
 import { importOsFiles, pasteIntoDirectory, rememberFile } from '../file-paste-actions';
 import type { EditRequest } from '../file-tree-item-types';
@@ -28,6 +27,7 @@ import {
     useResourceExplorerScopeStore,
 } from '../resource-explorer-scope-store';
 import { isFileTreeDirectory } from '../resource-explorer-state';
+import { fileTreeDropDirectory } from '../tree-row/file-drop-target';
 
 export interface UseFileTreeItemInteractionsOptions {
     depth: number;

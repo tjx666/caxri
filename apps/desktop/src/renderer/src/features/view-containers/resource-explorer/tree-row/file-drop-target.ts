@@ -1,6 +1,6 @@
 import type { FileEntry } from '@caxri/protocol';
 
-import { parentDirectoryPath } from '../../../lib/file-path';
+import { parentDirectoryPath } from '../../../../lib/file-path';
 
 /**
  * The directory a drag dropped on a Files tree row lands in. A directory row takes the drop itself; a file row takes it

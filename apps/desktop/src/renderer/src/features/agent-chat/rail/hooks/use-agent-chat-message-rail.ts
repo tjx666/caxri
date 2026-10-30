@@ -90,7 +90,7 @@ function contentTop(view: HTMLElement, element: HTMLElement): number {
 export function useAgentChatMessageRail(
     scrollReference: RefObject<HTMLDivElement | null>,
     contentReference: RefObject<HTMLDivElement | null>,
-    markIds: readonly string[],
+    marks: ReadonlyArray<{ id: string }>,
     stopFollowing: () => void,
     mountAll: () => void,
 ): {
@@ -99,7 +99,7 @@ export function useAgentChatMessageRail(
     jumpToTurn: (turnId: string) => void;
 } {
     const [activeIndex, setActiveIndex] = useState(-1);
-    const idsKey = markIds.join('\n');
+    const idsKey = marks.map((mark) => mark.id).join('\n');
     useEffect(() => {
         const view = scrollReference.current;
         const content = contentReference.current;

@@ -12,6 +12,23 @@ import {
 } from '../session-home-empty-state';
 
 /**
+ * Turns true once the first Session list read has been pending for {@link SESSION_LOAD_STALL_MS}; resets when it
+ * settles.
+ */
+function useIsFirstLoadStalled(isAwaiting: boolean): boolean {
+    const [isStalled, setIsStalled] = useState(false);
+    useEffect(() => {
+        if (!isAwaiting) return;
+        const timer = setTimeout(() => setIsStalled(true), SESSION_LOAD_STALL_MS);
+        return () => {
+            clearTimeout(timer);
+            setIsStalled(false);
+        };
+    }, [isAwaiting]);
+    return isStalled;
+}
+
+/**
  * What fills the Session home when there is no list: loading, nothing yet, a failed first read, or a connection that
  * cannot serve Sessions at all (unverified pairing, version mismatch). The notice above explains the cause; this says
  * what the screen is showing.
@@ -37,16 +54,7 @@ export const SessionHomeEmpty = ({
 }) => {
     const { t } = useTranslation();
     const { retryConnection } = useMobileClient();
-    const isAwaiting = isAwaitingFirstLoad(status, hasLoaded);
-    const [isStalled, setIsStalled] = useState(false);
-    useEffect(() => {
-        if (!isAwaiting) return;
-        const timer = setTimeout(() => setIsStalled(true), SESSION_LOAD_STALL_MS);
-        return () => {
-            clearTimeout(timer);
-            setIsStalled(false);
-        };
-    }, [isAwaiting]);
+    const isStalled = useIsFirstLoadStalled(isAwaitingFirstLoad(status, hasLoaded));
     const state = describeSessionHomeEmptyState(
         { activeProjectId, error, hasLoaded, isStalled, status },
         t,
@@ -56,31 +64,25 @@ export const SessionHomeEmpty = ({
             <ScreenState kind="loading" testID={state.testID} theme={theme} title={state.body} />
         );
     const kind = hasLoaded ? 'empty' : error ? 'error' : 'offline';
+    const actionLabels = {
+        new: t('sessions.new.title'),
+        reconnect: t('sessions.banner.reconnectNow'),
+        retry: t('common.retry'),
+    };
+    const actionHandlers = {
+        new: onNewSession,
+        reconnect: retryConnection,
+        retry: () => {
+            void onRetry();
+        },
+    };
     return (
         <ScreenState
-            actionLabel={
-                state.action === 'new'
-                    ? t('sessions.new.title')
-                    : state.action === 'retry'
-                      ? t('common.retry')
-                      : state.action === 'reconnect'
-                        ? t('sessions.banner.reconnectNow')
-                        : undefined
-            }
+            actionLabel={state.action ? actionLabels[state.action] : undefined}
             detail={state.body}
             isActionBusy={state.action === 'retry' && isLoading}
             kind={kind}
-            onAction={
-                state.action === 'new'
-                    ? onNewSession
-                    : state.action === 'retry'
-                      ? () => {
-                            void onRetry();
-                        }
-                      : state.action === 'reconnect'
-                        ? retryConnection
-                        : undefined
-            }
+            onAction={state.action ? actionHandlers[state.action] : undefined}
             testID={state.testID}
             theme={theme}
             title={state.title ?? state.body}

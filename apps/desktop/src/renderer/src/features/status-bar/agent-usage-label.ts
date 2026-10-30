@@ -75,13 +75,12 @@ function agentUsageChipWindows(
             return windows.filter((window) => !isFiveHour(window));
         case 'auto': {
             const isFiveHourBound = isFiveHourBoundPlan(limit);
-            const picked = windows.filter((window) => isFiveHour(window) === isFiveHourBound);
-            if (picked.length === 0) return windows;
+            const isPicked = (window: (typeof windows)[number]) =>
+                isFiveHour(window) === isFiveHourBound;
+            if (!windows.some(isPicked)) return windows;
             // A nearly spent window the pick left out is promoted into the chip so its colour and its text agree: a
             // Pro or Max 5x chip showing only `5h` must not stay silent while the week is almost gone.
-            return windows.filter(
-                (window) => picked.includes(window) || isNearlySpentWindow(window),
-            );
+            return windows.filter((window) => isPicked(window) || isNearlySpentWindow(window));
         }
     }
 }
