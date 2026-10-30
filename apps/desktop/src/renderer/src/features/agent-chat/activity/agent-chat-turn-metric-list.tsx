@@ -70,9 +70,14 @@ function metricTooltip(
  * screen reader hears the exact count while the eye sees the abbreviated one).
  */
 export function AgentChatTurnMetricList({
+    hasLeadingDivider = false,
     scope = 'turn',
     usage,
 }: {
+    /**
+     * Rules the figures off from a figure before the list (the goal's time), with the same hairline that splits them.
+     */
+    hasLeadingDivider?: boolean;
     /**
      * Whose spend the figures are, for their tooltips: the running turn's, or the goal's across its turns.
      */
@@ -90,7 +95,7 @@ export function AgentChatTurnMetricList({
                 const isNarrowHidden = metric.kind !== 'tokens';
                 return (
                     <Fragment key={metric.kind}>
-                        {index > 0 && (
+                        {(index > 0 || hasLeadingDivider) && (
                             <span className={cn('h-3 w-px shrink-0 bg-border', narrow.divider)} />
                         )}
                         <Tooltip content={metricTooltip(metric, scope, t)} side="top">

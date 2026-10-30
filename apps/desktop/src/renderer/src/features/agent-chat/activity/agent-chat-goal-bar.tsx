@@ -109,7 +109,7 @@ export function AgentChatGoalBar({
             data-agent-chat-goal={goal.status}
             data-agent-chat-goal-live={liveActivity ? '' : undefined}
         >
-            <div className="@container flex h-8 items-center gap-2 pr-1.5 pl-3">
+            <div className="@container flex h-8 items-center gap-2.5 pr-1.5 pl-3">
                 <GoalGlyph goal={goal} step={liveActivity ? (spend?.requests ?? 0) : undefined} />
                 {!isActive && (
                     <span className="shrink-0 font-medium text-foreground">
@@ -129,7 +129,7 @@ export function AgentChatGoalBar({
                     )}
                 </span>
                 <span className="flex shrink-0 items-center text-muted">
-                    <AgentChatTurnMetricList scope="goal" usage={spend} />
+                    <AgentChatTurnMetricList hasLeadingDivider scope="goal" usage={spend} />
                 </span>
                 <AgentChatGoalActions
                     goal={goal}
