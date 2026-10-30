@@ -43,6 +43,31 @@ export const conversationTurnSpacerHeight = ({
     Math.max(Math.round(viewportHeight - (contentHeight - turnTop) - topGap - bottomInset), 0);
 
 /**
+ * The scroll offset of the list's end, computed from the rows FlashList has measured and the turn spacer's target
+ * height instead of the native content size. A row that grows by a line paints before the spacer shrinks to absorb it,
+ * so the native content is briefly one line taller than its settled height; a native `scrollToEnd` in that frame
+ * scrolled the whole turn up by the line and the shrinking spacer then pulled it back, which read as the timeline
+ * shaking on every new line of a streamed reply. While the spacer absorbs the growth, this end does not move.
+ *
+ * `firstItemOffset` is where the rows' container starts (after the header and the content's top padding) and
+ * `contentHeight` is that container's height; `bottomInset` is the content's bottom padding before the spacer.
+ */
+export const conversationEndOffset = ({
+    bottomInset = 0,
+    contentHeight,
+    firstItemOffset,
+    spacerHeight,
+    viewportHeight,
+}: {
+    bottomInset?: number;
+    contentHeight: number;
+    firstItemOffset: number;
+    spacerHeight: number;
+    viewportHeight: number;
+}): number =>
+    Math.max(firstItemOffset + contentHeight + bottomInset + spacerHeight - viewportHeight, 0);
+
+/**
  * Whether the list should read an older page on its own because its rows do not fill the viewport. A short list cannot
  * scroll far enough to reach its top, so the load-earlier header sits hidden above the bottom inset and the reader sees
  * a few rows under a blank band. Loading pages until the rows fill the viewport (or nothing older remains) avoids

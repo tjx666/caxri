@@ -28,6 +28,7 @@ import {
     shouldShowConversationJump,
 } from './conversation-model';
 import {
+    conversationEndOffset,
     conversationTurnSpacerHeight,
     createConversationFollower,
     latestConversationTurnStart,
@@ -249,15 +250,26 @@ export const ConversationList = <Entry extends { id: string }>({
     const [follower] = useState(() =>
         createConversationFollower({ nextFrame: requestAnimationFrame }),
     );
+    const spacerHeight = useSharedValue(0);
+    const appliedSpacerHeight = useRef(0);
     useEffect(
         () =>
             follower.connect(() => {
-                list.current?.scrollToEnd({ animated: false });
+                const reference = list.current;
+                if (!reference || viewportHeight.current <= 0) return;
+                reference.scrollToOffset({
+                    animated: false,
+                    offset: conversationEndOffset({
+                        bottomInset: CONTENT_BOTTOM_INSET,
+                        contentHeight: reference.getChildContainerDimensions().height,
+                        firstItemOffset: reference.getFirstItemOffset(),
+                        spacerHeight: appliedSpacerHeight.current,
+                        viewportHeight: viewportHeight.current,
+                    }),
+                });
             }),
         [follower],
     );
-    const spacerHeight = useSharedValue(0);
-    const appliedSpacerHeight = useRef(0);
     /**
      * The latest props the layout callbacks read, so those callbacks (and the list props built from them) stay stable.
      */
@@ -321,11 +333,14 @@ export const ConversationList = <Entry extends { id: string }>({
      * A row that grows on a short Conversation (an unfolded delegated task) never changes the content size:
      * `startRenderingFromBottom`'s top margin shrinks by the same amount, so `onContentSizeChange` stays silent and the
      * rows slid up under the header. Every layout commit re-measures the spacer instead.
+     *
+     * The follower scrolls to the end FlashList has measured, which a native content size change can precede, so each
+     * commit (a measured row grew, or the spacer changed) also follows the end.
      */
     const onCommitLayout = useCallback((): void => {
-        if (measureSpacer()) follower.request();
+        pin();
         onLayoutCommitted();
-    }, [follower, measureSpacer, onLayoutCommitted]);
+    }, [onLayoutCommitted, pin]);
     const onScroll = useCallback(
         (event: NativeSyntheticEvent<NativeScrollEvent>): void => {
             // Initial positioning passes through offsets far from the end; they are not the reader's scroll.

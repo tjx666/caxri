@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
     CONVERSATION_TURN_TOP_GAP,
+    conversationEndOffset,
     conversationTurnSpacerHeight,
     createConversationFollower,
     isConversationFollowingAfterScroll,
@@ -54,6 +55,51 @@ describe('conversationTurnSpacerHeight', () => {
                 viewportHeight: 300,
             }),
         ).toBe(200);
+    });
+});
+
+describe('conversationEndOffset', () => {
+    const viewportHeight = 600;
+    const bottomInset = 12;
+    const firstItemOffset = 40;
+    const turnTop = 900;
+    const endFor = (contentHeight: number): number => {
+        const spacerHeight = conversationTurnSpacerHeight({
+            bottomInset,
+            contentHeight,
+            turnTop,
+            viewportHeight,
+        });
+        return conversationEndOffset({
+            bottomInset,
+            contentHeight,
+            firstItemOffset,
+            spacerHeight,
+            viewportHeight,
+        });
+    };
+
+    it('rests the latest turn at the top while the spacer absorbs a growing reply', () => {
+        const restingEnd = firstItemOffset + turnTop - CONVERSATION_TURN_TOP_GAP;
+        expect(endFor(1000)).toBe(restingEnd);
+        expect(endFor(1020)).toBe(restingEnd);
+        expect(endFor(1300)).toBe(restingEnd);
+    });
+
+    it('follows the rows once the turn outgrows the viewport', () => {
+        expect(endFor(2000)).toBe(firstItemOffset + 2000 + bottomInset - viewportHeight);
+        expect(endFor(2020) - endFor(2000)).toBe(20);
+    });
+
+    it('never scrolls before the top of a short list', () => {
+        expect(
+            conversationEndOffset({
+                contentHeight: 200,
+                firstItemOffset: 0,
+                spacerHeight: 0,
+                viewportHeight,
+            }),
+        ).toBe(0);
     });
 });
 
