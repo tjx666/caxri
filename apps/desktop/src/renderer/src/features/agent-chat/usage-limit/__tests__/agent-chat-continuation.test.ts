@@ -27,7 +27,7 @@ describe('agentChatContinuationChoice', () => {
             choice.targets.map((target) =>
                 agentChatContinuationUnavailableLabel(target, NOW, translate),
             ),
-        ).toEqual(['Weekly usage at the guard, resets in 2h', undefined]);
+        ).toEqual(['Close to its weekly limit, resets in 2h', undefined]);
         expect(
             agentChatContinuationUnavailableLabel(
                 { provider: 'grok', unavailable: 'notInstalled' },

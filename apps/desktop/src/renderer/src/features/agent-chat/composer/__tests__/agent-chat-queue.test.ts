@@ -121,7 +121,7 @@ describe('agentChatQueueHeader', () => {
             agentChatQueueHeader({ queuePaused: true, queuePauseReason: 'usageGuard' }, translate),
         ).toEqual({
             tone: 'paused',
-            text: 'Queue paused · weekly usage nearly used up',
+            text: 'Queue paused · weekly limit nearly reached',
             resumeLabel: 'Resume',
         });
     });
