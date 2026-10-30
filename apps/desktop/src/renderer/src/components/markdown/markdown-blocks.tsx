@@ -29,6 +29,7 @@ export function MarkdownBlocks({
     onOpenFile,
     onOpenUrl,
     referenceTerminalId,
+    references,
     skills,
     variant = 'compact',
 }: {
@@ -45,6 +46,7 @@ export function MarkdownBlocks({
             onOpenFile,
             onOpenUrl,
             referenceTerminalId,
+            references,
             revealSince,
             skills,
             variant,
@@ -55,6 +57,7 @@ export function MarkdownBlocks({
             onOpenFile,
             onOpenUrl,
             referenceTerminalId,
+            references,
             revealSince,
             skills,
             variant,

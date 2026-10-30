@@ -62,6 +62,10 @@ import {
     isAgentChatMessageRailShown,
 } from './rail/agent-chat-rail-marks';
 import { useAgentChatMessageRail } from './rail/hooks/use-agent-chat-message-rail';
+import {
+    AgentChatReferencesContext,
+    useAgentChatReferenceIndex,
+} from './references/use-agent-chat-references';
 import { AgentChatExpansionState } from './transcript/agent-chat-expansion';
 import { AgentChatHistoryHead } from './transcript/agent-chat-history-head';
 import { AgentChatJumpToLatest } from './transcript/agent-chat-jump-to-latest';
@@ -546,28 +550,34 @@ function AgentChatTimelineBody({
 }) {
     const servers = useAgentChatMcpServers(mcpServers);
     const skills = useAgentChatSkillHost(terminalId);
+    const references = useAgentChatReferenceIndex(settledChunks, timeline);
     return (
         <AgentChatMcpServersContext value={servers}>
             <AgentChatTerminalContext value={terminalId}>
                 <AgentChatSkillsContext value={skills}>
-                    {/*
-                     * History read back is not in the projection, so it never offers Edit, Fork, or Restore; keeping it
-                     * outside the actions, which change with every patch, lets a patch skip it. Its menus list Edit and
-                     * Fork disabled with why.
-                     */}
-                    <AgentChatReadBackHistoryContext value={readBackHistory}>
-                        <AgentChatSettledTimeline chunks={settledChunks} onOpenFile={onOpenFile} />
-                    </AgentChatReadBackHistoryContext>
-                    <AgentChatEditContext value={editActions}>
-                        <LiveTimelineEntries
-                            dayBreaks={dayBreaks}
-                            mountedFrom={mountedFrom}
-                            timeline={timeline}
-                            onOpenFile={onOpenFile}
-                        />
-                        {isAwaitingReply && <AgentChatReplyPlaceholder turnId={activeTurnId} />}
-                        <AgentChatPendingTimeline pending={pending} onOpenFile={onOpenFile} />
-                    </AgentChatEditContext>
+                    <AgentChatReferencesContext value={references}>
+                        {/*
+                         * History read back is not in the projection, so it never offers Edit, Fork, or Restore; keeping it
+                         * outside the actions, which change with every patch, lets a patch skip it. Its menus list Edit and
+                         * Fork disabled with why.
+                         */}
+                        <AgentChatReadBackHistoryContext value={readBackHistory}>
+                            <AgentChatSettledTimeline
+                                chunks={settledChunks}
+                                onOpenFile={onOpenFile}
+                            />
+                        </AgentChatReadBackHistoryContext>
+                        <AgentChatEditContext value={editActions}>
+                            <LiveTimelineEntries
+                                dayBreaks={dayBreaks}
+                                mountedFrom={mountedFrom}
+                                timeline={timeline}
+                                onOpenFile={onOpenFile}
+                            />
+                            {isAwaitingReply && <AgentChatReplyPlaceholder turnId={activeTurnId} />}
+                            <AgentChatPendingTimeline pending={pending} onOpenFile={onOpenFile} />
+                        </AgentChatEditContext>
+                    </AgentChatReferencesContext>
                 </AgentChatSkillsContext>
             </AgentChatTerminalContext>
         </AgentChatMcpServersContext>

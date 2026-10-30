@@ -1,6 +1,8 @@
 import type { ComponentType, ReactNode } from 'react';
 import { createContext, useContext } from 'react';
 
+import type { ReferenceMentionIndex } from './reference-mentions';
+
 /**
  * Draws diagram fences for a host that can. Supplied by the host rather than imported here, so hover cards never load
  * Mermaid and this shared renderer stays free of preview features.
@@ -85,6 +87,11 @@ export interface MarkdownRenderContext {
      * Marks inline code that names a known skill. Without it, such code stays plain.
      */
     skills?: MarkdownSkillHost;
+    /**
+     * Links the conversation already holds, keyed by how prose mentions them (`#2354`, `ENG-123`), so a settled
+     * transcript draws such a mention as that link. Without it, or while the tree streams, mentions stay text.
+     */
+    references?: ReferenceMentionIndex;
     /**
      * Set while the tree is a reply still streaming in: when (`performance.now()`) its renderer mounted. Text that
      * arrives after it fades in (`RevealingText`). Settled content leaves it unset and renders plain text.

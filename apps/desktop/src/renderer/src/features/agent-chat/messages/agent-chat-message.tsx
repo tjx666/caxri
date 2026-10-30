@@ -23,6 +23,7 @@ import { useAgentChatPacedText } from '../hooks/use-agent-chat-paced-text';
 import { useAgentChatReplyMenu } from '../hooks/use-agent-chat-reply-menu';
 import { useAgentChatSkills } from '../hooks/use-agent-chat-skills';
 import { useAgentChatTerminal } from '../hooks/use-agent-chat-terminal';
+import { useAgentChatReferences } from '../references/use-agent-chat-references';
 import { useAgentChatCommands } from '../run-command/use-agent-chat-commands';
 import { AgentChatCompactedNotice } from '../transcript/agent-chat-compacted-notice';
 import { openAgentChatLink } from '../transcript/agent-chat-links';
@@ -65,6 +66,7 @@ export function AgentChatMessage({
     const commands = useAgentChatCommands(terminalId);
     const diagrams = useAgentChatDiagrams();
     const skills = useAgentChatSkills();
+    const references = useAgentChatReferences();
     return (
         <div className={cn('flex flex-col gap-3 text-[13px] leading-5 wrap-anywhere', className)}>
             <MarkdownBlocks
@@ -76,6 +78,7 @@ export function AgentChatMessage({
                 onOpenFile={onOpenFile}
                 onOpenUrl={openAgentChatLink}
                 referenceTerminalId={terminalId}
+                references={references}
                 skills={skills}
             />
         </div>
