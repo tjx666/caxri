@@ -1059,6 +1059,12 @@ Request`, `agentChat.focusWaitingRequest`, bound to Cmd+Alt+W, unfolds it and mo
   Open Graph then Twitter Card then `<title>` fallbacks, HTTPS images only, and a per-app-lifetime
   cache of 256 URLs that evicts the oldest inserted entry (a repeat hover does not refresh it; an
   outright network failure is not cached). A page that declares nothing keeps the card's link summary.
+- A settled reply's `#123` or uppercase Linear identifier (`ENG-123`) renders as that web link when
+  the conversation already holds exactly one matching GitHub pull request or issue, or Linear issue:
+  a link in a user message or reply, or one a command or tool call filed
+  (`apps/desktop/src/renderer/src/features/agent-chat/references/`). A number two repositories
+  share stays text, as do mentions in inline code, inside a link's own text, and in a reply still
+  streaming. User messages keep such mentions as text.
 - While a reply streams, `createStreamingMarkdownRepair` (`packages/markdown/src/streaming-repair.ts`)
   completes the last block's unfinished emphasis, inline code, and links so raw syntax never
   flashes. It keeps one reply's scan state: a delta that extends the previous text scans only its
