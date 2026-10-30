@@ -5,10 +5,12 @@ import type {
     SessionImportConversationResult,
     SessionRecord,
     SessionSearchEntry,
+    SessionSearchFilters,
     SessionSearchIndexStatus,
     SessionSearchParameters,
     SessionSearchPreviewParameters,
     SessionSearchPreviewResult,
+    SessionSearchRelaxation,
     SessionSearchResult,
     SessionSearchStatus,
 } from '@caxri/protocol';
@@ -24,6 +26,7 @@ import {
     compareHits,
     conversationKey,
     metadataMatch,
+    parseSessionOperators,
     parseSessionQuery,
     SessionSearchIndexUnavailableError,
 } from '../agents';
@@ -64,8 +67,30 @@ interface Holdings {
     hiddenKeys: Set<string>;
 }
 
+/**
+ * What the query's operators and the caller's hint ask of one search, resolved once.
+ */
+interface SearchScope {
+    /**
+     * The query without its operators.
+     */
+    text: string;
+    filters: SessionSearchFilters;
+    /**
+     * The Agent providers to search: the `providers` parameter narrowed by `agent:` operators; empty means none match.
+     */
+    providers: AgentProvider[] | undefined;
+    beforeMs?: number;
+    afterMs?: number;
+    /**
+     * The Project the user is working in, when the caller named a known one.
+     */
+    current?: { id: string; rootPath: string };
+}
+
 interface RankedEntry {
     entry: SessionSearchEntry;
+    isCurrentProject?: boolean;
     isPhraseMatch?: boolean;
     score: number;
 }
@@ -120,14 +145,18 @@ export class SessionSearchService {
     }
 
     private async searchIndex(
-        query: string,
-        providers: AgentProvider[] | undefined,
+        scope: SearchScope,
         status: NonNullable<SessionSearchParameters['status']>,
         holdings: Holdings,
         signal: AbortSignal | undefined,
     ): Promise<
         | IndexSearchResponse
-        | { hits: []; status: SessionSearchIndexStatus; usedSubstringScan: boolean }
+        | {
+              hits: [];
+              status: SessionSearchIndexStatus;
+              usedSubstringScan: boolean;
+              relaxation: SessionSearchRelaxation;
+          }
     > {
         const heldKeys = (isKept: (held: HeldConversation) => boolean) =>
             holdings.byKey
@@ -153,8 +182,12 @@ export class SessionSearchService {
         try {
             return await this.options.index.search(
                 {
-                    query,
-                    ...(providers && { providers }),
+                    query: scope.text,
+                    ...(scope.providers && { providers: scope.providers }),
+                    ...(scope.filters.projects.length > 0 && { projects: scope.filters.projects }),
+                    ...(scope.beforeMs !== undefined && { beforeMs: scope.beforeMs }),
+                    ...(scope.afterMs !== undefined && { afterMs: scope.afterMs }),
+                    ...(scope.current && { preferredRoot: scope.current.rootPath }),
                     restrict,
                     heldKeys: holdings.byKey.keys().toArray(),
                     limit: INDEX_RESULT_LIMIT,
@@ -168,6 +201,7 @@ export class SessionSearchService {
                 hits: [],
                 status: unavailableIndex,
                 usedSubstringScan: false,
+                relaxation: 'phrase',
             };
         }
     }
@@ -177,15 +211,27 @@ export class SessionSearchService {
      * Shell-only one, one whose Agent has not written a transcript yet, or one the user renamed.
      */
     private sessionEntries(
-        query: string,
-        providers: readonly AgentProvider[] | undefined,
+        scope: SearchScope,
         status: NonNullable<SessionSearchParameters['status']>,
         holdings: Holdings,
+        relaxation: SessionSearchRelaxation,
     ): RankedEntry[] {
-        const { terms } = parseSessionQuery(query);
-        const allowedProviders = providers && new Set(providers);
+        const { terms } = parseSessionQuery(scope.text);
+        const allowedProviders = scope.providers && new Set(scope.providers);
         return this.options.database.listVisibleSessions().flatMap((session) => {
             if (status === 'archived' && session.archivedAt === undefined) return [];
+            if (
+                (scope.beforeMs !== undefined && session.sessionActivityAt >= scope.beforeMs) ||
+                (scope.afterMs !== undefined && session.sessionActivityAt < scope.afterMs)
+            )
+                return [];
+            if (
+                scope.filters.projects.length > 0 &&
+                scope.filters.projects.every(
+                    (project) => !session.rootPath.toLowerCase().includes(project),
+                )
+            )
+                return [];
             const conversations = holdings.bySession.get(session.id) ?? [];
             if (
                 allowedProviders &&
@@ -199,15 +245,31 @@ export class SessionSearchService {
                     {
                         entry: sessionEntry(session, primary, 'recent', updatedAt),
                         score: updatedAt,
+                        ...(scope.current?.id === session.projectId && {
+                            isCurrentProject: true,
+                        }),
                     },
                 ];
-            const field = metadataMatch(terms, {
-                title: session.title,
-                cwd: session.rootPath,
-                ids: [session.id, ...conversations.map((held) => held.agentSessionId)],
-            });
+            const field = metadataMatch(
+                terms,
+                {
+                    title: session.title,
+                    cwd: session.rootPath,
+                    ids: [session.id, ...conversations.map((held) => held.agentSessionId)],
+                },
+                // Session titles join the any-word step only once the index has relaxed, so both sources agree.
+                relaxation === 'anyWord' ? 'any' : 'all',
+            );
             return field
-                ? [{ entry: sessionEntry(session, primary, field, updatedAt), score: updatedAt }]
+                ? [
+                      {
+                          entry: sessionEntry(session, primary, field, updatedAt),
+                          score: updatedAt,
+                          ...(scope.current?.id === session.projectId && {
+                              isCurrentProject: true,
+                          }),
+                      },
+                  ]
                 : [];
         });
     }
@@ -257,29 +319,91 @@ export class SessionSearchService {
         return holdings;
     }
 
+    /**
+     * Resolves the query's operators, the `providers` parameter, and the current-Project hint into one scope.
+     */
+    private scopeOf(parameters: SessionSearchParameters): SearchScope {
+        const operators = parseSessionOperators(parameters.query);
+        const requested = parameters.providers?.length ? parameters.providers : undefined;
+        const operatorAgents = operators.filters.agents;
+        const requestedSet = new Set(requested);
+        const providers =
+            operatorAgents.length === 0
+                ? requested
+                : // Both a filter button and an `agent:` operator narrow the search, so only their overlap remains.
+                  operatorAgents.filter((agent) => !requested || requestedSet.has(agent));
+        const project =
+            parameters.currentProjectId === undefined
+                ? undefined
+                : this.options.database.getProject(parameters.currentProjectId);
+        return {
+            text: operators.text,
+            filters: operators.filters,
+            providers,
+            ...(operators.beforeMs !== undefined && { beforeMs: operators.beforeMs }),
+            ...(operators.afterMs !== undefined && { afterMs: operators.afterMs }),
+            ...(project && { current: { id: project.id, rootPath: project.rootPath } }),
+        };
+    }
+
     async search(
         parameters: SessionSearchParameters,
         signal?: AbortSignal,
     ): Promise<SessionSearchResult> {
         const status = parameters.status ?? 'all';
-        const providers = parameters.providers?.length ? parameters.providers : undefined;
+        const scope = this.scopeOf(parameters);
+        // `agent:` operators that exclude every requested provider leave nothing to search.
+        if (scope.providers?.length === 0)
+            return {
+                entries: [],
+                index: unavailableIndex,
+                usedSubstringScan: false,
+                filters: scope.filters,
+                relaxation: 'phrase',
+            };
         const holdings = this.holdings();
-        const index = await this.searchIndex(parameters.query, providers, status, holdings, signal);
+        let index = await this.searchIndex(scope, status, holdings, signal);
+        let { relaxation } = index;
+        let sessions =
+            status === 'external' ? [] : this.sessionEntries(scope, status, holdings, relaxation);
+        if (relaxation === 'anyWord') {
+            // A Session whose own title already holds every word is a strict match; relaxing only fills a void.
+            const strict = this.sessionEntries(scope, status, holdings, 'phrase');
+            if (status !== 'external' && strict.length > 0) {
+                sessions = strict;
+                index = { ...index, hits: [] };
+                relaxation = 'allWords';
+            }
+        }
+        if (relaxation === 'phrase' && index.hits.length === 0 && sessions.length === 0) {
+            // Neither source holds every word: a Session whose own title holds one of them still answers.
+            const loosened =
+                status === 'external'
+                    ? []
+                    : this.sessionEntries(scope, status, holdings, 'anyWord');
+            if (loosened.length > 0 && parseSessionQuery(scope.text).terms.length > 1) {
+                sessions = loosened;
+                relaxation = 'anyWord';
+            }
+        }
         const ranked = new Map<string, RankedEntry>();
         const offer = (key: string, candidate: RankedEntry) => {
             const existing = ranked.get(key);
             if (!existing || compareRanked(candidate, existing) < 0) ranked.set(key, candidate);
         };
+        const isInWindow = (updatedAt: number) =>
+            (scope.beforeMs === undefined || updatedAt < scope.beforeMs) &&
+            (scope.afterMs === undefined || updatedAt >= scope.afterMs);
         for (const hit of index.hits) {
             const held = holdings.byKey.get(hit.key);
-            if (held) offer(`session:${held.session.id}`, heldEntry(held, hit));
-            else if (!holdings.hiddenKeys.has(hit.key) && !this.isInternal(hit.cwd))
-                offer(hit.key, externalEntry(hit));
+            if (held) {
+                const candidate = heldEntry(held, hit, scope);
+                if (isInWindow(candidate.entry.updatedAt))
+                    offer(`session:${held.session.id}`, candidate);
+            } else if (!holdings.hiddenKeys.has(hit.key) && !this.isInternal(hit.cwd))
+                offer(hit.key, externalEntry(hit, scope));
         }
-        if (status !== 'external') {
-            for (const entry of this.sessionEntries(parameters.query, providers, status, holdings))
-                offer(`session:${entry.entry.sessionId}`, entry);
-        }
+        for (const entry of sessions) offer(`session:${entry.entry.sessionId}`, entry);
         return {
             entries: ranked
                 .values()
@@ -289,6 +413,8 @@ export class SessionSearchService {
                 .map(({ entry }) => entry),
             index: index.status,
             usedSubstringScan: index.usedSubstringScan,
+            filters: scope.filters,
+            relaxation,
         };
     }
 
@@ -301,7 +427,11 @@ export class SessionSearchService {
         signal?: AbortSignal,
     ): Promise<SessionSearchPreviewResult> {
         try {
-            return await this.options.index.preview(parameters, signal);
+            // The operators select conversations; only the remaining words are matched inside one.
+            return await this.options.index.preview(
+                { ...parameters, query: parseSessionOperators(parameters.query).text },
+                signal,
+            );
         } catch (error) {
             if (error instanceof SessionSearchIndexUnavailableError && !isAbort(signal))
                 throw new CaxriError('UNAVAILABLE', 'Session search is unavailable');
@@ -362,8 +492,18 @@ export class SessionSearchService {
 
 function compareRanked(left: RankedEntry, right: RankedEntry): number {
     return compareHits(
-        { field: left.entry.match.field, isPhraseMatch: left.isPhraseMatch, score: left.score },
-        { field: right.entry.match.field, isPhraseMatch: right.isPhraseMatch, score: right.score },
+        {
+            field: left.entry.match.field,
+            isCurrentProject: left.isCurrentProject,
+            isPhraseMatch: left.isPhraseMatch,
+            score: left.score,
+        },
+        {
+            field: right.entry.match.field,
+            isCurrentProject: right.isCurrentProject,
+            isPhraseMatch: right.isPhraseMatch,
+            score: right.score,
+        },
     );
 }
 
@@ -375,7 +515,11 @@ function matchOf(hit: IndexedConversationHit): SessionSearchEntry['match'] {
     };
 }
 
-function heldEntry(held: HeldConversation, hit: IndexedConversationHit): RankedEntry {
+function heldEntry(
+    held: HeldConversation,
+    hit: IndexedConversationHit,
+    scope: SearchScope,
+): RankedEntry {
     const updatedAt = Math.trunc(Math.max(hit.updatedAt, held.session.sessionActivityAt));
     return {
         entry: {
@@ -384,11 +528,12 @@ function heldEntry(held: HeldConversation, hit: IndexedConversationHit): RankedE
             match: matchOf(hit),
         },
         ...(hit.isPhraseMatch && { isPhraseMatch: true }),
+        ...(scope.current?.id === held.session.projectId && { isCurrentProject: true }),
         score: hit.field === 'recent' ? updatedAt : hit.score,
     };
 }
 
-function externalEntry(hit: IndexedConversationHit): RankedEntry {
+function externalEntry(hit: IndexedConversationHit, scope: SearchScope): RankedEntry {
     return {
         entry: {
             key: hit.key,
@@ -401,6 +546,7 @@ function externalEntry(hit: IndexedConversationHit): RankedEntry {
             match: matchOf(hit),
         },
         ...(hit.isPhraseMatch && { isPhraseMatch: true }),
+        ...(scope.current && hit.isCurrentProject && { isCurrentProject: true }),
         score: hit.score,
     };
 }

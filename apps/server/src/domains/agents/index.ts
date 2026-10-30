@@ -80,6 +80,7 @@ export {
     type IndexSearchResponse,
     type InspectedConversation,
     metadataMatch,
+    parseSessionOperators,
     parseSessionQuery,
     SessionSearchIndex,
     SessionSearchIndexUnavailableError,

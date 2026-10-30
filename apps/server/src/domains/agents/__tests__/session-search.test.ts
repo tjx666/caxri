@@ -268,7 +268,7 @@ describe('Session search index', () => {
             ],
             NOW,
         );
-        await engine.indexer.refresh();
+        await engine.indexer.refresh(new Set([`claude:${HOSTED}`]));
         const search = (heldKeys?: string[]) =>
             engine
                 .search({ query: 'probe with only', limit: 10, ...(heldKeys && { heldKeys }) })
@@ -276,11 +276,11 @@ describe('Session search index', () => {
 
         expect(search()).toEqual([]);
         expect(search([`claude:${HOSTED}`])).toEqual([HOSTED]);
-        // Every term must still come from one message, wherever it is held.
+        // Words from two different messages match no message together, so only the any-word step finds it.
         expect(
             engine.search({ query: 'probe vendor', limit: 10, heldKeys: [`claude:${HOSTED}`] })
-                .hits,
-        ).toEqual([]);
+                .relaxation,
+        ).toBe('anyWord');
         expect(engine.search({ query: '', limit: 10 }).hits).toHaveLength(2);
     });
 

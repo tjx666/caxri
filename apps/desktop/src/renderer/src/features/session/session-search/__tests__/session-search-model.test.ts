@@ -124,7 +124,16 @@ describe('Session search model', () => {
         const t = ((key: string, values?: Record<string, number>) =>
             `${key}${values ? JSON.stringify(values) : ''}`) as never;
         const label = (index: SessionSearchResult['index']) =>
-            sessionSearchIndexLabel({ entries: [], index, usedSubstringScan: false }, t);
+            sessionSearchIndexLabel(
+                {
+                    entries: [],
+                    index,
+                    usedSubstringScan: false,
+                    filters: { agents: [], projects: [] },
+                    relaxation: 'phrase',
+                },
+                t,
+            );
         expect(label({ state: 'indexing', conversations: 0, pending: 0 })).toBe(
             'session.search.indexingStarted',
         );

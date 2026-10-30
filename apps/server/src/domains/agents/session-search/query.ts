@@ -1,9 +1,12 @@
 import type {
+    AgentProvider,
+    SessionSearchFilters,
     SessionSearchMatchField,
     SessionSearchPreviewMessage,
     SessionSearchSnippet,
 } from '@caxri/protocol';
 import {
+    agentProviderIds,
     MAX_SESSION_SEARCH_PREVIEW_MESSAGE_CHARACTERS,
     normalizeSessionSearchText,
 } from '@caxri/protocol';
@@ -28,6 +31,115 @@ const ELLIPSIS = '…';
  */
 const SCRIPT_RUN_PATTERN =
     /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]+|[^\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]+/gu;
+
+const MAX_PROJECT_FILTERS = 8;
+const MAX_PROJECT_FILTER_LENGTH = 200;
+/**
+ * `name:value` or `name:"value with spaces"` at the start of the query or after whitespace. A colon inside a word
+ * ("http://", "error:42") never starts an operator because only the four names qualify.
+ */
+const OPERATOR_PATTERN = /(^|\s)(agent|project|before|after):(?:"([^"]*)"|(\S+))/giu;
+const DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/u;
+
+export interface SessionSearchOperators {
+    /**
+     * The query with every recognized operator removed: what the term search runs on.
+     */
+    text: string;
+    /**
+     * The recognized operators, shaped for the response so the Renderer can show them.
+     */
+    filters: SessionSearchFilters;
+    /**
+     * Local midnight of the `before:` day: only conversations updated earlier match.
+     */
+    beforeMs?: number;
+    /**
+     * Local midnight of the `after:` day: only conversations updated at or after it match.
+     */
+    afterMs?: number;
+}
+
+/**
+ * A `YYYY-MM-DD` that names a real calendar day, as local midnight; undefined for anything else ("2026-02-31").
+ */
+function localDayStart(value: string): number | undefined {
+    const match = DATE_PATTERN.exec(value);
+    if (!match) return undefined;
+    const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
+    const date = new Date(year, month - 1, day);
+    const isReal =
+        date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
+    return isReal ? date.getTime() : undefined;
+}
+
+/**
+ * Splits `agent:`, `project:`, `before:`, and `after:` operators out of a query, as agentsview's search does. An
+ * operator with a value it cannot use (an unknown agent, a malformed or impossible date, an empty project) stays in the
+ * text, so a pasted `agent:foo` is still searchable as words. Repeated `agent:` and `project:` operators widen the
+ * filter; a repeated date keeps the last one.
+ */
+export function parseSessionOperators(query: string): SessionSearchOperators {
+    const agents: AgentProvider[] = [];
+    const projects: string[] = [];
+    let before: string | undefined;
+    let after: string | undefined;
+    let beforeMs: number | undefined;
+    let afterMs: number | undefined;
+    const text = query
+        .replaceAll(
+            OPERATOR_PATTERN,
+            (
+                whole: string,
+                lead: string,
+                name: string,
+                quoted: string | undefined,
+                bare: string | undefined,
+            ) => {
+                const value = (quoted ?? bare ?? '').trim();
+                switch (name.toLowerCase()) {
+                    case 'agent': {
+                        const provider = agentProviderIds.find((id) => id === value.toLowerCase());
+                        if (!provider) return whole;
+                        if (!agents.includes(provider)) agents.push(provider);
+                        return lead;
+                    }
+                    case 'project': {
+                        if (!value || value.length > MAX_PROJECT_FILTER_LENGTH) return whole;
+                        if (projects.length >= MAX_PROJECT_FILTERS) return lead;
+                        const lower = value.toLowerCase();
+                        if (!projects.includes(lower)) projects.push(lower);
+                        return lead;
+                    }
+                    default: {
+                        const start = localDayStart(value);
+                        if (start === undefined) return whole;
+                        if (name.toLowerCase() === 'before') {
+                            before = value;
+                            beforeMs = start;
+                        } else {
+                            after = value;
+                            afterMs = start;
+                        }
+                        return lead;
+                    }
+                }
+            },
+        )
+        .replaceAll(/\s+/gu, ' ')
+        .trim();
+    return {
+        text,
+        filters: {
+            agents,
+            projects,
+            ...(before !== undefined && { before }),
+            ...(after !== undefined && { after }),
+        },
+        ...(beforeMs !== undefined && { beforeMs }),
+        ...(afterMs !== undefined && { afterMs }),
+    };
+}
 
 export interface ParsedSessionQuery {
     /**
@@ -89,19 +201,25 @@ function isFolderMatch(cwd: string, term: string): boolean {
 export function metadataMatch(
     terms: readonly string[],
     fields: { title?: string; cwd?: string; ids: readonly string[] },
+    mode: 'all' | 'any' = 'all',
 ): Exclude<SessionSearchMatchField, 'content' | 'recent'> | undefined {
     const title = fields.title?.toLowerCase() ?? '';
     const cwd = fields.cwd?.toLowerCase() ?? '';
     const ids = fields.ids.map((id) => id.toLowerCase());
+    /**
+     * `any` is the last relaxation step: one matching word is enough, in whichever field holds it.
+     */
+    const holds = (isMatch: (term: string) => boolean) =>
+        mode === 'all' ? terms.every((term) => isMatch(term)) : terms.some((term) => isMatch(term));
     if (
         terms.length === 1 &&
         terms[0].length >= MIN_ID_FRAGMENT_LENGTH &&
         ids.some((id) => id.includes(terms[0]))
     )
         return 'id';
-    if (terms.every((term) => title.includes(term))) return 'title';
-    if (terms.every((term) => isFolderMatch(cwd, term))) return 'path';
-    if (terms.every((term) => title.includes(term) || isFolderMatch(cwd, term))) return 'title';
+    if (holds((term) => title.includes(term))) return 'title';
+    if (holds((term) => isFolderMatch(cwd, term))) return 'path';
+    if (holds((term) => title.includes(term) || isFolderMatch(cwd, term))) return 'title';
     return undefined;
 }
 
