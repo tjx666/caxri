@@ -290,6 +290,9 @@ jobs:
     env:
       CAXRI_EXPECTED_HEAD: ${{ github.sha }}
       CAXRI_RUNNER_AGENT_DISCOVERY: blocked
+      # electron-builder skips code signing on pull request builds. The package is only ad-hoc signed (no certificate),
+      # so sign here too: an ad-hoc signing change otherwise passes the PR and first fails on main.
+      CSC_FOR_PULL_REQUEST: true
     steps:
       - name: Verify hosted runner boundary before checkout
         run: |
