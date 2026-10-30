@@ -51,6 +51,21 @@ When no conversation holds every word, the Server loosens the query one step and
 all). A request may also pass `currentProjectId`; conversations inside that Project (and its Sessions)
 then sort ahead of every other result, and none is dropped.
 
+In the dialog, each parsed operator appears as a removable chip under the filter bar; dismissing a
+chip deletes that operator from the query text. A relaxed search shows a notice above the results
+(`allWords`: "No exact phrase match; showing results containing all words"; `anyWord`: no result
+holds every word). While a Project is selected the dialog sends it as `currentProjectId`, so that
+Project's conversations lead; the "All Projects" toggle (`Option+P`) stops sending it. Each entry
+that belongs to that Project carries `isCurrentProject`. The sort toggle (`Option+S`) switches
+between Relevance (the Server's order) and Recent (newest activity first, current-Project
+conversations still ahead), re-sorting the loaded results without another request. `Tab` and
+`Shift+Tab` keep cycling the Where and Agent filters.
+
+Whitespace is one rule everywhere: any run of spaces, tabs, line breaks, or paragraph breaks in a
+query or a quoted message reads as one space (`normalizeSessionSearchWhitespace`). The query handed
+to Chat find follows it, and Chat find matches a space against any whitespace in the rendered text,
+including the break between two paragraphs, so a sentence pasted across paragraphs finds its message.
+
 A message match quotes the message with every matched term highlighted (the phrase message when
 there is one), prefixed by who wrote it
 (the user or the Agent). A row also shows the Agent,

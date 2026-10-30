@@ -1,8 +1,6 @@
 import type { KeyboardEvent } from 'react';
 import { useEffect, useId } from 'react';
 
-import type { SessionSearchStatusFilter } from '@caxri/protocol';
-import { sessionSearchStatusFilters } from '@caxri/protocol';
 import { Search } from 'lucide-react';
 
 import { LoadingSkeleton } from '../../../components/loading-skeleton';
@@ -11,34 +9,23 @@ import { Dialog, DialogTitle, PickerDialogContent } from '../../../components/ui
 import { Input, InputGroup } from '../../../components/ui/input';
 import { Spinner } from '../../../components/ui/spinner';
 import { useTranslation } from '../../../i18n';
-import { resolveAgentIcon } from '../../../icons/agents/agent-icon-registry';
-import { AgentIdentityIcon } from '../../../icons/agents/agent-identity-icon';
 import { isImeComposing } from '../../../lib/ime';
 import { setSessionSearchOpen, useDialogStore } from '../../../stores/dialogs';
 import { runSessionSearchAction } from './session-search-commands';
+import { SessionSearchFilters } from './session-search-filters';
 import {
     hasActiveSearchFilters,
     nextProviderFilter,
     nextSelectionIndex,
     nextStatusFilter,
     sessionSearchIndexLabel,
-    sessionSearchProviders,
+    sessionSearchRelaxationNoticeKey,
 } from './session-search-model';
 import { SessionSearchPreview } from './session-search-preview';
 import { SessionSearchResults } from './session-search-results';
 import type { SessionSearchModel } from './use-session-search';
 import { useSessionSearch } from './use-session-search';
 import { useSessionSearchPreview } from './use-session-search-preview';
-
-const chipClassName =
-    'flex h-6 cursor-pointer items-center gap-1 rounded border-0 bg-transparent px-2 text-[12px] text-muted hover:bg-elevated hover:text-foreground aria-pressed:bg-elevated aria-pressed:text-foreground';
-
-const statusFilterLabelKeys = {
-    all: 'session.search.filter.all',
-    caxri: 'session.search.filter.caxri',
-    archived: 'session.search.filter.archived',
-    external: 'session.search.filter.external',
-} as const satisfies Record<SessionSearchStatusFilter, string>;
 
 /**
  * Session search (`Command+Shift+S`): every Agent conversation on this machine, open, archived, or never in Caxri,
@@ -99,6 +86,23 @@ function SessionSearchBody() {
             else search.setStatus(nextStatusFilter(search.status, 1));
             return;
         }
+        // Alt+S and Alt+P are read from the physical key: on macOS Option+letter types a different character.
+        if (event.altKey && !event.metaKey && !event.ctrlKey && event.code === 'KeyS') {
+            event.preventDefault();
+            search.setSort(search.sort === 'relevance' ? 'recent' : 'relevance');
+            return;
+        }
+        if (
+            event.altKey &&
+            !event.metaKey &&
+            !event.ctrlKey &&
+            event.code === 'KeyP' &&
+            search.hasCurrentProject
+        ) {
+            event.preventDefault();
+            search.setScope(search.scope === 'currentProject' ? 'allProjects' : 'currentProject');
+            return;
+        }
         if (selected && event.key === 'Enter') {
             event.preventDefault();
             void runSessionSearchAction(selected, search.searchedQuery);
@@ -155,6 +159,7 @@ function SessionSearchBody() {
                 <span>{t('session.search.helpAction')}</span>
                 <span>{t('session.search.helpMatch')}</span>
                 <span>{t('session.search.helpFilter')}</span>
+                <span>{t('session.search.helpSort')}</span>
                 {search.result && (
                     <span
                         className="ml-auto truncate"
@@ -168,58 +173,6 @@ function SessionSearchBody() {
                 )}
             </div>
         </>
-    );
-}
-
-function SessionSearchFilters({ search }: { search: SessionSearchModel }) {
-    const { t } = useTranslation();
-    return (
-        <div className="flex flex-wrap items-center gap-1">
-            <div
-                aria-label={t('session.search.statusFilter')}
-                className="flex gap-0.5"
-                role="group"
-            >
-                {sessionSearchStatusFilters.map((filter) => (
-                    <button
-                        key={filter}
-                        aria-pressed={search.status === filter}
-                        className={chipClassName}
-                        data-session-search-status-filter={filter}
-                        type="button"
-                        onClick={() => search.setStatus(filter)}
-                    >
-                        {t(statusFilterLabelKeys[filter])}
-                    </button>
-                ))}
-            </div>
-            <span aria-hidden="true" className="mx-1 h-4 w-px bg-border" />
-            <div aria-label={t('session.search.agentFilter')} className="flex gap-0.5" role="group">
-                <button
-                    aria-pressed={search.provider === undefined}
-                    className={chipClassName}
-                    type="button"
-                    onClick={() => search.setProvider(undefined)}
-                >
-                    {t('session.search.allAgents')}
-                </button>
-                {sessionSearchProviders.map((provider) => (
-                    <button
-                        key={provider}
-                        aria-pressed={search.provider === provider}
-                        className={chipClassName}
-                        data-session-search-provider-filter={provider}
-                        type="button"
-                        onClick={() =>
-                            search.setProvider(search.provider === provider ? undefined : provider)
-                        }
-                    >
-                        <AgentIdentityIcon identity={provider} size={12} />
-                        {resolveAgentIcon(provider).label}
-                    </button>
-                ))}
-            </div>
-        </div>
     );
 }
 
@@ -269,14 +222,26 @@ function SessionSearchContent({
                 )}
             </div>
         );
+    const relaxedKey = sessionSearchRelaxationNoticeKey(search.result?.relaxation);
     return (
-        <SessionSearchResults
-            entries={search.entries}
-            query={search.searchedQuery}
-            id={resultsId}
-            rowId={rowId}
-            selectedIndex={search.selectedIndex}
-            onSelect={search.setSelectedIndex}
-        />
+        <>
+            {relaxedKey && (
+                <div
+                    className="flex-none border-b border-border bg-elevated px-3 py-1.5 text-[12px] text-muted"
+                    data-session-search-relaxation={search.result?.relaxation}
+                    role="status"
+                >
+                    {t(relaxedKey)}
+                </div>
+            )}
+            <SessionSearchResults
+                entries={search.entries}
+                query={search.searchedQuery}
+                id={resultsId}
+                rowId={rowId}
+                selectedIndex={search.selectedIndex}
+                onSelect={search.setSelectedIndex}
+            />
+        </>
     );
 }

@@ -17,28 +17,40 @@ import {
 } from '../agent-chat-find';
 
 describe('agentChatFindOccurrences', () => {
+    const starts = (text: string, query: string) =>
+        agentChatFindOccurrences(text, query).map(({ index }) => index);
+
     it('finds every occurrence ignoring case, without overlaps', () => {
-        expect(agentChatFindOccurrences('Alpha alpha ALPHA', 'alpha')).toEqual([0, 6, 12]);
-        expect(agentChatFindOccurrences('aaaa', 'aa')).toEqual([0, 2]);
+        expect(starts('Alpha alpha ALPHA', 'alpha')).toEqual([0, 6, 12]);
+        expect(starts('aaaa', 'aa')).toEqual([0, 2]);
     });
 
     it('treats the query as text, not a pattern', () => {
-        expect(agentChatFindOccurrences('a.b axb (c)', 'a.b')).toEqual([0]);
-        expect(agentChatFindOccurrences('call (c)', '(c)')).toEqual([5]);
+        expect(starts('a.b axb (c)', 'a.b')).toEqual([0]);
+        expect(starts('call (c)', '(c)')).toEqual([5]);
     });
 
     it('keeps offsets aligned for characters whose case forms differ in length', () => {
-        expect(agentChatFindOccurrences('İstanbul and istanbul', 'istanbul')).toEqual([13]);
+        expect(starts('İstanbul and istanbul', 'istanbul')).toEqual([13]);
     });
 
     it('matches a typed space against the no-break spaces a colorized code block renders', () => {
-        expect(
-            agentChatFindOccurrences('add "Call\u{A0}Alice at\u{A0}3pm"', 'call alice at 3pm'),
-        ).toEqual([5]);
+        expect(starts('add "Call\u{A0}Alice at\u{A0}3pm"', 'call alice at 3pm')).toEqual([5]);
     });
 
-    it('finds nothing for an empty query', () => {
-        expect(agentChatFindOccurrences('anything', '')).toEqual([]);
+    it('matches a space against line breaks and paragraph breaks, reporting the text covered', () => {
+        expect(agentChatFindOccurrences('one\n\ntwo three', 'one two')).toEqual([
+            { index: 0, length: 8 },
+        ]);
+        // A pasted query that carries its own line breaks is the same phrase.
+        expect(agentChatFindOccurrences('one two', 'one\n\n  two')).toEqual([
+            { index: 0, length: 7 },
+        ]);
+    });
+
+    it('finds nothing for an empty or blank query', () => {
+        expect(starts('anything', '')).toEqual([]);
+        expect(starts('anything', ' \n ')).toEqual([]);
     });
 });
 

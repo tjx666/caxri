@@ -1,33 +1,47 @@
 import { createContext } from 'react';
 
+import { normalizeSessionSearchWhitespace } from '@caxri/protocol';
 import { escapeRegExp, throttle } from 'es-toolkit';
 
 import type { Translate } from '../../../i18n';
 import type { AgentChatTimelineEntry } from '../transcript/agent-chat-timeline';
 
 /**
- * A typed space also matches a no-break space: Monaco's `colorize` paints every space in a fenced code block as
- * `&nbsp;`, so a phrase copied from a code block (copying turns them back into spaces) would otherwise never match it.
+ * Whitespace in rendered text: a space, a no-break space (Monaco's `colorize` paints every space in a fenced code block
+ * as `&nbsp;`), or a line break inside a text node.
  */
-const SPACE_PATTERN = / /gu;
+const TEXT_WHITESPACE = String.raw`[\s\u00a0]+`;
+
+/**
+ * One match of a find query: where it starts in the text and how long the text it covers is. The length differs from
+ * the query's when the text spaces the words differently, for example with a line break.
+ */
+export interface AgentChatFindOccurrence {
+    index: number;
+    length: number;
+}
 
 /**
  * Where each occurrence of `query` starts in `text`, ignoring case, without overlaps. Case-insensitive matching through
  * a regular expression keeps offsets aligned with `text`, which lowercasing both sides would not for characters whose
- * lowercase form has another length.
+ * lowercase form has another length. Any run of whitespace in the query matches any run of whitespace in the text, the
+ * rule {@link normalizeSessionSearchWhitespace} gives a query handed over by Session search.
  */
-export function agentChatFindOccurrences(text: string, query: string): number[] {
-    if (!query) return [];
+export function agentChatFindOccurrences(text: string, query: string): AgentChatFindOccurrence[] {
+    const words = normalizeSessionSearchWhitespace(query).split(' ').filter(Boolean);
+    if (words.length === 0) return [];
+    const pattern = new RegExp(
+        words.map((word) => escapeRegExp(word)).join(TEXT_WHITESPACE),
+        'giu',
+    );
     return text
-        .matchAll(
-            new RegExp(escapeRegExp(query).replaceAll(SPACE_PATTERN, String.raw`[ \u00a0]`), 'giu'),
-        )
-        .map((match) => match.index)
+        .matchAll(pattern)
+        .map((match) => ({ index: match.index, length: match[0].length }))
         .toArray();
 }
 
 /**
- * One text node's span in the text of the block it belongs to.
+ * One text node's span in the text searched.
  */
 export interface AgentChatFindSpan {
     start: number;
@@ -45,8 +59,22 @@ export function locateAgentChatFindMatch(
     length: number,
 ): { start: [number, number]; end: [number, number] } | undefined {
     const end = offset + length;
-    const startIndex = spans.findIndex((span) => offset < span.end);
-    const endIndex = spans.findIndex((span) => end <= span.end);
+    /**
+     * The spans of a whole conversation are sorted, so each end is a binary search rather than a scan per match.
+     */
+    const firstSpanEndingAfter = (position: number, isInclusive: boolean): number => {
+        let low = 0;
+        let high = spans.length;
+        while (low < high) {
+            const middle = (low + high) >>> 1;
+            const spanEnd = spans[middle].end;
+            if (isInclusive ? position <= spanEnd : position < spanEnd) high = middle;
+            else low = middle + 1;
+        }
+        return low === spans.length ? -1 : low;
+    };
+    const startIndex = firstSpanEndingAfter(offset, false);
+    const endIndex = firstSpanEndingAfter(end, true);
     if (startIndex === -1 || endIndex === -1) return undefined;
     return {
         start: [startIndex, offset - spans[startIndex].start],
@@ -195,7 +223,7 @@ export function createAgentChatFindRepaintScheduler(repaint: () => void): {
 const IGNORED_SELECTOR = '.sr-only, [hidden], [inert], svg, [data-agent-chat-find-ignore]';
 
 /**
- * Elements that start a new run of text: a match never spans two paragraphs, list items, or code blocks.
+ * Elements that start a new run of text, separated from their neighbours by one space.
  */
 const BLOCK_TAGS = new Set([
     'ARTICLE',
@@ -231,11 +259,11 @@ export function collectAgentChatFindRanges(container: HTMLElement, query: string
     if (!query) return [];
     const ranges: StaticRange[] = [];
     let text = '';
-    let nodes: Text[] = [];
-    let spans: AgentChatFindSpan[] = [];
-    const flush = (): void => {
-        for (const offset of agentChatFindOccurrences(text, query)) {
-            const located = locateAgentChatFindMatch(spans, offset, query.length);
+    const nodes: Text[] = [];
+    const spans: AgentChatFindSpan[] = [];
+    const collect = (): void => {
+        for (const { index, length } of agentChatFindOccurrences(text, query)) {
+            const located = locateAgentChatFindMatch(spans, index, length);
             const startNode = located && nodes[located.start[0]];
             const endNode = located && nodes[located.end[0]];
             if (!located || !startNode || !endNode) continue;
@@ -248,9 +276,13 @@ export function collectAgentChatFindRanges(container: HTMLElement, query: string
                 }),
             );
         }
-        text = '';
-        nodes = [];
-        spans = [];
+    };
+    /**
+     * A block boundary reads as one space: a phrase copied across paragraphs, list items, or code blocks matches, while
+     * a single word never does. The space belongs to no text node, so a match can neither start nor end on it.
+     */
+    const separate = (): void => {
+        if (text !== '' && !text.endsWith(' ')) text += ' ';
     };
     const visit = (node: Node): void => {
         if (node instanceof Text) {
@@ -262,12 +294,12 @@ export function collectAgentChatFindRanges(container: HTMLElement, query: string
         }
         if (!(node instanceof Element) || node.matches(IGNORED_SELECTOR)) return;
         const isBlock = BLOCK_TAGS.has(node.tagName);
-        if (isBlock) flush();
+        if (isBlock) separate();
         for (const child of node.childNodes) visit(child);
-        if (isBlock) flush();
+        if (isBlock) separate();
     };
     visit(container);
-    flush();
+    collect();
     return ranges;
 }
 

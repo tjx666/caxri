@@ -114,17 +114,18 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 - **Session search**: Cross-Agent discovery with one adapter per provider; trigram FTS5 with a short-term substring fallback; title hits ranked above content hits. Evidence: `docs/session-search.md`.
 - **Session search lands on the match**: Opening a message match scrolls to and highlights the matched message. Evidence: `docs/session-search.md`.
 - **Session search preview pane**: The selected result's matched message with its neighbours shown beside the list without opening it (also: Orca). Evidence: `docs/session-search.md`.
-- **Session search relaxation**: Phrase, then all words, then any word when a stricter query finds nothing; Caxri reports the level used in the result (also: Orca). Evidence: `docs/session-search.md`; `apps/server/src/domains/agents/session-search/engine.ts`.
+- **Session search relaxation**: Phrase, then all words, then any word when a stricter query finds nothing; Caxri reports the level used in the result (also: Orca) and the dialog explains a loosened search in a notice. Evidence: `docs/session-search.md`; `apps/server/src/domains/agents/session-search/engine.ts`; `apps/desktop/src/renderer/src/features/session/session-search/session-search-dialog.tsx`.
 
 ## agentsview (MIT)
 
 - **Session search**: Appended JSONL resumed from a recorded byte offset instead of re-read. Evidence: `docs/session-search.md`.
 - **Session search lands on the match**: Scroll to the matched message, then find with next and previous. Evidence: `docs/session-search.md`.
-- **Session search operators**: `agent:`, `project:`, `before:`, and `after:` query prefixes, parsed out of the text (ideas only, no code; also: cmux). Evidence: `docs/session-search.md`; `apps/server/src/domains/agents/session-search/query.ts`.
+- **Session search operators**: `agent:`, `project:`, `before:`, and `after:` query prefixes, parsed out of the text (ideas only, no code; also: cmux); the dialog shows each parsed operator as a removable chip. Evidence: `docs/session-search.md`; `apps/server/src/domains/agents/session-search/query.ts`; `apps/desktop/src/renderer/src/features/session/session-search/session-search-filters.tsx`.
 
 ## agent-sessions (MIT)
 
-- **Session search current-Project ranking**: Results from the Project the user works in rank first without hiding the rest (a ranking hint, not a scope). Evidence: `docs/session-search.md`; `apps/server/src/domains/agents/session-search/engine.ts`.
+- **Session search current-Project ranking**: Results from the Project the user works in rank first without hiding the rest (a ranking hint, not a scope), with an All Projects toggle. Evidence: `docs/session-search.md`; `apps/server/src/domains/agents/session-search/engine.ts`.
+- **Session search sort toggle**: Relevance or Recent ordering of the result list, switched from the filter bar or with `Option+S`. Evidence: `docs/session-search.md`; `apps/desktop/src/renderer/src/features/session/session-search/session-search-model.ts`.
 
 ## T3 Code (MIT)
 

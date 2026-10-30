@@ -1,6 +1,8 @@
 import type {
     AgentProvider,
     SessionSearchEntry,
+    SessionSearchFilters,
+    SessionSearchRelaxation,
     SessionSearchResult,
     SessionSearchSnippet,
     SessionSearchStatusFilter,
@@ -8,6 +10,8 @@ import type {
 import {
     agentProviderIds,
     normalizeSessionSearchText,
+    normalizeSessionSearchWhitespace,
+    SESSION_SEARCH_OPERATOR_PATTERN,
     sessionSearchStatusFilters,
 } from '@caxri/protocol';
 
@@ -82,10 +86,10 @@ export function sessionSearchFindQuery(
     const { snippet } = entry.match;
     if (!snippet || !entry.agentSessionId) return undefined;
     const phrase = phraseInText(
-        snippet.text.replaceAll(/\s+/gu, ' '),
+        normalizeSessionSearchWhitespace(snippet.text),
         normalizeSessionSearchText(query),
     );
-    if (phrase) return phrase;
+    if (phrase) return normalizeSessionSearchWhitespace(phrase);
     return snippetSegments(snippet)
         .filter((segment) => segment.isMatch)
         .map((segment) => segment.text)
@@ -184,4 +188,103 @@ export function retainedSelectionIndex(
         0,
         entries.findIndex((entry) => entry.key === selectedKey),
     );
+}
+
+/**
+ * How the result list is ordered: the Server's ranking, or newest conversation first.
+ */
+export const sessionSearchSorts = ['relevance', 'recent'] as const;
+export type SessionSearchSort = (typeof sessionSearchSorts)[number];
+
+/**
+ * Whether results from the current Project lead the list (the Server's hint) or every Project ranks alike.
+ */
+export const sessionSearchScopes = ['currentProject', 'allProjects'] as const;
+export type SessionSearchScope = (typeof sessionSearchScopes)[number];
+
+/**
+ * Orders the Server's results. Relevance keeps the Server's order. Recent sorts by last activity, newest first, and
+ * keeps current-Project conversations ahead of the rest, so the scope toggle means the same under both sorts.
+ */
+export function sortSessionSearchEntries(
+    entries: readonly SessionSearchEntry[],
+    sort: SessionSearchSort,
+): readonly SessionSearchEntry[] {
+    if (sort === 'relevance') return entries;
+    return entries.toSorted(
+        (left, right) =>
+            Number(right.isCurrentProject ?? false) - Number(left.isCurrentProject ?? false) ||
+            right.updatedAt - left.updatedAt,
+    );
+}
+
+/**
+ * One filter operator the Server parsed out of the query, shown as a removable chip.
+ */
+export interface SessionSearchFilterChip {
+    /**
+     * Stable identity: kind plus value.
+     */
+    key: string;
+    kind: 'agent' | 'project' | 'before' | 'after';
+    value: string;
+}
+
+/**
+ * The chips for a result's parsed operators, in the order the filter bar reads them.
+ */
+export function sessionSearchFilterChips(
+    filters: SessionSearchFilters | undefined,
+): SessionSearchFilterChip[] {
+    if (!filters) return [];
+    const chip = (kind: SessionSearchFilterChip['kind'], value: string) => ({
+        key: `${kind}:${value}`,
+        kind,
+        value,
+    });
+    return [
+        ...filters.agents.map((agent) => chip('agent', agent)),
+        ...filters.projects.map((project) => chip('project', project)),
+        ...(filters.after === undefined ? [] : [chip('after', filters.after)]),
+        ...(filters.before === undefined ? [] : [chip('before', filters.before)]),
+    ];
+}
+
+/**
+ * The query without the operator a chip stands for. Agent and Project operators match by value (the Server lower-cases
+ * both); a date operator is removed whatever its date, since a repeated date keeps only the last one. Operators the
+ * Server did not recognize are plain words and stay.
+ */
+export function removeSessionSearchOperator(query: string, chip: SessionSearchFilterChip): string {
+    const removed = query.replaceAll(
+        SESSION_SEARCH_OPERATOR_PATTERN,
+        (
+            whole: string,
+            lead: string,
+            name: string,
+            quoted: string | undefined,
+            bare: string | undefined,
+        ) => {
+            if (name.toLowerCase() !== chip.kind) return whole;
+            const isDate = chip.kind === 'before' || chip.kind === 'after';
+            const value = (quoted ?? bare ?? '').trim().toLowerCase();
+            return isDate || value === chip.value.toLowerCase() ? lead : whole;
+        },
+    );
+    return normalizeSessionSearchWhitespace(removed);
+}
+
+const relaxationNoticeKeys = {
+    phrase: undefined,
+    allWords: 'session.search.relaxed.allWords',
+    anyWord: 'session.search.relaxed.anyWord',
+} as const satisfies Record<SessionSearchRelaxation, string | undefined>;
+
+/**
+ * The notice explaining a loosened search, or undefined when the query was matched as typed.
+ */
+export function sessionSearchRelaxationNoticeKey(
+    relaxation: SessionSearchRelaxation | undefined,
+): 'session.search.relaxed.allWords' | 'session.search.relaxed.anyWord' | undefined {
+    return relaxation && relaxationNoticeKeys[relaxation];
 }

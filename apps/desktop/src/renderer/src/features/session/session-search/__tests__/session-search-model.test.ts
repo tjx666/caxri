@@ -5,12 +5,16 @@ import {
     hasActiveSearchFilters,
     nextProviderFilter,
     nextStatusFilter,
+    removeSessionSearchOperator,
     retainedSelectionIndex,
     sessionSearchAction,
+    sessionSearchFilterChips,
     sessionSearchFindQuery,
     sessionSearchIndexLabel,
+    sessionSearchRelaxationNoticeKey,
     shortFolder,
     snippetSegments,
+    sortSessionSearchEntries,
     steppedMatchIndex,
 } from '../session-search-model';
 
@@ -69,6 +73,77 @@ describe('Session search model', () => {
         // A query typed without the message's spaces finds the phrase as the message writes it.
         expect(sessionSearchFindQuery(entry, 'only21tokens')).toBe('only 21 tokens');
         expect(sessionSearchFindQuery(base, 'probe')).toBeUndefined();
+    });
+
+    it('treats line breaks in a snippet and in the query like spaces when handing off the phrase', () => {
+        const entry: SessionSearchEntry = {
+            ...base,
+            match: {
+                field: 'content',
+                snippet: {
+                    role: 'assistant',
+                    text: 'The first paragraph ends here.\n\nThe second one starts there.',
+                    highlights: [],
+                },
+            },
+        };
+        expect(sessionSearchFindQuery(entry, 'ends here.\n\nThe second')).toBe(
+            'ends here. The second',
+        );
+    });
+
+    it('lists the parsed operators as chips and removes one from the query text', () => {
+        const chips = sessionSearchFilterChips({
+            agents: ['codex'],
+            projects: ['two words'],
+            before: '2026-10-01',
+        });
+        expect(chips.map(({ key }) => key)).toEqual([
+            'agent:codex',
+            'project:two words',
+            'before:2026-10-01',
+        ]);
+        const query = 'agent:codex invoice project:"Two Words" before:2026-10-01 rounding';
+        expect(removeSessionSearchOperator(query, chips[0])).toBe(
+            'invoice project:"Two Words" before:2026-10-01 rounding',
+        );
+        expect(removeSessionSearchOperator(query, chips[1])).toBe(
+            'agent:codex invoice before:2026-10-01 rounding',
+        );
+        expect(removeSessionSearchOperator(query, chips[2])).toBe(
+            'agent:codex invoice project:"Two Words" rounding',
+        );
+        // An operator the Server left as plain words has no chip and stays.
+        expect(removeSessionSearchOperator('agent:foo agent:claude x', chips[0])).toBe(
+            'agent:foo agent:claude x',
+        );
+        expect(sessionSearchFilterChips(undefined)).toEqual([]);
+    });
+
+    it('sorts recent first while keeping current-Project conversations ahead', () => {
+        const entry = (key: string, updatedAt: number, isCurrentProject?: true) => ({
+            ...base,
+            key,
+            updatedAt,
+            ...(isCurrentProject && { isCurrentProject }),
+        });
+        const entries = [entry('a', 1, true), entry('b', 9), entry('c', 5, true), entry('d', 7)];
+        expect(sortSessionSearchEntries(entries, 'relevance')).toBe(entries);
+        expect(sortSessionSearchEntries(entries, 'recent').map(({ key }) => key)).toEqual([
+            'c',
+            'a',
+            'b',
+            'd',
+        ]);
+    });
+
+    it('explains only a relaxed search', () => {
+        expect(sessionSearchRelaxationNoticeKey('phrase')).toBeUndefined();
+        expect(sessionSearchRelaxationNoticeKey(undefined)).toBeUndefined();
+        expect(sessionSearchRelaxationNoticeKey('allWords')).toBe(
+            'session.search.relaxed.allWords',
+        );
+        expect(sessionSearchRelaxationNoticeKey('anyWord')).toBe('session.search.relaxed.anyWord');
     });
 
     it('splits a snippet at its highlights and clamps bad ranges', () => {

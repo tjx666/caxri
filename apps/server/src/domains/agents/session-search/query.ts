@@ -9,6 +9,7 @@ import {
     agentProviderIds,
     MAX_SESSION_SEARCH_PREVIEW_MESSAGE_CHARACTERS,
     normalizeSessionSearchText,
+    SESSION_SEARCH_OPERATOR_PATTERN,
 } from '@caxri/protocol';
 
 /**
@@ -34,11 +35,6 @@ const SCRIPT_RUN_PATTERN =
 
 const MAX_PROJECT_FILTERS = 8;
 const MAX_PROJECT_FILTER_LENGTH = 200;
-/**
- * `name:value` or `name:"value with spaces"` at the start of the query or after whitespace. A colon inside a word
- * ("http://", "error:42") never starts an operator because only the four names qualify.
- */
-const OPERATOR_PATTERN = /(^|\s)(agent|project|before|after):(?:"([^"]*)"|(\S+))/giu;
 const DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/u;
 
 export interface SessionSearchOperators {
@@ -88,7 +84,7 @@ export function parseSessionOperators(query: string): SessionSearchOperators {
     let afterMs: number | undefined;
     const text = query
         .replaceAll(
-            OPERATOR_PATTERN,
+            SESSION_SEARCH_OPERATOR_PATTERN,
             (
                 whole: string,
                 lead: string,
