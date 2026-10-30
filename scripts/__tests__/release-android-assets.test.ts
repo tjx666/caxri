@@ -3,9 +3,10 @@ import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import process from 'node:process';
 
+import { mobileReleaseApkUrl } from '@caxri/protocol';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 
@@ -89,6 +90,12 @@ describe('Android Release assets', () => {
                 `cd release.noindex/mobile && shasum -a 256 -c Caxri-Mobile-${version}-android-arm64.apk.sha256`,
             ).status,
         ).not.toBe(0);
+    });
+
+    it('publishes the APK under the name a Relay-connected phone downloads its update from', () => {
+        const name = basename(new URL(mobileReleaseApkUrl(version)).pathname);
+        expect(name).toBe(basename(apk));
+        expect(step('Verify release artifact').run).toContain(name.replace(version, '${version}'));
     });
 
     it('refuses to publish an incomplete asset set when the Android APK is missing', async () => {

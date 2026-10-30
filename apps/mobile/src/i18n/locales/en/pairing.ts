@@ -60,4 +60,5 @@ export const pairing = {
         'Your saved pairing is still on this phone. Try reading it again. If it keeps failing, clear Caxri Mobile data in your phone system settings and pair again.',
     'pairing.storageError.retryHint': 'Reads the saved pairing again.',
     'pairing.storageError.title': "Could not read this phone's pairing",
+    'pairing.version': 'Version {{version}}',
 } as const;

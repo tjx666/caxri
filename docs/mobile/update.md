@@ -40,7 +40,8 @@ IPA; distributing to iPhones requires a separate Apple signing and distribution 
    available** banner with **Later** and **Update**. **Later** hides the banner for that version
    only; Settings keeps an **Update to X** row below **Version** for the whole time an update exists.
 3. **Update** downloads the APK from Desktop over the LAN with a progress percentage, verifies its
-   size and MD5, and opens the Android package installer. Android asks once for the
+   size and MD5, and opens the Android package installer. Over the Relay it downloads the same APK
+   from that version's GitHub Release instead (see [Transport](#transport)). Android asks once for the
    "install unknown apps" permission for Caxri.
 4. A failed or incomplete download says so and offers **Retry**; nothing is installed.
 5. When a Desktop upgrade raised the mobile transport version, the phone's reconnect is refused
@@ -66,6 +67,11 @@ APK in 64 KiB frames with pure-JS crypto is too slow on a phone.
   returns `http://<gateway address>:<port>/mobile/update/<token>` on the gateway's existing HTTP
   server. The token lives ten minutes, is replaced by the next prepare from the same device, and is
   revoked with the device or when the gateway stops. At most two downloads stream at once.
+- Over the Relay, the gateway has no address the phone can reach, so `mobile.update.prepare`
+  returns the `Caxri-Mobile-<version>-android-arm64.apk` asset of that version's public GitHub
+  Release instead. It is the exact APK the Desktop build embeds, so the same MD5 check applies. A
+  build that was never published as a Release has no such asset, and the download fails with
+  **Retry**. Update recovery stays direct-only.
 - The MD5 arrives over the sealed channel and is checked after download. Tamper resistance comes
   from Android itself: an upgrade must carry the installed app's signing certificate, which only
   the private release key produces.

@@ -34,13 +34,22 @@ export const mobileUpdateCheckResultSchema = z.strictObject({
 });
 
 /**
- * `url` is a short-lived plain-HTTP address on the gateway endpoint the phone is already connected to. The unguessable
- * token in its path is the only authority, so it is issued exclusively over the sealed channel.
+ * The public GitHub Release asset for `version`. Every release publishes the exact release-signed APK it embeds in the
+ * Desktop build, so a phone that cannot reach the gateway's HTTP endpoint (a Relay connection) downloads the same bytes
+ * there and still verifies them against the sealed MD5.
+ */
+export const mobileReleaseApkUrl = (version: string): string =>
+    `https://github.com/tjx666/caxri/releases/download/v${version}/Caxri-Mobile-${version}-android-arm64.apk`;
+
+/**
+ * Over a direct connection, `url` is a short-lived plain-HTTP address on the gateway endpoint the phone is already
+ * connected to; the unguessable token in its path is the only authority, so it is issued exclusively over the sealed
+ * channel. Over the Relay, the gateway has no address the phone can reach, so `url` is {@link mobileReleaseApkUrl}.
  */
 export const mobileUpdatePrepareResultSchema = z.strictObject({
     bundle: mobileUpdateBundleSchema,
     expiresAt: z.number().int().positive(),
-    url: z.url({ protocol: /^http$/u }).max(2_048),
+    url: z.url({ protocol: /^https?$/u }).max(2_048),
 });
 
 const noParameters = z.strictObject({}).default({});

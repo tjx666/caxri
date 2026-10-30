@@ -3,6 +3,7 @@ import { createReadStream } from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { pipeline } from 'node:stream/promises';
 
+import { mobileReleaseApkUrl } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
@@ -90,6 +91,17 @@ export class MobileUpdateDownloads {
         const expiresAt = this.#options.now() + MOBILE_UPDATE_DOWNLOAD_TTL_MS;
         this.#grants.set(token, { ...identity, expiresAt, source });
         return { expiresAt, url: `${origin}/mobile/update/${token}` };
+    }
+
+    /**
+     * A Relay connection cannot reach the gateway's plain-HTTP endpoint, so it downloads the same release-signed APK
+     * from its public GitHub Release instead and still checks it against the sealed MD5. No token is issued.
+     */
+    releaseAsset(source: MobileUpdateSource): { expiresAt: number; url: string } {
+        return {
+            expiresAt: this.#options.now() + MOBILE_UPDATE_DOWNLOAD_TTL_MS,
+            url: mobileReleaseApkUrl(source.bundle.version),
+        };
     }
 
     revokeDevice(deviceId: string): void {
