@@ -969,9 +969,8 @@ Request`, `agentChat.focusWaitingRequest`, bound to Cmd+Alt+W, unfolds it and mo
   for a shell without integration, after five seconds (`terminal-prompt-input.ts`). The first Run
   splits a pane below the Chat; later Runs add tabs to that pane while it stays open. `console`
   and `fish` fences stay copy-only, since one mixes prompts with output and the other is not the
-  user's shell syntax. Under a finished reply, Copy message, the time the reply began, and the turn's
-  generation speed and estimated cost (`62 tok/s`, then `0.42` behind a dollar glyph) mount only while
-  the pointer is over the reply or focus is inside it, the latest reply included
+  user's shell syntax. Under a finished reply, Copy message and the time the reply began mount only
+  while the pointer is over the reply or focus is inside it, the latest reply included
   (`agent-chat-reply-frame.tsx`); the row keeps its height, so revealing it never shifts the
   transcript. Option+ArrowUp and Option+ArrowDown step focus between replies and user messages,
   which reveals each one's row. Right-clicking a reply opens a native menu with Copy Message; with
@@ -983,9 +982,13 @@ Request`, `agentChat.focusWaitingRequest`, bound to Cmd+Alt+W, unfolds it and mo
   inside the turn's window), and the cost is the turn's `turnUsage` captured at its end. A turn
   replayed from provider history, or one too short to rate, shows only what it has. The same
   record also freezes the turn's steps and total tokens (`requests`, `totalTokens`), so the turn's
-  `Worked for` fold row ends with the status row's steps, tokens, and cost figures (zero figures
-  and an unpriced cost left out) after the turn finishes, interrupted or failed ones included,
-  and after a restart; the row that closes a steered turn carries them once.
+  `Worked for` fold row ends with the turn's figures after it finishes, interrupted or failed ones
+  included, and after a restart; the row that closes a steered turn carries them once. They show
+  while the pointer or focus is on the row, in the composer strip's order: the subagents the turn
+  started (a `Bot` glyph and the count; one opens its tab, several open a menu), steps, tokens,
+  cost, and the output rate last (zero figures and an unpriced cost left out). The rate's glyph is
+  the service tier most of the turn's responses ran on (the record's `speed`: `Rabbit` fast, `Gauge`
+  standard or unrecorded, `Turtle` flex), not a threshold on the number.
 - Message times follow the Codex app. A centered day break (`Today 17:59`, `Yesterday 09:12`,
   `Oct 3 17:59`) heads the first user message of each day. Under a user message, a hover row shows
   its time and Copy message, mounted only while the pointer or focus is on the message; the row keeps
@@ -1009,7 +1012,9 @@ Request`, `agentChat.focusWaitingRequest`, bound to Cmd+Alt+W, unfolds it and mo
   pages read, so nothing goes missing between them. Earlier messages are read-only: they offer
   no Edit, Fork, or Restore, because those act on the projection.
 - From the second user message, a message rail sits at the pane's left edge: one tick per user
-  message, the one being read longer and brighter. Hovering a tick, or focusing it from the
+  message, the one being read longer and brighter. The rail stays hidden until the pointer reaches
+  that left gutter or keyboard focus enters it, so it never competes with the reply being read
+  (`rail/hooks/use-is-agent-chat-rail-gutter-hovered.ts`). Hovering a tick, or focusing it from the
   keyboard, opens one fixed-size preview card beside it: the message's first line (or first
   sentence) as the title, up to three lines of what follows, and a corner badge naming the kind of
   message (sent by you, steered, a delegated task, or images only). The title and body never repeat

@@ -210,7 +210,7 @@ function StatusBarContext({
             )}
             {/*
              * No "No Project selected" placeholder: the only way to reach this state is an empty Workbench, where
-             * the PrimarySidebar already offers "Add your first Project" at full size. Restating it in the status bar
+             * the Welcome view already offers Add Project as its one button. Restating it in the status bar
              * says nothing new and gives the emptiest screen its most prominent line of prose.
              */}
             {sessionId && <WorkbenchRootPicker branch={repo?.branch} sessionId={sessionId} />}

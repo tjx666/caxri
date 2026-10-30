@@ -2,9 +2,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 
 import type { ProjectRecord, SessionRecord } from '@caxri/protocol';
 import { defaultAppSettings, isPinnedSession, SESSION_REVEAL_STEP } from '@caxri/protocol';
-import { Plus } from 'lucide-react';
 
-import { executeCommand } from '../../commands/execute';
 import { useScrollEdge } from '../../hooks/use-scroll-edge';
 import { useTranslation } from '../../i18n';
 import {
@@ -39,7 +37,6 @@ import { sessionWorktreeProject, topLevelProjects } from './project-visibility';
 import { SessionSelectionGlideFill } from './session-selection-glide-fill';
 
 const NO_RECORDS: never[] = [];
-const onAddProject = (): void => executeCommand('project.create');
 
 /**
  * The Primary Side Bar's default body: every Project the user added, each holding its Sessions in the order they
@@ -314,13 +311,11 @@ export function PrimarySidebarProjectTree() {
                         worktreeProjects={worktreeProjects}
                     />
                 </div>
+                {/* The Welcome view beside it holds the one Add Project button; the sidebar only says why it is empty. */}
                 {projects.length === 0 && (
-                    <button
-                        className="first-session flex min-h-[72px] w-full cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-border bg-transparent p-4 text-muted hover:border-muted hover:text-foreground"
-                        onClick={onAddProject}
-                    >
-                        <Plus size={16} /> {t('primarySidebar.tree.addFirstProject')}
-                    </button>
+                    <p className="m-0 px-2 py-1.5 text-[12px] text-muted">
+                        {t('primarySidebar.tree.noProjects')}
+                    </p>
                 )}
                 <div className="project-order-announcement sr-only" aria-live="polite">
                     {projectOrder.projectOrderAnnouncement}

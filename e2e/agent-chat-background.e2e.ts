@@ -193,7 +193,8 @@ test('a Codex Chat steers Enter into a running turn, queues follow-ups on Cmd+En
         await expect(chat.locator('[data-agent-chat-pending]')).toHaveCount(0);
         await message.fill('hello steer');
         await message.press('Enter');
-        await expect(chat.getByText('Steered')).toBeVisible();
+        const steeredMark = chat.getByRole('img', { name: /^Steered:/ });
+        await expect(steeredMark).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('codex-steered.png') });
 
         await chat.getByRole('button', { name: 'Stop', exact: true }).click();
@@ -237,7 +238,7 @@ test('a Codex Chat steers Enter into a running turn, queues follow-ups on Cmd+En
         await expect(
             chat.locator('[data-agent-chat-user-message]').filter({ hasText: 'hello after this' }),
         ).toContainText('hello second');
-        // A queued message reads as an ordinary one once delivered; only a steered message keeps a caption.
+        // A queued message reads as an ordinary one once delivered; only a steered message keeps a mark.
         await expect(chat.getByText('Queued', { exact: true })).toHaveCount(0);
         await page.screenshot({ path: testInfo.outputPath('codex-queue-drained.png') });
 
@@ -263,7 +264,7 @@ test('a Codex Chat steers Enter into a running turn, queues follow-ups on Cmd+En
         await page.screenshot({ path: testInfo.outputPath('codex-queue-empty-enter.png') });
         await message.press('Enter');
         await expect(queue).toHaveCount(0);
-        await expect(chat.getByText('Steered')).toHaveCount(2);
+        await expect(steeredMark).toHaveCount(2);
         await expect(
             chat.locator('[data-agent-chat-user-message]').filter({ hasText: 'hello fourth' }),
         ).toBeVisible();
@@ -290,9 +291,11 @@ test('a Claude Chat reopens a finished subagent and stops a background shell', a
         await message.fill('use a subagent');
         await message.press('Enter');
         await expect(chat.getByText('The subagent finished.')).toBeVisible();
-        // A finished subagent leaves the strip; the folded turn's row still opens it without being expanded.
+        // A finished subagent leaves the strip; pointing at the folded turn's row reveals its count, which still opens
+        // it without expanding the fold.
         const fold = chat.getByRole('button', { name: /^Worked(?: for |$)/u }).first();
         await expect(fold).toHaveAttribute('aria-expanded', 'false');
+        await fold.hover();
         await page.screenshot({ path: testInfo.outputPath('claude-turn-subagent-entry.png') });
         await chat.getByRole('button', { name: 'Open subagent Survey the project' }).click();
         await expect(fold).toHaveAttribute('aria-expanded', 'false');
@@ -348,7 +351,7 @@ test('a Claude Chat reopens a finished subagent and stops a background shell', a
 });
 
 // eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
-test('a Codex turn that spawned many subagents keeps its Worked label readable beside their chips', async ({}, testInfo) => {
+test('a Codex turn that spawned many subagents counts them beside its Worked label and lists them to open', async ({}, testInfo) => {
     const { directory, agentMode, userData, root } = await fixture(
         'caxri-agent-chat-many-subagents-',
         'codex',
@@ -366,10 +369,13 @@ test('a Codex turn that spawned many subagents keeps its Worked label readable b
         await expect(chat.getByText('Every reviewer finished.')).toBeVisible();
         const fold = chat.getByRole('button', { name: /^Worked(?: for |$)/u }).last();
         await expect(fold).toBeVisible();
-        // Seven chips overflow the row, so they truncate while the toggle keeps its whole label on one line.
-        await expect(chat.getByRole('button', { name: /^Open subagent UX review: /u })).toHaveCount(
-            5,
-        );
+        // Seven subagents fold into one count beside the toggle, which lists them to choose from.
+        await fold.hover();
+        const subagents = chat.getByRole('button', { name: 'Subagents in this turn: 7' });
+        await subagents.click();
+        await expect(page.getByRole('menu').getByRole('menuitem')).toHaveCount(7);
+        await page.screenshot({ path: testInfo.outputPath('codex-many-subagents-menu.png') });
+        await page.keyboard.press('Escape');
         const toggle = await fold.evaluate((element) => ({
             width: element.getBoundingClientRect().width,
             scrollWidth: element.scrollWidth,

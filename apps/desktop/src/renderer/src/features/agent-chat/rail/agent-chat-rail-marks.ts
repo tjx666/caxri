@@ -275,6 +275,21 @@ export function agentChatRailTickCapacity(height: number): number {
 }
 
 /**
+ * How far from the conversation area's left edge the pointer reveals the rail: the rail's own width plus the margin a
+ * reader's pointer drifts by on its way to a tick.
+ */
+const AGENT_CHAT_RAIL_GUTTER_PX = 40;
+
+/**
+ * Whether a pointer at `pointerX` is in the left gutter of a conversation area whose left edge is at `areaLeft`, where
+ * the rail shows itself.
+ */
+export function isAgentChatRailGutter(pointerX: number, areaLeft: number): boolean {
+    const offset = pointerX - areaLeft;
+    return offset >= 0 && offset <= AGENT_CHAT_RAIL_GUTTER_PX;
+}
+
+/**
  * The tick that stands for the mark at `activeIndex` once marks were sampled to `indices`: the last tick at or before
  * it, so the rail lights the stretch the reader is in. `-1` while no mark is active.
  */

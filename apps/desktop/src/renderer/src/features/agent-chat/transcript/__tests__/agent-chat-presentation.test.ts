@@ -445,8 +445,10 @@ describe('agentChatRecoveryNotice for a conversation that could not be resumed',
 });
 
 describe('agentChatDeliveryCaption', () => {
-    it('captions a steered message and drops the caption once a queued one was delivered', () => {
-        expect(agentChatDeliveryCaption('steered', translate)).toBe('Steered');
+    it('marks a steered message and drops the mark once a queued one was delivered', () => {
+        expect(agentChatDeliveryCaption('steered', translate)).toBe(
+            'Steered: sent while the Agent was working, so it joined the running turn',
+        );
         expect(agentChatDeliveryCaption('queued', translate)).toBeUndefined();
         expect(agentChatDeliveryCaption(undefined, translate)).toBeUndefined();
     });

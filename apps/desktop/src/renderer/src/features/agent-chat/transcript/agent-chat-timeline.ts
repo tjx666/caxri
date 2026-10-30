@@ -38,8 +38,9 @@ export type AgentChatTimelineEntry =
            */
           artifacts?: AgentChatTurnArtifacts;
           /**
-           * The finished turn's generation speed and cost, shown after the reply's time. Absent for a turn that ended
-           * before Caxri recorded them, so a replayed history shows only the time.
+           * The finished turn's generation speed and cost, shown after the reply's time when the turn has no fold row
+           * to show them. Absent for a turn that ended before Caxri recorded them, so a replayed history shows only the
+           * time.
            */
           metrics?: AgentChatTurnMetrics;
       }
@@ -329,13 +330,17 @@ function withTurnArtifacts(
 }
 
 /**
- * Hangs a finished turn's recorded metrics on its final reply. A turn without a reply has no footer to carry them.
+ * Hangs a finished turn's recorded metrics on its final reply when no fold row shows them: a turn that only answered,
+ * with no work to fold, keeps its speed and cost in the reply's action row. A turn without a reply has no footer to
+ * carry them.
  */
 function withTurnMetrics(
     entries: AgentChatTimelineEntry[],
     metrics: AgentChatTurnMetrics | undefined,
 ): AgentChatTimelineEntry[] {
     if (!metrics) return entries;
+    if (entries.some((entry) => entry.kind === 'turn' && entry.metrics && entry.entries.length > 0))
+        return entries;
     const replyIndex = entries.findIndex((entry) => entry.kind === 'item' && entry.isFinalReply);
     const reply = replyIndex === -1 ? undefined : entries[replyIndex];
     if (reply?.kind !== 'item') return entries;
@@ -483,6 +488,7 @@ function isSameTurnMetrics(
     return (
         left?.outputTokens === right?.outputTokens &&
         left?.generationMs === right?.generationMs &&
+        left?.speed === right?.speed &&
         left?.costUsd === right?.costUsd &&
         left?.requests === right?.requests &&
         left?.totalTokens === right?.totalTokens

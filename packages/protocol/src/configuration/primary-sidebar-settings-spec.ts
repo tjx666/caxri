@@ -9,7 +9,7 @@ export const primarySidebarSettingsSpec = [
         kind: 'enum',
         key: 'primarySidebar.autoCollapseProjects',
         title: 'Auto-collapse inactive Projects',
-        description: 'Keeps active, working, unread, and manually expanded Projects open',
+        description: 'Active, working, unread, and expanded Projects stay open.',
         category: 'general',
         keywords: ['primarySidebar', 'project', 'collapse', 'inactive', 'idle'],
         options: [
@@ -23,8 +23,7 @@ export const primarySidebarSettingsSpec = [
         kind: 'boolean',
         key: 'primarySidebar.showSubagents',
         title: 'Show subagents under Sessions',
-        description:
-            'Lists the subagents a Chat Agent started as indented rows under its Session in the Primary Side Bar',
+        description: "List a Chat Agent's subagents under its Session.",
         category: 'general',
         keywords: ['primarySidebar', 'subagent', 'nested', 'task', 'child', 'hide'],
         default: true,
@@ -33,8 +32,7 @@ export const primarySidebarSettingsSpec = [
         kind: 'boolean',
         key: 'primarySidebar.translucent',
         title: 'Translucent sidebar',
-        description:
-            'On macOS, blur the desktop through the sidebar like frosted glass when the theme matches the system light or dark appearance.',
+        description: 'Blur the desktop through the sidebar while the theme matches macOS.',
         category: 'general',
         keywords: [
             'primarySidebar',

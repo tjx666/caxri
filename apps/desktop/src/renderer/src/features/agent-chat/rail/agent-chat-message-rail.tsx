@@ -13,6 +13,7 @@ import {
 import { AgentChatRailPreviewCard } from './agent-chat-rail-preview-card';
 import { useAgentChatRailCapacity } from './hooks/use-agent-chat-rail-capacity';
 import { useAgentChatRailPreview } from './hooks/use-agent-chat-rail-preview';
+import { useIsAgentChatRailGutterHovered } from './hooks/use-is-agent-chat-rail-gutter-hovered';
 
 /**
  * One tick. Its props are plain values and stable handlers, so a patch that rebuilds the marks, or the preview card
@@ -92,14 +93,15 @@ const RailTick = memo(
 
 /**
  * A quiet column of ticks at the Chat's left edge, one per user message, modeled on the Codex app's conversation rail.
- * Ticks stay translucent so the rail recedes behind the transcript; the tick for the message being read is longer and
- * brighter. Hovering one, or focusing it from the keyboard, opens its preview card ({@link AgentChatRailPreviewCard})
- * and clicking scrolls there. A conversation with one message has nowhere to jump, so the rail appears from the second;
- * a narrow Chat's transcript then widens its left padding past the rail so content never runs under the ticks, while a
- * wide Chat's centering margin already clears them and its transcript stays put. The rail is one Tab stop: ArrowUp and
- * ArrowDown (Home, End) move among its ticks, and Enter jumps. Ticks shrink together when a long conversation would
- * overflow the view, down to a 6px target each; past that, or past `MAX_AGENT_CHAT_RAIL_MARKS` messages, each tick
- * stands for a stretch of the conversation, so the rail never scrolls.
+ * It stays out of sight until the pointer reaches the Chat's left gutter or keyboard focus enters it, so a reader who
+ * is not navigating sees only the transcript; its ticks stay translucent even then, and the tick for the message being
+ * read is longer and brighter. Hovering one, or focusing it from the keyboard, opens its preview card
+ * ({@link AgentChatRailPreviewCard}) and clicking scrolls there. A conversation with one message has nowhere to jump, so
+ * the rail appears from the second; a narrow Chat's transcript then widens its left padding past the rail so content
+ * never runs under the ticks, while a wide Chat's centering margin already clears them and its transcript stays put.
+ * The rail is one Tab stop: ArrowUp and ArrowDown (Home, End) move among its ticks, and Enter jumps. Ticks shrink
+ * together when a long conversation would overflow the view, down to a 6px target each; past that, or past
+ * `MAX_AGENT_CHAT_RAIL_MARKS` messages, each tick stands for a stretch of the conversation, so the rail never scrolls.
  */
 export function AgentChatMessageRail({
     activeIndex,
@@ -119,6 +121,7 @@ export function AgentChatMessageRail({
     const { t } = useTranslation();
     const [rail, setRail] = useState<HTMLElement | null>(null);
     const capacity = useAgentChatRailCapacity(rail);
+    const isInGutter = useIsAgentChatRailGutterHovered(rail);
     const indices = useMemo(
         () => agentChatRailSampleIndices(marks.length, capacity),
         [capacity, marks.length],
@@ -154,7 +157,10 @@ export function AgentChatMessageRail({
     return (
         <nav
             aria-label={t('agentChat.rail.label')}
-            className="absolute top-1/2 left-1 flex max-h-[calc(100%-6rem)] -translate-y-1/2 flex-col"
+            className={cn(
+                'absolute top-1/2 left-1 flex max-h-[calc(100%-6rem)] -translate-y-1/2 flex-col transition-opacity focus-within:opacity-100',
+                !isInGutter && preview.shownId === undefined && 'opacity-0',
+            )}
             data-agent-chat-message-rail=""
             ref={setRail}
             onBlur={(event) => {

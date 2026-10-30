@@ -19,6 +19,12 @@ describe('isFullWidthRow', () => {
         expect(isFullWidthRow(row({ type: 'setting', key: 'workbench.fontFamily' }))).toBe(true);
     });
 
+    it('keeps the one-word external editor command beside its label like a select', () => {
+        expect(isFullWidthRow(row({ type: 'setting', key: 'workbench.externalEditor' }))).toBe(
+            false,
+        );
+    });
+
     it.each([
         { key: 'terminal.copyOnSelect', kind: 'boolean' },
         { key: 'terminal.fontSize', kind: 'integer' },

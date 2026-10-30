@@ -9,8 +9,12 @@ import { Tooltip } from '../../../components/ui/tooltip';
 import type { Translate, TranslationKey } from '../../../i18n';
 import { useTranslation } from '../../../i18n';
 import { cn } from '../../../lib/utilities';
-import type { AgentChatTurnMetric, AgentChatTurnMetricKind } from './agent-chat-turn-metrics';
-import { agentChatTurnMetrics } from './agent-chat-turn-metrics';
+import type {
+    AgentChatTurnMetric,
+    AgentChatTurnMetricKind,
+    AgentChatTurnRate,
+} from './agent-chat-turn-metrics';
+import { AGENT_CHAT_SPEED_ICONS, agentChatTurnMetrics } from './agent-chat-turn-metrics';
 
 const METRIC_ICONS: Record<AgentChatTurnMetricKind, LucideIcon> = {
     steps: Footprints,
@@ -67,10 +71,12 @@ function metricTooltip(
  * text and elapsed time stay readable beside both badges (the goal row's figures yield sooner, `NARROW_CLASSES`).
  * Hidden figures turn `sr-only` rather than leaving the accessibility tree. The rolling digits are hidden from
  * assistive technology, which reads the tooltip's sentence from an `sr-only` copy instead (the figure's raw value, so a
- * screen reader hears the exact count while the eye sees the abbreviated one).
+ * screen reader hears the exact count while the eye sees the abbreviated one). A finished turn's fold row passes its
+ * output `rate` too, which trails the figures behind the glyph of the speed tier it ran at.
  */
 export function AgentChatTurnMetricList({
     hasLeadingDivider = false,
+    rate,
     scope = 'turn',
     usage,
 }: {
@@ -79,6 +85,10 @@ export function AgentChatTurnMetricList({
      */
     hasLeadingDivider?: boolean;
     /**
+     * A finished turn's output rate, the last figure; the running strip has none, since its rate is still moving.
+     */
+    rate?: AgentChatTurnRate;
+    /**
      * Whose spend the figures are, for their tooltips: the running turn's, or the goal's across its turns.
      */
     scope?: keyof typeof METRIC_TOOLTIPS;
@@ -86,8 +96,9 @@ export function AgentChatTurnMetricList({
 }) {
     const { t } = useTranslation();
     const metrics = agentChatTurnMetrics(usage);
-    if (metrics.length === 0) return null;
+    if (!rate && metrics.length === 0) return null;
     const narrow = NARROW_CLASSES[scope];
+    const RateIcon = AGENT_CHAT_SPEED_ICONS[rate?.speed ?? 'unknown'];
     return (
         <span className={cn('flex shrink-0 items-center gap-2.5 text-[11px]', narrow.list)}>
             {metrics.map((metric, index) => {
@@ -121,6 +132,28 @@ export function AgentChatTurnMetricList({
                     </Fragment>
                 );
             })}
+            {rate && (
+                <>
+                    {(metrics.length > 0 || hasLeadingDivider) && (
+                        <span className={cn('h-3 w-px shrink-0 bg-border', narrow.divider)} />
+                    )}
+                    <Tooltip content={rate.tooltip} side="top">
+                        <span
+                            className={cn(
+                                'inline-flex items-center gap-1 whitespace-nowrap tabular-nums',
+                                narrow.figure,
+                            )}
+                            data-agent-chat-turn-metric="rate"
+                            data-speed={rate.speed}
+                            data-value={rate.value}
+                        >
+                            <RateIcon aria-hidden="true" className="size-3.5 shrink-0" />
+                            <span aria-hidden="true">{rate.value}</span>
+                            <span className="sr-only">{rate.tooltip}</span>
+                        </span>
+                    </Tooltip>
+                </>
+            )}
         </span>
     );
 }

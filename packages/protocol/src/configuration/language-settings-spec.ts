@@ -30,8 +30,7 @@ export const languageSettingsSpec = [
         kind: 'enum',
         key: 'workbench.language',
         title: 'Language',
-        description:
-            'Display language of the interface. Follow system uses Simplified Chinese when the system language is Chinese.',
+        description: 'Follow system picks Chinese on a Chinese system.',
         category: 'general',
         keywords: [
             'language',

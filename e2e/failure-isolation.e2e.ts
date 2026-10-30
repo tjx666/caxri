@@ -40,9 +40,7 @@ test('replacement worker reacquires the desktop after controlled interruption', 
     await mkdir(root);
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
-        await expect(
-            running.page.getByRole('heading', { name: 'Project-first development.' }),
-        ).toBeVisible();
+        await expect(running.page.locator('[data-workbench-welcome]')).toBeVisible();
     } finally {
         try {
             await running.app.close();

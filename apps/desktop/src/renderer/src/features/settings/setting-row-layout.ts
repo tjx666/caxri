@@ -11,6 +11,19 @@ import type { SettingRowDescriptor } from './settings-registry';
 export const SHORT_CONTROL_WIDTH_CLASS_NAME = 'w-52';
 
 /**
+ * String settings whose value is one short word, such as the `code` or `cursor` command, so their field sits beside the
+ * label at the shared short-control width like a select instead of stretching across a row it would leave empty.
+ */
+const SHORT_STRING_SETTING_KEYS: ReadonlySet<string> = new Set(['workbench.externalEditor']);
+
+/**
+ * Whether a string setting's field is a short control rather than a full-width row.
+ */
+export function isShortStringSetting(key: string): boolean {
+    return SHORT_STRING_SETTING_KEYS.has(key);
+}
+
+/**
  * Binding types whose editor is not a `setting` binding but still needs the whole row width: a rule list, a launch
  * argument editor, or a health readout cannot be usefully compressed beside a label.
  */
@@ -38,7 +51,8 @@ const FULL_WIDTH_BINDING_TYPES: ReadonlySet<SettingRowDescriptor['binding']['typ
 export function isFullWidthRow(row: SettingRowDescriptor): boolean {
     if (row.binding.type === 'setting')
         return (
-            settingsSpecByKey[row.binding.key].kind === 'string' ||
+            (settingsSpecByKey[row.binding.key].kind === 'string' &&
+                !isShortStringSetting(row.binding.key)) ||
             row.binding.key === 'environmentMonitor.mihomoRoutes'
         );
     return FULL_WIDTH_BINDING_TYPES.has(row.binding.type);

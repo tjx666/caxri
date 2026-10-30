@@ -155,9 +155,10 @@ test('The message rail previews each tick in one fixed-size card for pointer and
         await expect(cards).toHaveCount(1);
         await expect(card(0)).toBeVisible();
 
-        // Leaving the rail closes the card.
+        // Leaving the rail closes the card, and away from the left gutter the rail itself steps out of sight.
         await chat.getByRole('log').hover({ position: { x: 400, y: 40 } });
         await expect(cards).toHaveCount(0);
+        await expect(rail).toHaveCSS('opacity', '0');
 
         // The keyboard reaches the rail as one Tab stop and sees the same cards.
         await message.focus();

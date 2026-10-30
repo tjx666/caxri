@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
     chatTurnMetricsOperation,
     chatTurnThroughput,
+    majorityThroughputSpeed,
     recordChatTurnMetrics,
 } from '../turn-metrics';
 
@@ -15,8 +16,18 @@ const turn: AgentChatTurn = {
     durationMs: 60_000,
 };
 
-function sample(completedAt: number, outputTokens: number, durationMs = 2_000) {
-    return { completedAt, outputTokens, durationMs } satisfies AgentThroughputSample;
+function sample(
+    completedAt: number,
+    outputTokens: number,
+    durationMs = 2_000,
+    speed?: AgentThroughputSample['speed'],
+) {
+    return {
+        completedAt,
+        outputTokens,
+        durationMs,
+        ...(speed && { speed }),
+    } satisfies AgentThroughputSample;
 }
 
 const NO_TURN_TOTAL = { outputTokens: 0, durationMs: 0, responseCount: 0 };
@@ -47,10 +58,28 @@ describe('chatTurnThroughput', () => {
 
     it('falls back to the running turn total once the sample window dropped earlier responses', () => {
         const samples = Array.from({ length: AGENT_THROUGHPUT_SAMPLE_LIMIT }, (_, index) =>
-            sample(11_000 + index * 1_000, 10),
+            sample(11_000 + index * 1_000, 10, 2_000, 'fast'),
         );
         const current = { outputTokens: 4_000, durationMs: 40_000, responseCount: 40 };
-        expect(chatTurnThroughput(throughput(samples, current), turn)).toBe(current);
+        expect(chatTurnThroughput(throughput(samples, current), turn)).toEqual({
+            outputTokens: 4_000,
+            durationMs: 40_000,
+            speed: 'fast',
+        });
+    });
+
+    it("names the tier most of the turn's own responses ran at", () => {
+        const samples = [
+            // The previous turn ran Fast; it must not tip this turn.
+            sample(5_000, 100, 1_000, 'fast'),
+            sample(6_000, 100, 1_000, 'fast'),
+            sample(20_000, 100, 1_000, 'fast'),
+            sample(30_000, 100, 1_000, 'standard'),
+            sample(40_000, 100, 1_000, 'standard'),
+        ];
+        expect(chatTurnThroughput(throughput(samples), turn)).toMatchObject({
+            speed: 'standard',
+        });
     });
 
     it('has nothing to say for a turn without a recorded window or without measured responses', () => {
@@ -62,6 +91,23 @@ describe('chatTurnThroughput', () => {
     });
 });
 
+describe('majorityThroughputSpeed', () => {
+    it('counts responses rather than tokens and breaks a tie in tier order', () => {
+        expect(
+            majorityThroughputSpeed([{ speed: 'flex' }, { speed: 'flex' }, { speed: 'fast' }]),
+        ).toBe('flex');
+        expect(majorityThroughputSpeed([{ speed: 'fast' }, { speed: 'standard' }])).toBe(
+            'standard',
+        );
+    });
+
+    it('names no tier when most responses recorded none', () => {
+        expect(majorityThroughputSpeed([{}, {}, { speed: 'fast' }])).toBeUndefined();
+        expect(majorityThroughputSpeed([{}, { speed: 'fast' }])).toBeUndefined();
+        expect(majorityThroughputSpeed([])).toBeUndefined();
+    });
+});
+
 describe('chatTurnMetricsOperation', () => {
     const turns: AgentChatTurn[] = [{ id: 'turn-1', status: 'completed' }, turn];
 
@@ -70,7 +116,7 @@ describe('chatTurnMetricsOperation', () => {
             { turns },
             'turn-2',
             { turnId: 'turn-2', requests: 3, totalTokens: 9_000, costUsd: 0.42 },
-            throughput([sample(20_000, 300, 3_000)]),
+            throughput([sample(20_000, 300, 3_000, 'fast')]),
         );
         expect(operation).toEqual({
             op: 'state',
@@ -82,6 +128,7 @@ describe('chatTurnMetricsOperation', () => {
                         metrics: {
                             outputTokens: 300,
                             generationMs: 3_000,
+                            speed: 'fast',
                             costUsd: 0.42,
                             requests: 3,
                             totalTokens: 9_000,

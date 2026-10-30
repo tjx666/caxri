@@ -5,7 +5,7 @@ import { useClockTick } from '@/hooks/use-clock-tick';
 
 import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
-import { agentChatReplyMetrics } from '../activity/agent-chat-turn-metrics';
+import { AGENT_CHAT_SPEED_ICONS, agentChatReplyMetrics } from '../activity/agent-chat-turn-metrics';
 import {
     agentChatDayLabel,
     agentChatMessageFullTime,
@@ -34,13 +34,15 @@ export function AgentChatMessageTime({ timestamp }: { timestamp: number }) {
 }
 
 /**
- * A finished turn's speed and cost after its reply's time, in the same quiet type (the cost behind a dollar glyph),
- * with the measured totals and the estimate caveat on hover. Renders nothing for a turn that recorded neither.
+ * The speed and cost of a finished turn with no fold row after its reply's time, in the same quiet type (the speed
+ * behind its tier's glyph, the cost behind a dollar glyph), with the measured totals and the estimate caveat on hover.
+ * Renders nothing for a turn that recorded neither.
  */
 export function AgentChatTurnMetricsLabel({ metrics }: { metrics?: AgentChatTurnMetrics }) {
     const { t } = useTranslation();
     const readout = agentChatReplyMetrics(metrics, t);
     if (!readout) return null;
+    const SpeedIcon = AGENT_CHAT_SPEED_ICONS[readout.speed ?? 'unknown'];
     return (
         <Tooltip
             content={readout.details.map((line) => (
@@ -52,7 +54,12 @@ export function AgentChatTurnMetricsLabel({ metrics }: { metrics?: AgentChatTurn
                 className="inline-flex items-center gap-2.5 px-1 text-[11px] leading-6 text-muted tabular-nums"
                 data-agent-chat-turn-metrics=""
             >
-                {readout.rate && <span>{readout.rate}</span>}
+                {readout.rate && (
+                    <span className="inline-flex items-center gap-1">
+                        <SpeedIcon aria-hidden="true" className="size-3.5 shrink-0" />
+                        {readout.rate}
+                    </span>
+                )}
                 {readout.cost && (
                     <span className="inline-flex items-center gap-1">
                         <CircleDollarSign aria-hidden="true" className="size-3.5 shrink-0" />

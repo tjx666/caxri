@@ -2,9 +2,11 @@ import { useRef, useState } from 'react';
 
 import type { AgentChatDelegatedTask, AgentChatSkillReference } from '@caxri/protocol';
 import { agentChatTextWithSessionMentions, parseAgentChatPathReferences } from '@caxri/protocol';
+import { CornerDownRight } from 'lucide-react';
 
 import { writeToClipboardWithFeedback } from '../../../components/copy-feedback';
 import { CopyIconButton } from '../../../components/markdown/copy-icon-button';
+import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
 import { textClipboard } from '../../../lib/clipboard';
 import { cn } from '../../../lib/utilities';
@@ -28,22 +30,23 @@ import { agentChatFirstImageNumber } from './agent-chat-user-message-text';
 import { AgentChatUserMessageBody } from './bubble-text/agent-chat-user-message-body';
 
 /**
- * The user's message, right-aligned. A message steered into a running turn says so in a quiet caption under the bubble
- * (see `agentChatDeliveryCaption`). Under it, a row with the time it was sent and a Copy action mounts while the
- * pointer is over the message or keyboard focus is inside it, exactly as under a reply (`AgentChatReplyFrame`): the row
- * keeps its height, so revealing it never shifts the transcript, and a hidden row is no Tab stop. `Option+ArrowUp` and
- * `Option+ArrowDown` step through user messages and replies alike to reach it from the keyboard. A long message (a
- * pasted log, a spec) clamps to twelve lines with Show more, so one prompt does not push the reply it asked for off
- * screen; Copy still takes the whole text. A message that started a turn also offers "Edit from here", which puts its
- * text back into the composer to send in its place (the message being edited keeps a quiet `--muted` outline until
- * then), "Fork from here", which opens the conversation before it in a new Session with its text in the composer, and,
- * when the provider restores files, "Restore code to here", which reverts the files changed since and keeps the
- * conversation, as Claude Code's `/rewind` "Restore code" does. A right-click offers the same actions in a native menu
- * (`agentChatUserMessageMenu`), so they are reachable without finding the hover row; a message read back from history
- * lists Edit and Fork there disabled with why. Files and folders the message cites (`agentChatTextWithPathReferences`)
- * show as chips above its bubble rather than as the reference block the provider received; clicking one shows it in
- * Finder. Skills it asked for lead the bubble's text as inline chips, so the message reads as one. A `/new-session`
- * hand-off shows as its own card (`AgentChatSessionHandoffBubble`).
+ * The user's message, right-aligned. A message steered into a running turn says so with a quiet ↳ beside the bubble,
+ * named on hover (see `agentChatDeliveryCaption`), so the mark adds no line under the message. Under it, a row with the
+ * time it was sent and a Copy action mounts while the pointer is over the message or keyboard focus is inside it,
+ * exactly as under a reply (`AgentChatReplyFrame`): the row keeps its height, so revealing it never shifts the
+ * transcript, and a hidden row is no Tab stop. `Option+ArrowUp` and `Option+ArrowDown` step through user messages and
+ * replies alike to reach it from the keyboard. A long message (a pasted log, a spec) clamps to twelve lines with Show
+ * more, so one prompt does not push the reply it asked for off screen; Copy still takes the whole text. A message that
+ * started a turn also offers "Edit from here", which puts its text back into the composer to send in its place (the
+ * message being edited keeps a quiet `--muted` outline until then), "Fork from here", which opens the conversation
+ * before it in a new Session with its text in the composer, and, when the provider restores files, "Restore code to
+ * here", which reverts the files changed since and keeps the conversation, as Claude Code's `/rewind` "Restore code"
+ * does. A right-click offers the same actions in a native menu (`agentChatUserMessageMenu`), so they are reachable
+ * without finding the hover row; a message read back from history lists Edit and Fork there disabled with why. Files
+ * and folders the message cites (`agentChatTextWithPathReferences`) show as chips above its bubble rather than as the
+ * reference block the provider received; clicking one shows it in Finder. Skills it asked for lead the bubble's text as
+ * inline chips, so the message reads as one. A `/new-session` hand-off shows as its own card
+ * (`AgentChatSessionHandoffBubble`).
  */
 export function AgentChatUserMessage({
     createdAt,
@@ -124,20 +127,33 @@ export function AgentChatUserMessage({
                     {handoff && (
                         <AgentChatSessionHandoffBubble note={handoff.note} sentAt={createdAt} />
                     )}
-                    {/* A hand-off's words are on its card; the images and skills it carried stay in a bubble. */}
-                    <AgentChatUserMessageBubble
-                        images={images}
-                        imageRecord={
-                            terminalId === undefined ? undefined : { terminalId, itemId: id }
-                        }
-                        isEditing={isEditing}
-                        skills={skills}
-                        text={handoff ? '' : words}
-                        onOpenFile={onOpenFile}
-                    />
+                    <div className="flex w-full items-start justify-end gap-1.5">
+                        {caption && (
+                            <Tooltip content={caption}>
+                                <span
+                                    aria-label={caption}
+                                    className="mt-2.5 inline-flex text-muted"
+                                    data-agent-chat-steered=""
+                                    role="img"
+                                >
+                                    <CornerDownRight aria-hidden="true" className="size-3.5" />
+                                </span>
+                            </Tooltip>
+                        )}
+                        {/* A hand-off's words are on its card; the images and skills it carried stay in a bubble. */}
+                        <AgentChatUserMessageBubble
+                            images={images}
+                            imageRecord={
+                                terminalId === undefined ? undefined : { terminalId, itemId: id }
+                            }
+                            isEditing={isEditing}
+                            skills={skills}
+                            text={handoff ? '' : words}
+                            onOpenFile={onOpenFile}
+                        />
+                    </div>
                 </>
             )}
-            {caption && <span className="-mt-0.5 text-[11px] leading-4 text-muted">{caption}</span>}
         </AgentChatReplyFrame>
     );
 }
