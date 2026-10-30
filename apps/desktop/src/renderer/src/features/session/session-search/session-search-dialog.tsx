@@ -1,5 +1,5 @@
 import type { KeyboardEvent } from 'react';
-import { useEffect, useId } from 'react';
+import { useId } from 'react';
 
 import { Search } from 'lucide-react';
 
@@ -56,12 +56,6 @@ function SessionSearchBody() {
     const rowId = (index: number) => `${rowIdPrefix}-${index}`;
     const { entries, selected, selectedIndex, setSelectedIndex } = search;
     const preview = useSessionSearchPreview(selected, search.searchedQuery);
-
-    useEffect(() => {
-        document
-            .querySelector(`#${CSS.escape(`${rowIdPrefix}-${selectedIndex}`)}`)
-            ?.scrollIntoView({ block: 'nearest' });
-    }, [rowIdPrefix, selectedIndex]);
 
     const onKeyDown = (event: KeyboardEvent<HTMLInputElement>): void => {
         if (isImeComposing(event)) return;

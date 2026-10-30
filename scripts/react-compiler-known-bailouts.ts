@@ -27,6 +27,10 @@ export const knownReactCompilerBailouts: Record<string, readonly string[]> = {
         'React Compiler has skipped optimizing this component because one or more React ESLint rules were disabled',
     ],
     // incompatible library: TanStack Virtual.
+    'apps/desktop/src/renderer/src/features/session/session-search/session-search-results.tsx': [
+        'Use of incompatible library',
+    ],
+    // incompatible library: TanStack Virtual.
     'apps/desktop/src/renderer/src/features/settings/settings-page.tsx': [
         'Use of incompatible library',
     ],
