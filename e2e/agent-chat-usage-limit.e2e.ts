@@ -124,6 +124,24 @@ test('a Claude Chat at 99% of its weekly usage refuses new messages and writes o
         await expect(guard).toHaveAttribute('data-agent-chat-usage-guard', 'used');
         await expect(guard.getByRole('button', { name: 'Generate hand-off' })).toHaveCount(0);
         await page.screenshot({ path: testInfo.outputPath('usage-guard-handoff.png') });
+
+        // The headline folds the document and actions away, leaving one line.
+        const fold = guard.locator('[data-agent-chat-usage-guard-fold]');
+        await fold.click();
+        await expect(fold).toHaveAttribute('aria-expanded', 'false');
+        await expect(document).toHaveCount(0);
+        await page.screenshot({ path: testInfo.outputPath('usage-guard-folded.png') });
+        await fold.click();
+        await expect(document).toBeVisible();
+
+        // Continue anyway lifts the guard for the rest of the window, and the fake's next 99.5% reading keeps it lifted.
+        await guard.getByRole('button', { name: 'Continue anyway' }).click();
+        await expect(guard).toHaveCount(0);
+        await message.press('Enter');
+        await expect(
+            chat.locator('[data-agent-chat-user-message]', { hasText: 'one more thing' }),
+        ).toBeVisible();
+        await expect(guard).toHaveCount(0);
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });

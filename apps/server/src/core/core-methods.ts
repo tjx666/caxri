@@ -11,6 +11,7 @@ export const coreForwardedMethods = [
     'agentActions.read',
     'agentActions.recordRecent',
     'agentChat.askSideQuestion',
+    'agentChat.bypassUsageGuard',
     'agentChat.configure',
     'agentChat.continuationTargets',
     'agentChat.continueInAgent',

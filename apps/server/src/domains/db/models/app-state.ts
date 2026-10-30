@@ -105,6 +105,10 @@ const appStateValueSchemas = {
                  */
                 handoffTerminalId: identifierSchema.optional(),
                 document: agentChatHandoffSchema.optional(),
+                /**
+                 * The user chose "Continue anyway": requests are admitted for the rest of this window.
+                 */
+                bypassed: z.literal(true).optional(),
             }),
         )
         .max(8),

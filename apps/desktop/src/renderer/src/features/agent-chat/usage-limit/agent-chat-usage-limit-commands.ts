@@ -36,6 +36,16 @@ export async function generateAgentChatHandoff(terminalId: string): Promise<void
 }
 
 /**
+ * Admits the account's requests for the rest of the guard's window (`agentChat.bypassUsageGuard`). The card leaves with
+ * the guard on the snapshot, so nothing is returned.
+ */
+export async function bypassAgentChatUsageGuard(terminalId: string): Promise<void> {
+    await tryCommand(translate('agentChat.usageGuard.continueAnywayFailed'), () =>
+        caxri.request('agentChat.bypassUsageGuard', { terminalId }),
+    );
+}
+
+/**
  * Ends the Chat's wait for the limit to reset (`cancel`), or continues it now (`continueNow`). A failure is a toast;
  * the notice follows the Chat's projection either way.
  */

@@ -87,6 +87,11 @@ by itself once the limit resets (issue #2220). Owner: `continuation/chat-usage-l
   guard for that provider account. Only a window the provider names as its weekly one counts, never a
   model-specific window of the same length. The guard is persisted in `app_state`
   (`agentUsageGuards`), so a restart keeps it, and it lifts itself at `resetsAt`.
+- **Another window.** A reading below the guard whose weekly `resetsAt` differs from the guard's by an
+  hour or more lifts it: a later reset means the week rolled over early (`window_reset`), an earlier
+  one can only be another account's week after the user signed in to it (`window_changed`). A lower
+  reading of the same window keeps the guard, and a reading of a window that already reset is
+  ignored.
 - **Credits.** A reading that reports usable pay-as-you-go credits never arms the guard and lifts an
   armed one, because the account keeps working past its weekly window by spending them. Codex reports
   `credits` (unlimited, or a positive balance) in every rate-limit reading. Claude Code reports extra
@@ -108,11 +113,14 @@ requests continue on credits, 1,250 left` (Claude: `... on extra usage, $37.40 l
   resumes them. The interrupted turn itself continues after the reset when it fits the 24-hour
   horizon (see [Turns the guard stopped](#turns-the-guard-stopped)).
 - **What the user can still do.** The composer shows the guard card: how much of the week is used,
-  when it resets, and two ways forward. `Generate hand-off` (`agentChat.generateHandoff`) spends the
+  when it resets, and the ways forward. `Generate hand-off` (`agentChat.generateHandoff`) spends the
   kept budget on one tool-less turn in which the Chat's own model writes a hand-off document; the
   lease is one per account per weekly window, shared by every Chat of that account. `Open in another
 Agent` continues from the deterministic package, with the hand-off document first when one exists.
-  There is deliberately no "Continue anyway".
+  `Continue anyway` (`agentChat.bypassUsageGuard`) admits the account's requests for the rest of the
+  window: the record stays, marked `bypassed`, so a later reading of the same window does not arm it
+  again, and the paused queues resume. Clicking the card's headline folds the rest of it, hand-off
+  document included, remembered per Chat for the window's lifetime.
 - **Mobile** shows the blocked state as a banner, with the same wait line as the guard card, and disables send. **Caxri Bot window**
   has no Workbench to show a new Session, so it offers the hand-off but no continuation.
 

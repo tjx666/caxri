@@ -4,9 +4,11 @@
 export const usageLogEvents = {
     /**
      * The weekly usage guard (`AGENT_USAGE_GUARD_PERCENT`) changed or acted, with `provider` and a closed `outcome`
-     * (`armed` with `resetsInMs`, how far the window's reset is, `window_reset` or `credits_available` with how long it
-     * held, `refused` with its closed `path`, `handoff_started`, `handoff_generated`, `handoff_failed` with its closed
-     * `reason`). Never carries prompt, hand-off, or provider text.
+     * (`armed` with `resetsInMs`, how far the window's reset is, `window_reset`, `window_changed` (a reading of an
+     * earlier-resetting window, another account) or `credits_available` with how long it held, `bypassed` (the user's
+     * "Continue anyway") with `usedPercent` and how long it held, `refused` with its closed `path`, `handoff_started`,
+     * `handoff_generated`, `handoff_failed` with its closed `reason`). Never carries prompt, hand-off, or provider
+     * text.
      */
     guard: 'usage.guard',
     /**

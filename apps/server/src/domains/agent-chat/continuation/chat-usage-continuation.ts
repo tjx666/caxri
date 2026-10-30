@@ -412,4 +412,12 @@ export class ChatUsageContinuation {
         this.publish(terminalId);
         void this.writeHandoff(chat, provider, terminalId);
     }
+
+    /**
+     * The guard card's "Continue anyway": admits the account's requests for the rest of the window. Every Chat of the
+     * account hears it through the guard's subscription, which resumes the queues the guard paused.
+     */
+    bypassGuard(terminalId: string): void {
+        this.options.guards.bypass(this.provider(terminalId));
+    }
 }

@@ -1,12 +1,13 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 
 import type { AgentChatHandoff, AgentChatUsageGuard } from '@caxri/protocol';
 import { agentProviderCatalog } from '@caxri/protocol';
-import { FileText, Gauge } from 'lucide-react';
+import { ChevronRight, FileText, Gauge } from 'lucide-react';
 
 import { useClockTick } from '@/hooks/use-clock-tick';
 
 import { writeToClipboardWithFeedback } from '../../../components/copy-feedback';
+import { DisclosureMotion } from '../../../components/disclosure-motion';
 import { CopyIconButton } from '../../../components/markdown/copy-icon-button';
 import { Button } from '../../../components/ui/button';
 import { Spinner } from '../../../components/ui/spinner';
@@ -15,11 +16,20 @@ import { useTranslation } from '../../../i18n';
 import { resolveAgentIcon } from '../../../icons/agents/agent-icon-registry';
 import { textClipboard } from '../../../lib/clipboard';
 import { localizedLimitReset } from '../../../lib/usage-format';
+import { cn } from '../../../lib/utilities';
+import {
+    toggleAgentChatStripFold,
+    useIsAgentChatStripSectionCollapsed,
+} from '../composer/strip/agent-chat-strip-folds';
+import { agentChatChevronMotion } from '../transcript/agent-chat-disclosure';
 import { AgentChatAutoContinueActions } from './agent-chat-auto-continue-actions';
 import { AgentChatAutoContinueLine } from './agent-chat-auto-continue-line';
 import { agentChatUsageGuardOffer } from './agent-chat-continuation';
 import { AgentChatContinueInAgent } from './agent-chat-continue-in-agent';
-import { generateAgentChatHandoff } from './agent-chat-usage-limit-commands';
+import {
+    bypassAgentChatUsageGuard,
+    generateAgentChatHandoff,
+} from './agent-chat-usage-limit-commands';
 
 /**
  * The hand-off document this Chat's model wrote, or where it stands: a spinner while it writes, the reason it failed
@@ -62,10 +72,12 @@ function HandoffDocument({ document }: { document: AgentChatHandoff }) {
 
 /**
  * The composer's first row while this Chat's provider account is at the weekly usage guard (issue #2580): how much of
- * the week is used and when it resets, why new requests are refused, and the only two ways forward. "Generate hand-off"
- * spends the kept budget once per account on a document this Chat's own model writes; "Open in another Agent" continues
- * from a package Server Core builds without asking the provider anything. There is deliberately no "Continue anyway".
- * The row replaces the context alerts, whose Compact and new-Chat actions the guard refuses too.
+ * the week is used and when it resets, why new requests are refused, and the ways forward. "Generate hand-off" spends
+ * the kept budget once per account on a document this Chat's own model writes; "Open in another Agent" continues from a
+ * package Server Core builds without asking the provider anything; "Continue anyway" lifts the guard for the rest of
+ * the window, for a user who knows better (another account signed in, the last percent is enough). The headline folds
+ * the rest away, remembered per Chat like the strip sections, so a long hand-off document does not keep the transcript
+ * short. The row replaces the context alerts, whose Compact and new-Chat actions the guard refuses too.
  */
 export function AgentChatUsageGuardCard({
     guard,
@@ -77,6 +89,10 @@ export function AgentChatUsageGuardCard({
     const { t } = useTranslation();
     const now = useClockTick('minute');
     const [isClaiming, setClaiming] = useState(false);
+    const [isBypassing, setBypassing] = useState(false);
+    const isCollapsed = useIsAgentChatStripSectionCollapsed(terminalId, 'usageGuard');
+    const [hasToggled, setToggled] = useState(false);
+    const bodyId = useId();
     const providerName = resolveAgentIcon(guard.provider).label;
     const offer = agentChatUsageGuardOffer(
         guard,
@@ -87,66 +103,120 @@ export function AgentChatUsageGuardCard({
         setClaiming(true);
         void generateAgentChatHandoff(terminalId).finally(() => setClaiming(false));
     };
+    const continueAnyway = (): void => {
+        if (isBypassing) return;
+        setBypassing(true);
+        void bypassAgentChatUsageGuard(terminalId).finally(() => setBypassing(false));
+    };
+    const toggle = (): void => {
+        setToggled(true);
+        toggleAgentChatStripFold(terminalId, 'usageGuard');
+    };
     return (
         <div
-            className="flex min-w-0 flex-col gap-2 border-0 border-b border-solid border-border px-3 py-2 text-[12px] leading-5"
+            className="flex min-w-0 flex-col border-0 border-b border-solid border-border px-3 py-2 text-[12px] leading-5"
             data-agent-chat-composer-strip-row=""
             data-agent-chat-usage-guard={guard.handoff}
         >
-            <div className="flex min-w-0 items-start gap-2">
+            <button
+                aria-controls={bodyId}
+                aria-expanded={!isCollapsed}
+                className="flex min-w-0 cursor-pointer items-start gap-2 rounded border-0 bg-transparent p-0 text-left focus-visible:outline focus-visible:outline-accent"
+                data-agent-chat-usage-guard-fold=""
+                type="button"
+                onClick={toggle}
+            >
                 <Gauge aria-hidden className="mt-0.5 size-3.5 shrink-0 text-warning" />
-                <div className="min-w-0 flex-1">
-                    <div className="text-warning">
-                        {t('agentChat.usageGuard.headline', {
-                            provider: providerName,
-                            percent: Math.floor(guard.usedPercent),
-                        })}
-                    </div>
-                    <div className="text-muted">
-                        {t('agentChat.usageGuard.detail', {
-                            reset: localizedLimitReset(guard.resetsAt, now, t),
-                        })}
-                        {offer.used && ` ${t('agentChat.usageGuard.used')}`}
-                    </div>
-                    {guard.autoContinue && (
-                        <AgentChatAutoContinueLine autoContinue={guard.autoContinue} />
+                <span className="min-w-0 flex-1 text-warning">
+                    {t('agentChat.usageGuard.headline', {
+                        provider: providerName,
+                        percent: Math.floor(guard.usedPercent),
+                    })}
+                </span>
+                <ChevronRight
+                    aria-hidden
+                    className={cn(
+                        'mt-0.5 size-3.5 shrink-0 text-muted',
+                        agentChatChevronMotion(!isCollapsed),
+                        !isCollapsed && 'rotate-90',
                     )}
-                </div>
-            </div>
-            {guard.document && <HandoffDocument document={guard.document} />}
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
-                {offer.generate && (
-                    <Tooltip
-                        content={t('agentChat.usageGuard.generateTooltip', {
-                            provider: providerName,
-                        })}
-                    >
-                        <Button
-                            aria-disabled={isClaiming || undefined}
-                            className="min-h-6 gap-1.5 px-2 text-[12px]"
-                            data-agent-chat-generate-handoff=""
-                            size="sm"
-                            variant="secondary"
-                            onClick={generate}
+                />
+            </button>
+            <DisclosureMotion
+                animate={hasToggled}
+                expanded={!isCollapsed}
+                id={bodyId}
+                kind="agent-chat-usage-guard"
+            >
+                <div className="flex min-w-0 flex-col gap-2 pt-0.5 pl-5.5">
+                    <div>
+                        <div className="text-muted">
+                            {t('agentChat.usageGuard.detail', {
+                                reset: localizedLimitReset(guard.resetsAt, now, t),
+                            })}
+                            {offer.used && ` ${t('agentChat.usageGuard.used')}`}
+                        </div>
+                        {guard.autoContinue && (
+                            <AgentChatAutoContinueLine autoContinue={guard.autoContinue} />
+                        )}
+                    </div>
+                    {guard.document && <HandoffDocument document={guard.document} />}
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
+                        {offer.generate && (
+                            <Tooltip
+                                content={t('agentChat.usageGuard.generateTooltip', {
+                                    provider: providerName,
+                                })}
+                            >
+                                <Button
+                                    aria-disabled={isClaiming || undefined}
+                                    className="min-h-6 gap-1.5 px-2 text-[12px]"
+                                    data-agent-chat-generate-handoff=""
+                                    size="sm"
+                                    variant="secondary"
+                                    onClick={generate}
+                                >
+                                    {isClaiming && (
+                                        <Spinner className="size-3.5" role="presentation" />
+                                    )}
+                                    {t('agentChat.usageGuard.generate')}
+                                </Button>
+                            </Tooltip>
+                        )}
+                        <AgentChatAutoContinueActions
+                            autoContinue={guard.autoContinue}
+                            canContinueNow={false}
+                            terminalId={terminalId}
+                            turnId={guard.autoContinueTurnId ?? ''}
+                        />
+                        <AgentChatContinueInAgent
+                            continuedIn={guard.continuedIn}
+                            label="openElsewhere"
+                            terminalId={terminalId}
+                            turnId={undefined}
+                        />
+                        <Tooltip
+                            content={t('agentChat.usageGuard.continueAnywayTooltip', {
+                                provider: providerName,
+                            })}
                         >
-                            {isClaiming && <Spinner className="size-3.5" role="presentation" />}
-                            {t('agentChat.usageGuard.generate')}
-                        </Button>
-                    </Tooltip>
-                )}
-                <AgentChatAutoContinueActions
-                    autoContinue={guard.autoContinue}
-                    canContinueNow={false}
-                    terminalId={terminalId}
-                    turnId={guard.autoContinueTurnId ?? ''}
-                />
-                <AgentChatContinueInAgent
-                    continuedIn={guard.continuedIn}
-                    label="openElsewhere"
-                    terminalId={terminalId}
-                    turnId={undefined}
-                />
-            </div>
+                            <Button
+                                aria-disabled={isBypassing || undefined}
+                                className="min-h-6 gap-1.5 px-2 text-[12px]"
+                                data-agent-chat-usage-guard-bypass=""
+                                size="sm"
+                                variant="ghost"
+                                onClick={continueAnyway}
+                            >
+                                {isBypassing && (
+                                    <Spinner className="size-3.5" role="presentation" />
+                                )}
+                                {t('agentChat.usageGuard.continueAnyway')}
+                            </Button>
+                        </Tooltip>
+                    </div>
+                </div>
+            </DisclosureMotion>
         </div>
     );
 }

@@ -54,6 +54,10 @@ export const agentChatUsageLimit: TranslatedNamespace<typeof source> = {
     'agentChat.usageGuard.used': '此账号本周已用过交接额度',
     'agentChat.usageGuard.generateFailed': '无法生成交接文档',
     'agentChat.usageGuard.openElsewhere': '在其他 Agent 中打开',
+    'agentChat.usageGuard.continueAnyway': '仍然继续',
+    'agentChat.usageGuard.continueAnywayTooltip':
+        '在每周额度重置前恢复此 {{provider}} 账号的请求，会用掉为交接保留的额度',
+    'agentChat.usageGuard.continueAnywayFailed': '无法恢复请求',
     'agentChat.usageGuard.document': '交接文档',
     'agentChat.usageGuard.copy': '复制交接文档',
     'agentChat.usageGuard.failed.rejected': '交接请求被拒绝。在其他 Agent 中打开仍会带上这段对话',

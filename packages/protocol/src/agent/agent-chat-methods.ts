@@ -395,6 +395,16 @@ export const agentChatMethods = {
         result: z.null(),
     },
     /**
+     * The usage guard's "Continue anyway": admits every request of this Chat's provider account for the rest of the
+     * guard's weekly window, spending the budget the guard kept. A later reading of the same window does not arm it
+     * again. Does nothing when the account is not at the guard.
+     */
+    'agentChat.bypassUsageGuard': {
+        ...ownerOnlyCommandPolicy('server', 'control'),
+        params: z.strictObject(terminalTarget),
+        result: z.null(),
+    },
+    /**
      * Stops one running task without ending the turn or the Chat.
      */
     'agentChat.stopTask': {

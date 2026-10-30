@@ -60,6 +60,10 @@ export const agentChatUsageLimit = {
     'agentChat.usageGuard.used': 'This account already used its hand-off this week',
     'agentChat.usageGuard.generateFailed': "Couldn't generate a hand-off",
     'agentChat.usageGuard.openElsewhere': 'Open in another Agent',
+    'agentChat.usageGuard.continueAnyway': 'Continue anyway',
+    'agentChat.usageGuard.continueAnywayTooltip':
+        'Resume requests on this {{provider}} account until the weekly limit resets, spending the budget kept for a hand-off',
+    'agentChat.usageGuard.continueAnywayFailed': "Couldn't resume requests",
     'agentChat.usageGuard.document': 'Hand-off document',
     'agentChat.usageGuard.copy': 'Copy hand-off',
     'agentChat.usageGuard.failed.rejected':
