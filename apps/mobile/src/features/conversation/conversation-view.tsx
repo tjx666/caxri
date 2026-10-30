@@ -279,25 +279,30 @@ export const ConversationList = <Entry extends { id: string }>({
             list,
             viewportHeight,
         });
-    useEffect(
-        () =>
-            follower.connect(() => {
-                const reference = list.current;
-                if (!reference || viewportHeight.current <= 0) return;
-                reference.scrollToOffset({
-                    animated: false,
-                    offset: conversationEndOffset({
-                        bottomInset: CONTENT_BOTTOM_INSET,
-                        contentHeight: reference.getChildContainerDimensions().height,
-                        firstItemOffset: reference.getFirstItemOffset(),
-                        isBottomAligned: !hasTurnSpacer,
-                        spacerHeight: endSpacerHeight(),
-                        viewportHeight: viewportHeight.current,
-                    }),
-                });
-            }),
-        [endSpacerHeight, follower, hasTurnSpacer],
+    /**
+     * Scrolls to the list's end as `conversationEndOffset` places it. FlashList's own `scrollToEnd` targets the native
+     * end, which while the keyboard is up lies past it by the spacer's reserve and hid a just-sent message above the
+     * viewport.
+     */
+    const scrollToLatest = useCallback(
+        (isAnimated: boolean): void => {
+            const reference = list.current;
+            if (!reference || viewportHeight.current <= 0) return;
+            reference.scrollToOffset({
+                animated: isAnimated,
+                offset: conversationEndOffset({
+                    bottomInset: CONTENT_BOTTOM_INSET,
+                    contentHeight: reference.getChildContainerDimensions().height,
+                    firstItemOffset: reference.getFirstItemOffset(),
+                    isBottomAligned: !hasTurnSpacer,
+                    spacerHeight: endSpacerHeight(),
+                    viewportHeight: viewportHeight.current,
+                }),
+            });
+        },
+        [endSpacerHeight, hasTurnSpacer],
     );
+    useEffect(() => follower.connect(() => scrollToLatest(false)), [follower, scrollToLatest]);
     /**
      * Re-measures the spacer and, while the list follows, returns to the end on the next frame.
      */
@@ -394,8 +399,8 @@ export const ConversationList = <Entry extends { id: string }>({
         follower.follow();
         setIsAtBottom(true);
         measureSpacer();
-        list.current?.scrollToEnd({ animated: true });
-    }, [follower, measureSpacer, setIsAtBottom]);
+        scrollToLatest(true);
+    }, [follower, measureSpacer, scrollToLatest, setIsAtBottom]);
     const lastFollowKey = useRef(followKey);
     useEffect(() => {
         const previous = lastFollowKey.current;
