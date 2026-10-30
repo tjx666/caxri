@@ -221,6 +221,11 @@ export const usageLimitSchema = z.object({
     provider: agentProvider,
     observedAt: count,
     planType: z.string().max(64).optional(),
+    /**
+     * Claude Code's account rate-limit tier, e.g. `default_claude_max_5x`, which tells Max 5x from Max 20x where
+     * `planType` only says `max`. Read from Claude Code's own account config; absent for Codex or when unknown.
+     */
+    rateLimitTier: z.string().max(64).optional(),
     windows: z.array(usageLimitWindowSchema).max(4),
     /**
      * Absent when the provider does not report credits, or reports an account without any.

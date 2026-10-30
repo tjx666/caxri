@@ -251,7 +251,7 @@ export const settingRowSources: SettingRowSource[] = [
     specRow('primarySidebar.translucent'),
     specRow('zen.fullScreen'),
     specRow('zen.restore'),
-    specRow('statusBar.usage.showFiveHourLimit'),
+    specRow('statusBar.usage.limitWindows'),
     specRow('workbench.newWorktreeBehavior'),
     specRow('workbench.confirmWorktreeAuthorization'),
     specRow('workbench.removeWorktreeOnArchive'),

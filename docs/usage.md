@@ -131,10 +131,14 @@ tabs show the provider's count and no cost.
 ## Plan limits
 
 The status bar lists the live plan windows shortest first, as what is left (`wk 28% left`; Chinese `本周剩余 28%`), and turns
-`--warning` once any window it shows has used 90% or the weekly window is ahead of pace. The weekly window is named
-`wk` rather than `7d`, which read as seven days until reset. The 5-hour window resets several times a day, so the chip leaves it out unless
-`statusBar.usage.showFiveHourLimit` is on (`5h 62% · wk 28% left`). Its hover card lists every window with its reset
-either way. The figures are account-wide:
+`--warning` once any window it shows has used 90% or is ahead of pace. The weekly window is named
+`wk` rather than `7d`, which read as seven days until reset. Which windows the chip shows follows
+`statusBar.usage.limitWindows`. Its default, `auto`, picks the window that stops the plan in practice: the 5-hour
+window for Claude Pro and Max 5x (`5h 62% left`), and the weekly window for every other plan, Codex included
+(`wk 28% left`). Claude Code's `/usage` answer names only `max`, so the Server adds the account's rate-limit tier from
+Claude Code's global config (`oauthAccount.organizationRateLimitTier`, e.g. `default_claude_max_5x`) as
+`rateLimitTier`. When the plan's pick has no live reading, `auto` shows the other window. `fiveHour`, `weekly`, and
+`both` fix the choice. The hover card lists every window with its reset either way. The figures are account-wide:
 the newest reading Server Core has from any conversation.
 
 - **Codex** writes its windows into the rollout, which the live scan already reads.

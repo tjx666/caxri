@@ -1,4 +1,4 @@
-import type { AgentUsageReadout, UsageLimit } from '@caxri/protocol';
+import type { AgentUsageReadout, AppSettings, UsageLimit } from '@caxri/protocol';
 import {
     agentUsageCostLabel,
     currentLimitWindows,
@@ -20,7 +20,7 @@ import {
 } from '../../lib/usage-format';
 
 /**
- * The 5-hour plan window, which the chip leaves out unless `statusBar.usage.showFiveHourLimit` is on.
+ * The 5-hour plan window, which the chip shows for plans it constrains (see {@link isFiveHourBoundPlan}).
  */
 const FIVE_HOUR_WINDOW_MINUTES = 300;
 
@@ -29,25 +29,48 @@ const FIVE_HOUR_WINDOW_MINUTES = 300;
  */
 export interface AgentUsageChipOptions {
     /**
-     * `statusBar.usage.showFiveHourLimit`: the 5-hour window resets several times a day, so it is opt-in.
+     * `statusBar.usage.limitWindows`: which plan windows the chip shows. `auto` picks by plan.
      */
-    showFiveHourLimit: boolean;
+    limitWindows: AppSettings['statusBar.usage.limitWindows'];
 }
 
 /**
- * The live limit windows the chip itself shows: {@link currentLimitWindows} minus the 5-hour window unless the user
- * opted in. The weekly window is the one that actually stops a plan for days, so it is the one worth a status-bar
- * slot.
+ * Whether the 5-hour window is the one that stops this plan in practice: Claude Pro and Max 5x run out of it most days
+ * long before their weekly window, while Max 20x, Team, Enterprise, and Codex plans are bound by the week. Claude
+ * Code's `planType` says only `max`, so Max 5x is told apart by its rate-limit tier (`default_claude_max_5x`).
+ */
+function isFiveHourBoundPlan(limit: UsageLimit | undefined): boolean {
+    if (limit?.provider !== 'claude') return false;
+    if (limit.planType === 'pro') return true;
+    return limit.planType === 'max' && (limit.rateLimitTier?.endsWith('_max_5x') ?? false);
+}
+
+/**
+ * The live limit windows the chip itself shows: {@link currentLimitWindows} filtered by the Setting. `auto` shows the
+ * 5-hour window for {@link isFiveHourBoundPlan} plans and every other window otherwise, and falls back to every live
+ * window when its pick has none, so a reading without a 5-hour window still shows its weekly one.
  */
 function agentUsageChipWindows(
     limit: UsageLimit | undefined,
     now: number,
-    { showFiveHourLimit }: AgentUsageChipOptions,
+    { limitWindows }: AgentUsageChipOptions,
 ): ReturnType<typeof currentLimitWindows> {
     const windows = currentLimitWindows(limit, now);
-    return showFiveHourLimit
-        ? windows
-        : windows.filter((window) => window.windowMinutes !== FIVE_HOUR_WINDOW_MINUTES);
+    const isFiveHour = (window: (typeof windows)[number]) =>
+        window.windowMinutes === FIVE_HOUR_WINDOW_MINUTES;
+    switch (limitWindows) {
+        case 'both':
+            return windows;
+        case 'fiveHour':
+            return windows.filter(isFiveHour);
+        case 'weekly':
+            return windows.filter((window) => !isFiveHour(window));
+        case 'auto': {
+            const isFiveHourBound = isFiveHourBoundPlan(limit);
+            const picked = windows.filter((window) => isFiveHour(window) === isFiveHourBound);
+            return picked.length > 0 ? picked : windows;
+        }
+    }
 }
 
 /**
@@ -91,10 +114,11 @@ export type AgentUsageLimitTone = 'warning';
 
 /**
  * Warning while any live window the chip shows is at or past the warning threshold, or while the plan's multi-day
- * window is projected to run out before it resets (`limitPaceShortfall`, the same function the Chat composer's pace row
- * uses). Both follow the displayed figures, so the colour never disagrees with a number beside it: a nearly spent
- * weekly limit warns even while the 5-hour window has room, and a weekly limit at 70% left with 6 of 7 days to go warns
- * before it is nearly spent, when slowing down still helps. The first tenth of a window never warns on pace.
+ * window the chip shows is projected to run out before it resets (`limitPaceShortfall`, the same function the Chat
+ * composer's pace row uses). Both follow the displayed figures, so the colour never disagrees with a number beside it:
+ * a nearly spent weekly limit warns even while the 5-hour window has room, and a weekly limit at 70% left with 6 of 7
+ * days to go warns before it is nearly spent, when slowing down still helps. The first tenth of a window never warns on
+ * pace.
  *
  * `isPaceDismissed` is the Chat pace reminder's dismissal for today: once the user has acknowledged the pace warning
  * the chip stops repeating it in colour, but a nearly spent window still warns because that is a harder stop the
@@ -106,10 +130,15 @@ export function agentUsageLimitTone(
     options: AgentUsageChipOptions,
     isPaceDismissed = false,
 ): AgentUsageLimitTone | undefined {
-    const isNearlySpent = agentUsageChipWindows(readout.limit, now, options).some(
+    const windows = agentUsageChipWindows(readout.limit, now, options);
+    const isNearlySpent = windows.some(
         (window) => Math.round(window.usedPercent) >= LIMIT_WARNING_PERCENT,
     );
-    const isAheadOfPace = !isPaceDismissed && limitPaceShortfall(readout.limit, now) !== undefined;
+    // Only a window the chip shows may colour it, so a 5-hour-only chip never warns about the week it does not show.
+    const shortfall = isPaceDismissed ? undefined : limitPaceShortfall(readout.limit, now);
+    const isAheadOfPace =
+        shortfall !== undefined &&
+        windows.some((window) => window.windowMinutes === shortfall.window.windowMinutes);
     // A banked reset that is about to expire is lost unless the user acts, so the chip asks for a glance.
     const isCreditExpiring = isResetCreditExpiringSoon(readout.limit, now);
     return isNearlySpent || isAheadOfPace || isCreditExpiring ? 'warning' : undefined;

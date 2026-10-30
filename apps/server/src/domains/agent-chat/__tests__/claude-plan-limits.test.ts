@@ -1,4 +1,8 @@
-import { describe, expect, it, vi } from 'vitest';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { describe, expect, it, onTestFinished, vi } from 'vitest';
 
 import {
     CLAUDE_PLAN_LIMITS_REFRESH_MS,
@@ -98,6 +102,37 @@ describe('ClaudePlanLimits', () => {
         await limits.read(query);
         expect(usage).toHaveBeenCalledTimes(2);
         await expect(limits.read(undefined)).resolves.toBeUndefined();
+    });
+
+    it('attaches the rate-limit tier to subscription readings, read once per Chat', async () => {
+        const home = await mkdtemp(join(tmpdir(), 'caxri-claude-plan-tier-'));
+        onTestFinished(() => rm(home, { force: true, recursive: true }));
+        const config = join(home, '.claude.json');
+        const writeTier = (tier: string) =>
+            writeFile(
+                config,
+                JSON.stringify({ oauthAccount: { organizationRateLimitTier: tier } }),
+            );
+        await writeTier('default_claude_max_5x');
+        let now = NOW;
+        const usage = vi.fn(() => Promise.resolve(answer as never));
+        const query = { usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET: usage };
+        const readEnvironment = () => ({ HOME: home });
+        const limits = new ClaudePlanLimits({ now: () => now, readEnvironment });
+        await expect(limits.read(query)).resolves.toMatchObject({
+            planType: 'max',
+            rateLimitTier: 'default_claude_max_5x',
+        });
+        // Cached for the Chat: a later config change is not read again.
+        await writeTier('default_claude_max_20x');
+        now += CLAUDE_PLAN_LIMITS_REFRESH_MS;
+        limits.observe({ status: 'allowed', rateLimitType: 'five_hour', utilization: 0.5 });
+        await expect(limits.read(query)).resolves.toMatchObject({
+            rateLimitTier: 'default_claude_max_5x',
+        });
+        usage.mockResolvedValueOnce({ rate_limits: answer.rate_limits } as never);
+        const apiKey = new ClaudePlanLimits({ now: () => now, readEnvironment });
+        await expect(apiKey.read(query)).resolves.not.toHaveProperty('rateLimitTier');
     });
 
     it('treats a rejected window without a figure as used up', () => {

@@ -1,12 +1,11 @@
-import { access, mkdir, realpath, rmdir } from 'node:fs/promises';
-import { join } from 'node:path';
+import { mkdir, realpath, rmdir } from 'node:fs/promises';
 import { setTimeout as delay } from 'node:timers/promises';
 
 import { readBoundedRegularFileText } from '@caxri/system';
 
 import { atomicWriteUserConfig } from '../../../atomic-file';
 import type { AgentEnvironment } from '../../contract';
-import { resolveClaudeConfigDirectory } from './paths';
+import { MAX_CLAUDE_GLOBAL_CONFIG_BYTES, resolveClaudeGlobalConfigPath } from './paths';
 
 /**
  * Closed outcome of one trust grant. Only `granted` and `already_trusted` mean Claude Code will start without its
@@ -24,11 +23,6 @@ export interface ClaudeFolderTrustOptions {
     lockRetryDelayMs?: number;
 }
 
-/**
- * `~/.claude.json` keeps every Project Claude Code has opened, so it grows with use; this bound only stops a corrupt or
- * hostile file from being parsed whole.
- */
-const MAX_CONFIG_BYTES = 32 * 1024 * 1024;
 const DEFAULT_LOCK_ATTEMPTS = 20;
 const DEFAULT_LOCK_RETRY_DELAY_MS = 50;
 
@@ -66,7 +60,7 @@ export async function grantClaudeFolderTrust(
         let config: Record<string, unknown>;
         try {
             const parsed: unknown = JSON.parse(
-                await readBoundedRegularFileText(target, MAX_CONFIG_BYTES),
+                await readBoundedRegularFileText(target, MAX_CLAUDE_GLOBAL_CONFIG_BYTES),
             );
             if (!isRecord(parsed)) return 'unreadable';
             config = parsed;
@@ -93,23 +87,6 @@ export async function grantClaudeFolderTrust(
         return 'granted';
     } finally {
         await releaseLock(lockPath);
-    }
-}
-
-/**
- * Mirrors Claude Code's global config lookup: a legacy `<config dir>/.config.json` wins when it exists; otherwise the
- * file is `.claude.json` beside `CLAUDE_CONFIG_DIR`'s contents, or in the home directory when that is unset.
- */
-async function resolveClaudeGlobalConfigPath(environment: AgentEnvironment): Promise<string> {
-    const legacy = join(resolveClaudeConfigDirectory(environment), '.config.json');
-    try {
-        await access(legacy);
-        return legacy;
-    } catch {
-        // oxlint-disable-next-line typescript/prefer-nullish-coalescing -- an empty override is not a usable root
-        const root = environment.variables.CLAUDE_CONFIG_DIR || environment.homeDirectory;
-        const suffix = environment.variables.CLAUDE_CODE_CUSTOM_OAUTH_URL ? '-custom-oauth' : '';
-        return join(root, `.claude${suffix}.json`);
     }
 }
 

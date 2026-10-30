@@ -46,7 +46,7 @@ test("a running Claude Chat reports its plan's 5-hour and weekly limits and warn
         await expect(chat.getByText('Hello from fake Claude. You said: hi there')).toBeVisible();
 
         // Claude Code writes no limits into its transcript; the running Chat answered `/usage` for the status bar. The
-        // chip leaves the 5-hour window out by default, and a week ahead of pace marks it as a warning that is dropped
+        // chip leaves the 5-hour window out by default for a plan without a 5-hour-bound tier, and a week ahead of pace marks it as a warning that is dropped
         // last when the status bar runs out of room.
         const usageChip = page.getByRole('button', { name: /^Open Usage/u });
         await expect(usageChip).toContainText('wk 39% left');
@@ -85,6 +85,13 @@ test("a running Claude Chat reports its plan's 5-hour and weekly limits and warn
         await expect(usageChip).not.toHaveClass(/text-warning/u);
         await expect(chat.getByRole('textbox', { name: 'Message' })).toBeVisible();
         await expect(pace).toHaveCount(0);
+
+        // The fake account names no rate-limit tier, so `auto` showed the weekly window; a fixed choice overrides it.
+        await pageRequest(page, 'settings.update', {
+            source: JSON.stringify({ 'statusBar.usage.limitWindows': 'fiveHour' }),
+        });
+        await expect(usageChip).toContainText('5h 78% left');
+        await expect(usageChip).not.toContainText('wk');
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });

@@ -122,6 +122,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
     private readonly planLimits = new ClaudePlanLimits({
         onEvent: (info) => this.turns.observeRateLimit(info),
         onExtraUsage: (isEnabled) => this.options.apply(this.fastMode.setExtraUsage(isEnabled)),
+        readEnvironment: () => this.options.environment,
     });
 
     private query: Query | undefined;

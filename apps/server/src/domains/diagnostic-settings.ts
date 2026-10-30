@@ -183,7 +183,7 @@ const settingsProjection: SettingsProjection = {
     'primarySidebar.translucent': exportAsIs,
     'zen.fullScreen': exportAsIs,
     'zen.restore': exportAsIs,
-    'statusBar.usage.showFiveHourLimit': exportAsIs,
+    'statusBar.usage.limitWindows': exportAsIs,
     'window.zoomLevel': exportAsIs,
     'workbench.fontFamily': exportAsIs,
     'workbench.language': exportAsIs,

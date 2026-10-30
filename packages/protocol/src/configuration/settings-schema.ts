@@ -232,7 +232,9 @@ export const appSettingsSchema = z.object({
     'primarySidebar.translucent': booleanField(spec['primarySidebar.translucent']),
     'zen.fullScreen': booleanField(spec['zen.fullScreen']),
     'zen.restore': booleanField(spec['zen.restore']),
-    'statusBar.usage.showFiveHourLimit': booleanField(spec['statusBar.usage.showFiveHourLimit']),
+    'statusBar.usage.limitWindows': z
+        .enum(enumValues(spec['statusBar.usage.limitWindows'].options))
+        .default(spec['statusBar.usage.limitWindows'].default),
     'window.zoomLevel': integerField(spec['window.zoomLevel']),
     'workbench.fontFamily': nullableStringField(spec['workbench.fontFamily']),
     'workbench.externalEditor': nullableStringField(spec['workbench.externalEditor']),

@@ -122,9 +122,13 @@ export const settingsCatalog = {
     'settings.zen.restore.description':
         'Reopening Caxri while Zen Mode was on starts in Zen Mode again. Turn off to always start with the full layout.',
 
-    'settings.statusBar.usage.showFiveHourLimit.title': 'Show 5-hour limit in the status bar',
-    'settings.statusBar.usage.showFiveHourLimit.description':
-        'Adds the 5-hour plan limit to the Agent usage chip beside the weekly limit. Its hover card always lists every limit.',
+    'settings.statusBar.usage.limitWindows.title': 'Status bar usage limits',
+    'settings.statusBar.usage.limitWindows.description':
+        'Which plan limits the Agent usage chip shows. Auto shows the 5-hour limit for Claude Pro and Max 5x, where it is the one that runs out, and the weekly limit for every other plan. Its hover card always lists every limit.',
+    'settings.statusBar.usage.limitWindows.option.auto': 'Auto',
+    'settings.statusBar.usage.limitWindows.option.fiveHour': '5-hour',
+    'settings.statusBar.usage.limitWindows.option.weekly': 'Weekly',
+    'settings.statusBar.usage.limitWindows.option.both': '5-hour and weekly',
 
     'settings.window.zoomLevel.title': 'Zoom level',
     'settings.window.zoomLevel.description':

@@ -118,9 +118,13 @@ export const settingsCatalog: TranslatedNamespace<typeof source> = {
     'settings.zen.restore.description':
         '关闭 Caxri 时处于 Zen 模式，重新打开后仍进入 Zen 模式。关闭后每次启动都显示完整布局。',
 
-    'settings.statusBar.usage.showFiveHourLimit.title': '在状态栏显示 5 小时限额',
-    'settings.statusBar.usage.showFiveHourLimit.description':
-        '在 Agent 用量标签中，于每周限额旁同时显示 5 小时套餐限额。悬停卡片始终列出全部限额。',
+    'settings.statusBar.usage.limitWindows.title': '状态栏用量限额',
+    'settings.statusBar.usage.limitWindows.description':
+        'Agent 用量标签显示哪些套餐限额。自动：Claude Pro 和 Max 5x 显示最容易用完的 5 小时限额，其它套餐显示每周限额。悬停卡片始终列出全部限额。',
+    'settings.statusBar.usage.limitWindows.option.auto': '自动',
+    'settings.statusBar.usage.limitWindows.option.fiveHour': '5 小时',
+    'settings.statusBar.usage.limitWindows.option.weekly': '每周',
+    'settings.statusBar.usage.limitWindows.option.both': '5 小时和每周',
 
     'settings.window.zoomLevel.title': '缩放级别',
     'settings.window.zoomLevel.description':
