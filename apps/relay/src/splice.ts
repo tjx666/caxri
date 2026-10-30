@@ -28,7 +28,7 @@ export interface SpliceEnd {
 const mirroredCloseCode = (code: number): number =>
     code === 1000 || (code >= 3000 && code <= 4999) ? code : relayCloseCodes['peer-gone'];
 
-const byteLength = (data: RawData): number => {
+export const rawByteLength = (data: RawData): number => {
     if (Array.isArray(data)) return data.reduce((total, chunk) => total + chunk.length, 0);
     return data instanceof ArrayBuffer ? data.byteLength : data.length;
 };
@@ -88,7 +88,7 @@ export class Splice {
     #forward(source: WebSocket, destination: WebSocket, count: (bytes: number) => void): void {
         source.on('message', (data, isBinary) => {
             if (destination.readyState !== OPEN) return;
-            count(byteLength(data));
+            count(rawByteLength(data));
             destination.send(data, { binary: isBinary });
             if (destination.bufferedAmount > this.#limits.maxDirectionBufferedBytes) {
                 this.close('capacity', relayCloseCodes.capacity);

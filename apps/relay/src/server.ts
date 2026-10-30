@@ -8,21 +8,16 @@ import {
     decodeHex,
     isRelayHostProofValid,
     RELAY_CHALLENGE_BYTES,
-    RELAY_CONNECTION_ID_BYTES,
     RELAY_PROTOCOL_VERSION,
     RELAY_TICKET_BYTES,
-    relayAccessKeyHashFromHex,
     relayChallengeSchema,
-    relayClientConnectSchema,
-    relayClientReadySchema,
     relayCloseCodes,
     relayGrantUpdateSchema,
-    relayHostAcceptSchema,
     relayHostIdForPublicKey,
     relayHostRegisteredSchema,
     relayHostRegisterSchema,
-    relayIncomingSchema,
     relayPaths,
+    relayStandbySchema,
 } from '@caxri/mobile-transport';
 import type { RawData } from 'ws';
 import WebSocket, { WebSocketServer } from 'ws';
@@ -33,7 +28,8 @@ import type { RegisteredHost } from './hosts';
 import { HostRegistry } from './hosts';
 import type { RelayEndCause, RelayLogSink, RelayRejection } from './log';
 import { RelayLogger, shortHostId } from './log';
-import { Splice } from './splice';
+import { Rendezvous } from './rendezvous';
+import type { Splice } from './splice';
 
 type Route = 'client' | 'host' | 'hostData';
 
@@ -54,6 +50,10 @@ interface SocketState {
 export interface RelayStats {
     hosts: number;
     connections: number;
+    /**
+     * Idle host-data sockets parked for the next phone.
+     */
+    standbys: number;
 }
 
 const rejectionCodes: Record<RelayRejection, number> = {
@@ -98,6 +98,7 @@ export class RelayServer {
     readonly #random: (bytes: number) => Buffer;
     readonly #registry: HostRegistry;
     readonly #admission: SourceAdmission;
+    readonly #rendezvous: Rendezvous;
     readonly #sockets = new Map<WebSocket, SocketState>();
     readonly #webSocketServer: WebSocketServer;
     readonly #server: Server;
@@ -117,6 +118,18 @@ export class RelayServer {
             attemptsPerMinute: config.sourceAttemptsPerMinute,
             pendingLimit: config.sourcePendingSockets,
             now: this.#now,
+        });
+        this.#rendezvous = new Rendezvous({
+            config,
+            endCauseOf: (socket) => {
+                const state = this.#sockets.get(socket);
+                return state && (() => state.endCause);
+            },
+            logger: this.#logger,
+            now: this.#now,
+            random: this.#random,
+            registry: this.#registry,
+            reject: (socket, reason) => this.#reject(socket, reason),
         });
         this.#webSocketServer = new WebSocketServer({
             noServer: true,
@@ -217,8 +230,8 @@ export class RelayServer {
         socket.once('message', (data, isBinary) => {
             try {
                 const frame = parseText(data, isBinary);
-                if (route === 'client') this.#acceptClient(socket, frame, authenticated);
-                else this.#acceptHostData(socket, frame, authenticated);
+                if (route === 'client') this.#rendezvous.acceptClient(socket, frame, authenticated);
+                else this.#rendezvous.acceptHostData(socket, frame, authenticated);
             } catch {
                 this.#reject(socket, 'invalid-request');
             }
@@ -266,8 +279,10 @@ export class RelayServer {
                     return;
                 }
                 authenticated();
+                const replacedStandby = this.#registry.host(hostId)?.standby;
                 const replaced = this.#registry.register(hostId, socket, register.grants);
                 host = this.#registry.host(hostId);
+                replacedStandby?.socket.close(relayCloseCodes.replaced);
                 if (replaced) {
                     const replacedState = this.#sockets.get(replaced);
                     if (replacedState) replacedState.endCause = 'replaced';
@@ -282,6 +297,14 @@ export class RelayServer {
                         }),
                     ),
                 );
+                if (host && register.standby) {
+                    host.standbyTicket = this.#random(RELAY_TICKET_BYTES);
+                    const standby = relayStandbySchema.parse({
+                        type: 'relay-standby',
+                        ticket: host.standbyTicket.toString('hex'),
+                    });
+                    socket.send(JSON.stringify(standby));
+                }
                 const registeredAt = this.#now();
                 this.#logger.count('hostsRegistered');
                 this.#logger.write({
@@ -289,8 +312,12 @@ export class RelayServer {
                     host: shortHostId(hostId),
                     grants: register.grants.length,
                     replaced: Boolean(replaced),
+                    standby: Boolean(register.standby),
                 });
+                const registered = host;
                 socket.once('close', () => {
+                    if (this.#registry.host(hostId) === registered)
+                        registered?.standby?.socket.close(relayCloseCodes['host-offline']);
                     const dropped = this.#registry.unregister(hostId, socket);
                     for (const item of dropped) {
                         item.client.resume();
@@ -307,106 +334,6 @@ export class RelayServer {
             } catch {
                 this.#reject(socket, 'invalid-request');
             }
-        });
-    }
-
-    #acceptClient(socket: WebSocket, frame: unknown, authenticated: () => void): void {
-        const connect = relayClientConnectSchema.parse(frame);
-        const host = this.#registry.host(connect.hostId);
-        if (!host) {
-            this.#reject(socket, 'host-offline');
-            return;
-        }
-        const keyHash = relayAccessKeyHashFromHex(connect.accessKey);
-        if (!this.#registry.hasGrant(host, keyHash)) {
-            this.#reject(socket, 'unauthorized');
-            return;
-        }
-        if (this.#registry.hostConnectionCount(host.hostId) >= this.#config.maxConnectionsPerHost) {
-            this.#reject(socket, 'capacity');
-            return;
-        }
-        authenticated();
-        // The phone waits for `relay-ready` before its hello; pausing keeps any early bytes in the kernel buffer.
-        socket.pause();
-        const connectionId = this.#random(RELAY_CONNECTION_ID_BYTES).toString('hex');
-        const ticket = this.#random(RELAY_TICKET_BYTES);
-        const timer = setTimeout(() => {
-            if (!this.#registry.takePending(connectionId)) return;
-            socket.resume();
-            this.#reject(socket, 'host-timeout');
-        }, this.#config.hostDialTimeoutMs);
-        timer.unref();
-        this.#registry.addPending({
-            client: socket,
-            connectionId,
-            hostId: host.hostId,
-            keyHash,
-            startedAt: this.#now(),
-            ticket,
-            timer,
-        });
-        socket.once('close', () => this.#registry.takePending(connectionId));
-        const incoming = relayIncomingSchema.parse({
-            type: 'relay-incoming',
-            connectionId,
-            ticket: ticket.toString('hex'),
-        });
-        host.control.send(JSON.stringify(incoming));
-    }
-
-    #acceptHostData(socket: WebSocket, frame: unknown, authenticated: () => void): void {
-        const accept = relayHostAcceptSchema.parse(frame);
-        const pending = this.#registry.claim(
-            accept.connectionId,
-            accept.hostId,
-            Buffer.from(accept.ticket, 'hex'),
-        );
-        if (!pending) {
-            this.#reject(socket, 'unauthorized');
-            return;
-        }
-        authenticated();
-        const { client } = pending;
-        if (client.readyState !== WebSocket.OPEN) {
-            socket.close(relayCloseCodes['peer-gone']);
-            return;
-        }
-        client.send(
-            JSON.stringify(
-                relayClientReadySchema.parse({
-                    type: 'relay-ready',
-                    version: RELAY_PROTOCOL_VERSION,
-                }),
-            ),
-        );
-        const host = shortHostId(pending.hostId);
-        // Captured now: the socket close handler forgets each state before the Splice sees the close.
-        const states = new Map([
-            [client, this.#sockets.get(client)],
-            [socket, this.#sockets.get(socket)],
-        ]);
-        const splice = new Splice({
-            client,
-            host: socket,
-            hostId: pending.hostId,
-            keyHash: pending.keyHash,
-            limits: this.#config,
-            now: this.#now,
-            recordedCause: (ended) => states.get(ended)?.endCause,
-            onEnd: (end) => {
-                this.#registry.removeSplice(splice);
-                this.#logger.count('connectionsEnded');
-                this.#logger.write({ event: 'relay.connection_ended', host, ...end });
-            },
-        });
-        this.#registry.addSplice(splice);
-        client.resume();
-        this.#logger.count('connectionsSpliced');
-        this.#logger.write({
-            event: 'relay.connection_spliced',
-            host,
-            setupMs: this.#now() - pending.startedAt,
         });
     }
 
@@ -463,7 +390,11 @@ export class RelayServer {
     }
 
     stats(): RelayStats {
-        return { hosts: this.#registry.hostCount, connections: this.#registry.connectionCount };
+        return {
+            hosts: this.#registry.hostCount,
+            connections: this.#registry.connectionCount,
+            standbys: this.#registry.standbyCount,
+        };
     }
 
     async listen(): Promise<number> {

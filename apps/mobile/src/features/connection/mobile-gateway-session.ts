@@ -126,16 +126,27 @@ export const establish = async (input: {
 }): Promise<EstablishedSession> => {
     const graceMs = input.directGraceMs ?? DIRECT_ROUTE_GRACE_MS;
     const startedAt = Date.now();
-    const { route, socket } = await openGatewaySocket(input.routes, input.runtime, graceMs);
-    const reader = createSocketReader(socket);
-    try {
-        // A reconnect tells the Server how it got here, so its log can explain a slow reconnect from both ends.
+    /**
+     * A reconnect tells the Server how it got here, so its log can explain a slow reconnect from both ends.
+     */
+    const hello = (): string => {
         const trace: MobileConnectTrace = { graceMs, openMs: Date.now() - startedAt };
-        socket.send(
-            JSON.stringify(
-                input.mode === 'connect' ? { ...input.clientHello, trace } : input.clientHello,
-            ),
+        return JSON.stringify(
+            input.mode === 'connect' ? { ...input.clientHello, trace } : input.clientHello,
         );
+    };
+    // Only a reconnect hello may travel ahead on the Relay: it reserves nothing on the Server, while a pairing hello
+    // consumes its pairing code and must reach only the route that wins.
+    const opened = await openGatewaySocket(
+        input.routes,
+        input.runtime,
+        graceMs,
+        input.mode === 'connect' ? { relayHello: hello } : {},
+    );
+    const { route, socket } = opened;
+    const reader = opened.reader ?? createSocketReader(socket);
+    try {
+        if (!opened.isHelloSent) socket.send(hello());
         const response = await reader.next(HANDSHAKE_TIMEOUT_MS);
         const mismatch = mobileVersionMismatchSchema.safeParse(response);
         if (mismatch.success) throw new MobileVersionMismatchError(mismatch.data.supportedVersion);

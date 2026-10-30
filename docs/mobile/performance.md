@@ -95,10 +95,22 @@ subscribe-and-read changes. `sg-proxy` matches a phone reaching a Singapore Rela
 | `sg-proxy`  | 150 |            3,413 → 1,222 |                     3,717 → 1,379 |                      458 → 157 |
 | `cn-direct` | 290 |            4,256 → 2,055 |                     4,843 → 2,353 |                      878 → 294 |
 
-The cold round still pays the 2.5 second grace (3,422 ms on `sg-proxy`) unless the phone is on
-cellular data. Of the remaining warm reconnect, the phone's TLS setup to the Relay, the Server's
-dial-back, and the `relay-ready` round trip before the phone's `hello` are Relay protocol costs
-tracked separately.
+The cold round still paid the 2.5 second grace (3,422 ms on `sg-proxy`) unless the phone was on
+cellular data.
+
+Medians of five warm rounds on 2026-10-31, after the Relay socket opens with the direct race, the
+Server keeps a standby socket parked at the Relay, the reconnect `hello` rides behind
+`relay-connect`, and the first requests ride behind the handshake confirmation:
+
+| Profile     |   E | cold `readyMs` | `readyMs` | `firstDashboardMs` | `sessionOpenMs` |
+| ----------- | --: | -------------: | --------: | -----------------: | --------------: |
+| `local`     |   0 |          2,510 |       311 |                320 |               7 |
+| `sg-proxy`  | 150 |          2,656 |       460 |                615 |             156 |
+| `cn-direct` | 290 |          2,799 |       988 |              1,283 |             294 |
+
+A warm reconnect now costs about three Relay round trips (E): the phone's TLS setup to the Relay, the
+`hello` and challenge, and the confirmation and `ready`. The cold round still waits out the grace,
+but the Relay socket's TLS setup now overlaps it.
 
 ## Release gate still required
 

@@ -1,22 +1,51 @@
 import { mobileClientCloseReasons } from '@caxri/mobile-transport';
 import { describe, expect, it, vi } from 'vitest';
 
+import type { MobileGatewayRouteKind } from '../gateway-routes';
 import { SHORT_DIRECT_ROUTE_GRACE_MS } from '../gateway-routes';
-import type {
-    MobileGatewayConnection,
-    MobileGatewayRuntime,
-    MobileReconnectError,
-} from '../mobile-gateway-client';
+import type { MobileGatewayRuntime, MobileReconnectError } from '../mobile-gateway-client';
 import { pairMobileGateway, reconnectMobileGateway } from '../mobile-gateway-client';
+import type { MobileGatewayConnection } from '../mobile-gateway-connection';
 import {
     FakeGatewaySocket,
+    flushTasks,
     memoryStore,
     mobileCredential,
     observeSettlement,
     pairingLink,
     pairingSecret,
-    UnverifiedReconnectSocket,
 } from './mobile-gateway-fixture';
+import { ConnectGatewaySocket, UnverifiedReconnectSocket } from './reconnect-gateway-fixture';
+
+/**
+ * Opens one reconnect peer per dial, created at dial time so its open event reaches the route's listener.
+ */
+const reconnectThrough = (ready?: ConstructorParameters<typeof ConnectGatewaySocket>[0]) => {
+    const saved: MobileGatewayRouteKind[] = [];
+    const sockets: ConnectGatewaySocket[] = [];
+    const runtime: MobileGatewayRuntime = {
+        openWebSocket: () => {
+            const socket = new ConnectGatewaySocket(ready);
+            sockets.push(socket);
+            return socket as unknown as WebSocket;
+        },
+        platform: 'android',
+        randomBytes: (bytes) => new Uint8Array(bytes).fill(128),
+        routeHints: {
+            load: async () => {
+                await Promise.resolve();
+                return saved.at(-1);
+            },
+            save: (_serverId, route) => saved.push(route),
+        },
+    };
+    const socket = (): ConnectGatewaySocket => {
+        const [only] = sockets as [ConnectGatewaySocket?];
+        if (!only || sockets.length !== 1) throw new Error('Expected exactly one dial.');
+        return only;
+    };
+    return { runtime, saved, socket };
+};
 
 describe('mobile gateway client', () => {
     it('disconnects a half-open socket when an ordinary request times out', async () => {
@@ -507,5 +536,51 @@ describe('mobile gateway client', () => {
                 },
             }),
         ]);
+    });
+
+    it('sends a request right behind the reconnect confirmation and saves the route only on ready', async () => {
+        const { runtime, saved, socket } = reconnectThrough();
+        const { store } = memoryStore();
+        const connection = await reconnectMobileGateway(mobileCredential, runtime, store);
+        const reply = connection.request('project.query', { mode: 'list' });
+        await flushTasks();
+        expect(socket().received).toEqual(['confirm', 'request']);
+        expect(saved).toEqual([]);
+
+        socket().sendReady();
+        await expect(reply).resolves.toEqual(expect.objectContaining({ view: 'paired-device' }));
+        expect(saved).toEqual(['direct']);
+        connection.close('unmounted');
+    });
+
+    it('ends a reconnect whose ready names another device identity', async () => {
+        const { runtime, saved, socket } = reconnectThrough({ generation: 2 });
+        const { store } = memoryStore();
+        await store.save(mobileCredential);
+        const connection = await reconnectMobileGateway(mobileCredential, runtime, store);
+        const termination = new Promise((resolve) => connection.onTermination(resolve));
+        socket().sendReady();
+
+        await expect(termination).resolves.toBe('disconnected');
+        expect(socket().closeCodes).toEqual([mobileClientCloseReasons['protocol-error']]);
+        expect(saved).toEqual([]);
+        await expect(store.load()).resolves.toEqual(mobileCredential);
+    });
+
+    it('ends a reconnect the Server never confirms with ready', async () => {
+        vi.useFakeTimers();
+        try {
+            const { runtime, saved, socket } = reconnectThrough('never');
+            const { store } = memoryStore();
+            const connection = await reconnectMobileGateway(mobileCredential, runtime, store);
+            const termination = new Promise((resolve) => connection.onTermination(resolve));
+            await vi.runOnlyPendingTimersAsync();
+
+            await expect(termination).resolves.toBe('disconnected');
+            expect(socket().closeCodes).toEqual([mobileClientCloseReasons['ready-timeout']]);
+            expect(saved).toEqual([]);
+        } finally {
+            vi.useRealTimers();
+        }
     });
 });

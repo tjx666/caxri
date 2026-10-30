@@ -127,6 +127,27 @@ const pairingCountKey: Record<
     'not-found': 'notFound',
 };
 
+/**
+ * Public reads a phone sends to show the dashboard or open a Session, keyed by the summary field prefix.
+ */
+const timedReads = {
+    'mobile.dashboard': 'dashboard',
+    'mobile.session.show': 'session',
+    'mobile.agentChat.read': 'chat',
+    'mobile.timeline.read': 'timeline',
+} as const;
+
+type TimedRead = (typeof timedReads)[keyof typeof timedReads];
+
+interface ReadTiming {
+    count: number;
+    maxMs: number;
+    totalMs: number;
+}
+
+const isTimedRead = (method: string): method is keyof typeof timedReads =>
+    Object.hasOwn(timedReads, method);
+
 const emptyPairingCounts = () => ({
     started: 0,
     succeeded: 0,
@@ -145,8 +166,7 @@ export class MobileGatewayDiagnostics {
     #total = 0;
     #resyncTotal = 0;
     #pairingTotal = 0;
-    #dashboardReads = 0;
-    #sessionReads = 0;
+    readonly #reads = new Map<TimedRead, ReadTiming>();
 
     constructor(
         private readonly logger: Pick<StructuredLogger, 'write'> | undefined,
@@ -250,14 +270,18 @@ export class MobileGatewayDiagnostics {
     }
 
     /**
-     * Counts public read methods before domain fan-out, without identifiers or payloads.
+     * Times the public reads behind the dashboard and a Session open, from dispatch to reply, without identifiers or
+     * payloads. The first read of each kind logs at once, so a slow first open is visible without waiting a minute.
      */
-    request(method: string): void {
-        if (method === 'mobile.dashboard') this.#dashboardReads += 1;
-        else if (method === 'mobile.session.show') this.#sessionReads += 1;
-        else return;
-        const count = method === 'mobile.dashboard' ? this.#dashboardReads : this.#sessionReads;
-        if (count === 1) this.flush();
+    request(method: string, durationMs: number): void {
+        if (!isTimedRead(method)) return;
+        const kind = timedReads[method];
+        const timing = this.#reads.get(kind) ?? { count: 0, maxMs: 0, totalMs: 0 };
+        timing.count += 1;
+        timing.totalMs += durationMs;
+        timing.maxMs = Math.max(timing.maxMs, durationMs);
+        this.#reads.set(kind, timing);
+        if (timing.count === 1) this.flush();
         else this.flushIfDue();
     }
 
@@ -269,9 +293,15 @@ export class MobileGatewayDiagnostics {
     }
 
     flush(): void {
-        if (this.#dashboardReads + this.#sessionReads > 0)
+        if (this.#reads.size > 0)
             this.logger?.write('info', logEventCatalog.mobileGateway.sessionReadSummary, {
-                fields: { dashboardReads: this.#dashboardReads, sessionReads: this.#sessionReads },
+                fields: Object.fromEntries(
+                    [...this.#reads].flatMap(([kind, timing]) => [
+                        [`${kind}Reads`, timing.count],
+                        [`${kind}TotalMs`, Math.round(timing.totalMs)],
+                        [`${kind}MaxMs`, Math.round(timing.maxMs)],
+                    ]),
+                ),
             });
         if (this.#total > 0)
             this.logger?.write('info', logEventCatalog.mobileGateway.failureSummary, {

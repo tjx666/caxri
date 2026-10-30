@@ -18,10 +18,6 @@ import type { MobileCredential } from './credential-store';
 import { expoMobileCredentialStore } from './expo-credential-store';
 import { expoMobileGatewayRuntime } from './expo-mobile-gateway-runtime';
 import type { MobileSubscriptionListener } from './mobile-frame-router';
-import type {
-    MobileGatewayConnection,
-    MobileGatewaySubscriptionHandle,
-} from './mobile-gateway-client';
 import {
     MobileGatewayRequestError,
     MobileGatewayTimeoutError,
@@ -30,6 +26,10 @@ import {
     pairMobileGateway,
     reconnectMobileGateway,
 } from './mobile-gateway-client';
+import type {
+    MobileGatewayConnection,
+    MobileGatewaySubscriptionHandle,
+} from './mobile-gateway-connection';
 import type { MobileNetworkWakeAction } from './network-recovery';
 import { watchMobileNetwork } from './network-recovery';
 import { createPairingAttemptOwner } from './pairing-attempt';

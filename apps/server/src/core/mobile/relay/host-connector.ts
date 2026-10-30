@@ -10,17 +10,20 @@ import {
     relayCloseReasonOf,
     relayEndpoint,
     relayHostAcceptSchema,
+    relayHostControlSchema,
     relayHostIdForPublicKey,
     relayHostPublicKey,
     relayHostRegisteredSchema,
     relayHostRegisterSchema,
-    relayIncomingSchema,
+    relayHostStandbySchema,
     relayPaths,
+    relayStandbySplicedSchema,
     signRelayHostChallenge,
 } from '@caxri/mobile-transport';
 import type { MobileRelayFailure } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
+import type { RawData } from 'ws';
 import WebSocket from 'ws';
 
 import { messageText } from '../gateway/socket-message';
@@ -45,7 +48,7 @@ export type RelayStateCause =
  */
 export type RelayFailure = MobileRelayFailure & RelayStateCause;
 
-export type RelayDialFailure = 'accept-rejected' | 'capacity' | 'dial-failed';
+export type RelayDialFailure = 'accept-rejected' | 'capacity' | 'dial-failed' | 'standby-failed';
 
 export interface RelayConnectorTiming {
     initialBackoffMs: number;
@@ -80,11 +83,9 @@ export interface RelayHostConnectorOptions {
      */
     canAccept: () => boolean;
     /**
-     * Receives the spliced host-data socket synchronously after `host-accept` is written, so its listeners are attached
-     * before the first phone frame can arrive.
-     */
-    /**
-     * Receives each dial-back socket once it opened, with how long the dial took since `relay-incoming`.
+     * Receives each phone's host-data socket synchronously, so the gateway's listeners are attached before the first
+     * phone frame can arrive. `dialMs` is how long a dial-back took since `relay-incoming`, and 0 for a parked standby
+     * socket the Relay spliced without one.
      */
     onConnection: (socket: WebSocket, dialMs: number) => void;
     logger?: Pick<StructuredLogger, 'write'>;
@@ -130,6 +131,10 @@ export class RelayHostConnector {
     #registeredAt?: number;
     #sentGrants = new Map<string, number | undefined>();
     #stableTimer?: ReturnType<typeof setTimeout>;
+    #standby?: WebSocket;
+    #standbyAttempt = 0;
+    #standbyTicket?: string;
+    #standbyTimer?: ReturnType<typeof setTimeout>;
     #state: RelayConnectorState = 'stopped';
     readonly hostId: string;
 
@@ -239,6 +244,7 @@ export class RelayHostConnector {
                             publicKey: encodeHex(this.#publicKey),
                             signature: encodeHex(signature),
                             grants: grantList(grants),
+                            standby: true,
                         }),
                     );
                     this.#sentGrants = grants;
@@ -251,7 +257,12 @@ export class RelayHostConnector {
                     this.#onRegistered(control);
                     return;
                 }
-                this.#dialBack(relayIncomingSchema.parse(raw));
+                const frame = relayHostControlSchema.parse(raw);
+                if (frame.type === 'relay-incoming') this.#dialBack(frame);
+                else {
+                    this.#standbyTicket = frame.ticket;
+                    this.#parkStandby();
+                }
             } catch {
                 fail('protocol-error');
             }
@@ -349,6 +360,84 @@ export class RelayHostConnector {
         });
     }
 
+    /**
+     * Keeps one idle host-data socket parked at the Relay, so the next phone is spliced without a dial-back's TCP and
+     * TLS setup. A failed park retries with backoff; a used one is replaced at once.
+     */
+    #parkStandby(): void {
+        if (!this.#isStarted || this.#state !== 'online' || !this.#standbyTicket || this.#standby)
+            return;
+        const ticket = this.#standbyTicket;
+        const socket = this.#createSocket(relayEndpoint(this.#options.url, relayPaths.hostData));
+        this.#standby = socket;
+        // The dial deadline until the park opens; then the stable timer that forgives earlier failed parks, so an idle
+        // Server whose standby drops now and then never drifts toward the maximum backoff.
+        let timer = setTimeout(() => socket.terminate(), this.#timing.dialTimeoutMs);
+        timer.unref();
+        const onClose = (): void => {
+            clearTimeout(timer);
+            if (this.#standby !== socket) return;
+            this.#standby = undefined;
+            this.#dialFailed('standby-failed');
+            this.#scheduleStandby();
+        };
+        const onMessage = (data: RawData, isBinary: boolean): void => {
+            try {
+                if (isBinary) throw new Error('Relay standby frames are text');
+                relayStandbySplicedSchema.parse(JSON.parse(messageText(data)));
+            } catch {
+                socket.terminate();
+                return;
+            }
+            clearTimeout(timer);
+            socket.off('message', onMessage);
+            socket.off('close', onClose);
+            socket.removeAllListeners('error');
+            this.#standby = undefined;
+            this.#standbyAttempt = 0;
+            if (this.#options.canAccept()) this.#options.onConnection(socket, 0);
+            else {
+                socket.close();
+                this.#dialFailed('capacity');
+            }
+            this.#parkStandby();
+        };
+        socket.on('error', () => {});
+        socket.on('message', onMessage);
+        socket.on('close', onClose);
+        socket.once('open', () => {
+            clearTimeout(timer);
+            timer = setTimeout(() => {
+                if (this.#standby === socket) this.#standbyAttempt = 0;
+            }, this.#timing.stableAfterMs);
+            timer.unref();
+            this.#send(
+                socket,
+                relayHostStandbySchema.parse({
+                    type: 'host-standby',
+                    version: RELAY_PROTOCOL_VERSION,
+                    hostId: this.hostId,
+                    ticket,
+                }),
+            );
+        });
+    }
+
+    #scheduleStandby(): void {
+        if (!this.#isStarted || this.#state !== 'online') return;
+        this.#standbyAttempt += 1;
+        const ceiling = Math.min(
+            this.#timing.maxBackoffMs,
+            this.#timing.initialBackoffMs * 2 ** Math.min(this.#standbyAttempt - 1, 16),
+        );
+        clearTimeout(this.#standbyTimer);
+        this.#standbyTimer = setTimeout(
+            () => this.#parkStandby(),
+            Math.round(ceiling * (0.5 + this.#random() * 0.5)),
+        );
+        this.#standbyTimer.unref();
+    }
+
     #dialFailed(reason: RelayDialFailure): void {
         this.#options.logger?.write('warn', logEventCatalog.mobileGateway.relayDialFailed, {
             fields: { reason },
@@ -362,6 +451,12 @@ export class RelayHostConnector {
     #teardownControl(): void {
         clearInterval(this.#pingTimer);
         clearTimeout(this.#stableTimer);
+        clearTimeout(this.#standbyTimer);
+        const standby = this.#standby;
+        this.#standby = undefined;
+        this.#standbyTicket = undefined;
+        this.#standbyAttempt = 0;
+        standby?.terminate();
         const control = this.#control;
         this.#control = undefined;
         this.#sentGrants = new Map();

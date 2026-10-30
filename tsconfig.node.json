@@ -25,6 +25,7 @@
         "apps/mobile/src/features/connection/gateway-routes.ts",
         "apps/mobile/src/features/connection/mobile-frame-router.ts",
         "apps/mobile/src/features/connection/mobile-gateway-client.ts",
+        "apps/mobile/src/features/connection/mobile-gateway-connection.ts",
         "apps/mobile/src/features/connection/mobile-gateway-errors.ts",
         "apps/mobile/src/features/connection/mobile-gateway-session.ts",
         "apps/mobile/src/features/connection/mobile-heartbeat.ts",

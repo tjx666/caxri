@@ -1,7 +1,12 @@
 import { MOBILE_GATEWAY_MAX_WIRE_BYTES } from '@caxri/mobile-transport';
 
 export { MOBILE_GATEWAY_MAX_WIRE_BYTES };
-const MAXIMUM_QUEUED_MESSAGES = 8;
+/**
+ * A reconnecting phone sends its first requests right behind the handshake `confirm`, so they all queue while the
+ * Server checks the credential. The phone keeps at most 32 requests in flight; heartbeats and subscription frames ride
+ * on top. The byte cap below still bounds the memory an unauthenticated peer can pin.
+ */
+export const MAXIMUM_QUEUED_MESSAGES = 64;
 const MAXIMUM_QUEUED_BYTES = MOBILE_GATEWAY_MAX_WIRE_BYTES * 4;
 
 /**

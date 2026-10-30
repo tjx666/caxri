@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type {
     MobileGatewayConnection,
     MobileGatewaySubscriptionHandle,
-} from '../mobile-gateway-client';
+} from '../mobile-gateway-connection';
 import { acquireMobileSubscription } from '../use-mobile-client-controller';
 
 vi.mock('react-native', () => ({ AppState: { currentState: 'active' } }));

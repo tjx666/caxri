@@ -84,11 +84,12 @@ export const mobilePairingLinkSchema = z.strictObject({
  */
 export const mobileConnectTraceSchema = z.strictObject({
     /**
-     * How long direct routes raced alone before the Relay could join.
+     * How long direct routes raced alone before the Relay was asked for the computer.
      */
     graceMs: z.number().int().min(0).max(60_000),
     /**
-     * From starting the route race until this socket was open (for the Relay, until `relay-ready`).
+     * From starting the route race until the hello was sent: once a direct socket opened, or, for the Relay, right
+     * behind `relay-connect`, before the computer's socket was spliced.
      */
     openMs: z.number().int().min(0).max(120_000),
 });
