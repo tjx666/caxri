@@ -49,7 +49,7 @@ import {
     AgentSurfaceSwitchStatus,
 } from './agent-surface-switch-controls';
 import { sessionDetailStyles as styles } from './session-detail-styles';
-import { SessionMenuActionEntries } from './session-menu-actions';
+import { SessionMenuActionEntries, SessionMenuActionsError } from './session-menu-actions';
 import { SessionStatusGlyph } from './session-status-glyph';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -376,15 +376,13 @@ export const SessionDetailHeader = ({
                         testID="session-mark-read"
                         theme={theme}
                     />
-                    {sessionActions ? (
-                        <SessionMenuActionEntries
-                            actions={sessionActions}
-                            isConnected={isConnected}
-                            onClose={closeMenu}
-                            session={session}
-                            theme={theme}
-                        />
-                    ) : null}
+                    <SessionMenuActionEntries
+                        actions={sessionActions}
+                        isConnected={isConnected}
+                        onClose={closeMenu}
+                        session={session}
+                        theme={theme}
+                    />
                     {!isConnected ? (
                         <Text style={[styles.sendState, { color: theme.muted }]}>
                             {t('sessions.detail.reconnectForActions')}
@@ -406,15 +404,7 @@ export const SessionDetailHeader = ({
                     pending={surfaceSwitch.pending}
                     theme={theme}
                 />
-                {sessionActions?.error ? (
-                    <Text
-                        accessibilityRole="alert"
-                        style={[styles.sendState, { color: theme.danger }]}
-                        testID="session-menu-error"
-                    >
-                        {sessionActions.error}
-                    </Text>
-                ) : null}
+                <SessionMenuActionsError actions={sessionActions} theme={theme} />
                 {markReadError ? (
                     <Text
                         accessibilityRole="alert"
