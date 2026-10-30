@@ -20,6 +20,7 @@ import { fetchCaxriQuery } from '../../queries/client';
 import { isLocalOnlyAvailable } from '../../stores/environment';
 import { getBootstrap } from '../../stores/selectors';
 import { forkAgentChat } from '../agent-chat/agent-chat-commands';
+import { readAgentChatContinueMenuEntry } from '../agent-chat/usage-limit/agent-chat-continue-menu';
 import { takeBackFromBot } from '../caxri-bot/bot-handover-commands';
 import { openBotHandover } from '../caxri-bot/bot-handover-store';
 import { revokePermissionAutoAllow } from '../session/permission-auto-allow-commands';
@@ -285,18 +286,20 @@ async function sessionRowMenu({
      * as it is: navigating must not restore an archived one.
      */
     const creator = resolveSessionCreator(session, sessions, undefined);
-    const [isAutoAllowGranted, isResumable, isManaged, reopenable] = await Promise.all([
-        isPermissionAutoAllowGranted(session.id),
-        isAgentConversationResumable(primaryTerminal),
-        isBotManaged(session.id),
-        readReopenableConversations(session.id),
-    ]);
+    const [isAutoAllowGranted, isResumable, isManaged, reopenable, continueEntry] =
+        await Promise.all([
+            isPermissionAutoAllowGranted(session.id),
+            isAgentConversationResumable(primaryTerminal),
+            isBotManaged(session.id),
+            readReopenableConversations(session.id),
+            readAgentChatContinueMenuEntry(primaryTerminal),
+        ]);
     const forkBlocker = sessionForkBlocker(primaryTerminal);
     /**
      * Six groups: the Session itself (Rename, Rename with AI, Pin, and Hand Over to or Take Back from the Agent Caxri
-     * Bot), Fork, its Agent, opening it elsewhere, a Copy submenu for its Agent's identity, and the two ways to remove
-     * it (Archive, Delete) together at the end, the order Codex's sidebar menu uses. `serializeContextMenu` drops a
-     * separator left without neighbors.
+     * Bot), Fork and Continue in Another Agent, its Agent, opening it elsewhere, a Copy submenu for its Agent's
+     * identity, and the two ways to remove it (Archive, Delete) together at the end, the order Codex's sidebar menu
+     * uses. `serializeContextMenu` drops a separator left without neighbors.
      */
     return [
         /**
@@ -359,6 +362,11 @@ async function sessionRowMenu({
             disabledReason: forkBlocker && translate(FORK_BLOCKER_REASONS[forkBlocker]),
             onSelect: () => primaryTerminal && forkAgentChat(primaryTerminal.id),
         },
+        /**
+         * Hands the Primary Agent's work to another provider in a new Session; a non-primary Agent's own tab menu
+         * offers the same for that Agent.
+         */
+        continueEntry,
         CONTEXT_MENU_SEPARATOR,
         /**
          * The Agent group. The surface switch and Restart Agent act on the Primary Agent, the same Terminal the copy

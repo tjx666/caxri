@@ -14,6 +14,13 @@ import {
     launchCaxri,
     VISIBLE_SESSION,
 } from './support/helpers.ts';
+import {
+    chooseContextMenuItem,
+    contextMenuItemDisabledReason,
+    contextMenuLabels,
+    dismissContextMenu,
+    isContextMenuItemEnabled,
+} from './support/native-context-menu.ts';
 
 // eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
 test('a Claude Chat that used up its 5-hour limit continues in Codex in a new Session', async ({}, testInfo) => {
@@ -282,6 +289,76 @@ test('a PTY Claude Terminal shows the weekly guard of its account without being 
         await expect(notice).toContainText(/resets in/u);
         await expect(rows).toContainText('Fake Claude TUI ready');
         await page.screenshot({ path: testInfo.outputPath('usage-guard-terminal.png') });
+    } finally {
+        await closeAppQuietly(running.app);
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
+test('an idle Claude Chat continues in Codex from its tab menu, and its Session row offers the same', async ({}, testInfo) => {
+    const created = await mkdtemp(join(tmpdir(), 'caxri-continue-menu-'));
+    const directory = await realpath(created);
+    const userData = join(directory, 'user-data');
+    const root = join(directory, 'project');
+    await mkdir(root, { recursive: true });
+    const agentMode = await createFakeAgentMode({
+        userDataDir: userData,
+        providers: {
+            claude: { executableSource: fakeClaudeChatExecutableSource({}) },
+            codex: fakeCodexChatProvider(directory, join(userData, 'e2e-agents', 'codex')),
+        },
+    });
+    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    try {
+        const { app, page } = running;
+        await createProjectSession(page, 'shell');
+        await openAgentChat(page, 'Claude Chat');
+        const source = page.locator(VISIBLE_SESSION);
+        const sourceId = await source.getAttribute('data-workbench-session-id');
+        const tab = source.locator('.work-tab:not([inert])').filter({ hasText: 'Claude' });
+
+        // Before the first turn there is no conversation to hand over.
+        await tab.click({ button: 'right' });
+        expect(await contextMenuItemDisabledReason(app, 'Continue in Another Agent')).toBe(
+            'This Agent has no conversation yet',
+        );
+        await dismissContextMenu(app);
+
+        const message = source.getByRole('textbox', { name: 'Message' });
+        await message.fill('plan the refactor');
+        await message.press('Enter');
+        await expect(source.getByText(/You said: plan the refactor/u)).toBeVisible();
+        await expect(source.getByRole('button', { name: 'Send' })).toBeVisible();
+
+        // The Session row offers the Primary Agent's continuation beside Fork Session.
+        await page
+            .locator(`.project-group [data-session-id="${sourceId}"]`)
+            .click({ button: 'right' });
+        const rowLabels = await contextMenuLabels(app);
+        expect(
+            rowLabels.slice(
+                rowLabels.indexOf('Fork Session'),
+                rowLabels.indexOf('Fork Session') + 2,
+            ),
+        ).toEqual(['Fork Session', 'Continue in Another Agent']);
+        await dismissContextMenu(app);
+
+        // The tab's submenu lists the other Agents, the missing one disabled with why.
+        await tab.click({ button: 'right' });
+        expect(await isContextMenuItemEnabled(app, ['Continue in Another Agent', 'Codex'])).toBe(
+            true,
+        );
+        expect(
+            await contextMenuItemDisabledReason(app, ['Continue in Another Agent', 'Grok Build']),
+        ).toBe('Not installed');
+        await chooseContextMenuItem(app, ['Continue in Another Agent', 'Codex']);
+
+        const continued = page.locator(VISIBLE_SESSION);
+        await expect(continued).not.toHaveAttribute('data-workbench-session-id', sourceId ?? '');
+        await expect(continued.getByText('Continued from')).toBeVisible();
+        await expect(continued.getByText(/Hello from fake Codex/u)).toBeVisible();
+        await page.screenshot({ path: testInfo.outputPath('continue-menu-continued.png') });
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });

@@ -225,9 +225,11 @@ export function AgentChatContinueInAgent({
     const run: Run = (provider) => {
         if (pending) return;
         setPending(provider);
-        void continueAgentChatInAgent(terminalId, provider, turnId).finally(() =>
-            setPending(undefined),
-        );
+        void continueAgentChatInAgent(
+            terminalId,
+            provider,
+            turnId === undefined ? 'usageGuard' : { turnId },
+        ).finally(() => setPending(undefined));
     };
     const isPending = pending !== undefined;
     if (primary && label === 'continueIn')

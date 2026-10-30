@@ -12,9 +12,9 @@ export const usageLogEvents = {
      */
     guard: 'usage.guard',
     /**
-     * A Chat's work continued in another Agent from a used-up plan limit or the weekly guard: source and target
-     * `provider`, closed `trigger` (`usageLimit`, `usageGuard`), closed `outcome` (`created`, `existing`, `failed` with
-     * the error `code`), and the duration. Never carries the context package.
+     * A Chat's work continued in another Agent from a used-up plan limit, the weekly guard, or the user's menu: source
+     * and target `provider`, closed `trigger` (`usageLimit`, `usageGuard`, `manual`), closed `outcome` (`created`,
+     * `existing`, `failed` with the error `code`), and the duration. Never carries the context package.
      */
     continuation: 'usage.continuation',
     /**

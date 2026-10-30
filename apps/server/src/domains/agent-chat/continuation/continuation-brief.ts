@@ -25,9 +25,12 @@ export interface ContinuationBriefInput {
     snapshot: Pick<AgentChatSnapshot, 'items' | 'plan'>;
     source: AgentProvider;
     /**
-     * Why the source stopped: the used-up window of a failed turn, or the weekly guard.
+     * Why the work moves: the used-up window of a failed turn, the weekly guard, or the user choosing another Agent.
      */
-    reason: { kind: 'usageLimit'; window: AgentUsageLimitWindow } | { kind: 'usageGuard' };
+    reason:
+        | { kind: 'usageLimit'; window: AgentUsageLimitWindow }
+        | { kind: 'usageGuard' }
+        | { kind: 'manual' };
     /**
      * A hand-off the source model wrote on the guard's reserved budget, when there is one.
      */
@@ -103,11 +106,13 @@ export function buildContinuationBrief(input: ContinuationBriefInput): string {
     const { snapshot, source, reason, document } = input;
     const sourceName = agentProviderCatalog[source].displayName;
     const why =
-        reason.kind === 'usageGuard'
-            ? `${sourceName}'s weekly usage reached the guard, so Caxri stopped sending it requests`
-            : `${sourceName} hit its ${windowName(reason.window)}`;
+        reason.kind === 'manual'
+            ? 'the user chose to hand it to you'
+            : reason.kind === 'usageGuard'
+              ? `it stopped because ${sourceName}'s weekly usage reached the guard, so Caxri stopped sending it requests`
+              : `it stopped because ${sourceName} hit its ${windowName(reason.window)}`;
     const head = [
-        `Continue the work of a ${sourceName} Chat in this Project; it stopped because ${why}. The conversation so far is summarized below; you cannot ask ${sourceName} about it.`,
+        `Continue the work of a ${sourceName} Chat in this Project; ${why}. The conversation so far is summarized below; you cannot ask ${sourceName} about it.`,
         'Check the working tree (`git status`, `git diff`) before acting: some steps below may be finished, half done, or uncommitted. Do not redo finished work.',
     ];
     const lastUser = snapshot.items.findLast((item) => item.type === 'userMessage');

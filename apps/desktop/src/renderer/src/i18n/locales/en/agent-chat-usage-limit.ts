@@ -13,6 +13,10 @@ export const agentChatUsageLimit = {
     'agentChat.usageLimit.continueTooltip':
         'Opens a new Session in this Project where {{provider}} picks the work up from this conversation',
     'agentChat.usageLimit.noTarget': 'No other Agent can take this over',
+    'agentChat.continueMenu.label': 'Continue in Another Agent',
+    'agentChat.continueMenu.needsChatReason':
+        'Open the Agent as Chat to continue it in another Agent',
+    'agentChat.continueMenu.noConversationReason': 'This Agent has no conversation yet',
     'agentChat.usageLimit.continueFailed': "Couldn't continue in another Agent",
     'agentChat.usageLimit.auto.waiting': 'Continues automatically at {{time}} (in {{duration}})',
     'agentChat.usageLimit.auto.continuing': 'Continuing automatically…',

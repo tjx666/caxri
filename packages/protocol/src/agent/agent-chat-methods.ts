@@ -350,10 +350,11 @@ export const agentChatMethods = {
     /**
      * Continues this Chat's work in a new Session of the same Project with another Agent, without asking this Chat's
      * provider anything: Server Core writes the brief from what the Chat already shows (its hand-off document when one
-     * was generated). `turnId` names the turn a usage limit failed; without it the continuation is the usage guard's
-     * "Open in another Agent". The same turn, or the same guard window, always resolves to the same Session, so a retry
-     * or double click opens it instead of creating another. Fails with `CONFLICT` when the Chat shows neither, and with
-     * `USAGE_LIMITED` when the target's own account is at the guard.
+     * was generated). `turnId` names the turn a usage limit failed; `manual` is the user's Continue in Another Agent
+     * from a menu, which needs no limit but refuses a running turn; with neither, the continuation is the usage guard's
+     * "Open in another Agent". The same turn, guard window, or (for `manual`) latest turn always resolves to the same
+     * Session, so a retry or double click opens it instead of creating another. Fails with `CONFLICT` when the Chat has
+     * nothing to continue from, and with `USAGE_LIMITED` when the target's own account is at the guard.
      */
     'agentChat.continueInAgent': {
         ...ownerOnlyCommandPolicy('server', 'control'),
@@ -361,6 +362,7 @@ export const agentChatMethods = {
             ...terminalTarget,
             provider: agentProviderSchema,
             turnId: z.string().min(1).max(200).optional(),
+            manual: z.literal(true).optional(),
         }),
         result: z.strictObject({
             sessionId: identifierSchema,
