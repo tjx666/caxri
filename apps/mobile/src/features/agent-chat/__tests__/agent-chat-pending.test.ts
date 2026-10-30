@@ -1,5 +1,9 @@
 import type { AgentChatRequest, AgentChatSnapshot } from '@caxri/protocol';
-import { AGENT_CHAT_PENDING_ACCEPTED_TTL_MS } from '@caxri/protocol';
+import {
+    AGENT_CHAT_PENDING_ACCEPTED_TTL_MS,
+    agentChatPendingView,
+    agentChatSnapshotBeforeItem,
+} from '@caxri/protocol';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -80,6 +84,50 @@ describe('AgentChatPendingStore', () => {
         );
         expect(store.get(KEY)).toEqual({ messages: [], answers: [], sendCount: 1 });
         expect(listener).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('an edit sent optimistically', () => {
+    const items = [
+        { id: 'u1', type: 'userMessage', turnId: 't1', text: 'old' },
+        { id: 'a1', type: 'assistantMessage', turnId: 't1', text: 'reply' },
+    ] as unknown as AgentChatSnapshot['items'];
+
+    it('lands on the timeline, hides the replaced message and what follows, and shows the real one once rewound', () => {
+        const store = new AgentChatPendingStore();
+        const before = snapshot({ items, turns: [{ id: 't1' }] as AgentChatSnapshot['turns'] });
+        store.show(KEY, before, { ...message('a', 'new'), imageUris: [], replaces: 'u1' });
+        const view = agentChatPendingView(store.get(KEY).messages, [], before);
+        expect(view.timeline).toHaveLength(1);
+        expect(view.replacedFrom).toBe('u1');
+        expect(agentChatSnapshotBeforeItem(before, view.replacedFrom)?.items).toEqual([]);
+        const rewound = snapshot({
+            items: [
+                { id: 'u2', type: 'userMessage', turnId: 't2', text: 'new' },
+            ] as unknown as AgentChatSnapshot['items'],
+        });
+        store.prune(KEY, rewound);
+        expect(store.get(KEY).messages).toEqual([]);
+    });
+
+    it('restores the old content when the edit fails', async () => {
+        const store = new AgentChatPendingStore();
+        const before = snapshot({ items, turns: [{ id: 't1' }] as AgentChatSnapshot['turns'] });
+        const returnUnsent = vi.fn();
+        await sendAgentChatMessageOptimistically({
+            clearComposer: vi.fn(),
+            key: KEY,
+            message: { ...message('a', 'new'), imageUris: [], replaces: 'u1' },
+            reportError: vi.fn(),
+            returnUnsent,
+            send: () => Promise.reject(new Error('x')),
+            snapshot: before,
+            store,
+        });
+        expect(
+            agentChatPendingView(store.get(KEY).messages, [], before).replacedFrom,
+        ).toBeUndefined();
+        expect(returnUnsent).toHaveBeenCalledTimes(1);
     });
 });
 

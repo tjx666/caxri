@@ -87,6 +87,10 @@ export class AgentChatPendingStore {
             text: string;
             imageUris: readonly string[];
             delivery: 'steer' | undefined;
+            /**
+             * The user message an edit sends this one in place of; see `AgentChatPendingMessageBase.replaces`.
+             */
+            replaces?: string;
         },
     ): string {
         this.update(key, (current) => ({
@@ -98,11 +102,16 @@ export class AgentChatPendingStore {
                     text: message.text,
                     imageUris: message.imageUris,
                     imageCount: message.imageUris.length,
-                    placement: agentChatPendingPlacement(
-                        snapshot,
-                        message.delivery,
-                        current.messages.length > 0,
-                    ),
+                    // An edit rewinds the Chat and restarts the turn, so it lands at the end of the timeline.
+                    placement:
+                        message.replaces === undefined
+                            ? agentChatPendingPlacement(
+                                  snapshot,
+                                  message.delivery,
+                                  current.messages.length > 0,
+                              )
+                            : 'timeline',
+                    ...(message.replaces !== undefined && { replaces: message.replaces }),
                     knownIds: agentChatPendingKnownIds(snapshot),
                     knownQueueLength: agentChatPendingKnownQueueLength(snapshot),
                 },
@@ -200,6 +209,7 @@ export const sendAgentChatMessageOptimistically = async ({
         text: string;
         imageUris: readonly string[];
         delivery: 'steer' | undefined;
+        replaces?: string;
     };
     reportError: (message: string | null) => void;
     returnUnsent: () => void;
