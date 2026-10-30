@@ -1,6 +1,10 @@
 import { resolve } from 'node:path';
 
-import { computeBuildSourceKey, verifyBuildReceipt } from '../../scripts/build-receipt.ts';
+import {
+    computeBuildSourceKey,
+    INSTALL_MISMATCH_HINT,
+    verifyBuildReceipt,
+} from '../../scripts/build-receipt.ts';
 
 const projectRoot = resolve(import.meta.dirname, '../..');
 /**
@@ -22,6 +26,8 @@ export async function assertE2EBuildIsFresh(executablePath?: string): Promise<vo
         purpose: 'launch',
         sourceKey: await workerSourceKey.current,
     });
+    if (!status.isValid && status.reason === 'install-mismatch')
+        throw new Error(INSTALL_MISMATCH_HINT);
     if (!status.isValid)
         throw new Error(
             `Build output is stale (${status.reason}): run "bun run build" before running e2e specs.`,

@@ -94,7 +94,9 @@ bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--related
   longer matches the current inputs and outputs, and reports `build reused` otherwise. Edits under
   `e2e/`, `docs/`, `.agents/`, and `.github/` never force a rebuild; a build of another flavor (for
   example `CAXRI_REACT_PROFILING=1`) does. Direct Playwright and Acceptance launches accept any
-  flavor of current sources.
+  flavor of current sources. When the installed `node_modules` differs from `pnpm-lock.yaml`, no
+  build can record a receipt, so `--e2e` and every launch fail at once with a `run "ni"` message
+  instead of rebuilding; run `ni` and retry.
 - Finish `--lint` before starting a build or Electron E2E. Its automatic fixes mutate source;
   running both concurrently invalidates the build-freshness receipt before Electron can launch.
   The same holds for the whole `--e2e` run, background runs included: an edit, a `git commit`

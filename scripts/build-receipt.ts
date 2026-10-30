@@ -170,6 +170,13 @@ async function worktreeEntry(root: string, path: string): Promise<string> {
 }
 
 /**
+ * What to tell the operator when the install differs from the lockfile. Rebuilding cannot clear it, since no receipt is
+ * recorded over a stale install, so the message names the command that does.
+ */
+export const INSTALL_MISMATCH_HINT =
+    'Installed dependencies do not match pnpm-lock.yaml: run "ni" before building or running e2e specs.';
+
+/**
  * Whether the installed dependency graph matches the committed lockfile. A rebuild over a stale `node_modules` would
  * still use old dependencies, so neither reuse nor a new receipt is allowed until `ni` runs.
  */
@@ -293,9 +300,11 @@ export async function verifyBuildReceipt(
     root: string,
     options: { environment?: NodeJS.ProcessEnv; purpose: 'launch' | 'reuse'; sourceKey?: string },
 ): Promise<BuildReceiptStatus> {
+    // Checked before the receipt: a build over a stale install never records one, so `missing` would hide the cause and
+    // send the operator into a rebuild loop.
+    if (!(await isInstallCurrent(root))) return { isValid: false, reason: 'install-mismatch' };
     const receipt = await readJson<BuildReceipt>(join(root, RECEIPT_PATH));
     if (receipt?.version !== RECEIPT_VERSION) return { isValid: false, reason: 'missing' };
-    if (!(await isInstallCurrent(root))) return { isValid: false, reason: 'install-mismatch' };
     if (
         options.purpose === 'reuse' &&
         receipt.environmentKey !== computeBuildEnvironmentKey(options.environment)
@@ -349,7 +358,9 @@ if (import.meta.main) {
         await beginBuild(root);
     } else if (command === 'record') {
         const outcome = await recordBuild(root);
-        if (outcome !== 'recorded')
+        if (outcome === 'install-mismatch')
+            console.warn(`Build receipt not recorded. ${INSTALL_MISMATCH_HINT}`);
+        else if (outcome !== 'recorded')
             console.warn(`Build receipt not recorded (${outcome}); the next E2E check rebuilds.`);
     } else {
         console.error('Usage: bun run scripts/build-receipt.ts <begin|record>');
