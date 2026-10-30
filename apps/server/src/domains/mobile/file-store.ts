@@ -208,7 +208,15 @@ export class MobileFileStore {
         }
         try {
             const handle = await upload.handle!;
-            await handle.write(bytes, 0, bytes.length, chunkIndex * MOBILE_FILE_CHUNK_BYTES);
+            const { bytesWritten } = await handle.write(
+                bytes,
+                0,
+                bytes.length,
+                chunkIndex * MOBILE_FILE_CHUNK_BYTES,
+            );
+            // A short write (a nearly full disk) does not throw; completing anyway would leave a zero-filled hole.
+            if (bytesWritten !== bytes.length)
+                throw new CaxriError('INTERNAL', 'File chunk was not fully written');
         } catch (error) {
             this.#discard(attachmentId);
             throw error;

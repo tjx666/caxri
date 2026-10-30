@@ -1,12 +1,18 @@
 import { Buffer } from 'node:buffer';
+import * as fs from 'node:fs/promises';
 import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 
 import { MAX_MOBILE_FILE_BYTES, MOBILE_FILE_CHUNK_BYTES } from '@caxri/protocol';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { MobileFileStore } from '../file-store';
+
+vi.mock('node:fs/promises', async (importOriginal) => {
+    const actual = await importOriginal<typeof fs>();
+    return { ...actual, open: vi.fn(actual.open) };
+});
 
 const roots: string[] = [];
 afterEach(async () => {
@@ -134,5 +140,30 @@ describe('MobileFileStore', () => {
             }),
         ).rejects.toMatchObject({ code: 'VALIDATION' });
         expect(await readdir(root)).toEqual([]);
+    });
+
+    it('discards an upload whose chunk the disk only partly wrote', async () => {
+        const { root, store } = await newStore();
+        const bytes = Buffer.alloc(16, 3);
+        const realOpen = vi.mocked(fs.open).getMockImplementation()!;
+        vi.mocked(fs.open).mockImplementationOnce(async (...arguments_) => {
+            const handle = await realOpen(...arguments_);
+            // A nearly full disk accepts fewer bytes than asked without throwing.
+            handle.write = (() => Promise.resolve({ bytesWritten: 4, buffer: bytes })) as never;
+            return handle;
+        });
+        await expect(
+            store.upload({
+                attachmentId: attachmentId('d'),
+                name: 'clip.mp4',
+                owner: 'device:1',
+                sessionId: 'session-one',
+                size: bytes.length,
+                chunkIndex: 0,
+                chunk: bytes.toString('base64'),
+            }),
+        ).rejects.toMatchObject({ code: 'INTERNAL' });
+        expect(() => store.paths('device:1', 'session-one', [attachmentId('d')])).toThrow();
+        await vi.waitFor(async () => expect(await readdir(root)).toEqual([]));
     });
 });
