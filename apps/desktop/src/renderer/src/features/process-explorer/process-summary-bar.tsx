@@ -3,10 +3,26 @@ import type { ProcessExplorerSnapshot } from '@desktop-shared/process-explorer';
 import { Search } from 'lucide-react';
 
 import { Input, InputGroup } from '../../components/ui/input';
+import { ToggleGroup, ToggleGroupItem } from '../../components/ui/toggle-group';
+import { Tooltip } from '../../components/ui/tooltip';
+import type { TranslationKey } from '../../i18n';
 import { useTranslation } from '../../i18n';
 import { isImeComposing } from '../../lib/ime';
 import { cn } from '../../lib/utilities';
-import type { ProcessExplorerTotals } from './process-tree';
+import type { ProcessExplorerTotals, ProcessScope } from './process-tree';
+import { PROCESS_SCOPES } from './process-tree';
+
+const SCOPE_LABEL_KEYS: Record<ProcessScope, TranslationKey> = {
+    agents: 'processExplorer.scope.agents',
+    caxri: 'processExplorer.scope.caxri',
+    other: 'processExplorer.scope.other',
+};
+
+const SCOPE_TOOLTIP_KEYS: Record<ProcessScope, TranslationKey> = {
+    agents: 'processExplorer.scope.agentsTooltip',
+    caxri: 'processExplorer.scope.caxriTooltip',
+    other: 'processExplorer.scope.otherTooltip',
+};
 
 function SummaryReading({
     isWarning = false,
@@ -54,16 +70,21 @@ function PtySummaryReading({ pty }: { pty: ProcessExplorerSnapshot['pty'] }) {
 }
 
 /**
- * The whole-app readings above the grid, and the filter that narrows it. Escape clears a non-empty filter.
+ * The whole-app readings above the grid, the category toggles, and the filter that narrows it. Escape clears a
+ * non-empty filter.
  */
 export function ProcessSummaryBar({
     filter,
     onFilterChange,
+    onScopesChange,
+    scopes,
     snapshot,
     totals,
 }: {
     filter: string;
     onFilterChange: (filter: string) => void;
+    onScopesChange: (scopes: ProcessScope[]) => void;
+    scopes: readonly ProcessScope[];
     snapshot?: ProcessExplorerSnapshot;
     totals: ProcessExplorerTotals;
 }) {
@@ -91,7 +112,22 @@ export function ProcessSummaryBar({
                 value={snapshot ? String(totals.processCount) : '—'}
             />
             <PtySummaryReading pty={snapshot?.pty} />
-            <InputGroup appearance="workbench" size="dense" className="ml-auto w-60">
+            <ToggleGroup<ProcessScope>
+                aria-label={t('processExplorer.scope.label')}
+                className="ml-auto"
+                multiple
+                value={[...scopes]}
+                onValueChange={onScopesChange}
+            >
+                {PROCESS_SCOPES.map((scope) => (
+                    <Tooltip key={scope} content={t(SCOPE_TOOLTIP_KEYS[scope])}>
+                        <ToggleGroupItem size="dense" value={scope}>
+                            {t(SCOPE_LABEL_KEYS[scope])}
+                        </ToggleGroupItem>
+                    </Tooltip>
+                ))}
+            </ToggleGroup>
+            <InputGroup appearance="workbench" size="dense" className="w-60">
                 <Search aria-hidden="true" className="shrink-0 text-muted" size={13} />
                 <Input
                     appearance="embedded"
