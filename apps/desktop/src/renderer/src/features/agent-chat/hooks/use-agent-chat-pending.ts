@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react';
 
 import type { AgentChatSnapshot } from '@caxri/protocol';
-import { agentChatPendingView } from '@caxri/protocol';
+import { agentChatPendingView, agentChatSnapshotBeforeItem } from '@caxri/protocol';
 
 import {
     pruneAgentChatPending,
@@ -14,7 +14,8 @@ import {
  * What this Chat shows ahead of its projection (`agentChatPendingView`): messages on their way, split by where they
  * land, the answers whose record has not arrived, the requests already answered, whose cards leave at once, and the
  * questions still asked. Anything the snapshot now shows is filtered out during render, so a pending row and the real
- * one never appear together, and pruned right after.
+ * one never appear together, and pruned right after. `timelineSnapshot` is what the timeline shows: while an edit is on
+ * its way, the message it replaces and everything after it are already gone, as they will be once Server Core rewinds.
  */
 export function useAgentChatPending(terminalId: string, snapshot: AgentChatSnapshot | undefined) {
     const messages = useAgentChatPendingStore(selectAgentChatPendingMessages(terminalId));
@@ -22,8 +23,11 @@ export function useAgentChatPending(terminalId: string, snapshot: AgentChatSnaps
     useEffect(() => {
         pruneAgentChatPending(terminalId, snapshot);
     }, [snapshot, terminalId]);
-    return useMemo(
-        () => agentChatPendingView(messages, answers, snapshot),
-        [answers, messages, snapshot],
-    );
+    return useMemo(() => {
+        const view = agentChatPendingView(messages, answers, snapshot);
+        return {
+            ...view,
+            timelineSnapshot: agentChatSnapshotBeforeItem(snapshot, view.replacedFrom),
+        };
+    }, [answers, messages, snapshot]);
 }

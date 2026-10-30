@@ -148,6 +148,10 @@ export function showAgentChatPendingMessage(
          */
         imageCount?: number;
         delivery: 'queue' | 'steer' | undefined;
+        /**
+         * The user message an edit sends this one in place of; see `AgentChatPendingMessageBase.replaces`.
+         */
+        replaces?: string;
     },
 ): string {
     const ahead = selectAgentChatPendingMessages(terminalId)(useAgentChatPendingStore.getState());
@@ -159,7 +163,12 @@ export function showAgentChatPendingMessage(
         imageCount: message.imageCount ?? message.images.length,
         placement: agentChatPendingPlacement(snapshot, message.delivery, ahead.length > 0),
         knownIds: agentChatPendingKnownIds(snapshot),
-        wait: agentChatPendingWait(snapshot, message.delivery),
+        // An edit restarts the Agent on the rewound conversation before it sends.
+        wait:
+            message.replaces === undefined
+                ? agentChatPendingWait(snapshot, message.delivery)
+                : 'start',
+        ...(message.replaces !== undefined && { replaces: message.replaces }),
     });
     return id;
 }

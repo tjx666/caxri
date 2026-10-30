@@ -233,7 +233,7 @@ export function AgentChatPane({
     });
     const olderItems = history.history.items;
     const { settledChunks, timeline, dayBreaks, railMarks } = useAgentChatTimelines(
-        snapshot,
+        pending.timelineSnapshot,
         history.history,
     );
     const { start: mountedFrom, mountAll } = useAgentChatTailFirstMount(timeline.length);

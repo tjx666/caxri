@@ -39,6 +39,12 @@ export interface AgentChatPendingMessageBase {
      * cannot claim it again (see {@link pairAgentChatPendingMessages}).
      */
     claims?: ReadonlyMap<string, AgentChatPendingClaim>;
+    /**
+     * The user message an edit ("Edit from here") sends this one in place of. Until the projection rewinds, that
+     * message and everything after it stay hidden, so the edit reads as sent at once (see
+     * {@link agentChatPendingView}).
+     */
+    replaces?: string;
 }
 
 /**
@@ -395,24 +401,59 @@ export function agentChatPendingView<Message extends AgentChatPendingMessageBase
      * Question requests still waiting on their card, which the timeline marks with an Asking row.
      */
     asking: AgentChatRequest[];
+    /**
+     * The user message an edit on its way replaces while the projection still shows it: the timeline hides it and
+     * everything after it (`agentChatSnapshotBeforeItem`).
+     */
+    replacedFrom: string | undefined;
 } {
     const timeline: Message[] = [];
     const queue: Message[] = [];
-    for (const message of unsettledAgentChatPendingMessages(messages, snapshot))
+    const unsettled = unsettledAgentChatPendingMessages(messages, snapshot);
+    for (const message of unsettled)
         (message.placement === 'queue' ? queue : timeline).push(message);
-    const unsettled = unsettledAgentChatPendingAnswers(answers, snapshot);
+    const replacedFrom = unsettled.find(
+        (message) =>
+            message.replaces !== undefined &&
+            snapshot?.items.some((item) => item.id === message.replaces),
+    )?.replaces;
+    const unsettledAnswers = unsettledAgentChatPendingAnswers(answers, snapshot);
     const answeredRequestIds =
-        unsettled.length === 0 ? EMPTY_IDS : new Set(unsettled.map((answer) => answer.requestId));
+        unsettledAnswers.length === 0
+            ? EMPTY_IDS
+            : new Set(unsettledAnswers.map((answer) => answer.requestId));
     return {
         timeline,
         queue,
-        notices: unsettled.flatMap((answer): AgentChatItem[] =>
+        notices: unsettledAnswers.flatMap((answer): AgentChatItem[] =>
             answer.notice ? [answer.notice] : [],
         ),
         answeredRequestIds,
         asking: (snapshot?.requests ?? []).filter(
             (request) => request.kind === 'question' && !answeredRequestIds.has(request.id),
         ),
+        replacedFrom,
+    };
+}
+
+/**
+ * The snapshot as it reads once an edit rewound it to just before user message `itemId`: that message, every item after
+ * it, and the turns they belong to are left out. An edit rewinds only a message that opened a turn, so the cut falls on
+ * a turn boundary. Returns the same snapshot when there is nothing to cut.
+ */
+export function agentChatSnapshotBeforeItem(
+    snapshot: AgentChatSnapshot | undefined,
+    itemId: string | undefined,
+): AgentChatSnapshot | undefined {
+    if (!snapshot || itemId === undefined) return snapshot;
+    const index = snapshot.items.findIndex((item) => item.id === itemId);
+    if (index === -1) return snapshot;
+    const cutTurnId = snapshot.items[index]?.turnId;
+    const turnIndex = snapshot.turns.findIndex((turn) => turn.id === cutTurnId);
+    return {
+        ...snapshot,
+        items: snapshot.items.slice(0, index),
+        turns: turnIndex === -1 ? snapshot.turns : snapshot.turns.slice(0, turnIndex),
     };
 }
 

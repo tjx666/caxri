@@ -196,6 +196,10 @@ export function useAgentChatSubmit({
      * slash command, because it replaces a message; an edited `/new-session` still becomes a hand-off. Once the user
      * confirmed it, the draft the edit replaced comes back and `onCleared` ends the edit; if Server Core then refuses
      * it, its images come back and `onReturned` puts the edit back.
+     *
+     * Once confirmed, the edited message shows at once as a pending row and the message it replaces, with everything
+     * after it, leaves the timeline: Server Core rewinds, restarts the Agent, and sends in one request, and a restarted
+     * Codex records the message only after its `SessionStart` hooks ran, which can take seconds.
      */
     const submitEdit = async (
         sent: string,
@@ -210,8 +214,21 @@ export function useAgentChatSubmit({
     ): Promise<void> => {
         const sentAttachments = attachments;
         const composed = agentChatSessionHandoffMessage(sent, terminal, getBootstrap()?.sessions);
-        await didDeliver({
+        const message = agentChatMessageInput(composed, sentAttachments, providerName);
+        // An object rather than a `let`: control-flow analysis cannot see the callback set it.
+        const shown: { pendingId?: string } = {};
+        const isSent = await didDeliver({
             clear: () => {
+                shown.pendingId = showAgentChatPendingMessage(
+                    terminalId,
+                    cachedAgentChatSnapshot(terminalId),
+                    {
+                        text: message.text,
+                        images: (message.images ?? []).map(({ thumbnail }) => ({ thumbnail })),
+                        delivery: undefined,
+                        replaces: edit.itemId,
+                    },
+                );
                 setDraft((current) => (current === sent ? edit.previousDraft : current));
                 clearSent(sentAttachments);
                 onCleared();
@@ -224,7 +241,7 @@ export function useAgentChatSubmit({
                         restoreFiles: edit.restoreFiles,
                         providerName: edit.providerName,
                         removedTurns: edit.removedTurns,
-                        message: agentChatMessageInput(composed, sentAttachments, providerName),
+                        message,
                     },
                     clear,
                 ),
@@ -233,6 +250,10 @@ export function useAgentChatSubmit({
                 returnUnsentAgentChatMessage(terminalId, '', sentAttachments);
             },
         });
+        const { pendingId } = shown;
+        if (pendingId === undefined) return;
+        if (isSent) expireAgentChatPendingMessage(terminalId, pendingId, cachedAgentChatSnapshot);
+        else dropAgentChatPendingMessage(terminalId, pendingId);
     };
     return { isSending, runCommand, submit, submitEdit };
 }
