@@ -575,6 +575,7 @@ export async function executeMobileAgentChatCase(
         case 'MOB-CHAT-LIST-APPROVAL-01':
             return executeMobileChatListApprovalScenario(environment, artifacts, 'codex');
         case 'MOB-CHAT-LIST-APPROVAL-02':
+        case 'MOB-CHAT-LIST-QUESTION-01':
             return executeMobileChatListApprovalScenario(environment, artifacts, 'claude');
         case 'MOB-CHAT-GOAL-01':
             return executeMobileChatGoalScenario(environment, artifacts);

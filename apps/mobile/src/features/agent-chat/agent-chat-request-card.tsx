@@ -191,7 +191,7 @@ export const AgentChatRequestCard = ({
             }
         },
     };
-    // The only card that blocks the Agent on the user wears the attention edge and a leading glyph.
+    // The only card that blocks the Agent on the user wears the attention border and a leading glyph.
     const Glyph = request.kind === 'question' ? MessageCircleQuestionMark : ShieldAlert;
     const notice = blockedReason ? (
         <Text style={[styles.meta, { color: theme.muted }]} testID="agent-chat-request-blocked">
