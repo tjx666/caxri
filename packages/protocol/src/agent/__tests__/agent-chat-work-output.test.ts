@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
     agentChatOutputLanguage,
     agentChatToolCallArguments,
+    formatAgentChatJsonOutput,
     stripLineNumberGutter,
 } from '../agent-chat-work-output';
 
@@ -55,5 +56,37 @@ describe('agentChatToolCallArguments', () => {
         ).toBe('{"to":"lead"}');
         expect(agentChatToolCallArguments({ summary: 'https://a.test' })).toBe('https://a.test');
         expect(agentChatToolCallArguments({})).toBeUndefined();
+    });
+});
+
+describe('formatAgentChatJsonOutput', () => {
+    it('indents JSON one member per line', () => {
+        expect(
+            formatAgentChatJsonOutput(
+                '[{"name":"a, b: [c]","stars":4270,"tags":[],"meta":{}},{"ok":true}]\n',
+            ),
+        ).toBe(`[
+  {
+    "name": "a, b: [c]",
+    "stars": 4270,
+    "tags": [],
+    "meta": {}
+  },
+  {
+    "ok": true
+  }
+]`);
+    });
+
+    it('keeps escapes and numbers beyond the safe integer range exactly as written', () => {
+        expect(
+            formatAgentChatJsonOutput(String.raw`{"id":12345678901234567890,"q":"say \"hi\" \\"}`),
+        ).toBe('{\n  "id": 12345678901234567890,\n  "q": "say \\"hi\\" \\\\"\n}');
+    });
+
+    it('leaves text that is not complete JSON unchanged', () => {
+        expect(formatAgentChatJsonOutput('[{"name":"a"')).toBe('[{"name":"a"');
+        expect(formatAgentChatJsonOutput('total 0')).toBe('total 0');
+        expect(formatAgentChatJsonOutput('42')).toBe('42');
     });
 });

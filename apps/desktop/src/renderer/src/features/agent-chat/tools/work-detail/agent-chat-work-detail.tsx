@@ -4,6 +4,7 @@ import {
     agentChatReasoningTitle,
     agentChatToolCallArguments,
     describeAgentChatWorkRow,
+    formatAgentChatJsonOutput,
     isAgentChatWorkRunning,
     stripLineNumberGutter,
     unwrapShellCommand,
@@ -53,7 +54,8 @@ function OutputView({
     text: string;
 }) {
     const { t } = useTranslation();
-    const output = text.replace(/\n+$/u, '');
+    const trimmed = text.replace(/\n+$/u, '');
+    const output = language === 'json' ? formatAgentChatJsonOutput(trimmed) : trimmed;
     if (!output)
         return (
             <p className="m-0 text-muted">

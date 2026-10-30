@@ -1,5 +1,5 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type { AgentChatWorkItem } from '@caxri/protocol';
 import {
@@ -8,12 +8,16 @@ import {
     agentChatToolCallArguments,
     agentChatWorkVerb,
     describeAgentChatWork,
+    formatAgentChatJsonOutput,
     isAgentChatSubagentItem,
     stripLineNumberGutter,
     unwrapShellCommand,
 } from '@caxri/protocol';
+import * as Clipboard from 'expo-clipboard';
+import { Copy } from 'lucide-react-native';
 
 import { HighlightedCode } from '../../components/highlighted-code';
+import { showToast } from '../../components/toast-store';
 import { useTranslation } from '../../i18n';
 import { MONOSPACE_FONT } from '../../theme/monospace';
 import type { MobileTheme } from '../../theme/tokens';
@@ -27,7 +31,8 @@ import { useAgentChatTaskStop } from './use-agent-chat-task-detail';
 
 /**
  * A code block in the detail sheet: syntax colored, selectable, and capped in height so a long output scrolls inside
- * its own box while the sheet's other facts stay in reach.
+ * its own box while the sheet's other facts stay in reach. Copy sits in the corner because selecting a long block by
+ * hand on a phone stops at the screen edge.
  */
 const CodeBlock = ({
     code,
@@ -37,17 +42,39 @@ const CodeBlock = ({
     code: string;
     language: string | undefined;
     theme: MobileTheme;
-}) => (
-    <ScrollView
-        nestedScrollEnabled
-        style={[styles.code, { backgroundColor: theme.elevated }]}
-        testID="agent-chat-work-code"
-    >
-        <Text selectable style={[styles.codeText, { color: theme.text }]}>
-            <HighlightedCode code={code} language={codeLanguage(language)} />
-        </Text>
-    </ScrollView>
-);
+}) => {
+    const { t } = useTranslation();
+    return (
+        <View>
+            <ScrollView
+                nestedScrollEnabled
+                style={[styles.code, { backgroundColor: theme.elevated }]}
+                testID="agent-chat-work-code"
+            >
+                <Text selectable style={[styles.codeText, { color: theme.text }]}>
+                    <HighlightedCode code={code} language={codeLanguage(language)} />
+                </Text>
+            </ScrollView>
+            <Pressable
+                accessibilityLabel={t('chat.work.copy')}
+                accessibilityRole="button"
+                hitSlop={8}
+                onPress={() => {
+                    void Clipboard.setStringAsync(code)
+                        .then(() => showToast('success', t('chat.work.copied')))
+                        .catch(() => showToast('error', t('chat.work.copyFailed')));
+                }}
+                style={({ pressed }) => [
+                    styles.copy,
+                    { backgroundColor: theme.elevated, opacity: pressed ? 0.5 : 1 },
+                ]}
+                testID="agent-chat-work-copy"
+            >
+                <Copy color={theme.muted} size={15} />
+            </Pressable>
+        </View>
+    );
+};
 
 const Output = ({
     language,
@@ -59,7 +86,8 @@ const Output = ({
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
-    const output = text.replace(/\n+$/u, '');
+    const trimmed = text.replace(/\n+$/u, '');
+    const output = language === 'json' ? formatAgentChatJsonOutput(trimmed) : trimmed;
     if (!output)
         return (
             <Text style={[styles.note, { color: theme.muted }]}>{t('chat.tasks.noOutput')}</Text>
@@ -262,9 +290,12 @@ const styles = StyleSheet.create({
         fontFamily: MONOSPACE_FONT,
         fontSize: 12,
         lineHeight: 18,
-        paddingHorizontal: 10,
+        paddingLeft: 10,
+        // Keeps the first line clear of the Copy button.
+        paddingRight: 36,
         paddingVertical: 8,
     },
+    copy: { borderRadius: 6, padding: 6, position: 'absolute', right: 4, top: 4 },
     note: { fontSize: 13, lineHeight: 18 },
     backgroundTask: { gap: 4, paddingTop: 6 },
     sectionTitle: { fontSize: 14, fontWeight: '700' },

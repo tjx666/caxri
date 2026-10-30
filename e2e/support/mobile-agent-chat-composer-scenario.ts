@@ -17,6 +17,7 @@ import {
 } from './mobile-agent-chat-helpers';
 import {
     adbShell,
+    androidBounds,
     mobileSemantics,
     observeMobileNode,
     startMobileFramebufferRecording,
@@ -211,6 +212,61 @@ export async function executeMobileChatComposerScenario(
             await waitForCheck(serial, `agent-chat-work-${failedCommand.id}`);
         }
         await capture(environment, 'command-exit-code', artifacts);
+
+        // A command's one-line JSON output reads indented, and each code block copies (#3184).
+        await sendFromPhone(serial, 'jsonout');
+        const listed = await waitForMobile(
+            () => chat.read(),
+            (snapshot) =>
+                agentText(snapshot).includes('Found two repositories.') && !snapshot.activeTurnId,
+        );
+        await waitForNoCheck(serial, 'agent-chat-activity');
+        const jsonReply = findItem(
+            listed,
+            (item) => item.type === 'agentMessage' && item.text.includes('Found two repositories.'),
+        );
+        const jsonCommand = findItem(
+            listed,
+            (item) => item.type === 'command' && item.command.includes('--json'),
+        );
+        if (!jsonCommand || !jsonReply?.turnId)
+            throw new Error('The JSON command turn is incomplete');
+        const commandRow = `agent-chat-work-${jsonCommand.id}`;
+        const shown = await waitForMobile(
+            () => mobileSemantics(serial),
+            (nodes) =>
+                hasCheck(nodes, commandRow) ||
+                hasCheck(nodes, `agent-chat-turn-${jsonReply.turnId}`),
+        );
+        if (!hasCheck(shown, commandRow)) {
+            await tapMobileCheckByBounds(serial, `agent-chat-turn-${jsonReply.turnId}`);
+            await waitForCheck(serial, commandRow);
+        }
+        await tapMobileCheckByBounds(serial, commandRow);
+        await waitForCheck(serial, 'agent-chat-work-copy');
+        await capture(environment, 'command-json-detail', artifacts);
+        const copyButtons = (await mobileSemantics(serial)).filter(
+            ({ checkId }) => checkId === 'agent-chat-work-copy',
+        );
+        if (copyButtons.length !== 2)
+            throw new Error('The command and its output must each offer Copy');
+        // The output's Copy is the lower one; the command's sits above it.
+        const outputCopy = copyButtons
+            .map(({ bounds }) => androidBounds(bounds))
+            .filter((bounds) => bounds !== null)
+            .toSorted((first, second) => second.top - first.top)
+            .at(0);
+        if (!outputCopy) throw new Error('The output Copy has no bounds');
+        await adbShell(serial, [
+            'input',
+            'tap',
+            String(Math.floor((outputCopy.left + outputCopy.right) / 2)),
+            String(Math.floor((outputCopy.top + outputCopy.bottom) / 2)),
+        ]);
+        await waitForCheck(serial, 'toast');
+        await capture(environment, 'command-copied', artifacts);
+        await tapMobileCheckByBounds(serial, 'tool-detail-close');
+        await waitForNoCheck(serial, 'conversation-tool-detail');
 
         // Following the user's own send (#1878): scroll up, send, and land on the latest message.
         recording = environment.remoteVideoPath

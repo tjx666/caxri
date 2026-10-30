@@ -64,6 +64,67 @@ export function agentChatOutputLanguage(
 }
 
 /**
+ * Lays out JSON output one member per line with two-space indentation, the way the Codex app and browser devtools show
+ * a `--json` result instead of one wrapped run-on line. Only whitespace between tokens changes: the text is re-indented
+ * rather than parsed and re-serialized, so a number beyond `Number.MAX_SAFE_INTEGER` (a Snowflake ID) or a duplicated
+ * key keeps its exact source. Any text that is not complete JSON, such as a truncated or still-streaming output, is
+ * returned unchanged.
+ */
+export function formatAgentChatJsonOutput(text: string): string {
+    if (!isJsonText(text)) return text;
+    const source = text.trim();
+    let result = '';
+    let depth = 0;
+    const newline = () => `\n${'  '.repeat(depth)}`;
+    /**
+     * Appends the token at `index` and returns the index of its last character.
+     */
+    const layOut = (index: number): number => {
+        const char = source[index];
+        switch (char) {
+            case '"': {
+                let end = index + 1;
+                while (source[end] !== '"') end += source[end] === '\\' ? 2 : 1;
+                result += source.slice(index, end + 1);
+                return end;
+            }
+            case '{':
+            case '[': {
+                let next = index + 1;
+                while (/\s/u.test(source[next] ?? '')) next += 1;
+                if (source[next] === (char === '{' ? '}' : ']')) {
+                    result += char + source[next];
+                    return next;
+                }
+                depth += 1;
+                result += char + newline();
+                return index;
+            }
+            case '}':
+            case ']': {
+                depth -= 1;
+                result += newline() + char;
+                return index;
+            }
+            case ',': {
+                result += char + newline();
+                return index;
+            }
+            case ':': {
+                result += ': ';
+                return index;
+            }
+            default: {
+                if (!/\s/u.test(char)) result += char;
+                return index;
+            }
+        }
+    };
+    for (let index = 0; index < source.length; index = layOut(index) + 1);
+    return result;
+}
+
+/**
  * Claude Code's Read result numbers every line (` 12→const a = 1`). The numbers are not part of the file and would
  * break its highlighting, so they are dropped when every non-empty line carries one.
  */
