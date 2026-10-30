@@ -452,7 +452,7 @@ const commandContext: CommandContext = {
         openEnvironment: () => {
             openEnvironmentPage();
         },
-        openSessionSearch: () => useDialogStore.getState().setSessionSearchOpen(true),
+        openSessionSearch: () => useDialogStore.getState().openSessionSearch(),
         openKeyboardShortcuts: () => useDialogStore.getState().setKeyboardShortcutsOpen(true),
         /**
          * Opens the picker with the selected Session already checked, like its row menu's Hand Over. The picker lists

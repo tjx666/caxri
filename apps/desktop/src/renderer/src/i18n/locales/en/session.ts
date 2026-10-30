@@ -10,6 +10,7 @@ export const session = {
     'session.create.newInProject': 'New Session in {{project}}',
     'session.create.actionInProject': '{{action}} in {{project}}',
     'session.create.withoutTerminal': 'Empty Session',
+    'session.create.importFromHistory': 'Import from History…',
     'session.createDialog.title': 'Start a Session',
     'session.createDialog.titleInProject': 'Start a Session in {{project}}',
     'session.createDialog.description':

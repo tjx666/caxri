@@ -1,4 +1,4 @@
-import type { AgentProvider } from '@caxri/protocol';
+import type { AgentProvider, SessionSearchStatusFilter } from '@caxri/protocol';
 
 import { createStore } from '../lib/store';
 
@@ -37,6 +37,21 @@ interface ProjectSearchSeed {
     query?: string;
 }
 
+/**
+ * How Session search opens. An opener that names nothing gets the plain overlay: every location, ranked around the
+ * selected Project.
+ */
+export interface SessionSearchSeed {
+    /**
+     * The Where filter the overlay starts on.
+     */
+    status?: SessionSearchStatusFilter;
+    /**
+     * The Project ranked first, when the opener belongs to a Project other than the selected one.
+     */
+    projectId?: string;
+}
+
 interface DialogState {
     archivedSessionsOpen: boolean;
     settingsRequest: { id: number; view: SettingsView; provider?: AgentProvider };
@@ -58,6 +73,11 @@ interface DialogState {
      */
     projectSearchSeedRequest: { id: number; seed: ProjectSearchSeed };
     sessionSearchOpen: boolean;
+    /**
+     * The latest Session search open, carried as a bumped revision. The overlay remounts its body per revision, so each
+     * open starts from its own seed even when a reopen lands before the previous close finished unmounting it.
+     */
+    sessionSearchRequest: { id: number; seed: SessionSearchSeed };
     keyboardShortcutsOpen: boolean;
     agentActionsOpen: boolean;
     agentActionsTerminalId?: string;
@@ -135,6 +155,7 @@ interface DialogState {
     setPaletteOpen(isOpen: boolean): void;
     setProjectSearchOpen(isOpen: boolean): void;
     openProjectSearch(seed?: ProjectSearchSeed): void;
+    openSessionSearch(seed?: SessionSearchSeed): void;
     setSessionSearchOpen(isOpen: boolean): void;
     setKeyboardShortcutsOpen(isOpen: boolean): void;
     openAgentActions(terminalId: string): void;
@@ -177,6 +198,7 @@ export const useDialogStore = createStore<DialogState>('dialogs', (set, get) => 
     projectSearchOpen: false,
     projectSearchSeedRequest: { id: 0, seed: {} },
     sessionSearchOpen: false,
+    sessionSearchRequest: { id: 0, seed: {} },
     keyboardShortcutsOpen: false,
     agentActionsOpen: false,
     agentActionsTerminalId: undefined,
@@ -218,6 +240,11 @@ export const useDialogStore = createStore<DialogState>('dialogs', (set, get) => 
         set((state) => ({
             projectSearchOpen: true,
             projectSearchSeedRequest: { id: state.projectSearchSeedRequest.id + 1, seed },
+        })),
+    openSessionSearch: (seed = {}) =>
+        set((state) => ({
+            sessionSearchOpen: true,
+            sessionSearchRequest: { id: state.sessionSearchRequest.id + 1, seed },
         })),
     setSessionSearchOpen: (sessionSearchOpen) => set({ sessionSearchOpen }),
     setKeyboardShortcutsOpen: (keyboardShortcutsOpen) => set({ keyboardShortcutsOpen }),
@@ -315,6 +342,8 @@ export const clearSessionRenameRequest = (): void =>
 export const openStatusBarPicker = (picker: StatusBarPicker): void =>
     useDialogStore.getState().openStatusBarPicker(picker);
 
+export const openSessionSearch = (seed?: SessionSearchSeed): void =>
+    useDialogStore.getState().openSessionSearch(seed);
 export const setSessionSearchOpen = (isOpen: boolean): void =>
     useDialogStore.getState().setSessionSearchOpen(isOpen);
 export const setKeyboardShortcutsOpen = (isOpen: boolean): void =>
