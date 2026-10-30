@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+    MAXIMUM_QUEUED_MESSAGES,
     MOBILE_GATEWAY_MAX_WIRE_BYTES,
     MobileSocketQueueBudget,
 } from '../gateway/socket-queue-budget';
@@ -8,7 +9,9 @@ import {
 describe('MobileSocketQueueBudget', () => {
     it('bounds queued message count and releases capacity exactly once', () => {
         const budget = new MobileSocketQueueBudget();
-        const releases = Array.from({ length: 8 }, () => budget.tryAcquire(1));
+        const releases = Array.from({ length: MAXIMUM_QUEUED_MESSAGES }, () =>
+            budget.tryAcquire(1),
+        );
 
         expect(releases.every(Boolean)).toBe(true);
         expect(budget.tryAcquire(1)).toBeUndefined();

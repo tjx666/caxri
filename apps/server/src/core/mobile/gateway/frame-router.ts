@@ -77,7 +77,10 @@ export interface MobileAppOptions {
     ) => Promise<boolean>;
     now: () => number;
     randomSubscriptionId: () => string;
-    reportRequest?: (method: string) => void;
+    /**
+     * Called after an authorized request's dispatch settles successfully, with how long the dispatch took.
+     */
+    reportRequest?: (method: string, durationMs: number) => void;
     reportHeartbeat?: () => void;
     reportTerminalResync?: (reason: MobileTerminalResyncReason) => void;
     reportTerminalTeardownFailure?: (reason: MobileTerminalTeardownReason) => void;
@@ -176,8 +179,9 @@ export class MobileGatewayFrameRouter {
                             return forbiddenMobileReply(request);
                         throw error;
                     }
-                    this.#options.reportRequest?.(request.method);
+                    const startedAt = this.#options.now();
                     const reply = await this.#options.dispatch(request, context);
+                    this.#options.reportRequest?.(request.method, this.#options.now() - startedAt);
                     this.#options.authorizeMethod(
                         this.#options.context().principal,
                         request.method,

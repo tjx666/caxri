@@ -9,6 +9,7 @@ import {
     relayCloseCodes,
     relayHostAcceptSchema,
     relayHostRegisterSchema,
+    relayHostStandbySchema,
 } from '@caxri/mobile-transport';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type WebSocket from 'ws';
@@ -133,7 +134,7 @@ describe('RelayHostConnector', () => {
         const relay = await fakeRelay({ autoPong: options.autoPong });
         cleanups.push(() => relay.close());
         const write = vi.fn();
-        const onConnection = vi.fn<(socket: WebSocket) => void>();
+        const onConnection = vi.fn<(socket: WebSocket, dialMs: number) => void>();
         let grants: RelayGrant[] = [{ keyHash: KEY_A }];
         const connector = new RelayHostConnector({
             url: relay.url,
@@ -231,6 +232,84 @@ describe('RelayHostConnector', () => {
             ...incoming,
         });
         await vi.waitFor(() => expect(onConnection).toHaveBeenCalledOnce());
+    });
+
+    it('parks a standby socket, hands it over on relay-spliced with its first frame, and parks the next', async () => {
+        const { connector, onConnection, relay } = await setup();
+        const received: unknown[] = [];
+        // The gateway attaches its listener inside `onConnection`, like the real one.
+        onConnection.mockImplementation((socket) => {
+            socket.on('message', (data) => received.push(JSON.parse(messageText(data))));
+        });
+        const hostArrived = relay.nextHost();
+        connector.start();
+        const host = await hostArrived;
+        expect(relayHostRegisterSchema.parse(await host.next())).toMatchObject({ standby: true });
+        host.socket.send(
+            JSON.stringify({
+                type: 'host-registered',
+                version: RELAY_PROTOCOL_VERSION,
+                hostId: connector.hostId,
+            }),
+        );
+        const ticket = 'e'.repeat(64);
+        host.socket.send(JSON.stringify({ type: 'relay-standby', ticket }));
+        await vi.waitFor(() => expect(relay.dataSockets).toHaveLength(1));
+        expect(relayHostStandbySchema.parse(await relay.dataSockets[0].first)).toEqual({
+            type: 'host-standby',
+            version: RELAY_PROTOCOL_VERSION,
+            hostId: connector.hostId,
+            ticket,
+        });
+        expect(onConnection).not.toHaveBeenCalled();
+
+        const parked = relay.dataSockets[0].socket;
+        parked.send(JSON.stringify({ type: 'relay-spliced', version: RELAY_PROTOCOL_VERSION }));
+        parked.send(JSON.stringify({ hello: true }));
+        await vi.waitFor(() => expect(received).toEqual([{ hello: true }]));
+        expect(onConnection).toHaveBeenCalledWith(expect.anything(), 0);
+        await vi.waitFor(() => expect(relay.dataSockets).toHaveLength(2));
+    });
+
+    it('re-parks a standby socket the Relay dropped, after backoff', async () => {
+        const { connector, onConnection, relay, write } = await setup();
+        const hostArrived = relay.nextHost();
+        connector.start();
+        const host = await hostArrived;
+        await relay.accept(host, connector.hostId);
+        host.socket.send(JSON.stringify({ type: 'relay-standby', ticket: 'e'.repeat(64) }));
+        await vi.waitFor(() => expect(relay.dataSockets).toHaveLength(1));
+        await relay.dataSockets[0].first;
+        relay.dataSockets[0].socket.terminate();
+        await vi.waitFor(() =>
+            expect(write).toHaveBeenCalledWith('warn', 'mobile_gateway.relay_dial_failed', {
+                fields: { reason: 'standby-failed' },
+            }),
+        );
+        await vi.waitFor(() => expect(relay.dataSockets).toHaveLength(2));
+        expect(onConnection).not.toHaveBeenCalled();
+    });
+
+    it('forgets earlier failed parks once a standby has stayed parked', async () => {
+        // With `random` at 0 a retry waits half its ceiling: 100 ms after a forgiven failure, 200 ms otherwise.
+        const { connector, relay } = await setup({
+            timing: { initialBackoffMs: 200, maxBackoffMs: 10_000, stableAfterMs: 20 },
+        });
+        const hostArrived = relay.nextHost();
+        connector.start();
+        const host = await hostArrived;
+        await relay.accept(host, connector.hostId);
+        host.socket.send(JSON.stringify({ type: 'relay-standby', ticket: 'e'.repeat(64) }));
+        await vi.waitFor(() => expect(relay.dataSockets).toHaveLength(1));
+        await relay.dataSockets[0].first;
+        relay.dataSockets[0].socket.terminate();
+        await vi.waitFor(() => expect(relay.dataSockets).toHaveLength(2), { timeout: 1_000 });
+        await relay.dataSockets[1].first;
+        await new Promise((resolve) => setTimeout(resolve, 60));
+        const droppedAt = performance.now();
+        relay.dataSockets[1].socket.terminate();
+        await vi.waitFor(() => expect(relay.dataSockets).toHaveLength(3), { timeout: 1_000 });
+        expect(performance.now() - droppedAt).toBeLessThan(170);
     });
 
     it('refuses a dial-back while the gateway is at capacity', async () => {

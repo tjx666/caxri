@@ -3,7 +3,7 @@ import { useEffect } from 'react';
 import type { MobileConnectionStatus } from './connection-state';
 import { reconnectDelay } from './connection-state';
 import type { MobileCredential } from './credential-store';
-import type { MobileGatewayConnection } from './mobile-gateway-client';
+import type { MobileGatewayConnection } from './mobile-gateway-connection';
 import { reconnectWaitForAttempt, runReconnectAttempt } from './reconnect-lifecycle';
 
 export const shouldScheduleMobileReconnect = (

@@ -1,7 +1,7 @@
 /**
  * The network paths to one paired computer and the race that picks one. Direct LAN or Tailscale addresses win whenever
- * they answer; the Relay is a fallback that starts only after a short grace, so a phone at home never pays the extra
- * hop.
+ * they answer; the Relay is a fallback that asks for the computer only after a short grace, so a phone at home never
+ * pays the extra hop. Its socket opens at once, though, so the slow TCP and TLS setup to the Relay overlaps the grace.
  */
 import type { RelayCloseReason } from '@caxri/mobile-transport';
 import {
@@ -19,6 +19,8 @@ import {
 
 import { discardSocket, isSocketDiscarded } from './discard-socket';
 import { MobilePairingError } from './mobile-gateway-errors';
+import type { SocketReader } from './socket-reader';
+import { createSocketReader } from './socket-reader';
 
 /**
  * Slim runtime slice the race needs, so this module does not depend on the full gateway client.
@@ -68,8 +70,8 @@ export const directRouteGraceFor = (input: {
         ? SHORT_DIRECT_ROUTE_GRACE_MS
         : DIRECT_ROUTE_GRACE_MS;
 /**
- * The Relay answers `relay-ready` only after the computer dialed back, so this covers two Relay round trips plus the
- * Relay's own host dial-back deadline; a slower answer is a closed `host-timeout` from the Relay itself.
+ * Counted from the moment the Relay is released, it covers opening the socket if it is still connecting, two Relay
+ * round trips, and the Relay's own host dial-back deadline; a slower answer is a closed `host-timeout` from the Relay.
  */
 const RELAY_READY_TIMEOUT_MS = 12_000;
 
@@ -168,38 +170,49 @@ const openDirectSocket = async (
     return socket;
 };
 
+interface RelayLegOptions {
+    /**
+     * Resolves when the Relay may ask for the computer: after the direct grace, or once every direct route failed.
+     */
+    released: Promise<void>;
+    /**
+     * The gateway hello, sent right behind `relay-connect` so it crosses the phone's slow leg once instead of waiting
+     * for `relay-ready`; the Relay holds it until the computer's socket is spliced.
+     */
+    hello?: () => string;
+}
+
 /**
  * A Relay socket counts as open only after `relay-ready`: the Relay has checked the access key and spliced the
- * computer's dial-back, so the next frame the phone sends is the gateway hello. That first frame is consumed here,
- * before the gateway's socket reader exists.
+ * computer's socket. The socket reader exists from the start, so a challenge that answers an early hello queues behind
+ * `relay-ready` instead of arriving before anyone listens.
  */
-const isRelayReadyFrame = (data: unknown): boolean => {
-    if (typeof data !== 'string') return false;
-    try {
-        return relayClientReadySchema.safeParse(JSON.parse(data)).success;
-    } catch {
-        return false;
-    }
-};
-
 const openRelaySocket = async (
     route: Extract<MobileGatewayRoute, { kind: 'relay' }>,
     runtime: RouteRuntime,
     onSocket: (socket: WebSocket) => void,
-): Promise<WebSocket> => {
+    options: RelayLegOptions,
+): Promise<OpenedGatewaySocket> => {
     const socket = runtime.openWebSocket(relayEndpoint(route.url, relayPaths.client));
     onSocket(socket);
+    const reader = createSocketReader(socket);
+    let isHelloSent = false;
     await new Promise<void>((resolve, reject) => {
+        let isDone = false;
+        let isOpen = false;
+        let isReleased = false;
         const timeout: { handle?: ReturnType<typeof setTimeout> } = {};
         function cleanup(): void {
+            isDone = true;
             clearTimeout(timeout.handle);
             socket.removeEventListener('open', onOpen);
-            socket.removeEventListener('message', onMessage);
             socket.removeEventListener('error', onError);
             socket.removeEventListener('close', onClose);
         }
         function fail(reason: MobileRelayFailureReason): void {
+            if (isDone) return;
             cleanup();
+            reader.close();
             discardSocket(socket);
             reject(new MobileRelayUnavailableError(reason));
         }
@@ -212,25 +225,16 @@ const openRelaySocket = async (
                 (typeof code === 'number' ? relayCloseReasonOf(code) : undefined) ?? 'unreachable',
             );
         }
-        function onOpen(): void {
-            if (isSocketDiscarded(socket)) {
-                onError();
+        const awaitReady = async (): Promise<void> => {
+            let frame: unknown;
+            try {
+                frame = await reader.next();
+            } catch {
+                // The socket's close or error listener reports why.
                 return;
             }
-            try {
-                const connect = relayClientConnectSchema.parse({
-                    type: 'relay-connect',
-                    version: RELAY_PROTOCOL_VERSION,
-                    hostId: route.hostId,
-                    accessKey: encodeHex(route.accessKey),
-                });
-                socket.send(JSON.stringify(connect));
-            } catch {
-                onError();
-            }
-        }
-        function onMessage(event: Event): void {
-            if (!isRelayReadyFrame((event as MessageEvent).data)) {
+            if (isDone) return;
+            if (!relayClientReadySchema.safeParse(frame).success) {
                 fail('unexpected-frame');
                 return;
             }
@@ -240,92 +244,144 @@ const openRelaySocket = async (
             }
             cleanup();
             resolve();
+        };
+        function connect(): void {
+            if (isDone || !isOpen || !isReleased) return;
+            if (isSocketDiscarded(socket)) {
+                onError();
+                return;
+            }
+            try {
+                const connectFrame = relayClientConnectSchema.parse({
+                    type: 'relay-connect',
+                    version: RELAY_PROTOCOL_VERSION,
+                    hostId: route.hostId,
+                    accessKey: encodeHex(route.accessKey),
+                });
+                socket.send(JSON.stringify(connectFrame));
+                if (options.hello) {
+                    socket.send(options.hello());
+                    isHelloSent = true;
+                }
+            } catch {
+                onError();
+                return;
+            }
+            void awaitReady();
         }
-        timeout.handle = setTimeout(onError, RELAY_READY_TIMEOUT_MS);
+        function onOpen(): void {
+            isOpen = true;
+            connect();
+        }
+        void options.released.then(() => {
+            if (isDone) return;
+            isReleased = true;
+            timeout.handle = setTimeout(onError, RELAY_READY_TIMEOUT_MS);
+            connect();
+        });
         socket.addEventListener('open', onOpen, { once: true });
-        socket.addEventListener('message', onMessage);
         socket.addEventListener('error', onError, { once: true });
         socket.addEventListener('close', onClose, { once: true });
     });
-    return socket;
+    return { route: 'relay', socket, reader, isHelloSent };
 };
 
-const openRouteSocket = (
+const openRouteSocket = async (
     route: MobileGatewayRoute,
     runtime: RouteRuntime,
     onSocket: (socket: WebSocket) => void,
-): Promise<WebSocket> =>
+    relayLeg: RelayLegOptions,
+): Promise<OpenedGatewaySocket> =>
     route.kind === 'direct'
-        ? openDirectSocket(route, runtime, onSocket)
-        : openRelaySocket(route, runtime, onSocket);
+        ? { route: 'direct', socket: await openDirectSocket(route, runtime, onSocket) }
+        : openRelaySocket(route, runtime, onSocket, relayLeg);
 
 export interface OpenedGatewaySocket {
+    /**
+     * Whether the gateway hello already went out right behind `relay-connect`.
+     */
+    isHelloSent?: boolean;
+    /**
+     * The reader a Relay socket needed before its first frame; a direct socket's owner creates its own.
+     */
+    reader?: SocketReader;
     route: MobileGatewayRouteKind;
     socket: WebSocket;
 }
 
 /**
- * Races every route and keeps the first to open. Direct candidates start at once; Relay candidates join after
- * `DIRECT_ROUTE_GRACE_MS`, or immediately once every direct candidate failed. Only the winner ever carries a hello;
- * every other candidate is discarded, including one still connecting that React Native Android would otherwise leave
- * open. A Relay-specific failure is reported when it is the last reason left, so callers can tell an offline computer
- * from a dead network.
+ * Races every route and keeps the first to open. Direct candidates start at once. Relay sockets open at once too, but
+ * ask the Relay for the computer only after `DIRECT_ROUTE_GRACE_MS`, or as soon as every direct candidate failed. Every
+ * other candidate is discarded, including one still connecting that React Native Android would otherwise leave open. A
+ * Relay-specific failure is reported when it is the last reason left, so callers can tell an offline computer from a
+ * dead network.
  */
 export const openGatewaySocket = (
     routes: readonly MobileGatewayRoute[],
     runtime: RouteRuntime,
     directGraceMs = DIRECT_ROUTE_GRACE_MS,
+    options: { relayHello?: () => string } = {},
 ): Promise<OpenedGatewaySocket> => {
-    const direct = routes.filter((route) => route.kind === 'direct');
-    const relay = routes.filter((route) => route.kind === 'relay');
+    const directCount = routes.filter((route) => route.kind === 'direct').length;
+    const hasRelay = routes.some((route) => route.kind === 'relay');
     const sockets: WebSocket[] = [];
+    let openRelayLatch = (): void => {};
+    // eslint-disable-next-line unicorn/prefer-promise-with-resolvers -- The Mobile TypeScript target does not include the ES2024 API.
+    const released = new Promise<void>((resolve) => {
+        openRelayLatch = resolve;
+    });
+    const relayLeg: RelayLegOptions = { released, hello: options.relayHello };
     return new Promise<OpenedGatewaySocket>((resolve, reject) => {
         let isSettled = false;
         let pending = 0;
-        let directPending = direct.length;
-        let didStartRelay = false;
+        let directPending = directCount;
         let lastRelayError: MobileRelayUnavailableError | undefined;
         const graceTimer: { handle?: ReturnType<typeof setTimeout> } = {};
+        const releaseRelay = (): void => {
+            clearTimeout(graceTimer.handle);
+            openRelayLatch();
+        };
         const settleFailure = (): void => {
-            if (isSettled || pending > 0 || (!didStartRelay && relay.length > 0)) return;
+            if (isSettled || pending > 0) return;
             isSettled = true;
+            clearTimeout(graceTimer.handle);
             reject(lastRelayError ?? unreachable());
         };
         const start = async (route: MobileGatewayRoute): Promise<void> => {
             pending += 1;
-            let socket: WebSocket;
+            let opened: OpenedGatewaySocket;
             try {
-                socket = await openRouteSocket(route, runtime, (opened) => sockets.push(opened));
+                opened = await openRouteSocket(
+                    route,
+                    runtime,
+                    (socket) => sockets.push(socket),
+                    relayLeg,
+                );
             } catch (error) {
                 pending -= 1;
                 if (error instanceof MobileRelayUnavailableError) lastRelayError = error;
                 if (route.kind === 'direct') {
                     directPending -= 1;
-                    if (directPending === 0) startRelay();
+                    if (directPending === 0) releaseRelay();
                 }
                 settleFailure();
                 return;
             }
             pending -= 1;
             if (isSettled) {
-                discardSocket(socket);
+                opened.reader?.close();
+                discardSocket(opened.socket);
                 return;
             }
             isSettled = true;
             clearTimeout(graceTimer.handle);
-            for (const other of sockets) if (other !== socket) discardSocket(other);
-            resolve({ route: route.kind, socket });
+            for (const other of sockets) if (other !== opened.socket) discardSocket(other);
+            resolve(opened);
         };
-        function startRelay(): void {
-            if (didStartRelay || isSettled) return;
-            didStartRelay = true;
-            clearTimeout(graceTimer.handle);
-            for (const route of relay) void start(route);
-        }
-        for (const route of direct) void start(route);
-        if (relay.length > 0) {
-            if (direct.length === 0) startRelay();
-            else graceTimer.handle = setTimeout(startRelay, directGraceMs);
+        for (const route of routes) void start(route);
+        if (hasRelay) {
+            if (directCount === 0) releaseRelay();
+            else graceTimer.handle = setTimeout(releaseRelay, directGraceMs);
         }
         settleFailure();
     });

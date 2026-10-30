@@ -21,11 +21,11 @@ import { createMobileCredentialStore } from '../credential-store';
 
 export const serverId = 'a'.repeat(32);
 export const pairingSecret = '22'.repeat(32);
-const connectionId = '33'.repeat(16);
-const deviceId = `device_${'44'.repeat(16)}`;
-const deviceCredential = '55'.repeat(32);
-const serverSecret = decodeHex('66'.repeat(32));
-const serverNonce = decodeHex('77'.repeat(32));
+export const connectionId = '33'.repeat(16);
+export const deviceId = `device_${'44'.repeat(16)}`;
+export const deviceCredential = '55'.repeat(32);
+export const serverSecret = decodeHex('66'.repeat(32));
+export const serverNonce = decodeHex('77'.repeat(32));
 export const pairingLink = serializeMobilePairingLink({
     version: MOBILE_TRANSPORT_VERSION,
     addresses: ['192.168.1.5'],
@@ -364,51 +364,6 @@ export class AndroidConnectingSocket extends EventTarget {
     send(data: string): void {
         if (this.#state !== 'open') throw new Error('INVALID_STATE_ERR');
         this.sent.push(data);
-    }
-}
-
-export class UnverifiedReconnectSocket extends EventTarget {
-    constructor() {
-        super();
-        queueMicrotask(() => this.dispatchEvent(new Event('open')));
-    }
-
-    close(): void {
-        this.dispatchEvent(new Event('close'));
-    }
-
-    send(source: string): void {
-        const hello = mobileClientHelloSchema.parse(JSON.parse(source));
-        if (hello.mode !== 'connect') throw new Error('Expected reconnect hello');
-        const untrustedSecret = decodeHex('99'.repeat(32));
-        const serverPublicKey = mobilePublicKey(untrustedSecret);
-        const transcript: HandshakeTranscript = {
-            mode: 'connect',
-            serverId,
-            principalId: `paired-device:${deviceId}`,
-            connectionId: decodeHex(connectionId, 16),
-            clientPublicKey: decodeHex(hello.clientPublicKey, 32),
-            serverPublicKey,
-            clientNonce: decodeHex(hello.clientNonce, 32),
-            serverNonce,
-        };
-        const untrustedKeys = deriveMobileSessionKeys({
-            localSecretKey: untrustedSecret,
-            peerPublicKey: transcript.clientPublicKey,
-            presharedKey: decodeHex('aa'.repeat(32)),
-            transcript,
-        });
-        const data = JSON.stringify({
-            type: 'challenge',
-            version: MOBILE_TRANSPORT_VERSION,
-            connectionId,
-            deviceId,
-            generation: 1,
-            serverPublicKey: encodeHex(serverPublicKey),
-            serverNonce: encodeHex(serverNonce),
-            confirmation: encodeHex(handshakeConfirmation(untrustedKeys, 'server')),
-        });
-        queueMicrotask(() => this.dispatchEvent(new MessageEvent('message', { data })));
     }
 }
 

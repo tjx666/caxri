@@ -58,6 +58,10 @@ export const mobileClientCloseReasons = {
      */
     'route-upgrade': 4016,
     /**
+     * The Server did not confirm a new connection with `ready` in time after the phone's handshake `confirm`.
+     */
+    'ready-timeout': 4018,
+    /**
      * More Server frames arrived than the phone's bounded inbox holds while its reader was still busy.
      */
     'inbox-overflow': 4017,

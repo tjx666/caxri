@@ -1,4 +1,5 @@
 import { Buffer } from 'node:buffer';
+import type { Socket } from 'node:net';
 
 import type { RelayGrant } from '@caxri/mobile-transport';
 import {
@@ -95,6 +96,11 @@ export class FakeHost {
 
     dialBack = true;
 
+    /**
+     * The `relay-standby` ticket of a registration that asked for one.
+     */
+    standbyTicket?: string;
+
     constructor(baseUrl: string) {
         this.#baseUrl = baseUrl;
     }
@@ -102,13 +108,25 @@ export class FakeHost {
     async #serve(frames: FrameQueue): Promise<void> {
         for (;;) {
             // eslint-disable-next-line no-await-in-loop -- incoming frames are handled strictly in arrival order
-            const frame = (await frames.next()) as { connectionId: string; ticket: string };
+            const frame = (await frames.next()) as {
+                connectionId: string;
+                ticket: string;
+                type: string;
+            };
+            if (frame.type === 'relay-standby') {
+                this.standbyTicket = frame.ticket;
+                continue;
+            }
             this.incoming.push(frame);
             if (this.dialBack) void this.accept(frame);
         }
     }
 
-    async register(grants: RelayGrant[], secretKey = this.key.secretKey): Promise<void> {
+    async register(
+        grants: RelayGrant[],
+        secretKey = this.key.secretKey,
+        options: { standby?: boolean } = {},
+    ): Promise<void> {
         this.control = new WebSocket(relayEndpoint(this.#baseUrl, relayPaths.host));
         const frames = new FrameQueue(this.control);
         await opened(this.control);
@@ -121,10 +139,13 @@ export class FakeHost {
                 publicKey: encodeHex(this.key.publicKey),
                 signature: encodeHex(signature),
                 grants,
+                ...(options.standby && { standby: true }),
             }),
         );
         const registered = (await frames.next()) as { hostId: string };
         this.hostId = registered.hostId;
+        if (options.standby)
+            this.standbyTicket = ((await frames.next()) as { ticket: string }).ticket;
         void this.#serve(frames);
     }
 
@@ -153,15 +174,42 @@ export class FakeHost {
     }
 }
 
+/**
+ * Parks an idle host-data socket. Once the Relay sends `relay-spliced`, it echoes every later frame like a dial-back.
+ */
+export const parkStandby = async (
+    baseUrl: string,
+    host: FakeHost,
+    ticket = host.standbyTicket!,
+): Promise<{ socket: WebSocket; frames: FrameQueue }> => {
+    const socket = new WebSocket(relayEndpoint(baseUrl, relayPaths.hostData));
+    const frames = new FrameQueue(socket);
+    await opened(socket);
+    socket.send(
+        JSON.stringify({
+            type: 'host-standby',
+            version: RELAY_PROTOCOL_VERSION,
+            hostId: host.hostId,
+            ticket,
+        }),
+    );
+    return { socket, frames };
+};
+
 export const connectClient = async (
     baseUrl: string,
     hostId: string,
     accessKey: string,
     options?: ClientOptions,
+    earlyFrames: string[] = [],
 ): Promise<{ socket: WebSocket; frames: FrameQueue }> => {
     const socket = new WebSocket(relayEndpoint(baseUrl, relayPaths.client), options);
     const frames = new FrameQueue(socket);
     await opened(socket);
+    // Corked so `relay-connect` and any early frames leave in one TCP write, as a phone's hello can arrive in the same
+    // read as its `relay-connect`. `_socket` is ws's underlying net socket.
+    const transport = (socket as unknown as { _socket: Socket })._socket;
+    transport.cork();
     socket.send(
         JSON.stringify({
             type: 'relay-connect',
@@ -170,6 +218,8 @@ export const connectClient = async (
             accessKey,
         }),
     );
+    for (const frame of earlyFrames) socket.send(frame);
+    transport.uncork();
     return { socket, frames };
 };
 

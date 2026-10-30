@@ -12,6 +12,11 @@
  *    hash against the host's grants before the Server learns about the attempt.
  * 3. Host data (`/v1/host-data`): on `relay-incoming`, the Server dials back with the one-use ticket; the Relay splices it
  *    to the waiting client and sends `relay-ready` to the phone.
+ *
+ * A Server that registers with `standby` also keeps one idle host-data socket parked at the Relay, authenticated by the
+ * registration's `relay-standby` ticket. A phone that arrives while one is parked is spliced to it at once (the Server
+ * learns from `relay-spliced`), so the common case skips the dial-back's TCP and TLS setup. Frames the phone sends
+ * after `relay-connect` but before the splice are held by the Relay and forwarded in order.
  */
 import { ed25519 } from '@noble/curves/ed25519.js';
 import { hkdf } from '@noble/hashes/hkdf.js';
@@ -193,6 +198,11 @@ export const relayHostRegisterSchema = z.strictObject({
     publicKey: fixedHex(RELAY_HOST_KEY_BYTES),
     signature: fixedHex(RELAY_SIGNATURE_BYTES),
     grants: z.array(relayGrantSchema).max(RELAY_MAX_GRANTS),
+    /**
+     * Asks for a `relay-standby` ticket so the Server can park an idle host-data socket. Opt-in, because a Server that
+     * does not understand `relay-standby` would treat it as a protocol error.
+     */
+    standby: z.literal(true).optional(),
 });
 
 export const relayHostRegisteredSchema = z.strictObject({
@@ -221,12 +231,53 @@ export const relayHostAcceptSchema = z.strictObject({
     ticket: fixedHex(RELAY_TICKET_BYTES),
 });
 
+/**
+ * Sent on the control socket after `host-registered` to a host that asked for `standby`. The ticket stays valid for
+ * this registration and admits one parked host-data socket at a time.
+ */
+export const relayStandbySchema = z.strictObject({
+    type: z.literal('relay-standby'),
+    ticket: fixedHex(RELAY_TICKET_BYTES),
+});
+
+/**
+ * Every control frame the Relay sends after `host-registered`.
+ */
+export const relayHostControlSchema = z.discriminatedUnion('type', [
+    relayIncomingSchema,
+    relayStandbySchema,
+]);
+
+/**
+ * The first frame of a parked host-data socket.
+ */
+export const relayHostStandbySchema = z.strictObject({
+    type: z.literal('host-standby'),
+    version: z.literal(RELAY_PROTOCOL_VERSION),
+    hostId: relayHostIdSchema,
+    ticket: fixedHex(RELAY_TICKET_BYTES),
+});
+
+export const relayHostDataFirstFrameSchema = z.discriminatedUnion('type', [
+    relayHostAcceptSchema,
+    relayHostStandbySchema,
+]);
+
+/**
+ * Tells a parked host-data socket that a phone was spliced to it; every later frame is the phone's gateway stream.
+ */
+export const relayStandbySplicedSchema = z.strictObject({
+    type: z.literal('relay-spliced'),
+    version: z.literal(RELAY_PROTOCOL_VERSION),
+});
+
 export type RelayGrant = z.infer<typeof relayGrantSchema>;
 export type RelayClientConnect = z.infer<typeof relayClientConnectSchema>;
 export type RelayHostRegister = z.infer<typeof relayHostRegisterSchema>;
 export type RelayGrantUpdate = z.infer<typeof relayGrantUpdateSchema>;
 export type RelayIncoming = z.infer<typeof relayIncomingSchema>;
 export type RelayHostAccept = z.infer<typeof relayHostAcceptSchema>;
+export type RelayHostStandby = z.infer<typeof relayHostStandbySchema>;
 
 /**
  * Relay decisions carried as private-range close codes (4400-4599, distinct from the phone's 4001-4099 reasons). The

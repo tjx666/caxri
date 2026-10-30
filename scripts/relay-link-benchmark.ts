@@ -40,14 +40,12 @@ import type {
     MobileCredential,
     MobileCredentialStore,
 } from '../apps/mobile/src/features/connection/credential-store';
-import type {
-    MobileGatewayConnection,
-    MobileGatewayRuntime,
-} from '../apps/mobile/src/features/connection/mobile-gateway-client';
+import type { MobileGatewayRuntime } from '../apps/mobile/src/features/connection/mobile-gateway-client';
 import {
     pairMobileGateway,
     reconnectMobileGateway,
 } from '../apps/mobile/src/features/connection/mobile-gateway-client';
+import type { MobileGatewayConnection } from '../apps/mobile/src/features/connection/mobile-gateway-connection';
 import { createMobileRouteHints } from '../apps/mobile/src/features/connection/route-hints';
 import { startDashboardSubscription } from '../apps/mobile/src/features/sessions/dashboard-query';
 import { createMemoryMobileDeviceStore } from '../apps/server/src/core/__tests__/credential-stores.fixture';

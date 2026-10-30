@@ -12,6 +12,7 @@ import {
     deviceAccess,
     FakeHost,
     opened,
+    parkStandby,
     startRelay,
     waitFor,
 } from './harness';
@@ -44,7 +45,7 @@ describe('relay host registration', () => {
         expect(await frames.next()).toEqual({ hello: 'world' });
         socket.send(Buffer.from([1, 2, 3]), { binary: true });
         expect([...((await frames.next()) as Buffer)]).toEqual([1, 2, 3]);
-        expect(relay.stats()).toEqual({ hosts: 1, connections: 1 });
+        expect(relay.stats()).toEqual({ hosts: 1, connections: 1, standbys: 0 });
 
         const end = closed(host.dataSockets[0]!);
         socket.close(4001, 'heartbeat-timeout');
@@ -157,6 +158,93 @@ describe('relay client admission', () => {
         expect(await kept.frames.next()).toEqual({ still: 'open' });
     });
 
+    it('forwards frames a client sends before its splice, in order, ahead of later ones', async () => {
+        const { baseUrl, lines } = await relayUp();
+        const host = new FakeHost(baseUrl);
+        await host.register([{ keyHash: device.keyHash }]);
+        host.dialBack = false;
+        const early = ['{"early":1}', '{"early":2}'];
+        const client = await connectClient(baseUrl, host.hostId, device.accessKey, {}, early);
+        await waitFor(() => host.incoming.length === 1);
+        await host.accept(host.incoming[0]!);
+
+        expect(await client.frames.next()).toEqual({ type: 'relay-ready', version: 1 });
+        client.socket.send(JSON.stringify({ late: true }));
+        expect(await client.frames.next()).toEqual({ early: 1 });
+        expect(await client.frames.next()).toEqual({ early: 2 });
+        expect(await client.frames.next()).toEqual({ late: true });
+        expect(lines.find((line) => line.event === 'relay.connection_spliced')).toMatchObject({
+            standby: false,
+            earlyFrames: 2,
+        });
+    });
+
+    it('rejects a client that floods frames before its splice', async () => {
+        const { baseUrl } = await relayUp();
+        const host = new FakeHost(baseUrl);
+        await host.register([{ keyHash: device.keyHash }]);
+        host.dialBack = false;
+        const flood = Array.from({ length: 5 }, (_, index) => JSON.stringify({ index }));
+        const client = await connectClient(baseUrl, host.hostId, device.accessKey, {}, flood);
+        expect(await closed(client.socket)).toMatchObject({
+            code: relayCloseCodes['invalid-request'],
+        });
+    });
+
+    it('splices a client to a parked standby socket without a dial-back', async () => {
+        const { baseUrl, lines, relay } = await relayUp();
+        const host = new FakeHost(baseUrl);
+        await host.register([{ keyHash: device.keyHash }], undefined, { standby: true });
+        expect(host.standbyTicket).toMatch(/^[0-9a-f]{64}$/u);
+        const standby = await parkStandby(baseUrl, host);
+        await waitFor(() => relay.stats().standbys === 1);
+
+        const client = await connectClient(baseUrl, host.hostId, device.accessKey, {}, [
+            '{"hello":1}',
+        ]);
+        expect(await standby.frames.next()).toEqual({ type: 'relay-spliced', version: 1 });
+        expect(await standby.frames.next()).toEqual({ hello: 1 });
+        expect(await client.frames.next()).toEqual({ type: 'relay-ready', version: 1 });
+        standby.socket.send(JSON.stringify({ challenge: true }));
+        expect(await client.frames.next()).toEqual({ challenge: true });
+        expect(host.incoming).toEqual([]);
+        expect(lines.find((line) => line.event === 'relay.connection_spliced')).toMatchObject({
+            standby: true,
+        });
+
+        // The parked socket was used up, so the next phone falls back to a dial-back.
+        const next = await connectClient(baseUrl, host.hostId, device.accessKey);
+        expect(await next.frames.next()).toEqual({ type: 'relay-ready', version: 1 });
+        expect(host.incoming).toHaveLength(1);
+    });
+
+    it('accepts a standby socket only with its current ticket and keeps one per host', async () => {
+        const { baseUrl, relay } = await relayUp();
+        const host = new FakeHost(baseUrl);
+        await host.register([{ keyHash: device.keyHash }], undefined, { standby: true });
+        const forged = await parkStandby(baseUrl, host, '0'.repeat(64));
+        expect(await closed(forged.socket)).toMatchObject({ code: relayCloseCodes.unauthorized });
+
+        const first = await parkStandby(baseUrl, host);
+        await waitFor(() => relay.stats().standbys === 1);
+        const second = await parkStandby(baseUrl, host);
+        expect(await closed(first.socket)).toMatchObject({ code: relayCloseCodes.replaced });
+
+        const secondClose = closed(second.socket);
+        host.control.close();
+        expect(await secondClose).toMatchObject({ code: relayCloseCodes['host-offline'] });
+    });
+
+    it('never offers standby to a host that did not ask for it', async () => {
+        const { baseUrl } = await relayUp();
+        const host = new FakeHost(baseUrl);
+        await host.register([{ keyHash: device.keyHash }]);
+        const client = await connectClient(baseUrl, host.hostId, device.accessKey);
+        expect(await client.frames.next()).toEqual({ type: 'relay-ready', version: 1 });
+        expect(host.standbyTicket).toBeUndefined();
+        expect(host.incoming).toHaveLength(1);
+    });
+
     it('keeps spliced connections when the host control socket drops but fails pending ones', async () => {
         const { baseUrl } = await relayUp({ hostDialTimeoutMs: 5_000 });
         const host = new FakeHost(baseUrl);
@@ -212,6 +300,7 @@ describe('relay health', () => {
             protocolVersion: 1,
             hosts: 0,
             connections: 0,
+            standbys: 0,
         });
     });
 

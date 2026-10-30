@@ -106,27 +106,29 @@ afterEach(() => {
 });
 
 describe('route race', () => {
-    it('lets a direct address win before the Relay is ever dialed', async () => {
-        const { byUrl, runtime, sockets } = scriptedRuntime();
+    it('lets a direct address win before the Relay is ever asked for the computer', async () => {
+        const { byUrl, runtime } = scriptedRuntime();
         const opened = openGatewaySocket([directRoute('192.168.1.5'), relayRoute], runtime);
+        const relay = byUrl('relay.example.com')!;
+        relay.open();
         byUrl('192.168.1.5')?.open();
 
         await expect(opened).resolves.toMatchObject({ route: 'direct' });
-        expect(sockets).toHaveLength(1);
+        expect(relay.sent).toEqual([]);
+        expect(relay.isClosed).toBe(true);
     });
 
-    it('dials the Relay after the direct grace and keeps it once it is ready', async () => {
+    it('opens the Relay socket at once but asks for the computer only after the direct grace', async () => {
         vi.useFakeTimers();
         const { byUrl, runtime } = scriptedRuntime();
         const opened = openGatewaySocket([directRoute('192.168.1.5'), relayRoute], runtime);
-
-        await vi.advanceTimersByTimeAsync(DIRECT_ROUTE_GRACE_MS - 1);
-        expect(byUrl('relay.example.com')).toBeUndefined();
-        await vi.advanceTimersByTimeAsync(1);
         const relay = byUrl('relay.example.com')!;
         expect(relay.url).toBe('wss://relay.example.com/v1/client');
-
         relay.open();
+
+        await vi.advanceTimersByTimeAsync(DIRECT_ROUTE_GRACE_MS - 1);
+        expect(relay.sent).toEqual([]);
+        await vi.advanceTimersByTimeAsync(1);
         expect(JSON.parse(relay.sent[0])).toEqual({
             type: 'relay-connect',
             version: 1,
@@ -143,6 +145,26 @@ describe('route race', () => {
         relay.deliver({ type: 'relay-ready', version: 1 });
         await expect(opened).resolves.toMatchObject({ route: 'relay' });
         expect(byUrl('192.168.1.5')?.isClosed).toBe(true);
+    });
+
+    it('sends the hello right behind relay-connect and keeps a challenge that arrives with relay-ready', async () => {
+        const { byUrl, runtime } = scriptedRuntime();
+        const opened = openGatewaySocket([relayRoute], runtime, DIRECT_ROUTE_GRACE_MS, {
+            relayHello: () => JSON.stringify({ type: 'hello' }),
+        });
+        const relay = byUrl('relay.example.com')!;
+        await flushTasks();
+        relay.open();
+        expect(relay.sent.map((frame) => (JSON.parse(frame) as { type: string }).type)).toEqual([
+            'relay-connect',
+            'hello',
+        ]);
+        relay.deliver({ type: 'relay-ready', version: 1 });
+        relay.deliver({ type: 'challenge' });
+
+        const result = await opened;
+        expect(result).toMatchObject({ route: 'relay', isHelloSent: true });
+        await expect(result.reader!.next()).resolves.toEqual({ type: 'challenge' });
     });
 
     it('dials the Relay at once when every direct address has already failed', async () => {
@@ -296,6 +318,44 @@ describe('pairing and reconnecting through the Relay', () => {
         paired.connection.close('unmounted');
     });
 
+    it('holds a pairing hello until relay-ready, since it consumes the pairing code', async () => {
+        const { byUrl, runtime: scripted } = scriptedRuntime();
+        const runtime: MobileGatewayRuntime = {
+            ...scripted,
+            openWebSocket: (url) => {
+                const socket = scripted.openWebSocket(url);
+                if (url.startsWith('ws://')) queueMicrotask(() => byUrl(url)?.fail());
+                return socket;
+            },
+            platform: 'android',
+            randomBytes: (bytes) => new Uint8Array(bytes).fill(128),
+        };
+        const link = serializeMobilePairingLink({
+            version: MOBILE_TRANSPORT_VERSION,
+            addresses: ['192.168.1.5'],
+            port: 41_337,
+            serverId,
+            pairingId: '11'.repeat(16),
+            secret: pairingSecret,
+            expiresAt: Date.now() + 60_000,
+            relay: { url: relayUrl, hostId },
+        });
+        const { store } = memoryStore();
+        const paired = failureOf(
+            pairMobileGateway({ displayName: 'Pixel fixture', pairingLink: link, runtime, store }),
+        );
+        await flushTasks();
+        const relay = byUrl('relay.example.com')!;
+        relay.open();
+        await flushTasks();
+        expect(relay.sent).toHaveLength(1);
+        relay.deliver({ type: 'relay-ready', version: 1 });
+        await flushTasks();
+        expect(JSON.parse(relay.sent[1])).toMatchObject({ type: 'hello', mode: 'pair' });
+        relay.remoteClose(1006);
+        await expect(paired).resolves.toBeInstanceOf(Error);
+    });
+
     it('reconnects with the device access key and sends the connect hello through the Relay', async () => {
         const { byUrl, runtime: scripted } = scriptedRuntime();
         const runtime: MobileGatewayRuntime = {
@@ -321,9 +381,11 @@ describe('pairing and reconnecting through the Relay', () => {
             'device',
         );
         expect(JSON.parse(relay.sent[0])).toMatchObject({ accessKey: encodeHex(deviceKey) });
+        // The hello does not wait for `relay-ready`.
+        expect(JSON.parse(relay.sent[1])).toMatchObject({ type: 'hello', mode: 'connect' });
         relay.deliver({ type: 'relay-ready', version: 1 });
         await flushTasks();
-        expect(JSON.parse(relay.sent[1])).toMatchObject({ type: 'hello', mode: 'connect' });
+        expect(relay.sent).toHaveLength(2);
 
         relay.remoteClose(1006);
         await expect(reconnected).resolves.toBeInstanceOf(Error);

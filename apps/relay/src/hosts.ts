@@ -4,8 +4,17 @@ import { timingSafeEqual } from 'node:crypto';
 import type { RelayGrant } from '@caxri/mobile-transport';
 import { RELAY_MAX_GRANTS } from '@caxri/mobile-transport';
 import type WebSocket from 'ws';
+import type { RawData } from 'ws';
 
 import type { Splice } from './splice';
+
+/**
+ * A frame the phone sent after `relay-connect` but before its splice existed.
+ */
+export interface EarlyFrame {
+    data: RawData;
+    isBinary: boolean;
+}
 
 /**
  * A phone admitted by key hash, waiting for its host to dial back with the ticket.
@@ -16,8 +25,23 @@ export interface PendingClient {
     hostId: string;
     keyHash: string;
     startedAt: number;
+    /**
+     * Stops holding early frames and returns them in arrival order, for the splice to forward first.
+     */
+    takeEarlyFrames(): EarlyFrame[];
     ticket: Buffer;
     timer: ReturnType<typeof setTimeout>;
+}
+
+/**
+ * An idle host-data socket the Server parked for the next phone.
+ */
+export interface ParkedStandby {
+    socket: WebSocket;
+    /**
+     * Detaches the parked-state listeners before the socket joins a splice.
+     */
+    release(): void;
 }
 
 export interface RegisteredHost {
@@ -28,6 +52,11 @@ export interface RegisteredHost {
      * Key hash to optional expiry. Device grants have none; pairing grants expire with their QR link.
      */
     grants: Map<string, number | undefined>;
+    /**
+     * Present when the host asked for `standby`; admits one parked host-data socket at a time.
+     */
+    standbyTicket?: Buffer;
+    standby?: ParkedStandby;
 }
 
 /**
@@ -57,6 +86,12 @@ export class HostRegistry {
 
     get hostCount(): number {
         return this.#hosts.size;
+    }
+
+    get standbyCount(): number {
+        let total = 0;
+        for (const host of this.#hosts.values()) if (host.standby) total += 1;
+        return total;
     }
 
     get connectionCount(): number {
@@ -136,6 +171,44 @@ export class HostRegistry {
         let total = this.#splices.get(hostId)?.size ?? 0;
         for (const item of this.#pending.values()) if (item.hostId === hostId) total += 1;
         return total;
+    }
+
+    /**
+     * Checks a standby ticket against the host's current registration in constant time.
+     */
+    isStandbyTicketValid(host: RegisteredHost, ticket: Buffer): boolean {
+        const expected = host.standbyTicket;
+        return (
+            expected !== undefined &&
+            expected.length === ticket.length &&
+            timingSafeEqual(expected, ticket)
+        );
+    }
+
+    /**
+     * Parks a standby socket and returns the one it replaced, which the caller closes.
+     */
+    park(host: RegisteredHost, standby: ParkedStandby): ParkedStandby | undefined {
+        const previous = host.standby;
+        host.standby = standby;
+        return previous;
+    }
+
+    /**
+     * Removes and returns the host's parked socket, for a phone to be spliced to.
+     */
+    takeStandby(host: RegisteredHost): ParkedStandby | undefined {
+        const standby = host.standby;
+        host.standby = undefined;
+        return standby;
+    }
+
+    /**
+     * Forgets a parked socket that closed, unless a newer one already replaced it.
+     */
+    forgetStandby(hostId: string, socket: WebSocket): void {
+        const host = this.#hosts.get(hostId);
+        if (host?.standby?.socket === socket) host.standby = undefined;
     }
 
     addPending(item: PendingClient): void {

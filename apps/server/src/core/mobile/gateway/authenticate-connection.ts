@@ -135,7 +135,7 @@ export async function authenticateConnection(
         matchesSubscriptionEvent: dependencies.options.matchesSubscriptionEvent,
         now: dependencies.now,
         randomSubscriptionId: () => Buffer.from(dependencies.random(16)).toString('hex'),
-        reportRequest: (method) => dependencies.diagnostics.request(method),
+        reportRequest: (method, durationMs) => dependencies.diagnostics.request(method, durationMs),
         reportHeartbeat: () => dependencies.diagnostics.flushIfDue(),
         reportTerminalResync: (reason) => dependencies.diagnostics.terminalResync(reason),
         reportTerminalTeardownFailure: (reason) =>

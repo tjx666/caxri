@@ -50,25 +50,43 @@ describe('mobile gateway diagnostics', () => {
             },
         );
     });
-    it('counts exact public reads while bounding idle-window summaries', () => {
+    it('times the dashboard and Session-open reads while bounding idle-window summaries', () => {
         const write = vi.fn();
         let now = 0;
         const diagnostics = new MobileGatewayDiagnostics({ write }, () => now);
-        diagnostics.request('mobile.dashboard');
-        diagnostics.request('mobile.session.show');
-        for (let index = 0; index < 24; index++) diagnostics.request('mobile.session.show');
-        diagnostics.request('session.queryForPrincipal');
-        expect(write).toHaveBeenCalledTimes(2);
+        diagnostics.request('mobile.dashboard', 40);
+        diagnostics.request('mobile.session.show', 12);
+        for (let index = 0; index < 24; index++) diagnostics.request('mobile.session.show', 3);
+        diagnostics.request('mobile.agentChat.read', 250.4);
+        diagnostics.request('session.queryForPrincipal', 1);
+        expect(write).toHaveBeenCalledTimes(3);
         now = 60_000;
         diagnostics.flushIfDue();
-        expect(write).toHaveBeenLastCalledWith('info', 'mobile_gateway.session_read_summary', {
-            fields: { dashboardReads: 1, sessionReads: 25 },
-        });
+        const summary = {
+            fields: {
+                dashboardReads: 1,
+                dashboardTotalMs: 40,
+                dashboardMaxMs: 40,
+                sessionReads: 25,
+                sessionTotalMs: 84,
+                sessionMaxMs: 12,
+                chatReads: 1,
+                chatTotalMs: 250,
+                chatMaxMs: 250,
+            },
+        };
+        expect(write).toHaveBeenLastCalledWith(
+            'info',
+            'mobile_gateway.session_read_summary',
+            summary,
+        );
         now = 120_000;
         diagnostics.flushIfDue();
-        expect(write).toHaveBeenLastCalledWith('info', 'mobile_gateway.session_read_summary', {
-            fields: { dashboardReads: 1, sessionReads: 25 },
-        });
-        expect(write).toHaveBeenCalledTimes(4);
+        expect(write).toHaveBeenLastCalledWith(
+            'info',
+            'mobile_gateway.session_read_summary',
+            summary,
+        );
+        expect(write).toHaveBeenCalledTimes(5);
     });
 });

@@ -1,5 +1,5 @@
 import type { MobileServerPayload } from '@caxri/mobile-transport';
-import type { Principal } from '@caxri/protocol';
+import type { CommandExecutionContext, Principal } from '@caxri/protocol';
 import { CAXRI_PROTOCOL_VERSION, createCommandDispatcher } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -132,6 +132,73 @@ describe('MobileGatewayFrameRouter E2E acknowledgement loss', () => {
                 type: 'reply',
                 reply: { id: 'second', ok: true },
             });
+        } finally {
+            app.close();
+        }
+    });
+});
+
+describe('MobileGatewayFrameRouter request timing', () => {
+    it('reports how long an authorized request took to dispatch', async () => {
+        let now = 1_000;
+        const send = vi.fn<(payload: MobileServerPayload) => Promise<void>>(() =>
+            Promise.resolve(),
+        );
+        const reportRequest = vi.fn<(method: string, durationMs: number) => void>();
+        const dispatcher = createCommandDispatcher({
+            server: { invoke: () => ({ terminalId: 'terminal-1', outcome: 'accepted' }) },
+        });
+        const app = new MobileGatewayFrameRouter({
+            authorizeMethod: () => {},
+            authorizeSubscription: () => Promise.resolve(),
+            context: () => ({
+                capabilities: [],
+                principal,
+                connection: {
+                    serverId: 'a'.repeat(32),
+                    bootId: 'b'.repeat(32),
+                    stateEpoch: 'c'.repeat(32),
+                    clientId: 'mobile:device-1',
+                    connectionId: 'd'.repeat(32),
+                },
+            }),
+            dispatch: Object.assign(
+                async (envelope: unknown, context: CommandExecutionContext) => {
+                    const reply = await dispatcher(envelope, context);
+                    now += 180;
+                    return reply;
+                },
+                {
+                    admit: (envelope: unknown, context: CommandExecutionContext) =>
+                        dispatcher.admit(envelope, context),
+                },
+            ),
+            isActive: () => true,
+            matchesSubscriptionEvent: () => Promise.resolve(true),
+            now: () => now,
+            randomSubscriptionId: () => 'subscription-1',
+            reportRequest,
+            send,
+            terminate: vi.fn(),
+        });
+        try {
+            app.accept({
+                type: 'request',
+                request: {
+                    protocolVersion: CAXRI_PROTOCOL_VERSION,
+                    id: 'request-1',
+                    method: 'mobile.agent.submit',
+                    params: {
+                        sessionId: 'session-1',
+                        terminalId: 'terminal-1',
+                        endpoint: { hostId: 'host-1', endpointId: 'endpoint-1', generation: 1 },
+                        clientMutationId: 'request-1',
+                        text: 'continue',
+                    },
+                },
+            });
+            await vi.waitFor(() => expect(send).toHaveBeenCalledOnce());
+            expect(reportRequest).toHaveBeenCalledExactlyOnceWith('mobile.agent.submit', 180);
         } finally {
             app.close();
         }

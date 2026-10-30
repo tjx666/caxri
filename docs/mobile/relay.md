@@ -35,14 +35,22 @@ reconnect on their own.
 Wire schemas live in `packages/mobile-transport/src/relay.ts`.
 
 1. The Server keeps one control socket at `/v1/host`, answers `relay-challenge` with `host-register`,
-   and sends `grant-update` as devices and pairings change.
-2. The phone opens `/v1/client` and sends `relay-connect` with the host ID and its access key. The
-   Relay rejects an offline host or an unknown key before the Server hears about the attempt.
-3. The Relay sends `relay-incoming` with a single-use ticket on the control socket. The Server dials
-   `/v1/host-data`, presents the ticket in `host-accept`, and hands that socket to the Mobile gateway as
-   a relayed connection.
-4. The Relay splices both sockets and sends `relay-ready` to the phone, which then starts the ordinary
-   mobile handshake.
+   and sends `grant-update` as devices and pairings change. Its registration asks for a standby
+   (`standby: true`); the Relay answers with `relay-standby` and a ticket valid for that registration.
+2. The Server parks one idle socket at `/v1/host-data` with `host-standby` and that ticket. The Relay
+   keeps at most one per host and closes it with `host-offline` when the control socket ends.
+3. The phone opens `/v1/client` and sends `relay-connect` with the host ID and its access key. The
+   Relay rejects an offline host or an unknown key before the Server hears about the attempt. A
+   reconnecting phone sends its `hello` right behind `relay-connect`, without waiting; the Relay holds
+   up to four such early frames and forwards them in order once spliced. A pairing `hello` waits for
+   `relay-ready`, since it consumes the pairing code.
+4. With a standby parked, the Relay splices the phone onto it at once and sends `relay-spliced` to the
+   Server ahead of the phone's frames; the Server hands that socket to the Mobile gateway and parks a
+   new standby. Without one, the Relay sends `relay-incoming` with a single-use ticket on the control
+   socket, and the Server dials `/v1/host-data` and presents the ticket in `host-accept`.
+5. The Relay sends `relay-ready` to the phone. The mobile handshake runs over the splice; a
+   reconnecting phone sends its first requests right behind its confirmation instead of waiting for
+   `ready`, and the Server answers them after `ready`.
 
 Relay decisions use close codes 4400 to 4599 (`relayCloseCodes`). Across a splice the Relay mirrors
 application close codes, so the Server still records the phone's own close reason; a peer that
@@ -51,8 +59,9 @@ vanished without a close frame becomes `peer-gone`.
 ## Route selection on the phone
 
 A pairing link carries `relay` and `relay-host` when the Server has a Relay configured; the phone
-stores both with its credential. Each connection races the direct addresses first and adds the Relay
-after a 2.5 second grace, or immediately once every direct address has failed. The grace drops to
+stores both with its credential. Each connection opens the direct addresses and the Relay socket together, but
+asks the Relay for the computer only after a 2.5 second grace, or immediately once every direct
+address has failed; a direct win closes the Relay socket before it has sent anything. The grace drops to
 300 ms when the Relay won the previous connection to that computer (remembered across app restarts)
 or when the phone is on cellular data and no stored address is on a tailnet: a LAN socket that
 answers at all opens well inside 300 ms, so a phone back home still connects directly. While a session is on
@@ -133,18 +142,24 @@ a Server to another region keeps its host key, but its phones pair again to lear
 ## Observability
 
 The Relay writes one JSON line per event to stdout: `relay.host_registered`, `relay.host_ended`
-(cause, duration), `relay.connection_spliced` (setup time), `relay.connection_ended` (cause,
+(cause, duration), `relay.connection_spliced` (setup time, whether a standby carried it, and how
+many early frames were held), `relay.connection_ended` (cause,
 duration, bytes in each direction; a heartbeat timeout, such as a carrier NAT dropping an idle mapping, ends
 either kind of socket with cause `heartbeat-timeout`), `relay.rejected` (closed reason), and a `relay.summary` every
 minute. Logs never contain addresses, keys, tickets, or payload bytes; a host ID appears only as an
-8-character prefix. `GET /health` returns the protocol version and current host and connection
+8-character prefix. `GET /health` returns the protocol version and current host, standby, and connection
 counts. On the Server, Mobile connection records carry a `route` of `lan` or `relay`, and the Relay
 connector records each state transition with a closed cause.
 
 `mobile_gateway.connection_established` splits a reconnect into its legs, all in milliseconds:
 `clientGraceMs` and `clientOpenMs` (the phone's route grace and its time until the socket was open,
-from the reconnect `hello`), `dialMs` (the Server's dial-back to the Relay), `helloWaitMs` (dial-back
-until the phone's `hello`, one phone round trip on the Relay), `confirmWaitMs` (one more round trip),
+from the reconnect `hello`), `dialMs` (the Server's dial-back to the Relay, 0 for a standby),
+`helloWaitMs` (socket until the phone's `hello`, usually 0 now that the hello travels with
+`relay-connect`), `confirmWaitMs` (one more round trip),
 `authMs` (the Server's own credential check), and `handshakeMs` (socket until ready). With
 `relay.connection_spliced`'s `setupMs` this names the slow leg of a reported slow reconnect; the
 benchmark that measures them on simulated links is in [performance.md](performance.md#relay-reconnect-latency).
+`mobile_gateway.session_read_summary` times the reads behind the dashboard and a Session open
+(`dashboard`, `session` for `mobile.session.show`, `chat` for `mobile.agentChat.read`, `timeline`
+for `mobile.timeline.read`), each with `<kind>Reads`, `<kind>TotalMs`, and `<kind>MaxMs` measured from
+dispatch to reply. The first read of each kind logs at once; later ones join the minute summary.
