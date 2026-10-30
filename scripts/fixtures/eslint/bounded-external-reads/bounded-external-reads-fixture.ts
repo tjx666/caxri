@@ -1,6 +1,6 @@
-import fs, { readFileSync } from 'node:fs';
+import fs, { promises, readFileSync } from 'node:fs';
 import * as fsPromises from 'node:fs/promises';
-import { promises, readFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 
 import { readBoundedRegularFileText } from '@caxri/system';
 

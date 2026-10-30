@@ -21,8 +21,8 @@ export function createBestEffortTeardown(): BestEffortTeardown {
         async attempt(...actions) {
             for (const action of actions) {
                 try {
-                    // eslint-disable-next-line no-await-in-loop -- closers run in order
-                    await action();
+                    // react-doctor-disable-next-line react-doctor/async-await-in-loop -- closers run in order
+                    await action(); // eslint-disable-line no-await-in-loop -- closers run in order
                 } catch (error) {
                     failures.push(error);
                 }
