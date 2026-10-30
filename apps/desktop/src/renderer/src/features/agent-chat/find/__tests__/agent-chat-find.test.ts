@@ -221,6 +221,12 @@ describe('nextAgentChatFindAutoLoad', () => {
         expect(nextAgentChatFindAutoLoad({ ...ready, hasFailed: true })).toBe('stop');
         expect(nextAgentChatFindAutoLoad({ ...ready, isActive: false })).toBe('stop');
     });
+
+    it('stops when a load it requested leaves no older page', () => {
+        const exhausted = { ...ready, canLoadEarlier: false, hasLoaded: true };
+        expect(nextAgentChatFindAutoLoad(exhausted)).toBe('stop');
+        expect(nextAgentChatFindAutoLoad({ ...exhausted, isLoading: true })).toBe('wait');
+    });
 });
 
 describe('agentChatFindVisibleWindow', () => {

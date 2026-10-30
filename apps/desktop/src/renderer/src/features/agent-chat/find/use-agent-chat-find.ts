@@ -351,6 +351,7 @@ export function useAgentChatFind({
     }, [isLoadingEarlier]);
 
     const canLoadEarlier = loadEarlier !== undefined;
+    const hasAutoLoaded = useRef(false);
     const autoLoadEarlier = useEffectEvent((): void => {
         const next = nextAgentChatFindAutoLoad({
             isActive: session.isAutoLoadingEarlier,
@@ -360,9 +361,11 @@ export function useAgentChatFind({
             hasFailed: hasEarlierLoadFailed,
             isLoading: isLoadingEarlier,
             canLoadEarlier,
+            hasLoaded: hasAutoLoaded.current,
         });
         if (next === 'stop') setAutoLoadingEarlier(session, false);
         if (next !== 'load') return;
+        hasAutoLoaded.current = true;
         setAwaitingEarlier(session, true);
         loadEarlier?.();
     });
@@ -383,6 +386,7 @@ export function useAgentChatFind({
      */
     const openWithQuery = useCallback(
         (next: string) => {
+            hasAutoLoaded.current = false;
             setAwaitingEarlier(session, true);
             setAutoLoadingEarlier(session, true);
             requestReveal(session, 'start');
@@ -400,6 +404,7 @@ export function useAgentChatFind({
     );
 
     const changeQuery = (next: string): void => {
+        hasAutoLoaded.current = false;
         setAwaitingEarlier(session, false);
         setAutoLoadingEarlier(session, false);
         requestReveal(session, 'start');

@@ -295,8 +295,7 @@ export function AgentChatPane({
                     contentReference={contentReference}
                     focusComposer={focusComposer}
                     hasUnsearchedHistory={history.hasMore || history.history.truncated}
-                    isLoadingEarlier={history.history.status === 'loading'}
-                    hasEarlierLoadFailed={history.history.status === 'failed'}
+                    earlierStatus={history.history.status}
                     loadEarlier={history.hasMore ? history.loadOlder : undefined}
                     onOpen={mountAll}
                     scrollReference={scrollReference}

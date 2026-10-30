@@ -112,9 +112,14 @@ export function nextAgentChatFindAutoLoad(state: {
     hasFailed: boolean;
     isLoading: boolean;
     canLoadEarlier: boolean;
+    /**
+     * Whether this search already requested an older page, so a missing next page now means the history ended.
+     */
+    hasLoaded?: boolean;
 }): 'load' | 'wait' | 'stop' {
     if (!state.isActive || state.matchCount > 0) return 'stop';
     if (state.hasFailed) return 'stop';
+    if (state.hasLoaded && !state.isLoading && !state.canLoadEarlier) return 'stop';
     if (!state.hasQuery || !state.hasContent || state.isLoading || !state.canLoadEarlier)
         return 'wait';
     return 'load';

@@ -16,8 +16,7 @@ export function AgentChatFindScope({
     contentReference,
     focusComposer,
     hasUnsearchedHistory,
-    isLoadingEarlier,
-    hasEarlierLoadFailed,
+    earlierStatus,
     loadEarlier,
     onOpen,
     scrollReference,
@@ -36,13 +35,9 @@ export function AgentChatFindScope({
      */
     hasUnsearchedHistory: boolean;
     /**
-     * A page of older history is being read, so Search earlier messages waits for it.
+     * Whether a page of older history is being read (Search earlier messages waits for it) or the last page failed.
      */
-    isLoadingEarlier: boolean;
-    /**
-     * The last page of older history failed to load.
-     */
-    hasEarlierLoadFailed: boolean;
+    earlierStatus: string;
     /**
      * Loads the next page of older history, or `undefined` when none can be loaded, so an empty search result can offer
      * to search further back.
@@ -67,8 +62,8 @@ export function AgentChatFindScope({
         contentReference,
         stopFollowing,
         focusComposer,
-        isLoadingEarlier,
-        hasEarlierLoadFailed,
+        isLoadingEarlier: earlierStatus === 'loading',
+        hasEarlierLoadFailed: earlierStatus === 'failed',
         loadEarlier,
         onOpen,
     });
@@ -78,7 +73,7 @@ export function AgentChatFindScope({
                 {find.bar && (
                     <AgentChatFindBar
                         {...find.bar}
-                        isLoadingEarlier={isLoadingEarlier}
+                        isLoadingEarlier={earlierStatus === 'loading'}
                         isPartial={hasUnsearchedHistory}
                     />
                 )}
