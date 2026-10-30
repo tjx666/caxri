@@ -447,6 +447,77 @@ describe('buildAgentChatTimeline', () => {
     });
 });
 
+describe('steer reply thoughts', () => {
+    const steer: AgentChatItem = {
+        id: 'u2',
+        turnId: 't1',
+        type: 'userMessage',
+        text: 'Did you mention tooltips?',
+        delivery: 'steered',
+    };
+    const steerReplies = (entries: readonly AgentChatTimelineEntry[]): unknown =>
+        entries.flatMap((entry) =>
+            entry.kind === 'work' && entry.isSteerReply ? [entry.items.map((item) => item.id)] : [],
+        );
+
+    it('splits the thought a steer got instead of a reply out of the tool calls after it', () => {
+        const items = [
+            user('u1', 't1'),
+            command('c1', 't1'),
+            steer,
+            thought('r1', 't1'),
+            command('c2', 't1'),
+            read('f1', 't1'),
+        ];
+        const timeline = buildAgentChatTimeline(items, [{ id: 't1', status: 'running' }], 't1');
+
+        expect(shape(timeline)).toEqual(['u1', ['c1'], 'u2', ['r1'], ['c2', 'f1']]);
+        expect(steerReplies(timeline)).toEqual([['r1']]);
+    });
+
+    it('keeps the split inside a finished turn fold', () => {
+        const items = [
+            user('u1', 't1'),
+            steer,
+            thought('r1', 't1'),
+            command('c2', 't1'),
+            reply('a1', 't1'),
+        ];
+        const timeline = buildAgentChatTimeline(
+            items,
+            [{ id: 't1', status: 'completed', startedAt: 0, durationMs: 1000 }],
+            undefined,
+        );
+        const fold = timeline.find((entry) => entry.kind === 'turn' && entry.entries.length > 0);
+
+        expect(fold?.kind === 'turn' && steerReplies(fold.entries)).toEqual([['r1']]);
+    });
+
+    it('leaves the thought alone when a reply answers the steer, it still streams, or nothing was steered', () => {
+        const running = [{ id: 't1', status: 'running' as const }];
+        const answered = buildAgentChatTimeline(
+            [user('u1', 't1'), steer, thought('r1', 't1'), reply('a1', 't1'), command('c2', 't1')],
+            running,
+            't1',
+        );
+        const streaming = buildAgentChatTimeline(
+            [user('u1', 't1'), steer, thought('r1', 't1')],
+            running,
+            't1',
+        );
+        const unsteered = buildAgentChatTimeline(
+            [user('u1', 't1'), thought('r1', 't1'), command('c2', 't1')],
+            running,
+            't1',
+        );
+
+        expect(steerReplies(answered)).toEqual([]);
+        expect(steerReplies(streaming)).toEqual([]);
+        expect(steerReplies(unsteered)).toEqual([]);
+        expect(shape(unsteered)).toEqual(['u1', ['r1', 'c2']]);
+    });
+});
+
 describe('agentChatTurnTone', () => {
     it('tones a failed or stopped turn and keeps a completed one quiet', () => {
         expect(agentChatTurnTone({ status: 'failed' })).toBe('danger');
