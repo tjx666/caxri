@@ -6,6 +6,7 @@ import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scen
 import { capture, finish } from './mobile-agent-actions-scenarios';
 import { waitForCheck, waitForNoCheck } from './mobile-agent-chat-helpers';
 import {
+    adbShell,
     mobileNativeControlBounds,
     tapMobileCheck,
     tapMobileCheckByBounds,
@@ -66,6 +67,9 @@ export async function executeMobileToastScenario(
             throw new Error('Copy link did not show a Toast');
         await capture(environment, 'link-copied', artifacts);
 
+        // Android's clipboard preview covers the browser's close button after a copy; a tap on the page dismisses it.
+        await adbShell(serial, ['input', 'tap', '540', '1000']);
+        await new Promise((resolve) => setTimeout(resolve, 1500));
         await tapMobileCheckByBounds(serial, 'in-app-browser-close');
         await waitForNoCheck(serial, 'in-app-browser');
         // The chip outlives its server for up to one poll, so a tap right after the stop reaches the failure path.
