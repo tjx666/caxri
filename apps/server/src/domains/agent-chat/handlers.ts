@@ -63,9 +63,15 @@ export function createAgentChatHandlers(
         'agentChat.continuationTargets': async ({ terminalId }) => ({
             targets: await usage().targets(terminalId),
         }),
-        'agentChat.continueInAgent': ({ terminalId, provider, turnId }) => {
+        'agentChat.continueInAgent': ({ terminalId, provider, turnId, manual }) => {
+            if (manual && turnId !== undefined)
+                throw new CaxriError('VALIDATION', 'A manual continuation names no failed turn');
             agentChat.states.usageLimitWaits?.cancel(terminalId, 'continuedElsewhere');
-            return usage().continueIn(terminalId, provider, turnId);
+            return usage().continueIn(
+                terminalId,
+                provider,
+                manual ? 'manual' : turnId !== undefined ? { turnId } : 'usageGuard',
+            );
         },
         /**
          * "Continue now" is the user continuing the Chat, so it takes a delegated Chat over like a message; the wait

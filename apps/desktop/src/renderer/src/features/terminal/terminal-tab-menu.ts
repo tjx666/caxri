@@ -3,6 +3,7 @@ import type { TerminalRecord } from '@caxri/protocol';
 import { translate } from '../../i18n';
 import type { ContextMenuEntries } from '../../lib/context-menu';
 import { CONTEXT_MENU_SEPARATOR } from '../../lib/context-menu';
+import { readAgentChatContinueMenuEntry } from '../agent-chat/usage-limit/agent-chat-continue-menu';
 import { moveTerminalToNewSession } from '../session/session-commands';
 import { agentRestartMenuEntry } from './agent-restart-commands';
 import {
@@ -14,14 +15,17 @@ import {
 /**
  * The Terminal-specific entries appended to a Terminal tab's context menu (see `paneTabMenu`), in three groups: what
  * this Agent runs as (switch surface, Restart Agent), where the tab lives (Move to New Session), and taking the
- * conversation elsewhere (Copy Resume Command). `serializeContextMenu` drops a separator left without neighbors, so a
- * Shell tab shows only its middle group.
+ * conversation elsewhere (Continue in Another Agent, Copy Resume Command). `serializeContextMenu` drops a separator
+ * left without neighbors, so a Shell tab shows only its middle group.
  */
 export async function terminalTabMenuEntries(
     terminal: TerminalRecord,
     isOnlySessionTerminal: boolean,
 ): Promise<ContextMenuEntries> {
-    const isResumable = await isAgentConversationResumable(terminal);
+    const [isResumable, continueEntry] = await Promise.all([
+        isAgentConversationResumable(terminal),
+        readAgentChatContinueMenuEntry(terminal),
+    ]);
     return [
         terminalSurfaceMenuEntry(terminal),
         // A Shell tab has no Agent to restart; the entry would only ever be disabled there.
@@ -34,6 +38,7 @@ export async function terminalTabMenuEntries(
             onSelect: () => moveTerminalToNewSession(terminal.id, isOnlySessionTerminal),
         },
         CONTEXT_MENU_SEPARATOR,
+        continueEntry,
         terminal.provider && agentResumeCommandMenuEntry(terminal, isResumable),
     ];
 }

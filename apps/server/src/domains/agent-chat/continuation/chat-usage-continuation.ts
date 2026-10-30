@@ -62,6 +62,12 @@ export interface ContinuationChatHost {
  * The delegation id of a continuation: one per failed turn, or per Chat and weekly guard window, so a double click, a
  * retry, or a restart resolves to the same new Session instead of a second one.
  */
+/**
+ * Where a continuation starts: the turn that failed on a used-up plan limit, the weekly guard, or the user choosing
+ * Continue in Another Agent from a menu while nothing stopped the Chat.
+ */
+export type ContinuationOrigin = 'usageGuard' | 'manual' | { turnId: string };
+
 function continuationDelegationId(terminalId: string, key: string): string {
     const digest = createHash('sha256').update(`continuation\n${terminalId}\n${key}`).digest('hex');
     // Delegation storage accepts only generated identifiers (`prepareDelegationLaunch`), so the digest is shaped as a
@@ -294,36 +300,54 @@ export class ChatUsageContinuation {
     }
 
     /**
-     * Continues the Chat's work in a new Session of the same Project, run by `provider`: from the turn `turnId` that
-     * failed on a used-up plan limit, or, without it, from the weekly guard. Idempotent per failed turn or guard
-     * window: a repeat returns the Session the first created, whichever provider it asked for. The new Session is
+     * Continues the Chat's work in a new Session of the same Project, run by `provider`, from `origin` (see
+     * {@link ContinuationOrigin}). Idempotent per failed turn, guard window, or, for a manual continuation, per latest
+     * turn: a repeat returns the Session the first created, whichever provider it asked for. A manual continuation
+     * refuses a running turn, as Fork Session does, since the brief would miss the turn's end. The new Session is
      * created and its Agent started atomically by delegation admission, which removes the Session again when the launch
      * is refused.
      */
     async continueIn(
         terminalId: string,
         provider: AgentProvider,
-        turnId: string | undefined,
+        origin: ContinuationOrigin,
     ): Promise<{ sessionId: string; delegationId: string }> {
         const startedAt = Date.now();
         const terminal = requireChatTerminal(this.database, terminalId);
         const snapshot = this.chat?.states.open(terminalId).projection.snapshot;
         if (!snapshot) throw new CaxriError('UNAVAILABLE', 'Agent Chat is not ready');
+        const turnId = typeof origin === 'object' ? origin.turnId : undefined;
         const notice = turnId
             ? snapshot.items.find((item) => item.id === `${turnId}:error`)
             : undefined;
         const usageLimit = notice?.type === 'notice' ? notice.usageLimit : undefined;
         const guard = this.options.guards.current(terminal.provider);
-        if (turnId ? !usageLimit : !guard)
-            throw new CaxriError(
-                'CONFLICT',
-                'This Chat has no used-up usage limit to continue from',
-            );
-        const id = continuationDelegationId(
-            terminalId,
-            turnId ? `turn:${turnId}` : `guard:${guard!.resetsAt}`,
-        );
-        const trigger = turnId ? 'usageLimit' : 'usageGuard';
+        let key: string;
+        if (origin === 'manual') {
+            // A compaction rewrites the provider's record too, so it counts as a running turn.
+            if (snapshot.activeTurnId || snapshot.operation === 'compacting')
+                throw new CaxriError('CONFLICT', 'Wait for the current turn to finish first');
+            const lastTurn = snapshot.turns.at(-1);
+            if (!lastTurn)
+                throw new CaxriError('CONFLICT', 'This conversation has nothing to continue yet');
+            key = `manual:${lastTurn.id}`;
+        } else if (turnId) {
+            if (!usageLimit)
+                throw new CaxriError(
+                    'CONFLICT',
+                    'This Chat has no used-up usage limit to continue from',
+                );
+            key = `turn:${turnId}`;
+        } else {
+            if (!guard)
+                throw new CaxriError(
+                    'CONFLICT',
+                    'This Chat has no used-up usage limit to continue from',
+                );
+            key = `guard:${guard.resetsAt}`;
+        }
+        const id = continuationDelegationId(terminalId, key);
+        const trigger = origin === 'manual' ? 'manual' : turnId ? 'usageLimit' : 'usageGuard';
         const log = (outcome: 'created' | 'existing' | 'failed', code: string | null) =>
             this.logger.write(
                 outcome === 'failed' ? 'warn' : 'info',
@@ -360,9 +384,12 @@ export class ChatUsageContinuation {
         const prompt = buildContinuationBrief({
             snapshot,
             source: terminal.provider,
-            reason: usageLimit
-                ? { kind: 'usageLimit', window: usageLimit.window }
-                : { kind: 'usageGuard' },
+            reason:
+                origin === 'manual'
+                    ? { kind: 'manual' }
+                    : usageLimit
+                      ? { kind: 'usageLimit', window: usageLimit.window }
+                      : { kind: 'usageGuard' },
             ...(document?.status === 'generated' && { document: document.text }),
         });
         const title = `Continued: ${session.title || agentProviderCatalog[terminal.provider].displayName}`;

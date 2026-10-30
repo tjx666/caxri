@@ -1,4 +1,4 @@
-import type { AgentProvider } from '@caxri/protocol';
+import type { AgentChatContinuationTarget, AgentProvider } from '@caxri/protocol';
 
 import { translate } from '../../../i18n';
 import { caxri } from '../../../lib/caxri';
@@ -6,23 +6,43 @@ import { tryCommand } from '../../../stores/toasts';
 import { openSession } from '../../session/session-commands';
 
 /**
- * Continues the Chat's work in a new Session with `provider` (`agentChat.continueInAgent`) and opens that Session.
- * `turnId` names the failed turn; without it the continuation is the usage guard's "Open in another Agent". A failure
- * is a toast, and resolves like a success so the caller only clears its pending state.
+ * Where a continuation starts: the failed turn's usage-limit card, the usage guard's "Open in another Agent", or the
+ * user's Continue in Another Agent from a tab or Session menu.
+ */
+export type AgentChatContinueOrigin = 'usageGuard' | 'manual' | { turnId: string };
+
+/**
+ * Continues the Chat's work in a new Session with `provider` (`agentChat.continueInAgent`) and opens that Session. A
+ * failure is a toast, and resolves like a success so the caller only clears its pending state.
  */
 export async function continueAgentChatInAgent(
     terminalId: string,
     provider: AgentProvider,
-    turnId: string | undefined,
+    origin: AgentChatContinueOrigin,
 ): Promise<void> {
     const result = await tryCommand(translate('agentChat.usageLimit.continueFailed'), () =>
         caxri.request('agentChat.continueInAgent', {
             terminalId,
             provider,
-            ...(turnId !== undefined && { turnId }),
+            ...(origin === 'manual' && { manual: true }),
+            ...(typeof origin === 'object' && { turnId: origin.turnId }),
         }),
     );
     if (result) openSession(result.sessionId);
+}
+
+/**
+ * The providers that could take this Chat's work over, for a menu built when it opens. A failed read is an empty list,
+ * which the menu shows as "no other Agent", instead of failing the whole menu.
+ */
+export async function readAgentChatContinuationTargets(
+    terminalId: string,
+): Promise<readonly AgentChatContinuationTarget[]> {
+    try {
+        return (await caxri.request('agentChat.continuationTargets', { terminalId })).targets;
+    } catch {
+        return [];
+    }
 }
 
 /**

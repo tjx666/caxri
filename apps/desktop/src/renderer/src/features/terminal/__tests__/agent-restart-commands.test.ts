@@ -104,13 +104,14 @@ describe('terminalTabMenuEntries', () => {
         );
     }
 
-    it('groups the Agent actions, the move, and the copy with separators', async () => {
+    it('groups the Agent actions, the move, and taking the conversation elsewhere with separators', async () => {
         expect(await labels(agentTerminal({ kind: 'codex', provider: 'codex' }))).toEqual([
             'Open as Chat',
             'Restart Agent',
             undefined,
             'Move to New Session',
             undefined,
+            'Continue in Another Agent',
             'Copy Resume Command',
         ]);
     });

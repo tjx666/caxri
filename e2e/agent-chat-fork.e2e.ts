@@ -120,13 +120,14 @@ test('Fork Session copies a whole Codex Chat into a new Session from the sidebar
 
         const row = page.locator(`.project-group [data-session-id="${source}"]`);
         await row.click({ button: 'right' });
-        // The Session itself, Fork, its Agent, where to open it, Copy, and the two removals last.
+        // The Session itself, Fork and Continue, its Agent, where to open it, Copy, and the two removals last.
         expect(await contextMenuLabels(app)).toEqual([
             'Rename',
             'Rename with AI',
             'Pin',
             'Hand Over to Caxri Bot…',
             'Fork Session',
+            'Continue in Another Agent',
             'Open as Terminal',
             'Restart Agent',
             'Detach Agent',

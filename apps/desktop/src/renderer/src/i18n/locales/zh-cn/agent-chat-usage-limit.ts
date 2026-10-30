@@ -13,6 +13,9 @@ export const agentChatUsageLimit: TranslatedNamespace<typeof source> = {
     'agentChat.usageLimit.continueTooltip':
         '在此项目中新建会话，由 {{provider}} 接着这段对话继续工作',
     'agentChat.usageLimit.noTarget': '没有其他 Agent 可以接手',
+    'agentChat.continueMenu.label': '在其他 Agent 中继续',
+    'agentChat.continueMenu.needsChatReason': '以对话方式打开 Agent 后才能在其他 Agent 中继续',
+    'agentChat.continueMenu.noConversationReason': '此 Agent 还没有对话',
     'agentChat.usageLimit.continueFailed': '无法在其他 Agent 中继续',
     'agentChat.usageLimit.auto.waiting': '将在 {{time}} 自动继续（{{duration}}后）',
     'agentChat.usageLimit.auto.continuing': '正在自动继续…',

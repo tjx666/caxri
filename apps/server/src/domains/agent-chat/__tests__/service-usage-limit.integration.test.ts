@@ -89,15 +89,15 @@ describe('AgentChatService usage limits', () => {
             { provider: 'grok', unavailable: 'notInstalled' },
         ]);
         await expect(
-            chat.usage!.continueIn(chat.terminal.id, 'grok', turnId),
+            chat.usage!.continueIn(chat.terminal.id, 'grok', { turnId }),
         ).rejects.toMatchObject({
             code: 'UNAVAILABLE',
         });
         await expect(
-            chat.usage!.continueIn(chat.terminal.id, 'codex', 'other-turn'),
+            chat.usage!.continueIn(chat.terminal.id, 'codex', { turnId: 'other-turn' }),
         ).rejects.toMatchObject({ code: 'CONFLICT' });
 
-        const result = await chat.usage!.continueIn(chat.terminal.id, 'codex', turnId);
+        const result = await chat.usage!.continueIn(chat.terminal.id, 'codex', { turnId });
         expect(result).toEqual({
             sessionId: 'session-new',
             delegationId: expect.stringMatching(UUID) as string,
@@ -126,6 +126,32 @@ describe('AgentChatService usage limits', () => {
         });
     });
 
+    it('continues an idle Chat in another Agent on request, keyed by its latest turn', async () => {
+        const receipt = { sessionId: 'session-new' } as AgentDelegationReceipt;
+        const { createDelegation, usage } = usageFactory(
+            vi.fn<ContinuationOptions['createDelegation']>().mockResolvedValue(receipt),
+        );
+        const chat = await fixture({ provider: 'claude', usage });
+        await expect(
+            chat.usage!.continueIn(chat.terminal.id, 'codex', 'manual'),
+        ).rejects.toMatchObject({ code: 'CONFLICT' });
+
+        await chat.service.send(chat.terminal.id, { text: 'hello' });
+        await chat.until((current) => current.turns.at(-1)?.status === 'completed');
+        const first = await chat.usage!.continueIn(chat.terminal.id, 'codex', 'manual');
+        const again = await chat.usage!.continueIn(chat.terminal.id, 'codex', 'manual');
+        // Delegation admission dedupes by id, so a repeat from the same stopping point must reuse it.
+        expect(again).toEqual(first);
+        expect(createDelegation.mock.calls[1][0]).toBe(first.delegationId);
+        const request = createDelegation.mock.calls[0][2];
+        expect(request).toMatchObject({ newSession: true, handoff: true, provider: 'codex' });
+        expect(request.prompt).toContain('the user chose to hand it to you');
+        expect(request.prompt).toContain('## Latest request\n\nhello');
+        expect(chat.logWrite).toHaveBeenCalledWith('info', 'usage.continuation', {
+            fields: expect.objectContaining({ trigger: 'manual', outcome: 'created' }) as unknown,
+        });
+    });
+
     it('removes the empty Session of a continuation whose Agent never launched', async () => {
         const receipt = { sessionId: 'session-new', status: 'failed' } as AgentDelegationReceipt;
         const { discardSession, usage } = usageFactory(
@@ -135,7 +161,9 @@ describe('AgentChatService usage limits', () => {
         await chat.service.send(chat.terminal.id, { text: 'usage exhausted' });
         const snapshot = await chat.until((current) => current.turns.at(-1)?.status === 'failed');
         await expect(
-            chat.usage!.continueIn(chat.terminal.id, 'codex', snapshot.turns.at(-1)!.id),
+            chat.usage!.continueIn(chat.terminal.id, 'codex', {
+                turnId: snapshot.turns.at(-1)!.id,
+            }),
         ).rejects.toMatchObject({ code: 'UNAVAILABLE' });
         expect(discardSession).toHaveBeenCalledWith('session-new');
         expect(chat.logWrite).toHaveBeenCalledWith('warn', 'usage.continuation', {

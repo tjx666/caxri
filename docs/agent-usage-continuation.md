@@ -8,7 +8,8 @@ status: current
 When a provider account runs out of plan usage, the work in a Chat should not stop with it. Caxri
 handles two moments: a turn that already failed on a used-up limit (recovery), and a weekly window
 that is about to run out (the weekly usage guard). Both offer the same action: continue the Chat's
-work in a new Session of the same Project with another Agent. A failed turn whose limit resets soon
+work in a new Session of the same Project with another Agent, which the user can also choose at any
+time from a menu (see [Continue on request](#continue-on-request)). A failed turn whose limit resets soon
 also continues on its own in the same Chat once the reset passes. All of it is Chat-first; a PTY
 Terminal only shows the guard (see [PTY Terminals](#pty-terminals)) and is never blocked.
 
@@ -39,6 +40,24 @@ Contract: `packages/protocol/src/agent/agent-usage-continuation.ts`. Server owne
   the source provider anything (`continuation-brief.ts`): why the work moved, what to verify first
   (`git status`), the latest request, the plan, the files changed, and the newest conversation that
   fits the delegation prompt budget. Reasoning text and control characters are dropped.
+
+## Continue on request
+
+The same continuation works without a limit, for a user who wants another Agent to take the work
+over (a second opinion, a provider better at the task):
+
+- **Entries.** `Continue in Another Agent` is a submenu in a Chat tab's context menu, for that tab's
+  Agent, and in a Session row's context menu beside `Fork Session`, for the Session's Primary Agent.
+  A non-primary Agent is reachable only from its own tab. The submenu lists the same targets as the
+  recovery card, unavailable ones disabled with why; it is disabled with a reason while the Agent is
+  open in a PTY or has no conversation yet, and absent for a Shell.
+- **Contract.** `agentChat.continueInAgent` with `manual: true`. Server Core refuses a running turn
+  or a compaction with `CONFLICT`, as Fork Session does, since the brief would miss the turn's end.
+  The delegation id is keyed by the Chat's latest turn, so a double click reuses the Session while
+  a later turn can continue again. The brief says the user handed the work over instead of naming a
+  limit.
+- **Not covered:** a persistent `Continued in` link on the source Chat. The destination's first
+  message carries the `Continued from` link back.
 
 ## Automatic continuation after the reset
 
@@ -170,7 +189,8 @@ All four events are content-free and use closed enums (`packages/protocol/src/do
   `reason`).
 - `usage.credits_notice_dismissed`: `provider` and the weekly window's `usedPercent` when the user
   hid the credits notice.
-- `usage.continuation`: source and target `provider`, `trigger` (`usageLimit`, `usageGuard`), and
+- `usage.continuation`: source and target `provider`, `trigger` (`usageLimit`, `usageGuard`,
+  `manual`), and
   `outcome` (`created`, `existing`, `failed` with the error `code`), with the duration.
 - `usage.auto_continue`: `provider`, `window`, `trigger` (`usageLimit`, `usageGuard`), `attempt`, and `outcome` (`waiting`, `continued`,
   `rescheduled`, `missed`, `skipped` or `cancelled` with its closed `reason`, `failed` with the
