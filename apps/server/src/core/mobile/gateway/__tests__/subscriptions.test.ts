@@ -65,6 +65,47 @@ describe('MobileGatewaySubscriptions', () => {
         subscriptions.close();
     });
 
+    it('hints only the followed Session extension views and reports which Sessions are followed', async () => {
+        const sent: MobileServerPayload[] = [];
+        const subscriptions = new MobileGatewaySubscriptions({
+            authorize: async () => {},
+            currentPrincipal: () => principal,
+            matches: async () => true,
+            randomId: () => 'views-subscription',
+            send: async (payload) => {
+                sent.push(payload);
+            },
+            terminate: vi.fn(),
+            connectionId: 'connection-1',
+        });
+        const treeChanged = (sessionId: string): ServerEvent => ({
+            event: 'viewContainers.treeChanged',
+            payload: {
+                viewId: 'caxri.project-status.overview',
+                eventId: 'event-1',
+                extensionGeneration: 1,
+                context: { kind: 'session', sessionId, workbenchRootProjectId: 'root-1' },
+            },
+        });
+        const id = await subscriptions.subscribe({
+            kind: 'extensionViews',
+            sessionId: 'session-followed',
+        });
+        subscriptions.activate(id);
+        expect(subscriptions.watchesExtensionViews('session-followed')).toBe(true);
+        expect(subscriptions.watchesExtensionViews('session-other')).toBe(false);
+        subscriptions.publish(treeChanged('session-other'));
+        subscriptions.publish(treeChanged('session-followed'));
+        await vi.waitFor(() =>
+            expect(sent).toEqual([
+                { type: 'event', subscriptionId: id, sequence: 0, kind: 'extensionViews.changed' },
+            ]),
+        );
+        subscriptions.unsubscribe(id);
+        expect(subscriptions.watchesExtensionViews('session-followed')).toBe(false);
+        subscriptions.close();
+    });
+
     it('turns a change published while the subscribe is authorized into one re-read hint', async () => {
         const sent: MobileServerPayload[] = [];
         const { promise: authorized, resolve: allow } = Promise.withResolvers<void>();

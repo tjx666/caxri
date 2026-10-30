@@ -67,6 +67,56 @@ describe('generic extension runtime event routing', () => {
         });
     });
 
+    it('refreshes only Sessions a window or phone shows and reports the fan-out', async () => {
+        const request = vi.fn((_method: string, parameters: { sessionId: string }) =>
+            Promise.resolve({
+                ownerProjectId: 'project-1',
+                projectIds: ['project-1'],
+                sessionId: parameters.sessionId,
+                workbenchRootProjectId: 'root-1',
+            }),
+        );
+        const gitChanged = vi.fn();
+        const projectStatusChanged = vi.fn();
+        const onFanout = vi.fn();
+        const service = { gitChanged, projectStatusChanged } as unknown as ExtensionService;
+        const options = {
+            isSessionWatched: (sessionId: string) => sessionId === 'session-watched',
+            onFanout,
+        };
+
+        await routeExtensionDomainEvent(
+            service,
+            { request } as never,
+            {
+                event: 'git.changed',
+                payload: {
+                    sessionIds: ['session-watched', 'session-idle', 'session-watched'],
+                    repositoryIds: [],
+                    scope: 'status',
+                },
+            },
+            options,
+        );
+        await routeExtensionDomainEvent(
+            service,
+            { request } as never,
+            { event: 'projectStatus.changed', payload: { sessionId: 'session-idle' } },
+            options,
+        );
+
+        expect(gitChanged).toHaveBeenCalledExactlyOnceWith({
+            kind: 'session',
+            sessionId: 'session-watched',
+            workbenchRootProjectId: 'root-1',
+        });
+        expect(projectStatusChanged).not.toHaveBeenCalled();
+        expect(request).not.toHaveBeenCalledWith('app.sessionContext', {
+            sessionId: 'session-idle',
+        });
+        expect(onFanout).toHaveBeenCalledExactlyOnceWith({ named: 2, notified: 1 });
+    });
+
     it('does not read active context for unrelated Runtime events', async () => {
         const activeContext = vi.fn();
         const service = { activeContextChanged: vi.fn() } as unknown as ExtensionService;

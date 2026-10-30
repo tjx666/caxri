@@ -105,5 +105,10 @@ export interface DomainServices {
      * A control connection closed; forget any per-connection memory state it reported (window presence).
      */
     onConnectionClosed?(connectionId: string): void;
+    /**
+     * Sessions at least one Desktop window shows, or `undefined` while presence is unsettled (Desktop has not reported
+     * its windows yet), when an empty set would only mean "not reported".
+     */
+    visibleSessionIds?(): ReadonlySet<string> | undefined;
     validateRequestContext(context: WorkbenchRequestContext): void;
 }

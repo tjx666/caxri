@@ -140,6 +140,13 @@ export class MobileGatewayFrameRouter {
         if (!this.#closed) this.#subscriptions.publish(event);
     }
 
+    /**
+     * Whether this phone follows `sessionId`'s extension views, so Core refreshes only Sessions someone is looking at.
+     */
+    watchesExtensionViews(sessionId: string): boolean {
+        return !this.#closed && this.#subscriptions.watchesExtensionViews(sessionId);
+    }
+
     publishObserverEvent(event: TerminalObserverEvent): void {
         if (!this.#closed) this.#subscriptions.publishObserverEvent(event);
     }

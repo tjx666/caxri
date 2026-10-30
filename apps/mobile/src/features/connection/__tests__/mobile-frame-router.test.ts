@@ -38,6 +38,33 @@ describe('mobile frame router', () => {
         ).toThrow('wrong resource');
     });
 
+    it('routes extension view hints only to the extension views subscription', () => {
+        const router = new MobileFrameRouter();
+        const onViews = vi.fn();
+        router.addSubscription(
+            'views-sub',
+            { kind: 'extensionViews', sessionId: 'session-1' },
+            onViews,
+        );
+        router.receiveSubscriptionMessage({
+            type: 'event',
+            subscriptionId: 'views-sub',
+            sequence: 0,
+            kind: 'extensionViews.changed',
+        });
+        expect(onViews).toHaveBeenCalledExactlyOnceWith(
+            expect.objectContaining({ kind: 'extensionViews.changed' }),
+        );
+        expect(() =>
+            router.receiveSubscriptionMessage({
+                type: 'event',
+                subscriptionId: 'views-sub',
+                sequence: 1,
+                kind: 'changes.changed',
+            }),
+        ).toThrow('wrong resource');
+    });
+
     it('resolves simultaneous requests by ID when replies arrive in reverse order', async () => {
         const router = new MobileFrameRouter();
         const first = router.waitForReply('first', 15_000, vi.fn());

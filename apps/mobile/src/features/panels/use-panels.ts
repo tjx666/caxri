@@ -1,15 +1,15 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 
 import type { MethodResult } from '@caxri/protocol';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { useMobileClient } from '../connection/mobile-client-provider';
 
 export type Panel = MethodResult<'mobile.panels.list'>['panels'][number];
 
 /**
- * Every Panels read is a one-shot, read-only request: nothing here subscribes, so Refresh or re-entering a view is how
- * the reader sees newer state.
+ * Every Panels read is a one-shot, read-only request. Only the extension tree subscribes (see
+ * {@link useExtensionTreeSubscription}); Files and file previews change only on Refresh or re-entering a view.
  */
 const usePanelRead = <Result>(
     key: readonly unknown[],
@@ -44,6 +44,63 @@ export const useTreeChildren = (sessionId: string, viewId: string, parentHandle?
             ...(parentHandle !== undefined && { parentHandle }),
         }),
     );
+};
+
+/**
+ * Keeps the extension tree this Session shows current: each `extensionViews.changed` hint re-reads the tree queries in
+ * place. Rows stay on screen while the read runs, so scroll position and expanded state survive and no loading state
+ * appears; a failed re-read keeps the last rows and the next hint or a pull-to-retry tries again.
+ */
+export const useExtensionTreeSubscription = (sessionId: string) => {
+    const { connectionScopeKey, isForeground, status, subscribe, subscriptionAvailable } =
+        useMobileClient();
+    const queryClient = useQueryClient();
+    const isObservable = connectionScopeKey !== null && isForeground && status === 'connected';
+    useEffect(() => {
+        if (!isObservable || !subscriptionAvailable) return;
+        const queryKey = ['mobile', 'panels', connectionScopeKey, 'tree', sessionId];
+        let isDisposed = false;
+        const watch: { handle: Awaited<ReturnType<typeof subscribe>> | null } = { handle: null };
+        const refresh = (): void => {
+            void queryClient.invalidateQueries({ queryKey });
+        };
+        const attach = async (): Promise<void> => {
+            try {
+                const acquired = await subscribe(
+                    { kind: 'extensionViews', sessionId },
+                    (message) => {
+                        if (
+                            !isDisposed &&
+                            (message.kind === 'extensionViews.changed' ||
+                                message.kind === 'resync-required')
+                        )
+                            refresh();
+                    },
+                );
+                if (isDisposed) {
+                    await acquired.unsubscribe();
+                    return;
+                }
+                watch.handle = acquired;
+                // Close the gap between the first read and the subscription becoming active.
+                refresh();
+            } catch {
+                // Without a subscription the tree keeps its one-shot reads; Refresh and re-entering still work.
+            }
+        };
+        void attach();
+        return () => {
+            isDisposed = true;
+            if (watch.handle) void watch.handle.unsubscribe();
+        };
+    }, [
+        connectionScopeKey,
+        isObservable,
+        queryClient,
+        sessionId,
+        subscribe,
+        subscriptionAvailable,
+    ]);
 };
 
 export const useFilesList = (sessionId: string, directory?: string) => {

@@ -48,6 +48,8 @@ export function createServerCredentialAccess() {
         },
         hasAttentionRecipient: (projectId: string): boolean =>
             mobile?.hasAttentionRecipient(projectId) ?? false,
+        watchesExtensionViews: (sessionId: string): boolean =>
+            mobile?.watchesExtensionViews(sessionId) ?? false,
         publish: (event: Parameters<MobileAccessController['publish']>[0]): void =>
             mobile?.publish(event),
         close: async (): Promise<void> => {

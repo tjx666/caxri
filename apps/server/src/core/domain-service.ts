@@ -308,6 +308,13 @@ export class ServerDomainService extends EventTarget {
     }
 
     /**
+     * Sessions at least one Desktop window currently shows, or `undefined` while that is not yet known.
+     */
+    visibleSessionIds(): ReadonlySet<string> | undefined {
+        return this.services?.visibleSessionIds?.();
+    }
+
+    /**
      * Forgets per-connection memory state (window presence) once the socket that reported it closed.
      */
     onConnectionClosed(connectionId: string): void {

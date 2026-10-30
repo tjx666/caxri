@@ -123,15 +123,11 @@ export class MobileGateway {
             random: this.#random,
         });
         this.#stopObserverEvents = options.terminalExecution?.onObserverEvent((event) => {
-            for (const sockets of this.#activeByDevice.values())
-                for (const session of sockets.values())
-                    session.application?.publishObserverEvent(event);
+            for (const app of this.#applications()) app.publishObserverEvent(event);
         });
         this.#stopHostExit = options.terminalExecution?.onHostExit((terminalIds) => {
-            for (const sockets of this.#activeByDevice.values())
-                for (const session of sockets.values())
-                    for (const terminalId of terminalIds)
-                        session.application?.invalidateTerminal(terminalId);
+            for (const app of this.#applications())
+                for (const terminalId of terminalIds) app.invalidateTerminal(terminalId);
         });
         this.#dispatch = createCommandDispatcher({
             server: currentPrincipalAdapter(options.adapters.server, options.registry),
@@ -184,9 +180,7 @@ export class MobileGateway {
      * count, matching `onConnectionCountChanged`, which only fires once a session actually reaches this set.
      */
     connectionCount(): number {
-        let total = 0;
-        for (const sockets of this.#activeByDevice.values()) total += sockets.size;
-        return total;
+        return this.#activeByDevice.values().reduce((total, sockets) => total + sockets.size, 0);
     }
 
     #notifyConnectionCount(): void {
@@ -201,9 +195,17 @@ export class MobileGateway {
         );
     }
 
+    watchesExtensionViews(sessionId: string): boolean {
+        return this.#applications().some((app) => app.watchesExtensionViews(sessionId));
+    }
+
     publish(event: ServerEvent): void {
+        for (const app of this.#applications()) app.publish(event);
+    }
+
+    *#applications(): Generator<NonNullable<GatewaySession['application']>> {
         for (const sockets of this.#activeByDevice.values())
-            for (const session of sockets.values()) session.application?.publish(event);
+            for (const { application } of sockets.values()) if (application) yield application;
     }
 
     terminalSubscription(
@@ -329,12 +331,12 @@ export class MobileGateway {
     }
 
     async revoke(deviceId: string, expectedGeneration: number): Promise<MobileDeviceSummary> {
-        const activeSessions = this.#activeByDevice.get(deviceId);
-        if (activeSessions)
-            for (const session of activeSessions.values()) {
-                session.revoking = true;
-                session.application?.abortPendingTerminalInputs();
-            }
+        const activeSessions =
+            this.#activeByDevice.get(deviceId) ?? new Map<WebSocket, GatewaySession>();
+        for (const session of activeSessions.values()) {
+            session.revoking = true;
+            session.application?.abortPendingTerminalInputs();
+        }
         this.#revokingDevices.add(deviceId);
         this.#updateDownloads.revokeDevice(deviceId);
         const resumeGrantUpdates = this.#relay.deferGrantUpdates();
@@ -343,20 +345,17 @@ export class MobileGateway {
             try {
                 revoked = await this.#options.registry.revoke(deviceId, expectedGeneration);
             } catch (error) {
-                if (activeSessions)
-                    for (const session of activeSessions.values()) session.revoking = false;
+                for (const session of activeSessions.values()) session.revoking = false;
                 throw error;
             } finally {
                 this.#revokingDevices.delete(deviceId);
             }
-            if (activeSessions)
-                for (const session of activeSessions.values()) session.application?.close();
-            if (activeSessions)
-                await Promise.all(
-                    [...activeSessions].map(([socket, session]) =>
-                        this.#sendRevokedAndClose(socket, session),
-                    ),
-                );
+            for (const session of activeSessions.values()) session.application?.close();
+            await Promise.all(
+                [...activeSessions].map(([socket, session]) =>
+                    this.#sendRevokedAndClose(socket, session),
+                ),
+            );
         } finally {
             resumeGrantUpdates();
         }
@@ -372,8 +371,7 @@ export class MobileGateway {
         this.#pairings.clear();
         this.#sourceAttempts.clear();
         this.#updateDownloads.clear();
-        for (const sockets of this.#activeByDevice.values())
-            for (const session of sockets.values()) session.application?.close();
+        for (const app of this.#applications()) app.close();
         for (const socket of this.#sockets) {
             this.#disabledSockets.add(socket);
             socket.terminate();

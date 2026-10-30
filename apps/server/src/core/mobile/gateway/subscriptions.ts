@@ -69,6 +69,7 @@ type QueuedBody =
               | 'dashboard.changed'
               | 'conversation.changed'
               | 'changes.changed'
+              | 'extensionViews.changed'
               | 'agentChat.changed'
               | 'botInbox.changed';
       }
@@ -332,6 +333,22 @@ export class MobileGatewaySubscriptions {
         this.#subscriptions.clear();
     }
 
+    /**
+     * Whether an authorized, still-open subscription follows `sessionId`'s extension views.
+     */
+    watchesExtensionViews(sessionId: string): boolean {
+        if (this.#closed) return false;
+        for (const subscription of this.#subscriptions.values())
+            if (
+                subscription.active &&
+                subscription.authorized &&
+                subscription.resource.kind === 'extensionViews' &&
+                subscription.resource.sessionId === sessionId
+            )
+                return true;
+        return false;
+    }
+
     publish(event: ServerEvent): void {
         if (this.#closed) return;
         const changedSessionIds =
@@ -363,6 +380,15 @@ export class MobileGatewaySubscriptions {
             case 'changes': {
                 if (changedSessionIds?.has(resource.sessionId))
                     this.#deliver(subscription, event, { kind: 'changes.changed' });
+                break;
+            }
+            case 'extensionViews': {
+                if (
+                    event.event === 'viewContainers.treeChanged' &&
+                    event.payload.context.kind === 'session' &&
+                    event.payload.context.sessionId === resource.sessionId
+                )
+                    this.#deliver(subscription, event, { kind: 'extensionViews.changed' });
                 break;
             }
             case 'agentChat': {

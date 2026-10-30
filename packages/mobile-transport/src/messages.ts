@@ -14,6 +14,11 @@ const mobileSubscriptionResourceSchema = z.discriminatedUnion('kind', [
     z.strictObject({ kind: z.literal('conversation'), sessionId: identifierSchema }),
     z.strictObject({ kind: z.literal('changes'), sessionId: identifierSchema }),
     /**
+     * One Session's extension tree views (Status and the like). Content-free: each `extensionViews.changed` asks the
+     * phone to re-read the tree it is showing.
+     */
+    z.strictObject({ kind: z.literal('extensionViews'), sessionId: identifierSchema }),
+    /**
      * One Agent Chat's live projection. Unlike the other resources it carries content: each event is an
      * `agentChat.patch` the phone folds into its own window, or a content-free `agentChat.changed` asking it to re-read
      * when a patch could not fit one frame.
@@ -68,6 +73,7 @@ export const mobileEventPayloadSchema = z.union([
             'dashboard.changed',
             'conversation.changed',
             'changes.changed',
+            'extensionViews.changed',
             'agentChat.changed',
             'botInbox.changed',
         ]),

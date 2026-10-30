@@ -133,6 +133,7 @@ export interface MobileAccessController {
     invokeDesktopOperation: (request: MobileDesktopOperation) => Promise<unknown>;
     authorizePairedDeviceMethod: (principal: Principal, method: string) => void;
     hasAttentionRecipient: (projectId: string) => boolean;
+    watchesExtensionViews: (sessionId: string) => boolean;
     validatePairedDeviceRequest: (
         request:
             | Extract<ServerRequest, { method: 'session.markRead' }>

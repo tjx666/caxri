@@ -572,17 +572,13 @@ export const openMobileAccessController = (options: {
         invokeDesktopOperation: (request) =>
             withAuthority(async () => {
                 assertOpen();
-                const revocation = requiredGateway(gateway).revoke(
-                    request.params.deviceId,
-                    request.params.expectedGeneration,
-                );
-                abortOperations({
-                    deviceId: request.params.deviceId,
-                    generation: request.params.expectedGeneration,
-                });
+                const { deviceId, expectedGeneration } = request.params;
+                const revocation = requiredGateway(gateway).revoke(deviceId, expectedGeneration);
+                abortOperations({ deviceId, generation: expectedGeneration });
                 return revocation;
             }),
         hasAttentionRecipient: (projectId) => gateway?.hasAttentionRecipient(projectId) ?? false,
+        watchesExtensionViews: (sessionId) => gateway?.watchesExtensionViews(sessionId) ?? false,
         validatePairedDeviceRequest: async (request, context, domainService) => {
             currentPairedPrincipal(context.principal, request.method);
             if (request.method === 'terminal.preview') {
