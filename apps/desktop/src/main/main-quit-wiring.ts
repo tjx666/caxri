@@ -5,10 +5,10 @@ import { app, dialog } from 'electron';
 
 import type { AppQuitIntent } from './app-quit';
 import { createAppQuitHandler, createAppQuitPromptOptions, readAppQuitStatus } from './app-quit';
-import { persistAllWindowState } from './auxiliary-window-lifecycle';
+import { persistAllWindowState } from './auxiliary-window/lifecycle';
 import type { CaxriBotWindowController } from './caxri-bot-window';
-import type { ProcessExplorerWindowController } from './process-explorer-window';
-import type { DesktopServerConnection } from './server-connection';
+import type { DesktopServerConnection } from './connection/server-connection';
+import type { ProcessExplorerWindowController } from './process-explorer/window';
 import type { SshHostEnvironments } from './ssh/host-environments';
 import type { createWorkbenchUnsavedEditors } from './unsaved-editors';
 import { readWindowState } from './window-placement';

@@ -17,7 +17,7 @@ import {
     BUG_REPORT_SCREENSHOT_DIRECTORY,
     pruneBugReportScreenshots,
 } from './bug-report-screenshots';
-import type { DesktopServerConnection } from './server-connection';
+import type { DesktopServerConnection } from './connection/server-connection';
 
 type BugReportRequest = Extract<
     MainRequest,

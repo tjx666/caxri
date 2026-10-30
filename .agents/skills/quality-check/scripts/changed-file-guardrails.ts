@@ -10,14 +10,20 @@
 export interface ChangedFileGuardrailOptions {
     hasChangedMarkdown: boolean;
     hasChangedSourceCode: boolean;
+    /**
+     * A changed path no longer exists (deleted, or the old side of a rename). Documentation may still cite it, and that
+     * breakage surfaces in `docs-check` even when no Markdown file changed.
+     */
+    hasRemovedFiles: boolean;
     root: string;
     runCapture: (command: string, arguments_: string[], cwd: string) => Promise<string>;
 }
 
 /**
  * Runs the in-scope guardrails and returns their names, in run order, for the caller's own check summary.
- * documentation-check always runs unscoped (not `--files`) even though only Markdown changed: an unscoped run is cheap
- * and also catches README-index gaps and cross-document link or anchor breaks a scoped run would miss.
+ * documentation-check always runs unscoped (not `--files`) even when only Markdown changed or a file was removed: an
+ * unscoped run is cheap and also catches README-index gaps and cross-document link or anchor breaks a scoped run would
+ * miss.
  */
 export async function runChangedFileGuardrails(
     options: ChangedFileGuardrailOptions,
@@ -27,7 +33,7 @@ export async function runChangedFileGuardrails(
         await options.runCapture('bun', ['run', 'source-size-ratchet'], options.root);
         ran.push('source-size-ratchet');
     }
-    if (options.hasChangedMarkdown) {
+    if (options.hasChangedMarkdown || options.hasRemovedFiles) {
         await options.runCapture('bun', ['run', 'docs-check'], options.root);
         ran.push('docs-check');
     }

@@ -1,8 +1,8 @@
 import type { PowerMonitor } from 'electron';
 import { describe, expect, it, vi } from 'vitest';
 
+import type { DesktopServerConnection } from '../connection/server-connection';
 import { wirePowerWake } from '../power-wake';
-import type { DesktopServerConnection } from '../server-connection';
 
 type FakePowerMonitor = Pick<PowerMonitor, 'on'> & {
     emit(event: 'resume' | 'shutdown' | 'unlock-screen'): void;

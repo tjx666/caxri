@@ -36,7 +36,7 @@ const responseVariantFields = {
  * the final tool result) to the provider's last generated item, so it includes queueing and time to first token but
  * never tool execution.
  */
-export const agentThroughputSampleSchema = z.object({
+const agentThroughputSampleSchema = z.object({
     outputTokens: z.number().int().positive(),
     durationMs: z.number().positive(),
     /**
@@ -49,7 +49,7 @@ export const agentThroughputSampleSchema = z.object({
 /**
  * Token-weighted total over several responses: `outputTokens / durationMs`, never an average of per-response rates.
  */
-export const agentThroughputAggregateSchema = z.object({
+const agentThroughputAggregateSchema = z.object({
     outputTokens: z.number().int().nonnegative(),
     durationMs: z.number().nonnegative(),
     responseCount: z.number().int().nonnegative(),
@@ -62,8 +62,7 @@ export const agentThroughputAggregateSchema = z.object({
 /**
  * Every measured response of one model at one speed tier, so models and Fast mode can be compared side by side.
  */
-export const agentThroughputVariantSchema =
-    agentThroughputAggregateSchema.extend(responseVariantFields);
+const agentThroughputVariantSchema = agentThroughputAggregateSchema.extend(responseVariantFields);
 
 export const agentThroughputSchema = z.object({
     provider: agentProviderSchema,

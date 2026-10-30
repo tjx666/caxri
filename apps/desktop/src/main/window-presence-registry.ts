@@ -5,7 +5,8 @@ import { errorMessage, isWindowScopedMethod } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
-import type { DesktopServerConnection } from './server-connection';
+import type { DesktopServerConnection } from './connection/server-connection';
+import { outsideDesktopCommand } from './desktop-command-scope';
 
 /**
  * The key of the Workbench window of an environment. The local Desktop has one Workbench window today, and each SSH
@@ -142,7 +143,7 @@ export class WindowPresenceRegistry {
      */
     private fireAndForget(task: () => Promise<unknown>): void {
         // `Promise.try` makes a synchronous throw (the connection object not existing yet) a rejection too.
-        void Promise.try(task).catch((error: unknown) => {
+        void outsideDesktopCommand(() => Promise.try(task)).catch((error: unknown) => {
             if (!isUnavailable(error)) this.options.onSendError?.(error);
         });
     }

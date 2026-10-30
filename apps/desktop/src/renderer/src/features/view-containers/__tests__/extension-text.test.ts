@@ -12,7 +12,7 @@ import {
     localizeExtensionSentences,
     localizeExtensionText,
 } from '../extension-text';
-import { localizeTreeChildren } from '../extension-tree-text';
+import { localizeTreeChildren } from '../extension-tree/text';
 import {
     localizeActionEffect,
     localizeHistorySummary,

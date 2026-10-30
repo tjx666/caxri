@@ -1,7 +1,7 @@
 import type { StructuredLogger } from '@caxri/system';
 import { app, dialog, Notification, shell } from 'electron';
 
-import type { DesktopServerConnection } from '../server-connection';
+import type { DesktopServerConnection } from '../connection/server-connection';
 import { createRuntimeFailurePrompt } from './runtime-failure';
 import { shouldContinueStartup } from './server-startup';
 import { announceServerReplacement } from './stale-server-notice';

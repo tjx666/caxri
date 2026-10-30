@@ -1,9 +1,9 @@
 import type { AgentProvider } from '@caxri/protocol';
 
 import type { AgentChatDriver } from './chat-provider';
-import { claudeChatDriver } from './claude-chat-session';
-import { codexChatDriver } from './codex-chat-session';
-import { grokChatDriver } from './grok-chat-session';
+import { claudeChatDriver } from './providers/claude/chat-session';
+import { codexChatDriver } from './providers/codex/chat-session';
+import { grokChatDriver } from './providers/grok/chat-session';
 
 /**
  * The Chat implementation for each provider. Exhaustive so a provider added to the catalog fails closed here until it

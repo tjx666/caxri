@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
 /**
  * See `execute-diagnostics.test.ts`: Monaco needs a real `window`, which this suite's `node` environment lacks.
  */
-vi.mock('../features/editor/git-review-comment-binding', () => ({
+vi.mock('../features/editor/git/review-comment-binding', () => ({
     listBoundGitReviewCommentEditors: () => new Set(),
 }));
 vi.mock('../features/editor/document-commands', async (importOriginal) => ({

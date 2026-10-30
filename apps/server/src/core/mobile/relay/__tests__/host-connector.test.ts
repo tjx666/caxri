@@ -414,6 +414,65 @@ describe('RelayHostConnector', () => {
         expect(connector.lastFailure).toBe('heartbeat-timeout');
     });
 
+    it('fails a registration whose Relay answers pings but never sends a challenge', async () => {
+        const server = new WebSocketServer({ port: 0, host: '127.0.0.1' });
+        await new Promise<void>((resolve) => server.once('listening', () => resolve()));
+        cleanups.push(
+            () =>
+                new Promise<void>((resolve) => {
+                    for (const client of server.clients) client.terminate();
+                    server.close(() => resolve());
+                }),
+        );
+        let connections = 0;
+        server.on('connection', () => (connections += 1));
+        const write = vi.fn();
+        const connector = new RelayHostConnector({
+            url: `ws://127.0.0.1:${(server.address() as AddressInfo).port}`,
+            secretKey: SECRET_KEY,
+            grants: () => [],
+            canAccept: () => true,
+            onConnection: vi.fn(),
+            logger: { write },
+            random: () => 0,
+            timing: {
+                initialBackoffMs: 10,
+                maxBackoffMs: 10,
+                pingIntervalMs: 10,
+                pongTimeoutMs: 10_000,
+                registrationTimeoutMs: 50,
+            },
+        });
+        cleanups.push(() => connector.stop());
+        connector.start();
+        await vi.waitFor(() =>
+            expect(states(write)).toContainEqual(
+                expect.objectContaining({ state: 'offline', cause: 'registration-timeout' }),
+            ),
+        );
+        expect(connector.lastFailure).toBe('registration-timeout');
+        await vi.waitFor(() => expect(connections).toBeGreaterThan(1));
+    });
+
+    it('fails a registration the Relay stalls after its challenge, then retries', async () => {
+        const { connector, relay, write } = await setup({
+            timing: { registrationTimeoutMs: 50, pongTimeoutMs: 10_000 },
+        });
+        const first = relay.nextHost();
+        connector.start();
+        await first;
+        await vi.waitFor(() =>
+            expect(states(write)).toContainEqual(
+                expect.objectContaining({ state: 'offline', cause: 'registration-timeout' }),
+            ),
+        );
+        expect(connector.lastFailure).toBe('registration-timeout');
+        const second = relay.nextHost();
+        await relay.accept(await second, connector.hostId);
+        await vi.waitFor(() => expect(connector.state).toBe('online'));
+        expect(connector.lastFailure).toBeUndefined();
+    });
+
     it('rejects a registration acknowledged for another host identity', async () => {
         const { connector, relay, write } = await setup({
             timing: { initialBackoffMs: 10_000, maxBackoffMs: 10_000 },

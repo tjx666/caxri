@@ -22,10 +22,10 @@ import {
     createAuxiliaryWindow,
     isAuxiliaryWindowRevealed,
     trackAuxiliaryWindowBounds,
-} from '../auxiliary-window';
-import { AuxiliaryWindowBoundsMemory } from '../auxiliary-window-bounds';
+} from '../auxiliary-window/auxiliary-window';
+import { AuxiliaryWindowBoundsMemory } from '../auxiliary-window/bounds';
 import { mainLocale } from '../locale';
-import { assertTrustedProcessExplorerSender } from '../process-explorer-window-helpers';
+import { assertTrustedProcessExplorerSender } from '../process-explorer/window-helpers';
 import { resolveRendererEntryUrl } from '../renderer-entry';
 import { trafficLightPositionForZoom, zoomFactorForLevel } from '../window-chrome';
 import type { E2EWindowMode } from '../window-mode';

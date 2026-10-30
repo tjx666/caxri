@@ -11,7 +11,7 @@ export const desktopStatusResultSchema = z.discriminatedUnion('state', [
     }),
 ]);
 
-export const desktopTargetResultSchema = z.object({
+const desktopTargetResultSchema = z.object({
     generation: z.number().int().positive(),
     projectId: identifierSchema,
     sessionId: identifierSchema,

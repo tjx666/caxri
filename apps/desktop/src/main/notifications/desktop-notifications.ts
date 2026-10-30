@@ -5,10 +5,8 @@ import type { StructuredLogger } from '@caxri/system';
 import type { BrowserWindow } from 'electron';
 import { net } from 'electron';
 
-import { createDesktopAgentNotifications } from '../agent-notification-runtime';
 import { resolveNotificationAppIconPath } from '../app-icon';
-import { createDesktopBotInboxNotifications } from '../bot-inbox-notification-runtime';
-import { createDesktopDeliveryNotifications } from '../delivery-notification-runtime';
+import type { DesktopServerConnection } from '../connection/server-connection';
 import type { EnvironmentMonitor } from '../environment-monitor';
 import {
     createEnvironmentMonitor,
@@ -18,10 +16,12 @@ import {
     readPublicIp,
     readPublicIpProfile,
 } from '../environment-monitor';
-import type { DesktopServerConnection } from '../server-connection';
 import type { NotificationHelperControl } from './agent-notification-delivery';
 import { createAgentNotificationDelivery } from './agent-notification-delivery';
+import { createDesktopAgentNotifications } from './agent-notification-runtime';
 import { createAlerterNotificationDriver } from './alerter-notification';
+import { createDesktopBotInboxNotifications } from './bot-inbox-notification-runtime';
+import { createDesktopDeliveryNotifications } from './delivery-notification-runtime';
 
 interface DesktopNotificationOptions {
     currentDirectory: string;

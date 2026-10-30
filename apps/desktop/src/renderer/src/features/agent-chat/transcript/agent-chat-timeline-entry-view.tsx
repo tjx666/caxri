@@ -3,12 +3,14 @@ import { memo } from 'react';
 
 import type { AgentChatTurnArtifacts, AgentChatTurnMetrics } from '@caxri/protocol';
 
+import { SurfaceErrorBoundary } from '../../../components/surface-error-boundary';
 import { AgentChatNotice, AgentChatReply } from '../messages/agent-chat-message';
 import { AgentChatUserMessage } from '../messages/agent-chat-user-message';
 import { AgentChatWorkGroup } from '../tools/agent-chat-work-group';
 import { AgentChatTurnArtifactList } from '../turns/agent-chat-turn-artifact-list';
 import { AgentChatTurnFold } from '../turns/agent-chat-turn-fold';
 import type { AgentChatTimelineEntry } from './agent-chat-timeline';
+import { agentChatTimelineEntryKey } from './agent-chat-timeline';
 import { AgentChatAnsweredQuestions } from './questions/agent-chat-answered-questions';
 
 type MessageItem = Extract<AgentChatTimelineEntry, { kind: 'item' }>['item'];
@@ -130,5 +132,17 @@ export function AgentChatTimelineEntryView(properties: {
     entry: AgentChatTimelineEntry;
     onOpenFile?: (target: string) => void;
 }): ReactNode {
-    return <MemoizedTimelineEntry {...properties} />;
+    /**
+     * One entry that throws while rendering shows an inline placeholder in its slot and the rest of the transcript
+     * keeps rendering; without the boundary the throw replaced the whole window with the crash screen.
+     */
+    return (
+        <SurfaceErrorBoundary
+            layout="inline"
+            resetKey={agentChatTimelineEntryKey(properties.entry)}
+            scope="chat-entry"
+        >
+            <MemoizedTimelineEntry {...properties} />
+        </SurfaceErrorBoundary>
+    );
 }

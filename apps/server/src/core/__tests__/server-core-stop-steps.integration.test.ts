@@ -195,6 +195,54 @@ describe('Server Core stop settling', () => {
     });
 });
 
+describe('Server Core best-effort stop', () => {
+    it('runs the Extension Host shutdown and lease release after domain services fail, then rejects', async () => {
+        const extensionShutdown = vi.fn(() => Promise.resolve());
+        const { app, userDataPath } = await startWith(
+            () => Promise.reject(new Error('domain close failed')),
+            extensionShutdown,
+        );
+        const release = vi.spyOn(app.lease, 'release');
+
+        await expect(app.stop('command')).rejects.toThrow('domain close failed');
+
+        expect(extensionShutdown).toHaveBeenCalledOnce();
+        expect(release).toHaveBeenCalledOnce();
+        const records = await stopRecords(userDataPath, 'server_core.stop_failed');
+        expect(records.filter((record) => record.event === 'server_core.stop_failed')).toHaveLength(
+            1,
+        );
+    });
+
+    it('logs each failing top-level step once and still releases the lease', async () => {
+        const { app, userDataPath } = await startWith(
+            () => Promise.reject(new Error('domain close failed')),
+            () => Promise.reject(new Error('extension host failed')),
+        );
+        const release = vi.spyOn(app.lease, 'release');
+
+        await expect(app.stop('command')).rejects.toThrow();
+
+        const records = await stopRecords(userDataPath, 'server_core.stop_failed');
+        expect(
+            records
+                .filter((record) => record.event === 'server_core.stop_failed')
+                .map((record) => record.fields?.step),
+        ).toEqual(['domainServices', 'extensionHost']);
+        expect(release).toHaveBeenCalledOnce();
+    });
+
+    it('settles stopped on the host.stop style path where the stop rejection is swallowed', async () => {
+        const { app } = await startWith(() => Promise.reject(new Error('domain close failed')));
+
+        // host.stop and idle exit swallow the stop() rejection; the process entrypoint awaits `stopped` instead.
+        // eslint-disable-next-line unicorn/prefer-await -- mirrors the fire-and-forget host.stop caller
+        app.stop('command').catch(() => {});
+
+        await expect(app.stopped).rejects.toThrow('domain close failed');
+    });
+});
+
 describe('serverCoreStopFailureCapsule', () => {
     it('classifies a failed stop as a Server Core shutdown fault', () => {
         expect(serverCoreStopFailureCapsule()).toMatchObject({

@@ -20,7 +20,7 @@
  * How long a burst takes to ease in, roughly: each frame reveals the hidden share of the text that this window would
  * drain at the current rate. Short enough that the reader never waits on text that already arrived.
  */
-export const AGENT_CHAT_STREAM_DRAIN_MS = 180;
+const AGENT_CHAT_STREAM_DRAIN_MS = 180;
 
 /**
  * The slowest reveal, in characters per second, so the last few characters of a burst do not trickle in one by one.

@@ -1,11 +1,11 @@
 import type { AgentChatImageInput, AgentProvider } from '@caxri/protocol';
 import { SingleFlight } from '@caxri/system';
 
-import { MAX_HISTORY_TRANSCRIPT_BYTES } from './chat-history';
 import { readChatTranscript, requireChatTerminal } from './chat-launch';
 import type { AgentChatTranscript } from './chat-provider';
-import { codexHistoryImage } from './codex-input';
 import { claudeHistoryImage } from './history/claude-history';
+import { MAX_HISTORY_TRANSCRIPT_BYTES } from './history/read';
+import { codexHistoryImage } from './providers/codex/input';
 import type { AgentChatServiceOptions } from './service-options';
 
 const fullTranscripts = new SingleFlight<string, AgentChatTranscript | undefined>();

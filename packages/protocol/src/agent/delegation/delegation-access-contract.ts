@@ -11,7 +11,7 @@ export const delegationAccessParametersSchema = z.strictObject({
     registerProject: z.boolean().default(false),
     ttlMs: z.number().int().min(60_000).max(604_800_000).default(43_200_000),
 });
-export const delegationAccessSummarySchema = z.strictObject({
+const delegationAccessSummarySchema = z.strictObject({
     clientId: z.uuid(),
     generation: z.number().int().positive(),
     projectId: identifierSchema,

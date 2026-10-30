@@ -49,7 +49,7 @@ export const MAX_TERMINAL_SUBAGENT_SUMMARIES = 50;
  * The durable, content-free summary of one native subagent a Chat Agent started: just what a sidebar row needs. It
  * mirrors the Chat task's closed `status` values but lives here so this module stays a leaf.
  */
-export const terminalSubagentSummarySchema = z.strictObject({
+const terminalSubagentSummarySchema = z.strictObject({
     taskId: z.string().min(1).max(200),
     title: z.string().max(1_000),
     agentType: z.string().max(200).optional(),
@@ -142,7 +142,7 @@ export const terminalRecordSchema = z.object({
  */
 export const CURRENT_TERMINAL_SNAPSHOT_ENCODING_VERSION = 3;
 
-export const terminalOscLinkSnapshotSchema = z.object({
+const terminalOscLinkSnapshotSchema = z.object({
     buffer: z.enum(['normal', 'alternate']),
     endCellOffset: z.number().int().nonnegative().max(3_000_000),
     endLogicalLineIndex: z.number().int().nonnegative().max(2_999),

@@ -4,7 +4,7 @@ import type { BrowserWindow, Menu, MenuItem } from 'electron';
 import { describe, expect, it, vi } from 'vitest';
 
 import { createSshHostWindowMenu } from '../local-workbench-environment';
-import { buildAppMenuTemplate } from '../menu';
+import { buildAppMenuTemplate } from '../menu/template';
 import type { SshHostEnvironments } from '../ssh/host-environments';
 
 vi.mock('electron', () => ({}));

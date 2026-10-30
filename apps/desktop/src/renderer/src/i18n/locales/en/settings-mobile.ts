@@ -10,6 +10,8 @@ export const settingsMobile = {
     'settings.mobile.relayStatus.reason.registrationRejected': 'The Relay rejected this computer.',
     'settings.mobile.relayStatus.reason.closedByRelay':
         'The Relay closed the connection. Retrying.',
+    'settings.mobile.relayStatus.reason.registrationTimeout':
+        'The Relay did not finish registering this computer. Retrying.',
     'settings.mobile.relayStatus.reason.heartbeatTimeout':
         'The Relay stopped responding. Retrying.',
     'settings.mobile.relayStatus.reason.protocolError':

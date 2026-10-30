@@ -181,6 +181,11 @@ export class MobilePreviewProxies {
      */
     readonly #starting = new Map<string, Promise<PreviewListener>>();
     /**
+     * Tail of the serialized start chain. Distinct targets bind one at a time, so the cap check and LRU eviction in
+     * {@link #start} always see every live listener; concurrent binds would each pass the check and overshoot it.
+     */
+    #startQueue: Promise<void> = Promise.resolve();
+    /**
      * Bumped by {@link clear}, so a listener that finishes binding after mobile access stopped closes instead.
      */
     #epoch = 0;
@@ -193,11 +198,31 @@ export class MobilePreviewProxies {
         this.#now = options.now ?? Date.now;
     }
 
+    async #enqueueStart(
+        key: string,
+        address: string,
+        target: { host: string; port: number },
+        epoch: number,
+    ): Promise<PreviewListener> {
+        const previous = this.#startQueue;
+        const { promise: turn, resolve: release } = Promise.withResolvers<void>();
+        this.#startQueue = turn;
+        await previous;
+        try {
+            return await this.#start(key, address, target, epoch);
+        } finally {
+            release();
+        }
+    }
+
     async #start(
         key: string,
         address: string,
         target: { host: string; port: number },
+        epoch: number,
     ): Promise<PreviewListener> {
+        if (epoch !== this.#epoch)
+            throw new CaxriError('UNAVAILABLE', 'Mobile access stopped while the preview opened');
         if (this.#listeners.size >= MAXIMUM_LISTENERS) {
             const oldest = this.#listeners
                 .values()
@@ -205,6 +230,12 @@ export class MobilePreviewProxies {
                 .toSorted((left, right) => left.lastActivityAt - right.lastActivityAt)
                 .at(0);
             if (oldest) await this.#close(oldest, 'evicted');
+            // clear() may have run while the evicted listener drained.
+            if (epoch !== this.#epoch)
+                throw new CaxriError(
+                    'UNAVAILABLE',
+                    'Mobile access stopped while the preview opened',
+                );
         }
         const now = this.#now();
         const server = createServer({ maxHeaderSize: 16 * 1_024 });
@@ -259,7 +290,6 @@ export class MobilePreviewProxies {
             }
             this.#tunnel(listener, request, socket, head, grant);
         });
-        const epoch = this.#epoch;
         await new Promise<void>((resolve, reject) => {
             server.once('error', reject);
             server.listen(0, address, () => {
@@ -512,10 +542,12 @@ export class MobilePreviewProxies {
         target: { host: string; port: number },
     ): Promise<string> {
         const key = `${address}|${target.host}|${target.port}`;
+        const epoch = this.#epoch;
         const existing = this.#listeners.get(key);
         let listener = existing;
         if (!listener) {
-            const starting = this.#starting.get(key) ?? this.#start(key, address, target);
+            const starting =
+                this.#starting.get(key) ?? this.#enqueueStart(key, address, target, epoch);
             this.#starting.set(key, starting);
             try {
                 listener = await starting;
@@ -523,6 +555,9 @@ export class MobilePreviewProxies {
                 this.#starting.delete(key);
             }
         }
+        // The listener may have been evicted, or mobile access stopped, while this open awaited its bind.
+        if (epoch !== this.#epoch || listener.closing)
+            throw new CaxriError('UNAVAILABLE', 'Mobile access stopped while the preview opened');
         const now = this.#now();
         for (const [token, launch] of listener.launches)
             if (launch.expiresAt <= now) listener.launches.delete(token);

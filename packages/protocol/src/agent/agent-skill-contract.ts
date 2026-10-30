@@ -11,9 +11,9 @@ const contentHashSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
 
 const agentSkillScopes = ['local', 'global'] as const;
 
-export const agentSkillScopeSchema = z.enum(agentSkillScopes);
-export const agentSkillStatusSchema = z.enum(['compatible', 'conflict', 'missing', 'stale']);
-export const agentSkillReasonSchema = z.enum([
+const agentSkillScopeSchema = z.enum(agentSkillScopes);
+const agentSkillStatusSchema = z.enum(['compatible', 'conflict', 'missing', 'stale']);
+const agentSkillReasonSchema = z.enum([
     'foreign-entry',
     'invalid-installed-version',
     'invalid-marker',
@@ -40,7 +40,7 @@ export const bundledAgentSkillMetadataSchema = z.object({
     schemaVersion: z.number().int().positive().max(1_000_000),
 });
 
-export const installedAgentSkillHealthSchema = z.object({
+const installedAgentSkillHealthSchema = z.object({
     action: z.string().min(1).max(1_024),
     bundledVersion: versionSchema,
     compatible: z.boolean(),

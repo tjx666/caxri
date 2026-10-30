@@ -13,9 +13,9 @@ import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 import type { BrowserWindow, WebContents } from 'electron';
 
+import type { DesktopServerSupervisor } from '../connection/server-attachment';
+import type { DesktopServerConnection } from '../connection/server-connection';
 import type { MainEnvironmentMethods } from '../main-environment-methods';
-import type { DesktopServerSupervisor } from '../server-attachment';
-import type { DesktopServerConnection } from '../server-connection';
 import type { SshHostRendererRoute } from '../workbench-ipc';
 import { knownHostsNameOf } from './destination';
 

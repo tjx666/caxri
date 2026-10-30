@@ -16,8 +16,8 @@ import { agentProviderCatalog, agentProviderSchema } from './agents.js';
 
 export * from './agent-action-settings.js';
 
-export const agentActionKindSchema = z.enum(['command', 'skill']);
-export const agentActionSourceSchema = z.enum(['builtIn', 'project', 'global', 'legacy', 'custom']);
+const agentActionKindSchema = z.enum(['command', 'skill']);
+const agentActionSourceSchema = z.enum(['builtIn', 'project', 'global', 'legacy', 'custom']);
 
 export const agentActionSchema = z.strictObject({
     invocation: agentActionInvocationSchema,
@@ -129,7 +129,7 @@ export function mergeAgentActions(
     return sortedCopy(limited, compareActions);
 }
 
-export const agentActionListResultSchema = z.strictObject({
+const agentActionListResultSchema = z.strictObject({
     provider: agentProviderSchema,
     actions: z.array(agentActionSchema).max(MAX_AGENT_ACTIONS),
     /**
@@ -143,9 +143,9 @@ export const agentActionListResultSchema = z.strictObject({
 /**
  * Discovered action files are read at most 64 KiB, so their Markdown stays inside that bound.
  */
-export const MAX_AGENT_ACTION_MARKDOWN_LENGTH = 64 * 1024;
+const MAX_AGENT_ACTION_MARKDOWN_LENGTH = 64 * 1024;
 
-export const agentActionReadResultSchema = z.strictObject({
+const agentActionReadResultSchema = z.strictObject({
     invocation: agentActionInvocationSchema,
     kind: agentActionKindSchema,
     description: z.string().max(MAX_AGENT_ACTION_DESCRIPTION_LENGTH).optional(),
@@ -178,6 +178,4 @@ export const agentActionMethods = {
         result: agentActionRecentSettingsSchema,
     },
 } as const satisfies Record<string, MethodSpec>;
-
-export type AgentActionListResult = z.infer<typeof agentActionListResultSchema>;
 export type AgentActionReadResult = z.infer<typeof agentActionReadResultSchema>;

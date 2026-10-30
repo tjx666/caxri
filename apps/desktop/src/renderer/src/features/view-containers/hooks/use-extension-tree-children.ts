@@ -6,7 +6,7 @@ import { useQueryClient } from '@tanstack/react-query';
 
 import { caxri } from '../../../lib/caxri';
 import { isCancelledRequest } from '../../../stores/toasts';
-import type { ExtensionTreeScope } from '../extension-tree-client';
+import type { ExtensionTreeScope } from '../extension-tree/extension-tree-client';
 import {
     cacheTreeChildren,
     cancelTreeChildrenRequest,
@@ -15,9 +15,9 @@ import {
     removeCachedTreeChildren,
     requestTreeChildren,
     ROOT_HANDLE,
-} from '../extension-tree-client';
-import type { RootLoadProgress } from '../extension-tree-refresh-state';
-import type { ExtensionTreeState, TreeSnapshot } from '../extension-tree-state';
+} from '../extension-tree/extension-tree-client';
+import type { RootLoadProgress } from '../extension-tree/refresh-state';
+import type { ExtensionTreeState, TreeSnapshot } from '../extension-tree/state';
 import {
     completeTreeSnapshot,
     focusTreeItem,
@@ -26,7 +26,7 @@ import {
     reconcileTreeItems,
     replaceTreeChildren,
     visibleTreeLoading,
-} from '../extension-tree-state';
+} from '../extension-tree/state';
 import { useIsViewContainerActive } from '../view-container-activity';
 
 type UpdateExtensionTreeState = (

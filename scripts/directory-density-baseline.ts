@@ -30,8 +30,19 @@ export interface DirectoryDensityFamily extends DirectoryDensityOwner {
 }
 
 export const DIRECTORY_DENSITY_OWNERS: readonly DirectoryDensityOwner[] = [
-    { cap: 109, directory: 'apps/desktop/src/main' },
-    { cap: 87, directory: 'apps/server/src/domains/agent-chat' },
+    { cap: 66, directory: 'apps/desktop/src/main' },
+    { cap: 52, directory: 'apps/desktop/src/renderer/src/features/editor' },
+    { cap: 27, directory: 'apps/desktop/src/renderer/src/features/editor/git' },
+    { cap: 22, directory: 'apps/desktop/src/renderer/src/features/view-containers' },
+    { cap: 17, directory: 'apps/desktop/src/renderer/src/features/view-containers/extension-tree' },
+    {
+        cap: 24,
+        directory: 'apps/desktop/src/renderer/src/features/view-containers/resource-explorer',
+    },
+    { cap: 25, directory: 'apps/desktop/src/renderer/src/features/view-containers/source-control' },
+    { cap: 32, directory: 'apps/server/src/domains/agent-chat' },
+    { cap: 25, directory: 'apps/server/src/domains/agent-chat/providers/claude' },
+    { cap: 15, directory: 'apps/server/src/domains/agent-chat/providers/codex' },
     { cap: 9, directory: 'apps/desktop/src/renderer/src/features/agent-chat' },
     { cap: 20, directory: 'apps/desktop/src/main/ssh' },
     { cap: 81, directory: 'packages/protocol/src/domain' },
@@ -59,15 +70,8 @@ export const DIRECTORY_DENSITY_OWNERS: readonly DirectoryDensityOwner[] = [
 export const DIRECTORY_DENSITY_NESTED_THRESHOLD = 12;
 
 export const DIRECTORY_DENSITY_FAMILIES: readonly DirectoryDensityFamily[] = [
-    { cap: 32, directory: 'apps/server/src/domains/agent-chat', prefix: 'chat-' },
-    { cap: 25, directory: 'apps/server/src/domains/agent-chat', prefix: 'claude-' },
-    { cap: 15, directory: 'apps/server/src/domains/agent-chat', prefix: 'codex-' },
-    { cap: 6, directory: 'apps/server/src/domains/agent-chat', prefix: 'grok-' },
-    { cap: 8, directory: 'apps/desktop/src/main', prefix: 'external-' },
+    { cap: 23, directory: 'apps/server/src/domains/agent-chat', prefix: 'chat-' },
     { cap: 5, directory: 'apps/desktop/src/main', prefix: 'desktop-' },
-    { cap: 7, directory: 'apps/desktop/src/main', prefix: 'path-' },
-    { cap: 5, directory: 'apps/desktop/src/main', prefix: 'server-' },
-    { cap: 5, directory: 'apps/desktop/src/main', prefix: 'acceptance-' },
 ];
 
 /**

@@ -26,7 +26,7 @@ describe('createRecoveringEventClient', () => {
             }),
         });
 
-        await client.start();
+        await expect(client.start()).rejects.toMatchObject({ code: 'CONFLICT' });
         client.receive({
             protocolVersion: 2,
             cursor: 1,
@@ -46,7 +46,7 @@ describe('createRecoveringEventClient', () => {
         expect(emitted).toEqual([]);
     });
 
-    it('reports a failed recovery through onError instead of throwing out of start()', async () => {
+    it('reports a failed recovery through onError and rejects start() so the attach path can retry', async () => {
         const errors: unknown[] = [];
         const client = createRecoveringEventClient({
             emit: () => {},
@@ -59,7 +59,7 @@ describe('createRecoveringEventClient', () => {
             },
         });
 
-        await client.start();
+        await expect(client.start()).rejects.toThrow('recovery transport failed');
 
         expect(errors).toHaveLength(1);
         expect((errors[0] as Error).message).toBe('recovery transport failed');

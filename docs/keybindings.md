@@ -107,7 +107,7 @@ the editor is focused. The consequence is accepted: a `cmd+k …` binding does n
 ## The native menu
 
 Electron accelerators are one key combination, so a chord sequence has no accelerator form. Two
-rules in `apps/desktop/src/main/menu.ts` keep the native menu out of the chord machine:
+rules in `apps/desktop/src/main/menu/template.ts` keep the native menu out of the chord machine:
 
 - A command bound to a sequence gets no accelerator. Its menu item advertises the binding as a label
   hint instead: `Edit Keyboard Shortcuts [⌘K ⌘S]`.

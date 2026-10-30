@@ -565,6 +565,25 @@ export default defineConfig(
         },
     },
     /**
+     * Provider- and user-owned file readers use the bounded regular-file reader from `@caxri/system`, so a planted
+     * FIFO, device, or oversized file cannot hang or exhaust the process. Tests and fixtures are exempt.
+     */
+    {
+        files: [
+            'apps/server/src/domains/agents/**/*.ts',
+            'apps/server/src/domains/agent-chat/**/*.ts',
+            'apps/desktop/src/main/external-activation/**/*.ts',
+            'scripts/fixtures/eslint/bounded-external-reads/**/*.ts',
+        ],
+        ignores: ['**/__tests__/**', '**/*.test.ts'],
+        plugins: {
+            caxri,
+        },
+        rules: {
+            'caxri/bounded-external-reads': 'error',
+        },
+    },
+    /**
      * An upgrade test anchors its starting schema on a migration tag, never on `CURRENT_SCHEMA_VERSION - n`, which
      * shifts to the wrong migration as soon as another one is appended (`project-architecture`'s `persistence.md`).
      */

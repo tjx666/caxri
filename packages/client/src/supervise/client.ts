@@ -111,8 +111,8 @@ export class ServerClient {
     private closed = false;
     /**
      * Raw WebSocket close code captured off the socket's own `close` event, kept only for diagnostics (see
-     * `server_connection.lost` in `apps/desktop/src/main/server-connection.ts`). Absent when this side closed the
-     * connection deliberately before any close frame arrived.
+     * `server_connection.lost` in `apps/desktop/src/main/connection/server-connection.ts`). Absent when this side
+     * closed the connection deliberately before any close frame arrived.
      */
     private closeCode?: number;
     private closeReason?: DesktopLeaseRevocationReason;

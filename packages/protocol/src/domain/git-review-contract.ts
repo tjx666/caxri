@@ -14,15 +14,15 @@ const serverControl = commandPolicy('server', 'control');
 const gitReviewRepoRelativePathSchema = z.string().min(1).max(4_096);
 const gitReviewSourceKeySchema = z.string().min(1).max(512);
 
-export const gitReviewCommentSideSchema = z.enum(['original', 'modified']);
-export const gitReviewCommentStatusSchema = z.enum(['pending', 'sent', 'outdated']);
+const gitReviewCommentSideSchema = z.enum(['original', 'modified']);
+const gitReviewCommentStatusSchema = z.enum(['pending', 'sent', 'outdated']);
 
 /**
  * One anchored review note on a Git diff. Held in a Server-owned in-memory store scoped by Session + repository (see
  * `docs/git-diff-review.md`) instead of the Desktop Renderer, so a future mobile client reading through the gateway
  * shares the same data instead of needing its own copy of this state.
  */
-export const gitReviewCommentSchema = z.object({
+const gitReviewCommentSchema = z.object({
     id: identifierSchema,
     sessionId: identifierSchema,
     repositoryId: identifierSchema,
@@ -38,7 +38,7 @@ export const gitReviewCommentSchema = z.object({
 
 export type GitReviewComment = z.infer<typeof gitReviewCommentSchema>;
 
-export const gitReviewPendingGroupSchema = z.object({
+const gitReviewPendingGroupSchema = z.object({
     sessionId: identifierSchema,
     repositoryId: identifierSchema,
     repositoryName: z.string(),
@@ -49,19 +49,15 @@ export const gitReviewPendingGroupSchema = z.object({
  * Every repository with at least one pending comment, in one read: the quit guard and the "show pending review
  * comments" command both need the whole app's count without knowing which Session or repository to ask about first.
  */
-export const gitReviewPendingSummarySchema = z.object({
+const gitReviewPendingSummarySchema = z.object({
     count: z.number().int().nonnegative(),
     groups: z.array(gitReviewPendingGroupSchema).max(1_000),
 });
-
-export type GitReviewPendingGroup = z.infer<typeof gitReviewPendingGroupSchema>;
 export type GitReviewPendingSummary = z.infer<typeof gitReviewPendingSummarySchema>;
 
-export const gitReviewSendResultSchema = z.object({
+const gitReviewSendResultSchema = z.object({
     sentCommentIds: z.array(identifierSchema).max(1_000),
 });
-
-export type GitReviewSendResult = z.infer<typeof gitReviewSendResultSchema>;
 
 /**
  * True at or below the local long-paste threshold this feature has always used for its own single-message check,

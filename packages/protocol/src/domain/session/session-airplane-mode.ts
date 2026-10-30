@@ -7,7 +7,7 @@ import { identifierSchema } from '../identifiers.js';
  * submitted, `parking` stops every Agent, `on` holds them stopped until the user resumes, and `resuming` relaunches the
  * Sessions the user picked.
  */
-export const airplaneModePhaseSchema = z.enum(['off', 'compacting', 'parking', 'on', 'resuming']);
+const airplaneModePhaseSchema = z.enum(['off', 'compacting', 'parking', 'on', 'resuming']);
 
 export const airplaneModeStateSchema = z.object({
     phase: airplaneModePhaseSchema,

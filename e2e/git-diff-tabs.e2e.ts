@@ -15,7 +15,7 @@ import {
 } from './support/helpers.ts';
 
 // Duplicated instead of imported: E2E runs against the packaged app and must not pull Renderer modules into the test
-// process, which is how every other spec carries Renderer copy. `git-diff-resolution.test.ts` pins the constant to this
+// process, which is how every other spec carries Renderer copy. `diff-resolution.test.ts` pins the constant to this
 // exact string, so a reword breaks there first instead of only in CI.
 const resolvedDiffReason =
     'This file no longer differs from what the diff compared. The change was committed or undone.';
@@ -86,7 +86,7 @@ test('Discard All Changes resolves the working diff in place without an error no
         await expect(repo.getByText('Working tree clean.', { exact: true })).toBeVisible();
         // The tab survives its own diff being discarded. Closing it was how a background commit could make a document
         // the user was reading vanish without a word, so the surface now says what happened and leaves the close to
-        // the user (`git-diff-resolution.ts` owns the wording).
+        // the user (`diff-resolution.ts` owns the wording).
         await expect(
             page.locator('[data-pane-tab-id]').filter({ hasText: 'tracked.txt' }),
         ).toHaveCount(1);

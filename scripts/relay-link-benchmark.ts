@@ -17,8 +17,8 @@
  * each metric in units of E (one phone-to-computer round trip through the Relay), and the Server and Relay log events
  * the rounds produced.
  *
- * The phone modules it imports are listed one by one in `tsconfig.node.json`, so they typecheck here without pulling in
- * Expo's global types; a new import from `apps/mobile` must be added to that list.
+ * The phone modules it imports are owned by `apps/mobile`'s own TypeScript programs and only reached here through
+ * imports, so they typecheck without Expo's global types as long as they stay free of Expo-only imports.
  */
 
 import type { ChildProcess } from 'node:child_process';

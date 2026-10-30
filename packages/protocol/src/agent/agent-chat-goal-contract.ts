@@ -47,4 +47,3 @@ export const agentChatGoalSchema = z.strictObject({
 });
 
 export type AgentChatGoal = z.infer<typeof agentChatGoalSchema>;
-export type AgentChatGoalStatus = z.infer<typeof agentChatGoalStatusSchema>;

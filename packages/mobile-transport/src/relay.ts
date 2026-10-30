@@ -27,10 +27,10 @@ import { z } from 'zod';
 import { decodeHex, encodeHex } from './encoding.js';
 
 export const RELAY_PROTOCOL_VERSION = 1 as const;
-export const RELAY_HOST_ID_BYTES = 16;
-export const RELAY_HOST_KEY_BYTES = 32;
-export const RELAY_SIGNATURE_BYTES = 64;
-export const RELAY_ACCESS_KEY_BYTES = 32;
+const RELAY_HOST_ID_BYTES = 16;
+const RELAY_HOST_KEY_BYTES = 32;
+const RELAY_SIGNATURE_BYTES = 64;
+const RELAY_ACCESS_KEY_BYTES = 32;
 export const RELAY_CHALLENGE_BYTES = 32;
 export const RELAY_TICKET_BYTES = 32;
 export const RELAY_CONNECTION_ID_BYTES = 16;
@@ -38,7 +38,7 @@ export const RELAY_CONNECTION_ID_BYTES = 16;
  * Upper bound of live grants per host: paired devices plus pending pairings, far above the gateway's own limits.
  */
 export const RELAY_MAX_GRANTS = 256;
-export const RELAY_URL_MAX_LENGTH = 512;
+const RELAY_URL_MAX_LENGTH = 512;
 /**
  * Size of the shared secrets an access key derives from; equals the gateway's pairing secret and device credential.
  */
@@ -272,10 +272,6 @@ export const relayStandbySplicedSchema = z.strictObject({
 });
 
 export type RelayGrant = z.infer<typeof relayGrantSchema>;
-export type RelayClientConnect = z.infer<typeof relayClientConnectSchema>;
-export type RelayHostRegister = z.infer<typeof relayHostRegisterSchema>;
-export type RelayGrantUpdate = z.infer<typeof relayGrantUpdateSchema>;
-export type RelayIncoming = z.infer<typeof relayIncomingSchema>;
 export type RelayHostAccept = z.infer<typeof relayHostAcceptSchema>;
 export type RelayHostStandby = z.infer<typeof relayHostStandbySchema>;
 

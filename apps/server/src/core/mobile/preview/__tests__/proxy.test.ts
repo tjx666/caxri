@@ -197,6 +197,43 @@ describe('MobilePreviewProxies', () => {
         await expect(late).rejects.toMatchObject({ code: 'UNAVAILABLE' });
     });
 
+    it('never keeps more than eight listeners alive under concurrent opens of distinct targets', async () => {
+        const results = await Promise.allSettled(
+            Array.from({ length: 12 }, (_, index) =>
+                proxies.open(GRANT, '127.0.0.1', { host: '127.0.0.1', port: targetPort + index }),
+            ),
+        );
+        const urls = results.flatMap((result) =>
+            result.status === 'fulfilled' ? [result.value] : [],
+        );
+        expect(urls.length).toBeGreaterThan(0);
+        const live = await Promise.all(
+            urls.map(async (url) => {
+                try {
+                    await fetch(url, { redirect: 'manual' });
+                    return true;
+                } catch {
+                    return false;
+                }
+            }),
+        );
+        expect(live.filter(Boolean).length).toBeLessThanOrEqual(8);
+    });
+
+    it('does not return a launch URL for a listener that clear() raced past an eviction', async () => {
+        const open = (index: number) =>
+            proxies.open(GRANT, '127.0.0.1', { host: '127.0.0.1', port: targetPort + index });
+        await Promise.all(Array.from({ length: 8 }, (_, index) => open(index)));
+        // The ninth target waits for the eviction of the oldest listener; clear() lands in that window.
+        const ninth = open(8);
+        await proxies.clear();
+        const outcome = await Promise.allSettled([ninth]);
+        const [result] = outcome;
+        if (result.status === 'fulfilled')
+            await expect(fetch(result.value, { redirect: 'manual' })).rejects.toThrow();
+        else expect(result.reason).toMatchObject({ code: 'UNAVAILABLE' });
+    });
+
     it('closes the WebSocket tunnel of a device the registry revokes', async () => {
         await proxies.clear();
         proxies = new MobilePreviewProxies({

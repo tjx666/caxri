@@ -16,10 +16,10 @@ import { commandPolicy } from '../../transport/method-spec.js';
 export const MAX_BOT_INBOX_OPEN_ITEMS = 200;
 export const MAX_BOT_INBOX_CLOSED_ITEMS = 50;
 export const MAX_BOT_INBOX_REPLIES = 50;
-export const MAX_BOT_INBOX_OPTIONS = 8;
-export const MAX_BOT_INBOX_TITLE_LENGTH = 200;
+const MAX_BOT_INBOX_OPTIONS = 8;
+const MAX_BOT_INBOX_TITLE_LENGTH = 200;
 export const MAX_BOT_INBOX_BODY_LENGTH = 16_384;
-export const MAX_BOT_INBOX_REPLY_LENGTH = 8_192;
+const MAX_BOT_INBOX_REPLY_LENGTH = 8_192;
 
 /**
  * What the owner owes Caxri Bot. `decision` covers every escalation Caxri Bot's instructions list (a product or scope
@@ -34,29 +34,24 @@ export const botInboxKindSchema = z.enum(botInboxKindIds);
  * Lifecycle only. Whether the owner replied, whether Caxri Bot read the reply, and whether a pull request's evidence is
  * stale are separate fields, because any of them can hold while the item is still open.
  */
-export const botInboxStatusIds = ['open', 'closed'] as const;
+const botInboxStatusIds = ['open', 'closed'] as const;
 export const botInboxStatusSchema = z.enum(botInboxStatusIds);
 
 /**
  * Why an item closed. `merged` and `pullRequestClosed` come from GitHub (the owner may have merged in the browser);
  * `resolved` is Caxri Bot declaring the matter settled; `dismissed` is the owner declining to act.
  */
-export const botInboxCloseReasonIds = [
-    'merged',
-    'pullRequestClosed',
-    'resolved',
-    'dismissed',
-] as const;
+const botInboxCloseReasonIds = ['merged', 'pullRequestClosed', 'resolved', 'dismissed'] as const;
 export const botInboxCloseReasonSchema = z.enum(botInboxCloseReasonIds);
 
 /**
  * Why a `merge` item's evidence no longer describes the pull request. A moved head means Caxri Bot verified older code,
  * so the item stays open but cannot be merged until Caxri Bot re-verifies and reports the new head.
  */
-export const botInboxStaleReasonIds = ['headMoved'] as const;
+const botInboxStaleReasonIds = ['headMoved'] as const;
 export const botInboxStaleReasonSchema = z.enum(botInboxStaleReasonIds);
 
-export const botInboxReplySourceIds = ['desktop', 'mobile'] as const;
+const botInboxReplySourceIds = ['desktop', 'mobile'] as const;
 export const botInboxReplySourceSchema = z.enum(botInboxReplySourceIds);
 
 const gitShaSchema = z.string().regex(/^[\da-f]{40}$/u);
@@ -65,7 +60,7 @@ const gitShaSchema = z.string().regex(/^[\da-f]{40}$/u);
  * A GitHub pull request page, the only form Caxri Bot can name one in. The owner, repository, and number are parsed
  * from it on the Server rather than accepted separately, so they can never disagree with the link.
  */
-export const botInboxPullRequestUrlSchema = z
+const botInboxPullRequestUrlSchema = z
     .string()
     .max(512)
     .regex(/^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/[1-9]\d*$/u);
@@ -84,7 +79,7 @@ export function parseBotInboxPullRequestUrl(url: string): {
     return { owner, repo, number: Number(number) };
 }
 
-export const botInboxPullRequestSchema = z.strictObject({
+const botInboxPullRequestSchema = z.strictObject({
     url: botInboxPullRequestUrlSchema,
     owner: z.string().min(1).max(100),
     repo: z.string().min(1).max(100),
@@ -99,7 +94,7 @@ export const botInboxPullRequestSchema = z.strictObject({
  * GitHub's current view of a `merge` item's pull request, read from the Server's shared pull-request record. Memory
  * only: it is refreshed on a schedule and absent until the first read succeeds, or when the last one failed.
  */
-export const botInboxPullRequestLiveSchema = z.strictObject({
+const botInboxPullRequestLiveSchema = z.strictObject({
     title: z.string().max(1_000),
     lifecycle: sessionPullRequestStateSchema,
     checks: projectStatusStateSchema.optional(),
@@ -108,7 +103,7 @@ export const botInboxPullRequestLiveSchema = z.strictObject({
     refreshedAt: z.number(),
 });
 
-export const botInboxReplySchema = z.strictObject({
+const botInboxReplySchema = z.strictObject({
     /**
      * 1-based, increasing per item. Caxri Bot acknowledges the highest sequence it has read.
      */
@@ -153,7 +148,7 @@ export const botInboxItemSchema = z.strictObject({
     closedAt: z.number().optional(),
 });
 
-export const botInboxSchema = z.strictObject({
+const botInboxSchema = z.strictObject({
     generatedAt: z.number(),
     items: z.array(botInboxItemSchema).max(MAX_BOT_INBOX_OPEN_ITEMS + MAX_BOT_INBOX_CLOSED_ITEMS),
 });
@@ -185,7 +180,6 @@ export type BotInboxStatus = z.infer<typeof botInboxStatusSchema>;
 export type BotInboxCloseReason = z.infer<typeof botInboxCloseReasonSchema>;
 export type BotInboxStaleReason = z.infer<typeof botInboxStaleReasonSchema>;
 export type BotInboxReplySource = z.infer<typeof botInboxReplySourceSchema>;
-export type BotInboxPullRequest = z.infer<typeof botInboxPullRequestSchema>;
 export type BotInboxPullRequestLive = z.infer<typeof botInboxPullRequestLiveSchema>;
 export type BotInboxReply = z.infer<typeof botInboxReplySchema>;
 export type BotInboxItem = z.infer<typeof botInboxItemSchema>;

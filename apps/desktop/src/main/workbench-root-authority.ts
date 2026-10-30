@@ -12,14 +12,14 @@ import { CaxriError } from '@caxri/protocol';
 import type { BrowserWindow } from 'electron';
 import { dialog } from 'electron';
 
-import { readExternalFileSnapshot } from './external-file-snapshot';
+import type { DesktopServerConnection } from './connection/server-connection';
+import { readExternalFileSnapshot } from './external-documents/snapshot';
 import { translateMain } from './locale';
-import type { PathBrowserOpenTarget } from './path-browser-authority';
-import { createPathBrowserAuthority } from './path-browser-authority';
-import { sshHostPathBrowserDirectories } from './path-browser-directories';
-import type { PathBrowserLogger } from './path-browser-log';
+import type { PathBrowserOpenTarget } from './path-browser/authority';
+import { createPathBrowserAuthority } from './path-browser/authority';
+import { sshHostPathBrowserDirectories } from './path-browser/directories';
+import type { PathBrowserLogger } from './path-browser/log';
 import type { ProjectRootGrantIdentity, ProjectRootGrants } from './root-grants';
-import type { DesktopServerConnection } from './server-connection';
 import { currentRequestWindowKey, PRIMARY_WINDOW_KEY } from './window-presence-registry';
 
 type ContinueParameters = Extract<MainRequest, { method: 'session.continueInWorktree' }>['params'];

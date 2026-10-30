@@ -5,8 +5,6 @@ import { buildAgentChatTimeline } from '../../agent-chat/agent-chat-timeline';
 import {
     cachedChatSchema,
     cachedTimelineSchema,
-    decodeReadCacheEntry,
-    encodeReadCacheEntry,
     liveReadSaveScope,
     READ_CACHE_MAX_CONVERSATIONS,
     READ_CACHE_MAX_ITEMS,
@@ -207,31 +205,6 @@ describe('read cache model', () => {
         expect(JSON.stringify(trimmed)).not.toContain('Terminal output');
         expect(trimmed[1]).toMatchObject({ summary: 'ls' });
     });
-
-    it('reads an entry only back under the pairing that wrote it', () => {
-        const text = encodeReadCacheEntry(scope, 10, { items: [], truncated: false });
-        expect(decodeReadCacheEntry(text, scope, cachedTimelineSchema)).toEqual({
-            savedAt: 10,
-            value: { items: [], truncated: false },
-        });
-        const repaired = JSON.stringify(['host-1', 'device-1', 2]);
-        expect(decodeReadCacheEntry(text, repaired, cachedTimelineSchema)).toBeNull();
-        expect(decodeReadCacheEntry('{not json', scope, cachedTimelineSchema)).toBeNull();
-        expect(
-            decodeReadCacheEntry(
-                text.replace('"version":1', '"version":0'),
-                scope,
-                cachedTimelineSchema,
-            ),
-        ).toBeNull();
-        expect(
-            decodeReadCacheEntry(
-                encodeReadCacheEntry(scope, 10, { items: 'nope' }),
-                scope,
-                cachedTimelineSchema,
-            ),
-        ).toBeNull();
-    });
 });
 
 describe('live read save scope', () => {
@@ -254,6 +227,21 @@ describe('read cache store', () => {
     });
     afterEach(() => {
         vi.useRealTimers();
+    });
+
+    it('reads an entry only back under the pairing and shape that wrote it', async () => {
+        const { backend } = memoryFiles();
+        const cache = createReadCache(backend);
+        cache.setScope(scope);
+        const key = { kind: 'timeline', sessionId: 'session-1' } as const;
+        cache.save(scope, key, { items: [], truncated: false });
+        cache.flush();
+        const repaired = JSON.stringify(['host-1', 'device-1', 2]);
+        await expect(cache.load(scope, key, cachedTimelineSchema)).resolves.toMatchObject({
+            value: { items: [], truncated: false },
+        });
+        await expect(cache.load(repaired, key, cachedTimelineSchema)).resolves.toBeNull();
+        await expect(cache.load(scope, key, cachedChatSchema)).resolves.toBeNull();
     });
 
     it('writes once per pause and reads the latest value back', async () => {

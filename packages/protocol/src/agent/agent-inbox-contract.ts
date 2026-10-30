@@ -34,7 +34,7 @@ export const agentMessageBodySchema = z
         'Message body contains protocol control characters',
     );
 
-export const agentMessageStatusSchema = z.enum([
+const agentMessageStatusSchema = z.enum([
     'waiting',
     'held',
     'delivered',
@@ -44,8 +44,8 @@ export const agentMessageStatusSchema = z.enum([
     'capacity',
 ]);
 
-export const agentInboundPolicySchema = z.enum(['auto', 'accept', 'hold', 'refuse']);
-export const agentHeldRetentionSchema = z.enum(['approval-window', 'endpoint']);
+const agentInboundPolicySchema = z.enum(['auto', 'accept', 'hold', 'refuse']);
+const agentHeldRetentionSchema = z.enum(['approval-window', 'endpoint']);
 
 export const agentMessageReceiptSchema = z.strictObject({
     messageId: identifierSchema,
@@ -87,11 +87,11 @@ export const agentHeldMessageSchema = z.strictObject({
 /**
  * Full held text is fetched on demand and never enters the event journal or held-message list.
  */
-export const agentHeldMessageDetailSchema = agentHeldMessageSchema.extend({
+const agentHeldMessageDetailSchema = agentHeldMessageSchema.extend({
     body: agentMessageBodySchema,
 });
 
-export const agentInboundPolicyResultSchema = z.strictObject({
+const agentInboundPolicyResultSchema = z.strictObject({
     policy: agentInboundPolicySchema,
     heldRetention: agentHeldRetentionSchema,
 });

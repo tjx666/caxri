@@ -8,7 +8,10 @@ import { CaxriError, MAX_EVENT_JOURNAL_EVENTS } from '@caxri/protocol';
 
 export interface RecoveringEventClient {
     /**
-     * Requests the suffix (or bounded snapshot) needed by a newly attached client.
+     * Requests the suffix (or bounded snapshot) needed by a newly attached client. Rejects with the recovery error when
+     * the recovery that this call started or joined failed while still current, so an attach path can retry instead of
+     * reporting state it never recovered. `onError` is also called once for the same failure. A recovery invalidated by
+     * `stop()` resolves.
      */
     start(): Promise<void>;
     /**
@@ -157,11 +160,15 @@ export function createRecoveringEventClient(options: {
 
     async function settleRecovery(state: RecoveryState): Promise<void> {
         let didFail = false;
+        let failure: { error: unknown } | undefined;
         try {
             await recoverUntilCaughtUp(state);
         } catch (error) {
             didFail = true;
-            if (isCurrent(state)) options.onError?.(error);
+            if (isCurrent(state)) {
+                options.onError?.(error);
+                failure = { error };
+            }
         } finally {
             if (recovery === state) {
                 recovery = undefined;
@@ -173,17 +180,29 @@ export function createRecoveringEventClient(options: {
                  * A failed recovery must drop its queue instead of replaying it: every queued envelope still has the
                  * same cursor gap, so replaying would reschedule recovery synchronously and, while the transport keeps
                  * rejecting (for example after Desktop disposal), spin the process in a hot loop. The next live gap or
-                 * an explicit `start()` on reconnect restarts recovery from real input instead.
+                 * an explicit `start()` on reconnect restarts recovery from real input instead. `start()` callers see
+                 * the failure through the rejected promise and own the retry cadence (bounded backoff in Desktop
+                 * Main).
                  */
                 if (!didFail && isActive && generation === state.generation) {
                     if (isOverflowed) {
-                        void scheduleRecovery();
+                        detachRecovery(scheduleRecovery());
                     } else {
                         for (const envelope of pending) acceptLive(envelope);
                     }
                 }
             }
         }
+        if (failure) throw failure.error;
+    }
+
+    /**
+     * Live-triggered recoveries have no caller to receive a rejection; `onError` already reported it, and the next live
+     * gap restarts recovery.
+     */
+    function detachRecovery(promise: Promise<void>): void {
+        // eslint-disable-next-line unicorn/prefer-await -- fire-and-forget by design, see above
+        promise.catch(() => {});
     }
 
     function scheduleRecovery(initialEnvelope?: ProtocolEventEnvelope): Promise<void> {
@@ -217,7 +236,7 @@ export function createRecoveringEventClient(options: {
         }
         if (envelope.cursor <= cursor) return;
         if (envelope.cursor !== cursor + 1) {
-            void scheduleRecovery(envelope);
+            detachRecovery(scheduleRecovery(envelope));
             return;
         }
         cursor = envelope.cursor;

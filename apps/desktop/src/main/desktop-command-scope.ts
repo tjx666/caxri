@@ -33,6 +33,16 @@ export function runDesktopCommand<Value>(
 }
 
 /**
+ * Runs fire-and-forget work outside any Desktop command scope. A handler that shows or focuses a window synchronously
+ * emits that window's native events inside its own async context, so a follow-up report those events start would
+ * otherwise be refused by `desktopCommandCallbackError` and silently dropped. Such work never blocks the handler, so it
+ * cannot deadlock it; only use this for work the handler does not await.
+ */
+export function outsideDesktopCommand<Value>(run: () => Value): Value {
+    return activeCommand.exit(run);
+}
+
+/**
  * The Desktop command the caller is servicing, or `undefined` when it is ordinary Main or Renderer-driven work.
  */
 export function activeDesktopCommand(): DesktopOperation['kind'] | undefined {

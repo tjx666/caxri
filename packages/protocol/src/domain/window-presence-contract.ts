@@ -15,7 +15,7 @@ export const windowKeySchema = z
     .min(1)
     .max(64)
     .regex(/^[\w-]+$/);
-export type WindowKey = z.infer<typeof windowKeySchema>;
+type WindowKey = z.infer<typeof windowKeySchema>;
 
 /**
  * The optional window a request acts for: Desktop Main supplies it for the calling Renderer, and the Server fills the
@@ -63,7 +63,7 @@ export type WindowOpenSessions = z.infer<typeof windowOpenSessionsSchema>;
  * What one window reports about itself. In memory on the Server only: it is never persisted, and Desktop Main reseeds
  * it after a reconnect.
  */
-export const windowPresenceReportSchema = z.object({
+const windowPresenceReportSchema = z.object({
     windowKey: windowKeySchema,
     /**
      * The Session the window currently renders, or `null` when it shows none.
@@ -89,13 +89,13 @@ export type WindowPresenceReport = z.infer<typeof windowPresenceReportSchema>;
 const seededWindowSchema = windowPresenceReportSchema.extend({
     focusedAt: z.number().int().nonnegative(),
 });
-export const windowPresenceSeedSchema = z.object({ windows: z.array(seededWindowSchema).max(64) });
+const windowPresenceSeedSchema = z.object({ windows: z.array(seededWindowSchema).max(64) });
 export type WindowPresenceSeed = z.infer<typeof windowPresenceSeedSchema>;
 
 /**
  * One torn-off window's persisted strip, keyed by the window key Main minted for it.
  */
-export const tearOffWindowSchema = windowOpenSessionsSchema.extend({ windowKey: windowKeySchema });
+const tearOffWindowSchema = windowOpenSessionsSchema.extend({ windowKey: windowKeySchema });
 export type TearOffWindow = z.infer<typeof tearOffWindowSchema>;
 
 /**

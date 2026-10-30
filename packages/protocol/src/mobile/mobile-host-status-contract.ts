@@ -11,7 +11,7 @@ import { commandPolicy } from '../transport/method-spec.js';
  * use, so it is cut to this budget with room left for the envelope.
  */
 export const MOBILE_HOST_STATUS_MAX_BYTES = 48 * 1_024;
-export const MOBILE_HOST_STATUS_MAX_SESSIONS = 40;
+const MOBILE_HOST_STATUS_MAX_SESSIONS = 40;
 export const MOBILE_HOST_STATUS_MAX_TERMINALS_PER_SESSION = 8;
 /**
  * The phone sorts the busiest processes by CPU or by memory without another round trip, so the reply carries the top
@@ -50,7 +50,7 @@ const mobileHostSystemSchema = z.strictObject({
 /**
  * Caxri's own long-lived processes. Desktop is not listed: Server Core can outlive it and does not track its PID.
  */
-export const mobileHostServiceRoleSchema = z.enum(['serverCore', 'terminalHost', 'extensionHost']);
+const mobileHostServiceRoleSchema = z.enum(['serverCore', 'terminalHost', 'extensionHost']);
 
 const mobileHostServiceSchema = z.strictObject({
     role: mobileHostServiceRoleSchema,

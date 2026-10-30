@@ -11,10 +11,10 @@ import {
     createAuxiliaryWindow,
     isAuxiliaryWindowRevealed,
     trackAuxiliaryWindowBounds,
-} from './auxiliary-window';
-import { AuxiliaryWindowBoundsMemory } from './auxiliary-window-bounds';
+} from './auxiliary-window/auxiliary-window';
+import { AuxiliaryWindowBoundsMemory } from './auxiliary-window/bounds';
 import { CaxriBotRendererPolicy } from './caxri-bot-policy';
-import type { AppMenuOptions } from './menu';
+import type { AppMenuOptions } from './menu/template';
 import { resolveRendererEntryUrl } from './renderer-entry';
 import {
     publishFullScreenState,

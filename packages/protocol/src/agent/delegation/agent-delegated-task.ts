@@ -9,7 +9,7 @@ const POINTER =
  * Where a delegated task came from: the Session whose Agent delegated it, or Caxri Bot. Absent when the caller is gone
  * or was not an Agent Terminal.
  */
-export const agentChatDelegatedTaskSourceSchema = z.discriminatedUnion('kind', [
+const agentChatDelegatedTaskSourceSchema = z.discriminatedUnion('kind', [
     z.strictObject({ kind: z.literal('session'), sessionId: identifierSchema }),
     z.strictObject({ kind: z.literal('bot') }),
 ]);

@@ -189,6 +189,10 @@ export function createInterruptedTerminalRestorer(options: InterruptedTerminalRe
                                   'restore',
                               )
                             : undefined;
+                        // Selecting another Session can supersede this restore during the lookup. Everything below
+                        // mutates durable state (the Grok failure, the Agent metadata reset), so a stale operation
+                        // must stop before touching it.
+                        if (!isCurrent() || abortSignal.aborted) return false;
                         if (
                             shouldRestoreAgent &&
                             !resumeAgentSessionId &&
@@ -215,6 +219,7 @@ export function createInterruptedTerminalRestorer(options: InterruptedTerminalRe
                             const expectedWorkingDirectory = await terminalDirectoryIdentity(
                                 terminal.cwd,
                             );
+                            if (!isCurrent()) return false;
                             const restarted = await terminals.restart(terminal.id, {
                                 expectedWorkingDirectory,
                                 launchAgent: shouldRestoreAgent,

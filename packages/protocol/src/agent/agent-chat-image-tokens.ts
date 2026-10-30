@@ -13,28 +13,6 @@ export function agentChatImageToken(number: number): string {
 }
 
 /**
- * A run of message text, or one image placeholder in it.
- */
-export type AgentChatTextSegment =
-    { kind: 'text'; text: string } | { kind: 'image'; number: number; text: string };
-
-/**
- * `text` cut at its image placeholders, in order. Text without one is a single text segment.
- */
-export function agentChatTextSegments(text: string): AgentChatTextSegment[] {
-    const segments: AgentChatTextSegment[] = [];
-    let index = 0;
-    for (const match of text.matchAll(IMAGE_TOKEN)) {
-        if (match.index > index)
-            segments.push({ kind: 'text', text: text.slice(index, match.index) });
-        segments.push({ kind: 'image', number: Number(match.groups?.number), text: match[0] });
-        index = match.index + match[0].length;
-    }
-    if (index < text.length) segments.push({ kind: 'text', text: text.slice(index) });
-    return segments;
-}
-
-/**
  * Every image placeholder in `text`, with where it starts and ends.
  */
 export function agentChatImageTokenRanges(

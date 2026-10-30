@@ -5,7 +5,7 @@ import { z } from 'zod';
  * directory, so a large Project exhausts it); `instance-limit` is `fs.inotify.max_user_instances` (every program the
  * account runs that watches files holds one). Both are per-account kernel settings only an administrator can raise.
  */
-export const fileWatchLimitSchema = z.enum(['watch-limit', 'instance-limit']);
+const fileWatchLimitSchema = z.enum(['watch-limit', 'instance-limit']);
 
 export type FileWatchLimit = z.infer<typeof fileWatchLimitSchema>;
 

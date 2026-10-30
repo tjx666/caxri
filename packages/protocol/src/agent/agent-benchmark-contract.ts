@@ -45,11 +45,10 @@ export type BenchmarkEntry = z.infer<typeof benchmarkEntrySchema>;
  * clones the Project's current commit into every Attempt's folder, so uncommitted changes are not included and the
  * Project itself is never touched.
  */
-export const benchmarkWorkspaceSchema = z.discriminatedUnion('kind', [
+const benchmarkWorkspaceSchema = z.discriminatedUnion('kind', [
     z.strictObject({ kind: z.literal('empty') }),
     z.strictObject({ kind: z.literal('project'), projectId: identifierSchema }),
 ]);
-export type BenchmarkWorkspace = z.infer<typeof benchmarkWorkspaceSchema>;
 
 export const benchmarkSettingsSchema = z.strictObject({
     workspace: benchmarkWorkspaceSchema,
@@ -70,7 +69,7 @@ export const benchmarkSettingsSchema = z.strictObject({
 });
 export type BenchmarkSettings = z.infer<typeof benchmarkSettingsSchema>;
 
-export const benchmarkAttemptStatusIds = [
+const benchmarkAttemptStatusIds = [
     'queued',
     'preparing',
     'running',
@@ -80,14 +79,13 @@ export const benchmarkAttemptStatusIds = [
     'timedOut',
     'cancelled',
 ] as const;
-export const benchmarkAttemptStatusSchema = z.enum(benchmarkAttemptStatusIds);
-export type BenchmarkAttemptStatus = z.infer<typeof benchmarkAttemptStatusSchema>;
+const benchmarkAttemptStatusSchema = z.enum(benchmarkAttemptStatusIds);
 
 /**
  * Why an Attempt did not complete. `turnFailed` is the Agent reporting a failed turn (a rejected model, an API error);
  * `serverRestarted` is an Attempt Server Core stopped mid-run, since a provider process does not survive a restart.
  */
-export const benchmarkFailureReasonIds = [
+const benchmarkFailureReasonIds = [
     'executableNotFound',
     'workspaceFailed',
     'startFailed',
@@ -96,17 +94,17 @@ export const benchmarkFailureReasonIds = [
     'processExited',
     'serverRestarted',
 ] as const;
-export const benchmarkFailureReasonSchema = z.enum(benchmarkFailureReasonIds);
+const benchmarkFailureReasonSchema = z.enum(benchmarkFailureReasonIds);
 export type BenchmarkFailureReason = z.infer<typeof benchmarkFailureReasonSchema>;
 
 /**
  * Where an Attempt's cost comes from: the Agent's own report (Grok Build), the API list price of the tokens it used
  * (LiteLLM's list, the same one Usage uses), or `unknown` when a model has no price. Unknown is never shown as zero.
  */
-export const benchmarkCostSourceSchema = z.enum(['provider', 'listPrice', 'unknown']);
+const benchmarkCostSourceSchema = z.enum(['provider', 'listPrice', 'unknown']);
 export type BenchmarkCostSource = z.infer<typeof benchmarkCostSourceSchema>;
 
-export const benchmarkCheckResultSchema = z.strictObject({
+const benchmarkCheckResultSchema = z.strictObject({
     status: z.enum(['passed', 'failed', 'timedOut', 'error']),
     exitCode: z.number().int().optional(),
     durationMs: count,
@@ -117,13 +115,13 @@ export const benchmarkCheckResultSchema = z.strictObject({
 });
 export type BenchmarkCheckResult = z.infer<typeof benchmarkCheckResultSchema>;
 
-export const benchmarkJudgeScoreSchema = z.strictObject({
+const benchmarkJudgeScoreSchema = z.strictObject({
     score: z.number().min(0).max(100),
     reason: z.string().max(2_000),
 });
 export type BenchmarkJudgeScore = z.infer<typeof benchmarkJudgeScoreSchema>;
 
-export const benchmarkDiffStatSchema = z.strictObject({
+const benchmarkDiffStatSchema = z.strictObject({
     files: count,
     additions: count,
     deletions: count,
@@ -133,7 +131,7 @@ export type BenchmarkDiffStat = z.infer<typeof benchmarkDiffStatSchema>;
 /**
  * How full the Agent's context window got during an Attempt, from the usage the Agent reported after each response.
  */
-export const benchmarkContextUsageSchema = z.strictObject({
+const benchmarkContextUsageSchema = z.strictObject({
     peakTokens: count,
     finalTokens: count,
     /**
@@ -151,14 +149,14 @@ export type BenchmarkContextUsage = z.infer<typeof benchmarkContextUsageSchema>;
  * Output tokens and the time the model spent generating them, summed over the Attempt's measured responses. Excludes
  * tool and command time, so tokens per second describes the model, not the task.
  */
-export const benchmarkGenerationSchema = z.strictObject({
+const benchmarkGenerationSchema = z.strictObject({
     outputTokens: count,
     durationMs: z.number().int().positive(),
     responses: z.number().int().positive(),
 });
 export type BenchmarkGeneration = z.infer<typeof benchmarkGenerationSchema>;
 
-export const benchmarkAttemptSchema = z.strictObject({
+const benchmarkAttemptSchema = z.strictObject({
     id: identifierSchema,
     entryIndex: count,
     /**
@@ -218,10 +216,10 @@ export const benchmarkAttemptSchema = z.strictObject({
 });
 export type BenchmarkAttempt = z.infer<typeof benchmarkAttemptSchema>;
 
-export const benchmarkRunStatusSchema = z.enum(['running', 'completed', 'cancelled']);
+const benchmarkRunStatusSchema = z.enum(['running', 'completed', 'cancelled']);
 export type BenchmarkRunStatus = z.infer<typeof benchmarkRunStatusSchema>;
 
-export const benchmarkJudgeRunSchema = z.strictObject({
+const benchmarkJudgeRunSchema = z.strictObject({
     status: z.enum(['pending', 'running', 'completed', 'failed', 'skipped']),
     failureMessage: z.string().max(2_000).optional(),
     costUsd: z.number().nonnegative().optional(),
@@ -267,7 +265,7 @@ export const benchmarkRunSchema = z.strictObject({
 });
 export type BenchmarkRun = z.infer<typeof benchmarkRunSchema>;
 
-export const benchmarkRunSummarySchema = z.strictObject({
+const benchmarkRunSummarySchema = z.strictObject({
     id: identifierSchema,
     title: z.string().max(200),
     status: benchmarkRunStatusSchema,
@@ -283,7 +281,7 @@ export type BenchmarkRunSummary = z.infer<typeof benchmarkRunSummarySchema>;
  * What one Agent offers for a Benchmark, read from a short-lived provider process. `missing` means its CLI is not
  * installed; `failed` means it is installed but did not start (signed out, an unsupported version).
  */
-export const benchmarkCatalogProviderSchema = z.strictObject({
+const benchmarkCatalogProviderSchema = z.strictObject({
     provider: agentProvider,
     status: z.enum(['ready', 'missing', 'failed']),
     message: z.string().max(500).optional(),
@@ -292,13 +290,13 @@ export const benchmarkCatalogProviderSchema = z.strictObject({
 });
 export type BenchmarkCatalogProvider = z.infer<typeof benchmarkCatalogProviderSchema>;
 
-export const benchmarkCatalogSchema = z.strictObject({
+const benchmarkCatalogSchema = z.strictObject({
     providers: z.array(benchmarkCatalogProviderSchema).max(agentProviderIds.length),
     checkedAt: count,
 });
 export type BenchmarkCatalog = z.infer<typeof benchmarkCatalogSchema>;
 
-export const benchmarkStartParametersSchema = z.strictObject({
+const benchmarkStartParametersSchema = z.strictObject({
     prompt: z.string().trim().min(1).max(MAX_BENCHMARK_PROMPT_LENGTH),
     entries: z.array(benchmarkEntrySchema).min(1).max(MAX_BENCHMARK_ENTRIES),
     settings: benchmarkSettingsSchema,

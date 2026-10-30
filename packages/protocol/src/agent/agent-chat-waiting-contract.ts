@@ -16,7 +16,7 @@ export const AGENT_CHAT_WAITING_MAX_CHATS = 50;
  */
 export const AGENT_CHAT_WAITING_PROMPT_MAX_LENGTH = 2_000;
 
-export const agentChatWaitingChatSchema = z.strictObject({
+const agentChatWaitingChatSchema = z.strictObject({
     kind: z.literal('chat'),
     sessionId: identifierSchema,
     terminalId: identifierSchema,
@@ -36,13 +36,13 @@ export const agentChatWaitingChatSchema = z.strictObject({
  * never what it asks, and a Terminal prompt cannot be answered from outside the PTY, so the entry carries no request:
  * the popup can only take the user to the Terminal.
  */
-export const agentChatWaitingTerminalSchema = z.strictObject({
+const agentChatWaitingTerminalSchema = z.strictObject({
     kind: z.literal('terminal'),
     sessionId: identifierSchema,
     terminalId: identifierSchema,
 });
 
-export const agentChatWaitingEntrySchema = z.discriminatedUnion('kind', [
+const agentChatWaitingEntrySchema = z.discriminatedUnion('kind', [
     agentChatWaitingChatSchema,
     agentChatWaitingTerminalSchema,
 ]);

@@ -8,7 +8,7 @@ import type { StructuredLogger } from '@caxri/system';
 import { execFileAsync, logEventCatalog } from '@caxri/system';
 import { app } from 'electron';
 
-import type { DesktopServerConnection } from '../server-connection';
+import type { DesktopServerConnection } from '../connection/server-connection';
 import { claudeWindowLaunchAgent, claudeWindowLaunchAgentPlist } from './launch-agent';
 
 export interface ClaudeWindowJobOptions {

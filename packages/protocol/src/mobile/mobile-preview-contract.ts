@@ -11,7 +11,7 @@ const tcpPortSchema = z.number().int().min(1).max(65_535);
  * One TCP port a process of the Session is listening on, such as a dev server an Agent started. `processName` is the
  * executable name `lsof` reports (for example `node`), never the command line.
  */
-export const mobilePreviewTargetSchema = z.strictObject({
+const mobilePreviewTargetSchema = z.strictObject({
     port: tcpPortSchema,
     processName: z.string().min(1).max(64),
 });
@@ -21,7 +21,7 @@ export const mobilePreviewTargetSchema = z.strictObject({
  * is the only authority, so it is issued exclusively over the sealed channel; the first request trades it for a cookie
  * scoped to that preview listener.
  */
-export const mobilePreviewOpenResultSchema = z.strictObject({
+const mobilePreviewOpenResultSchema = z.strictObject({
     url: z.url({ protocol: /^http$/u }).max(2_048),
 });
 

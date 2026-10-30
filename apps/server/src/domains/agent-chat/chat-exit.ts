@@ -1,12 +1,12 @@
 import type { AgentProvider } from '@caxri/protocol';
 import { logEventCatalog } from '@caxri/system';
 
-import type { ChatEndpointLease } from './chat-endpoint-lease';
 import { forwardChatLifecycle, logChatProcessExited } from './chat-launch';
 import type { AgentChatExit } from './chat-provider';
 import type { ChatState, ChatStates } from './chat-states';
-import { ChatTaskList } from './chat-tasks';
+import type { ChatEndpointLease } from './endpoint/lease';
 import type { AgentChatServiceOptions } from './service-options';
+import { ChatTaskList } from './tasks/task-list';
 
 /**
  * What ending a Chat's provider process needs from the service that owns it.

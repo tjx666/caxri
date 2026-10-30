@@ -5,6 +5,7 @@ import type { AppSettings, SystemColorScheme } from '@caxri/protocol';
 import { resolveEffectiveTheme } from '@caxri/protocol';
 import { Braces, SlidersHorizontal } from 'lucide-react';
 
+import { SurfaceErrorBoundary } from '../../components/surface-error-boundary';
 import { ToggleGroup, ToggleGroupItem } from '../../components/ui/toggle-group';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useSystemColorScheme } from '../../hooks/use-system-color-scheme';
@@ -217,7 +218,11 @@ function SettingsWorkbenchView({
                         onNavigate={controller.navigateToAnchor}
                         onSectionChange={controller.changeTab}
                     />
-                    <div className="grid min-h-0 overflow-hidden">{content}</div>
+                    <div className="grid min-h-0 overflow-hidden">
+                        <SurfaceErrorBoundary resetKey={`${view}:${tab}`} scope="settings">
+                            {content}
+                        </SurfaceErrorBoundary>
+                    </div>
                 </div>
             </div>
         </div>

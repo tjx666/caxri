@@ -244,6 +244,7 @@ export async function openFilesFromProcFileSystem(
                     try {
                         const path = await readlink(join(directory, 'fd', descriptor));
                         if (!path.startsWith('/')) return undefined;
+                        // eslint-disable-next-line caxri/bounded-external-reads -- procfs fdinfo is a tiny kernel pseudo-file, not user or provider data
                         const info = await readFile(join(directory, 'fdinfo', descriptor), 'utf8');
                         const flags = /^flags:\s*([0-7]+)$/m.exec(info)?.[1];
                         if (flags === undefined) return undefined;

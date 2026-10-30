@@ -6,8 +6,8 @@ import { MAX_EXTENSION_TREE_VIEW_STATES } from '@caxri/protocol';
 import { translate } from '../../../i18n';
 import { getBootstrap } from '../../../stores/selectors';
 import { patchSessionState } from '../../../stores/workbench';
-import type { ExtensionTreeState } from '../extension-tree-state';
-import { createExtensionTreeState, serializeExtensionTreeState } from '../extension-tree-state';
+import type { ExtensionTreeState } from '../extension-tree/state';
+import { createExtensionTreeState, serializeExtensionTreeState } from '../extension-tree/state';
 
 interface ExtensionTreeStateScope {
     sessionId: string;

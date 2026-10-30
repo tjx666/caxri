@@ -12,6 +12,7 @@ import {
 } from '@caxri/protocol';
 import { TerminalSquare } from 'lucide-react';
 
+import { SurfaceErrorBoundary } from '../../components/surface-error-boundary';
 import { Empty, EmptyMedia, EmptyTitle } from '../../components/ui/empty';
 import { usePointerDragResize } from '../../hooks/use-pointer-drag-resize';
 import type { TranslationKey } from '../../i18n';
@@ -123,20 +124,24 @@ function PaneContent({
         if (!terminal) return null;
         if (isChatTerminal(terminal))
             return (
-                <AgentChatTerminalContent
-                    isSessionVisible={isVisible}
-                    isShown={isActivePane && isVisible}
-                    key={terminal.id}
-                    terminal={terminal}
-                />
+                <SurfaceErrorBoundary resetKey={terminal.id} scope="chat">
+                    <AgentChatTerminalContent
+                        isSessionVisible={isVisible}
+                        isShown={isActivePane && isVisible}
+                        key={terminal.id}
+                        terminal={terminal}
+                    />
+                </SurfaceErrorBoundary>
             );
         return (
-            <TerminalPane
-                active={isActivePane}
-                ariaLabel={terminal.title}
-                isPaneVisible={isVisible}
-                terminalId={terminal.id}
-            />
+            <SurfaceErrorBoundary resetKey={terminal.id} scope="terminal">
+                <TerminalPane
+                    active={isActivePane}
+                    ariaLabel={terminal.title}
+                    isPaneVisible={isVisible}
+                    terminalId={terminal.id}
+                />
+            </SurfaceErrorBoundary>
         );
     }
     return <EditorSurface paneId={pane.id} path={tab.resource.path} />;

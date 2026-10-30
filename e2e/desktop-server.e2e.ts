@@ -1,4 +1,4 @@
-import { execFile, spawn } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import {
     access,
@@ -20,6 +20,7 @@ import {
     discoverServerManifest,
 } from '@caxri/client/supervise';
 
+import { runRunnerCli } from './support/cli-environment.ts';
 import { allowE2EErrors, expect, test } from './support/fixtures.ts';
 import {
     createShellSession,
@@ -43,23 +44,8 @@ const electronPath = join(
     'Electron',
 );
 
-function runCli(
-    arguments_: readonly string[],
-): Promise<{ code: number; stderr: string; stdout: string }> {
-    return new Promise((resolve) => {
-        execFile(
-            process.execPath,
-            [cliPath, ...arguments_],
-            { env: process.env, maxBuffer: 1024 * 1024, timeout: 10_000 },
-            (error, stdout, stderr) => {
-                resolve({
-                    code: typeof error?.code === 'number' ? error.code : error ? 1 : 0,
-                    stderr,
-                    stdout,
-                });
-            },
-        );
-    });
+function runCli(arguments_: readonly string[]) {
+    return runRunnerCli(cliPath, arguments_);
 }
 
 test('routes bounded Desktop open, focus, and reveal operations through the existing Host', async () => {

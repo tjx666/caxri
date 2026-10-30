@@ -2,6 +2,7 @@ import type { DragEvent } from 'react';
 
 import { isChatTerminal } from '@caxri/protocol';
 
+import { SurfaceErrorBoundary } from '../../components/surface-error-boundary';
 import { Button } from '../../components/ui/button';
 import { Spinner } from '../../components/ui/spinner';
 import { useTranslation } from '../../i18n';
@@ -63,13 +64,15 @@ export function BotTerminal({ onRetry, status }: { onRetry: () => void; status: 
         );
     if (isChatTerminal(terminal))
         return (
-            <AgentChatTerminalContent
-                ariaLabel={t('caxriBot.terminal.ariaLabel', { title: terminal.title })}
-                host="bot"
-                isShown
-                key={terminal.id}
-                terminal={terminal}
-            />
+            <SurfaceErrorBoundary resetKey={terminal.id} scope="chat">
+                <AgentChatTerminalContent
+                    ariaLabel={t('caxriBot.terminal.ariaLabel', { title: terminal.title })}
+                    host="bot"
+                    isShown
+                    key={terminal.id}
+                    terminal={terminal}
+                />
+            </SurfaceErrorBoundary>
         );
     const canAcceptDrop = (event: DragEvent<HTMLElement>): boolean => {
         if (terminal.lastProcessState !== 'running' || !isTerminalPasteDrag(event)) return false;

@@ -1,4 +1,4 @@
-import { appendFile, mkdir, readFile, stat } from 'node:fs/promises';
+import { appendFile, mkdir } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 
@@ -9,6 +9,7 @@ import type {
     SessionStoreEntry,
 } from '@anthropic-ai/claude-agent-sdk';
 import { CaxriError } from '@caxri/protocol';
+import { readBoundedRegularFileText } from '@caxri/system';
 
 import { clip } from '../chat-items';
 import type {
@@ -135,13 +136,9 @@ function claudeTranscriptStore(
             const path = file(key);
             let text: string;
             try {
-                const { size } = await stat(path);
-                if (size > maxBytes)
-                    throw new CaxriError(
-                        'CAPACITY',
-                        `This Claude conversation is too large to fork (${Math.ceil(size / 1024 / 1024)} MiB; the limit is ${Math.floor(maxBytes / 1024 / 1024)} MiB)`,
-                    );
-                text = await readFile(path, 'utf8');
+                text = await readBoundedRegularFileText(path, maxBytes, {
+                    capacityMessage: `This Claude conversation is too large to fork (the limit is ${Math.floor(maxBytes / 1024 / 1024)} MiB)`,
+                });
             } catch (error) {
                 if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
                 throw error;

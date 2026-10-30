@@ -4,13 +4,13 @@ import type { StructuredLogger } from '@caxri/system';
 import type { BrowserWindowConstructorOptions } from 'electron';
 import { BrowserWindow, dialog } from 'electron';
 
+import { DesktopServerConnection } from '../connection/server-connection';
+import type { SharedServerConnectionOptions } from '../connection/server-connection-options';
 import { createDesktopActions } from '../desktop-actions';
 import { createDesktopOperationHandler } from '../desktop-operations';
 import { guardEnvironmentMethods } from '../environment-method-policy';
 import { createMainEventRelay } from '../event-relay';
 import { createElectronIpcCommandAdapter } from '../ipc-command-adapter';
-import { DesktopServerConnection } from '../server-connection';
-import type { SharedServerConnectionOptions } from '../server-connection-options';
 import { createWorkbenchUnsavedEditors } from '../unsaved-editors';
 import { defaultWindowState } from '../window-placement';
 import type { WindowPresenceRegistry } from '../window-presence-registry';

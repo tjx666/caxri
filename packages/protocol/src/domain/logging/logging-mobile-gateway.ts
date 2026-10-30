@@ -54,9 +54,10 @@ export const mobileGatewayLogEvents = {
     connectionEnded: 'mobile_gateway.connection_ended',
     /**
      * The Server's outbound Relay registration changed state: `state` (`connecting`, `online`, `offline`, `stopped`)
-     * with a closed `cause` (`started`, `registered`, `registration-rejected`, `closed-by-relay` with `relayReason`,
-     * `network-error`, `heartbeat-timeout`, `protocol-error`, `disabled`), the reconnect `attempt`, the previous
-     * registration's `connectedMs`, and the URL `scheme`. Never the Relay address, host key, grants, or tickets.
+     * with a closed `cause` (`started`, `registered`, `registration-rejected`, `registration-timeout`,
+     * `closed-by-relay` with `relayReason`, `network-error`, `heartbeat-timeout`, `protocol-error`, `disabled`), the
+     * reconnect `attempt`, the previous registration's `connectedMs`, and the URL `scheme`. Never the Relay address,
+     * host key, grants, or tickets.
      */
     relayState: 'mobile_gateway.relay_state',
     /**

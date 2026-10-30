@@ -5,7 +5,7 @@ import { formatShortcut, shortcutLeadingChord } from '@caxri/protocol';
 import type { BrowserWindow, MenuItemConstructorOptions } from 'electron';
 import { Menu } from 'electron';
 
-import { electronAccelerator } from './menu-accelerator';
+import { electronAccelerator } from './menu/accelerator';
 
 type ContextMenuParameters = Extract<MainRequest, { method: 'contextMenu.show' }>['params'];
 type ContextMenuResult = MethodResult<'contextMenu.show'>;

@@ -1,7 +1,7 @@
 import { CAXRI_PROTOCOL_VERSION } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { DesktopServerConnection } from '../server-connection';
+import type { DesktopServerConnection } from '../connection/server-connection';
 import { createWorkbenchCommandAdapter } from '../workbench-command-adapter';
 
 function adapter(forwarded: unknown) {

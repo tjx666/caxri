@@ -87,7 +87,9 @@ describe('directory density ratchet', () => {
 
     it('classifies paths under guarded directories for CI routing', () => {
         expect(isDirectoryDensityPath('apps/desktop/src/main/new-module.ts')).toBe(true);
-        expect(isDirectoryDensityPath('apps/server/src/domains/agent-chat/claude/x.ts')).toBe(true);
+        expect(
+            isDirectoryDensityPath('apps/server/src/domains/agent-chat/providers/claude/x.ts'),
+        ).toBe(true);
         expect(isDirectoryDensityPath('apps/server/src/domains/git/index.ts')).toBe(false);
     });
 });

@@ -15,7 +15,7 @@ export const AGENT_EXCERPT_MAX_LENGTH = 240;
  */
 export const AGENT_EXCERPT_MAX_SESSIONS = 50;
 
-export const agentExcerptSchema = z.strictObject({
+const agentExcerptSchema = z.strictObject({
     /**
      * `request` is what the Agent is waiting on (a question it asked, or the action it wants approved); `reply` is the
      * closing message of its latest turn.

@@ -29,13 +29,13 @@ import {
 import {
     addGitReviewComment,
     canAddGitReviewComment,
-} from '../features/editor/git-review-comment-commands';
+} from '../features/editor/git/review-comment-commands';
 import {
     canGoToReviewComment,
     goToNextReviewComment,
     goToPreviousReviewComment,
     showPendingReviewComments,
-} from '../features/editor/git-review-navigation-commands';
+} from '../features/editor/git/review-navigation-commands';
 import {
     canOpenImportLinkAtCursor,
     openImportLinkAtCursor,

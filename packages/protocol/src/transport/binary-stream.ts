@@ -8,7 +8,7 @@ import { CaxriError, errorCodes } from './errors.js';
 import { protocolVersionSchema } from './version.js';
 
 export const BINARY_STREAM_PATH = '/stream' as const;
-export const BINARY_STREAM_PROTOCOL_VERSION = 1 as const;
+const BINARY_STREAM_PROTOCOL_VERSION = 1 as const;
 export const BINARY_STREAM_FRAME_HEADER_BYTES = 16;
 export const BINARY_STREAM_MAX_CHUNK_BYTES = 64 * 1024;
 export const BINARY_STREAM_MAX_FRAME_BYTES =
@@ -26,7 +26,7 @@ export const BINARY_STREAM_MAX_REPLY_BYTES = 2 * 1024 * 1024;
 export const BINARY_STREAM_TICKET_TTL_MS = 10_000;
 export const BINARY_STREAM_MAX_PENDING_TICKETS = 128;
 
-export const binaryStreamMethods = [
+const binaryStreamMethods = [
     'terminal.attach',
     'terminal.input',
     'terminal.resize',
@@ -50,7 +50,7 @@ const terminalSizeSchema = {
     rows: z.number().int().min(1).max(1_000),
 };
 
-export const binaryStreamOperationSchema = z.discriminatedUnion('method', [
+const binaryStreamOperationSchema = z.discriminatedUnion('method', [
     z
         .object({
             method: z.literal('terminal.attach'),
@@ -106,7 +106,7 @@ export const localClientStreamTicketRequestSchema = z
 
 export type LocalClientStreamTicketRequest = z.infer<typeof localClientStreamTicketRequestSchema>;
 
-export const binaryStreamTicketGrantSchema = z
+const binaryStreamTicketGrantSchema = z
     .object({
         ticket: binaryStreamTicketSchema,
         path: z.literal(BINARY_STREAM_PATH),
@@ -146,7 +146,7 @@ export const localServerStreamTicketReplySchema = z.discriminatedUnion('ok', [
 export type LocalServerStreamTicketReply = z.infer<typeof localServerStreamTicketReplySchema>;
 
 const binaryStreamEmptyResultSchema = z.object({ kind: z.literal('empty') }).strict();
-export const binaryStreamTerminalSnapshotMetadataSchema = terminalSnapshotSchema
+const binaryStreamTerminalSnapshotMetadataSchema = terminalSnapshotSchema
     .omit({ payload: true })
     .extend({
         payloadBytes: z.number().int().nonnegative().max(BINARY_STREAM_MAX_TERMINAL_RESULT_BYTES),
@@ -174,13 +174,11 @@ const binaryStreamFileDocumentResultSchema = z
     })
     .strict();
 
-export const binaryStreamReplyResultSchema = z.discriminatedUnion('kind', [
+const binaryStreamReplyResultSchema = z.discriminatedUnion('kind', [
     binaryStreamEmptyResultSchema,
     binaryStreamTerminalAttachmentResultSchema,
     binaryStreamFileDocumentResultSchema,
 ]);
-
-export type BinaryStreamReplyResult = z.infer<typeof binaryStreamReplyResultSchema>;
 
 const binaryStreamReplyBaseSchema = z.object({
     id: identifierSchema,
@@ -198,19 +196,15 @@ export const binaryStreamReplySchema = z.discriminatedUnion('ok', [
 
 export type BinaryStreamReply = z.infer<typeof binaryStreamReplySchema>;
 
-export const binaryStreamFrameKinds = [
-    'terminal-input',
-    'terminal-resize',
-    'terminal-output',
-    'terminal-gap',
-    'terminal-reply',
-    'terminal-snapshot',
-    'file-data',
-    'file-reply',
-] as const;
-
-export const binaryStreamFrameKindSchema = z.enum(binaryStreamFrameKinds);
-export type BinaryStreamFrameKind = z.infer<typeof binaryStreamFrameKindSchema>;
+type BinaryStreamFrameKind =
+    | 'terminal-input'
+    | 'terminal-resize'
+    | 'terminal-output'
+    | 'terminal-gap'
+    | 'terminal-reply'
+    | 'terminal-snapshot'
+    | 'file-data'
+    | 'file-reply';
 
 const frameKindCode = {
     'terminal-input': 1,
@@ -289,20 +283,16 @@ export function decodeBinaryStreamFrame(source: Uint8Array): BinaryStreamFrame {
     };
 }
 
-export const binaryStreamCloseReasons = [
-    'protocol-error',
-    'unauthorized',
-    'scope-mismatch',
-    'ticket-expired',
-    'stale-generation',
-    'payload-too-large',
-    'capacity-exceeded',
-    'server-unavailable',
-    'completed',
-] as const;
-
-export const binaryStreamCloseReasonSchema = z.enum(binaryStreamCloseReasons);
-export type BinaryStreamCloseReason = z.infer<typeof binaryStreamCloseReasonSchema>;
+export type BinaryStreamCloseReason =
+    | 'protocol-error'
+    | 'unauthorized'
+    | 'scope-mismatch'
+    | 'ticket-expired'
+    | 'stale-generation'
+    | 'payload-too-large'
+    | 'capacity-exceeded'
+    | 'server-unavailable'
+    | 'completed';
 
 export const binaryStreamCloseCodes = {
     'protocol-error': 4400,

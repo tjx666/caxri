@@ -32,7 +32,7 @@ export const MAX_BOT_BOARD_ROWS = 2_000;
  * The system Project, Session, and Terminal that host Caxri Bot. They are real rows so the Caxri Bot Terminal reuses
  * the ordinary PTY, Agent Endpoint, and restore machinery, but every Workbench-facing read excludes them.
  */
-export const botIdentitySchema = z.strictObject({
+const botIdentitySchema = z.strictObject({
     projectId: identifierSchema,
     sessionId: identifierSchema,
     terminalId: identifierSchema,
@@ -60,9 +60,9 @@ export const botBoardGroupIds = [
     'finished',
     'idle',
 ] as const;
-export const botBoardGroupSchema = z.enum(botBoardGroupIds);
+const botBoardGroupSchema = z.enum(botBoardGroupIds);
 
-export const botBoardRowSchema = z.strictObject({
+const botBoardRowSchema = z.strictObject({
     group: botBoardGroupSchema,
     projectId: identifierSchema,
     projectTitle: z.string(),
@@ -138,7 +138,7 @@ export const botTaskStatuses = [
     'done',
     'dropped',
 ] as const;
-export const botTaskStatusSchema = z.enum(botTaskStatuses);
+const botTaskStatusSchema = z.enum(botTaskStatuses);
 export const openBotTaskStatuses: readonly BotTaskStatus[] = [
     'pending',
     'dispatched',
@@ -167,7 +167,7 @@ export const botTaskSchema = z.strictObject({
     updatedAt: z.number(),
 });
 
-export const botTaskCreateSchema = z.strictObject({
+const botTaskCreateSchema = z.strictObject({
     title: botTaskTitleSchema,
     status: botTaskStatusSchema.optional(),
     projectId: identifierSchema.optional(),
@@ -178,7 +178,7 @@ export const botTaskCreateSchema = z.strictObject({
  * Omitted fields keep their value; `null` clears a nullable one. Linking a delegation that a task was already
  * auto-recorded for merges that automatic row into this task.
  */
-export const botTaskUpdateSchema = z.strictObject({
+const botTaskUpdateSchema = z.strictObject({
     taskId: identifierSchema,
     title: botTaskTitleSchema.optional(),
     status: botTaskStatusSchema.optional(),
@@ -194,7 +194,7 @@ const botBoardProjectSchema = z.strictObject({
     rootPath: pathSchema,
 });
 
-export const botBoardSchema = z.strictObject({
+const botBoardSchema = z.strictObject({
     generatedAt: z.number(),
     /**
      * When the cached pull-request snapshot was last refreshed; the board never waits on GitHub.
@@ -215,7 +215,7 @@ export const botBoardSchema = z.strictObject({
  */
 export const botRunStateSchema = z.enum(['stopped', 'starting', 'working', 'waiting', 'idle']);
 
-export const botStatusSchema = z.strictObject({ state: botRunStateSchema });
+const botStatusSchema = z.strictObject({ state: botRunStateSchema });
 
 export type BotIdentity = z.infer<typeof botIdentitySchema>;
 export type BotSnapshot = z.infer<typeof botSnapshotSchema>;
@@ -234,7 +234,7 @@ const noParameters = z.object({}).default({});
 /**
  * What `caxriBot.open` brings into view in the Caxri Bot window beyond raising it.
  */
-export const caxriBotOpenTargetSchema = z.enum(['inbox']);
+const caxriBotOpenTargetSchema = z.enum(['inbox']);
 export type CaxriBotOpenTarget = z.infer<typeof caxriBotOpenTargetSchema>;
 
 /**

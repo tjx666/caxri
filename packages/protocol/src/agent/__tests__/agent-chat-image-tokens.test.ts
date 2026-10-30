@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import {
     agentChatImageToken,
     agentChatImageTokenRanges,
-    agentChatTextSegments,
     agentChatTextWithOffsetImages,
     agentChatTextWithRenumberedImages,
 } from '../agent-chat-image-tokens';
@@ -11,23 +10,6 @@ import {
 describe('agent chat image tokens', () => {
     it('writes the placeholder both terminal Agents use', () => {
         expect(agentChatImageToken(2)).toBe('[Image #2]');
-    });
-
-    it('cuts text at its placeholders in order', () => {
-        expect(agentChatTextSegments('Compare [Image #1] with [Image #2]')).toEqual([
-            { kind: 'text', text: 'Compare ' },
-            { kind: 'image', number: 1, text: '[Image #1]' },
-            { kind: 'text', text: ' with ' },
-            { kind: 'image', number: 2, text: '[Image #2]' },
-        ]);
-        expect(agentChatTextSegments('no images')).toEqual([{ kind: 'text', text: 'no images' }]);
-        expect(agentChatTextSegments('')).toEqual([]);
-    });
-
-    it('ignores text that only looks like a placeholder', () => {
-        expect(agentChatTextSegments('[Image #0] [image #1] [Image #]')).toEqual([
-            { kind: 'text', text: '[Image #0] [image #1] [Image #]' },
-        ]);
     });
 
     it('reports where each placeholder sits', () => {

@@ -31,7 +31,7 @@ export const longAnimationFrameInvokerTypes = [
  * `endedAgoMs` counts back from the moment the batch was sent, so a reader can place the frame against the log record's
  * own timestamp and against Server records without a shared clock.
  */
-export const slowAnimationFrameSchema = z.strictObject({
+const slowAnimationFrameSchema = z.strictObject({
     durationMs: durationMsSchema,
     endedAgoMs: durationMsSchema,
     blockingMs: durationMsSchema,
@@ -55,7 +55,7 @@ export const slowAnimationFrameSchema = z.strictObject({
  * full `app.bootstrap` read plus the Renderer's apply, so `snapshotMs` (reply to snapshot arrival, including any read
  * already in flight) and `applyMs` (arrival to applied) split it when the arrival was observed.
  */
-export const slowSessionSwitchSchema = z.strictObject({
+const slowSessionSwitchSchema = z.strictObject({
     totalMs: durationMsSchema,
     endedAgoMs: durationMsSchema,
     requestMs: durationMsSchema,

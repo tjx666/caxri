@@ -1,3 +1,4 @@
+import { execFile } from 'node:child_process';
 import process from 'node:process';
 
 /**
@@ -22,4 +23,28 @@ export function runnerCliEnvironment(): NodeJS.ProcessEnv {
     const environment = { ...process.env };
     for (const key of agentEndpointKeys) delete environment[key];
     return environment;
+}
+
+/**
+ * Runs the built `caxri` CLI from the Playwright runner with {@link runnerCliEnvironment}, resolving its exit code and
+ * output instead of rejecting on a non-zero exit.
+ */
+export function runRunnerCli(
+    cliPath: string,
+    arguments_: readonly string[],
+): Promise<{ code: number; stderr: string; stdout: string }> {
+    return new Promise((resolve) => {
+        execFile(
+            process.execPath,
+            [cliPath, ...arguments_],
+            { env: runnerCliEnvironment(), maxBuffer: 1024 * 1024, timeout: 10_000 },
+            (error, stdout, stderr) => {
+                resolve({
+                    code: typeof error?.code === 'number' ? error.code : error ? 1 : 0,
+                    stderr,
+                    stdout,
+                });
+            },
+        );
+    });
 }

@@ -52,7 +52,7 @@ export function isAgentChatWorkItem(item: AgentChatItem): item is AgentChatWorkI
  * Successful work stays quiet below three seconds; unsuccessful work retains every known duration. Running clocks keep
  * their independent one-second threshold.
  */
-export function formatAgentChatFinishedDuration(
+function formatAgentChatFinishedDuration(
     durationMs: number | undefined,
     status: AgentChatItemStatus,
     t: AgentChatLabelTranslate = translateAgentChatLabel,
@@ -359,7 +359,7 @@ export function splitAgentChatWork(
 /**
  * Work items that did not do what they set out to: failed, or declined by the user or a policy.
  */
-export const isAgentChatWorkUnsuccessful = (item: AgentChatWorkItem): boolean =>
+const isAgentChatWorkUnsuccessful = (item: AgentChatWorkItem): boolean =>
     item.type !== 'reasoning' && (item.status === 'failed' || item.status === 'declined');
 
 /**
@@ -380,7 +380,7 @@ export function agentChatWorkGroupFailure(
  * keeps naming the current step (`Running pnpm lint`) until the run ends instead of falling back to a count. Reasoning
  * names it only when the group holds nothing else.
  */
-export function agentChatCurrentWork(
+function agentChatCurrentWork(
     items: readonly AgentChatWorkItem[],
 ): { item: AgentChatWorkItem; presentation: AgentToolPresentation } | undefined {
     const active = agentChatActiveWork(items);
@@ -471,7 +471,7 @@ export function agentChatWorkSummaryPhrases(
 /**
  * The tool calls a work summary counts: one per command or tool call and one per changed file; reasoning counts none.
  */
-export function agentChatWorkSummaryTools(
+function agentChatWorkSummaryTools(
     items: readonly AgentChatWorkItem[],
 ): Array<{ name: string; summary?: string }> {
     return items.flatMap((item): Array<{ name: string; summary?: string }> => {
@@ -551,19 +551,4 @@ export function agentChatWorkSummaryGlyph(
             ? tools.find((tool) => describeAgentTool(tool).kind === 'mcp')?.name
             : undefined;
     return { kind, ...(mcpToolName && { mcpToolName }) };
-}
-
-/**
- * The one kind a group shares, or `undefined` when it mixes kinds and shows a generic glyph.
- */
-export function agentChatWorkKind(items: readonly AgentChatWorkItem[]): AgentToolKind | undefined {
-    const active = agentChatActiveWork(items);
-    if (active) return active.presentation.kind;
-    const kinds = new Set(
-        items
-            .filter((item) => item.type !== 'reasoning')
-            .map((item) => describeAgentChatWork(item).kind),
-    );
-    if (kinds.size === 0) return 'thought';
-    return kinds.size === 1 ? [...kinds][0] : undefined;
 }

@@ -10,7 +10,10 @@ bun run gitleaks -- --staged
 
 # Runs unscoped on purpose: README-index completeness and cross-document links are repository-wide properties that a
 # per-file run cannot see, and the full pass stays well under a second.
-if git diff --cached --name-only --diff-filter=ACM -- '*.md' | grep -q .; then
+# It also runs when any staged path is deleted or renamed: a code-only rename of a file a document cites passes without
+# touching Markdown but fails the same check in CI's guards job.
+if git diff --cached --name-only --diff-filter=ACM -- '*.md' | grep -q . ||
+    git diff --cached --name-status --diff-filter=DR | grep -q .; then
     bun run docs-check
 fi
 

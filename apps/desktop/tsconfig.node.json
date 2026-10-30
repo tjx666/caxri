@@ -1,5 +1,6 @@
 {
     "extends": "../../tsconfig.node.json",
+    "compilerOptions": { "composite": true },
     "include": [
         "src/main/**/*.ts",
         "src/preload/**/*.ts",

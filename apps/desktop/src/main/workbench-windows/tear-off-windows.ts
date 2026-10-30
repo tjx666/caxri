@@ -2,7 +2,7 @@ import type { PersistedWindowState } from '@caxri/protocol';
 import { errorMessage, logEventCatalog } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 
-import type { DesktopServerConnection } from '../server-connection';
+import type { DesktopServerConnection } from '../connection/server-connection';
 import type { WindowPlacement } from '../window-placement';
 import { PRIMARY_WINDOW_KEY } from '../window-presence-registry';
 import type { WorkbenchWindowLike, WorkbenchWindows } from './registry';

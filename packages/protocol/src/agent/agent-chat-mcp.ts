@@ -33,7 +33,7 @@ const httpsOriginSchema = z
  * One icon a server advertised in its MCP `serverInfo.icons` (protocol revision 2025-11-25), already narrowed by Server
  * Core to at most one per theme. `theme` names the background the icon is drawn for: `dark` for a dark UI.
  */
-export const agentChatMcpIconSchema = z.strictObject({
+const agentChatMcpIconSchema = z.strictObject({
     src: z
         .string()
         .max(MAX_AGENT_CHAT_MCP_ICON_SRC_LENGTH)

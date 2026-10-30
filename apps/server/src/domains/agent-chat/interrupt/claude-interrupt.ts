@@ -1,7 +1,7 @@
 import type { Query } from '@anthropic-ai/claude-agent-sdk';
 import { CaxriError } from '@caxri/protocol';
 
-import { withTimeout } from '../claude-prompt-queue';
+import { withTimeout } from '../providers/claude/prompt-queue';
 
 /**
  * An interrupt that Claude Code never acknowledges stops the process instead, so the Chat cannot stay stuck in a

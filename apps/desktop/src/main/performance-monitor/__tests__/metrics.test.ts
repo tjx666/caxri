@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { ElectronProcessSample } from '../../process-explorer';
+import type { ElectronProcessSample } from '../../process-explorer/sampler';
 import { createSharedProcessReader, gpuRasterState, summarizeProcesses } from '../metrics';
 
 const sample = (

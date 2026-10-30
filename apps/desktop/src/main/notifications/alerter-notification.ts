@@ -6,10 +6,7 @@ import { isAbsolute } from 'node:path';
 
 import { execFileAsync, preferredShell } from '@caxri/system';
 
-import type {
-    AgentSystemNotification,
-    AgentSystemNotificationHandle,
-} from '../agent-notifications';
+import type { AgentSystemNotification, AgentSystemNotificationHandle } from './agent-notifications';
 
 const ALERTER_CANDIDATES = ['/opt/homebrew/bin/alerter', '/usr/local/bin/alerter'] as const;
 const ALERTER_OUTPUT_LIMIT = 16 * 1024;

@@ -85,7 +85,7 @@ export const MOBILE_MAX_PROJECT_GRANTS = 128;
  */
 export const MOBILE_PAIRING_TTL_MS = 2 * 60_000;
 export const MOBILE_AGENT_SUBMIT_MAX_BYTES = 16 * 1_024;
-export const MOBILE_PROJECT_BROWSE_MAX_ENTRIES = 200;
+const MOBILE_PROJECT_BROWSE_MAX_ENTRIES = 200;
 export const mobileProjectIdsSchema = z
     .array(z.string().min(1).max(200))
     .min(1)
@@ -95,7 +95,7 @@ export const mobileProjectIdsSchema = z
         'Project grants must be unique',
     );
 
-export const mobileDeviceSummarySchema = z.strictObject({
+const mobileDeviceSummarySchema = z.strictObject({
     deviceId: mobileDeviceIdSchema,
     displayName: z.string().trim().min(1).max(100),
     platform: z.enum(['android', 'ios']),
@@ -111,7 +111,7 @@ export const mobileDeviceSummarySchema = z.strictObject({
  * An archived Session as the phone's Archived Sessions list shows it. Archived Sessions have no live Terminal, so only
  * the primary Agent's kind is projected, for the row's avatar.
  */
-export const mobileArchivedSessionSchema = z.strictObject({
+const mobileArchivedSessionSchema = z.strictObject({
     id: identifierSchema,
     projectId: identifierSchema,
     title: z.string().min(1).max(100),
@@ -122,7 +122,7 @@ export const mobileArchivedSessionSchema = z.strictObject({
 
 export const MOBILE_ARCHIVED_SESSIONS_MAX = 64;
 
-export const mobileArchivedSessionsResultSchema = z.strictObject({
+const mobileArchivedSessionsResultSchema = z.strictObject({
     sessions: z.array(mobileArchivedSessionSchema).max(MOBILE_ARCHIVED_SESSIONS_MAX),
     total: z.number().int().nonnegative().max(4_096),
     truncated: z.boolean(),
@@ -131,9 +131,9 @@ export const mobileArchivedSessionsResultSchema = z.strictObject({
 /**
  * Session management from a phone returns only the affected identity; the dashboard subscription carries the new state.
  */
-export const mobileSessionMutationResultSchema = z.strictObject({ sessionId: identifierSchema });
+const mobileSessionMutationResultSchema = z.strictObject({ sessionId: identifierSchema });
 
-export const mobileProjectSummarySchema = scopedProjectSchema.extend({
+const mobileProjectSummarySchema = scopedProjectSchema.extend({
     lastActivityAt: z.number().int().nonnegative().optional(),
 });
 
@@ -157,7 +157,7 @@ export const mobileSessionCreateResultSchema = z.strictObject({
         .optional(),
 });
 
-export const mobileAgentSubmitParametersSchema = z.strictObject({
+const mobileAgentSubmitParametersSchema = z.strictObject({
     sessionId: identifierSchema,
     terminalId: identifierSchema,
     endpoint: agentEndpointReferenceSchema,
@@ -178,7 +178,7 @@ export const mobileAgentSubmitParametersSchema = z.strictObject({
         ),
 });
 
-export const mobileAgentSubmitResultSchema = z.strictObject({
+const mobileAgentSubmitResultSchema = z.strictObject({
     terminalId: identifierSchema,
     outcome: z.enum(['accepted', 'unknown']),
 });
@@ -202,25 +202,25 @@ const mobileAgentAvailabilityResultSchema = z.strictObject({
  */
 const mobileHomePathSchema = z.string().min(1).max(4_096);
 
-export const mobileProjectBrowseParametersSchema = z.strictObject({
+const mobileProjectBrowseParametersSchema = z.strictObject({
     path: mobileHomePathSchema.optional(),
 });
 
-export const mobileProjectBrowseEntrySchema = z.strictObject({
+const mobileProjectBrowseEntrySchema = z.strictObject({
     name: z.string().min(1).max(255),
     relativePath: z.string().min(1).max(4_096),
     isGitRepository: z.boolean(),
     hasChildren: z.boolean(),
 });
 
-export const mobileProjectBrowseResultSchema = z.strictObject({
+const mobileProjectBrowseResultSchema = z.strictObject({
     entries: z.array(mobileProjectBrowseEntrySchema).max(MOBILE_PROJECT_BROWSE_MAX_ENTRIES),
     truncated: z.boolean(),
 });
 
-export const mobileProjectAddParametersSchema = z.strictObject({ path: mobileHomePathSchema });
+const mobileProjectAddParametersSchema = z.strictObject({ path: mobileHomePathSchema });
 
-export const mobileProjectAddResultSchema = z.strictObject({
+const mobileProjectAddResultSchema = z.strictObject({
     project: mobileProjectSummarySchema,
 });
 
@@ -235,13 +235,13 @@ export const MOBILE_AGENT_ACTIONS_MAX = 40;
  * Desktop picker) before keeping the first {@link MOBILE_AGENT_ACTIONS_MAX}, so a skill past the cut is still found. It
  * is the typed name, with or without its `/` or `$` sigil.
  */
-export const mobileAgentActionsParametersSchema = z.strictObject({
+const mobileAgentActionsParametersSchema = z.strictObject({
     sessionId: identifierSchema,
     terminalId: identifierSchema,
     query: z.string().max(64).optional(),
 });
 
-export const mobileAgentActionsResultSchema = z.strictObject({
+const mobileAgentActionsResultSchema = z.strictObject({
     actions: z.array(agentActionSchema).max(MOBILE_AGENT_ACTIONS_MAX),
     truncated: z.boolean(),
 });
@@ -562,5 +562,3 @@ export const mobileInternalMethods = {
 export type MobileDashboardResult = z.infer<typeof mobileDashboardResultSchema>;
 export type MobileArchivedSessionsResult = z.infer<typeof mobileArchivedSessionsResultSchema>;
 export type MobileDeviceSummary = z.infer<typeof mobileDeviceSummarySchema>;
-export type MobileProjectBrowseResult = z.infer<typeof mobileProjectBrowseResultSchema>;
-export type MobileProjectAddResult = z.infer<typeof mobileProjectAddResultSchema>;

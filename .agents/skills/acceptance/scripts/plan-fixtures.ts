@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { ACCEPTANCE_UPDATE_FIXTURE_ID } from '../../../../apps/desktop/src/main/acceptance-update';
+import { ACCEPTANCE_UPDATE_FIXTURE_ID } from '../../../../apps/desktop/src/main/acceptance/update';
 
 /**
  * Main-process fixtures a frozen plan item may declare. The declaration is the only admission list: the launcher arms a

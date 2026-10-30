@@ -8,7 +8,7 @@ import { parseTopLevelMarkdown } from './markdown-blocks.js';
 /**
  * Parse-work accounting, the machine-independent measure the streaming regressions assert on.
  */
-export interface StreamingMarkdownStats {
+interface StreamingMarkdownStats {
     /**
      * Calls that actually ran the Markdown engine; an unchanged source is answered from the cache.
      */

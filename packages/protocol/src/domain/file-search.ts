@@ -4,7 +4,7 @@ import { pathSchema } from './identifiers.js';
 
 export const fileSearchModeSchema = z.enum(['name', 'content']);
 
-export const fileSearchTerminationReasonSchema = z.enum([
+const fileSearchTerminationReasonSchema = z.enum([
     'completed',
     'canceled',
     'timeout',

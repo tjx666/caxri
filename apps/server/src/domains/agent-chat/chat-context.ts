@@ -3,7 +3,7 @@ import { agentChatContextReportSchema, CaxriError } from '@caxri/protocol';
 
 import { readChatTranscript, requireChatTerminal } from './chat-launch';
 import type { AgentChatProviderSession, ChatContextDetails } from './chat-provider';
-import { claudeContextRequests } from './claude-context-requests';
+import { claudeContextRequests } from './providers/claude/context-requests';
 import type { AgentChatServiceOptions } from './service-options';
 
 /**

@@ -17,7 +17,7 @@ const gitHubNameSchema = z
     .min(1)
     .refine(isGitHubName, 'Not a GitHub owner or repository name');
 
-export const terminalGitHubRepoSchema = z.strictObject({
+const terminalGitHubRepoSchema = z.strictObject({
     owner: z.string().min(1).max(100),
     repo: z.string().min(1).max(100),
 });
@@ -26,7 +26,7 @@ export const terminalReferenceContextSchema = z.strictObject({
     githubRepositories: z.array(terminalGitHubRepoSchema).max(50),
 });
 
-export const terminalCommitLinkCandidateSchema = z.strictObject({
+const terminalCommitLinkCandidateSchema = z.strictObject({
     repositoryId: identifierSchema,
     repositoryName: z.string().min(1).max(1_024),
     sha: z.string().regex(/^[0-9a-f]{40}$/),
@@ -70,7 +70,7 @@ export const terminalReferencePreviewRequestSchema = z.discriminatedUnion('kind'
  * missing" and "GitHub is rate limited" are the same blank card to the user and completely different problems to the
  * operator.
  */
-export const terminalReferencePreviewUnavailableReasonSchema = z.enum([
+const terminalReferencePreviewUnavailableReasonSchema = z.enum([
     'ambiguous',
     'cli-missing',
     'failed',
@@ -122,6 +122,3 @@ export type TerminalCommitLinkCandidate = z.infer<typeof terminalCommitLinkCandi
 export type TerminalCommitLinkResolution = z.infer<typeof terminalCommitLinkResolutionSchema>;
 export type TerminalReferencePreviewRequest = z.infer<typeof terminalReferencePreviewRequestSchema>;
 export type TerminalReferencePreview = z.infer<typeof terminalReferencePreviewSchema>;
-export type TerminalReferencePreviewUnavailableReason = z.infer<
-    typeof terminalReferencePreviewUnavailableReasonSchema
->;

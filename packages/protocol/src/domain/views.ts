@@ -44,7 +44,7 @@ export const extensionIdSchema = z
 export const extensionCommandIdSchema = createNamespacedIdentifierSchema();
 export const extensionBuiltinIconIdSchema = z.enum(['beaker', 'files', 'git-branch', 'status']);
 
-export const viewContainerLocationSchema = z.enum(['secondarySidebar', 'panel']);
+const viewContainerLocationSchema = z.enum(['secondarySidebar', 'panel']);
 /**
  * Every member must be reachable by an `assertApiAccess` call in the extension service. A declared capability that no
  * check consumes constrains nothing, so it reads as authority the extension does not actually hold. Session identity is
@@ -79,7 +79,7 @@ export const viewIconSchema = z.discriminatedUnion('kind', [
     }),
 ]);
 
-export const extensionLifecycleStateSchema = z.enum([
+const extensionLifecycleStateSchema = z.enum([
     'discovered',
     'activating',
     'active',
@@ -131,7 +131,7 @@ const descriptorSourceSchema = z.discriminatedUnion('kind', [
     z.object({ kind: z.literal('extension'), extensionId: extensionIdSchema }),
 ]);
 
-export const viewKindSchema = z.discriminatedUnion('kind', [
+const viewKindSchema = z.discriminatedUnion('kind', [
     z.object({
         kind: z.literal('builtin-react'),
         component: z.enum(['logs', 'info']),
@@ -159,12 +159,12 @@ export const extensionViewActionRoleSchema = z.enum([
     'resource.refresh',
 ]);
 
-export const viewActionDescriptorSchema = z.object({
+const viewActionDescriptorSchema = z.object({
     commandId: extensionCommandIdSchema,
     role: extensionViewActionRoleSchema,
 });
 
-export const viewContainerDescriptorSchema = z.object({
+const viewContainerDescriptorSchema = z.object({
     id: viewContainerIdSchema,
     location: viewContainerLocationSchema,
     source: descriptorSourceSchema,
@@ -175,7 +175,7 @@ export const viewContainerDescriptorSchema = z.object({
     error: extensionErrorSchema.optional(),
 });
 
-export const viewDescriptorSchema = z.object({
+const viewDescriptorSchema = z.object({
     id: viewIdSchema,
     containerId: viewContainerIdSchema,
     source: descriptorSourceSchema,
@@ -187,7 +187,7 @@ export const viewDescriptorSchema = z.object({
     actions: z.array(viewActionDescriptorSchema).max(32).optional(),
 });
 
-export const contributedCommandDescriptorSchema = z.object({
+const contributedCommandDescriptorSchema = z.object({
     id: extensionCommandIdSchema,
     title: z.string().min(1).max(200),
     description: z.string().max(1_024).optional(),
@@ -197,7 +197,7 @@ export const contributedCommandDescriptorSchema = z.object({
     lifecycle: z.union([z.literal('builtin'), z.literal('core'), extensionLifecycleStateSchema]),
 });
 
-export const extensionDescriptorSchema = z.object({
+const extensionDescriptorSchema = z.object({
     id: extensionIdSchema,
     version: z.string().min(1).max(100),
     generation: z.number().int().nonnegative(),
@@ -214,7 +214,7 @@ export const viewCatalogSnapshotSchema = z.object({
 });
 
 export const treeItemIdSchema = z.string().min(1).max(480);
-export const extensionTreeViewStateSchema = z.object({
+const extensionTreeViewStateSchema = z.object({
     expandedItemIds: z.array(treeItemIdSchema).max(MAX_VIEW_TREE_PERSISTED_IDS),
     initializedItemIds: z.array(treeItemIdSchema).max(MAX_VIEW_TREE_PERSISTED_IDS),
     focusedItemId: treeItemIdSchema.optional(),
@@ -235,7 +235,7 @@ const sourceControlDisclosureStateSchema = (keySchema: z.ZodString) =>
             'Too many persisted Source Control disclosure entries',
         );
 
-export const sourceControlViewStateSchema = z.object({
+const sourceControlViewStateSchema = z.object({
     expandedDirectories: sourceControlDisclosureStateSchema(z.string().min(1).max(16_384)),
     expandedGroups: sourceControlDisclosureStateSchema(treeItemIdSchema),
     expandedProviders: sourceControlDisclosureStateSchema(treeItemIdSchema),
@@ -259,7 +259,7 @@ export const extensionViewChangeSchema = z.discriminatedUnion('kind', [
     }),
 ]);
 
-export const sourceControlViewIconSchema = z.discriminatedUnion('kind', [
+const sourceControlViewIconSchema = z.discriminatedUnion('kind', [
     z.object({ kind: z.literal('theme'), id: z.string().min(1).max(100) }),
     z.object({ kind: z.literal('file-type'), name: z.string().min(1).max(1_024) }),
 ]);
@@ -272,7 +272,7 @@ const sourceControlCommandBindingSchema = z.object({
     arguments: sourceControlCommandArgumentsSchema.optional(),
 });
 
-export const sourceControlActionSchema = z.object({
+const sourceControlActionSchema = z.object({
     id: treeItemIdSchema,
     label: z.string().min(1).max(1_024),
     icon: sourceControlViewIconSchema,
@@ -296,7 +296,7 @@ const sourceControlResourceDecorationSchema = z.object({
     tone: z.enum(['danger', 'success', 'warning']),
 });
 
-export const sourceControlResourceSchema = z.object({
+const sourceControlResourceSchema = z.object({
     id: treeItemIdSchema,
     label: z.string().min(1).max(1_024),
     description: z.string().max(1_024).optional(),
@@ -329,7 +329,7 @@ const sourceControlGroupSchema = z.object({
     resources: z.array(sourceControlResourceSchema).max(2_000),
 });
 
-export const sourceControlHistoryDescriptorSchema = z.object({
+const sourceControlHistoryDescriptorSchema = z.object({
     id: treeItemIdSchema,
     label: z.string().min(1).max(1_024),
     command: sourceControlCommandBindingSchema,
@@ -523,7 +523,6 @@ export type ViewContainerLocation = z.infer<typeof viewContainerLocationSchema>;
 export type ExtensionCapability = z.infer<typeof extensionCapabilitySchema>;
 export type ExtensionBuiltinIconId = z.infer<typeof extensionBuiltinIconIdSchema>;
 export type ExtensionError = z.infer<typeof extensionErrorSchema>;
-export type ExtensionLifecycleState = z.infer<typeof extensionLifecycleStateSchema>;
 export type ExtensionViewEventContext = z.infer<typeof extensionViewEventContextSchema>;
 export type ExtensionViewChange = z.infer<typeof extensionViewChangeSchema>;
 export type SourceControlAction = z.infer<typeof sourceControlActionSchema>;
@@ -546,6 +545,4 @@ export type ContributedCommandDescriptor = z.infer<typeof contributedCommandDesc
 export type ExtensionDescriptor = z.infer<typeof extensionDescriptorSchema>;
 export type ViewCatalogSnapshot = z.infer<typeof viewCatalogSnapshotSchema>;
 export type ExtensionTreeViewState = z.infer<typeof extensionTreeViewStateSchema>;
-export type ExtensionTreeViewStates = z.infer<typeof extensionTreeViewStatesSchema>;
 export type SourceControlViewState = z.infer<typeof sourceControlViewStateSchema>;
-export type SourceControlViewStates = z.infer<typeof sourceControlViewStatesSchema>;

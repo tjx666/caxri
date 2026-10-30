@@ -18,13 +18,13 @@ import { delegatedTaskDetails } from './chat-delegated-task';
 import { requireChatTerminal } from './chat-launch';
 import { ChatProjection } from './chat-projection';
 import type { AgentChatProviderSession } from './chat-provider';
-import { ChatFollowUpQueue } from './chat-queue';
 import { chatStateStore } from './chat-state-store';
 import { ChatSubagentSummaries } from './chat-subagent-summaries';
-import { forgetTaskRevisions } from './chat-task-projections';
 import type { ChatUsageContinuation } from './continuation/chat-usage-continuation';
 import type { ChatUsageLimitWaits } from './continuation/chat-usage-limit-waits';
 import type { ProjectionUsageLimitWaits } from './continuation/usage-continuation-stamp';
+import { ChatFollowUpQueue } from './queue/follow-up-queue';
+import { forgetTaskRevisions } from './tasks/projections';
 
 export type ChatTerminal = TerminalRecord & { provider: AgentProvider };
 

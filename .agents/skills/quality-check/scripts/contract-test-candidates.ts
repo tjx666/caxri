@@ -82,7 +82,7 @@ function serverDomainContractTestCandidates(files: readonly string[]): string[] 
  * domain handler, mobile role, Caxri Bot and Benchmark window policy).
  */
 const METHOD_REGISTRY_CONTRACT_TESTS = [
-    'apps/desktop/src/main/__tests__/benchmark-window-policy.test.ts',
+    'apps/desktop/src/main/benchmark/__tests__/window-policy.test.ts',
     'apps/desktop/src/main/__tests__/caxri-bot-policy.test.ts',
     'apps/server/src/core/__tests__/control-server-lane.test.ts',
     'apps/server/src/core/__tests__/domain-service.test.ts',

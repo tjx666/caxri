@@ -1,7 +1,7 @@
 import type { AgentChatTurn } from '@caxri/protocol';
 
 import { isRecord } from '../chat-items';
-import { isHumanQueuedClaudePrompt } from '../claude-input';
+import { isHumanQueuedClaudePrompt } from '../providers/claude/input';
 
 /**
  * Times the turns of a replayed Claude Code transcript from their records' timestamps. Claude Code writes a

@@ -44,11 +44,11 @@ replaced session's late reports are dropped. Shared pieces:
   stdio, shared by Codex (which omits the `jsonrpc` field) and Grok Build's ACP (which requires it).
   It bounds frame size and pending writes and ignores responses to requests it never sent.
 
-| Provider    | Driver                   | Protocol                                                           |
-| ----------- | ------------------------ | ------------------------------------------------------------------ |
-| Codex       | `codex-chat-session.ts`  | `codex app-server --listen stdio://` JSON-RPC                      |
-| Claude Code | `claude-chat-session.ts` | Claude Agent SDK streaming input over the user's own `claude` CLI  |
-| Grok Build  | `grok-chat-session.ts`   | ACP (Agent Client Protocol) v1 over `grok agent --no-leader stdio` |
+| Provider    | Driver                             | Protocol                                                           |
+| ----------- | ---------------------------------- | ------------------------------------------------------------------ |
+| Codex       | `providers/codex/chat-session.ts`  | `codex app-server --listen stdio://` JSON-RPC                      |
+| Claude Code | `providers/claude/chat-session.ts` | Claude Agent SDK streaming input over the user's own `claude` CLI  |
+| Grok Build  | `providers/grok/chat-session.ts`   | ACP (Agent Client Protocol) v1 over `grok agent --no-leader stdio` |
 
 Adding a provider means:
 
@@ -197,7 +197,7 @@ additions a PTY Agent receives from `apps/server/src/domains/terminal/lifecycle-
   double-report.
 - The Agent Endpoint environment (`CAXRI_MANAGED_AGENT`, `CAXRI_AGENT_ENDPOINT_*`,
   `CAXRI_USER_DATA_DIR`, `CAXRI_CLI`, `CAXRI_CLI_PATH`), from `agentChatEndpoint`
-  (`apps/server/src/domains/agent-chat/chat-endpoint.ts`): `caxri` commands a Chat Agent runs act as
+  (`apps/server/src/domains/agent-chat/endpoint/agent-endpoint.ts`): `caxri` commands a Chat Agent runs act as
   its own managed Agent identity, with the same capabilities as a PTY Agent, so it can message peers
   and [start work in a new Session](agent-delegation.md#start-work-in-a-new-session). Without it, the
   CLI would fall back to the owner's identity, which the bundled skill forbids an Agent to borrow.
@@ -336,8 +336,8 @@ The SDK speaks Claude Code's stream-json control protocol; Caxri passes the reso
 `pathToClaudeCodeExecutable` and spawns it through `spawnClaudeCodeProcess`, so the SDK's bundled
 binary is never used and `ProviderProcess` owns the child. ADR 0012 deferred a dedicated Chat worker process
 until the SDK arrived; because the SDK only frames stdio for that separate `claude` child, it runs
-inside Server Core without one. `claude-items.ts` holds the pure message mapping,
-`claude-history.ts` rebuilds a resumed Chat from the transcript, and `claude-requests.ts` holds
+inside Server Core without one. `providers/claude/items.ts` holds the pure message mapping,
+`claude-history.ts` rebuilds a resumed Chat from the transcript, and `providers/claude/requests.ts` holds
 pending permission prompts and questions until the user answers:
 
 - Claude Code has no turn ids. A turn is named by the uuid of the user message that started it and
@@ -355,7 +355,7 @@ pending permission prompts and questions until the user answers:
   duration Caxri measures from the `tool_use` to its result, because Claude Code reports none. A
   command started with `run_in_background`, or moved there by the user or a timeout
   (`backgroundTaskId`, `backgroundedByUser` in the structured result), is marked `background` and
-  carries neither, since it finishes after the hand-off. Settling lives in `claude-tool-results.ts`.
+  carries neither, since it finishes after the hand-off. Settling lives in `providers/claude/tool-results.ts`.
 - `Edit`/`MultiEdit`/`Write`/`NotebookEdit` is a file change whose diff is
   replaced by Claude Code's `structuredPatch` when the result arrives, `TodoWrite` the plan, and
   every other tool a generic tool row. Subagent frames (`parent_tool_use_id`, with
@@ -372,7 +372,7 @@ pending permission prompts and questions until the user answers:
 
 ## Grok Build mapping
 
-`grok-chat-session.ts` speaks ACP and `grok-items.ts` holds the pure mapping:
+`providers/grok/chat-session.ts` speaks ACP and `providers/grok/items.ts` holds the pure mapping:
 
 - A turn is one `session/prompt`, named by the `promptId` Caxri sends in its `_meta`; the prompt's
   result carries the stop reason (`end_turn`, `cancelled`, `max_tokens`, `refusal`) and the
@@ -423,7 +423,7 @@ record is the source of truth.
   while a reply streams. Older items leave the projection first and `truncated` is set. A diff cut
   by either diff bound carries its own `truncated` flag, so the pane marks where it stops.
 - Items that leave the projection are not lost. Server Core moves them, with their turns, into a
-  per-Chat history archive (`apps/server/src/domains/agent-chat/chat-history-archive.ts`, bounded
+  per-Chat history archive (`apps/server/src/domains/agent-chat/history/archive.ts`, bounded
   at 20,000 items and 32 MiB of text). `agentChat.readHistory` pages back through it, at most 200
   items or 2 MiB per page, by the id of the oldest item a Client holds. Past the archive, a Claude
   Code Chat reads the rest from its transcript (up to 128 MiB, parsed once and cached for a minute
@@ -773,7 +773,7 @@ options (`allow_once`, `allow_always`, `reject_once`, `reject_always`) set the o
 and Skip or a decision with no matching option answers `cancelled`. Grok Build reports a rejected
 call as `failed`, live and in its `session/load` replay (one merged `tool_call` frame per call, no
 later `tool_call_update`), with the text ``User rejected the execution
-for tool `<tool>` `` (verified on 1.0.50), so `grok-items.ts` reads that text as declined and the row
+for tool `<tool>` `` (verified on 1.0.50), so `providers/grok/items.ts` reads that text as declined and the row
 looks the same after Server Core restarts; any other failure stays failed. Caxri turns on
 `_x.ai/ask_user_question` (`_meta.askUserQuestion`) when it opens the session, and each question
 request becomes a `question` keyed by its `toolCallId`. Grok Build's questions carry no id or
@@ -1732,12 +1732,12 @@ request's cache usage. Caxri Bot window refuses
   the running process; a closed Chat, or one that does not answer within five seconds, reports
   history only. Reading a report never spawns a provider.
 - `requests`: every main-thread model request replayed from the transcript on disk, newest
-  1,000 (`claude-context-requests.ts`). Records sharing a `message.id` collapse into one, and
+  1,000 (`providers/claude/context-requests.ts`). Records sharing a `message.id` collapse into one, and
   sidechain (subagent) and `<synthetic>` records are skipped. A `compact_boundary` record marks the
   next request as following a compaction. `isHistoryTruncated` says the transcript read was cut.
 - `changes`: what the Server saw change between consecutive composition reads of this process
   (MCP tools, skills, memory files, or agents added or removed; system prompt or tools resized),
-  newest 100 (`ClaudeContextTracker` in `claude-context-report.ts`). Claude Code does not say why
+  newest 100 (`ClaudeContextTracker` in `providers/claude/context-report.ts`). Claude Code does not say why
   a cache missed, so these are the evidence the tab cites; they reset when the process restarts.
 
 The Renderer derives everything else (`context/cache-analysis.ts`). A request breaks the cache when
@@ -1961,7 +1961,7 @@ working-directory session discovery for an unbound Chat so it cannot claim an un
 conversation.
 
 A Claude Chat also registers in-process `PreToolUse`, `PostToolUse`, and `PostToolUseFailure`
-callbacks for `Bash` (`apps/server/src/domains/agent-chat/claude-shell-hooks.ts`) and synthesizes
+callbacks for `Bash` (`apps/server/src/domains/agent-chat/providers/claude/shell-hooks.ts`) and synthesizes
 the same `shellToolStarted`, `shellToolFinished`, and `shellToolFailed` signals the Terminal hook
 bridge reports. The `git worktree add` classifier is
 one shared source (`apps/server/src/domains/agents/hooks/worktree-command.ts`) that the bridge

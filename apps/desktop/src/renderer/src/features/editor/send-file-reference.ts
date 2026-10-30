@@ -21,7 +21,7 @@ import { focusTerminalById, whenTerminalAttached } from '../terminal/terminal-pa
 import { getActivePaneId, getActivePaneTab } from '../workbench/pane-actions';
 import { editorStatusKey, useEditorStatusStore } from './editor-status';
 import { chooseReferenceTerminal, formatFileReference } from './file-reference';
-import { getDiffEditorFileSelection } from './git-diff-actions';
+import { getDiffEditorFileSelection } from './git/diff-actions';
 
 /**
  * Upper bound for a just-revealed Terminal pane to mount and attach before the reference is abandoned.

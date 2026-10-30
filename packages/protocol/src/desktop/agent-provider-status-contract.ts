@@ -15,18 +15,14 @@ export const agentProviderServiceStatuses = [
     'partialOutage',
     'majorOutage',
 ] as const;
-export const agentProviderServiceStatusSchema = z.enum(agentProviderServiceStatuses);
+const agentProviderServiceStatusSchema = z.enum(agentProviderServiceStatuses);
 export type AgentProviderServiceStatus = z.infer<typeof agentProviderServiceStatusSchema>;
 
 /**
  * Why a status page could not be read. `network` covers offline, DNS, proxy, and timeout failures; `http` a non-2xx
  * answer; `invalidResponse` a body that no longer has the shape Main parses, which usually means the page changed.
  */
-export const agentProviderStatusFailureReasonSchema = z.enum([
-    'network',
-    'http',
-    'invalidResponse',
-]);
+const agentProviderStatusFailureReasonSchema = z.enum(['network', 'http', 'invalidResponse']);
 export type AgentProviderStatusFailureReason = z.infer<
     typeof agentProviderStatusFailureReasonSchema
 >;
@@ -36,7 +32,7 @@ const statusTextSchema = z.string().max(500);
 /**
  * One stretch of time a status page recorded a component as not operational.
  */
-export const agentProviderStatusImpactSchema = z.strictObject({
+const agentProviderStatusImpactSchema = z.strictObject({
     /**
      * Epoch milliseconds.
      */
@@ -52,7 +48,7 @@ export const agentProviderStatusImpactSchema = z.strictObject({
  * A component's recent history as its status page publishes it: the page's own uptime figure over the window and the
  * raw impact intervals. Intervals rather than per-day buckets, so the Renderer can split days in the user's time zone.
  */
-export const agentProviderStatusUptimeSchema = z.strictObject({
+const agentProviderStatusUptimeSchema = z.strictObject({
     /**
      * Epoch milliseconds the history window starts and ends.
      */
@@ -69,7 +65,7 @@ export const agentProviderStatusUptimeSchema = z.strictObject({
     impacts: z.array(agentProviderStatusImpactSchema).max(1_000),
 });
 
-export const agentProviderStatusComponentSchema = z.strictObject({
+const agentProviderStatusComponentSchema = z.strictObject({
     name: statusTextSchema,
     status: agentProviderServiceStatusSchema,
     /**
@@ -78,7 +74,7 @@ export const agentProviderStatusComponentSchema = z.strictObject({
     uptime: agentProviderStatusUptimeSchema.optional(),
 });
 
-export const agentProviderStatusIncidentSchema = z.strictObject({
+const agentProviderStatusIncidentSchema = z.strictObject({
     name: statusTextSchema,
     /**
      * The incident's own phase as the page words it (`investigating`, `identified`, `monitoring`), shown verbatim.

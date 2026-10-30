@@ -5,6 +5,8 @@ import { ESLint } from 'eslint';
 import { parse as parseJsonc } from 'jsonc-parser';
 import { describe, expect, it } from 'vitest';
 
+import desktopNodeConfigText from '../../apps/desktop/tsconfig.node.json?raw';
+import desktopWebConfigText from '../../apps/desktop/tsconfig.web.json?raw';
 import mobileRuntimeConfigText from '../../apps/mobile/tsconfig.runtime.json?raw';
 import nodeConfigText from '../../tsconfig.node.json?raw';
 import webConfigText from '../../tsconfig.web.json?raw';
@@ -206,10 +208,16 @@ describe('pnpm workspace contract', () => {
     });
 
     it('registers current source discovery in TypeScript', () => {
-        expect(nodeConfigText).toContain('"apps/desktop/src/main/**/*.ts"');
-        expect(nodeConfigText).toContain('"apps/server/**/*.ts"');
+        // Each source file has one authoritative program (docs/quality-toolchain.md "TypeScript program ownership"):
+        // workspace sources belong to their workspace config, and the root node program keeps only unowned files.
+        expect(desktopNodeConfigText).toContain('"src/main/**/*.ts"');
+        expect(desktopWebConfigText).toContain('"src/renderer/src/**/*.tsx"');
+        expect(nodeConfigText).not.toContain('"apps/desktop/src/main/**/*.ts"');
+        expect(nodeConfigText).not.toContain('"apps/server/**/*.ts"');
+        expect(nodeConfigText).not.toContain('"packages/**/*.ts"');
+        expect(nodeConfigText).toContain('"apps/server/scripts/**/*.ts"');
         expect(nodeConfigText).not.toContain('"apps/**/*.tsx"');
-        expect(webConfigText).toContain('"apps/desktop/src/renderer/src/**/*.tsx"');
+        expect(webConfigText).not.toContain('"apps/desktop/src/renderer/src/**/*.tsx"');
         expect(webConfigText).toContain('"packages/client/src/connection/**/*.ts"');
         expect(webConfigText).toContain('"packages/client/src/state/**/*.ts"');
         expect(webConfigText).not.toContain('"packages/client/src/**/*.ts"');

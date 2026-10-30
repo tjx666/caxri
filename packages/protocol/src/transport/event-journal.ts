@@ -230,7 +230,7 @@ export type ProtocolEventEnvelope = z.infer<typeof protocolEventEnvelopeSchema>;
 /**
  * Bounded convergence metadata; full Desktop bootstrap data is deliberately not representable.
  */
-export const protocolRecoverySnapshotSchema = z.object({
+const protocolRecoverySnapshotSchema = z.object({
     cursor: cursorSchema,
     projectIds: z.array(z.string().min(1).max(200)).max(1_024),
     sessionIds: z.array(z.string().min(1).max(200)).max(4_096),
@@ -294,7 +294,7 @@ const OBSERVABLE_EVENT_NAMES = {
     'updates.state': true,
     'window.fullScreen': true,
 } as const satisfies Record<DurableServerEvent['event'], true>;
-export const observableEventNameSchema = z.enum(
+const observableEventNameSchema = z.enum(
     Object.keys(OBSERVABLE_EVENT_NAMES) as [
         DurableServerEvent['event'],
         ...Array<DurableServerEvent['event']>,

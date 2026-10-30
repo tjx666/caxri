@@ -88,7 +88,7 @@ describe('renderer entry loading', () => {
             'utf8',
         );
         const processExplorerSource = readFileSync(
-            join(import.meta.dirname, '..', 'process-explorer-window.ts'),
+            join(import.meta.dirname, '..', 'process-explorer', 'window.ts'),
             'utf8',
         );
         const caxriBotSource = readFileSync(

@@ -8,11 +8,11 @@ import { logEventCatalog } from '@caxri/system';
 import type { MessageBoxOptions } from 'electron';
 import { app, BrowserWindow, dialog, shell } from 'electron';
 
-import { createAcceptanceUpdateFixture } from '../acceptance-update';
+import { createAcceptanceUpdateFixture } from '../acceptance/update';
+import type { DesktopServerConnection } from '../connection/server-connection';
 import { translateMain } from '../locale';
 import type { createMainQuitHandler, createQuitIntent } from '../main-quit-wiring';
 import { exportProjectsAndSessions } from '../native-file-dialogs';
-import type { DesktopServerConnection } from '../server-connection';
 import { packagedSourceMapFlavor } from '../source-map-flavor';
 import type { InPlaceInstallTarget } from './update-install';
 import {

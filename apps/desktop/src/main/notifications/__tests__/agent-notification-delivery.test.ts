@@ -2,12 +2,12 @@ import type { StructuredLogger } from '@caxri/system';
 import type { Notification as ElectronNotification } from 'electron';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { AgentSystemNotification } from '../../agent-notifications';
 import {
     createAgentNotificationDelivery,
     isUnsignedOrAdHocSignature,
     presentDelivery,
 } from '../agent-notification-delivery';
+import type { AgentSystemNotification } from '../agent-notifications';
 import type { AlerterNotificationDriver } from '../alerter-notification';
 import type { OsascriptNotificationDriver } from '../osascript-notification';
 

@@ -8,7 +8,7 @@ import { capabilitySchema, principalSchema } from './principal.js';
  * Version 2 makes every `files.changed` event carry its immutable Workbench Project scope.
  */
 export const CAXRI_PROTOCOL_VERSION = 2 as const;
-export const supportedProtocolVersions = [CAXRI_PROTOCOL_VERSION] as const;
+const supportedProtocolVersions = [CAXRI_PROTOCOL_VERSION] as const;
 export const protocolVersionSchema = z.literal(CAXRI_PROTOCOL_VERSION);
 
 export type CaxriProtocolVersion = typeof CAXRI_PROTOCOL_VERSION;

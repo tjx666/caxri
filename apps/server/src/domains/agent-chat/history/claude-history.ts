@@ -17,19 +17,24 @@ import {
     storedChatImageSchema,
     stringField,
 } from '../chat-items';
-import { claudeResponseUsage } from '../claude-context';
+import { claudeFeedbackItems, claudeFeedbackToolUseId } from '../feedback/claude-feedback';
+import { claudeGoalNotice } from '../goals/claude-goals';
+import { claudeResponseUsage } from '../providers/claude/context';
 import {
     claudeUserImageCount,
     isClaudeCompactCommand,
     isClaudeUsageLimitContinuePrompt,
     isHumanQueuedClaudePrompt,
     isQueuedClaudePrompt,
-} from '../claude-input';
-import { claudeAssistantItems, ClaudeBlockIds, claudeUsageTokens, text } from '../claude-items';
-import { claudeCompaction } from '../claude-system-notices';
-import { settleClaudeToolItem } from '../claude-tool-results';
-import { claudeFeedbackItems, claudeFeedbackToolUseId } from '../feedback/claude-feedback';
-import { claudeGoalNotice } from '../goals/claude-goals';
+} from '../providers/claude/input';
+import {
+    claudeAssistantItems,
+    ClaudeBlockIds,
+    claudeUsageTokens,
+    text,
+} from '../providers/claude/items';
+import { claudeCompaction } from '../providers/claude/system-notices';
+import { settleClaudeToolItem } from '../providers/claude/tool-results';
 import { ClaudeTurnClock } from './claude-turn-clock';
 
 /**

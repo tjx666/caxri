@@ -20,7 +20,7 @@ export function environmentTabPath(): string {
     return ENVIRONMENT_TAB_PATH;
 }
 
-export function isEnvironmentTabPath(path: string): boolean {
+function isEnvironmentTabPath(path: string): boolean {
     return path === ENVIRONMENT_TAB_PATH;
 }
 

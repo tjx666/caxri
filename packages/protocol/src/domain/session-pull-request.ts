@@ -42,7 +42,7 @@ export const pullRequestUnavailableSchema = z.object({
  * merge commit, which is what makes it this Session's delivery rather than the project's general deployment state. A
  * later merge moves production to another commit, and the field disappears from the row it used to describe.
  */
-export const sessionDeploymentSchema = z.object({
+const sessionDeploymentSchema = z.object({
     state: projectStatusStateSchema,
 });
 
@@ -65,7 +65,7 @@ export const sessionPullRequestSchema = z.object({
     mergedAt: z.number().optional(),
 });
 
-export const sessionPullRequestsSchema = z.object({
+const sessionPullRequestsSchema = z.object({
     /**
      * Keyed by Session id; Sessions without a discovered pull request are omitted.
      */

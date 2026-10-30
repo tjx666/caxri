@@ -24,7 +24,7 @@ export const MOBILE_AGENT_USAGE_INCIDENT_UPDATE_CHARS = 600;
  * Output speed of the provider's most recently active Agent the device may see, as the Desktop status bar's tok/s chip
  * measures it: the token-weighted rate over its last few measured responses (`outputTokens / durationMs`).
  */
-export const mobileAgentThroughputSchema = z.strictObject({
+const mobileAgentThroughputSchema = z.strictObject({
     outputTokens: z.number().int().nonnegative(),
     durationMs: z.number().nonnegative(),
     responseCount: z.number().int().nonnegative(),
@@ -40,7 +40,7 @@ export const mobileAgentThroughputSchema = z.strictObject({
     sessionTitle: z.string().max(200),
 });
 
-export const mobileAgentUsageProviderSchema = z.strictObject({
+const mobileAgentUsageProviderSchema = z.strictObject({
     provider: agentProviderSchema,
     /**
      * The newest account-wide plan reading; absent before the provider has reported one (an API key has none, and

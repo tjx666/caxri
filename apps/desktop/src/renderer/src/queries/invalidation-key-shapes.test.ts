@@ -15,12 +15,12 @@ const mocks = vi.hoisted(() => {
 
 vi.mock('../lib/caxri', () => ({ caxri: mocks }));
 
-import type { ExtensionTreeScope } from '../features/view-containers/extension-tree-client';
+import type { ExtensionTreeScope } from '../features/view-containers/extension-tree/extension-tree-client';
 import {
     cacheTreeChildren,
     readCachedTreeChildren,
     ROOT_HANDLE,
-} from '../features/view-containers/extension-tree-client';
+} from '../features/view-containers/extension-tree/extension-tree-client';
 import { controlledViewQueryKey } from '../features/view-containers/view-operation-client';
 import { caxriQueryKey } from './client';
 import { subscribeRuntimeQueryInvalidation } from './invalidation';
@@ -163,7 +163,7 @@ describe('runtime invalidation matches the production key factories', () => {
         vi.useFakeTimers();
         const queryClient = new QueryClient();
         // `files.browse` is deliberately not seeded here: the Path Browser is owned by Desktop Main
-        // (`main/path-browser-authority.ts`), which calls Server directly, so the Renderer never caches that method and
+        // (`main/path-browser/authority.ts`), which calls Server directly, so the Renderer never caches that method and
         // the predicate no longer names it.
         const list = caxriQueryKey('files.list', {
             sessionId: scope.sessionId,

@@ -6,10 +6,7 @@ import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 import { Notification } from 'electron';
 
-import type {
-    AgentSystemNotification,
-    AgentSystemNotificationHandle,
-} from '../agent-notifications';
+import type { AgentSystemNotification, AgentSystemNotificationHandle } from './agent-notifications';
 import type { AlerterNotificationDriver } from './alerter-notification';
 import { createAlerterNotificationDriver } from './alerter-notification';
 import type { OsascriptNotificationDriver } from './osascript-notification';

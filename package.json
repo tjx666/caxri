@@ -104,8 +104,34 @@
         ]
     },
     "knip": {
+        "includeEntryExports": true,
+        "ignoreIssues": {
+            ".agents/skills/design-prototype/assets/entry.mjs": [
+                "exports"
+            ],
+            ".agents/skills/promo-images/scripts/promo-playwright.config.ts": [
+                "exports"
+            ],
+            "apps/mobile/plugins/*.ts": [
+                "exports"
+            ],
+            "e2e/support/clipboard-capability.type-test.ts": [
+                "exports"
+            ],
+            "e2e/support/server-database/*.ts": [
+                "exports"
+            ],
+            "extensions/*/src/extension.ts": [
+                "exports"
+            ],
+            "scripts/fixtures/**": [
+                "exports",
+                "types"
+            ]
+        },
         "ignoreBinaries": [
-            "fmt"
+            "fmt",
+            "mkfifo"
         ],
         "workspaces": {
             ".": {
@@ -136,6 +162,7 @@
                     "scripts/fixtures/eslint/type-aware-violation.ts",
                     "scripts/fixtures/eslint/anti-slop-violation.ts",
                     "scripts/fixtures/eslint/no-sync-fixture.ts",
+                    "scripts/fixtures/eslint/bounded-external-reads/*.ts",
                     "scripts/fixtures/eslint/NotKebabCaseFixture.ts",
                     "scripts/fixtures/eslint/child-process-exec-fixture.ts",
                     "scripts/fixtures/eslint/spawn-shell-true-fixture.ts",

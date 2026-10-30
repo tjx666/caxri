@@ -9,7 +9,7 @@ import { agentProviderSchema } from './agents.js';
  * Raw weekly usage, in percent, at which Server Core stops ordinary model requests for the provider's account and keeps
  * the rest for one hand-off (issue #2580). Compared against the provider's own figure, never a rounded display value.
  */
-export const AGENT_USAGE_GUARD_PERCENT = 99;
+const AGENT_USAGE_GUARD_PERCENT = 99;
 
 /**
  * Which plan window a provider reported as used up: `session` is the 5-hour window, `weekly` the account's general
@@ -21,7 +21,7 @@ export type AgentUsageLimitWindow = z.infer<typeof agentUsageLimitWindowSchema>;
 /**
  * The Session another Agent continued this work in, so the source links to its continuation.
  */
-export const agentChatContinuationSchema = z.strictObject({
+const agentChatContinuationSchema = z.strictObject({
     sessionId: identifierSchema,
     provider: agentProviderSchema,
 });
@@ -45,7 +45,7 @@ export const AGENT_CHAT_AUTO_CONTINUE_MAX_ATTEMPTS = 3;
  * {@link AGENT_CHAT_AUTO_CONTINUE_HORIZON_MS}, the Chat already continued {@link AGENT_CHAT_AUTO_CONTINUE_MAX_ATTEMPTS}
  * times in a row into the limit, or the account's weekly usage guard holds new requests back.
  */
-export const agentChatAutoContinueSkipReasonSchema = z.enum([
+const agentChatAutoContinueSkipReasonSchema = z.enum([
     'resetUnknown',
     'resetTooFar',
     'attemptsUsed',
@@ -102,8 +102,7 @@ export type AgentChatUsageLimit = z.infer<typeof agentChatUsageLimitSchema>;
  * hand-off, `generating` while it does, `used` once it ran (whatever the outcome), so the last percent is spent at most
  * once per account and weekly window.
  */
-export const agentUsageHandoffLeaseSchema = z.enum(['available', 'generating', 'used']);
-export type AgentUsageHandoffLease = z.infer<typeof agentUsageHandoffLeaseSchema>;
+const agentUsageHandoffLeaseSchema = z.enum(['available', 'generating', 'used']);
 
 /**
  * A provider account at or above {@link AGENT_USAGE_GUARD_PERCENT} of its weekly window: every ordinary model request is
@@ -152,7 +151,7 @@ export type AgentChatUsageGuard = z.infer<typeof agentChatUsageGuardSchema>;
 /**
  * Why a provider cannot take over the work. `current` is the Chat's own provider; `unsupported` has no Agent Chat.
  */
-export const agentChatContinuationTargetUnavailableSchema = z.enum([
+const agentChatContinuationTargetUnavailableSchema = z.enum([
     'current',
     'notInstalled',
     'unsupported',

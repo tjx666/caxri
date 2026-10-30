@@ -18,7 +18,7 @@ export const MAX_PREVIEW_DOCUMENT_BYTES = 32 * 1_048_576;
 /**
  * Media types a preview may load. The allowlist is the type contract: the Server never echoes a caller-supplied one.
  */
-export const previewAssetMediaTypes = [
+const previewAssetMediaTypes = [
     'application/pdf',
     'image/apng',
     'image/avif',
@@ -31,7 +31,7 @@ export const previewAssetMediaTypes = [
     'image/x-icon',
 ] as const;
 
-export const previewAssetMediaTypeSchema = z.enum(previewAssetMediaTypes);
+const previewAssetMediaTypeSchema = z.enum(previewAssetMediaTypes);
 
 /**
  * One binary read for a preview surface: an image, or a whole PDF. Carried as base64 over the ordinary request channel

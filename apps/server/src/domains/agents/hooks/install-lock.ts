@@ -31,6 +31,7 @@ function isErrorCode(error: unknown, code: string): boolean {
  */
 async function readOwner(lockPath: string): Promise<InstallLockOwner | undefined> {
     try {
+        // eslint-disable-next-line caxri/bounded-external-reads -- owner file inside Caxri's own install lock directory
         const parsed: unknown = JSON.parse(await readFile(join(lockPath, OWNER_FILE), 'utf8'));
         if (typeof parsed !== 'object' || parsed === null) return undefined;
         const { holderId, writtenAt } = parsed as Partial<InstallLockOwner>;

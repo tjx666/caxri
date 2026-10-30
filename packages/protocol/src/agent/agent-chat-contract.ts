@@ -56,7 +56,7 @@ export const agentChatThumbnailSchema = z
  * An image attached to a user message. `thumbnail` is absent when the provider's history carries the image but no
  * preview Caxri made, such as a resumed conversation; the Chat then shows a placeholder.
  */
-export const agentChatImageReferenceSchema = z.strictObject({
+const agentChatImageReferenceSchema = z.strictObject({
     thumbnail: agentChatThumbnailSchema.optional(),
 });
 
@@ -102,7 +102,7 @@ export const agentChatModelSchema = z.strictObject({
  * Lifecycle of one structured tool-like item. `interrupted` is Caxri's own closure for an item the provider left open
  * when its turn ended.
  */
-export const agentChatItemStatusSchema = z.enum([
+const agentChatItemStatusSchema = z.enum([
     'running',
     'completed',
     'failed',
@@ -126,7 +126,7 @@ const noticeName = z.string().min(1).max(100);
 /**
  * A provider feedback notice's heading (see the notice item's `heading`).
  */
-export const agentChatNoticeHeadingSchema = z.discriminatedUnion('kind', [
+const agentChatNoticeHeadingSchema = z.discriminatedUnion('kind', [
     /**
      * A slash command's output, named by the plugin and command that produced it when the provider reports them.
      */
@@ -416,7 +416,7 @@ export const agentChatTurnSchema = z.strictObject({
     metrics: agentChatTurnMetricsSchema.optional(),
 });
 
-export const agentChatPlanSchema = z.strictObject({
+const agentChatPlanSchema = z.strictObject({
     turnId: z.string().max(200),
     explanation: z.string().max(2_000).optional(),
     steps: z
@@ -432,7 +432,7 @@ export const agentChatPlanSchema = z.strictObject({
 /**
  * Why a Chat cannot currently run. Closed so the Renderer maps each to actionable copy; provider text never selects UI.
  */
-export const agentChatFailureReasonSchema = z.enum([
+const agentChatFailureReasonSchema = z.enum([
     'executable_not_found',
     'spawn_failed',
     'handshake_failed',
@@ -446,7 +446,7 @@ export const agentChatFailureReasonSchema = z.enum([
     'unsupported_version',
 ]);
 
-export const agentChatStatusSchema = z.enum([
+const agentChatStatusSchema = z.enum([
     /**
      * No provider process is running; the next read or message resumes the Agent Session.
      */
@@ -570,7 +570,6 @@ export type AgentChatItemStatus = z.infer<typeof agentChatItemStatusSchema>;
 export type AgentChatTurn = z.infer<typeof agentChatTurnSchema>;
 export type AgentChatPlan = z.infer<typeof agentChatPlanSchema>;
 export type AgentChatFailureReason = z.infer<typeof agentChatFailureReasonSchema>;
-export type AgentChatStatus = z.infer<typeof agentChatStatusSchema>;
 export type AgentChatSnapshot = z.infer<typeof agentChatSnapshotSchema>;
 export type AgentChatModel = z.infer<typeof agentChatModelSchema>;
 export type AgentChatImageMediaType = z.infer<typeof agentChatImageMediaTypeSchema>;

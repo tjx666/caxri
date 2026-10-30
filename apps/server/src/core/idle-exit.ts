@@ -62,7 +62,9 @@ export function createIdleTimeoutMonitor(
             options.logger.write('info', logEventCatalog.serverCore.idleExitTriggered, {
                 fields: { deferralCount, idleDurationMs, reason },
             });
-            void stop(reason);
+            // `stop()` already logged any failing step; the rejection is observed through `stopped`.
+            // eslint-disable-next-line unicorn/prefer-await -- a timer callback cannot await
+            Promise.resolve(stop(reason)).catch(() => {});
         },
     });
 }
@@ -217,9 +219,9 @@ export function createIdleExitConnectionTracker(): IdleExitConnectionTracker {
 
 /**
  * Internal override for `DEFAULT_IDLE_EXIT_MS`, forwarded from Desktop to Server Core the same way as the other
- * `CAXRI_*_MS` dev/test seams in `apps/desktop/src/main/server-connection.ts` (unconditionally, not gated behind
- * `CAXRI_E2E`, so `switch-worktree dev` live verification can use it too). There is no user-facing setting for this
- * value: see `DEFAULT_IDLE_EXIT_MS`'s rationale.
+ * `CAXRI_*_MS` dev/test seams in `apps/desktop/src/main/connection/server-connection.ts` (unconditionally, not gated
+ * behind `CAXRI_E2E`, so `switch-worktree dev` live verification can use it too). There is no user-facing setting for
+ * this value: see `DEFAULT_IDLE_EXIT_MS`'s rationale.
  */
 export const IDLE_EXIT_ENVIRONMENT_KEY = 'CAXRI_SERVER_IDLE_EXIT_MS';
 /**

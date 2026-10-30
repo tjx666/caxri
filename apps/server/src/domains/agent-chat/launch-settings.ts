@@ -2,7 +2,7 @@ import type { AgentLaunchSettings } from '@caxri/protocol';
 import { agentProviderCatalog } from '@caxri/protocol';
 import { expandLaunchArguments } from '@caxri/utils';
 
-import type { CodexThreadSettings } from './codex-chat-types';
+import type { CodexThreadSettings } from './providers/codex/chat-types';
 
 const SANDBOX_MODES = new Set<string>(['danger-full-access', 'read-only', 'workspace-write']);
 const APPROVAL_POLICIES = new Set<string>(['never', 'on-request', 'untrusted']);

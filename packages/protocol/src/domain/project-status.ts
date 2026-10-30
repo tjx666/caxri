@@ -12,11 +12,6 @@ import {
     sessionPullRequestStateSchema,
 } from './session-pull-request.js';
 
-export {
-    pullRequestMergeBlockerSchema,
-    pullRequestMergeStateSchema,
-} from './project-status-state.js';
-
 /**
  * Project Status wire shapes: the per-repository rollup the Status panel renders and the compact overview the Session
  * header shows. `./project-status-state.js` owns the shared check-like state enum these reuse.
@@ -371,7 +366,7 @@ export const projectStatusSummarySchema = z.object({
  * How the status bar found its pull request: `conversation` when the Session's own Agent opened or named it, `branch`
  * when it was looked up from the checked-out branch.
  */
-export const pullRequestSourceSchema = z.enum(['conversation', 'branch']);
+const pullRequestSourceSchema = z.enum(['conversation', 'branch']);
 
 const projectStatusOverviewPullRequestSchema = z.object({
     number: z.number().int().positive(),
@@ -395,7 +390,7 @@ const projectStatusOverviewPullRequestSchema = z.object({
  * The status bar names it, because "the pull request says so" and "somebody typed it in the chat" deserve different
  * amounts of trust from the person reading the chip.
  */
-export const linearIssueSourceSchema = z.enum(['pull-request', 'branch', 'conversation']);
+const linearIssueSourceSchema = z.enum(['pull-request', 'branch', 'conversation']);
 
 const projectStatusOverviewLinearIssueSchema = projectStatusLinearIssueSchema.extend({
     source: linearIssueSourceSchema,
@@ -405,7 +400,7 @@ const projectStatusOverviewLinearIssueSchema = projectStatusLinearIssueSchema.ex
  * Same question as {@link linearIssueSourceSchema}, minus `branch`: an acceptance report is addressed by an opaque id,
  * which a branch name has no room to carry and no reason to.
  */
-export const acceptanceSourceSchema = z.enum(['pull-request', 'conversation']);
+const acceptanceSourceSchema = z.enum(['pull-request', 'conversation']);
 
 const projectStatusOverviewAcceptanceSchema = projectStatusAcceptanceSchema.extend({
     source: acceptanceSourceSchema,
@@ -488,7 +483,6 @@ export type ProjectStatusReviewThread = z.infer<typeof projectStatusReviewThread
 export type ProjectStatusCodexReview = z.infer<typeof projectStatusCodexReviewSchema>;
 export type ProjectStatusPreviousChecks = z.infer<typeof projectStatusPreviousChecksSchema>;
 export type LinearIssueSource = z.infer<typeof linearIssueSourceSchema>;
-export type PullRequestSource = z.infer<typeof pullRequestSourceSchema>;
 export type ProjectStatusOverviewLinearIssue = z.infer<
     typeof projectStatusOverviewLinearIssueSchema
 >;

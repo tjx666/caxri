@@ -81,7 +81,7 @@ confirmation to override, so a Server whose Sessions still own live PTYs never i
 `server_core.idle_exit_triggered` with the idle duration and how many prior checks deferred. This applies to packaged
 builds too; see [ADR 0010](../../../../docs/adr/0010-server-core-idle-exit.md). The threshold is never a
 user-facing setting; the only override is the internal `CAXRI_SERVER_IDLE_EXIT_MS` environment seam, forwarded from
-Desktop to Server Core in `apps/desktop/src/main/server-connection.ts` the same way as the other `CAXRI_*_MS` dev/test
+Desktop to Server Core in `apps/desktop/src/main/connection/server-connection.ts` the same way as the other `CAXRI_*_MS` dev/test
 seams, which `switch-worktree dev` live verification uses to shorten the wait.
 
 One profile owns exactly one Desktop lease. When another Desktop takes it over, Server Core sends an
@@ -116,7 +116,7 @@ The Process Explorer is a singleton Desktop Main-owned window with its own Rende
 
 Caxri Bot is a second singleton Desktop Main-owned window (`caxri-bot-window.ts`). Unlike the Process Explorer it loads the Workbench preload and shares Main's single Desktop connection, so Main, not the preload, is its authority boundary: `CaxriBotRendererPolicy` admits a fixed request list plus Terminal requests naming only the Caxri Bot Terminal, and routes relay messages per window (durable envelopes to both, Terminal-scoped transient events to the viewing window, the reconnect and pull-request announcements to both, other transient events to the Workbench only). Closing or reloading it detaches the Caxri Bot Terminal view without stopping its PTY; closing the main window closes it first. See `docs/caxri-bot.md`.
 
-The Benchmark window is a third singleton Main-owned window (`benchmark-window.ts`). Like Caxri Bot it loads the Workbench preload and shares Main's single Desktop connection, so its authority boundary is Main: `benchmark-window-policy.ts` admits the `benchmark.*` methods plus the few reads the shared Renderer shell and an Attempt's Markdown need, and `workbench-ipc.ts` treats it as a companion sender (`CompanionRendererPolicy`). Anything that edits files, Projects, Sessions, Settings, or a Terminal is absent. Runs belong to the Server, so closing the window stops nothing. See `docs/benchmark.md`.
+The Benchmark window is a third singleton Main-owned window (`window.ts`). Like Caxri Bot it loads the Workbench preload and shares Main's single Desktop connection, so its authority boundary is Main: `window-policy.ts` admits the `benchmark.*` methods plus the few reads the shared Renderer shell and an Attempt's Markdown need, and `workbench-ipc.ts` treats it as a companion sender (`CompanionRendererPolicy`). Anything that edits files, Projects, Sessions, Settings, or a Terminal is absent. Runs belong to the Server, so closing the window stops nothing. See `docs/benchmark.md`.
 
 The Performance Monitor is a detached Main-owned window (`performance-monitor/window.ts`) with its own `performance-monitor` preload. It measures nothing itself: the monitored Workbench publishes its frame pacing through the Workbench preload's `performanceMonitorHost` bridge and Main relays it, dropping a publish that does not come from the monitored window. The separate window lets the Workbench reload while the monitor times that reload from Main's side, and no `webContents.debugger` attach happens because it would distort frame rate.
 

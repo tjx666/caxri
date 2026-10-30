@@ -16,7 +16,7 @@ import {
  * shapes these rows live inside.
  */
 
-export const treeItemCommandSchema = z.object({
+const treeItemCommandSchema = z.object({
     id: extensionCommandIdSchema,
     title: z.string().min(1).max(200),
     arguments: z.array(z.unknown()).max(MAX_EXTENSION_COMMAND_ARGUMENTS).optional(),
@@ -25,7 +25,7 @@ export const treeItemCommandSchema = z.object({
 /**
  * Inline row actions are icon buttons that share the row's width with its label, so a provider gets a handful at most.
  */
-export const MAX_TREE_ITEM_ACTIONS = 3;
+const MAX_TREE_ITEM_ACTIONS = 3;
 
 const treeItemTooltipUrlSchema = z
     .string()
@@ -33,7 +33,7 @@ const treeItemTooltipUrlSchema = z
     .max(16_384)
     .refine((value) => parseExternalHttpUrl(value).ok, 'Expected a safe HTTP(S) URL');
 
-export const treeItemActionSchema = z.object({
+const treeItemActionSchema = z.object({
     command: treeItemCommandSchema,
     icon: viewIconSchema,
     /**
@@ -70,7 +70,7 @@ export const treeItemActionSchema = z.object({
         .optional(),
 });
 
-export const treeItemVariantSchema = z.enum(['header', 'message']);
+const treeItemVariantSchema = z.enum(['header', 'message']);
 const treeItemTooltipBadgeSchema = z.object({
     label: z.string().min(1).max(64),
     tone: z.enum(['neutral', 'success', 'warning', 'danger']),
@@ -89,7 +89,7 @@ const treeItemTooltipRowsSchema = z
             rows.length,
         'Rich tooltip rows must be unique',
     );
-export const treeItemRichTooltipSchema = z
+const treeItemRichTooltipSchema = z
     .object({
         kind: z.literal('rich'),
         title: z.string().min(1).max(1_024),

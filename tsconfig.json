@@ -7,5 +7,10 @@
             "@desktop-shared/*": ["./apps/desktop/src/shared/*"]
         }
     },
-    "references": [{ "path": "./tsconfig.node.json" }, { "path": "./tsconfig.web.json" }]
+    "references": [
+        { "path": "./tsconfig.node.json" },
+        { "path": "./apps/desktop/tsconfig.node.json" },
+        { "path": "./apps/desktop/tsconfig.web.json" },
+        { "path": "./tsconfig.web.json" }
+    ]
 }

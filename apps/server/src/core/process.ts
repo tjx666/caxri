@@ -221,6 +221,12 @@ const processSampler = startProcessObservationSampler({
     await app.stopping;
     processSampler.stop();
     processManifest.publish('stopping');
-    await app.stopped;
-    await finalizeProcess();
+    let failure: CausalCapsule | undefined;
+    try {
+        await app.stopped;
+    } catch {
+        // `stop()` logged each failing step; host.stop and idle stops swallow the rejection, so the exit is finalized here.
+        failure = serverCoreStopFailureCapsule();
+    }
+    await finalizeProcess(failure);
 }

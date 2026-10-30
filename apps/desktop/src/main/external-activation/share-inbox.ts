@@ -1,12 +1,13 @@
 import { execFile } from 'node:child_process';
 import type { Stats } from 'node:fs';
-import { lstat, readdir, readFile, realpath, rm, stat } from 'node:fs/promises';
+import { lstat, readdir, realpath, rm, stat } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 
 import type { ServerEvent } from '@caxri/protocol';
 import { logEventCatalog } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
+import { readBoundedRegularFileText } from '@caxri/system';
 import { z } from 'zod';
 
 /**
@@ -119,8 +120,7 @@ async function lstatOrUndefined(path: string): Promise<Stats | undefined> {
 
 async function readBoundedJson(path: string): Promise<unknown> {
     try {
-        if ((await stat(path)).size > MAX_MANIFEST_BYTES) return undefined;
-        return JSON.parse(await readFile(path, 'utf8')) as unknown;
+        return JSON.parse(await readBoundedRegularFileText(path, MAX_MANIFEST_BYTES)) as unknown;
     } catch {
         return undefined;
     }

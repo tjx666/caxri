@@ -20,9 +20,9 @@ import {
     didNavigateDiffEditor,
     getDiffEditorFileSelection,
     useDiffEditorActionState,
-} from './git-diff-actions';
-import { GitDiffViewOptions } from './git-diff-view-options';
-import { GitReviewSend } from './git-review-send';
+} from './git/diff-actions';
+import { GitDiffViewOptions } from './git/git-diff-view-options';
+import { GitReviewSend } from './git/git-review-send';
 
 /**
  * Fixed actions for the active file or single-file Git diff. The optional `git.fileHead` annotation already resolves

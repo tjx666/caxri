@@ -35,7 +35,7 @@ bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--related
   discard those before pushing, since a green summary otherwise hides a fix that never reached the commit. Appending file paths to `bun run format`
   does not narrow formatting; use `bun run --silent check <files...> --lint` for a focused pass.
   When the changed set includes source files, `--lint` also runs the source-size ratchet; when it
-  includes Markdown, `--lint` also runs the documentation check. Neither autofixes -- see
+  includes Markdown or a removed or renamed path, `--lint` also runs the documentation check. Neither autofixes -- see
   "Guardrails" below to interpret a failure. When the diff adds or removes a file, `--lint` also
   lints, without the ESLint cache, the untouched TypeScript siblings in that directory (and in its
   parent when the directory is `hooks/`, `__tests__/`, or `utils/`), reported as
@@ -185,7 +185,8 @@ a standalone or repository-wide run.
   README index completeness). It always runs unscoped, even from a focused invocation, both because
   it is cheap (well under a second) and because a scoped run would miss an index gap the changed
   Markdown itself did not touch. `check --lint` and the pre-commit hook run it whenever the changed
-  or staged set includes a `.md` file.
+  or staged set includes a `.md` file or a deleted or renamed path (a code-only rename can break a
+  document's citation).
 - **`bun run em-dash-check`** (`scripts/em-dash-check.ts`) fails on any em-dash (U+2014) in
   contributor prose: docs, skills, other non-code text files, and comments in code, outside the
   vendored `licenses/` and `tools/` trees. Rewrite the sentence with a colon, semicolon, comma,

@@ -9,6 +9,7 @@ import { AgentSecretService, createAgentSecretHandlers } from './agent-secrets';
 import { AgentAttentionRequests, CompactionReadiness, createLongPasteService } from './agents';
 import { createAppHandlers } from './app-handlers';
 import { createBenchmarkService } from './benchmark-service-creation';
+import { createBestEffortTeardown } from './best-effort-teardown';
 import { botHostOptions, BotTerminalHooks, createBotServices } from './bot';
 import { createBugReportDeliveryHandler } from './bug-report-delivery';
 import { createAgentChatService } from './chat-service-creation';
@@ -403,26 +404,23 @@ export async function createDomainServices(
         terminalRestores.close();
         botRestores.close();
         botInbox.close();
-        await agentChat.shutdown();
-        await benchmark.service.shutdown();
-        claudeWindows.service.shutdown();
-        agentSecrets.close();
-        await terminalSupervision.close();
-        await coordinator.close();
-        longPastes.close();
-        unsubscribeTerminalSettings();
-        await runStep('terminals', () => terminals.shutdown('orderly'));
-        agentCommands.dispatchService.close();
-        agentCommands.delegationService.close();
-        await Promise.all([archivedWorktrees.close(), workbenchRoots.close()]);
-        await agentRuntime.close();
-        await dependencies.agentEndpoints?.close();
-        await files.close();
-        await configuration.close();
-        await git.close();
-        await transcripts.close();
-        await watchHub.close();
-        database.close();
+        const { attempt, closeEach, rethrow } = createBestEffortTeardown();
+        await attempt(
+            () => agentChat.shutdown(),
+            () => benchmark.service.shutdown(),
+            () => claudeWindows.service.shutdown(),
+        );
+        await closeEach(agentSecrets, terminalSupervision, coordinator, longPastes);
+        await attempt(unsubscribeTerminalSettings);
+        await attempt(() => runStep('terminals', () => terminals.shutdown('orderly')));
+        await closeEach(agentCommands.dispatchService, agentCommands.delegationService);
+        await attempt(() => Promise.all([archivedWorktrees.close(), workbenchRoots.close()]));
+        await attempt(
+            () => agentRuntime.close(),
+            () => dependencies.agentEndpoints?.close(),
+        );
+        await closeEach(files, configuration, git, transcripts, watchHub, database);
+        rethrow();
     };
     const terminalInputs = createTerminalInputHandlers({ coordinator, database, send, terminals });
     const terminalInput = terminalInputs['terminal.input'];

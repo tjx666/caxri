@@ -25,7 +25,7 @@ const wakeTimeSchema = z.object({
  * morning anchor, so Caxri lets it run out and stays idle until the anchor. `confirmed` is an active window Caxri's own
  * request started.
  */
-export const claudeWindowStatusIds = [
+const claudeWindowStatusIds = [
     'off',
     'waitingForAnchor',
     'windowActive',
@@ -48,7 +48,7 @@ export type ClaudeWindowStatus = (typeof claudeWindowStatusIds)[number];
  * - `claudeNotFound`: the Claude CLI could not be found or started.
  * - `probeFailed`: Claude Code did not answer in time or answered something Caxri does not understand.
  */
-export const claudeWindowUnavailableReasons = [
+const claudeWindowUnavailableReasons = [
     'notSignedIn',
     'authUnsupported',
     'planUnsupported',
@@ -80,7 +80,7 @@ export type ClaudeWindowOutcome = (typeof claudeWindowOutcomes)[number];
  * development build, which never registers one; the in-process timer still runs while Server Core is up.
  * `notRegistered` means the keeper is off, so Desktop removed the job.
  */
-export const claudeWindowBackgroundStates = [
+const claudeWindowBackgroundStates = [
     'registered',
     'notRegistered',
     'unpackaged',
@@ -107,7 +107,7 @@ const claudeWindowAccountSchema = z.object({
     firstWorkdayResetMinutes: minuteOfDay,
 });
 
-export const claudeWindowStateSchema = z.object({
+const claudeWindowStateSchema = z.object({
     /**
      * Absent until Claude Code identified a claude.ai account.
      */

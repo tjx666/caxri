@@ -166,17 +166,16 @@ function isControlledOperationMatch(
  * Invalidates the Session-scoped Files reads that a `files.changed` event cheaply reflects: the direct `files.list`
  * listing behind the editor breadcrumb picker, and the Core Resource Explorer. Both consume the same Server authority,
  * so its durable event is the single invalidation source instead of an Extension Host echo. `files.browse` is not
- * listed: the Path Browser is owned by Desktop Main (`path-browser-authority.ts`), which calls Server directly, so no
- * `files.browse` query is ever cached in the Renderer for a predicate to match. `projectStatus.summary` and
- * `projectStatus.overview` are excluded: a Project Status read may shell out to a delivery CLI (e.g. `gh`), so a plain
- * file write never invalidates it. Those two queries instead follow the Server's own delivery push
- * (`projectStatus.changed`, `sessionPullRequests.changed`: see `invalidateProjectStatusQuery` and
- * `invalidateSessionPullRequestDependentQueries` in `invalidation-delivery.ts`) plus a low-frequency fallback poll on
- * the status bar's own side, for the same reason `git.changed` replaces polling for Git reads below. Git
- * status/diff/blame queries (`git.summary`, `git.overview`, `git.diffDocument`, `git.blame`) are no longer invalidated
- * from here: a plain file write does not always mean the working tree changed (e.g. an ignored file), so Git
- * invalidation instead rides the Server-emitted `git.changed` event, which is scoped to the repository identities that
- * actually changed: see `invalidateGitChangedQueries` below.
+ * listed: the Path Browser is owned by Desktop Main (`authority.ts`), which calls Server directly, so no `files.browse`
+ * query is ever cached in the Renderer for a predicate to match. `projectStatus.summary` and `projectStatus.overview`
+ * are excluded: a Project Status read may shell out to a delivery CLI (e.g. `gh`), so a plain file write never
+ * invalidates it. Those two queries instead follow the Server's own delivery push (`projectStatus.changed`,
+ * `sessionPullRequests.changed`: see `invalidateProjectStatusQuery` and `invalidateSessionPullRequestDependentQueries`
+ * in `invalidation-delivery.ts`) plus a low-frequency fallback poll on the status bar's own side, for the same reason
+ * `git.changed` replaces polling for Git reads below. Git status/diff/blame queries (`git.summary`, `git.overview`,
+ * `git.diffDocument`, `git.blame`) are no longer invalidated from here: a plain file write does not always mean the
+ * working tree changed (e.g. an ignored file), so Git invalidation instead rides the Server-emitted `git.changed`
+ * event, which is scoped to the repository identities that actually changed: see `invalidateGitChangedQueries` below.
  */
 function invalidateFileDependentQueries(
     queryClient: QueryClient,

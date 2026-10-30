@@ -109,6 +109,10 @@ jobs:
       - name: Run directory-density ratchet
         run: bunx vitest run scripts/__tests__/directory-density-ratchet.test.ts
 
+      # Every source file that opens a network request must be accounted for in security.md's outbound inventory.
+      - name: Run network egress inventory
+        run: bunx vitest run scripts/__tests__/network-egress-inventory.test.ts
+
       # React Compiler skips a component silently when it meets unsupported syntax (`try`/`finally`, `??=`), so a
       # skipped component loses memoization with no build or lint error. Root dependencies only; about ten seconds.
       - name: Run React Compiler coverage

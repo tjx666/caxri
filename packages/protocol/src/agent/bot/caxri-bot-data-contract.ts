@@ -25,7 +25,7 @@ export const DEFAULT_BOT_AGENT: BotAgent = 'codex';
  * One of the three long-term memory files in Caxri Bot's workspace's `memory/` directory. `isTemplate` is true when the
  * file still holds exactly the template Caxri seeded, so the dialog can say there is nothing learned to clear.
  */
-export const botMemoryFileSchema = z.strictObject({
+const botMemoryFileSchema = z.strictObject({
     name: z.string().min(1).max(64),
     bytes: z.number().int().nonnegative(),
     isTemplate: z.boolean(),
@@ -36,7 +36,7 @@ export const botMemoryFileSchema = z.strictObject({
  * Caxri Bot's own bookkeeping, already shown on the board; no task note, Inbox body, memory text, or file name leaves
  * the Server.
  */
-export const botDataSummarySchema = z.strictObject({
+const botDataSummarySchema = z.strictObject({
     /**
      * Open tasks oldest first, then the most recently closed, as `bot task list --all` returns them, up to
      * `MAX_BOT_TASKS`. `taskCount` counts every row, so the dialog can say how many older ones it does not list.
@@ -69,7 +69,7 @@ export type BotDataSummary = z.infer<typeof botDataSummarySchema>;
  * Which ledger rows Clear Caxri Bot Data deletes: every one, every closed one (`done` or `dropped`, including those
  * older than the dialog lists), or the listed ones.
  */
-export const botTaskDeleteScopeSchema = z.union([
+const botTaskDeleteScopeSchema = z.union([
     z.enum(['all', 'closed']),
     z.array(identifierSchema).min(1).max(MAX_BOT_TASKS),
 ]);
@@ -85,7 +85,7 @@ export type BotTaskDeleteScope = z.infer<typeof botTaskDeleteScopeSchema>;
  * - `instructions`: rewrites `AGENTS.md` from Caxri's template and the memory that remains.
  * - `conversation`: restarts Caxri Bot on a new conversation, ending the current turn.
  */
-export const botClearDataSchema = z.strictObject({
+const botClearDataSchema = z.strictObject({
     tasks: botTaskDeleteScopeSchema.optional(),
     memory: z.boolean().optional(),
     taskFiles: z.boolean().optional(),
@@ -95,7 +95,7 @@ export const botClearDataSchema = z.strictObject({
 });
 export type BotClearData = z.infer<typeof botClearDataSchema>;
 
-export const botClearDataResultSchema = z.strictObject({
+const botClearDataResultSchema = z.strictObject({
     tasksDeleted: z.number().int().nonnegative(),
     memoryReset: z.boolean(),
     taskFilesDeleted: z.number().int().nonnegative(),

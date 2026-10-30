@@ -24,7 +24,7 @@ vi.mock(import('../agent-notification-delivery'), async (importOriginal) => {
     };
 });
 
-import type { DesktopServerConnection } from '../../server-connection';
+import type { DesktopServerConnection } from '../../connection/server-connection';
 import { createDesktopNotifications } from '../desktop-notifications';
 
 afterEach(() => {

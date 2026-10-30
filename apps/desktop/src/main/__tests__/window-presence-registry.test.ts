@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { activeDesktopCommand, runDesktopCommand } from '../desktop-command-scope';
 import type { PresenceWindow } from '../window-presence-registry';
 import {
     currentRequestWindowKey,
@@ -327,5 +328,25 @@ describe('window key tagging', () => {
             expect(currentRequestWindowKey()).toBe('main');
         });
         expect(runInRequestWindowKey(undefined, () => currentRequestWindowKey())).toBeUndefined();
+    });
+
+    it('reports a window shown by a Desktop command outside that command handler', async () => {
+        const commands: Array<string | undefined> = [];
+        const registry = new WindowPresenceRegistry({
+            closePresence: () => Promise.resolve(),
+            reportPresence: () => {
+                commands.push(activeDesktopCommand());
+                return Promise.resolve();
+            },
+        });
+        const window = new FakeWindow();
+        await runDesktopCommand({ kind: 'focus' }, () => {
+            registry.register('main', {}, window);
+            window.emit('show');
+            return Promise.resolve();
+        });
+        await flush();
+        expect(commands.length).toBeGreaterThan(0);
+        expect(commands.every((command) => command === undefined)).toBe(true);
     });
 });

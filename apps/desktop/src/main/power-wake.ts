@@ -1,6 +1,6 @@
 import type { PowerMonitor } from 'electron';
 
-import type { DesktopServerConnection } from './server-connection';
+import type { DesktopServerConnection } from './connection/server-connection';
 
 /**
  * Wires the two `powerMonitor` events Main's bootstrap needs at startup. `shutdown` marks the pending quit as an OS

@@ -11,9 +11,9 @@ Maintained per `.agents/skills/audit-architecture-debt/references/debt-ledger.md
 | Field                    | Value                                                                                                  |
 | ------------------------ | ------------------------------------------------------------------------------------------------------ |
 | **First audit**          | 2026-08-11 @ `eb9becbee1f9c77d914fa6d113fa6084dba587b5` (`main`)                                       |
-| **Last full audit**      | 2026-10-26 @ `c23b63b9d` (`main`)                                                                      |
+| **Last full audit**      | 2026-10-31 @ `b1226a6dc` (`main`)                                                                      |
 | **Targeted review base** | 2026-08-24 @ `87b613a` ([issue caxri#165](https://github.com/tjx666/caxri/issues/165))                 |
-| **Full-audit scope**     | Every prior OPEN entry plus all dimensions over the complete tracked tree at `c23b63b9d`               |
+| **Full-audit scope**     | Every prior OPEN entry plus all dimensions over the complete tracked tree at `b1226a6dc`               |
 | **Maintenance**          | Revalidate after ownership/path refactors and at least quarterly; refresh semantic evidence, not paths |
 
 Targeted maintenance corrects affected evidence and records reviewed tradeoffs; it does not move
@@ -34,53 +34,148 @@ Coverage or observability gap, Modernization opportunity, Intentional tradeoff.
 Full audit 2026-10-21 @ `d0e5f01fc` revalidated every prior entry. The fix batch in [PR caxri#2264](https://github.com/tjx666/caxri/pull/2264)
 resolved most of them, and the fix batch of [issue caxri#2332](https://github.com/tjx666/caxri/issues/2332) resolved the later audit's findings; the entries below keep the part that still needs a product decision or its own design.
 Full audit 2026-10-26 @ `c23b63b9d` revalidated all seven as still present; its new findings were fixed by the batch of [issue caxri#2601](https://github.com/tjx666/caxri/issues/2601).
-
-### AD-lifecycle-chat-idle-providers: [OPEN · Architecture debt · L]
-
-- **Summary:** Reading a stopped Chat still starts its provider, because model lists, commands, and live state come from the provider rather than from a transcript reader.
-- **Evidence:** `apps/server/src/domains/agent-chat/service.ts` `read()` still starts a bound Chat. The ownership half is fixed: a read-started provider holds an observation lease (`apps/server/src/domains/agent-chat/chat-suspension.ts`) that the idle sweep reclaims two minutes after its Session is left, independent of the idle-suspension setting (`apps/server/src/domains/terminal/suspension-policy.ts`), and every provider start, PTY relaunch, and restore passes the 16-per-Session and 32-global capacity gate in `apps/server/src/domains/db/models/terminals.ts`. Covered by `service-lease.integration.test.ts`, `service-capacity.integration.test.ts`, and `terminal-restart-capacity.integration.test.ts`.
-- **First seen:** 2026-10-12 @ d5dbb34f6 · **Last verified:** 2026-10-26 @ c23b63b9d (still present)
-- **Remediation target / Acceptance:** [issue caxri#1800](https://github.com/tjx666/caxri/issues/1800): a pure read starts no provider. Reclaim is bounded by time and count: only the newest `MAX_CHAT_OBSERVATION_LEASES` read leases wait out the window, and a read that starts a provider sweeps the older ones at once (`terminal/__tests__/suspension-chat.test.ts`). Reclaim races with read, reselection, and input, plus the capacity gate on resume, are covered by `service-lease.integration.test.ts`, `service-capacity.integration.test.ts`, and `suspension-chat.test.ts`.
-
-### AD-layout-flat-family-enforcement: [OPEN · Architecture debt · M]
-
-- **Summary:** Desktop Main (116 direct modules) and the Server `agent-chat` domain (96, with flat `chat-`, `claude-`, `codex-`, and `grok-` families) are still flat; they can no longer grow, but nothing has moved into family directories yet.
-- **Evidence:** `scripts/directory-density-baseline.ts` records shrink-only caps for those owners, their prefix families, the Renderer `features/agent-chat` root, and every nested subdirectory below a guarded owner that reaches `DIRECTORY_DENSITY_NESTED_THRESHOLD` (12) files; `scripts/__tests__/directory-density-ratchet.test.ts` fails on growth and on an untightened shrink, and `scripts/run-ci-focused-checks.ts` routes affected and draft pull requests touching those directories to it.
-- **First seen:** 2026-10-13 @ 319eab82e · **Last verified:** 2026-10-26 @ c23b63b9d (still present)
-- **Recurrence 2026-10-26:** the same flat-family shape grew outside the guarded owners: about 27 `git-*` modules in the Renderer `features/editor` root and 16 `extension-tree-*` modules in `features/view-containers`. Neither directory has a density cap yet.
-- **Remediation target / Acceptance:** [issue caxri#1993](https://github.com/tjx666/caxri/issues/1993): pure moves into provider and family directories, tightening the recorded caps as they land. Add caps for the two Renderer families when they move.
-
-### AD-contract-provider-literal-comparisons: [OPEN · Architecture debt · M]
-
-- **Summary:** Provider identity is still compared against string literals in several modules, so adding or renaming a provider needs a repository-wide search instead of one registry edit.
-- **Evidence:** About 55 comparison sites, for example `apps/server/src/domains/session/compaction.ts`, `agent-chat/chat-history.ts`, `agent-chat/chat-images.ts`, `agent-runtime/turn-context.ts`, and `agent-benchmark/launch.ts`; hand-written provider ID lists in `packages/protocol/src/agent/delegation/agent-delegation-settings.ts`, `apps/server/src/domains/agents/external-conversation-parsers.ts`, `apps/mobile/src/features/sessions/new-session-model.ts`, and `apps/desktop/src/renderer/src/features/benchmark/benchmark-selection.ts`.
-- **First seen:** 2026-10-21 @ d0e5f01fc · **Last verified:** 2026-10-26 @ c23b63b9d (still present)
-- **Remediation target / Acceptance:** [issue caxri#2335](https://github.com/tjx666/caxri/issues/2335): route provider-specific branching through the provider registry or capability flags; a guard fails on new literal comparisons.
-
-### AD-contract-mobile-view-reply-roles: [OPEN · Contract drift · S]
-
-- **Summary:** Mobile pairing defines `view` and `reply` roles, but every new pairing is granted `control` and no API changes a role, so the weaker roles cannot be assigned.
-- **Evidence:** `control` is hardcoded in the device registry; the authorization doc now states this (docs corrected in [issue caxri#2332](https://github.com/tjx666/caxri/issues/2332)). The remaining gap is a product decision on role assignment.
-- **First seen:** 2026-10-21 @ d0e5f01fc · **Last verified:** 2026-10-26 @ c23b63b9d (still present)
-- **Remediation target / Acceptance:** [issue caxri#2334](https://github.com/tjx666/caxri/issues/2334): decide whether to ship role selection at pairing or remove the unused roles.
-
-### AD-persist-delegation-collected-answers: [OPEN · Architecture debt · S]
-
-- **Summary:** Capacity pruning never evicts completed delegation answers because the store cannot tell whether a caller already read them, so a long-lived profile can still fill the 1,024-record cap with completed tasks and new delegations fail with `CAPACITY`.
-- **Evidence:** `pruneForAdmission` in `apps/server/src/domains/db/models/agent-delegations.ts` only removes settled records with no `answer`.
-- **First seen:** 2026-10-21 @ d0e5f01fc · **Last verified:** 2026-10-26 @ c23b63b9d (still present)
-- **Remediation target / Acceptance:** [issue caxri#2338](https://github.com/tjx666/caxri/issues/2338): persist a collected marker when an answer is read and let pruning remove collected records oldest first.
-
-### AD-toolchain-knip-entry-exports: [OPEN · Coverage or observability gap · S]
-
-- **Summary:** Knip does not check unused exports from package entry barrels, so dead public exports accumulate unnoticed; nine were found and deleted by hand.
-- **Evidence:** Measured with `--include-entry-exports`: 379 additional reports, mostly barrel exports in `packages/protocol`, `packages/mobile-transport`, and `packages/markdown`, plus framework default exports and extension `activate` functions. Many are likely false positives; the config is unchanged.
-- **First seen:** 2026-10-21 @ d0e5f01fc · **Last verified:** 2026-10-26 @ c23b63b9d (still present)
-- **Remediation target / Acceptance:** [issue caxri#2337](https://github.com/tjx666/caxri/issues/2337): triage the report with ignore rules for framework entries, then enable `includeEntryExports` when the residue is small.
+Full audit 2026-10-31 @ `b1226a6dc` found `AD-persist-delegation-collected-answers` resolved; the owner closed the issues behind three other entries as not planned on 2026-10-29, so they moved to the intentional tradeoffs table. The batch of [issue caxri#3176](https://github.com/tjx666/caxri/issues/3176) fixed that audit's new findings and the two remaining entries.
 
 ---
 
 ## RESOLVED
+
+### AD-lifecycle-server-stop-chain: [RESOLVED · Confirmed defect · M]
+
+- **Summary:** One failing teardown step aborted Server Core's stop chain, so later steps (Terminal shutdown, Extension Host, lease release, log flush) never ran and the process waited on `stopped` forever.
+- **Evidence:** `apps/server/src/core/server-core-stop-steps.ts` `runServerCoreStop` and `apps/server/src/domains/create-domain-services.ts` `close()` run every step through `createBestEffortTeardown` (`apps/server/src/domains/best-effort-teardown.ts`) and rethrow one `AggregateError`; `server-core.ts` rejects `stopped` on failure and `core/process.ts` finalizes the process either way. Covered by `server-core-stop-steps.integration.test.ts` and `domains/__tests__/domain-services-close.integration.test.ts`.
+- **First seen:** 2026-10-31 @ b1226a6dc · **Last verified:** 2026-10-31 @ b1226a6dc
+- **Resolved:** 2026-10-31 via [issue caxri#3176](https://github.com/tjx666/caxri/issues/3176).
+- **Remediation target / Acceptance:** Every stop step runs even after an earlier failure, and `stopped` settles; a regression injects a failing step and asserts the later steps and the flush ran.
+
+### AD-lifecycle-reconnect-recovery-result: [RESOLVED · Confirmed defect · M]
+
+- **Summary:** After a Server Core restart, Desktop reported the connection as recovered even when event recovery had failed, so the window kept stale state without retrying.
+- **Evidence:** `packages/client/src/state/event-client.ts` `start()` rejects when the recovery it started or joined fails; `apps/desktop/src/main/connection/server-connection.ts` drops the attachment and dispatches `reconnected` only after recovery succeeds (`apps/desktop/src/main/connection/event-recovery.ts`). Covered by the event-client and server-connection tests, including the backoff case.
+- **First seen:** 2026-10-31 @ b1226a6dc · **Last verified:** 2026-10-31 @ b1226a6dc
+- **Resolved:** 2026-10-31 via [issue caxri#3176](https://github.com/tjx666/caxri/issues/3176).
+- **Remediation target / Acceptance:** A failed recovery surfaces as a failed connect and is retried; live-gap recoveries still never hot-loop.
+
+### AD-lifecycle-relay-registration-deadline: [RESOLVED · Confirmed defect · S]
+
+- **Summary:** A Relay that accepted the WebSocket but never answered registration left Mobile access stuck in "connecting" with no retry.
+- **Evidence:** The Relay host connector applies `registrationTimeoutMs` (15 s) and reports the closed failure cause `registration-timeout`, added to `mobileRelayFailureSchema` in `packages/protocol/src/mobile/mobile-access-contract.ts` and to the Settings copy.
+- **First seen:** 2026-10-31 @ b1226a6dc · **Last verified:** 2026-10-31 @ b1226a6dc
+- **Resolved:** 2026-10-31 via [issue caxri#3176](https://github.com/tjx666/caxri/issues/3176).
+- **Remediation target / Acceptance:** A silent Relay fails registration within the deadline and enters the normal reconnect backoff; covered by host-connector tests.
+
+### AD-ui-surface-error-boundaries: [RESOLVED · Architecture debt · M]
+
+- **Summary:** A render throw in one Chat entry, Terminal pane, Settings page, or extension view reloaded the whole window instead of failing locally.
+- **Evidence:** `apps/desktop/src/renderer/src/components/surface-error-boundary.tsx` wraps the Chat pane and timeline entries, Terminal panes, Settings content, and view-container views; the editor boundary reuses it. `components/surface-fault.ts` is the accepted test seam (`security.md`); `e2e/surface-error-boundary.e2e.ts` covers containment.
+- **First seen:** 2026-10-31 @ b1226a6dc · **Last verified:** 2026-10-31 @ b1226a6dc
+- **Resolved:** 2026-10-31 via [issue caxri#3176](https://github.com/tjx666/caxri/issues/3176).
+- **Remediation target / Acceptance:** A forced throw in each scope shows that surface's fallback while the rest of the window keeps working.
+
+### AD-lifecycle-restore-currency-after-await: [RESOLVED · Confirmed defect · S]
+
+- **Summary:** Terminal restore could resume work for a restore attempt that had already been superseded or aborted while it awaited the resumable Agent Session lookup.
+- **Evidence:** The Terminal restore path rechecks `isCurrent()` and the abort signal after each await; covered by a new case in `restore.test.ts`.
+- **First seen:** 2026-10-31 @ b1226a6dc · **Last verified:** 2026-10-31 @ b1226a6dc
+- **Resolved:** 2026-10-31 via [issue caxri#3176](https://github.com/tjx666/caxri/issues/3176).
+- **Remediation target / Acceptance:** A superseded restore stops at the next await boundary.
+
+### AD-contract-request-lifetime-typing: [RESOLVED · Coverage or observability gap · S]
+
+- **Summary:** The request-lifetime method sets were untyped strings, so a renamed or new effectful method silently fell into the wrong timeout class.
+- **Evidence:** `request-lifetime.ts` builds both sets from `ServerOperation` names; `request-lifetime.test.ts` requires every durable effectful method to be either non-expiring or in an explicit short-lived allowlist.
+- **First seen:** 2026-10-31 @ b1226a6dc · **Last verified:** 2026-10-31 @ b1226a6dc
+- **Resolved:** 2026-10-31 via [issue caxri#3176](https://github.com/tjx666/caxri/issues/3176).
+- **Remediation target / Acceptance:** Adding a method without classifying it fails the test.
+
+### AD-contract-network-egress-inventory: [RESOLVED · Contract drift · S]
+
+- **Summary:** `security.md` listed only HTTP egress and missed the Codex reset forecast, Mihomo Controller, and Mobile Relay connections.
+- **Evidence:** `.agents/skills/project-architecture/references/security.md` lists all three with their bounds; `scripts/__tests__/network-egress-inventory.test.ts` fails when a request call site in Main, Server, or `packages/system` has no inventory entry. Injected `fetch` call sites stay outside its literal scan.
+- **First seen:** 2026-10-31 @ b1226a6dc · **Last verified:** 2026-10-31 @ b1226a6dc
+- **Resolved:** 2026-10-31 via [issue caxri#3176](https://github.com/tjx666/caxri/issues/3176).
+- **Remediation target / Acceptance:** A new egress call site without an inventory entry fails `guards`.
+
+### AD-sec-external-read-enforcement: [RESOLVED · Architecture debt · S]
+
+- **Summary:** Several readers of provider-owned files used unbounded reads although the bounded reader exists, and nothing stopped new ones.
+- **Evidence:** Codex cache auth, Claude rewind, and the share inbox use the bounded reader; the `caxri/bounded-external-reads` ESLint rule (`scripts/eslint-rules/bounded-external-reads.ts`) covers the Agent and external-activation directories, with justified disables for Caxri-owned files.
+- **First seen:** 2026-10-31 @ b1226a6dc · **Last verified:** 2026-10-31 @ b1226a6dc
+- **Resolved:** 2026-10-31 via [issue caxri#3176](https://github.com/tjx666/caxri/issues/3176).
+- **Remediation target / Acceptance:** An unbounded read of an external file in the covered directories fails lint; a FIFO or oversized file is refused.
+
+### AD-perf-preview-proxy-cap-race: [RESOLVED · Confirmed defect · S]
+
+- **Summary:** Concurrent Mobile preview opens for different targets could each pass the listener cap check and exceed it.
+- **Evidence:** The Mobile preview proxy serializes starts for distinct targets with epoch rechecks, and `open()` on a closed listener throws `UNAVAILABLE`; covered by two proxy tests.
+- **First seen:** 2026-10-31 @ b1226a6dc · **Last verified:** 2026-10-31 @ b1226a6dc
+- **Resolved:** 2026-10-31 via [issue caxri#3176](https://github.com/tjx666/caxri/issues/3176).
+- **Remediation target / Acceptance:** Parallel opens never exceed the cap.
+
+### AD-test-docs-check-on-rename: [RESOLVED · Coverage or observability gap · S]
+
+- **Summary:** Renaming or deleting a file did not run `docs-check` locally, so broken doc links surfaced only in CI.
+- **Evidence:** `.githooks/pre-commit` and `.agents/skills/quality-check/scripts/changed-file-guardrails.ts` run `docs-check` on Markdown changes and on any deletion or rename; `changed-file-guardrails.test.ts` covers the gating.
+- **First seen:** 2026-10-31 @ b1226a6dc · **Last verified:** 2026-10-31 @ b1226a6dc
+- **Resolved:** 2026-10-31 via [issue caxri#3176](https://github.com/tjx666/caxri/issues/3176).
+- **Remediation target / Acceptance:** A staged rename runs `docs-check` before commit.
+
+### AD-simplify-test-only-exports-2026-10: [RESOLVED · Architecture debt · S]
+
+- **Summary:** CLI selectors, the Mobile performance budget, read-cache codec wrappers, and three Chat presentation helpers had only test consumers.
+- **Evidence:** The modules and exports were deleted with their tests; `docs/mobile/performance.md` states the thresholds are not enforced yet.
+- **First seen:** 2026-10-31 @ b1226a6dc · **Last verified:** 2026-10-31 @ b1226a6dc
+- **Resolved:** 2026-10-31 via [issue caxri#3176](https://github.com/tjx666/caxri/issues/3176).
+- **Remediation target / Acceptance:** No production surface exists only for tests; knip stays clean.
+
+### AD-toolchain-duplicate-typecheck-programs: [RESOLVED · Architecture debt · S]
+
+- **Summary:** The root `tsconfig.node.json` and `tsconfig.web.json` re-checked files that workspace programs already own, doubling typecheck work and allowing two programs to disagree.
+- **Evidence:** The root programs now hold only unowned files plus the deliberate browser-typed package subsets; `docs/quality-toolchain.md` "TypeScript program ownership" records the table, and `scripts/__tests__/workspace-contract.test.ts` asserts it.
+- **First seen:** 2026-10-31 @ b1226a6dc · **Last verified:** 2026-10-31 @ b1226a6dc
+- **Resolved:** 2026-10-31 via [issue caxri#3176](https://github.com/tjx666/caxri/issues/3176).
+- **Remediation target / Acceptance:** Each source file belongs to one program except the documented overlaps.
+
+### AD-dup-core-method-lists: [RESOLVED · Architecture debt · S]
+
+- **Summary:** Core-handled and forwarded method names were hand-maintained in parallel lists, so a new method needed several coordinated edits.
+- **Evidence:** `core-methods.ts` derives `CoreForwardedMethod` as `Exclude<ServerMethod, CoreHandledMethod>`; `service-handlers.ts` uses `satisfies Partial<DomainHandlers>`; `dispatch-types.test.ts` checks it at the type level.
+- **First seen:** 2026-10-31 @ b1226a6dc · **Last verified:** 2026-10-31 @ b1226a6dc
+- **Resolved:** 2026-10-31 via [issue caxri#3176](https://github.com/tjx666/caxri/issues/3176).
+- **Remediation target / Acceptance:** One method list; the compiler rejects an unrouted method.
+
+### AD-perf-archived-bootstrap-scale: [RESOLVED · Coverage or observability gap · S]
+
+- **Summary:** Nothing measured whether the workbench bootstrap snapshot grows with archived Sessions.
+- **Evidence:** `apps/server/src/domains/workbench/__tests__/snapshot-scale.test.ts` asserts under 1 KiB per archived Session and equal database call counts at 10 and 500 archived Sessions; documented in `performance.md`.
+- **First seen:** 2026-10-31 @ b1226a6dc · **Last verified:** 2026-10-31 @ b1226a6dc
+- **Resolved:** 2026-10-31 via [issue caxri#3176](https://github.com/tjx666/caxri/issues/3176).
+- **Remediation target / Acceptance:** A bootstrap that scales with archive size fails the test.
+
+### AD-layout-flat-family-enforcement: [RESOLVED · Architecture debt · M]
+
+- **Summary:** Desktop Main (116 direct modules) and the Server `agent-chat` domain (96, with flat `chat-`, `claude-`, `codex-`, and `grok-` families) are still flat; they can no longer grow, but nothing has moved into family directories yet.
+- **Evidence:** `scripts/directory-density-baseline.ts` records shrink-only caps for those owners, their prefix families, the Renderer `features/agent-chat` root, and every nested subdirectory below a guarded owner that reaches `DIRECTORY_DENSITY_NESTED_THRESHOLD` (12) files; `scripts/__tests__/directory-density-ratchet.test.ts` fails on growth and on an untightened shrink, and `scripts/run-ci-focused-checks.ts` routes affected and draft pull requests touching those directories to it.
+- **First seen:** 2026-10-13 @ 319eab82e · **Last verified:** 2026-10-31 @ b1226a6dc
+- **Recurrence 2026-10-26:** the same flat-family shape grew outside the guarded owners: about 27 `git-*` modules in the Renderer `features/editor` root and 16 `extension-tree-*` modules in `features/view-containers`. Neither directory has a density cap yet.
+- **Remediation target / Acceptance:** [issue caxri#1993](https://github.com/tjx666/caxri/issues/1993): pure moves into provider and family directories, tightening the recorded caps as they land. Add caps for the two Renderer families when they move.
+- **Resolved:** 2026-10-31 via [issue caxri#3176](https://github.com/tjx666/caxri/issues/3176) and [issue caxri#1993](https://github.com/tjx666/caxri/issues/1993): provider modules moved into `agent-chat/providers/<id>/`, Desktop Main prefix families and the Renderer `git-*` / `extension-tree-*` families moved into family directories, and `scripts/directory-density-baseline.ts` caps were tightened and extended to the two Renderer owners. `source-layout` documents the `providers/<id>/` convention.
+
+### AD-toolchain-knip-entry-exports: [RESOLVED · Coverage or observability gap · S]
+
+- **Summary:** Knip does not check unused exports from package entry barrels, so dead public exports accumulate unnoticed; nine were found and deleted by hand.
+- **Evidence:** Measured with `--include-entry-exports`: 379 additional reports, mostly barrel exports in `packages/protocol`, `packages/mobile-transport`, and `packages/markdown`, plus framework default exports and extension `activate` functions. Many are likely false positives; the config is unchanged.
+- **First seen:** 2026-10-21 @ d0e5f01fc · **Last verified:** 2026-10-31 @ b1226a6dc
+- **Remediation target / Acceptance:** [issue caxri#2337](https://github.com/tjx666/caxri/issues/2337): triage the report with ignore rules for framework entries, then enable `includeEntryExports` when the residue is small.
+- **Resolved:** 2026-10-31 via [issue caxri#3176](https://github.com/tjx666/caxri/issues/3176) and [issue caxri#2337](https://github.com/tjx666/caxri/issues/2337): the entry-export report was triaged (dead exports deleted, framework entries ignored with a reason) and the knip config enables `includeEntryExports`.
+
+### AD-persist-delegation-collected-answers: [RESOLVED · Architecture debt · S]
+
+- **Summary:** Capacity pruning never evicts completed delegation answers because the store cannot tell whether a caller already read them, so a long-lived profile can still fill the 1,024-record cap with completed tasks and new delegations fail with `CAPACITY`.
+- **Evidence:** `pruneForAdmission` in `apps/server/src/domains/db/models/agent-delegations.ts` only removes settled records with no `answer`.
+- **First seen:** 2026-10-21 @ d0e5f01fc · **Last verified:** 2026-10-31 @ b1226a6dc
+- **Remediation target / Acceptance:** [issue caxri#2338](https://github.com/tjx666/caxri/issues/2338): persist a collected marker when an answer is read and let pruning remove collected records oldest first.
+- **Resolved:** 2026-10-29 @ `a9624aa23` via [PR caxri#3057](https://github.com/tjx666/caxri/pull/3057): a read answer is marked collected and capacity pruning evicts collected records oldest first.
 
 ### AD-toolchain-electron-45-stable-pin: [RESOLVED · Modernization opportunity · S]
 
@@ -353,7 +448,7 @@ Full audit 2026-10-26 @ `c23b63b9d` revalidated all seven as still present; its 
 ### AD-proc-chat-endpoint-identity: [RESOLVED · Contract drift · M]
 
 - **Summary:** An Agent running on the Chat surface had no Agent Endpoint identity, so `caxri agent message send` was refused and `caxri agent delegate create` ran as the operator instead of as that Agent.
-- **Evidence:** `apps/server/src/domains/agent-chat/chat-endpoint.ts` now issues every Chat start its own Endpoint generation, with Caxri Bot role only for Caxri Bot Terminal. Covered by `apps/server/src/domains/agent-chat/__tests__/chat-endpoint.test.ts`.
+- **Evidence:** `apps/server/src/domains/agent-chat/endpoint/agent-endpoint.ts` now issues every Chat start its own Endpoint generation, with Caxri Bot role only for Caxri Bot Terminal. Covered by `apps/server/src/domains/agent-chat/endpoint/__tests__/agent-endpoint.test.ts`.
 - **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-13 with the fix
 - **Resolved:** 2026-10-13 via [issue caxri#1675](https://github.com/tjx666/caxri/issues/1675).
 - **Remediation target / Acceptance:** A Chat Agent's `caxri` commands authenticate as its own Endpoint, never as the operator.
@@ -585,7 +680,7 @@ Full audit 2026-10-26 @ `c23b63b9d` revalidated all seven as still present; its 
 ### AD-lifecycle-external-watcher-retry: [RESOLVED · Confirmed defect · S]
 
 - **Summary:** After an external document's folder was removed and recreated, outside edits to the open file were never reported again.
-- **Evidence:** `apps/desktop/src/main/external-document-watcher.ts` keeps the watched set in Main and retries a failed watch at 1s, 5s, and 30s, then rechecks the folder's documents.
+- **Evidence:** `apps/desktop/src/main/external-documents/watcher.ts` keeps the watched set in Main and retries a failed watch at 1s, 5s, and 30s, then rechecks the folder's documents.
 - **First seen:** 2026-10-12 @ d5dbb34f6 · **Last verified:** 2026-10-12 with the fix batch
 - **Resolved:** 2026-10-12 via [issue caxri#1795](https://github.com/tjx666/caxri/issues/1795).
 - **Remediation target / Acceptance:** Outside edits are reported again after the folder returns.
@@ -845,7 +940,7 @@ Full audit 2026-10-26 @ `c23b63b9d` revalidated all seven as still present; its 
 - **First seen:** 2026-10-10 @ daf68990 · **Last verified:** 2026-10-10 @ c0046f78c with the fix batch
 - **Resolved:** 2026-10-10 via [issue caxri#1620](https://github.com/tjx666/caxri/issues/1620).
 - **Changed-shape recurrence:** 2026-10-21 @ 403f8de9a, the Chat image picker in Desktop Main read with `stat` then `readFile`. Fixed in [PR caxri#2264](https://github.com/tjx666/caxri/pull/2264): the reader moved to `packages/system/src/filesystem/bounded-file-reader.ts` and `apps/desktop/src/main/agent-chat/path-picker.ts` uses it; covered by `apps/desktop/src/main/agent-chat/__tests__/path-picker.test.ts`.
-- **Changed-shape recurrence:** 2026-10-26 @ c23b63b9d, live usage read the Claude subagent `.meta.json` with no size cap (Chat reads the same file under 64 KiB), the Grok `.cwd` marker had two hand-written readers, and Project Status and four Acceptance fixtures read by hand. Fixed via [issue caxri#2601](https://github.com/tjx666/caxri/issues/2601): `readClaudeSubagentToolUseId` and `readGrokCwdMarker` in the provider `paths.ts` modules serve every caller, `project-status/external.ts` uses the shared reader, and `apps/desktop/src/main/acceptance-fixtures/fixture-io.ts` owns fixture command reads and receipt appends (`usage/__tests__/live-usage.test.ts`). The CLI, `@caxri/client`, and `@caxri/agent-skills` copies need a package-dependency decision: [issue caxri#2605](https://github.com/tjx666/caxri/issues/2605). Readers that check identity or TOCTOU, and the Worker-bundled copy, stay on purpose.
+- **Changed-shape recurrence:** 2026-10-26 @ c23b63b9d, live usage read the Claude subagent `.meta.json` with no size cap (Chat reads the same file under 64 KiB), the Grok `.cwd` marker had two hand-written readers, and Project Status and four Acceptance fixtures read by hand. Fixed via [issue caxri#2601](https://github.com/tjx666/caxri/issues/2601): `readClaudeSubagentToolUseId` and `readGrokCwdMarker` in the provider `paths.ts` modules serve every caller, `project-status/external.ts` uses the shared reader, and `apps/desktop/src/main/acceptance/fixture-io.ts` owns fixture command reads and receipt appends (`usage/__tests__/live-usage.test.ts`). The CLI, `@caxri/client`, and `@caxri/agent-skills` copies need a package-dependency decision: [issue caxri#2605](https://github.com/tjx666/caxri/issues/2605). Readers that check identity or TOCTOU, and the Worker-bundled copy, stay on purpose.
 - **Remediation target / Acceptance:** A FIFO at any migrated path fails fast as a non-regular file.
 
 ### AD-lifecycle-quit-prompt-parent: [RESOLVED · Confirmed defect · S]
@@ -1124,7 +1219,7 @@ Full audit 2026-10-26 @ `c23b63b9d` revalidated all seven as still present; its 
 ### AD-lifecycle-pe-render-recovery: [RESOLVED · Coverage or observability gap · S]
 
 - **Summary:** Process Explorer has no React ErrorBoundary and no Main `render-process-gone` crash-policy, so a PE render throw or renderer crash blanks the diagnostic window without workbench-style recovery.
-- **Evidence:** `apps/desktop/src/renderer/src/process-explorer-main.tsx:6-18` wraps the diagnostic app in the shared recoverable `ErrorBoundary`. `apps/desktop/src/main/process-explorer-window.ts:97-124` applies bounded crash-policy reloads and stops a crash loop cleanly. `apps/desktop/src/main/__tests__/crash-policy.test.ts:5-44` covers the backoff budget; `e2e/process-explorer-recovery.e2e.ts:93-151` covers render reload and repeated renderer crashes on real Electron.
+- **Evidence:** `apps/desktop/src/renderer/src/process-explorer-main.tsx:6-18` wraps the diagnostic app in the shared recoverable `ErrorBoundary`. `apps/desktop/src/main/process-explorer/window.ts:97-124` applies bounded crash-policy reloads and stops a crash loop cleanly. `apps/desktop/src/main/__tests__/crash-policy.test.ts:5-44` covers the backoff budget; `e2e/process-explorer-recovery.e2e.ts:93-151` covers render reload and repeated renderer crashes on real Electron.
 - **First seen:** 2026-08-11 @ eb9becb · **Last verified:** 2026-08-13 @ 8037720
 - **Resolved:** 2026-08-11 @ bd4f813 via [issue caxri#84](https://github.com/tjx666/caxri/issues/84).
 - **Remediation target / Acceptance:** Reuse ErrorBoundary (or PE fallback) on the PE entry; optionally register Main crash recovery for the PE window. Acceptance: forced PE render throw shows recovery UI; process-gone does not leave an unrecovered blank PE indefinitely.
@@ -1146,34 +1241,37 @@ Full audit 2026-10-26 @ `c23b63b9d` revalidated all seven as still present; its 
 
 Recorded so repeat audits do not reclassify them as findings.
 
-| ID                                  | Tradeoff                                                                                                                                                                                                                                                                                                             | Evidence                                                                                           |
-| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| IT-disk-wins-dirty-buffer           | External disk changes replace dirty editor buffers without a conflict dialog                                                                                                                                                                                                                                         | architecture / `external-sync`                                                                     |
-| IT-unsaved-buffers-not-durable      | Document bodies stay Renderer-local; SQLite holds tab metadata only                                                                                                                                                                                                                                                  | `session_views` / session-view                                                                     |
-| IT-terminal-snapshot-finalization   | Parsed snapshot encoding 3 persists its source grid; unclean Server Core loss may drop latest visual state                                                                                                                                                                                                           | `apps/server/src/domains/terminal/snapshot-persistence.ts`, TerminalManager                        |
-| IT-copy-not-journaled               | `files.copy` is best-effort, may leave partial trees, Main wait non-expiring; create/rename/move are journaled                                                                                                                                                                                                       | `packages/protocol/src/transport/request-lifetime.ts`, `mutation-journal`, partial-copy tests      |
-| IT-project-status-fixed-allowlist   | Project Status external CLIs are the closed `ExternalStatusSource` set (gh, git, lh, linear, vc); not a plugin adapter surface                                                                                                                                                                                       | `apps/server/src/domains/external-status/command.ts`, `apps/server/src/domains/project-status/`    |
-| IT-pe-flag-redaction-only           | Process Explorer redacts common credential **flag** argv shapes only (best-effort); not full `redactSecretText`                                                                                                                                                                                                      | `process-explorer.ts` `redactProcessName`                                                          |
-| IT-cli-global-wrapper               | Global CLI linking registers a dependency-free wrapper around the verified standalone bundle, because pnpm 12 stable cannot globally register the CLI workspace directly (absorbs the former duplicate `IT-pnpm-12-global-resolver` row)                                                                             | `apps/cli/scripts/link-global.ts`                                                                  |
-| IT-typescript-6-eslint-plus-7-tsc   | typescript package aliases TS6 for eslint; `@typescript/native` supplies TS7 tsc                                                                                                                                                                                                                                     | electron-toolchain / stack-baseline                                                                |
-| IT-electron-vite-beta               | electron-vite 6 beta accepted for Vite 8 + utilityProcess                                                                                                                                                                                                                                                            | package.json, electron-toolchain.md                                                                |
-| IT-runtime-integration-not-inferred | `check` does not map every `apps/server/src/domains/*.ts` edit onto the top-level `domain-services.integration.test.ts` suite                                                                                                                                                                                        | `check.ts`, `check.test.ts` (flat domain file mapping case)                                        |
-| IT-window-level-error-boundary      | Render exceptions recover via a window-level ErrorBoundary plus reload; only the editor pane nests one, so a failed lazy tab stays in its pane while a Terminal or Agent Chat pane throw reloads the window; a repeated throw on one Session moves the window to another Session (`AD-ui-render-crash-session-loop`) | `error-boundary.tsx`, Renderer entries, `editor-error-boundary.tsx`, `render-crash-recovery.ts`    |
-| IT-eslint-renderer-import-gate      | Renderer Node/Electron isolation is ESLint `no-restricted-imports` plus sandbox, not a bundle AST walk                                                                                                                                                                                                               | `eslint.config.ts`, `BrowserWindow` webPreferences                                                 |
-| IT-ci-workflow-source-contract      | Ordinary workflow contracts use source-shape/order smoke assertions; trust clauses have structured YAML binding, and neither layer evaluates arbitrary GitHub expression equivalence                                                                                                                                 | `ci-workflow-contract.test.ts`, `ci-trust-policy.test.ts`                                          |
-| IT-e2e-build-input-roots            | E2E build reuse keys on all tracked and dirty content minus audited non-build roots (`.agents/`, `.github/`, `docs/`, `e2e/`) plus a full output-tree stat digest, not the Vite dependency graph; a wrongly excluded root is a defect, a timestamp-preserving output restore is outside the contract                 | `scripts/build-receipt.ts`, [issue caxri#2829](https://github.com/tjx666/caxri/issues/2829)        |
-| IT-e2e-worker-local-error-gate      | `E2EErrorGate` state is isolated per Playwright worker process; pool orchestration may use more than one worker                                                                                                                                                                                                      | `e2e/support/error-gate.ts`, `scripts/run-e2e-pools.ts`                                            |
-| IT-e2e-parallel-safe-default        | Specs default to the three-worker `parallel-safe` pool; only `desktopExclusiveSpecs` entries with a closed reason stay on one worker, and mechanical capabilities are enforced by source derivation and at launch                                                                                                    | `e2e/support/pools.ts`, `docs/ci-performance.md`                                                   |
-| IT-external-document-in-place-save  | Saving a file outside every Project overwrites it in place to keep its inode, mode, and extended attributes, so a crash mid-save can truncate it; Project saves stay atomic                                                                                                                                          | `apps/desktop/src/main/external-documents.ts`, [ADR 0013](adr/0013-editable-external-documents.md) |
-| IT-bot-owner-reads                  | `bot.managedSessions` and `session.permissionAutoAllowStatus` are owner-only rather than project-scoped for Agent principals; handlers carry no principal context and no Agent consumer exists                                                                                                                       | `packages/protocol/src/transport/method-spec.ts`, `agent-messaging.md`                             |
-| IT-updater-streamed-rename          | The Desktop updater streams the DMG to a temp file, verifies hash and size, then renames it itself instead of using `atomicWriteFile`, which takes in-memory data                                                                                                                                                    | `apps/desktop/src/main/updates/updates.ts`                                                         |
-| IT-guards-density-ratchet-subset    | `guards` runs only the about 1.4 s directory-density ratchet among whole-tree contract tests; `checks` still runs it and the slower workspace contract, so merging before `checks` finishes remains possible for those                                                                                               | `.github/workflows/guards.yml`, `scripts/run-ci-focused-checks.ts`                                 |
+| ID                                  | Tradeoff                                                                                                                                                                                                                                                                                                                                                                                      | Evidence                                                                                                                                                        |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| IT-disk-wins-dirty-buffer           | External disk changes replace dirty editor buffers without a conflict dialog                                                                                                                                                                                                                                                                                                                  | architecture / `external-sync`                                                                                                                                  |
+| IT-unsaved-buffers-not-durable      | Document bodies stay Renderer-local; SQLite holds tab metadata only                                                                                                                                                                                                                                                                                                                           | `session_views` / session-view                                                                                                                                  |
+| IT-terminal-snapshot-finalization   | Parsed snapshot encoding 3 persists its source grid; unclean Server Core loss may drop latest visual state                                                                                                                                                                                                                                                                                    | `apps/server/src/domains/terminal/snapshot-persistence.ts`, TerminalManager                                                                                     |
+| IT-copy-not-journaled               | `files.copy` is best-effort, may leave partial trees, Main wait non-expiring; create/rename/move are journaled                                                                                                                                                                                                                                                                                | `packages/protocol/src/transport/request-lifetime.ts`, `mutation-journal`, partial-copy tests                                                                   |
+| IT-project-status-fixed-allowlist   | Project Status external CLIs are the closed `ExternalStatusSource` set (gh, git, lh, linear, vc); not a plugin adapter surface                                                                                                                                                                                                                                                                | `apps/server/src/domains/external-status/command.ts`, `apps/server/src/domains/project-status/`                                                                 |
+| IT-pe-flag-redaction-only           | Process Explorer redacts common credential **flag** argv shapes only (best-effort); not full `redactSecretText`                                                                                                                                                                                                                                                                               | `process-explorer.ts` `redactProcessName`                                                                                                                       |
+| IT-cli-global-wrapper               | Global CLI linking registers a dependency-free wrapper around the verified standalone bundle, because pnpm 12 stable cannot globally register the CLI workspace directly (absorbs the former duplicate `IT-pnpm-12-global-resolver` row)                                                                                                                                                      | `apps/cli/scripts/link-global.ts`                                                                                                                               |
+| IT-typescript-6-eslint-plus-7-tsc   | typescript package aliases TS6 for eslint; `@typescript/native` supplies TS7 tsc                                                                                                                                                                                                                                                                                                              | electron-toolchain / stack-baseline                                                                                                                             |
+| IT-electron-vite-beta               | electron-vite 6 beta accepted for Vite 8 + utilityProcess                                                                                                                                                                                                                                                                                                                                     | package.json, electron-toolchain.md                                                                                                                             |
+| IT-runtime-integration-not-inferred | `check` does not map every `apps/server/src/domains/*.ts` edit onto the top-level `domain-services.integration.test.ts` suite                                                                                                                                                                                                                                                                 | `check.ts`, `check.test.ts` (flat domain file mapping case)                                                                                                     |
+| IT-window-level-error-boundary      | Render exceptions recover via a window-level ErrorBoundary plus reload; surface-level `SurfaceErrorBoundary`s (editor pane, Chat timeline entry, Terminal pane, Settings page content, view-container view) keep a throw local, while any uncovered surface throw reloads the window; a repeated throw on one Session moves the window to another Session (`AD-ui-render-crash-session-loop`) | `error-boundary.tsx`, Renderer entries, `surface-error-boundary.tsx`, `render-crash-recovery.ts`                                                                |
+| IT-eslint-renderer-import-gate      | Renderer Node/Electron isolation is ESLint `no-restricted-imports` plus sandbox, not a bundle AST walk                                                                                                                                                                                                                                                                                        | `eslint.config.ts`, `BrowserWindow` webPreferences                                                                                                              |
+| IT-ci-workflow-source-contract      | Ordinary workflow contracts use source-shape/order smoke assertions; trust clauses have structured YAML binding, and neither layer evaluates arbitrary GitHub expression equivalence                                                                                                                                                                                                          | `ci-workflow-contract.test.ts`, `ci-trust-policy.test.ts`                                                                                                       |
+| IT-e2e-build-input-roots            | E2E build reuse keys on all tracked and dirty content minus audited non-build roots (`.agents/`, `.github/`, `docs/`, `e2e/`) plus a full output-tree stat digest, not the Vite dependency graph; a wrongly excluded root is a defect, a timestamp-preserving output restore is outside the contract                                                                                          | `scripts/build-receipt.ts`, [issue caxri#2829](https://github.com/tjx666/caxri/issues/2829)                                                                     |
+| IT-e2e-worker-local-error-gate      | `E2EErrorGate` state is isolated per Playwright worker process; pool orchestration may use more than one worker                                                                                                                                                                                                                                                                               | `e2e/support/error-gate.ts`, `scripts/run-e2e-pools.ts`                                                                                                         |
+| IT-e2e-parallel-safe-default        | Specs default to the three-worker `parallel-safe` pool; only `desktopExclusiveSpecs` entries with a closed reason stay on one worker, and mechanical capabilities are enforced by source derivation and at launch                                                                                                                                                                             | `e2e/support/pools.ts`, `docs/ci-performance.md`                                                                                                                |
+| IT-external-document-in-place-save  | Saving a file outside every Project overwrites it in place to keep its inode, mode, and extended attributes, so a crash mid-save can truncate it; Project saves stay atomic                                                                                                                                                                                                                   | `apps/desktop/src/main/external-documents/registry.ts`, [ADR 0013](adr/0013-editable-external-documents.md)                                                     |
+| IT-bot-owner-reads                  | `bot.managedSessions` and `session.permissionAutoAllowStatus` are owner-only rather than project-scoped for Agent principals; handlers carry no principal context and no Agent consumer exists                                                                                                                                                                                                | `packages/protocol/src/transport/method-spec.ts`, `agent-messaging.md`                                                                                          |
+| IT-updater-streamed-rename          | The Desktop updater streams the DMG to a temp file, verifies hash and size, then renames it itself instead of using `atomicWriteFile`, which takes in-memory data                                                                                                                                                                                                                             | `apps/desktop/src/main/updates/updates.ts`                                                                                                                      |
+| IT-guards-density-ratchet-subset    | `guards` runs only the about 1.4 s directory-density ratchet among whole-tree contract tests; `checks` still runs it and the slower workspace contract, so merging before `checks` finishes remains possible for those                                                                                                                                                                        | `.github/workflows/guards.yml`, `scripts/run-ci-focused-checks.ts`                                                                                              |
+| IT-chat-read-starts-provider        | Reading a stopped Chat may start its provider for models, commands, and live state; read leases are time- and count-bounded and pass the capacity gate                                                                                                                                                                                                                                        | Owner closed [issue caxri#1800](https://github.com/tjx666/caxri/issues/1800) as not planned on 2026-10-29 (formerly `AD-lifecycle-chat-idle-providers`)         |
+| IT-mobile-control-only-pairing      | Every Mobile pairing is granted `control`; the `view` and `reply` roles stay defined but unassigned                                                                                                                                                                                                                                                                                           | Owner closed [issue caxri#2334](https://github.com/tjx666/caxri/issues/2334) as not planned on 2026-10-29 (formerly `AD-contract-mobile-view-reply-roles`)      |
+| IT-provider-literal-comparisons     | Provider-specific branches may compare provider IDs as literals instead of going through registry capability flags                                                                                                                                                                                                                                                                            | Owner closed [issue caxri#2335](https://github.com/tjx666/caxri/issues/2335) as not planned on 2026-10-29 (formerly `AD-contract-provider-literal-comparisons`) |
 
 ---
 
-## Current priority guide (OPEN at 2026-10-26)
+## Current priority guide (OPEN at 2026-10-31)
 
-**Top priorities:** `AD-toolchain-electron-45-stable-pin` (unblocked) → `AD-lifecycle-chat-idle-providers` → `AD-layout-flat-family-enforcement` → `AD-contract-provider-literal-comparisons`.
+No OPEN entries remain after the batch of [issue caxri#3176](https://github.com/tjx666/caxri/issues/3176).
 
 ## Historical priority guide (all resolved)
 

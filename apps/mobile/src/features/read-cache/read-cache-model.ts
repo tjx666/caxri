@@ -8,8 +8,6 @@ import type {
 import {
     agentChatSnapshotSchema,
     agentTimelineItemSchema,
-    decodeDeviceStoreEntry,
-    encodeDeviceStoreEntry,
     findAgentChatModel,
     mobileDashboardResultSchema,
 } from '@caxri/protocol';
@@ -57,19 +55,6 @@ export const readCacheFileName = (key: ReadCacheKey): string => {
 
 export const isConversationCacheFile = (name: string): boolean =>
     name.startsWith('timeline-') || name.startsWith('chat-');
-
-export const encodeReadCacheEntry = (scope: string, savedAt: number, value: unknown): string =>
-    encodeDeviceStoreEntry(READ_CACHE_VERSION, scope, savedAt, value);
-
-/**
- * An entry for this pairing, or `null` for a corrupt, foreign, or older-version file.
- */
-export const decodeReadCacheEntry = <Value>(
-    text: string,
-    scope: string,
-    valueSchema: z.ZodType<Value>,
-): ReadCacheEntry<Value> | null =>
-    decodeDeviceStoreEntry(text, READ_CACHE_VERSION, scope, valueSchema);
 
 /**
  * The scope a live read may be saved under: the pairing it was read under, and only while that pairing is still

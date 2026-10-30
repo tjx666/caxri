@@ -21,7 +21,7 @@ export const providerMessageAckSchema = z.strictObject({
 });
 
 export type ProviderMessagingRegistration = z.infer<typeof providerMessagingRegistrationSchema>;
-export type ProviderMessageDelivery = z.infer<typeof providerMessageDeliverySchema>;
+type ProviderMessageDelivery = z.infer<typeof providerMessageDeliverySchema>;
 export type ProviderMessageAck = z.infer<typeof providerMessageAckSchema>;
 
 /**

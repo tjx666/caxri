@@ -3,9 +3,7 @@ import type { SettingSpec } from './settings-spec.js';
 /**
  * Display languages the Renderer ships translations for. `null` (the setting's default) follows the system language.
  */
-export const appLocales = ['en', 'zh-CN'] as const;
-
-export type AppLocale = (typeof appLocales)[number];
+export type AppLocale = 'en' | 'zh-CN';
 
 /**
  * Resolves a language preference to the locale Caxri renders in. `null` (the default) follows the system: any Chinese

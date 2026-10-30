@@ -16,10 +16,10 @@ export const NOTIFICATION_HELPER_INSTALL_COMMAND = 'brew install vjeantet/tap/al
  * - `native`: a signed build uses the operating system's own notification API.
  * - `unavailable`: an unsigned build without the helper, and the basic fallback just failed, so banners are not shown.
  */
-export const notificationDeliverySchema = z.enum(['helper', 'basic', 'native', 'unavailable']);
+const notificationDeliverySchema = z.enum(['helper', 'basic', 'native', 'unavailable']);
 export type NotificationDelivery = z.infer<typeof notificationDeliverySchema>;
 
-export const notificationHelperStatusSchema = z.object({
+const notificationHelperStatusSchema = z.object({
     delivery: notificationDeliverySchema,
 });
 export type NotificationHelperStatus = z.infer<typeof notificationHelperStatusSchema>;

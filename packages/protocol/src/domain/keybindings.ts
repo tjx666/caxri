@@ -7,7 +7,7 @@ import { MAX_TERMINAL_INPUT_LENGTH } from './terminal-limits.js';
 const TERMINAL_SEND_SEQUENCE_COMMAND_ID =
     'workbench.action.terminal.sendSequence' satisfies CommandId;
 
-export const keybindingWhenSchema = z.enum(['terminalFocus']);
+const keybindingWhenSchema = z.enum(['terminalFocus']);
 
 export const keybindingSchema = z
     .object({

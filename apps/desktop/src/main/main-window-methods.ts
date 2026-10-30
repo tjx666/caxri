@@ -1,10 +1,10 @@
 import type { MainRequest, PerformanceMonitorMetrics, SettingsTarget } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
-import type { BenchmarkWindowController } from './benchmark-window';
+import type { BenchmarkWindowController } from './benchmark/window';
 import type { CaxriBotWindowController } from './caxri-bot-window';
 import type { PerformanceMonitorWindowController } from './performance-monitor/window';
-import type { ProcessExplorerWindowController } from './process-explorer-window';
+import type { ProcessExplorerWindowController } from './process-explorer/window';
 import type { WindowPresenceRegistry } from './window-presence-registry';
 import { currentRequestWindowKey } from './window-presence-registry';
 

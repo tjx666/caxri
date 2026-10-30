@@ -1,5 +1,4 @@
 export { agentChatDrivers } from './chat-drivers';
-export { agentChatEndpoint } from './chat-endpoint';
 export type { AgentChatLaunchOptions } from './chat-launch';
 export { prepareChatLaunch } from './chat-launch';
 export type {
@@ -10,12 +9,13 @@ export type {
 } from './chat-provider';
 export { AgentChatStartError } from './chat-provider';
 export { chatStateStore } from './chat-state-store';
-export { claudePlanLimits } from './claude-plan-limits';
-export { withTimeout } from './claude-prompt-queue';
 export { ChatUsageContinuation } from './continuation/chat-usage-continuation';
 export { ChatUsageLimitWaits } from './continuation/chat-usage-limit-waits';
+export { agentChatEndpoint } from './endpoint/agent-endpoint';
 export { createAgentChatHandlers } from './handlers';
 export { ProviderProcess } from './provider-process';
 export { reapStaleProviderGroups } from './provider-process-groups';
+export { claudePlanLimits } from './providers/claude/plan-limits';
+export { withTimeout } from './providers/claude/prompt-queue';
 export { AgentChatService } from './service';
 export type { AgentChatServiceOptions } from './service-options';

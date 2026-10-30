@@ -82,7 +82,7 @@ export const mobilePairingLinkSchema = z.strictObject({
  * How the phone reached this socket, reported in its reconnect hello so the Server log can explain a slow reconnect end
  * to end. Timing only: no address, URL, or network name.
  */
-export const mobileConnectTraceSchema = z.strictObject({
+const mobileConnectTraceSchema = z.strictObject({
     /**
      * How long direct routes raced alone before the Relay was asked for the computer.
      */
@@ -169,8 +169,3 @@ export const mobileRevokedSchema = z.strictObject({
 
 export type MobilePairingLink = z.infer<typeof mobilePairingLinkSchema>;
 export type MobileClientHello = z.infer<typeof mobileClientHelloSchema>;
-export type MobileServerHello = z.infer<typeof mobileServerHelloSchema>;
-export type MobileVersionMismatch = z.infer<typeof mobileVersionMismatchSchema>;
-export type MobileClientConfirmation = z.infer<typeof mobileClientConfirmationSchema>;
-export type MobileSealedFrame = z.infer<typeof mobileSealedFrameSchema>;
-export type MobilePairingResult = z.infer<typeof mobilePairingResultSchema>;

@@ -19,9 +19,9 @@ vi.mock('electron', () => ({
 }));
 
 import { fileUriListPaths } from '../clipboard/clipboard-methods';
+import type { DesktopServerConnection } from '../connection/server-connection';
 import { createMainMethodHandler } from '../main-methods';
-import type { ProcessExplorerWindowController } from '../process-explorer-window';
-import type { DesktopServerConnection } from '../server-connection';
+import type { ProcessExplorerWindowController } from '../process-explorer/window';
 import type { UpdateService } from '../updates/updates';
 import type { createWorkbenchRootAuthority } from '../workbench-root-authority';
 

@@ -5,7 +5,7 @@ import {
     EXTENSION_HOST_PROTOCOL_FAULT_ENVIRONMENT_KEY,
 } from '@caxri/system';
 
-import { acceptanceSessionDeleteCaseIds } from '../../../../apps/desktop/src/main/acceptance-session-delete';
+import { acceptanceSessionDeleteCaseIds } from '../../../../apps/desktop/src/main/acceptance/session-delete';
 import type { DeclaredPlanFixtures } from './plan-fixtures';
 
 /**

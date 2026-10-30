@@ -2,13 +2,13 @@ import { z } from 'zod';
 
 import type { SettingSpec } from './settings-spec.js';
 
-export const MAX_ENVIRONMENT_MONITOR_DOMAIN_LENGTH = 253;
-export const MAX_ENVIRONMENT_MONITOR_NODE_LENGTH = 160;
+const MAX_ENVIRONMENT_MONITOR_DOMAIN_LENGTH = 253;
+const MAX_ENVIRONMENT_MONITOR_NODE_LENGTH = 160;
 export const MAX_ENVIRONMENT_MONITOR_ROUTE_ASSERTIONS = 32;
-export const MAX_MIHOMO_CONTROLLER_SECRET_LENGTH = 4_096;
+const MAX_MIHOMO_CONTROLLER_SECRET_LENGTH = 4_096;
 export const MAX_MIHOMO_CONTROLLER_NODES = 1_000;
 
-export const DEFAULT_MIHOMO_CONTROLLER_ENDPOINT = 'http://127.0.0.1:9090';
+const DEFAULT_MIHOMO_CONTROLLER_ENDPOINT = 'http://127.0.0.1:9090';
 
 /**
  * An exact host observed in Mihomo's live connection metadata. Active probes are deliberately excluded: monitoring a
@@ -32,7 +32,7 @@ export function normalizeEnvironmentMonitorDomain(value: string): string | undef
  * Limits Controller access to this Mac. Mihomo supports TCP and Unix sockets; remote Controllers are intentionally not
  * accepted because this feature describes the local environment and may carry a Controller secret.
  */
-export function normalizeMihomoControllerEndpoint(value: string): string | undefined {
+function normalizeMihomoControllerEndpoint(value: string): string | undefined {
     const candidate = value.trim();
     if (!candidate) return undefined;
     if (candidate.startsWith('unix://')) {
@@ -60,7 +60,7 @@ export function normalizeMihomoControllerEndpoint(value: string): string | undef
     }
 }
 
-export function normalizeEnvironmentMonitorTimeZone(value: string): string | undefined {
+function normalizeEnvironmentMonitorTimeZone(value: string): string | undefined {
     const candidate = value.trim();
     if (!candidate || candidate.length > 100) return undefined;
     try {
@@ -87,7 +87,7 @@ const canonicalMihomoControllerEndpointSchema = z
         message: 'Expected a canonical loopback HTTP endpoint or absolute Unix socket',
     });
 
-export const environmentMonitorRouteAssertionSchema = z.strictObject({
+const environmentMonitorRouteAssertionSchema = z.strictObject({
     domain: canonicalEnvironmentMonitorDomainSchema,
     expectedNode: z.string().min(1).max(MAX_ENVIRONMENT_MONITOR_NODE_LENGTH),
 });
