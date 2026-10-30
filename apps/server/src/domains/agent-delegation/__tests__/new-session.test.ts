@@ -46,10 +46,30 @@ async function fixture() {
         verifyLaunch: () => Promise.resolve(),
         readTranscript: vi.fn().mockResolvedValue(null),
         newSessions: {
-            create: (projectId, title, isBot, createdBySessionId) =>
-                isBot
-                    ? createBotSession(database, projectId, undefined, title)
-                    : createBackgroundSession(database, projectId, title, createdBySessionId),
+            create: (projectId, title, isBot, createdBySessionId, worktree) => {
+                if (isBot) return createBotSession(database, projectId, undefined, title);
+                const sessionId = createBackgroundSession(
+                    database,
+                    projectId,
+                    title,
+                    createdBySessionId,
+                );
+                if (worktree)
+                    database.selectWorkbenchProject(
+                        sessionId,
+                        worktree.projectId,
+                        worktree.identity,
+                    );
+                return sessionId;
+            },
+            prepareWorktree: (projectId, branch) => {
+                if (branch === 'refused') return Promise.reject(new Error('git refused'));
+                const worktree = database.createProject(join(directory, `wt-${branch}`), projectId);
+                return Promise.resolve({
+                    projectId: worktree.id,
+                    identity: { device: '1', inode: '2' },
+                });
+            },
             discard: (sessionId) => {
                 if (database.caxriBotRows()?.sessionIds.includes(sessionId))
                     discardBotSession(database, sessionId);
@@ -90,6 +110,7 @@ async function fixture() {
         title: 'Fix login retry',
     };
     return {
+        directory,
         database,
         service,
         botAuthority,
@@ -184,6 +205,32 @@ describe('Delegation into a new Session for Caxri Bot', () => {
  * or Chat, used to be refused here, and was steered toward borrowing the owner's identity instead.
  */
 describe('Delegation into a new Session from an ordinary Agent', () => {
+    it('runs the new Session in a worktree grouped under its Project', async () => {
+        const { database, service, agentAuthority, project, request, directory } = await fixture();
+        await mkdir(join(directory, 'wt-feat'));
+
+        const receipt = await service.create(randomUUID(), agentAuthority, {
+            ...request,
+            worktreeBranch: 'feat',
+        });
+
+        const session = database.getSession(receipt.sessionId)!;
+        const worktree = database.findProjectByRootPath(join(directory, 'wt-feat'))!;
+        expect(session.projectId).toBe(project.id);
+        expect(session.workbenchRootProjectId).toBe(worktree.id);
+    });
+
+    it('leaves no Session behind when the worktree cannot be created', async () => {
+        const { database, service, agentAuthority, request } = await fixture();
+        const before = database.listSessions().length;
+
+        await expect(
+            service.create(randomUUID(), agentAuthority, { ...request, worktreeBranch: 'refused' }),
+        ).rejects.toThrow('git refused');
+
+        expect(database.listSessions()).toHaveLength(before);
+    });
+
     it('creates a visible Session in another added Project and keeps working there', async () => {
         const { database, service, agentAuthority, callerSessionId, project, request } =
             await fixture();

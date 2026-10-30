@@ -15,6 +15,14 @@ import type { DelegationTranscriptReader } from './collection';
  * Everything the delegation service borrows from the rest of the Server. Terminal reads and writes stay optional so a
  * test or a headless caller can construct the service without a Terminal host.
  */
+/**
+ * A worktree Project made for a new Session, which `create` binds the Session to.
+ */
+export interface DelegationWorktree {
+    identity: { device: string; inode: string };
+    projectId: string;
+}
+
 export interface AgentDelegationServiceOptions extends DelegationTranscriptReader {
     database: CaxriDatabase;
     dispatch: Pick<AgentDispatchService, 'start'> & Partial<Pick<AgentDispatchService, 'resume'>>;
@@ -86,7 +94,14 @@ export interface AgentDelegationServiceOptions extends DelegationTranscriptReade
             title: string | undefined,
             isBot: boolean,
             createdBySessionId?: string,
+            worktree?: DelegationWorktree,
         ): string;
+        /**
+         * Creates a linked worktree of the Project on a new branch, before any Session exists, so a failed Git step
+         * leaves nothing behind. Rejects when the Project is not a visible top-level one. Optional so a unit test can
+         * omit it.
+         */
+        prepareWorktree?(projectId: string, branch: string): Promise<DelegationWorktree>;
         /**
          * Removes a Session the delegation just created but never used. Metadata only.
          */

@@ -22,6 +22,7 @@ const createFlags = new Set([
     '--resume',
     '--continue-handover',
     '--title',
+    '--worktree',
 ]);
 
 const providerUsage = delegationProviderSchema.options.join('|');
@@ -59,6 +60,8 @@ async function createParameters(tokens: readonly string[]) {
             'VALIDATION',
             'Name a new Session with --title; --title applies only with --new-session',
         );
+    if (!isNewSession && values.has('--worktree'))
+        throw new CaxriError('VALIDATION', '--worktree applies only with --new-session');
     if (isHandoff && !isNewSession)
         throw new CaxriError('VALIDATION', '--handoff applies only with --new-session');
     return agentDelegationCreateRequestSchema.parse({
@@ -67,6 +70,7 @@ async function createParameters(tokens: readonly string[]) {
         ...(isNewSession && { newSession: true }),
         ...(isHandoff && { handoff: true }),
         ...(values.has('--title') && { title: values.get('--title') }),
+        ...(values.has('--worktree') && { worktreeBranch: values.get('--worktree') }),
         provider: values.get('--provider'),
         preset: values.get('--preset'),
         model: values.get('--model'),
@@ -170,7 +174,7 @@ export const DELEGATION_COMMANDS: RemoteCommandDefinition[] = [
         method: 'agent.delegation.create',
         quietIdKey: 'delegationId',
         summary: 'Run a task in a visible Agent Terminal and preserve its exact result.',
-        usage: `--project <id> (--session <id> | --new-session --title <text> [--handoff]) --prompt-file <path> [--preset <name> | --provider <${providerUsage}> [--model <name>] [--effort <level>]] [--caller <${providerUsage}>] [--follow-up <id> | --resume <id> | --continue-handover <id>]`,
+        usage: `--project <id> (--session <id> | --new-session --title <text> [--handoff] [--worktree <new-branch>]) --prompt-file <path> [--preset <name> | --provider <${providerUsage}> [--model <name>] [--effort <level>]] [--caller <${providerUsage}>] [--follow-up <id> | --resume <id> | --continue-handover <id>]`,
         ownerConfirmation: 'Create this visible Agent delegation?',
         parseParams: createParameters,
     },

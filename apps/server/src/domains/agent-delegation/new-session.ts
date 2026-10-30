@@ -24,7 +24,7 @@ export async function admitDelegationRequest(
     request: AgentDelegationCreateRequest,
     admit: (input: AgentDelegationCreate, isNewSession: boolean) => Promise<AgentDelegationReceipt>,
 ): Promise<AgentDelegationReceipt> {
-    const { newSession, sessionId: requestedSessionId, title, ...fields } = request;
+    const { newSession, sessionId: requestedSessionId, title, worktreeBranch, ...fields } = request;
     if (!newSession) return admit({ ...fields, sessionId: requestedSessionId! }, false);
     const { newSessions, database } = options;
     const existing = database.agentDelegations.get(id);
@@ -33,6 +33,8 @@ export async function admitDelegationRequest(
     if (!newSessions || (kind !== 'agent' && kind !== 'human-cli' && kind !== 'desktop'))
         throw new CaxriError('FORBIDDEN', 'This caller cannot delegate into a new Session');
     const isBot = isCaxriBotCaller(database, authority);
+    if (worktreeBranch && (isBot || !newSessions.prepareWorktree))
+        throw new CaxriError('FORBIDDEN', 'This caller cannot delegate into a new worktree');
     /**
      * An Agent's own Session, or the Chat a Client continues in another Agent (`agentChat.continueInAgent`).
      */
@@ -40,11 +42,18 @@ export async function admitDelegationRequest(
         (kind === 'agent' || kind === 'desktop') && authority.callerTerminalId
             ? database.getTerminal(authority.callerTerminalId)?.sessionId
             : undefined;
+    /**
+     * The worktree comes first: when Git refuses it, no Session was created and none needs removing.
+     */
+    const worktree = worktreeBranch
+        ? await newSessions.prepareWorktree!(fields.projectId, worktreeBranch)
+        : undefined;
     const sessionId = newSessions.create(
         fields.projectId,
         title,
         isBot,
         isBot ? undefined : callerSessionId,
+        worktree,
     );
     try {
         return await admit({ ...fields, sessionId }, true);

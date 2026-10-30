@@ -211,6 +211,11 @@ Then write the task to a file and run
   Chat composer's `/new-session` asks for exactly this): the new Session's first message then reads
   as continued from yours. Write the brief so it stands alone, report the new Session, and stop
   instead of following the task.
+- Add `--worktree <new-branch>` (only with `--new-session`) to work on the same repository in
+  parallel: Caxri creates a Git worktree on that new branch beside the Project folder
+  (`<project>.worktrees/<branch>`) and runs the Session there, listed under the original Project.
+  No `project add` is needed. A taken or invalid branch name fails before any Session exists.
+  Caxri never removes the worktree for you.
 - Report the returned `sessionId` and title to the user, then follow the task as described below:
   `wait`, `result`, `--follow-up` for the next instruction to the same Agent, and `stop`.
 - Lost track of a task after a context reset? `caxri agent delegate list --active --json` lists

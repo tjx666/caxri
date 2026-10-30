@@ -1,4 +1,5 @@
 import type { AgentDelegationReceipt, AppSettings, FullStateChangeReason } from '@caxri/protocol';
+import { CaxriError, isTopLevelProject } from '@caxri/protocol';
 
 import { AgentDelegationService, createDelegationHandlers } from '../agent-delegation';
 import type { AgentDispatchServiceOptions } from '../agent-dispatch';
@@ -22,6 +23,7 @@ import { botHandoverAccess, createBotSession, discardBotSession } from '../bot';
 import { coreRouted } from '../core-routed';
 import { createBackgroundSession, discardEmptySession } from '../session';
 import type { AgentUsageGuards } from '../usage';
+import { prepareDelegatedWorktree } from './delegated-worktree';
 import type { DelegationChats } from './delegation-chats';
 import { delegationChatFor, didAcceptDelegationChatWrite } from './delegation-chats';
 
@@ -83,7 +85,7 @@ export function createAgentCommandRuntime(
         logger: options.logger,
         userDataPath: options.userDataPath,
         newSessions: {
-            create: (projectId, title, isBot, createdBySessionId) => {
+            create: (projectId, title, isBot, createdBySessionId, worktree) => {
                 const sessionId = isBot
                     ? createBotSession(options.database, projectId, options.logger, title)
                     : createBackgroundSession(
@@ -92,8 +94,22 @@ export function createAgentCommandRuntime(
                           title,
                           createdBySessionId,
                       );
+                if (worktree)
+                    options.database.selectWorkbenchProject(
+                        sessionId,
+                        worktree.projectId,
+                        worktree.identity,
+                    );
                 announce('session.create');
                 return sessionId;
+            },
+            prepareWorktree: (projectId, branch) => {
+                const project = options.database
+                    .listVisibleProjects()
+                    .find((candidate) => candidate.id === projectId);
+                if (!project || !isTopLevelProject(project))
+                    throw new CaxriError('NOT_FOUND', 'Project is unavailable for a new Session');
+                return prepareDelegatedWorktree(options, projectId, project.rootPath, branch);
             },
             discard: (sessionId) => {
                 if (options.database.caxriBotRows()?.sessionIds.includes(sessionId))
