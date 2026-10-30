@@ -26,3 +26,22 @@ describe('isMobileSubscriptionEvent for the dashboard', () => {
         await expect(forward('botInbox.changed')).resolves.toBe(false);
     });
 });
+
+describe('isMobileSubscriptionEvent for extension views', () => {
+    const forward = (sessionId: string, event: string = 'viewContainers.treeChanged') =>
+        isMobileSubscriptionEvent(
+            {} as ServerDomainService,
+            principal,
+            { kind: 'extensionViews', sessionId: 'session-1' },
+            {
+                event,
+                payload: { context: { kind: 'session', sessionId } },
+            } as unknown as ServerEvent,
+        );
+
+    it('forwards tree refreshes scoped to the followed Session only', async () => {
+        await expect(forward('session-1')).resolves.toBe(true);
+        await expect(forward('session-2')).resolves.toBe(false);
+        await expect(forward('session-1', 'git.changed')).resolves.toBe(false);
+    });
+});

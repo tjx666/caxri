@@ -13,7 +13,7 @@ import { panelsStyles as styles } from './panels-styles';
 import { PendingPanelState } from './pending-panel-state';
 import { treeChildrenView } from './tree-children-view';
 import { TreeItemIcon } from './tree-item-icon';
-import { useTreeChildren } from './use-panels';
+import { useExtensionTreeSubscription, useTreeChildren } from './use-panels';
 
 type TreeItem = MethodResult<'mobile.tree.children'>['items'][number];
 
@@ -181,8 +181,11 @@ export const TreePanel = ({
     sessionId: string;
     theme: MobileTheme;
     viewId: string;
-}) => (
-    <ScrollView style={styles.root} testID={`tree-panel-${viewId}`}>
-        <TreeChildren depth={0} sessionId={sessionId} theme={theme} viewId={viewId} />
-    </ScrollView>
-);
+}) => {
+    useExtensionTreeSubscription(sessionId);
+    return (
+        <ScrollView style={styles.root} testID={`tree-panel-${viewId}`}>
+            <TreeChildren depth={0} sessionId={sessionId} theme={theme} viewId={viewId} />
+        </ScrollView>
+    );
+};

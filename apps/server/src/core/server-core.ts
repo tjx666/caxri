@@ -40,7 +40,7 @@ import {
     isExtensionControlRequest,
 } from './extensions/control-requests';
 import { createExtensionService } from './extensions/create-service';
-import { routeActiveContextChange, routeExtensionDomainEvent } from './extensions/domain-events';
+import { createExtensionEventRouter } from './extensions/event-router';
 import type { ExtensionService } from './extensions/service';
 import {
     createDomainOperationForwarder,
@@ -140,10 +140,13 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         requestCancellations,
         forwardDomainOperation,
     );
-    const logContextRefreshFailure = (error: unknown): void =>
-        logger.write('error', logEventCatalog.extensionHost.contextRefreshFailed, {
-            fields: { message: error instanceof Error ? error.message : String(error) },
-        });
+    const extensionEvents = createExtensionEventRouter({
+        domainService,
+        extensionService: () => extensionService,
+        isStopping: () => stopPromise !== undefined,
+        logger,
+        watchesExtensionViews: credentials.watchesExtensionViews,
+    });
     const recoveryJournal = createServerRecoveryJournal(
         serverRecoverySnapshot(domainService),
         (observation) => logDurableRecovery(logger, observation),
@@ -153,15 +156,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         if (event.event === 'terminal.exit')
             agentEndpoints.retireTerminal(event.payload.terminalId);
         else if (event.event === 'runtime.status') logRuntimeStatus(logger, event.payload);
-        /**
-         * Skip refreshes emitted after the Extension Host enters teardown.
-         */
-        if (!stopPromise) {
-            // eslint-disable-next-line unicorn/prefer-await -- event delivery cannot await a best-effort refresh
-            routeExtensionDomainEvent(extensionService, domainService, event).catch(
-                logContextRefreshFailure,
-            );
-        }
+        extensionEvents.domainEvent(event);
         if (isTransientServerEvent(event)) server?.broadcast(event);
         else {
             const envelope = persistedEnvelope ?? recoveryJournal.publish(event);
@@ -170,11 +165,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         credentials.publish(event);
     };
     domainService.onEvent(deliver);
-    domainService.onActiveContextChanged(() => {
-        if (stopPromise) return;
-        // eslint-disable-next-line unicorn/prefer-await -- a listener cannot await a best-effort refresh
-        routeActiveContextChange(extensionService, domainService).catch(logContextRefreshFailure);
-    });
+    domainService.onActiveContextChanged(extensionEvents.activeContextChanged);
     const stop = (reason = 'requested'): Promise<void> => {
         mutationAdmission.close();
         resolveStopping();
@@ -520,6 +511,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
             extensionRoots: options.extensionRoots,
             includeTestExtensions: options.includeTestExtensions,
             logger,
+            publishToMobile: credentials.publish,
             server: () => server,
             serverId: protocolIdentity.serverId,
             userDataPath: lease.paths.userDataPath,

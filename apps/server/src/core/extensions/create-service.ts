@@ -1,3 +1,4 @@
+import type { ServerEvent } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 
 import type { ControlServer } from '../control-server';
@@ -24,6 +25,10 @@ export interface CreateExtensionServiceOptions {
     extensionRoots?: string[];
     includeTestExtensions?: boolean;
     logger: StructuredLogger;
+    /**
+     * Hands a tree refresh to paired phones, which follow their Session's extension views.
+     */
+    publishToMobile?(event: ServerEvent): void;
     server(): ControlServer | undefined;
     serverId: string;
     userDataPath: string;
@@ -67,7 +72,11 @@ export async function createExtensionService(
     service.onCatalogChanged((payload) =>
         options.server()?.broadcast({ event: 'viewContainers.catalogChanged', payload }),
     );
-    publishExtensionViewEvents(service, () => options.server());
+    publishExtensionViewEvents(
+        service,
+        () => options.server(),
+        options.publishToMobile && ((event) => options.publishToMobile?.(event)),
+    );
     await service.start({ deferHost: options.deferHostStart ?? false });
     return service;
 }

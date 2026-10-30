@@ -34,6 +34,8 @@ const isMessageForResource = (
             return message.kind === 'conversation.changed';
         case 'changes':
             return message.kind === 'changes.changed';
+        case 'extensionViews':
+            return message.kind === 'extensionViews.changed';
         case 'terminal':
             return message.kind === 'terminal.snapshot' || message.kind === 'terminal.output';
         case 'agentChat':

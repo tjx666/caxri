@@ -67,6 +67,7 @@ export const extensionHostLogEvents = {
     catalogRebuildFailed: 'extension_host.catalog_rebuild_failed',
     contextRefreshFailed: 'extension_host.context_refresh_failed',
     discovered: 'extension_host.discovered',
+    gitRefreshFanout: 'extension_host.git_refresh_fanout',
     error: 'extension_host.error',
     exit: 'extension_host.exit',
     invalidMessage: 'extension_host.invalid_message',

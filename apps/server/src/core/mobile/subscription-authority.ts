@@ -23,6 +23,9 @@ export const mobileSubscriptionMethod = (resource: MobileSubscriptionResource): 
         case 'botInbox': {
             return 'mobile.botInbox.list';
         }
+        case 'extensionViews': {
+            return 'mobile.tree.children';
+        }
         default: {
             return 'mobile.dashboard';
         }
@@ -48,7 +51,8 @@ export async function authorizeMobileSubscriptionResource(
             return;
         }
         case 'conversation':
-        case 'changes': {
+        case 'changes':
+        case 'extensionViews': {
             await sessionForPrincipal(domainService, principal, resource.sessionId);
             return;
         }
@@ -91,6 +95,12 @@ export async function isMobileSubscriptionEvent(
             return (
                 event.event === 'git.changed' &&
                 event.payload.sessionIds.includes(resource.sessionId)
+            );
+        case 'extensionViews':
+            return (
+                event.event === 'viewContainers.treeChanged' &&
+                event.payload.context.kind === 'session' &&
+                event.payload.context.sessionId === resource.sessionId
             );
         case 'conversation': {
             if (event.event !== 'agentTranscript.changed') return false;
