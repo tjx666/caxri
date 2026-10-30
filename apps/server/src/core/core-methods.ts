@@ -1,217 +1,58 @@
 import type { ServerMethod } from '@caxri/protocol';
 
 /**
- * Server-owned methods that Core forwards to domain services. A new registry method remains `CoreHandledMethod` until
- * it is explicitly added here, so forgetting a Core-local handler fails compilation instead of falling through to a
- * `coreRouted()` domain stub.
+ * Server-owned methods that Server Core answers itself, in `server-core.ts` or the Host, Agent endpoint, mobile access,
+ * and Extension Host view routers, and never forwards to a domain service. Families that Core owns as a whole are
+ * template-literal prefixes, so a new method inside one needs no edit here; every other method is listed by name.
+ *
+ * Everything else is `CoreForwardedMethod`, derived as the complement, so adding a domain-served registry method needs
+ * no name list. A new Core-local method that is missing here (and from the `server-core.ts` switch) fails compilation
+ * at the `default` branch instead of falling through to a `coreRouted()` domain stub.
  */
-export const coreForwardedMethods = [
-    'agent.excerpts',
-    'agentActions.list',
-    'agentActions.read',
-    'agentActions.recordRecent',
-    'agentChat.askSideQuestion',
-    'agentChat.bypassUsageGuard',
-    'agentChat.configure',
-    'agentChat.continuationTargets',
-    'agentChat.continueInAgent',
-    'agentChat.fork',
-    'agentChat.generateHandoff',
-    'agentChat.implementPlan',
-    'agentChat.interrupt',
-    'agentChat.pendingRequests',
-    'agentChat.previewRestoreFiles',
-    'agentChat.read',
-    'agentChat.readContext',
-    'agentChat.readHistory',
-    'agentChat.readImage',
-    'agentChat.readTask',
-    'agentChat.editQueued',
-    'agentChat.removeQueued',
-    'agentChat.restoreQueued',
-    'agentChat.respond',
-    'agentChat.resumeQueue',
-    'agentChat.restoreFiles',
-    'agentChat.rewind',
-    'agentChat.runCommand',
-    'agentChat.saveLongPaste',
-    'agentChat.send',
-    'agentChat.sendQueuedNow',
-    'agentChat.stopTask',
-    'agentChat.takeQueued',
-    'agentChat.usageLimitWait',
-    'agentAvailability.get',
-    'agentHooks.get',
-    'agentSkills.get',
-    'usage.dismissNotice',
-    'usage.limits',
-    'usage.report',
-    'benchmark.attemptDiff',
-    'benchmark.cancel',
-    'benchmark.catalog',
-    'benchmark.delete',
-    'benchmark.get',
-    'benchmark.list',
-    'benchmark.start',
-    'claudeWindow.reportBackground',
-    'claudeWindow.status',
-    'claudeWindow.tick',
-    'claudeWindow.update',
-    'secrets.list',
-    'secrets.set',
-    'secrets.delete',
-    'secrets.requests.list',
-    'secrets.requests.answer',
-    'app.bootstrap',
-    'app.health',
-    'bot.board',
-    'bot.conversations',
-    'bot.data',
-    'bot.ensure',
-    'bot.inbox.ack',
-    'bot.inbox.add',
-    'bot.inbox.dismiss',
-    'bot.inbox.list',
-    'bot.inbox.merge',
-    'bot.inbox.reply',
-    'bot.inbox.resolve',
-    'bot.inbox.show',
-    'bot.managedSessions',
-    'bot.session.archive',
-    'bot.session.create',
-    'bot.session.handOver',
-    'bot.session.takeBack',
-    'bot.snapshot',
-    'bot.status',
-    'bot.stop',
-    'bot.switchAgent',
-    'bot.task.create',
-    'bot.task.list',
-    'bot.task.update',
-    'app.records',
-    'bugReport.context',
-    'diagnostics.snapshot',
-    'files.browse',
-    'files.resolveImports',
-    'files.resolveKind',
-    'files.copy',
-    'files.create',
-    'files.list',
-    'files.locateDirectory',
-    'files.move',
-    'files.operation.acknowledge',
-    'files.operation.cancel',
-    'files.operation.get',
-    'files.operation.list',
-    'files.read',
-    'files.readAsset',
-    'files.rename',
-    'files.restoreTrashed',
-    'files.search',
-    'files.write',
-    'git.blame',
-    'git.branches',
-    'git.commitDetails',
-    'git.commitDiffDocument',
-    'git.commits',
-    'git.diffDocument',
-    'git.fileHead',
-    'git.mergePullRequest',
-    'git.overview',
-    'git.pullRequestChanges',
-    'git.pullRequestDiffDocument',
-    'git.remoteHost',
-    'git.summary',
-    'git.switchBranch',
-    'git.sync',
-    'gitReview.add',
-    'gitReview.clearResolved',
-    'gitReview.edit',
-    'gitReview.list',
-    'gitReview.pending',
-    'gitReview.refresh',
-    'gitReview.remove',
-    'gitReview.send',
-    'keybindings.get',
-    'keybindings.update',
-    'logs.query',
-    'project.add',
-    'project.browseFolders',
-    'project.hide',
-    'project.restorable',
-    'project.list',
-    'project.reorder',
-    'project.setIcon',
-    'project.setChatDefault',
-    'projectStatus.linearIssue',
-    'projectStatus.overview',
-    'projectStatus.summary',
-    'session.agentHistory',
-    'session.archive',
-    'session.archiveWorktreePlan',
-    'session.compactWarm',
-    'session.enterAirplaneMode',
-    'session.skipAirplaneModeCompaction',
-    'session.exitAirplaneMode',
-    'session.airplaneModeStatus',
-    'session.conversationReference',
-    'session.create',
-    'session.detach',
-    'session.dismissWorkbenchCandidate',
-    'session.markRead',
-    'session.permissionAutoAllowStatus',
-    'session.reorder',
-    'session.reorderPinned',
-    'session.pullRequests',
-    'session.refreshDeliveryOnFocus',
-    'session.rename',
-    'session.reopenConversation',
-    'session.revokePermissionAutoAllow',
-    'session.search',
-    'session.searchPreview',
-    'session.resume',
-    'session.select',
-    'session.selectWorkbenchRoot',
-    'session.setPinned',
-    'session.suggestTitle',
-    'session.unarchive',
-    'session.unarchiveMany',
-    'session.updateState',
-    'session.workbenchRoot.forgetEditorPath',
-    'session.workbenchRoots',
-    'settings.get',
-    'settings.inspect',
-    'settings.patch',
-    'settings.delegation.import',
-    'settings.update',
-    'terminal.agentThroughput',
-    'terminal.agentUsage',
-    'terminal.agentTaskUsage',
-    'terminal.agentTranscript',
-    'terminal.attach',
-    'terminal.close',
-    'terminal.commitLink.resolve',
-    'terminal.reference.preview',
-    'terminal.create',
-    'terminal.detach',
-    'terminal.input',
-    'terminal.inputBinary',
-    'terminal.inputAgentExact',
-    'terminal.prepareLongPaste',
-    'terminal.moveToNewSession',
-    'terminal.resize',
-    'terminal.processes',
-    'terminal.ptyUsage',
-    'terminal.resources',
-    'terminal.referenceContext',
-    'terminal.restart',
-    'terminal.runningCount',
-    'terminal.snapshot',
-    'terminal.suspend',
-    'terminal.switchSurface',
-    'theme.get',
-    'theme.update',
-] as const satisfies readonly ServerMethod[];
-
-export type CoreForwardedMethod = (typeof coreForwardedMethods)[number];
-export type CoreHandledMethod = Exclude<ServerMethod, CoreForwardedMethod>;
+export type CoreHandledMethod = Extract<
+    ServerMethod,
+    | `agent.control.${string}`
+    | `agent.dispatch.${string}`
+    | `agent.message.${string}`
+    | `agent.secret.${string}`
+    | `agent.session.${string}`
+    | `mobile.${string}`
+    | `viewContainers.${string}`
+    | 'agent.context'
+    | 'agent.delegation.access.create'
+    | 'agent.delegation.access.list'
+    | 'agent.delegation.access.revoke'
+    | 'agent.delegation.create'
+    | 'agent.delegation.list'
+    | 'agent.delegation.presets'
+    | 'agent.delegation.result'
+    | 'agent.delegation.status'
+    | 'agent.delegation.stop'
+    | 'agent.delegation.wait'
+    | 'agent.grant'
+    | 'agent.grants'
+    | 'agent.list'
+    | 'agent.revoke'
+    | 'desktop.focus'
+    | 'desktop.openFile'
+    | 'desktop.openPath'
+    | 'desktop.openProject'
+    | 'desktop.status'
+    | 'events.query'
+    | 'events.recover'
+    | 'extensions.retry'
+    | 'files.openWithDefaultApp'
+    | 'files.reveal'
+    | 'host.status'
+    | 'host.stop'
+    | 'project.openInEditor'
+    | 'project.openRoot'
+    | 'project.query'
+    | 'requests.cancel'
+    | 'session.importConversation'
+    | 'session.query'
+    | 'terminal.preview'
+    | 'terminal.query'
+    | 'terminal.send'
+>;
+export type CoreForwardedMethod = Exclude<ServerMethod, CoreHandledMethod>;

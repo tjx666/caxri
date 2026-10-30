@@ -9,7 +9,7 @@ import { identifierSchema } from './identifiers.js';
  */
 export const MAX_SESSION_AGENT_HISTORY_ENTRIES = 12;
 
-export const sessionAgentHistoryEntrySchema = z.object({
+const sessionAgentHistoryEntrySchema = z.object({
     provider: agentProviderSchema,
     agentSessionId: z.string().min(1).max(1_024),
     /**

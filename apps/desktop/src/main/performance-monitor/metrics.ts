@@ -1,8 +1,8 @@
 import type { PerformanceMonitorMetrics, PerformanceMonitorProcessRole } from '@caxri/protocol';
 import { execFileAsync } from '@caxri/system';
 
-import type { ElectronProcessSample } from '../process-explorer';
-import { kilobytesToMegabytes } from '../process-explorer';
+import type { ElectronProcessSample } from '../process-explorer/sampler';
+import { kilobytesToMegabytes } from '../process-explorer/sampler';
 
 /**
  * How long a `getAppMetrics()` reading is reused. Electron reports CPU relative to the previous call, so a second

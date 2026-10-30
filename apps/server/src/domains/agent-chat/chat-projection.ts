@@ -21,14 +21,14 @@ import { logEventCatalog } from '@caxri/system';
 
 import type { DelegatedTaskDetails } from './chat-delegated-task';
 import { stampDelegatedTasks } from './chat-delegated-task';
-import { ChatHistoryArchive } from './chat-history-archive';
-import { ChatTaskProjections } from './chat-task-projections';
 import type { ProjectionUsageLimitWaits } from './continuation/usage-continuation-stamp';
 import {
     observeGuardStops,
     observeUsageLimitWaits,
     stampUsageContinuations,
 } from './continuation/usage-continuation-stamp';
+import { ChatHistoryArchive } from './history/archive';
+import { ChatTaskProjections } from './tasks/projections';
 
 /**
  * Streaming deltas are coalesced into one patch per frame-sized window so a fast provider does not flood every Client

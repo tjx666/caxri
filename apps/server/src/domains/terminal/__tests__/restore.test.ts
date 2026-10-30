@@ -202,6 +202,68 @@ describe('Interrupted Terminal restore of a Claude Code Agent', () => {
     });
 });
 
+describe('Interrupted Terminal restore superseded mid-operation', () => {
+    it('mutates nothing when the restore stops being current during the Agent session lookup', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-terminal-restore-superseded-'));
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        onTestFinished(async () => {
+            database.close();
+            await rm(directory, { recursive: true, force: true });
+        });
+        const project = database.createProject(directory);
+        const { session, terminal } = database.createSession(project.id, 'claude');
+        database.rebindAgentSession(terminal!.id, 'claude', randomUUID());
+        database.updateTerminalState(terminal!.id, 'suspended');
+        database.updateAgentProcessState(terminal!.id, 'suspended');
+        let isCurrent = true;
+        const coordinator = {
+            prepareTerminalResume: vi.fn(),
+            prepareTerminalStart: vi.fn(),
+            probeTerminal: vi.fn(),
+        };
+        // The lookup logs `terminal.resume_skipped` for an unwritten conversation, so supersede the restore there.
+        const logger = {
+            write: vi.fn<StructuredLogger['write']>(() => {
+                isCurrent = false;
+            }),
+        };
+        const restart = vi.fn<TerminalManager['restart']>();
+        const updateTerminalState = vi.spyOn(database, 'updateTerminalState');
+        const restore = createInterruptedTerminalRestorer({
+            agentEnvironment: { homeDirectory: directory, variables: {} },
+            coordinator: coordinator as unknown as AgentCoordinator,
+            database,
+            logger: logger as unknown as StructuredLogger,
+            send: vi.fn(),
+            terminalDirectoryIdentity: () =>
+                Promise.resolve({ device: '1', inode: '1', path: directory }),
+            terminalRestores: {
+                restore: async (_sessionId: string, plan: () => unknown) =>
+                    Promise.all(
+                        (
+                            plan() as Array<
+                                (isCurrent: () => boolean, signal: AbortSignal) => Promise<boolean>
+                            >
+                        ).map((operation) =>
+                            operation(() => isCurrent, new AbortController().signal),
+                        ),
+                    ),
+            } as unknown as TerminalRestoreSupervisor,
+            terminals: { restart } as unknown as TerminalManager,
+            userDataPath: directory,
+            visibleGridWaitMs: 0,
+        });
+
+        await restore(session.id);
+
+        expect(logger.write).toHaveBeenCalled();
+        expect(coordinator.prepareTerminalStart).not.toHaveBeenCalled();
+        expect(coordinator.prepareTerminalResume).not.toHaveBeenCalled();
+        expect(updateTerminalState).not.toHaveBeenCalled();
+        expect(restart).not.toHaveBeenCalled();
+    });
+});
+
 describe('Interrupted Terminal restore at the Terminal limit', () => {
     it('leaves a refused Terminal parked for a later restore instead of marking it failed', async () => {
         const f = await fixture();

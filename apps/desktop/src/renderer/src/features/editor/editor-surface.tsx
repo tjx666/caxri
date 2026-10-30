@@ -50,7 +50,7 @@ import { useUntitledEditor } from './untitled/use-untitled-editor';
 import { virtualTabDescriptors } from './virtual-tab-descriptors';
 
 const GitDiffEditor = lazy(async () => {
-    const module = await import('./git-diff-editor');
+    const module = await import('./git/git-diff-editor');
     return { default: module.GitDiffEditor };
 });
 

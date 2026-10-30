@@ -7,7 +7,6 @@ import {
     agentChatTurnLabel,
     agentChatWorkDuration,
     agentChatWorkGroupFailure,
-    agentChatWorkKind,
     agentChatWorkSummaryGlyph,
     agentChatWorkSummaryItems,
     agentChatWorkSummaryPhrases,
@@ -502,18 +501,6 @@ describe('isAgentChatWorkRunning', () => {
             isAgentChatWorkRunning({ id: 'r', type: 'reasoning', text: 'x', streaming: true }),
         ).toBe(true);
         expect(isAgentChatWorkRunning(command('c') as AgentChatWorkItem)).toBe(false);
-    });
-});
-
-describe('agentChatWorkKind', () => {
-    it('names the one kind a group shares, or none when it mixes kinds', () => {
-        expect(agentChatWorkKind([command('c1'), command('c2')] as AgentChatWorkItem[])).toBe(
-            'command',
-        );
-        expect(
-            agentChatWorkKind([command('c1'), read('x')] as AgentChatWorkItem[]),
-        ).toBeUndefined();
-        expect(agentChatWorkKind([thought('r')] as AgentChatWorkItem[])).toBe('thought');
     });
 });
 

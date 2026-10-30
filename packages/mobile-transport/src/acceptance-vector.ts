@@ -19,7 +19,7 @@ const expected = {
     transcriptHash: 'a5e7141b3e4ac2eb6fdce8779ec5b7ba617afd584d3320c167c4cfe291f95712',
 } as const;
 
-export function evaluateMobileTransportAcceptanceVector() {
+function evaluateMobileTransportAcceptanceVector() {
     const clientSecretKey = bytes(0, 32);
     const serverSecretKey = bytes(32, 32);
     const presharedKey = bytes(64, 32);

@@ -110,7 +110,7 @@ export function remainingLimitPercent(usedPercent: number): number {
  * Extrapolating from the first hours of a 7-day window mistakes one long task (14% used after 12 hours) for a trend, so
  * the reminder waits until a tenth of the window, about 17 hours of a week, has passed.
  */
-export const LIMIT_PACE_MIN_ELAPSED = 0.1;
+const LIMIT_PACE_MIN_ELAPSED = 0.1;
 
 /**
  * A multi-day plan window (Claude Code's and Codex's weekly limit) that, at the rate it has been used so far, reaches
@@ -186,7 +186,7 @@ export function agentUsageCostLabel(
 /**
  * How close to its expiry the soonest banked reset starts to warn: a credit unspent by then is lost.
  */
-export const RESET_CREDIT_EXPIRY_WARNING_MS = 24 * 3_600_000;
+const RESET_CREDIT_EXPIRY_WARNING_MS = 24 * 3_600_000;
 
 /**
  * The banked resets still worth showing at `now`: none when no credit is held, and none once the soonest expiry has

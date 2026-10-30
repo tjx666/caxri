@@ -36,7 +36,7 @@ Existing examples include `apps/desktop/src/main/__tests__/workbench-root-author
 that set `CAXRI_TEST_ROOT_PATHS`.
 
 For a theme Acceptance case whose frozen plan declares `"themeImportFixture": true`, the launcher
-and `apps/desktop/src/main/acceptance-theme-import.ts` provide the file-picker result through a
+and `apps/desktop/src/main/acceptance/theme-import.ts` provide the file-picker result through a
 per-profile command file. The command must name the active case, an increasing positive sequence,
 and a regular file relative to the first test root. Main records each accepted choice before
 forwarding the real `theme.importPath` request. Inspect the receipt and resulting Renderer state;
@@ -45,7 +45,7 @@ the fixture does not verify the native picker itself.
 ## Verify PR links without opening a native dialog or browser
 
 The frozen `session-pr-open-parity` case has a fixed external-link fixture in
-`apps/desktop/src/main/acceptance-external-open.ts`. The Acceptance launcher enables it only
+`apps/desktop/src/main/acceptance/external-open.ts`. The Acceptance launcher enables it only
 for that case; Main also requires the Acceptance and E2E gates. It accepts only
 `https://github.com/tjx666/project/pull/42` and never invokes a native confirmation or browser.
 Before each real UI action, write an increasing positive `sequence` and one `decision`
@@ -63,7 +63,7 @@ product flow and confirmation copy, not a native dialog or an external browser.
 Caxri builds" and no update notification can ever be captured.
 
 **Works:** Declare `"updateFixture": "available"` in the frozen plan. Main
-(`apps/desktop/src/main/acceptance-update.ts`) swaps only release discovery for the fixed `999.0.0`
+(`apps/desktop/src/main/acceptance/update.ts`) swaps only release discovery for the fixed `999.0.0`
 release and runs the launch check, so the notification and **Check for Updates** dialog arrive
 through the real update state path. Download and install stay disabled. Cite
 `acceptance-update-receipt.jsonl` from the owned `userDataDir` beside the screenshot. The fixture

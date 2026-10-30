@@ -233,6 +233,4 @@ export const createDeviceStore = (options: DeviceStoreOptions) => {
 
     return { clear, flush, load, remove, save, setScope };
 };
-
-export type DeviceStore = ReturnType<typeof createDeviceStore>;
 /* eslint-enable unicorn/prefer-await, unicorn/prefer-then-catch, promise/no-callback-in-promise */

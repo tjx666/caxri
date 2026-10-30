@@ -12,7 +12,6 @@ export const themeImportFormatIds = ['iterm2', 'warp', 'vscode'] as const;
 export type ThemeImportFormatId = (typeof themeImportFormatIds)[number];
 
 export const themeTokenSourceIds = ['builtin', 'custom', ...themeImportFormatIds] as const;
-export type ThemeTokenSource = (typeof themeTokenSourceIds)[number];
 
 export const themeTokensSchema = z.object({
     id: z.string().min(1),

@@ -40,9 +40,8 @@ export const knownReactCompilerBailouts: Record<string, readonly string[]> = {
         'React Compiler has skipped optimizing this component because one or more React ESLint rules were disabled',
     ],
     // incompatible library: TanStack Virtual.
-    'apps/desktop/src/renderer/src/features/view-containers/extension-tree-view.tsx': [
-        'Use of incompatible library',
-    ],
+    'apps/desktop/src/renderer/src/features/view-containers/extension-tree/extension-tree-view.tsx':
+        ['Use of incompatible library'],
     // incompatible library: TanStack Virtual, plus effects that read the live virtualizer.
     'apps/desktop/src/renderer/src/features/view-containers/resource-explorer/file-tree.tsx': [
         'React Compiler has skipped optimizing this component because one or more React ESLint rules were disabled',

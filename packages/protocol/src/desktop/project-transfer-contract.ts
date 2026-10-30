@@ -21,7 +21,7 @@ export const MAX_PROJECT_TRANSFER_FILE_BYTES = 16 * 1024 * 1024;
  * An Agent Terminal bound to a provider conversation. Importing it recreates a parked Terminal that resumes the same
  * conversation when the Session opens; the conversation itself stays in the provider's own store.
  */
-export const projectTransferTerminalSchema = z.strictObject({
+const projectTransferTerminalSchema = z.strictObject({
     provider: agentProviderSchema,
     surface: terminalSurfaceSchema,
     /**
@@ -36,7 +36,7 @@ export const projectTransferTerminalSchema = z.strictObject({
     resumeAt: z.string().min(1).max(512).optional(),
 });
 
-export const projectTransferSessionSchema = z.strictObject({
+const projectTransferSessionSchema = z.strictObject({
     title: z.string().trim().min(1).max(200),
     titleMode: z.enum(['automatic', 'manual']),
     pinned: z.boolean(),
@@ -47,7 +47,7 @@ export const projectTransferSessionSchema = z.strictObject({
     terminals: z.array(projectTransferTerminalSchema).max(64),
 });
 
-export const projectTransferProjectSchema = z.strictObject({
+const projectTransferProjectSchema = z.strictObject({
     rootPath: pathSchema,
     /**
      * In PrimarySidebar order, top first.
@@ -70,9 +70,9 @@ export const projectTransferDocumentSchema = z.strictObject({
  * `restored` is a Project the user had removed from the sidebar, brought back with its own earlier Sessions instead of
  * the file's copies of them.
  */
-export const projectTransferSkipReasonSchema = z.enum(['missing', 'exists', 'restored']);
+const projectTransferSkipReasonSchema = z.enum(['missing', 'exists', 'restored']);
 
-export const projectTransferImportResultSchema = z.strictObject({
+const projectTransferImportResultSchema = z.strictObject({
     projectCount: z.number().int().nonnegative(),
     sessionCount: z.number().int().nonnegative(),
     skipped: z.array(
@@ -84,17 +84,15 @@ export const projectTransferImportResultSchema = z.strictObject({
     missingWorkbenchRoots: z.array(pathSchema),
 });
 
-export const projectTransferExportResultSchema = z.strictObject({
+const projectTransferExportResultSchema = z.strictObject({
     path: z.string(),
     projectCount: z.number().int().nonnegative(),
     sessionCount: z.number().int().nonnegative(),
 });
 
 export type ProjectTransferDocument = z.infer<typeof projectTransferDocumentSchema>;
-export type ProjectTransferProject = z.infer<typeof projectTransferProjectSchema>;
 export type ProjectTransferSession = z.infer<typeof projectTransferSessionSchema>;
 export type ProjectTransferTerminal = z.infer<typeof projectTransferTerminalSchema>;
-export type ProjectTransferSkipReason = z.infer<typeof projectTransferSkipReasonSchema>;
 export type ProjectTransferImportResult = z.infer<typeof projectTransferImportResultSchema>;
 export type ProjectTransferExportResult = z.infer<typeof projectTransferExportResultSchema>;
 

@@ -5,12 +5,13 @@ import { z } from 'zod';
  * `mobile_gateway.relay_state` log event, so Settings can name the reason without free text, and never carries the
  * Relay address or any credential.
  */
-export const mobileRelayFailureSchema = z.enum([
+const mobileRelayFailureSchema = z.enum([
     'closed-by-relay',
     'heartbeat-timeout',
     'network-error',
     'protocol-error',
     'registration-rejected',
+    'registration-timeout',
 ]);
 
 export type MobileRelayFailure = z.infer<typeof mobileRelayFailureSchema>;

@@ -1,6 +1,6 @@
 import type { ServerOperationResult } from '@caxri/protocol';
 
-import type { DesktopServerConnection } from '../server-connection';
+import type { DesktopServerConnection } from '../connection/server-connection';
 import { trashLocalItem } from './local-item';
 
 /**

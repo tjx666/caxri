@@ -5,6 +5,8 @@ import type { core as source } from '../en/core';
 export const core: TranslatedNamespace<typeof source> = {
     'core.errorBoundary.title': '出现了问题',
     'core.errorBoundary.description': 'Caxri 遇到了意外错误。重新加载即可恢复你的项目和会话。',
+    'core.surfaceBoundary.message': '窗口的这一部分无法显示。',
+    'core.surfaceBoundary.inlineMessage': '此项无法显示。',
     'core.errorBoundary.technicalDetails': '技术详细信息',
     'core.errorBoundary.copyDetails': '复制详细信息',
     'core.errorBoundary.reloadWithoutSession': '不打开此会话并重新加载',

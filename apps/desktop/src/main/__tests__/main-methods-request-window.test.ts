@@ -6,10 +6,10 @@ const electronMock = vi.hoisted(() => ({
 }));
 vi.mock('electron', () => ({ dialog: electronMock.dialog, Menu: electronMock.menu }));
 
+import type { DesktopServerConnection } from '../connection/server-connection';
 import { createMainMethodHandler } from '../main-methods';
-import type { ProcessExplorerWindowController } from '../process-explorer-window';
+import type { ProcessExplorerWindowController } from '../process-explorer/window';
 import { runInRequestWindow } from '../request-window';
-import type { DesktopServerConnection } from '../server-connection';
 import type { UpdateService } from '../updates/updates';
 import type { createWorkbenchRootAuthority } from '../workbench-root-authority';
 

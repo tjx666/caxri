@@ -13,7 +13,7 @@ vi.mock('electron', () => ({
     screen: { getDisplayMatching: () => ({ workArea: { x: 0, y: 0, width: 1920, height: 1080 } }) },
 }));
 
-vi.mock('../auxiliary-window', () => ({
+vi.mock('../auxiliary-window/auxiliary-window', () => ({
     createAuxiliaryWindow: () => {
         const window = new FakeWindow();
         auxiliaryWindow.created.push(window);

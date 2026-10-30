@@ -7,6 +7,7 @@ import { AlertTriangle } from 'lucide-react';
 import { ChromeTabPanel } from '../../components/chrome-tabs';
 import { LoadingSkeleton } from '../../components/loading-skeleton';
 import { PanelHeader } from '../../components/panel-header';
+import { SurfaceErrorBoundary } from '../../components/surface-error-boundary';
 import { Button } from '../../components/ui/button';
 import { Spinner } from '../../components/ui/spinner';
 import { useTranslation } from '../../i18n';
@@ -16,7 +17,7 @@ import { tryCommand } from '../../stores/toasts';
 import { getBuiltinViewComponent } from './builtin-components';
 import { ControlledViewProvider } from './controlled-view-provider';
 import { describeExtensionFailure } from './extension-failure';
-import { ExtensionTreeView } from './extension-tree-view';
+import { ExtensionTreeView } from './extension-tree/extension-tree-view';
 import { resolveViewContainerId } from './resolution';
 import { ResourceExplorerView } from './resource-explorer/resource-explorer-view';
 import { SourceControlView } from './source-control/source-control-view';
@@ -247,7 +248,9 @@ export function ViewContainerSurface({
                                               {!isOnlyView && (
                                                   <PanelHeader title={viewTitle(view, t)} />
                                               )}
-                                              {content}
+                                              <SurfaceErrorBoundary resetKey={view.id} scope="view">
+                                                  {content}
+                                              </SurfaceErrorBoundary>
                                           </div>
                                       );
                                   })}

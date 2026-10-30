@@ -9,11 +9,11 @@ const trashLocalItem = vi.hoisted(() => vi.fn<(path: string) => Promise<string |
 vi.mock('../trash/local-item', () => ({ trashLocalItem }));
 
 import type { RunningWork } from '../confirmations';
+import type { DesktopServerConnection } from '../connection/server-connection';
 import type { MainEnvironmentMethods } from '../main-environment-methods';
 import { unconfiguredEnvironment } from '../main-environment-methods';
 import { createMainMethodHandler } from '../main-methods';
-import type { ProcessExplorerWindowController } from '../process-explorer-window';
-import type { DesktopServerConnection } from '../server-connection';
+import type { ProcessExplorerWindowController } from '../process-explorer/window';
 import type { UpdateService } from '../updates/updates';
 import type { createWorkbenchRootAuthority } from '../workbench-root-authority';
 

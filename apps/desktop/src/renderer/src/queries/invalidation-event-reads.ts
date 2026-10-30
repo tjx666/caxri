@@ -45,8 +45,8 @@ export function invalidatePermissionAutoAllowQuery(
 
 /**
  * Refreshes the review comments for one Session + repository, and the cross-repository pending summary, after their own
- * `gitReview.changed` event: the Monaco bindings (`git-review-comment-binding.ts`) and the pending-comments
- * command/quit reminder both read through React Query rather than owning any comment state themselves.
+ * `gitReview.changed` event: the Monaco bindings (`review-comment-binding.ts`) and the pending-comments command/quit
+ * reminder both read through React Query rather than owning any comment state themselves.
  */
 export function invalidateGitReviewQueries(
     queryClient: QueryClient,

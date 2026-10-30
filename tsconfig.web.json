@@ -2,9 +2,6 @@
     "extends": "@electron-toolkit/tsconfig/tsconfig.web.json",
     "exclude": ["packages/**/__tests__/**", "packages/**/*.test.ts"],
     "include": [
-        "apps/desktop/src/renderer/src/**/*.ts",
-        "apps/desktop/src/renderer/src/**/*.tsx",
-        "apps/desktop/src/shared/**/*.ts",
         "packages/protocol/src/**/*.ts",
         "packages/client/src/index.ts",
         "packages/client/src/connection.ts",

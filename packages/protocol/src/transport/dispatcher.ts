@@ -60,7 +60,7 @@ export interface DurableReceiptObservation {
     phase: 'lookup' | 'store';
 }
 
-export interface CommandDispatchAdmission {
+interface CommandDispatchAdmission {
     reply: Promise<CommandReplyEnvelope>;
 }
 

@@ -2,7 +2,7 @@ import { CAXRI_PROTOCOL_VERSION, errorMessage, isCaxriError } from '@caxri/proto
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
-import type { DesktopServerConnection } from '../server-connection';
+import type { DesktopServerConnection } from '../connection/server-connection';
 import type { StartupFailureReason } from './startup-failure';
 import {
     classifyStartupFailure,

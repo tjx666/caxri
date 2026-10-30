@@ -22,7 +22,7 @@ export const terminalFileLinkCandidateSchema = z.object({
     projectTitle: z.string().min(1).max(512),
 });
 
-export const terminalFileLinkAmbiguousResultSchema = z.object({
+const terminalFileLinkAmbiguousResultSchema = z.object({
     status: z.literal('ambiguous'),
     candidates: z.array(terminalFileLinkCandidateSchema).min(1).max(50),
     truncated: z.boolean(),
@@ -38,7 +38,7 @@ export type TerminalFileLinkCandidate = z.infer<typeof terminalFileLinkCandidate
  * Session chooser or declining to trust an external folder needs no explanation handed back to them. It is present when
  * Main refused on its own, which without it reads to the user as the link doing nothing at all.
  */
-export const terminalFileLinkRefusalReasonSchema = z.enum([
+const terminalFileLinkRefusalReasonSchema = z.enum([
     /**
      * The link resolved into a Project that exists only as some Session's linked worktree. Server Core will not create
      * a Session inside one, and by the time Main looked, none was using it as a Workbench Root any more. Named for that

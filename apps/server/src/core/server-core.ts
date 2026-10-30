@@ -64,7 +64,7 @@ import { principalRequestKey, RequestCancellationRegistry } from './request-canc
 import type { ServerCore, ServerCoreOptions } from './server-core-contract';
 import type { CommandStopFallbackReference } from './server-core-control-callbacks';
 import { createServerCoreControlCallbacks } from './server-core-control-callbacks';
-import { createServerCoreStopSteps } from './server-core-stop-steps';
+import { runServerCoreStop } from './server-core-stop-steps';
 import { createServerCredentialAccess } from './server-credential-access';
 import { createTerminalExecution } from './terminal-host/create-execution';
 import { invokeTerminalSend } from './terminal-send';
@@ -124,7 +124,10 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
     let stopPromise: Promise<void> | undefined;
     const commandStopFallbackReference: CommandStopFallbackReference = { current: undefined };
     const mutationAdmission = new MutationAdmission();
-    const { promise: stopped, resolve: resolveStopped } = Promise.withResolvers<void>();
+    const stoppedGate = Promise.withResolvers<void>();
+    const stopped = stoppedGate.promise;
+    // eslint-disable-next-line unicorn/prefer-await -- host.stop and idle exit never await `stopped`; avoid an unhandled rejection
+    stopped.catch(() => {});
     const { promise: stopping, resolve: resolveStopping } = Promise.withResolvers<void>();
     const dispatchWaits = new DispatchWaits(domainService);
     const requestCancellations = new RequestCancellationRegistry();
@@ -181,29 +184,26 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         // Same race for the Extension Host, which is shut down last: its signal-driven exit must not restart it.
         extensionService?.markCoreStopping();
         stopPromise ??= (async () => {
-            const steps = createServerCoreStopSteps(logger, reason);
             eventLoopMonitor.stop();
             try {
-                // Yields once so `stopPromise` is assigned below before a synchronous domain-shutdown side effect (e.g.
-                // a state.changed emit) can hit `deliver`'s `if (!stopPromise)` extension-refresh branch.
-                await Promise.resolve();
                 // Captures every live Terminal's snapshot via `host.shutdown` first: the Extension Host's own graceful
                 // shutdown can wait up to 5s for its child to exit, and under the previous ordering that delay let an
                 // OS-initiated SIGTERM beat Core's `host.shutdown` request to Terminal Host.
-                await steps.run('domainServices', () => domainService.shutdown(steps.run));
-                await steps.run('mobileAccess', () => credentials.close());
-                await steps.run('controlServer', () => server?.close());
-                await steps.run('agentInbox', () => agentInbox.close());
-                await steps.run('providerMessaging', () => providerMessaging.close());
-                await steps.run('extensionHost', () => extensionService?.shutdown());
-                await steps.run('lease', () => lease.release());
-                steps.stopped();
-            } finally {
-                // A settled stop has written its records, so a caller that removes the profile next (a test teardown)
-                // does not race an async append into `logs/` (ENOTEMPTY). A process exit flushes synchronously anyway.
-                await logger.flush();
+                await runServerCoreStop(logger, reason, (run) => [
+                    ['domainServices', () => domainService.shutdown(run)],
+                    ['mobileAccess', () => credentials.close()],
+                    ['controlServer', () => server?.close()],
+                    ['agentInbox', () => agentInbox.close()],
+                    ['providerMessaging', () => providerMessaging.close()],
+                    ['extensionHost', () => extensionService?.shutdown()],
+                    ['lease', () => lease.release()],
+                ]);
+            } catch (error) {
+                // Always settles, so the process entrypoint finalizes and exits on host.stop and idle paths too.
+                stoppedGate.reject(error);
+                throw error;
             }
-            resolveStopped();
+            stoppedGate.resolve();
         })();
         return stopPromise;
     };

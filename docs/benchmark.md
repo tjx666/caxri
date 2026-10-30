@@ -44,7 +44,7 @@ finishes it shows:
 
 Like the [Caxri Bot](caxri-bot.md), the Benchmark window is a companion window: it shares the Workbench
 preload and Main's single connection to the Server, and Main admits its requests through its own allowlist
-(`apps/desktop/src/main/benchmark-window-policy.ts`): the `benchmark.*` methods, the Workbench snapshot it reads for
+(`apps/desktop/src/main/benchmark/window-policy.ts`): the `benchmark.*` methods, the Workbench snapshot it reads for
 locale, theme, and Projects, Settings and theme reads, and link handling. Anything else is refused and logged as
 `benchmark_window.request_denied`. It receives durable events plus `benchmark.changed` and connection changes.
 Opening it again focuses the existing window. Its size and position are remembered while the app runs, not across

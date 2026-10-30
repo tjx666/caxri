@@ -42,7 +42,7 @@ export function buildChordLeadingChords(keybindings: readonly Keybinding[]): Set
 
 export const keybindingsFileSchema = z.array(keybindingSchema).max(MAX_KEYBINDINGS);
 
-export type DefaultKeybinding = Pick<Keybinding, 'args' | 'command' | 'key' | 'when'>;
+type DefaultKeybinding = Pick<Keybinding, 'args' | 'command' | 'key' | 'when'>;
 
 type ArgumentFreeDefaultKeybinding = Omit<DefaultKeybinding, 'args'>;
 

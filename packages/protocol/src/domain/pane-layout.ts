@@ -60,7 +60,7 @@ export const MAX_TABS_PER_PANE = 32;
  * Terminals stay bounded at the Terminal tree's historical limit: every one of them is a live PTY plus a parsed screen,
  * which documents are not.
  */
-export const MAX_PANE_LAYOUT_TERMINALS = 16;
+const MAX_PANE_LAYOUT_TERMINALS = 16;
 
 const paneLayoutId = z.string().min(1).max(200);
 const paneLayoutPath = z.string().min(1).max(16_384);

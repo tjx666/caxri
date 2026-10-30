@@ -12,8 +12,9 @@ import type { StructuredLogger } from '@caxri/system';
 import type { BaseWindow, BrowserWindow, WebContents } from 'electron';
 import { app, nativeTheme } from 'electron';
 
-import { BenchmarkWindowController } from './benchmark-window';
+import { BenchmarkWindowController } from './benchmark/window';
 import { CaxriBotWindowController } from './caxri-bot-window';
+import type { DesktopServerConnection } from './connection/server-connection';
 import {
     createSharedProcessReader,
     gpuRasterState,
@@ -21,9 +22,8 @@ import {
     summarizeProcesses,
 } from './performance-monitor/metrics';
 import { PerformanceMonitorWindowController } from './performance-monitor/window';
-import { kilobytesToMegabytes, ProcessExplorerSampler } from './process-explorer';
-import { ProcessExplorerWindowController } from './process-explorer-window';
-import type { DesktopServerConnection } from './server-connection';
+import { kilobytesToMegabytes, ProcessExplorerSampler } from './process-explorer/sampler';
+import { ProcessExplorerWindowController } from './process-explorer/window';
 import type { E2EWindowMode } from './window-mode';
 import type { CompanionRendererPolicy } from './workbench-ipc';
 

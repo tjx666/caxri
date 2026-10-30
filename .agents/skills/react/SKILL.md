@@ -82,7 +82,7 @@ builder); genuinely generic code should not.
   itself (opaque handles, provider-driven resets, per-request cancellation) still writes its result
   into the shared cache with `setQueryData`, so the data keeps Session-scoped keys, one
   garbage-collection policy, and one invalidation sweep; see
-  `features/view-containers/extension-tree-client.ts`.
+  `features/view-containers/client.ts`.
 - Mutations call `caxri.request` inside a `tryCommand(...)` wrapper so failures surface uniformly.
   Discarded promises use `void` with the repository's explanatory `eslint-disable` comment.
 - Query invalidation after a mutation belongs in `queries/invalidation.ts` (or a predicate defined

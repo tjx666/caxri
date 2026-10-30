@@ -1,7 +1,6 @@
 /**
  * Pure field construction for mirrored Renderer `console-message` errors. Kept free of Electron imports so the
- * classification contract is unit testable and the wiring in `index.ts` / `process-explorer-window.ts` stays a thin
- * caller.
+ * classification contract is unit testable and the wiring in `index.ts` / `window.ts` stays a thin caller.
  *
  * The console text itself is never logged. This is the one log field in the app that no call site controls: it forwards
  * whatever any Renderer code (Monaco, xterm, React internals, a third-party module) happened to print at error level,

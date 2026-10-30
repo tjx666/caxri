@@ -1,5 +1,6 @@
-import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+
+import { readBoundedRegularFileText } from '@caxri/system';
 
 import type { AgentEnvironment } from '../../contract';
 import { resolveCodexHome } from './paths';
@@ -17,6 +18,11 @@ export function hasForeverCodexCache(authMode: string | undefined): boolean {
 }
 
 /**
+ * Codex's `auth.json` holds a few tokens; this only stops a runaway or planted file from being parsed.
+ */
+const MAX_CODEX_AUTH_BYTES = 64 * 1024;
+
+/**
  * Reads the sign-in mode Codex recorded in `$CODEX_HOME/auth.json`. A missing, unreadable, or malformed file reports no
  * mode, so callers keep the conservative 30-minute estimate. Only the `auth_mode` string is read; credentials in the
  * file are never returned or logged.
@@ -26,7 +32,9 @@ export async function readCodexAuthMode(
 ): Promise<string | undefined> {
     try {
         const file = join(resolveCodexHome(environment), 'auth.json');
-        const parsed: unknown = JSON.parse(await readFile(file, 'utf8'));
+        const parsed: unknown = JSON.parse(
+            await readBoundedRegularFileText(file, MAX_CODEX_AUTH_BYTES),
+        );
         const mode =
             parsed !== null && typeof parsed === 'object'
                 ? (parsed as { auth_mode?: unknown }).auth_mode

@@ -11,8 +11,8 @@ import {
     mcpServerSiteOrigins,
     selectMcpServerIcons,
 } from '../chat-mcp-servers';
-import { claudeMcpServerReport } from '../claude-mcp-servers';
-import { codexMcpServerReport } from '../codex-mcp-servers';
+import { claudeMcpServerReport } from '../providers/claude/mcp-servers';
+import { codexMcpServerReport } from '../providers/codex/mcp-servers';
 
 const EXA_ICON = 'https://exa.ai/images/favicon-32x32.png';
 

@@ -2,14 +2,18 @@ import type { ServerMethod } from '@caxri/protocol';
 import { describe, expect, expectTypeOf, it } from 'vitest';
 
 import type { CoreForwardedMethod, CoreHandledMethod } from '../core-methods';
-import { coreForwardedMethods } from '../core-methods';
 
 describe('Host dispatch exhaustiveness', () => {
-    it('splits every server-owned method into handled or explicitly forwarded', () => {
+    it('splits every server-owned method into exactly one of handled or forwarded', () => {
         type Unclassified = Exclude<ServerMethod, CoreHandledMethod | CoreForwardedMethod>;
+        type Both = Extract<CoreHandledMethod, CoreForwardedMethod>;
         expectTypeOf<Unclassified>().toEqualTypeOf<never>();
-        expect(coreForwardedMethods).toContain('app.bootstrap');
-        expect(coreForwardedMethods).not.toContain('host.status');
+        expectTypeOf<Both>().toEqualTypeOf<never>();
+        expectTypeOf<'app.bootstrap'>().toExtend<CoreForwardedMethod>();
+        expectTypeOf<'session.markRead'>().toExtend<CoreForwardedMethod>();
+        expectTypeOf<'host.status'>().toExtend<CoreHandledMethod>();
+        expectTypeOf<'mobile.access.status'>().toExtend<CoreHandledMethod>();
+        expect(true).toBe(true);
     });
 
     it('treats an omitted Host-handled method as a leftover that cannot be forwarded', () => {

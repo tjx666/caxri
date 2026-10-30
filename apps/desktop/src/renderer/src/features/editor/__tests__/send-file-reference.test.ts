@@ -51,7 +51,7 @@ vi.mock('../../workbench/pane-actions', () => ({
     getActivePaneId: mocks.getActivePaneId,
     getActivePaneTab: mocks.getActivePaneTab,
 }));
-vi.mock('../git-diff-actions', () => ({
+vi.mock('../git/diff-actions', () => ({
     getDiffEditorFileSelection: mocks.getDiffEditorFileSelection,
 }));
 vi.mock('../../../queries/client', () => ({

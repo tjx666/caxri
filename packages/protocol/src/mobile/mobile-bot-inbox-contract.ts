@@ -17,9 +17,9 @@ import { principalSchema } from '../transport/principal.js';
  * the envelope.
  */
 export const MOBILE_BOT_INBOX_MAX_BYTES = 48 * 1_024;
-export const MOBILE_BOT_INBOX_MAX_ITEMS = 50;
+const MOBILE_BOT_INBOX_MAX_ITEMS = 50;
 export const MOBILE_BOT_INBOX_BODY_MAX_LENGTH = 4_000;
-export const MOBILE_BOT_INBOX_REPLY_MAX_LENGTH = 1_000;
+const MOBILE_BOT_INBOX_REPLY_MAX_LENGTH = 1_000;
 /**
  * Newest replies a card shows; older ones are counted in `earlierReplyCount`. The latest reply is always kept, so the
  * read state ("Delivered to Caxri Bot" or "Read by Caxri Bot") is computed from the same sequence Desktop uses.
@@ -45,7 +45,7 @@ const mobileBotInboxReplySchema = z.strictObject({
  * One open Inbox item as the phone renders it. Merge-only fields (verified head, live GitHub state, revision) are left
  * out because the phone cannot merge; it shows the pull request as a `repo#number` link.
  */
-export const mobileBotInboxItemSchema = z.strictObject({
+const mobileBotInboxItemSchema = z.strictObject({
     id: botInboxItemSchema.shape.id,
     kind: botInboxItemSchema.shape.kind,
     staleReason: botInboxItemSchema.shape.staleReason,

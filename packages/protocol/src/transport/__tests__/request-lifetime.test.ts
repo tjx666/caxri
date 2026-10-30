@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { effectfulCommandRecovery } from '../../registry/method-types';
 import {
     extensionViewOperationMetadata,
     extensionViewOperationNames,
@@ -50,5 +51,135 @@ describe('isNonExpiringViewOperation', () => {
         expect(isNonExpiringViewOperation('git.sync')).toBe(true);
         expect(isNonExpiringViewOperation('git.discard')).toBe(true);
         expect(isNonExpiringViewOperation('files.list')).toBe(false);
+    });
+});
+
+/**
+ * Durable effectful methods that are deliberately bounded by the generic request timeout: each completes in a bounded
+ * local step (a database write, a queue insert, a spawn acknowledgement, or a native shell hand-off) and is safe to
+ * retry or observe later. A new durable method must either join the non-expiring set or be added here with that
+ * justification.
+ */
+const shortLivedDurableMethods = new Set<string>([
+    'agent.control.interrupt',
+    'agent.control.stop',
+    'agent.delegation.create',
+    'agent.delegation.stop',
+    'agent.dispatch.resume',
+    'agent.dispatch.start',
+    'agent.grant',
+    'agent.message.approve',
+    'agent.message.deny',
+    'agent.message.policy.set',
+    'agent.message.reply',
+    'agent.message.send',
+    'agent.revoke',
+    'agent.session.archive',
+    'agent.session.rename',
+    'agent.session.unarchive',
+    'agentChat.bypassUsageGuard',
+    'agentChat.continueInAgent',
+    'agentChat.fork',
+    'agentChat.openPathReference',
+    'benchmark.cancel',
+    'benchmark.delete',
+    'benchmark.open',
+    'benchmark.start',
+    'bot.inbox.ack',
+    'bot.inbox.add',
+    'bot.inbox.dismiss',
+    'bot.inbox.merge',
+    'bot.inbox.reply',
+    'bot.inbox.resolve',
+    'bot.session.archive',
+    'bot.session.create',
+    'bot.session.handOver',
+    'bot.session.takeBack',
+    'bot.stop',
+    'bot.task.create',
+    'bot.task.update',
+    'bugReport.send',
+    'caxriBot.clearData',
+    'caxriBot.open',
+    'caxriBot.openSettings',
+    'caxriBot.revealSession',
+    'caxriBot.stop',
+    'desktop.focus',
+    'desktop.openFile',
+    'desktop.openPath',
+    'desktop.openProject',
+    'editor.confirmDiscard',
+    'external.open',
+    'externalDocument.openWithDefaultApp',
+    'externalDocument.reveal',
+    'files.openWithDefaultApp',
+    'files.reveal',
+    'git.switchBranch',
+    'mobile.agentChat.dismissPlanPace',
+    'mobile.botInbox.reply',
+    'mobile.project.add',
+    'mobile.pullRequest.merge',
+    'mobile.session.archive',
+    'mobile.session.create',
+    'mobile.session.rename',
+    'mobile.session.restore',
+    'mobile.session.setPinned',
+    'mobile.terminal.switchSurface',
+    'processExplorer.open',
+    'project.add',
+    'project.cancelCreate',
+    'project.create',
+    'project.hide',
+    'project.openInEditor',
+    'project.openRoot',
+    'project.reorder',
+    'project.setChatDefault',
+    'project.setIcon',
+    'requests.cancel',
+    'session.archive',
+    'session.authorizeWorkbenchRoot',
+    'session.continueInWorktree',
+    'session.create',
+    'session.detach',
+    'session.dismissWorkbenchCandidate',
+    'session.enterAirplaneMode',
+    'session.exitAirplaneMode',
+    'session.importConversation',
+    'session.markRead',
+    'session.rename',
+    'session.reopenConversation',
+    'session.reorder',
+    'session.reorderPinned',
+    'session.resume',
+    'session.select',
+    'session.selectWorkbenchRoot',
+    'session.setPinned',
+    'session.unarchive',
+    'session.unarchiveMany',
+    'session.workbenchRoot.forgetEditorPath',
+    'terminal.close',
+    'terminal.create',
+    'terminal.moveToNewSession',
+    'terminal.restart',
+    'terminal.send',
+    'terminal.suspend',
+    'terminal.switchSurface',
+    'usage.dismissNotice',
+    'viewContainers.cancelRequest',
+    'viewContainers.executeCommand',
+]);
+
+describe('durable method request lifetime', () => {
+    it('declares a lifetime for every durable effectful method', () => {
+        const undeclared = Object.entries(effectfulCommandRecovery)
+            .filter(([, recovery]) => recovery === 'durable')
+            .map(([method]) => method)
+            .filter(
+                (method) =>
+                    !isNonExpiringServerOperation(method) &&
+                    !isNonExpiringViewOperation(method) &&
+                    !shortLivedDurableMethods.has(method),
+            );
+        expect(undeclared).toEqual([]);
     });
 });

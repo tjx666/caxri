@@ -16,7 +16,7 @@ export interface ServerSupervisionPolicy {
     stabilityWindowMs: number;
 }
 
-export const defaultServerSupervisionPolicy: Readonly<ServerSupervisionPolicy> = Object.freeze({
+const defaultServerSupervisionPolicy: Readonly<ServerSupervisionPolicy> = Object.freeze({
     maximumRestartAttempts: 3,
     maximumRestartBackoffMs: 2_000,
     pollingIntervalMs: 25,

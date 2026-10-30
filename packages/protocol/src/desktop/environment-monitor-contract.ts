@@ -21,7 +21,7 @@ const routeNodeMismatchIssueSchema = z.strictObject({
     observedChain: z.array(z.string().min(1).max(160)).min(1).max(16),
 });
 
-export const environmentMonitorIssueSchema = z.discriminatedUnion('kind', [
+const environmentMonitorIssueSchema = z.discriminatedUnion('kind', [
     publicIpChangedIssueSchema,
     timeZoneMismatchIssueSchema,
     routeNodeMismatchIssueSchema,
@@ -83,7 +83,7 @@ const environmentMonitorMihomoRouteObservationSchema = z.strictObject({
     status: z.enum(['matched', 'mismatch', 'unobserved']),
 });
 
-export const environmentMonitorStateSchema = z.strictObject({
+const environmentMonitorStateSchema = z.strictObject({
     state: z.enum(['disabled', 'healthy', 'warning']),
     issues: z.array(environmentMonitorIssueSchema).max(34),
     checkedAt: z.number().int().nonnegative().optional(),

@@ -168,7 +168,7 @@ export interface CommandContext {
         switchBranch(): void;
         /**
          * True only when the active diff tab has at least one mounted review comment editor with a comment to jump to;
-         * see `mountedReviewCommentAnchors` in `git-review-navigation-commands.ts`.
+         * see `mountedReviewCommentAnchors` in `review-navigation-commands.ts`.
          */
         canGoToReviewComment(): boolean;
         goToNextReviewComment(): void;

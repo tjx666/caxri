@@ -14,7 +14,7 @@ const timelineItemBase = {
  * harness disclaimer attached to a slash command. `systemReminder` content never reaches the timeline as an item; a
  * turn made of only a system reminder is dropped instead of rendered.
  */
-export const agentSystemEventStatusSchema = z.enum([
+const agentSystemEventStatusSchema = z.enum([
     'completed',
     'failed',
     'killed',
@@ -22,7 +22,7 @@ export const agentSystemEventStatusSchema = z.enum([
     'unknown',
 ]);
 
-export const agentSystemEventKindSchema = z.enum([
+const agentSystemEventKindSchema = z.enum([
     'taskNotification',
     'slashCommand',
     'bashCommand',
@@ -35,7 +35,7 @@ export const agentSystemEventKindSchema = z.enum([
  * turn the record only marks as ended, which reads as completed. The values match Agent Chat's settled turn statuses so
  * the phone labels both timelines with the same words.
  */
-export const agentTimelineTurnOutcomeSchema = z.enum(['completed', 'interrupted', 'failed']);
+const agentTimelineTurnOutcomeSchema = z.enum(['completed', 'interrupted', 'failed']);
 
 export const agentTimelineItemSchema = z.discriminatedUnion('type', [
     z.strictObject({

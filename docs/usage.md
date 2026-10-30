@@ -153,7 +153,7 @@ the newest reading Server Core has from any conversation.
   shows no row. There is no action to spend a card.
 - **Claude Code** records no limits in its transcript, so Caxri reads them the way T3 Code does. While a Claude Chat
   is open and its provider process runs, `PlanLimitRefresh` (`apps/server/src/domains/usage/plan-limit-refresh.ts`)
-  asks the Chat on each status-bar poll, and the Chat's `ClaudePlanLimits` (`claude-plan-limits.ts`) asks the process
+  asks the Chat on each status-bar poll, and the Chat's `ClaudePlanLimits` (`providers/claude/plan-limits.ts`) asks the process
   for its `/usage` answer through the Agent SDK's usage control request at most once a minute. In between, each
   `rate_limit_event` a turn streams replaces its window (the event's utilization is a 0 to 1 fraction, unlike the
   answer's percentage); an event before the first answer is dropped. The process uses its own credentials, so Caxri

@@ -59,7 +59,7 @@ const bindingSchema = z.strictObject({
     useWhen: descriptionSchema.optional(),
     dontUseWhen: descriptionSchema.optional(),
 });
-export const delegationPresetSchema = z.strictObject({
+const delegationPresetSchema = z.strictObject({
     ...selectionShape,
     name: delegationPresetNameSchema,
     useWhen: descriptionSchema,

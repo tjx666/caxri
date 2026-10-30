@@ -5,8 +5,8 @@ import { join } from 'node:path';
 import type { Mock } from 'vitest';
 import { afterEach } from 'vitest';
 
+import type { DesktopServerConnection } from '../../connection/server-connection';
 import { ProjectRootGrants } from '../../root-grants';
-import type { DesktopServerConnection } from '../../server-connection';
 import { createWorkbenchRootAuthority } from '../../workbench-root-authority';
 
 export interface ElectronDialogMock {
@@ -68,7 +68,7 @@ export function workbenchRootHarness(dialog: ElectronDialogMock) {
                 getServer: () => options.getServer ?? unusedServer,
                 getWindow: () => options.window as never,
                 grants,
-                // These suites do not assert on path-browser logging; `path-browser-authority.fixture.ts` covers that.
+                // These suites do not assert on path-browser logging; `authority.fixture.ts` covers that.
                 logger: () => {},
                 nextTestRoot: options.nextTestRoot ?? (() => {}),
             }),

@@ -21,7 +21,7 @@ import type { AgentToolKind } from './agent-tool-presentation.js';
  * differs by where the user sits is keyed by `AgentChatSurface`, so each surface's wording lives beside the other's and
  * a new failure reason cannot ship on one surface only.
  */
-export type AgentChatSurface = 'desktop' | 'mobile';
+type AgentChatSurface = 'desktop' | 'mobile';
 
 /**
  * The provider name at the start of a sentence. Catalog names are already capitalized; only a providerless fallback

@@ -33,7 +33,7 @@ export const agentChatTaskSnapshotSchema = z.strictObject({
     isOutputCapped: z.boolean().optional(),
 });
 
-export const agentChatTaskPatchOperationSchema = z.discriminatedUnion('op', [
+const agentChatTaskPatchOperationSchema = z.discriminatedUnion('op', [
     z.strictObject({ op: z.literal('upsertItem'), item: agentChatItemSchema }),
     z.strictObject({
         op: z.literal('appendText'),

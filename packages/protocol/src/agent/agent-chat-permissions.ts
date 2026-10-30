@@ -17,7 +17,7 @@ import { agentProviderIds } from './agents.js';
  * - `auto`: the provider's own reviewer decides which actions need the user.
  * - `fullAccess`: nothing asks and nothing is sandboxed.
  */
-export const agentChatPermissionModeIds = [
+const agentChatPermissionModeIds = [
     'readOnly',
     'ask',
     'acceptEdits',
@@ -33,7 +33,7 @@ export type AgentChatPermissionMode = z.infer<typeof agentChatPermissionModeSche
  * What one provider offers in the permission menu: its levels, least permissive first, and whether it has a native plan
  * mode. See `docs/agent-chat.md` for the native setting each level maps to.
  */
-export interface AgentChatPermissionCapabilities {
+interface AgentChatPermissionCapabilities {
     modes: readonly AgentChatPermissionMode[];
     planMode: boolean;
     /**
@@ -43,7 +43,7 @@ export interface AgentChatPermissionCapabilities {
     appliesOnNextTurn: boolean;
 }
 
-export const agentChatPermissionCapabilities = {
+const agentChatPermissionCapabilities = {
     /**
      * Claude Code's `--permission-mode` values; `plan` is its own mode, so plan mode replaces the level until it ends.
      * `dontAsk` (deny anything not pre-approved) is not offered: it only differs from `ask` with allow rules.

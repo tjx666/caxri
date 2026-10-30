@@ -122,7 +122,7 @@ export function longPasteReferenceRanges(text: string): LongPasteReferenceRange[
  * whether a summary is worth paying for (it can read the file, grep it, or delegate to a small-model subagent) so the
  * Server's job ends at putting the original somewhere readable and saying where it is.
  */
-export const terminalLongPasteResultSchema = z.discriminatedUnion('status', [
+const terminalLongPasteResultSchema = z.discriminatedUnion('status', [
     /**
      * Shell-promoted Agents retain native paste without acquiring managed process control.
      */

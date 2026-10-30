@@ -22,8 +22,7 @@ import { execFileAsync } from './exec';
  * CI-protected/full-validation path rules apply here.
  */
 
-// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/surface-matrix.test.ts
-export type ProductSurface =
+type ProductSurface =
     | 'ci'
     | 'cli'
     | 'contributor-skills'
@@ -197,16 +196,14 @@ export interface SurfaceMatrixInput {
     diffText?: string;
 }
 
-// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/surface-matrix.test.ts
-export interface SurfaceMatrixEntry {
+interface SurfaceMatrixEntry {
     files: string[];
     label: string;
     proof: string;
     surface: ProductSurface;
 }
 
-// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/surface-matrix.test.ts
-export interface ReverseStateEvaluation {
+interface ReverseStateEvaluation {
     /**
      * Forward/reverse action-verb pairs whose forward verb appeared added without its reverse.
      */

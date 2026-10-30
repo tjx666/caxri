@@ -429,6 +429,7 @@ exit 0
 
 async function writeIfChanged(path: string, source: string, mode: number): Promise<void> {
     try {
+        // eslint-disable-next-line caxri/bounded-external-reads -- compares against the bridge script Caxri staged itself
         if ((await readFile(path, 'utf8')) === source) return;
     } catch {
         // A missing or unreadable staged bridge is repaired by the atomic replacement below.
@@ -444,6 +445,7 @@ export async function stageAgentHookBridge(sharedPath: string): Promise<string> 
     const bridgePath = join(directory, 'caxri-agent-hook-bridge');
     const manifestPath = join(directory, 'manifest.json');
     try {
+        // eslint-disable-next-line caxri/bounded-external-reads -- manifest.json is written by Caxri's own bridge staging
         const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as {
             bridgeVersion?: unknown;
         };

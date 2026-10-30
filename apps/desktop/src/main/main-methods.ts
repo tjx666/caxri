@@ -17,12 +17,12 @@ import {
 import type { BrowserWindow } from 'electron';
 import { app, dialog, net, shell } from 'electron';
 
-import { createAcceptanceExternalOpenFixture } from './acceptance-external-open';
-import { createAcceptanceSessionDeleteFixture } from './acceptance-session-delete';
-import { createAcceptanceThemeImportFixture } from './acceptance-theme-import';
+import { createAcceptanceExternalOpenFixture } from './acceptance/external-open';
+import { createAcceptanceSessionDeleteFixture } from './acceptance/session-delete';
+import { createAcceptanceThemeImportFixture } from './acceptance/theme-import';
 import { openAgentChatPathReference, selectAgentChatPaths } from './agent-chat/path-picker';
 import { readArgvConfig, updateArgvConfig } from './argv-config';
-import { handleBenchmarkShare, isBenchmarkShare } from './benchmark-share-methods';
+import { handleBenchmarkShare, isBenchmarkShare } from './benchmark/share-methods';
 import { handleClipboardRequest, isClipboardRequest } from './clipboard/clipboard-methods';
 import {
     archiveWorktreeChoice,
@@ -41,13 +41,14 @@ import {
     unsavedChangesChoice,
     unsavedChangesPrompt,
 } from './confirmations';
+import type { DesktopServerConnection } from './connection/server-connection';
 import { showContextMenu } from './context-menu';
 import type { EnvironmentMonitor } from './environment-monitor';
 import {
     createExternalDocumentContext,
     handleExternalDocumentRequest,
     isExternalDocumentRequest,
-} from './external-document-methods';
+} from './external-documents/methods';
 import { openExternalUrl } from './external-links';
 import { createLinkFavicons } from './link-favicons';
 import { createLinkPreviews } from './link-previews';
@@ -76,7 +77,6 @@ import {
     isNotificationRequest,
 } from './notifications/main-notification-methods';
 import { requestWindowOr } from './request-window';
-import type { DesktopServerConnection } from './server-connection';
 import { installShellCommand, uninstallShellCommand } from './shell-command';
 import { createShellCommandEnvironment } from './shell-command-environment';
 import { moveAuthorizedItemToTrash } from './trash/dispatch';

@@ -13,30 +13,30 @@ import { assertE2EAgentChatInput, readE2EAgentPolicy, SingleFlight } from '@caxr
 import { AgentRunAutonomy } from '../agents';
 import { readChatContext } from './chat-context';
 import { ChatDelegationLinks } from './chat-delegation';
-import { ChatEndpointLease } from './chat-endpoint-lease';
 import type { ChatExitHost } from './chat-exit';
 import type { CreateForkSession } from './chat-fork';
 import { forkChat } from './chat-fork';
-import { readChatTerminalHistory } from './chat-history';
 import { requireChatTerminal } from './chat-launch';
 import { ChatMobileWatchers } from './chat-mobile-watchers';
 import { ChatPermissionSwitches } from './chat-permission-switch';
 import type { AgentChatProviderSession, ChatSideExchange } from './chat-provider';
-import * as queueActions from './chat-queue-actions';
 import { saveChatDefaults } from './chat-session-logs';
 import type { ChatStartHost } from './chat-start';
 import { ensureChatStarted } from './chat-start';
 import type { ChatState, ChatStateDelivery, ChatStopper } from './chat-states';
 import { ChatStates } from './chat-states';
 import { ChatIdleMaintenance, leaseReadStart } from './chat-suspension';
-import type { ChatTaskHost } from './chat-task-read';
-import { readChatTask, readChatTaskHistory, stopChatTask } from './chat-task-read';
+import { ChatEndpointLease } from './endpoint/lease';
+import { readChatTerminalHistory } from './history/read';
 import { ChatPlanImplementations } from './plan/chat-plan-implement';
+import * as queueActions from './queue/actions';
 import type { ChatRewindHost, ChatRewindRequest } from './rewind/chat-rewind';
 import { restoreChatFiles, rewindChat } from './rewind/chat-rewind';
 import { previewChatRestore } from './rewind/chat-rewind-preview';
 import type { AgentChatServiceOptions } from './service-options';
 import { askChatSideQuestion } from './side-question/chat-side-question';
+import type { ChatTaskHost } from './tasks/read';
+import { readChatTask, readChatTaskHistory, stopChatTask } from './tasks/read';
 
 /**
  * Owns every Chat Terminal's provider process and in-memory conversation projection. Processes start lazily on the

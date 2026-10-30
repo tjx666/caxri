@@ -23,7 +23,7 @@ export const MAX_BOT_CONVERSATIONS = 200;
  * `chat_surface` means the Agent runs as a Chat whose provider cannot correlate a Caxri Bot task (Grok Build's Chat
  * reports no prompt digest). Hand-overs recorded before Caxri Bot could continue any Agent Chat also carry it.
  */
-export const botHandoverOwnershipReasons = [
+const botHandoverOwnershipReasons = [
     'agent_missing',
     'chat_surface',
     'provider_session_missing',
@@ -34,7 +34,7 @@ export const botHandoverOwnershipReasonSchema = z.enum(botHandoverOwnershipReaso
 /**
  * Why one entry of a hand-over request was refused. The rest of the batch is still handed over.
  */
-export const botHandoverRejections = [
+const botHandoverRejections = [
     'session_missing',
     'session_archived',
     'project_unavailable',
@@ -47,13 +47,13 @@ export const botHandoverRejections = [
     'conversation_bound',
     'duplicate',
 ] as const;
-export const botHandoverRejectionSchema = z.enum(botHandoverRejections);
+const botHandoverRejectionSchema = z.enum(botHandoverRejections);
 
 /**
  * One Agent conversation, named by the provider that owns it and the provider's own conversation ID (what that
  * provider's resume argument takes).
  */
-export const botConversationReferenceSchema = z.strictObject({
+const botConversationReferenceSchema = z.strictObject({
     provider: delegationProviderSchema,
     providerSessionId: z.string().trim().min(1).max(1_024),
 });
@@ -61,7 +61,7 @@ export const botConversationReferenceSchema = z.strictObject({
 /**
  * The conversation a hand-over lets Caxri Bot continue: the Agent Terminal it lives in and its provider identity.
  */
-export const botHandoverTargetSchema = z.strictObject({
+const botHandoverTargetSchema = z.strictObject({
     terminalId: identifierSchema,
     provider: delegationProviderSchema,
     providerSessionId: botConversationReferenceSchema.shape.providerSessionId,
@@ -100,7 +100,7 @@ export const botHandoverSchema = z.strictObject({
  * Caxri Terminal is bound to. `title` is the provider's own title or the first user prompt, shown only in the local
  * UI.
  */
-export const botConversationSchema = botConversationReferenceSchema.extend({
+const botConversationSchema = botConversationReferenceSchema.extend({
     cwd: pathSchema,
     title: z.string().max(200).optional(),
     updatedAt: z.number(),
@@ -153,7 +153,7 @@ export const botHandoverRequestSchema = z
         `Hand over at most ${MAX_BOT_HANDOVER_BATCH} at once`,
     );
 
-export const botHandoverResultSchema = z.strictObject({
+const botHandoverResultSchema = z.strictObject({
     outcomes: z.array(handoverOutcomeSchema).max(MAX_BOT_HANDOVER_BATCH),
 });
 
@@ -179,7 +179,7 @@ const botInputTakeBackSchema = z.strictObject({
  * mobile subscriptions, and the companion-window policy. The list lives in Server Core's memory only: a notice is worth
  * showing while it is fresh, and a reader that starts later treats every entry it first sees as already shown.
  */
-export const botManagedSessionsSchema = z.strictObject({
+const botManagedSessionsSchema = z.strictObject({
     sessionIds: z.array(identifierSchema).max(1_000),
     /**
      * Caxri Bot's own hidden Session, so the Workbench can name Caxri Bot as the creator of a Session whose

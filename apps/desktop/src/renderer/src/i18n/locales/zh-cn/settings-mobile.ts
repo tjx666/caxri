@@ -10,6 +10,7 @@ export const settingsMobile: TranslatedNamespace<typeof source> = {
     'settings.mobile.relayStatus.reason.networkError': '地址无响应,请检查地址和网络。',
     'settings.mobile.relayStatus.reason.registrationRejected': '中继拒绝了这台电脑。',
     'settings.mobile.relayStatus.reason.closedByRelay': '中继关闭了连接,正在重试。',
+    'settings.mobile.relayStatus.reason.registrationTimeout': '中继没有完成注册,正在重试。',
     'settings.mobile.relayStatus.reason.heartbeatTimeout': '中继不再响应,正在重试。',
     'settings.mobile.relayStatus.reason.protocolError': '该地址不是兼容的 Caxri 中继。',
     'settings.mobileAccess.status.available': '已在当前网络上可用',

@@ -63,10 +63,7 @@ function contextMenuItemSchema(depth: number): z.ZodType<ContextMenuItemSpec> {
     return z.union([leaf, submenu]);
 }
 
-export const contextMenuItemsSchema = z
-    .array(contextMenuItemSchema(1))
-    .min(1)
-    .max(MAX_CONTEXT_MENU_ITEMS);
+const contextMenuItemsSchema = z.array(contextMenuItemSchema(1)).min(1).max(MAX_CONTEXT_MENU_ITEMS);
 
 /**
  * Right-click menus render as native OS menus owned by Main. The Renderer sends plain data and receives only the chosen

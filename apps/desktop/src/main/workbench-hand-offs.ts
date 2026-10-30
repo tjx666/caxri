@@ -1,7 +1,7 @@
 import type { CommandId, ServerEvent } from '@caxri/protocol';
 
+import type { DesktopServerConnection } from './connection/server-connection';
 import type { MainMethodHandlerOptions } from './main-methods';
-import type { DesktopServerConnection } from './server-connection';
 import { PRIMARY_WINDOW_KEY } from './window-presence-registry';
 
 /**

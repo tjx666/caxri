@@ -50,12 +50,6 @@ const sessionActivityReasonSchema = z.enum([
     'agent_failed',
 ]);
 const sessionTitleModeSchema = z.enum(['automatic', 'manual']);
-export const newWorktreeBehaviorSchema = z.enum([
-    'ask',
-    'continueWhenAuthorized',
-    'continueAutomatically',
-    'ignore',
-]);
 
 export type AgentActivityState = z.infer<typeof agentActivityStateSchema>;
 export type SessionAttentionKind = z.infer<typeof sessionAttentionKindSchema>;
@@ -470,7 +464,8 @@ export const sessionReorderParametersSchema = z.strictObject({
 });
 
 export type AgentTranscript = z.infer<typeof agentTranscriptSchema>;
-export type NewWorktreeBehavior = z.infer<typeof newWorktreeBehaviorSchema>;
+export type NewWorktreeBehavior =
+    'ask' | 'continueWhenAuthorized' | 'continueAutomatically' | 'ignore';
 export type WorkbenchRootOption = z.infer<typeof workbenchRootOptionSchema>;
 export type AgentHookHealth = z.infer<typeof agentHookHealthSchema>;
 export type AgentHookHealthMap = z.infer<typeof agentHookHealthMapSchema>;

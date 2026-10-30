@@ -13,7 +13,7 @@ const sessionResultSchema = z.strictObject({ sessionId: identifierSchema });
  * One management step on a Session an Agent created. Archive and restore are the sidebar's own reversible operations;
  * restore puts the Session back at the top of its Project, where the user sees it again.
  */
-export const agentSessionOperationSchema = z.discriminatedUnion('action', [
+const agentSessionOperationSchema = z.discriminatedUnion('action', [
     z.strictObject({ action: z.literal('rename'), title: sessionRenameTitleSchema }),
     z.strictObject({ action: z.literal('archive') }),
     z.strictObject({ action: z.literal('unarchive') }),

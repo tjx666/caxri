@@ -22,7 +22,7 @@ import { fileAssetSchema } from './preview-asset.js';
  * content is read (an extension cannot predict it), so callers branch on this reason instead of matching the message:
  * the Desktop opens a no-preview tab and Mobile answers `{ status: 'binary' }`.
  */
-export const BINARY_FILE_READ_REASON = 'binary';
+const BINARY_FILE_READ_REASON = 'binary';
 
 /**
  * A copy or move source in another Session's Project. Server Core authorizes it against that Session's root exactly as

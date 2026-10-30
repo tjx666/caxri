@@ -22,12 +22,12 @@ product fallback stays at the diff surface instead of waiting on an upstream fix
 comparison heals itself once, without the user having to find and press Retry.
 
 A stall that is still unresolved a second, equal eight-second window after its `timeout` report
-gets one automatic attempt: `git-diff-stall-watch.ts`'s `recoveryGraceMs` offers the caller
+gets one automatic attempt: `diff-stall-watch.ts`'s `recoveryGraceMs` offers the caller
 `onRecoveryDue`, which is recorded as a `worker-recreated` diagnostic (the active counterpart to
 `recovered`: the surface gave up waiting on the original Worker instead of it answering late) and
 destroys and recreates the stalled Worker before asking Monaco to recompute, the same mechanical
 steps the manual Retry button already performed. `git-monaco-diff-editor.tsx` owns this decision
-per diff surface; `git-diff-worker-recovery.ts` is the pure state machine that bounds it to one
+per diff surface; `diff-worker-recovery.ts` is the pure state machine that bounds it to one
 automatic attempt (`MAX_AUTOMATIC_WORKER_RECOVERIES`) so a Worker that keeps failing is surfaced to
 the user instead of retried forever on its own. A manual Retry click always resets that budget, since
 it is a fresh user-initiated attempt.

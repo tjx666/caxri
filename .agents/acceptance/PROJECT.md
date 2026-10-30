@@ -74,7 +74,7 @@ Android, and iOS Simulator product surfaces.
 - **Update notification:** unpackaged Acceptance builds never contact the release service. A case
   that must show update UI declares `"updateFixture": "available"`; the launcher arms
   `CAXRI_ACCEPTANCE_UPDATE` for exactly that case, and Main
-  (`apps/desktop/src/main/acceptance-update.ts`) replaces only GitHub release discovery with the
+  (`apps/desktop/src/main/acceptance/update.ts`) replaces only GitHub release discovery with the
   fixed release `999.0.0`. The launch check then publishes it through the real update state path,
   so the Renderer's notification and **Check for Updates** dialog render normally. The fixture is
   served once per launch; later checks re-read that state. The Renderer's background download

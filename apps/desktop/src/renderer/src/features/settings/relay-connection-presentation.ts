@@ -22,6 +22,7 @@ const FAILURE_REASON_KEYS = {
     'network-error': 'settings.mobile.relayStatus.reason.networkError',
     'protocol-error': 'settings.mobile.relayStatus.reason.protocolError',
     'registration-rejected': 'settings.mobile.relayStatus.reason.registrationRejected',
+    'registration-timeout': 'settings.mobile.relayStatus.reason.registrationTimeout',
 } as const satisfies Record<NonNullable<RelayStatus['lastFailure']>, TranslationKey>;
 
 /**

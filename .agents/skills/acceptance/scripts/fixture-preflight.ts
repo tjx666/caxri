@@ -68,7 +68,7 @@ const preflightResultSchema = z.strictObject({
     status: z.enum(['fixture_blocked', 'ready']),
 });
 
-export const terminalFixturePreflightReceiptSchema = z.strictObject({
+const terminalFixturePreflightReceiptSchema = z.strictObject({
     caseId: z.string().refine(isAcceptanceCaseId, {
         message: 'Acceptance case id must use ASCII letters, numbers, and hyphens',
     }),

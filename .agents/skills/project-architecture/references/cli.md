@@ -7,7 +7,7 @@ output modes, and the caxri-cli skill, see [the `caxri` CLI manual](../../../../
 
 `apps/cli` is the command-line adapter for the same registry and authenticated Server transport.
 Source keeps `commands` as its only domain barrel; the package root remains the composition root
-(`application`, `environment`, `output`, `selectors`) and the only public package entrypoint. The
+(`application`, `environment`, `output`) and the only public package entrypoint. The
 command barrel stays thin, and tests live in the nearest `__tests__/` directory. Do not add or
 remove that domain without updating this reference and
 `scripts/__tests__/workspace-contract.test.ts`. Keep Electron, SQLite, PTY, watcher, and other

@@ -5,7 +5,7 @@ import { app, BrowserWindow, Menu } from 'electron';
 
 import type { MainEnvironmentMethods } from './main-environment-methods';
 import { unconfiguredEnvironment } from './main-environment-methods';
-import { syncLocalMachineMenuItems } from './menu';
+import { syncLocalMachineMenuItems } from './menu/template';
 import type { SshHostEnvironments } from './ssh/host-environments';
 
 /**

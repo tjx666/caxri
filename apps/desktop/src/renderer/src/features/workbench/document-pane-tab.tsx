@@ -9,7 +9,7 @@ import {
     resolveDocumentTabPath,
 } from '../editor/document-tab-path-actions';
 import { documentTabPathMenu } from '../editor/document-tab-path-menu';
-import { GitReviewTabBadge } from '../editor/git-review-tab-badge';
+import { GitReviewTabBadge } from '../editor/git/git-review-tab-badge';
 import { useDocumentTabPresentation } from '../editor/hooks/use-document-tab-presentation';
 import { previewTabSwitch } from '../preview/preview-commands';
 import { WorkTab } from '../tabs/work-tab';

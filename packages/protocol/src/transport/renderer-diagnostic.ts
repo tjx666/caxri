@@ -13,7 +13,7 @@ export const RENDERER_DIAGNOSTIC_CHANNEL = 'caxri:renderer-diagnostic';
  * Content-free Renderer state that is safe to persist in local diagnostics. The strict schema is the privacy boundary:
  * terminal output, prompts, source text, DOM labels, and arbitrary error messages cannot cross this IPC channel.
  */
-export const terminalRendererDiagnosticSchema = z.strictObject({
+const terminalRendererDiagnosticSchema = z.strictObject({
     kind: z.literal('terminal-renderer'),
     diagnosticId: z.uuid(),
     terminalId: identifierSchema,
@@ -100,7 +100,7 @@ export const terminalRendererDiagnosticSchema = z.strictObject({
  * settling under a pinned budget; this record is emitted once per session transition so a log can count how many times
  * the session converged on DOM and which incident or context-loss episode tripped it.
  */
-export const gpuIncidentBudgetDiagnosticSchema = z.strictObject({
+const gpuIncidentBudgetDiagnosticSchema = z.strictObject({
     kind: z.literal('gpu-incident-budget'),
     diagnosticId: z.uuid(),
     transition: z.enum(['pinned', 'reset']),
@@ -122,7 +122,7 @@ export const gpuIncidentBudgetDiagnosticSchema = z.strictObject({
  * Content-free context for a failed OSC 52 clipboard write. Error text, stack traces, clipboard payloads, and payload
  * sizes are intentionally excluded because Terminal-controlled values must never enter persisted diagnostics.
  */
-export const terminalOsc52ClipboardWriteFailureDiagnosticSchema = z.strictObject({
+const terminalOsc52ClipboardWriteFailureDiagnosticSchema = z.strictObject({
     kind: z.literal('terminal-osc52-clipboard-write-failure'),
     diagnosticId: z.uuid(),
     terminalId: identifierSchema,
@@ -154,7 +154,7 @@ const terminalGridColumnsSchema = z.number().int().min(2).max(1_000);
 const terminalGridRowsSchema = z.number().int().min(1).max(1_000);
 const resizeBurstCountSchema = z.number().int().nonnegative().max(10_000);
 
-export const terminalResizeBurstDiagnosticSchema = z.strictObject({
+const terminalResizeBurstDiagnosticSchema = z.strictObject({
     kind: z.literal('terminal-resize-burst'),
     diagnosticId: z.uuid(),
     terminalId: identifierSchema,
@@ -192,7 +192,7 @@ const editorWorkerCountSchema = z.number().int().nonnegative().max(1_000_000);
  * Line counts and model identity are the only model-derived values; file contents, paths, and repository names are
  * deliberately absent so the channel stays content-free.
  */
-export const editorWorkerStallDiagnosticSchema = z.strictObject({
+const editorWorkerStallDiagnosticSchema = z.strictObject({
     kind: z.literal('editor-worker-stall'),
     diagnosticId: z.uuid(),
     surface: z.literal('git-diff'),
@@ -203,7 +203,7 @@ export const editorWorkerStallDiagnosticSchema = z.strictObject({
      *
      * `worker-recreated` is the active counterpart to `recovered`: the surface gave up waiting on the stalled Worker,
      * destroyed and recreated it, and asked Monaco to recompute. It is bounded to one automatic attempt per diff
-     * surface (`git-diff-worker-recovery.ts`); a second stall on the same surface goes back through `timeout` and is
+     * surface (`diff-worker-recovery.ts`); a second stall on the same surface goes back through `timeout` and is
      * surfaced to the user instead of retried again on its own.
      */
     outcome: z.enum(['timeout', 'recovered', 'worker-recreated']),
@@ -264,7 +264,7 @@ function addAggregateIssue(context: z.core.$RefinementCtx<unknown>, path: string
  * profile. Times are Renderer `performance.now()` values; `timeOriginEpochMs` lets Main rebase them onto its own clock,
  * which starts with the Main process.
  */
-export const startupFrameDiagnosticSchema = z.strictObject({
+const startupFrameDiagnosticSchema = z.strictObject({
     kind: z.literal('startup-frame'),
     diagnosticId: z.uuid(),
     timeOriginEpochMs: z.number().positive(),
@@ -349,7 +349,6 @@ export type GpuIncidentBudgetDiagnostic = z.infer<typeof gpuIncidentBudgetDiagno
 export type TerminalOsc52ClipboardWriteFailureDiagnostic = z.infer<
     typeof terminalOsc52ClipboardWriteFailureDiagnosticSchema
 >;
-export type TerminalResizeBurstDiagnostic = z.infer<typeof terminalResizeBurstDiagnosticSchema>;
 export type EditorWorkerStallDiagnostic = z.infer<typeof editorWorkerStallDiagnosticSchema>;
 export type StartupFrameDiagnostic = z.infer<typeof startupFrameDiagnosticSchema>;
 export type RendererDiagnostic = z.infer<typeof rendererDiagnosticSchema>;

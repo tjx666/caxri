@@ -45,7 +45,7 @@ interface SettingSpecBase {
     keywords?: readonly string[];
 }
 
-export interface BooleanSettingSpec extends SettingSpecBase {
+interface BooleanSettingSpec extends SettingSpecBase {
     kind: 'boolean';
     default: boolean;
 }
@@ -98,7 +98,7 @@ export interface StringSettingSpec extends SettingSpecBase {
  * stays hand-written in `settings-schema.ts` and its editor is a dedicated component; this entry still owns the shared
  * metadata so search and navigation see it.
  */
-export interface ComplexSettingSpec extends SettingSpecBase {
+interface ComplexSettingSpec extends SettingSpecBase {
     kind: 'complex';
 }
 

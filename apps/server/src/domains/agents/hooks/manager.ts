@@ -350,7 +350,7 @@ export class AgentHookManager {
         const path = join(this.options.sharedPath!, 'profile-intents.json');
         let source: string | undefined;
         try {
-            source = await readFile(path, 'utf8');
+            source = await readFile(path, 'utf8'); // eslint-disable-line caxri/bounded-external-reads -- Caxri-owned shared file
         } catch (error) {
             if (!isFileSystemError(error, 'ENOENT')) throw error;
         }

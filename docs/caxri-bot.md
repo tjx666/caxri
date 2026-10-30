@@ -50,11 +50,11 @@ Closing the window leaves Caxri Bot running, so the user reopens it often. The c
 records the window's bounds after each move and resize and on close, and reopens it there for the
 rest of the app run. That bounds/open state also survives an app restart: `app.auxiliaryWindowState`
 (`auxiliaryWindowStateSchema`, one combined `app_state` row shared with the Process Explorer) persists
-it at quit, `AuxiliaryWindowBoundsMemory` (`auxiliary-window-bounds.ts`) clamps the remembered
+it at quit, `AuxiliaryWindowBoundsMemory` (`bounds.ts`) clamps the remembered
 rectangle to whichever display it currently matches every time the window opens: not only at
 launch, so a monitor unplugged while the app keeps running never reopens the window off-screen,
 while the unclamped rectangle is kept so the window returns once that monitor is back, and
-`reopenAuxiliaryWindowsAtStartup` (`auxiliary-window-lifecycle.ts`) reopens the
+`reopenAuxiliaryWindowsAtStartup` (`lifecycle.ts`) reopens the
 Caxri Bot automatically, after the Workbench window's Renderer has actually finished booting (not
 merely created) and Server startup is already up, exactly when it was still open at the previous
 quit. The Process Explorer remembers its bounds the same way but never
@@ -160,7 +160,7 @@ every Terminal view, Caxri Bot's included, and then closes Caxri Bot window.
 
 The native menu belongs to the whole app, and its command items act on the Workbench. While the
 Caxri Bot window (or the Process Explorer) is focused, Main therefore routes them by the focused
-window (`apps/desktop/src/main/menu.ts`): Close Tab (`Cmd+W`) closes the focused window, a shortcut
+window (`apps/desktop/src/main/menu/template.ts`): Close Tab (`Cmd+W`) closes the focused window, a shortcut
 typed there is dropped except the app-level Settings shortcut, and an item picked from the menu bar
 brings the Workbench forward before it runs. The Command Palette (`Cmd+Shift+P`) is the exception:
 it opens Caxri Bot's own palette (see [Title bar and Command Palette](#title-bar-and-command-palette)).
@@ -211,7 +211,7 @@ Workbench.
 `Cmd+Shift+P` is a native menu accelerator, so no Renderer ever sees the key. While Caxri Bot
 window is focused, Main forwards the menu item to it as the transient event
 `caxriBot.commandPaletteRequested` instead of raising the Workbench palette behind it
-(`openWindowCommandPalette` in `apps/desktop/src/main/menu.ts`, wired by
+(`openWindowCommandPalette` in `apps/desktop/src/main/menu/template.ts`, wired by
 `caxriBotMenuOptions` in `caxri-bot-window.ts`). The forward reaches only that window;
 the Workbench ignores the event.
 
@@ -273,9 +273,9 @@ stop runs after it and restores what it parked. Sessions Caxri Bot delegated int
 their receipts wait for Caxri Bot's next turn.
 
 A Chat Caxri Bot keeps the same identity. A Chat process has no PTY lifecycle environment, so
-`AgentChatService` asks its optional `endpoint` (`apps/server/src/domains/agent-chat/chat-endpoint.ts`)
+`AgentChatService` asks its optional `endpoint` (`apps/server/src/domains/agent-chat/endpoint/agent-endpoint.ts`)
 for the launch environment, activates the generation once the provider is ready, and retires it when
-the process exits or never started (`agent-chat/chat-endpoint-lease.ts`). Every Chat receives an
+the process exits or never started (`agent-chat/endpoint/lease.ts`). Every Chat receives an
 Endpoint; only the recorded Caxri Bot Terminal's carries the `bot` role. `bot.stop` parks a Chat Caxri Bot through `agentChat.closeSession(..., 'detached')`
 instead of suspending a PTY, and Caxri Bot restore resumes that detached Chat as well.
 

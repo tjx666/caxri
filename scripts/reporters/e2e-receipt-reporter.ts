@@ -8,7 +8,7 @@ import type { FullConfig, Reporter, Suite, TestCase, TestResult } from '@playwri
 
 import { writeJsonAtomic } from '../atomic-json';
 
-export type E2ETestVerdict = 'fail' | 'pass' | 'skipped' | 'timeout' | 'unknown';
+type E2ETestVerdict = 'fail' | 'pass' | 'skipped' | 'timeout' | 'unknown';
 
 export interface E2ETestReceipt {
     artifacts: string[];
@@ -29,7 +29,7 @@ export interface E2ETestReceipt {
     verdict: E2ETestVerdict;
 }
 
-export interface E2ESpecReceipt {
+interface E2ESpecReceipt {
     /**
      * Sum of this spec's test durations. Playwright charges fixture setup, including the Electron launch, to the test
      * that triggered it, so this is the spec's true cost in its pool and is what pool-balancing decisions should read.

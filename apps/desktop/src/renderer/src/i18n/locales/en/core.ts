@@ -7,6 +7,8 @@ export const core = {
     'core.errorBoundary.title': 'Something went wrong',
     'core.errorBoundary.description':
         'Caxri ran into an unexpected error. Reloading will bring back your projects and sessions.',
+    'core.surfaceBoundary.message': 'This part of the window could not be displayed.',
+    'core.surfaceBoundary.inlineMessage': 'This item could not be displayed.',
     'core.errorBoundary.technicalDetails': 'Technical details',
     'core.errorBoundary.copyDetails': 'Copy details',
     'core.errorBoundary.reloadWithoutSession': 'Reload without this Session',

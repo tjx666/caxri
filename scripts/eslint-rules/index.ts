@@ -1,6 +1,7 @@
 import type { ESLint } from 'eslint';
 
 import architectureBoundaries from './architecture-boundaries';
+import boundedExternalReads from './bounded-external-reads';
 import featureDirectoryStructure from './feature-directory-structure';
 import filenameExportMapping from './filename-export-mapping';
 import jsdocFormat from './jsdoc-format';
@@ -20,6 +21,7 @@ import serverReadsThroughQuery from './server-reads-through-query';
 const caxriEslintPlugin: ESLint.Plugin = {
     rules: {
         'architecture-boundaries': architectureBoundaries,
+        'bounded-external-reads': boundedExternalReads,
         'feature-directory-structure': featureDirectoryStructure,
         'filename-export-mapping': filenameExportMapping,
         'jsdoc-format': jsdocFormat,

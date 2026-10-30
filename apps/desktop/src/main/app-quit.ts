@@ -4,8 +4,8 @@ import type { BrowserWindow, Dialog } from 'electron';
 
 import type { RunningWork } from './confirmations';
 import { runningWorkPhrase, runningWorkTotal } from './confirmations';
+import type { DesktopServerConnection } from './connection/server-connection';
 import { translateMain as t } from './locale';
-import type { DesktopServerConnection } from './server-connection';
 
 export type AppQuitDecision = 'cancel' | 'keep-running' | 'stop';
 export type AppQuitOutcome = 'cancelled' | 'kept-running' | 'stop-failed' | 'stopped';

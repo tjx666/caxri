@@ -7,8 +7,8 @@ import { principalSchema } from '../transport/principal.js';
 import { agentEndpointRefSchema as agentEndpointReferenceSchema } from './agent-endpoint-contract.js';
 import { agentProviderSchema } from './agents.js';
 
-export const agentDispatchOperationSchema = z.enum(['start', 'resume', 'wake']);
-export const agentDispatchStatusSchema = z.enum([
+const agentDispatchOperationSchema = z.enum(['start', 'resume', 'wake']);
+const agentDispatchStatusSchema = z.enum([
     'requested',
     'starting',
     'running',
@@ -79,24 +79,24 @@ export const agentDispatchStartParametersSchema = dispatchTargetSchema.extend({
     provider: agentProviderSchema,
 });
 
-export const agentDispatchResumeParametersSchema = dispatchTargetSchema.extend({
+const agentDispatchResumeParametersSchema = dispatchTargetSchema.extend({
     terminalId: identifierSchema,
     providerSessionId: z.string().trim().min(1).max(1_024),
 });
 
-export const agentDispatchStatusParametersSchema = z.strictObject({ dispatchId: identifierSchema });
+const agentDispatchStatusParametersSchema = z.strictObject({ dispatchId: identifierSchema });
 export const agentDispatchWaitParametersSchema = agentDispatchStatusParametersSchema.extend({
     afterRevision: z.number().int().nonnegative().default(0),
     timeoutMs: z.number().int().min(100).max(120_000).default(15_000),
 });
 
-export const agentDispatchWaitResultSchema = z.strictObject({
+const agentDispatchWaitResultSchema = z.strictObject({
     receipt: agentDispatchReceiptSchema,
     outcome: z.enum(['changed', 'timed_out', 'canceled']),
 });
 
 const agentControlParametersSchema = z.strictObject({ endpoint: agentEndpointReferenceSchema });
-export const agentControlResultSchema = z.strictObject({
+const agentControlResultSchema = z.strictObject({
     endpoint: agentEndpointReferenceSchema,
     terminalId: identifierSchema,
     outcome: z.literal('signaled'),
@@ -133,7 +133,7 @@ export const terminalSendParametersSchema = z.strictObject({
     enter: z.boolean().default(false),
 });
 
-export const terminalSendResultSchema = z.strictObject({
+const terminalSendResultSchema = z.strictObject({
     terminalId: identifierSchema,
     accepted: z.literal(true),
     byteLength: z.number().int().positive().max(MAX_TERMINAL_STEER_BYTES),

@@ -165,7 +165,7 @@ description: Measure and protect Caxri startup, Server Core responsiveness, Rend
      is nothing to expire (the held-message expiry in `agent-message-approval-store.ts`).
    - Long-lived caches must not retain a view over a larger allocation: copy a truncated string out
      of its V8 parent and copy a sync zlib result, which is a slice of Node's shared buffer pool
-     (`apps/server/src/domains/agent-chat/chat-history-archive.ts`, the agent timeline projection).
+     (`apps/server/src/domains/agent-chat/history/read-archive.ts`, the agent timeline projection).
 
    For a quick frame rate, reload, or Session switch reading, open the Performance Monitor
    (`docs/performance-monitor.md`; command palette `Toggle Performance Monitor`) without a debugger. Choose

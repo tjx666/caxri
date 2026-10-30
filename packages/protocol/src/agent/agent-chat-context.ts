@@ -119,7 +119,7 @@ export const agentChatContextCompositionSchema = z.strictObject({
  * One model request of the main conversation as its usage reports it. The prompt is `input + cacheRead + cacheWrite`; a
  * request that reads less of the cache than the previous prompt held is where the cache broke.
  */
-export const agentChatContextRequestSchema = z.strictObject({
+const agentChatContextRequestSchema = z.strictObject({
     at: epochMs,
     model: modelName.optional(),
     input: tokens,

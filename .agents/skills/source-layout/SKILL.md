@@ -95,6 +95,10 @@ Before adding or moving source files, consult the directory owners and filename 
 module in a topical subdirectory (for example `agent/chat/`) instead of adding another flat file.
 Caps only shrink; lower the cap when files move out.
 
+Provider-specific modules of a Server domain live in `providers/<id>/` (for example
+`agent-chat/providers/claude/`); do not add flat
+`claude-*.ts`, `codex-*.ts`, or `grok-*.ts` files at the domain root.
+
 Locked protocol and CLI domains in the `project-architecture` architecture reference stay even
 when they have only two production modules. Do not add or remove one of those domains without
 updating that reference and `scripts/__tests__/workspace-contract.test.ts`. A new Server domain
@@ -126,8 +130,7 @@ rejects a missing one and rejects production imports that reach past another dom
   `file-conflict-dialog-store.ts`.
 
 Cross-domain production imports target the domain barrel, not a deep file. Package consumers use
-the package root; `apps/cli/src` composition-root files (`application`, `environment`, `output`,
-`selectors`) stay at that root and are not an importable package boundary.
+the package root; `apps/cli/src` composition-root files (`application`, `environment`, `output`) stay at that root and are not an importable package boundary.
 
 When moving, `git mv`, then fix relative imports and `import.meta.url` paths in the same change.
 

@@ -41,7 +41,7 @@ export const projectQuerySchema = z.discriminatedUnion('mode', [
     showQuerySchema,
     currentQuerySchema,
 ]);
-export const sessionQuerySchema = z.discriminatedUnion('mode', [
+const sessionQuerySchema = z.discriminatedUnion('mode', [
     listQuerySchema.extend({ projectId: identifierSchema.optional() }),
     showQuerySchema.extend({ projectId: identifierSchema.optional() }),
     currentQuerySchema,
@@ -51,7 +51,7 @@ export const terminalQuerySchema = z.discriminatedUnion('mode', [
     showQuerySchema.extend({ sessionId: identifierSchema.optional() }),
 ]);
 
-export const projectQueryResultSchema = z.union([
+const projectQueryResultSchema = z.union([
     z.object({
         view: z.enum(['desktop', 'human-cli']),
         projects: z.array(humanProjectSchema).max(1_024),
@@ -84,7 +84,7 @@ const sessionSummarySchema = sessionRecordSchema.pick({
      */
     workbenchRootProjectId: true,
 });
-export const sessionQueryResultSchema = z.object({
+const sessionQueryResultSchema = z.object({
     view: principalViewSchema,
     sessions: z.array(sessionSummarySchema).max(4_096),
 });
@@ -106,7 +106,7 @@ const terminalSummarySchema = terminalRecordSchema.pick({
      */
     surface: true,
 });
-export const terminalQueryResultSchema = z.object({
+const terminalQueryResultSchema = z.object({
     view: principalViewSchema,
     terminals: z.array(terminalSummarySchema).max(8_192),
 });
@@ -124,7 +124,7 @@ export const inspectableSettingsSchema = appSettingsSchema.pick({
     'files.maxFileBytes': true,
     'updates.skippedVersion': true,
 });
-export const settingsPatchKeySchema = z.enum([
+const settingsPatchKeySchema = z.enum([
     'notifications.worktreeFallback',
     'notifications.agentRecovery',
     'session.defaultAgent',
@@ -203,18 +203,18 @@ export const settingsPatchParametersSchema = z.object({
     dryRun: z.boolean().default(false),
 });
 const settingsRevisionSchema = z.string().regex(/^[0-9a-f]{64}$/u);
-export const settingsInspectionSchema = z.object({
+const settingsInspectionSchema = z.object({
     value: inspectableSettingsSchema,
     revision: settingsRevisionSchema,
     errors: z.array(z.string().max(2_048)).max(32),
 });
-export const settingsPatchResultSchema = settingsInspectionSchema.extend({
+const settingsPatchResultSchema = settingsInspectionSchema.extend({
     dryRun: z.boolean(),
     changedKeys: z.array(settingsPatchKeySchema).max(32),
 });
 
 export const logProcesses = ['desktop', 'extension-host', 'server-core', 'terminal-host'] as const;
-export const logProcessSchema = z.enum(logProcesses);
+const logProcessSchema = z.enum(logProcesses);
 export function isLogProcess(value: unknown): value is LogProcess {
     return typeof value === 'string' && logProcesses.includes(value as LogProcess);
 }
@@ -283,7 +283,7 @@ export const logQueryRecordSchema = z.object({
      */
     fields: z.record(logFieldKeySchema, logFieldValueSchema).optional(),
 });
-export const logQueryResultSchema = z.object({
+const logQueryResultSchema = z.object({
     records: z.array(logQueryRecordSchema).max(100),
     nextCursor: z.string().min(1).max(512).optional(),
     gap: z.boolean(),
@@ -378,7 +378,7 @@ const botCompletionNoticeDiagnosticSchema = z.object({
  * Content-free Caxri Bot census: run state, its Terminal's process states, owned Session count, recent task receipts,
  * and completion notice latency. IDs, enums, counters, and durations only.
  */
-export const caxriBotDiagnosticsSchema = z.object({
+const caxriBotDiagnosticsSchema = z.object({
     state: botRunStateSchema,
     terminalId: identifierSchema.optional(),
     terminalProcessState: terminalRecordSchema.shape.lastProcessState.optional(),

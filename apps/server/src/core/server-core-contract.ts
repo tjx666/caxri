@@ -55,7 +55,8 @@ export interface ServerCore {
      */
     stopping: Promise<void>;
     /**
-     * Resolves after every Core-owned service and profile resource has stopped cleanly.
+     * Resolves after every Core-owned service and profile resource has stopped cleanly. Rejects once every teardown
+     * step has been attempted when any of them failed, so it settles on every stop path.
      */
     stopped: Promise<void>;
     stop(reason?: string): Promise<void>;

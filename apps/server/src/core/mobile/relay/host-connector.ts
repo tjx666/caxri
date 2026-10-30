@@ -41,6 +41,7 @@ export type RelayStateCause =
     | 'protocol-error'
     | 'registered'
     | 'registration-rejected'
+    | 'registration-timeout'
     | 'started';
 
 /**
@@ -63,6 +64,11 @@ export interface RelayConnectorTiming {
      * Bound for the host-data dial-back; the Relay itself gives up on a waiting phone after its own ticket timeout.
      */
     dialTimeoutMs: number;
+    /**
+     * Bound for a control socket to reach `host-registered`, counted from socket creation. Protocol pings keep the
+     * heartbeat satisfied, so a Relay that upgrades and then stays silent would otherwise leave `connecting` forever.
+     */
+    registrationTimeoutMs: number;
 }
 
 const defaultRelayConnectorTiming: RelayConnectorTiming = {
@@ -72,6 +78,7 @@ const defaultRelayConnectorTiming: RelayConnectorTiming = {
     pingIntervalMs: 20_000,
     pongTimeoutMs: 45_000,
     dialTimeoutMs: 10_000,
+    registrationTimeoutMs: 15_000,
 };
 
 export interface RelayHostConnectorOptions {
@@ -128,6 +135,7 @@ export class RelayHostConnector {
     #lastPongAt = 0;
     #pingTimer?: ReturnType<typeof setInterval>;
     #reconnectTimer?: ReturnType<typeof setTimeout>;
+    #registrationTimer?: ReturnType<typeof setTimeout>;
     #registeredAt?: number;
     #sentGrants = new Map<string, number | undefined>();
     #stableTimer?: ReturnType<typeof setTimeout>;
@@ -205,14 +213,20 @@ export class RelayHostConnector {
         return grants;
     }
 
-    #createSocket(url: string): WebSocket {
-        return this.#options.createWebSocket?.(url) ?? new WebSocket(url, wireOptions);
+    #createSocket(url: string, handshakeTimeout: number): WebSocket {
+        return (
+            this.#options.createWebSocket?.(url) ??
+            new WebSocket(url, { ...wireOptions, handshakeTimeout })
+        );
     }
 
     #connect(cause: RelayStateCause): void {
         if (!this.#isStarted) return;
         this.#transition('connecting', cause);
-        const control = this.#createSocket(relayEndpoint(this.#options.url, relayPaths.host));
+        const control = this.#createSocket(
+            relayEndpoint(this.#options.url, relayPaths.host),
+            this.#timing.registrationTimeoutMs,
+        );
         this.#control = control;
         let challenge: Uint8Array | undefined;
         let closeCause: RelayFailure | undefined;
@@ -281,9 +295,16 @@ export class RelayHostConnector {
             this.#scheduleReconnect(cause, relayReason);
         });
         this.#heartbeat(control, () => fail('heartbeat-timeout'));
+        clearTimeout(this.#registrationTimer);
+        this.#registrationTimer = setTimeout(
+            () => fail('registration-timeout'),
+            this.#timing.registrationTimeoutMs,
+        );
+        this.#registrationTimer.unref();
     }
 
     #onRegistered(control: WebSocket): void {
+        clearTimeout(this.#registrationTimer);
         this.#registeredAt = this.#now();
         this.#lastFailure = undefined;
         this.#transition('online', 'registered');
@@ -316,7 +337,10 @@ export class RelayHostConnector {
             return;
         }
         const startedAt = this.#now();
-        const socket = this.#createSocket(relayEndpoint(this.#options.url, relayPaths.hostData));
+        const socket = this.#createSocket(
+            relayEndpoint(this.#options.url, relayPaths.hostData),
+            this.#timing.dialTimeoutMs,
+        );
         let isHandedOff = false;
         const timeout = setTimeout(() => {
             if (isHandedOff) return;
@@ -368,7 +392,10 @@ export class RelayHostConnector {
         if (!this.#isStarted || this.#state !== 'online' || !this.#standbyTicket || this.#standby)
             return;
         const ticket = this.#standbyTicket;
-        const socket = this.#createSocket(relayEndpoint(this.#options.url, relayPaths.hostData));
+        const socket = this.#createSocket(
+            relayEndpoint(this.#options.url, relayPaths.hostData),
+            this.#timing.dialTimeoutMs,
+        );
         this.#standby = socket;
         // The dial deadline until the park opens; then the stable timer that forgives earlier failed parks, so an idle
         // Server whose standby drops now and then never drifts toward the maximum backoff.
@@ -450,6 +477,7 @@ export class RelayHostConnector {
 
     #teardownControl(): void {
         clearInterval(this.#pingTimer);
+        clearTimeout(this.#registrationTimer);
         clearTimeout(this.#stableTimer);
         clearTimeout(this.#standbyTimer);
         const standby = this.#standby;

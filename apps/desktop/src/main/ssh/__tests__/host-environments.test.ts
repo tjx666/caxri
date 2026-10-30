@@ -4,7 +4,7 @@ import type { ServerEvent, SshEnvironmentState } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { DesktopServerConnection } from '../../server-connection';
+import type { DesktopServerConnection } from '../../connection/server-connection';
 import type {
     SshHostEnvironmentHooks,
     SshHostEnvironmentsOptions,

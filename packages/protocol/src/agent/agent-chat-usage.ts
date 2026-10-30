@@ -129,7 +129,7 @@ export type AgentChatGoalUsage = z.infer<typeof agentChatGoalUsageSchema>;
  *
  * @see https://github.com/tjx666/caxri/issues/2691
  */
-export const AGENT_CHAT_IDLE_COMPACTION_MIN_TOKENS = 80_000;
+const AGENT_CHAT_IDLE_COMPACTION_MIN_TOKENS = 80_000;
 
 /**
  * The shortest prompt cache lifetime idle compaction acts on. A five-minute cache would compact a Chat whose user is

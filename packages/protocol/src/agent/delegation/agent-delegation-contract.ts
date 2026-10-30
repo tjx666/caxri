@@ -251,7 +251,7 @@ const waitParameters = identitySchema.extend({
 /**
  * Upper bound on the tasks one `list` returns, newest first.
  */
-export const MAX_DELEGATION_LIST_TASKS = 100;
+const MAX_DELEGATION_LIST_TASKS = 100;
 const listParameters = z.strictObject({
     /**
      * Only tasks still running or blocked, the ones a caller can still wait on or stop.

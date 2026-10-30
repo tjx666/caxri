@@ -66,12 +66,9 @@ export * from './streaming/agent-chat-revealed-runs.js';
 export * from './streaming/agent-chat-stream-pacing.js';
 export type {
     AgentChatTrackerArtifact,
-    AgentChatTrackerStatus,
     AgentChatTrackerStatusType,
 } from './trackers/agent-chat-tracker-artifact.js';
 export {
-    AGENT_CHAT_TRACKER_STATUS_TYPES,
-    agentChatTrackerExcerpt,
     trackerExcerptText,
     trackerReferenceText,
 } from './trackers/agent-chat-tracker-artifact.js';

@@ -6,9 +6,9 @@ import { vi } from 'vitest';
 import type {
     DesktopServerConnectionOptions,
     DesktopServerSupervisor,
-} from '../../server-attachment';
-import { DesktopServerConnection } from '../../server-connection';
-import type { ServerBuildIdentity } from '../../server-staleness';
+} from '../../connection/server-attachment';
+import { DesktopServerConnection } from '../../connection/server-connection';
+import type { ServerBuildIdentity } from '../../connection/server-staleness';
 
 export interface FakeServerClient {
     close: ReturnType<typeof vi.fn>;

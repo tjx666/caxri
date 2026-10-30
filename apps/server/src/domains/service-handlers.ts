@@ -58,126 +58,6 @@ import type { AgentUsageGuards } from './usage';
 import { offlinePriceListFetch, UsageService } from './usage';
 import type { ArchivedWorktreeCleanup } from './workbench';
 
-type ServiceHandlerMethods =
-    | 'agent.excerpts'
-    | 'agent.replySummary'
-    | 'agent.delegation.access.bootstrap'
-    | 'agentActions.list'
-    | 'agentActions.read'
-    | 'agentActions.recordRecent'
-    | 'files.list'
-    | 'files.resolveImports'
-    | 'files.resolveKind'
-    | 'files.browse'
-    | 'files.locateDirectory'
-    | 'files.create'
-    | 'files.copy'
-    | 'files.rename'
-    | 'files.move'
-    | 'files.operation.get'
-    | 'files.operation.list'
-    | 'files.operation.cancel'
-    | 'files.operation.acknowledge'
-    | 'files.authorizeTrash'
-    | 'files.authorizeOpen'
-    | 'files.trashOnHost'
-    | 'files.recordTrash'
-    | 'files.restoreTrashed'
-    | 'files.read'
-    | 'files.readAsset'
-    | 'files.write'
-    | 'files.search'
-    | 'terminal.agentThroughput'
-    | 'terminal.agentUsage'
-    | 'terminal.agentTaskUsage'
-    | 'terminal.agentTranscript'
-    | 'terminal.commitLink.resolve'
-    | 'terminal.reference.preview'
-    | 'terminal.fileLink.resolve'
-    | 'terminal.prepareLongPaste'
-    | 'agentChat.saveLongPaste'
-    | 'terminal.referenceContext'
-    | 'project.create'
-    | 'project.add'
-    | 'project.setIcon'
-    | 'project.setChatDefault'
-    | 'git.summary'
-    | 'git.overview'
-    | 'git.branches'
-    | 'git.switchBranch'
-    | 'git.sync'
-    | 'git.discard.preflight'
-    | 'git.discard.apply'
-    | 'git.mergePullRequest'
-    | 'git.diffDocument'
-    | 'git.pullRequestChanges'
-    | 'git.pullRequestDiffDocument'
-    | 'git.remoteHost'
-    | 'git.commits'
-    | 'git.commitDetails'
-    | 'git.commitDiffDocument'
-    | 'git.blame'
-    | 'git.fileHead'
-    | 'projectStatus.summary'
-    | 'projectStatus.overview'
-    | 'projectStatus.linearIssue'
-    | 'session.pullRequests'
-    | 'bot.ensure'
-    | 'bot.snapshot'
-    | 'bot.board'
-    | 'bot.session.create'
-    | 'bot.session.handOver'
-    | 'bot.session.takeBack'
-    | 'bot.managedSessions'
-    | 'bot.conversations'
-    | 'bot.status'
-    | 'bot.stop'
-    | 'bot.data'
-    | 'bot.switchAgent'
-    | 'bot.clearData'
-    | 'bot.task.create'
-    | 'bot.task.list'
-    | 'bot.task.update'
-    | 'bot.inbox.list'
-    | 'bot.inbox.show'
-    | 'bot.inbox.add'
-    | 'bot.inbox.resolve'
-    | 'bot.inbox.ack'
-    | 'bot.inbox.reply'
-    | 'bot.inbox.dismiss'
-    | 'bot.inbox.merge'
-    | 'mobile.botInbox.replyInternal'
-    | 'session.refreshDeliveryOnFocus'
-    | 'session.search'
-    | 'session.searchPreview'
-    | 'session.importConversationInternal'
-    | 'session.agentHistory'
-    | 'session.reopenConversation'
-    | 'session.conversationReference'
-    | 'settings.get'
-    | 'settings.inspect'
-    | 'settings.patch'
-    | 'settings.delegation.import'
-    | 'agentAvailability.get'
-    | 'agentHooks.get'
-    | 'agentSkills.get'
-    | 'usage.limits'
-    | 'usage.dismissNotice'
-    | 'usage.report'
-    | 'settings.update'
-    | 'settings.trustDomain'
-    | 'settings.trustFolder'
-    | 'keybindings.get'
-    | 'keybindings.update'
-    | 'theme.get'
-    | 'theme.update'
-    | 'theme.importPath'
-    | 'diagnostics.exportPath'
-    | 'projectTransfer.exportPath'
-    | 'projectTransfer.importPath'
-    | 'diagnostics.snapshot'
-    | 'logs.query';
-
 /**
  * Handlers that only delegate to an already-constructed Server service, with no dependency on the composition root's
  * own closures. Handlers that need those closures (selection, parking, deletion, Terminal lifecycle) are registered by
@@ -227,7 +107,7 @@ export function createServiceHandlers(services: {
     transcripts: AgentTranscriptWatcher;
     userDataPath: string;
     vercel: VercelDeploymentStore;
-}): Pick<DomainHandlers, ServiceHandlerMethods> {
+}) {
     const {
         acknowledgeFileMutation,
         agentEnvironment,
@@ -333,7 +213,12 @@ export function createServiceHandlers(services: {
         projectStatus,
         sessionPullRequests,
     });
-    return {
+    /**
+     * The handler set is inferred from this literal, so adding a method here needs no name list. `satisfies` still
+     * types each handler against `DomainHandlers`; completeness is checked where `createDomainServices` assembles the
+     * full `DomainHandlers`.
+     */
+    const handlers = {
         'agent.excerpts': async ({ sessions }) => ({
             excerpts: await readAgentExcerpts(
                 {
@@ -594,5 +479,6 @@ export function createServiceHandlers(services: {
         'projectTransfer.importPath': ({ path }) => importProjectTransferFile(database, path, emit),
         'diagnostics.snapshot': () => diagnostics.snapshot(),
         'logs.query': (parameters) => introspection.logs.query(parameters),
-    };
+    } satisfies Partial<DomainHandlers>;
+    return handlers;
 }

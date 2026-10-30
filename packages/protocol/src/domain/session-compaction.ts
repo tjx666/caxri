@@ -5,7 +5,7 @@ import { identifierSchema } from './identifiers.js';
 /**
  * Human-initiated batch results describe delivery, never claim that a provider finished compaction.
  */
-export const sessionCompactionOutcomeSchema = z.enum([
+const sessionCompactionOutcomeSchema = z.enum([
     'submitted',
     'unsupported',
     'not_running',

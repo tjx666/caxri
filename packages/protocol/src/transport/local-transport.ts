@@ -33,7 +33,7 @@ export function serverEndpointUrl(endpoint: ServerControlEndpoint): string {
     return `ws://${endpoint.host}:${endpoint.port}${endpoint.path}`;
 }
 
-export const serverManifestIdentitySchema = z.object({
+const serverManifestIdentitySchema = z.object({
     profileId: identifierSchema,
     pid: z.number().int().positive(),
     startedAt: z.number().int().positive(),
@@ -79,7 +79,7 @@ export const serverDesktopCredentialSchema = z.object({
 
 export type ServerDesktopCredential = z.infer<typeof serverDesktopCredentialSchema>;
 
-export const desktopLeaseSchema = z.object({
+const desktopLeaseSchema = z.object({
     desktopId: identifierSchema,
     generation: z.number().int().positive(),
     expiresAt: z.number().int().positive(),
@@ -152,7 +152,7 @@ export const localServerLeaseRenewedSchema = z.object({
     lease: desktopLeaseSchema,
 });
 
-export const desktopLeaseRevocationReasonSchema = z.literal('replaced');
+const desktopLeaseRevocationReasonSchema = z.literal('replaced');
 export type DesktopLeaseRevocationReason = z.infer<typeof desktopLeaseRevocationReasonSchema>;
 
 /**
@@ -286,18 +286,7 @@ export const localServerEventSchema = z.object({
     type: z.literal('event'),
     event: z.union([protocolEventEnvelopeSchema, transientServerEventSchema]),
 });
-
-export type LocalServerWelcome = z.infer<typeof localServerWelcomeSchema>;
 export type LocalClientCommand = z.infer<typeof localClientCommandSchema>;
-export type LocalClientDesktopReply = z.infer<typeof localClientDesktopReplySchema>;
-export type LocalClientDesktopOperationCommand = z.infer<
-    typeof localClientDesktopOperationCommandSchema
->;
-export type LocalClientDesktopTargetConsume = z.infer<typeof localClientDesktopTargetConsumeSchema>;
-export type LocalClientDesktopReady = z.infer<typeof localClientDesktopReadySchema>;
-export type LocalClientLeaseRenew = z.infer<typeof localClientLeaseRenewSchema>;
 export type LocalServerReply = z.infer<typeof localServerReplySchema>;
 export type LocalServerEvent = z.infer<typeof localServerEventSchema>;
 export type LocalServerDesktopCommand = z.infer<typeof localServerDesktopCommandSchema>;
-export type LocalServerDesktopLeaseRevoked = z.infer<typeof localServerDesktopLeaseRevokedSchema>;
-export type LocalServerLeaseRenewed = z.infer<typeof localServerLeaseRenewedSchema>;

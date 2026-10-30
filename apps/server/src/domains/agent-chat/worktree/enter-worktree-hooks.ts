@@ -2,7 +2,7 @@ import type { HookCallback, HookCallbackMatcher, HookEvent } from '@anthropic-ai
 
 import { isRecord } from '../chat-items';
 import type { AgentChatSessionHost } from '../chat-provider';
-import { withTimeout } from '../claude-prompt-queue';
+import { withTimeout } from '../providers/claude/prompt-queue';
 
 type ClaudeHooks = Partial<Record<HookEvent, HookCallbackMatcher[]>>;
 

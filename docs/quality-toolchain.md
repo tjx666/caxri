@@ -20,7 +20,7 @@ negative-fixture contract tests keep the wiring from silently rotting.
 | Syntactic JS/TS rules, import boundaries, local custom rules                      | ESLint (`eslint.config.ts`), deliberately runs without typed linting (`projectService`)                                                                                                         | `bun run lint`                          |
 | Type-aware JS/TS rules (`typescript/*`, plus `node/no-sync`)                      | oxlint + tsgolint (`.oxlintrc.json`)                                                                                                                                                            | `bun run lint:type-aware`               |
 | Directory/domain/naming contracts too structural for a single ESLint rule         | Vitest repository-contract tests (`scripts/__tests__/*.test.ts`, `apps/server/src/domains/__tests__/structure.test.ts`, `apps/desktop/src/renderer/__tests__/renderer-design-contract.test.ts`) | `bun run test`                          |
-| Type correctness                                                                  | `bun check` (Bun's TypeScript 7 checker) on `tsconfig.node.json` / `tsconfig.web.json` plus workspace `typecheck`                                                                               | `bun run typecheck`                     |
+| Type correctness                                                                  | `bun check` (Bun's TypeScript 7 checker): one program per source file, see [TypeScript program ownership](#typescript-program-ownership)                                                        | `bun run typecheck`                     |
 | JSDoc text (capitalization, 120-column wrap, tag order and spelling, blank lines) | ESLint `caxri/jsdoc-format` (`scripts/eslint-rules/jsdoc-format/`), a port of `prettier-plugin-jsdoc` the formatter cannot load                                                                 | `bun run lint`                          |
 
 `bun fmt` loads no Prettier plugins, so JSDoc text formatting lives in `caxri/jsdoc-format`, which
@@ -49,6 +49,32 @@ oxlint's `typescript/no-floating-promises`. ESLint's `no-void` is configured wit
 `allowAsStatement: true` so the statement form needs no disable comment; `void` inside an
 expression (for example an arrow body `() => void run()`) stays banned, so prefer a block body
 `() => { void run(); }` there.
+
+## TypeScript program ownership
+
+Every source file has one authoritative program, so an option such as `noUncheckedIndexedAccess` in
+one workspace is never silently overridden by a looser root program. `bun run typecheck` runs the
+workspace `typecheck` scripts first, then the two root programs, which keep only files no workspace
+owns.
+
+| Sources                                                                                                                                | Authoritative program                                                                                                  |
+| -------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `apps/cli/src`, `apps/relay` (`src`, `scripts`), `packages/*`                                                                          | the workspace's `tsconfig.json`                                                                                        |
+| `apps/server/src`                                                                                                                      | `apps/server/tsconfig.json` (extends the root node options)                                                            |
+| `apps/mobile` (app, plugins, scripts, src)                                                                                             | `apps/mobile/tsconfig.json` and `tsconfig.runtime.json`                                                                |
+| `apps/desktop/src/main`, `preload`, `shared`, `renderer/__tests__`                                                                     | `apps/desktop/tsconfig.node.json`                                                                                      |
+| `apps/desktop/src/renderer/src`, `apps/desktop/src/shared`                                                                             | `apps/desktop/tsconfig.web.json`                                                                                       |
+| `apps/cli/scripts`, `apps/server/scripts`, `apps/server/vite.config.ts`, `scripts`, skill `scripts`, `e2e`, root config files, `types` | root `tsconfig.node.json` (not composite, so it may import owned sources)                                              |
+| browser-safe subsets of `packages/protocol`, `client`, `extension-api`, `utils`                                                        | root `tsconfig.web.json`, a second lens kept on purpose: it checks them against browser types (`vite/client`, no Node) |
+
+The root programs may still read an owned file through an import; that does not make them its
+owner, and a type error there is fixed under the owner's options. The one deliberate overlap is the
+last row: the Renderer-safe `packages/*` subsets are also checked by their own workspace program
+(Node types) and by `tsconfig.web.json` (browser types), because the Renderer must never reach Node
+globals through a shared package. `apps/desktop/src/shared` is likewise checked once for the Main
+and once for the Renderer environment. `apps/desktop`'s configs and `apps/server/tsconfig.json`
+extend the root files only for compiler options. `scripts/__tests__/workspace-contract.test.ts`
+guards the include shape.
 
 ## Where each convention is enforced
 
@@ -104,6 +130,39 @@ pre-existing default-export-ban block on the same directories. See the comments 
 | English/Chinese language rules                                                                   | Requires understanding prose content, not syntax.                                                                                                                                                                                   |
 | "Thin barrel" judgment (`index.ts` should not become a multi-module dump)                        | Line count and import shape do not distinguish a legitimately thin barrel from a barrel that re-implements logic; stays a `source-layout` review judgment.                                                                          |
 | Drop-parent-prefix naming judgment (`command-catalog.ts` → `catalog.ts` once inside `commands/`) | Whether a prefix "still distinguishes siblings" depends on the folder's actual contents at review time, not a fixed pattern.                                                                                                        |
+
+## Knip entry exports
+
+`knip.includeEntryExports` is on, so a symbol exported from a package entry (`packages/*` barrels
+and `package.json` `exports` files) or from any `entry` file fails `bun run knip` when no other file
+consumes it. Delete the declaration, or drop its `export` keyword when the file still uses it
+locally; do not keep an export "for the public API" that nothing imports. A test import counts as a
+consumer, so a package contract exercised only by its own tests stays valid.
+
+`knip.ignoreIssues` (root `package.json`; JSON cannot hold comments, so the reasons live here)
+silences the `exports`/`types` check only for files whose exports are a runtime contract rather
+than an import graph edge:
+
+| Pattern                                                          | Why the export is required                                                                                    |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `extensions/*/src/extension.ts`                                  | The Extension Host loads the bundle by path and calls the `activate` export.                                  |
+| `apps/mobile/plugins/*.ts`                                       | Expo loads each config plugin by path and reads its default export.                                           |
+| `e2e/support/server-database/*.ts`                               | Server-database seed and read scripts are loaded by path and expose a `run` export.                           |
+| `e2e/support/clipboard-capability.type-test.ts`                  | A compile-time assertion; the exported function exists only so `tsc` checks it.                               |
+| `.agents/skills/promo-images/scripts/promo-playwright.config.ts` | Playwright reads the config default export.                                                                   |
+| `.agents/skills/design-prototype/assets/entry.mjs`               | The bundled browser entry's default export is read by the runtime build.                                      |
+| `scripts/fixtures/**`                                            | ESLint and census fixtures are linted or run as text/config, never imported; their exports are fixture shape. |
+
+Add a new row here when a new file is loaded by path and needs an export that nothing imports.
+
+A workspace import such as `@caxri/client/supervise` resolves through the package's `exports`
+`import` condition, which points at `dist/` once the package is built. Knip maps that path back to
+`src/` only when the package's own `tsconfig.json` names an `outDir`, so every `packages/*`
+`tsconfig.json` declares `"outDir": "dist"` (inert under `noEmit`). Without it, `bun run knip` after
+any build reports every package entry export as unused. `packages/agent-skills` cannot take that
+setting: its `tsconfig.json` also type-checks `scripts/`, which import repository-root modules
+outside any package `rootDir`, and type-aware oxlint reads only that file. Its workspace therefore
+sets `includeEntryExports: false`.
 
 ## How the negative-fixture contract tests guard the wiring
 

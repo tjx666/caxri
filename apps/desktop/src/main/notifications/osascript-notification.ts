@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 
-import type { AgentSystemNotification } from '../agent-notifications';
+import type { AgentSystemNotification } from './agent-notifications';
 
 const OSASCRIPT_EXECUTABLE = '/usr/bin/osascript';
 const OSASCRIPT_TIMEOUT_MS = 5_000;

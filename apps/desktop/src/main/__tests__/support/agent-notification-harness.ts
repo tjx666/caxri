@@ -11,8 +11,8 @@ import { vi } from 'vitest';
 import type {
     AgentSystemNotification,
     AgentSystemNotificationHandle,
-} from '../../agent-notifications';
-import { createAgentNotificationCoordinator } from '../../agent-notifications';
+} from '../../notifications/agent-notifications';
+import { createAgentNotificationCoordinator } from '../../notifications/agent-notifications';
 
 export function session(patch: Partial<SessionRecord> & Pick<SessionRecord, 'id'>): SessionRecord {
     const { id, ...overrides } = patch;

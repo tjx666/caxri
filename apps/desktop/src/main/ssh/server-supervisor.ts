@@ -10,7 +10,7 @@ import type {
 import { CaxriError } from '@caxri/protocol';
 import { logEventCatalog } from '@caxri/system';
 
-import type { DesktopServerSupervisor } from '../server-attachment';
+import type { DesktopServerSupervisor } from '../connection/server-attachment';
 import { AskpassBridge } from './askpass';
 import type { SshDestination } from './destination';
 import { parseSshDestination } from './destination';

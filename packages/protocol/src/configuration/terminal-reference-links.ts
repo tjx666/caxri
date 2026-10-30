@@ -1,9 +1,9 @@
 import { z } from 'zod';
 
 export const MAX_TERMINAL_REFERENCE_LINKS = 32;
-export const MAX_TERMINAL_REFERENCE_PREFIX_LENGTH = 64;
-export const MAX_TERMINAL_REFERENCE_TITLE_LENGTH = 100;
-export const MAX_TERMINAL_REFERENCE_URL_LENGTH = 2_048;
+const MAX_TERMINAL_REFERENCE_PREFIX_LENGTH = 64;
+const MAX_TERMINAL_REFERENCE_TITLE_LENGTH = 100;
+const MAX_TERMINAL_REFERENCE_URL_LENGTH = 2_048;
 export const MAX_TERMINAL_REFERENCE_IDENTIFIER_LENGTH = 1_024;
 export const TERMINAL_REFERENCE_NUMBER_PLACEHOLDER = '<num>';
 
@@ -11,7 +11,7 @@ export const TERMINAL_REFERENCE_NUMBER_PLACEHOLDER = '<num>';
  * Keeps user-authored Terminal references declarative: untrusted output may only fill one bounded URL placeholder and
  * can never select a command, script, or IPC method.
  */
-export function isValidTerminalReferenceUrlTemplate(value: string): boolean {
+function isValidTerminalReferenceUrlTemplate(value: string): boolean {
     if (value.split(TERMINAL_REFERENCE_NUMBER_PLACEHOLDER).length !== 2) return false;
     try {
         const url = new URL(value.replaceAll(TERMINAL_REFERENCE_NUMBER_PLACEHOLDER, '123'));

@@ -25,12 +25,12 @@ import { recordingContext } from './recording-command-context.fixture';
 vi.mock('../lib/keybindings', () => ({ isEditableEventTarget: vi.fn() }));
 
 /**
- * `execute.ts` imports `git-review-navigation-commands.ts`, which reaches `git-review-comment-binding.ts` for its
+ * `execute.ts` imports `review-navigation-commands.ts`, which reaches `review-comment-binding.ts` for its
  * mounted-editor registry; that module imports Monaco, which needs a real `window` unavailable under this suite's
  * `node` environment. This test drives `context.git.*` through the local `record`-based stand-ins below rather than the
  * real navigation commands, so the binding registry itself is stubbed out instead of loaded.
  */
-vi.mock('../features/editor/git-review-comment-binding', () => ({
+vi.mock('../features/editor/git/review-comment-binding', () => ({
     listBoundGitReviewCommentEditors: () => new Set(),
 }));
 const catalogOwnedSharedIds = new Set<CommandId>(

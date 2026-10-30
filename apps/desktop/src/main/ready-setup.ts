@@ -4,7 +4,7 @@ import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 import { app } from 'electron';
 
-import { shouldEnableAcceptanceAccessibility } from './acceptance-accessibility';
+import { shouldEnableAcceptanceAccessibility } from './acceptance/accessibility';
 import { resolveDevelopmentDockIconPath } from './app-icon';
 import type { DesktopProfile } from './desktop-profile';
 import { setMainLanguage } from './locale';

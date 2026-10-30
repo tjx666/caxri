@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { CLAUDE_DECLINED_MESSAGE } from '../claude-tool-results';
 import {
     claudeHistoryImage,
     claudeHistoryOperations,
     claudeRewindPoint,
     claudeTaskHistoryOperations,
 } from '../history/claude-history';
+import { CLAUDE_DECLINED_MESSAGE } from '../providers/claude/tool-results';
 
 function jsonl(records: unknown[]): string {
     return records.map((record) => JSON.stringify(record)).join('\n');

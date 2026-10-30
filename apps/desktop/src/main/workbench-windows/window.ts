@@ -7,9 +7,9 @@ import type { StructuredLogger } from '@caxri/system';
 import { app, BrowserWindow, dialog, nativeTheme } from 'electron';
 
 import type { RunningWork } from '../confirmations';
+import type { DesktopServerConnection } from '../connection/server-connection';
 import { loadRendererEntry } from '../renderer-entry';
 import type { RendererReadiness } from '../renderer-readiness';
-import type { DesktopServerConnection } from '../server-connection';
 import type { StartupProfile } from '../startup-profile';
 import {
     mainWindowChromeOptions,

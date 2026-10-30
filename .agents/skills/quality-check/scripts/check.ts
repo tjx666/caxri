@@ -412,6 +412,7 @@ async function main(): Promise<void> {
             ...(await runChangedFileGuardrails({
                 hasChangedMarkdown: markdownFiles.length > 0,
                 hasChangedSourceCode: codeFiles.length > 0,
+                hasRemovedFiles: removedFiles.length > 0,
                 root,
                 runCapture,
             })),

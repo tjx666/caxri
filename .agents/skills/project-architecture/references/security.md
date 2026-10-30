@@ -65,8 +65,10 @@ Every path that registers a Project is one of these authorities; a new one belon
 
 ## Main outbound requests
 
-Electron Main makes only these outbound HTTP requests; a new one belongs in this list with its
-trigger and caps, and every response body is read under a byte cap. None uploads source or app
+Electron Main makes only these outbound network requests (HTTP, plus one loopback or Unix-socket
+Controller); a new one belongs in this list with its trigger and caps, and every response body is
+read under a byte cap. `scripts/__tests__/network-egress-inventory.test.ts` fails when a source file
+opens a request that no entry here accounts for. None uploads source or app
 content; the environment profile lookup includes its explicitly observed IP in the fixed URL. Status
 reads use Electron's `net.fetch`, so the system proxy, cookies, and Chromium's HTTP cache apply.
 Link favicons and previews happen without a click, so they go through `createPublicHttpsFetch`
@@ -98,6 +100,14 @@ threat model.
   provider is mounted. 10 s timeout, 2 MiB body cap (a larger body reads as `invalidResponse`); cached per
   provider for 60 s after success and 30 s after failure. E2E launches read
   fixtures instead.
+- **Codex global reset forecast** (`codexGlobalReset.read`,
+  `packages/system/src/network/codex-global-reset.ts`, wired in
+  `apps/desktop/src/main/main-methods.ts`): a fixed `GET https://codex-reset.com/api/forecast`
+  through Electron `net.fetch`, sent with an identifying `User-Agent` (`Caxri/<version>`) and no
+  user data, when the status bar asks for the reset chip. 10 s timeout, 512 KiB body cap, one
+  shared result cached for 5 minutes after success and 1 minute after failure. Only an `x.com` or
+  `twitter.com` announcement link is kept. E2E launches read the status-page fixture directory
+  instead. Behavior: [Agent throughput](../../../../docs/agent-throughput.md).
 - **Environment public exit** (`apps/desktop/src/main/environment-monitor/public-ip.ts`): a fixed
   `GET https://api.ipify.org?format=json` through Electron `net.fetch`, once at launch and then at
   most every 60 s while public-IP change monitoring is enabled, plus an explicit manual check. 5 s
@@ -107,6 +117,13 @@ threat model.
   policy with a 32 KiB body cap; a response for another address is rejected. Either failure retains
   the last proven state and is not an environment warning. The provider may serve cached context up
   to 30 days old; the UI reports the fetch time and labels the source as third-party context.
+- **Mihomo Controller** (`apps/desktop/src/main/environment-monitor/mihomo-controller.ts`): not an
+  internet request. Node `http.request` `GET /proxies` or `GET /connections` against the
+  user-configured local Controller, which the settings schema restricts to a loopback HTTP endpoint
+  (`localhost`, `127.0.0.1`, `[::1]`) or an absolute Unix socket, sent only while the "Domain routes
+  through Mihomo" expectation is enabled. 3 s timeout, 2 MiB cap for `/proxies` and 4 MiB for
+  `/connections`; the optional secret travels only as a `Bearer` header to that endpoint. Caxri
+  never requests the asserted domain itself; see [Notifications](../../../../docs/notifications.md).
 - **Update check and download** (`apps/desktop/src/main/updates/updates.ts`): the GitHub latest-release API,
   once automatically per packaged launch (skipped in E2E and acceptance discovery) and on a manual
   check. 15 s timeout and 1 MiB response cap; 404 and rate-limit responses degrade to
@@ -115,9 +132,10 @@ threat model.
 
 ## Server outbound requests
 
-Server Core makes only these outbound HTTP requests; a new one belongs here with its trigger and caps.
-It uses Node's `fetch`, uploads no user data, and is replaced by an immediate failure under
-`CAXRI_E2E=1`, so E2E and Acceptance runs stay offline.
+Server Core makes only these outbound network requests; a new one belongs here with its trigger and
+caps. Its HTTP requests use Node's `fetch`, upload no user data, and is replaced by an immediate failure under
+`CAXRI_E2E=1`, so E2E and Acceptance runs stay offline. The Relay WebSocket below is not an HTTP request and is
+not covered by that substitution.
 
 - **Model price list** (`apps/server/src/domains/usage/pricing.ts`): `GET` of LiteLLM's public
   `model_prices_and_context_window.json` on raw.githubusercontent.com when a Usage report finds the
@@ -130,6 +148,16 @@ It uses Node's `fetch`, uploads no user data, and is replaced by an immediate fa
   open (it polls every 30 s; the 60 s cache bounds the requests). Node's `fetch` ignores the macOS
   system proxy, so a machine that can reach the pages only through a proxy shows them as
   unavailable on the phone. Under `CAXRI_E2E=1` it reads the same fixture directory instead.
+- **Mobile Relay host connection** (`apps/server/src/core/mobile/relay/host-connector.ts`): outbound
+  `ws` WebSockets to the user-configured `mobile.relayUrl`, dialed only while that setting is
+  non-empty. One control socket at `/v1/host` registers the host (Ed25519 challenge signature plus
+  access-key hashes, never a secret), a parked standby socket sits at `/v1/host-data`, and a
+  dial-back socket opens per `relay-incoming` phone. Handshake timeout of 15 s for the control
+  socket (the same value bounds `host-registered`, counted from socket creation, else the
+  connection fails as `registration-timeout`) and 10 s for host-data dial-backs; 20 s pings with a
+  45 s pong deadline; reconnect backoff from 1 s up to 30 s; frames capped at
+  `MOBILE_GATEWAY_MAX_WIRE_BYTES`. The Relay forwards frames it cannot read; see
+  [Mobile Relay](../../../../docs/mobile/relay.md).
 
 ### CLI-mediated egress
 
@@ -197,7 +225,7 @@ URLs (`isAgentChatPlayableVideo`), since its paths name files on the remote mach
   changes the second reading so the report and warning can be verified without network access;
   `changed-profile-unavailable` also rejects enrichment to prove that IP evidence remains usable.
 - **Acceptance native-dialog fixtures** (`apps/desktop/src/main/acceptance-*.ts`, wired in
-  `main-methods.ts` and `desktop-update-service.ts`; `acceptance-accessibility.ts` in `index.ts`).
+  `main-methods.ts` and `desktop-update-service.ts`; `accessibility.ts` in `index.ts`).
   They ship in production Main and stay inert unless the isolated Acceptance launcher arms them.
   Each needs `CAXRI_ACCEPTANCE=1` plus its own variable: external open
   (`CAXRI_ACCEPTANCE_EXTERNAL_OPEN`, one fixed case and URL), Session deletion
@@ -216,3 +244,10 @@ URLs (`isAgentChatPlayableVideo`), since its paths name files on the remote mach
   gated by `CAXRI_E2E`. This is accepted: the only actor who can set the key is code already
   running in the Renderer, the effect is one self-clearing crash that Reload recovers from, and it
   exposes no data or capability.
+- **Surface fault** (`apps/desktop/src/renderer/src/components/surface-fault.ts`, probe inside
+  `surface-error-boundary.tsx`): a `sessionStorage` key whose value names a surface scope
+  (`chat`, `chat-entry`, `terminal`, `settings`, `view`, `editor`) makes the first surface of that scope
+  that renders next throw, so the surface-local fallback can be proven without a real defect. Same
+  acceptance as the root provider fault: not gated by `CAXRI_E2E`, settable only by code already
+  running in the Renderer, one self-clearing failure that the fallback's Retry recovers from, and
+  no data or capability exposed.

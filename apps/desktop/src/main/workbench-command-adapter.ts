@@ -1,8 +1,8 @@
 import type { CaxriRequest, CommandAdapter, EventRecovery, MainRequest } from '@caxri/protocol';
 import { CaxriError, isMainRequest } from '@caxri/protocol';
 
+import type { DesktopServerConnection } from './connection/server-connection';
 import { createElectronIpcCommandAdapter } from './ipc-command-adapter';
-import type { DesktopServerConnection } from './server-connection';
 import { forwardAsRequestWindow } from './window-presence-registry';
 
 interface WorkbenchCommandAdapterOptions {

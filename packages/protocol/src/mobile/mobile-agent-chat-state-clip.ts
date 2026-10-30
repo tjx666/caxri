@@ -136,7 +136,7 @@ export function clipAgentChatTasksForMobile(tasks: AgentChatTasks): AgentChatTas
  * Longest HTTPS icon URL the phone keeps. Longer ones are dropped, because the server list rides in every snapshot and
  * `state` patch and the phone loads each icon by its URL.
  */
-export const MOBILE_AGENT_CHAT_MCP_ICON_URL_MAX_LENGTH = 512;
+const MOBILE_AGENT_CHAT_MCP_ICON_URL_MAX_LENGTH = 512;
 
 type AgentChatMcpServers = NonNullable<AgentChatSnapshot['mcpServers']>;
 

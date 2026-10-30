@@ -1,10 +1,10 @@
 import { z } from 'zod';
 
 export const MAX_AGENT_ACTIONS = 256;
-export const MAX_AGENT_ACTION_INVOCATION_LENGTH = 128;
+const MAX_AGENT_ACTION_INVOCATION_LENGTH = 128;
 export const MAX_AGENT_ACTION_DESCRIPTION_LENGTH = 240;
 export const MAX_RECENT_AGENT_ACTIONS = 8;
-export const AGENT_ACTION_RECENT_VERSION = 1;
+const AGENT_ACTION_RECENT_VERSION = 1;
 
 const hasControlOrWhitespace = (value: string): boolean =>
     [...value].some((character) => {
@@ -27,7 +27,7 @@ export const agentActionInvocationSchema = z
         message: 'Agent action invocation must not contain whitespace or control characters',
     });
 
-export const agentActionOverrideSchema = z.strictObject({
+const agentActionOverrideSchema = z.strictObject({
     enabled: z.boolean().default(true),
     description: z.string().trim().min(1).max(MAX_AGENT_ACTION_DESCRIPTION_LENGTH).optional(),
     argumentHint: z.string().trim().min(1).max(120).optional(),
@@ -43,7 +43,7 @@ export const agentActionRecentSettingsSchema = z.strictObject({
         }),
 });
 
-export const defaultAgentActionRecentSettings: z.infer<typeof agentActionRecentSettingsSchema> = {
+const defaultAgentActionRecentSettings: z.infer<typeof agentActionRecentSettingsSchema> = {
     version: AGENT_ACTION_RECENT_VERSION,
     invocations: [],
 };

@@ -9,7 +9,7 @@ const noParameters = z.object({}).default({});
  * Closed outcome of installing or removing the `caxri` shell command link. `canceled` means the user dismissed the
  * explanation dialog or the macOS administrator prompt; nothing changed and nothing failed.
  */
-export const shellCommandStatuses = [
+const shellCommandStatuses = [
     'installed',
     'alreadyInstalled',
     'uninstalled',
@@ -17,7 +17,7 @@ export const shellCommandStatuses = [
     'canceled',
 ] as const;
 
-export const shellCommandResultSchema = z.object({
+const shellCommandResultSchema = z.object({
     status: z.enum(shellCommandStatuses),
     /**
      * Absolute path of the link on `PATH`, such as `/usr/local/bin/caxri`.

@@ -6,9 +6,9 @@ import { viewIdSchema } from '../domain/views.js';
 import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
 
-export const MOBILE_PANELS_MAX_CONTAINERS = 64;
-export const MOBILE_PANELS_MAX_VIEWS = 32;
-export const MOBILE_TREE_MAX_ITEMS = 500;
+const MOBILE_PANELS_MAX_CONTAINERS = 64;
+const MOBILE_PANELS_MAX_VIEWS = 32;
+const MOBILE_TREE_MAX_ITEMS = 500;
 
 /**
  * Bounded stand-in for the full {@link import('../domain/views.js').viewIconSchema}: a `resource` (data URL) icon is
@@ -24,14 +24,14 @@ const mobilePanelIconSchema = z.strictObject({
     color: hexColorSchema.optional(),
 });
 
-export const mobilePanelsListParametersSchema = z.strictObject({ sessionId: identifierSchema });
+const mobilePanelsListParametersSchema = z.strictObject({ sessionId: identifierSchema });
 
 /**
  * How a phone renders a secondary-sidebar view: `files` browses the Project with `mobile.files.*`, `changes` is the Git
  * source-control view served by `mobile.changes.*`, `tree` reads `mobile.tree.children`, and `unsupported` is a
  * Desktop-only view the phone lists but cannot show.
  */
-export const mobilePanelViewKindSchema = z.enum(['files', 'changes', 'tree', 'unsupported']);
+const mobilePanelViewKindSchema = z.enum(['files', 'changes', 'tree', 'unsupported']);
 
 const mobilePanelViewSchema = z.strictObject({
     id: viewIdSchema,
@@ -51,11 +51,11 @@ const mobilePanelContainerSchema = z.strictObject({
     views: z.array(mobilePanelViewSchema).max(MOBILE_PANELS_MAX_VIEWS),
 });
 
-export const mobilePanelsListResultSchema = z.strictObject({
+const mobilePanelsListResultSchema = z.strictObject({
     panels: z.array(mobilePanelContainerSchema).max(MOBILE_PANELS_MAX_CONTAINERS),
 });
 
-export const mobileTreeChildrenParametersSchema = z.strictObject({
+const mobileTreeChildrenParametersSchema = z.strictObject({
     sessionId: identifierSchema,
     viewId: viewIdSchema,
     parentHandle: z.string().min(1).max(512).optional(),
@@ -74,7 +74,7 @@ const mobileTreeItemSchema = z.strictObject({
     collapsibleState: z.enum(['none', 'collapsed', 'expanded']),
 });
 
-export const mobileTreeChildrenResultSchema = z.strictObject({
+const mobileTreeChildrenResultSchema = z.strictObject({
     items: z.array(mobileTreeItemSchema).max(MOBILE_TREE_MAX_ITEMS),
     reset: z.literal(true).optional(),
 });
@@ -96,5 +96,3 @@ export const mobilePanelsMethods = {
 } as const satisfies Record<string, MethodSpec>;
 
 export type MobilePanelViewKind = z.infer<typeof mobilePanelViewKindSchema>;
-export type MobilePanelsListResult = z.infer<typeof mobilePanelsListResultSchema>;
-export type MobileTreeChildrenResult = z.infer<typeof mobileTreeChildrenResultSchema>;

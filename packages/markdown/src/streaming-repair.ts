@@ -170,7 +170,7 @@ function hasLineMovedStart(scan: LineScan, line: string, offset: number): boolea
     return true;
 }
 
-export interface StreamingMarkdownRepairStats {
+interface StreamingMarkdownRepairStats {
     /**
      * Source characters the repair examined, counted across every call. The native check that a source extends the
      * previous one is not counted.

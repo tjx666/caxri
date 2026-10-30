@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { mkdir, mkdtemp, realpath, rm, symlink, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -194,4 +195,14 @@ describe('electShareExtension', () => {
             'not-registered',
         );
     });
+});
+
+describe('readShareRequest manifest reads', () => {
+    it('rejects a manifest that is a FIFO instead of blocking on it', async () => {
+        const folder = join(fixture.inbox, REQUEST_ID);
+        await mkdir(folder, { recursive: true });
+        const manifestPath = join(folder, SHARE_REQUEST_FILE_NAME);
+        execFileSync('mkfifo', [manifestPath]);
+        await expect(readShareRequest(manifestPath, fixture.inbox)).rejects.toBeDefined();
+    }, 2000);
 });

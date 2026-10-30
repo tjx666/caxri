@@ -70,7 +70,7 @@ arbitrary processes. Closing the window never changes Server or PTY lifecycle.
 
 Open it from **View > Open Process Explorer**, the Command Palette, the status bar memory chip, or
 a resource alert. Desktop Main samples the window every 2 seconds
-(`apps/desktop/src/main/process-explorer.ts`). It combines Electron's app metrics, the `ps` tree
+(`apps/desktop/src/main/process-explorer/sampler.ts`). It combines Electron's app metrics, the `ps` tree
 under Main, and Server Core's `terminal.processes` list. That list pairs each running Terminal
 with its Session, Agent, and PTY root PID.
 

@@ -18,7 +18,7 @@ export type UsageRange = (typeof usageRangeIds)[number];
 export const usageScopeIds = ['caxri', 'all'] as const;
 export type UsageScope = (typeof usageScopeIds)[number];
 
-export const usagePullRequestStateSchema = z.enum(['open', 'merged', 'closed', 'missing']);
+const usagePullRequestStateSchema = z.enum(['open', 'merged', 'closed', 'missing']);
 export type UsagePullRequestState = z.infer<typeof usagePullRequestStateSchema>;
 
 const count = z.number().int().nonnegative();
@@ -75,7 +75,7 @@ export const usageReportParametersSchema = z
     );
 export type UsageReportParameters = z.infer<typeof usageReportParametersSchema>;
 
-export const usageDaySchema = z.object({
+const usageDaySchema = z.object({
     date: localDate,
     tokens: count,
     costUsd: usd,
@@ -85,7 +85,7 @@ export type UsageDay = z.infer<typeof usageDaySchema>;
 
 const usageWindowSchema = z.object({ costUsd: usd, tokens: count });
 
-export const usageProviderRowSchema = z.object({
+const usageProviderRowSchema = z.object({
     provider: agentProvider,
     costUsd: usd,
     tokens: usageTokenBreakdownSchema,
@@ -93,7 +93,7 @@ export const usageProviderRowSchema = z.object({
     activeMs: count,
 });
 
-export const usageModelRowSchema = z.object({
+const usageModelRowSchema = z.object({
     model: z.string().min(1).max(200),
     provider: agentProvider,
     costUsd: usd,
@@ -104,7 +104,7 @@ export const usageModelRowSchema = z.object({
     isPriced: z.boolean(),
 });
 
-export const usageProjectRowSchema = z.object({
+const usageProjectRowSchema = z.object({
     projectId: identifierSchema,
     title: z.string(),
     /**
@@ -123,7 +123,7 @@ export const usageProjectRowSchema = z.object({
 });
 export type UsageProjectRow = z.infer<typeof usageProjectRowSchema>;
 
-export const usageSessionRowSchema = z.object({
+const usageSessionRowSchema = z.object({
     sessionId: identifierSchema,
     title: z.string(),
     projectTitle: z.string(),
@@ -142,7 +142,7 @@ export const usageSessionRowSchema = z.object({
 });
 export type UsageSessionRow = z.infer<typeof usageSessionRowSchema>;
 
-export const usagePullRequestRowSchema = z.object({
+const usagePullRequestRowSchema = z.object({
     url: z.url(),
     number: z.number().int().positive(),
     repository: z.string(),
@@ -200,14 +200,14 @@ export function hasUsableCredits(credits: UsageCredits | undefined): boolean {
  * before it resets, and the credits notice, shown while the weekly window is at the usage guard but the account keeps
  * working on credits.
  */
-export const usageNoticeSchema = z.enum(['planPace', 'credits']);
+const usageNoticeSchema = z.enum(['planPace', 'credits']);
 export type UsageNotice = z.infer<typeof usageNoticeSchema>;
 
 /**
  * Banked rate-limit resets the account holds: a Codex reset credit is a stored, one-time reset of the plan windows that
  * the user spends when they choose. `nextExpiresAt` is absent when no available credit names an expiry.
  */
-export const usageResetCreditsSchema = z.object({
+const usageResetCreditsSchema = z.object({
     availableCount: count,
     nextExpiresAt: count.optional(),
 });

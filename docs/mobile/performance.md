@@ -16,8 +16,9 @@ The phase-one targets are:
 | First interactive screen  | 1,500 ms |
 | Dropped/janky frame ratio |       3% |
 
-`apps/mobile/src/features/performance/performance-budget.ts` owns these fixed thresholds. They must be
-enforced only against a release build with app-owned first-interactive instrumentation. Browser or
+These thresholds are not enforced by any script yet: `android:performance` has no app-owned
+first-interactive timing, so nothing can check the first-interactive budget. Enforce them only against
+a release build with that instrumentation, and add the checking code in the same change. Browser or
 device-driver observations remain diagnostic until repeated runs on the same runner prove a stable
 measurement.
 

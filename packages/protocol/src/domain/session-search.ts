@@ -44,15 +44,15 @@ export const SESSION_SEARCH_OPERATOR_PATTERN =
  * Where a found conversation lives: an open Session, an archived Session, or only in an Agent CLI's own history on this
  * machine (started outside Caxri, or left behind by a Session that was deleted).
  */
-export const sessionSearchStatuses = ['open', 'archived', 'external'] as const;
-export const sessionSearchStatusSchema = z.enum(sessionSearchStatuses);
+const sessionSearchStatuses = ['open', 'archived', 'external'] as const;
+const sessionSearchStatusSchema = z.enum(sessionSearchStatuses);
 export type SessionSearchStatus = z.infer<typeof sessionSearchStatusSchema>;
 
 /**
  * `caxri` keeps open and archived Sessions together: everything Caxri already holds.
  */
 export const sessionSearchStatusFilters = ['all', 'caxri', 'archived', 'external'] as const;
-export const sessionSearchStatusFilterSchema = z.enum(sessionSearchStatusFilters);
+const sessionSearchStatusFilterSchema = z.enum(sessionSearchStatusFilters);
 export type SessionSearchStatusFilter = z.infer<typeof sessionSearchStatusFilterSchema>;
 
 export const sessionSearchParametersSchema = z.object({
@@ -76,8 +76,8 @@ export type SessionSearchParameters = z.infer<typeof sessionSearchParametersSche
 /**
  * Which field made the conversation a result. `recent` marks an empty query's listing.
  */
-export const sessionSearchMatchFields = ['recent', 'id', 'title', 'path', 'content'] as const;
-export const sessionSearchMatchFieldSchema = z.enum(sessionSearchMatchFields);
+const sessionSearchMatchFields = ['recent', 'id', 'title', 'path', 'content'] as const;
+const sessionSearchMatchFieldSchema = z.enum(sessionSearchMatchFields);
 export type SessionSearchMatchField = z.infer<typeof sessionSearchMatchFieldSchema>;
 
 /**
@@ -85,14 +85,14 @@ export type SessionSearchMatchField = z.infer<typeof sessionSearchMatchFieldSche
  */
 const snippetOffsetSchema = z.number().int().nonnegative();
 
-export const sessionSearchSnippetSchema = z.object({
+const sessionSearchSnippetSchema = z.object({
     role: z.enum(['user', 'assistant']),
     text: z.string().max(400),
     highlights: z.array(z.tuple([snippetOffsetSchema, snippetOffsetSchema])).max(32),
 });
 export type SessionSearchSnippet = z.infer<typeof sessionSearchSnippetSchema>;
 
-export const sessionSearchEntrySchema = z.object({
+const sessionSearchEntrySchema = z.object({
     /**
      * Stable row identity: `<provider>:<conversation id>`, or `session:<Session id>` for a Session without an Agent
      * conversation.
@@ -137,7 +137,7 @@ export type SessionSearchEntry = z.infer<typeof sessionSearchEntrySchema>;
  * results may be missing their newest messages; `unavailable` when the index could not be opened at all, in which case
  * only Caxri's own Session titles are searched.
  */
-export const sessionSearchIndexStatusSchema = z.object({
+const sessionSearchIndexStatusSchema = z.object({
     state: z.enum(['indexing', 'ready', 'unavailable']),
     conversations: z.number().int().nonnegative(),
     pending: z.number().int().nonnegative(),
@@ -149,8 +149,8 @@ export type SessionSearchIndexStatus = z.infer<typeof sessionSearchIndexStatusSc
  * (every word, with a message holding them as one phrase when there is one); `allWords` found no phrase, so results
  * hold every word apart; `anyWord` found none holding every word, so results hold at least one.
  */
-export const sessionSearchRelaxations = ['phrase', 'allWords', 'anyWord'] as const;
-export const sessionSearchRelaxationSchema = z.enum(sessionSearchRelaxations);
+const sessionSearchRelaxations = ['phrase', 'allWords', 'anyWord'] as const;
+const sessionSearchRelaxationSchema = z.enum(sessionSearchRelaxations);
 export type SessionSearchRelaxation = z.infer<typeof sessionSearchRelaxationSchema>;
 
 /**
@@ -158,7 +158,7 @@ export type SessionSearchRelaxation = z.infer<typeof sessionSearchRelaxationSche
  * can show them as removable chips. Dates are local calendar days (`YYYY-MM-DD`): `before` excludes that day and
  * `after` includes it.
  */
-export const sessionSearchFiltersSchema = z.object({
+const sessionSearchFiltersSchema = z.object({
     agents: z.array(agentProviderSchema).max(16),
     projects: z.array(z.string().max(200)).max(8),
     before: z.string().max(10).optional(),
@@ -203,7 +203,7 @@ export const sessionSearchPreviewParametersSchema = z.object({
 });
 export type SessionSearchPreviewParameters = z.infer<typeof sessionSearchPreviewParametersSchema>;
 
-export const sessionSearchPreviewMessageSchema = z.object({
+const sessionSearchPreviewMessageSchema = z.object({
     role: z.enum(['user', 'assistant']),
     text: z.string().max(MAX_SESSION_SEARCH_PREVIEW_MESSAGE_CHARACTERS + 2),
     highlights: z.array(z.tuple([snippetOffsetSchema, snippetOffsetSchema])).max(64),

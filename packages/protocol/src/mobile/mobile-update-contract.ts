@@ -29,7 +29,7 @@ export const mobileUpdateBundleSchema = z.strictObject({
 export const MOBILE_UPDATE_MANIFEST_FILE = 'manifest.json';
 export const MOBILE_UPDATE_APK_FILE = 'caxri-mobile.apk';
 
-export const mobileUpdateCheckResultSchema = z.strictObject({
+const mobileUpdateCheckResultSchema = z.strictObject({
     bundle: mobileUpdateBundleSchema.nullable(),
 });
 

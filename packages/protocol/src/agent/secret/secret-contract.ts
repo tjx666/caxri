@@ -7,14 +7,14 @@ import { commandPolicy } from '../../transport/method-spec.js';
 /**
  * Largest stored value. API keys, tokens, and passwords are far smaller; a PEM private key still fits.
  */
-export const MAX_AGENT_SECRET_VALUE_LENGTH = 16_384;
+const MAX_AGENT_SECRET_VALUE_LENGTH = 16_384;
 export const MAX_AGENT_SECRETS = 256;
-export const MAX_AGENT_SECRET_REASON_LENGTH = 500;
+const MAX_AGENT_SECRET_REASON_LENGTH = 500;
 /**
  * Ceiling of one `agent.secret.wait` long poll. `caxri secret request` polls again until the request settles, so the
  * whole wait is never one long RPC.
  */
-export const MAX_AGENT_SECRET_WAIT_MS = 60_000;
+const MAX_AGENT_SECRET_WAIT_MS = 60_000;
 
 /**
  * Names Caxri or the shell already own. A secret under one of them would shadow the launch environment of every command
@@ -66,14 +66,14 @@ export type AgentSecretScope = z.infer<typeof agentSecretScopeSchema>;
  * What a client may know about a stored secret. The value never leaves Server Core through a Desktop read: Settings is
  * write-only once saved.
  */
-export const agentSecretSummarySchema = z.strictObject({
+const agentSecretSummarySchema = z.strictObject({
     name: agentSecretNameSchema,
     scope: agentSecretScopeSchema,
     updatedAt: z.number().int().nonnegative(),
 });
 export type AgentSecretSummary = z.infer<typeof agentSecretSummarySchema>;
 
-export const agentSecretRequestStatusIds = [
+const agentSecretRequestStatusIds = [
     'pending',
     'saved',
     'declined',
@@ -85,7 +85,7 @@ export type AgentSecretRequestStatus = (typeof agentSecretRequestStatusIds)[numb
 /**
  * One Agent's ask for a secret it does not have. `reason` is the Agent's own words, shown to the user as such.
  */
-export const agentSecretRequestSchema = z.strictObject({
+const agentSecretRequestSchema = z.strictObject({
     id: identifierSchema,
     name: agentSecretNameSchema,
     reason: z.string().min(1).max(MAX_AGENT_SECRET_REASON_LENGTH),

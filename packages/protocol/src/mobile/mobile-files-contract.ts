@@ -7,22 +7,22 @@ import { commandPolicy } from '../transport/method-spec.js';
 import { principalSchema } from '../transport/principal.js';
 import { MOBILE_FILES_MAX_ENTRIES, MOBILE_FILES_READ_MAX_BYTES } from './mobile-file-limits.js';
 
-export const mobileFilesListParametersSchema = z.strictObject({
+const mobileFilesListParametersSchema = z.strictObject({
     sessionId: identifierSchema,
     directory: pathSchema.optional(),
 });
 
-export const mobileFilesListResultSchema = z.strictObject({
+const mobileFilesListResultSchema = z.strictObject({
     entries: z.array(fileEntrySchema).max(MOBILE_FILES_MAX_ENTRIES),
     truncated: z.boolean(),
 });
 
-export const mobileFilesReadParametersSchema = z.strictObject({
+const mobileFilesReadParametersSchema = z.strictObject({
     sessionId: identifierSchema,
     path: pathSchema,
 });
 
-export const mobileFilesReadResultSchema = z.discriminatedUnion('status', [
+const mobileFilesReadResultSchema = z.discriminatedUnion('status', [
     z.strictObject({
         status: z.literal('available'),
         path: pathSchema,
@@ -42,7 +42,7 @@ export const mobileFilesReadResultSchema = z.discriminatedUnion('status', [
     z.strictObject({ status: z.literal('oversized') }),
 ]);
 
-export const mobileFilesWriteParametersSchema = z.strictObject({
+const mobileFilesWriteParametersSchema = z.strictObject({
     sessionId: identifierSchema,
     path: pathSchema,
     content: z
@@ -54,7 +54,7 @@ export const mobileFilesWriteParametersSchema = z.strictObject({
     expectedContentHash: z.string().regex(/^[0-9a-f]{64}$/u),
 });
 
-export const mobileFilesSearchResultSchema = z.strictObject({
+const mobileFilesSearchResultSchema = z.strictObject({
     paths: z.array(z.string().min(1).max(2_048)).max(40),
     truncated: z.boolean(),
 });
@@ -109,6 +109,3 @@ export const mobileFilesInternalMethods = {
         result: mobileFilesReadResultSchema,
     },
 } as const satisfies Record<string, MethodSpec>;
-
-export type MobileFilesListResult = z.infer<typeof mobileFilesListResultSchema>;
-export type MobileFilesReadResult = z.infer<typeof mobileFilesReadResultSchema>;

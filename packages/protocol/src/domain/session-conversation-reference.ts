@@ -93,7 +93,7 @@ export function agentChatSessionReferenceRanges(text: string): AgentChatSessionR
  * How a cited Session reads where a chip cannot show it (a queue row, the message rail, copied text): `@` and its
  * title.
  */
-export function agentChatSessionMention(title: string): string {
+function agentChatSessionMention(title: string): string {
     return `@${title}`;
 }
 

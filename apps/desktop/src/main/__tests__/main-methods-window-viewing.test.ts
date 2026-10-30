@@ -2,9 +2,9 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('electron', () => ({ dialog: {}, Menu: {} }));
 
+import type { DesktopServerConnection } from '../connection/server-connection';
 import { createMainMethodHandler } from '../main-methods';
-import type { ProcessExplorerWindowController } from '../process-explorer-window';
-import type { DesktopServerConnection } from '../server-connection';
+import type { ProcessExplorerWindowController } from '../process-explorer/window';
 import type { UpdateService } from '../updates/updates';
 import { runInRequestWindowKey } from '../window-presence-registry';
 import type { createWorkbenchRootAuthority } from '../workbench-root-authority';

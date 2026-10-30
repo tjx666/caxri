@@ -17,7 +17,7 @@ import {
  * One incremental change. `upsertItem` replaces an item by id (appending when new); `appendText` streams a delta into a
  * message, reasoning, or command output; `state` replaces the scalar parts of the snapshot that changed.
  */
-export const agentChatPatchOperationSchema = z.discriminatedUnion('op', [
+const agentChatPatchOperationSchema = z.discriminatedUnion('op', [
     z.strictObject({ op: z.literal('upsertItem'), item: agentChatItemSchema }),
     z.strictObject({
         op: z.literal('appendText'),

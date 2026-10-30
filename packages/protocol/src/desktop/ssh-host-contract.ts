@@ -10,7 +10,7 @@ const noParameters = z.object({}).default({});
 /**
  * Upper bound for a typed SSH destination such as `user@build-box:2222` or a `~/.ssh/config` alias.
  */
-export const MAX_SSH_DESTINATION_LENGTH = 255;
+const MAX_SSH_DESTINATION_LENGTH = 255;
 
 /**
  * An SSH destination as the user wrote it: a `~/.ssh/config` alias or `[user@]host[:port]`. A leading `-` is refused so
@@ -30,7 +30,7 @@ export const sshDestinationSchema = z
 /**
  * Ordered connection phases of an SSH Host window. `installing` is the only phase that reports transfer progress.
  */
-export const sshHostConnectionPhases = [
+const sshHostConnectionPhases = [
     'connecting',
     'probing',
     'installing',
@@ -42,7 +42,7 @@ export const sshHostConnectionPhases = [
     'failed',
 ] as const;
 
-export const sshHostConnectionPhaseSchema = z.enum(sshHostConnectionPhases);
+const sshHostConnectionPhaseSchema = z.enum(sshHostConnectionPhases);
 export type SshHostConnectionPhase = z.infer<typeof sshHostConnectionPhaseSchema>;
 
 /**
@@ -52,7 +52,7 @@ export type SshHostConnectionPhase = z.infer<typeof sshHostConnectionPhaseSchema
  * `takenOver` means another Caxri Desktop attached to the same Server and replaced this window's lease; nothing retries
  * it, because reconnecting would take the Server back from that window.
  */
-export const sshHostFailureReasons = [
+const sshHostFailureReasons = [
     'authentication',
     'hostKey',
     'unreachable',
@@ -68,7 +68,7 @@ export const sshHostFailureReasons = [
     'unknown',
 ] as const;
 
-export const sshHostFailureReasonSchema = z.enum(sshHostFailureReasons);
+const sshHostFailureReasonSchema = z.enum(sshHostFailureReasons);
 
 /**
  * Prefix of the one stderr line a Server prints when a Server on another host sharing the home directory holds its
@@ -78,10 +78,10 @@ export const sshHostFailureReasonSchema = z.enum(sshHostFailureReasons);
 export const SSH_HOST_PROFILE_IN_USE_MARKER = 'CAXRI_PROFILE_IN_USE';
 export type SshHostFailureReason = z.infer<typeof sshHostFailureReasonSchema>;
 
-export const sshHostAskpassKindSchema = z.enum(['secret', 'confirm', 'text']);
+const sshHostAskpassKindSchema = z.enum(['secret', 'confirm', 'text']);
 export type SshHostAskpassKind = z.infer<typeof sshHostAskpassKindSchema>;
 
-export const sshHostAskpassRequestSchema = z.object({
+const sshHostAskpassRequestSchema = z.object({
     requestId: z.string().min(1).max(64),
     kind: sshHostAskpassKindSchema,
     /**

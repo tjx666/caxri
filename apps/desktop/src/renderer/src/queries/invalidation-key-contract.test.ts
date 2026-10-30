@@ -16,8 +16,8 @@ const mocks = vi.hoisted(() => {
 vi.mock('../lib/caxri', () => ({ caxri: mocks }));
 
 import { projectSearchQueryKey } from '../features/project-search/project-search-query';
-import type { ExtensionTreeScope } from '../features/view-containers/extension-tree-client';
-import { cacheTreeChildren } from '../features/view-containers/extension-tree-client';
+import type { ExtensionTreeScope } from '../features/view-containers/extension-tree/extension-tree-client';
+import { cacheTreeChildren } from '../features/view-containers/extension-tree/extension-tree-client';
 import { controlledViewQueryKey } from '../features/view-containers/view-operation-client';
 import { useWorkbenchStore } from '../stores/workbench';
 import { caxriQueryKey } from './client';

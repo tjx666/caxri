@@ -220,7 +220,7 @@ Implementation entry points are
 [`stores/notifications.ts`](../apps/desktop/src/renderer/src/stores/notifications.ts),
 [`stores/toasts.ts`](../apps/desktop/src/renderer/src/stores/toasts.ts),
 [`stores/workbench.ts`](../apps/desktop/src/renderer/src/stores/workbench.ts), and
-[`agent-notification-runtime.ts`](../apps/desktop/src/main/agent-notification-runtime.ts).
+[`agent-notification-runtime.ts`](../apps/desktop/src/main/notifications/agent-notification-runtime.ts).
 Setting labels and defaults live in
 [`settings-spec.ts`](../packages/protocol/src/configuration/settings-spec.ts); transient event
 classification lives in

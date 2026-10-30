@@ -1,9 +1,14 @@
+import type { ServerOperation } from '../registry/method-types.js';
 import {
     extensionViewOperationMetadata,
     isExtensionViewOperationName,
 } from '../registry/view-methods.js';
 
-const nonExpiringServerOperations = new Set([
+/**
+ * Typed against the method registry so a renamed or removed method fails type checking instead of silently falling back
+ * to the generic request timeout.
+ */
+const nonExpiringServerOperations: ReadonlySet<string> = new Set<ServerOperation>([
     'agent.dispatch.wait',
     'agent.dispatch.waitInternal',
     'agent.delegation.wait',
@@ -25,7 +30,11 @@ const nonExpiringServerOperations = new Set([
     'terminal.input',
 ]);
 
-const nonExpiringViewOperations = new Set(['git.sync', 'git.discard', 'git.mergePullRequest']);
+const nonExpiringViewOperations: ReadonlySet<string> = new Set<ServerOperation>([
+    'git.sync',
+    'git.discard',
+    'git.mergePullRequest',
+]);
 
 /**
  * Durable Files mutations, save/copy, and the destructive applies that follow a native confirmation (Git discard, and

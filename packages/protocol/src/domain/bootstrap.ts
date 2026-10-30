@@ -25,7 +25,7 @@ import { windowKeyParameter } from './window-presence-contract.js';
  * what makes the reason survive until a window exists again. `launchId` is the deduplication key a client uses so a
  * notice it already showed is not repeated when it merely reconnects.
  */
-export const automaticNamingNoticeSchema = z.object({
+const automaticNamingNoticeSchema = z.object({
     launchId: identifierSchema,
     reason: lowCostSandboxFailureReasonSchema,
     sessionId: identifierSchema,
@@ -42,7 +42,7 @@ export const bootstrapParameters = z.object(windowKeyParameter).default({});
  * What the client keeps of an archived Session's Terminal: enough to name its Agent in the Archived Sessions dialog and
  * to keep its Chat's composer state, nothing else. The full record returns with `session.unarchive`'s refresh.
  */
-export const archivedTerminalSchema = terminalRecordSchema.pick({
+const archivedTerminalSchema = terminalRecordSchema.pick({
     id: true,
     kind: true,
     orderIndex: true,

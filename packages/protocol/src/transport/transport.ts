@@ -26,8 +26,6 @@ export const requestEnvelopeSchema = z.object({
     params: z.unknown(),
 });
 
-export type CommandRequestEnvelope = z.infer<typeof requestEnvelopeSchema>;
-
 /**
  * Validates params once and pairs them with their method so downstream `switch` statements narrow both together. The
  * assertion is the single correlation point: `methods[method]` is resolved from a value, which TypeScript cannot relate

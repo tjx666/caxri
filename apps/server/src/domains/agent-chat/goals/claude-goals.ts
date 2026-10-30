@@ -15,7 +15,7 @@ import {
 
 import { clip } from '../chat-items';
 import type { AgentChatSessionHost } from '../chat-provider';
-import { applyClaudeFeedback } from '../claude-system-notices';
+import { applyClaudeFeedback } from '../providers/claude/system-notices';
 
 type Notice = Extract<AgentChatItem, { type: 'notice' }>;
 

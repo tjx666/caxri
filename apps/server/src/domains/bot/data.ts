@@ -5,12 +5,8 @@ import type { CaxriDatabase } from '../db';
 import { caxriBotTerminal } from '../db';
 import type { BotHandoverService } from './handover';
 import type { BotInboxService } from './inbox';
-import {
-    botWorkspacePath,
-    clearBotTaskFiles,
-    inspectBotWorkspace,
-    resetBotMemory,
-} from './workspace';
+import { clearBotTaskFiles } from './task-files';
+import { botWorkspacePath, inspectBotWorkspace, resetBotMemory } from './workspace';
 
 export interface BotDataStores {
     database: CaxriDatabase;

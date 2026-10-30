@@ -27,7 +27,7 @@ const artifactRelativePathSchema = z
         'Artifact path must stay relative to the Server root',
     );
 
-export const serverArtifactFileReceiptSchema = z
+const serverArtifactFileReceiptSchema = z
     .object({
         mode: z.number().int().min(0).max(0o777),
         path: artifactRelativePathSchema,

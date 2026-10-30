@@ -10,7 +10,7 @@ import { identifierSchema } from '../domain/identifiers.js';
 export const durableServerIdentitySchema = z.string().regex(/^[0-9a-f]{32}$/u);
 export const serverBootIdentitySchema = z.string().regex(/^[0-9a-f]{32}$/u);
 export const serverStateEpochSchema = z.string().regex(/^[0-9a-f]{32}$/u);
-export const serverConnectionIdentitySchema = z.string().regex(/^[0-9a-f]{32}$/u);
+const serverConnectionIdentitySchema = z.string().regex(/^[0-9a-f]{32}$/u);
 export const protocolClientIdentitySchema = identifierSchema;
 /**
  * The secret a client presents to reach a Server, and the per-process identity the Server and its Hosts check on every

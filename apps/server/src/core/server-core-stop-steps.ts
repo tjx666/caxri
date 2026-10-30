@@ -3,6 +3,8 @@ import { performance } from 'node:perf_hooks';
 import type { CausalCapsule, CausalCapsuleInput, StructuredLogger } from '@caxri/system';
 import { BoundedCausalChain, logEventCatalog } from '@caxri/system';
 
+import { createBestEffortTeardown } from '../domains/best-effort-teardown';
+
 /**
  * The Server Core shutdown steps, a closed set so `server_core.stop_failed` names where a stop broke and
  * `server_core.stopped` attributes a slow stop. No name may read as a secret key (`credentials` would be redacted from
@@ -87,4 +89,40 @@ export function createServerCoreStopSteps(
             });
         },
     };
+}
+
+/**
+ * Runs the Core teardown best-effort: every stage is attempted even after an earlier one failed, so the Terminal
+ * snapshot, the control socket, the Extension Host and the profile lease are always released. Each failing stage is
+ * logged once by `run`; after the last stage the collected failure (an `AggregateError` for several) is rethrown, and
+ * the `server_core.stopped` record is written only for a clean stop. `stages` is built lazily so a stage reads Core
+ * state at the moment it runs.
+ */
+export async function runServerCoreStop(
+    logger: Pick<StructuredLogger, 'flush' | 'write'>,
+    reason: string,
+    stages: (
+        run: ReturnType<typeof createServerCoreStopSteps>['run'],
+    ) => Array<[ServerCoreStopStep, () => unknown]>,
+): Promise<void> {
+    const steps = createServerCoreStopSteps(logger, reason);
+    const teardown = createBestEffortTeardown();
+    try {
+        // Yields once so the caller's `stopPromise` is assigned before a synchronous domain-shutdown side effect (e.g. a
+        // state.changed emit) can hit `deliver`'s `if (!stopPromise)` extension-refresh branch.
+        await Promise.resolve();
+        await teardown.attempt(
+            ...stages(steps.run).map(
+                ([step, action]) =>
+                    () =>
+                        steps.run(step, action),
+            ),
+        );
+        if (teardown.failureCount() === 0) steps.stopped();
+    } finally {
+        // A settled stop has written its records, so a caller that removes the profile next (a test teardown)
+        // does not race an async append into `logs/` (ENOTEMPTY). A process exit flushes synchronously anyway.
+        await logger.flush();
+    }
+    teardown.rethrow();
 }

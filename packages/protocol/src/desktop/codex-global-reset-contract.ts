@@ -7,7 +7,7 @@ import { commandPolicy } from '../transport/method-spec.js';
  * Why the reset tracker could not be read. `network` covers offline, DNS, proxy, and timeout failures; `http` a non-2xx
  * answer; `invalidResponse` a body that no longer has the shape Main parses.
  */
-export const codexGlobalResetFailureReasonSchema = z.enum(['network', 'http', 'invalidResponse']);
+const codexGlobalResetFailureReasonSchema = z.enum(['network', 'http', 'invalidResponse']);
 export type CodexGlobalResetFailureReason = z.infer<typeof codexGlobalResetFailureReasonSchema>;
 
 const urlSchema = z.string().max(2_048);
