@@ -10,7 +10,7 @@ import { Tooltip } from '../../../components/ui/tooltip';
 import { useContextMenu } from '../../../hooks/use-context-menu';
 import { useTranslation } from '../../../i18n';
 import { FileTypeIcon } from '../../../icons/files/file-type-icon';
-import { hasDraggedPath, startFilePathDrag } from '../../../lib/file-drag';
+import { fileTreeDropEffect, startFilePathDrag } from '../../../lib/file-drag';
 import type { GitChildRepoKind, GitDecoration } from '../../../lib/git-decorations';
 import { gitDecorationClassName } from '../../../lib/git-decorations';
 import { isImeComposing } from '../../../lib/ime';
@@ -403,6 +403,7 @@ export function FileTreeItem({
         isFocusRequested,
         isSelected: selected,
         projectId,
+        projectRoot,
         setEditing,
     });
 
@@ -416,7 +417,6 @@ export function FileTreeItem({
             parentDirectory,
             pasteDisabledReason,
             pasteIntoEntry,
-            projectId,
             projectRoot,
             startCreate,
             startRename,
@@ -501,14 +501,15 @@ export function FileTreeItem({
             }}
             onCopy={(event) => {
                 event.preventDefault();
-                rememberFile(projectId, entry.path, 'copy');
+                rememberFile(entry.path, 'copy');
             }}
             onCut={(event) => {
                 event.preventDefault();
-                rememberFile(projectId, entry.path, 'cut');
+                rememberFile(entry.path, 'cut');
             }}
             onDragEnter={(event) => {
-                if (pasteBlocked || entry.kind !== 'directory' || !hasDraggedPath(event)) return;
+                if (pasteBlocked || entry.kind !== 'directory' || !fileTreeDropEffect(event))
+                    return;
                 setIsDropTarget(true);
             }}
             onDragLeave={(event) => {
@@ -518,12 +519,10 @@ export function FileTreeItem({
                 setIsDropTarget(false);
             }}
             onDragOver={(event) => {
-                if (pasteBlocked || entry.kind !== 'directory' || !hasDraggedPath(event)) {
-                    return;
-                }
-
+                const dropEffect = fileTreeDropEffect(event);
+                if (!dropEffect || pasteBlocked || entry.kind !== 'directory') return;
                 event.preventDefault();
-                event.dataTransfer.dropEffect = 'move';
+                event.dataTransfer.dropEffect = dropEffect;
             }}
             onDragStart={(event) => {
                 startFilePathDrag(

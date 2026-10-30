@@ -3,6 +3,8 @@ import { isCaxriError } from '@caxri/protocol';
 import { pathBasename } from '@caxri/utils';
 
 import { translate } from '../../../i18n';
+import { readClipboardFilePaths, writeClipboardText } from '../../../lib/clipboard';
+import { isOsFileReferenceRefused } from '../../../lib/file-drag';
 import { parentDirectoryPath } from '../../../lib/file-path';
 import { queryClient } from '../../../queries/client';
 import { getSelectedSession, getSessionProjectId } from '../../../stores/selectors';
@@ -20,7 +22,12 @@ import {
     suppressFailureToast,
 } from './file-operation-reconciliation';
 import { useFileOperationStore } from './file-operation-state';
-import type { ResourceExplorerClient } from './resource-explorer-client';
+import type {
+    FileCopySource,
+    FileMoveSource,
+    ResourceExplorerClient,
+} from './resource-explorer-client';
+import { activeResourceExplorerScope } from './resource-explorer-scope-store';
 import type { UndoableTrash } from './undoable-trash';
 import { forgetUndoableTrash, rememberUndoableTrash, undoableTrashFor } from './undoable-trash';
 
@@ -63,7 +70,6 @@ async function runTrackedFileOperation<Value>(options: {
     label: string;
     projectId: string;
     run: () => Promise<Value>;
-    successMessage: (result: Value) => string;
 }): Promise<Value | undefined> {
     const operations = useFileOperationStore.getState();
     if (
@@ -78,9 +84,7 @@ async function runTrackedFileOperation<Value>(options: {
     // Copy changes the tree too: a Trash older than this would no longer be the latest file operation.
     forgetUndoableTrash();
     try {
-        const result = await tryCommand(options.errorLabel, options.run);
-        if (result !== undefined) pushToast('success', options.successMessage(result));
-        return result;
+        return await tryCommand(options.errorLabel, options.run);
     } finally {
         useFileOperationStore.getState().finish(options.id);
     }
@@ -224,6 +228,7 @@ function copyItem(
     sessionId: string,
     path: string,
     directory: string,
+    source?: FileCopySource,
 ): Promise<MutableFileEntry | undefined> {
     const projectId = getSessionProjectId(sessionId) ?? `session:${sessionId}`;
     return runTrackedFileOperation({
@@ -232,9 +237,8 @@ function copyItem(
         id: JSON.stringify(['copy', projectId, path, directory]),
         label: translate('viewContainers.files.copying'),
         projectId,
-        successMessage: (copied) => translate('viewContainers.files.copied', { name: copied.name }),
         run: async () => {
-            const copied = await client.copy(path, directory);
+            const copied = await client.copy({ path, directory, ...(source && { source }) });
             await invalidateDirectory(client, directory);
             return copied;
         },
@@ -271,6 +275,7 @@ function attemptMove(
     directory: string,
     conflict: 'reject' | 'rename' | 'replace',
     shouldPropagateFailure: boolean,
+    source?: FileMoveSource,
 ): Promise<MethodResult<'files.move'> | undefined> {
     const operationId = crypto.randomUUID();
     const projectId = getSessionProjectId(sessionId) ?? `session:${sessionId}`;
@@ -282,7 +287,8 @@ function attemptMove(
         projectId,
         shouldPropagateFailure,
         client,
-        run: () => client.move({ operationId, path, directory, conflict }),
+        run: () =>
+            client.move({ operationId, path, directory, conflict, ...(source && { source }) }),
     });
 }
 
@@ -317,9 +323,10 @@ export async function moveFile(
     sessionId: string,
     path: string,
     directory: string,
+    source?: FileMoveSource,
 ): Promise<MethodResult<'files.move'> | undefined> {
     try {
-        return await attemptMove(client, sessionId, path, directory, 'reject', true);
+        return await attemptMove(client, sessionId, path, directory, 'reject', true, source);
     } catch (error) {
         if (!isCaxriError(error) || error.code !== 'CONFLICT') {
             pushToast(
@@ -345,6 +352,7 @@ export async function moveFile(
             directory,
             choice === 'replace' ? 'replace' : 'rename',
             false,
+            source,
         );
     }
 }
@@ -374,37 +382,83 @@ export async function cancelFileOperation(
     await reconcileFileMutation(client, operation);
 }
 
-export function rememberFile(
-    projectId: string,
-    path: string,
-    mode: FileClipboardEntry['mode'],
-): void {
-    useFileClipboardStore.getState().set({ mode, path, projectId });
-    pushToast(
-        'info',
-        translate(
-            mode === 'cut'
-                ? 'viewContainers.files.readyToMove'
-                : 'viewContainers.files.readyToCopy',
-        ),
-    );
+/**
+ * Arms Cut or Copy for a later paste, in this Project or another one.
+ *
+ * The path also goes to the system clipboard as text. Besides letting it be pasted elsewhere as a path, that replaces
+ * whatever Finder copied earlier, so a later Paste takes this item rather than a stale Finder copy: the tree pastes
+ * Finder's files whenever the system clipboard still holds them (`pasteIntoDirectory`).
+ */
+export function rememberFile(path: string, mode: FileClipboardEntry['mode']): void {
+    const scope = activeResourceExplorerScope();
+    if (!scope) return;
+    useFileClipboardStore.getState().set({ mode, path, sessionId: scope.sessionId });
+    void writePathToClipboard(path);
+}
+
+async function writePathToClipboard(path: string): Promise<void> {
+    try {
+        await writeClipboardText(path);
+    } catch {
+        // Best effort: a failed write only means an older Finder copy may still win the next paste.
+    }
+}
+
+/**
+ * Cmd+V or Paste into `directory`: files Finder put on the system clipboard win, since copying in Caxri replaces them
+ * ({@link rememberFile}); otherwise the item cut or copied in Caxri.
+ */
+export async function pasteIntoDirectory(
+    client: ResourceExplorerClient,
+    sessionId: string,
+    directory: string,
+): Promise<MutableFileEntry | MethodResult<'files.move'> | undefined> {
+    // An SSH Host window takes no Finder files, as with a drop (see `isOsFileReferenceRefused`).
+    const finderPaths = isOsFileReferenceRefused()
+        ? []
+        : await tryCommand(translate('viewContainers.files.copyFailed'), readClipboardFilePaths);
+    if (finderPaths && finderPaths.length > 0)
+        return importOsFiles(client, sessionId, finderPaths, directory);
+    const clipboard = useFileClipboardStore.getState().entry;
+    return clipboard ? pasteFile(client, sessionId, directory, clipboard) : undefined;
 }
 
 export async function pasteFile(
     client: ResourceExplorerClient,
     sessionId: string,
-    projectId: string,
     directory: string,
     clipboard: FileClipboardEntry,
 ): Promise<MutableFileEntry | MethodResult<'files.move'> | undefined> {
-    if (clipboard.projectId !== projectId) {
-        pushToast('error', translate('viewContainers.files.pasteOtherProject'));
-        return undefined;
-    }
-    if (clipboard.mode === 'copy') return copyItem(client, sessionId, clipboard.path, directory);
-    const moved = await moveFile(client, sessionId, clipboard.path, directory);
+    // Named whenever the item was cut or copied in another Session: its Project, or its worktree, can differ.
+    const source =
+        clipboard.sessionId === sessionId
+            ? undefined
+            : ({ kind: 'session', sessionId: clipboard.sessionId } as const);
+    if (clipboard.mode === 'copy')
+        return copyItem(client, sessionId, clipboard.path, directory, source);
+    const moved = await moveFile(client, sessionId, clipboard.path, directory, source);
     if (moved) useFileClipboardStore.getState().clear();
     return moved;
+}
+
+/**
+ * Copies files the user dropped or pasted from Finder into `directory`. Finder's items are only read, never moved, and
+ * each keeps both copies on a name clash. Runs one at a time so every item picks its own free name; returns the last
+ * one copied, for the caller to select.
+ */
+export async function importOsFiles(
+    client: ResourceExplorerClient,
+    sessionId: string,
+    paths: readonly string[],
+    directory: string,
+): Promise<MutableFileEntry | undefined> {
+    let last: MutableFileEntry | undefined;
+    for (const path of paths) {
+        // eslint-disable-next-line no-await-in-loop -- sequential on purpose; see above
+        const copied = await copyItem(client, sessionId, path, directory, { kind: 'external' });
+        if (copied) last = copied;
+    }
+    return last;
 }
 
 export function duplicateFile(
@@ -450,27 +504,24 @@ export async function didTrashFile(
         rememberUndoableTrash({ name: result.name, sessionId, undoToken: result.undoToken });
     else forgetUndoableTrash();
     /**
-     * One persistent card keeps the confirmed loss of unsaved edits visible without duplicating success feedback. It is
-     * a warning when edits were lost: the move succeeded, but the user should not read the card as all-clear.
+     * A Trash that can be taken back (Cmd+Z in the tree) needs no notice: the row disappearing is the feedback. Only a
+     * Trash that discarded unsaved edits says so, in a persistent warning, since those edits are the one thing the
+     * Trash cannot give back.
      */
-    pushToast(
-        hasUnsavedChanges ? 'warning' : 'success',
-        translate(
-            hasUnsavedChanges
-                ? 'viewContainers.files.trashedUnsaved'
-                : 'viewContainers.files.trashed',
-            { name: result.name },
-        ),
-        {
-            persist: hasUnsavedChanges,
-            ...(result.undoToken && {
-                action: {
-                    id: 'files.undoTrash',
-                    params: { sessionId, undoToken: result.undoToken, name: result.name },
-                },
-            }),
-        },
-    );
+    if (hasUnsavedChanges)
+        pushToast(
+            'warning',
+            translate('viewContainers.files.trashedUnsaved', { name: result.name }),
+            {
+                persist: true,
+                ...(result.undoToken && {
+                    action: {
+                        id: 'files.undoTrash',
+                        params: { sessionId, undoToken: result.undoToken, name: result.name },
+                    },
+                }),
+            },
+        );
     return true;
 }
 
@@ -505,7 +556,6 @@ export async function didUndoTrashedFile(
         return false;
     }
     await invalidateDirectory(client, parentDirectoryPath(restored.path));
-    pushToast('success', translate('viewContainers.files.restored', { name: restored.name }));
     return true;
 }
 

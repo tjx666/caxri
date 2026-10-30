@@ -4,7 +4,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import type { FileEntry } from '@caxri/protocol';
 
 import { translate, useTranslation } from '../../../../i18n';
-import { dragPath } from '../../../../lib/file-drag';
+import { dragPath, osFilePaths } from '../../../../lib/file-drag';
 import { resolveEntryKind } from '../../../../lib/file-entry';
 import { parentDirectoryPath } from '../../../../lib/file-path';
 import { tryCommand } from '../../../../stores/toasts';
@@ -13,8 +13,9 @@ import { useResourceExplorerClient } from '../../controlled-view-context';
 import {
     didTrashFile,
     duplicateFile,
+    importOsFiles,
     moveFile,
-    pasteFile,
+    pasteIntoDirectory,
     rememberFile,
     undoLatestTrash,
 } from '../file-actions';
@@ -25,6 +26,7 @@ import type { EditRequest } from '../file-tree-item-types';
 import { useFileTreeNavigator } from '../file-tree-navigation-context';
 import {
     activeResourceExplorerScope,
+    didRevealPathInScope,
     setScopeFocusPath,
     setScopePathExpanded,
     setScopeSelectedPath,
@@ -46,6 +48,7 @@ export interface UseFileTreeItemInteractionsOptions {
     isFocusRequested: boolean;
     isSelected: boolean;
     projectId: string;
+    projectRoot: string;
     setEditing: (editing?: EditRequest) => void;
 }
 
@@ -107,6 +110,7 @@ export function useFileTreeItemInteractions({
     isFocusRequested,
     isSelected,
     projectId,
+    projectRoot,
     setEditing,
 }: UseFileTreeItemInteractionsOptions): UseFileTreeItemInteractionsResult {
     const client = useResourceExplorerClient();
@@ -129,7 +133,7 @@ export function useFileTreeItemInteractions({
     const isDirectory = isFileTreeDirectory(entry, resolvedKind, expanded);
     const parentDirectory = parentDirectoryPath(entry.path);
     const pasteDirectory = entry.kind === 'directory' ? entry.path : parentDirectory;
-    const isClipboardEmpty = !clipboard || clipboard.projectId !== projectId;
+    const isClipboardEmpty = !clipboard;
     const isPasteBlocked = useIsPathBlockedByFileOperations(projectId, pasteDirectory);
     const isDuplicateBlocked = useIsPathBlockedByFileOperations(projectId, parentDirectory);
     const isDragBlocked =
@@ -149,6 +153,14 @@ export function useFileTreeItemInteractions({
     const setSelectedPath = (path?: string): void => {
         const scope = activeResourceExplorerScope();
         if (scope) setScopeSelectedPath(scope.scopeId, path);
+    };
+    /**
+     * Selects a pasted or dropped entry and scrolls the tree to it, since a paste into a long folder lands off-screen.
+     */
+    const revealPath = (path: string): void => {
+        const scope = activeResourceExplorerScope();
+        if (scope && !didRevealPathInScope(scope.scopeId, projectRoot, path))
+            setScopeSelectedPath(scope.scopeId, path);
     };
     const startRename = (): void => {
         if (isEditable) setEditing({ kind: 'rename', entry });
@@ -202,16 +214,9 @@ export function useFileTreeItemInteractions({
     };
     const pasteIntoEntry = async (): Promise<void> => {
         const scope = activeResourceExplorerScope();
-        const currentClipboard = useFileClipboardStore.getState().entry;
-        if (!scope || !currentClipboard) return;
-        const pasted = await pasteFile(
-            client,
-            scope.sessionId,
-            projectId,
-            pasteDirectory,
-            currentClipboard,
-        );
-        if (pasted) setSelectedPath(pasted.path);
+        if (!scope) return;
+        const pasted = await pasteIntoDirectory(client, scope.sessionId, pasteDirectory);
+        if (pasted) revealPath(pasted.path);
     };
     const duplicateEntry = async (): Promise<void> => {
         const scope = activeResourceExplorerScope();
@@ -242,10 +247,17 @@ export function useFileTreeItemInteractions({
         setIsDropTarget(false);
         if (isPasteBlocked) return;
         const scope = activeResourceExplorerScope();
+        if (!scope || entry.kind !== 'directory') return;
         const source = dragPath(event);
-        if (!scope || !source || entry.kind !== 'directory') return;
-        const moved = await moveFile(client, scope.sessionId, source, entry.path);
-        if (moved) setSelectedPath(moved.path);
+        const dropped = source
+            ? await moveFile(client, scope.sessionId, source, entry.path)
+            : await importOsFiles(
+                  client,
+                  scope.sessionId,
+                  osFilePaths(event.dataTransfer.files),
+                  entry.path,
+              );
+        if (dropped) revealPath(dropped.path);
     };
     const handleKeyDown = (event: KeyboardEvent<HTMLButtonElement>): void => {
         if (event.key === 'ArrowDown') {
@@ -313,11 +325,11 @@ export function useFileTreeItemInteractions({
                 break;
             }
             case 'c': {
-                rememberFile(projectId, entry.path, 'copy');
+                rememberFile(entry.path, 'copy');
                 break;
             }
             case 'x': {
-                rememberFile(projectId, entry.path, 'cut');
+                rememberFile(entry.path, 'cut');
                 break;
             }
             default: {

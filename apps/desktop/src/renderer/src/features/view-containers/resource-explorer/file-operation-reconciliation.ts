@@ -161,13 +161,6 @@ function operationLabel(operation: FileMutationOperation): string {
     );
 }
 
-function operationSuccess(operation: FileMutationOperation): string {
-    const name = operation.result?.name ?? translate('viewContainers.files.itemFallbackName');
-    if (operation.kind === 'create') return translate('viewContainers.files.created', { name });
-    if (operation.kind === 'rename') return translate('viewContainers.files.renamed', { name });
-    return translate('viewContainers.files.moved', { name });
-}
-
 /**
  * Mirrors the affected-subtree scoping `file-actions.ts` uses when it first starts an operation.
  */
@@ -265,8 +258,8 @@ export function reconcileFileMutation(
             await client.acknowledgeOperation(operation.id);
             useFileOperationStore.getState().finish(operation.id);
             rememberReconciliation(operation.id);
-            if (operation.phase === 'completed') pushToast('success', operationSuccess(operation));
-            else if (!didConsumeFailureToastSuppression(operation.id))
+            // A completed create, rename, or move is visible in the tree itself, so only a failure reports.
+            if (operation.phase !== 'completed' && !didConsumeFailureToastSuppression(operation.id))
                 pushToast(
                     'error',
                     operation.error?.message ?? translate('viewContainers.files.operationFailed'),

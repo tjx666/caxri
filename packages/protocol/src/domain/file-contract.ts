@@ -24,6 +24,21 @@ import { fileAssetSchema } from './preview-asset.js';
  */
 export const BINARY_FILE_READ_REASON = 'binary';
 
+/**
+ * A copy or move source in another Session's Project. Server Core authorizes it against that Session's root exactly as
+ * it authorizes a same-Project source, so pasting across Projects grants no path outside an explicitly added Project.
+ */
+const sessionFileSourceSchema = z.object({
+    kind: z.literal('session'),
+    sessionId: identifierSchema,
+});
+
+const externalFileSourceSchema = z.object({ kind: z.literal('external') });
+const copySourceSchema = z.discriminatedUnion('kind', [
+    sessionFileSourceSchema,
+    externalFileSourceSchema,
+]);
+
 export function binaryFileReadError(): CaxriError {
     return new CaxriError('IO', 'Binary files cannot be opened in the editor', {
         reason: BINARY_FILE_READ_REASON,
@@ -154,6 +169,12 @@ export const fileMethods = {
             sessionId: identifierSchema,
             path: pathSchema,
             directory: pathSchema,
+            /**
+             * Where `path` lives when it is not in this Session's Project: `session` names the Session whose Project
+             * holds it (a copy made in another Project), and `external` marks an absolute path the user handed over by
+             * dropping or pasting it from Finder. Server Core only reads an external source; it never changes it.
+             */
+            source: copySourceSchema.optional(),
         }),
         result: mutableFileEntrySchema,
     },
@@ -175,6 +196,10 @@ export const fileMethods = {
             path: pathSchema,
             directory: pathSchema,
             conflict: z.enum(['reject', 'rename', 'replace']).default('reject'),
+            /**
+             * The Session whose Project holds `path`, when the cut was made in another Project.
+             */
+            source: sessionFileSourceSchema.optional(),
         }),
         result: movedFileEntrySchema,
     },

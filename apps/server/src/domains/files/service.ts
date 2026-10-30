@@ -256,13 +256,22 @@ export class FileService {
     async copy(
         parameters: ServerOperationParameters<'files.copy'>,
     ): Promise<ServerOperationResult<'files.copy'>> {
-        const [source, directory] = await Promise.all([
-            this.projectRoots.resolveSessionPath(parameters.sessionId, parameters.path),
+        const resolveSourcePath = async (): Promise<string> => {
+            if (parameters.source?.kind === 'external') return resolve(parameters.path);
+            const source = await this.projectRoots.resolveSessionPath(
+                parameters.source?.sessionId ?? parameters.sessionId,
+                parameters.path,
+            );
+            return source.path;
+        };
+        const [sourcePath, directory] = await Promise.all([
+            resolveSourcePath(),
             this.projectRoots.resolveSessionPath(parameters.sessionId, parameters.directory),
         ]);
+        // Grouped by the destination: a copy pasted in from another Project or from Finder fills this Project.
         return this.operations.run(() => this.mutations.copy(parameters), {
-            group: `${COPY_OPERATION_GROUP}:${source.root}`,
-            paths: [source.path, resolve(directory.path, basename(source.path))],
+            group: `${COPY_OPERATION_GROUP}:${directory.root}`,
+            paths: [sourcePath, resolve(directory.path, basename(sourcePath))],
         });
     }
 
@@ -324,7 +333,10 @@ export class FileService {
             },
             async (stage) => {
                 const [source, directory] = await Promise.all([
-                    this.projectRoots.resolveSessionPath(parameters.sessionId, parameters.path),
+                    this.projectRoots.resolveSessionPath(
+                        parameters.source?.sessionId ?? parameters.sessionId,
+                        parameters.path,
+                    ),
                     this.projectRoots.resolveSessionPath(
                         parameters.sessionId,
                         parameters.directory,

@@ -2,7 +2,6 @@ import type { DragEvent } from 'react';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import type { FileClipboardEntry } from '../file-clipboard';
 import {
     dropIntoProjectRoot,
     pasteIntoProjectRoot,
@@ -11,7 +10,6 @@ import {
 
 const context = {
     isBlocked: false,
-    projectId: 'project-1',
     rootPath: '/project',
     sessionId: 'session-1',
 };
@@ -22,48 +20,44 @@ function dragEvent(): { event: DragEvent; preventDefault: ReturnType<typeof vi.f
 }
 
 describe('Resource Explorer controller workflows', () => {
-    it('reads the current clipboard when pasting and selects the created path', async () => {
-        const clipboard: FileClipboardEntry = {
-            mode: 'copy',
-            path: '/project/source.ts',
-            projectId: 'project-1',
-        };
+    it('pastes into the Project root and selects the pasted path', async () => {
         const paste = vi.fn(() => Promise.resolve({ path: '/project/source copy.ts' }));
         const selectPath = vi.fn();
 
         await pasteIntoProjectRoot(context, {
             draggedPath: vi.fn(),
-            getClipboard: () => clipboard,
+            importDropped: vi.fn(),
             move: vi.fn(),
             paste,
             selectPath,
         });
 
-        expect(paste).toHaveBeenCalledWith('session-1', 'project-1', '/project', clipboard);
+        expect(paste).toHaveBeenCalledWith('session-1', '/project');
         expect(selectPath).toHaveBeenCalledWith('/project/source copy.ts');
     });
 
-    it('ignores an empty clipboard without starting a paste', async () => {
-        const paste = vi.fn();
+    it('selects nothing when there was nothing to paste', async () => {
+        const selectPath = vi.fn();
 
         await pasteIntoProjectRoot(context, {
             draggedPath: vi.fn(),
-            getClipboard: () => {},
+            importDropped: vi.fn(),
             move: vi.fn(),
-            paste,
-            selectPath: vi.fn(),
+            paste: vi.fn(() => Promise.resolve(undefined)),
+            selectPath,
         });
 
-        expect(paste).not.toHaveBeenCalled();
+        expect(selectPath).not.toHaveBeenCalled();
     });
 
     it('prevents the browser drop and preserves operation blocking before moving', async () => {
         const blockedEvent = dragEvent();
         const move = vi.fn(() => Promise.resolve({ path: '/project/source.ts' }));
+        const importDropped = vi.fn();
         const selectPath = vi.fn();
         const dependencies = {
             draggedPath: vi.fn(() => '/elsewhere/source.ts'),
-            getClipboard: vi.fn(),
+            importDropped,
             move,
             paste: vi.fn(),
             selectPath,
@@ -82,7 +76,27 @@ describe('Resource Explorer controller workflows', () => {
         await dropIntoProjectRoot(allowedEvent.event, context, dependencies);
 
         expect(move).toHaveBeenCalledWith('session-1', '/elsewhere/source.ts', '/project');
+        expect(importDropped).not.toHaveBeenCalled();
         expect(selectPath).toHaveBeenCalledWith('/project/source.ts');
+    });
+
+    it('copies files dropped from Finder into the Project root', async () => {
+        const { event } = dragEvent();
+        const importDropped = vi.fn(() => Promise.resolve({ path: '/project/photo.png' }));
+        const move = vi.fn();
+        const selectPath = vi.fn();
+
+        await dropIntoProjectRoot(event, context, {
+            draggedPath: vi.fn(),
+            importDropped,
+            move,
+            paste: vi.fn(),
+            selectPath,
+        });
+
+        expect(importDropped).toHaveBeenCalledWith(event, 'session-1', '/project');
+        expect(move).not.toHaveBeenCalled();
+        expect(selectPath).toHaveBeenCalledWith('/project/photo.png');
     });
 
     it('re-reveals the open file when refreshing, and refreshes regardless', () => {

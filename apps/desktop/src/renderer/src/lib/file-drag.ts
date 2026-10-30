@@ -158,6 +158,16 @@ export function hasDraggedPath(event: DragEvent): boolean {
     return event.dataTransfer.types.includes(FILE_TREE_DRAG_TYPE);
 }
 
+/**
+ * How a Files tree target takes a drag: one of its own entries moves, while files from Finder are copied in and stay
+ * where they were. An SSH Host window takes no Finder files ({@link isOsFileReferenceRefused}).
+ */
+export function fileTreeDropEffect(event: DragEvent): 'copy' | 'move' | undefined {
+    if (hasDraggedPath(event)) return 'move';
+    if (isOsFileDrag(event.dataTransfer) && !isOsFileReferenceRefused()) return 'copy';
+    return undefined;
+}
+
 function stripTrailingSeparators(path: string): string {
     return path.length > 1 ? path.replace(/\/+$/, '') : path;
 }

@@ -1,12 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const electron = vi.hoisted(() => ({
+    read: vi.fn<
+        () => Promise<Array<{ types: string[]; getType: (type: string) => Promise<Blob> }>>
+    >(() => Promise.resolve([])),
     write: vi.fn<(items: unknown[]) => Promise<void>>(() => Promise.resolve()),
     writeText: vi.fn<(text: string) => Promise<void>>(() => Promise.resolve()),
 }));
 
 vi.mock('electron', () => ({
-    clipboard: { write: electron.write, writeText: electron.writeText },
+    clipboard: { read: electron.read, write: electron.write, writeText: electron.writeText },
     ClipboardItem: class {
         constructor(readonly items: Record<string, string>) {}
     },
@@ -15,6 +18,7 @@ vi.mock('electron', () => ({
     shell: {},
 }));
 
+import { fileUriListPaths } from '../clipboard/clipboard-methods';
 import { createMainMethodHandler } from '../main-methods';
 import type { ProcessExplorerWindowController } from '../process-explorer-window';
 import type { DesktopServerConnection } from '../server-connection';
@@ -57,5 +61,35 @@ describe('Main clipboard writes', () => {
             { items: { 'text/plain': '| a |', 'text/html': '<table></table>' } },
         ]);
         expect(electron.writeText).not.toHaveBeenCalled();
+    });
+});
+
+describe('Main clipboard file paths', () => {
+    it('reads every file Finder copied from the URI list', async () => {
+        electron.read.mockResolvedValueOnce([
+            {
+                types: ['text/uri-list'],
+                getType: () =>
+                    Promise.resolve(new Blob(['file:///tmp/a%20b.txt\r\nfile:///tmp/folder\r\n'])),
+            },
+        ]);
+        await expect(
+            handle({ method: 'clipboard.readFilePaths', params: {} }),
+        ).resolves.toStrictEqual({ paths: ['/tmp/a b.txt', '/tmp/folder'] });
+    });
+
+    it('answers no paths when the clipboard holds no file list', async () => {
+        electron.read.mockResolvedValueOnce([
+            { types: ['text/plain'], getType: () => Promise.resolve(new Blob(['x'])) },
+        ]);
+        await expect(
+            handle({ method: 'clipboard.readFilePaths', params: {} }),
+        ).resolves.toStrictEqual({ paths: [] });
+    });
+
+    it('ignores web links and comment lines in a URI list', () => {
+        expect(
+            fileUriListPaths('# comment\r\nhttps://example.com/a\r\nfile:///tmp/a.txt'),
+        ).toStrictEqual(['/tmp/a.txt']);
     });
 });

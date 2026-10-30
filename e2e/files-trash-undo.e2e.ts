@@ -15,7 +15,7 @@ async function isPresent(path: string): Promise<boolean> {
     }
 }
 
-test('Move to Trash offers one Undo that restores the file and never overwrites a new one', async () => {
+test('Move to Trash raises no notice, and Cmd+Z restores the file without overwriting a new one', async () => {
     /**
      * The refused Undo is the product's deliberate answer to a name collision, shown as one error notification.
      */
@@ -41,33 +41,26 @@ test('Move to Trash offers one Undo that restores the file and never overwrites 
         });
         await createProjectSession(running.page);
         const tree = running.page.locator('.file-list').first();
+        const row = (name: string) => tree.getByRole('treeitem', { name, exact: true });
 
-        await tree.getByRole('treeitem', { name: 'keep.txt', exact: true }).click({
-            button: 'right',
-        });
+        await row('keep.txt').click({ button: 'right' });
         await chooseContextMenuItem(running.app, 'Move to Trash');
-        const notice = running.page
-            .locator('[data-sonner-toast]')
-            .filter({ hasText: "Moved 'keep.txt'" });
-        await expect(notice).toHaveCount(1);
-        await expect(tree.getByRole('treeitem', { name: 'keep.txt', exact: true })).toHaveCount(0);
+        await expect(row('keep.txt')).toHaveCount(0);
+        // The row leaving the tree is the feedback; Cmd+Z takes it back, so nothing announces it.
+        await expect(running.page.locator('[data-sonner-toast]')).toHaveCount(0);
 
-        await notice.getByRole('button', { name: 'Undo' }).click();
-        await expect(tree.getByRole('treeitem', { name: 'keep.txt', exact: true })).toBeVisible();
+        await row('taken.txt').focus();
+        await running.page.keyboard.press('Meta+z');
+        await expect(row('keep.txt')).toBeVisible();
         await expect(readFile(join(root, 'keep.txt'), 'utf8')).resolves.toBe('keep me\n');
-        await expect(running.page.getByText("Restored 'keep.txt'")).toBeVisible();
+        await expect(running.page.locator('[data-sonner-toast]')).toHaveCount(0);
 
-        await tree.getByRole('treeitem', { name: 'taken.txt', exact: true }).click({
-            button: 'right',
-        });
-        await chooseContextMenuItem(running.app, 'Move to Trash');
-        const conflictNotice = running.page
-            .locator('[data-sonner-toast]')
-            .filter({ hasText: "Moved 'taken.txt'" });
-        await expect(conflictNotice).toHaveCount(1);
+        await row('taken.txt').focus();
+        await running.page.keyboard.press('Meta+Backspace');
+        await expect(row('taken.txt')).toHaveCount(0);
         await writeFile(join(root, 'taken.txt'), 'newer file\n', 'utf8');
 
-        await conflictNotice.getByRole('button', { name: 'Undo' }).click();
+        await running.page.keyboard.press('Meta+z');
         await expect(
             running.page.getByText("Couldn't restore 'taken.txt'", { exact: false }),
         ).toBeVisible();
@@ -133,7 +126,6 @@ test('Cmd+Z in the Files tree restores the latest Trash and goes stale after a r
         await running.page.keyboard.press('Meta+z');
         await expect(row('recent.txt')).toBeVisible();
         await expect(readFile(join(root, 'recent.txt'), 'utf8')).resolves.toBe('recent\n');
-        await expect(running.page.getByText("Restored 'recent.txt'")).toBeVisible();
     } finally {
         try {
             await running.app.close();

@@ -23,7 +23,6 @@ function options(entry: FileEntry, overrides: Partial<FileTreeItemMenuOptions> =
         parentDirectory: '/project',
         pasteDisabledReason: undefined,
         pasteIntoEntry: vi.fn(async () => {}),
-        projectId: 'project-1',
         projectRoot: '/project',
         startCreate: vi.fn(),
         startRename: vi.fn(),
