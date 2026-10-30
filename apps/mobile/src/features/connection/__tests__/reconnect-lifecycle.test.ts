@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { reconnectDelay } from '../connection-state';
 import {
+    countWhileDialing,
     foregroundRecoveryAction,
     observeMobileConnectionTermination,
     reconnectWaitForAttempt,
@@ -120,5 +121,22 @@ describe('mobile reconnect lifecycle', () => {
         expect(observation.didTerminate).toBe(true);
         expect(observation.unsubscribe).toBe(unsubscribe);
         expect(onTerminated).toHaveBeenCalledExactlyOnceWith('revoked');
+    });
+});
+
+describe('countWhileDialing', () => {
+    it('counts an attempt only while it dials, including one that fails', async () => {
+        const dialing = { current: 0 };
+        const dial = Promise.withResolvers<undefined>();
+        const attempt = countWhileDialing(dialing, () => dial.promise);
+        expect(dialing.current).toBe(1);
+        dial.resolve(undefined);
+        await attempt;
+        expect(dialing.current).toBe(0);
+
+        await expect(
+            countWhileDialing(dialing, () => Promise.reject(new Error('dial failed'))),
+        ).rejects.toThrow('dial failed');
+        expect(dialing.current).toBe(0);
     });
 });

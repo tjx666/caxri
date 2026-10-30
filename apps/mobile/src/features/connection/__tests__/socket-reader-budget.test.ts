@@ -7,7 +7,7 @@ describe('MobileSocketReaderBudget', () => {
     it('bounds both one message and the queued message count', () => {
         const budget = new MobileSocketReaderBudget();
         expect(budget.tryAcquire(MOBILE_GATEWAY_MAX_WIRE_BYTES + 1)).toBeUndefined();
-        const releases = Array.from({ length: 4 }, () => budget.tryAcquire(1));
+        const releases = Array.from({ length: 256 }, () => budget.tryAcquire(1));
         expect(releases.every(Boolean)).toBe(true);
         expect(budget.tryAcquire(1)).toBeUndefined();
         releases[0]?.();

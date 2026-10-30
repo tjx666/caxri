@@ -34,6 +34,7 @@ import type { MobileNetworkWakeAction } from './network-recovery';
 import { watchMobileNetwork } from './network-recovery';
 import { createPairingAttemptOwner } from './pairing-attempt';
 import {
+    countWhileDialing,
     foregroundRecoveryAction,
     observeMobileConnectionTermination,
     retryAttemptAfterConnectionEnded,
@@ -244,12 +245,15 @@ export const useMobileClientController = (): MobileClientContextValue => {
         };
     }, [credentialLoadAttempt, pairingAttempts, readCache, replaceConnection]);
 
+    const dialingReconnects = useRef(0);
     const reconnect = useCallback(
         (storedCredential: MobileCredential) =>
-            reconnectMobileGateway(
-                storedCredential,
-                expoMobileGatewayRuntime,
-                expoMobileCredentialStore,
+            countWhileDialing(dialingReconnects, () =>
+                reconnectMobileGateway(
+                    storedCredential,
+                    expoMobileGatewayRuntime,
+                    expoMobileCredentialStore,
+                ),
             ),
         [],
     );
@@ -358,6 +362,7 @@ export const useMobileClientController = (): MobileClientContextValue => {
     const currentNetworkContext = useEffectEvent(() => ({
         hasOutstandingMutation: connection.current?.hasOutstandingMutation() ?? false,
         isForeground,
+        isReconnecting: dialingReconnects.current > 0,
         status,
     }));
     const onNetworkAction = useEffectEvent((action: Exclude<MobileNetworkWakeAction, 'ignore'>) => {

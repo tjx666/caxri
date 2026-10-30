@@ -57,6 +57,10 @@ export const mobileClientCloseReasons = {
      * A direct LAN or Tailscale path answered repeatedly while the phone was on the Relay, so it reconnects directly.
      */
     'route-upgrade': 4016,
+    /**
+     * More Server frames arrived than the phone's bounded inbox holds while its reader was still busy.
+     */
+    'inbox-overflow': 4017,
 } as const;
 
 export type MobileClientCloseReason = keyof typeof mobileClientCloseReasons;

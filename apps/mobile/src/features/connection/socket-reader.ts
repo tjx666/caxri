@@ -54,7 +54,7 @@ export const createSocketReader = (socket: WebSocket): SocketReader => {
         const byteLength = event.data.length;
         const release = budget.tryAcquire(byteLength);
         if (!release) {
-            closeForProtocolError();
+            socket.close(mobileClientCloseReasons['inbox-overflow'], 'inbox-overflow');
             rejectAll(true);
             return;
         }
