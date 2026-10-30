@@ -1,5 +1,5 @@
 import { Buffer } from 'node:buffer';
-import { lstat, mkdir, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, readFile, realpath, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import type { BotDataSummary } from '@caxri/protocol';
@@ -8,6 +8,7 @@ import { execFileAsync } from '@caxri/system';
 import { atomicWrite } from '../atomic-file';
 import { resolveGitLaunch } from '../git';
 import { carryLegacyBotWorkspace } from './legacy-workspace';
+import { listTaskFiles } from './task-files';
 
 /**
  * Directory name of Caxri Bot's workspace inside the profile. The workspace is the working directory of Caxri Bot's
@@ -421,12 +422,6 @@ async function ensureWorkspaceRepo(
 }
 
 /**
- * Directories where Caxri Bot writes one brief per delegation (`tasks/`) and one report per ready pull request
- * (`reports/`), as its instructions ask.
- */
-const BOT_TASK_FILE_DIRECTORIES = ['tasks', 'reports'] as const;
-
-/**
  * Memory files at most this large are compared with their template; anything larger has clearly been written to.
  */
 const MAX_TEMPLATE_COMPARE_BYTES = 64 * 1024;
@@ -450,63 +445,6 @@ async function inspectMemoryFile(
         // Missing or unreadable: the next start seeds the template, so there is nothing learned to clear.
         return { name: file.name, bytes: 0, isTemplate: true };
     }
-}
-
-/**
- * A missing task directory has nothing to clear.
- */
-async function readDirectoryNames(path: string): Promise<string[]> {
-    try {
-        return await readdir(path);
-    } catch {
-        return [];
-    }
-}
-
-/**
- * A task directory replaced by a link or a file is one workspace entry to count and unlink. Listing or emptying it as a
- * folder would follow the link to a folder outside the workspace.
- */
-async function taskDirectoryState(path: string): Promise<'folder' | 'entry' | 'missing'> {
-    try {
-        return (await lstat(path)).isDirectory() ? 'folder' : 'entry';
-    } catch {
-        return 'missing';
-    }
-}
-
-/**
- * Lists the regular files under the task directories. A symlink is counted as one entry and never followed, so the
- * count and a later delete stay inside the workspace.
- */
-async function listTaskFiles(
-    workspacePath: string,
-): Promise<Array<{ path: string; bytes: number }>> {
-    const listed = await Promise.all(
-        BOT_TASK_FILE_DIRECTORIES.map(async (directory) => {
-            const path = join(workspacePath, directory);
-            const state = await taskDirectoryState(path);
-            if (state !== 'folder') return state === 'entry' ? [path] : [];
-            try {
-                const entries = await readdir(path, { recursive: true, withFileTypes: true });
-                return entries
-                    .filter((entry) => !entry.isDirectory())
-                    .map((entry) => join(entry.parentPath, entry.name));
-            } catch {
-                return [];
-            }
-        }),
-    );
-    return Promise.all(
-        listed.flat().map(async (path) => {
-            try {
-                return { path, bytes: (await lstat(path)).size };
-            } catch {
-                // Removed between the listing and the size read: it no longer takes any space.
-                return { path, bytes: 0 };
-            }
-        }),
-    );
 }
 
 /**
@@ -538,29 +476,6 @@ export async function resetBotMemory(workspacePath: string): Promise<void> {
     await Promise.all(
         BOT_MEMORY_FILES.map((file) => atomicWrite(join(memoryPath, file.name), file.template)),
     );
-}
-
-/**
- * Empties the task directories and returns how many files went. Only their contents are removed; `rm` unlinks a
- * symlinked entry without following it, and a task directory that is itself a link is unlinked rather than emptied, so
- * nothing outside the workspace is touched.
- */
-export async function clearBotTaskFiles(workspacePath: string): Promise<number> {
-    const count = (await listTaskFiles(workspacePath)).length;
-    await Promise.all(
-        BOT_TASK_FILE_DIRECTORIES.map(async (directory) => {
-            const path = join(workspacePath, directory);
-            if ((await taskDirectoryState(path)) === 'entry') {
-                await rm(path, { force: true });
-                return;
-            }
-            const entries = await readDirectoryNames(path);
-            await Promise.all(
-                entries.map((entry) => rm(join(path, entry), { force: true, recursive: true })),
-            );
-        }),
-    );
-    return count;
 }
 
 /**
