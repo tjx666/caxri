@@ -11,6 +11,7 @@ import type { StructuredLogger } from '@caxri/system';
 import type { AgentEnvironment } from '../contract';
 import type { ConversationExclusionReason } from '../external-conversation-parsers';
 import { conversationExclusionReasons } from '../external-conversation-parsers';
+import type { TranscriptScanFailureReason } from '../transcript-security';
 import type { IndexSearchRequest, IndexSearchResponse, IndexStatus } from './engine';
 import type {
     ConversationIdentity,
@@ -79,6 +80,20 @@ export function excludedFields(
         conversationExclusionReasons.map((reason) => [
             `excluded${reason[0].toUpperCase()}${reason.slice(1)}`,
             excluded[reason] ?? 0,
+        ]),
+    );
+}
+
+/**
+ * One `scanFailed<Reason>` field per cause a content scan reported this pass; a pass without failures adds none.
+ */
+export function scanFailedFields(
+    scanFailed: Partial<Record<TranscriptScanFailureReason, number>>,
+): Record<string, number> {
+    return Object.fromEntries(
+        Object.entries(scanFailed).map(([reason, count]) => [
+            `scanFailed${reason[0].toUpperCase()}${reason.slice(1)}`,
+            count,
         ]),
     );
 }
@@ -174,14 +189,19 @@ export class SessionSearchIndex {
         switch (reply.type) {
             case 'pass': {
                 this.lastStatus = reply.status;
-                const { durationMs, excluded, ...counts } = reply.report;
-                // A record past the head read's caps hides a real conversation, so it is as loud as a failed file.
-                const isLossy = counts.failed > 0 || (excluded.oversizedRecord ?? 0) > 0;
+                const { durationMs, excluded, scanFailed, ...counts } = reply.report;
+                // A record past the head read's caps or a scan that stopped early hides a real conversation, so either is
+                // as loud as a failed file.
+                const isLossy =
+                    counts.failed > 0 ||
+                    (excluded.oversizedRecord ?? 0) > 0 ||
+                    Object.keys(scanFailed).length > 0;
                 logger.write(isLossy ? 'warn' : 'debug', logEventCatalog.sessionSearch.indexPass, {
                     durationMs,
                     fields: {
                         ...counts,
                         ...excludedFields(excluded),
+                        ...scanFailedFields(scanFailed),
                         conversations: reply.status.conversations,
                     },
                 });

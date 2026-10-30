@@ -14,11 +14,12 @@ import {
     readCodexThreadIndex,
 } from '../external-conversation-parsers';
 import { compactInlineMediaPayloads } from '../inline-media';
+import { isCompressedTranscriptPath } from '../transcript-compression';
 import type { DiscoveredTranscript } from '../transcript-discovery';
 import { discoverTranscripts } from '../transcript-discovery';
 import type { TranscriptScanCursor } from '../transcript-scan';
 import { scanTranscriptLines } from '../transcript-scan';
-import type { AgentTranscriptLocation } from '../transcript-security';
+import type { AgentTranscriptLocation, TranscriptScanFailureReason } from '../transcript-security';
 import type { VisibleTranscriptMessage } from '../visible-transcript-message';
 import { extractVisibleTranscriptMessage } from '../visible-transcript-message';
 import type {
@@ -70,6 +71,15 @@ export interface IndexerPassReport {
      * pass counts the whole index; `oversizedRecord` is the cause that hides a real conversation.
      */
     excluded: Partial<Record<ConversationExclusionReason, number>>;
+    /**
+     * Discovered transcripts stored compressed (Codex `.jsonl.zst`), which are read through a full streaming scan.
+     */
+    compressed: number;
+    /**
+     * Content scans this pass that stopped early or read nothing, by closed cause; a compressed transcript's corrupt
+     * stream counts as `decompressFailed`.
+     */
+    scanFailed: Partial<Record<TranscriptScanFailureReason, number>>;
 }
 
 interface FileIdentity {
@@ -234,7 +244,9 @@ export class SessionSearchIndexer {
 
     private async runPass(held: HeldKeys): Promise<IndexerPassReport> {
         const started = this.now();
-        const discovered = await discoverTranscripts(this.environment);
+        const discovered = await discoverTranscripts(this.environment, {
+            includeCompressed: true,
+        });
         const stored = new Map(this.store.transcripts().map((row) => [row.path, row]));
         const seen = new Set(discovered.map((found) => found.main.path));
         const changed: ChangedTranscript[] = [];
@@ -280,10 +292,15 @@ export class SessionSearchIndexer {
         );
         let failed = 0;
         const excluded: IndexerPassReport['excluded'] = {};
+        const scanFailed: IndexerPassReport['scanFailed'] = {};
+        const onScanFailure = (reason: TranscriptScanFailureReason) => {
+            // A transcript a pass finds before its Agent writes it is routine, not a failure.
+            if (reason !== 'missing') scanFailed[reason] = (scanFailed[reason] ?? 0) + 1;
+        };
         for (const entry of changed) {
             try {
                 // eslint-disable-next-line no-await-in-loop -- one file at a time bounds memory and open handles
-                const reason = await this.indexTranscript(entry, codex, held);
+                const reason = await this.indexTranscript(entry, codex, held, onScanFailure);
                 if (reason) excluded[reason] = (excluded[reason] ?? 0) + 1;
             } catch {
                 failed += 1;
@@ -300,6 +317,9 @@ export class SessionSearchIndexer {
             failed,
             removed,
             excluded,
+            compressed: discovered.filter((found) => isCompressedTranscriptPath(found.main.path))
+                .length,
+            scanFailed,
         };
     }
 
@@ -326,8 +346,11 @@ export class SessionSearchIndexer {
         { found, identity, stored }: ChangedTranscript,
         codex: CodexThreadIndex,
         held: HeldKeys,
+        onScanFailure: (reason: TranscriptScanFailureReason) => void,
     ): Promise<ConversationExclusionReason | undefined> {
+        // A compressed transcript is never appended to, so any change to it is a new file read from the start.
         const isSameFile =
+            !isCompressedTranscriptPath(found.main.path) &&
             stored !== undefined &&
             stored.inode === identity.inode &&
             identity.size >= stored.scanOffset;
@@ -394,7 +417,7 @@ export class SessionSearchIndexer {
          * reads the rest of the file next time instead of trusting a half-indexed one.
          */
         const id = this.store.saveTranscript({ ...conversation, size: -1 });
-        const final = await this.scanContent({ ...conversation, id }, identity);
+        const final = await this.scanContent({ ...conversation, id }, identity, onScanFailure);
         this.store.saveTranscript(final);
         return undefined;
     }
@@ -402,6 +425,7 @@ export class SessionSearchIndexer {
     private async scanContent(
         transcript: TranscriptUpsert & { id: number },
         identity: FileIdentity,
+        onFailure: (reason: TranscriptScanFailureReason) => void,
     ): Promise<TranscriptUpsert & { id: number }> {
         const location: AgentTranscriptLocation = {
             ...(transcript.anchorRoot !== undefined && { anchorRoot: transcript.anchorRoot }),
@@ -437,6 +461,7 @@ export class SessionSearchIndexer {
                 (line) => collector.accept(line),
                 {
                     completeLinesOnly: true,
+                    onFailure,
                     onReset: () => {
                         // The provider rewrote the file shorter than what was read: start over from byte zero.
                         this.store.clearMessages(transcript.id);

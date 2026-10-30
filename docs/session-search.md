@@ -126,6 +126,12 @@ head read, reading continues up to 16 MiB further until that message appears, so
 is indexed and titled by it like any other. A conversation with only built-in commands such as
 `/clear`, or no messages at all, is still left out.
 
+Codex compresses cold rollouts to `rollout-*.jsonl.zst`, and the index reads those too (Usage does
+not yet). A compressed file is never appended to, so any change to it is read again in full through
+one streaming Zstandard pass, capped at 256 MiB of decompressed bytes and never written to disk.
+When a rollout exists in both forms (Codex restores the plain file before appending), only the
+plain `.jsonl` is read, so its messages are indexed once.
+
 The index is derived data. A schema or extraction change bumps its version, which drops and
 rebuilds it instead of migrating. The Worker starts on the first search and exits after a minute
 idle unless it is still indexing. If the index cannot be opened, search still finds Caxri
@@ -143,7 +149,10 @@ Diagnostic logs record only counts, durations, and closed reasons (`session_sear
 never a query, title, path, or message text. Each index pass counts the transcripts it stored as not
 a conversation by cause (scripted run, subagent sidechain, delegated task, missing folder or prompt,
 unreadable, and a few more), and logs at warning level when a first record ran past the head read's
-caps, the one cause that hides a real conversation.
+caps, the one cause that hides a real conversation. The pass also counts compressed transcripts and
+each content scan that stopped early by closed reason (`scanFailedDecompressFailed` for a corrupt or
+truncated `.jsonl.zst`, `scanFailedDecompressLimit` past the decompression cap), which also logs at
+warning level; such a file keeps the messages read before the fault and never stops the pass.
 
 ## Reference implementations
 

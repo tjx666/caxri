@@ -1,6 +1,7 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { zstdCompressSync } from 'node:zlib';
 
 import type { BootstrapState } from '@caxri/protocol';
 import type { Page } from '@playwright/test';
@@ -23,6 +24,8 @@ const ARCHIVED = '5d3f9b2a-7c4e-4f8b-8a21-3e6d9c8b7f52';
 const EXTERNAL = '6e4a0c3b-8d5f-4a9c-9b32-4f7e0d9c8a63';
 const CHAT = '7f5b1d4c-9e60-4b0d-8c43-5a8f1e0d9b74';
 const OTHER_APP = '806c2e5d-a071-4c1e-9d54-6b9a2f1e0c85';
+const CODEX_PLAIN = '01990000-0000-7000-8000-0000000000e1';
+const CODEX_COMPRESSED = '01990000-0000-7000-8000-0000000000e2';
 
 /**
  * A Claude transcript as the CLI writes it: the first real prompt becomes the conversation's title.
@@ -89,6 +92,38 @@ async function writeLongClaudeTranscript(
     ]).flat();
     await mkdir(dirname(path), { recursive: true });
     await writeFile(path, `${records.map((record) => JSON.stringify(record)).join('\n')}\n`);
+}
+
+/**
+ * A Codex rollout in the isolated E2E `CODEX_HOME`, plain or compressed to `.jsonl.zst` as Codex stores a cold one.
+ */
+async function writeCodexRollout(
+    userDataDirectory: string,
+    cwd: string,
+    threadId: string,
+    messages: readonly [user: string, assistant: string],
+    isCompressed: boolean,
+): Promise<void> {
+    const day = join(userDataDirectory, 'e2e-agents', 'codex', 'sessions', '2026', '10', '12');
+    const message = (role: 'assistant' | 'user', text: string) => ({
+        type: 'response_item',
+        payload: {
+            type: 'message',
+            role,
+            content: [{ type: role === 'user' ? 'input_text' : 'output_text', text }],
+        },
+    });
+    const records = [
+        { type: 'session_meta', payload: { id: threadId, cwd, source: 'cli' } },
+        message('user', messages[0]),
+        message('assistant', messages[1]),
+    ];
+    const jsonl = `${records.map((record) => JSON.stringify(record)).join('\n')}\n`;
+    const name = `rollout-2026-10-12T09-00-00-${threadId}.jsonl`;
+    await mkdir(day, { recursive: true });
+    await (isCompressed
+        ? writeFile(join(day, `${name}.zst`), zstdCompressSync(jsonl))
+        : writeFile(join(day, name), jsonl));
 }
 
 async function openSearch(page: Page) {
@@ -467,6 +502,80 @@ test('Session search result in unloaded older Chat history loads it and lands on
             .toEqual(['zebra quota was raised']);
         await expect.poll(() => isActiveFindMatchInView(page)).toBe(true);
         await page.screenshot({ path: testInfo.outputPath('session-search-older-find.png') });
+    } finally {
+        await running.app.close();
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+/**
+ * Codex compresses a cold rollout to `.jsonl.zst`; that conversation is found, previewed, and opened like a plain one.
+ */
+// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
+test('Session search finds, previews, and opens a compressed Codex conversation', async ({}, testInfo) => {
+    const directory = await mkdtemp(join(tmpdir(), 'caxri-session-search-zst-e2e-'));
+    const userData = join(directory, 'profile');
+    const root = join(directory, 'workspace');
+    await mkdir(root, { recursive: true });
+    const agentMode = await createFakeAgentMode({
+        userDataDir: userData,
+        providers: { codex: {} },
+    });
+    const options = { agentMode, userDataDir: userData, testRootPath: root };
+    let running = await launchCaxri(options);
+    try {
+        await createProjectSession(running.page, 'shell');
+        const bootstrap = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');
+        const [{ projectId, rootPath: cwd }] = bootstrap.sessions;
+        await running.app.close();
+        await writeCodexRollout(
+            userData,
+            cwd,
+            CODEX_PLAIN,
+            ['Plan the harbor lantern rollout', 'Lanterns ship on Tuesday.'],
+            false,
+        );
+        await writeCodexRollout(
+            userData,
+            cwd,
+            CODEX_COMPRESSED,
+            ['Plan the meadow lantern rollout', 'Lanterns ship on Friday.'],
+            true,
+        );
+
+        running = await launchCaxri(options);
+        const { page } = running;
+        const search = await openSearch(page);
+        const row = (threadId: string) =>
+            search.results.locator(`[data-session-search-key="codex:${threadId}"]`);
+        await search.input.fill('lantern rollout');
+        await expect(search.results.getByRole('option')).toHaveCount(2);
+        for (const threadId of [CODEX_PLAIN, CODEX_COMPRESSED])
+            // eslint-disable-next-line no-await-in-loop -- assertions on one list run in order
+            await expect(row(threadId)).toHaveAttribute('data-session-search-status', 'external');
+        await page.screenshot({ path: testInfo.outputPath('session-search-zst-results.png') });
+
+        await search.input.fill(CODEX_COMPRESSED);
+        await expect(search.results.getByRole('option')).toHaveCount(1);
+        await search.input.fill('friday');
+        await expect(search.results.getByRole('option')).toHaveCount(1);
+        const preview = search.dialog.getByRole('region', { name: 'Conversation preview' });
+        await expect(preview).toContainText('Plan the meadow lantern rollout');
+        await expect(preview.locator('mark')).toHaveText('Friday');
+        await page.screenshot({ path: testInfo.outputPath('session-search-zst-preview.png') });
+
+        await search.input.press('Enter');
+        await expect(search.dialog).toHaveCount(0);
+        await expect
+            .poll(async () => {
+                const state = await pageRequest<BootstrapState>(page, 'app.bootstrap');
+                const terminal = state.terminals.find(
+                    (entry) => entry.agentSessionId === CODEX_COMPRESSED,
+                );
+                const session = state.sessions.find((entry) => entry.id === terminal?.sessionId);
+                return session && { projectId: session.projectId, title: session.title };
+            })
+            .toEqual({ projectId, title: 'Plan the meadow lantern rollout' });
     } finally {
         await running.app.close();
         await rm(directory, { recursive: true, force: true });
