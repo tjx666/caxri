@@ -124,6 +124,16 @@ export function isSteerTargetGone(error: JsonRpcRequestError): boolean {
 }
 
 /**
+ * Whether a rejected `turn/steer` means the running turn takes no steered input (a review or compaction turn), so the
+ * message should wait for that turn to end instead.
+ *
+ * @see https://github.com/openai/codex/blob/main/codex-rs/app-server/src/request_processors/turn_processor.rs
+ */
+export function isSteerTargetNotSteerable(error: JsonRpcRequestError): boolean {
+    return /^cannot steer a (?:review|compact) turn/u.test(error.message);
+}
+
+/**
  * User inputs that are references rather than text; the Chat shows their name in brackets.
  */
 const REFERENCE_INPUT_TYPES = new Set<unknown>(['mention', 'skill']);

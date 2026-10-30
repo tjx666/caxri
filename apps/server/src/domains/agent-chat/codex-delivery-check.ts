@@ -2,8 +2,13 @@ import { CaxriError } from '@caxri/protocol';
 
 import { isRecord } from './chat-items';
 import type { AgentChatSessionHost } from './chat-provider';
-import { deliveryUnknownError } from './chat-provider';
-import { codexClientMessageId, codexUserInput, isSteerTargetGone } from './codex-input';
+import { deliveryUnknownError, turnNotSteerableError } from './chat-provider';
+import {
+    codexClientMessageId,
+    codexUserInput,
+    isSteerTargetGone,
+    isSteerTargetNotSteerable,
+} from './codex-input';
 import type { JsonRpcConnection } from './json-rpc-connection';
 import { JsonRpcRequestError } from './json-rpc-connection';
 
@@ -161,7 +166,8 @@ export interface CodexSteer {
  *
  * The turn can finish between reading its id and the steer arriving; Codex then rejects the precondition, and the
  * caller starts the next turn with the message instead of losing it. It was not steered after all, so it goes out under
- * a new id that carries no marker.
+ * a new id that carries no marker. A review or compaction turn refuses steered input outright; that rejects with
+ * {@link turnNotSteerableError} so the service queues the message behind the turn.
  */
 export async function didSteerCodexTurn(steer: CodexSteer): Promise<boolean> {
     const { connection, deliveries, threadId, input, expectedTurnId, clientUserMessageId } = steer;
@@ -176,6 +182,7 @@ export async function didSteerCodexTurn(steer: CodexSteer): Promise<boolean> {
         return true;
     } catch (error) {
         if (!(error instanceof JsonRpcRequestError)) throw error;
+        if (isSteerTargetNotSteerable(error)) throw turnNotSteerableError(error.message);
         if (!isSteerTargetGone(error))
             throw new CaxriError('CONFLICT', 'Codex cannot add this message to the running turn');
         return false;

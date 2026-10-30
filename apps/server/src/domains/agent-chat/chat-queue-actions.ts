@@ -1,11 +1,14 @@
 import { randomUUID } from 'node:crypto';
 
+import type { AgentChatMessageInput } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
 import { isAgentChatCommandListed } from './chat-items';
 import { requireChatTerminal } from './chat-launch';
 import type { AgentChatProviderSession } from './chat-provider';
+import { isTurnNotSteerable } from './chat-provider';
 import type { ChatFollowUpQueue } from './chat-queue';
+import { sendStartingTurn } from './chat-session-logs';
 import type { ChatState, ChatStateDelivery, ChatStates } from './chat-states';
 import type { AgentChatServiceOptions } from './service-options';
 
@@ -92,6 +95,35 @@ export function didResumeQueue(host: ChatQueueActionsHost, terminalId: string): 
     requireChatTerminal(host.options.database, terminalId);
     host.states.assertUsage(terminalId, 'chat_queue');
     return host.states.get(terminalId)?.followUps.resume() ?? false;
+}
+
+/**
+ * Delivers a message from the head of the Chat's send chain. While a turn runs it steers that turn when asked to, and
+ * otherwise waits in the queue; a steer the running turn refuses (a Codex review or compaction) waits there too instead
+ * of failing.
+ */
+export async function deliverChatMessage(
+    session: AgentChatProviderSession,
+    state: ChatState,
+    message: Omit<AgentChatMessageInput, 'delivery'>,
+    delivery: 'queue' | 'steer',
+): Promise<void> {
+    if (delivery === 'steer' && state.projection.snapshot.activeTurnId) {
+        try {
+            await session.send(message, { delivery: 'steered' });
+            state.followUps.logSteered();
+            return;
+        } catch (error) {
+            if (!isTurnNotSteerable(error)) throw error;
+        }
+        state.followUps.add({ id: randomUUID(), kind: 'message', message });
+        return;
+    }
+    if (state.followUps.mustWait()) {
+        state.followUps.add({ id: randomUUID(), kind: 'message', message });
+        return;
+    }
+    await sendStartingTurn(session, state, message);
 }
 
 /**

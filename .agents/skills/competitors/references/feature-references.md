@@ -269,6 +269,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 - **Streaming reply fade-in**: Newly streamed characters fade in from transparent, so the reply's tail reads as a short gradient. Reference: Codex app. Evidence: `apps/desktop/src/renderer/src/components/markdown/revealing-text.tsx`; `DESIGN.md` (Motion).
 - **Sidebar Fork Session and Session menu grouping**: A sidebar menu entry that forks the whole conversation into a new chat; a Copy submenu; Archive and Delete grouped last. Reference: Codex app. Evidence: `apps/desktop/src/renderer/src/features/primary-sidebar/session-row-menu.tsx`; `docs/agent-chat.md` (Fork Session).
 - **Muted reasoning summary titles**: Bold summary titles keep the dimmed reasoning color instead of full contrast. Reference: Codex TUI. Evidence: `apps/desktop/src/renderer/src/features/agent-chat/tools/work-detail/agent-chat-work-detail.tsx`.
+- **Chat steer during a review or compaction turn waits in the queue**: A steer Codex refuses because the running turn is a review or compaction turn queues the message behind that turn instead of failing. Reference: Codex TUI. Evidence: `apps/server/src/domains/agent-chat/chat-provider.ts` (`turnNotSteerableError`).
 
 ## CCLimitPing (MIT)
 

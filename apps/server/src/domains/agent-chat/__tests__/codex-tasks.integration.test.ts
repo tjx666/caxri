@@ -309,14 +309,24 @@ describe('Codex Chat background work with a fake app-server', () => {
         await service.runCommand(terminal.id, 'compact');
         const compacting = await until((snapshot) => snapshot.operation === 'compacting');
         expect(compacting.items.some((item) => item.type === 'notice')).toBe(false);
-        // A compaction turn cannot be steered; that error is not mistaken for a turn that already ended.
-        await expect(
-            service.send(terminal.id, { text: 'hello during compaction' }, 'steer'),
-        ).rejects.toMatchObject({ code: 'CONFLICT' });
+        // A compaction turn cannot be steered, so the message waits in the queue rather than failing or starting a turn.
+        await service.send(terminal.id, { text: 'hello during compaction' }, 'steer');
+        expect(service.read(terminal.id).queue?.map((entry) => entry.text)).toEqual([
+            'hello during compaction',
+        ]);
 
+        // Once the compaction ends, the queued message goes out as the next turn.
         const compacted = await until(
-            (snapshot) => snapshot.operation === undefined && !snapshot.activeTurnId,
+            (snapshot) =>
+                snapshot.operation === undefined &&
+                !snapshot.activeTurnId &&
+                snapshot.queue?.length === 0 &&
+                snapshot.items.some(
+                    (item) =>
+                        item.type === 'userMessage' && item.text === 'hello during compaction',
+                ),
         );
+        expect(compacted.turns).toHaveLength(3);
         // Codex reports no sizes with the item; the usage before and after it bracket the compaction.
         expect(compacted.items.find((item) => item.type === 'notice')).toMatchObject({
             kind: 'compacted',
