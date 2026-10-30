@@ -51,9 +51,6 @@ minimumReleaseAgeExclude:
   - '@yutengjing/vscode-icons@0.2.0'
   # The DOMPurify security floor below must take a fix the day it ships.
   - dompurify@3.4.17
-  # Electron prereleases publish continuously, so the release-age floor would permanently block whichever
-  # one we pin. Caxri tracks the 45 prerelease line on purpose (Chromium 155) and pins it exactly.
-  - electron@45.0.0-beta.6
 
 overrides:
   # Security floor for DOMPurify, not a compatibility pin. It is both monaco-editor's transitive dependency and, since

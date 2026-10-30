@@ -105,6 +105,6 @@ placement without a Server Core round trip.
 
 - **Renderer V8 code cache**: packaged Renderer pages load from `file://`, and Chromium keeps a disk
   code cache only for HTTP(S) and schemes registered with `codeCache: true`.
-- **VS Code's GPU channel feature switches**: Chromium 155 no longer defines
+- **VS Code's GPU channel feature switches**: Chromium 156 (Electron 45) no longer defines
   `EarlyEstablishGpuChannel` or `EstablishGpuChannelAsync`, and `CalculateNativeWinOcclusion` is
   Windows-only.

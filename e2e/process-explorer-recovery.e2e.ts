@@ -176,7 +176,7 @@ test('Process Explorer render exceptions offer a working reload', async () => {
 test('Process Explorer bounds renderer crash recovery and reopens cleanly', async () => {
     /**
      * No console-error allowance here on purpose. Through Chromium 152 a `forcefullyCrashRenderer()` left six console
-     * errors behind on each observation channel; from Chromium 155 (Electron 45) it leaves none, so allowing them would
+     * errors behind on each observation channel; from Chromium 156 (Electron 45) it leaves none, so allowing them would
      * be exactly the stale suppression this exact-count policy exists to reject. Only this forced-kill path changed:
      * console-error mirroring still works and stays covered by the render-exception test above, which expects and
      * receives its own console errors.
