@@ -247,11 +247,12 @@ export class SessionSearchEngine {
     private isAllowed(
         request: IndexSearchRequest,
         held: ReadonlySet<string>,
+        restricted: ReadonlySet<string> | undefined,
         conversation: Conversation,
     ): boolean {
         if (conversation.isHosted && !held.has(conversation.key)) return false;
         if (request.restrict) {
-            const isListed = request.restrict.keys.includes(conversation.key);
+            const isListed = restricted?.has(conversation.key) ?? false;
             if (isListed !== (request.restrict.mode === 'include')) return false;
         }
         // A held conversation is shown as its Session, dated by the Session's activity, which the caller filters.
@@ -404,8 +405,10 @@ export class SessionSearchEngine {
         if (conversations.values().some((item) => item.isBodiless && held.has(item.key)))
             this.refreshForHeldBodies();
         const { preferredRoot } = request;
+        // Built once per search: isAllowed runs for every stored conversation and every content hit.
+        const restricted = request.restrict ? new Set(request.restrict.keys) : undefined;
         const isAllowed = (conversation: Conversation) =>
-            this.isAllowed(request, held, conversation);
+            this.isAllowed(request, held, restricted, conversation);
         const finish = (hits: IndexedConversationHit[]) =>
             hits
                 .map((hit) =>
