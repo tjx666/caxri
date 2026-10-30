@@ -63,9 +63,11 @@ export class MobileFrameRouter {
         if (oldest) this.#retiredSubscriptionIds.delete(oldest);
     }
 
+    /**
+     * Pushes that arrive before their acknowledgement are held by Server subscription ID and checked against the
+     * resource once the acknowledgement names it, so several subscriptions can be pending at once.
+     */
     beginSubscriptionRequest(id: string): void {
-        if (this.#pendingSubscriptionRequests.size > 0)
-            throw new Error('Another mobile subscription is awaiting acknowledgement.');
         if (this.#pendingSubscriptionRequests.has(id))
             throw new Error('Mobile subscription request ID was reused.');
         this.#pendingSubscriptionRequests.add(id);

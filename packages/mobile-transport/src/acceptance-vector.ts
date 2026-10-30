@@ -4,19 +4,19 @@ import { MOBILE_TRANSPORT_VERSION } from './contract.js';
 import { openMobileFrame, sealMobileFrame } from './sealed-frame.js';
 import { deriveMobileSessionKeys, handshakeConfirmation, mobilePublicKey } from './session-keys.js';
 
-export const MOBILE_TRANSPORT_ACCEPTANCE_VECTOR_ID = 'caxri-mobile-transport-v3';
+export const MOBILE_TRANSPORT_ACCEPTANCE_VECTOR_ID = 'caxri-mobile-transport-v4';
 
 const bytes = (start: number, length: number): Uint8Array =>
     Uint8Array.from({ length }, (_value, index) => (start + index) & 0xff);
 
 const expected = {
-    clientConfirmation: '53839d9f120ebe69ff2b7af380e36c29fd161fa4b303d7895c0756c0e2e12a0e',
+    clientConfirmation: '4ee9a01fd5841f839a4d7c175801d315571ed6819ba0371d08c28719c2886414',
     clientToServerCiphertext:
-        '76f025073f284ba088d6ce5e6efba3871d39a5bcb03d67e4bc4cb8073762ad730dd103d4f80abb4715f8',
-    serverConfirmation: '343ef64548fc40d7d4aa3cf8dba413bd82f830f286254423781e48fc3936fc6a',
+        '1ac9d4104fab82bba0eab77c18297eb195a6203bb3ae680f14641aef08a6512050c330c7776cd83f8e04',
+    serverConfirmation: '51197562b73e94aa7c4b8dc8bfaf4c9fadec4f303b524ad1179aadef9472bcc7',
     serverToClientCiphertext:
-        '4b4efa5f7c6549e39845ef88537919299fb71f500ce31f2182acbce797aa654045fe9717af8766a38054',
-    transcriptHash: '4a82b6aecaefdcd245d8afa973a87143a2a1407bc03d5195ee6a46df85d6970f',
+        'd70e0f326e16c4d3f3ffe0b421ac46d107b350310165b387aeeb052f2456b6278d91ed9cc58a3a358e50',
+    transcriptHash: 'a5e7141b3e4ac2eb6fdce8779ec5b7ba617afd584d3320c167c4cfe291f95712',
 } as const;
 
 export function evaluateMobileTransportAcceptanceVector() {
@@ -46,7 +46,7 @@ export function evaluateMobileTransportAcceptanceVector() {
         presharedKey,
         transcript,
     });
-    const plaintext = utf8ToBytes('caxri-acceptance-vector-v3');
+    const plaintext = utf8ToBytes('caxri-acceptance-vector-v4');
     const clientContext = {
         connectionId,
         counter: 7,

@@ -1,6 +1,7 @@
 import { mobileClientCloseReasons } from '@caxri/mobile-transport';
 import { describe, expect, it, vi } from 'vitest';
 
+import { SHORT_DIRECT_ROUTE_GRACE_MS } from '../gateway-routes';
 import type {
     MobileGatewayConnection,
     MobileGatewayRuntime,
@@ -477,5 +478,34 @@ describe('mobile gateway client', () => {
             expect.objectContaining<Partial<MobileReconnectError>>({ code: 'unverified' }),
         );
         await expect(store.load()).resolves.toEqual(mobileCredential);
+    });
+
+    it('tells the Server its route grace and socket open time in the reconnect hello', async () => {
+        const hellos: unknown[] = [];
+        const runtime: MobileGatewayRuntime = {
+            isCellular: () => Promise.resolve(true),
+            openWebSocket: () => {
+                const socket = new UnverifiedReconnectSocket();
+                const send = socket.send.bind(socket);
+                socket.send = (source: string) => {
+                    hellos.push(JSON.parse(source));
+                    send(source);
+                };
+                return socket as unknown as WebSocket;
+            },
+            platform: 'android',
+            randomBytes: (bytes) => new Uint8Array(bytes).fill(128),
+        };
+        const { store } = memoryStore();
+        await expect(reconnectMobileGateway(mobileCredential, runtime, store)).rejects.toThrow();
+        expect(hellos).toEqual([
+            expect.objectContaining({
+                mode: 'connect',
+                trace: {
+                    graceMs: SHORT_DIRECT_ROUTE_GRACE_MS,
+                    openMs: expect.any(Number) as number,
+                },
+            }),
+        ]);
     });
 });

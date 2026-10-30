@@ -21,10 +21,12 @@ export interface AgentChatSubscriptionEvent {
 const POLL_INTERVAL_MS = 2_500;
 
 /**
- * Keeps one phone copy of a Chat current. The first read follows the subscription ACK; the revision-chain policy
- * (holding patches during a read, replaying the newer ones, falling back to a fresh read on a gap, overflow, or invalid
- * payload) is the shared `createRevisionConvergence` core, and this reader owns the subscription, polling, timers, and
- * read serialization around it. Without a subscription the reader polls.
+ * Keeps one phone copy of a Chat current. The first read travels right behind the subscribe instead of waiting for its
+ * ACK, saving a round trip on a Relay; the Server turns a change it saw before the ACK into an `agentChat.changed`
+ * hint, so a read that predates the change is corrected by a second one. The revision-chain policy (holding patches
+ * during a read, replaying the newer ones, falling back to a fresh read on a gap, overflow, or invalid payload) is the
+ * shared `createRevisionConvergence` core, and this reader owns the subscription, polling, timers, and read
+ * serialization around it. Without a subscription the reader polls.
  */
 export const startAgentChatReader = ({
     onError,
@@ -45,7 +47,6 @@ export const startAgentChatReader = ({
     ) => Promise<AgentChatSubscription>;
 }): (() => void) => {
     let isActive = true;
-    let isReady = false;
     let isReading = false;
     let isReadAgain = false;
     let isResyncRequired = false;
@@ -149,8 +150,7 @@ export const startAgentChatReader = ({
                     return;
                 }
                 case 'agentChat.changed': {
-                    // Before the ACK, the first read already covers this change.
-                    if (isReady) void readLatest();
+                    void readLatest();
                     return;
                 }
                 default:
@@ -162,12 +162,11 @@ export const startAgentChatReader = ({
                     return;
                 }
                 handle = subscribed;
-                isReady = true;
-                void readLatest();
             })
             .catch(() => {
                 if (isActive && !isResyncRequired) startPolling();
             });
+        void readLatest();
     } else startPolling();
 
     return () => {

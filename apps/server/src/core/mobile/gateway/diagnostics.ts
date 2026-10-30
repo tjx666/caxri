@@ -213,9 +213,16 @@ export class MobileGatewayDiagnostics {
         this.logger?.write('info', logEventCatalog.mobileGateway.disabled, { fields: {} });
     }
 
-    connectionEstablished(deviceId: string, route: MobileConnectionRoute): void {
+    /**
+     * `timing` holds the flat handshake durations from `handshakeTimingFields`, so a slow reconnect names its slow leg.
+     */
+    connectionEstablished(
+        deviceId: string,
+        route: MobileConnectionRoute,
+        timing: Record<string, number> = {},
+    ): void {
         this.logger?.write('info', logEventCatalog.mobileGateway.connectionEstablished, {
-            fields: { deviceId, route },
+            fields: { deviceId, route, ...timing },
         });
     }
 

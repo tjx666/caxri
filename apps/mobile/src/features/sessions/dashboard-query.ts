@@ -1,6 +1,10 @@
 import type { MobileConnectionStatus } from '../connection/connection-state';
 
-export type DashboardSubscriptionMode = 'active' | 'fallback' | 'pending';
+/**
+ * `sent` means the subscribe frame is on the wire but not yet acknowledged; the first read may already travel behind
+ * it.
+ */
+export type DashboardSubscriptionMode = 'active' | 'fallback' | 'pending' | 'sent';
 
 interface DashboardSubscriptionHandle {
     unsubscribe(): Promise<void>;
@@ -36,8 +40,10 @@ export const dashboardPollInterval = (
 ): number | false => (isObservable && subscriptionMode === 'fallback' ? 2_500 : false);
 
 /**
- * The subscription acknowledgement must precede the snapshot read. A late acknowledgement after unmount is removed from
- * its original connection and cannot turn a hidden dashboard observer back on.
+ * Reports `sent` as soon as the subscribe frame left, so the snapshot read follows it on the same ordered socket
+ * instead of waiting a round trip for the acknowledgement; the Server turns a change it saw before acknowledging into a
+ * `dashboard.changed` push. A late acknowledgement after unmount is removed from its original connection and cannot
+ * turn a hidden dashboard observer back on.
  */
 export const startDashboardSubscription = (
     subscribe: (onEvent: (event: DashboardEvent) => void) => Promise<DashboardSubscriptionHandle>,
@@ -57,7 +63,7 @@ export const startDashboardSubscription = (
     };
     const attach = async (): Promise<void> => {
         try {
-            const subscribed = await subscribe((event) => {
+            const pending = subscribe((event) => {
                 if (isDisposed || isResyncRequired) return;
                 onEvent(event);
                 if (event.kind !== 'resync-required') return;
@@ -65,6 +71,8 @@ export const startDashboardSubscription = (
                 onMode('fallback');
                 onResyncRequired();
             });
+            if (!isDisposed && !isResyncRequired) onMode('sent');
+            const subscribed = await pending;
             if (isDisposed) {
                 await unsubscribe(subscribed);
                 return;

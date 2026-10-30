@@ -59,6 +59,8 @@ import { isFastMobileRead } from './mobile-read-timeouts';
 import { pairingClientHello } from './pairing-client-hello';
 import { pairingCredential } from './pairing-credential';
 import { createPairingSocketRuntime } from './pairing-socket-runtime';
+import type { MobileRouteHints } from './route-hints';
+import { reconnectDirectGrace } from './route-hints';
 import { connectionClosedError } from './socket-reader';
 
 const READ_REQUEST_TIMEOUT_MS = 3_000;
@@ -77,6 +79,14 @@ export interface MobileGatewayRuntime {
     openWebSocket(url: string): WebSocket;
     platform: 'android' | 'ios';
     randomBytes(length: number): Uint8Array;
+    /**
+     * Whether the phone is on cellular data, where home LAN addresses cannot answer; absent in tests.
+     */
+    isCellular?: () => Promise<boolean>;
+    /**
+     * Shortens the direct-only head start when the Relay won last time; absent while pairing and in tests.
+     */
+    routeHints?: MobileRouteHints;
 }
 
 const mobileReadySchema = z.strictObject({
@@ -134,7 +144,6 @@ export class MobileGatewayConnection {
     #deferredMutation?: DeferredFailure;
     #isForeground = false;
     #outstandingMutations = 0;
-    #subscriptionQueue = Promise.resolve();
     #termination?: MobileGatewayTermination;
 
     constructor(
@@ -351,17 +360,14 @@ export class MobileGatewayConnection {
         }
     }
 
+    /**
+     * Sends the subscribe frame before returning its first promise tick, so a read issued right after it travels behind
+     * it on the same socket. Several subscriptions may await acknowledgement at once.
+     */
     async subscribe(
         resource: MobileSubscriptionResource,
         listener: MobileSubscriptionListener,
     ): Promise<MobileGatewaySubscriptionHandle> {
-        const previousSubscription = this.#subscriptionQueue;
-        let releaseSubscription!: () => void;
-        // eslint-disable-next-line unicorn/prefer-promise-with-resolvers -- React Native does not provide Promise.withResolvers.
-        this.#subscriptionQueue = new Promise<void>((resolve) => {
-            releaseSubscription = resolve;
-        });
-        await previousSubscription;
         let id: string | undefined;
         try {
             id = `mobile_${encodeHex(this.#session.runtime.randomBytes(16))}`;
@@ -401,7 +407,6 @@ export class MobileGatewayConnection {
             };
         } finally {
             if (id) this.#router.endSubscriptionRequest(id);
-            releaseSubscription();
         }
     }
 
@@ -535,9 +540,11 @@ export const reconnectMobileGateway = async (
 ): Promise<MobileGatewayConnection> => {
     const clientSecretKey = runtime.randomBytes(X25519_KEY_BYTES);
     const clientNonce = runtime.randomBytes(HANDSHAKE_NONCE_BYTES);
+    const directGraceMs = await reconnectDirectGrace({ ...runtime, ...credential });
     let session: EstablishedSession;
     try {
         session = await establish({
+            directGraceMs,
             routes: pairedGatewayRoutes({
                 ...credential,
                 purpose: 'device',
@@ -567,6 +574,7 @@ export const reconnectMobileGateway = async (
         const ready = mobileReadySchema.parse(await receiveSealed(session, HANDSHAKE_TIMEOUT_MS));
         if (ready.deviceId !== credential.deviceId || ready.generation !== credential.generation)
             throw new Error('Caxri returned an unexpected device identity.');
+        runtime.routeHints?.save(credential.serverId, session.route);
         return new MobileGatewayConnection(
             session,
             async () => {

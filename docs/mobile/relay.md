@@ -52,7 +52,10 @@ vanished without a close frame becomes `peer-gone`.
 
 A pairing link carries `relay` and `relay-host` when the Server has a Relay configured; the phone
 stores both with its credential. Each connection races the direct addresses first and adds the Relay
-after a 2.5 second grace, or immediately once every direct address has failed. While a session is on
+after a 2.5 second grace, or immediately once every direct address has failed. The grace drops to
+300 ms when the Relay won the previous connection to that computer (remembered across app restarts)
+or when the phone is on cellular data and no stored address is on a tailnet: a LAN socket that
+answers at all opens well inside 300 ms, so a phone back home still connects directly. While a session is on
 the Relay and the app is in the foreground, the phone probes the direct addresses every 30 seconds;
 after three consecutive successes, with the Relay session at least 60 seconds old and no request in
 flight, it closes with `route-upgrade` and reconnects directly. Recovery after any switch uses the
@@ -137,3 +140,11 @@ minute. Logs never contain addresses, keys, tickets, or payload bytes; a host ID
 8-character prefix. `GET /health` returns the protocol version and current host and connection
 counts. On the Server, Mobile connection records carry a `route` of `lan` or `relay`, and the Relay
 connector records each state transition with a closed cause.
+
+`mobile_gateway.connection_established` splits a reconnect into its legs, all in milliseconds:
+`clientGraceMs` and `clientOpenMs` (the phone's route grace and its time until the socket was open,
+from the reconnect `hello`), `dialMs` (the Server's dial-back to the Relay), `helloWaitMs` (dial-back
+until the phone's `hello`, one phone round trip on the Relay), `confirmWaitMs` (one more round trip),
+`authMs` (the Server's own credential check), and `handshakeMs` (socket until ready). With
+`relay.connection_spliced`'s `setupMs` this names the slow leg of a reported slow reconnect; the
+benchmark that measures them on simulated links is in [performance.md](performance.md#relay-reconnect-latency).

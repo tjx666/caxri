@@ -273,8 +273,16 @@ describe('MobileGateway diagnostics', () => {
         });
         try {
             const client = await connectDevice(gateway, record);
+            // The fixed clock makes every handshake leg zero; the fields still name each leg.
             expect(write).toHaveBeenCalledWith('info', 'mobile_gateway.connection_established', {
-                fields: { deviceId: record.deviceId, route: 'lan' },
+                fields: {
+                    deviceId: record.deviceId,
+                    route: 'lan',
+                    handshakeMs: 0,
+                    helloWaitMs: 0,
+                    confirmWaitMs: 0,
+                    authMs: 0,
+                },
             });
             clock = 5_000;
             const closed = new Promise<void>((resolve) =>
@@ -460,6 +468,13 @@ describe('MobileGateway diagnostics', () => {
             'notFound',
             'terminalId',
             'principalKind',
+            'handshakeMs',
+            'helloWaitMs',
+            'confirmWaitMs',
+            'authMs',
+            'dialMs',
+            'clientGraceMs',
+            'clientOpenMs',
         ]);
         for (const call of write.mock.calls) {
             const fields = (call[2] as { fields: Record<string, unknown> }).fields;

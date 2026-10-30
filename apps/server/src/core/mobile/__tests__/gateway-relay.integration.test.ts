@@ -271,7 +271,12 @@ describe('MobileGateway over a real Relay', () => {
                 },
             });
             expect(write).toHaveBeenCalledWith('info', 'mobile_gateway.connection_established', {
-                fields: { deviceId: device.deviceId, route: 'relay' },
+                fields: expect.objectContaining({
+                    deviceId: device.deviceId,
+                    route: 'relay',
+                    dialMs: expect.any(Number) as number,
+                    handshakeMs: expect.any(Number) as number,
+                }) as unknown,
             });
 
             // The phone must read the sealed `revoked` frame before the Relay cuts the splice, or it never clears its

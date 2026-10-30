@@ -68,6 +68,38 @@ dominated by the Expo development shell, JavaScript loading, emulator scheduling
 observation; they identify the startup path as the first release-performance checkpoint but cannot
 attribute cost to a production component.
 
+## Relay reconnect latency
+
+`bun run benchmark:relay-link` (`scripts/relay-link-benchmark.ts`) runs the real Relay, a
+`MobileGateway` with canned replies, and the phone's own connection code from `apps/mobile` in one
+process. Two shaped TCP proxies (`scripts/link-shaping.ts`) sit in front of the Relay, one for the
+phone's leg and one for the computer's, each adding its round trip and its TCP plus TLS setup. The
+phone's stored LAN address points at a listener that never answers, the way a home address behaves
+away from home. Each profile starts with no route memory, so its first round (`cold readyMs`) pays the
+full direct-route grace; the median covers the later rounds. E is one phone-to-computer round trip
+through the Relay.
+
+| Metric             | Meaning                                                              |
+| ------------------ | -------------------------------------------------------------------- |
+| `readyMs`          | Reconnect until the encrypted session is ready                       |
+| `firstDashboardMs` | Reconnect until the first Session list snapshot arrived              |
+| `sessionOpenMs`    | Opening a Session (changes and Chat subscriptions) until Chat loaded |
+
+Medians of five warm rounds on 2026-10-30, before and after the route memory and pipelined
+subscribe-and-read changes. `sg-proxy` matches a phone reaching a Singapore Relay through a proxy
+(phone leg 90 ms, computer leg 60 ms); `cn-direct` matches a mainland direct connection (230 ms).
+
+| Profile     |   E | `readyMs` before → after | `firstDashboardMs` before → after | `sessionOpenMs` before → after |
+| ----------- | --: | -----------------------: | --------------------------------: | -----------------------------: |
+| `local`     |   0 |              2,527 → 332 |                       2,539 → 339 |                         16 → 7 |
+| `sg-proxy`  | 150 |            3,413 → 1,222 |                     3,717 → 1,379 |                      458 → 157 |
+| `cn-direct` | 290 |            4,256 → 2,055 |                     4,843 → 2,353 |                      878 → 294 |
+
+The cold round still pays the 2.5 second grace (3,422 ms on `sg-proxy`) unless the phone is on
+cellular data. Of the remaining warm reconnect, the phone's TLS setup to the Relay, the Server's
+dial-back, and the `relay-ready` round trip before the phone's `hello` are Relay protocol costs
+tracked separately.
+
 ## Release gate still required
 
 Before distribution:

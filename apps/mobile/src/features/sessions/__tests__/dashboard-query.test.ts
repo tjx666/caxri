@@ -58,7 +58,7 @@ describe('mobile dashboard query lifecycle', () => {
         expect(onConcurrentEvent).toHaveBeenCalledOnce();
     });
 
-    it('opens the dashboard read only after subscription acknowledgement', async () => {
+    it('opens the dashboard read once the subscribe frame is sent, before its acknowledgement', async () => {
         let acknowledge: (handle: { unsubscribe(): Promise<void> }) => void = () => {};
         let push: (event: { kind: string }) => void = () => {};
         const subscribe = vi.fn(
@@ -72,7 +72,8 @@ describe('mobile dashboard query lifecycle', () => {
         const onMode = vi.fn();
         const unsubscribe = vi.fn(async () => {});
         const stop = startDashboardSubscription(subscribe, onEvent, onMode, vi.fn());
-        expect(onMode).not.toHaveBeenCalled();
+        expect(onMode).toHaveBeenCalledExactlyOnceWith('sent');
+        expect(dashboardPollInterval(true, 'sent')).toBe(false);
         acknowledge({ unsubscribe });
         await vi.waitFor(() => expect(onMode).toHaveBeenLastCalledWith('active'));
         push({ kind: 'dashboard.changed' });
@@ -96,7 +97,7 @@ describe('mobile dashboard query lifecycle', () => {
         stop();
         acknowledge({ unsubscribe });
         await vi.waitFor(() => expect(unsubscribe).toHaveBeenCalledOnce());
-        expect(onMode).not.toHaveBeenCalled();
+        expect(onMode).not.toHaveBeenCalledWith('active');
     });
 
     it('enters polling fallback after a subscription failure', async () => {
