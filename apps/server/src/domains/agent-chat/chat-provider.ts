@@ -124,6 +124,19 @@ export function isDeliveryUnknown(error: unknown): boolean {
 }
 
 /**
+ * A steer the provider refused because its running turn takes no steered input, such as a Codex review or compaction
+ * turn. Nothing reached the provider, so the service queues the message behind that turn instead of failing it, as the
+ * Codex TUI does. `details.turnNotSteerable` marks it.
+ */
+export function turnNotSteerableError(message: string): CaxriError {
+    return new CaxriError('CONFLICT', message, { turnNotSteerable: true });
+}
+
+export function isTurnNotSteerable(error: unknown): boolean {
+    return isCaxriError(error) && error.details?.turnNotSteerable === true;
+}
+
+/**
  * Bounded tail of an Agent Session's transcript. `truncated` is true when older records were cut off.
  */
 export interface AgentChatTranscript {

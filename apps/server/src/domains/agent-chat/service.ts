@@ -1,5 +1,3 @@
-import { randomUUID } from 'node:crypto';
-
 import type {
     AgentChatMessageInput,
     AgentChatModelRequest,
@@ -25,7 +23,7 @@ import { ChatMobileWatchers } from './chat-mobile-watchers';
 import { ChatPermissionSwitches } from './chat-permission-switch';
 import type { AgentChatProviderSession, ChatSideExchange } from './chat-provider';
 import * as queueActions from './chat-queue-actions';
-import { saveChatDefaults, sendStartingTurn } from './chat-session-logs';
+import { saveChatDefaults } from './chat-session-logs';
 import type { ChatStartHost } from './chat-start';
 import { ensureChatStarted } from './chat-start';
 import type { ChatState, ChatStateDelivery, ChatStopper } from './chat-states';
@@ -278,18 +276,9 @@ export class AgentChatService {
         assertE2EAgentChatInput(readE2EAgentPolicy(), message.text);
         this.states.assertUsage(terminalId, 'chat_send');
         if (origin === 'human') this.delegation.observeHumanInput(terminalId);
-        await this.enqueue(terminalId, async (session, state) => {
-            if (delivery === 'steer' && state.projection.snapshot.activeTurnId) {
-                await session.send(message, { delivery: 'steered' });
-                state.followUps.logSteered();
-                return;
-            }
-            if (state.followUps.mustWait()) {
-                state.followUps.add({ id: randomUUID(), kind: 'message', message });
-                return;
-            }
-            await sendStartingTurn(session, state, message);
-        });
+        await this.enqueue(terminalId, (session, state) =>
+            queueActions.deliverChatMessage(session, state, message, delivery),
+        );
     }
 
     async runCommand(terminalId: string, name: string, arguments_?: string): Promise<void> {
