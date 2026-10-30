@@ -326,7 +326,7 @@ export const openGatewaySocket = (
     const hasRelay = routes.some((route) => route.kind === 'relay');
     const sockets: WebSocket[] = [];
     let openRelayLatch = (): void => {};
-    // eslint-disable-next-line unicorn/prefer-promise-with-resolvers -- The Mobile TypeScript target does not include the ES2024 API.
+    // The Mobile runtime target is ES2022, without `Promise.withResolvers`.
     const released = new Promise<void>((resolve) => {
         openRelayLatch = resolve;
     });
