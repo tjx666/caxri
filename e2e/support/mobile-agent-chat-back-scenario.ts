@@ -44,7 +44,7 @@ const LIGHT_LEVEL = 220;
 /**
  * Share of light pixels that marks a frame as a light flash; ordinary Chat content stays far below it.
  */
-const FLASH_SHARE = 0.3;
+const FLASH_SHARE = 0.15;
 
 const search = (index: number): FakeClaudeScriptStep => ({
     kind: 'tool',
@@ -89,13 +89,15 @@ const lightShare = ({ data }: GrayFrame): number => {
 };
 
 /**
- * Opens the Chat from its Session row, lets it settle, and films one Back. Returns the light share of every frame.
+ * Opens the Chat from its Session row, lets it settle, and films one Back gesture. Returns the light share of every
+ * frame.
  */
 async function filmOneBack({
     analysis,
     artifacts,
     band,
     cycle,
+    display,
     environment,
     sessionId,
 }: {
@@ -103,10 +105,13 @@ async function filmOneBack({
     artifacts: string[];
     band: { bottom: number; top: number };
     cycle: number;
+    display: { height: number; width: number };
     environment: MobileAgentScenarioEnvironment & { remoteVideoPath: string };
     sessionId: string;
 }): Promise<number[]> {
     const { remoteVideoPath, serial } = environment;
+    const { width } = display;
+    const swipeY = Math.floor(display.height / 2);
     const row = await waitForMobile(
         async () =>
             (await mobileSemantics(serial)).find(
@@ -127,7 +132,16 @@ async function filmOneBack({
     if (cycle === 0) await capture(environment, 'opened', artifacts);
     const recording = await startMobileFramebufferRecording(serial, remoteVideoPath);
     try {
-        await adbShell(serial, ['input', 'keyevent', 'KEYCODE_BACK']);
+        // The system Back gesture from the left edge, the way the flash was reported.
+        await adbShell(serial, [
+            'input',
+            'swipe',
+            '2',
+            String(swipeY),
+            String(Math.floor(width * 0.7)),
+            String(swipeY),
+            '150',
+        ]);
         await pause(WATCH_MS);
     } finally {
         await recording.stop();
@@ -166,7 +180,8 @@ export async function executeMobileChatBackScenario(
         await chat.send({ text: PROMPT });
         await waitForMobile(() => chat.read(), isFinished, 60_000);
         const { size } = await mobileDisplayState(serial);
-        const { height } = size.override ?? size.physical;
+        const display = size.override ?? size.physical;
+        const { height } = display;
         // Below the status bar and above the navigation bar, which the app does not draw.
         const band = { top: Math.floor(height * 0.06), bottom: Math.floor(height * 0.94) };
         const shares: number[][] = [];
@@ -177,6 +192,7 @@ export async function executeMobileChatBackScenario(
                 artifacts,
                 band,
                 cycle,
+                display,
                 environment: { ...environment, remoteVideoPath },
                 sessionId,
             });
