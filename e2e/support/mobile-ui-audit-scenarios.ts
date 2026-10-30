@@ -477,6 +477,13 @@ async function sessionSearch(
     await waitFor(serial, (nodes) => hasCheck(nodes, 'session-search-empty'));
     await capture(environment, 'no-results', artifacts, 'session-search-empty');
     await tapMobileCheck(serial, 'session-search-clear');
+    await adbShell(serial, ['input', 'text', sessionId.slice(0, 8)]);
+    await waitFor(
+        serial,
+        (nodes) => hasCheck(nodes, 'session-search-clear') && hasCheck(nodes, result),
+    );
+    await capture(environment, 'id-match', artifacts, result);
+    await tapMobileCheck(serial, 'session-search-clear');
 
     await pageRequest(fixture.running.page, 'session.archive', { sessionId });
     if ((await sessionTitle(fixture, sessionId)).archivedAt === undefined)
@@ -505,6 +512,8 @@ async function sessionSearch(
     }
     await finish(environment, artifacts, {
         archivedResult: 'restored-and-opened',
+        desktopArchivedAfterOpen: false,
+        idMatch: 'listed',
         noResults: 'empty-state',
         offline: 'reconnect-message',
         recent: 'listed-without-query',
