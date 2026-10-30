@@ -10,6 +10,7 @@ export const session = {
     'session.create.newInProject': 'New Session in {{project}}',
     'session.create.actionInProject': '{{action}} in {{project}}',
     'session.create.withoutTerminal': 'Empty Session',
+    'session.create.lastUsed': 'Last used',
     'session.create.importFromHistory': 'Import from History…',
     'session.createDialog.title': 'Start a Session',
     'session.createDialog.titleInProject': 'Start a Session in {{project}}',
@@ -136,6 +137,9 @@ export const session = {
     'session.search.preview.later': 'Later messages not shown',
     'session.search.helpMatch': '⌥↑↓ Match',
     'session.search.clearFilters': 'Clear filters',
+    'session.search.retry': 'Retry',
+    'session.search.operatorHint':
+        'Narrow with agent:codex, project:name, before:2026-10-01, or after:2026-09-01',
     'session.search.importFailed': 'Could not add the conversation to Caxri',
     'session.search.imported': 'Added "{{title}}" to Caxri',
 

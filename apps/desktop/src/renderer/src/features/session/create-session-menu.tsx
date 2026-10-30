@@ -214,6 +214,7 @@ function SessionCreationMenu({
                 <AgentChoiceMenuItems
                     defaultAgent={defaultAgent}
                     openInChat={openInChat}
+                    repeatedKind={anchor === 'heading' ? (splitKind ?? undefined) : undefined}
                     onChoose={(kind) => chooseSessionTerminalKind(project.id, kind)}
                 />
                 <MenuSeparator />

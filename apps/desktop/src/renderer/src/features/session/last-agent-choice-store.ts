@@ -23,6 +23,18 @@ export function parseLastAgentChoice(stored: unknown): LastAgentChoice {
     return { kind: parsed.success ? parsed.data : undefined };
 }
 
+/**
+ * The Agent row of the heading's list that a press of the split button repeats and that is not already marked
+ * `Default`: the remembered pick when no default Agent is configured. A configured default wins over the remembered
+ * pick and carries the `Default` marker, so it never also reads "Last used".
+ */
+export function isLastUsedAgentRow(
+    kind: TerminalKind,
+    { isDefault, repeatedKind }: { isDefault: boolean; repeatedKind: TerminalKind | undefined },
+): boolean {
+    return !isDefault && repeatedKind !== undefined && kind === repeatedKind;
+}
+
 export const useLastAgentChoiceStore = createStore<LastAgentChoice>('last-agent-choice', () =>
     parseLastAgentChoice(readLocalStorageJson(LAST_AGENT_CHOICE_STORAGE_KEY)),
 );

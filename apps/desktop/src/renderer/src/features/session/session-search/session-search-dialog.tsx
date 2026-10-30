@@ -197,8 +197,11 @@ function SessionSearchContent({
     const { t } = useTranslation();
     if (search.isError)
         return (
-            <div className="flex-1 p-4 text-center text-danger" role="alert">
-                {t('session.search.failed')}
+            <div className="flex flex-1 flex-col items-center gap-3 p-4 text-center" role="alert">
+                <span className="text-danger">{t('session.search.failed')}</span>
+                <Button size="sm" variant="secondary" onClick={search.refetch}>
+                    {t('session.search.retry')}
+                </Button>
             </div>
         );
     if (search.isLoading)
@@ -216,7 +219,8 @@ function SessionSearchContent({
         return (
             <div className="flex flex-1 flex-col items-center gap-3 p-4 text-center text-muted">
                 <span>{t(sessionSearchEmptyKey(search))}</span>
-                {hasActiveSearchFilters(search.status, search.provider) && (
+                {(hasActiveSearchFilters(search.status, search.provider) ||
+                    search.filterChips.length > 0) && (
                     <Button size="sm" variant="secondary" onClick={search.clearFilters}>
                         {t('session.search.clearFilters')}
                     </Button>
@@ -226,6 +230,11 @@ function SessionSearchContent({
     const relaxedKey = sessionSearchRelaxationNoticeKey(search.result?.relaxation);
     return (
         <>
+            {search.query.trim() === '' && (
+                <div className="flex-none px-3 py-1.5 text-[12px] text-muted">
+                    {t('session.search.operatorHint')}
+                </div>
+            )}
             {relaxedKey && (
                 <div
                     className="flex-none border-b border-border bg-elevated px-3 py-1.5 text-[12px] text-muted"

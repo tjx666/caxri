@@ -6,6 +6,7 @@ import {
     nextProviderFilter,
     nextStatusFilter,
     removeSessionSearchOperator,
+    removeSessionSearchOperators,
     retainedSelectionIndex,
     sessionSearchAction,
     sessionSearchFilterChips,
@@ -227,5 +228,18 @@ describe('Session search model', () => {
         expect(retainedSelectionIndex(rows('new', 'a', 'b', 'c'), 'c')).toBe(3);
         expect(retainedSelectionIndex(rows('a', 'b'), 'c')).toBe(0);
         expect(retainedSelectionIndex(rows('a', 'b'), undefined)).toBe(0);
+    });
+});
+
+describe('removeSessionSearchOperators', () => {
+    it('strips every parsed operator and keeps plain words', () => {
+        const query = 'agent:codex invoice project:"Two Words" before:2026-10-01 agent:foo';
+        const chips = sessionSearchFilterChips({
+            agents: ['codex'],
+            projects: ['two words'],
+            before: '2026-10-01',
+            after: undefined,
+        } as never);
+        expect(removeSessionSearchOperators(query, chips)).toBe('invoice agent:foo');
     });
 });

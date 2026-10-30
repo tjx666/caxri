@@ -15,7 +15,9 @@ import type {
 } from './session-search-model';
 import {
     removeSessionSearchOperator,
+    removeSessionSearchOperators,
     retainedSelectionIndex,
+    sessionSearchFilterChips,
     sortSessionSearchEntries,
 } from './session-search-model';
 
@@ -92,6 +94,10 @@ export function useSessionSearch() {
         setSelectionScope(selectionKey);
         setSelectedKey(undefined);
     }
+    const filterChips = useMemo(
+        () => sessionSearchFilterChips(response.data?.filters),
+        [response.data],
+    );
     const selectedIndex = retainedSelectionIndex(entries, selectedKey);
     return {
         query,
@@ -117,10 +123,23 @@ export function useSessionSearch() {
          */
         removeFilterChip: (chip: SessionSearchFilterChip) =>
             setQuery((current) => removeSessionSearchOperator(current, chip)),
+        /**
+         * Parsed operator chips for the listed results; they count as active filters even when Where and Agent are
+         * untouched.
+         */
+        filterChips,
+        /**
+         * Resets Where and Agent and deletes every parsed operator from the query.
+         */
         clearFilters: () => {
             setStatus('all');
             setProvider(undefined);
+            setQuery((current) => removeSessionSearchOperators(current, filterChips));
         },
+        /**
+         * Re-runs the failed search; the promise is not awaited because a failure lands in `isError` again.
+         */
+        refetch: () => response.refetch(),
         result: response.data,
         entries,
         selectedIndex,
