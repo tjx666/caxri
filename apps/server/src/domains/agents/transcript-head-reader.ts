@@ -5,6 +5,8 @@ import { open } from 'node:fs/promises';
 import { StringDecoder } from 'node:string_decoder';
 
 import { compactInlineMediaPayloads } from './inline-media';
+import type { TranscriptByteReader } from './transcript-compression';
+import { isCompressedTranscriptPath, sequentialDecompressedReader } from './transcript-compression';
 
 /**
  * Bounded line reads of one provider transcript for `external-conversation-parsers.ts`, which never reads a whole
@@ -44,7 +46,7 @@ const STRADDLING_RECORD_MAX_CHARS = 256 * 1024;
  * @yields {Record<string, unknown>} Each line that parses as a JSON object.
  */
 export async function* readJsonRecords(
-    handle: FileHandle,
+    handle: TranscriptByteReader,
     start: number,
     end: number,
     lineLimit = end,
@@ -55,6 +57,10 @@ export async function* readJsonRecords(
     let position = start;
     let pending = '';
     let isFragmentPending = start > 0;
+    /**
+     * A read returned nothing before `end`: the transcript ended early, as a compressed one of unknown length does.
+     */
+    let isEof = false;
     const parse = (line: string) => {
         try {
             const value: unknown = JSON.parse(line);
@@ -74,7 +80,10 @@ export async function* readJsonRecords(
             Math.min(HEAD_CHUNK_BYTES, end - position),
             position,
         );
-        if (bytesRead === 0) break;
+        if (bytesRead === 0) {
+            isEof = true;
+            break;
+        }
         position += bytesRead;
         pending += decoder.write(buffer.subarray(0, bytesRead));
         const lines = pending.split('\n');
@@ -99,7 +108,10 @@ export async function* readJsonRecords(
             Math.min(HEAD_CHUNK_BYTES, straddleLimit - position),
             position,
         );
-        if (bytesRead === 0) break;
+        if (bytesRead === 0) {
+            isEof = true;
+            break;
+        }
         position += bytesRead;
         pending = compactInlineMediaPayloads(
             pending + decoder.write(buffer.subarray(0, bytesRead)),
@@ -112,7 +124,7 @@ export async function* readJsonRecords(
         }
     }
     // A final line without a newline is complete only at EOF.
-    if (position < lineLimit || pending.length > STRADDLING_RECORD_MAX_CHARS) {
+    if ((!isEof && position < lineLimit) || pending.length > STRADDLING_RECORD_MAX_CHARS) {
         if (outcome) outcome.hasDroppedRecord = true;
         return;
     }
@@ -123,11 +135,21 @@ export async function* readJsonRecords(
 /**
  * The head of a transcript: its first `HEAD_BUDGET_BYTES`, plus the rest of the record that budget cuts off.
  */
-export function readHeadRecords(handle: FileHandle, size: number, outcome?: HeadReadOutcome) {
+export function readHeadRecords(
+    handle: TranscriptByteReader,
+    size: number,
+    outcome?: HeadReadOutcome,
+) {
     return readJsonRecords(handle, 0, Math.min(size, HEAD_BUDGET_BYTES), size, outcome);
 }
 
-export async function openTranscript(path: string) {
+/**
+ * Opens a transcript for bounded reads. A compressed Codex rollout has no decompressed size until it is read, so its
+ * `size` is unbounded and its reads must run sequentially from the start, which every Codex head read does.
+ */
+export async function openTranscript(
+    path: string,
+): Promise<{ handle: TranscriptByteReader; size: number } | undefined> {
     let handle: FileHandle;
     try {
         handle = await open(path, constants.O_RDONLY | constants.O_NONBLOCK | constants.O_NOFOLLOW);
@@ -136,7 +158,10 @@ export async function openTranscript(path: string) {
     }
     try {
         const metadata = await handle.stat();
-        if (metadata.isFile()) return { handle, size: metadata.size };
+        if (metadata.isFile())
+            return isCompressedTranscriptPath(path)
+                ? { handle: sequentialDecompressedReader(handle), size: Number.MAX_SAFE_INTEGER }
+                : { handle, size: metadata.size };
     } catch {
         // An entry that cannot be inspected is closed and skipped like a non-file one.
     }

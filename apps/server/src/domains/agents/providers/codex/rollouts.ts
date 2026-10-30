@@ -2,6 +2,7 @@ import { basename } from 'node:path';
 
 import Database from 'better-sqlite3';
 
+import { COMPRESSED_TRANSCRIPT_SUFFIX } from '../../transcript-compression';
 import type { SqliteColumn } from './state-databases';
 import { findCodexStateDatabases } from './state-databases';
 
@@ -37,6 +38,25 @@ export function parseCodexRolloutName(name: string): CodexRolloutName | undefine
     return { threadId, rolloutId: match.at(2) ?? threadId };
 }
 
+export interface CodexRolloutFile extends CodexRolloutName {
+    /**
+     * The rollout is stored as `<canonical name>.zst`; see `transcript-compression.ts`.
+     */
+    isCompressed: boolean;
+}
+
+/**
+ * Parses a rollout file name in either storage form: the canonical `.jsonl` or the `.jsonl.zst` Codex compresses a cold
+ * rollout into. {@link CODEX_ROLLOUT_NAME_PATTERN} stays canonical-only for the readers that need an appendable file.
+ */
+export function parseCodexRolloutFile(name: string): CodexRolloutFile | undefined {
+    const isCompressed = name.toLowerCase().endsWith(COMPRESSED_TRANSCRIPT_SUFFIX);
+    const rollout = parseCodexRolloutName(
+        isCompressed ? name.slice(0, -COMPRESSED_TRANSCRIPT_SUFFIX.length) : name,
+    );
+    return rollout && { ...rollout, isCompressed };
+}
+
 /**
  * The rollout ID that currently carries a Codex thread's new turns. Codex projects `thread_turns` per rollout, so after
  * a revert the running turn is keyed by the new rollout ID rather than the thread ID; `threads.rollout_path` is the
@@ -65,10 +85,7 @@ export async function readCodexCurrentRolloutId(
                 .get(threadId) as { rollout_path: unknown } | undefined;
             if (!row) continue;
             if (typeof row.rollout_path !== 'string') return;
-            // A compressed rollout keeps its canonical `.jsonl` name before the compression suffix.
-            const rollout = parseCodexRolloutName(
-                basename(row.rollout_path).replace(/\.zst$/i, ''),
-            );
+            const rollout = parseCodexRolloutFile(basename(row.rollout_path));
             if (rollout?.threadId.toLowerCase() !== threadId.toLowerCase()) return;
             return rollout.rolloutId.toLowerCase() === threadId.toLowerCase()
                 ? undefined

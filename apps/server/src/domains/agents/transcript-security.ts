@@ -42,8 +42,12 @@ export interface SafeOpenedAgentTranscript {
  * - `structureRejected`: a resolved path fell outside the base/root/anchor ancestry it must nest under.
  * - `openFailed`: an `lstat`/`open`/`stat` call failed for a reason other than the file being missing.
  * - `readFailed`: the transcript opened successfully but a later read of its bytes failed.
+ * - `decompressFailed`: a compressed transcript's stream was corrupt or truncated; lines before the fault were scanned.
+ * - `decompressLimit`: a compressed transcript decompressed past its read bound; lines before the bound were scanned.
  */
 export type TranscriptScanFailureReason =
+    | 'decompressFailed'
+    | 'decompressLimit'
     | 'hardlinkRejected'
     | 'identityMismatch'
     | 'missing'

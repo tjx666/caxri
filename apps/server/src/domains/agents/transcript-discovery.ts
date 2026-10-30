@@ -8,8 +8,9 @@ import type { AgentEnvironment } from './contract';
 import { isOpaqueAgentSessionId } from './contract';
 import { agentProviders } from './providers';
 import { resolveCodexHome } from './providers/codex/paths';
-import { parseCodexRolloutName } from './providers/codex/rollouts';
+import { parseCodexRolloutFile } from './providers/codex/rollouts';
 import { grokHome, readGrokCwdMarker } from './providers/grok/paths';
+import { COMPRESSED_TRANSCRIPT_SUFFIX } from './transcript-compression';
 import type { AgentTranscriptLocation } from './transcript-security';
 import { openSafeAgentTranscript } from './transcript-security';
 
@@ -53,6 +54,14 @@ export interface DiscoveredTranscript {
      * The file continues a conversation another file already holds; see `UsageParserOptions.isContinuation`.
      */
     isContinuation: boolean;
+}
+
+export interface DiscoverTranscriptsOptions {
+    /**
+     * Also lists Codex rollouts stored compressed as `.jsonl.zst`. Only a reader that streams them through
+     * `transcript-compression.ts` may ask: the byte-cursor readers expect an appendable file.
+     */
+    includeCompressed?: boolean;
 }
 
 interface DirectoryEntry {
@@ -137,11 +146,23 @@ async function discoverClaude(environment: AgentEnvironment): Promise<Discovered
 async function codexRolloutsIn(
     root: string,
     location: Pick<AgentTranscriptLocation, 'anchorRoot' | 'baseRoot'>,
+    options: DiscoverTranscriptsOptions,
 ): Promise<DiscoveredTranscript[]> {
     const names = await fileNames(root);
+    const plainNames = new Set(names.map((name) => name.toLowerCase()));
     return names.flatMap((name) => {
-        const rollout = parseCodexRolloutName(name);
+        const rollout = parseCodexRolloutFile(name);
         if (!rollout) return [];
+        /**
+         * Codex materializes a compressed rollout back to `.jsonl` before appending and removes the `.zst` afterwards,
+         * so while both exist the plain file is current; reading both would index every message twice.
+         */
+        if (
+            rollout.isCompressed &&
+            (!options.includeCompressed ||
+                plainNames.has(name.slice(0, -COMPRESSED_TRANSCRIPT_SUFFIX.length).toLowerCase()))
+        )
+            return [];
         return [
             {
                 provider: 'codex' as const,
@@ -177,11 +198,14 @@ async function codexDayFolders(
 }
 
 /**
- * `$CODEX_HOME/sessions/YYYY/MM/DD/rollout-*.jsonl` plus the flat `archived_sessions` folder Codex moves archived
+ * `$CODEX_HOME/sessions/YYYY/MM/DD/rollout-*.jsonl[.zst]` plus the flat `archived_sessions` folder Codex moves archived
  * threads into. Walked newest first so the transcript budget drops the oldest history. Every file is its own entry: a
  * reverted thread's `<thread>_<rollout>` continuation sits beside the original rollout it continues.
  */
-async function discoverCodex(environment: AgentEnvironment): Promise<DiscoveredTranscript[]> {
+async function discoverCodex(
+    environment: AgentEnvironment,
+    options: DiscoverTranscriptsOptions,
+): Promise<DiscoveredTranscript[]> {
     const codexHome = resolveCodexHome(environment);
     const sessionsRoot = join(codexHome, 'sessions');
     const found: DiscoveredTranscript[] = [];
@@ -189,11 +213,18 @@ async function discoverCodex(environment: AgentEnvironment): Promise<DiscoveredT
     for (const { baseRoot, root } of days) {
         if (found.length >= MAX_TRANSCRIPTS) return found;
         // eslint-disable-next-line no-await-in-loop -- one directory at a time bounds open handles
-        found.push(...(await codexRolloutsIn(root, { anchorRoot: sessionsRoot, baseRoot })));
+        const rollouts = await codexRolloutsIn(
+            root,
+            { anchorRoot: sessionsRoot, baseRoot },
+            options,
+        );
+        found.push(...rollouts);
     }
-    const archived = await codexRolloutsIn(join(codexHome, 'archived_sessions'), {
-        baseRoot: codexHome,
-    });
+    const archived = await codexRolloutsIn(
+        join(codexHome, 'archived_sessions'),
+        { baseRoot: codexHome },
+        options,
+    );
     return [...found, ...archived];
 }
 
@@ -253,7 +284,10 @@ async function discoverGrok(environment: AgentEnvironment): Promise<DiscoveredTr
  */
 const discoverers: Record<
     AgentProvider,
-    (environment: AgentEnvironment) => Promise<DiscoveredTranscript[]>
+    (
+        environment: AgentEnvironment,
+        options: DiscoverTranscriptsOptions,
+    ) => Promise<DiscoveredTranscript[]>
 > = {
     claude: discoverClaude,
     codex: discoverCodex,
@@ -266,9 +300,10 @@ const discoverers: Record<
  */
 export async function discoverTranscripts(
     environment: AgentEnvironment,
+    options: DiscoverTranscriptsOptions = {},
 ): Promise<DiscoveredTranscript[]> {
     const providers = Object.values(discoverers);
-    const lists = await Promise.all(providers.map((discover) => discover(environment)));
+    const lists = await Promise.all(providers.map((discover) => discover(environment, options)));
     return lists.flat().slice(0, MAX_TRANSCRIPTS);
 }
 

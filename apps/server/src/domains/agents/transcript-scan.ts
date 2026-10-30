@@ -1,6 +1,15 @@
 import { Buffer } from 'node:buffer';
 
-import type { AgentTranscriptLocation, TranscriptScanFailureReason } from './transcript-security';
+import {
+    DecompressLimitError,
+    decompressTranscript,
+    isCompressedTranscriptPath,
+} from './transcript-compression';
+import type {
+    AgentTranscriptLocation,
+    SafeOpenedAgentTranscript,
+    TranscriptScanFailureReason,
+} from './transcript-security';
 import { openSafeAgentTranscript } from './transcript-security';
 
 const MAX_TRANSCRIPT_SCAN_BYTES_PER_READ = 4 * 1024 * 1024;
@@ -45,6 +54,61 @@ export interface TranscriptScanOptions {
 }
 
 /**
+ * Feeds every line of a compressed transcript in one streaming pass. Such a file is never appended to (Codex
+ * materializes it back to `.jsonl` first), so its cursor is either zero or the compressed size, and its last line is
+ * complete even without a trailing newline. A line past the per-pass limit is skipped like an oversized plain record. A
+ * corrupt stream or one past the decompression bound keeps the lines already delivered and reports why it stopped.
+ */
+async function scanCompressedTranscript(
+    { handle, stats }: SafeOpenedAgentTranscript,
+    cursor: TranscriptScanCursor,
+    scanLine: (line: string) => void,
+    options: TranscriptScanOptions,
+): Promise<number> {
+    if (cursor.offset >= stats.size) return stats.size;
+    if (cursor.offset > 0) options.onReset?.();
+    cursor.offset = 0;
+    cursor.skippingOversizedLine = false;
+    let pending: Buffer[] = [];
+    let pendingBytes = 0;
+    let isSkipping = false;
+    const take = (bytes: Buffer) => {
+        if (isSkipping) return;
+        pending.push(bytes);
+        pendingBytes += bytes.length;
+        if (pendingBytes < MAX_TRANSCRIPT_SCAN_BYTES_PER_READ) return;
+        pending = [];
+        pendingBytes = 0;
+        isSkipping = true;
+    };
+    const flush = () => {
+        if (!isSkipping) scanLine(Buffer.concat(pending).toString('utf8'));
+        pending = [];
+        pendingBytes = 0;
+        isSkipping = false;
+    };
+    try {
+        for await (const chunk of decompressTranscript(handle)) {
+            let start = 0;
+            for (let end = chunk.indexOf(0x0a); end !== -1; end = chunk.indexOf(0x0a, start)) {
+                take(chunk.subarray(start, end));
+                flush();
+                start = end + 1;
+            }
+            if (start < chunk.length) take(chunk.subarray(start));
+        }
+        if (pendingBytes > 0) flush();
+    } catch (error) {
+        options.onFailure?.(
+            error instanceof DecompressLimitError ? 'decompressLimit' : 'decompressFailed',
+        );
+    }
+    // Marked read either way: an unchanged file would fail the same way, and a new identity rescans it from the start.
+    cursor.offset = stats.size;
+    return stats.size;
+}
+
+/**
  * Incrementally feeds complete transcript lines to `scanLine`, reading only the bytes appended since the cursor's last
  * visit. Frequent background polls therefore never rescan a multi-megabyte transcript. The final line may lack a
  * trailing newline; it is scanned without consuming so a later append re-delivers it complete. A missing or unreadable
@@ -61,6 +125,8 @@ export async function scanTranscriptLines(
         if (!opened) return;
         const { handle, stats } = opened;
         try {
+            if (isCompressedTranscriptPath(opened.path))
+                return await scanCompressedTranscript(opened, cursor, scanLine, options);
             if (stats.size < cursor.offset) {
                 cursor.offset = 0;
                 cursor.skippingOversizedLine = false;
