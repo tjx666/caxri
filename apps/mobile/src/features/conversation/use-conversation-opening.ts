@@ -43,6 +43,7 @@ export function useConversationOpening<Entry>({
     isShort,
     list,
     measureSpacer,
+    onReveal,
 }: {
     enterFrom: -1 | 0 | 1 | null;
     fillWithOlder: () => void;
@@ -53,6 +54,10 @@ export function useConversationOpening<Entry>({
     isShort: () => boolean;
     list: RefObject<FlashListRef<Entry> | null>;
     measureSpacer: () => boolean;
+    /**
+     * Called once the list starts to reveal itself; from then on the reader sees every row that lands.
+     */
+    onReveal: () => void;
 }) {
     const revealProgress = useSharedValue(0);
     const enterOffset = enterFrom === null ? 0 : segmentEnterOffset(enterFrom);
@@ -66,6 +71,7 @@ export function useConversationOpening<Entry>({
     const revealAtEnd = (): void => {
         if (isRevealing.current) return;
         isRevealing.current = true;
+        onReveal();
         measureSpacer();
         afterScrollLands(list.current?.scrollToEnd({ animated: false }), () => {
             revealProgress.set(

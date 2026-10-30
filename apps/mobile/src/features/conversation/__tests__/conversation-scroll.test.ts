@@ -6,6 +6,7 @@ import {
     conversationTurnSpacerHeight,
     createConversationFollower,
     isConversationFollowingAfterScroll,
+    isConversationTurnFromOlderPage,
     latestConversationTurnStart,
     shouldFillConversationWithOlder,
     shouldReadOlderAtConversationTop,
@@ -74,6 +75,7 @@ describe('conversationEndOffset', () => {
             bottomInset,
             contentHeight,
             firstItemOffset,
+            isBottomAligned: false,
             spacerHeight,
             viewportHeight,
         });
@@ -91,7 +93,50 @@ describe('conversationEndOffset', () => {
         expect(endFor(2020) - endFor(2000)).toBe(20);
     });
 
-    it('lifts the first turn of a short Conversation to the top past the bottom-anchored margin', () => {
+    it('rests the first turn of a short Chat at the top under the header', () => {
+        const spacerHeight = conversationTurnSpacerHeight({
+            bottomInset,
+            contentHeight: 200,
+            turnTop: 0,
+            viewportHeight,
+        });
+        const end = conversationEndOffset({
+            bottomInset,
+            contentHeight: 200,
+            firstItemOffset,
+            isBottomAligned: false,
+            spacerHeight,
+            viewportHeight,
+        });
+        expect(firstItemOffset - end).toBe(CONVERSATION_TURN_TOP_GAP);
+    });
+
+    it('lets the keyboard close without the content having to grow back', () => {
+        // The spacer is drawn for the viewport before the keyboard opened; the end is placed for the current one.
+        const keyboardHeight = 300;
+        const contentHeight = 1000;
+        const turn = { bottomInset, contentHeight, turnTop };
+        const drawn = conversationTurnSpacerHeight({ ...turn, viewportHeight });
+        const scrollRange = (viewport: number): number =>
+            firstItemOffset + contentHeight + bottomInset + drawn - viewport;
+        const endWithKeyboard = conversationEndOffset({
+            bottomInset,
+            contentHeight,
+            firstItemOffset,
+            isBottomAligned: false,
+            spacerHeight: conversationTurnSpacerHeight({
+                ...turn,
+                viewportHeight: viewportHeight - keyboardHeight,
+            }),
+            viewportHeight: viewportHeight - keyboardHeight,
+        });
+        expect(endWithKeyboard).toBe(endFor(contentHeight));
+        // The drawn content still reaches the end once the viewport grows back, so the scroll is not clamped.
+        expect(scrollRange(viewportHeight)).toBe(endWithKeyboard);
+        expect(scrollRange(viewportHeight - keyboardHeight)).toBe(endWithKeyboard + keyboardHeight);
+    });
+
+    it('lifts the first turn of a bottom-aligned list past its margin', () => {
         // One turn of 200 rows' height under a 40 header: FlashList's margin ends the rows at the viewport's bottom.
         const spacerHeight = conversationTurnSpacerHeight({
             bottomInset,
@@ -103,6 +148,7 @@ describe('conversationEndOffset', () => {
             bottomInset,
             contentHeight: 200,
             firstItemOffset,
+            isBottomAligned: true,
             spacerHeight,
             viewportHeight,
         });
@@ -111,14 +157,50 @@ describe('conversationEndOffset', () => {
     });
 
     it('never scrolls a short list without a spacer', () => {
+        for (const isBottomAligned of [false, true])
+            expect(
+                conversationEndOffset({
+                    contentHeight: 200,
+                    firstItemOffset: 0,
+                    isBottomAligned,
+                    spacerHeight: 0,
+                    viewportHeight,
+                }),
+            ).toBe(0);
+    });
+});
+
+describe('isConversationTurnFromOlderPage', () => {
+    const rows = (...ids: string[]) => ids.map((id) => ({ id }));
+
+    it('holds a turn whose first row landed above the rows the reader saw', () => {
         expect(
-            conversationEndOffset({
-                contentHeight: 200,
-                firstItemOffset: 0,
-                spacerHeight: 0,
-                viewportHeight,
+            isConversationTurnFromOlderPage({
+                entries: rows('older', 'message', 'tail-1', 'tail-2'),
+                firstRowWithoutTurn: 'tail-1',
+                turnStart: 1,
             }),
-        ).toBe(0);
+        ).toBe(true);
+    });
+
+    it('lifts a turn that starts after those rows, as after a send', () => {
+        expect(
+            isConversationTurnFromOlderPage({
+                entries: rows('tail-1', 'tail-2', 'sent'),
+                firstRowWithoutTurn: 'tail-1',
+                turnStart: 2,
+            }),
+        ).toBe(false);
+    });
+
+    it('lifts any turn while the list has always held one', () => {
+        expect(
+            isConversationTurnFromOlderPage({
+                entries: rows('message', 'reply'),
+                firstRowWithoutTurn: undefined,
+                turnStart: 0,
+            }),
+        ).toBe(false);
     });
 });
 

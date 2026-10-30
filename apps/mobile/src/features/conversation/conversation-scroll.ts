@@ -50,30 +50,54 @@ export const conversationTurnSpacerHeight = ({
  * shaking on every new line of a streamed reply. While the spacer absorbs the growth, this end does not move.
  *
  * `firstItemOffset` is where the rows' container starts (after the header and the content's top padding) and
- * `contentHeight` is that container's height; `bottomInset` is the content's bottom padding before the spacer. Rows
- * shorter than the viewport sit under the top margin `startRenderingFromBottom` adds (`getAdjustmentMargin` in
- * FlashList's `RecyclerView.tsx`), which ends them at the viewport's bottom, so the rows end no higher than that.
+ * `contentHeight` is that container's height; `bottomInset` is the content's bottom padding before the spacer. With
+ * `isBottomAligned`, rows shorter than the viewport sit under the top margin `startRenderingFromBottom` adds
+ * (`getAdjustmentMargin` in FlashList's `RecyclerView.tsx`), which ends them at the viewport's bottom, so the rows end
+ * no higher than that.
  */
 export const conversationEndOffset = ({
     bottomInset = 0,
     contentHeight,
     firstItemOffset,
+    isBottomAligned,
     spacerHeight,
     viewportHeight,
 }: {
     bottomInset?: number;
     contentHeight: number;
     firstItemOffset: number;
+    isBottomAligned: boolean;
     spacerHeight: number;
     viewportHeight: number;
-}): number =>
-    Math.max(
-        Math.max(firstItemOffset + contentHeight, viewportHeight) +
+}): number => {
+    const rowsEnd = firstItemOffset + contentHeight;
+    return Math.max(
+        (isBottomAligned ? Math.max(rowsEnd, viewportHeight) : rowsEnd) +
             bottomInset +
             spacerHeight -
             viewportHeight,
         0,
     );
+};
+
+/**
+ * Whether the latest turn's first row reached the list in an older page read after the reader could see the list: the
+ * rows in view held no turn start (the tail of a long turn), and the page that brought it landed above them
+ * (`firstRowWithoutTurn` is the first row the list held while it had none). Lifting that turn to the top then moved
+ * every row in view at once, seconds after the Chat opened, so the turn stays where it landed until a newer one
+ * starts.
+ */
+export const isConversationTurnFromOlderPage = ({
+    entries,
+    firstRowWithoutTurn,
+    turnStart,
+}: {
+    entries: ReadonlyArray<{ id: string }>;
+    firstRowWithoutTurn: string | undefined;
+    turnStart: number;
+}): boolean =>
+    firstRowWithoutTurn !== undefined &&
+    entries.findIndex((entry) => entry.id === firstRowWithoutTurn) > turnStart;
 
 /**
  * Whether the list should read an older page on its own because its rows do not fill the viewport. A short list cannot

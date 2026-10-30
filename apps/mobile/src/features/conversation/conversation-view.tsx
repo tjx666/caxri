@@ -3,7 +3,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import type { LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 import { Platform, Pressable, Text, View } from 'react-native';
 import type { SharedValue } from 'react-native-reanimated';
-import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 
 import type { FlashListRef, ListRenderItemInfo } from '@shopify/flash-list';
 import { FlashList } from '@shopify/flash-list';
@@ -28,12 +28,7 @@ import {
     isNewConversationSend,
     shouldShowConversationJump,
 } from './conversation-model';
-import {
-    conversationEndOffset,
-    conversationTurnSpacerHeight,
-    createConversationFollower,
-    latestConversationTurnStart,
-} from './conversation-scroll';
+import { conversationEndOffset, createConversationFollower } from './conversation-scroll';
 import { conversationStyles as styles } from './conversation-styles';
 import { isTimelineMessageClipped, MessageReadOfflineError } from './read-whole-message';
 import { useConversationOlderPages } from './use-conversation-older-pages';
@@ -42,6 +37,7 @@ import type {
     ConversationPagedTimeline,
     ConversationTimelineState,
 } from './use-conversation-timeline';
+import { useConversationTurnSpacer } from './use-conversation-turn-spacer';
 
 const ConversationHistory = ({
     error,
@@ -172,6 +168,14 @@ const ConversationStatus = ({
  */
 const MAINTAIN_VISIBLE_CONTENT_POSITION = { startRenderingFromBottom: true } as const;
 
+/**
+ * A list with a turn spacer opens at its end through `initialScrollIndex` instead. `startRenderingFromBottom` also
+ * pushes rows shorter than the viewport down with a top margin, and FlashList resizes that margin a render after a row
+ * or the viewport changes, while the spacer and the scroll catch up in other frames: each new line of a streamed reply
+ * on a short Chat lifted the turn by a line for a frame, and the keyboard opening or closing bounced it the same way.
+ */
+const MAINTAIN_TURN_POSITION = {} as const;
+
 const conversationEntryKey = (entry: { id: string }): string => entry.id;
 
 /**
@@ -245,14 +249,36 @@ export const ConversationList = <Entry extends { id: string }>({
         },
         [onFollowingChange],
     );
+    const hasTurnSpacer = isTurnStart !== undefined;
+    const [initialScrollIndex] = useState(() =>
+        hasTurnSpacer && entries.length > 0 ? entries.length - 1 : undefined,
+    );
     const viewportHeight = useRef(0);
+    /**
+     * The tallest the viewport has been, as before the keyboard opened. The spacer is sized for it (`measureSpacer`),
+     * so the content never has to grow back when the keyboard closes.
+     */
+    const largestViewportHeight = useRef(0);
     const isPositionedReference = useRef(false);
     const followHoldUntil = useRef(0);
     const [follower] = useState(() =>
         createConversationFollower({ nextFrame: requestAnimationFrame }),
     );
-    const spacerHeight = useSharedValue(0);
-    const appliedSpacerHeight = useRef(0);
+    /**
+     * The latest props the layout callbacks read, so those callbacks (and the list props built from them) stay stable.
+     */
+    const latest = useRef({ entries, isTurnStart, timeline });
+    useLayoutEffect(() => {
+        latest.current = { entries, isTurnStart, timeline };
+    });
+    const { endSpacerHeight, markRevealed, measureSpacer, spacerHeight, spacerReserve } =
+        useConversationTurnSpacer({
+            bottomInset: CONTENT_BOTTOM_INSET,
+            largestViewportHeight,
+            latest,
+            list,
+            viewportHeight,
+        });
     useEffect(
         () =>
             follower.connect(() => {
@@ -264,45 +290,14 @@ export const ConversationList = <Entry extends { id: string }>({
                         bottomInset: CONTENT_BOTTOM_INSET,
                         contentHeight: reference.getChildContainerDimensions().height,
                         firstItemOffset: reference.getFirstItemOffset(),
-                        spacerHeight: appliedSpacerHeight.current,
+                        isBottomAligned: !hasTurnSpacer,
+                        spacerHeight: endSpacerHeight(),
                         viewportHeight: viewportHeight.current,
                     }),
                 });
             }),
-        [follower],
+        [endSpacerHeight, follower, hasTurnSpacer],
     );
-    /**
-     * The latest props the layout callbacks read, so those callbacks (and the list props built from them) stay stable.
-     */
-    const latest = useRef({ entries, isTurnStart, timeline });
-    useLayoutEffect(() => {
-        latest.current = { entries, isTurnStart, timeline };
-    });
-    /**
-     * Sizes the turn spacer from the latest turn's measured rows and returns whether it changed. A row FlashList has
-     * not laid out yet keeps the current spacer; the next layout commit measures again.
-     */
-    const measureSpacer = useCallback((): boolean => {
-        const { entries: rows, isTurnStart: startsTurn } = latest.current;
-        const reference = list.current;
-        if (!startsTurn || !reference || viewportHeight.current <= 0) return false;
-        const index = latestConversationTurnStart(rows, startsTurn);
-        let height = 0;
-        if (index !== -1) {
-            const layout = reference.getLayout(index);
-            if (!layout) return false;
-            height = conversationTurnSpacerHeight({
-                bottomInset: CONTENT_BOTTOM_INSET,
-                contentHeight: reference.getChildContainerDimensions().height,
-                turnTop: layout.y,
-                viewportHeight: viewportHeight.current,
-            });
-        }
-        if (height === appliedSpacerHeight.current) return false;
-        appliedSpacerHeight.current = height;
-        spacerHeight.set(height);
-        return true;
-    }, [spacerHeight]);
     /**
      * Re-measures the spacer and, while the list follows, returns to the end on the next frame.
      */
@@ -329,11 +324,12 @@ export const ConversationList = <Entry extends { id: string }>({
         isShort,
         list,
         measureSpacer,
+        onReveal: markRevealed,
     });
     /**
-     * A row that grows on a short Conversation (an unfolded delegated task) never changes the content size:
-     * `startRenderingFromBottom`'s top margin shrinks by the same amount, so `onContentSizeChange` stays silent and the
-     * rows slid up under the header. Every layout commit re-measures the spacer instead.
+     * A row that grows (an unfolded delegated task) need not change the native content size: the spacer, or a short
+     * list's `startRenderingFromBottom` margin, absorbs it, so `onContentSizeChange` stays silent and the rows slid up
+     * under the header. Every layout commit re-measures the spacer instead.
      *
      * The follower scrolls to the end FlashList has measured, which a native content size change can precede, so each
      * commit (a measured row grew, or the spacer changed) also follows the end.
@@ -347,7 +343,9 @@ export const ConversationList = <Entry extends { id: string }>({
             // Initial positioning passes through offsets far from the end; they are not the reader's scroll.
             if (!isPositionedReference.current) return;
             const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
-            const distance = contentSize.height - layoutMeasurement.height - contentOffset.y;
+            // The spacer drawn for the largest viewport runs past the end while the keyboard is up.
+            const distance =
+                contentSize.height - layoutMeasurement.height - contentOffset.y - spacerReserve();
             const isNearEnd = isConversationFollowing(
                 distance,
                 layoutMeasurement.height,
@@ -356,7 +354,7 @@ export const ConversationList = <Entry extends { id: string }>({
             );
             setIsAtBottom(follower.recordScroll(isNearEnd));
         },
-        [follower, setIsAtBottom],
+        [follower, setIsAtBottom, spacerReserve],
     );
     const onScrollBeginDrag = useCallback((): void => {
         followHoldUntil.current = 0;
@@ -371,6 +369,7 @@ export const ConversationList = <Entry extends { id: string }>({
             const { height } = event.nativeEvent.layout;
             if (height === viewportHeight.current) return;
             viewportHeight.current = height;
+            largestViewportHeight.current = Math.max(largestViewportHeight.current, height);
             pin();
         },
         [pin],
@@ -387,10 +386,10 @@ export const ConversationList = <Entry extends { id: string }>({
      * tapped row away, so the list holds its place and offers Jump to latest instead (`ConversationDisclosure`).
      */
     const holdForDisclosure = useCallback((): void => {
-        if (appliedSpacerHeight.current > 0 || !follower.isFollowing) return;
+        if (endSpacerHeight() > 0 || !follower.isFollowing) return;
         follower.hold();
         setIsAtBottom(false);
-    }, [follower, setIsAtBottom]);
+    }, [endSpacerHeight, follower, setIsAtBottom]);
     const jumpToLatest = useCallback((): void => {
         follower.follow();
         setIsAtBottom(true);
@@ -434,7 +433,6 @@ export const ConversationList = <Entry extends { id: string }>({
             timeline.truncated,
         ],
     );
-    const hasTurnSpacer = isTurnStart !== undefined;
     const footer = useMemo(
         () => (hasTurnSpacer ? <ConversationTurnSpacer height={spacerHeight} /> : null),
         [hasTurnSpacer, spacerHeight],
@@ -474,7 +472,12 @@ export const ConversationList = <Entry extends { id: string }>({
                         keyExtractor={conversationEntryKey}
                         ListFooterComponent={footer}
                         ListHeaderComponent={header}
-                        maintainVisibleContentPosition={MAINTAIN_VISIBLE_CONTENT_POSITION}
+                        initialScrollIndex={initialScrollIndex}
+                        maintainVisibleContentPosition={
+                            hasTurnSpacer
+                                ? MAINTAIN_TURN_POSITION
+                                : MAINTAIN_VISIBLE_CONTENT_POSITION
+                        }
                         onCommitLayoutEffect={onCommitLayout}
                         onContentSizeChange={pin}
                         onLoad={onLoad}
