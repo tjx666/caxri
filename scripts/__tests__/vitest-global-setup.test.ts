@@ -20,10 +20,10 @@ describe('Vitest global setup', () => {
     });
 
     it('warns only when the running Node.js major differs from the mise pin', () => {
-        const mise = '[tools]\npnpm = "12.0.0"\nnode = "24.20.0"\n';
+        const mise = '[tools]\nnode = "22.3.0"\n';
 
-        expect(nodeMajorMismatchWarning(mise, '24.1.0')).toBeUndefined();
-        expect(nodeMajorMismatchWarning(mise, '26.13.0')).toContain('pins 24.20.0');
+        expect(nodeMajorMismatchWarning(mise, '22.1.0')).toBeUndefined();
+        expect(nodeMajorMismatchWarning(mise, '26.13.0')).toContain('pins 22.3.0');
         expect(nodeMajorMismatchWarning('[tools]\n', '26.13.0')).toBeUndefined();
     });
 });
