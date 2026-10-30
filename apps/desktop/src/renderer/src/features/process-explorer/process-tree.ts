@@ -300,13 +300,12 @@ export function filterProcessTreeByScope(
     roots: readonly ProcessTreeNode[],
     scopes: readonly ProcessScope[],
 ): ProcessTreeNode[] {
-    if (PROCESS_SCOPES.every((scope) => scopes.includes(scope))) return [...roots];
+    const shown = new Set(scopes);
+    if (PROCESS_SCOPES.every((scope) => shown.has(scope))) return [...roots];
     return roots.flatMap((root) => {
-        if (root.id === OTHER_PTY_GROUP_ID) return scopes.includes('other') ? [root] : [];
-        if (root.id === SESSIONS_GROUP_ID) return scopes.includes('agents') ? [root] : [];
-        const children = root.children.filter((child) =>
-            scopes.includes(processKindScope(child.kind)),
-        );
+        if (root.id === OTHER_PTY_GROUP_ID) return shown.has('other') ? [root] : [];
+        if (root.id === SESSIONS_GROUP_ID) return shown.has('agents') ? [root] : [];
+        const children = root.children.filter((child) => shown.has(processKindScope(child.kind)));
         return children.length > 0 ? [{ ...root, ...sumUsage(children), children }] : [];
     });
 }
@@ -443,8 +442,9 @@ export function processExplorerTotals(
     let cpuPercent = 0;
     let memoryMb = 0;
     let processCount = 0;
+    const shown = new Set(scopes);
     for (const process of processes) {
-        if (!scopes.includes(processKindScope(process.kind))) continue;
+        if (!shown.has(processKindScope(process.kind))) continue;
         processCount += 1;
         cpuPercent += process.cpuPercent;
         memoryMb += process.memoryMb;
