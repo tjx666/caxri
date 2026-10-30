@@ -6,6 +6,7 @@ import { useEnvironmentStore } from '../stores/environment';
 import {
     dragPath,
     FILE_TREE_DRAG_TYPE,
+    fileTreeDropEffect,
     hasDraggedPath,
     hasTerminalDraggedPath,
     isOsFileReferenceRefused,
@@ -263,6 +264,20 @@ describe('OS file references in an SSH Host window', () => {
     afterEach(() => {
         vi.unstubAllGlobals();
         useEnvironmentStore.setState({ state: undefined });
+    });
+
+    it('moves a Files entry and copies files from Finder into the Files tree, but takes no Finder files here', () => {
+        const filesEntry = fakeDragEvent({ [FILE_TREE_DRAG_TYPE]: '/repo/src/index.ts' });
+        const projectRoot = fakeDragEvent({ [PROJECT_PATH_DRAG_TYPE]: '/repo' });
+
+        useEnvironment('local');
+        expect(fileTreeDropEffect(filesEntry)).toBe('move');
+        expect(fileTreeDropEffect(finderDrop)).toBe('copy');
+        expect(fileTreeDropEffect(projectRoot)).toBeUndefined();
+
+        useEnvironment('ssh');
+        expect(fileTreeDropEffect(filesEntry)).toBe('move');
+        expect(fileTreeDropEffect(finderDrop)).toBeUndefined();
     });
 
     it('cites no path from this Mac and signals the refusal, so an Agent on the SSH Host never gets a path it cannot open', () => {

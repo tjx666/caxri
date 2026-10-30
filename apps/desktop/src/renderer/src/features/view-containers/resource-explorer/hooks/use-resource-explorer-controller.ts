@@ -6,7 +6,7 @@ import { useIsFetching } from '@tanstack/react-query';
 
 import { executeCommand } from '../../../../commands/execute';
 import { translate } from '../../../../i18n';
-import { dragPath, hasDraggedPath } from '../../../../lib/file-drag';
+import { dragPath, fileTreeDropEffect, osFilePaths } from '../../../../lib/file-drag';
 import { CONTROLLED_VIEW_QUERY_METHOD, queryClient } from '../../../../queries/client';
 import { useSelectedSession, useSelectedWorkbenchProject } from '../../../../stores/selectors';
 import { getActivePaneTab } from '../../../workbench/pane-actions';
@@ -16,8 +16,7 @@ import {
     useResourceExplorerClient,
 } from '../../controlled-view-context';
 import { subscribeCoreViewCommands } from '../../core-view-commands';
-import { cancelFileOperation, moveFile, pasteFile } from '../file-actions';
-import type { FileClipboardEntry } from '../file-clipboard';
+import { cancelFileOperation, moveFile } from '../file-actions';
 import { useFileClipboardStore } from '../file-clipboard';
 import type { PendingFileOperation } from '../file-operation-state';
 import {
@@ -25,6 +24,7 @@ import {
     isPathBlockedByFileOperations,
     useFileOperationStore,
 } from '../file-operation-state';
+import { importOsFiles, pasteIntoDirectory } from '../file-paste-actions';
 import type { EditRequest, FocusTarget } from '../file-tree-item-types';
 import {
     activeResourceExplorerScope,
@@ -51,25 +51,26 @@ function discard(promise: Promise<unknown>): void {
 
 interface ProjectRootFileActionContext {
     isBlocked: boolean;
-    projectId: string;
     rootPath: string;
     sessionId: string;
 }
 
 interface ProjectRootFileActionDependencies {
     draggedPath: (event: DragEvent) => string | undefined;
-    getClipboard: () => FileClipboardEntry | undefined;
+    /**
+     * Copies files dragged in from Finder, whose paths the drop event carries.
+     */
+    importDropped: (
+        event: DragEvent,
+        sessionId: string,
+        directory: string,
+    ) => Promise<{ path: string } | undefined>;
     move: (
         sessionId: string,
         source: string,
         directory: string,
     ) => Promise<{ path: string } | undefined>;
-    paste: (
-        sessionId: string,
-        projectId: string,
-        directory: string,
-        clipboard: FileClipboardEntry,
-    ) => Promise<{ path: string } | undefined>;
+    paste: (sessionId: string, directory: string) => Promise<{ path: string } | undefined>;
     selectPath: (path: string) => void;
 }
 
@@ -107,14 +108,7 @@ export async function pasteIntoProjectRoot(
     context: ProjectRootFileActionContext,
     dependencies: ProjectRootFileActionDependencies,
 ): Promise<void> {
-    const clipboard = dependencies.getClipboard();
-    if (!clipboard) return;
-    const pasted = await dependencies.paste(
-        context.sessionId,
-        context.projectId,
-        context.rootPath,
-        clipboard,
-    );
+    const pasted = await dependencies.paste(context.sessionId, context.rootPath);
     if (pasted) dependencies.selectPath(pasted.path);
 }
 
@@ -126,9 +120,10 @@ export async function dropIntoProjectRoot(
     event.preventDefault();
     if (context.isBlocked) return;
     const source = dependencies.draggedPath(event);
-    if (!source) return;
-    const moved = await dependencies.move(context.sessionId, source, context.rootPath);
-    if (moved) dependencies.selectPath(moved.path);
+    const dropped = source
+        ? await dependencies.move(context.sessionId, source, context.rootPath)
+        : await dependencies.importDropped(event, context.sessionId, context.rootPath);
+    if (dropped) dependencies.selectPath(dropped.path);
 }
 
 /**
@@ -324,7 +319,7 @@ export function useResourceExplorerController(): ResourceExplorerController | un
             ?.querySelector<HTMLButtonElement>(`button[aria-label="${CSS.escape(label)}"]`)
             ?.focus();
     };
-    const isRootPasteEmpty = !clipboard || clipboard.projectId !== projectId;
+    const isRootPasteEmpty = !clipboard;
     const isRootPasteBlocked = isPathBlockedByFileOperations(
         projectOperations,
         projectId,
@@ -332,17 +327,18 @@ export function useResourceExplorerController(): ResourceExplorerController | un
     );
     const rootActionContext = {
         isBlocked: isRootPasteBlocked,
-        projectId,
         rootPath: session.rootPath,
         sessionId: session.id,
     };
     const rootActionDependencies: ProjectRootFileActionDependencies = {
         draggedPath: dragPath,
-        getClipboard: () => useFileClipboardStore.getState().entry,
+        importDropped: (event, sessionId, directory) =>
+            importOsFiles(client, sessionId, osFilePaths(event.dataTransfer.files), directory),
         move: (sessionId, source, directory) => moveFile(client, sessionId, source, directory),
-        paste: (sessionId, projectId, directory, entry) =>
-            pasteFile(client, sessionId, projectId, directory, entry),
-        selectPath: (path: string) => setSelectedPath(path),
+        paste: (sessionId, directory) => pasteIntoDirectory(client, sessionId, directory),
+        selectPath: (path: string) => {
+            if (!didRevealPathInScope(scopeId, session.rootPath, path)) setSelectedPath(path);
+        },
     };
 
     return {
@@ -370,9 +366,10 @@ export function useResourceExplorerController(): ResourceExplorerController | un
         isRootPasteEmpty,
         isRootPasteBlocked,
         onProjectRootDragOver: (event) => {
-            if (isRootPasteBlocked || !hasDraggedPath(event)) return;
+            const dropEffect = fileTreeDropEffect(event);
+            if (isRootPasteBlocked || !dropEffect) return;
             event.preventDefault();
-            event.dataTransfer.dropEffect = 'move';
+            event.dataTransfer.dropEffect = dropEffect;
         },
         pasteIntoProjectRoot: () =>
             discard(pasteIntoProjectRoot(rootActionContext, rootActionDependencies)),

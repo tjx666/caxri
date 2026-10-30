@@ -9,12 +9,12 @@ describe('file clipboard', () => {
         useFileClipboardStore.getState().set({
             mode: 'cut',
             path: '/project/source.txt',
-            projectId: 'project-1',
+            sessionId: 'session-1',
         });
         expect(useFileClipboardStore.getState().entry).toEqual({
             mode: 'cut',
             path: '/project/source.txt',
-            projectId: 'project-1',
+            sessionId: 'session-1',
         });
 
         useFileClipboardStore.getState().clear();

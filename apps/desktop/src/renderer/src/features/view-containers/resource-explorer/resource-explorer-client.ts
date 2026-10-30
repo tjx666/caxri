@@ -6,6 +6,7 @@ import type {
     MovedFileEntry,
     MutableFileEntry,
     ParametersArgument,
+    ServerOperationParameters,
 } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
@@ -15,11 +16,20 @@ import { getSelectedSession } from '../../../stores/selectors';
 
 type FileDirectoryListing = MethodResult<'files.list'>;
 
+/**
+ * Where a pasted or dropped item comes from when it is not in this Session's Project (`files.copy`).
+ */
+export type FileCopySource = NonNullable<ServerOperationParameters<'files.copy'>['source']>;
+export type FileMoveSource = NonNullable<ServerOperationParameters<'files.move'>['source']>;
+
 export interface ResourceExplorerClient {
     readonly viewId: string;
     acknowledgeOperation(operationId: string, signal?: AbortSignal): Promise<null>;
     cancelOperation(operationId: string, signal?: AbortSignal): Promise<FileMutationOperation>;
-    copy(path: string, directory: string, signal?: AbortSignal): Promise<MutableFileEntry>;
+    copy(
+        options: { path: string; directory: string; source?: FileCopySource },
+        signal?: AbortSignal,
+    ): Promise<MutableFileEntry>;
     create(
         options: {
             operationId: string;
@@ -39,6 +49,7 @@ export interface ResourceExplorerClient {
             path: string;
             directory: string;
             conflict?: 'reject' | 'rename' | 'replace';
+            source?: FileMoveSource;
         },
         signal?: AbortSignal,
     ): Promise<MovedFileEntry>;
@@ -126,8 +137,8 @@ export function createResourceExplorerClient(viewId: string): ResourceExplorerCl
                 { operationId, sessionId: requireSessionId() },
                 signal,
             ),
-        copy: (path, directory, signal) =>
-            request('files.copy', { sessionId: requireSessionId(), path, directory }, signal),
+        copy: (options, signal) =>
+            request('files.copy', { sessionId: requireSessionId(), ...options }, signal),
         create: (options, signal) =>
             request('files.create', { sessionId: requireSessionId(), ...options }, signal),
         getOperation: (operationId, signal) =>

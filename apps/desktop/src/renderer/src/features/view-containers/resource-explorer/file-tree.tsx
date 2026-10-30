@@ -285,6 +285,7 @@ export function FileTree({ controller }: { controller: ResourceExplorerControlle
                         depth={row.depth}
                         directory={row.directory}
                         editing={editing}
+                        projectRoot={root}
                         requestFocus={requestFocus}
                         setEditing={setEditing}
                     />

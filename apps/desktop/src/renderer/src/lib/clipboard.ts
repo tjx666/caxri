@@ -35,6 +35,14 @@ export async function writeClipboardContent(content: ClipboardContent): Promise<
     await caxri.request('clipboard.write', content);
 }
 
+/**
+ * The files Finder put on the system clipboard, as absolute paths on this Mac, or none.
+ */
+export async function readClipboardFilePaths(): Promise<string[]> {
+    if (!hasCaxriBridge()) return [];
+    return (await caxri.request('clipboard.readFilePaths', {})).paths;
+}
+
 function hasCaxriBridge(): boolean {
     return (globalThis as { caxri?: unknown }).caxri !== undefined;
 }

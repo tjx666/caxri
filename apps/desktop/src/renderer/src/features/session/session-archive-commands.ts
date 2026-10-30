@@ -11,11 +11,7 @@ import { getBootstrap, getSelectedSession } from '../../stores/selectors';
 import { pushToast, tryCommand } from '../../stores/toasts';
 import { refreshWorkbench } from '../../stores/workbench';
 import { recordClosedSession } from '../closed-items/recording';
-import {
-    describeArchivedSession,
-    describeRestoredSession,
-    describeRestoredSessions,
-} from './session-notice-copy';
+import { describeRestoredSession, describeRestoredSessions } from './session-notice-copy';
 import { sessionTitleForDisplay } from './session-title';
 
 /**
@@ -52,14 +48,10 @@ async function chooseArchivedWorktree(
 }
 
 /**
- * Archiving deliberately skips a confirmation because it is reversible, but the Archived Sessions dialog it relies on
- * is reachable only through the PrimarySidebar footer entry, which `Command+[` hides entirely, and the `Delete`
- * keyboard path reports nothing at all on its own. The notice is therefore the state-change record for both the hover
- * button and the keyboard shortcut, it carries the reversal inline so the escape hatch never depends on finding that
- * dialog, and Sonner's live region gives the keyboard path its screen-reader announcement. It stays an ordinary
- * four-second toast: `persist` is reserved for events that already cost the user something irreversible.
+ * Archiving skips both a confirmation and a notice: it is reversible, and the row leaving the PrimarySidebar is the
+ * feedback. Reopen Closed Item brings the Session back, and the Archived Sessions dialog lists it.
  */
-async function archiveSessionWithNotice(sessionId: string): Promise<void> {
+async function archiveSessionQuietly(sessionId: string): Promise<void> {
     // Read from the bootstrap snapshot so an archive with the setting off never waits on the plan's pull request lookup.
     const worktree =
         getBootstrap()?.settings['workbench.removeWorktreeOnArchive'] === true
@@ -77,31 +69,11 @@ async function archiveSessionWithNotice(sessionId: string): Promise<void> {
     );
     if (!archived) return;
     recordClosedSession(sessionId);
-    pushToast('info', describeArchivedSession(archived.title), {
-        /**
-         * The notice outlives the row it describes, and now outlives the toast as well: the offer is still in the
-         * notification center after the Session has been deleted or the window navigated elsewhere. `unarchiveSession`
-         * runs the request through `tryCommand`, so a stale Undo reports one error toast instead of throwing out of the
-         * click handler. The handler restores with `unchanged`, so the row returns to the position it was archived
-         * from, not to the top of the Project the way an explicit restore does. One thing Undo deliberately does not
-         * put back is the pin: archiving clears it, and restoring it here would resurrect a Pinned row the user may
-         * have stopped watching weeks ago. They pin it again if they still want it there.
-         */
-        action: {
-            id: 'session.unarchive',
-            params: { sessionId },
-            // Several archived Sessions leave several `Undo` buttons in the history, identical to a screen reader
-            // reading the buttons alone. The title says which one this is.
-            accessibleLabel: translate('session.notice.undoArchive', {
-                title: sessionTitleForDisplay(archived.title, translate),
-            }),
-        },
-    });
 }
 
 export function archiveSession(sessionId: string): void {
-    // Fire-and-forget: `archiveSessionWithNotice` funnels its own failures into a toast via `tryCommand`.
-    void archiveSessionWithNotice(sessionId);
+    // Fire-and-forget: `archiveSessionQuietly` funnels its own failures into a toast via `tryCommand`.
+    void archiveSessionQuietly(sessionId);
 }
 
 export function archiveSelectedSession(): void {
@@ -127,10 +99,10 @@ async function didRestoreSessionWithNotice(
         { refresh: refreshWorkbench },
     );
     /**
-     * `unchanged` is the archive notice's Undo, and only that. It already named the Session it was reversing one toast
-     * ago, and it restores the row into a PrimarySidebar the user can see, so a second notice would report a change
-     * they just watched happen. An explicit restore has neither: it is issued from a dialog wide enough to cover the
-     * sidebar, so without this the row reappears somewhere the user cannot see and nothing says so.
+     * `unchanged` reverses one archive: Reopen Closed Item, or the automatic-archive notice's Undo. It restores the row
+     * into a PrimarySidebar the user can see, so a notice would report a change they just watched happen. An explicit
+     * restore is issued from a dialog wide enough to cover the sidebar, so without this the row reappears somewhere the
+     * user cannot see and nothing says so.
      */
     if (!restored) return false;
     if (placement !== 'unchanged') pushToast('info', describeRestoredSession(restored.title));
@@ -139,8 +111,8 @@ async function didRestoreSessionWithNotice(
 
 /**
  * Restores an archived Session back to the row it was archived from, resolving to whether the Server restored it.
- * Reopen Closed Editor or Session uses it: like the archive notice's Undo, it reverses one archive and so reports no
- * second notice.
+ * Reopen Closed Editor or Session uses it: like the automatic-archive notice's Undo, it reverses one archive and so
+ * reports no notice.
  */
 export function restoreArchivedSession(sessionId: string): Promise<boolean> {
     return didRestoreSessionWithNotice(sessionId, 'unchanged');
@@ -148,8 +120,8 @@ export function restoreArchivedSession(sessionId: string): Promise<boolean> {
 
 /**
  * Restoring puts the Session back on top of its Project by default, so the row the user just asked for is the one they
- * see. Only the archive notice's Undo passes `unchanged`: it reverses a single archive, and a row that jumped to the
- * top would have rewritten the order the user arranged by dragging.
+ * see. Reversing a single archive passes `unchanged` instead (see {@link restoreArchivedSession}): a row that jumped to
+ * the top would have rewritten the order the user arranged by dragging.
  */
 export function unarchiveSession(
     sessionId: string,

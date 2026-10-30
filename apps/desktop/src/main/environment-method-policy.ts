@@ -42,6 +42,10 @@ const environmentMethodScopes = {
      * Copied text lands on the clipboard of the Mac showing the window, whichever Server the window talks to.
      */
     'clipboard.write': 'any',
+    /**
+     * The paths name files on the Mac showing the window, which an SSH Host's Server cannot read.
+     */
+    'clipboard.readFilePaths': 'local-only',
     'bugReport.captureScreenshot': 'local-only',
     'bugReport.saveScreenshot': 'local-only',
     /**

@@ -10,7 +10,7 @@ import { Tooltip } from '../../../components/ui/tooltip';
 import { useContextMenu } from '../../../hooks/use-context-menu';
 import { useTranslation } from '../../../i18n';
 import { FileTypeIcon } from '../../../icons/files/file-type-icon';
-import { hasDraggedPath, startFilePathDrag } from '../../../lib/file-drag';
+import { fileTreeDropEffect, startFilePathDrag } from '../../../lib/file-drag';
 import type { GitChildRepoKind, GitDecoration } from '../../../lib/git-decorations';
 import { gitDecorationClassName } from '../../../lib/git-decorations';
 import { isImeComposing } from '../../../lib/ime';
@@ -19,7 +19,8 @@ import { cn } from '../../../lib/utilities';
 import { useGitChildRepo, useGitDecoration } from '../../../stores/git-decorations';
 import { describeFailure } from '../../../stores/toasts';
 import { useResourceExplorerClient } from '../controlled-view-context';
-import { createItem, rememberFile, renameFile } from './file-actions';
+import { createItem, renameFile } from './file-actions';
+import { rememberFile } from './file-paste-actions';
 import { fileTreeItemMenu } from './file-tree-item-menu';
 import type { EditRequest, FocusTarget } from './file-tree-item-types';
 import { fileTreeLeafIndent, fileTreeRowStyle } from './file-tree-row-style';
@@ -27,13 +28,18 @@ import { useFileTreeItemInteractions } from './hooks/use-file-tree-item-interact
 import {
     activeResourceExplorerScope,
     clearStaleScopeFocusPath,
+    didRevealPathInScope,
     setScopeSelectedPath,
     useHasScopeSelection,
     useIsPathExpanded,
     useIsPathFocusRequested,
     useIsPathSelected,
 } from './resource-explorer-scope-store';
-import { fileTreeRowDescription, fileTreeRowTooltip } from './resource-explorer-state';
+import {
+    fileTreeRowDescription,
+    fileTreeRowTooltip,
+    inlineFileNameBlurAction,
+} from './resource-explorer-state';
 
 /**
  * Expansion, selection, focus requests, and file-operation blocking are not props: every row subscribes to its own
@@ -79,6 +85,13 @@ function discard(promise: Promise<unknown>): void {
  * the inactive one once focus moves elsewhere: no separate "the tree has focus" state to track. The focus ring stays on
  * top of the focus fill; a theme may set the two focus colors flat, and the ring is what still says "you are here".
  */
+interface InlineFileNameSettleOptions {
+    /**
+     * `false` when the field settled because focus left it, which must leave focus where the user put it.
+     */
+    restoreFocus: boolean;
+}
+
 const treeRowClassName =
     'tree-row relative flex w-full h-7 items-center gap-2 pr-2 border-0 bg-surface text-foreground text-left cursor-pointer outline-none hover:bg-list-hover-background hover:text-list-hover-foreground focus-visible:bg-list-focus-background focus-visible:text-list-focus-foreground focus-visible:shadow-[inset_0_0_0_2px_var(--accent)] aria-disabled:text-muted aria-disabled:cursor-not-allowed data-[git-ignored=true]:text-muted data-[git-ignored=true]:italic data-[selected=true]:bg-list-inactive-selection-background data-[selected=true]:text-list-inactive-selection-foreground data-[selected=true]:focus-visible:bg-list-active-selection-background data-[selected=true]:focus-visible:text-list-active-selection-foreground data-[cut=true]:opacity-50 data-[drop-target=true]:bg-state-drop-target';
 
@@ -94,10 +107,15 @@ function InlineFileName({
     initialValue: string;
     label: string;
     failureLabel: string;
-    onCancel: () => void;
-    onSubmit: (value: string) => Promise<void>;
+    onCancel: (options: InlineFileNameSettleOptions) => void;
+    onSubmit: (value: string, options: InlineFileNameSettleOptions) => Promise<void>;
 }) {
     const inputReference = useRef<HTMLInputElement>(null);
+    /**
+     * Set once the field starts submitting or cancels, so the blur its own `disabled` state or unmount may raise does
+     * not settle it a second time.
+     */
+    const isSettled = useRef(false);
     const { t } = useTranslation();
     /**
      * The raw failure, described at render with the current `t` so a language switch re-words an error already shown.
@@ -111,22 +129,47 @@ function InlineFileName({
         inputReference.current?.select();
     }, []);
 
-    const submit = async (event: SubmitEvent<HTMLFormElement>): Promise<void> => {
-        event.preventDefault();
-        if (pending) return;
+    const commit = async (options: InlineFileNameSettleOptions): Promise<void> => {
+        if (isSettled.current) return;
+        isSettled.current = true;
         setPending(true);
         setFailure(undefined);
         try {
-            await onSubmit(value);
+            await onSubmit(value, options);
         } catch (submissionError) {
             setFailure({ error: submissionError });
+            isSettled.current = false;
         }
         // After the try/catch rather than in a `finally`, which React Compiler cannot lower; the catch never rethrows.
         setPending(false);
     };
+    const cancel = (options: InlineFileNameSettleOptions): void => {
+        isSettled.current = true;
+        onCancel(options);
+    };
+
+    /**
+     * Focus already moved to whatever the user clicked (Chat, the Editor, another row), so settling on blur must not
+     * pull it back into the tree the way Enter and Escape do.
+     */
+    const settleOnBlur = (): void => {
+        const action = inlineFileNameBlurAction({
+            initialValue,
+            isSettled: isSettled.current,
+            isWindowFocused: document.hasFocus(),
+            value,
+        });
+        if (action === 'cancel') cancel({ restoreFocus: false });
+        else if (action === 'submit') discard(commit({ restoreFocus: false }));
+    };
 
     return (
-        <form onSubmit={(event) => discard(submit(event))}>
+        <form
+            onSubmit={(event: SubmitEvent<HTMLFormElement>) => {
+                event.preventDefault();
+                discard(commit({ restoreFocus: true }));
+            }}
+        >
             <div
                 className="flex h-7 items-center pr-2"
                 style={{ paddingLeft: fileTreeLeafIndent(depth) }}
@@ -140,12 +183,13 @@ function InlineFileName({
                     disabled={pending}
                     size="compact"
                     value={value}
+                    onBlur={settleOnBlur}
                     onChange={(event) => setValue(event.target.value)}
                     onKeyDown={(event) => {
                         event.stopPropagation();
                         if (event.key === 'Escape' && !isImeComposing(event)) {
                             event.preventDefault();
-                            onCancel();
+                            cancel({ restoreFocus: true });
                         }
                     }}
                 />
@@ -170,12 +214,14 @@ export function FileTreeCreateRow({
     depth,
     directory,
     editing,
+    projectRoot,
     requestFocus,
     setEditing,
 }: {
     depth: number;
     directory: string;
     editing: Extract<EditRequest, { kind: 'create' }>;
+    projectRoot: string;
     requestFocus: (target: FocusTarget) => void;
     setEditing: (editing?: EditRequest) => void;
 }) {
@@ -195,11 +241,11 @@ export function FileTreeCreateRow({
                     ? 'viewContainers.files.createFolderFailed'
                     : 'viewContainers.files.createFileFailed',
             )}
-            onCancel={() => {
+            onCancel={({ restoreFocus }) => {
                 setEditing(undefined);
-                requestFocus(editing.returnFocus);
+                if (restoreFocus) requestFocus(editing.returnFocus);
             }}
-            onSubmit={async (name) => {
+            onSubmit={async (name, { restoreFocus }) => {
                 const scope = activeResourceExplorerScope();
                 if (!scope) return;
                 const created = await createItem(
@@ -211,12 +257,16 @@ export function FileTreeCreateRow({
                 );
                 if (!created) {
                     setEditing(undefined);
-                    requestFocus(editing.returnFocus);
+                    if (restoreFocus) requestFocus(editing.returnFocus);
                     return;
                 }
-                setScopeSelectedPath(scope.scopeId, created.path);
+                // The field sits at the top of its directory, but the new entry sorts anywhere in it, possibly outside
+                // the viewport: reveal it explicitly rather than relying on the Editor follower, which a folder never
+                // triggers.
+                if (!didRevealPathInScope(scope.scopeId, projectRoot, created.path))
+                    setScopeSelectedPath(scope.scopeId, created.path);
                 setEditing(undefined);
-                requestFocus({ kind: 'path', path: created.path });
+                if (restoreFocus) requestFocus({ kind: 'path', path: created.path });
             }}
         />
     );
@@ -354,6 +404,7 @@ export function FileTreeItem({
         isFocusRequested,
         isSelected: selected,
         projectId,
+        projectRoot,
         setEditing,
     });
 
@@ -367,7 +418,6 @@ export function FileTreeItem({
             parentDirectory,
             pasteDisabledReason,
             pasteIntoEntry,
-            projectId,
             projectRoot,
             startCreate,
             startRename,
@@ -381,22 +431,22 @@ export function FileTreeItem({
                 initialValue={entry.name}
                 label={t('viewContainers.files.renameLabel', { name: entry.name })}
                 failureLabel={t('viewContainers.files.renameFailed')}
-                onCancel={() => {
+                onCancel={({ restoreFocus }) => {
                     setEditing(undefined);
-                    requestFocus({ kind: 'path', path: entry.path });
+                    if (restoreFocus) requestFocus({ kind: 'path', path: entry.path });
                 }}
-                onSubmit={async (name) => {
+                onSubmit={async (name, { restoreFocus }) => {
                     const scope = activeResourceExplorerScope();
                     if (!scope) return;
                     const moved = await renameFile(client, scope.sessionId, entry.path, name);
                     if (!moved) {
                         setEditing(undefined);
-                        requestFocus({ kind: 'path', path: entry.path });
+                        if (restoreFocus) requestFocus({ kind: 'path', path: entry.path });
                         return;
                     }
                     setScopeSelectedPath(scope.scopeId, moved.path);
                     setEditing(undefined);
-                    requestFocus({ kind: 'path', path: moved.path });
+                    if (restoreFocus) requestFocus({ kind: 'path', path: moved.path });
                 }}
             />
         );
@@ -452,14 +502,15 @@ export function FileTreeItem({
             }}
             onCopy={(event) => {
                 event.preventDefault();
-                rememberFile(projectId, entry.path, 'copy');
+                rememberFile(entry.path, 'copy');
             }}
             onCut={(event) => {
                 event.preventDefault();
-                rememberFile(projectId, entry.path, 'cut');
+                rememberFile(entry.path, 'cut');
             }}
             onDragEnter={(event) => {
-                if (pasteBlocked || entry.kind !== 'directory' || !hasDraggedPath(event)) return;
+                if (pasteBlocked || entry.kind !== 'directory' || !fileTreeDropEffect(event))
+                    return;
                 setIsDropTarget(true);
             }}
             onDragLeave={(event) => {
@@ -469,12 +520,10 @@ export function FileTreeItem({
                 setIsDropTarget(false);
             }}
             onDragOver={(event) => {
-                if (pasteBlocked || entry.kind !== 'directory' || !hasDraggedPath(event)) {
-                    return;
-                }
-
+                const dropEffect = fileTreeDropEffect(event);
+                if (!dropEffect || pasteBlocked || entry.kind !== 'directory') return;
                 event.preventDefault();
-                event.dataTransfer.dropEffect = 'move';
+                event.dataTransfer.dropEffect = dropEffect;
             }}
             onDragStart={(event) => {
                 startFilePathDrag(

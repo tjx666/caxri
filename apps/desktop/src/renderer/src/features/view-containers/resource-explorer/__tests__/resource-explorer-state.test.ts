@@ -8,6 +8,7 @@ import {
     fileTreeRootCaption,
     fileTreeRowDescription,
     fileTreeRowTooltip,
+    inlineFileNameBlurAction,
     isFileTreeDirectory,
     knownDirectoryChildrenFromQueries,
     paneTabFilePath,
@@ -303,5 +304,36 @@ describe('Resource Explorer state', () => {
         expect(fileTreeRootCaption('\\')).toBe('');
         expect(fileTreeRootCaption('/Users/me/project')).toBe('project');
         expect(fileTreeRootCaption(String.raw`C:\work\project`)).toBe('project');
+    });
+});
+
+describe('inlineFileNameBlurAction', () => {
+    const blur = (overrides: Partial<Parameters<typeof inlineFileNameBlurAction>[0]>) =>
+        inlineFileNameBlurAction({
+            initialValue: '',
+            isSettled: false,
+            isWindowFocused: true,
+            value: '',
+            ...overrides,
+        });
+
+    it('drops an empty or whitespace-only new name', () => {
+        expect(blur({ value: '' })).toBe('cancel');
+        expect(blur({ value: ' '.repeat(3) })).toBe('cancel');
+    });
+
+    it('drops a rename that kept the original name', () => {
+        expect(blur({ initialValue: 'a.ts', value: 'a.ts' })).toBe('cancel');
+    });
+
+    it('commits an edited name', () => {
+        expect(blur({ value: 'new.ts' })).toBe('submit');
+        expect(blur({ initialValue: 'a.ts', value: 'b.ts' })).toBe('submit');
+    });
+
+    it('keeps the field when focus left the window or the field already settled', () => {
+        expect(blur({ isWindowFocused: false, value: 'new.ts' })).toBe('keep');
+        expect(blur({ isWindowFocused: false })).toBe('keep');
+        expect(blur({ isSettled: true, value: 'new.ts' })).toBe('keep');
     });
 });

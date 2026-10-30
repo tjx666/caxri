@@ -15,8 +15,8 @@ import { isLocalOnlyAvailable } from '../../../stores/environment';
 import { openFilePreview } from '../../preview/preview-commands';
 import { canPreviewPath } from '../../preview/preview-registry';
 import { projectSearchFolderInclude } from '../../project-search/project-search-seed';
-import { rememberFile } from './file-actions';
 import { fileOperationBusyReason } from './file-operation-state';
+import { rememberFile } from './file-paste-actions';
 
 export interface FileTreeItemMenuOptions {
     confirmTrash: () => Promise<void>;
@@ -30,7 +30,6 @@ export interface FileTreeItemMenuOptions {
      */
     pasteDisabledReason: string | undefined;
     pasteIntoEntry: () => Promise<void>;
-    projectId: string;
     projectRoot: string;
     startCreate: (itemKind: 'file' | 'directory') => void;
     startRename: () => void;
@@ -64,7 +63,6 @@ export function fileTreeItemMenu({
     parentDirectory,
     pasteDisabledReason,
     pasteIntoEntry,
-    projectId,
     projectRoot,
     startCreate,
     startRename,
@@ -100,12 +98,12 @@ export function fileTreeItemMenu({
         {
             label: translate('viewContainers.files.menu.cut'),
             shortcut: 'cmd+x',
-            onSelect: () => rememberFile(projectId, entry.path, 'cut'),
+            onSelect: () => rememberFile(entry.path, 'cut'),
         },
         {
             label: translate('common.copy'),
             shortcut: 'cmd+c',
-            onSelect: () => rememberFile(projectId, entry.path, 'copy'),
+            onSelect: () => rememberFile(entry.path, 'copy'),
         },
         /**
          * Always shown so Paste's availability, and why it is unavailable, is discoverable from the mouse menu instead

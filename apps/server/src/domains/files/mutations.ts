@@ -1,6 +1,5 @@
-import { Buffer } from 'node:buffer';
 import { lstat, mkdir, open, rename } from 'node:fs/promises';
-import { basename, extname, isAbsolute, relative, resolve } from 'node:path';
+import { basename, isAbsolute, relative, resolve } from 'node:path';
 
 import type { ServerOperationParameters, ServerOperationResult } from '@caxri/protocol';
 import { CaxriError, isCaxriError } from '@caxri/protocol';
@@ -9,6 +8,14 @@ import { isExistingPath, logEventCatalog, mapWithConcurrency } from '@caxri/syst
 
 import { isSameOrInside } from '../path-security';
 import type { ResolveSessionPath } from './documents';
+import type { ResolvedMutableEntry } from './mutation-entries';
+import {
+    fileName,
+    MAX_UNIQUE_NAME_ATTEMPTS,
+    mutationError,
+    resolveExternalEntry,
+    suffixedName,
+} from './mutation-entries';
 import { isStagedCreatePersistenceError } from './mutation-journal';
 import type { CopyFile, CopyLimits, FileIdentity } from './mutations-copy';
 import {
@@ -44,10 +51,6 @@ type MoveMutationParameters = Omit<ServerOperationParameters<'files.move'>, 'ope
     operationId?: string;
 };
 
-interface ResolvedMutableEntry extends MutableEntry, FileIdentity {
-    root: FileIdentity;
-}
-
 export interface FileMutationServiceOptions {
     /**
      * Test seam for replacing a source or parent after the durable stage write.
@@ -64,53 +67,6 @@ export interface FileMutationServiceOptions {
     copyFile?: CopyFile;
     copyLimits?: Partial<CopyLimits>;
     now?: () => number;
-}
-
-const MAX_UNIQUE_NAME_ATTEMPTS = 100;
-const MAX_FILE_NAME_BYTES = 255;
-
-function fileName(name: string): string {
-    const normalized = name.trim();
-    if (
-        !normalized ||
-        normalized === '.' ||
-        normalized === '..' ||
-        normalized.length > 255 ||
-        normalized.includes('/') ||
-        normalized.includes('\\') ||
-        normalized.includes('\0') ||
-        Buffer.byteLength(normalized) > MAX_FILE_NAME_BYTES
-    )
-        throw new CaxriError('VALIDATION', 'Enter a valid file name without path separators');
-    return normalized;
-}
-
-function suffixedName(source: ResolvedMutableEntry, sequence: number): string {
-    if (sequence === 0) return source.name;
-    const extension = source.kind === 'file' ? extname(source.name) : '';
-    const stem = extension ? source.name.slice(0, -extension.length) : source.name;
-    const suffix = sequence === 1 ? ' copy' : ` copy ${sequence}`;
-    const tail = `${suffix}${extension}`;
-    const availableBytes = MAX_FILE_NAME_BYTES - Buffer.byteLength(tail);
-    if (availableBytes < 1)
-        throw new CaxriError('VALIDATION', 'File name is too long to create a unique copy');
-    let boundedStem = '';
-    for (const character of stem) {
-        if (Buffer.byteLength(boundedStem + character) > availableBytes) break;
-        boundedStem += character;
-    }
-    return `${boundedStem || 'item'}${tail}`;
-}
-
-function mutationError(error: unknown, action: string): CaxriError {
-    if (isCaxriError(error)) return error;
-    const code = (error as NodeJS.ErrnoException).code;
-    if (code === 'ENOENT') return new CaxriError('NOT_FOUND', 'File or folder no longer exists');
-    if (code === 'EEXIST' || code === 'ENOTEMPTY')
-        return new CaxriError('CONFLICT', 'A file or folder with that name already exists');
-    if (code === 'EACCES' || code === 'EPERM')
-        return new CaxriError('PATH_DENIED', `Permission denied while ${action}`);
-    return new CaxriError('IO', `Unable to ${action}`);
 }
 
 /**
@@ -151,9 +107,10 @@ export class FileMutationService {
         requestedName?: string,
         conflict: 'reject' | 'rename' | 'replace' = 'reject',
         stage?: MutationStage<StagedMovedEntry>,
+        sourceSessionId = sessionId,
     ): Promise<MovedEntry> {
         try {
-            const source = await this.resolveExisting(sessionId, sourcePath);
+            const source = await this.resolveExisting(sourceSessionId, sourcePath);
             const directory = await this.resolveExisting(
                 sessionId,
                 targetDirectoryPath ?? resolve(source.path, '..'),
@@ -253,7 +210,7 @@ export class FileMutationService {
                         fields: {
                             sessionId,
                             from: relative(source.root.path, source.path),
-                            to: relative(source.root.path, targetPath),
+                            to: relative(directory.root.path, targetPath),
                             ...(isReplacedTarget && { replaced: true }),
                         },
                     });
@@ -369,6 +326,16 @@ export class FileMutationService {
         };
     }
 
+    private resolveCopySource(
+        parameters: ServerOperationParameters<'files.copy'>,
+    ): Promise<ResolvedMutableEntry> {
+        if (parameters.source?.kind === 'external') return resolveExternalEntry(parameters.path);
+        return this.resolveExisting(
+            parameters.source?.sessionId ?? parameters.sessionId,
+            parameters.path,
+        );
+    }
+
     async create(
         parameters: CreateMutationParameters,
         stage?: MutationStage<StagedCreatedEntry>,
@@ -435,7 +402,7 @@ export class FileMutationService {
         let totalBytes = 0;
         let isPartialCopyPreserved = false;
         try {
-            const source = await this.resolveExisting(parameters.sessionId, parameters.path);
+            const source = await this.resolveCopySource(parameters);
             const directory = await this.resolveExisting(
                 parameters.sessionId,
                 parameters.directory,
@@ -512,7 +479,7 @@ export class FileMutationService {
                             fields: {
                                 sessionId: parameters.sessionId,
                                 from: relative(source.root.path, source.path),
-                                to: relative(source.root.path, path),
+                                to: relative(directory.root.path, path),
                                 entryCount,
                                 totalBytes,
                             },
@@ -592,6 +559,7 @@ export class FileMutationService {
             undefined,
             parameters.conflict,
             stage,
+            parameters.source?.sessionId,
         );
     }
 

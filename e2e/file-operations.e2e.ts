@@ -274,7 +274,8 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
             })
             .toBe('nested\n');
 
-        const cutRow = fileList.getByRole('treeitem', { name: 'cut.txt', exact: true });
+        // `level: 1`: the pastes above revealed `destination`, whose own `cut.txt` is now listed too.
+        const cutRow = fileList.getByRole('treeitem', { name: 'cut.txt', exact: true, level: 1 });
         await cutRow.dblclick();
         await running.page.locator('.monaco-editor').click({ position: { x: 100, y: 24 } });
         await running.page.keyboard.press('End');

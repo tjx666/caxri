@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => {
         getBootstrap: vi.fn((): unknown => undefined),
         getSelectedSession: vi.fn(),
         pushToast,
+        recordClosedSession: vi.fn(),
         refreshWorkbench: vi.fn(() => Promise.resolve()),
         /**
          * Mirrors the real funnel's swallow-and-report contract rather than only forwarding `run`: an action offered
@@ -46,6 +47,9 @@ vi.mock('../../../stores/toasts', () => ({
     tryCommand: mocks.tryCommand,
 }));
 vi.mock('../../../stores/workbench', () => ({ refreshWorkbench: mocks.refreshWorkbench }));
+vi.mock('../../closed-items/recording', () => ({
+    recordClosedSession: mocks.recordClosedSession,
+}));
 
 import {
     archiveSelectedSession,
@@ -61,11 +65,16 @@ describe('Session archive and restore notices', () => {
         mocks.getBootstrap.mockReset();
         mocks.getSelectedSession.mockReset();
         mocks.pushToast.mockClear();
+        mocks.recordClosedSession.mockClear();
         mocks.refreshWorkbench.mockClear();
         mocks.tryCommand.mockClear();
     });
 
-    it('records an archive as an undoable info notice naming the Session', async () => {
+    /**
+     * Archiving is reversible and the row leaving the PrimarySidebar is its feedback, so it raises no notice; Reopen
+     * Closed Item takes it back.
+     */
+    it('archives without a notice and records the Session for Reopen Closed Item', async () => {
         mocks.caxriRequest.mockResolvedValueOnce({ id: 'session-1', title: 'api-fix' });
 
         archiveSession('session-1');
@@ -75,23 +84,14 @@ describe('Session archive and restore notices', () => {
             sessionId: 'session-1',
         });
         expect(mocks.tryCommand.mock.calls[0]?.[2]).toEqual({ refresh: mocks.refreshWorkbench });
-        expect(mocks.pushToast).toHaveBeenCalledOnce();
-        const [kind, message, options] = mocks.pushToast.mock.calls[0] ?? [];
-        expect(kind).toBe('info');
-        expect(message).toBe('Archived "api-fix"');
-        expect(options?.action).toEqual({
-            id: 'session.unarchive',
-            params: { sessionId: 'session-1' },
-            // A screen reader browsing the history by button hears only labels, so each Undo names its Session.
-            accessibleLabel: 'Undo archiving api-fix',
-        });
-        // Archiving is reversible, so the notice takes the ordinary four-second expiry.
-        expect(options?.persist).toBeUndefined();
+        expect(mocks.recordClosedSession).toHaveBeenCalledExactlyOnceWith('session-1');
+        expect(mocks.pushToast).not.toHaveBeenCalled();
     });
 
     /**
-     * Undo asks for `unchanged` rather than the default `top` an explicit restore uses: it reverses one archive, so the
-     * row has to come back where it was instead of jumping over an order the user arranged by dragging.
+     * The automatic-archive notice's Undo asks for `unchanged` rather than the default `top` an explicit restore uses:
+     * it reverses one archive, so the row has to come back where it was instead of jumping over an order the user
+     * arranged by dragging.
      */
     it('restores the archived Session in place when the notice Undo action is used', async () => {
         mocks.caxriRequest.mockResolvedValueOnce({ id: 'session-1', title: 'api-fix' });
@@ -132,7 +132,7 @@ describe('Session archive and restore notices', () => {
         );
     });
 
-    it('archives the selected Session through the same notice path', async () => {
+    it('archives the selected Session through the same path', async () => {
         mocks.getSelectedSession.mockReturnValue({ id: 'session-2' });
         mocks.caxriRequest.mockResolvedValueOnce({ id: 'session-2', title: 'docs' });
 
@@ -142,7 +142,7 @@ describe('Session archive and restore notices', () => {
         expect(mocks.caxriRequest).toHaveBeenCalledWith('session.archive', {
             sessionId: 'session-2',
         });
-        expect(mocks.pushToast).toHaveBeenCalledWith('info', 'Archived "docs"', expect.anything());
+        expect(mocks.recordClosedSession).toHaveBeenCalledExactlyOnceWith('session-2');
     });
 
     it('records an explicit restore as a named notice, the way an archive is recorded', async () => {
@@ -159,7 +159,7 @@ describe('Session archive and restore notices', () => {
         expect(mocks.pushToast).toHaveBeenCalledExactlyOnceWith('info', 'Restored "api-fix"');
     });
 
-    it('leaves the archive notice Undo silent, since that notice already named the Session', async () => {
+    it('leaves the automatic-archive notice Undo silent, since that notice already named the Session', async () => {
         mocks.caxriRequest.mockResolvedValueOnce({ id: 'session-1', title: 'api-fix' });
 
         unarchiveSession('session-1', 'unchanged');
@@ -216,7 +216,7 @@ describe('Session archive and restore notices', () => {
                 .mockResolvedValueOnce({ id: 'session-1', title: 'api-fix' });
 
             archiveSession('session-1');
-            await vi.waitFor(() => expect(mocks.pushToast).toHaveBeenCalledOnce());
+            await vi.waitFor(() => expect(mocks.recordClosedSession).toHaveBeenCalledOnce());
 
             expect(requestsTo('session.confirmArchiveWorktree')).toHaveLength(0);
             expect(requestsTo('session.archive')).toEqual([
@@ -231,7 +231,7 @@ describe('Session archive and restore notices', () => {
                 .mockResolvedValueOnce({ id: 'session-1', title: 'api-fix' });
 
             archiveSession('session-1');
-            await vi.waitFor(() => expect(mocks.pushToast).toHaveBeenCalledOnce());
+            await vi.waitFor(() => expect(mocks.recordClosedSession).toHaveBeenCalledOnce());
 
             expect(requestsTo('session.confirmArchiveWorktree')).toEqual([
                 [

@@ -296,9 +296,8 @@ describe('file mutation reconciliation', () => {
             operationId: operation.id,
         });
         expect(useFileOperationStore.getState().operations).toEqual([]);
-        expect(getToasts()).toContainEqual(
-            expect.objectContaining({ type: 'success', title: "'source.txt' moved" }),
-        );
+        // A completed move is visible in the tree, so it raises no success toast.
+        expect(getToasts()).not.toContainEqual(expect.objectContaining({ type: 'success' }));
     });
 
     it('retries a completed move after one Session-state persistence failure', async () => {
@@ -429,9 +428,8 @@ describe('file mutation reconciliation', () => {
                 [previousPath]: { content: 'new source body', dirty: true, path: previousPath },
             },
         });
-        expect(getToasts()).toContainEqual(
-            expect.objectContaining({ type: 'success', title: "'source.txt' moved" }),
-        );
+        // A completed move is visible in the tree, so it raises no success toast.
+        expect(getToasts()).not.toContainEqual(expect.objectContaining({ type: 'success' }));
         expect(getToasts()).not.toContainEqual(expect.objectContaining({ type: 'error' }));
     });
 
@@ -506,7 +504,7 @@ describe('file mutation reconciliation', () => {
         });
     });
 
-    it('does not report success until the durable operation acknowledgement succeeds', async () => {
+    it('finishes the operation only after the durable acknowledgement succeeds', async () => {
         vi.useFakeTimers();
         let acknowledgeAttempts = 0;
         mocks.request.mockImplementation((method) => {
@@ -577,9 +575,8 @@ describe('file mutation reconciliation', () => {
         await vi.runOnlyPendingTimersAsync();
         await vi.waitFor(() => expect(acknowledgeAttempts).toBe(2));
 
-        expect(getToasts()).toContainEqual(
-            expect.objectContaining({ type: 'success', title: "'source.txt' moved" }),
-        );
+        // A completed move is visible in the tree, so it raises no success toast.
+        expect(getToasts()).not.toContainEqual(expect.objectContaining({ type: 'success' }));
         expect(useFileOperationStore.getState().operations).toEqual([]);
     });
 });

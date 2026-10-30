@@ -15,7 +15,7 @@ import {
     createE2EStatusPageFetch,
 } from '@caxri/system';
 import type { BrowserWindow } from 'electron';
-import { app, clipboard, ClipboardItem, dialog, net, shell } from 'electron';
+import { app, dialog, net, shell } from 'electron';
 
 import { createAcceptanceExternalOpenFixture } from './acceptance-external-open';
 import { createAcceptanceSessionDeleteFixture } from './acceptance-session-delete';
@@ -23,6 +23,7 @@ import { createAcceptanceThemeImportFixture } from './acceptance-theme-import';
 import { openAgentChatPathReference, selectAgentChatPaths } from './agent-chat/path-picker';
 import { readArgvConfig, updateArgvConfig } from './argv-config';
 import { handleBenchmarkShare, isBenchmarkShare } from './benchmark-share-methods';
+import { handleClipboardRequest, isClipboardRequest } from './clipboard/clipboard-methods';
 import {
     archiveWorktreeChoice,
     archiveWorktreePrompt,
@@ -228,6 +229,7 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
         if (isBenchmarkShare(request)) return handleBenchmarkShare(request, options.getWindow());
         if (isEnvironmentRequest(request)) return handleEnvironmentRequest(request, environment);
         if (isWindowRequest(request)) return handleWindowRequest(request, options);
+        if (isClipboardRequest(request)) return handleClipboardRequest(request);
         if (isLogRequest(request))
             return handleLogRequest(request, options.getUserDataPath(), logState);
         if (isNotificationRequest(request)) return handleNotificationRequest(request, options);
@@ -240,15 +242,6 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                     remoteDebugging: options.getRemoteDebugging(),
                     value: await readArgvConfig(options.getUserDataPath()),
                 };
-            case 'clipboard.write': {
-                const { html, text } = request.params;
-                await (html === undefined
-                    ? clipboard.writeText(text)
-                    : clipboard.write([
-                          new ClipboardItem({ 'text/plain': text, 'text/html': html }),
-                      ]));
-                return null;
-            }
             case 'window.fullScreen.get':
                 return { isFullScreen: requestWindowOr(mainWindow).isFullScreen() };
             case 'window.fullScreen.set': {

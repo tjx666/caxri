@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('./caxri', () => ({ caxri: { request: mocks.request } }));
 
-import { writeClipboardText } from './clipboard';
+import { readClipboardFilePaths, writeClipboardText } from './clipboard';
 
 afterEach(() => {
     vi.unstubAllGlobals();
@@ -31,6 +31,21 @@ describe('writeClipboardText', () => {
         vi.stubGlobal('navigator', { clipboard: { writeText } });
         await writeClipboardText('details');
         expect(writeText).toHaveBeenCalledExactlyOnceWith('details');
+        expect(mocks.request).not.toHaveBeenCalled();
+    });
+});
+
+describe('readClipboardFilePaths', () => {
+    it('asks Main for the files Finder copied', async () => {
+        vi.stubGlobal('caxri', {});
+        mocks.request.mockResolvedValueOnce({ paths: ['/Users/me/Desktop/photo.png'] });
+        await expect(readClipboardFilePaths()).resolves.toEqual(['/Users/me/Desktop/photo.png']);
+        expect(mocks.request).toHaveBeenCalledExactlyOnceWith('clipboard.readFilePaths', {});
+    });
+
+    it('reads none in a window without the caxri bridge', async () => {
+        vi.stubGlobal('caxri', undefined);
+        await expect(readClipboardFilePaths()).resolves.toEqual([]);
         expect(mocks.request).not.toHaveBeenCalled();
     });
 });

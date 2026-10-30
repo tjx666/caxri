@@ -13,14 +13,7 @@ import { useSessionViewStore } from '../../../../stores/session-view';
 import { dismissToast, getToasts } from '../../../../stores/toasts';
 import { useWorkbenchStore } from '../../../../stores/workbench';
 import { controlledViewQueryKey } from '../../view-operation-client';
-import {
-    createItem,
-    didTrashFile,
-    duplicateFile,
-    moveFile,
-    pasteFile,
-    renameFile,
-} from '../file-actions';
+import { createItem, didTrashFile, duplicateFile, moveFile, renameFile } from '../file-actions';
 import { useFileClipboardStore } from '../file-clipboard';
 import {
     resolveFileConflictChoice,
@@ -31,6 +24,7 @@ import {
     reconcileFileMutation,
 } from '../file-operation-reconciliation';
 import { useFileOperationStore } from '../file-operation-state';
+import { pasteFile } from '../file-paste-actions';
 import type { ResourceExplorerClient } from '../resource-explorer-client';
 
 function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
@@ -75,8 +69,8 @@ const client = {
         mocks.request('files.operation.acknowledge', { operationId }),
     cancelOperation: (operationId: string) =>
         mocks.request('files.operation.cancel', { operationId }),
-    copy: (path: string, directory: string) =>
-        mocks.request('files.copy', { sessionId: 'session-a', path, directory }),
+    copy: (options: Parameters<ResourceExplorerClient['copy']>[0]) =>
+        mocks.request('files.copy', { sessionId: 'session-a', ...options }),
     create: (options: Parameters<ResourceExplorerClient['create']>[0]) =>
         mocks.request('files.create', { sessionId: 'session-a', ...options }),
     forgetEditorPath: (workbenchRootProjectId: string, path: string) =>
@@ -501,10 +495,8 @@ describe('moveFile conflict prompt', () => {
             'files.move',
             expect.objectContaining({ conflict: 'replace' }),
         );
-        expect(getToasts().some((toast) => toast.type === 'error')).toBe(false);
-        expect(getToasts()).toContainEqual(
-            expect.objectContaining({ type: 'success', title: "'source.txt' moved" }),
-        );
+        // The moved row is the confirmation; a completed move raises no toast at all.
+        expect(getToasts()).toEqual([]);
     });
 
     it('retries with rename when the user keeps both', async () => {
@@ -591,12 +583,12 @@ describe('moveFile conflict prompt', () => {
             if (method === 'files.operation.get') return Promise.resolve(failed);
             return Promise.resolve(null);
         });
-        useFileClipboardStore.getState().set({ mode: 'cut', path: source, projectId: 'project-1' });
+        useFileClipboardStore.getState().set({ mode: 'cut', path: source, sessionId: 'session-a' });
 
-        const pastePromise = pasteFile(client, 'session-a', 'project-1', directory, {
+        const pastePromise = pasteFile(client, 'session-a', directory, {
             mode: 'cut',
             path: source,
-            projectId: 'project-1',
+            sessionId: 'session-a',
         });
         await vi.waitFor(() => {
             expect(useFileConflictDialogStore.getState().request).toBeDefined();
@@ -615,7 +607,7 @@ describe('moveFile conflict prompt', () => {
         expect(useFileClipboardStore.getState().entry).toEqual({
             mode: 'cut',
             path: source,
-            projectId: 'project-1',
+            sessionId: 'session-a',
         });
         expect(getToasts().some((toast) => toast.type === 'error')).toBe(false);
     });
