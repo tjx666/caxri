@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest';
 
 import { translate } from '../../../../i18n';
 import {
+    agentChatAppCommandActions,
     agentChatGoalModeDraft,
     agentChatLeadingInvocation,
     agentChatSkillDiscoveryNotice,
     isAgentChatGoalAction,
     isAgentChatGoalOffered,
+    parseAgentChatAppCommand,
     withAgentChatBuiltInActions,
 } from '../agent-chat-slash-commands';
 
@@ -112,6 +114,98 @@ describe('Goal mode', () => {
         expect(actions[0]).toMatchObject({
             description: 'Hand the next task to a new Session and stop here',
             argumentHint: '[next task]',
+        });
+    });
+
+    describe('app commands', () => {
+        const everything = {
+            canChangeModel: true,
+            canTogglePlanMode: true,
+            canOpenSideChat: true,
+            canFork: true,
+            hasSession: true,
+            isPinned: false,
+        };
+
+        it('offers every app command a fully capable Chat can run, in menu order', () => {
+            expect(
+                agentChatAppCommandActions(everything, translate).map(
+                    ({ invocation }) => invocation,
+                ),
+            ).toEqual([
+                '/status',
+                '/usage',
+                '/model',
+                '/plan',
+                '/btw',
+                '/fork',
+                '/new',
+                '/rename',
+                '/archive',
+                '/pin',
+            ]);
+        });
+
+        it('leaves out the rows whose control this Chat lacks', () => {
+            const invocations = agentChatAppCommandActions(
+                {
+                    canChangeModel: false,
+                    canTogglePlanMode: false,
+                    canOpenSideChat: false,
+                    canFork: false,
+                    hasSession: false,
+                    isPinned: false,
+                },
+                translate,
+            ).map(({ invocation }) => invocation);
+            expect(invocations).toEqual(['/status', '/usage']);
+        });
+
+        it('describes /pin by whether the Session is pinned and hints a /btw question', () => {
+            const pinned = agentChatAppCommandActions({ ...everything, isPinned: true }, translate);
+            expect(pinned.find(({ invocation }) => invocation === '/pin')?.description).toBe(
+                'Unpin this Session',
+            );
+            expect(pinned.find(({ invocation }) => invocation === '/btw')?.argumentHint).toBe(
+                '[question]',
+            );
+        });
+
+        it('runs only a bare offered command', () => {
+            const offered = agentChatAppCommandActions(
+                { ...everything, canFork: false },
+                translate,
+            );
+            expect(parseAgentChatAppCommand('/status', offered)).toBe('status');
+            expect(parseAgentChatAppCommand('  /usage \n', offered)).toBe('usage');
+            expect(parseAgentChatAppCommand('/btw why?', offered)).toBeUndefined();
+            expect(parseAgentChatAppCommand('/fork', offered)).toBeUndefined();
+            expect(parseAgentChatAppCommand('/statuses', offered)).toBeUndefined();
+            expect(parseAgentChatAppCommand('see /status', offered)).toBeUndefined();
+        });
+
+        it('lists app commands after /new-session and over provider commands of the same name', () => {
+            const status = {
+                invocation: '/status',
+                kind: 'command',
+                description: 'Provider status',
+                requiresArguments: false,
+                source: 'builtIn',
+            } as const;
+            const actions = withAgentChatBuiltInActions(
+                [status, { ...status, invocation: '/review' }],
+                translate,
+                agentChatAppCommandActions(everything, translate).slice(0, 2),
+            );
+            expect(actions.map(({ invocation }) => invocation)).toEqual([
+                '/new-session',
+                '/status',
+                '/usage',
+                '/review',
+            ]);
+            expect(actions[1]?.description).toBe(
+                "Show this Agent's output speed and service status",
+            );
         });
     });
 });

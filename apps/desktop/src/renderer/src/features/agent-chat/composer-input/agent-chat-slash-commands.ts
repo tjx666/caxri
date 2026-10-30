@@ -69,24 +69,166 @@ export function agentChatGoalModeDraft(draft: string): string {
 }
 
 /**
+ * Caxri's own Chat commands that open or toggle an existing Desktop control instead of messaging the Agent, as the
+ * Codex app's `/` menu does: `/status` and `/usage` open the pages the status bar's Agent speed and usage items open,
+ * and the rest reach the model picker, plan mode, the side chat, and the Session's Fork, New Chat, Rename, Archive, and
+ * Pin actions. Desktop runs them (`runAgentChatAppCommand`), so the phone does not offer them.
+ */
+const AGENT_CHAT_APP_COMMANDS = [
+    'status',
+    'usage',
+    'model',
+    'plan',
+    'btw',
+    'fork',
+    'new',
+    'rename',
+    'archive',
+    'pin',
+] as const;
+
+export type AgentChatAppCommand = (typeof AGENT_CHAT_APP_COMMANDS)[number];
+
+/**
+ * What the Chat can do right now, which decides the app commands its menu offers: a row whose control this Chat lacks
+ * (a provider without plan mode or side chats, a Chat with no conversation to fork yet) is left out rather than shown
+ * and failing.
+ */
+export interface AgentChatAppCommandState {
+    canChangeModel: boolean;
+    canTogglePlanMode: boolean;
+    canOpenSideChat: boolean;
+    canFork: boolean;
+    /**
+     * Whether the Chat belongs to a Session, which `/new`, `/rename`, `/archive`, and `/pin` act on.
+     */
+    hasSession: boolean;
+    isPinned: boolean;
+}
+
+function isAgentChatAppCommandOffered(
+    command: AgentChatAppCommand,
+    state: AgentChatAppCommandState,
+): boolean {
+    switch (command) {
+        case 'model': {
+            return state.canChangeModel;
+        }
+        case 'plan': {
+            return state.canTogglePlanMode;
+        }
+        case 'btw': {
+            return state.canOpenSideChat;
+        }
+        case 'fork': {
+            return state.canFork;
+        }
+        case 'new':
+        case 'rename':
+        case 'archive':
+        case 'pin': {
+            return state.hasSession;
+        }
+        default: {
+            return true;
+        }
+    }
+}
+
+function agentChatAppCommandDescription(
+    command: AgentChatAppCommand,
+    state: AgentChatAppCommandState,
+    t: Translate,
+): string {
+    switch (command) {
+        case 'status': {
+            return t('agentChat.slash.app.status');
+        }
+        case 'usage': {
+            return t('agentChat.slash.app.usage');
+        }
+        case 'model': {
+            return t('agentChat.slash.app.model');
+        }
+        case 'plan': {
+            return t('agentChat.slash.app.plan');
+        }
+        case 'btw': {
+            return t('agentChat.slash.app.btw');
+        }
+        case 'fork': {
+            return t('agentChat.slash.app.fork');
+        }
+        case 'new': {
+            return t('agentChat.slash.app.new');
+        }
+        case 'rename': {
+            return t('agentChat.slash.app.rename');
+        }
+        case 'archive': {
+            return t('agentChat.slash.app.archive');
+        }
+        case 'pin': {
+            return t(state.isPinned ? 'agentChat.slash.app.unpin' : 'agentChat.slash.app.pin');
+        }
+    }
+}
+
+/**
+ * The app command rows this Chat offers, in {@link AGENT_CHAT_APP_COMMANDS} order. `/btw` keeps its `[question]` hint: a
+ * bare `/btw` opens the side chat, and `/btw <question>` asks it straight away.
+ */
+export function agentChatAppCommandActions(
+    state: AgentChatAppCommandState,
+    t: Translate,
+): AgentAction[] {
+    return AGENT_CHAT_APP_COMMANDS.filter((command) =>
+        isAgentChatAppCommandOffered(command, state),
+    ).map((command) => ({
+        invocation: `/${command}`,
+        kind: 'command',
+        description: agentChatAppCommandDescription(command, state, t),
+        ...(command === 'btw' && { argumentHint: t('agentChat.slash.app.btwHint') }),
+        requiresArguments: false,
+        source: 'builtIn',
+    }));
+}
+
+/**
+ * The app command a submitted draft runs: a bare `/name` (surrounding whitespace aside) that `offered` lists. Anything
+ * after the name, such as `/btw <question>`, leaves the draft to the ordinary send path.
+ */
+export function parseAgentChatAppCommand(
+    draft: string,
+    offered: readonly AgentAction[],
+): AgentChatAppCommand | undefined {
+    const invocation = draft.trim();
+    if (offered.every((action) => action.invocation !== invocation)) return undefined;
+    return AGENT_CHAT_APP_COMMANDS.find((command) => `/${command}` === invocation);
+}
+
+/**
  * The menu rows for a Chat: Caxri's own `/new-session` first, which every provider offers because Caxri runs it (see
- * `parseAgentChatSessionHandoffCommand`), then the provider's commands and the discovered skills. A provider command of
- * the same name loses to Caxri's, which the composer runs anyway.
+ * `parseAgentChatSessionHandoffCommand`), then Caxri's app commands (`agentChatAppCommandActions`), then the provider's
+ * commands and the discovered skills. A provider command named like one of Caxri's loses to it, since the composer runs
+ * Caxri's anyway.
  */
 export function withAgentChatBuiltInActions(
     actions: readonly AgentAction[],
     t: Translate,
+    appActions: readonly AgentAction[] = [],
 ): AgentAction[] {
-    const invocation = `/${AGENT_CHAT_SESSION_HANDOFF_COMMAND}`;
-    return [
+    const builtIn: AgentAction[] = [
         {
-            invocation,
+            invocation: `/${AGENT_CHAT_SESSION_HANDOFF_COMMAND}`,
             kind: 'command',
             description: t('agentChat.slash.newSessionDescription'),
             argumentHint: t('agentChat.slash.newSessionHint'),
             requiresArguments: false,
             source: 'builtIn',
         },
-        ...actions.filter((action) => action.invocation !== invocation),
+        ...appActions,
     ];
+    const invocations = new Set(builtIn.map((action) => action.invocation));
+    return [...builtIn, ...actions.filter((action) => !invocations.has(action.invocation))];
 }

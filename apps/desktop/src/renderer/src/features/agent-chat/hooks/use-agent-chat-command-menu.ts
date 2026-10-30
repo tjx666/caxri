@@ -59,11 +59,16 @@ function requiresSkillDiscovery(draft: string): boolean {
  * with the provider's recently used rows, the same recents the Agent Commands & Skills picker records and shows.
  */
 export function useAgentChatCommandMenu({
+    appActions,
     commands,
     draft,
     isInputFocused,
     terminalId,
 }: {
+    /**
+     * Caxri's app command rows for this Chat (`useAgentChatAppCommands`).
+     */
+    appActions: readonly AgentAction[];
     commands: readonly AgentChatCommand[] | undefined;
     draft: string;
     isInputFocused: boolean;
@@ -86,8 +91,12 @@ export function useAgentChatCommandMenu({
     );
     const actions = useMemo(
         () =>
-            withAgentChatBuiltInActions(agentChatMenuActions(commands, discovery.data?.actions), t),
-        [commands, discovery.data?.actions, t],
+            withAgentChatBuiltInActions(
+                agentChatMenuActions(commands, discovery.data?.actions),
+                t,
+                appActions,
+            ),
+        [appActions, commands, discovery.data?.actions, t],
     );
     const knownInvocations = useMemo(
         () => new Set(actions.map((action) => action.invocation)),

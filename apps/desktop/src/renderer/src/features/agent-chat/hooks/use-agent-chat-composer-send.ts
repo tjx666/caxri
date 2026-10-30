@@ -34,7 +34,9 @@ import { useAgentChatUnsentReturns } from './use-agent-chat-unsent-returns';
  * empty composer's Send button continues it instead (`resume`).
  */
 export function useAgentChatComposerSend({
+    appCommandFor,
     canSend,
+    clearDraft,
     commands,
     draft,
     edit: editInput,
@@ -47,9 +49,17 @@ export function useAgentChatComposerSend({
     terminalId,
 }: {
     /**
+     * The Caxri app command a bare `/name` runs (`useAgentChatAppCommands`), or `undefined` when `text` is not one.
+     */
+    appCommandFor: (text: string) => (() => void) | undefined;
+    /**
      * Whether the Chat accepts a message right now (no `agentChatSendBlock`).
      */
     canSend: boolean;
+    /**
+     * Empties the draft even when the composer unmounts right after (`useAgentChatDraft`).
+     */
+    clearDraft: () => void;
     commands: readonly AgentChatCommand[] | undefined;
     draft: string;
     /**
@@ -139,7 +149,21 @@ export function useAgentChatComposerSend({
         const sentDelivery = delivery ?? (editInput.isTurnRunning ? 'steer' : undefined);
         await edit.submit(text, async () => submitDraft(text, sentDelivery));
     };
+    /**
+     * Runs `text` when it is a Caxri app command and clears the input. It opens or toggles a Desktop control, so it
+     * runs whether or not the Chat can send right now, and never during Goal mode, whose draft is the goal's text. The
+     * draft is cleared first and through `clearDraft`: a command such as `/status` opens another tab, which unmounts
+     * the composer before a `setDraft` updater could persist the empty draft, so the command came back in the input.
+     */
+    const didRunApp = (text: string): boolean => {
+        const run = isGoalMode ? undefined : appCommandFor(text);
+        if (!run) return false;
+        clearDraft();
+        run();
+        return true;
+    };
     const submit = async (delivery?: 'queue' | 'steer'): Promise<void> => {
+        if (didRunApp(draft)) return;
         if (!isSendable) return;
         if (isGoalMode) {
             const isSet = await runCommand(draft, {
@@ -218,7 +242,9 @@ export function useAgentChatComposerSend({
             return;
         }
         recordRecent(action);
+        // Focus first: a control the command opens, such as the model picker, takes focus from the input.
         focusInput();
+        if (didRunApp(action.invocation)) return;
         /**
          * Enter runs the row, a skill or a command with an argument hint included, since such hints are mostly
          * optional: Tab is the way to stop at the inserted text and add a request. A Chat that cannot send yet keeps
