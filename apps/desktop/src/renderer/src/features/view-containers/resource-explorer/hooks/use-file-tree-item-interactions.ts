@@ -13,6 +13,7 @@ import { useResourceExplorerClient } from '../../controlled-view-context';
 import { didTrashFile, duplicateFile, moveFile, undoLatestTrash } from '../file-actions';
 import type { FileClipboardEntry } from '../file-clipboard';
 import { useFileClipboardStore } from '../file-clipboard';
+import { fileTreeDropDirectory } from '../file-drop-target';
 import { pasteDisabledReason, useIsPathBlockedByFileOperations } from '../file-operation-state';
 import { importOsFiles, pasteIntoDirectory, rememberFile } from '../file-paste-actions';
 import type { EditRequest } from '../file-tree-item-types';
@@ -235,20 +236,26 @@ export function useFileTreeItemInteractions({
         }
     };
     const dropIntoDirectory = async (event: DragEvent): Promise<void> => {
+        const target = fileTreeDropDirectory(entry);
+        // A symlink row is no target; its drop falls through to the tree's Project root target.
+        if (target === undefined) return;
         event.preventDefault();
         event.stopPropagation();
         setIsDropTarget(false);
         if (isPasteBlocked) return;
         const scope = activeResourceExplorerScope();
-        if (!scope || entry.kind !== 'directory') return;
+        if (!scope) return;
         const source = dragPath(event);
+        // Dropping an item on a sibling row (or its own folder) targets the folder it already lives in: moving it
+        // there would only raise a conflict with itself, so the drop does nothing.
+        if (source && parentDirectoryPath(source) === target) return;
         const dropped = source
-            ? await moveFile(client, scope.sessionId, source, entry.path)
+            ? await moveFile(client, scope.sessionId, source, target)
             : await importOsFiles(
                   client,
                   scope.sessionId,
                   osFilePaths(event.dataTransfer.files),
-                  entry.path,
+                  target,
               );
         if (dropped) revealPath(dropped.path);
     };

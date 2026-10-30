@@ -23,6 +23,7 @@ import type {
     FileMoveSource,
     ResourceExplorerClient,
 } from './resource-explorer-client';
+import { activeResourceExplorerScope, didRevealPathInScope } from './resource-explorer-scope-store';
 import type { UndoableTrash } from './undoable-trash';
 import { forgetUndoableTrash, rememberUndoableTrash, undoableTrashFor } from './undoable-trash';
 
@@ -472,6 +473,14 @@ export async function didUndoTrashedFile(
         return false;
     }
     await invalidateDirectory(client, parentDirectoryPath(restored.path));
+    /**
+     * The row coming back is the feedback, so it is selected and scrolled to like a pasted entry: a restore into a long
+     * folder would otherwise land off-screen. Skipped when no Files tree is mounted for the restoring Session.
+     */
+    const scope = activeResourceExplorerScope();
+    const session = getSelectedSession();
+    if (scope && session?.id === scope.sessionId)
+        didRevealPathInScope(scope.scopeId, session.rootPath, restored.path);
     return true;
 }
 

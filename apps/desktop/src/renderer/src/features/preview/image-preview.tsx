@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-import { Skeleton } from '../../components/ui/skeleton';
+import { LoadingSkeleton } from '../../components/loading-skeleton';
 import { useTranslation } from '../../i18n';
 import { describeDocumentReadFailure } from '../../lib/document-read-failure';
 import { documentLoadRecoveryAction, documentReadRecovery } from '../editor/document-load-recovery';
@@ -137,14 +137,7 @@ export function ImagePreview({
     return (
         <div className="flex h-full min-h-0 flex-col bg-background">
             {state.status === 'loading' ? (
-                <div className="flex min-h-0 flex-1 items-center justify-center p-6">
-                    <Skeleton
-                        className="h-full max-h-80 w-full max-w-120"
-                        role="status"
-                        aria-hidden={false}
-                        aria-label={t(PREVIEW_LOADING_LABEL_KEY)}
-                    />
-                </div>
+                <LoadingSkeleton variant="document" label={t(PREVIEW_LOADING_LABEL_KEY)} />
             ) : (
                 <PreviewZoomView viewStateKey={viewStateKey}>
                     {/* Natural size: the zoom view scales it. Not draggable, so a drag pans instead of lifting the file. */}
