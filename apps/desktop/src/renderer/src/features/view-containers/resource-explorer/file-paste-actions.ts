@@ -114,8 +114,8 @@ export async function importOsFiles(
 ): Promise<MutableFileEntry | undefined> {
     let last: MutableFileEntry | undefined;
     for (const path of paths) {
-        // eslint-disable-next-line no-await-in-loop -- sequential on purpose; see above
-        const copied = await copyItem(client, sessionId, path, directory, { kind: 'external' });
+        // react-doctor-disable-next-line react-doctor/async-await-in-loop -- sequential on purpose; see above
+        const copied = await copyItem(client, sessionId, path, directory, { kind: 'external' }); // eslint-disable-line no-await-in-loop -- see above
         if (copied) last = copied;
     }
     return last;
