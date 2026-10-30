@@ -13,7 +13,10 @@ import { translateMain as t } from './locale';
  * makes the wording, the default button, and the Escape target directly testable instead of reachable only through a
  * live `dialog` call.
  *
- * Every prompt here follows the macOS convention that Escape maps to the non-destructive choice.
+ * Every prompt here follows the macOS convention that Escape maps to the non-destructive choice, while Return confirms
+ * the action the user just asked for (as VS Code's confirmation dialogs do). `defaultId` must never equal `cancelId`:
+ * Electron's macOS message box binds Return to the default button first and then rebinds the cancel button to Escape,
+ * so a shared index leaves the dialog with no Return target and no highlighted button at all.
  */
 
 /**
@@ -68,7 +71,7 @@ export function externalLinkPrompt(
         message: t('desktop.externalLink.message', { host: target.host }),
         detail,
         buttons,
-        defaultId: buttons.length - 1,
+        defaultId: 0,
         cancelId: buttons.length - 1,
     };
 }
@@ -116,7 +119,7 @@ export function trashPrompt(item: {
                   path: item.path,
               }),
         buttons: [t('desktop.trash.confirm'), t('desktop.dialog.cancel')],
-        defaultId: 1,
+        defaultId: 0,
         cancelId: 1,
     };
 }
@@ -223,7 +226,7 @@ function deletePrompt(
                 : t('desktop.delete.message', { title }),
         detail: t(`desktop.${kind}.detail`),
         buttons: [t(`desktop.${kind}.confirm`), t('desktop.dialog.cancel')],
-        defaultId: 1,
+        defaultId: 0,
         cancelId: 1,
     };
 }
@@ -293,7 +296,7 @@ export function deleteSessionsPrompt(
                 : t('desktop.deleteSessions.message', { count: sessionCount }),
         detail: t('desktop.deleteSessions.detail'),
         buttons: [t('desktop.deleteSessions.confirm'), t('desktop.dialog.cancel')],
-        defaultId: 1,
+        defaultId: 0,
         cancelId: 1,
     };
 }
@@ -349,7 +352,7 @@ export function revokeMobileDevicePrompt(device: {
         message: t('desktop.revokeDevice.message', { name: device.displayName }),
         detail: t('desktop.revokeDevice.detail', { platform }),
         buttons: [t('desktop.revokeDevice.confirm'), t('desktop.dialog.cancel')],
-        defaultId: 1,
+        defaultId: 0,
         cancelId: 1,
     };
 }
@@ -380,7 +383,7 @@ export function clearBotDataPrompt(request: BotClearData): MessageBoxOptions {
             '\n',
         ),
         buttons: [t('desktop.clearBotData.confirm'), t('desktop.dialog.cancel')],
-        defaultId: 1,
+        defaultId: 0,
         cancelId: 1,
     };
 }
@@ -408,7 +411,7 @@ export function discardGitChangesPrompt(target: {
                 t(untracked ? 'desktop.discard.deleteFile' : 'desktop.discard.confirm'),
                 t('desktop.dialog.cancel'),
             ],
-            defaultId: 1,
+            defaultId: 0,
             cancelId: 1,
         };
     }
@@ -422,7 +425,7 @@ export function discardGitChangesPrompt(target: {
         ),
         detail: t('desktop.discardAll.detail'),
         buttons: [t('desktop.discardAll.confirm'), t('desktop.dialog.cancel')],
-        defaultId: 1,
+        defaultId: 0,
         cancelId: 1,
     };
 }
@@ -524,7 +527,7 @@ export function revertAgentChatFilesPrompt({
             .filter(Boolean)
             .join('\n\n'),
         buttons: [t('desktop.revertFiles.confirm'), t('desktop.dialog.cancel')],
-        defaultId: 1,
+        defaultId: 0,
         cancelId: 1,
     };
 }

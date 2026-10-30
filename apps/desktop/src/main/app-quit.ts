@@ -204,7 +204,9 @@ export function updateRestartPrompt(
         detail: [t('desktop.updateRestart.detail'), ...extras].join('\n\n'),
         buttons: [t('desktop.updateRestart.restart'), t('desktop.dialog.cancel')],
         /**
-         * Cancel is the default for the same reason as in `appQuitPrompt`: a mistaken Enter must not end running work.
+         * Cancel is both default and Escape target for the same reason as in `appQuitPrompt`: a mistaken Enter must not
+         * end running work. Electron's macOS message box rebinds a shared default/cancel button to Escape only, so
+         * Return deliberately does nothing here, unlike the confirmations in `confirmations.ts`.
          */
         defaultId: 1,
         cancelId: 1,
@@ -273,7 +275,7 @@ export function pendingReviewCommentsPrompt(
         buttons: [t('desktop.quit.anyway'), t('desktop.dialog.cancel')],
         /**
          * Cancel stays the default, matching `appQuitPrompt`'s own reasoning: a mistaken Enter should recoverably keep
-         * the comments around rather than discard them.
+         * the comments around rather than discard them. As in `updateRestartPrompt`, Return deliberately does nothing.
          */
         defaultId: 1,
         cancelId: 1,

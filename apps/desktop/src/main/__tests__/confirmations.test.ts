@@ -103,7 +103,7 @@ describe('external link prompt', () => {
         ).toEqual(['Open Once', 'Cancel']);
     });
 
-    it('makes Cancel both the default and the Escape target in every shape', () => {
+    it('makes Open Once the Return target and Cancel the Escape target in every shape', () => {
         const shapes = [
             externalLinkPrompt(new URL('https://example.com/'), true),
             externalLinkPrompt(new URL('https://example.com/'), false),
@@ -111,7 +111,7 @@ describe('external link prompt', () => {
         ];
         for (const options of shapes) {
             const cancelIndex = options.buttons!.indexOf('Cancel');
-            expect(options.defaultId).toBe(cancelIndex);
+            expect(options.defaultId).toBe(0);
             expect(options.cancelId).toBe(cancelIndex);
         }
     });
@@ -159,15 +159,15 @@ describe('trash prompt', () => {
         expect(options.detail).toContain('Only the last saved version can be recovered');
     });
 
-    it('keeps Cancel as the default and Escape target', () => {
+    it('confirms on Return and cancels on Escape', () => {
         const options = trashPrompt({ name: 'notes.md', path: '/tmp/notes.md' });
-        expect(options.buttons![options.defaultId!]).toBe('Cancel');
+        expect(options.defaultId).toBe(0);
         expect(options.buttons![options.cancelId!]).toBe('Cancel');
     });
 });
 
 describe('mobile device revoke prompt', () => {
-    it('names the device, explains the impact, and keeps cancellation safe by default', () => {
+    it('names the device, explains the impact, and confirms on Return', () => {
         const options = revokeMobileDevicePrompt({
             displayName: 'Pixel 8',
             platform: 'android',
@@ -176,7 +176,7 @@ describe('mobile device revoke prompt', () => {
         expect(options.detail).toContain('immediately loses access');
         expect(options.detail).toContain('pair it again');
         expect(options.detail).toContain('Projects and files are not affected');
-        expect(options.buttons![options.defaultId!]).toBe('Cancel');
+        expect(options.defaultId).toBe(0);
         expect(options.buttons![options.cancelId!]).toBe('Cancel');
     });
 });
@@ -192,7 +192,7 @@ describe('delete prompts', () => {
         expect(options.detail).toContain('Only Caxri metadata and snapshots are deleted.');
         expect(options.detail).toContain(`${clause} and its files are never touched.`);
         expect(options.buttons).toEqual([`Delete ${kind}`, 'Cancel']);
-        expect(options.buttons![options.defaultId!]).toBe('Cancel');
+        expect(options.defaultId).toBe(0);
         expect(options.buttons![options.cancelId!]).toBe('Cancel');
     });
 
@@ -273,7 +273,7 @@ describe('bulk delete Sessions prompt', () => {
         expect(options.title).toBe('Delete Sessions');
         expect(options.message).toBe(message);
         expect(options.detail).toContain('Only Caxri metadata and snapshots are deleted.');
-        expect(options.buttons![options.defaultId!]).toBe('Cancel');
+        expect(options.defaultId).toBe(0);
         expect(options.buttons![options.cancelId!]).toBe('Cancel');
     });
 });
@@ -302,7 +302,7 @@ describe('clear Caxri Bot data prompt', () => {
                 'This cannot be undone. Projects, Sessions, and the work running in them are not affected.',
             ].join('\n'),
         );
-        expect(options.buttons![options.defaultId!]).toBe('Cancel');
+        expect(options.defaultId).toBe(0);
         expect(options.buttons![options.cancelId!]).toBe('Cancel');
     });
 });
@@ -320,7 +320,7 @@ describe('discard Git changes prompt', () => {
             });
             expect(options.message).toBe(message);
             expect(options.buttons).toEqual(['Discard All Changes', 'Cancel']);
-            expect(options.defaultId).toBe(1);
+            expect(options.defaultId).toBe(0);
             expect(options.cancelId).toBe(1);
         },
     );
@@ -332,7 +332,7 @@ describe('discard Git changes prompt', () => {
         });
         expect(options.message).toBe("Discard changes in 'src/index.ts'?");
         expect(options.buttons).toEqual(['Discard Changes', 'Cancel']);
-        expect(options.buttons![options.defaultId!]).toBe('Cancel');
+        expect(options.defaultId).toBe(0);
         expect(options.buttons![options.cancelId!]).toBe('Cancel');
     });
 
@@ -386,12 +386,12 @@ describe('shell command elevation prompt', () => {
 });
 
 describe('revert Agent Chat files prompt', () => {
-    it('names the provider and the turns, and cancels by default', () => {
+    it('names the provider and the turns, and confirms on Return', () => {
         expect(
             revertAgentChatFilesPrompt({ providerName: 'Claude', removedTurns: 1 }),
         ).toMatchObject({
             message: 'Revert the files Claude changed in this turn?',
-            defaultId: 1,
+            defaultId: 0,
             cancelId: 1,
         });
         expect(revertAgentChatFilesPrompt({ providerName: 'Grok', removedTurns: 3 }).message).toBe(
@@ -469,5 +469,44 @@ describe('archive worktree prompt', () => {
         [2, 'cancel'],
     ] as const)('maps button %i to %s', (response, choice) => {
         expect(archiveWorktreeChoice(response)).toBe(choice);
+    });
+});
+
+/**
+ * Electron's macOS message box binds Return to `defaultId` and then rebinds `cancelId` to Escape, so a prompt whose two
+ * indices match has no Return target at all (issue caxri#3135).
+ */
+describe('Return and Escape targets', () => {
+    it.each([
+        ['external link', externalLinkPrompt(new URL('https://example.com/'), true)],
+        ['trash', trashPrompt({ name: 'notes.md', path: '/tmp/notes.md' })],
+        ['shell command', shellCommandElevationPrompt('install', '/usr/local/bin/caxri')],
+        ['delete Project', deleteProjectPrompt('caxri', NOTHING_RUNNING)],
+        ['delete Session', deleteSessionPrompt('caxri', { terminals: 0, chats: 1 })],
+        ['delete Sessions', deleteSessionsPrompt(3, NOTHING_RUNNING)],
+        [
+            'revoke device',
+            revokeMobileDevicePrompt({ displayName: 'Pixel 8', platform: 'android' }),
+        ],
+        ['clear Bot data', clearBotDataPrompt({ inbox: true })],
+        [
+            'discard file',
+            discardGitChangesPrompt({
+                repositoryName: 'caxri',
+                scope: { kind: 'file', path: 'src/index.ts', untracked: false },
+            }),
+        ],
+        [
+            'discard all',
+            discardGitChangesPrompt({
+                repositoryName: 'caxri',
+                scope: { kind: 'all', fileCount: 2 },
+            }),
+        ],
+        ['unsaved changes', unsavedChangesPrompt('index.ts')],
+        ['revert files', revertAgentChatFilesPrompt({ providerName: 'Claude', removedTurns: 1 })],
+    ])('gives the %s prompt a Return target distinct from Escape', (_name, options) => {
+        expect(options.defaultId).not.toBe(options.cancelId);
+        expect(options.buttons![options.cancelId!]).toBe('Cancel');
     });
 });

@@ -59,7 +59,11 @@ export function windowClosePrompt(running: RunningWork): WindowClosePrompt {
             t('desktop.windowClose.terminate'),
             t('desktop.dialog.cancel'),
         ],
-        defaultId: 2,
+        /**
+         * Keep Running is the Return target, matching `appQuitPrompt`; a shared default/cancel index would leave no
+         * Return target on macOS.
+         */
+        defaultId: 0,
         cancelId: 2,
     };
 }
