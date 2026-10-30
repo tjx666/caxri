@@ -5,6 +5,7 @@ import { ConversationEntry } from '../conversation/conversation-entry';
 import { AgentChatAnsweredQuestions } from './agent-chat-answered-questions';
 import { AgentChatDelegatedMessage } from './agent-chat-delegated-message';
 import { AgentChatFeedback } from './agent-chat-feedback';
+import { AgentChatHandoffTarget } from './agent-chat-handoff-target';
 import { AgentChatPathChips } from './agent-chat-path-chips';
 import { AgentChatPendingMessage } from './agent-chat-pending-message';
 import { AgentChatReplyPlaceholder } from './agent-chat-reply-placeholder';
@@ -45,6 +46,19 @@ export const AgentChatTimelineEntry = memo(
                 return (
                     <ConversationEntry
                         entry={entry.message}
+                        handoff={
+                            entry.handoff
+                                ? {
+                                      footer: (
+                                          <AgentChatHandoffTarget
+                                              sentAt={entry.handoff.sentAt}
+                                              theme={theme}
+                                          />
+                                      ),
+                                      note: entry.handoff.note,
+                                  }
+                                : undefined
+                        }
                         theme={theme}
                         userExtras={
                             entry.cited ? (

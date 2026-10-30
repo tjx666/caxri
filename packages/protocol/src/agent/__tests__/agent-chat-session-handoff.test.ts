@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
     agentChatSessionHandoffDraft,
+    agentChatSessionHandoffMessage,
+    agentChatSessionHandoffTarget,
     agentChatSessionHandoffText,
     parseAgentChatSessionHandoff,
     parseAgentChatSessionHandoffCommand,
@@ -110,5 +112,67 @@ describe('/new-session hand-off', () => {
             agentDelegationCreateRequestSchema.safeParse({ ...request, sessionId: 'session-1' })
                 .success,
         ).toBe(false);
+    });
+});
+
+const messageSessions = [{ id: 'session-1', projectId: 'project-1' }];
+const messageTerminal = { kind: 'claude', provider: 'claude', sessionId: 'session-1' } as const;
+
+describe('agentChatSessionHandoffMessage', () => {
+    it('sends /new-session as hand-off instructions naming the Chat Project and provider', () => {
+        const text = agentChatSessionHandoffMessage(
+            '/new-session write the docs',
+            messageTerminal,
+            messageSessions,
+        );
+        expect(parseAgentChatSessionHandoff(text)).toEqual({ note: 'write the docs' });
+        expect(text).toContain('--project project-1');
+        expect(text).toContain('--provider claude');
+        const codex = agentChatSessionHandoffMessage(
+            '/new-session',
+            { kind: 'codex', provider: undefined, sessionId: 'session-1' },
+            messageSessions,
+        );
+        expect(codex).toContain('--provider codex');
+    });
+
+    it('leaves other drafts, and a Chat whose Session is unknown, as typed', () => {
+        expect(agentChatSessionHandoffMessage('hello', messageTerminal, messageSessions)).toBe(
+            'hello',
+        );
+        expect(agentChatSessionHandoffMessage('/new-session x', messageTerminal, [])).toBe(
+            '/new-session x',
+        );
+        expect(agentChatSessionHandoffMessage('/new-session x', undefined, messageSessions)).toBe(
+            '/new-session x',
+        );
+    });
+});
+
+const sessionAt = (id: string, createdAt: number, createdBySessionId?: string) => ({
+    id,
+    createdAt,
+    createdBySessionId,
+});
+
+describe('agentChatSessionHandoffTarget', () => {
+    const sessions = [
+        sessionAt('earlier', 50, 'source'),
+        sessionAt('other-creator', 120, 'elsewhere'),
+        sessionAt('later', 300, 'source'),
+        sessionAt('handoff', 150, 'source'),
+        sessionAt('user-made', 110),
+    ];
+
+    it('picks the first Session the source created at or after the message', () => {
+        expect(agentChatSessionHandoffTarget(sessions, 'source', 100)?.id).toBe('handoff');
+        expect(agentChatSessionHandoffTarget(sessions, 'source', 150)?.id).toBe('handoff');
+    });
+
+    it('finds nothing before the Agent created it or without a send time', () => {
+        expect(agentChatSessionHandoffTarget(sessions, 'source', 400)).toBeUndefined();
+        expect(agentChatSessionHandoffTarget(sessions, 'source', undefined)).toBeUndefined();
+        expect(agentChatSessionHandoffTarget(sessions, undefined, 100)).toBeUndefined();
+        expect(agentChatSessionHandoffTarget(undefined, 'source', 100)).toBeUndefined();
     });
 });

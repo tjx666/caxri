@@ -54,6 +54,7 @@ const SessionConversationPane = ({
     isConnected,
     onEditMessage,
     onEditQueued,
+    session,
     theme,
     timeline,
 }: {
@@ -64,6 +65,7 @@ const SessionConversationPane = ({
     isConnected: boolean;
     onEditMessage: (target: AgentChatEditTarget, text: string) => void;
     onEditQueued: (text: string) => void;
+    session: Pick<MobileSessionItem, 'id' | 'projectId'>;
     theme: MobileTheme;
     timeline: ReturnType<typeof useConversationTimeline>;
 }) =>
@@ -72,6 +74,11 @@ const SessionConversationPane = ({
             chat={chat.controller}
             deviceRole={deviceRole}
             enterFrom={enterFrom}
+            handoffSource={{
+                projectId: session.projectId,
+                providerId: chat.providerId,
+                sessionId: session.id,
+            }}
             isConnected={isConnected}
             isHandedOff={chat.isHandedOff}
             onEditMessage={onEditMessage}
@@ -203,6 +210,7 @@ export const SessionDetailBody = ({
             isConnected={isConnected}
             onEditMessage={onEditMessage}
             onEditQueued={onEditQueued}
+            session={session}
             theme={theme}
             timeline={conversationTimeline}
         />

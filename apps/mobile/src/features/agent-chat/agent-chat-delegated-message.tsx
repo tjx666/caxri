@@ -1,23 +1,23 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
-import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { AgentChatDelegatedTask } from '@caxri/protocol';
-import { useRouter } from 'expo-router';
-import { Forward } from 'lucide-react-native';
+import { Forward, MessageSquareShare } from 'lucide-react-native';
 
 import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { conversationStyles } from '../conversation/conversation-styles';
-import { mobileLayoutMode } from '../layout/layout-mode';
 import { useHostSessions } from '../sessions/components/host-sessions-provider';
 import { allMobileSessions } from '../sessions/hooks/use-session-polling';
 import { sessionTitleForDisplay } from '../sessions/session-row-model';
 import { ClampedText } from './agent-chat-request-parts';
 import type { AgentChatTimelineEntry } from './agent-chat-timeline';
+import { useOpenSession } from './use-open-session';
 
 /**
  * "Delegated by" and who: a link to a Session the phone lists, or Caxri Bot. A source the phone cannot open (archived,
- * deleted, or never recorded) reads as a plain delegated task.
+ * deleted, or never recorded) reads as a plain delegated task. A hand-off (`/new-session`) reads "Continued from" its
+ * Session instead, since this Session carries that one's work on.
  */
 function DelegatedTaskSource({
     task,
@@ -27,12 +27,13 @@ function DelegatedTaskSource({
     theme: MobileTheme;
 }) {
     const { t } = useTranslation();
-    const router = useRouter();
-    const { height, width } = useWindowDimensions();
-    const { hostId, sessions } = useHostSessions();
+    const { sessions } = useHostSessions();
+    const openSession = useOpenSession();
     const { source } = task;
     const by = (
-        <Text style={[styles.sourceText, { color: theme.muted }]}>{t('chat.delegated.by')}</Text>
+        <Text style={[styles.sourceText, { color: theme.muted }]}>
+            {t(task.handoff ? 'chat.handoff.continuedFrom' : 'chat.delegated.by')}
+        </Text>
     );
     if (source?.kind === 'bot')
         return (
@@ -46,20 +47,10 @@ function DelegatedTaskSource({
     if (!session)
         return (
             <Text style={[styles.sourceText, { color: theme.text }]}>
-                {t('chat.delegated.task')}
+                {t(task.handoff ? 'chat.handoff.fromEarlier' : 'chat.delegated.task')}
             </Text>
         );
     const title = sessionTitleForDisplay(session.title, t);
-    const open = (): void => {
-        sessions.selectSession(session.id);
-        const href =
-            `/h/${encodeURIComponent(hostId)}/s/${encodeURIComponent(session.id)}` as const;
-        /**
-         * A tablet's split view swaps the Session it shows, as the list does, so it never stacks a second Terminal.
-         */
-        if (mobileLayoutMode(width, height) === 'phone') router.navigate(href);
-        else router.replace(href);
-    };
     return (
         <>
             {by}
@@ -67,7 +58,7 @@ function DelegatedTaskSource({
                 accessibilityHint={t('chat.delegated.openSourceHint')}
                 accessibilityRole="link"
                 hitSlop={8}
-                onPress={open}
+                onPress={() => openSession(session.id)}
                 style={styles.sourceLink}
                 testID={`agent-chat-delegated-source-${task.delegationId}`}
             >
@@ -110,7 +101,11 @@ export const AgentChatDelegatedMessage = ({
         >
             <View style={[conversationStyles.userBubble, { backgroundColor: theme.surface }]}>
                 <View style={styles.source}>
-                    <Forward color={theme.muted} size={14} />
+                    {task.handoff ? (
+                        <MessageSquareShare color={theme.primary} size={14} />
+                    ) : (
+                        <Forward color={theme.muted} size={14} />
+                    )}
                     <DelegatedTaskSource task={task} theme={theme} />
                 </View>
                 {body.kind === 'prompt' ? (

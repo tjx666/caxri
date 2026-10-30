@@ -1,4 +1,7 @@
-import { AGENT_CHAT_SESSION_HANDOFF_COMMAND } from '@caxri/protocol';
+import {
+    AGENT_CHAT_SESSION_HANDOFF_COMMAND,
+    agentChatSessionHandoffMessage,
+} from '@caxri/protocol';
 
 import { translate } from '../../../i18n';
 import { getBootstrap } from '../../../stores/selectors';
@@ -10,7 +13,6 @@ import {
     expireAgentChatPendingMessage,
     showAgentChatPendingMessage,
 } from '../transcript/agent-chat-pending';
-import { agentChatSessionHandoffMessage } from './agent-chat-session-handoff-message';
 
 /**
  * The `/new-session` draft that starts an issue in a new Session: its reference (`ENG-123`, `owner/repo#12`) for the

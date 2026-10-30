@@ -11,6 +11,12 @@ export const mobileDashboardSessionSchema = z.strictObject({
     projectId: identifierSchema,
     title: z.string().min(1).max(100),
     projectTitle: z.string().min(1).max(100),
+    /**
+     * When the Session was created, with `createdBySessionId` what lets the phone find the Session a `/new-session`
+     * hand-off created (`agentChatSessionHandoffTarget`).
+     */
+    createdAt: sessionRecordSchema.shape.createdAt.optional(),
+    createdBySessionId: sessionRecordSchema.shape.createdBySessionId,
     lastVisitedAt: sessionRecordSchema.shape.lastVisitedAt,
     /**
      * The Session's work clock, which orders rows inside a group on both Desktop and the phone.

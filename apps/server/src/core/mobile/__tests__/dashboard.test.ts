@@ -15,6 +15,7 @@ describe('buildMobileDashboard', () => {
             projectId: 'project-1',
             workbenchRootProjectId,
             title: id,
+            createdAt: 1,
             lastVisitedAt: 1,
             sessionActivityAt: 1,
             agentActivityState: 'waiting' as const,
@@ -54,6 +55,36 @@ describe('buildMobileDashboard', () => {
         expect(plain?.worktreeTitle).toBeUndefined();
     });
 
+    it('carries when a Session was created and by which Session, for finding a hand-off target', () => {
+        const session = (id: string, createdBySessionId?: string) => ({
+            id,
+            projectId: 'project-1',
+            workbenchRootProjectId: 'project-1',
+            title: id,
+            createdAt: 500,
+            ...(createdBySessionId && { createdBySessionId }),
+            lastVisitedAt: 1,
+            sessionActivityAt: 1,
+            agentActivityState: 'completed' as const,
+            attentionGeneration: 0,
+            hasUnread: false,
+        });
+        const result = buildMobileDashboard({
+            hostDisplayName: 'Caxri Host',
+            deviceRole: 'view',
+            projects: [{ id: 'project-1', title: 'App' }],
+            sessions: [session('source'), session('next', 'source')],
+            terminals: [],
+        });
+        expect(result.sessions.find(({ id }) => id === 'next')).toMatchObject({
+            createdAt: 500,
+            createdBySessionId: 'source',
+        });
+        expect(
+            result.sessions.find(({ id }) => id === 'source')?.createdBySessionId,
+        ).toBeUndefined();
+    });
+
     it('prioritizes attention and stays within one encrypted frame for Desktop-scale inputs', () => {
         const longTitle = '🙂'.repeat(1_024);
         const sessions = Array.from({ length: 1_000 }, (_, index) => ({
@@ -61,6 +92,7 @@ describe('buildMobileDashboard', () => {
             projectId: 'project-1',
             workbenchRootProjectId: 'project-1',
             title: longTitle,
+            createdAt: 1,
             lastVisitedAt: index,
             sessionActivityAt: index,
             agentActivityState: index === 0 ? ('waiting' as const) : ('completed' as const),
@@ -107,6 +139,7 @@ describe('buildMobileDashboard', () => {
             projectId: 'project-1',
             workbenchRootProjectId: 'project-1',
             title: 'Session',
+            createdAt: 1,
             lastVisitedAt: 1,
             attentionGeneration: 0,
             hasUnread: false,
@@ -161,6 +194,7 @@ describe('buildMobileDashboard', () => {
                     projectId: 'project-1',
                     workbenchRootProjectId: 'project-1',
                     title: 'Visible',
+                    createdAt: 1,
                     lastVisitedAt: 1,
                     sessionActivityAt: 1,
                     agentActivityState: 'completed',
@@ -172,6 +206,7 @@ describe('buildMobileDashboard', () => {
                     projectId: 'project-other',
                     workbenchRootProjectId: 'project-other',
                     title: 'Hidden',
+                    createdAt: 1,
                     lastVisitedAt: 2,
                     sessionActivityAt: 2,
                     agentActivityState: 'waiting',
@@ -200,6 +235,7 @@ describe('buildMobileDashboard', () => {
                     projectId: 'project-1',
                     workbenchRootProjectId: 'project-1',
                     title: 'Shell Session',
+                    createdAt: 1,
                     lastVisitedAt: 1,
                     sessionActivityAt: 1,
                     agentActivityState: 'idle',
@@ -232,6 +268,7 @@ describe('buildMobileArchivedSessions', () => {
             projectId,
             workbenchRootProjectId: projectId,
             title: id,
+            createdAt: 1,
             lastVisitedAt: 1,
             sessionActivityAt: 1,
             agentActivityState: 'completed' as const,
@@ -289,6 +326,7 @@ describe('buildMobileArchivedSessions', () => {
                 projectId: 'project-1',
                 workbenchRootProjectId: 'project-1',
                 title: '🙂'.repeat(1_024),
+                createdAt: 1,
                 lastVisitedAt: 1,
                 sessionActivityAt: 1,
                 agentActivityState: 'completed' as const,
@@ -314,6 +352,7 @@ describe('buildMobileDashboard usage-limit waits', () => {
             projectId: 'project-1',
             workbenchRootProjectId: 'project-1',
             title: 'Session',
+            createdAt: 1,
             lastVisitedAt: 1,
             sessionActivityAt: 1,
             attentionGeneration: 0,

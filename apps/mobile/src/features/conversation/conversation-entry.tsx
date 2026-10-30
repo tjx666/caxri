@@ -19,6 +19,7 @@ import { ConversationToolDetail } from './conversation-tool-detail';
 import { ConversationToolGroup } from './conversation-tool-group';
 import { ConversationToolRow } from './conversation-tool-row';
 import { ConversationUserAttachments } from './conversation-user-attachments';
+import type { ConversationUserText } from './conversation-user-text';
 import { conversationActionText, conversationUserText } from './conversation-user-text';
 import { useConversationPacedText } from './use-conversation-paced-text';
 
@@ -116,10 +117,17 @@ export const ConversationEntry = memo(
     ({
         entry,
         theme,
+        handoff,
         userExtras,
     }: {
         entry: Entry;
         theme: MobileTheme;
+        /**
+         * Set when the message is a `/new-session` hand-off whose text the caller already reduced to the user's words
+         * (an Agent Chat message): the card shows `note`, with `footer` under it such as the link to the Session it
+         * started. A Terminal Agent's message is recognized from its text instead.
+         */
+        handoff?: { footer?: ReactNode; note: string };
         /**
          * Drawn between a user message's attachments and its bubble, such as the files an Agent Chat message cites.
          */
@@ -140,7 +148,9 @@ export const ConversationEntry = memo(
             );
         }
         if (entry.type === 'userMessage') {
-            const user = conversationUserText(entry.text);
+            const user: ConversationUserText = handoff
+                ? { kind: 'handoff', note: handoff.note }
+                : conversationUserText(entry.text);
             return (
                 <View
                     style={[styles.message, styles.userRow]}
@@ -159,7 +169,11 @@ export const ConversationEntry = memo(
                             testID={`conversation-user-bubble-${entry.id}`}
                         >
                             {user.kind === 'handoff' ? (
-                                <ConversationHandoffCard note={user.note} theme={theme} />
+                                <ConversationHandoffCard
+                                    footer={handoff?.footer}
+                                    note={user.note}
+                                    theme={theme}
+                                />
                             ) : (
                                 <Text style={[styles.userText, { color: theme.text }]}>
                                     {user.text}

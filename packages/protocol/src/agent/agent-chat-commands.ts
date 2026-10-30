@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import type { AgentAction } from './agent-action-contract.js';
 import { searchAgentActions } from './agent-action-search.js';
+import { delegationProviderSchema } from './delegation/agent-delegation-settings.js';
 
 export const MAX_AGENT_CHAT_COMMANDS = 200;
 
@@ -264,4 +265,56 @@ export function agentChatSessionHandoffDraft(text: string): string {
     if (!handoff) return text;
     const command = `/${AGENT_CHAT_SESSION_HANDOFF_COMMAND}`;
     return handoff.note ? `${command} ${handoff.note}` : command;
+}
+
+/**
+ * The text a Client sends for `sent`: the hand-off instructions for a `/new-session [next task]` draft
+ * ({@link agentChatSessionHandoffText}), naming the Chat's own Project and provider so the new Session continues with
+ * the same Agent; any other draft unchanged. A Chat whose Session or provider is unknown sends the draft as typed
+ * rather than instructions that would name the wrong Project, so a caller can tell the hand-off failed by `result ===
+ * sent` on a `/new-session` draft.
+ */
+export function agentChatSessionHandoffMessage(
+    sent: string,
+    terminal: { kind: string; provider?: string; sessionId: string } | undefined,
+    sessions: ReadonlyArray<{ id: string; projectId: string }> | undefined,
+): string {
+    const note = parseAgentChatSessionHandoffCommand(sent);
+    if (note === undefined || !terminal) return sent;
+    const provider = delegationProviderSchema.safeParse(terminal.provider ?? terminal.kind);
+    const projectId = sessions?.find((session) => session.id === terminal.sessionId)?.projectId;
+    if (!projectId || !provider.success) return sent;
+    return agentChatSessionHandoffText({ note, projectId, provider: provider.data });
+}
+
+/**
+ * The Session a `/new-session` message sent at `sentAt` handed off to: the first Session the Agent of `sourceSessionId`
+ * created from then on. The hand-off delegation does not record which message asked for it, so this is the closest fact
+ * the Workbench holds; the instructions ask for exactly one Session, so the first one after the message is it.
+ * `undefined` until the Agent has created it, and for a message whose send time is unknown (history the provider kept
+ * no time for).
+ */
+export function agentChatSessionHandoffTarget<
+    Session extends { createdAt?: number; createdBySessionId?: string },
+>(
+    sessions: readonly Session[] | undefined,
+    sourceSessionId: string | undefined,
+    sentAt: number | undefined,
+): Session | undefined {
+    if (!sessions || sourceSessionId === undefined || sentAt === undefined) return undefined;
+    let target: Session | undefined;
+    let targetCreatedAt = Infinity;
+    for (const session of sessions) {
+        const { createdAt } = session;
+        if (
+            createdAt === undefined ||
+            session.createdBySessionId !== sourceSessionId ||
+            createdAt < sentAt ||
+            createdAt >= targetCreatedAt
+        )
+            continue;
+        target = session;
+        targetCreatedAt = createdAt;
+    }
+    return target;
 }
