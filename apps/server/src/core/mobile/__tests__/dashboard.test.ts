@@ -9,6 +9,51 @@ import {
 } from '../dashboard';
 
 describe('buildMobileDashboard', () => {
+    it('marks each row with its pull request, attention kind, and worktree from data already read', () => {
+        const session = (id: string, workbenchRootProjectId: string) => ({
+            id,
+            projectId: 'project-1',
+            workbenchRootProjectId,
+            title: id,
+            lastVisitedAt: 1,
+            sessionActivityAt: 1,
+            agentActivityState: 'waiting' as const,
+            attentionGeneration: 1,
+            hasUnread: true,
+            lastAttentionKind: 'waiting' as const,
+        });
+        const result = buildMobileDashboard({
+            hostDisplayName: 'Caxri Host',
+            deviceRole: 'view',
+            projects: [{ id: 'project-1', title: 'App' }],
+            sessions: [session('plain', 'project-1'), session('linked', 'worktree-1')],
+            terminals: [],
+            pullRequests: {
+                linked: {
+                    number: 12,
+                    title: 'Do not send',
+                    url: 'https://github.com/example/app/pull/12',
+                    state: 'merged',
+                    checks: 'success',
+                    source: 'branch',
+                },
+            },
+            worktreeProjects: [{ id: 'worktree-1', title: 'app-feature' }],
+        });
+        const [linked, plain] = [
+            result.sessions.find(({ id }) => id === 'linked'),
+            result.sessions.find(({ id }) => id === 'plain'),
+        ];
+        expect(linked).toMatchObject({
+            lastAttentionKind: 'waiting',
+            pullRequest: { number: 12, state: 'merged' },
+            worktreeTitle: 'app-feature',
+        });
+        expect(linked?.pullRequest).toEqual({ number: 12, state: 'merged' });
+        expect(plain?.pullRequest).toBeUndefined();
+        expect(plain?.worktreeTitle).toBeUndefined();
+    });
+
     it('prioritizes attention and stays within one encrypted frame for Desktop-scale inputs', () => {
         const longTitle = '🙂'.repeat(1_024);
         const sessions = Array.from({ length: 1_000 }, (_, index) => ({

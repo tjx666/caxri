@@ -1,6 +1,8 @@
 import { useCallback } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { FolderTree } from 'lucide-react-native';
+
 import { AgentAvatar } from '../../../components/agent-icon';
 import { useTranslation } from '../../../i18n';
 import { mobileRadius, mobileSpace, mobileType } from '../../../theme/scale';
@@ -9,9 +11,11 @@ import type { MobileSessionItem } from '../session-model';
 import {
     sessionAgeLabel,
     sessionAgentLabel,
+    sessionRowPullRequest,
     sessionStateLabel,
     sessionTitleForDisplay,
 } from '../session-row-model';
+import { SessionRowPullRequest } from './session-row-pull-request';
 import { SessionStatusGlyph } from './session-status-glyph';
 
 const styles = StyleSheet.create({
@@ -24,7 +28,10 @@ const styles = StyleSheet.create({
         width: 3,
     },
     copy: { flex: 1, gap: mobileSpace.xxs, minWidth: 0 },
-    meta: mobileType.meta,
+    age: { ...mobileType.meta, flexShrink: 0 },
+    meta: { ...mobileType.meta, flexShrink: 1 },
+    metaLine: { alignItems: 'center', flexDirection: 'row', gap: mobileSpace.xs, minWidth: 0 },
+    worktree: { alignItems: 'center', flexDirection: 'row', flexShrink: 1, gap: 2, minWidth: 0 },
     row: {
         alignItems: 'center',
         borderRadius: mobileRadius.md,
@@ -35,7 +42,13 @@ const styles = StyleSheet.create({
         paddingHorizontal: mobileSpace.md,
         paddingVertical: mobileSpace.md,
     },
-    status: { alignItems: 'center', justifyContent: 'center', minWidth: 20 },
+    status: {
+        alignItems: 'center',
+        flexDirection: 'row',
+        gap: mobileSpace.sm,
+        justifyContent: 'center',
+        minWidth: 20,
+    },
     title: { ...mobileType.bodyStrong, fontWeight: '500' },
     unreadTitle: { fontWeight: '700' },
 });
@@ -73,10 +86,18 @@ export const SessionRow = ({
     const handlePress = useCallback(() => onPress(session.id), [onPress, session.id]);
     const age = sessionAgeLabel(session.sessionActivityAt, now, t);
     const stateLabel = sessionStateLabel(session.stateLabel, savedAt, now, t);
+    const pullRequest = sessionRowPullRequest(session, savedAt !== null, t);
+    const worktree = session.worktreeTitle;
     return (
         <Pressable
             accessibilityHint={t('sessions.row.openHint')}
-            accessibilityLabel={`${title}, ${sessionAgentLabel(session, t)}, ${stateLabel}`}
+            accessibilityLabel={[
+                title,
+                sessionAgentLabel(session, t),
+                stateLabel,
+                ...(worktree ? [t('sessions.row.worktree', { name: worktree })] : []),
+                ...(pullRequest ? [pullRequest.label] : []),
+            ].join(', ')}
             accessibilityActions={
                 onLongPress ? [{ name: 'longpress', label: t('sessions.row.actions') }] : undefined
             }
@@ -118,11 +139,34 @@ export const SessionRow = ({
                 >
                     {title}
                 </Text>
-                <Text numberOfLines={1} style={[styles.meta, { color: theme.muted }]}>
-                    {showProject ? `${session.projectTitle} · ${age}` : age}
-                </Text>
+                <View style={styles.metaLine}>
+                    {showProject ? (
+                        <Text numberOfLines={1} style={[styles.meta, { color: theme.muted }]}>
+                            {session.projectTitle}
+                        </Text>
+                    ) : null}
+                    {worktree ? (
+                        <View style={styles.worktree} testID="session-row-worktree">
+                            <FolderTree color={theme.muted} size={12} />
+                            <Text numberOfLines={1} style={[styles.meta, { color: theme.muted }]}>
+                                {worktree}
+                            </Text>
+                        </View>
+                    ) : null}
+                    <Text style={[styles.age, { color: theme.muted }]}>
+                        {showProject || worktree ? `· ${age}` : age}
+                    </Text>
+                </View>
             </View>
             <View style={styles.status}>
+                {pullRequest ? (
+                    <SessionRowPullRequest
+                        icon={pullRequest.icon}
+                        label={pullRequest.label}
+                        theme={theme}
+                        tone={pullRequest.tone}
+                    />
+                ) : null}
                 <SessionStatusGlyph
                     isSaved={savedAt !== null}
                     label={stateLabel}

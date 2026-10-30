@@ -1,19 +1,13 @@
 import type {
     PullRequestUnavailable,
     SessionPullRequest,
+    SessionPullRequestIcon,
     SessionPullRequests,
+    SessionPullRequestTone,
 } from '@caxri/protocol';
+import { sessionPullRequestVisual } from '@caxri/protocol';
 
 import type { Translate } from '../../i18n';
-import type { SessionActivityPresentation } from './session-activity';
-
-export type SessionPullRequestIcon = 'closed' | 'deployed' | 'draft' | 'merged' | 'open';
-
-/**
- * Extends the shared activity tones with `merged`, which the lifecycle glyphs have no use for. A merged PR cannot
- * borrow `success`: that tone also identifies open PRs, and at 13px shape alone does not reliably distinguish them.
- */
-export type SessionPullRequestTone = SessionActivityPresentation['tone'] | 'merged';
 
 export interface SessionPullRequestPresentation {
     ariaLabel: string;
@@ -79,16 +73,12 @@ function deployedPresentation(
     deployment: SessionPullRequest['deployment'],
     number: number,
     t: Translate,
-): SessionPullRequestPresentation | undefined {
+): Omit<SessionPullRequestPresentation, 'icon' | 'tone'> | undefined {
     switch (deployment?.state) {
         case 'success':
             return {
                 ariaLabel: t('primarySidebar.pullRequest.deployed.ariaLabel', { number }),
-                icon: 'deployed',
                 label: t('primarySidebar.pullRequest.deployed.label'),
-                // The merged violet, not the open green: a shipped rocket is where a merged pull request goes next,
-                // and at 13px a green rocket beside a green open PR read as the same state.
-                tone: 'merged',
                 checksLabel: t('primarySidebar.pullRequest.deployed.checks'),
                 checksTone: 'success',
             };
@@ -97,9 +87,7 @@ function deployedPresentation(
                 ariaLabel: t('primarySidebar.pullRequest.deployFailed.ariaLabel', {
                     number,
                 }),
-                icon: 'deployed',
                 label: t('primarySidebar.pullRequest.deployFailed.label'),
-                tone: 'danger',
                 checksLabel: t('primarySidebar.pullRequest.deployFailed.checks'),
                 checksTone: 'danger',
             };
@@ -107,9 +95,7 @@ function deployedPresentation(
         case 'queued':
             return {
                 ariaLabel: t('primarySidebar.pullRequest.deploying.ariaLabel', { number }),
-                icon: 'deployed',
                 label: t('primarySidebar.pullRequest.deploying.label'),
-                tone: 'warning',
                 checksLabel: t('primarySidebar.pullRequest.deploying.checks'),
                 checksTone: 'warning',
             };
@@ -169,20 +155,21 @@ export function sessionPullRequestPresentation(
     const { number } = pullRequest;
     const base = t(`primarySidebar.pullRequest.base.${pullRequest.state}`, { number });
     const sentence = t('primarySidebar.pullRequest.sentence', { base });
+    // Glyph and color come from the shared rule the phone's Session row also reads.
+    const visual = sessionPullRequestVisual(pullRequest);
     switch (pullRequest.state) {
         case 'merged':
-            return (
-                deployedPresentation(pullRequest.deployment, pullRequest.number, t) ?? {
+            return {
+                ...(deployedPresentation(pullRequest.deployment, pullRequest.number, t) ?? {
                     ariaLabel: sentence,
-                    icon: 'merged',
                     label,
-                    tone: 'merged',
-                }
-            );
+                }),
+                ...visual,
+            };
         case 'closed':
-            return { ariaLabel: sentence, icon: 'closed', label, tone: 'danger' };
+            return { ariaLabel: sentence, label, ...visual };
         case 'draft':
-            return { ariaLabel: sentence, icon: 'draft', label, tone: 'neutral' };
+            return { ariaLabel: sentence, label, ...visual };
         case 'open': {
             const checks = pullRequestChecksPresentation(pullRequest.checks, t);
             if (checks)
@@ -192,11 +179,10 @@ export function sessionPullRequestPresentation(
                     }),
                     checksLabel: checks.label,
                     checksTone: checks.tone,
-                    icon: 'open',
                     label,
-                    tone: 'success',
+                    ...visual,
                 };
-            return { ariaLabel: sentence, icon: 'open', label, tone: 'success' };
+            return { ariaLabel: sentence, label, ...visual };
         }
     }
 }

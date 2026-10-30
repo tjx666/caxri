@@ -188,6 +188,8 @@ export class RecordQueryService {
                     primaryAgentTerminalId,
                     attentionGeneration,
                     hasUnread,
+                    lastAttentionKind,
+                    workbenchRootProjectId,
                 }) => ({
                     id,
                     projectId,
@@ -201,6 +203,8 @@ export class RecordQueryService {
                     ...(primaryAgentTerminalId !== undefined && { primaryAgentTerminalId }),
                     attentionGeneration,
                     hasUnread,
+                    ...(lastAttentionKind !== undefined && { lastAttentionKind }),
+                    workbenchRootProjectId,
                 }),
             ),
         };

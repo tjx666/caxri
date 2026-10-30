@@ -1,4 +1,4 @@
-import type { SessionPullRequest } from '@caxri/protocol';
+import type { SessionPullRequest, SessionPullRequestIcon } from '@caxri/protocol';
 import type { LucideIcon } from 'lucide-react';
 import {
     GitMerge,
@@ -10,7 +10,6 @@ import {
 
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
-import type { SessionPullRequestIcon } from './session-pull-request';
 import {
     sessionPullRequestPresentation,
     sessionPullRequestToneClassName,

@@ -355,6 +355,10 @@ describe('MobileAccessController role and resource authority', () => {
                                   ]
                                 : [],
                     });
+                if (method === 'session.pullRequests')
+                    return Promise.resolve({ pullRequests: {}, refreshedAt: 0 });
+                if (method === 'project.list')
+                    return Promise.resolve({ view: 'desktop', projects: [] });
                 throw new Error(`Unexpected method: ${method}`);
             },
         );
