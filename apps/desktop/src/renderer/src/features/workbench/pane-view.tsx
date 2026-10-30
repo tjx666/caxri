@@ -206,10 +206,16 @@ function PaneBox({
     // Workbench-wide for the same reason the tab bar's chrome is: a second tab in *any* pane is something to switch to,
     // so a split whose panes each hold one tab still needs the active accent and the "New Terminal" button.
     const hasTabsToSwitch = listPaneTabs(layout).length > 1;
+    /**
+     * A Chat takes no pasted input: its composer cites paths itself, so an Editor tab dragged onto it without Option
+     * places like any other pane tab.
+     */
+    const isChatPane = terminal !== undefined && isChatTerminal(terminal);
     const dropIntent = (event: DragEvent<HTMLElement>) =>
         resolvePaneDropIntent(event.dataTransfer.types, {
             altKey: event.altKey,
-            isTerminal: Boolean(terminalId),
+            isChat: isChatPane,
+            isTerminal: terminal !== undefined && !isChatPane,
             acceptsFileDrop: isAcceptsFileDrop,
             hasFilePath: hasTerminalDraggedPath(event),
         });

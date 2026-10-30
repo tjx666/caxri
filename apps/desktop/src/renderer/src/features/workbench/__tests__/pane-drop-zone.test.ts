@@ -4,6 +4,7 @@ import { PROJECT_PATH_DRAG_TYPE } from '../../../lib/file-drag';
 import {
     EDITOR_PATH_DRAG_TYPE,
     hasPaneTabDragType,
+    isChatPathDrop,
     PANE_TAB_DRAG_TYPE,
     resolvePaneDropIntent,
     resolvePaneDropZone,
@@ -47,6 +48,26 @@ describe('resolvePaneDropIntent', () => {
         );
         expect(resolvePaneDropIntent([], { ...terminal, hasFilePath: true })).toBe('paste');
         expect(resolvePaneDropIntent([], terminal)).toBeUndefined();
+    });
+});
+
+describe('isChatPathDrop', () => {
+    const editorTypes = [PANE_TAB_DRAG_TYPE, EDITOR_PATH_DRAG_TYPE, 'text/plain'];
+    const plain = { altKey: false, hasFilePath: false };
+    it('leaves an Editor tab to pane placement unless Option cites its path', () => {
+        expect(isChatPathDrop(editorTypes, plain)).toBe(false);
+        expect(isChatPathDrop(editorTypes, { ...plain, altKey: true })).toBe(true);
+        const chatPane = { ...plain, isChat: true, isTerminal: false, acceptsFileDrop: false };
+        expect(resolvePaneDropIntent(editorTypes, chatPane)).toBe('place');
+        // The composer takes the Option drag, so the pane must not preview a placement it never receives.
+        expect(resolvePaneDropIntent(editorTypes, { ...chatPane, altKey: true })).toBeUndefined();
+    });
+    it("always cites Files entries, other applications' files, and Projects", () => {
+        expect(isChatPathDrop([], { ...plain, hasFilePath: true })).toBe(true);
+        expect(isChatPathDrop([PROJECT_PATH_DRAG_TYPE], plain)).toBe(true);
+    });
+    it('never takes a Terminal tab', () => {
+        expect(isChatPathDrop([PANE_TAB_DRAG_TYPE], { ...plain, altKey: true })).toBe(false);
     });
 });
 
