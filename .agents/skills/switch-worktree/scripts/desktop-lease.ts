@@ -198,6 +198,10 @@ export async function acquireDesktopLease(
         worktreePath: context.root,
     };
 
+    const waitMs = options.waitMs ?? 0;
+    if (!Number.isFinite(waitMs) || waitMs < 0)
+        throw new CommandError('Desktop lease wait must be a nonnegative finite duration');
+    const deadline = Date.now() + waitMs;
     const acquireOnce = (): Promise<DesktopLeaseHandle> =>
         withRepoLock(
             context,
@@ -253,12 +257,16 @@ export async function acquireDesktopLease(
                 /* eslint-enable no-await-in-loop */
                 throw new CommandError('Could not acquire the repository desktop lease');
             },
-            { namespace: options.namespace },
+            {
+                namespace: options.namespace,
+                /**
+                 * A caller willing to wait for a busy lease also waits out a sibling's slow repository operation, such
+                 * as `switch-worktree create` fetching under load, instead of failing after the lock's default 10s
+                 * after an Android Acceptance round had already spent minutes building its APK.
+                 */
+                ...(waitMs > 0 && { timeoutMs: Math.max(10_000, deadline - Date.now()) }),
+            },
         );
-    const waitMs = options.waitMs ?? 0;
-    if (!Number.isFinite(waitMs) || waitMs < 0)
-        throw new CommandError('Desktop lease wait must be a nonnegative finite duration');
-    const deadline = Date.now() + waitMs;
     /* eslint-disable no-await-in-loop -- each retry must acquire the repository lock and attempt atomic creation. */
     for (;;) {
         try {
