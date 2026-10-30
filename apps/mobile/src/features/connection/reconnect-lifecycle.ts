@@ -95,3 +95,19 @@ export const runReconnectAttempt = async <Connection extends ClosableMobileConne
         if (isActive()) onFailed(error);
     }
 };
+
+/**
+ * Counts reconnect attempts that are still dialing, so a network hint for the same network can leave them alone
+ * (`network-recovery.ts`).
+ */
+export const countWhileDialing = async <Result>(
+    dialing: { current: number },
+    dial: () => Promise<Result>,
+): Promise<Result> => {
+    dialing.current += 1;
+    try {
+        return await dial();
+    } finally {
+        dialing.current -= 1;
+    }
+};

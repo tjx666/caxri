@@ -55,6 +55,46 @@ describe('mobile network recovery', () => {
         ).toBe('ignore');
     });
 
+    it('keeps a dialing reconnect unless the network type changed', () => {
+        const base = {
+            hasOutstandingMutation: false,
+            isForeground: true,
+            isReconnecting: true,
+            network: { isConnected: true, type: 'WIFI' },
+            status: 'stale',
+        } as const;
+        expect(mobileNetworkWakeAction(base)).toBe('ignore');
+        expect(mobileNetworkWakeAction({ ...base, previousType: 'WIFI' })).toBe('ignore');
+        expect(mobileNetworkWakeAction({ ...base, previousType: 'CELLULAR' })).toBe('reconnect');
+        expect(
+            mobileNetworkWakeAction({ ...base, isReconnecting: false, previousType: 'WIFI' }),
+        ).toBe('reconnect');
+    });
+
+    it('compares each hint with the previous one it received', () => {
+        let listener: ((state: { isConnected?: boolean; type?: string }) => void) | undefined;
+        const onAction = vi.fn();
+        watchMobileNetwork({
+            subscribe: (callback) => {
+                listener = callback;
+                return { remove: vi.fn() };
+            },
+            context: () => ({
+                hasOutstandingMutation: false,
+                isForeground: true,
+                isReconnecting: true,
+                status: 'stale',
+            }),
+            onAction,
+        });
+
+        listener?.({ isConnected: true, type: 'WIFI' });
+        listener?.({ isConnected: true, type: 'WIFI' });
+        expect(onAction).not.toHaveBeenCalled();
+        listener?.({ isConnected: true, type: 'CELLULAR' });
+        expect(onAction).toHaveBeenCalledExactlyOnceWith('reconnect');
+    });
+
     it('removes the native listener and ignores callbacks after cleanup', () => {
         let listener: ((state: { isConnected?: boolean; type?: string }) => void) | undefined;
         const remove = vi.fn();
