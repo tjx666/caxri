@@ -162,7 +162,7 @@ types listed here.
 | `agents.notifications.enabled`                    | `true`, `false`                                    | System notifications for Agent turns                    |
 | `agents.notifications.completionThresholdSeconds` | `15` (integer)                                     | Notify about a finished turn only when it ran this long |
 | `primarySidebar.autoCollapseProjects`             | `"30m"`, `"off"`, `"2h"`                           | Collapse Projects with no activity for this long        |
-| `statusBar.usage.showFiveHourLimit`               | `false`, `true`                                    | Show the Agent's 5-hour usage limit in the status bar   |
+| `statusBar.usage.limitWindows`                    | `"auto"`, `"fiveHour"`, `"weekly"`, `"both"`       | Which Agent usage limits the status bar shows           |
 | `agentChat.autoContinueAtUsageLimit`              | `true`, `false`                                    | Continue a Chat automatically once a usage limit resets |
 | `terminal.idleSuspension.enabled`                 | `false`, `true`                                    | Suspend Agents idle in the background to save memory    |
 

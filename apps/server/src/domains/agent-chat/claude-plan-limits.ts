@@ -1,6 +1,9 @@
+import { homedir } from 'node:os';
+
 import type { Query, SDKRateLimitInfo } from '@anthropic-ai/claude-agent-sdk';
 import type { UsageCredits, UsageLimit } from '@caxri/protocol';
 
+import { readClaudeRateLimitTier } from '../agents';
 import { isRecord, stringField } from './chat-items';
 import { withTimeout } from './claude-prompt-queue';
 import { isClaudeOverageAllowed } from './continuation/claude-usage-limit';
@@ -39,6 +42,13 @@ interface ClaudePlanLimitsOptions {
      * Sees whether extra usage is on, from each `/usage` answer that says.
      */
     onExtraUsage?: (isEnabled: boolean) => void;
+    /**
+     * The Chat process's environment, which locates Claude Code's global config for the account's rate-limit tier
+     * (`readClaudeRateLimitTier`). Read once per Chat on its first subscription reading: the tier changes only with the
+     * plan, and the config file can be large. A function because the owning session's options are not assigned yet when
+     * its fields initialize. Without it readings carry no tier.
+     */
+    readEnvironment?: () => NodeJS.ProcessEnv;
     now?: () => number;
 }
 
@@ -51,10 +61,22 @@ interface ClaudePlanLimitsOptions {
 export class ClaudePlanLimits {
     private reading: PlanLimitsReading | undefined;
     private askedAt = -Infinity;
+    private rateLimitTier: Promise<string | undefined> | undefined;
     private readonly now: () => number;
 
     constructor(private readonly options: ClaudePlanLimitsOptions = {}) {
         this.now = options.now ?? Date.now;
+    }
+
+    private readRateLimitTier(): Promise<string | undefined> {
+        const environment = this.options.readEnvironment?.();
+        this.rateLimitTier ??= environment
+            ? readClaudeRateLimitTier({
+                  homeDirectory: environment.HOME ?? homedir(),
+                  variables: environment,
+              })
+            : Promise.resolve(undefined);
+        return this.rateLimitTier;
     }
 
     async read(query: PlanLimitsQuery | undefined): Promise<PlanLimitsReading | undefined> {
@@ -66,9 +88,11 @@ export class ClaudePlanLimits {
         if (isExtraUsageEnabled !== undefined) this.options.onExtraUsage?.(isExtraUsageEnabled);
         const answer = claudePlanLimits(raw, this.now());
         if (!answer) return this.reading;
+        const tier = answer.planType ? await this.readRateLimitTier() : undefined;
+        const reading = tier ? { ...answer, rateLimitTier: tier } : answer;
         this.askedAt = this.now();
-        this.reading = answer;
-        return answer;
+        this.reading = reading;
+        return reading;
     }
 
     observe(info: SDKRateLimitInfo): void {

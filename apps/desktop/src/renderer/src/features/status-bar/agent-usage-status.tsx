@@ -71,9 +71,9 @@ export function AgentUsageStatus({ terminalId }: { terminalId: string }) {
     const settings = useSettings();
     if (!readout) return null;
     const chipOptions = {
-        showFiveHourLimit:
-            settings?.['statusBar.usage.showFiveHourLimit'] ??
-            defaultAppSettings['statusBar.usage.showFiveHourLimit'],
+        limitWindows:
+            settings?.['statusBar.usage.limitWindows'] ??
+            defaultAppSettings['statusBar.usage.limitWindows'],
     };
     const label = agentUsageLabel(readout, now, chipOptions, t);
     const agentName = agentProviderCatalog[readout.provider].displayName;

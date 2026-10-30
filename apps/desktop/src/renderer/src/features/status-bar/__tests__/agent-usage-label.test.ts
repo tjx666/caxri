@@ -1,4 +1,4 @@
-import type { AgentUsageReadout } from '@caxri/protocol';
+import type { AgentUsageReadout, UsageLimit } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import { translate } from '../../../i18n';
@@ -12,8 +12,8 @@ import {
 } from '../agent-usage-label';
 
 const NOW = Date.parse('2026-10-11T12:00:00.000Z');
-const ALL_WINDOWS = { showFiveHourLimit: true };
-const DEFAULT_WINDOWS = { showFiveHourLimit: false };
+const ALL_WINDOWS = { limitWindows: 'both' } as const;
+const DEFAULT_WINDOWS = { limitWindows: 'auto' } as const;
 
 function readout(overrides: Partial<AgentUsageReadout> = {}): AgentUsageReadout {
     return {
@@ -76,23 +76,60 @@ describe('agent usage chip label', () => {
         expect(agentUsageLabel(partial, NOW, DEFAULT_WINDOWS, translate)).toBe('1.2M · ≥$3.40');
     });
 
-    it('leaves the 5-hour window out unless the Setting opts in', () => {
-        const both = readout({
-            limit: {
-                provider: 'claude',
-                observedAt: NOW,
-                windows: [
-                    { windowMinutes: 10_080, usedPercent: 20, resetsAt: NOW + 86_400_000 },
-                    { windowMinutes: 300, usedPercent: 21, resetsAt: NOW + 3_600_000 },
-                ],
-            },
+    describe('limit windows Setting', () => {
+        function claude(plan: Partial<Pick<UsageLimit, 'planType' | 'rateLimitTier'>>) {
+            return readout({
+                limit: {
+                    provider: 'claude',
+                    observedAt: NOW,
+                    ...plan,
+                    windows: [
+                        { windowMinutes: 10_080, usedPercent: 20, resetsAt: NOW + 86_400_000 },
+                        { windowMinutes: 300, usedPercent: 21, resetsAt: NOW + 3_600_000 },
+                    ],
+                },
+            });
+        }
+        const FIVE_HOUR = '1.2M · $3.40 · 5h 79% left';
+        const WEEKLY = '1.2M · $3.40 · wk 80% left';
+
+        it('shows the 5-hour window for Claude Pro and Max 5x by default', () => {
+            expect(
+                agentUsageLabel(claude({ planType: 'pro' }), NOW, DEFAULT_WINDOWS, translate),
+            ).toBe(FIVE_HOUR);
+            const max5x = claude({ planType: 'max', rateLimitTier: 'default_claude_max_5x' });
+            expect(agentUsageLabel(max5x, NOW, DEFAULT_WINDOWS, translate)).toBe(FIVE_HOUR);
         });
-        expect(agentUsageLabel(both, NOW, DEFAULT_WINDOWS, translate)).toBe(
-            '1.2M · $3.40 · wk 80% left',
-        );
-        expect(agentUsageLabel(both, NOW, ALL_WINDOWS, translate)).toBe(
-            '1.2M · $3.40 · 5h 79% left · wk 80% left',
-        );
+
+        it('shows the weekly window for every other plan by default', () => {
+            const max20x = claude({ planType: 'max', rateLimitTier: 'default_claude_max_20x' });
+            expect(agentUsageLabel(max20x, NOW, DEFAULT_WINDOWS, translate)).toBe(WEEKLY);
+            expect(
+                agentUsageLabel(claude({ planType: 'max' }), NOW, DEFAULT_WINDOWS, translate),
+            ).toBe(WEEKLY);
+            expect(agentUsageLabel(claude({}), NOW, DEFAULT_WINDOWS, translate)).toBe(WEEKLY);
+            const codexPro = claude({ planType: 'pro' });
+            codexPro.limit = { ...codexPro.limit!, provider: 'codex' };
+            expect(agentUsageLabel(codexPro, NOW, DEFAULT_WINDOWS, translate)).toBe(WEEKLY);
+        });
+
+        it('falls back to the other window when the plan pick has none live', () => {
+            const pro = claude({ planType: 'pro' });
+            pro.limit = { ...pro.limit!, windows: pro.limit!.windows.slice(0, 1) };
+            expect(agentUsageLabel(pro, NOW, DEFAULT_WINDOWS, translate)).toBe(WEEKLY);
+        });
+
+        it('follows an explicit choice regardless of plan', () => {
+            const pro = claude({ planType: 'pro' });
+            expect(agentUsageLabel(pro, NOW, { limitWindows: 'weekly' }, translate)).toBe(WEEKLY);
+            const max20x = claude({ planType: 'max', rateLimitTier: 'default_claude_max_20x' });
+            expect(agentUsageLabel(max20x, NOW, { limitWindows: 'fiveHour' }, translate)).toBe(
+                FIVE_HOUR,
+            );
+            expect(agentUsageLabel(pro, NOW, ALL_WINDOWS, translate)).toBe(
+                '1.2M · $3.40 · 5h 79% left · wk 80% left',
+            );
+        });
     });
 });
 
@@ -115,6 +152,13 @@ describe('agent usage limit tone', () => {
         expect(agentUsageLimitTone(withWindows(89.6, 40), NOW, ALL_WINDOWS)).toBe('warning');
         expect(agentUsageLimitTone(withWindows(10, 95), NOW, ALL_WINDOWS)).toBe('warning');
         expect(agentUsageLimitTone(withWindows(10, 99, NOW - 1), NOW, ALL_WINDOWS)).toBeUndefined();
+    });
+
+    it('ignores the pace of a window the chip does not show', () => {
+        const DAY = 86_400_000;
+        const behind = withWindows(10, 30, NOW + 6 * DAY);
+        expect(agentUsageLimitTone(behind, NOW, DEFAULT_WINDOWS)).toBe('warning');
+        expect(agentUsageLimitTone(behind, NOW, { limitWindows: 'fiveHour' })).toBeUndefined();
     });
 
     it('warns while the weekly window is projected to run out before it resets', () => {

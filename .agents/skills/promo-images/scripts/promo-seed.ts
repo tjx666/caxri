@@ -26,7 +26,7 @@ export const PROMO_SETTINGS = {
     'git.fetchGitHubAvatars': false,
     'primarySidebar.translucent': false,
     'session.openAgentsInChat': true,
-    'statusBar.usage.showFiveHourLimit': true,
+    'statusBar.usage.limitWindows': 'both',
 } as const;
 
 /**
