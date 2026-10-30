@@ -7,6 +7,7 @@ import { ChatTaskList } from './chat-tasks';
 import { CodexBackgroundTerminals } from './codex-background-terminals';
 import { CodexComputerUseBindings } from './codex-computer-use';
 import { codexAgentName, mapCodexItem } from './codex-items';
+import { readCodexThreadTurns } from './codex-thread-open';
 import { codexAgentNames, historyItems } from './codex-turns';
 import { JsonRpcRequestError } from './json-rpc-connection';
 
@@ -501,8 +502,8 @@ export class CodexTasks {
     }
 
     /**
-     * A task's projection rebuilt from Codex's record: a subagent's thread through `thread/read`, or a terminal's
-     * output from its timeline row. `taskId` may be the collab item that spawned the subagent.
+     * A task's projection rebuilt from Codex's record: a subagent's thread through `readCodexThreadTurns`, or a
+     * terminal's output from its timeline row. `taskId` may be the collab item that spawned the subagent.
      */
     async readTaskHistory(taskId: string): Promise<ChatTaskHistory | undefined> {
         const listed = this.list.get(taskId) ?? this.list.byItem(taskId);
@@ -511,19 +512,19 @@ export class CodexTasks {
             this.collabReceivers.get(taskId)?.[0] ??
             (listed?.kind === 'agent' ? listed.id : undefined);
         if (!threadId) return undefined;
-        let result: unknown;
+        let turns: unknown[];
         try {
-            result = await this.options.request(
+            const result = await this.options.request(
                 'thread/read',
-                { threadId, includeTurns: true },
+                { threadId, includeTurns: false },
                 REQUEST_TIMEOUT_MS,
             );
+            const thread = isRecord(result) && isRecord(result.thread) ? result.thread : undefined;
+            if (thread?.id !== threadId) return undefined;
+            turns = await readCodexThreadTurns(this.options.request, thread, REQUEST_TIMEOUT_MS);
         } catch {
             return undefined;
         }
-        const thread = isRecord(result) && isRecord(result.thread) ? result.thread : undefined;
-        if (thread?.id !== threadId) return undefined;
-        const turns = Array.isArray(thread.turns) ? thread.turns : [];
         const names = codexAgentNames(turns);
         const items = turns.flatMap((turn) => {
             if (!isRecord(turn)) return [];

@@ -15,6 +15,59 @@ type Json = Record<string, unknown>;
 const HANDSHAKE_TIMEOUT_MS = 15_000;
 const THREAD_OPEN_TIMEOUT_MS = 30_000;
 
+type CodexRequest = (method: string, parameters: unknown, timeoutMs?: number) => Promise<unknown>;
+
+/**
+ * The largest `thread/turns/list` page Codex serves (`THREAD_TURNS_MAX_LIMIT` in codex-rs app-server).
+ */
+const TURNS_PAGE_LIMIT = 100;
+
+/**
+ * Every turn of a thread opened or read without its turns, oldest first, each with all of its items.
+ *
+ * Codex stores newer threads as paginated history (`historyMode: "paginated"`) and answers a full-history
+ * `thread/resume`, `thread/fork`, or `thread/read` of one with a `deprecationNotice` the Chat would show to the user.
+ * Those threads are paged with `thread/turns/list`, as Codex's own TUI does. A legacy thread is read whole with
+ * `thread/read` instead: Codex rebuilds a legacy thread from its whole rollout for every `thread/turns/list` page.
+ */
+export async function readCodexThreadTurns(
+    request: CodexRequest,
+    thread: Json,
+    timeoutMs: number,
+): Promise<unknown[]> {
+    const threadId = stringField(thread.id);
+    if (thread.historyMode !== 'paginated') {
+        const result = await request('thread/read', { threadId, includeTurns: true }, timeoutMs);
+        const read = isRecord(result) && isRecord(result.thread) ? result.thread : undefined;
+        if (!read || read.id !== threadId) throw new Error('Codex read a different thread');
+        return Array.isArray(read.turns) ? (read.turns as unknown[]) : [];
+    }
+    const turns: unknown[] = [];
+    let cursor: string | undefined;
+    do {
+        // eslint-disable-next-line no-await-in-loop -- each page's cursor comes from the previous page
+        const result = await request(
+            'thread/turns/list',
+            {
+                threadId,
+                limit: TURNS_PAGE_LIMIT,
+                sortDirection: 'asc',
+                itemsView: 'full',
+                ...(cursor && { cursor }),
+            },
+            timeoutMs,
+        );
+        if (!isRecord(result) || !Array.isArray(result.data))
+            throw new Error('Codex returned no turns page');
+        const page = result.data as unknown[];
+        turns.push(...page);
+        const next = stringField(result.nextCursor);
+        // A cursor that does not advance would page forever.
+        cursor = next !== cursor && page.length > 0 ? next : undefined;
+    } while (cursor);
+    return turns;
+}
+
 /**
  * `initialize` and `initialized`. `spawnFailure` reports how the process ended if it never started, which explains a
  * failed handshake better than the handshake error does.
@@ -134,7 +187,7 @@ async function developerInstructions(
 }
 
 /**
- * Resumes `threadId` with its history, or starts a new thread when there is none.
+ * Resumes `threadId` and reads its history, or starts a new thread when there is none.
  */
 export async function openCodexThread(
     connection: JsonRpcConnection,
@@ -158,11 +211,12 @@ export async function openCodexThread(
         let result: unknown;
         try {
             /**
-             * `model` is omitted on purpose: naming one would override the thread's own saved model and effort.
+             * `model` is omitted on purpose: naming one would override the thread's own saved model and effort. The
+             * history is read separately, since a paginated thread resumed with its turns gets a `deprecationNotice`.
              */
             result = await connection.request(
                 'thread/resume',
-                { ...threadParameters, threadId },
+                { ...threadParameters, threadId, excludeTurns: true },
                 THREAD_OPEN_TIMEOUT_MS,
             );
         } catch (error) {
@@ -185,7 +239,22 @@ export async function openCodexThread(
                 'Codex resumed a different conversation',
             );
         }
-        return { outcome: 'resumed', thread, ...reportedModel(result) };
+        let turns: unknown[];
+        try {
+            turns = await readCodexThreadTurns(
+                (method, parameters, timeoutMs) =>
+                    connection.request(method, parameters, timeoutMs),
+                thread,
+                THREAD_OPEN_TIMEOUT_MS,
+            );
+        } catch {
+            await connection.close();
+            throw new AgentChatStartError(
+                'resume_failed',
+                'Codex could not read this conversation',
+            );
+        }
+        return { outcome: 'resumed', thread: { ...thread, turns }, ...reportedModel(result) };
     }
     let result: unknown;
     try {
