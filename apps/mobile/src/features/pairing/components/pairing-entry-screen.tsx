@@ -2,6 +2,7 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
+import Constants from 'expo-constants';
 import { router } from 'expo-router';
 
 import { Button } from '../../../components/button';
@@ -55,17 +56,28 @@ export const PairingEntryScreen = () => {
         >
             <ScrollView contentContainerStyle={styles.scroll}>
                 <View style={styles.frame}>
-                    <View
-                        accessible
-                        accessibilityLabel={t('pairing.brandLabel')}
-                        style={styles.brand}
-                    >
-                        <View style={[styles.mark, { backgroundColor: theme.primary }]}>
-                            <Text style={[styles.markText, { color: theme.primaryForeground }]}>
-                                C
-                            </Text>
+                    <View style={styles.header}>
+                        <View
+                            accessible
+                            accessibilityLabel={t('pairing.brandLabel')}
+                            style={styles.brand}
+                        >
+                            <View style={[styles.mark, { backgroundColor: theme.primary }]}>
+                                <Text style={[styles.markText, { color: theme.primaryForeground }]}>
+                                    C
+                                </Text>
+                            </View>
+                            <Text style={[styles.brandName, { color: theme.text }]}>Caxri</Text>
                         </View>
-                        <Text style={[styles.brandName, { color: theme.text }]}>Caxri</Text>
+                        {/* An outdated app cannot use a newer computer's routes, so the version is visible before pairing. */}
+                        <Text
+                            style={[styles.version, { color: theme.muted }]}
+                            testID="pairing-app-version"
+                        >
+                            {t('pairing.version', {
+                                version: Constants.expoConfig?.version ?? t('settings.unknown'),
+                            })}
+                        </Text>
                     </View>
 
                     <View style={styles.message}>
@@ -162,6 +174,11 @@ const styles = StyleSheet.create({
         paddingVertical: 22,
         width: '100%',
     },
+    header: {
+        alignItems: 'center',
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+    },
     mark: {
         alignItems: 'center',
         borderRadius: 10,
@@ -206,6 +223,10 @@ const styles = StyleSheet.create({
         letterSpacing: -0.5,
         lineHeight: 28,
         maxWidth: 460,
+    },
+    version: {
+        fontSize: 13,
+        fontVariant: ['tabular-nums'],
     },
 });
 

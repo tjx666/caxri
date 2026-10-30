@@ -61,4 +61,5 @@ export const pairing: TranslatedNamespace<typeof source> = {
         '已保存的配对信息仍在这台手机上。请尝试重新读取；如果仍然失败，请在手机系统设置中清除 Caxri Mobile 的数据后重新配对。',
     'pairing.storageError.retryHint': '重新读取已保存的配对信息。',
     'pairing.storageError.title': '无法读取这台手机的配对信息',
+    'pairing.version': '版本 {{version}}',
 };
