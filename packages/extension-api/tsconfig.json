@@ -1,5 +1,6 @@
 {
     "compilerOptions": {
+        "outDir": "dist",
         "declaration": true,
         "declarationMap": true,
         "lib": ["ES2025", "DOM"],

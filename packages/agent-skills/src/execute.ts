@@ -38,7 +38,7 @@ const managedFileNames = Object.keys(CAXRI_SKILL_FILES).toSorted((left, right) =
 type SkillInstallScope = AgentSkillScope;
 type SkillProvider = AgentProvider;
 
-export interface SkillExecutionContext {
+interface SkillExecutionContext {
     cwd: string;
     environment: NodeJS.ProcessEnv;
     home: string;

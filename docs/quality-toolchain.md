@@ -155,6 +155,15 @@ than an import graph edge:
 
 Add a new row here when a new file is loaded by path and needs an export that nothing imports.
 
+A workspace import such as `@caxri/client/supervise` resolves through the package's `exports`
+`import` condition, which points at `dist/` once the package is built. Knip maps that path back to
+`src/` only when the package's own `tsconfig.json` names an `outDir`, so every `packages/*`
+`tsconfig.json` declares `"outDir": "dist"` (inert under `noEmit`). Without it, `bun run knip` after
+any build reports every package entry export as unused. `packages/agent-skills` cannot take that
+setting: its `tsconfig.json` also type-checks `scripts/`, which import repository-root modules
+outside any package `rootDir`, and type-aware oxlint reads only that file. Its workspace therefore
+sets `includeEntryExports: false`.
+
 ## How the negative-fixture contract tests guard the wiring
 
 `scripts/__tests__/eslint-toolchain-contract.test.ts` lints small fixtures under

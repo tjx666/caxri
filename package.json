@@ -247,6 +247,9 @@
                     "src/bin.ts"
                 ]
             },
+            "packages/agent-skills": {
+                "includeEntryExports": false
+            },
             "extensions/fixture": {
                 "entry": [
                     "src/extension.ts"
