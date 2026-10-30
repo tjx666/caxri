@@ -17,7 +17,6 @@
         "apps/relay/**/*.ts",
         "apps/mobile/scripts/update-bundle-receipts.ts",
         "apps/mobile/plugins/android-release-signing-environment.json",
-        // The platform-neutral phone client modules `scripts/relay-link-benchmark.ts` drives from Node.
         "apps/mobile/src/features/agent-chat/agent-chat-sync.ts",
         "apps/mobile/src/features/connection/connection-state.ts",
         "apps/mobile/src/features/connection/credential-store.ts",

@@ -16,6 +16,9 @@
  * The receipt (`test-results/receipts/relay-link.json` by default) holds every round, the per-profile median and worst,
  * each metric in units of E (one phone-to-computer round trip through the Relay), and the Server and Relay log events
  * the rounds produced.
+ *
+ * The phone modules it imports are listed one by one in `tsconfig.node.json`, so they typecheck here without pulling in
+ * Expo's global types; a new import from `apps/mobile` must be added to that list.
  */
 
 import type { ChildProcess } from 'node:child_process';
