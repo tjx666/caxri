@@ -4,40 +4,46 @@
 
 ![Caxri 桌面端在三个项目中运行 Claude Code 与 Codex 会话，旁边是配对的 Caxri 移动端，列出需要关注的会话](docs/assets/readme-hero.png)
 
-Caxri 是一款面向 macOS 的 Agent 开发环境（Agent Development Environment，ADE）：你通过已在使用的编码
-Agent（Claude Code、Codex 和 Grok Build）构建软件的地方。它为这些 Agent 提供一致的工作流，把每个任务保存为本地项目文件夹下持久的会话，用自动化处理订阅的用量限制，并且只显示仍需要你处理的内容：哪个会话在等待你，以及它的
-Agent 改了什么。Agent 变化很快，所以 Caxri 频繁发布，随之调整。
+Caxri 是一款 Agent 开发环境（Agent Development Environment，ADE）：在一个桌面应用里，用你已在使用的编码 Agent（Claude
+Code、Codex 和 Grok Build）构建软件。你可以同时运行很多 Agent，一眼看出哪个在等你，审阅它改了什么，日常重度使用 Agent
+带来的各种琐事则交给 Caxri 处理。Agent 变化很快，所以 Caxri 频繁发布，随之调整。
 
-**支持：** Claude Code、Codex 和 Grok Build。Caxri 运行你自己安装的 Agent CLI，沿用它们已有的登录状态；它不捆绑任何 Agent 或订阅。界面提供英文和简体中文。
+**支持：** Claude Code、Codex 和 Grok Build。Caxri 运行你自己安装的 Agent CLI，沿用它们已有的登录状态；它不捆绑任何 Agent
+或订阅，也不需要注册 Caxri 账号。界面提供英文和简体中文。
 
 **Caxri 目前是预览版。** 它发布频繁，尚无兼容性承诺，因此某次更新可能需要重置本地数据，即
 `~/Library/Application Support/Caxri` 中的配置档（见[卸载与重置](#卸载与重置)）。你的项目文件夹从不在重置范围内。源码公开和已发布的版本都不改变这一点；维护者会明确宣布任何兼容性承诺。
 
 ## 亮点
 
-- **项目与会话。** 项目是你授权的一个文件夹。会话是其下持久的工作单元，各自拥有终端、布局和工作台状态。共享词汇见
-  [GLOSSARY.md](GLOSSARY.md)。
-- **跨 Agent 的统一工作流。** 无论由哪个 Agent 执行任务，会话、对话、关注提醒和用量的用法都相同。Claude Code 和 Codex
-  优先支持；某个 Agent 缺少某项能力时，只是该 Agent 暂时没有这项功能。
-- **对话优先，终端常在。** Agent 默认以可读的对话（Chat）打开，可以切换到真正的终端而不丢失对话。Shell
-  始终在终端中运行。见 [docs/agent-chat.md](docs/agent-chat.md)。
-- **让订阅为你工作。** 符合条件的空闲 Claude Code 和 Grok Build 对话会在提示缓存过期前被压缩；因用量耗尽而停止的对话会在重置时间已知且临近时自动恢复；套餐用完时，你可以换另一个
-  Agent 继续这项工作。见 [docs/session-compaction.md](docs/session-compaction.md) 和
-  [docs/agent-usage-continuation.md](docs/agent-usage-continuation.md)。
-- **值得信赖的关注提醒。** 每个会话都会报告等待中、已完成或失败，即使同时运行一大批 Agent，也不会有谁悄无声息地卡住。
-- **只显示你仍需要看的内容。** 精简的编辑器、文件树、搜索和以审阅为先的源代码管理视图，覆盖"看一眼 Agent 做了什么"的循环，而不变成 IDE。
-- **为 Agent 驱动而设计。** `caxri` 命令及其内置 skill 让 Agent 驱动同一个应用 Server：创建会话、委派工作并汇报结果。Agent
-  负责提交；你来合并拉取请求。见 [docs/cli.md](docs/cli.md)。
+- **所有 Agent，同一套用法。** Claude Code、Codex 和 Grok Build 共用同样的会话、对话界面、通知和用量统计，换 Agent
+  不用重新学一个工具。
+- **对话与终端，同时在手。** 一个会话里可以同时打开多个 Agent 对话和终端。每个 Agent 既能以易读的对话（Chat）打开，也能以它真正的终端界面打开，两者随时切换，对话不丢失。
+- **为重度 Agent 用户而做。** 整天跑 Agent 的琐事由 Caxri 自动处理：在提示缓存过期前压缩空闲对话，用量限额重置后自动恢复
+  Agent，套餐用完时换另一个 Agent 接着做，挂起闲置的后台 Agent，在用量页按 Agent 展示 token 和成本，并实时显示 Agent 的输出速度（tok/s）。
+- **谁在等你，一目了然。** 每个会话都会报告等待中、已完成或失败。活动视图跨所有项目列出等你处理的会话，桌面通知会提醒你，配对的手机上也能看到同一份列表。
+- **审阅与交付，不离开应用。** 在 diff 上写评论并一键发给 Agent，在状态栏跟踪拉取请求的检查状态，在 Caxri 里合并；拉取请求合并后
+  Agent 会收到通知。提交由 Agent 完成，合并由你决定。
+
+### 还有这些
+
+- **移动端。** 通过局域网、Tailscale 或你自己部署的 Relay 在手机上查看会话、回复 Agent，全程端到端加密。
+- **远程机器。** 通过 SSH 打开 Linux 或另一台 Mac 上的项目，Agent、终端和 Git 都在那台机器上运行，体验和本地一致。Caxri
+  Server 也可以脱离桌面端独立运行。
+- **worktree 自动跟随。** Agent 进入某个 Git worktree 后，会话的文件、编辑器和 Git 视图随之切换。
+- **飞行模式。** 断网前一键干净地停下所有 Agent，回来后再挑选要恢复的会话。
+- **`caxri` 命令行。** Agent 可以用它创建会话、把工作委派给其他 Agent 并汇报结果。
+- **关联工作项。** 拉取请求、Linear issue 和 LobeHub 验收报告显示在产生它们的会话旁边。
+- **主题。** 跟随 macOS 外观的浅色和深色主题，也可以导入自定义主题。
+- **轻量编辑器。** 用于检查 Agent 工作的文件树、搜索和编辑器，不会变成 IDE。
 
 ## Caxri 与其他工具的区别
 
 - **直接在终端里运行 Claude Code 或 Codex。** Caxri 运行的是同样的 CLI，使用它们自己的登录状态，Agent
-  本身没有任何变化。它在外围增加的是：每个任务是项目下持久的会话；Agent 以可读的对话打开，并可切换到它真正的终端；每个会话都报告等待中、已完成或失败；订阅自动化会压缩符合条件的空闲对话、在已知的用量重置后自动恢复，并提供换另一个
-  Agent 继续的选项。
-- **Conductor、Superset、Orca 等并行 Agent 工作台。** 它们并行运行多个 Agent CLI，每个任务放在独立的 Git
-  worktree 中，并内置 diff 审阅；Conductor 还能跟踪检查状态，创建和合并拉取请求。Caxri 同样以同时监管多个 Agent
-  为目标。它的侧重点是：Claude Code、Codex 和 Grok Build 之间统一的工作流；以对话为核心界面，终端始终可用；围绕套餐限额和提示缓存、开箱即用的自动化；以及只显示仍需要你处理的内容的界面。
-- **Cursor 等 AI IDE。** Caxri 不是 IDE，也不是 VS Code 的分支，不会取代你的编辑器。它的编辑器、文件树、搜索和以审阅为先的源代码管理视图刻意保持精简，用于查看
+  本身没有任何变化。它补上的是外围的一切：持久的会话、易读的对话、跨多个 Agent 的关注提醒、用量自动化和审阅工具。
+- **Conductor、Superset、Orca 等并行 Agent 工作台。** 它们同样借助 Git worktree 并行运行多个 Agent，并提供 diff
+  审阅。Caxri 的侧重点是：Claude Code、Codex 和 Grok Build 之间统一的工作流；对话和终端都是一等模式；围绕套餐限额和提示缓存的自动化；以及只显示仍需要你处理的内容。
+- **Cursor 等 AI IDE。** Caxri 不是 IDE，也不是 VS Code 的分支，不会取代你的编辑器。它的编辑器和源代码管理视图保持轻量，用于查看
   Agent 做了什么；它没有手动暂存或提交，因为提交由 Agent 完成，由你来合并拉取请求。
 
 初次使用？阅读[入门指南](docs/getting-started.md)，五分钟了解基本模型。
@@ -48,8 +54,8 @@ Agent 改了什么。Agent 变化很快，所以 Caxri 频繁发布，随之调�
 - 至少安装并登录一个受支持的 Agent CLI（Claude Code、Codex 或 Grok Build）。请先确认它能在终端中正常使用。Shell 会话不需要 Agent CLI。
 - [Homebrew](https://brew.sh/)，仅用于安装可选的通知辅助程序。
 
-发布版本仅支持 Apple 芯片。Intel Mac 可以从源码构建 Caxri（见
-[CONTRIBUTING.md](CONTRIBUTING.md)）；目前不支持 Windows 和 Linux 桌面版本。
+发布版本目前仅支持 Apple 芯片；Intel Mac 可以从源码构建 Caxri（见
+[CONTRIBUTING.md](CONTRIBUTING.md)）。其他桌面平台暂未支持。远程 SSH 主机可以是 Linux 或 macOS。
 
 ## 安装
 
@@ -179,10 +185,3 @@ Caxri 或其修改版，或对其访问收费，需要另行取得书面商业�
 | [docs/README.md](docs/README.md)                                           | 所有在用文档、ADR 与历史记录的完整索引 |
 | [RELEASING.md](RELEASING.md)                                               | 未签名 DMG 的发布流程                  |
 | [项目架构](.agents/skills/project-architecture/references/architecture.md) | 进程模型、恢复约定、依赖基线           |
-
-## 产品边界
-
-Caxri 把用户选择的文件夹视为项目，并在其下组织持久的会话。它原样运行你安装的 Agent CLI，要么通过厂商的结构化协议（对话，核心界面），要么在真正的
-PTY 中运行（始终支持），并把登录交给 CLI 自己处理。源代码管理用于审阅 Agent 的工作：没有手动暂存或提交，因为提交由 Agent
-完成。合并仍由人决定，所以 Caxri 提供拉取请求合并按钮。编辑器刻意保持精简，Caxri 不是 IDE，也不是 VS Code 的分支。这些边界背后的原则记录在
-[ADR 0020](docs/adr/0020-agent-development-environment.md) 中。

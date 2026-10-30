@@ -4,16 +4,14 @@ English | [简体中文](README.zh-CN.md)
 
 ![Caxri on the desktop running Claude Code and Codex Sessions across three Projects, beside the paired Caxri mobile app listing which Sessions need attention](docs/assets/readme-hero.png)
 
-Caxri is an Agent Development Environment (ADE) for macOS: the place where you build software
-through the coding Agents you already use, Claude Code, Codex and Grok Build. It gives those Agents
-one consistent workflow, keeps each task as a durable Session under a local Project folder, handles
-your subscription's limits with automation, and shows only what still needs you: which Session is
-waiting, and what its Agent changed. Agents change quickly, so Caxri ships often and adapts with
-them.
+Caxri is an Agent Development Environment (ADE): one desktop app where you build software through
+the coding Agents you already use, Claude Code, Codex and Grok Build. Run many Agents side by side,
+see at a glance which one needs you, review what it changed, and let Caxri handle the chores that
+come with heavy daily Agent use. Agents change quickly, so Caxri ships often and adapts with them.
 
 **Works with:** Claude Code, Codex and Grok Build. Caxri runs your own installed Agent CLIs and
-their existing sign-in; it does not bundle an Agent or a subscription. The interface is available
-in English and Simplified Chinese.
+their existing sign-in; it does not bundle an Agent or a subscription, and it needs no Caxri
+account. The interface is available in English and Simplified Chinese.
 
 **Caxri is a preview.** It ships often and has no compatibility commitment yet, so an update may
 require resetting your local data: the profile in `~/Library/Application Support/Caxri` (see
@@ -23,46 +21,53 @@ compatibility commitment explicitly.
 
 ## Highlights
 
-- **Projects and Sessions.** A Project is a folder you authorize. Sessions are durable units of
-  work beneath it, each with its own Terminals, layout and workbench state. The shared vocabulary
-  lives in [GLOSSARY.md](GLOSSARY.md).
-- **One workflow across Agents.** Sessions, Chat, attention and usage work the same way whichever
-  Agent runs the task. Claude Code and Codex are supported first; when an Agent lacks a capability,
-  that Agent simply goes without it.
-- **Chat first, Terminal always.** An Agent opens as a readable conversation (a Chat) by default,
-  and can switch to a genuine terminal without losing the conversation. Shells always run in a
-  terminal. See [docs/agent-chat.md](docs/agent-chat.md).
-- **Your subscription, working for you.** Eligible idle Claude Code and Grok Build Chats are
-  compacted before their prompt cache expires, a Chat stopped by a used-up limit resumes on its own
-  when the reset is known and near, and when a plan runs out you can continue the work with another
-  Agent. See [docs/session-compaction.md](docs/session-compaction.md) and
-  [docs/agent-usage-continuation.md](docs/agent-usage-continuation.md).
-- **Attention you can trust.** Each Session reports waiting, completed or failed, so a wall of
-  parallel Agents never stalls silently.
-- **Only what you still need to see.** A narrow editor, file tree, search and a review-first Source
-  Control view cover the "glance at what the Agent did" loop without becoming an IDE.
-- **Built for Agents to drive.** The `caxri` command and its bundled skill let Agents drive the
-  same app Server: create Sessions, delegate work and report back. Agents commit; you merge the
-  pull request. See [docs/cli.md](docs/cli.md).
+- **One workflow for every Agent.** Claude Code, Codex and Grok Build share the same Sessions,
+  conversation view, notifications and usage tracking, so switching Agents does not mean learning
+  a new tool.
+- **Chat and Terminal, side by side.** One Session can hold several Agent conversations and
+  Terminals at once. Each Agent opens as a readable Chat or as its real terminal interface, and can
+  switch between the two without losing the conversation.
+- **Made for heavy Agent users.** Caxri automates the chores of running Agents all day: it compacts
+  idle conversations before their prompt cache expires, resumes Agents after a usage limit resets,
+  lets you continue a task with another Agent when a plan runs out, parks idle background Agents,
+  and shows tokens and cost per Agent on a Usage page, plus live output speed (tok/s).
+- **Know who needs you.** Every Session reports waiting, completed or failed. An Activity view lists
+  the Sessions waiting on you across every Project, desktop notifications point you to them, and
+  your paired phone shows the same list.
+- **Review and ship without leaving the app.** Leave comments on a diff and send them to the Agent
+  in one step, follow pull request checks in the status bar, merge from Caxri, and the Agent is told
+  when its pull request merges. Agents commit; you decide the merge.
+
+### And more
+
+- **Mobile companion.** Check Sessions and reply to Agents from your phone over your local network,
+  Tailscale, or a Relay you deploy, with end-to-end encryption.
+- **Remote machines.** Open Projects on a Linux machine or another Mac over SSH; Agents, Terminals
+  and Git run there as they do locally. The Caxri Server also runs on its own, without the desktop
+  app.
+- **Worktrees that follow the Agent.** When an Agent moves into a Git worktree, the Session's files,
+  editor and Git views switch with it.
+- **Airplane Mode.** Before you go offline, stop every Agent cleanly and pick which ones to resume
+  when you are back.
+- **`caxri` CLI.** Agents can create Sessions, delegate work to other Agents and report back.
+- **Linked work items.** Pull requests, Linear issues and LobeHub acceptance reports appear beside
+  the Session that produced them.
+- **Themes.** Light and dark themes that follow macOS, plus imported custom themes.
+- **Light editor.** A file tree, search and editor for checking an Agent's work, without turning
+  into an IDE.
 
 ## How Caxri compares
 
 - **Running Claude Code or Codex directly in a terminal.** Caxri runs those same CLIs with their
-  own sign-in, so nothing about the Agent changes. What it adds around them: each task is a durable
-  Session under a Project, an Agent opens as a readable Chat that can switch to its real terminal,
-  every Session reports whether it is waiting, completed or failed, and subscription automation
-  compacts eligible idle Chats, resumes after a known limit reset and offers to continue with
-  another Agent.
-- **Parallel-agent workbenches such as Conductor, Superset and Orca.** These run several Agent CLIs
-  in parallel, each task in its own Git worktree, with built-in diff review; Conductor also tracks
-  checks and opens and merges pull requests. Caxri shares the goal of supervising many Agents at
-  once. Its emphasis is one workflow across Claude Code, Codex and Grok Build, Chat as the core
-  surface with the terminal always available, automation around plan limits and prompt caches that
-  works out of the box, and an interface that shows only what still needs you.
+  own sign-in, so nothing about the Agent changes. It adds everything around them: durable
+  Sessions, a readable Chat, attention across many Agents, usage automation and review tools.
+- **Parallel-agent workbenches such as Conductor, Superset and Orca.** These also run several
+  Agents in parallel with Git worktrees and diff review. Caxri focuses on one workflow across Claude
+  Code, Codex and Grok Build, Chat and Terminal both as first-class modes, automation around plan
+  limits and prompt caches, and showing only what still needs you.
 - **AI IDEs such as Cursor.** Caxri is not an IDE or a VS Code fork and does not replace your
-  editor. Its editor, file tree, search and review-first Source Control view stay narrow, for
-  glancing at what an Agent did; there is no manual stage or commit, because Agents commit and you
-  merge the pull request.
+  editor. Its editor and Source Control view stay light, for checking what an Agent did; there is
+  no manual stage or commit, because Agents commit and you merge the pull request.
 
 New here? Read [Getting started](docs/getting-started.md) for the model in five minutes.
 
@@ -73,8 +78,9 @@ New here? Read [Getting started](docs/getting-started.md) for the model in five 
   that it works in Terminal first. Shell Sessions work without one.
 - [Homebrew](https://brew.sh/), only to install the optional notification helper.
 
-Release builds are Apple Silicon only. Intel Macs can build Caxri from source (see
-[CONTRIBUTING.md](CONTRIBUTING.md)); Windows and Linux desktop builds are not currently supported.
+Release builds are currently Apple Silicon only; Intel Macs can build Caxri from source (see
+[CONTRIBUTING.md](CONTRIBUTING.md)). Other desktop platforms are not supported yet. A remote SSH
+Host can be Linux or macOS.
 
 ## Install
 
@@ -201,19 +207,19 @@ Agreement](CLA.md) before merge. See [CONTRIBUTING.md](CONTRIBUTING.md) for the 
 
 ## Development usage
 
-Personal Caxri development usage from retained local logs, as of **2026-10-16 16:06:46.819 UTC**.
+Personal Caxri development usage from retained local logs, as of **2026-10-30 07:45:04.661 UTC**.
 Includes Codex, Claude Code, Grok Build, child agents, identifiable Caxri worktrees and auxiliary directories, and deduplicated Claude session backups.
 
 | Tool        | Tokens (input + output) | Known USD cost |
 | ----------- | ----------------------: | -------------: |
-| Codex       |          32,126,801,733 |     $15,432.31 |
-| Claude Code |          22,747,324,361 |     $11,841.26 |
-| Grok Build  |             558,492,406 |        $139.65 |
-| **Total**   |      **55,432,618,500** | **$27,413.22** |
+| Codex       |          33,726,423,546 |     $16,295.29 |
+| Claude Code |          32,431,216,998 |     $15,286.15 |
+| Grok Build  |             571,136,796 |        $147.57 |
+| **Total**   |      **66,728,777,340** | **$31,729.01** |
 
 Codex and Claude costs are **standard API list-price equivalents**, using the price snapshot checked on 2026-10-16. Grok uses its recorded USD cost. These are not subscription payments or historical invoices.
 Token totals include cache reads and writes once; reasoning is already included in output. Long-context rates apply per request; unspecified Claude cache-write TTLs use the 5-minute rate.
-Unpriced usage: **513,884 tokens**. Grok sessions without usable usage: **20**. Deleted logs, other machines, hosted agents and unattributable work are outside this snapshot.
+Unpriced usage: **857,264 tokens**. Grok sessions without usable usage: **21**. Deleted logs, other machines, hosted agents and unattributable work are outside this snapshot.
 
 Update with `bun run usage:development --write`; omit `--write` to preview, use `--json` for aggregate JSON, or `--as-of <ISO timestamp>` for a fixed cutoff. The active Codex accounting session and its identifiable descendants are excluded when `CODEX_THREAD_ID` is available.
 The script reads session files without changing them. Default backup paths use `~`; additional Claude project directories can be supplied with `--claude-backup <path>`. Prices are pinned in [the price snapshot](scripts/development-usage-prices.json); review that snapshot when model prices change.
@@ -247,13 +253,3 @@ Pricing sources: [OpenAI](https://developers.openai.com/api/docs/pricing), [Anth
 | [docs/README.md](docs/README.md)                                                       | Full index of every living doc, ADR, and historical record |
 | [RELEASING.md](RELEASING.md)                                                           | Release workflow for the unsigned DMG                      |
 | [Project architecture](.agents/skills/project-architecture/references/architecture.md) | Process model, recovery contracts, dependency baseline     |
-
-## Product boundaries
-
-Caxri treats a user-selected folder as a Project and groups durable Sessions beneath it. It runs
-your installed Agent CLIs unmodified, through their vendor's structured protocol (a Chat, the core
-surface) or in a real PTY (always supported), and leaves sign-in to the CLIs. Source Control is for
-reviewing Agent work: there is no manual stage or commit, because Agents commit. A person still
-decides the merge, so Caxri offers a pull request merge button. The editor intentionally stays
-narrow, and Caxri is not an IDE or a VS Code fork. The principles behind these boundaries are
-recorded in [ADR 0020](docs/adr/0020-agent-development-environment.md).
