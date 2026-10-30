@@ -1753,7 +1753,11 @@ The tab shows, top to bottom: headline tiles (window use and compaction point, t
 hit rate, misses and their cost); suggestions only when something stands out (`context/suggestions.ts`:
 prefix breaks, a dominant tool result, a heavy MCP server, a large memory file); the window bar with
 the latest request's cached prefix on the same scale; a per-request cache timeline with break and
-compaction markers and a break table; and heaviest-first lists of the conversation, MCP servers,
+compaction markers and a break table; a "How the window filled" chart (`context/turns/turn-analysis.ts`,
+`context-turns-card.tsx`) that stacks the window after each request into the starting context and
+what the user's messages, model output, and tool results added since, restarting at each compaction,
+with the autocompact line, the largest single growth outlined, and the selected request's additions
+(heaviest tools by name) read out above it, reachable with the arrow keys; and heaviest-first lists of the conversation, MCP servers,
 skills, memory files, and custom agents. Window rows share their shade with the composer meter;
 the autocompact reserve stays neutral because it is not content. Category names Claude Code reports
 (System tools, MCP tools, Messages, and so on) are translated through a closed map

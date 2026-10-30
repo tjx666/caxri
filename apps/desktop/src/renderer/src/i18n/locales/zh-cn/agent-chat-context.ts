@@ -36,6 +36,25 @@ export const agentChatContext: TranslatedNamespace<typeof source> = {
     'agentChat.contextPage.window.lastRequest': '最近一次请求：',
     'agentChat.contextPage.window.deferred':
         '另有 {{tokens}} 的工具定义被延迟加载：只有模型搜索到它们时才会载入。',
+    // Per-turn card
+    'agentChat.contextPage.turns.title': '窗口如何被填满',
+    'agentChat.contextPage.turns.caption': '{{count}} 次请求 · 估算拆分',
+    'agentChat.contextPage.turns.chartLabel': '每次请求后的窗口大小。用左右方向键在请求之间切换。',
+    'agentChat.contextPage.turns.request': '第 {{index}} 次请求 · {{time}}',
+    'agentChat.contextPage.turns.window': '窗口 {{tokens}}',
+    'agentChat.contextPage.turns.added': '新增 {{tokens}}',
+    'agentChat.contextPage.turns.noGrowth': '无可归因的新增',
+    'agentChat.contextPage.turns.compacted': '已压缩：窗口从摘要重新开始',
+    'agentChat.contextPage.turns.largest': '单次最大增长',
+    'agentChat.contextPage.turns.start': '起始上下文',
+    'agentChat.contextPage.turns.user': '你的消息',
+    'agentChat.contextPage.turns.modelOutput': '模型输出',
+    'agentChat.contextPage.turns.toolResults': '工具结果',
+    'agentChat.contextPage.turns.threshold': '自动压缩',
+    'agentChat.contextPage.turns.summary':
+        '新增 {{total}}：工具结果 {{toolResults}}，模型输出 {{modelOutput}}，你的消息 {{user}}',
+    'agentChat.contextPage.turns.note':
+        '拆分是估算：按长度衡量每轮的 transcript 文本，再按提示实际增长缩放。“起始上下文”包含系统提示、工具、记忆，以及所示第一次请求之前的内容。',
     // Cache card
     'agentChat.contextPage.cache.title': '提示缓存',
     'agentChat.contextPage.cache.caption':

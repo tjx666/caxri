@@ -35,6 +35,26 @@ export const agentChatContext = {
     'agentChat.contextPage.window.lastRequest': 'Last request:',
     'agentChat.contextPage.window.deferred':
         'Another {{tokens}} of tool schemas are deferred: they load only when the model searches for them.',
+    // Per-turn card
+    'agentChat.contextPage.turns.title': 'How the window filled',
+    'agentChat.contextPage.turns.caption': '{{count}} requests · estimated split',
+    'agentChat.contextPage.turns.chartLabel':
+        'Window size after each request. Use the left and right arrow keys to move between requests.',
+    'agentChat.contextPage.turns.request': 'Request {{index}} · {{time}}',
+    'agentChat.contextPage.turns.window': 'window {{tokens}}',
+    'agentChat.contextPage.turns.added': 'added {{tokens}}',
+    'agentChat.contextPage.turns.noGrowth': 'nothing attributed',
+    'agentChat.contextPage.turns.compacted': 'Compacted: the window starts over from the summary',
+    'agentChat.contextPage.turns.largest': 'Largest single growth',
+    'agentChat.contextPage.turns.start': 'Starting context',
+    'agentChat.contextPage.turns.user': 'Your messages',
+    'agentChat.contextPage.turns.modelOutput': 'Model output',
+    'agentChat.contextPage.turns.toolResults': 'Tool results',
+    'agentChat.contextPage.turns.threshold': 'Autocompact',
+    'agentChat.contextPage.turns.summary':
+        'added {{total}}: tool results {{toolResults}}, model output {{modelOutput}}, your messages {{user}}',
+    'agentChat.contextPage.turns.note':
+        'The split is an estimate: the transcript text of each turn is weighed by length and scaled to the real growth of the prompt. “Starting context” covers the system prompt, tools, memory, and anything before the first request shown.',
     // Cache card
     'agentChat.contextPage.cache.title': 'Prompt cache',
     'agentChat.contextPage.cache.caption':
