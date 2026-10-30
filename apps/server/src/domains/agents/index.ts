@@ -112,6 +112,7 @@ export {
     readDelegationTranscript,
     resolveAgentTranscriptLocation,
 } from './transcript';
+export { isCompressedTranscriptPath } from './transcript-compression';
 export {
     readTranscriptConversation,
     type TranscriptConversation,

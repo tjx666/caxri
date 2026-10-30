@@ -11,11 +11,11 @@ import type {
 } from '../agents';
 import {
     agentProviders,
+    isCompressedTranscriptPath,
     locateAgentTranscriptForIdentity,
     locateEarlierCodexRollouts,
     scanTranscriptLines,
 } from '../agents';
-import { isCompressedTranscriptPath } from '../agents/transcript-compression';
 import type { RateLimitObservation } from './accumulator';
 import { UsageAccumulator } from './accumulator';
 import type { ClaudeMessageUsage, UsageLineParser, UsageParserOptions } from './parsers';
