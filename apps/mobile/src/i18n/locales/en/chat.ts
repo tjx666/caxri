@@ -68,6 +68,13 @@ export const chat = {
     'chat.disabled.settings.offline': 'Reconnect to change the model and permissions.',
     'chat.dock.collapse': 'Fold the goal, activity, and queue into one row',
     'chat.dock.expand': 'Show the goal, activity, and queue rows',
+    'chat.notice.cacheExpired':
+        'Idle {{idle}} · the next reply re-reads the whole conversation{{cost}}.',
+    'chat.notice.cacheExpiring': 'Reply within {{remaining}} to skip a full re-read{{cost}}.',
+    'chat.notice.cost': ' (est. ~{{cost}})',
+    'chat.notice.dismiss': 'Dismiss',
+    'chat.notice.pressure': 'Context {{tokens}} of {{window}} is nearly full. Compact it soon.',
+    'chat.notice.usage': 'Usage',
     'chat.usage.cache': 'Prompt cache',
     'chat.usage.cacheExpired': 'Expired · idle {{idle}}',
     'chat.usage.cacheHitRate': 'Cache hit rate',

@@ -66,7 +66,7 @@ export interface AgentChatSessionUsageView {
 /**
  * `1h 5m` or `42m`, rounded to the minute; the cache clock never needs seconds.
  */
-function minutesText(ms: number, t: Translate): string {
+export function minutesText(ms: number, t: Translate): string {
     const minutes = Math.max(0, Math.round(ms / 60_000));
     const hours = Math.floor(minutes / 60);
     return hours > 0

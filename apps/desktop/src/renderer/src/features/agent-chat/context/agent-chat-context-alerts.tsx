@@ -1,6 +1,7 @@
 import type { AgentChatItem, AgentChatUsage } from '@caxri/protocol';
 import {
     agentChatIdleCompactionAt,
+    agentChatUndismissedContextAlerts,
     defaultAppSettings,
     isAgentChatEndedByMerge,
 } from '@caxri/protocol';
@@ -20,7 +21,6 @@ import {
     agentChatContextAlerts,
     agentChatContextAnnouncement,
     agentChatContextRowState,
-    agentChatUndismissedContextAlerts,
 } from './agent-chat-context';
 import {
     dismissAgentChatCacheNotice,
