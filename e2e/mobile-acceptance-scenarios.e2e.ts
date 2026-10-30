@@ -17,7 +17,6 @@ import {
     finish,
     openComposerSession,
 } from './support/mobile-agent-actions-scenarios.ts';
-import { executeMobileAgentChatCase } from './support/mobile-agent-chat-scenario.ts';
 import {
     adbShell,
     mobileDisplayState,
@@ -30,6 +29,7 @@ import {
     waitForMobile,
 } from './support/mobile-android.ts';
 import { executeMobileChangesScenario } from './support/mobile-changes-scenarios.ts';
+import { executeMobileAgentChatCase } from './support/mobile-chat-case-registry.ts';
 import { executeMobileConversationCase } from './support/mobile-conversation-cases.ts';
 import {
     countByteSequence,

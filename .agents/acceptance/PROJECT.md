@@ -152,7 +152,9 @@ CAXRI_MOBILE_ACCEPTANCE_CASE_ID="MOB-E2E-01" \
   bun run test:e2e:mobile:android
 ```
 
-Case ids come from `scripts/mobile-android-cases.ts` and `scripts/mobile-android-chat-cases.ts`;
+Case ids come from `scripts/mobile-android-cases.ts` and the self-registering Chat groups: a new
+`MOB-CHAT-*` case adds `scripts/mobile-android-chat-cases/<group>.ts` (exports `cases`, no Playwright
+imports) and `e2e/support/mobile-chat-cases/<group>.ts` (exports `handlers`) and edits no shared list;
 the runner rejects any other id, and the plan item id must equal it. Name a new case after its feature and
 scenario, such as `MOB-CHAT-RUNNING-OPEN-01`, instead of taking the next global number: parallel
 sessions claim the same next number and force a rename and a new Acceptance run. Keep existing ids. `MOB-E2E-01` is the main phone

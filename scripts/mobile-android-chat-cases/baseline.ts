@@ -1,9 +1,10 @@
-import type { MobileAndroidCaseDefinition } from './mobile-android-cases';
+import type { MobileAndroidCaseDefinition } from '../mobile-android-cases';
 
 /**
- * Agent Chat cases (`MOB-CHAT-*`), dispatched by `executeMobileAgentChatCase`.
+ * Baseline Agent Chat cases (`MOB-CHAT-*`). Handlers live in `e2e/support/mobile-chat-cases/baseline.ts`. A new case
+ * adds its own `<group>.ts` here and in `e2e/support/mobile-chat-cases/` instead of editing this file.
  */
-export const androidChatCases = {
+export const cases = {
     'MOB-CHAT-01': {
         desktopProfile: 'managed-by-isolated-e2e',
         media: ['screenshot'],

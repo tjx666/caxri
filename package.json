@@ -118,6 +118,12 @@
             "e2e/support/clipboard-capability.type-test.ts": [
                 "exports"
             ],
+            "e2e/support/mobile-chat-cases/*.ts": [
+                "exports"
+            ],
+            "scripts/mobile-android-chat-cases/*.ts": [
+                "exports"
+            ],
             "e2e/support/server-database/*.ts": [
                 "exports"
             ],
@@ -137,6 +143,8 @@
             ".": {
                 "entry": [
                     ".agents/skills/acceptance/scripts/capture-renderer.ts",
+                    "e2e/support/mobile-chat-cases/*.ts",
+                    "scripts/mobile-android-chat-cases/*.ts",
                     "e2e/support/server-database/*-seed.ts",
                     "e2e/support/server-database/timeline-read.ts",
                     ".agents/skills/acceptance/scripts/fixture-preflight.ts",
