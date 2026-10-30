@@ -2,8 +2,12 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 
 import { ESLint } from 'eslint';
+import { parse as parseJsonc } from 'jsonc-parser';
 import { describe, expect, it } from 'vitest';
 
+import mobileRuntimeConfigText from '../../apps/mobile/tsconfig.runtime.json?raw';
+import nodeConfigText from '../../tsconfig.node.json?raw';
+import webConfigText from '../../tsconfig.web.json?raw';
 import {
     appBoundaries,
     legacyOwnershipRoots,
@@ -136,9 +140,9 @@ describe('pnpm workspace contract', () => {
     });
 
     it('registers the mobile runtime and transport package as browser-safe boundaries', () => {
-        const runtimeConfig = JSON.parse(
-            readFileSync(join(root, 'apps/mobile/tsconfig.runtime.json'), 'utf8'),
-        ) as { compilerOptions?: { lib?: string[]; types?: string[] } };
+        const runtimeConfig = parseJsonc(mobileRuntimeConfigText) as {
+            compilerOptions?: { lib?: string[]; types?: string[] };
+        };
 
         expect(runtimeConfig.compilerOptions?.lib).toEqual(['ES2022', 'WebWorker']);
         expect(runtimeConfig.compilerOptions?.types).toEqual([]);
@@ -202,18 +206,15 @@ describe('pnpm workspace contract', () => {
     });
 
     it('registers current source discovery in TypeScript', () => {
-        const nodeConfig = readFileSync(join(root, 'tsconfig.node.json'), 'utf8');
-        const webConfig = readFileSync(join(root, 'tsconfig.web.json'), 'utf8');
-
-        expect(nodeConfig).toContain('"apps/desktop/src/main/**/*.ts"');
-        expect(nodeConfig).toContain('"apps/server/**/*.ts"');
-        expect(nodeConfig).not.toContain('"apps/**/*.tsx"');
-        expect(webConfig).toContain('"apps/desktop/src/renderer/src/**/*.tsx"');
-        expect(webConfig).toContain('"packages/client/src/connection/**/*.ts"');
-        expect(webConfig).toContain('"packages/client/src/state/**/*.ts"');
-        expect(webConfig).not.toContain('"packages/client/src/**/*.ts"');
-        expect(webConfig).toContain('"packages/extension-api/src/**/*.ts"');
-        expect(webConfig).not.toContain('"packages/agent-skills/src/**/*.ts"');
+        expect(nodeConfigText).toContain('"apps/desktop/src/main/**/*.ts"');
+        expect(nodeConfigText).toContain('"apps/server/**/*.ts"');
+        expect(nodeConfigText).not.toContain('"apps/**/*.tsx"');
+        expect(webConfigText).toContain('"apps/desktop/src/renderer/src/**/*.tsx"');
+        expect(webConfigText).toContain('"packages/client/src/connection/**/*.ts"');
+        expect(webConfigText).toContain('"packages/client/src/state/**/*.ts"');
+        expect(webConfigText).not.toContain('"packages/client/src/**/*.ts"');
+        expect(webConfigText).toContain('"packages/extension-api/src/**/*.ts"');
+        expect(webConfigText).not.toContain('"packages/agent-skills/src/**/*.ts"');
     });
 
     it('keeps tests, Electron support, protocol, and CLI domains in predictable directories', () => {
