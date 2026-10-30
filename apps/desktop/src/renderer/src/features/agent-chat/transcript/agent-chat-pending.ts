@@ -20,6 +20,25 @@ import { createStore } from '../../../lib/store';
  */
 export interface AgentChatPendingMessage extends AgentChatPendingMessageBase {
     images: ReadonlyArray<{ thumbnail: string }>;
+    /**
+     * What the message waits for, decided when it was sent (see {@link agentChatPendingWait}).
+     */
+    wait?: AgentChatPendingWait;
+}
+
+/**
+ * What a message on its way is waiting for, for the hint behind its sending clock: the running turn's current step when
+ * it steers that turn (Codex records steered input only once the step ends), the Agent starting or resuming (a stopped
+ * Chat resumes on its next message), or plain delivery.
+ */
+export type AgentChatPendingWait = 'step' | 'start' | 'delivery';
+
+export function agentChatPendingWait(
+    snapshot: Pick<AgentChatSnapshot, 'activeTurnId' | 'status'> | undefined,
+    delivery: 'queue' | 'steer' | undefined,
+): AgentChatPendingWait {
+    if (delivery === 'steer' && snapshot?.activeTurnId) return 'step';
+    return snapshot?.status === 'ready' || snapshot?.status === 'failed' ? 'delivery' : 'start';
 }
 
 interface AgentChatPendingState {
@@ -140,6 +159,7 @@ export function showAgentChatPendingMessage(
         imageCount: message.imageCount ?? message.images.length,
         placement: agentChatPendingPlacement(snapshot, message.delivery, ahead.length > 0),
         knownIds: agentChatPendingKnownIds(snapshot),
+        wait: agentChatPendingWait(snapshot, message.delivery),
     });
     return id;
 }

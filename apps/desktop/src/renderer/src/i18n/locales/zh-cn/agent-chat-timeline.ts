@@ -48,6 +48,8 @@ export const agentChatTimeline: TranslatedNamespace<typeof source> = {
     'agentChat.message.preparingReference': '正在准备会话引用…',
     'agentChat.message.attaching': '正在附加…',
     'agentChat.message.sending': '正在发送…',
+    'agentChat.message.sendingAfterStep': '当前步骤结束后发出',
+    'agentChat.message.sendingAfterStart': 'Agent 启动后发出',
     'agentChat.message.typeToSend': '输入消息后即可发送',
     'agentChat.message.steered': '已插入本轮',
     'agentChat.message.steeredHint': '已插入本轮：在 Agent 工作时发送，并入了正在进行的这一轮',

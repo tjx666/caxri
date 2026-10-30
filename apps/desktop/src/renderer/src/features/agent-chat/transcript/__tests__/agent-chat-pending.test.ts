@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
     addAgentChatPendingAnswer,
+    agentChatPendingWait,
     expireAgentChatPendingMessage,
     pruneAgentChatPending,
     selectAgentChatPendingAnswers,
@@ -261,5 +262,30 @@ describe('pending store', () => {
         expect(select(useAgentChatPendingStore.getState())).toHaveLength(1);
         pruneAgentChatPending('terminal-1', snapshot());
         expect(select(useAgentChatPendingStore.getState())).toEqual([]);
+    });
+});
+
+describe('what a message on its way waits for', () => {
+    const select = selectAgentChatPendingMessages('terminal-1');
+    function sent(delivery: 'queue' | 'steer' | undefined, current: AgentChatSnapshot) {
+        showAgentChatPendingMessage('terminal-1', current, {
+            text: 'gemini',
+            images: [],
+            delivery,
+        });
+        return select(useAgentChatPendingStore.getState()).at(-1)!;
+    }
+
+    it('waits on the running step when it steers a turn', () => {
+        const message = sent('steer', snapshot({ activeTurnId: 'turn-1' }));
+        expect(message.placement).toBe('timeline');
+        expect(message.wait).toBe('step');
+    });
+
+    it('waits on delivery when it starts a turn, and on the Agent while it starts or resumes', () => {
+        expect(sent('steer', snapshot()).wait).toBe('delivery');
+        expect(sent(undefined, snapshot({ status: 'starting' })).wait).toBe('start');
+        expect(sent(undefined, snapshot({ status: 'stopped' })).wait).toBe('start');
+        expect(agentChatPendingWait(undefined, undefined)).toBe('start');
     });
 });
