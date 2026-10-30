@@ -11,7 +11,9 @@ come with heavy daily Agent use. Agents change quickly, so Caxri ships often and
 
 **Works with:** Claude Code, Codex and Grok Build. Caxri runs your own installed Agent CLIs and
 their existing sign-in; it does not bundle an Agent or a subscription, and it needs no Caxri
-account. The interface is available in English and Simplified Chinese.
+account. Every supported Agent is ongoing maintenance, so Caxri covers the ones used daily and
+adds others on request; [open an issue](https://github.com/tjx666/caxri/issues/new/choose) for the
+Agent you want. The interface is available in English and Simplified Chinese.
 
 **Caxri is a preview.** It ships often and has no compatibility commitment yet, so an update may
 require resetting your local data: the profile in `~/Library/Application Support/Caxri` (see
@@ -29,14 +31,22 @@ compatibility commitment explicitly.
   switch between the two without losing the conversation.
 - **Made for heavy Agent users.** Caxri automates the chores of running Agents all day: it compacts
   idle conversations before their prompt cache expires, resumes Agents after a usage limit resets,
-  lets you continue a task with another Agent when a plan runs out, parks idle background Agents,
-  and shows tokens and cost per Agent on a Usage page, plus live output speed (tok/s).
+  parks idle background Agents,
+  and shows live output speed (tok/s). Usage sits in the status bar: hover it for your plan limits,
+  click it for a Usage page with tokens and cost per Agent.
 - **Know who needs you.** Every Session reports waiting, completed or failed. An Activity view lists
   the Sessions waiting on you across every Project, desktop notifications point you to them, and
   your paired phone shows the same list.
+- **Worktrees when the Agent needs them.** Start a conversation in the Project; no worktree is
+  required up front. Worktrees stay grouped under their Project, and when an Agent creates or enters
+  one mid-conversation, the Session's files, editor and Git views switch to it.
+- **Hand work to another Agent.** Type `@` in a new Session to give its Agent an earlier
+  conversation, or run `/new-session` and the current Agent writes a brief into a new Session. When
+  a plan runs out, Caxri offers to continue the task with another Agent.
 - **Review and ship without leaving the app.** Leave comments on a diff and send them to the Agent
-  in one step, follow pull request checks in the status bar, merge from Caxri, and the Agent is told
-  when its pull request merges. Agents commit; you decide the merge.
+  in one step. The Status panel shows the Session's pull request, checks and linked issues; merge
+  from Caxri, and the Agent is told when its pull request merges. Agents commit; you decide the
+  merge.
 
 ### And more
 
@@ -45,8 +55,8 @@ compatibility commitment explicitly.
 - **Remote machines.** Open Projects on a Linux machine or another Mac over SSH; Agents, Terminals
   and Git run there as they do locally. The Caxri Server also runs on its own, without the desktop
   app.
-- **Worktrees that follow the Agent.** When an Agent moves into a Git worktree, the Session's files,
-  editor and Git views switch with it.
+- **Archive.** Archive a finished Session to clear it from the sidebar and restore it any time; a
+  Session whose pull request merged can archive itself.
 - **Airplane Mode.** Before you go offline, stop every Agent cleanly and pick which ones to resume
   when you are back.
 - **`caxri` CLI.** Agents can create Sessions, delegate work to other Agents and report back.
@@ -64,10 +74,15 @@ compatibility commitment explicitly.
 - **Parallel-agent workbenches such as Conductor, Superset and Orca.** These also run several
   Agents in parallel with Git worktrees and diff review. Caxri focuses on one workflow across Claude
   Code, Codex and Grok Build, Chat and Terminal both as first-class modes, automation around plan
-  limits and prompt caches, and showing only what still needs you.
-- **AI IDEs such as Cursor.** Caxri is not an IDE or a VS Code fork and does not replace your
-  editor. Its editor and Source Control view stay light, for checking what an Agent did; there is
-  no manual stage or commit, because Agents commit and you merge the pull request.
+  limits and prompt caches, and showing only what still needs you. It also does not ask you to pick
+  a worktree before a conversation starts.
+- **AI IDEs such as Cursor.** Caxri is not an IDE and does not replace your editor. It is built from
+  scratch rather than forked from VS Code, though its editor, status bar and Command Palette will
+  feel familiar to VS Code users. The editor and Source Control view stay light, for checking what
+  an Agent did.
+- **Run buttons and task launchers.** Caxri has no buttons for committing, pushing, building or
+  running scripts. Describe the routine in a skill and let the Agent run it. The one button Caxri
+  keeps is merging a pull request, because that decision stays with you.
 
 New here? Read [Getting started](docs/getting-started.md) for the model in five minutes.
 
@@ -117,8 +132,10 @@ See [Mobile installation and updates](docs/mobile/update.md#install-from-github-
 
 ## First Session
 
-Add a local folder as a Project, create a Session beneath it, and choose your installed Agent or a
-Shell. Agents open in Chat by default; you can switch a Session to its terminal at any time.
+Add a local folder as a Project and create a Session beneath it. In the Session, click **+** to
+start your default Agent, or hover **+** to pick another Agent, Chat or terminal mode, or a plain
+Terminal.
+Agents open in Chat by default; you can switch an Agent to its terminal at any time.
 
 Agents start with full access: they can edit files and run commands without asking. Change this in
 **Settings → Agents**. Allow notifications from the helper in macOS System Settings if prompted.
