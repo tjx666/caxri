@@ -158,7 +158,7 @@ or cancels the delivery, or a concrete blocker requires their input.
    locally before spending another disposable hosted run. When both repetitions pass, record the
    exact head, failed CI case/run, local commands/results, whether the case touches
    the changed behavior (a waived in-scope failure must say so explicitly),
-   and waiver in the PR and the shared flaky-case tracker, then continue authorized delivery.
+   and waiver in the PR and in that case's own flaky-test issue, then continue authorized delivery.
    Use the owning test runner; E2E reproduction and tracker publication follow
    [CI-only parity](../e2e-testing/SKILL.md#ci-only-parity).
    Do not require runner access or infrastructure root-cause diagnosis before applying this exception.
