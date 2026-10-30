@@ -1,59 +1,59 @@
 import type { AgentChatSnapshot, AppSettings } from '@caxri/protocol';
 
-import { pageRequest } from './helpers';
-import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
-import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scenarios';
-import { capture, finish } from './mobile-agent-actions-scenarios';
-import { executeMobileChatBrowserScenario } from './mobile-agent-chat-browser-scenario';
-import { executeMobileChatComposerScenario } from './mobile-agent-chat-composer-scenario';
-import { executeMobileChatDelegatedTaskScenario } from './mobile-agent-chat-delegated-scenario';
+import { pageRequest } from '../helpers';
+import { createMobileAcceptanceFixture } from '../mobile-acceptance-fixture';
+import type { MobileAgentScenarioEnvironment } from '../mobile-agent-actions-scenarios';
+import { capture, finish } from '../mobile-agent-actions-scenarios';
+import { executeMobileChatBrowserScenario } from '../mobile-agent-chat-browser-scenario';
+import { executeMobileChatComposerScenario } from '../mobile-agent-chat-composer-scenario';
+import { executeMobileChatDelegatedTaskScenario } from '../mobile-agent-chat-delegated-scenario';
 import {
     executeMobileChatMissingImageScenario,
     executeMobileChatModelRefusedScenario,
     executeMobileChatPreviewScenario,
-} from './mobile-agent-chat-error-scenario';
-import { executeMobileChatFeedbackScenario } from './mobile-agent-chat-feedback-scenario';
-import { executeMobileChatGoalScenario } from './mobile-agent-chat-goal-scenario';
+} from '../mobile-agent-chat-error-scenario';
+import { executeMobileChatFeedbackScenario } from '../mobile-agent-chat-feedback-scenario';
+import { executeMobileChatGoalScenario } from '../mobile-agent-chat-goal-scenario';
 import {
     agentText,
     hasCheck,
     sendFromPhone,
     waitForCheck,
     waitForNoCheck,
-} from './mobile-agent-chat-helpers';
+} from '../mobile-agent-chat-helpers';
 import {
     executeMobileChatImageScenario,
     executeMobileChatImageStripScenario,
     executeMobileChatMultiImagePickScenario,
-} from './mobile-agent-chat-image-scenario';
-import { executeMobileChatInlineLinkScenario } from './mobile-agent-chat-inline-link-scenario';
-import { executeMobileChatListApprovalScenario } from './mobile-agent-chat-list-approval-scenario';
+} from '../mobile-agent-chat-image-scenario';
+import { executeMobileChatInlineLinkScenario } from '../mobile-agent-chat-inline-link-scenario';
+import { executeMobileChatListApprovalScenario } from '../mobile-agent-chat-list-approval-scenario';
 import {
     executeMobileChatLongCopyScenario,
     executeMobileChatMessageActionsScenario,
-} from './mobile-agent-chat-message-actions-scenario';
+} from '../mobile-agent-chat-message-actions-scenario';
 import {
     executeMobileChatModelScenario,
     executeMobileClaudeModelScenario,
-} from './mobile-agent-chat-model-scenario';
+} from '../mobile-agent-chat-model-scenario';
 import {
     executeMobileChatPlanApprovalScenario,
     executeMobileChatUsageWaitScenario,
-} from './mobile-agent-chat-plan-wait-scenarios';
-import { executeMobileChatRunningTurnScenario } from './mobile-agent-chat-running-turn-scenario';
+} from '../mobile-agent-chat-plan-wait-scenarios';
+import { executeMobileChatRunningTurnScenario } from '../mobile-agent-chat-running-turn-scenario';
 import {
     executeMobileChatChineseScenario,
     executeMobileChatSkillsQuestionScenario,
-} from './mobile-agent-chat-skills-scenario';
-import { executeMobileChatBurstStreamScenario } from './mobile-agent-chat-stream-scenario';
-import { executeMobileChatSubagentScenario } from './mobile-agent-chat-subagent-scenario';
-import { executeMobileChatSurfaceSwitchScenario } from './mobile-agent-chat-surface-switch-scenario';
+} from '../mobile-agent-chat-skills-scenario';
+import { executeMobileChatBurstStreamScenario } from '../mobile-agent-chat-stream-scenario';
+import { executeMobileChatSubagentScenario } from '../mobile-agent-chat-subagent-scenario';
+import { executeMobileChatSurfaceSwitchScenario } from '../mobile-agent-chat-surface-switch-scenario';
 import {
     executeMobileChatHistoryTasksScenario,
     executeMobileChatPinScrollScenario,
     executeMobileChatShimmerScenario,
-} from './mobile-agent-chat-timeline-scenario';
-import { executeMobileAgentUsageScenario } from './mobile-agent-usage-scenario';
+} from '../mobile-agent-chat-timeline-scenario';
+import { executeMobileAgentUsageScenario } from '../mobile-agent-usage-scenario';
 import {
     androidBounds,
     mobileSemantics,
@@ -62,25 +62,26 @@ import {
     tapMobileCheck,
     tapMobileCheckByBounds,
     waitForMobile,
-} from './mobile-android';
-import { executeMobileBotInboxScenario } from './mobile-bot-inbox-scenario';
+} from '../mobile-android';
+import { executeMobileBotInboxScenario } from '../mobile-bot-inbox-scenario';
+import type { MobileChatCaseHandler } from '../mobile-chat-case-registry';
 import {
     executeMobileChatSendUnknownScenario,
     executeMobileChatUsageGuardScenario,
-} from './mobile-chat-delivery-guard-scenarios';
-import { executeMobilePlanLimitsScenario } from './mobile-plan-limits-scenario';
-import { executeMobilePullRequestScenario } from './mobile-pull-request-scenario';
-import { executeMobileReadCacheScenario } from './mobile-read-cache-scenario';
-import { executeMobileReplyPlaceholderScenario } from './mobile-reply-placeholder-scenario';
-import { executeMobileSavedTurnArtifactsScenario } from './mobile-saved-turn-artifacts-scenario';
+} from '../mobile-chat-delivery-guard-scenarios';
+import { executeMobilePlanLimitsScenario } from '../mobile-plan-limits-scenario';
+import { executeMobilePullRequestScenario } from '../mobile-pull-request-scenario';
+import { executeMobileReadCacheScenario } from '../mobile-read-cache-scenario';
+import { executeMobileReplyPlaceholderScenario } from '../mobile-reply-placeholder-scenario';
+import { executeMobileSavedTurnArtifactsScenario } from '../mobile-saved-turn-artifacts-scenario';
 import {
     executeMobileSessionGroupsScenario,
     executeMobileSessionSwipeScenario,
-} from './mobile-session-groups-scenario';
-import { executeMobileSessionPinScenario } from './mobile-session-pin-scenario';
-import { executeMobileSessionPreviewScenario } from './mobile-session-preview-scenario';
-import { executeMobileSessionUsageScenario } from './mobile-session-usage-scenario';
-import { executeMobileToastScenario } from './mobile-toast-scenario';
+} from '../mobile-session-groups-scenario';
+import { executeMobileSessionPinScenario } from '../mobile-session-pin-scenario';
+import { executeMobileSessionPreviewScenario } from '../mobile-session-preview-scenario';
+import { executeMobileSessionUsageScenario } from '../mobile-session-usage-scenario';
+import { executeMobileToastScenario } from '../mobile-toast-scenario';
 
 /**
  * Waits for the answered question list's `index`th answer to read `answer`.
@@ -486,114 +487,65 @@ async function executeMobileNewChatSessionScenario(
 }
 
 /**
- * Runs the Agent Chat Acceptance case `environment.caseId` names.
+ * Handlers for the baseline Agent Chat Acceptance cases, keyed by case id. Their definitions live in
+ * `scripts/mobile-android-chat-cases/baseline.ts`. A new case adds its own file pair instead of editing these.
  */
-export async function executeMobileAgentChatCase(
-    environment: MobileAgentScenarioEnvironment & { remoteVideoPath?: string },
-    artifacts: string[],
-): Promise<void> {
-    switch (environment.caseId) {
-        case 'MOB-CHAT-01':
-            return executeMobileAgentChatScenario(environment, artifacts);
-        case 'MOB-CHAT-02':
-            return executeMobileClaudeToolApprovalScenario(environment, artifacts);
-        case 'MOB-CHAT-03':
-            return executeMobileNewChatSessionScenario(environment, artifacts);
-        case 'MOB-CHAT-04':
-            return executeMobileChatModelScenario(environment, artifacts);
-        case 'MOB-CHAT-05':
-            return executeMobileChatImageScenario(environment, artifacts);
-        case 'MOB-CHAT-06':
-            return executeMobileReadCacheScenario(environment, artifacts);
-        case 'MOB-CHAT-07':
-            return executeMobileChatPreviewScenario(environment, artifacts);
-        case 'MOB-CHAT-08':
-            return executeMobileChatMissingImageScenario(environment, artifacts);
-        case 'MOB-CHAT-09':
-            return executeMobileChatModelRefusedScenario(environment, artifacts);
-        case 'MOB-CHAT-10':
-            return executeMobileChatComposerScenario(environment, artifacts);
-        case 'MOB-CHAT-11':
-            return executeMobileClaudeModelScenario(environment, artifacts);
-        case 'MOB-CHAT-12':
-            return executeMobileChatImageStripScenario(environment, artifacts);
-        case 'MOB-CHAT-13':
-            return executeMobileChatPinScrollScenario(environment, artifacts);
-        case 'MOB-CHAT-14':
-            return executeMobileChatSkillsQuestionScenario(environment, artifacts);
-        case 'MOB-CHAT-15':
-            return executeMobileChatShimmerScenario(environment, artifacts);
-        case 'MOB-CHAT-16':
-            return executeMobileChatHistoryTasksScenario(environment, artifacts);
-        case 'MOB-CHAT-17':
-            return executeMobileChatBrowserScenario(environment, artifacts);
-        case 'MOB-CHAT-18':
-            return executeMobileChatChineseScenario(environment, artifacts);
-        case 'MOB-CHAT-19':
-            return executeMobileChatDelegatedTaskScenario(environment, artifacts);
-        case 'MOB-CHAT-20':
-            return executeMobileChatFeedbackScenario(environment, artifacts);
-        case 'MOB-CHAT-21':
-            return executeMobileSessionPinScenario(environment, artifacts);
-        case 'MOB-CHAT-22':
-            return executeMobilePlanLimitsScenario(environment, artifacts);
-        case 'MOB-CHAT-23':
-            return executeMobileReplyPlaceholderScenario(environment, artifacts);
-        case 'MOB-CHAT-24':
-            return executeMobilePullRequestScenario(environment, artifacts, 'failing');
-        case 'MOB-CHAT-25':
-            return executeMobilePullRequestScenario(environment, artifacts, 'ready');
-        case 'MOB-CHAT-26':
-            return executeMobileChatSubagentScenario(environment, artifacts);
-        case 'MOB-CHAT-27':
-            return executeMobileSessionSwipeScenario(environment, artifacts);
-        case 'MOB-CHAT-28':
-            return executeMobileSessionGroupsScenario(environment, artifacts);
-        case 'MOB-CHAT-29':
-            return executeMobileSavedTurnArtifactsScenario(environment, artifacts);
-        case 'MOB-CHAT-30':
-            return executeMobileChatBurstStreamScenario(environment, artifacts);
-        case 'MOB-CHAT-31':
-            return executeMobileAgentUsageScenario(environment, artifacts);
-        case 'MOB-CHAT-32':
-            return executeMobileChatMultiImagePickScenario(environment, artifacts);
-        case 'MOB-CHAT-33':
-        case 'MOB-CHAT-34':
-            return executeMobileBotInboxScenario(environment, artifacts);
-        case 'MOB-CHAT-35':
-            return executeMobileChatMessageActionsScenario(environment, artifacts);
-        case 'MOB-CHAT-COPY-LONG-01':
-            return executeMobileChatLongCopyScenario(environment, artifacts);
-        case 'MOB-CHAT-36':
-            return executeMobileSessionPreviewScenario(environment, artifacts);
-        case 'MOB-CHAT-TOAST-01':
-            return executeMobileToastScenario(environment, artifacts);
-        case 'MOB-CHAT-LINK-WRAP-01':
-            return executeMobileChatInlineLinkScenario(environment, artifacts);
-        case 'MOB-CHAT-CLIP-REREAD-01':
-            return executeMobileChatBurstStreamScenario(environment, artifacts, 'clipped');
-        case 'MOB-CHAT-LIST-APPROVAL-01':
-            return executeMobileChatListApprovalScenario(environment, artifacts, 'codex');
-        case 'MOB-CHAT-LIST-APPROVAL-02':
-        case 'MOB-CHAT-LIST-QUESTION-01':
-            return executeMobileChatListApprovalScenario(environment, artifacts, 'claude');
-        case 'MOB-CHAT-GOAL-01':
-            return executeMobileChatGoalScenario(environment, artifacts);
-        case 'MOB-CHAT-RUNNING-OPEN-01':
-            return executeMobileChatRunningTurnScenario(environment, artifacts);
-        case 'MOB-CHAT-SEND-UNKNOWN-01':
-            return executeMobileChatSendUnknownScenario(environment, artifacts);
-        case 'MOB-CHAT-SURFACE-SWITCH-01':
-            return executeMobileChatSurfaceSwitchScenario(environment, artifacts);
-        case 'MOB-CHAT-USAGE-GUARD-01':
-            return executeMobileChatUsageGuardScenario(environment, artifacts);
-        case 'MOB-CHAT-USAGE-WAIT-01':
-            return executeMobileChatUsageWaitScenario(environment, artifacts);
-        case 'MOB-CHAT-PLAN-APPROVAL-01':
-            return executeMobileChatPlanApprovalScenario(environment, artifacts);
-        case 'MOB-CHAT-USAGE-01':
-            return executeMobileSessionUsageScenario(environment, artifacts);
-        default:
-            throw new Error(`Unsupported Agent Chat Acceptance case: ${environment.caseId}`);
-    }
-}
+export const handlers = {
+    'MOB-CHAT-01': executeMobileAgentChatScenario,
+    'MOB-CHAT-02': executeMobileClaudeToolApprovalScenario,
+    'MOB-CHAT-03': executeMobileNewChatSessionScenario,
+    'MOB-CHAT-04': executeMobileChatModelScenario,
+    'MOB-CHAT-05': executeMobileChatImageScenario,
+    'MOB-CHAT-06': executeMobileReadCacheScenario,
+    'MOB-CHAT-07': executeMobileChatPreviewScenario,
+    'MOB-CHAT-08': executeMobileChatMissingImageScenario,
+    'MOB-CHAT-09': executeMobileChatModelRefusedScenario,
+    'MOB-CHAT-10': executeMobileChatComposerScenario,
+    'MOB-CHAT-11': executeMobileClaudeModelScenario,
+    'MOB-CHAT-12': executeMobileChatImageStripScenario,
+    'MOB-CHAT-13': executeMobileChatPinScrollScenario,
+    'MOB-CHAT-14': executeMobileChatSkillsQuestionScenario,
+    'MOB-CHAT-15': executeMobileChatShimmerScenario,
+    'MOB-CHAT-16': executeMobileChatHistoryTasksScenario,
+    'MOB-CHAT-17': executeMobileChatBrowserScenario,
+    'MOB-CHAT-18': executeMobileChatChineseScenario,
+    'MOB-CHAT-19': executeMobileChatDelegatedTaskScenario,
+    'MOB-CHAT-20': executeMobileChatFeedbackScenario,
+    'MOB-CHAT-21': executeMobileSessionPinScenario,
+    'MOB-CHAT-22': executeMobilePlanLimitsScenario,
+    'MOB-CHAT-23': executeMobileReplyPlaceholderScenario,
+    'MOB-CHAT-24': (environment, artifacts) =>
+        executeMobilePullRequestScenario(environment, artifacts, 'failing'),
+    'MOB-CHAT-25': (environment, artifacts) =>
+        executeMobilePullRequestScenario(environment, artifacts, 'ready'),
+    'MOB-CHAT-26': executeMobileChatSubagentScenario,
+    'MOB-CHAT-27': executeMobileSessionSwipeScenario,
+    'MOB-CHAT-28': executeMobileSessionGroupsScenario,
+    'MOB-CHAT-29': executeMobileSavedTurnArtifactsScenario,
+    'MOB-CHAT-30': executeMobileChatBurstStreamScenario,
+    'MOB-CHAT-31': executeMobileAgentUsageScenario,
+    'MOB-CHAT-32': executeMobileChatMultiImagePickScenario,
+    'MOB-CHAT-33': executeMobileBotInboxScenario,
+    'MOB-CHAT-34': executeMobileBotInboxScenario,
+    'MOB-CHAT-35': executeMobileChatMessageActionsScenario,
+    'MOB-CHAT-COPY-LONG-01': executeMobileChatLongCopyScenario,
+    'MOB-CHAT-36': executeMobileSessionPreviewScenario,
+    'MOB-CHAT-TOAST-01': executeMobileToastScenario,
+    'MOB-CHAT-LINK-WRAP-01': executeMobileChatInlineLinkScenario,
+    'MOB-CHAT-CLIP-REREAD-01': (environment, artifacts) =>
+        executeMobileChatBurstStreamScenario(environment, artifacts, 'clipped'),
+    'MOB-CHAT-LIST-APPROVAL-01': (environment, artifacts) =>
+        executeMobileChatListApprovalScenario(environment, artifacts, 'codex'),
+    'MOB-CHAT-LIST-APPROVAL-02': (environment, artifacts) =>
+        executeMobileChatListApprovalScenario(environment, artifacts, 'claude'),
+    'MOB-CHAT-LIST-QUESTION-01': (environment, artifacts) =>
+        executeMobileChatListApprovalScenario(environment, artifacts, 'claude'),
+    'MOB-CHAT-GOAL-01': executeMobileChatGoalScenario,
+    'MOB-CHAT-RUNNING-OPEN-01': executeMobileChatRunningTurnScenario,
+    'MOB-CHAT-SEND-UNKNOWN-01': executeMobileChatSendUnknownScenario,
+    'MOB-CHAT-SURFACE-SWITCH-01': executeMobileChatSurfaceSwitchScenario,
+    'MOB-CHAT-USAGE-GUARD-01': executeMobileChatUsageGuardScenario,
+    'MOB-CHAT-USAGE-WAIT-01': executeMobileChatUsageWaitScenario,
+    'MOB-CHAT-PLAN-APPROVAL-01': executeMobileChatPlanApprovalScenario,
+    'MOB-CHAT-USAGE-01': executeMobileSessionUsageScenario,
+} satisfies Record<string, MobileChatCaseHandler>;

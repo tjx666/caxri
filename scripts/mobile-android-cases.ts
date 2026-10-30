@@ -1,4 +1,4 @@
-import { androidChatCases } from './mobile-android-chat-cases';
+import { collectAndroidChatCases } from './mobile-android-chat-case-collector';
 
 export type MobileAndroidMediaType = 'screenshot' | 'video';
 
@@ -204,7 +204,6 @@ const androidCases = {
         recordingOwner: 'scenario',
         scenario: 'browse-panels',
     },
-    ...androidChatCases,
     'MOB-CONV-01': {
         desktopProfile: 'managed-by-isolated-e2e',
         media: ['screenshot'],
@@ -394,9 +393,25 @@ const androidCases = {
     },
 } as const satisfies Record<string, MobileAndroidCaseDefinition>;
 
-export type MobileAndroidAcceptanceCaseId = keyof typeof androidCases;
-export type MobileAndroidAcceptanceScenario =
-    (typeof androidCases)[MobileAndroidAcceptanceCaseId]['scenario'];
+/**
+ * Agent Chat cases (`MOB-CHAT-*`) register themselves: each `mobile-android-chat-cases/<group>.ts` exports its own
+ * definitions, so adding a case never edits this shared list.
+ */
+const androidChatCases = await collectAndroidChatCases();
+
+for (const caseId of Object.keys(androidChatCases)) {
+    if (Object.hasOwn(androidCases, caseId)) {
+        throw new Error(`Duplicate Android Acceptance case: ${caseId}`);
+    }
+}
+
+const allAndroidCases: Record<string, MobileAndroidCaseDefinition> = {
+    ...androidCases,
+    ...androidChatCases,
+};
+
+export type MobileAndroidAcceptanceCaseId = keyof typeof androidCases | `MOB-CHAT-${string}`;
+export type MobileAndroidAcceptanceScenario = string;
 
 export function mobileAndroidAcceptanceCase(caseId: string): {
     appLocale?: MobileAndroidAppLocale;
@@ -406,10 +421,10 @@ export function mobileAndroidAcceptanceCase(caseId: string): {
     recordingOwner: 'adapter' | 'scenario';
     scenario: MobileAndroidAcceptanceScenario;
 } {
-    if (!Object.hasOwn(androidCases, caseId)) {
+    if (!Object.hasOwn(allAndroidCases, caseId)) {
         throw new Error(`Unsupported Android Acceptance case: ${caseId}`);
     }
-    const definition = androidCases[caseId as MobileAndroidAcceptanceCaseId];
+    const definition = allAndroidCases[caseId];
     return {
         ...('appLocale' in definition && { appLocale: definition.appLocale }),
         desktopProfile: definition.desktopProfile,
