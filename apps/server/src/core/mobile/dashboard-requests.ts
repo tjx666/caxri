@@ -22,7 +22,10 @@ async function readRowContext(domainService: ServerDomainService) {
     return {
         pullRequests: pullRequests.pullRequests,
         worktreeProjects: allProjects.projects
-            .filter((project) => project.ownerProjectId !== undefined)
+            // The in-process handler answers full Project records; the union type only narrows per view.
+            .filter(
+                (project) => 'ownerProjectId' in project && project.ownerProjectId !== undefined,
+            )
             .map(({ id, title }) => ({ id, title })),
     };
 }

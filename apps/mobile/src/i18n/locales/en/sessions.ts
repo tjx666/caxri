@@ -228,6 +228,9 @@ export const sessions = {
     'sessions.pullRequest.merged': 'Pull request #{{number}}, merged',
     'sessions.pullRequest.closed': 'Pull request #{{number}}, closed without merging',
     'sessions.pullRequest.deployed': 'Pull request #{{number}}, merged and deployed',
+    'sessions.pullRequest.deployFailed': 'Pull request #{{number}}, merged, deployment failed',
+    'sessions.pullRequest.deployPending':
+        'Pull request #{{number}}, merged, deployment in progress',
     'sessions.row.worktree': 'Worktree {{name}}',
     'sessions.status.waitingForAnswer': 'Needs your answer: {{state}}',
     'sessions.surface.confirmSwitchLabel': 'Stop and Switch',

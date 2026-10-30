@@ -59,6 +59,7 @@ describe('buildMobileDashboard', () => {
         const sessions = Array.from({ length: 1_000 }, (_, index) => ({
             id: `session-${index}`,
             projectId: 'project-1',
+            workbenchRootProjectId: 'project-1',
             title: longTitle,
             lastVisitedAt: index,
             sessionActivityAt: index,
@@ -104,6 +105,7 @@ describe('buildMobileDashboard', () => {
     it('orders pinned Sessions first, then the shared status groups, then recency', () => {
         const base = {
             projectId: 'project-1',
+            workbenchRootProjectId: 'project-1',
             title: 'Session',
             lastVisitedAt: 1,
             attentionGeneration: 0,
@@ -157,6 +159,7 @@ describe('buildMobileDashboard', () => {
                 {
                     id: 'session-1',
                     projectId: 'project-1',
+                    workbenchRootProjectId: 'project-1',
                     title: 'Visible',
                     lastVisitedAt: 1,
                     sessionActivityAt: 1,
@@ -167,6 +170,7 @@ describe('buildMobileDashboard', () => {
                 {
                     id: 'session-2',
                     projectId: 'project-other',
+                    workbenchRootProjectId: 'project-other',
                     title: 'Hidden',
                     lastVisitedAt: 2,
                     sessionActivityAt: 2,
@@ -194,6 +198,7 @@ describe('buildMobileDashboard', () => {
                 {
                     id: 'session-1',
                     projectId: 'project-1',
+                    workbenchRootProjectId: 'project-1',
                     title: 'Shell Session',
                     lastVisitedAt: 1,
                     sessionActivityAt: 1,
@@ -225,6 +230,7 @@ describe('buildMobileArchivedSessions', () => {
         const session = (id: string, projectId: string, archivedAt?: number) => ({
             id,
             projectId,
+            workbenchRootProjectId: projectId,
             title: id,
             lastVisitedAt: 1,
             sessionActivityAt: 1,
@@ -281,6 +287,7 @@ describe('buildMobileArchivedSessions', () => {
             sessions: Array.from({ length: 500 }, (_, index) => ({
                 id: `session-${index}`,
                 projectId: 'project-1',
+                workbenchRootProjectId: 'project-1',
                 title: '🙂'.repeat(1_024),
                 lastVisitedAt: 1,
                 sessionActivityAt: 1,
@@ -305,6 +312,7 @@ describe('buildMobileDashboard usage-limit waits', () => {
         const waitingAt = 5_000_000;
         const base = {
             projectId: 'project-1',
+            workbenchRootProjectId: 'project-1',
             title: 'Session',
             lastVisitedAt: 1,
             sessionActivityAt: 1,

@@ -5,7 +5,7 @@ import {
     sessionPullRequestVisual,
 } from '@caxri/protocol';
 
-import type { Translate } from '../../i18n';
+import type { Translate, TranslationKey } from '../../i18n';
 import { translate } from '../../i18n';
 import { mobileAgentDisplayName } from './agent-display-name';
 import type { MobileSessionItem } from './session-model';
@@ -117,6 +117,14 @@ export const sessionStatusGlyphKind = (
 };
 
 /**
+ * The announcement for a rocket glyph follows the deployment outcome the tone carries, not the glyph alone.
+ */
+const DEPLOYMENT_LABEL_KEY: Partial<Record<SessionPullRequestTone, TranslationKey>> = {
+    danger: 'sessions.pullRequest.deployFailed',
+    warning: 'sessions.pullRequest.deployPending',
+};
+
+/**
  * The pull request mark a Session row shows beside its status, or `null` when it shows none. A saved copy's pull
  * request can be hours old (it may have merged since), so a row drawn from one shows no mark rather than a stale one.
  */
@@ -136,7 +144,7 @@ export const sessionRowPullRequest = (
         ...visual,
         label: t(
             visual.icon === 'deployed'
-                ? 'sessions.pullRequest.deployed'
+                ? (DEPLOYMENT_LABEL_KEY[visual.tone] ?? 'sessions.pullRequest.deployed')
                 : `sessions.pullRequest.${pullRequest.state}`,
             { number: pullRequest.number },
         ),

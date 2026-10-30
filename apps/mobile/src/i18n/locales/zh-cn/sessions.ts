@@ -218,6 +218,8 @@ export const sessions: TranslatedNamespace<typeof source> = {
     'sessions.pullRequest.merged': 'Pull Request #{{number}}，已合并',
     'sessions.pullRequest.closed': 'Pull Request #{{number}}，已关闭未合并',
     'sessions.pullRequest.deployed': 'Pull Request #{{number}}，已合并并部署',
+    'sessions.pullRequest.deployFailed': 'Pull Request #{{number}}，已合并，部署失败',
+    'sessions.pullRequest.deployPending': 'Pull Request #{{number}}，已合并，部署中',
     'sessions.row.worktree': '工作树 {{name}}',
     'sessions.status.waitingForAnswer': '等待你回答：{{state}}',
     'sessions.surface.confirmSwitchLabel': '停止并切换',

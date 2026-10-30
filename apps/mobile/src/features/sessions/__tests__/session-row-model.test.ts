@@ -154,6 +154,18 @@ describe('sessionRowPullRequest', () => {
         ).toMatchObject({ icon: 'deployed', tone: 'merged' });
     });
 
+    it('announces the deployment outcome instead of claiming success', () => {
+        const label = (state: 'failure' | 'pending' | 'queued' | 'success') =>
+            sessionRowPullRequest(
+                { pullRequest: { number: 12, state: 'merged', deployment: { state } } },
+                false,
+            )?.label;
+        expect(label('success')).toBe('Pull request #12, merged and deployed');
+        expect(label('failure')).toBe('Pull request #12, merged, deployment failed');
+        expect(label('pending')).toBe('Pull request #12, merged, deployment in progress');
+        expect(label('queued')).toBe('Pull request #12, merged, deployment in progress');
+    });
+
     it('spells the state out and names the number', () => {
         expect(sessionRowPullRequest(open, false)?.label).toBe('Pull request #7, open');
     });
