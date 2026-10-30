@@ -323,6 +323,50 @@ describe('collectRatchetCandidates (real Git plumbing)', () => {
         expect(violations[0]?.message).toContain('was 0 line(s)');
     });
 
+    it('measures the index in staged mode, ignoring unstaged growth and untracked files', async () => {
+        const root = await temporaryRepo();
+        const git = (...arguments_: string[]): void => {
+            execFileSync('git', arguments_, { cwd: root, stdio: 'ignore' });
+        };
+        await mkdir(join(root, 'scripts'), { recursive: true });
+        await writeFile(join(root, 'scripts', 'staged.ts'), linesOf(650));
+        git('add', '.');
+        git('commit', '-m', 'base');
+        const base = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root }).toString().trim();
+
+        // Staged: a shrink. Unstaged on top of it: growth past the base, plus a new oversized module.
+        await writeFile(join(root, 'scripts', 'staged.ts'), linesOf(640));
+        git('add', 'scripts/staged.ts');
+        await writeFile(join(root, 'scripts', 'staged.ts'), linesOf(700));
+        await writeFile(join(root, 'scripts', 'untracked.ts'), linesOf(RATCHET_LINE_THRESHOLD));
+
+        const staged = await collectRatchetCandidates(root, base, { staged: true });
+        expect(evaluateRatchet(staged)).toEqual([]);
+        expect(staged).toEqual([{ baseLines: 650, headLines: 640, path: 'scripts/staged.ts' }]);
+        expect(evaluateRatchet(await collectRatchetCandidates(root, base))).toHaveLength(2);
+    });
+
+    it('flags staged growth in staged mode even when the working tree already shrank it back', async () => {
+        const root = await temporaryRepo();
+        const git = (...arguments_: string[]): void => {
+            execFileSync('git', arguments_, { cwd: root, stdio: 'ignore' });
+        };
+        await mkdir(join(root, 'scripts'), { recursive: true });
+        await writeFile(join(root, 'scripts', 'grows.ts'), linesOf(650));
+        git('add', '.');
+        git('commit', '-m', 'base');
+        const base = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root }).toString().trim();
+
+        await writeFile(join(root, 'scripts', 'grows.ts'), linesOf(700));
+        git('add', 'scripts/grows.ts');
+        await writeFile(join(root, 'scripts', 'grows.ts'), linesOf(600));
+
+        const violations = evaluateRatchet(
+            await collectRatchetCandidates(root, base, { staged: true }),
+        );
+        expect(violations.map((violation) => violation.path)).toEqual(['scripts/grows.ts']);
+    });
+
     it('ignores paths outside the ratcheted roots and extensions entirely', async () => {
         const root = await temporaryRepo();
         const git = (...arguments_: string[]): void => {

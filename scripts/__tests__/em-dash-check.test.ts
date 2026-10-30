@@ -90,4 +90,18 @@ describe('collectEmDashFindings', () => {
         const findings = await collectEmDashFindings(repoRoot);
         expect(findings.map((finding) => finding.path)).toEqual(['docs/guide.md']);
     });
+
+    it('reads the index instead of the working tree in staged mode', async () => {
+        repoRoot = await createRepo({
+            'docs/staged.md': `Staged ${EM_DASH} prose\n`,
+            'docs/unstaged.md': 'Clean prose.\n',
+        });
+        await writeFile(join(repoRoot, 'docs/staged.md'), 'Fixed but not staged.\n');
+        await writeFile(join(repoRoot, 'docs/unstaged.md'), `Unstaged ${EM_DASH} prose\n`);
+
+        const staged = await collectEmDashFindings(repoRoot, { staged: true });
+        expect(staged.map((finding) => finding.path)).toEqual(['docs/staged.md']);
+        const workingTree = await collectEmDashFindings(repoRoot);
+        expect(workingTree.map((finding) => finding.path)).toEqual(['docs/unstaged.md']);
+    });
 });

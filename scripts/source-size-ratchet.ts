@@ -8,7 +8,9 @@
  *
  * Compares each changed source file's working-tree line count against its line count at the merge-base with
  * `origin/main` (overridable with `--base <ref>`; CI supplies its own base, see `resolveRatchetBase`), using Git rename
- * detection so a pure move never reads as new growth:
+ * detection so a pure move never reads as new growth. `--staged` (the pre-commit hook's mode) measures the Git index
+ * instead of the working tree, against the same base, so unstaged edits and untracked files never block a commit that
+ * leaves them out:
  *
  * - An existing file already at or above the threshold that grew further fails.
  * - A new path (including a rename target whose pre-rename size was below the threshold) that lands at or above the
@@ -219,6 +221,14 @@ async function readRevisionFile(root: string, revision: string, path: string): P
     }
 }
 
+async function readIndexFile(root: string, path: string): Promise<string | undefined> {
+    try {
+        return await runGit(root, ['show', `:${path}`]);
+    } catch {
+        return undefined;
+    }
+}
+
 async function readWorkingTreeFile(root: string, path: string): Promise<string | undefined> {
     try {
         return await readFile(resolve(root, path), 'utf8');
@@ -228,22 +238,39 @@ async function readWorkingTreeFile(root: string, path: string): Promise<string |
 }
 
 /**
+ * Options for {@link collectRatchetCandidates}.
+ */
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/source-size-ratchet.test.ts
+export interface RatchetCollectOptions {
+    /**
+     * Measure the Git index instead of the working tree and skip untracked files. A commit that stages only part of a
+     * larger change (a rename staged without the importers that follow it, or a split whose new module is still
+     * untracked) would otherwise be judged on content it does not contain.
+     */
+    staged?: boolean;
+}
+
+/**
  * Collects every in-scope changed source file (tracked and untracked) as a ratchet candidate, pairing its current
  * working-tree content with its content at `base`. Tracked changes go through `git diff --find-renames` so a rename
  * target's base content comes from its pre-rename path, not an empty string; untracked files always get a 0-line base
- * since they cannot exist at any prior revision.
+ * since they cannot exist at any prior revision. With `staged`, both the diff and the measured content come from the
+ * index and untracked files are ignored.
  */
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/source-size-ratchet.test.ts
 export async function collectRatchetCandidates(
     root: string,
     base: string,
+    { staged = false }: RatchetCollectOptions = {},
 ): Promise<RatchetCandidate[]> {
     const pathspecs = RATCHET_SOURCE_ROOTS;
+    const readHeadFile = staged ? readIndexFile : readWorkingTreeFile;
     const [diffOutput, untrackedOutput] = await Promise.all([
         // `-B` breaks a rewritten file apart so its old body can pair with the new module it moved to. Without it, an
         // `index.ts` thinned to a barrel stays a modification and the moved implementation reads as brand-new growth.
         runGit(root, [
             'diff',
+            ...(staged ? ['--cached'] : []),
             '--find-renames',
             '-B',
             '--name-status',
@@ -252,7 +279,16 @@ export async function collectRatchetCandidates(
             '--',
             ...pathspecs,
         ]),
-        runGit(root, ['ls-files', '--others', '--exclude-standard', '-z', '--', ...pathspecs]),
+        staged
+            ? Promise.resolve('')
+            : runGit(root, [
+                  'ls-files',
+                  '--others',
+                  '--exclude-standard',
+                  '-z',
+                  '--',
+                  ...pathspecs,
+              ]),
     ]);
 
     const records = parseNameStatusRecords(diffOutput).filter((record) => record.status !== 'D');
@@ -264,7 +300,7 @@ export async function collectRatchetCandidates(
             .filter((record) => isRatchetCandidatePath(record.path) && !seen.has(record.path))
             .map(async (record) => {
                 seen.add(record.path);
-                const headContent = await readWorkingTreeFile(root, record.path);
+                const headContent = await readHeadFile(root, record.path);
                 // Deleted from the working tree since the diff was computed (e.g. a later manual `rm`); nothing to
                 // measure or flag.
                 if (headContent === undefined) return;
@@ -336,13 +372,14 @@ async function main(): Promise<void> {
         return;
     }
 
-    const candidates = await collectRatchetCandidates(projectRoot, base);
+    const staged = process.argv.includes('--staged');
+    const candidates = await collectRatchetCandidates(projectRoot, base, { staged });
     const violations = evaluateRatchet(candidates);
 
     if (violations.length === 0) {
         console.log(
-            `source-size-ratchet: ${candidates.length} changed source file(s) checked against ${base}, none grew ` +
-                `past ${RATCHET_LINE_THRESHOLD} lines.`,
+            `source-size-ratchet: ${candidates.length} ${staged ? 'staged' : 'changed'} source file(s) checked against ` +
+                `${base}, none grew past ${RATCHET_LINE_THRESHOLD} lines.`,
         );
         return;
     }

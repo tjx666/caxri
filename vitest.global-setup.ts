@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import process from 'node:process';
 
 import { assertFullSuiteAuthorized } from './.agents/skills/quality-check/scripts/full-suite-authorization.ts';
@@ -26,6 +28,31 @@ const HOST_AGENT_ENVIRONMENT = [
 export default function setup(): void {
     assertFullSuiteAuthorized('unit');
     removeHostAgentEnvironment(process.env);
+    const warning = nodeMajorMismatchWarning(
+        readFileSync(resolve(import.meta.dirname, 'mise.toml'), 'utf8'),
+        process.versions.node,
+    );
+    if (warning) console.warn(warning);
+}
+
+/**
+ * Warns, without failing, when Vitest runs under a different Node.js major than `mise.toml` pins (and CI uses). A shell
+ * that never activated mise picks up whatever `node` is first on `PATH`, and a newer major changes runtime behavior
+ * tests can observe: Node 26's recursive `readdir` follows symlinked folders, so a count that is right on CI's Node 24
+ * read wrong only locally. Returns `undefined` when the majors match or `mise.toml` pins no Node version.
+ */
+export function nodeMajorMismatchWarning(
+    miseSource: string,
+    runningVersion: string,
+): string | undefined {
+    const pinned = /^node\s*=\s*"([^"]+)"$/mu.exec(miseSource)?.[1];
+    if (!pinned) return undefined;
+    const pinnedMajor = pinned.split('.', 1)[0];
+    if (pinnedMajor === runningVersion.split('.', 1)[0]) return undefined;
+    return (
+        `vitest: running on Node.js ${runningVersion}, but mise.toml pins ${pinned} (CI runs the pinned major). ` +
+        'Results that depend on Node.js behavior may differ from CI; activate mise or run `mise exec -- bunx vitest`.'
+    );
 }
 
 export function removeHostAgentEnvironment(environment: NodeJS.ProcessEnv): void {

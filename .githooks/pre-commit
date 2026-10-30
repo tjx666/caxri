@@ -19,14 +19,15 @@ fi
 
 # The ratchet compares the branch against its merge base with `origin/main`, so it also catches an earlier commit on
 # this branch that grew a file past 600 lines. Running it here stops that growth before CI's full platform checks
-# are the first to see it.
+# are the first to see it. `--staged` measures the index, so a split whose remaining renames are still unstaged does
+# not fail a commit that leaves them out.
 if git diff --cached --name-only --diff-filter=ACMR -- '*.ts' '*.tsx' '*.mts' '*.cts' '*.js' | grep -q .; then
-    bun run source-size-ratchet
+    bun run source-size-ratchet --staged
 fi
 
-# Scans the whole tracked tree (the index included), so an em-dash in any staged text file fails here instead of in
-# CI's guards job; the pass is a single `git grep`.
-bun run em-dash-check
+# Scans every file in the index, so an em-dash in any staged text file fails here instead of in CI's guards job, while
+# an unstaged edit stays out of this commit's verdict; the pass is a single `git grep --cached`.
+bun run em-dash-check --staged
 
 # The same directory-density ratchet the `guards` job runs: it only changes when a file is added, deleted, or renamed
 # (a pure edit cannot move a directory's file count), so gate on those statuses and skip it for ordinary edits.
