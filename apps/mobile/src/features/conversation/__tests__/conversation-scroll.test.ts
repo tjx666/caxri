@@ -91,7 +91,26 @@ describe('conversationEndOffset', () => {
         expect(endFor(2020) - endFor(2000)).toBe(20);
     });
 
-    it('never scrolls before the top of a short list', () => {
+    it('lifts the first turn of a short Conversation to the top past the bottom-anchored margin', () => {
+        // One turn of 200 rows' height under a 40 header: FlashList's margin ends the rows at the viewport's bottom.
+        const spacerHeight = conversationTurnSpacerHeight({
+            bottomInset,
+            contentHeight: 200,
+            turnTop: 0,
+            viewportHeight,
+        });
+        const end = conversationEndOffset({
+            bottomInset,
+            contentHeight: 200,
+            firstItemOffset,
+            spacerHeight,
+            viewportHeight,
+        });
+        const margin = viewportHeight - 200 - firstItemOffset;
+        expect(firstItemOffset + margin - end).toBe(CONVERSATION_TURN_TOP_GAP);
+    });
+
+    it('never scrolls a short list without a spacer', () => {
         expect(
             conversationEndOffset({
                 contentHeight: 200,

@@ -50,7 +50,9 @@ export const conversationTurnSpacerHeight = ({
  * shaking on every new line of a streamed reply. While the spacer absorbs the growth, this end does not move.
  *
  * `firstItemOffset` is where the rows' container starts (after the header and the content's top padding) and
- * `contentHeight` is that container's height; `bottomInset` is the content's bottom padding before the spacer.
+ * `contentHeight` is that container's height; `bottomInset` is the content's bottom padding before the spacer. Rows
+ * shorter than the viewport sit under the top margin `startRenderingFromBottom` adds (`getAdjustmentMargin` in
+ * FlashList's `RecyclerView.tsx`), which ends them at the viewport's bottom, so the rows end no higher than that.
  */
 export const conversationEndOffset = ({
     bottomInset = 0,
@@ -65,7 +67,13 @@ export const conversationEndOffset = ({
     spacerHeight: number;
     viewportHeight: number;
 }): number =>
-    Math.max(firstItemOffset + contentHeight + bottomInset + spacerHeight - viewportHeight, 0);
+    Math.max(
+        Math.max(firstItemOffset + contentHeight, viewportHeight) +
+            bottomInset +
+            spacerHeight -
+            viewportHeight,
+        0,
+    );
 
 /**
  * Whether the list should read an older page on its own because its rows do not fill the viewport. A short list cannot
