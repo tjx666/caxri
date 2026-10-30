@@ -375,15 +375,32 @@ export class SessionSearchService {
                 relaxation = 'allWords';
             }
         }
+        if (relaxation === 'phrase' && index.hits.length === 0 && sessions.length === 0) {
+            // Neither source holds every word: a Session whose own title holds one of them still answers.
+            const loosened =
+                status === 'external'
+                    ? []
+                    : this.sessionEntries(scope, status, holdings, 'anyWord');
+            if (loosened.length > 0 && parseSessionQuery(scope.text).terms.length > 1) {
+                sessions = loosened;
+                relaxation = 'anyWord';
+            }
+        }
         const ranked = new Map<string, RankedEntry>();
         const offer = (key: string, candidate: RankedEntry) => {
             const existing = ranked.get(key);
             if (!existing || compareRanked(candidate, existing) < 0) ranked.set(key, candidate);
         };
+        const isInWindow = (updatedAt: number) =>
+            (scope.beforeMs === undefined || updatedAt < scope.beforeMs) &&
+            (scope.afterMs === undefined || updatedAt >= scope.afterMs);
         for (const hit of index.hits) {
             const held = holdings.byKey.get(hit.key);
-            if (held) offer(`session:${held.session.id}`, heldEntry(held, hit, scope));
-            else if (!holdings.hiddenKeys.has(hit.key) && !this.isInternal(hit.cwd))
+            if (held) {
+                const candidate = heldEntry(held, hit, scope);
+                if (isInWindow(candidate.entry.updatedAt))
+                    offer(`session:${held.session.id}`, candidate);
+            } else if (!holdings.hiddenKeys.has(hit.key) && !this.isInternal(hit.cwd))
                 offer(hit.key, externalEntry(hit, scope));
         }
         for (const entry of sessions) offer(`session:${entry.entry.sessionId}`, entry);

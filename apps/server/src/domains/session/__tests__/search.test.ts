@@ -193,6 +193,24 @@ describe('SessionSearchService', () => {
         expect(withHint.entries[0].sessionId).toBe(f.open.session.id);
     });
 
+    it('relaxes to any word on a Session title when the index holds nothing', async () => {
+        const f = await fixture();
+
+        const result = await f.service.search({ query: 'invoice zebra' });
+
+        expect(result.relaxation).toBe('anyWord');
+        expect(result.entries.map((entry) => entry.sessionId)).toEqual([f.open.session.id]);
+    });
+
+    it('applies the date window to the Session a conversation belongs to', async () => {
+        const f = await fixture([hit(HELD, { updatedAt: Date.parse('2026-09-01T00:00:00Z') })]);
+
+        const result = await f.service.search({ query: 'rounding before:2026-10-01' });
+
+        // The conversation is old, but its Session was active just now, so it is outside the window.
+        expect(result.entries.map((entry) => entry.agentSessionId)).toEqual([]);
+    });
+
     it('strips operators from the preview query', async () => {
         const f = await fixture();
         f.preview.mockResolvedValue({

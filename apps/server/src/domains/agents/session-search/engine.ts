@@ -254,9 +254,12 @@ export class SessionSearchEngine {
             const isListed = request.restrict.keys.includes(conversation.key);
             if (isListed !== (request.restrict.mode === 'include')) return false;
         }
-        if (request.beforeMs !== undefined && conversation.updatedAt >= request.beforeMs)
+        // A held conversation is shown as its Session, dated by the Session's activity, which the caller filters.
+        const isDated = !held.has(conversation.key);
+        if (isDated && request.beforeMs !== undefined && conversation.updatedAt >= request.beforeMs)
             return false;
-        if (request.afterMs !== undefined && conversation.updatedAt < request.afterMs) return false;
+        if (isDated && request.afterMs !== undefined && conversation.updatedAt < request.afterMs)
+            return false;
         if (request.projects?.length) {
             const cwd = conversation.cwd?.toLowerCase() ?? '';
             if (request.projects.every((project) => !cwd.includes(project))) return false;

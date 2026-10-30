@@ -149,6 +149,18 @@ describe('Session search relaxation, filters, and hosted conversations', () => {
             ]);
         });
 
+        it('leaves the date window to the caller for a conversation a Session holds', async () => {
+            await seed();
+            const window = { query: '', limit: 10, afterMs: NOW - 2 * DAY };
+
+            expect(engine.search(window).hits.map((hit) => hit.agentSessionId)).toEqual([BILLING]);
+            expect(
+                engine
+                    .search({ ...window, heldKeys: [`claude:${ONBOARDING}`] })
+                    .hits.map((hit) => hit.agentSessionId),
+            ).toEqual([BILLING, ONBOARDING]);
+        });
+
         it('keeps conversations whose folder contains a project string', async () => {
             await seed();
 
