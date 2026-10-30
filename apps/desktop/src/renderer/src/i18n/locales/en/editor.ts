@@ -74,6 +74,7 @@ export const editor = {
     'editor.load.loadingAgentSideChat': 'Loading side chat…',
     'editor.load.loadingSettings': 'Loading Settings…',
     'editor.load.loadingUsage': 'Loading Usage…',
+    'editor.load.loadingEnvironment': 'Loading Environment…',
 
     // Agent transcript viewer.
     'editor.transcript.loadFailed': 'Unable to load transcript',
@@ -136,6 +137,7 @@ export const editor = {
         'Saved to {{path}}, but the file is too large to reopen here. The untitled buffer stays open.',
     'editor.tab.settings': 'Settings',
     'editor.tab.usage': 'Usage',
+    'editor.tab.environment': 'Environment',
 
     // Editor tab context menu.
     'editor.pathMenu.openSource': 'Open Source',

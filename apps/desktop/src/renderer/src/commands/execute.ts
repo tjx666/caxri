@@ -45,6 +45,7 @@ import {
     sendActiveFileReference,
 } from '../features/editor/send-file-reference';
 import { openUntitledEditor } from '../features/editor/untitled/commands';
+import { openEnvironmentPage } from '../features/environment-monitor/environment-monitor-page-request';
 import { exportDiagnostics, openHelpPage, revealLogs } from '../features/help/help-commands';
 import {
     openPerformanceMonitorWindow,
@@ -343,8 +344,9 @@ const commandContext: CommandContext = {
             if (tab?.resource.kind === 'terminal') {
                 closeTerminal(tab.resource.terminalId);
             } else if (tab) void closeDocumentTabs([tab.id]);
-            // With no Session there is no tab, only the Welcome view's Settings surface to close.
-            else if (!getSelectedSession()) useDialogStore.getState().dismissSessionlessSettings();
+            // With no Session there is no tab, only a global page rendered in place of Welcome.
+            else if (!getSelectedSession())
+                useDialogStore.getState().dismissSessionlessWorkbenchPage();
         },
         canCloseOtherTabs: () => {
             const layout = getPaneLayout();
@@ -446,6 +448,9 @@ const commandContext: CommandContext = {
             // Usage is a Session pane tab; before the first Project exists there is no pane to open it into.
             if (getSelectedSession()) openUsagePage();
             else pushToast('info', translate('core.commands.usageNeedsProject'));
+        },
+        openEnvironment: () => {
+            openEnvironmentPage();
         },
         openSessionSearch: () => useDialogStore.getState().setSessionSearchOpen(true),
         openKeyboardShortcuts: () => useDialogStore.getState().setKeyboardShortcutsOpen(true),

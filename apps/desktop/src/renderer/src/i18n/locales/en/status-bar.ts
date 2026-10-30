@@ -126,22 +126,15 @@ export const statusBar = {
     'statusBar.botInbox.descriptionOther':
         'Open Inbox: {{count}} Caxri Bot items need your answer or merge.',
     'statusBar.environmentMonitor.label': 'Environment warning',
-    'statusBar.environmentMonitor.ariaLabel': 'Environment monitoring: {{count}} warnings',
-    'statusBar.environmentMonitor.dialogLabel': 'Environment monitoring warning',
-    'statusBar.environmentMonitor.title': 'Environment changed',
-    'statusBar.environmentMonitor.description':
-        'Only the signals enabled in Settings are shown here.',
-    'statusBar.environmentMonitor.issues': 'Environment warnings',
-    'statusBar.environmentMonitor.tooltipMany': '{{count}} environment warnings',
+    'statusBar.environmentMonitor.ariaLabel': 'Open Environment: {{count}} warnings',
     'statusBar.environmentMonitor.issue.publicIpChanged':
         'The public IP changed during this launch.',
+    'statusBar.environmentMonitor.issue.publicIpChangedDetail':
+        'Public IP changed from {{previous}} to {{current}}.',
     'statusBar.environmentMonitor.issue.timeZoneMismatch':
         'System time zone is {{actual}}; expected {{expected}}.',
     'statusBar.environmentMonitor.issue.routeNodeMismatch':
         '{{domain}} used {{actual}}; expected {{expected}}.',
-    'statusBar.environmentMonitor.checkNow': 'Check Now',
-    'statusBar.environmentMonitor.useCurrentIp': 'Use Current IP',
-    'statusBar.environmentMonitor.actionFailed': 'Unable to update environment monitoring',
     'statusBar.listSeparator': ', ',
     'statusBar.alsoReferenced': 'Also referenced',
     'statusBar.source.pullRequest': 'From the pull request description',

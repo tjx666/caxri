@@ -11,6 +11,19 @@ import { isGitDiffTabPath } from './git-diff.js';
 import { isSettingsTabPath } from './settings-tab.js';
 import { isUsageTabPath } from './usage-tab.js';
 
+const ENVIRONMENT_TAB_PATH = 'caxri-environment://workbench';
+
+/**
+ * Stable virtual path for the global Environment page.
+ */
+export function environmentTabPath(): string {
+    return ENVIRONMENT_TAB_PATH;
+}
+
+export function isEnvironmentTabPath(path: string): boolean {
+    return path === ENVIRONMENT_TAB_PATH;
+}
+
 /**
  * Predicate per virtual editor tab scheme, keyed by scheme. The `Record` type is the exhaustiveness check: adding a
  * name to `VirtualEditorTabScheme` without a predicate here fails typecheck, and so does a Renderer descriptor table
@@ -24,6 +37,7 @@ const virtualEditorTabMatchers = {
     agentStatus: isAgentStatusTabPath,
     agentContext: isAgentContextTabPath,
     agentSideChat: isAgentSideChatTabPath,
+    environment: isEnvironmentTabPath,
     external: isExternalEditorTabPath,
     filePreview: isFilePreviewTabPath,
     settings: isSettingsTabPath,

@@ -2,7 +2,7 @@ import type { MainRequest } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 import { shell } from 'electron';
 
-import type { EnvironmentMonitor } from '../environment-monitor/environment-monitor';
+import type { EnvironmentMonitor } from '../environment-monitor';
 import type { NotificationHelperControl } from './agent-notification-delivery';
 
 /**

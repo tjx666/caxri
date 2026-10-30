@@ -124,20 +124,14 @@ export const statusBar: TranslatedNamespace<typeof source> = {
     'statusBar.botInbox.descriptionOther':
         '打开收件箱：Caxri Bot 有 {{count}} 项需要你回答或合并。',
     'statusBar.environmentMonitor.label': '环境异常',
-    'statusBar.environmentMonitor.ariaLabel': '环境监测：{{count}} 项异常',
-    'statusBar.environmentMonitor.dialogLabel': '环境监测异常',
-    'statusBar.environmentMonitor.title': '环境发生变化',
-    'statusBar.environmentMonitor.description': '这里只显示你在设置中启用的监测项。',
-    'statusBar.environmentMonitor.issues': '环境异常',
-    'statusBar.environmentMonitor.tooltipMany': '{{count}} 项环境异常',
+    'statusBar.environmentMonitor.ariaLabel': '打开环境信息：{{count}} 项异常',
     'statusBar.environmentMonitor.issue.publicIpChanged': '本次启动期间公网 IP 发生了变化。',
+    'statusBar.environmentMonitor.issue.publicIpChangedDetail':
+        '公网 IP 从 {{previous}} 变为 {{current}}。',
     'statusBar.environmentMonitor.issue.timeZoneMismatch':
         '系统时区为 {{actual}}，预期为 {{expected}}。',
     'statusBar.environmentMonitor.issue.routeNodeMismatch':
         '{{domain}} 使用了 {{actual}}，预期为 {{expected}}。',
-    'statusBar.environmentMonitor.checkNow': '立即检查',
-    'statusBar.environmentMonitor.useCurrentIp': '使用当前 IP',
-    'statusBar.environmentMonitor.actionFailed': '无法更新环境监测状态',
     'statusBar.listSeparator': '，',
     'statusBar.alsoReferenced': '其他引用',
     'statusBar.source.pullRequest': '来自 Pull Request 描述',

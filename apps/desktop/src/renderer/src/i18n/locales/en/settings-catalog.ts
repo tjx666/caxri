@@ -353,7 +353,7 @@ export const settingsCatalog = {
 
     'settings.environmentMonitor.publicIpChanges.title': 'Public IP changes',
     'settings.environmentMonitor.publicIpChanges.description':
-        'Notify and keep a status bar warning when the public egress IP changes during this launch.',
+        'Watch api.ipify.org for public-exit changes. Route it through the same Clash/Mihomo node as the Agent you want to monitor; checkip.me adds third-party network context.',
 
     'settings.environmentMonitor.expectedTimeZone.title': 'Expected system time zone',
     'settings.environmentMonitor.expectedTimeZone.description':

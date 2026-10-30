@@ -5,6 +5,7 @@ import {
     Layers,
     MessageCircleQuestion,
     Settings,
+    ShieldCheck,
     SquareTerminal,
 } from 'lucide-react';
 
@@ -15,6 +16,7 @@ import {
 export const WORK_TAB_GLYPHS = {
     'settings': Settings,
     'usage': ChartColumn,
+    'environment': ShieldCheck,
     'agent-task': Bot,
     'shell-task': SquareTerminal,
     'agent-status': Gauge,

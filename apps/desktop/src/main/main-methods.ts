@@ -41,7 +41,7 @@ import {
     unsavedChangesPrompt,
 } from './confirmations';
 import { showContextMenu } from './context-menu';
-import type { EnvironmentMonitor } from './environment-monitor/environment-monitor';
+import type { EnvironmentMonitor } from './environment-monitor';
 import {
     createExternalDocumentContext,
     handleExternalDocumentRequest,
