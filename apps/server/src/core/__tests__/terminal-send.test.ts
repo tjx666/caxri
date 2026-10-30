@@ -51,7 +51,7 @@ describe('terminal.send principal routing and audit', () => {
                 parameters,
                 principalKind: 'paired-device',
             }),
-        ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+        ).rejects.toMatchObject({ code: 'FORBIDDEN', message: /mobile\.agent\.submit/ });
         expect(invoke).not.toHaveBeenCalled();
         expect(logger.write).not.toHaveBeenCalled();
     });

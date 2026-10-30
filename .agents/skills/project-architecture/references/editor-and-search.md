@@ -42,4 +42,5 @@ Session search is a desktop-owner Server read (`session.search`, plus `session.s
 on the machine, answered by a Worker-owned FTS5 index that shares visible-message extraction with
 title generation. The Session domain classifies each conversation as open, archived, or external
 from Caxri's own Agent identities; `session.importConversation` adopts an external one as a parked
-Session. See [Session search](../../../../docs/session-search.md).
+Session. Core binds an Agent caller's import to its Project scope (`sessionImportRequest`), so it
+never adds a top-level Project or lands a Session outside the Projects the Agent already works in. See [Session search](../../../../docs/session-search.md).

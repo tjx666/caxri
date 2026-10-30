@@ -32,7 +32,7 @@ import {
 } from '../agents';
 import type { CaxriDatabase } from '../db';
 import type { WorktreeTopologyReader } from './import-conversation';
-import { importExternalConversation, isInside } from './import-conversation';
+import { importExternalConversation, isInside, OUTSIDE_SCOPE_MESSAGE } from './import-conversation';
 
 /**
  * Index hits requested per search: several conversations can fold into one Session row, so ask for more than one page.
@@ -443,17 +443,23 @@ export class SessionSearchService {
 
     /**
      * Adds an external conversation to Caxri as a new Session in the Project containing its folder. A conversation a
-     * Session already holds returns that Session instead of a duplicate.
+     * Session already holds returns that Session instead of a duplicate. A non-null `projectScope` (an Agent caller)
+     * admits only a Session in one of those Projects and never adds a top-level Project.
      */
     async importConversation(
         provider: AgentProvider,
         agentSessionId: string,
+        projectScope: readonly string[] | null = null,
     ): Promise<SessionImportConversationResult> {
         const { database } = this.options;
         const key = conversationKey(provider, agentSessionId);
         const holdings = this.holdings();
         const held = holdings.byKey.get(key);
-        if (held) return { sessionId: held.session.id, projectId: held.session.projectId };
+        if (held) {
+            if (projectScope && !projectScope.includes(held.session.projectId))
+                throw new CaxriError('FORBIDDEN', OUTSIDE_SCOPE_MESSAGE);
+            return { sessionId: held.session.id, projectId: held.session.projectId };
+        }
         if (holdings.hiddenKeys.has(key))
             throw new CaxriError('CONFLICT', 'This conversation belongs to a hidden Session');
         let conversation: InspectedConversation | undefined;
@@ -484,6 +490,7 @@ export class SessionSearchService {
             },
             this.options.resolveProjectRoot,
             this.options.readTopology,
+            projectScope,
         );
         if (!imported)
             throw new CaxriError('PATH_DENIED', 'This folder cannot be added as a Project');

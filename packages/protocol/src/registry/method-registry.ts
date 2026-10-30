@@ -93,7 +93,7 @@ import { identifierSchema, pathSchema } from '../domain/identifiers.js';
 import { projectIconSchema } from '../domain/project-customization.js';
 import { projectFolderBrowseMethods } from '../domain/project-folder-browse-contract.js';
 import { projectStatusMethods } from '../domain/project-status-contract.js';
-import { sessionMethods } from '../domain/session-contract.js';
+import { sessionInternalMethods, sessionMethods } from '../domain/session-contract.js';
 import { sessionPullRequestMethods } from '../domain/session-pull-request.js';
 import {
     terminalFileLinkInternalMethods,
@@ -529,6 +529,7 @@ export const internalMethods = {
     ...gitInternalMethods,
     ...mobileInternalMethods,
     ...projectTransfer.projectTransferInternalMethods,
+    ...sessionInternalMethods,
     ...workbenchInternalMethods,
     /**
      * The current Session's identities and the visible Project IDs: the slice of `app.bootstrap` the Extension bridge

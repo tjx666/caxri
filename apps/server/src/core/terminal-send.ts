@@ -15,9 +15,11 @@ interface TerminalSendInput {
 }
 
 /**
- * Logs human-owner Terminal steering after the scoped mobile path has been excluded.
+ * Logs human-owner Terminal steering. A paired device is pointed at its own scoped input method instead.
  */
 export async function invokeTerminalSend(input: TerminalSendInput): Promise<unknown> {
+    if (input.principalKind === 'paired-device')
+        throw new CaxriError('FORBIDDEN', 'Use mobile.agent.submit for mobile input');
     if (input.principalKind !== 'human-cli' && input.principalKind !== 'desktop')
         throw new CaxriError('FORBIDDEN', 'Terminal steer requires a human owner principal');
     const result = await input.invoke();

@@ -326,6 +326,33 @@ describe('SessionSearchService', () => {
         });
     });
 
+    it("imports an Agent's conversation only into a Project in its scope and never adds one", async () => {
+        const f = await fixture();
+        const projectId = f.open.session.projectId;
+        f.inspect.mockResolvedValue({ cwd: f.repo, updatedAt: 1 });
+
+        await expect(
+            f.service.importConversation('claude', EXTERNAL, ['other-project']),
+        ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+        await expect(
+            f.service.importConversation('codex', HELD, ['other-project']),
+        ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+        const elsewhere = join(f.directory, 'unadded');
+        await mkdir(elsewhere);
+        f.inspect.mockResolvedValue({ cwd: elsewhere, updatedAt: 1 });
+        await expect(
+            f.service.importConversation('claude', EXTERNAL, [projectId]),
+        ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+        expect(f.database.listVisibleProjects()).toHaveLength(1);
+        expect(f.onSessionImported).not.toHaveBeenCalled();
+
+        f.inspect.mockResolvedValue({ cwd: f.repo, updatedAt: 1 });
+        const imported = await f.service.importConversation('claude', EXTERNAL, [projectId]);
+
+        expect(imported.projectId).toBe(projectId);
+        expect(f.onSessionImported).toHaveBeenCalledOnce();
+    });
+
     it('refuses a conversation whose folder is gone', async () => {
         const f = await fixture();
         f.inspect.mockResolvedValue({ cwd: join(f.directory, 'deleted'), updatedAt: 1 });
@@ -378,6 +405,30 @@ describe('SessionSearchService', () => {
         });
         const terminal = f.database.listTerminals().find((row) => row.sessionId === session.id)!;
         expect(terminal.cwd).toBe(cwd);
+    });
+
+    it("scopes an Agent's worktree import by the Project that owns the worktree", async () => {
+        const readTopology = vi.fn();
+        const f = await fixture([], { readTopology });
+        const root = join(f.directory, 'billing-worktrees', 'feature');
+        await mkdir(root, { recursive: true });
+        readTopology.mockResolvedValue({
+            repositoryKey: join(f.repo, '.git'),
+            worktrees: [
+                { branch: 'main', rootPath: f.repo, isMain: true },
+                { branch: 'feature', rootPath: root },
+            ],
+        });
+        f.inspect.mockResolvedValue({ cwd: root, updatedAt: 1 });
+
+        await expect(
+            f.service.importConversation('claude', EXTERNAL, ['other-project']),
+        ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+        const imported = await f.service.importConversation('claude', EXTERNAL, [
+            f.open.session.projectId,
+        ]);
+
+        expect(imported.projectId).toBe(f.open.session.projectId);
     });
 
     it('keeps a worktree the user added as its own Project', async () => {

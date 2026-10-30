@@ -133,11 +133,12 @@ export const sessionMethods = {
     },
     /**
      * Adds a conversation found only in a provider's own history as a new Session with a parked Agent Terminal, in the
-     * Project containing its folder (added when none does). Opening the Session resumes the conversation. Owner-only,
-     * like `session.search` that finds the conversation.
+     * Project containing its folder (added when none does). Opening the Session resumes the conversation. The owner's
+     * clients import anywhere; Core forwards an Agent's call bound to its own Project scope
+     * (`session.importConversationInternal`), and every other principal is refused.
      */
     'session.importConversation': {
-        ...ownerOnlyCommandPolicy('server', 'write', ['sessions.write', 'projects.write']),
+        ...commandPolicy('server', 'write', ['projects.write']),
         params: sessionImportConversationParametersSchema,
         result: sessionImportConversationResultSchema,
     },
@@ -341,5 +342,23 @@ export const sessionMethods = {
         ...serverWrite,
         params: sessionStateSchema,
         result: sessionStateSchema,
+    },
+} as const satisfies Record<string, MethodSpec>;
+
+/**
+ * Core binds `session.importConversation` to the caller's Project scope; the caller never supplies it.
+ */
+export const sessionInternalMethods = {
+    'session.importConversationInternal': {
+        ...serverWrite,
+        params: sessionImportConversationParametersSchema.extend({
+            /**
+             * Projects an Agent caller may import into, or `null` for the owner's own clients. A scoped import never
+             * adds a top-level Project and refuses a conversation that lands, or is already held, outside these
+             * Projects.
+             */
+            projectScope: z.array(identifierSchema).max(128).nullable(),
+        }),
+        result: sessionImportConversationResultSchema,
     },
 } as const satisfies Record<string, MethodSpec>;
