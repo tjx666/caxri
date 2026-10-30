@@ -11,7 +11,7 @@ import { pullRequestLinkState } from '../../lib/link-summary';
 import { cn } from '../../lib/utilities';
 import { useCaxriQuery } from '../../queries/client';
 import { writeToClipboardWithFeedback } from '../copy-feedback';
-import { HoverCard, HoverCardContent, HoverCardTrigger } from '../ui/hover-card';
+import { SharedHoverCard } from '../ui/hover-card';
 import { CopyIconButton } from './copy-icon-button';
 import { InlineButton } from './inline-button';
 import { useLinkContextMenu } from './link-context-menu';
@@ -69,69 +69,74 @@ export function WebLink({
     );
     const pullState = pullRequestLinkState(preview.data);
     return (
-        <HoverCard>
-            <HoverCardTrigger
-                closeDelay={120}
-                delay={350}
-                render={
-                    <InlineButton
-                        className={cn(
-                            'cursor-pointer underline-offset-3 focus-visible:rounded-sm focus-visible:outline focus-visible:outline-accent',
-                            className,
-                            // Once the state is known the text takes the icon's tone; unknown keeps the caller's color.
-                            pullState && PULL_REQUEST_ICONS[pullState].tone,
-                        )}
-                        onClick={() => onOpen(href)}
-                        onContextMenu={onContextMenu}
-                    />
-                }
-            >
-                <LinkFavicon
-                    className="-mt-0.5 mr-1 align-middle"
-                    origin={origin}
-                    referenceTerminalId={referenceTerminalId}
-                    summary={summary}
+        <SharedHoverCard
+            closeDelay={120}
+            content={
+                <>
+                    <div className="flex items-center gap-2 px-3 py-2">
+                        <LinkFavicon
+                            className="text-muted"
+                            origin={origin}
+                            referenceTerminalId={referenceTerminalId}
+                            summary={summary}
+                        />
+                        <span className="min-w-0 flex-1 truncate text-[12px] text-muted select-text">
+                            {href}
+                        </span>
+                        <CopyIconButton
+                            className="shrink-0"
+                            copy={() => writeToClipboardWithFeedback(textClipboard, href)}
+                            label={t('agentChat.link.copy')}
+                        />
+                        <button
+                            className="flex shrink-0 cursor-pointer items-center gap-1 rounded-md border-0 bg-transparent px-1.5 py-0.5 text-[12px] text-foreground transition-colors hover:bg-surface focus-visible:outline focus-visible:outline-accent"
+                            type="button"
+                            onClick={() => onOpen(href)}
+                        >
+                            {t('common.open')}
+                            <ExternalLink aria-hidden className="size-3.5" />
+                        </button>
+                    </div>
+                    {summary.linearIssue ? (
+                        <LinearIssuePreview
+                            href={href}
+                            issue={summary.linearIssue}
+                            summary={summary}
+                        />
+                    ) : summary.isSecure ? (
+                        <PagePreview key={href} href={href} summary={summary} />
+                    ) : (
+                        <LinkDetail summary={summary} />
+                    )}
+                </>
+            }
+            delay={350}
+            render={
+                <InlineButton
+                    className={cn(
+                        'cursor-pointer underline-offset-3 focus-visible:rounded-sm focus-visible:outline focus-visible:outline-accent',
+                        className,
+                        // Once the state is known the text takes the icon's tone; unknown keeps the caller's color.
+                        pullState && PULL_REQUEST_ICONS[pullState].tone,
+                    )}
+                    onClick={() => onOpen(href)}
+                    onContextMenu={onContextMenu}
                 />
-                {children}
-            </HoverCardTrigger>
-            <HoverCardContent
-                align="start"
-                className="w-90 overflow-hidden p-0 whitespace-normal"
-                side={side}
-            >
-                <div className="flex items-center gap-2 px-3 py-2">
-                    <LinkFavicon
-                        className="text-muted"
-                        origin={origin}
-                        referenceTerminalId={referenceTerminalId}
-                        summary={summary}
-                    />
-                    <span className="min-w-0 flex-1 truncate text-[12px] text-muted select-text">
-                        {href}
-                    </span>
-                    <CopyIconButton
-                        className="shrink-0"
-                        copy={() => writeToClipboardWithFeedback(textClipboard, href)}
-                        label={t('agentChat.link.copy')}
-                    />
-                    <button
-                        className="flex shrink-0 cursor-pointer items-center gap-1 rounded-md border-0 bg-transparent px-1.5 py-0.5 text-[12px] text-foreground transition-colors hover:bg-surface focus-visible:outline focus-visible:outline-accent"
-                        type="button"
-                        onClick={() => onOpen(href)}
-                    >
-                        {t('common.open')}
-                        <ExternalLink aria-hidden className="size-3.5" />
-                    </button>
-                </div>
-                {summary.linearIssue ? (
-                    <LinearIssuePreview href={href} issue={summary.linearIssue} summary={summary} />
-                ) : summary.isSecure ? (
-                    <PagePreview key={href} href={href} summary={summary} />
-                ) : (
-                    <LinkDetail summary={summary} />
-                )}
-            </HoverCardContent>
-        </HoverCard>
+            }
+            contentProps={{
+                align: 'start',
+                className: 'w-90 overflow-hidden p-0 whitespace-normal',
+                side,
+            }}
+        >
+            <LinkFavicon
+                className="-mt-0.5 mr-1 align-middle"
+                origin={origin}
+                referenceTerminalId={referenceTerminalId}
+                summary={summary}
+            />
+            {children}
+        </SharedHoverCard>
     );
 }
 

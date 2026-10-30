@@ -5,6 +5,7 @@ import { assertNever } from '@caxri/protocol';
 
 import { runCommand } from './commands/execute';
 import { useCommandShortcuts } from './commands/use-command-shortcuts';
+import { HoverCardProvider } from './components/ui/hover-card';
 import { TooltipProvider } from './components/ui/tooltip';
 import { AgentActionsDialog } from './features/agent-actions/agent-actions-dialog';
 import { subscribeAgentChatPatches } from './features/agent-chat/agent-chat-client';
@@ -295,107 +296,109 @@ export function App() {
     return (
         <>
             <TooltipProvider>
-                <main
-                    // Readable but not operable while an SSH Host reconnects; see `SshHostConnectionOverlay`.
-                    inert={isWorkbenchPaused}
-                    className={cn(
-                        /*
-                         * PrimarySidebar/SecondarySidebar widths are device-local UI state (`stores/chrome-layout.ts`), not part
-                         * of the Server-synced Session; each panel writes its own custom property directly on
-                         * drag and through React on commit/reset. The 6px tracks are the divider hit areas; see
-                         * `PanelDivider`. `minmax(320px, 1fr)` reserves the main pane so a resize never overlaps it.
-                         */
-                        'app-shell grid h-screen w-screen bg-background',
-                        appShellGridClassName({
-                            isZenMode,
-                            isFullScreen,
-                            isPrimarySidebarVisible,
-                            isSecondarySidebarVisible,
-                        }),
-                    )}
-                >
-                    {!isPrimarySidebarVisible && !isFullScreen && (
-                        <div
-                            aria-hidden="true"
-                            className={cn(
-                                'collapsed-primary-sidebar-titlebar fixed top-0 left-0 z-20 h-9 [-webkit-app-region:drag]',
-                                isZenMode ? 'right-0' : 'w-(--traffic-light-clearance)',
-                            )}
-                        />
-                    )}
-                    {isPrimarySidebarVisible && (
-                        <RendererPerformanceProfiler surface="primary-sidebar">
-                            <PrimarySidebar />
+                <HoverCardProvider>
+                    <main
+                        // Readable but not operable while an SSH Host reconnects; see `SshHostConnectionOverlay`.
+                        inert={isWorkbenchPaused}
+                        className={cn(
+                            /*
+                             * PrimarySidebar/SecondarySidebar widths are device-local UI state (`stores/chrome-layout.ts`), not part
+                             * of the Server-synced Session; each panel writes its own custom property directly on
+                             * drag and through React on commit/reset. The 6px tracks are the divider hit areas; see
+                             * `PanelDivider`. `minmax(320px, 1fr)` reserves the main pane so a resize never overlaps it.
+                             */
+                            'app-shell grid h-screen w-screen bg-background',
+                            appShellGridClassName({
+                                isZenMode,
+                                isFullScreen,
+                                isPrimarySidebarVisible,
+                                isSecondarySidebarVisible,
+                            }),
+                        )}
+                    >
+                        {!isPrimarySidebarVisible && !isFullScreen && (
+                            <div
+                                aria-hidden="true"
+                                className={cn(
+                                    'collapsed-primary-sidebar-titlebar fixed top-0 left-0 z-20 h-9 [-webkit-app-region:drag]',
+                                    isZenMode ? 'right-0' : 'w-(--traffic-light-clearance)',
+                                )}
+                            />
+                        )}
+                        {isPrimarySidebarVisible && (
+                            <RendererPerformanceProfiler surface="primary-sidebar">
+                                <PrimarySidebar />
+                            </RendererPerformanceProfiler>
+                        )}
+                        {isPrimarySidebarVisible && (
+                            <PanelDivider
+                                ariaLabel={t('workbench.resizePrimarySidebar')}
+                                size={primarySidebarWidth}
+                                min={PRIMARY_SIDEBAR_MIN_WIDTH}
+                                max={PRIMARY_SIDEBAR_MAX_WIDTH}
+                                defaultSize={PRIMARY_SIDEBAR_DEFAULT_WIDTH}
+                                cssVariable="--primary-sidebar-width"
+                                growDirection={1}
+                                orientation="vertical"
+                                onCommit={(width) =>
+                                    useChromeLayoutStore.getState().setPrimarySidebarWidth(width)
+                                }
+                            />
+                        )}
+                        <RendererPerformanceProfiler surface="workbench">
+                            <WorkbenchColumn />
                         </RendererPerformanceProfiler>
-                    )}
-                    {isPrimarySidebarVisible && (
-                        <PanelDivider
-                            ariaLabel={t('workbench.resizePrimarySidebar')}
-                            size={primarySidebarWidth}
-                            min={PRIMARY_SIDEBAR_MIN_WIDTH}
-                            max={PRIMARY_SIDEBAR_MAX_WIDTH}
-                            defaultSize={PRIMARY_SIDEBAR_DEFAULT_WIDTH}
-                            cssVariable="--primary-sidebar-width"
-                            growDirection={1}
-                            orientation="vertical"
-                            onCommit={(width) =>
-                                useChromeLayoutStore.getState().setPrimarySidebarWidth(width)
-                            }
-                        />
-                    )}
-                    <RendererPerformanceProfiler surface="workbench">
-                        <WorkbenchColumn />
-                    </RendererPerformanceProfiler>
-                    {isSecondarySidebarVisible && (
-                        <PanelDivider
-                            ariaLabel={t('workbench.resizeSecondarySidebar')}
-                            size={secondarySidebarWidth}
-                            min={SECONDARY_SIDEBAR_MIN_WIDTH}
-                            max={SECONDARY_SIDEBAR_MAX_WIDTH}
-                            defaultSize={SECONDARY_SIDEBAR_DEFAULT_WIDTH}
-                            cssVariable="--secondary-sidebar-width"
-                            growDirection={-1}
-                            orientation="vertical"
-                            onCommit={(width) =>
-                                useChromeLayoutStore.getState().setSecondarySidebarWidth(width)
-                            }
-                        />
-                    )}
-                    {isSecondarySidebarVisible && (
-                        <RendererPerformanceProfiler surface="secondary-sidebar">
-                            <SecondarySidebar />
-                        </RendererPerformanceProfiler>
-                    )}
-                    {!isZenMode && <StatusBar />}
-                    {isZenMode && <ZenExitButton />}
-                    <CreateSessionDialog />
-                    <CreateSessionResumeBanner />
-                    <ArchivedSessionsDialog />
-                    <BotHandoverDialog isFromWorkbench />
-                    <SessionSearchDialog />
-                    <KeyboardShortcutsDialog />
-                    <UpdateDialog />
-                    <CommandPalette />
-                    <ShareToSessionDialog />
-                    <ProjectSearchDialog />
-                    <AgentActionsDialog />
-                    <PathBrowserDialog />
-                    <BugReportDialog />
-                    <ProjectIconDialog />
-                    <AgentMessageApprovalDialog />
-                    <SessionMruSwitcher />
-                    <WorkbenchRootPrompt />
-                    <ConnectSshHostDialog />
-                    <SshHostFolderPickerDialog />
-                    <ConfirmationDialog />
-                    <AirplaneModeDialog />
-                    <AgentChatWaitingPopup />
-                    <SecretRequestCards />
-                    <ToastOutlet />
-                    <WindowZoomHud />
-                    <ScreencastOverlay />
-                    <PerformanceOverlay />
-                </main>
+                        {isSecondarySidebarVisible && (
+                            <PanelDivider
+                                ariaLabel={t('workbench.resizeSecondarySidebar')}
+                                size={secondarySidebarWidth}
+                                min={SECONDARY_SIDEBAR_MIN_WIDTH}
+                                max={SECONDARY_SIDEBAR_MAX_WIDTH}
+                                defaultSize={SECONDARY_SIDEBAR_DEFAULT_WIDTH}
+                                cssVariable="--secondary-sidebar-width"
+                                growDirection={-1}
+                                orientation="vertical"
+                                onCommit={(width) =>
+                                    useChromeLayoutStore.getState().setSecondarySidebarWidth(width)
+                                }
+                            />
+                        )}
+                        {isSecondarySidebarVisible && (
+                            <RendererPerformanceProfiler surface="secondary-sidebar">
+                                <SecondarySidebar />
+                            </RendererPerformanceProfiler>
+                        )}
+                        {!isZenMode && <StatusBar />}
+                        {isZenMode && <ZenExitButton />}
+                        <CreateSessionDialog />
+                        <CreateSessionResumeBanner />
+                        <ArchivedSessionsDialog />
+                        <BotHandoverDialog isFromWorkbench />
+                        <SessionSearchDialog />
+                        <KeyboardShortcutsDialog />
+                        <UpdateDialog />
+                        <CommandPalette />
+                        <ShareToSessionDialog />
+                        <ProjectSearchDialog />
+                        <AgentActionsDialog />
+                        <PathBrowserDialog />
+                        <BugReportDialog />
+                        <ProjectIconDialog />
+                        <AgentMessageApprovalDialog />
+                        <SessionMruSwitcher />
+                        <WorkbenchRootPrompt />
+                        <ConnectSshHostDialog />
+                        <SshHostFolderPickerDialog />
+                        <ConfirmationDialog />
+                        <AirplaneModeDialog />
+                        <AgentChatWaitingPopup />
+                        <SecretRequestCards />
+                        <ToastOutlet />
+                        <WindowZoomHud />
+                        <ScreencastOverlay />
+                        <PerformanceOverlay />
+                    </main>
+                </HoverCardProvider>
             </TooltipProvider>
             {sshHostLayer}
             {sessionEffects}

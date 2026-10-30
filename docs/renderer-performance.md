@@ -223,7 +223,13 @@ Renderer `agentChat.stream` scenario:
 - `bigstream`: a reply of about 50 KB of Markdown (headings, lists, tables, links, inline code, and
   fenced TypeScript) streamed in 24-character deltas;
 - `toolstorm`: 300 commands that each start and complete, 600 tool updates in all, followed by a
-  short reply.
+  short reply;
+- `richreply`: the references the Chat renders specially. Twenty `gh pr create` and twenty
+  `gh issue create` commands (one tracker card each) and a forty-file edit (one edited-files card),
+  then a 48 KB reply of 120 sections that each link a pull request, an issue, and a web page, cite
+  files as inline code and prose paths, and name a Project skill: 486 hover-card triggers in all.
+  The benchmark puts a fake `gh` first on `PATH`, so pull request and issue state never reaches
+  GitHub; the web links still let Main try their favicons, which fail fast on the `.test` domain.
 
 Each window ends only after the workload's final text is visible and two more frames have painted.
 The receipt records wall time, Renderer main-thread time from `Performance.getMetrics` (task, script,
@@ -250,6 +256,15 @@ Three local profiling runs on 2026-10-29 (Apple Silicon, hidden window) measured
 | `bigstream` | 10.2–10.6 |        9,154–9,315 | 2,427–2,597 / 1,635–1,682 / 270–282 |        40.3–41.4 |       2,595–2,791 |              594–644 |     1 |
 | `toolstorm` |   6.7–6.8 |        2,117–2,238 |           600–662 / 122–126 / 51–54 |          0.8–0.9 |               618 |              164–178 |     0 |
 
+`richreply` was added on 2026-10-30 on a heavily loaded machine (load average 8 to 17), so its
+main-thread and frame readings are not comparable with the table above. Three interleaved pairs of
+the same build before and after shared hover cards (see below) measured:
+
+| `richreply`         | Renderer task (ms) | Script (ms) | Heap growth (MB) | Workbench renders | Workbench React (ms) | Missed frames |
+| ------------------- | -----------------: | ----------: | ---------------: | ----------------: | -------------------: | ------------: |
+| One Root per card   |        8,741–9,274 | 2,740–3,021 |        37.5–38.9 |       1,818–2,183 |              835–929 |       300–526 |
+| Shared Root (today) |        8,462–9,070 | 2,489–2,811 |        30.0–30.9 |       2,124–2,450 |              745–837 |       170–318 |
+
 Idle, the app held 1,344–1,436 MB resident (Electron 1,044–1,135 MB, Server 300 MB) with a 42 MB
 Renderer heap.
 
@@ -267,6 +282,14 @@ build, three runs of `bigstream` heap growth went from 46.6–47.4 MB to 38.4–
 vary by about 80 between identical runs (3,547–3,628 before, 3,622–3,640 after). The highlighted-code and diagram
 caches (`MemoCache`) are bounded by characters as well as entries, so a few very large blocks cannot
 hold an unbounded amount of markup.
+
+`richreply` found the same pattern in hover cards. Each web link and skill reference mounted its own
+Base UI PreviewCard Root; removing the 486 Roots outright cut the reply's heap growth from 40 to
+27 MB. They now share one: `HoverCardProvider` mounts the Root and `SharedHoverCard` renders only a
+Trigger whose payload carries the card's content and placement. Within each interleaved pair the
+shared Root lowered heap growth by about 8 MB and script time by 190–250 ms. Cards whose content
+reads a narrower provider (a Source Control history row) or whose open state the caller owns keep a
+Root of their own.
 
 ## Development investigation
 

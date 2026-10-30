@@ -1,10 +1,11 @@
 import { Package } from 'lucide-react';
 
-import { HoverCard, HoverCardContent, HoverCardTrigger } from '../../../components/ui/hover-card';
+import { SharedHoverCard } from '../../../components/ui/hover-card';
 import { useTranslation } from '../../../i18n';
 import { cn } from '../../../lib/utilities';
 import { AgentChatInvocationDetails } from '../composer/agent-chat-invocation-chip';
-import { useAgentChatTerminal } from '../hooks/use-agent-chat-terminal';
+import { AgentChatSkillsContext, useAgentChatSkills } from '../hooks/use-agent-chat-skills';
+import { AgentChatTerminalContext, useAgentChatTerminal } from '../hooks/use-agent-chat-terminal';
 
 /**
  * Inline code in a reply that names a skill the Agent can use (`commit`, `$commit`, `/commit`). It keeps the code chip
@@ -22,6 +23,7 @@ export function AgentChatSkillReference({
 }) {
     const { t } = useTranslation();
     const terminalId = useAgentChatTerminal();
+    const skills = useAgentChatSkills();
     const label = (
         <>
             <Package
@@ -33,26 +35,34 @@ export function AgentChatSkillReference({
     );
     if (!terminalId) return <code className={className}>{label}</code>;
     return (
-        <HoverCard>
-            <HoverCardTrigger
-                closeDelay={120}
-                delay={350}
-                render={
-                    <button
-                        aria-label={t('agentChat.slash.showInvocation', { invocation })}
-                        className={cn(
-                            className,
-                            'cursor-default focus-visible:outline focus-visible:outline-accent data-popup-open:text-accent',
-                        )}
-                        type="button"
-                    />
-                }
-            >
-                {label}
-            </HoverCardTrigger>
-            <HoverCardContent align="start" className="w-[28rem] p-0 whitespace-normal">
-                <AgentChatInvocationDetails invocation={invocation} terminalId={terminalId} />
-            </HoverCardContent>
-        </HoverCard>
+        <SharedHoverCard
+            closeDelay={120}
+            content={
+                // The shared card renders outside this transcript, so the instructions' Markdown gets the Chat's
+                // Terminal and skills back here.
+                <AgentChatTerminalContext value={terminalId}>
+                    <AgentChatSkillsContext value={skills}>
+                        <AgentChatInvocationDetails
+                            invocation={invocation}
+                            terminalId={terminalId}
+                        />
+                    </AgentChatSkillsContext>
+                </AgentChatTerminalContext>
+            }
+            contentProps={{ align: 'start', className: 'w-[28rem] p-0 whitespace-normal' }}
+            delay={350}
+            render={
+                <button
+                    aria-label={t('agentChat.slash.showInvocation', { invocation })}
+                    className={cn(
+                        className,
+                        'cursor-default focus-visible:outline focus-visible:outline-accent data-popup-open:text-accent',
+                    )}
+                    type="button"
+                />
+            }
+        >
+            {label}
+        </SharedHoverCard>
     );
 }
