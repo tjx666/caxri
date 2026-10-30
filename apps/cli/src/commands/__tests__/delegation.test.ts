@@ -67,6 +67,19 @@ describe('delegation CLI', () => {
                 'Fix login retry',
             ]),
         ).toMatchObject({ newSession: true, handoff: true });
+        expect(
+            await command.parseParams([
+                ...base,
+                '--new-session',
+                '--title',
+                'Fix login retry',
+                '--worktree',
+                'feat/login-retry',
+            ]),
+        ).toMatchObject({ newSession: true, worktreeBranch: 'feat/login-retry' });
+        await expect(
+            command.parseParams([...base, '--session', 'session', '--worktree', 'feat/x']),
+        ).rejects.toThrow(/--worktree applies only with --new-session/u);
         await expect(
             command.parseParams([...base, '--session', 'session', '--handoff']),
         ).rejects.toThrow(/--handoff applies only with --new-session/u);

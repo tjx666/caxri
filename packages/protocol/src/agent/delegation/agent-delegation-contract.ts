@@ -190,6 +190,11 @@ export const agentDelegationCreateRequestSchema = z
         sessionId: identifierSchema.optional(),
         newSession: z.literal(true).optional(),
         title: sessionRenameTitleSchema.optional(),
+        /**
+         * Creates a linked Git worktree of the Project on this new branch and runs the new Session in it, grouped under
+         * the Project like a Session the user continued in a worktree.
+         */
+        worktreeBranch: z.string().trim().min(1).max(200).optional(),
     })
     .refine(isOneContinuation, 'Choose follow-up, exact resume, or a hand-over')
     .refine(isPresetExclusive, 'A preset owns its provider, model and effort')
@@ -208,6 +213,10 @@ export const agentDelegationCreateRequestSchema = z
     .refine(
         (value) => !value.handoff || Boolean(value.newSession),
         'A hand-off continues in a new Session',
+    )
+    .refine(
+        (value) => !value.worktreeBranch || Boolean(value.newSession),
+        'A worktree is created for a new Session',
     )
     .refine(
         (value) => Boolean(value.title) === Boolean(value.newSession),

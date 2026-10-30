@@ -88,6 +88,14 @@ caxri agent delegate create --project <project-id> --new-session --title "Fix lo
   Take Back revokes this as well (`apps/server/src/domains/parking-handlers.ts`).
 - Delegation admission also accepts an earlier task's Session created by any Agent in the caller's
   Session, so a sibling Terminal can send it the next task.
+- `--worktree <new-branch>` (only with `--new-session`, not for Caxri Bot) creates a linked Git worktree
+  on a new branch forked from the Project checkout's HEAD, at `<project>.worktrees/<branch>` (slashes
+  become dashes), and runs the Session there. The worktree is registered as the Project's worktree
+  Project and bound as the Session's Workbench Root, the same result as "continue in worktree"
+  (`WorkbenchRootService.prepareDelegatedWorktree`/`bindDelegatedWorktree`), so the sidebar lists the
+  Session under the original Project. The worktree is made before the Session: a Git refusal (bad or
+  existing branch) leaves no Session. A request refused after the worktree exists keeps it on disk;
+  cleanup is outside this feature. Worktree-per-task dispatch follows Orca's `worktree create --agent`.
 - `--handoff` (only with `--new-session`) marks the task as the caller's Session handing its work
   on: the user is done with that Session. It is stored in the delegation record's input (no schema
   change), and the new Session's first message then reads "Continued from" the caller's Session
