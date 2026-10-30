@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import type { SessionSearchEntry } from '@caxri/protocol';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import type { LucideIcon } from 'lucide-react';
 import { Archive, Check, CircleDot, Copy, Unlink } from 'lucide-react';
 
@@ -32,6 +33,15 @@ const statusLabelKeys = {
     archived: 'session.search.status.archived',
     external: 'session.search.status.external',
 } as const satisfies Record<SessionSearchEntry['status'], string>;
+
+/**
+ * Rows are measured after render; this only sizes the scrollbar before they are.
+ */
+const ESTIMATED_ROW_HEIGHT = 66;
+/**
+ * Vertical padding of the list, kept inside the virtual range so the first and last rows are not clipped.
+ */
+const LIST_PADDING = 4;
 
 /**
  * Status is told apart by icon and word, not hue: the tinted labels competed with the row title and the hit highlight.
@@ -151,88 +161,114 @@ export function SessionSearchResults({
         entries.map((entry) => entry.updatedAt),
         'narrow',
     );
+    const scrollReference = useRef<HTMLDivElement>(null);
+    // TanStack Virtual is knowingly incompatible with React Compiler memoization; the compiler skips this component.
+    // eslint-disable-next-line react-hooks/incompatible-library -- documented, expected behavior
+    const virtualizer = useVirtualizer({
+        count: entries.length,
+        estimateSize: () => ESTIMATED_ROW_HEIGHT,
+        getItemKey: (index) => entries[index].key,
+        getScrollElement: () => scrollReference.current,
+        overscan: 8,
+        paddingStart: LIST_PADDING,
+        paddingEnd: LIST_PADDING,
+    });
+    // Only viewport rows are mounted, so the keyboard-selected row is scrolled into view through the virtualizer.
+    useEffect(() => {
+        virtualizer.scrollToIndex(selectedIndex, { align: 'auto' });
+    }, [selectedIndex, virtualizer]);
     return (
         <div
+            ref={scrollReference}
             aria-label={t('session.search.results')}
-            className="session-search-results min-h-0 flex-1 overflow-y-auto py-1"
+            className="session-search-results min-h-0 flex-1 overflow-y-auto"
             id={id}
             role="listbox"
         >
-            {entries.map((entry, index) => {
-                const action = sessionSearchAction(entry);
-                const isSelected = index === selectedIndex;
-                const copyableId = entry.agentSessionId ?? entry.sessionId;
-                return (
-                    <div
-                        key={entry.key}
-                        aria-selected={isSelected}
-                        className="group grid cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] gap-x-2.5 px-3 py-2 hover:bg-list-hover-background aria-selected:bg-list-active-selection-background aria-selected:text-list-active-selection-foreground"
-                        data-session-search-key={entry.key}
-                        data-session-search-status={entry.status}
-                        id={rowId(index)}
-                        role="option"
-                        onClick={() => {
-                            onSelect(index);
-                            void runSessionSearchAction(entry, query);
-                        }}
-                        onMouseMove={() => {
-                            if (!isSelected) onSelect(index);
-                        }}
-                    >
-                        <span className="pt-0.5">
-                            <AgentIdentityIcon identity={entry.provider ?? 'shell'} size={14} />
-                        </span>
-                        <span className="grid min-w-0 gap-0.5">
-                            <span className="flex min-w-0 items-center gap-2">
-                                <span className="truncate text-[13px] font-medium">
-                                    {entryTitle(entry, t)}
-                                </span>
-                                <StatusLabel status={entry.status} />
+            <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
+                {virtualizer.getVirtualItems().map((item) => {
+                    const index = item.index;
+                    const entry = entries[index];
+                    const action = sessionSearchAction(entry);
+                    const isSelected = index === selectedIndex;
+                    const copyableId = entry.agentSessionId ?? entry.sessionId;
+                    return (
+                        <div
+                            key={item.key}
+                            ref={virtualizer.measureElement}
+                            aria-posinset={index + 1}
+                            aria-selected={isSelected}
+                            aria-setsize={entries.length}
+                            data-index={index}
+                            style={{ transform: `translateY(${item.start}px)` }}
+                            className="group absolute top-0 left-0 grid w-full cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] gap-x-2.5 px-3 py-2 hover:bg-list-hover-background aria-selected:bg-list-active-selection-background aria-selected:text-list-active-selection-foreground"
+                            data-session-search-key={entry.key}
+                            data-session-search-status={entry.status}
+                            id={rowId(index)}
+                            role="option"
+                            onClick={() => {
+                                onSelect(index);
+                                void runSessionSearchAction(entry, query);
+                            }}
+                            onMouseMove={() => {
+                                if (!isSelected) onSelect(index);
+                            }}
+                        >
+                            <span className="pt-0.5">
+                                <AgentIdentityIcon identity={entry.provider ?? 'shell'} size={14} />
                             </span>
-                            <MatchLine entry={entry} />
-                            <span className="flex min-w-0 items-center gap-1.5 text-[11px] text-muted">
-                                {entry.cwd && (
-                                    <span className="truncate">
-                                        {isSelected ? entry.cwd : shortFolder(entry.cwd)}
+                            <span className="grid min-w-0 gap-0.5">
+                                <span className="flex min-w-0 items-center gap-2">
+                                    <span className="truncate text-[13px] font-medium">
+                                        {entryTitle(entry, t)}
                                     </span>
-                                )}
-                                {entry.match.messageCount !== undefined &&
-                                    entry.match.messageCount > 1 && (
-                                        <span className="flex-none">
-                                            ·{' '}
-                                            {t('session.search.messageCountOther', {
-                                                count: entry.match.messageCount,
-                                            })}
+                                    <StatusLabel status={entry.status} />
+                                </span>
+                                <MatchLine entry={entry} />
+                                <span className="flex min-w-0 items-center gap-1.5 text-[11px] text-muted">
+                                    {entry.cwd && (
+                                        <span className="truncate">
+                                            {isSelected ? entry.cwd : shortFolder(entry.cwd)}
                                         </span>
                                     )}
-                                {entry.status === 'external' && !action && (
-                                    <span className="flex-none">
-                                        · {t('session.search.noFolder')}
-                                    </span>
-                                )}
+                                    {entry.match.messageCount !== undefined &&
+                                        entry.match.messageCount > 1 && (
+                                            <span className="flex-none">
+                                                ·{' '}
+                                                {t('session.search.messageCountOther', {
+                                                    count: entry.match.messageCount,
+                                                })}
+                                            </span>
+                                        )}
+                                    {entry.status === 'external' && !action && (
+                                        <span className="flex-none">
+                                            · {t('session.search.noFolder')}
+                                        </span>
+                                    )}
+                                </span>
                             </span>
-                        </span>
-                        <span className="flex flex-col items-end gap-1">
-                            <span className="text-[11px] text-muted tabular-nums">
-                                {times[index]}
+                            <span className="flex flex-col items-end gap-1">
+                                <span className="text-[11px] text-muted tabular-nums">
+                                    {times[index]}
+                                </span>
+                                <span
+                                    className={cn(
+                                        'flex items-center gap-1',
+                                        !isSelected && 'invisible group-hover:visible',
+                                    )}
+                                >
+                                    {copyableId && <CopyIdButton id={copyableId} />}
+                                    {action && (
+                                        <span className="rounded bg-elevated px-1.5 py-0.5 text-[11px] text-foreground">
+                                            {t(actionLabelKeys[action])}
+                                        </span>
+                                    )}
+                                </span>
                             </span>
-                            <span
-                                className={cn(
-                                    'flex items-center gap-1',
-                                    !isSelected && 'invisible group-hover:visible',
-                                )}
-                            >
-                                {copyableId && <CopyIdButton id={copyableId} />}
-                                {action && (
-                                    <span className="rounded bg-elevated px-1.5 py-0.5 text-[11px] text-foreground">
-                                        {t(actionLabelKeys[action])}
-                                    </span>
-                                )}
-                            </span>
-                        </span>
-                    </div>
-                );
-            })}
+                        </div>
+                    );
+                })}
+            </div>
         </div>
     );
 }
