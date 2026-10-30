@@ -18,6 +18,7 @@ import type { MobileTheme } from '../../theme/tokens';
 import { ChangesDiffRow } from '../changes/changes-diff-row';
 import { ChangesDiffStat } from '../changes/changes-diff-stat';
 import { changePathParts, diffLineNumberDigits } from '../changes/changes-model';
+import { useConversationDisclosure } from '../conversation/conversation-disclosure';
 import { agentChatChangeColor, agentChatChangeRows } from './agent-chat-timeline';
 
 /**
@@ -48,6 +49,7 @@ export const AgentChatFileDiff = ({
 }) => {
     const { t } = useTranslation();
     const [isExpanded, setExpanded] = useState(initiallyExpanded);
+    const disclose = useConversationDisclosure();
     const stat = useMemo(() => agentChatDiffLinesStat(lines), [lines]);
     const rows = useMemo(() => (isExpanded ? agentChatChangeRows(lines) : []), [isExpanded, lines]);
     const digits = useMemo(() => diffLineNumberDigits(rows), [rows]);
@@ -67,7 +69,10 @@ export const AgentChatFileDiff = ({
                 )}
                 accessibilityRole="button"
                 accessibilityState={{ expanded: isExpanded }}
-                onPress={() => setExpanded((current) => !current)}
+                onPress={() => {
+                    disclose();
+                    setExpanded((current) => !current);
+                }}
                 style={({ pressed }) => [
                     styles.header,
                     pressed ? { backgroundColor: theme.surface } : null,
