@@ -367,7 +367,7 @@ later `session.select`. The `ipc.request` log records `queueMs` and `queueDepth`
 lane shows up as queue time on the requests behind it. A slow sweep (200 ms or more) also writes a
 `workbench_root.sweep_slow` event with its listing, Git topology, and root-identity phases.
 Every `app.bootstrap` or Bot snapshot build writes one `workbench_snapshot.built` event with its `durationMs` and
-row counts (`sessions`, `archivedSessions`, `terminals`, `sessionStates`), never row contents, so a slow bootstrap
+row counts (`sessions`, `archivedSessions`, `terminals`, `archivedTerminals`, `sessionStates`), never row contents, so a slow bootstrap
 shows which table dominates.
 
 Each connection remembers the last minute of lane holders (method, request id, start and end), and a request

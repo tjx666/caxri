@@ -80,8 +80,35 @@ describe('app.bootstrap scope', () => {
         expect(writes[0].event).toBe('workbench_snapshot.built');
         expect(writes[0].options).toMatchObject({
             durationMs: expect.any(Number) as number,
-            fields: { archivedSessions: 4, sessions: 3, sessionStates: 3, terminals: 7 },
+            fields: {
+                archivedSessions: 4,
+                sessions: 3,
+                sessionStates: 3,
+                terminals: 3,
+                archivedTerminals: 4,
+            },
         });
+    });
+
+    it('sends archived Sessions only a slim Terminal summary and restores the full record', async () => {
+        const { active, archived, database, snapshots } = await fixture({ active: 1, archived: 2 });
+        const state = snapshots.bootstrap();
+        expect(state.terminals.map(({ sessionId }) => sessionId)).toEqual([active[0].id]);
+        expect(state.archivedTerminals.map(({ sessionId }) => sessionId).toSorted(byId)).toEqual(
+            archived.map(({ id }) => id).toSorted(byId),
+        );
+        expect(Object.keys(state.archivedTerminals[0]).toSorted(byId)).toEqual([
+            'id',
+            'kind',
+            'orderIndex',
+            'sessionId',
+        ]);
+        database.unarchiveSessions([archived[0].id]);
+        const restored = snapshots.bootstrap();
+        expect(restored.terminals.map(({ sessionId }) => sessionId)).toContain(archived[0].id);
+        expect(restored.archivedTerminals.map(({ sessionId }) => sessionId)).not.toContain(
+            archived[0].id,
+        );
     });
 
     it('delivers the state again once a Session is restored', async () => {

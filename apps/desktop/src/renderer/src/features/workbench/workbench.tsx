@@ -131,10 +131,12 @@ export function Workbench() {
      * so nothing is released before the Workbench knows which Chats exist.
      */
     const chatTerminalKey = useWorkbenchStore((state) =>
-        state.bootstrap?.terminals
-            .filter((terminal) => isChatTerminal(terminal))
-            .map(({ id }) => id)
-            .join('\u{0}'),
+        state.bootstrap
+            ? [...state.bootstrap.terminals, ...state.bootstrap.archivedTerminals]
+                  .filter((terminal) => isChatTerminal(terminal))
+                  .map(({ id }) => id)
+                  .join('\u{0}')
+            : undefined,
     );
     useEffect(() => {
         if (chatTerminalKey === undefined) return;

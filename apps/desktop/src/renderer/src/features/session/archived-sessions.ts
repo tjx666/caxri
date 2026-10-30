@@ -1,4 +1,4 @@
-import type { ProjectRecord, SessionRecord, TerminalKind, TerminalRecord } from '@caxri/protocol';
+import type { ArchivedTerminal, ProjectRecord, SessionRecord, TerminalKind } from '@caxri/protocol';
 import { agentProviderIds, DEFAULT_SESSION_TITLE } from '@caxri/protocol';
 import { sortBy } from 'es-toolkit';
 
@@ -16,7 +16,7 @@ export interface ArchivedSessionItem {
     archivedAt: number;
     project: ProjectRecord;
     session: SessionRecord;
-    terminal?: TerminalRecord;
+    terminal?: ArchivedTerminal;
 }
 
 export interface ArchivedSessionView {
@@ -43,11 +43,11 @@ const AGENT_ORDER: TerminalKind[] = ['shell', ...agentProviderIds];
 export function deriveArchivedSessionView(
     projects: readonly ProjectRecord[],
     sessions: readonly SessionRecord[],
-    terminals: readonly TerminalRecord[],
+    terminals: readonly ArchivedTerminal[],
     filters: ArchivedSessionFilters,
 ): ArchivedSessionView {
     const terminalById = new Map(terminals.map((terminal) => [terminal.id, terminal]));
-    const firstTerminalBySession = new Map<string, TerminalRecord>();
+    const firstTerminalBySession = new Map<string, ArchivedTerminal>();
     const orderedTerminals = sortBy(terminals, ['orderIndex']);
     for (const terminal of orderedTerminals)
         if (!firstTerminalBySession.has(terminal.sessionId))

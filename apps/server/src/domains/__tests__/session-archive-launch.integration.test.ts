@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { TerminalKind } from '@caxri/protocol';
+import type { TerminalKind, TerminalRecord } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
 import type { spawn as spawnPty } from 'node-pty';
 import type { Mock } from 'vitest';
@@ -95,10 +95,10 @@ async function createRuntime(name: string) {
         terminalRestoreGridWaitMs: 0,
     });
     const project = await domains.handlers['project.create']({ rootPath: projectRoot });
-    const record = async (terminalId: string) =>
-        (await domains.handlers['app.bootstrap']({})).terminals.find(
-            (terminal) => terminal.id === terminalId,
-        );
+    const record = async (terminalId: string): Promise<TerminalRecord | undefined> =>
+        // `app.bootstrap` carries no full record for an archived Session's Terminal; read it by id.
+        (await domains.handlers['app.records']({ sessionIds: [], terminalIds: [terminalId] }))
+            .terminals[0];
     return { domains, execution, kills, project, record };
 }
 

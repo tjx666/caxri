@@ -29,7 +29,7 @@ import {
     setSessionSearchOpen,
     useDialogStore,
 } from '../../stores/dialogs';
-import { useProjects, useSessions, useTerminals } from '../../stores/selectors';
+import { useArchivedTerminals, useProjects, useSessions } from '../../stores/selectors';
 import type {
     ArchivedSessionFilters,
     ArchivedSessionItem,
@@ -350,7 +350,7 @@ function ArchivedSessionsDialogBody() {
     const { t } = useTranslation();
     const projects = useProjects() ?? NO_RECORDS;
     const sessions = useSessions() ?? NO_RECORDS;
-    const terminals = useTerminals();
+    const terminals = useArchivedTerminals();
     const [query, setQuery] = useState('');
     const [projectId, setProjectId] = useState('all');
     const [agent, setAgent] = useState<ArchivedSessionFilters['agent']>('all');

@@ -53,6 +53,13 @@ many synthetic Projects (roots under the profile), Sessions (the first `archived
 archived), and stopped Shell Terminals, so warm restarts measure a realistic bootstrap instead of an
 empty one. No real Project, path, or Terminal content enters the seed.
 
+The large-archive case that guards `app.bootstrap` size is `--seed 6,3045,3000,3045`: 45 unarchived
+and 3,000 archived Sessions, each with one Terminal. Archived Sessions contribute only their record
+and a four-field Terminal summary to the snapshot; the `workbench_snapshot.built` log event reports the
+row counts and build time of every snapshot. `CAXRI_BENCH_ARCHIVE=<file> bunx vitest run
+apps/server/src/domains/workbench/__tests__/snapshot-archived.test.ts` writes the serialized bytes and
+p50 build time at 0, 1,000, and 3,000 archived Sessions.
+
 ## Startup design
 
 - **Window first.** Main creates the Workbench window right after `app.whenReady()`, before Server
