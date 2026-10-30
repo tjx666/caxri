@@ -1,5 +1,4 @@
 import { homedir } from 'node:os';
-import { setTimeout as delay } from 'node:timers/promises';
 
 import type {
     AgentProvider,
@@ -30,20 +29,15 @@ import type { UsageRecord } from './record';
 import { parseUsageRecord } from './record';
 import type { OutsideUsageEntry, UsageLedgerEntry, UsageReportInput } from './report';
 import { buildUsageReport } from './report';
-import type { ClaudeTranscriptMisses, UsageTranscriptFiles } from './scanner';
-import { scanUsage, UsageTranscriptLocator } from './scanner';
+import type { ClaudeTranscriptMisses, UsageScanOptions, UsageTranscriptFiles } from './scanner';
+import { compressedFailureCounter, scanUsage, UsageTranscriptLocator } from './scanner';
 import { UsageNoticeDismissals } from './usage-notice-dismissals';
+import { waitBriefly } from './wait-briefly';
 
 /**
  * Transcripts parsed concurrently during one ledger sync.
  */
 const SCAN_CONCURRENCY = 4;
-/**
- * How long a report waits for a running scan before answering with what is already stored. A first scan of years of
- * transcripts (after an upgrade that changes what an aggregate holds, every transcript) takes about a minute and would
- * outlast the Client's request timeout; later ones only stat files and finish well inside this budget.
- */
-const REPORT_SCAN_WAIT_MS = 1_000;
 const PROVIDER_IDS = new Set<string>(agentProviderIds);
 /**
  * Passes one sync makes: the second rescans the transcripts the first found to be copies of a source it indexed later.
@@ -97,25 +91,6 @@ function ledgerReference(row: Pick<AgentSessionUsageRow, 'provider' | 'agentSess
 
 function outsideReference(row: Pick<ExternalAgentUsageRow, 'provider' | 'transcriptId'>): string {
     return `outside:${row.provider}:${row.transcriptId}`;
-}
-
-/**
- * Settles when `task` does or after {@link REPORT_SCAN_WAIT_MS}, whichever is first; the task keeps running.
- */
-async function waitBriefly(task: Promise<unknown>): Promise<void> {
-    const abort = new AbortController();
-    const settle = async (promise: Promise<unknown>) => {
-        try {
-            await promise;
-        } catch {
-            // A failed scan or the cancelled timer only ends the wait; the next report retries the scan.
-        }
-    };
-    await Promise.race([
-        settle(task),
-        settle(delay(REPORT_SCAN_WAIT_MS, undefined, { signal: abort.signal })),
-    ]);
-    abort.abort();
 }
 
 /**
@@ -332,7 +307,7 @@ export class UsageService {
                     .map((row) => [`${row.provider}:${row.transcriptId}`, row]),
             );
         let cached = listCached();
-        const discovered = await discoverTranscripts(environment);
+        const discovered = await discoverTranscripts(environment, { includeCompressed: true });
         const queue = discovered.filter(
             (transcript) => !hosted.has(`${transcript.provider}:${transcript.agentSessionId}`),
         );
@@ -360,6 +335,7 @@ export class UsageService {
             unavailable: 0,
             failed: 0,
         };
+        const { counts: unreadableCompressed, onFailure } = compressedFailureCounter();
         const described = await describeOutsideTranscripts(queue, (provider, main) =>
             locator.describe(provider, main),
         );
@@ -383,6 +359,7 @@ export class UsageService {
                             item.transcript,
                             item.files,
                             previous,
+                            onFailure,
                         );
                         outcomes[outcome] += 1;
                         if (isPending)
@@ -407,6 +384,7 @@ export class UsageService {
                 discovered: discovered.length,
                 hosted: discovered.length - queue.length,
                 ...outcomes,
+                ...unreadableCompressed,
                 rescans,
                 skippedSearches: locator.skippedSearches,
             },
@@ -417,6 +395,7 @@ export class UsageService {
         transcript: DiscoveredTranscript,
         files: UsageTranscriptFiles | undefined,
         previous: ExternalAgentUsageRow | undefined,
+        onFailure?: UsageScanOptions['onFailure'],
     ): Promise<ScanOutcome> {
         try {
             if (!files) return 'unavailable';
@@ -426,6 +405,7 @@ export class UsageService {
             const record = await scanUsage(transcript.provider, files, {
                 isContinuation: transcript.isContinuation,
                 isCountedElsewhere: this.usageKeys().countedElsewhere(reference, files.bornAt),
+                ...(onFailure && { onFailure }),
             });
             this.options.database.agentSessionUsage.saveExternalScan({
                 provider: transcript.provider,
