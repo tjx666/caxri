@@ -140,8 +140,6 @@ export const session = {
     'session.search.imported': 'Added "{{title}}" to Caxri',
 
     // Archive and restore notices
-    'session.notice.archived': 'Archived "{{title}}"',
-    'session.notice.archivedUntitled': 'Archived Session',
     'session.notice.restored': 'Restored "{{title}}"',
     'session.notice.restoredUntitled': 'Restored Session',
     'session.notice.restoredCount': 'Restored {{count}} Sessions',

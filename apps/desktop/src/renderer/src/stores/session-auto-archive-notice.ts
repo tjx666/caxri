@@ -34,7 +34,7 @@ export function describeSessionAutoArchive(
 
 /**
  * Tells the user a Session disappeared from the PrimarySidebar because its pull request was merged or closed. Undo
- * restores with `unchanged` placement, the same as undoing a manual archive.
+ * restores with `unchanged` placement, the same as Reopen Closed Item after a manual archive.
  */
 export function reportSessionAutoArchived(
     payload: SessionAutoArchivedPayload,

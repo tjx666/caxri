@@ -24,18 +24,6 @@ function quotedSessionName(rawTitle: string | undefined): string | undefined {
 }
 
 /**
- * Copy for a notice that records one Session lifecycle change; a Session without a title is named by its noun.
- */
-function describeSessionNotice(
-    change: 'archived' | 'restored',
-    rawTitle: string | undefined,
-): string {
-    const title = quotedSessionName(rawTitle);
-    if (title === undefined) return translate(`session.notice.${change}Untitled`);
-    return translate(`session.notice.${change}`, { title });
-}
-
-/**
  * Copy for the toast that tells the user Server Core archived a Session because its pull request settled. Unlike a
  * manual archive the user did nothing, so the notice must say why the row vanished.
  */
@@ -56,17 +44,14 @@ export function describeAutoArchivedSession(
     );
 }
 
-export function describeArchivedSession(rawTitle: string | undefined): string {
-    return describeSessionNotice('archived', rawTitle);
-}
-
 /**
- * Restore's counterpart to {@link describeArchivedSession}. Archive and restore are one reversible pair, so they report
- * themselves in one shape; a restore that announced nothing was the only Session state change with no record at all,
- * and it happens inside a dialog large enough to cover the PrimarySidebar row it just brought back.
+ * A restore happens inside a dialog large enough to cover the PrimarySidebar row it just brought back, so unlike an
+ * archive it says so.
  */
 export function describeRestoredSession(rawTitle: string | undefined): string {
-    return describeSessionNotice('restored', rawTitle);
+    const title = quotedSessionName(rawTitle);
+    if (title === undefined) return translate('session.notice.restoredUntitled');
+    return translate('session.notice.restored', { title });
 }
 
 /**

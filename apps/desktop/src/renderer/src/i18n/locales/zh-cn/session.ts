@@ -135,8 +135,6 @@ export const session: TranslatedNamespace<typeof source> = {
     'session.search.imported': '已将“{{title}}”加入 Caxri',
 
     // Archive and restore notices
-    'session.notice.archived': '已归档“{{title}}”',
-    'session.notice.archivedUntitled': '已归档会话',
     'session.notice.restored': '已恢复“{{title}}”',
     'session.notice.restoredUntitled': '已恢复会话',
     'session.notice.restoredCount': '已恢复 {{count}} 个会话',

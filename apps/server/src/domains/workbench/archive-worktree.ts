@@ -14,8 +14,8 @@ import type { SessionPullRequestResolver } from '../project-status';
 import { isSameWorkbenchBinding } from './provenance';
 
 /**
- * How long a removal waits after the archive. It covers the archive notice's Undo, so an accidental archive never costs
- * a worktree, and gives the processes parking just stopped time to release their files.
+ * How long a removal waits after the archive. It covers an immediate reversal (Reopen Closed Item), so an accidental
+ * archive never costs a worktree, and gives the processes parking just stopped time to release their files.
  */
 const DEFAULT_REMOVAL_DELAY_MS = 10_000;
 const BACKUP_COMMIT_MESSAGE = 'Back up uncommitted changes before Caxri removed this worktree';

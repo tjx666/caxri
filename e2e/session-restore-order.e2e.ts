@@ -17,10 +17,10 @@ import {
 /**
  * A Session restored from the Archived Sessions dialog has to land where the user is looking. Returning it to the
  * position it held before archiving drops it back into the middle of a long list, so the restore the user just asked
- * for produces nothing they can see (#957). The archive notice's Undo is the deliberate exception: it reverses a single
+ * for produces nothing they can see (#957). Reopen Closed Item is the deliberate exception: it reverses a single
  * archive, and promoting there would let one accidental archive rewrite an order built by dragging.
  */
-test('a restored Session goes to the top while the archive notice Undo puts it back in place', async () => {
+test('a restored Session goes to the top while Reopen Closed Item puts it back in place', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-session-restore-order-e2e-'));
     const root = join(testDirectory, 'project');
     await execFileAsync('mkdir', ['-p', root]);
@@ -64,13 +64,10 @@ test('a restored Session goes to the top while the archive notice Undo puts it b
         const middleRow = sessionCard(running.page, middle).locator('..');
         await middleRow.hover();
         await middleRow.getByRole('button', { name: /^Archive / }).click();
-        /**
-         * The notice expires after four seconds, so the Undo is clicked as soon as it appears; that the row left the
-         * sidebar at all is already proven by the archive above.
-         */
-        await running.page
-            .getByRole('button', { name: 'Undo archiving Middle', exact: true })
-            .click();
+        await expect.poll(sidebarOrder).toEqual([oldest, newest]);
+        // Archiving raises no notice; Reopen Closed Item is how it is taken back.
+        await expect(running.page.locator('[data-sonner-toast]')).toHaveCount(0);
+        await running.page.keyboard.press('Meta+Shift+T');
         await expect.poll(sidebarOrder).toEqual([oldest, newest, middle]);
     } finally {
         try {

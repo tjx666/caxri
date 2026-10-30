@@ -135,8 +135,8 @@ describe('Session sidebar order', () => {
     });
 
     /**
-     * The archive notice's Undo reverses one archive, so it asks for `unchanged`: a row that came back on top would
-     * have quietly rewritten an order the user built by dragging.
+     * Reopen Closed Item reverses one archive, so it asks for `unchanged`: a row that came back on top would have
+     * quietly rewritten an order the user built by dragging.
      */
     it('keeps a dragged position when the restore asks to leave it unchanged', async () => {
         const { database, a, b, c, order } = await fixture();

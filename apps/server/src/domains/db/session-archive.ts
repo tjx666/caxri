@@ -28,8 +28,8 @@ export function archiveOneSession(
 /**
  * Restores archived Sessions to active navigation without selecting or restarting them. `top` lifts the batch above
  * every other row in its Projects and keeps the caller's order, because a Session put back at the position it held
- * before archiving reappears wherever the user can no longer see it. `unchanged` serves the archive notice's Undo,
- * which reverses one archive and must leave an order the user built by dragging exactly as it found it.
+ * before archiving reappears wherever the user can no longer see it. `unchanged` serves Reopen Closed Item, which
+ * reverses one archive and must leave an order the user built by dragging exactly as it found it.
  *
  * The whole batch shares one transaction, so a Session missing half-way through cannot leave the earlier rows restored
  * and the sidebar order partly rewritten.
