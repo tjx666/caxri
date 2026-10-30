@@ -1448,8 +1448,8 @@ after this turn`, or `Queue paused · sends nothing until you resume` with Resum
   sent message shows each reference as a chip under its images. Clicking a chip calls the Desktop
   method `agentChat.openPathReference`, which opens a folder in Finder and reveals a file (or an
   app-like bundle such as `.app`, which opening would launch) in its folder. A Files entry, an
-  Editor tab, or a Project dragged from inside Caxri is inserted at the caret as its absolute path
-  (shell-quoted only when needed), drawn as an atomic pill with its file-type icon and name; the
+  Editor tab dragged with Option held, or a Project dragged from inside Caxri is inserted at the
+  caret as its absolute path (shell-quoted only when needed), drawn as an atomic pill with its file-type icon and name; the
   message carries the path itself (`agent-chat-path-pills.ts`), a folder's with a trailing `/`.
   The sent bubble draws each whole-word absolute path as the same pill (a trailing `/` picks the
   folder icon) and opens it like a file link; a path with a `:line` suffix stays a file link. A
@@ -1494,8 +1494,9 @@ skill`, and `Skill`), so a request such as "open a Session for this" needs no pr
   it, and everything renders while the input is unfocused (`agentChatMarkdownMarks`). Offsets and
   the selection mean the same as a textarea's, so the key owners (stash, prompt history, menus, Goal
   mode, send) read the editor through a textarea-shaped adapter (`AgentChatComposerInput`). Text
-  drags insert at the drop point; files, Editor tabs, and Projects still go to the pane's drop
-  handlers. The 100,000-character limit trims typed and pasted text as a textarea's `maxLength`
+  drags insert at the drop point; files, Option-held Editor tabs, and Projects still go to the
+  pane's drop handlers, and an Editor tab dragged without Option moves into or splits the Chat's
+  pane like a Terminal tab. The 100,000-character limit trims typed and pasted text as a textarea's `maxLength`
   did. A draft set from outside the editor (sent, restored, replaced) stays off the undo stack; an
   insertion such as a picked Session reference can be undone like typing.
 - **Slash commands.** The snapshot's `commands` is the list the composer offers after a leading

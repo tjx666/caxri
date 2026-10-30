@@ -3,14 +3,10 @@ import { useState } from 'react';
 
 import type { AgentChatPathReference } from '@caxri/protocol';
 
-import {
-    hasTerminalDraggedPath,
-    osFilePaths,
-    PROJECT_PATH_DRAG_TYPE,
-} from '../../../lib/file-drag';
+import { hasTerminalDraggedPath, osFilePaths } from '../../../lib/file-drag';
 import { useIsLocalOnlyAvailable } from '../../../stores/environment';
 import { pushToast } from '../../../stores/toasts';
-import { EDITOR_PATH_DRAG_TYPE } from '../../workbench/pane-drop-zone';
+import { isChatPathDrop } from '../../workbench/pane-drop-zone';
 import { pickAgentChatPaths } from '../agent-chat-commands';
 import {
     agentChatDroppedImagePlan,
@@ -22,17 +18,14 @@ import {
 import type { AgentChatComposerPasteEvent } from '../composer/agent-chat-composer-view';
 
 /**
- * Whether a drag carries something the composer takes: files from another application, a Files entry, an Editor tab, or
- * a Project. Only `types` is readable before the drop. An Editor tab dragged with Option is left to the pane, which
- * places it, as Option does over a Terminal.
+ * Whether a drag carries something the composer takes ({@link isChatPathDrop}). Only `types` is readable before the
+ * drop. An Editor tab dragged without Option is left to the pane, which moves or splits it.
  */
 function isComposerDrag(event: DragEvent): boolean {
-    const { types } = event.dataTransfer;
-    return (
-        hasTerminalDraggedPath(event) ||
-        (types.includes(EDITOR_PATH_DRAG_TYPE) && !event.altKey) ||
-        types.includes(PROJECT_PATH_DRAG_TYPE)
-    );
+    return isChatPathDrop(event.dataTransfer.types, {
+        altKey: event.altKey,
+        hasFilePath: hasTerminalDraggedPath(event),
+    });
 }
 
 export type AgentChatDropHandlers = ReturnType<typeof useAgentChatFileInput>['dropHandlers'];
@@ -138,7 +131,7 @@ export function useAgentChatFileInput({
             onDragOver: (event: DragEvent) => {
                 if (!isComposerDrag(event)) return;
                 /**
-                 * The pane underneath would otherwise read an Editor tab drag as a move into this pane.
+                 * The pane underneath would otherwise read an Option-held Editor tab drag as a move into this pane.
                  */
                 event.preventDefault();
                 event.stopPropagation();

@@ -52,6 +52,8 @@ inspects a tab's kind; only the resource capability table does.
 An Editor tab with a filesystem path dragged onto a running Terminal's content pastes that path,
 including at its edges. Hold Option to use pane placement instead: the center moves the tab and an
 edge splits it. Terminal tab drags and tab-bar reordering retain their existing placement behavior.
+Over a Chat the default is reversed: an Editor tab places like a Terminal tab (the center moves it,
+an edge splits it), and Option cites its path in the composer instead.
 Path insertion uses the Terminal's launch directory and shell quoting without submitting a command;
 a stopped Terminal rejects it. External documents (read-only until ADR 0013) use their Main-authorized cached path,
 which is also available through the tab's Copy Path menu. Virtual documents with no single file

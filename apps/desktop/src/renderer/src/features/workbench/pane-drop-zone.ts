@@ -14,23 +14,43 @@ export const PANE_TAB_DRAG_TYPE = 'application/x-caxri-pane-tab';
 export const EDITOR_PATH_DRAG_TYPE = 'application/x-caxri-editor-path';
 
 /**
- * Editor paths paste into Terminal surfaces by default; Option opts back into pane placement.
+ * Editor paths paste into Terminal surfaces by default; Option opts back into pane placement. Over a Chat the reverse
+ * holds ({@link isChatPathDrop}): what its composer cites is no drop for the pane, which would otherwise draw a
+ * placement preview the composer's drop never clears.
  */
 export function resolvePaneDropIntent(
     types: readonly string[],
     options: {
         altKey: boolean;
+        /**
+         * A Chat is a Terminal record whose composer takes path drops itself; pass `isTerminal: false` with it.
+         */
+        isChat?: boolean;
         isTerminal: boolean;
         acceptsFileDrop: boolean;
         hasFilePath: boolean;
     },
 ): 'paste' | 'place' | undefined {
+    if (options.isChat && isChatPathDrop(types, options)) return undefined;
     if (types.includes(PROJECT_PATH_DRAG_TYPE))
         return options.isTerminal && options.acceptsFileDrop ? 'paste' : undefined;
     if (options.isTerminal && types.includes(EDITOR_PATH_DRAG_TYPE) && !options.altKey)
         return options.acceptsFileDrop ? 'paste' : undefined;
     if (hasPaneTabDragType(types)) return 'place';
     return options.acceptsFileDrop && options.hasFilePath ? 'paste' : undefined;
+}
+
+/**
+ * Whether a drag over a Chat cites its path in the composer. An Editor tab is a pane tab first: like a Terminal tab, it
+ * moves into the Chat's pane or splits it, and Option opts into citing its path instead (the inverse of a Terminal,
+ * where pasting is the default). Files entries, files from another application, and Projects always cite.
+ */
+export function isChatPathDrop(
+    types: readonly string[],
+    options: { altKey: boolean; hasFilePath: boolean },
+): boolean {
+    if (options.hasFilePath || types.includes(PROJECT_PATH_DRAG_TYPE)) return true;
+    return options.altKey && types.includes(EDITOR_PATH_DRAG_TYPE);
 }
 
 /**
