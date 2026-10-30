@@ -391,6 +391,11 @@ function buildRepoChildren(
                     badge: { label: lifecycleLabel, tone: lifecycle?.tone ?? 'neutral' },
                     rows: [
                         ...(otherBranch ? [{ label: 'branch', value: otherBranch }] : []),
+                        // Names where a merge would land, so a pull request opened against a release branch or a
+                        // stacked parent is not mistaken for one targeting the default branch.
+                        ...(pullRequest.baseBranch
+                            ? [{ label: 'base', value: pullRequest.baseBranch }]
+                            : []),
                         { label: 'checks', value: checkLabel(pullRequest.state) },
                         ...(pullRequest.lifecycle === 'open' && pullRequest.mergeState
                             ? [{ label: 'merge', value: mergeReadinessLabel(pullRequest) }]

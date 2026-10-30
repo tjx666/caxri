@@ -73,6 +73,39 @@ describe('Status extension branch row', () => {
             (here?.tooltip as TreeItemRichTooltip).rows?.some((row) => row.label === 'branch'),
         ).toBe(false);
     });
+
+    it('names the base branch the pull request merges into', () => {
+        const pullRequestRow = (baseBranch?: string) =>
+            buildRepoNode({
+                id: 'repo',
+                kind: 'primary',
+                name: 'Project',
+                branch: 'feat/delivery',
+                acceptances: [],
+                linearIssues: [],
+                errors: [],
+                pullRequest: {
+                    number: 3,
+                    title: 'Delivery',
+                    url: 'https://github.com/a/b/pull/3',
+                    lifecycle: 'open',
+                    state: 'success',
+                    hiddenCheckCount: 0,
+                    checks: [],
+                    ...(baseBranch && { baseBranch }),
+                },
+            }).children?.find((child) => child.item.id === 'status:repo:repo:pr')?.item;
+
+        expect((pullRequestRow('release/1.x')?.tooltip as TreeItemRichTooltip).rows?.[0]).toEqual({
+            label: 'base',
+            value: 'release/1.x',
+        });
+        expect(
+            (pullRequestRow()?.tooltip as TreeItemRichTooltip).rows?.some(
+                (row) => row.label === 'base',
+            ),
+        ).toBe(false);
+    });
 });
 
 /**
