@@ -313,6 +313,26 @@ describe('shared ESLint preset toolchain contract', () => {
         );
     });
 
+    it('leaves Promise.withResolvers to tests in the ES2022 Mobile runtime', async () => {
+        const source = `
+let release = (): void => {};
+const released = new Promise<void>((resolve) => {
+    release = resolve;
+});
+export { release, released };
+`;
+        const [runtime, test] = await Promise.all([
+            lintSource('apps/mobile/src/release-latch.ts', source),
+            lintSource('apps/mobile/src/__tests__/release-latch.test.ts', source),
+        ]);
+        expect(runtime.messages.map(({ ruleId }) => ruleId)).not.toContain(
+            'unicorn/prefer-promise-with-resolvers',
+        );
+        expect(test.messages.map(({ ruleId }) => ruleId)).toContain(
+            'unicorn/prefer-promise-with-resolvers',
+        );
+    });
+
     it('rejects platform imports across both mobile runtime roots', async () => {
         const cases = [
             ['apps/mobile/src/node-prefixed-import.ts', 'node:fs'],

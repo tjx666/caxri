@@ -675,4 +675,16 @@ export default defineConfig(
             'caxri/no-render-translate': 'error',
         },
     },
+    /**
+     * Mobile runtime code compiles against ES2022 (`apps/mobile/tsconfig.runtime.json`), where Hermes has no
+     * `Promise.withResolvers`; following this rule there fails the workspace typecheck with TS2550. Tests run under
+     * Node and keep the rule.
+     */
+    {
+        files: ['apps/mobile/app/**/*.{ts,tsx}', 'apps/mobile/src/**/*.{ts,tsx}'],
+        ignores: ['**/__tests__/**', '**/*.test.{ts,tsx}'],
+        rules: {
+            'unicorn/prefer-promise-with-resolvers': 'off',
+        },
+    },
 );
