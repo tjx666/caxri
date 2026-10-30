@@ -1,3 +1,4 @@
+import { agentChatSessionHandoffTarget } from '@caxri/protocol';
 import { MessageSquareShare } from 'lucide-react';
 
 import { useTranslation } from '../../../i18n';
@@ -5,7 +6,6 @@ import { useSessions, useTerminal } from '../../../stores/selectors';
 import { openSession } from '../../session/session-commands';
 import { sessionTitleForDisplay } from '../../session/session-title';
 import { useAgentChatTerminal } from '../hooks/use-agent-chat-terminal';
-import { agentChatSessionHandoffTarget } from './agent-chat-session-handoff-target';
 
 /**
  * Where the hand-off went, once the Agent created the new Session: a link to it, or an archived Session's title.

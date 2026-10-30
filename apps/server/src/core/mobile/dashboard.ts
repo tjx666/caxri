@@ -159,6 +159,10 @@ export const buildMobileDashboard = (input: {
             projectId: session.projectId,
             title: title(session.title),
             projectTitle: title(projects.get(session.projectId)?.title ?? 'Project'),
+            createdAt: session.createdAt,
+            ...(session.createdBySessionId !== undefined && {
+                createdBySessionId: session.createdBySessionId,
+            }),
             lastVisitedAt: session.lastVisitedAt,
             sessionActivityAt: session.sessionActivityAt,
             ...(session.pinnedAt !== undefined && { pinnedAt: session.pinnedAt }),

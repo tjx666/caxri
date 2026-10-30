@@ -28,6 +28,7 @@ describe('agentChatMenuMatches', () => {
     it('lists commands then skills for a bare slash and narrows while the user types', () => {
         const todo = [skill('$todo-sweep')];
         expect(invocations(agentChatMenuMatches('/', commands, todo) ?? [])).toEqual([
+            '/new-session',
             '/compact',
             '/review',
             '/mcp:list',
@@ -47,6 +48,7 @@ describe('agentChatMenuMatches', () => {
             skill('$commit', 'Compact commits'),
         ];
         expect(invocations(agentChatMenuMatches('/to', commands, skills) ?? [])).toEqual([
+            '/new-session',
             '$todo-sweep',
         ]);
         expect(invocations(agentChatMenuMatches('$com', commands, skills) ?? [])).toEqual([
@@ -69,8 +71,27 @@ describe('agentChatMenuMatches', () => {
     it('shows no menu mid-sentence, past the name, or with nothing to offer', () => {
         expect(agentChatMenuMatches('fix /rev', commands, undefined)).toBeUndefined();
         expect(agentChatMenuMatches('/review src', commands, undefined)).toBeUndefined();
-        expect(agentChatMenuMatches('/', undefined, undefined)).toBeUndefined();
-        expect(agentChatMenuMatches('/', [], [])).toBeUndefined();
+    });
+
+    it('leads with Caxri /new-session on every provider, ahead of a provider command of that name', () => {
+        expect(invocations(agentChatMenuMatches('/', undefined, undefined) ?? [])).toEqual([
+            '/new-session',
+        ]);
+        expect(invocations(agentChatMenuMatches('/', commands, undefined) ?? [])[0]).toBe(
+            '/new-session',
+        );
+        const shadowed = agentChatMenuMatches('/new', [{ name: 'new-session' }], undefined) ?? [];
+        expect(shadowed.map(({ source }) => source)).toEqual(['builtIn']);
+        expect(agentChatMenuMatches('/new-session', undefined, undefined)).toHaveLength(1);
+    });
+
+    it('completes /new-session into the draft instead of sending it', () => {
+        const [handoff] = agentChatMenuMatches('/new', undefined, undefined) ?? [];
+        expect(handoff.argumentHint).toBeTruthy();
+        expect(agentChatCommandChoice(handoff)).toEqual({
+            kind: 'complete',
+            draft: '/new-session ',
+        });
     });
 
     it('keeps the menu open with no matches so a typo reads as a miss', () => {
@@ -107,24 +128,18 @@ describe('shouldHoldAgentChatSendAsText', () => {
         expect(hold('/zzz', '/zz')).toBe(true);
     });
 
-    it('never holds a listed command, ordinary text, a skill, or a provider without commands', () => {
+    it('never holds a listed command, /new-session, ordinary text, or a skill', () => {
+        expect(hold('/new-session')).toBe(false);
         expect(hold('/compact')).toBe(false);
         expect(hold('hello')).toBe(false);
         expect(hold('/zzz now')).toBe(false);
         expect(hold('$zzz')).toBe(false);
-        expect(
-            shouldHoldAgentChatSendAsText({
-                confirmedDraft: undefined,
-                draft: '/zzz',
-                matches: agentChatMenuMatches('/zzz', [], undefined),
-            }),
-        ).toBe(false);
     });
 });
 
 describe('agentChatCommandChoice', () => {
     it('runs a command without arguments and completes one that takes them or a skill', () => {
-        const [compact, review] = agentChatMenuMatches('/', commands, undefined) ?? [];
+        const [, compact, review] = agentChatMenuMatches('/', commands, undefined) ?? [];
         expect(agentChatCommandChoice(compact)).toEqual({
             kind: 'run',
             command: { name: 'compact' },

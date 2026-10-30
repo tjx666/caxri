@@ -3,7 +3,9 @@ import { Image, StyleSheet, Text, View } from 'react-native';
 
 import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
+import { ConversationHandoffCard } from '../conversation/conversation-handoff-card';
 import { conversationStyles } from '../conversation/conversation-styles';
+import { conversationUserText } from '../conversation/conversation-user-text';
 
 const THUMBNAIL_SIZE = 96;
 
@@ -24,6 +26,8 @@ export const AgentChatPendingMessage = ({
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
+    // A `/new-session` hand-off shows as its card while it is on its way, never as the instructions for the Agent.
+    const user = conversationUserText(text);
     return (
         <View
             accessibilityState={{ busy: true }}
@@ -45,9 +49,16 @@ export const AgentChatPendingMessage = ({
             ) : null}
             {text.length > 0 ? (
                 <View style={[conversationStyles.userBubble, { backgroundColor: theme.surface }]}>
-                    <Text selectable style={[conversationStyles.userText, { color: theme.text }]}>
-                        {text}
-                    </Text>
+                    {user.kind === 'handoff' ? (
+                        <ConversationHandoffCard note={user.note} theme={theme} />
+                    ) : (
+                        <Text
+                            selectable
+                            style={[conversationStyles.userText, { color: theme.text }]}
+                        >
+                            {text}
+                        </Text>
+                    )}
                 </View>
             ) : null}
             <Text

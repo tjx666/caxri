@@ -1,5 +1,6 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import type { ComponentType } from 'react';
+import { use, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
@@ -17,15 +18,18 @@ import {
     ClipboardCheck,
     GitPullRequest,
     ListChecks,
+    MessageSquareShare,
 } from 'lucide-react-native';
 
 import { Card } from '../../components/card';
+import { IconButton } from '../../components/icon-button';
 import type { TranslationKey } from '../../i18n';
 import { useTranslation } from '../../i18n';
 import { openLink } from '../../lib/open-link';
 import { MONOSPACE_FONT } from '../../theme/monospace';
 import { mobileSpace, mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
+import { AgentChatHandoffStarter, agentChatIssueHandoffDraft } from './agent-chat-handoff';
 import { AgentChatResultRow } from './agent-chat-result-row';
 
 interface MarkProperties {
@@ -107,7 +111,8 @@ const ACTION_LABEL = {
 /**
  * A pull request, issue, or acceptance report the Agent created or edited this turn, as Desktop's tracker card: the
  * tracker's mark in a tile, the title beside its reference, the body's first line, and what was done to it (led by a
- * Linear issue's state) with an external arrow, since a tap opens the page in the in-app browser.
+ * Linear issue's state) with an external arrow, since a tap opens the page in the in-app browser. An issue's card has a
+ * button beside it that starts the issue in a new Session (`/new-session`), as Desktop's does.
  */
 export const AgentChatTrackerCard = ({
     artifact,
@@ -130,7 +135,9 @@ export const AgentChatTrackerCard = ({
         (artifact.kind === 'acceptance' ? t('chat.tracker.acceptanceTitle') : undefined);
     const reference = trackerReferenceText(artifact);
     const excerpt = trackerExcerptText(artifact);
-    return (
+    const startHandoff = use(AgentChatHandoffStarter);
+    const [isStarting, setStarting] = useState(false);
+    const card = (
         <Card padded={false} theme={theme}>
             <AgentChatResultRow
                 accessibilityLabel={
@@ -187,9 +194,33 @@ export const AgentChatTrackerCard = ({
             </AgentChatResultRow>
         </Card>
     );
+    if (!startHandoff || artifact.kind !== 'issue') return card;
+    const startLabel = t('chat.handoff.startIssue', { reference });
+    return (
+        <View style={styles.withAction}>
+            <View style={styles.card}>{card}</View>
+            <IconButton
+                accessibilityLabel={startLabel}
+                color={theme.primary}
+                disabled={isStarting}
+                icon={MessageSquareShare}
+                onPress={() => {
+                    setStarting(true);
+                    void startHandoff(
+                        agentChatIssueHandoffDraft({ reference, url: artifact.url }),
+                    ).finally(() => setStarting(false));
+                }}
+                size={20}
+                testID={`agent-chat-tracker-handoff-${artifact.reference}`}
+                theme={theme}
+            />
+        </View>
+    );
 };
 
 const styles = StyleSheet.create({
+    withAction: { alignItems: 'center', flexDirection: 'row', gap: mobileSpace.xs },
+    card: { flex: 1, minWidth: 0 },
     titleRow: { alignItems: 'baseline', flexDirection: 'row', gap: mobileSpace.sm, minWidth: 0 },
     title: { ...mobileType.body, flexShrink: 1 },
     reference: { ...mobileType.caption, flexShrink: 0, fontFamily: MONOSPACE_FONT },

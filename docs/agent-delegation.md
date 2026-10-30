@@ -115,10 +115,13 @@ because only it holds the conversation; the next Agent cannot read it.
 - **The asking Session.** Every reading of a sent message as the user's words
   (`parseAgentChatPathReferences`) returns the hand-off as the `/new-session <note>` the user typed,
   so Copy, Edit from here, prompt history, queue rows, and the phone never show the instructions.
-  Desktop draws the message as a card: a `New Session` chip with the note, and once the Agent created
-  the Session a "Continued in" link to it. The delegation does not record which message asked for
-  it, so the link names the first Session the asking Session created at or after the message
-  (`agent-chat-session-handoff-target.ts`).
+  Desktop and the phone draw the message as a card: a `New Session` chip with the note, and once the
+  Agent created the Session a "Continued in" link to it. The delegation does not record which message
+  asked for it, so the link names the first Session the asking Session created at or after the
+  message (`agentChatSessionHandoffTarget` in `@caxri/protocol`, fed by the Session's `createdAt` and
+  `createdBySessionId`, which the phone's dashboard carries). The phone lists no archived Session, so
+  an archived target shows no link there. The phone's composer offers `/new-session` first in its
+  command menu, and its issue cards carry the same start button as Desktop's.
 - **The new Session.** Its first message is the delegated pointer, drawn as the "Continued from"
   card described under [Agent Chat children](#agent-chat-children) ("How the pointer reads") with the same glyph, so the two
   ends read as one move. The sidebar's "Created by" row points back as for any created Session.

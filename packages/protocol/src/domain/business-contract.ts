@@ -67,6 +67,11 @@ const sessionSummarySchema = sessionRecordSchema.pick({
     projectId: true,
     title: true,
     archivedAt: true,
+    /**
+     * With `createdBySessionId`, what lets the phone find the Session a `/new-session` hand-off created.
+     */
+    createdAt: true,
+    createdBySessionId: true,
     lastVisitedAt: true,
     sessionActivityAt: true,
     pinnedAt: true,

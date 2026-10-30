@@ -26,6 +26,8 @@ import { ConversationList } from '../conversation/conversation-view';
 import { MessageReadOfflineError } from '../conversation/read-whole-message';
 import { SavedCopyNote } from '../read-cache/saved-copy-note';
 import { AgentChatDock } from './agent-chat-dock';
+import type { AgentChatHandoffSource } from './agent-chat-handoff';
+import { AgentChatHandoffScope } from './agent-chat-handoff-scope';
 import { AgentChatMcpServersContext } from './agent-chat-mcp-icons';
 import type { AgentChatEditTarget } from './agent-chat-message-edit';
 import {
@@ -69,6 +71,7 @@ const AgentChatBody = ({
     canSend,
     chat,
     enterFrom,
+    handoffSource,
     isConnected,
     isHandedOff,
     onEditMessage,
@@ -81,6 +84,7 @@ const AgentChatBody = ({
     canSend: boolean;
     chat: AgentChatController;
     enterFrom: -1 | 0 | 1 | null;
+    handoffSource: AgentChatHandoffSource;
     isConnected: boolean;
     isHandedOff: boolean;
     onEditMessage: (target: AgentChatEditTarget, text: string) => void;
@@ -191,20 +195,22 @@ const AgentChatBody = ({
         return (
             <ConversationUserAttachments value={renderImages}>
                 <AgentChatMcpServersContext value={mcpServers}>
-                    <ConversationMessageActions value={setActionTarget}>
-                        <ConversationList
-                            entries={entries}
-                            enterFrom={enterFrom}
-                            followKey={pending.sendCount}
-                            isConnected={isConnected}
-                            isTurnStart={isAgentChatTurnStart}
-                            onFollowingChange={setFollowing}
-                            onRetry={chat.refresh}
-                            renderEntry={renderEntry}
-                            theme={theme}
-                            timeline={timeline}
-                        />
-                    </ConversationMessageActions>
+                    <AgentChatHandoffScope canSend={canSend} chat={chat} source={handoffSource}>
+                        <ConversationMessageActions value={setActionTarget}>
+                            <ConversationList
+                                entries={entries}
+                                enterFrom={enterFrom}
+                                followKey={pending.sendCount}
+                                isConnected={isConnected}
+                                isTurnStart={isAgentChatTurnStart}
+                                onFollowingChange={setFollowing}
+                                onRetry={chat.refresh}
+                                renderEntry={renderEntry}
+                                theme={theme}
+                                timeline={timeline}
+                            />
+                        </ConversationMessageActions>
+                    </AgentChatHandoffScope>
                 </AgentChatMcpServersContext>
                 {actionTarget ? (
                     <AgentChatMessageSheet
@@ -359,6 +365,7 @@ export const AgentChatView = ({
     chat,
     deviceRole,
     enterFrom,
+    handoffSource,
     isConnected,
     isHandedOff,
     onEditMessage,
@@ -372,6 +379,10 @@ export const AgentChatView = ({
      */
     deviceRole: 'view' | 'reply' | 'control' | null;
     enterFrom: -1 | 0 | 1 | null;
+    /**
+     * The Session, Project, and Agent a `/new-session` hand-off started from this Chat names.
+     */
+    handoffSource: AgentChatHandoffSource;
     /**
      * While the phone is disconnected the app-wide connection banner already explains the stale copy, so the Chat only
      * reports its own read failures.
@@ -488,6 +499,7 @@ export const AgentChatView = ({
                     canSend={canRetry}
                     chat={chat}
                     enterFrom={enterFrom}
+                    handoffSource={handoffSource}
                     isConnected={isConnected}
                     isHandedOff={isHandedOff}
                     onEditMessage={onEditMessage}

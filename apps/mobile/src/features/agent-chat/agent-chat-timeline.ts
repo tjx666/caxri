@@ -58,6 +58,12 @@ export type AgentChatTimelineEntry =
            * none.
            */
           cited?: { references: AgentChatPathReference[]; skills: AgentChatSkillReference[] };
+          /**
+           * Set when the message is a `/new-session` hand-off (`parseAgentChatPathReferences`): the card shows the
+           * user's note instead of the words, and `sentAt` (when the message entered the conversation) finds the
+           * Session it started.
+           */
+          handoff?: { note: string; sentAt: number | undefined };
       }
     | {
           /**
@@ -197,10 +203,12 @@ function messageEntry(
 ): AgentChatTimelineEntry {
     const base = { kind: 'message' as const, id: item.id, message: toMessage(item, t) };
     if (item.type !== 'userMessage') return base;
-    const { references, skills } = parseAgentChatPathReferences(item.text);
-    return references.length > 0 || skills.length > 0
-        ? { ...base, cited: { references, skills } }
-        : base;
+    const { handoff, references, skills } = parseAgentChatPathReferences(item.text);
+    return {
+        ...base,
+        ...((references.length > 0 || skills.length > 0) && { cited: { references, skills } }),
+        ...(handoff && { handoff: { note: handoff.note, sentAt: item.createdAt } }),
+    };
 }
 
 /**

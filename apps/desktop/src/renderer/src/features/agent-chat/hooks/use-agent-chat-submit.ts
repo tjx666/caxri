@@ -2,6 +2,7 @@ import { useState } from 'react';
 
 import type { AgentChatCommand, AgentChatMessageInput } from '@caxri/protocol';
 import {
+    agentChatSessionHandoffMessage,
     agentChatTextWithPathReferences,
     agentProviderCatalog,
     parseAgentChatCommand,
@@ -27,7 +28,6 @@ import {
     isAgentChatSkillAttachment,
     returnUnsentAgentChatMessage,
 } from '../composer-input/agent-chat-drafts';
-import { agentChatSessionHandoffMessage } from '../session-handoff/agent-chat-session-handoff-message';
 import {
     askAgentChatSideQuestion,
     isAgentChatSideChatBusyFor,

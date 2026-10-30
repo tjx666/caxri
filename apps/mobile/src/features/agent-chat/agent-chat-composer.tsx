@@ -35,6 +35,8 @@ import {
 } from './agent-chat-composer-buttons';
 import { AgentChatComposerInput } from './agent-chat-composer-input';
 import { AgentChatEditBanner } from './agent-chat-edit-banner';
+import type { AgentChatHandoffSource } from './agent-chat-handoff';
+import { agentChatHandoffText } from './agent-chat-handoff';
 import {
     agentChatComposerAvailability,
     agentChatComposerPressDeliveries,
@@ -50,6 +52,7 @@ import { AgentChatSettings } from './agent-chat-settings';
 import { sheetStyles } from './agent-chat-sheet-styles';
 import type { AgentChatController } from './use-agent-chat';
 import { useAgentChatCommandRun } from './use-agent-chat-command-run';
+import { useAgentChatHandoffSource } from './use-agent-chat-handoff-source';
 import { useAgentChatSkills } from './use-agent-chat-skills';
 import { useTransientNotice } from './use-transient-notice';
 
@@ -84,6 +87,7 @@ const useComposerAction = ({
     chat,
     draft,
     images,
+    handoffSource,
     isStopAction,
     menuMatches,
     onDraftChange,
@@ -93,6 +97,10 @@ const useComposerAction = ({
     chat: AgentChatController;
     draft: string;
     images: ReturnType<typeof useImageAttachments>;
+    /**
+     * What a `/new-session` draft names: this Chat's Session, its Project, and its Agent.
+     */
+    handoffSource: AgentChatHandoffSource;
     isStopAction: boolean;
     /**
      * The command menu's rows for `draft` (`agentChatMenuMatches`).
@@ -177,13 +185,25 @@ const useComposerAction = ({
             setConfirmedDraft(draft);
             return;
         }
-        const command = parseAgentChatCommand(draft, chat.snapshot?.commands);
+        /**
+         * `/new-session [next task]` is Caxri's own command: it sends the hand-off instructions as an ordinary message,
+         * ahead of any provider command of that name. When the Project or Agent is unknown it says so rather than send
+         * the literal command to the Agent.
+         */
+        const handoff = agentChatHandoffText(draft, handoffSource);
+        if (handoff === null) {
+            setError(t('chat.handoff.unavailable'));
+            return;
+        }
+        const command =
+            handoff === undefined && parseAgentChatCommand(draft, chat.snapshot?.commands);
         if (command) {
             await commands.run(command);
             return;
         }
         if (chat.pendingKey === null) return;
         const text = draft.trim();
+        const sentText = handoff ?? text;
         const sentImages = images.attachments;
         const references = images.readyChatImages;
         await sendAgentChatMessageOptimistically({
@@ -194,7 +214,7 @@ const useComposerAction = ({
             key: chat.pendingKey,
             message: {
                 id: Crypto.randomUUID(),
-                text,
+                text: sentText,
                 imageUris: sentImages.map((image) => image.uri),
                 delivery,
             },
@@ -204,7 +224,7 @@ const useComposerAction = ({
                     onDraftChange(agentChatDraftWithReturnedMessage(latestDraft.current, text));
                 images.restore(sentImages);
             },
-            send: () => chat.send(text, references, delivery),
+            send: () => chat.send(sentText, references, delivery),
             snapshot: chat.snapshot,
         });
     };
@@ -243,7 +263,7 @@ const useComposerMenu = ({
     });
     if (!isEnabled) return { matches: undefined, notice: undefined };
     return {
-        matches: agentChatMenuMatches(draft, chat.snapshot?.commands, skills.skills),
+        matches: agentChatMenuMatches(draft, chat.snapshot?.commands, skills.skills, t),
         notice: agentChatSkillNotice(skills, t),
     };
 };
@@ -375,6 +395,7 @@ export const AgentChatComposer = ({
      * Why a disabled attach button cannot attach, shown on the status line for a few seconds after a tap on it.
      */
     const [attachNotice, showAttachNotice] = useTransientNotice();
+    const handoffSource = useAgentChatHandoffSource(sessionId, providerId);
     const access = { deviceRole, isConnected, isHandedOff, snapshot: chat.snapshot };
     const availability = agentChatComposerAvailability(access, t);
     const activeTurnId = chat.snapshot?.activeTurnId;
@@ -403,6 +424,7 @@ export const AgentChatComposer = ({
         chat,
         draft,
         images,
+        handoffSource,
         isStopAction,
         menuMatches: menu.matches,
         onDraftChange,
