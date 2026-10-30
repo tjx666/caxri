@@ -6,7 +6,7 @@ import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 
-import { verifyBuildReceipt } from '../../../../scripts/build-receipt';
+import { INSTALL_MISMATCH_HINT, verifyBuildReceipt } from '../../../../scripts/build-receipt';
 import { affectedTestArguments } from '../../../../scripts/run-ci-unit-tests';
 import {
     acquireDesktopLease,
@@ -361,6 +361,9 @@ async function runE2E(
         // Checked under the lease, so no sibling `check --e2e` in this worktree rewrites the output between the receipt
         // check and the Playwright launch.
         const receipt = await verifyBuildReceipt(root, { purpose: 'reuse' });
+        // A build would succeed yet record no receipt, so every launch would still refuse it as stale.
+        if (!receipt.isValid && receipt.reason === 'install-mismatch')
+            throw new CheckError(INSTALL_MISMATCH_HINT);
         if (!receipt.isValid) await runCapture('bun', ['run', 'build'], root, environment);
         await runTool(root, 'playwright', playwrightArguments(specs, grep), environment);
         return receipt.isValid ? `${specs.length} (build reused)` : `${specs.length}`;

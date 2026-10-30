@@ -140,6 +140,11 @@ describe('build receipt', () => {
         });
         await beginBuild(root);
         expect(await recordBuild(root)).toBe('install-mismatch');
+        // The dropped receipt must not mask the cause: rebuilding alone never clears it.
+        expect(await verifyBuildReceipt(root, { purpose: 'launch' })).toEqual({
+            isValid: false,
+            reason: 'install-mismatch',
+        });
     });
 
     it('drops the receipt when inputs change while the build runs', async () => {
