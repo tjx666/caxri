@@ -1,5 +1,5 @@
 import { Buffer } from 'node:buffer';
-import { access, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { access, mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
@@ -16,6 +16,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import WebSocket from 'ws';
 
 import { createTestProtocolRecoveryState } from '../../__tests__/support/protocol-recovery';
+import { removeTestDirectory } from '../../__tests__/support/remove-test-directory';
 import type { CreateDomainServices } from '../../core/domain-service';
 import type { DomainHandlers } from '../../domains/domain-services';
 import * as extensionServiceFactory from '../extensions/create-service';
@@ -104,9 +105,7 @@ afterEach(async () => {
 
     const directoriesToRemove = directories.slice();
     directories.length = 0;
-    await Promise.all(
-        directoriesToRemove.map((directory) => rm(directory, { recursive: true, force: true })),
-    );
+    await Promise.all(directoriesToRemove.map((directory) => removeTestDirectory(directory)));
 });
 
 function messageReader(socket: WebSocket): () => Promise<unknown> {

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -7,6 +7,7 @@ import { StructuredLogger } from '@caxri/system';
 import { describe, expect, it, onTestFinished } from 'vitest';
 
 import { createTestDomainServices } from '../../__tests__/support/domain-services';
+import { removeTestDirectory } from '../../__tests__/support/remove-test-directory';
 import { CaxriDatabase } from '../db';
 import { createFakePty, createPendingAgentAdapters } from './create-test-domain-services';
 
@@ -15,7 +16,7 @@ describe('Delegation task retention', () => {
         'reclaims only owned task files when deleting a %s',
         async (target) => {
             const directory = await mkdtemp(join(tmpdir(), 'caxri-delegation-retention-'));
-            onTestFinished(() => rm(directory, { recursive: true, force: true }));
+            onTestFinished(() => removeTestDirectory(directory));
             const profile = join(directory, 'profile');
             const root = join(directory, 'project');
             await mkdir(profile);
