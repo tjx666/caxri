@@ -1526,7 +1526,7 @@ step (`Opened PR`, `Merged PR #12`, `Checked PR`) name the step the same way, th
 such as `rtk`, `bunx`, `cd dir &&`, environment assignments, and `2>&1`; while running they keep
 the command's live glyph. A finished turn folds everything except the prompt, the final reply, and
 notices behind one `Worked for 2m 1s` row with a bottom hairline. Hovering or focusing the row
-reveals the turn's figures after its label in 11px `--muted`, separated by hairlines: the subagent
+reveals the turn's figures at its right edge in 11px `--muted`, separated by hairlines: the subagent
 count (a `Bot` glyph and the number; one subagent opens it, several open a menu listing them), steps,
 tokens, estimated cost, and the output rate last, matching the composer strip's order. Hidden figures
 keep their width so the row never reflows, and a count with a running subagent stays visible.

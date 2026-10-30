@@ -41,11 +41,9 @@ export function AgentChatTurnSubagents({
     const summary = t('agentChat.fold.subagents', { count: subagents.length });
     const namesTooltip = (
         <div className="flex flex-col">
-            {names.map((name, index) => (
-                // Two subagents may share a title, so the position keys the line.
-                // oxlint-disable-next-line react/no-array-index-key -- the list never reorders while the tooltip is open
-                <div className="truncate" key={index}>
-                    {name}
+            {subagents.map((subagent, index) => (
+                <div className="truncate" key={subagent.taskId}>
+                    {names[index]}
                 </div>
             ))}
         </div>

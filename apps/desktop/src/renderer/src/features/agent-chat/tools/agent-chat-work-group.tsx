@@ -134,13 +134,16 @@ function DisclosureRow({
     });
     const detailId = useId();
     const titleId = useId();
+    const hasSubtitle = subtitle !== undefined;
+    // A two-line row keeps its glyph, facts, and actions on the first line instead of centering them on both.
+    const alignClassName = hasSubtitle ? 'items-start' : 'items-center';
     const trailingId = useId();
     const chevron = (
         <ChevronRight
             aria-hidden="true"
             className={cn(
                 'size-3.5 shrink-0 text-muted opacity-0 group-hover/row:opacity-100 group-has-[>button:focus-visible]/row:opacity-100',
-                subtitle !== undefined && !isList && 'mt-0.75',
+                hasSubtitle && !isList && 'mt-0.75',
                 agentChatChevronMotion(isExpanded),
                 isExpanded && 'rotate-90',
                 isList && isExpanded && 'opacity-100',
@@ -151,7 +154,7 @@ function DisclosureRow({
         <div
             className={cn(
                 'group/row relative flex w-full min-w-0 gap-2 rounded px-1 py-0.5 text-muted hover:bg-list-hover-background hover:text-list-hover-foreground has-[>button:focus-visible]:outline has-[>button:focus-visible]:outline-accent',
-                subtitle === undefined ? 'items-center' : 'items-start',
+                alignClassName,
             )}
         >
             <button
@@ -163,31 +166,18 @@ function DisclosureRow({
                 onClick={(event) => toggle(event.currentTarget)}
             />
             <span className="flex h-5 w-4 shrink-0 items-center justify-center">{glyph}</span>
-            {subtitle === undefined ? (
+            <span className="flex min-w-0 flex-1 flex-col" id={titleId}>
                 <span
                     className={cn(
-                        'flex min-w-0 flex-1 items-center gap-1.5',
+                        'flex min-w-0 items-center gap-1.5',
                         isRunning && RUNNING_TITLE_CLASS_NAME,
                     )}
-                    id={titleId}
                 >
                     {title}
                     {isList && chevron}
                 </span>
-            ) : (
-                <span className="flex min-w-0 flex-1 flex-col" id={titleId}>
-                    <span
-                        className={cn(
-                            'flex min-w-0 items-center gap-1.5',
-                            isRunning && RUNNING_TITLE_CLASS_NAME,
-                        )}
-                    >
-                        {title}
-                        {isList && chevron}
-                    </span>
-                    <span className="min-w-0 truncate text-muted">{subtitle}</span>
-                </span>
-            )}
+                {hasSubtitle && <span className="min-w-0 truncate text-muted">{subtitle}</span>}
+            </span>
             <span className="flex h-5 shrink-0 items-center gap-2" id={trailingId}>
                 {trailing}
             </span>
@@ -202,12 +192,7 @@ function DisclosureRow({
     return (
         <div className="text-[12px] leading-5" data-agent-chat-work-item={itemId}>
             {action ? (
-                <div
-                    className={cn(
-                        'flex min-w-0 gap-1',
-                        subtitle === undefined ? 'items-center' : 'items-start',
-                    )}
-                >
+                <div className={cn('flex min-w-0 gap-1', alignClassName)}>
                     {row}
                     {action}
                 </div>
