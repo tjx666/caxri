@@ -187,7 +187,7 @@ const TreeRow = ({
                     <View style={styles.treeActions}>
                         {actions.map((action, index) => (
                             <TreeItemActionButton
-                                key={index}
+                                key={`${action.command.id}:${action.command.title}`}
                                 action={action}
                                 sessionId={sessionId}
                                 testID={`tree-row-action-${position}-${index}`}
