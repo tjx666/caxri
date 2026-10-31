@@ -149,6 +149,15 @@ method and passes `--match-head-commit`, so GitHub refuses the merge if new comm
 phone read the pull request. Any blocker other than conflicts still allows a merge; the phone
 first asks for a second confirmation that names it, as Desktop does.
 
+The Status panel on the phone also carries Desktop's per-repository `Merge` buttons, so a submodule
+or nested repository's pull request merges from its own row. `mobile.tree.children` projects each
+row's inline actions that a phone can run: an extension's own command or `caxri.openExternal`
+(opened on the phone). Renderer-resolved commands such as `caxri.sendToAgent` are dropped.
+`mobile.tree.executeCommand` runs an extension command through the same
+`ExtensionService.executeCommand` Desktop uses, scoped to the phone's Session. Because that command
+may be the merge, it requires the control role and re-checks the device generation before and
+after the command runs.
+
 ## Agent usage from mobile
 
 `mobile.agentUsage.read` answers the phone's Agent usage screen, reached from the gauge button in

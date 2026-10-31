@@ -12,10 +12,12 @@ import type { MobileTheme } from '../../theme/tokens';
 import { panelsStyles as styles } from './panels-styles';
 import { PendingPanelState } from './pending-panel-state';
 import { treeChildrenView } from './tree-children-view';
+import { TreeItemActionButton } from './tree-item-action-button';
 import { TreeItemIcon } from './tree-item-icon';
 import { useExtensionTreeSubscription, useTreeChildren } from './use-panels';
 
 type TreeItem = MethodResult<'mobile.tree.children'>['items'][number];
+type DeviceRole = 'view' | 'reply' | 'control' | null;
 
 /**
  * Nested rows indent by this much per level; deep trees still fit a phone for a handful of levels.
@@ -24,13 +26,17 @@ const INDENT = 16;
 
 const TreeChildren = ({
     depth,
+    deviceRole,
     parentHandle,
+    parentPosition,
     sessionId,
     theme,
     viewId,
 }: {
     depth: number;
+    deviceRole: DeviceRole;
     parentHandle?: string;
+    parentPosition?: string;
     sessionId: string;
     theme: MobileTheme;
     viewId: string;
@@ -96,12 +102,16 @@ const TreeChildren = ({
         );
     return (
         <>
-            {(children.data?.items ?? []).map((item) => (
+            {(children.data?.items ?? []).map((item, index) => (
                 // eslint-disable-next-line @typescript-eslint/no-use-before-define, no-use-before-define -- Rows and their children recurse into each other.
                 <TreeRow
                     key={item.handle}
                     depth={depth}
+                    deviceRole={deviceRole}
                     item={item}
+                    position={
+                        parentPosition === undefined ? `${index}` : `${parentPosition}.${index}`
+                    }
                     sessionId={sessionId}
                     theme={theme}
                     viewId={viewId}
@@ -113,13 +123,21 @@ const TreeChildren = ({
 
 const TreeRow = ({
     depth,
+    deviceRole,
     item,
+    position,
     sessionId,
     theme,
     viewId,
 }: {
     depth: number;
+    deviceRole: DeviceRole;
     item: TreeItem;
+    /**
+     * The row's place in the tree as sibling indexes (`1.2` is the third child of the second root row). It keys the
+     * inline actions' test IDs, which must differ between rows yet must not carry a handle, a label, or a path.
+     */
+    position: string;
     sessionId: string;
     theme: MobileTheme;
     viewId: string;
@@ -127,40 +145,64 @@ const TreeRow = ({
     const [isExpanded, setExpanded] = useState(item.collapsibleState === 'expanded');
     const isCollapsible = item.collapsibleState !== 'none';
     const Chevron = isExpanded ? ChevronDown : ChevronRight;
+    // Inline actions change state (a merge cannot be undone), so only a control device gets them, like the merge sheet.
+    const actions = deviceRole === 'control' ? (item.actions ?? []) : [];
     return (
         <View>
-            <Pressable
-                accessibilityLabel={[item.label, item.description].filter(Boolean).join(', ')}
-                accessibilityRole={isCollapsible ? 'button' : 'text'}
-                accessibilityState={isCollapsible ? { expanded: isExpanded } : undefined}
-                disabled={!isCollapsible}
-                onPress={() => setExpanded((value) => !value)}
-                style={({ pressed }) => [
-                    styles.row,
-                    {
-                        backgroundColor: pressed ? theme.surface : 'transparent',
-                        paddingLeft: mobileSpace.sm + depth * INDENT,
-                    },
-                ]}
-                testID="tree-row"
-            >
-                <View style={styles.treeChevron}>
-                    {isCollapsible ? <Chevron color={theme.muted} size={16} /> : null}
-                </View>
-                {item.icon ? <TreeItemIcon icon={item.icon} theme={theme} /> : null}
-                <Text numberOfLines={1} style={[styles.rowText, { color: theme.text }]}>
-                    {item.label}
-                </Text>
-                {item.description ? (
-                    <Text numberOfLines={1} style={[styles.rowDescription, { color: theme.muted }]}>
-                        {item.description}
+            <View style={styles.treeRowLine}>
+                <Pressable
+                    accessibilityLabel={[item.label, item.description].filter(Boolean).join(', ')}
+                    accessibilityRole={isCollapsible ? 'button' : 'text'}
+                    accessibilityState={isCollapsible ? { expanded: isExpanded } : undefined}
+                    disabled={!isCollapsible}
+                    onPress={() => setExpanded((value) => !value)}
+                    style={({ pressed }) => [
+                        styles.row,
+                        {
+                            backgroundColor: pressed ? theme.surface : 'transparent',
+                            paddingLeft: mobileSpace.sm + depth * INDENT,
+                        },
+                        styles.treeRowLabel,
+                        actions.length > 0 && styles.treeRowLabelWithActions,
+                    ]}
+                    testID="tree-row"
+                >
+                    <View style={styles.treeChevron}>
+                        {isCollapsible ? <Chevron color={theme.muted} size={16} /> : null}
+                    </View>
+                    {item.icon ? <TreeItemIcon icon={item.icon} theme={theme} /> : null}
+                    <Text numberOfLines={1} style={[styles.rowText, { color: theme.text }]}>
+                        {item.label}
                     </Text>
+                    {item.description ? (
+                        <Text
+                            numberOfLines={1}
+                            style={[styles.rowDescription, { color: theme.muted }]}
+                        >
+                            {item.description}
+                        </Text>
+                    ) : null}
+                </Pressable>
+                {actions.length > 0 ? (
+                    <View style={styles.treeActions}>
+                        {actions.map((action, index) => (
+                            <TreeItemActionButton
+                                key={`${action.command.id}:${action.command.title}`}
+                                action={action}
+                                sessionId={sessionId}
+                                testID={`tree-row-action-${position}-${index}`}
+                                theme={theme}
+                            />
+                        ))}
+                    </View>
                 ) : null}
-            </Pressable>
+            </View>
             {isCollapsible && isExpanded ? (
                 <TreeChildren
                     depth={depth + 1}
+                    deviceRole={deviceRole}
                     parentHandle={item.handle}
+                    parentPosition={position}
                     sessionId={sessionId}
                     theme={theme}
                     viewId={viewId}
@@ -171,13 +213,16 @@ const TreeRow = ({
 };
 
 /**
- * Read-only rendering of an extension tree view. Rows never run their commands on the phone.
+ * An extension tree view on the phone. A row's own command never runs (a tap expands it); its inline actions, such as
+ * the Status panel's per-repository `Merge`, do on a control device.
  */
 export const TreePanel = ({
+    deviceRole,
     sessionId,
     theme,
     viewId,
 }: {
+    deviceRole: DeviceRole;
     sessionId: string;
     theme: MobileTheme;
     viewId: string;
@@ -185,7 +230,13 @@ export const TreePanel = ({
     useExtensionTreeSubscription(sessionId);
     return (
         <ScrollView style={styles.root} testID={`tree-panel-${viewId}`}>
-            <TreeChildren depth={0} sessionId={sessionId} theme={theme} viewId={viewId} />
+            <TreeChildren
+                depth={0}
+                deviceRole={deviceRole}
+                sessionId={sessionId}
+                theme={theme}
+                viewId={viewId}
+            />
         </ScrollView>
     );
 };

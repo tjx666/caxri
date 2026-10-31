@@ -34,7 +34,15 @@ const PanelBody = ({
                 />
             );
         case 'tree':
-            return <TreePanel key={view.id} sessionId={sessionId} theme={theme} viewId={view.id} />;
+            return (
+                <TreePanel
+                    key={view.id}
+                    deviceRole={deviceRole}
+                    sessionId={sessionId}
+                    theme={theme}
+                    viewId={view.id}
+                />
+            );
         default:
             return (
                 <ScreenState

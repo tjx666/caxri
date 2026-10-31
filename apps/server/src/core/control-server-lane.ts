@@ -115,7 +115,12 @@ export function shouldSettleOutsideOrderedLane(request: {
  * 33ms handler ran.
  */
 function isRepoMutation(request: { method: string; params?: unknown }): boolean {
-    if (request.method === 'viewContainers.executeCommand') return true;
+    // A phone's tree action is the same Extension command (the Status panel's `Merge`), so it shares the lane.
+    if (
+        request.method === 'viewContainers.executeCommand' ||
+        request.method === 'mobile.tree.executeCommand'
+    )
+        return true;
     if (request.method === 'viewContainers.viewOperation')
         return !isExtensionViewRead(request.params);
     return REPO_GIT_WRITES.has(request.method);

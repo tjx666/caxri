@@ -4,7 +4,9 @@ import type { MethodResult } from '@caxri/protocol';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { useMobileClient } from '../connection/mobile-client-provider';
+import { sessionPullRequestQueryKey } from '../pull-request/use-session-pull-request';
 import { readTreeChildren } from './tree-children-read';
+import { refreshTreeThenPullRequest } from './tree-refresh';
 
 export type Panel = MethodResult<'mobile.panels.list'>['panels'][number];
 
@@ -67,7 +69,9 @@ export const useTreeChildren = (sessionId: string, viewId: string, parentHandle?
 /**
  * Keeps the extension tree this Session shows current: each `extensionViews.changed` hint re-reads the tree queries in
  * place. Rows stay on screen while the read runs, so scroll position and expanded state survive and no loading state
- * appears; a failed re-read keeps the last rows and the next hint or a pull-to-retry tries again.
+ * appears; a failed re-read keeps the last rows and the next hint or a pull-to-retry tries again. The header's pull
+ * request re-reads after the tree, because the Status panel changes when it does (see
+ * {@link refreshTreeThenPullRequest}).
  */
 export const useExtensionTreeSubscription = (sessionId: string) => {
     const { connectionScopeKey, isForeground, status, subscribe, subscriptionAvailable } =
@@ -79,9 +83,12 @@ export const useExtensionTreeSubscription = (sessionId: string) => {
         const queryKey = ['mobile', 'panels', connectionScopeKey, 'tree', sessionId];
         let isDisposed = false;
         const watch: { handle: Awaited<ReturnType<typeof subscribe>> | null } = { handle: null };
-        const refresh = (): void => {
-            void queryClient.invalidateQueries({ queryKey });
-        };
+        const refresh = (): Promise<void> =>
+            refreshTreeThenPullRequest(
+                queryClient,
+                queryKey,
+                sessionPullRequestQueryKey(connectionScopeKey, sessionId),
+            );
         const attach = async (): Promise<void> => {
             try {
                 const acquired = await subscribe(
@@ -92,7 +99,7 @@ export const useExtensionTreeSubscription = (sessionId: string) => {
                             (message.kind === 'extensionViews.changed' ||
                                 message.kind === 'resync-required')
                         )
-                            refresh();
+                            void refresh();
                     },
                 );
                 if (isDisposed) {
@@ -101,7 +108,7 @@ export const useExtensionTreeSubscription = (sessionId: string) => {
                 }
                 watch.handle = acquired;
                 // Close the gap between the first read and the subscription becoming active.
-                refresh();
+                void refresh();
             } catch {
                 // Without a subscription the tree keeps its one-shot reads; Refresh and re-entering still work.
             }

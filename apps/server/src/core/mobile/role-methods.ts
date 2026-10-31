@@ -208,6 +208,11 @@ const mobileGatewayMethodsByRole = {
          * grant, like archiving the Session that produced it.
          */
         'mobile.pullRequest.merge',
+        /**
+         * A tree row's inline action can be that same merge (the Status panel's per-repository `Merge`), so it carries
+         * the same grant.
+         */
+        'mobile.tree.executeCommand',
         'mobile.terminal.takeOver',
         'mobile.terminal.release',
         'mobile.terminal.input',
