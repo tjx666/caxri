@@ -8,6 +8,7 @@ import type {
     AgentUsageReadout,
     Principal,
 } from '@caxri/protocol';
+import { parseCaxriRequest } from '@caxri/protocol';
 import { vi } from 'vitest';
 
 import type { ServerDomainService } from '../../domain-service';
@@ -108,9 +109,19 @@ export function domainFixture(options: {
     return { domainService: { request } as unknown as ServerDomainService, request };
 }
 
+/**
+ * Runs a request as the mobile gateway does: its params go through the method's schema first, so a schema transform
+ * such as `agentChat.send` trimming its text reaches the handler as it would in production.
+ */
 export const invoke = (
     request: MobileAgentChatRequest,
     domain: ReturnType<typeof domainFixture>,
     forward: (operation: unknown) => Promise<unknown> = vi.fn(async () => null),
 ): ReturnType<typeof invokeMobileAgentChatRequest> =>
-    invokeMobileAgentChatRequest(request, principal, domain.domainService, forward, () => {});
+    invokeMobileAgentChatRequest(
+        parseCaxriRequest(request.method, request.params) as MobileAgentChatRequest,
+        principal,
+        domain.domainService,
+        forward,
+        () => {},
+    );
