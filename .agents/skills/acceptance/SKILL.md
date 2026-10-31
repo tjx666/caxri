@@ -3,7 +3,8 @@ name: acceptance
 description: >
   Verify Caxri deliveries on the real macOS Electron desktop, `caxri` CLI,
   Android, and iOS Simulator product surfaces; capture visually inspected
-  evidence; and publish immutable review rounds with the LobeHub CLI. Use when
+  evidence; and publish immutable review rounds with the LobeHub CLI, or render
+  them as a local offline report when not signed in. Use when
   Caxri work must prove user-visible behavior, generate an acceptance report,
   respond to acceptance feedback, or re-verify a repair.
 ---
@@ -17,6 +18,28 @@ changes; a command run to set up a Renderer check is setup, not the check. Use f
 output, logs, or probes as supporting evidence, never as substitutes for the real product surface
 when the claim is user-visible. A cross-surface workflow may use several surfaces, but each check
 names exactly one.
+
+## Decide whether to execute before starting a round
+
+Creating or updating a PR, marking it ready, or being asked to upload a report must not by itself
+start another verification run. First inspect the requested scope and the task's existing reports,
+evidence, published Acceptance links, and local `report.html` pages (from the conversation, the PR,
+or `.records/acceptance/`).
+
+| Delivery state                                                                         | Action                                                                                                                                                                            |
+| -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Documentation or instruction-only change, or refactor/tooling with no behavior change  | Skip product acceptance and briefly state why. Keep the applicable quality checks.                                                                                                |
+| A published Acceptance still covers the delivery                                       | Reuse its URL and coverage. Do not create a round or rerun cases just for the PR.                                                                                                 |
+| A locally rendered `report.html` still covers the delivery                             | Reuse it. When others must now review it, publish the existing rounds ([local reports](references/report.md#render-locally-when-not-signed-in)); never rerun cases to share them. |
+| A finalized round and its evidence exist locally, unpublished, and still cover it      | Inspect coverage and artifacts, then publish that round. Preserve its execution provenance; no rerun, new plan, or repeated checker review.                                       |
+| The delivery was already exercised on the real product in this session, no report yet  | Write `plan[]` and `cases[]` from the observations made, attach the original artifacts, disclose any required medium never captured instead of recapturing it, and publish.       |
+| Product behavior lacks valid evidence, or relevant behavior changed after verification | Execute only the missing or affected outcomes and retain unaffected evidence with its original provenance.                                                                        |
+
+Evidence is reusable when its criteria cover the requested behavior, its artifacts are available
+and support the observations, and later code, dependency, configuration, or environment changes do
+not invalidate them. A different commit SHA, rebase, PR event, or publication status alone is not a
+reason to rerun. Failed or blocked checks and missing required evidence are not passes: repair or
+supplement those specific gaps. An explicit user request for fresh verification still wins.
 
 ## Independent acceptance review (first round only)
 
@@ -67,6 +90,19 @@ is the _subject_ of the check, not who judged it: a Terminal behavior asserted
 by a command is a fine check (`verifier: "program"`); "the suite is green" is
 not. Before writing any plan, ask of each draft check: _would the user click
 accept/reject on this?_
+
+## Rules you will be tempted to skip
+
+| Excuse                                                    | Reality                                                                                                                                                                                                     |
+| --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| "Injection is hard; happy path plus unit tests covers it" | The error state was the goal. Search `.agents/acceptance/probe-mock-patterns.md` for a way to force it before marking the case `blocked`.                                                                   |
+| "The black frame is probably a permission or timing"      | Measure first: pixel brightness, the permission bit, an A/B with one variable toggled. Publish "confirmed by X" or "suspected", never a guess.                                                              |
+| "The fix is in and tests pass, so it is verified"         | Reproduce the failure's precondition first, then verify with it held. A run that cannot fail proves nothing, and "reproduces sometimes" means an unnamed precondition. When a mock is the suspect, drop it. |
+
+Use the installed `lh` as the CLI reference: consult a subcommand's `--help` only when its syntax or
+capability is unknown, and reuse what you learned across stages instead of walking the whole help
+tree or invoking a write command to probe support. A zero exit code or parseable JSON alone does
+not establish publication or complete coverage; inspect structured errors and ingest warnings.
 
 ## Boundaries
 
@@ -140,10 +176,13 @@ accept/reject on this?_
    authoring a new probe or mock. Fix adapter drift when observed. Before asking the user about an
    environment or fixture failure, search `.agents/acceptance/` for the exact error; ask for the
    missing prerequisite only when it records no fix.
-2. Run `lh acceptance preflight --json` before writing plan or report text. It fails closed on
-   authentication, and its `language.locale` is the report language the account enforces at
-   ingest. Caxri reports are Simplified Chinese, so stop and report a mismatch when the locale is
-   not `zh-CN`. Pass that language to any subagent you delegate to, including the
+2. Run `lh acceptance preflight --json` before writing plan or report text. Its `mode` says
+   whether rounds publish (`publish`, signed in) or render locally (`local`, never signed in; see
+   [local reports](references/report.md#render-locally-when-not-signed-in)). On a signed-in machine
+   an auth error means stop and surface it, and its `language.locale` is the report language the
+   account enforces at ingest. Caxri reports are Simplified Chinese, so stop and report a mismatch
+   when the locale is not `zh-CN`; a `local` run reports the language `unset` and still writes
+   Simplified Chinese. Pass that language to any subagent you delegate to, including the
    acceptance-checker. On a CLI without `preflight`, fall back to `lh whoami --json`; do not guess
    an `auth status` subcommand.
 3. Resolve the immutable one-sentence business requirement for the whole acceptance. Write it in
@@ -158,8 +197,12 @@ accept/reject on this?_
    commits, commands, and artifact paths in English. For every temporal check, name the observable
    start marker, end marker, and stop condition before launching. If the claimed ordering has no
    observable product marker, split the evidence into a user outcome and a focused supporting
-   contract instead of starting an open-ended experiment. A desktop case that imports a theme or
-   must show update UI declares `themeImportFixture` or `updateFixture`; the launcher arms Main
+   contract instead of starting an open-ended experiment. A case that changes UI users already
+   see (copy, labels, toasts, layout, or style) requires a before/after `comparison` pair of the
+   same view on the pre-change and delivered code
+   ([references/report.md](references/report.md#before-and-after-evidence)); an after-only
+   screenshot cannot show what it replaced. UI with no prior state is exempt. A desktop case that
+   imports a theme or must show update UI declares `themeImportFixture` or `updateFixture`; the launcher arms Main
    fixtures only from these declarations
    ([references/report.md](references/report.md#initialize-from-the-frozen-plan)).
    Every mobile item also declares `mobileDevice` with `platform`, exact `deviceId`, and
@@ -204,7 +247,9 @@ Read [references/report.md](references/report.md) before authoring the report an
 3. Capture evidence while testing:
    - settled UI state: screenshot plus DOM snapshot when useful;
    - behavior over time: GIF or video following
-     [references/recording-cdp.md](references/recording-cdp.md);
+     [references/recording-cdp.md](references/recording-cdp.md), with every video chaptered by
+     its steps, frame-level checks, and disclosed anomalies
+     ([references/video-chapters.md](references/video-chapters.md));
    - non-visual behavior: separate reasoning and execution text artifacts.
      A Terminal fixture plan must declare `fixturePreflight: terminal`. Before any screenshot or
      recording of that fixture, run
@@ -289,10 +334,17 @@ If publication reports `storage_quota` (in `recovery.reason` or `failedEvidence[
 keep the local evidence, report the coverage that actually uploaded, and give the user both
 recovery options. Never delete user data automatically or re-ingest the whole round.
 
+In `local` mode, or when the user asks to keep the report local, `finalize` the round as usual,
+then validate and render it instead of ingesting, following
+[references/report.md](references/report.md#render-locally-when-not-signed-in). Publishing to
+LobeHub is required only when others must comment, review, or open a link; the user signs in with
+`lh login`, and the existing rounds are published together.
+
 ## Repair loop
 
-Before every follow-up, read current server state and actionable feedback using the commands in
-[references/report.md](references/report.md).
+Before every follow-up, read current state and actionable feedback using the commands in
+[references/report.md](references/report.md). A local acceptance reads the same feedback from its
+acceptance root after the reviewer saves their reviews.
 
 - Omit user-accepted checks unless the repair can regress them.
 - Address non-stale rejects and reuse their stable check ids.
@@ -332,19 +384,26 @@ Before declaring the task done, prove coverage: for each check with
 explicitly; a missing type holds the delivery at `uncertain` no matter how good
 the work is.
 
-The final response MUST include the published acceptance URL together with the
-coverage result: never only a check-result id or a prose claim. Keep local reports under
-`.records/` and expose only the **acceptance** (`/acceptance/<acceptanceId>`), the stable
-cross-round decision surface. Do not append `?r=<roundIndex>`: the page opens on its latest
-round, so a per-round link adds nothing for the reader.
-Put no images, local paths, local file links, or internal run-page paths in the
-chat reply.
+The final response MUST include the published acceptance URL (or, for a local round, the report
+link) together with the coverage result: never only a check-result id or a prose claim. Keep local
+reports under `.records/` and expose only the **acceptance** (`/acceptance/<acceptanceId>`), the
+stable cross-round decision surface. Do not append `?r=<roundIndex>`: the page opens on its latest
+round, so a per-round link adds nothing for the reader. Display LobeHub Cloud links on
+`https://lobehub.com`: rewrite a returned `lobehub.com` subdomain origin such as
+`app.lobehub.com` to it, preserving the path; keep self-hosted origins unchanged. For a local round,
+copy the `reportUrl` (`file://` link to `report.html`) that `render --json` returned, and tell the
+reader that **Save reviews** in the page is how their decisions reach you; it is the one local path
+the reply carries. Put no images, other local paths or file links, or internal run-page paths in
+the chat reply.
 
 Write the link as a plain-text line, never inside a fenced or inline code block: the
 chat client only linkifies plain text, and a code block makes it unclickable:
 
-Acceptance: <https://app.lobehub.com/acceptance/ACCEPTANCE_ID> (the placeholder is the id ingest printed; it stays inside the URL)
+Acceptance: <https://lobehub.com/acceptance/ACCEPTANCE_ID> (the placeholder is the id ingest printed; it stays inside the URL)
 Coverage: 2/2 criteria, all required evidence uploaded
+
+For a local round, the first line is `Report: <reportUrl, verbatim>` and coverage says "rendered"
+instead of "uploaded".
 
 ## Reference map
 
@@ -360,6 +419,7 @@ Coverage: 2/2 criteria, all required evidence uploaded
 - Report schema: [references/report.md](references/report.md)
 - Storage-limit recovery: [references/publication-recovery.md](references/publication-recovery.md)
 - Temporal capture: [references/recording-cdp.md](references/recording-cdp.md)
+- Video chapters: [references/video-chapters.md](references/video-chapters.md)
 - Android temporal capture: [references/recording-android.md](references/recording-android.md)
 - iOS Simulator temporal capture:
   [references/recording-ios-simulator.md](references/recording-ios-simulator.md)

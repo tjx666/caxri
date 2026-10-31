@@ -17,6 +17,9 @@ but each case belongs to the surface whose user outcome it asks the reviewer to 
 
 The `requiredEvidence` declaration is binding. A final screenshot cannot replace
 a required temporal recording, and prose cannot replace a required screenshot.
+Every `video` you capture carries chapters (your steps, the claims you verified
+on specific frames, and the anomalies you noticed) so the reviewer can seek to
+each one instead of watching the whole clip: [video-chapters.md](./video-chapters.md).
 The Caxri evidence schema has no `transcript` type. Save transcript-like
 event-order evidence as `.txt` and declare it as `text`; use `.md` or
 `.markdown` only when the declared type is `markdown`.

@@ -30,7 +30,9 @@ Adjust `--interval-ms` for the transition speed. The helper reads the CDP port
 from the owned Acceptance runtime, targets the main Caxri Renderer page, rejects
 DevTools and ambiguous targets, and refuses to overwrite an existing frame
 sequence. For a secondary window such as Process Explorer, add
-`--url-contains process-explorer.html`.
+`--url-contains process-explorer.html`. It also writes `frames.log`, one
+`<frame file> <epoch seconds>` line per frame, which
+[video chapters](./video-chapters.md) convert wall-clock marks against.
 
 `--fixture-preflight` is mandatory only when the frozen case plan declares
 `fixturePreflight: terminal`; the launcher records that requirement in the owned runtime receipt and
@@ -71,7 +73,9 @@ ffprobe -v error \
 ```
 
 Inspect the first frame, action frame, transient state, and settled frame before
-citing the artifact. Keep the original frame directory until verification is
+citing the artifact. While driving, log a chapter for each step and each claim
+you verify ([video-chapters.md](./video-chapters.md)); the frames you inspect
+here are the ones your `check` chapters point at. Keep the original frame directory until verification is
 published; it is useful when a reviewer asks about a one-frame defect.
 
 ## Boundaries

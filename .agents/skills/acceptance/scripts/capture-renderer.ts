@@ -1,6 +1,6 @@
 import { Buffer } from 'node:buffer';
-import { lstat, mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
-import { dirname, join, resolve } from 'node:path';
+import { appendFile, lstat, mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
+import { basename, dirname, join, resolve } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
@@ -43,6 +43,10 @@ const PROJECT_ROOT = resolve(dirname(SCRIPT_PATH), '../../../..');
 const RUNTIME_PATH = join(PROJECT_ROOT, '.records', 'acceptance', 'runtime.json');
 const MAX_FRAME_COUNT = 600;
 const MAX_INTERVAL_MS = 60_000;
+/**
+ * One `<frame file> <epoch seconds>` line per captured frame, taken when the capture was requested.
+ */
+const FRAMES_LOG = 'frames.log';
 const HELP = `Capture the owned isolated Caxri Renderer through CDP.
 
 Usage:
@@ -197,6 +201,7 @@ export async function captureFrames(
         // before requesting the next frame, so the awaits below are intentionally sequential.
         for (let index = 0; index < options.count; index += 1) {
             let result: { data: string };
+            const requestedAt = Date.now();
             try {
                 // eslint-disable-next-line no-await-in-loop
                 result = await client.request<{ data: string }>(
@@ -216,6 +221,12 @@ export async function captureFrames(
             const path = resolve(options.outDir, `frame_${String(index).padStart(6, '0')}.png`);
             // eslint-disable-next-line no-await-in-loop
             await writeFile(path, Buffer.from(result.data, 'base64'));
+            // The clip's real timeline: video chapters convert wall-clock marks against it.
+            // eslint-disable-next-line no-await-in-loop
+            await appendFile(
+                resolve(options.outDir, FRAMES_LOG),
+                `${basename(path)} ${(requestedAt / 1000).toFixed(3)}\n`,
+            );
 
             const remaining = startedAt + (index + 1) * options.intervalMs - Date.now();
             if (remaining > 0 && index + 1 < options.count) {
