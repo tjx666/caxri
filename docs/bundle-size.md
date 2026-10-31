@@ -132,6 +132,13 @@ headroom over this baseline: when the gate fails, first try to optimize the regr
 only consciously raise the budget in `scripts/ci-bundle-budget.ts` and update this document in
 the same PR.
 
+The build and packaging wall-time ceilings (180 s and 300 s) catch toolchain regressions, not runner
+speed. Hosted macOS runners vary by more than 2x with no build change: eighteen `main` runs in
+2026-10 measured build 74 to 182 s (median about 118 s) and package 13 to 28 s, with both phases
+slow on the same runs. A phase over its ceiling is timed once more and judged by its faster
+attempt; the job log prints both attempts. A single slow runner therefore passes, while a
+regression that slows every attempt still fails the gate.
+
 ### Job summary and baseline deltas
 
 Every gate run appends a Markdown report to the GitHub Actions job summary: phase timings and a

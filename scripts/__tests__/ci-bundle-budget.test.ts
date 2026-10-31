@@ -7,6 +7,7 @@ import {
     findModuleResolutionFailure,
     formatDeltaPercent,
     formatMeasurement,
+    measureWallTime,
     PACKAGED_SERVER_ENTRIES,
     REPORT_COMPONENTS,
     SIZE_BUDGETS,
@@ -24,6 +25,29 @@ describe('ci-bundle-budget', () => {
             { label: 'build time', actual: 200, budget: 200, unit: 'seconds' },
         ]);
         expect(violations.map((violation) => violation.label)).toEqual(['out/renderer']);
+    });
+
+    it('accepts a phase under its ceiling after one attempt', async () => {
+        const durations = [120, 90];
+        const wallTime = await measureWallTime(180, () => Promise.resolve(durations.shift() ?? 0));
+        expect(wallTime).toEqual({ seconds: 120, attempts: [120] });
+    });
+
+    it('retimes a phase over its ceiling once and judges the faster attempt', async () => {
+        const durations = [182, 110];
+        const wallTime = await measureWallTime(180, () => Promise.resolve(durations.shift() ?? 0));
+        expect(wallTime).toEqual({ seconds: 110, attempts: [182, 110] });
+    });
+
+    it('still fails a phase that exceeds its ceiling on both attempts', async () => {
+        const durations = [240, 230];
+        const wallTime = await measureWallTime(180, () => Promise.resolve(durations.shift() ?? 0));
+        expect(wallTime).toEqual({ seconds: 230, attempts: [240, 230] });
+        expect(
+            findBudgetViolations([
+                { label: 'build time', actual: wallTime.seconds, budget: 180, unit: 'seconds' },
+            ]),
+        ).toHaveLength(1);
     });
 
     it('formats byte measurements in MiB with budget status', () => {

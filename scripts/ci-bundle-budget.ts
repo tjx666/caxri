@@ -71,8 +71,10 @@ export const SIZE_BUDGETS: SizeBudget[] = [
 
 /**
  * Wall-time ceilings guard against toolchain regressions (for example accidentally enabling an analysis plugin on every
- * build) rather than machine noise, so they carry generous headroom over the historical runner baseline (build ≈ 25 s
- * with source maps, package ≈ 35 s).
+ * build) rather than machine noise. Hosted macOS runners vary by more than 2x with no build change: eighteen `main`
+ * runs in 2026-10 measured build 74 to 182 s (median ≈ 118 s) and package 13 to 28 s, with both phases slow on the same
+ * runs. A phase over its ceiling is therefore timed once more and judged by its faster attempt (see `measureWallTime`),
+ * so one slow runner passes while a regression that slows every attempt still fails.
  */
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/ci-bundle-budget.test.ts
 export const TIME_BUDGETS: TimeBudget[] = [
@@ -412,6 +414,29 @@ async function verifyPackagedModuleResolution(): Promise<string[]> {
     return failures;
 }
 
+interface WallTime {
+    /**
+     * The faster attempt, which the ceiling judges.
+     */
+    seconds: number;
+    attempts: number[];
+}
+
+/**
+ * Times a phase, and times it once more only when the first attempt exceeds `maxSeconds`. Runner load inflates single
+ * attempts, while a toolchain regression slows both, so the faster attempt is the verdict.
+ */
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/ci-bundle-budget.test.ts
+export async function measureWallTime(
+    maxSeconds: number,
+    run: () => Promise<number>,
+): Promise<WallTime> {
+    const first = await run();
+    if (first <= maxSeconds) return { seconds: first, attempts: [first] };
+    const second = await run();
+    return { seconds: Math.min(first, second), attempts: [first, second] };
+}
+
 async function runTimed(budget: TimeBudget): Promise<number> {
     const startedAt = performance.now();
     const [command, ...arguments_] = budget.command;
@@ -432,10 +457,15 @@ async function main(): Promise<void> {
     for (const timeBudget of TIME_BUDGETS) {
         // Build must complete before packaging starts; the loop order encodes that dependency.
         // eslint-disable-next-line no-await-in-loop -- intentionally sequential phases
-        const elapsedSeconds = await runTimed(timeBudget);
+        const wallTime = await measureWallTime(timeBudget.maxSeconds, () => runTimed(timeBudget));
+        if (wallTime.attempts.length > 1) {
+            console.log(
+                `${timeBudget.label} time: attempts ${wallTime.attempts.map((seconds) => `${seconds.toFixed(1)} s`).join(', ')}; judging the faster`,
+            );
+        }
         measurements.push({
             label: `${timeBudget.label} time`,
-            actual: elapsedSeconds,
+            actual: wallTime.seconds,
             budget: timeBudget.maxSeconds,
             unit: 'seconds',
         });
