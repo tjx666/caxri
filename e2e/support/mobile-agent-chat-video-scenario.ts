@@ -18,6 +18,7 @@ import {
 import {
     adbShell,
     mobileNativeControlBounds,
+    mobileRegionFingerprint,
     mobileSemantics,
     startMobileFramebufferRecording,
     tapMobileCheck,
@@ -31,7 +32,8 @@ const run = promisify(execFile);
  * The synthetic video every case cites: 60 seconds of FFmpeg's `testsrc`, whose frame counter shows where playback is,
  * so a screenshot after a seek proves the scrub landed. It lives under `/tmp` rather than the fixture Project: the fake
  * Codex echoes the message, and the system temp directory holding the Project is account-specific, so a recording must
- * not show it. Server Core serves any path the message cites, inside a Project or not.
+ * not show it. Server Core serves any path the message cites, inside a Project or not. It carries a tone because
+ * Android routes media keys to the session that last played audio, and a silent video never becomes that session.
  */
 const VIDEO_NAME = 'demo.mp4';
 const VIDEO_SECONDS = 60;
@@ -51,6 +53,12 @@ const createVideo = async (): Promise<string> => {
         'lavfi',
         '-i',
         `testsrc=duration=${VIDEO_SECONDS}:size=640x360:rate=30`,
+        '-f',
+        'lavfi',
+        '-i',
+        `sine=frequency=440:duration=${VIDEO_SECONDS}`,
+        '-c:a',
+        'aac',
         '-c:v',
         'libx264',
         '-pix_fmt',
@@ -144,6 +152,28 @@ async function tapPlayer(serial: string): Promise<void> {
 const pressMediaKey = (serial: string, key: 'KEYCODE_MEDIA_PAUSE' | 'KEYCODE_MEDIA_PLAY') =>
     adbShell(serial, ['input', 'keyevent', key]);
 
+/**
+ * Waits until the player's pixels stop changing. UIAutomator cannot see the controls while a video plays, so every read
+ * of them waits for this first; a still frame also proves the pause took effect.
+ */
+async function waitForStill(serial: string): Promise<void> {
+    const view = checkBounds(await mobileSemantics(serial), 'agent-chat-video-player');
+    if (!view) throw new Error('The player is not open');
+    try {
+        await waitForMobile(
+            async () => {
+                const first = await mobileRegionFingerprint(serial, view);
+                await pause(1_500);
+                return first === (await mobileRegionFingerprint(serial, view));
+            },
+            Boolean,
+            20_000,
+        );
+    } catch {
+        throw new Error('The player kept playing');
+    }
+}
+
 const timeBar = (serial: string) => mobileNativeControlBounds(serial, { resourceId: TIME_BAR });
 
 /**
@@ -230,11 +260,11 @@ export async function executeMobileChatVideoScenario(
         await pause(3_000);
         await capture(environment, 'playing', artifacts);
         await pressMediaKey(serial, 'KEYCODE_MEDIA_PAUSE');
-        await waitForCheck(serial, 'agent-chat-video-player-view');
+        await waitForStill(serial);
         await showControls(serial);
         await capture(environment, 'paused', artifacts);
         await seekTo(serial, 0.25);
-        await pause(1_000);
+        await waitForStill(serial);
         await capture(environment, 'scrubbed', artifacts);
         await pressMediaKey(serial, 'KEYCODE_MEDIA_PLAY');
         await pause(2_000);
