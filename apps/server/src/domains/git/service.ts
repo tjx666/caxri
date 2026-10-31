@@ -396,17 +396,14 @@ export class GitService {
      * Workbench flows force a fresh discovery because they must observe an Agent's `git worktree add` before any
      * watcher signal lands; the reload also refreshes the registry cache that `git.summary` consumes. This is an
      * internal Server boundary: discovery does not imply authorization and never reaches Renderer.
+     *
+     * `preferCached` answers from a current-generation cache, for callers that only confirm a known worktree.
      */
-    async worktreeTopology(projectRoot: string): Promise<GitWorktreeTopology> {
-        const topology = await this.topologyRegistry.topology(projectRoot, { force: true });
-        return {
-            repositoryKey: topology.repositoryKey,
-            worktrees: topology.worktrees.map(({ branch, rootPath, isMain }) => ({
-                branch,
-                rootPath,
-                isMain,
-            })),
-        };
+    worktreeTopology(
+        projectRoot: string,
+        options: { preferCached?: boolean } = {},
+    ): Promise<GitWorktreeTopology> {
+        return this.topologyRegistry.worktreeTopology(projectRoot, !options.preferCached);
     }
 
     async ignoredEntries(

@@ -99,6 +99,39 @@ describe('WorkbenchRootService validation', () => {
         context.database.close();
     });
 
+    it('validates a selected Session against cached topology and forces discovery only on a miss', async () => {
+        const context = await fixture();
+        context.setWorktrees([
+            { branch: 'main', rootPath: context.ownerRoot },
+            { branch: 'feature/first', rootPath: context.worktreeRoot },
+        ]);
+        const worktreeProject = context.database.createProject(context.worktreeRoot);
+        await context.service.select(context.sessions[0].session.id, worktreeProject.id);
+        context.worktreeTopology.mockClear();
+
+        await expect(context.service.validateSession(context.sessions[0].session.id)).resolves.toBe(
+            false,
+        );
+        expect(context.worktreeTopology.mock.calls).toEqual([
+            [context.ownerRoot, { preferCached: true }],
+        ]);
+
+        context.worktreeTopology.mockClear();
+        context.worktreeTopology.mockResolvedValueOnce({
+            ...context.getTopology(),
+            worktrees: [{ branch: 'main', rootPath: context.ownerRoot, isMain: true }],
+        });
+        await expect(context.service.validateSession(context.sessions[0].session.id)).resolves.toBe(
+            false,
+        );
+        expect(context.worktreeTopology.mock.calls).toEqual([
+            [context.ownerRoot, { preferCached: true }],
+            [context.ownerRoot],
+        ]);
+        await context.service.close();
+        context.database.close();
+    });
+
     it('rejects a root replaced between its identity read and canonicalization', async () => {
         let swapRoot: (() => Promise<void>) | undefined;
         const context = await fixture(1, {

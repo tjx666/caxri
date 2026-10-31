@@ -9,7 +9,7 @@ import type {
 } from '@caxri/protocol';
 import { CaxriError, errorMessage } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { logEventCatalog, SingleFlight } from '@caxri/system';
+import { logEventCatalog } from '@caxri/system';
 
 import type { AgentLifecycleSignal, AgentSignalDecision } from '../agents';
 import type { CaxriDatabase } from '../db';
@@ -37,6 +37,7 @@ import {
 import type { TopologyValidation } from './sweep';
 import { sweepWorkbenchRoots } from './sweep';
 import type { SweepTimer } from './sweep-timing';
+import { WorkbenchTopologyReader } from './topology-reader';
 import { returnFromLeftWorktree } from './worktree-return';
 
 const MAX_PENDING_DELETION_VALIDATIONS = 256;
@@ -68,7 +69,7 @@ export class WorkbenchRootService {
     private readonly candidates = new Map<string, WorkbenchCandidate>();
     private readonly deletionValidations: BoundedSerialBatcher<string>;
     private readonly observedAgentCwds = new ObservedAgentCwds();
-    private readonly topologyReads = new SingleFlight<string, GitWorktreeTopology>();
+    private readonly topologies: WorkbenchTopologyReader;
     private readonly worktreeAttribution: AgentWorktreeAttribution;
     private closed = false;
     private queue: Promise<void> = Promise.resolve();
@@ -79,6 +80,7 @@ export class WorkbenchRootService {
     private onRootChanged?: (sessionId: string) => void;
 
     constructor(private readonly options: WorkbenchRootServiceOptions) {
+        this.topologies = new WorkbenchTopologyReader(options.git);
         this.worktreeAttribution = new AgentWorktreeAttribution({
             followWorktree: (input, isStillAuthorized) =>
                 this.followWorktree(input, isStillAuthorized),
@@ -128,7 +130,7 @@ export class WorkbenchRootService {
                     ? topologyValidation.status === 'available'
                         ? topologyValidation.topology
                         : undefined
-                    : await this.loadTopology(owner.rootPath);
+                    : await this.topologies.containing(owner.rootPath, active.rootPath);
                 if (!topology) throw new Error('Workbench topology is unavailable');
                 if (topology.worktrees.every((worktree) => worktree.rootPath !== active.rootPath))
                     reason = 'topology_removed';
@@ -215,9 +217,7 @@ export class WorkbenchRootService {
     }
 
     private loadTopology(ownerRoot: string): Promise<GitWorktreeTopology> {
-        return this.topologyReads.run(ownerRoot, () =>
-            this.options.git.worktreeTopology(ownerRoot),
-        );
+        return this.topologies.forced(ownerRoot);
     }
 
     private fallback(sessionId: string, fallbackReason: string): void {
