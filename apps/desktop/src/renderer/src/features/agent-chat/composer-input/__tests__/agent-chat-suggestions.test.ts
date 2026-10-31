@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import { translate } from '../../../../i18n';
 import {
+    agentChatActionSuggestion,
     agentChatSelectionCaret,
     agentChatSessionPreparingText,
     agentChatSessionSuggestions,
@@ -140,5 +141,20 @@ describe('isAgentChatCaretKeyRelease', () => {
         expect(
             isAgentChatCaretKeyRelease('ArrowLeft', { ...plain, key: 'ArrowLeft', metaKey: true }),
         ).toBe(false);
+    });
+});
+
+describe('agentChatActionSuggestion', () => {
+    const action = { invocation: '/compact', description: 'Compact' } as AgentAction;
+
+    it('marks a row with an unavailable reason as disabled and shows the reason', () => {
+        expect(agentChatActionSuggestion(action, { unavailableReason: 'Busy' })).toMatchObject({
+            description: 'Busy',
+            isDisabled: true,
+        });
+    });
+
+    it('leaves an available row enabled', () => {
+        expect(agentChatActionSuggestion(action)).not.toHaveProperty('isDisabled');
     });
 });

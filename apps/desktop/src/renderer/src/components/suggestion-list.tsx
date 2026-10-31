@@ -90,11 +90,19 @@ export function SuggestionList({
                                     </div>
                                 )}
                                 <div
+                                    aria-disabled={suggestion.isDisabled ? true : undefined}
                                     aria-selected={index === activeIndex}
                                     className={cn(
-                                        'flex min-h-7 cursor-pointer items-center gap-2 rounded px-2 py-1',
+                                        'flex min-h-7 items-center gap-2 rounded px-2 py-1',
+                                        suggestion.isDisabled
+                                            ? 'cursor-default text-muted'
+                                            : 'cursor-pointer',
                                         index === activeIndex &&
+                                            !suggestion.isDisabled &&
                                             'bg-list-focus-background text-list-focus-foreground',
+                                        index === activeIndex &&
+                                            suggestion.isDisabled &&
+                                            'bg-list-focus-background/50',
                                     )}
                                     id={suggestionOptionId(listId, suggestion.key)}
                                     role="option"
