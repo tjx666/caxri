@@ -1,6 +1,7 @@
 import { MAX_MOBILE_FILE_BYTES } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
+import { MobileGatewayRequestError } from '../../connection/mobile-gateway-errors';
 import type { FileAttachment } from '../file-attachment-store';
 import {
     expireFileAttachments,
@@ -8,8 +9,11 @@ import {
     fileAttachmentKind,
     fileAttachmentRefusal,
     fileAttachmentWaitReason,
+    fileUploadFailureMessage,
     formatFileSize,
+    isTransientUploadError,
     mobileUploadFileName,
+    nextFileExpiryDelayMs,
 } from '../file-attachment-store';
 
 const file = (patch: Partial<FileAttachment> = {}): FileAttachment => ({
@@ -75,5 +79,36 @@ describe('composer file attachments', () => {
         expect(fileAttachmentWaitReason([file()])).toBeNull();
         expect(fileAttachmentWaitReason([file({ state: 'uploading' })])).not.toBeNull();
         expect(fileAttachmentWaitReason([file({ state: 'failed' })])).not.toBeNull();
+    });
+
+    it('schedules the expiry of the earliest ready file', () => {
+        const uploading = file({ id: 'file_u', state: 'uploading', uploadedAt: undefined });
+        expect(nextFileExpiryDelayMs([uploading], 0)).toBeUndefined();
+        const delay = nextFileExpiryDelayMs(
+            [file({ id: 'file_late', uploadedAt: 10_000 }), file({ uploadedAt: 1_000 }), uploading],
+            2_000,
+        );
+        expect(delay).toBe(FILE_ATTACHMENT_REUSE_MS - 1_000 + 1);
+        expect(nextFileExpiryDelayMs([file({ uploadedAt: 0 })], FILE_ATTACHMENT_REUSE_MS * 2)).toBe(
+            0,
+        );
+    });
+
+    it('retries chunks only for network failures and names a full Server', () => {
+        expect(isTransientUploadError(new Error('socket closed'))).toBe(true);
+        expect(isTransientUploadError(new MobileGatewayRequestError('TIMEOUT', 'slow'))).toBe(true);
+        expect(isTransientUploadError(new MobileGatewayRequestError('CAPACITY', 'full'))).toBe(
+            false,
+        );
+        expect(isTransientUploadError(new MobileGatewayRequestError('VALIDATION', 'bad'))).toBe(
+            false,
+        );
+        const t = (key: string) => key;
+        expect(
+            fileUploadFailureMessage(new MobileGatewayRequestError('CAPACITY', 'full'), t as never),
+        ).toBe('sessions.file.capacity');
+        expect(fileUploadFailureMessage(new Error('x'), t as never)).toBe(
+            'sessions.image.uploadFailed',
+        );
     });
 });

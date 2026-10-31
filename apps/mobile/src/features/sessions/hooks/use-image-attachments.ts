@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 
 import { encodeHex } from '@caxri/mobile-transport';
+import { MAX_MOBILE_FILE_ATTACHMENTS } from '@caxri/protocol';
 import * as Clipboard from 'expo-clipboard';
 import * as Crypto from 'expo-crypto';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -284,7 +285,14 @@ export const useImageAttachments = (
         const remaining = () =>
             files?.imagesAsFiles ? 0 : maxAttachments - imageAttachmentStore.get(key).length;
         const filesRemaining = () => files?.remaining() ?? 0;
-        if (remaining() <= 0 && filesRemaining() <= 0) return;
+        if (remaining() <= 0 && filesRemaining() <= 0) {
+            setAttachError(
+                files
+                    ? t('sessions.file.limit', { count: MAX_MOBILE_FILE_ATTACHMENTS })
+                    : t('sessions.image.limit', { count: maxAttachments }),
+            );
+            return;
+        }
         let picked: PickedImage[];
         let pickedFiles: PickedFile[] = [];
         setAttachError(null);

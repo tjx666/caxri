@@ -21,7 +21,10 @@ import {
     fileAttachmentRefusal,
     fileAttachmentStore,
     fileAttachmentWaitReason,
+    fileUploadFailureMessage,
+    isTransientUploadError,
     mobileUploadFileName,
+    nextFileExpiryDelayMs,
 } from '../file-attachment-store';
 import { encodeBase64, uploadFileChunks } from '../file-upload';
 
@@ -66,6 +69,17 @@ export const useFileAttachments = (
     useEffect(() => {
         fileAttachmentStore.update(key, (current) => expireFileAttachments(current, Date.now(), t));
     }, [key, t]);
+    // A file left in the composer past its reuse window expires on the strip, before Send cites a deleted file.
+    useEffect(() => {
+        const delay = nextFileExpiryDelayMs(attachments, Date.now());
+        if (delay === undefined) return;
+        const timer = setTimeout(() => {
+            fileAttachmentStore.update(key, (current) =>
+                expireFileAttachments(current, Date.now(), t),
+            );
+        }, delay);
+        return () => clearTimeout(timer);
+    }, [attachments, key, t]);
 
     const upload = async (item: FileAttachment) => {
         let handle: ReturnType<File['open']> | undefined;
@@ -79,6 +93,9 @@ export const useFileAttachments = (
             const path = await uploadFileChunks({
                 size: item.size,
                 isCancelled: () => fileAttachmentStore.isCancelled(item.id),
+                // A blink in the connection costs one chunk, not the whole file.
+                maxAttempts: 3,
+                shouldRetry: isTransientUploadError,
                 onProgress: (progress) =>
                     update((current) => patchAttachment(current, item.id, { progress })),
                 // Synchronous, so two chunks in flight never move the shared offset under each other.
@@ -109,7 +126,7 @@ export const useFileAttachments = (
             update((current) =>
                 patchAttachment(current, item.id, {
                     state: 'failed',
-                    error: mobileErrorMessage(error, t('sessions.image.uploadFailed'), t),
+                    error: fileUploadFailureMessage(error, t),
                 }),
             );
         } finally {
@@ -251,7 +268,9 @@ export const useFileAttachments = (
          * Server, so they are ready to send again.
          */
         restore: (returned: readonly FileAttachment[]) =>
-            update((current) => attachmentsWithReturned(current, returned)),
+            update((current) =>
+                expireFileAttachments(attachmentsWithReturned(current, returned), Date.now(), t),
+            ),
     };
 };
 
