@@ -346,13 +346,19 @@ async function renameKeyboardAvoidance(
 async function settingsPage(environment: UiAuditScenarioEnvironment, artifacts: string[]) {
     const { serial } = environment;
     await tapMobileCheck(serial, 'computer-menu-button');
-    await waitFor(serial, (nodes) => hasCheck(nodes, 'settings-action'));
+    // The computer menu names the paired computer the Session home no longer titles itself with.
+    await waitFor(
+        serial,
+        (nodes) => hasCheck(nodes, 'settings-action') && hasCheck(nodes, 'computer-menu-name'),
+    );
     await capture(environment, 'menu', artifacts, 'settings-action');
     await tapMobileCheck(serial, 'settings-action');
     await waitFor(
         serial,
         (nodes) =>
             hasCheck(nodes, 'settings-access-level') &&
+            hasCheck(nodes, 'settings-release-notes') &&
+            hasCheck(nodes, 'settings-source-code') &&
             hasCheck(nodes, 'forget-this-computer-action'),
     );
     await capture(environment, 'settings', artifacts, 'settings-screen');

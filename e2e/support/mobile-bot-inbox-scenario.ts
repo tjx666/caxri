@@ -26,11 +26,10 @@ export async function executeMobileBotInboxScenario(
             },
         );
         await fixture.pair();
-        // "Needs you" sits in the computer menu next to Archived Sessions.
-        await waitForCheck(serial, 'computer-menu-button');
-        await tapMobileCheck(serial, 'computer-menu-button');
-        await waitForCheck(serial, 'bot-inbox-action');
-        await tapMobileCheck(serial, 'bot-inbox-action');
+        // The Session home shows the Bot Inbox entry under the Project filters while it has open items.
+        await waitForCheck(serial, 'bot-inbox-entry');
+        await capture(environment, 'home-entry', artifacts);
+        await tapMobileCheck(serial, 'bot-inbox-entry');
         await waitForCheck(serial, `bot-inbox-reply-state-${readId}`);
         await waitForCheck(serial, `bot-inbox-reply-state-${unreadId}`);
         await capture(environment, 'reply-states', artifacts);
@@ -41,6 +40,7 @@ export async function executeMobileBotInboxScenario(
         await tapMobileCheckByBounds(serial, `bot-inbox-reply-cancel-${unreadId}`);
         await waitForCheck(serial, `bot-inbox-reply-${unreadId}`);
         await finish(environment, artifacts, {
+            homeEntry: 'bot-inbox-entry-visible',
             replyStates: 'read-and-delivered-visible',
             replyComposer: 'placeholder-visible',
         });

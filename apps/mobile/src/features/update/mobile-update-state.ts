@@ -62,6 +62,48 @@ export const mobileUpdateBannerKind = (input: {
     return 'available';
 };
 
+/**
+ * What the Settings version row says about updates. `idle` has no answer yet (for example before the first connection),
+ * and `unsupported` covers iOS and development clients, which never ask Desktop for a build.
+ */
+export type MobileUpdateCheckStatus =
+    'available' | 'checking' | 'failed' | 'idle' | 'unsupported' | 'upToDate';
+
+export const mobileUpdateCheckStatus = (input: {
+    canUpdate: boolean;
+    hasAnswer: boolean;
+    isError: boolean;
+    isFetching: boolean;
+    update: MobileUpdateBundle | undefined;
+}): MobileUpdateCheckStatus => {
+    if (!input.canUpdate) return 'unsupported';
+    if (input.update) return 'available';
+    if (input.isFetching) return 'checking';
+    if (input.isError) return 'failed';
+    return input.hasAnswer ? 'upToDate' : 'idle';
+};
+
+/**
+ * The version row's update note. `available` has none because the update row below it already says so.
+ */
+export const mobileUpdateCheckLabel = (
+    status: MobileUpdateCheckStatus,
+    t: Translate = translate,
+): string | undefined => {
+    switch (status) {
+        case 'checking':
+            return t('update.checking');
+        case 'failed':
+            return t('update.checkFailed');
+        case 'upToDate':
+            return t('update.upToDate');
+        case 'available':
+        case 'idle':
+        case 'unsupported':
+            return undefined;
+    }
+};
+
 export const mobileUpdateSizeLabel = (sizeBytes: number): string =>
     `${Math.max(1, Math.round(sizeBytes / (1_024 * 1_024)))} MB`;
 

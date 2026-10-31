@@ -326,7 +326,6 @@ export const SessionHome = ({
                 }
                 onOpenUsage={() => router.navigate(`/h/${encodeURIComponent(hostId)}/usage`)}
                 projects={projects}
-                status={status}
                 theme={theme}
             />
             {!hasLoaded || filtered.length === 0 ? (

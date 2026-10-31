@@ -29,7 +29,10 @@ export const MobileUpdateSettingsRow = ({
             onPress={install}
             style={({ pressed }) => [
                 styles.row,
-                { backgroundColor: pressed ? theme.elevated : 'transparent' },
+                {
+                    backgroundColor: pressed ? theme.elevated : 'transparent',
+                    borderBottomColor: theme.border,
+                },
             ]}
             testID="settings-app-update"
         >
@@ -59,6 +62,7 @@ export const MobileUpdateSettingsRow = ({
 
 const styles = StyleSheet.create({
     row: {
+        borderBottomWidth: 1,
         gap: mobileSpace.xs,
         minHeight: mobileControl.row,
         justifyContent: 'center',

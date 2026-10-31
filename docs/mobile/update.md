@@ -39,6 +39,8 @@ IPA; distributing to iPhones requires a separate Apple signing and distribution 
 2. When the bundle's `versionCode` is newer than the installed one, Sessions shows an **Update
    available** banner with **Later** and **Update**. **Later** hides the banner for that version
    only; Settings keeps an **Update to X** row below **Version** for the whole time an update exists.
+   Otherwise the **Version** row reads **Up to date** once Desktop answered, and tapping it asks
+   again at once instead of waiting for the ten-minute window.
 3. **Update** downloads the APK from Desktop over the LAN with a progress percentage, verifies its
    size and MD5, and opens the Android package installer. Over the Relay it downloads the same APK
    from that version's GitHub Release instead (see [Transport](#transport)). Android asks once for the

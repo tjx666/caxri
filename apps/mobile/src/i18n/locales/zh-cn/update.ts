@@ -6,6 +6,9 @@ export const update: TranslatedNamespace<typeof source> = {
     'update.action': '更新',
     'update.available': '有可用更新',
     'update.availableDetail': '来自你电脑的版本 {{version}} · {{size}}',
+    'update.checkFailed': '检查失败',
+    'update.checkHint': '询问你的电脑是否有更新的版本。',
+    'update.checking': '正在检查…',
     'update.downloadIncomplete': '下载不完整，请重试。',
     'update.downloading': '正在下载 {{percent}}%',
     'update.failed': '更新失败。请确认这台手机能连接到你的电脑，然后重试。',
@@ -17,5 +20,6 @@ export const update: TranslatedNamespace<typeof source> = {
     'update.retryUpdate': '重试更新',
     'update.settingsRowHint': '从你的电脑下载新版本，并打开 Android 安装程序。',
     'update.unreachable': '无法连接到你的电脑获取更新。',
+    'update.upToDate': '已是最新',
     'update.updateTo': '更新到 {{version}}',
 };

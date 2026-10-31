@@ -9,9 +9,10 @@ import { useTranslation } from '../../i18n';
 import { useMobileClient } from '../connection/mobile-client-provider';
 import { MobileUpdateRecoveryRejectedError } from '../connection/recover-mobile-update';
 import { downloadMobileUpdate, launchMobileUpdateInstaller } from './mobile-update-native';
-import type { MobileUpdatePhase } from './mobile-update-state';
+import type { MobileUpdateCheckStatus, MobileUpdatePhase } from './mobile-update-state';
 import {
     installMobileUpdate,
+    mobileUpdateCheckStatus,
     mobileUpdateStore,
     newerMobileUpdate,
     preparedMobileUpdateFromRecovery,
@@ -22,6 +23,11 @@ export interface MobileUpdate {
      * Update recovery failed for a reason asking again can fix, such as a timeout. A rejected pairing is not one.
      */
     canRetryCheck: boolean;
+    /**
+     * Asks Desktop for its build again: Retry on the recovery banner, and a tap on the Settings version row.
+     */
+    checkNow: () => void;
+    checkStatus: MobileUpdateCheckStatus;
     dismiss: () => void;
     install: () => void;
     /**
@@ -34,7 +40,6 @@ export interface MobileUpdate {
      */
     isRecovering: boolean;
     phase: MobileUpdatePhase;
-    retryCheck: () => void;
     update: MobileUpdateBundle | undefined;
 }
 
@@ -80,6 +85,13 @@ export const useMobileUpdate = (): MobileUpdate => {
         Constants.expoConfig?.android?.versionCode,
         check.data?.bundle,
     );
+    const checkStatus = mobileUpdateCheckStatus({
+        canUpdate,
+        hasAnswer: check.data !== undefined,
+        isError: check.isError,
+        isFetching: check.isFetching,
+        update,
+    });
     const install = useCallback(() => {
         const current = mobileUpdateStore.get().phase.kind;
         if (current === 'downloading' || current === 'installing') return;
@@ -98,7 +110,7 @@ export const useMobileUpdate = (): MobileUpdate => {
         );
     }, [recoverUpdate, request, t]);
     const { refetch } = check;
-    const retryCheck = useCallback(() => {
+    const checkNow = useCallback(() => {
         void refetch();
     }, [refetch]);
     const versionCode = update?.versionCode;
@@ -110,13 +122,14 @@ export const useMobileUpdate = (): MobileUpdate => {
             isRecovering &&
             check.isError &&
             !(check.error instanceof MobileUpdateRecoveryRejectedError),
+        checkNow,
+        checkStatus,
         dismiss,
         install,
         isChecking: isRecovering && check.isFetching,
         isDismissed: versionCode !== undefined && snapshot.dismissedVersionCode === versionCode,
         isRecovering,
         phase: snapshot.phase,
-        retryCheck,
         update,
     };
 };

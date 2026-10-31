@@ -13,7 +13,8 @@ watch and drive the live Terminal, send instructions, stop an Agent, start a new
 the resulting changes.
 
 The mobile Project panel supports bounded text-file edits from a `control` device. The phone's
-Settings screen only describes this device and its pairing; app configuration and multi-pane
+Settings screen only describes this device, its pairing, and its version (with an update check and
+links to release notes, issue reports, and the source); app configuration and multi-pane
 Terminal layouts stay on Desktop.
 
 ## Principles
@@ -120,7 +121,7 @@ The implemented device grants, method matrix, and cancellation behavior are docu
 /h/[hostId]/usage         Agent usage
 /h/[hostId]/inbox         Needs you (Caxri Bot inbox)
 /h/[hostId]/archived      Archived Sessions
-/h/[hostId]/settings      This device: role, pairing, forget the computer
+/h/[hostId]/settings      This device: role, pairing, version and update check, GitHub links, forget the computer
 /browser?url=…            In-app browser, over whatever opened it
 ```
 
@@ -152,8 +153,8 @@ no background of its own keeps its default dark text readable.
 
 ```text
 ┌───────────────────────────────┐
-│ ● MacBook Pro             ⋮   │  connection dot, host name, menu
-│ (All) (caxri) (website) …     │  Project filter chips
+│ (All) (caxri) (website) … ⋮   │  Project filter chips, computer menu
+│ [!] Caxri Bot · 2 items need… │  Bot Inbox entry, only while it has items
 ├───────────────────────────────┤
 │ PINNED                        │
 │ [✳] release-notes             │
@@ -192,7 +193,12 @@ no background of its own keeps its default dark text readable.
 - Filter chips list granted Projects in Desktop order; `All` is the default. The choice survives
   navigation within the app session.
 - The New Session button sits bottom-right above the system gesture inset.
-- The host menu contains `Add Project` (control devices only) and `Forget this computer`.
+- The home has no title row: the phone pairs one computer, so its name would only cost a row. The
+  computer menu names it in a caption above its actions (Agent usage, Computer status, Archived
+  Sessions, Add Project, Settings), and a lost connection shows the stale-connection banner instead
+  of a status dot.
+- On a control device, a `Caxri Bot · N items need you` row sits under the filters while the Bot
+  Inbox has open items and opens it; with none it is absent rather than an empty menu entry.
 - Do not reorder rows while the user is touching or scrolling the list; reconcile after the
   interaction ends.
 - On a control device, swiping a row left reveals its `Archive` action on a neutral elevated surface, not the danger color, because archiving is reversible from Archived Sessions. The swipe starts only after
@@ -311,8 +317,10 @@ Check the Terminal before sending again.` Never resend automatically.
 - When the connection is stale, the composer keeps the draft and names the disabled reason.
 - A Chat's composer carries one row of chips above the input: `Model · Effort` for the next turn
   (`Fake Codex · High`, with Desktop's names), a shield chip only while the permission level differs
-  from the provider's default or plan mode is on, and the usage chip. Chips draw at `32dp` and reach
-  `48dp` through their hit slop. The model and shield chips open one `Chat settings` sheet with
+  from the provider's default or plan mode is on, and, at the row's end, the context ring. Chips draw
+  at `32dp` and reach `48dp` through their hit slop. The ring has no chip fill, because it reports
+  usage rather than offering a choice, and its full track stays visible so a small share never reads
+  as a spinner; it takes the same hit slop and opens the Session usage sheet. The model and shield chips open one `Chat settings` sheet with
   `Model`, `Reasoning effort`, and `Permissions` sections that apply on tap and a `Done` button; the
   shield chip opens it scrolled to Permissions. The sheet stays open after a model is chosen so its
   efforts show right away. While a turn runs the sheet says `Applies to the next turn.` Without
