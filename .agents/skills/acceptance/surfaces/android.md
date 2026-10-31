@@ -25,9 +25,15 @@ Detach the launch from the agent's shell, or the emulator dies with that shell a
 fails with `device 'emulator-N' not found`. On macOS (no `setsid`):
 
 ```bash
-nohup ~/Library/Android/sdk/emulator/emulator -avd <avd> -port <unused even port> -read-only \
+nohup env -u http_proxy -u https_proxy -u all_proxy -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY \
+  ~/Library/Android/sdk/emulator/emulator -avd <avd> -port <unused even port> -read-only \
   -wipe-data -no-snapshot -no-audio -no-window >/tmp/emu-<port>.log 2>&1 & disown
 ```
+
+The emulator adopts an inherited `http_proxy` as its own proxy, so a shell that exports one routes
+the phone's traffic to the host's LAN address through that proxy: pairing then fails with
+"Caxri could not be reached" while Server Core logs only `pairing_outcome` `started`. Relaunch a
+task-owned emulator with the variables unset before suspecting the gateway.
 
 `-read-only` lets the task share an AVD that another instance is using. Stop it with
 `adb -s emulator-<port> emu kill` and confirm it left `adb devices`.
