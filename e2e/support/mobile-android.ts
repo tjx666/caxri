@@ -306,7 +306,9 @@ export async function mobileSemantics(serial: string): Promise<MobileSemanticNod
 
 /**
  * Compares native text inside the device helper and returns no text or raw accessibility XML. Like semantic capture,
- * this waits for UIAutomator idle and cannot observe a live streaming screen.
+ * this waits for UIAutomator idle and cannot observe a live streaming screen. `expectedText` matches only the node's
+ * `text` attribute, never `content-desc`, so it cannot assert a Pressable's label: target the inner text node's check
+ * id, or cover the label with a unit test and a screenshot.
  */
 export async function observeMobileNode(
     serial: string,

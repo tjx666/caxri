@@ -16,7 +16,7 @@ import {
     transferDesktopLease,
 } from './desktop-lease';
 import { runCapture } from './process';
-import { writeJsonAtomic } from './repo';
+import { repoContext, withRepoLock, writeJsonAtomic } from './repo';
 
 const temporaryDirectories: string[] = [];
 const activeLeases: DesktopLeaseHandle[] = [];
@@ -172,5 +172,22 @@ describe('desktop lease worker namespaces', () => {
         expect(await inspectDesktopLease(root, { namespace: 'e2e-worker-0' })).toEqual({
             state: 'free',
         });
+    });
+
+    it('fails a release that times out on the lock only while the lease is still its own', async () => {
+        const root = await createRepo();
+        const lease = await acquireDesktopLease(root, 'releaser');
+        activeLeases.push(lease);
+        const context = await repoContext(root);
+        await withRepoLock(context, async () => {
+            await expect(releaseDesktopLease(lease, { lockTimeoutMs: 100 })).rejects.toThrow(
+                'Timed out waiting for switch-worktree operation',
+            );
+            await unlink(lease.leasePath);
+            await expect(
+                releaseDesktopLease(lease, { lockTimeoutMs: 100 }),
+            ).resolves.toBeUndefined();
+        });
+        activeLeases.splice(activeLeases.indexOf(lease), 1);
     });
 });
