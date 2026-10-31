@@ -2,11 +2,7 @@ import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } fro
 import type { AppStateStatus } from 'react-native';
 import { AppState } from 'react-native';
 
-import type {
-    MobileClientCloseReason,
-    MobileSubscriptionResource,
-    MobileUpdateRecoveryPayload,
-} from '@caxri/mobile-transport';
+import type { MobileClientCloseReason, MobileSubscriptionResource } from '@caxri/mobile-transport';
 import type { CaxriMethod, MethodResult, ParametersArgument } from '@caxri/protocol';
 import * as Device from 'expo-device';
 import * as Network from 'expo-network';
@@ -17,6 +13,7 @@ import { loadMobileCredentialAtStart } from './credential-load';
 import type { MobileCredential } from './credential-store';
 import { expoMobileCredentialStore } from './expo-credential-store';
 import { expoMobileGatewayRuntime } from './expo-mobile-gateway-runtime';
+import type { MobileClientContextValue } from './mobile-client-context-value';
 import type { MobileSubscriptionListener } from './mobile-frame-router';
 import {
     MobileGatewayRequestError,
@@ -30,12 +27,14 @@ import type {
     MobileGatewayConnection,
     MobileGatewaySubscriptionHandle,
 } from './mobile-gateway-connection';
+import { acquireMobileSubscription } from './mobile-subscription-lease';
 import type { MobileNetworkWakeAction } from './network-recovery';
 import { watchMobileNetwork } from './network-recovery';
 import { createPairingAttemptOwner } from './pairing-attempt';
 import {
     countWhileDialing,
     foregroundRecoveryAction,
+    hedgeSuspectConnection,
     observeMobileConnectionTermination,
     retryAttemptAfterConnectionEnded,
     runReconnectAttempt,
@@ -45,61 +44,6 @@ import { recoverMobileUpdate } from './recover-mobile-update';
 import type { MobileRelayFailureKind } from './relay-failure';
 import { relayFailureKindOf } from './relay-failure';
 import { useMobileReconnect } from './use-mobile-reconnect';
-
-export interface MobileClientContextValue {
-    cancelPairing: () => void;
-    connectionEpoch: number;
-    connectionScopeKey: string | null;
-    forgetDevice: () => Promise<void>;
-    hostId: string | null;
-    isForeground: boolean;
-    getLastSeenAt: () => number | null;
-    pair: (pairingLink: string) => Promise<void>;
-    paired: boolean;
-    /**
-     * Present only while a newer Desktop refuses this app's transport version: proves the stored pairing over the
-     * frozen recovery exchange and returns the Android update Desktop ships, with a fresh download URL.
-     */
-    recoverUpdate: (() => Promise<MobileUpdateRecoveryPayload>) | null;
-    request: <M extends CaxriMethod>(
-        method: M,
-        ...arguments_: ParametersArgument<M>
-    ) => Promise<MethodResult<M>>;
-    /**
-     * Why the Relay refused the last reconnect, while the connection is down; `null` when it is connected or the
-     * failure is not a specific Relay refusal.
-     */
-    relayFailure: MobileRelayFailureKind | null;
-    retryConnection: () => void;
-    retryCredentialLoad: () => void;
-    status: MobileConnectionStatus;
-    subscribe: (
-        resource: MobileSubscriptionResource,
-        listener: MobileSubscriptionListener,
-    ) => Promise<MobileGatewaySubscriptionHandle>;
-    subscriptionAvailable: boolean;
-}
-
-export const acquireMobileSubscription = async ({
-    currentConnection,
-    connection,
-    listener,
-    resource,
-}: {
-    currentConnection: () => MobileGatewayConnection | null;
-    connection: MobileGatewayConnection;
-    listener: MobileSubscriptionListener;
-    resource: MobileSubscriptionResource;
-}): Promise<MobileGatewaySubscriptionHandle> => {
-    const handle = await connection.subscribe(resource, listener);
-    if (currentConnection() === connection) return handle;
-    try {
-        await handle.unsubscribe();
-    } catch {
-        // The old connection may already be closed; the lease must not escape to the new owner.
-    }
-    throw new Error('Caxri is reconnecting.');
-};
 
 export const useMobileClientController = (): MobileClientContextValue => {
     const [credential, setCredential] = useState<MobileCredential | null>(null);
@@ -130,6 +74,12 @@ export const useMobileClientController = (): MobileClientContextValue => {
      * Reconnects after a planned Relay to direct hand-over; assigned once the reconnect callbacks exist.
      */
     const startRouteUpgrade = useRef<() => void>(() => {});
+    /**
+     * Dials a replacement for a connection that missed a probe or read deadline while it keeps serving; assigned once
+     * the reconnect callbacks exist. See `hedgeSuspectConnection`.
+     */
+    const hedgeSuspect = useRef<(suspect: MobileGatewayConnection) => void>(() => {});
+    const hedgingSuspect = useRef<MobileGatewayConnection | null>(null);
     const readCache = useReadCache();
 
     /**
@@ -179,21 +129,21 @@ export const useMobileClientController = (): MobileClientContextValue => {
                         deferredNetworkWake.current = true;
                         return;
                     }
-                    replaceConnection(null, 'probe-failed');
-                    setLastSeenAt(null);
-                    backOffAfterConnectionEnded();
-                    setStatus('stale');
+                    hedgeSuspect.current(current);
                 })
                 .finally(() => {
                     if (activeProbe.current === current) activeProbe.current = null;
                 });
         },
-        [backOffAfterConnectionEnded, replaceConnection, setLastSeenAt],
+        [setLastSeenAt],
     );
 
     const adoptConnection = useCallback(
-        (next: MobileGatewayConnection): boolean => {
-            replaceConnection(next, 'superseded');
+        (
+            next: MobileGatewayConnection,
+            replacedReason: MobileClientCloseReason = 'superseded',
+        ): boolean => {
+            replaceConnection(next, replacedReason);
             connectedAt.current = Date.now();
             next.setForeground(appState.current === 'active');
             removeObservationListener.current = next.onObservation(() => {
@@ -258,8 +208,8 @@ export const useMobileClientController = (): MobileClientContextValue => {
         [],
     );
     const acceptReconnection = useCallback(
-        (next: MobileGatewayConnection): void => {
-            if (!adoptConnection(next)) return;
+        (next: MobileGatewayConnection, replacedReason?: MobileClientCloseReason): void => {
+            if (!adoptConnection(next, replacedReason)) return;
             setLastSeenAt(Date.now());
             setRelayFailure(null);
             setRelayFailure(null);
@@ -299,6 +249,24 @@ export const useMobileClientController = (): MobileClientContextValue => {
                     connection.current === null && credentialReference.current === stored,
                 onConnected: acceptReconnection,
                 onFailed: rejectReconnection,
+            });
+        };
+        hedgeSuspect.current = (suspect) => {
+            const stored = credentialReference.current;
+            if (!stored || hedgingSuspect.current === suspect) return;
+            hedgingSuspect.current = suspect;
+            void hedgeSuspectConnection({
+                connect: () => reconnect(stored),
+                // A suspect that ended meanwhile leaves the slot empty, and the replacement is still wanted then. A
+                // mutation started during the dial keeps the suspect, so swapping never leaves its outcome unknown.
+                isCurrent: () =>
+                    credentialReference.current === stored &&
+                    (connection.current === null ||
+                        (connection.current === suspect && !suspect.hasOutstandingMutation())),
+                onReplaced: (next) => acceptReconnection(next, 'probe-failed'),
+                suspect,
+            }).finally(() => {
+                if (hedgingSuspect.current === suspect) hedgingSuspect.current = null;
             });
         };
     }, [acceptReconnection, reconnect, rejectReconnection]);
@@ -503,6 +471,12 @@ export const useMobileClientController = (): MobileClientContextValue => {
                     current.hasOutstandingMutation()
                 ) {
                     deferredNetworkWake.current = true;
+                } else if (
+                    error instanceof MobileGatewayTimeoutError &&
+                    connection.current === current
+                ) {
+                    // A late read leaves its connection open; a replacement takes over only if it answers first.
+                    hedgeSuspect.current(current);
                 } else if (
                     !(error instanceof MobileGatewayRequestError) &&
                     connection.current === current

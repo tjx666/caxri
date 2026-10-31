@@ -110,7 +110,12 @@ command replies finish out of order. Before sending a completed operation, the g
 that the same authenticated device and generation are still active.
 
 The client sends a heartbeat every three seconds while foregrounded and treats a missing answer
-after five seconds as a connection failure. The Server closes a socket after 12 seconds without a
+after eight seconds as a connection failure; a late answer to a heartbeat sent before a background
+pause is ignored. A foreground probe that waits more than 1.5 seconds, or an idempotent read that
+waits more than three, fails only itself: the connection stays open and the phone dials a
+replacement, keeping the old connection if any authenticated frame arrives on it before the
+replacement is ready. A computer whose Server is briefly starved of CPU therefore never costs the
+phone its connection, and the heartbeat alone decides that a path is gone. The Server closes a socket after 12 seconds without a
 valid authenticated client frame. The client considers its view stale after five seconds without a
 valid authenticated Server observation, retains the last snapshot, and disables mutations until
 fresh data arrives. On reconnect, a visible view sends its subscribe and then its snapshot read

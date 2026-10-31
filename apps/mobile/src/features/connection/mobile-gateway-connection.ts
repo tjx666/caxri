@@ -242,7 +242,7 @@ export class MobileGatewayConnection {
         id: string,
         payload: MobileClientPayload,
         timeoutMs: number,
-        isMutation = false,
+        kind: 'mutation' | 'read' | 'subscription',
     ): Promise<CommandReplyEnvelope> {
         if (this.#termination || this.#closedByOwner) throw connectionClosedError();
         if (this.#deferredMutation) throw this.#deferredMutation.error;
@@ -255,7 +255,12 @@ export class MobileGatewayConnection {
                     error: timeoutError,
                     reason: 'request-timeout',
                 };
-                if (isMutation) this.#deferredMutation = deferred;
+                // A late read only rejects itself: a computer whose Server is starved of CPU answers seconds late over
+                // a socket that still works, so the owner hedges with a replacement and the heartbeat judges this one.
+                // A missed subscription acknowledgement still ends the connection, because the Server may hold a
+                // subscription this client can no longer route.
+                if (kind === 'mutation') this.#deferredMutation = deferred;
+                else if (kind === 'read') return;
                 else if (this.hasOutstandingMutation()) this.#deferredLiveness = deferred;
                 else this.#finish('disconnected', timeoutError, 'request-timeout');
             },
@@ -345,7 +350,7 @@ export class MobileGatewayConnection {
                     }),
                 },
                 isFastRead ? READ_REQUEST_TIMEOUT_MS : REQUEST_TIMEOUT_MS,
-                !isFastRead,
+                isFastRead ? 'read' : 'mutation',
             );
             if (!reply.ok)
                 throw new MobileGatewayRequestError(reply.error.code, reply.error.message);
@@ -377,6 +382,7 @@ export class MobileGatewayConnection {
                 id,
                 { type: 'subscribe', id, resource },
                 READ_REQUEST_TIMEOUT_MS,
+                'subscription',
             );
             if (!reply.ok)
                 throw new MobileGatewayRequestError(reply.error.code, reply.error.message);
@@ -397,6 +403,7 @@ export class MobileGatewayConnection {
                         unsubscribeId,
                         { type: 'unsubscribe', id: unsubscribeId, subscriptionId },
                         READ_REQUEST_TIMEOUT_MS,
+                        'subscription',
                     );
                     if (!unsubscribeReply.ok)
                         throw new MobileGatewayRequestError(
@@ -411,19 +418,20 @@ export class MobileGatewayConnection {
         }
     }
 
+    /**
+     * Asks for a quick answer after a wake. A late answer rejects the probe but leaves the connection open: the owner
+     * dials a replacement and keeps whichever proves alive first.
+     */
     async probe(): Promise<void> {
         let timeout: ReturnType<typeof setTimeout> | undefined;
         try {
             await Promise.race([
                 this.request('mobile.dashboard'),
                 new Promise<never>((_resolve, reject) => {
-                    timeout = setTimeout(() => {
-                        const error = new Error('Caxri did not respond to the foreground probe.');
-                        if (this.hasOutstandingMutation())
-                            this.#deferredLiveness = { error, reason: 'probe-timeout' };
-                        else this.#finish('disconnected', error, 'probe-timeout');
-                        reject(error);
-                    }, FOREGROUND_PROBE_TIMEOUT_MS);
+                    timeout = setTimeout(
+                        () => reject(new Error('Caxri did not respond to the foreground probe.')),
+                        FOREGROUND_PROBE_TIMEOUT_MS,
+                    );
                 }),
             ]);
         } finally {

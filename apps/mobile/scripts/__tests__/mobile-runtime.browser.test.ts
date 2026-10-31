@@ -4,7 +4,7 @@ import { chromium } from 'playwright';
 import { build } from 'vite';
 import { describe, expect, it } from 'vitest';
 
-import type { MobileClientContextValue } from '../../src/features/connection/use-mobile-client-controller';
+import type { MobileClientContextValue } from '../../src/features/connection/mobile-client-context-value';
 import { terminalWebviewDocument } from '../../src/features/terminal/terminal-webview-document';
 import type { useLiveTerminal } from '../../src/features/terminal/use-live-terminal';
 import { terminalWebviewCommandScript } from '../../src/features/terminal/webview-bridge';

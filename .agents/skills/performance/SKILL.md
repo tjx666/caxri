@@ -92,8 +92,10 @@ description: Measure and protect Caxri startup, Server Core responsiveness, Rend
      `blockedByMethod`, `blockedByRequestId`, `blockedByOverlapMs`. Answers which earlier request it
      waited behind.
    - `process.event_loop_stall` (`warn`/`error`): `stallKind`, `inFlightCount`, `inFlightRequests`,
-     `finishedRequests` as `method=ms` pairs, longest first. Answers whether the Server loop was blocked
-     and by which handlers.
+     `finishedRequests` as `method=ms` pairs, longest first, plus `loadAverage1m` and `cpuCount`.
+     Answers whether the Server loop was blocked and by which handlers. A `process-suspension`
+     (`info`) whose `loadAverage1m` far exceeds `cpuCount` was CPU starvation by other processes, not a
+     frozen machine.
    - `git.command` (`info` when `queueMs` is 250 ms or more or `execMs` is 1 s or more): `operation`,
      `callerMethod`, `repository`. Answers whether Git queued or ran long and for which request.
      `callerMethod` travels with the request id in the async context, so it is present even when the

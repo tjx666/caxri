@@ -51,6 +51,11 @@ const isMessageForResource = (
  * Owns request correlation and per-subscription order below React and the WebSocket lifecycle.
  */
 export class MobileFrameRouter {
+    /**
+     * Requests whose deadline passed while the connection stayed open. A starved Server still answers them, and that
+     * late reply is dropped instead of being read as a protocol violation.
+     */
+    readonly #expiredReplyIds = new Set<string>();
     readonly #pending = new Map<string, PendingReply>();
     readonly #pendingSubscriptionRequests = new Set<string>();
     readonly #preAckMessages = new Map<string, MobileSubscriptionMessage[]>();
@@ -93,6 +98,11 @@ export class MobileFrameRouter {
         return new Promise<CommandReplyEnvelope>((resolve, reject) => {
             const timeout = setTimeout(() => {
                 if (!this.#pending.delete(id)) return;
+                this.#expiredReplyIds.add(id);
+                if (this.#expiredReplyIds.size > 64) {
+                    const oldest = this.#expiredReplyIds.values().next().value;
+                    if (oldest) this.#expiredReplyIds.delete(oldest);
+                }
                 reject(timeoutError);
                 onTimeout();
             }, timeoutMs);
@@ -104,7 +114,10 @@ export class MobileFrameRouter {
         const reply = commandReplyEnvelopeSchema.parse(raw);
         if (reply.id === null) throw new Error('Caxri returned a reply without an ID.');
         const pending = this.#pending.get(reply.id);
-        if (!pending) throw new Error('Caxri returned an unexpected reply.');
+        if (!pending) {
+            if (this.#expiredReplyIds.delete(reply.id)) return;
+            throw new Error('Caxri returned an unexpected reply.');
+        }
         this.#pending.delete(reply.id);
         clearTimeout(pending.timeout);
         pending.resolve(reply);
@@ -123,6 +136,7 @@ export class MobileFrameRouter {
         this.#pendingSubscriptionRequests.clear();
         this.#preAckMessages.clear();
         this.#preAckMessageCount = 0;
+        this.#expiredReplyIds.clear();
         this.#retiredSubscriptionIds.clear();
         this.#subscriptions.clear();
     }

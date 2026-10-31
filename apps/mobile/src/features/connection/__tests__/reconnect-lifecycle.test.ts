@@ -4,6 +4,7 @@ import { reconnectDelay } from '../connection-state';
 import {
     countWhileDialing,
     foregroundRecoveryAction,
+    hedgeSuspectConnection,
     observeMobileConnectionTermination,
     reconnectWaitForAttempt,
     retryAttemptAfterConnectionEnded,
@@ -138,5 +139,90 @@ describe('countWhileDialing', () => {
             countWhileDialing(dialing, () => Promise.reject(new Error('dial failed'))),
         ).rejects.toThrow('dial failed');
         expect(dialing.current).toBe(0);
+    });
+});
+
+describe('suspect connection hedge', () => {
+    const suspectFixture = () => {
+        const listeners = new Set<() => void>();
+        return {
+            observe: () => {
+                for (const listener of listeners) listener();
+            },
+            suspect: {
+                onObservation: (listener: () => void) => {
+                    listeners.add(listener);
+                    return () => listeners.delete(listener);
+                },
+            },
+            listenerCount: () => listeners.size,
+        };
+    };
+
+    it('keeps a slow connection that answers before its replacement is ready', async () => {
+        const fixture = suspectFixture();
+        const replacement = { close: vi.fn() };
+        const { promise, resolve } = Promise.withResolvers<typeof replacement>();
+        const onReplaced = vi.fn();
+        const outcome = hedgeSuspectConnection({
+            connect: () => promise,
+            isCurrent: () => true,
+            onReplaced,
+            suspect: fixture.suspect,
+        });
+        expect(fixture.listenerCount()).toBe(1);
+        fixture.observe();
+        resolve(replacement);
+        await expect(outcome).resolves.toBe('kept');
+        expect(onReplaced).not.toHaveBeenCalled();
+        expect(replacement.close).toHaveBeenCalledExactlyOnceWith('superseded');
+        expect(fixture.listenerCount()).toBe(0);
+    });
+
+    it('adopts the replacement when the suspect stays silent', async () => {
+        const fixture = suspectFixture();
+        const replacement = { close: vi.fn() };
+        const onReplaced = vi.fn();
+        await expect(
+            hedgeSuspectConnection({
+                connect: () => Promise.resolve(replacement),
+                isCurrent: () => true,
+                onReplaced,
+                suspect: fixture.suspect,
+            }),
+        ).resolves.toBe('replaced');
+        expect(onReplaced).toHaveBeenCalledExactlyOnceWith(replacement);
+        expect(replacement.close).not.toHaveBeenCalled();
+    });
+
+    it('keeps the suspect when the replacement cannot connect', async () => {
+        const fixture = suspectFixture();
+        const onReplaced = vi.fn();
+        await expect(
+            hedgeSuspectConnection({
+                connect: () => Promise.reject(new Error('Relay unavailable')),
+                isCurrent: () => true,
+                onReplaced,
+                suspect: fixture.suspect,
+            }),
+        ).resolves.toBe('kept');
+        expect(onReplaced).not.toHaveBeenCalled();
+        expect(fixture.listenerCount()).toBe(0);
+    });
+
+    it('closes a replacement whose owner moved on to another connection', async () => {
+        const fixture = suspectFixture();
+        const replacement = { close: vi.fn() };
+        const onReplaced = vi.fn();
+        await expect(
+            hedgeSuspectConnection({
+                connect: () => Promise.resolve(replacement),
+                isCurrent: () => false,
+                onReplaced,
+                suspect: fixture.suspect,
+            }),
+        ).resolves.toBe('kept');
+        expect(onReplaced).not.toHaveBeenCalled();
+        expect(replacement.close).toHaveBeenCalledExactlyOnceWith('superseded');
     });
 });
