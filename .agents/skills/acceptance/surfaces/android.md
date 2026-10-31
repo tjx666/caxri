@@ -194,7 +194,9 @@ before finalization; a file extension alone is never accepted as Android evidenc
 Read the full-resolution screenshot before citing it. Check safe areas, system bars, clipping,
 overlap, keyboard coverage, selection state, target identity, and phone/tablet layout. Pair a touch
 command with a fresh semantic postcondition; a final screenshot alone does not prove which input
-caused it. Follow [the Android recording guide](../references/recording-android.md) when the criterion
+caused it. Before the next `adb input text`, wait for the previous touch's postcondition too: after
+a clear or replace tap, wait until the field is empty (its clear control gone), or the new query is
+appended to the old one, as in the Session search case's `clearSessionSearch`. Follow [the Android recording guide](../references/recording-android.md) when the criterion
 depends on a transition or multi-step flow.
 
 An emulator can prove the functional path but not camera optics, haptics, thermal behavior, radio
