@@ -55,6 +55,11 @@ export const mobileDashboardSessionSchema = z.strictObject({
             failureReason: true,
             usageLimitWaitAt: true,
             /**
+             * `background` lets the row show Desktop's slow dotted ring while the Agent only waits on its own
+             * background work, instead of the spinner of a live turn.
+             */
+            agentOperation: true,
+            /**
              * `chat` tells the phone to open the Agent Chat projection instead of attaching to a PTY that does not
              * exist; see `docs/agent-chat.md`.
              */

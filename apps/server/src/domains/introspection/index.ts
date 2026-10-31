@@ -1,6 +1,7 @@
 import { homedir } from 'node:os';
 import { dirname } from 'node:path';
 
+import type { TerminalRecord } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 
 import type { CaxriDatabase } from '../db';
@@ -16,19 +17,19 @@ export * from './records';
 export function createIntrospectionServices(
     database: CaxriDatabase,
     logger: StructuredLogger,
-    currentSessionId: () => string | undefined,
+    presence: { currentSessionId(): string | undefined },
     /**
-     * When a Chat continues after a plan limit resets; only a running Server Core knows it, so it is not a stored
-     * column.
+     * The Workbench's live projection, so CLI queries report the same Runtime-only fields Clients see, such as when a
+     * Chat continues after a plan limit resets and whether an Agent only waits on its own background work.
      */
-    usageLimitWaitAt: (terminalId: string) => number | undefined,
+    liveTerminalRecord: (terminal: TerminalRecord) => TerminalRecord,
 ) {
     return {
         logs: new LogQueryService(dirname(logger.path)),
         records: new RecordQueryService(
             {
                 currentProjectId: () => {
-                    const sessionId = currentSessionId();
+                    const sessionId = presence.currentSessionId();
                     const session = sessionId ? database.getSession(sessionId) : undefined;
                     return (
                         session?.projectId ??
@@ -36,17 +37,11 @@ export function createIntrospectionServices(
                         undefined
                     );
                 },
-                currentSessionId,
+                currentSessionId: () => presence.currentSessionId(),
                 // Hidden Projects stay out of CLI queries exactly as they stay out of the Workbench.
                 projects: () => database.listVisibleProjects(),
                 sessions: () => database.listVisibleSessions(),
-                terminals: () =>
-                    database.listTerminals().map((terminal) => {
-                        const waitingAt = usageLimitWaitAt(terminal.id);
-                        return waitingAt === undefined
-                            ? terminal
-                            : { ...terminal, usageLimitWaitAt: waitingAt };
-                    }),
+                terminals: () => database.listTerminals().map(liveTerminalRecord),
             },
             homedir(),
         ),

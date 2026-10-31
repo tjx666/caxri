@@ -251,11 +251,18 @@ export async function createDomainServices(
         startedAt,
         () => watchHub.snapshot(),
     );
+    const liveTerminalRecord = createLiveTerminalRecord(
+        coordinator,
+        terminals,
+        chatStateStore(database).subagents,
+        { waitingAt: (id) => agentChat.states.usageLimitWaits?.waitingAt(id) },
+        agentRuntime.usageGuards,
+    );
     const introspection = createIntrospectionServices(
         database,
         logger,
-        () => presence.currentSessionId(),
-        (terminalId) => agentChat.states.usageLimitWaits?.waitingAt(terminalId),
+        presence,
+        liveTerminalRecord,
     );
     const forgetSessionRuntime = createSessionRuntimeForgetter({
         agentChat,
@@ -275,13 +282,7 @@ export async function createDomainServices(
         configuration,
         database,
         logger,
-        liveTerminalRecord: createLiveTerminalRecord(
-            coordinator,
-            terminals,
-            chatStateStore(database).subagents,
-            { waitingAt: (id) => agentChat.states.usageLimitWaits?.waitingAt(id) },
-            agentRuntime.usageGuards,
-        ),
+        liveTerminalRecord,
     });
     const { createAndStartTerminal, newTerminalWorkingDirectory, terminalWorkingDirectory } =
         createTerminalCreation({ configuration, coordinator, database, terminals });

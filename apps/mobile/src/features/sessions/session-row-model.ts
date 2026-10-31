@@ -79,15 +79,16 @@ export const sessionStateLabel = (
 /**
  * Which mark the Session status slot shows. Unread attention is a question mark when the Agent waits on the user and a
  * ringed dot for a result, as on Desktop. A saved copy cannot know a Session is still running, so it never spins:
- * `running-saved` is a still glyph; `usage-wait` is a clock for a Chat waiting for a usage limit to reset. When the
- * screen below already shows the run (`isRunShownBelow`: the Chat tab's status row, or its `Compacting context…` line),
- * the slot stays empty so the same work does not spin twice.
+ * `running-saved` is a still glyph; `running-background` is Desktop's slow dotted ring for an Agent that only waits on
+ * its own background work; `usage-wait` is a clock for a Chat waiting for a usage limit to reset. When the screen below
+ * already shows the run (`isRunShownBelow`: the Chat tab's status row, or its `Compacting context…` line), the slot
+ * stays empty so the same work does not spin twice.
  */
 export const sessionStatusGlyphKind = (
     session: Pick<MobileSessionItem, 'hasUnread' | 'agentActivityState' | 'lastAttentionKind'> & {
         primaryTerminal?: Pick<
             NonNullable<MobileSessionItem['primaryTerminal']>,
-            'usageLimitWaitAt'
+            'usageLimitWaitAt' | 'agentOperation'
         >;
     },
     isSaved: boolean,
@@ -96,6 +97,7 @@ export const sessionStatusGlyphKind = (
     | 'attention-result'
     | 'attention-waiting'
     | 'running'
+    | 'running-background'
     | 'running-saved'
     | 'failed'
     | 'usage-wait'
@@ -110,7 +112,10 @@ export const sessionStatusGlyphKind = (
             : 'attention-result';
     if (session.agentActivityState === 'running') {
         if (isRunShownBelow) return null;
-        return isSaved ? 'running-saved' : 'running';
+        if (isSaved) return 'running-saved';
+        return session.primaryTerminal?.agentOperation === 'background'
+            ? 'running-background'
+            : 'running';
     }
     if (session.agentActivityState === 'failed') return 'failed';
     return null;

@@ -18,6 +18,7 @@ import type { AgentProvider } from '@caxri/protocol';
 import { execFileAsync } from '@caxri/system';
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { setAcceptanceAgentFixtureProviderAvailability } from '../agent-fixture-availability';
 import {
     getAgentFixtureStdout,
     observeAgentFixtureProcess,
@@ -28,7 +29,6 @@ import {
 import {
     prepareAcceptanceAgentEnvironment,
     prepareAcceptanceAgentFixture,
-    setAcceptanceAgentFixtureProviderAvailability,
 } from '../agent-fixtures';
 
 const directories: string[] = [];

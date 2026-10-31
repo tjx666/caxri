@@ -107,6 +107,11 @@ const terminalSummarySchema = terminalRecordSchema.pick({
      */
     usageLimitWaitAt: true,
     /**
+     * Present only during a Runtime subphase, so the phone's Session list can tell an Agent waiting on its own
+     * background work from a live turn.
+     */
+    agentOperation: true,
+    /**
      * Present only for an Agent Chat, so a Client (or a paired phone) can tell it from a PTY before attaching.
      */
     surface: true,

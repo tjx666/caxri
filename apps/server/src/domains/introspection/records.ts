@@ -243,6 +243,7 @@ export class RecordQueryService {
                     failureReason,
                     surface,
                     usageLimitWaitAt,
+                    agentOperation,
                 }) => ({
                     id,
                     sessionId,
@@ -253,6 +254,7 @@ export class RecordQueryService {
                     ...(failureReason && { failureReason }),
                     ...(surface && { surface }),
                     ...(usageLimitWaitAt !== undefined && { usageLimitWaitAt }),
+                    ...(agentOperation !== undefined && { agentOperation }),
                 }),
             ),
         };

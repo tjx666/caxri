@@ -2,6 +2,7 @@ import { View } from 'react-native';
 
 import { CircleAlert, CircleQuestionMark, Clock, LoaderCircle } from 'lucide-react-native';
 
+import { BackgroundRing } from '../../../components/background-ring';
 import { Spinner } from '../../../components/spinner';
 import { useTranslation } from '../../../i18n';
 import type { MobileTheme } from '../../../theme/tokens';
@@ -11,9 +12,10 @@ import { sessionStatusGlyphKind } from '../session-row-model';
 /**
  * The single status slot shared by the Session list and the Session header. It mirrors Desktop's
  * `SessionStatusIndicator`: unread attention is amber (a question mark when the Agent waits on the user, a ringed dot
- * for a result, so the cause does not rest on color), running spins, and a settled Session shows nothing so the title
- * carries the row. A failure the user has already read stays marked because nothing else on a phone row reveals it. On
- * a saved copy a running Session shows a still spinner glyph, since the phone cannot know it is still working.
+ * for a result, so the cause does not rest on color), running spins (a slow dotted ring while the Agent only waits on
+ * its own background work), and a settled Session shows nothing so the title carries the row. A failure the user has
+ * already read stays marked because nothing else on a phone row reveals it. On a saved copy a running Session shows a
+ * still spinner glyph, since the phone cannot know it is still working.
  */
 export const SessionStatusGlyph = ({
     isRunShownBelow = false,
@@ -85,6 +87,15 @@ export const SessionStatusGlyph = ({
                     color={theme.muted}
                     size={18}
                     testID="session-status-running"
+                />
+            );
+        case 'running-background':
+            return (
+                <BackgroundRing
+                    accessibilityLabel={stateLabel}
+                    color={theme.muted}
+                    size={18}
+                    testID="session-status-running-background"
                 />
             );
         case 'running-saved':

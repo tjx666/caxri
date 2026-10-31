@@ -7,7 +7,12 @@ import type { Page } from '@playwright/test';
 import { prepareAcceptanceAgentFixture } from '../../.agents/skills/acceptance/scripts/agent-fixtures';
 import { pageRequest } from './helpers';
 
-export type AttentionCommand = 'fixture:permission' | 'fixture:question' | 'fixture:exit';
+export type AttentionCommand =
+    | 'fixture:background'
+    | 'fixture:exit'
+    | 'fixture:permission'
+    | 'fixture:question'
+    | 'fixture:start';
 export interface AttentionReceipt {
     attentionKind?: string;
     applied?: boolean;

@@ -2,19 +2,12 @@
 import { useEffect, useState } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { StyleSheet } from 'react-native';
-import Animated, {
-    cancelAnimation,
-    Easing,
-    useAnimatedStyle,
-    useReducedMotion,
-    useSharedValue,
-    withRepeat,
-    withTiming,
-} from 'react-native-reanimated';
+import Animated, { useReducedMotion } from 'react-native-reanimated';
 
 import { LoaderCircle } from 'lucide-react-native';
 
 import { LOADING_REVEAL_DELAY_MS } from './loading-delay';
+import { useSharedSpinStyle } from './shared-spin-clock';
 
 /**
  * One turn of Tailwind's `animate-spin`, which Desktop's `Spinner` uses.
@@ -23,9 +16,11 @@ const SPIN_MS = 1_000;
 
 /**
  * The shared loading indicator: Desktop's `Spinner` glyph (`LoaderCircle`) turning at the same speed, so the phone's
- * loading states look like Desktop's instead of Android's growing arc or iOS's spokes. Reduced motion leaves the glyph
- * still. With `isDelayed`, it draws nothing for `LOADING_REVEAL_DELAY_MS`, so a read that settles quickly never flashes
- * a spinner; a placeholder of the same size keeps the layout from shifting when it appears.
+ * loading states look like Desktop's instead of Android's growing arc or iOS's spokes. Every spinner turns on one
+ * shared phase (`useSharedSpinStyle`), so the running rows of the Session list turn as one column like Desktop's.
+ * Reduced motion leaves the glyph still. With `isDelayed`, it draws nothing for `LOADING_REVEAL_DELAY_MS`, so a read
+ * that settles quickly never flashes a spinner; a placeholder of the same size keeps the layout from shifting when it
+ * appears.
  */
 export const Spinner = ({
     accessibilityLabel,
@@ -44,23 +39,12 @@ export const Spinner = ({
 }) => {
     const isReducedMotion = useReducedMotion();
     const [isRevealed, setRevealed] = useState(!isDelayed);
-    const turn = useSharedValue(0);
     useEffect(() => {
         if (isRevealed) return;
         const timer = setTimeout(() => setRevealed(true), LOADING_REVEAL_DELAY_MS);
         return () => clearTimeout(timer);
     }, [isRevealed]);
-    useEffect(() => {
-        if (isReducedMotion || !isRevealed) return;
-        turn.set(withRepeat(withTiming(1, { duration: SPIN_MS, easing: Easing.linear }), -1));
-        return () => {
-            cancelAnimation(turn);
-            turn.set(0);
-        };
-    }, [isReducedMotion, isRevealed, turn]);
-    const spinStyle = useAnimatedStyle(() => ({
-        transform: [{ rotate: `${turn.get() * 360}deg` }],
-    }));
+    const spinStyle = useSharedSpinStyle(SPIN_MS, !isReducedMotion && isRevealed);
     return (
         <Animated.View
             accessibilityLabel={accessibilityLabel}

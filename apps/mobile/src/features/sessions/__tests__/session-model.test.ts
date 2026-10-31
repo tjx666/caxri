@@ -157,6 +157,23 @@ describe('mobile session model', () => {
         expect(result.sessions).toHaveLength(1_000);
     });
 
+    it('labels a running Session that only waits on background work as in the background', () => {
+        const result = buildMobileSessionSections({
+            total: 2,
+            truncated: false,
+            sessions: [
+                session({
+                    agentActivityState: 'running',
+                    primaryTerminal: { ...terminal, agentOperation: 'background' },
+                }),
+                session({ id: 'session-2', agentActivityState: 'running' }),
+            ],
+        });
+        const labels = new Map(result.sessions.map((item) => [item.id, item.stateLabel]));
+        expect(labels.get('session-1')).toBe('In background');
+        expect(labels.get('session-2')).toBe('Working');
+    });
+
     it('files a Chat waiting for a usage limit under Idle with the continuation time, even when unread', () => {
         const waiting = session({
             agentActivityState: 'failed',

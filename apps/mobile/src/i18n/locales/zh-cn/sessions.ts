@@ -253,6 +253,7 @@ export const sessions: TranslatedNamespace<typeof source> = {
     'sessions.state.usageWait': '将在 {{time}} 自动继续',
     'sessions.state.waiting': '等待你处理',
     'sessions.state.working': '运行中',
+    'sessions.state.background': '后台运行中',
     'sessions.status.needsAttention': '需要处理：{{state}}',
     'sessions.pullRequest.open': 'Pull Request #{{number}}，已打开',
     'sessions.pullRequest.draft': 'Pull Request #{{number}}，草稿',

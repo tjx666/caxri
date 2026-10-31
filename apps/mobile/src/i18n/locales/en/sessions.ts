@@ -265,6 +265,7 @@ export const sessions = {
     'sessions.state.usageWait': 'Continues automatically at {{time}}',
     'sessions.state.waiting': 'Waiting for you',
     'sessions.state.working': 'Working',
+    'sessions.state.background': 'In background',
     'sessions.status.needsAttention': 'Needs attention: {{state}}',
     'sessions.pullRequest.open': 'Pull request #{{number}}, open',
     'sessions.pullRequest.draft': 'Pull request #{{number}}, draft',
