@@ -388,6 +388,29 @@ describe('Claude Code background work in Agent Chat', () => {
         expect(service.read(terminal.id).items.map((item) => item.type)).toEqual(['notice']);
     });
 
+    it('drops the context usage to the compacted size after compacting a large context', async () => {
+        const { service, terminal, until } = await fixture({ provider: 'claude' });
+        await until((snapshot) => snapshot.status === 'ready');
+        await service.send(terminal.id, { text: 'large context please' });
+        const full = await until(
+            (snapshot) => !snapshot.activeTurnId && snapshot.usage?.totalTokens !== undefined,
+        );
+        expect(full.usage?.totalTokens).toBe(141_240);
+
+        await service.runCommand(terminal.id, 'compact');
+        await until((snapshot) => snapshot.operation === 'compacting');
+        const done = await until(
+            (snapshot) => snapshot.operation === undefined && !snapshot.activeTurnId,
+        );
+        expect(done.usage?.totalTokens).toBe(12_480);
+        const notice = done.items.find(
+            (item) => item.type === 'notice' && item.kind === 'compacted',
+        );
+        expect(notice).toMatchObject({
+            compaction: { beforeTokens: 141_240, afterTokens: 12_480 },
+        });
+    });
+
     it('reports a failed compaction as an error notice', async () => {
         const { service, terminal, until } = await fixture({ provider: 'claude' });
         await until((snapshot) => snapshot.status === 'ready');
