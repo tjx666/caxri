@@ -17,7 +17,7 @@ import {
 } from './mobile-agent-chat-helpers';
 import {
     adbShell,
-    mobileNativeControlBounds,
+    mobileColorBounds,
     mobileRegionFingerprint,
     mobileSemantics,
     startMobileFramebufferRecording,
@@ -37,11 +37,6 @@ const run = promisify(execFile);
  */
 const VIDEO_NAME = 'demo.mp4';
 const VIDEO_SECONDS = 60;
-
-/**
- * The player's progress bar. `expo-video` draws Media3's `PlayerView` controls, whose ids merge into the app package.
- */
-const TIME_BAR = 'com.caxri.mobile:id/exo_progress';
 
 const createVideo = async (): Promise<string> => {
     const directory = await mkdtemp('/tmp/caxri-video-');
@@ -131,19 +126,6 @@ async function openChatWithVideo(environment: MobileAgentScenarioEnvironment) {
 }
 
 /**
- * Taps the middle of the player. While the controls are hidden a tap only shows them; once shown, the same spot is
- * their play/pause button.
- */
-async function tapPlayer(serial: string, view: PlayerBounds): Promise<void> {
-    await adbShell(serial, [
-        'input',
-        'tap',
-        String(Math.round((view.left + view.right) / 2)),
-        String(Math.round((view.top + view.bottom) / 2)),
-    ]);
-}
-
-/**
  * Sends a media key. Every `expo-video` player registers a Media3 session, so pause and play reach it the way a headset
  * button would, without racing the on-screen controls that hide themselves a few seconds after a touch.
  */
@@ -176,63 +158,41 @@ async function waitForStill(serial: string, view: PlayerBounds): Promise<void> {
  */
 type PlayerBounds = NonNullable<ReturnType<typeof checkBounds>>;
 
-const timeBar = (serial: string) => mobileNativeControlBounds(serial, { resourceId: TIME_BAR });
-
 /**
- * Returns the progress bar, showing the controls first when Media3 has hidden them, which it does a few seconds after
- * the last touch even while paused.
+ * Finds the progress bar by its pixels. A paused Media3 player keeps its controls on screen, but UIAutomator cannot
+ * dump that screen, so the played (white) part of the bar and its thumb are found in the band just above the time
+ * labels. The bar is centered, so its right end mirrors its left margin.
  */
-async function showControls(serial: string, view: PlayerBounds) {
-    const shown = await timeBar(serial);
-    if (shown) return shown;
-    const before = await playerControls(serial);
-    await tapPlayer(serial, view);
-    try {
-        const bar = await waitForMobile(
-            () => timeBar(serial),
-            (bounds) => bounds !== null,
-            15_000,
-        );
-        if (bar) return bar;
-    } catch {
-        // Reported below with what the screen held.
-    }
-    throw new Error(
-        `The player shows no progress bar; controls before the tap: ${before}; after: ${await playerControls(serial)}`,
+async function findTimeBar(serial: string, view: PlayerBounds) {
+    const height = view.bottom - view.top;
+    const played = await mobileColorBounds(
+        serial,
+        {
+            bottom: Math.round(view.top + height * 0.952),
+            left: view.left,
+            right: view.right,
+            top: Math.round(view.top + height * 0.9),
+        },
+        '#ffffff',
     );
+    if (!played) throw new Error('The paused player shows no progress bar');
+    return {
+        left: played.left,
+        right: view.right - (played.left - view.left),
+        y: Math.round((played.top + played.bottom) / 2),
+    };
 }
 
 /**
- * Lists the Media3 control ids UIAutomator can see, so a missing progress bar says what the screen held instead.
- */
-async function playerControls(serial: string): Promise<string> {
-    const dumpPath = '/data/local/tmp/caxri-acceptance-video-controls.xml';
-    try {
-        await adbShell(serial, ['uiautomator', 'dump', dumpPath]);
-        const source = await adbShell(serial, ['cat', dumpPath]);
-        const ids = new Set(
-            source
-                .matchAll(/resource-id="com\.caxri\.mobile:id\/(exo_[^"]+)"/gu)
-                .map(([, id]) => id),
-        );
-        return [...ids].join(', ') || 'none';
-    } catch (error) {
-        return `dump failed (${error instanceof Error ? error.message : String(error)})`;
-    } finally {
-        await adbShell(serial, ['rm', '-f', dumpPath]);
-    }
-}
-
-/**
- * Taps the progress bar at `fraction` of its width. UIAutomator reads the screen only while the player is paused.
+ * Taps the progress bar at `fraction` of its width.
  */
 async function seekTo(serial: string, view: PlayerBounds, fraction: number): Promise<void> {
-    const bar = await showControls(serial, view);
+    const bar = await findTimeBar(serial, view);
     await adbShell(serial, [
         'input',
         'tap',
         String(Math.round(bar.left + (bar.right - bar.left) * fraction)),
-        String(Math.round((bar.top + bar.bottom) / 2)),
+        String(bar.y),
     ]);
 }
 
@@ -266,7 +226,6 @@ export async function executeMobileChatVideoScenario(
         await capture(environment, 'playing', artifacts);
         await pressMediaKey(serial, 'KEYCODE_MEDIA_PAUSE');
         await waitForStill(serial, player);
-        await showControls(serial, player);
         await capture(environment, 'paused', artifacts);
         await seekTo(serial, player, 0.25);
         await waitForStill(serial, player);
