@@ -275,6 +275,13 @@ export async function followCommit(
  */
 const MAX_SUPERSEDING_HOPS = 5;
 
+/**
+ * How many times to list a cancelled push run's workflow for its successor before treating the cancellation as real.
+ * GitHub can report the cancellation before the newer run appears in the workflow's run list, so one listing missed a
+ * successor that existed and reported a superseded `main` run as failed.
+ */
+const SUPERSEDING_DISCOVERY_ATTEMPTS = 8;
+
 interface RunOrigin {
     branch: string;
     conclusion: string;
@@ -298,6 +305,10 @@ export interface SupersedeDependencies {
         branch: string,
     ) => Promise<Array<{ id: string; sha: string }>>;
     readRun?: (runId: string) => Promise<RunOrigin>;
+    /**
+     * Waits between successor listings.
+     */
+    wait?: (milliseconds: number) => Promise<unknown>;
 }
 
 async function readRunOrigin(runId: string): Promise<RunOrigin> {
@@ -346,8 +357,21 @@ export async function followSupersedingRuns(
         contains = hasCommitAncestor,
         listPushRuns: listRuns = listPushRuns,
         readRun = readRunOrigin,
+        wait = sleep,
     }: SupersedeDependencies = {},
 ): Promise<boolean | undefined> {
+    const findSuccessor = async (origin: RunOrigin, current: { id: string; sha: string }) => {
+        for (let attempt = 0; attempt < SUPERSEDING_DISCOVERY_ATTEMPTS; attempt += 1) {
+            // eslint-disable-next-line no-await-in-loop -- each listing waits for the previous one to miss
+            if (attempt > 0) await wait(POLL_INTERVAL_MS);
+            // eslint-disable-next-line no-await-in-loop -- see above
+            const candidates = await listRuns(origin.workflowId, origin.branch);
+            const newer = candidates.find((candidate) => candidate.sha !== current.sha);
+            // eslint-disable-next-line no-await-in-loop -- see above
+            if (newer && (await contains(current.sha, newer.sha))) return newer;
+        }
+        return;
+    };
     let current = { id: run.id, sha };
     for (let hop = 0; hop < MAX_SUPERSEDING_HOPS; hop += 1) {
         // eslint-disable-next-line no-await-in-loop -- each hop depends on the run the previous one found
@@ -355,11 +379,8 @@ export async function followSupersedingRuns(
         if (origin.conclusion !== 'cancelled' || origin.event !== 'push')
             return hop === 0 ? undefined : false;
         // eslint-disable-next-line no-await-in-loop -- see above
-        const candidates = await listRuns(origin.workflowId, origin.branch);
-        const newer = candidates.find((candidate) => candidate.sha !== current.sha);
-        // eslint-disable-next-line no-await-in-loop -- see above
-        if (!newer || !(await contains(current.sha, newer.sha)))
-            return hop === 0 ? undefined : false;
+        const newer = await findSuccessor(origin, current);
+        if (!newer) return hop === 0 ? undefined : false;
         console.log(
             `${run.name} (run ${current.id}) was cancelled by a newer push; following run ${newer.id} on ${newer.sha.slice(0, 9)}, which contains it`,
         );

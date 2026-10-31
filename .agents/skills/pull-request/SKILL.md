@@ -135,7 +135,10 @@ or cancels the delivery, or a concrete blocker requires their input.
    merging a code PR, run `bun run scripts/watch-ci.ts --sha <merge-sha>` (without
    `--workflow Guards`) and adjudicate its result before declaring delivery complete: individually
    green PRs merged minutes apart left `main` red when a call added in one missed a parameter the
-   other made required. Concurrent sessions, including other
+   other made required. A `main` run that a newer push cancelled proves nothing either way:
+   `--sha` follows the newer run that contains the merge, and only that run's success verifies
+   it. When every successor it follows is cancelled too, the merge is still unverified, not
+   failed: watch the next `main` run that contains it. Concurrent sessions, including other
    worktrees, share one GitHub poller
    through `~/.cache/caxri/ci-watch/`. A watcher reports the run attempt it was watching, so start a
    new one after `gh run rerun`. Failed jobs raise an immediate macOS notification. Polling

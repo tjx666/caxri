@@ -222,6 +222,7 @@ describe('resolveCommitSha', () => {
 
 describe('followSupersedingRuns', () => {
     const cancelled = run({ conclusion: 'cancelled', id: '10', status: 'completed' });
+    const noWait = () => Promise.resolve();
     const origin = (conclusion: string) => ({
         branch: 'main',
         conclusion,
@@ -271,12 +272,33 @@ describe('followSupersedingRuns', () => {
             contains: () => Promise.resolve(false),
             listPushRuns: () => Promise.resolve([{ id: '11', sha: 'b' }]),
             readRun: () => Promise.resolve(origin('cancelled')),
+            wait: noWait,
         });
         const manuallyCancelled = await followSupersedingRuns(cancelled, 'a', isRunGood, {
             listPushRuns: () => Promise.resolve([{ id: '10', sha: 'a' }]),
             readRun: () => Promise.resolve(origin('cancelled')),
+            wait: noWait,
         });
         expect([notSuperseded, manuallyCancelled]).toEqual([undefined, undefined]);
         expect(isRunGood).not.toHaveBeenCalled();
+    });
+
+    it('keeps listing until the superseding run appears, since GitHub can list it after the cancellation', async () => {
+        const listings = [
+            [{ id: '10', sha: 'a' }],
+            [{ id: '10', sha: 'a' }],
+            [{ id: '11', sha: 'b' }],
+        ];
+        const listPushRuns = vi.fn(() => Promise.resolve(listings.shift() ?? []));
+        const isRunGood = vi.fn(() => Promise.resolve(true));
+        const result = await followSupersedingRuns(cancelled, 'a', isRunGood, {
+            contains: () => Promise.resolve(true),
+            listPushRuns,
+            readRun: () => Promise.resolve(origin('cancelled')),
+            wait: noWait,
+        });
+        expect(result).toBe(true);
+        expect(listPushRuns).toHaveBeenCalledTimes(3);
+        expect(isRunGood).toHaveBeenCalledWith('11');
     });
 });
