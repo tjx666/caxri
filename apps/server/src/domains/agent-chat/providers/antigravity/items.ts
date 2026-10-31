@@ -69,12 +69,13 @@ export const antigravityToolPresentation: AcpToolPresentation = {
  */
 export function antigravityModels(configOptions: unknown): AgentChatModel[] {
     const efforts = acpConfigChoices(configOptions, 'thought_level').map(({ value }) => value);
-    const defaultEffort = acpConfigValue(configOptions, 'thought_level');
+    const current = acpConfigValue(configOptions, 'thought_level');
+    const defaultEffort = current && efforts.includes(current) ? current : undefined;
     return acpConfigChoices(configOptions, 'model').map(({ value, name }) => ({
         id: value,
         displayName: name,
         efforts,
-        ...(defaultEffort && efforts.includes(defaultEffort) && { defaultEffort }),
+        ...(defaultEffort && { defaultEffort }),
     }));
 }
 
