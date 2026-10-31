@@ -169,7 +169,10 @@ eval "$(bun run .agents/skills/debug/scripts/fake-agent-development-environment.
 bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts dev --user-data-dir /tmp/<task>/profile
 ```
 
-The exports include `CAXRI_E2E=1`; without it the fake executables are ignored while the isolated
+The exports also point `HOME`, `ZDOTDIR`, and the XDG directories into the fixture folder, so the
+provider state a dev instance reads (Usage, Session search, skill health) is the fixture's, never the
+real account's, and pin `CAXRI_SERVER_RUNTIME_EXECUTABLE` to the `mise.toml` Node so runtime discovery
+never searches that empty HOME. They include `CAXRI_E2E=1`; without it the fake executables are ignored while the isolated
 `CODEX_HOME` still applies, so the real Codex CLI starts at its login screen. Before using the Agent,
 confirm with `ps` that the Agent process is the fake `e2e-agents/bin/<provider>`. For a reply with exact
 content (a long code block, a specific table), add `--script <absolute path>` to replay scripted turns from
@@ -183,7 +186,8 @@ tab bar's Chat toggle switches an open one. Run the repeated Caxri steps through
 (English labels for the E2E helpers), `open-chat <claude|codex|grok|antigravity>` to add the test-root Project
 and open that Agent in Chat (driving the dialog by hand lets the root grant expire, and
 `project.create` then fails with `PATH_DENIED` and no Session), `send <text>` into the Chat message box (its words can select a fake scenario; see `e2e-testing`), `paste-image [count]` to paste synthetic PNGs there without the system clipboard, `idle` until a reply
-stops changing the window, `search <query>` in Session search, `ready [seconds]` until a relaunched
+stops changing the window, `search <query>` in Session search, `command <id>` to run a
+command-palette row by its exact command id (`usage.open`; typed titles can rank another command first), `ready [seconds]` until a relaunched
 window's Workbench reports the Runtime ready (instead of a fixed sleep; a first launch spends about a
 minute pre-bundling Vite dependencies after CDP already answers), `select-session <id prefix|title>`
 to open a sidebar Session, `new-session [shell|claude|codex|grok|antigravity]` to create a Session in the

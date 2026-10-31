@@ -33,6 +33,12 @@ describe('drive-app', () => {
         expect(() => parseDriveCommand(['select-session'], {})).toThrow(/needs an argument/u);
     });
 
+    it('runs a palette command only by an exact command id', () => {
+        expect(parseDriveCommand(['command', 'usage.open'], {}).argument).toBe('usage.open');
+        expect(() => parseDriveCommand(['command', 'Open Usage'], {})).toThrow(/command id/u);
+        expect(() => parseDriveCommand(['command'], {})).toThrow(/needs an argument/u);
+    });
+
     it('rejects an unknown step, a split argument, and a relative screenshot path', () => {
         expect(() => parseDriveCommand(['click', 'Save'], {})).toThrow(/Pass a step/u);
         expect(() => parseDriveCommand(['send', 'two', 'words'], {})).toThrow(/Quote/u);
