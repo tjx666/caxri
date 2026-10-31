@@ -102,6 +102,8 @@ export type MobileControlRequest = Extract<
             | 'mobile.host.status'
             | 'mobile.preview.list'
             | 'mobile.preview.open'
+            | 'mobile.video.read'
+            | 'mobile.video.open'
             | 'mobile.pairing.create'
             | 'mobile.project.browse'
             | 'mobile.project.add'

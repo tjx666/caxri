@@ -216,6 +216,7 @@ with an explanation. The reader may also select Terminal directly.
 An Agent Chat reuses this list. Its user messages draw their images as a right-aligned strip of
 thumbnails above the bubble, and a tap opens the original full screen with pinch, pan, and
 double-tap zoom. Both are fetched on demand; see [Agent Chat: Mobile](../agent-chat.md#mobile).
+Videos the message cites appear as playable cards beside them; see [Mobile Chat videos](video.md).
 
 Conversation content and tool detail can contain sensitive material from the Agent record. They
 are returned only to a currently authorized paired device over the encrypted gateway; transcript

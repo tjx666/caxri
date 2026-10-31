@@ -37,6 +37,17 @@ export const mobileGatewayLogEvents = {
      * proxied `requests` and `upgrades`, `upstreamErrors`, and refused requests by closed cause. No URL or content.
      */
     previewClosed: 'mobile_gateway.preview_closed',
+    /**
+     * One record per poster frame Server Core drew for a video a Chat message cites, with a closed `outcome` (`drawn`,
+     * `unsupported` when the platform has no QuickLook, `failed`, `timeout`) and `durationMs`. No path.
+     */
+    videoPoster: 'mobile_gateway.video_poster',
+    /**
+     * One record per phone video listener lifetime: its closed `reason` (`idle`, `cleared`), `durationMs`, served
+     * `requests` (`rangeRequests` of them partial), `bytes`, `interrupted` streams, and refused requests by closed
+     * cause. No path, URL, or content.
+     */
+    videoClosed: 'mobile_gateway.video_closed',
     enabled: 'mobile_gateway.enabled',
     disabled: 'mobile_gateway.disabled',
     /**

@@ -17,6 +17,11 @@ const mobileEveryRoleMethods = [
      */
     'mobile.update.check',
     'mobile.update.prepare',
+    /**
+     * A video a Chat message cites is part of a message every role can read; showing and playing it changes nothing.
+     */
+    'mobile.video.read',
+    'mobile.video.open',
 ] as const;
 
 /**

@@ -4,6 +4,8 @@ import { Readable } from 'node:stream';
 
 import {
     AGENT_CHAT_MEDIA_SCHEME,
+    agentChatVideoByteRange,
+    agentChatVideoContentType,
     isAgentChatVideoPath,
     parseAgentChatMediaUrl,
 } from '@caxri/protocol';
@@ -23,11 +25,11 @@ const posters = new Map<string, Uint8Array<ArrayBuffer>>();
 
 /**
  * Serves the videos a Chat message cites to the Renderer (`agentChatMediaUrl`): the file itself, answering range
- * requests so `<video>` can seek (`agentChatByteRange`), and a poster frame QuickLook draws. Only an existing regular
- * file whose path, and resolved path, end in a video extension is served; anything else is a 404, so the scheme cannot
- * read an arbitrary file, including through a symlink named like a video. The path is not held to a Project root: like
- * a file chip's Show in Finder (`openAgentChatPathReference`), it is the user's own drop or pick, and a screen
- * recording usually sits on the Desktop. Electron accepts a privileged (streaming, fetchable) scheme only before
+ * requests so `<video>` can seek (`agentChatVideoByteRange`), and a poster frame QuickLook draws. Only an existing
+ * regular file whose path, and resolved path, end in a video extension is served; anything else is a 404, so the scheme
+ * cannot read an arbitrary file, including through a symlink named like a video. The path is not held to a Project
+ * root: like a file chip's Show in Finder (`openAgentChatPathReference`), it is the user's own drop or pick, and a
+ * screen recording usually sits on the Desktop. Electron accepts a privileged (streaming, fetchable) scheme only before
  * `ready`, so Main's entry calls this at module scope; the handler itself attaches once the app is ready.
  */
 export function installAgentChatMediaProtocol(): void {
@@ -64,44 +66,12 @@ export async function agentChatMediaResponse(request: Request): Promise<Response
     return new Response(poster, { headers: { 'content-type': 'image/png' } });
 }
 
-const VIDEO_CONTENT_TYPES: Record<string, string> = {
-    m4v: 'video/mp4',
-    mov: 'video/quicktime',
-    mp4: 'video/mp4',
-    ogv: 'video/ogg',
-    webm: 'video/webm',
-};
-
-/**
- * The byte range a `Range` header asks of a `size`-byte file, inclusive at both ends; `undefined` when there is no
- * header or it is not a single `bytes=` range (the whole file is sent), and `'unsatisfiable'` when it starts past the
- * end. `<video>` seeks only when the scheme answers ranges: without them Chromium reports nothing seekable and every
- * seek snaps back to the start, and `net.fetch` of a `file:` URL ignores the header.
- */
-export function agentChatByteRange(
-    header: string | null,
-    size: number,
-): 'unsatisfiable' | { end: number; start: number } | undefined {
-    const match = header ? /^bytes=(\d*)-(\d*)$/u.exec(header.trim()) : null;
-    if (!match || (match[1] === '' && match[2] === '')) return undefined;
-    if (match[1] === '') {
-        const suffix = Number(match[2]);
-        if (suffix === 0 || size === 0) return 'unsatisfiable';
-        return { start: Math.max(0, size - suffix), end: size - 1 };
-    }
-    const start = Number(match[1]);
-    if (start >= size) return 'unsatisfiable';
-    const end = match[2] === '' ? size - 1 : Math.min(Number(match[2]), size - 1);
-    return end < start ? 'unsatisfiable' : { start, end };
-}
-
 function videoResponse(path: string, size: number, rangeHeader: string | null): Response {
-    const extension = path.slice(path.lastIndexOf('.') + 1).toLowerCase();
-    const headers = {
-        'accept-ranges': 'bytes',
-        'content-type': VIDEO_CONTENT_TYPES[extension] ?? 'application/octet-stream',
-    };
-    const range = agentChatByteRange(rangeHeader, size);
+    const headers = { 'accept-ranges': 'bytes', 'content-type': agentChatVideoContentType(path) };
+    /**
+     * `<video>` seeks only when the scheme answers ranges, and `net.fetch` of a `file:` URL ignores the header.
+     */
+    const range = agentChatVideoByteRange(rangeHeader, size);
     if (range === 'unsatisfiable')
         return new Response(null, {
             status: 416,

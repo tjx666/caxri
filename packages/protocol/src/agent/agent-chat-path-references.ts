@@ -298,3 +298,88 @@ export function parseAgentChatMediaUrl(
     if (!isAgentChatVideoPath(path)) return undefined;
     return { kind, path };
 }
+
+/**
+ * A whole-word absolute path, as the composer writes a dropped Files entry, Editor tab, or Project (shell-quoted when
+ * it holds a space; a folder ends in `/`). At least two segments, so a slash command such as `/btw` stays text; a path
+ * with a line (`/repo/a.ts:12`) stays a file link.
+ */
+const ABSOLUTE_PATH = /(?<=^|\s)(?:'(\/[^'\n/]+\/[^'\n]*)'|(\/[^\s'"`/]+\/[^\s'"`]*))(?=$|\s)/gu;
+
+/**
+ * Every whole-word absolute path in `text` (see `ABSOLUTE_PATH`), in order: where it starts, the text it spans, the
+ * path without quotes or a folder's trailing `/`, and whether it names a folder. A sent message draws each as a pill.
+ */
+export function agentChatAbsolutePaths(
+    text: string,
+): Array<{ index: number; isDirectory: boolean; path: string; text: string }> {
+    // An array rather than the iterator's own helpers, which the phone's JavaScript runtime lacks.
+    return Array.from(text.matchAll(ABSOLUTE_PATH)).flatMap((match) => {
+        // Exactly one alternative matched; the other group is `undefined` at runtime despite its `string` type.
+        const path = match[1] || match[2];
+        if (/:\d+(?::\d+)?$/u.test(path)) return [];
+        const isDirectory = path.endsWith('/');
+        return [
+            {
+                index: match.index,
+                isDirectory,
+                path: isDirectory ? path.replace(/\/+$/u, '') : path,
+                text: match[0],
+            },
+        ];
+    });
+}
+
+/**
+ * The videos a message cites in its text, each once, in order of first mention: its reference lines and any absolute
+ * path in its words. Desktop shows each as a playable tile under the message, and the phone as a card; Server Core
+ * serves a phone only a video this returns for the message it names, so a phone cannot read any other file.
+ */
+export function agentChatMessageVideoPaths(text: string): string[] {
+    return [
+        ...new Set(
+            agentChatAbsolutePaths(text).flatMap(({ isDirectory, path }) =>
+                !isDirectory && isAgentChatVideoPath(path) ? [path] : [],
+            ),
+        ),
+    ];
+}
+
+const VIDEO_CONTENT_TYPES: Record<string, string> = {
+    m4v: 'video/mp4',
+    mov: 'video/quicktime',
+    mp4: 'video/mp4',
+    ogv: 'video/ogg',
+    webm: 'video/webm',
+};
+
+/**
+ * The `Content-Type` a cited video is served with, judged by its extension like {@link isAgentChatVideoPath}.
+ */
+export function agentChatVideoContentType(path: string): string {
+    const extension = path.slice(path.lastIndexOf('.') + 1).toLowerCase();
+    return VIDEO_CONTENT_TYPES[extension] ?? 'application/octet-stream';
+}
+
+/**
+ * The byte range a `Range` header asks of a `size`-byte file, inclusive at both ends; `undefined` when there is no
+ * header or it is not a single `bytes=` range (the whole file is sent), and `'unsatisfiable'` when it starts past the
+ * end. A player seeks only when the server answers ranges: without them Chromium reports nothing seekable and every
+ * seek snaps back to the start. Desktop's media scheme and the phone's video listener both answer through this.
+ */
+export function agentChatVideoByteRange(
+    header: string | null | undefined,
+    size: number,
+): 'unsatisfiable' | { end: number; start: number } | undefined {
+    const match = header ? /^bytes=(\d*)-(\d*)$/u.exec(header.trim()) : null;
+    if (!match || (match[1] === '' && match[2] === '')) return undefined;
+    if (match[1] === '') {
+        const suffix = Number(match[2]);
+        if (suffix === 0 || size === 0) return 'unsatisfiable';
+        return { start: Math.max(0, size - suffix), end: size - 1 };
+    }
+    const start = Number(match[1]);
+    if (start >= size) return 'unsatisfiable';
+    const end = match[2] === '' ? size - 1 : Math.min(Number(match[2]), size - 1);
+    return end < start ? 'unsatisfiable' : { start, end };
+}

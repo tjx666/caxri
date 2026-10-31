@@ -1,6 +1,10 @@
 import type { DragEvent } from 'react';
 
-import { isAgentChatVideoPath } from '@caxri/protocol';
+import {
+    agentChatAbsolutePaths,
+    agentChatMessageVideoPaths as agentChatCitedVideoPaths,
+    isAgentChatVideoPath,
+} from '@caxri/protocol';
 
 import {
     isDirectoryDrag,
@@ -60,18 +64,11 @@ export function agentChatPathPill(
 }
 
 /**
- * The videos a message cites in its text, each once, in order of first mention; a sent message shows each as a playable
- * tile. A Chat on an SSH Host has none: its paths name files on that Host, which this Mac cannot play.
+ * The videos a message cites in its text (`agentChatMessageVideoPaths`); a sent message shows each as a playable tile.
+ * A Chat on an SSH Host has none: its paths name files on that Host, which this Mac cannot play.
  */
 export function agentChatMessageVideoPaths(text: string): string[] {
-    if (isOsFileReferenceRefused()) return [];
-    return [
-        ...new Set(
-            agentChatAbsolutePaths(text).flatMap(({ isDirectory, path }) =>
-                !isDirectory && isAgentChatVideoPath(path) ? [path] : [],
-            ),
-        ),
-    ];
+    return isOsFileReferenceRefused() ? [] : agentChatCitedVideoPaths(text);
 }
 
 /**
@@ -79,39 +76,6 @@ export function agentChatMessageVideoPaths(text: string): string[] {
  */
 export function isAgentChatPlayableVideo(path: string): boolean {
     return !isOsFileReferenceRefused() && isAgentChatVideoPath(path);
-}
-
-/**
- * A whole-word absolute path, as the composer writes a dropped Files entry, Editor tab, or Project (shell-quoted when
- * it holds a space; a folder ends in `/`). At least two segments, so a slash command such as `/btw` stays text; a path
- * with a line (`/repo/a.ts:12`) stays a file link.
- */
-const ABSOLUTE_PATH = /(?<=^|\s)(?:'(\/[^'\n/]+\/[^'\n]*)'|(\/[^\s'"`/]+\/[^\s'"`]*))(?=$|\s)/gu;
-
-/**
- * Every whole-word absolute path in `text` (see `ABSOLUTE_PATH`), in order: where it starts, the text it spans, the
- * path without quotes or a folder's trailing `/`, and whether it names a folder. A sent message draws each as a pill.
- */
-export function agentChatAbsolutePaths(
-    text: string,
-): Array<{ index: number; isDirectory: boolean; path: string; text: string }> {
-    return text
-        .matchAll(ABSOLUTE_PATH)
-        .flatMap((match) => {
-            // Exactly one alternative matched; the other group is `undefined` at runtime despite its `string` type.
-            const path = match[1] || match[2];
-            if (/:\d+(?::\d+)?$/u.test(path)) return [];
-            const isDirectory = path.endsWith('/');
-            return [
-                {
-                    index: match.index,
-                    isDirectory,
-                    path: isDirectory ? path.replace(/\/+$/u, '') : path,
-                    text: match[0],
-                },
-            ];
-        })
-        .toArray();
 }
 
 /**

@@ -238,6 +238,14 @@ export const chat = {
     'chat.image.zoomHint': 'Pinch or double-tap to zoom.',
     'chat.image.zoomHintPaged':
         'Swipe up or down to see the next or previous image. Pinch or double-tap to zoom.',
+    'chat.video.close': 'Close video',
+    'chat.video.offline': 'Reconnect to your computer to play this video.',
+    'chat.video.play': 'Play {{name}}',
+    'chat.video.playFailed': 'This video could not be played.',
+    'chat.video.relay':
+        'Videos play only when your phone is on the same network as your computer, not over the Relay.',
+    'chat.video.unavailable': 'Video unavailable',
+    'chat.video.unavailableLabel': '{{name}}, video unavailable',
     'chat.loadFailed': 'Unable to load this Chat.',
     'chat.loading': 'Loading Chat…',
     'chat.model.appliesNextTurn': 'Applies to the next turn.',

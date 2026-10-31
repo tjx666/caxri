@@ -14,7 +14,7 @@ dispatcher also grants only the capabilities for that role.
 
 | Role      | Additional methods beyond the preceding role                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `view`    | Dashboard, Session, timeline, changes, Terminal preview, Project panel reads, `mobile.agent.actions`, `mobile.files.search`, `mobile.attention.list`, `mobile.agentChat.read`, `mobile.agentChat.readHistory`, `mobile.agentChat.readImage`, `mobile.agentChat.readTask`, `mobile.pullRequest.read`, and `mobile.agentUsage.read`                                                                                                                                                                                                         |
+| `view`    | Dashboard, Session, timeline, changes, Terminal preview, Project panel reads, `mobile.agent.actions`, `mobile.files.search`, `mobile.attention.list`, `mobile.agentChat.read`, `mobile.agentChat.readHistory`, `mobile.agentChat.readImage`, `mobile.agentChat.readTask`, `mobile.video.{read,open}`, `mobile.pullRequest.read`, and `mobile.agentUsage.read`                                                                                                                                                                             |
 | `reply`   | `session.markRead`, `mobile.agent.submit`, `mobile.image.upload`, `mobile.agentChat.send`, `mobile.agentChat.configure`, `mobile.agentChat.retry`, `mobile.agentChat.{removeQueued,sendQueuedNow,resumeQueue}`, `mobile.agentChat.{takeQueued,readQueued,editQueued}`, `mobile.agentChat.runCommand`, and `mobile.session.conversationReference`                                                                                                                                                                                          |
 | `control` | Agent interrupt, Session management, Terminal control, Project add, `mobile.files.write`, `mobile.attention.answer`, `mobile.agentChat.respond`, `mobile.agentChat.implementPlan`, `mobile.agentChat.interrupt`, `mobile.agentChat.stopTask`, `mobile.agentChat.{fork,continuationTargets,continueInAgent}`, `mobile.session.{menuState,restartAgent,detach,resume,reopenConversation,handOverToBot,takeBackFromBot}`, `mobile.botInbox.{list,reply}`, `mobile.host.status`, `mobile.preview.{list,open}`, and `mobile.pullRequest.merge` |
 
@@ -240,6 +240,11 @@ the `control` role. Merge and Dismiss have no mobile method. See
 `mobile.host.status` is `control`-only for the same reason as the Inbox: its Session load list spans
 every Project on the computer, not only the device's grant. It reads only; there is no mobile method
 to stop a Terminal or process. See [Mobile computer status](host-status.md).
+
+## Chat videos from mobile
+
+`mobile.video.read` and `mobile.video.open` are open to every role, but serve only a video that the
+named user message of an authorized Chat cites. See [Mobile Chat videos](video.md).
 
 ## Page preview from mobile
 

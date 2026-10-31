@@ -91,6 +91,7 @@ What/why of current shipped behavior, core modules, protocols, and operator know
 | [mobile/testing.md](mobile/testing.md)                             | Android flows and device benchmarks on a disposable emulator        |
 | [mobile/transport.md](mobile/transport.md)                         | Mobile gateway transport, pairing, and framing                      |
 | [mobile/update.md](mobile/update.md)                               | Mobile app self-update from Desktop                                 |
+| [mobile/video.md](mobile/video.md)                                 | Mobile Chat video cards, poster, and streamed playback              |
 
 ## ADRs
 

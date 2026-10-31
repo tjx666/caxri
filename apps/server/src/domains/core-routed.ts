@@ -123,6 +123,8 @@ const CORE_ROUTED_METHODS = [
     'mobile.host.status',
     'mobile.preview.list',
     'mobile.preview.open',
+    'mobile.video.read',
+    'mobile.video.open',
     'mobile.device.revoke.apply',
     'app.systemLanguages.update',
     'desktop.status',

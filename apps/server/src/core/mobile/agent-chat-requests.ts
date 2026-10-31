@@ -190,7 +190,7 @@ function thumbnailOf(
  * paged here, oldest-last; once the cursor reaches the projection's first item, or an archived or recorded item, Core's
  * own history paging takes over.
  */
-async function agentChatHistoryPageBefore(
+export async function agentChatHistoryPageBefore(
     domainService: ServerDomainService,
     terminalId: string,
     beforeItemId: string,
