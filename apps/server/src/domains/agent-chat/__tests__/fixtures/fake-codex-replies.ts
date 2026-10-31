@@ -5,10 +5,11 @@
  * search, a test run, a commit and push, and a pull request), `burststream` arrives in a few large deltas (with `clip`,
  * past the phone's clip and across a window re-read), `longstream` thinks quietly and then streams a long reply at a
  * reader's pace, `weblink` answers with a Markdown link to the web page the message names (`weblink inline` with its
- * bare URL after a label), `bigdiff` changes one file by 6,000 lines, and `widediff` changes one file with lines wider
- * than a phone, and `manysteps` runs {@link MANY_STEPS} quick commands before a short reply. `bigstream` and `toolstorm`
- * are the streaming benchmark's workloads (`e2e/agent-chat-streaming.performance.e2e.ts`): a 50 KB Markdown reply in
- * token-sized deltas, and {@link TOOL_STORM_COMMANDS} commands that each start and then finish.
+ * bare URL after a label, `weblink bare` with that URL as plain text), `bigdiff` changes one file by 6,000 lines, and
+ * `widediff` changes one file with lines wider than a phone, and `manysteps` runs {@link MANY_STEPS} quick commands
+ * before a short reply. `bigstream` and `toolstorm` are the streaming benchmark's workloads
+ * (`e2e/agent-chat-streaming.performance.e2e.ts`): a 50 KB Markdown reply in token-sized deltas, and
+ * {@link TOOL_STORM_COMMANDS} commands that each start and then finish.
  */
 import crypto from 'node:crypto';
 import path from 'node:path';
@@ -494,15 +495,23 @@ export const FAKE_CODEX_WEB_LINK_LABEL =
 export const FAKE_CODEX_INLINE_LINK_PREFIX = 'Acceptance: ';
 
 /**
+ * What the `weblink bare` reply puts right after its URL: a CJK full stop, which a bare URL must not swallow.
+ */
+export const FAKE_CODEX_BARE_LINK_SUFFIX = '。';
+
+/**
  * The `weblink` reply: a Markdown link, and nothing else, to the first `http(s)` URL in the message. `weblink inline`
  * instead puts that URL as a CommonMark autolink after a label on the same line, the shape of an Agent's Acceptance
- * handoff, so the URL has to wrap with the text before it.
+ * handoff, so the URL has to wrap with the text before it. `weblink bare` writes the URL as plain text followed by
+ * {@link FAKE_CODEX_BARE_LINK_SUFFIX}, as an Agent cites a page in Chinese prose, so only linkify can make it a link.
  */
 export async function runWebLink(io: FakeCodexIo, turn: FakeTurn, text: string) {
     const url = /https?:\/\/\S+/u.exec(text)?.[0];
     const link = /\bweblink inline\b/u.test(text)
         ? `${FAKE_CODEX_INLINE_LINK_PREFIX}<${url}>`
-        : `[${FAKE_CODEX_WEB_LINK_LABEL}](${url})`;
+        : /\bweblink bare\b/u.test(text)
+          ? `${url}${FAKE_CODEX_BARE_LINK_SUFFIX}`
+          : `[${FAKE_CODEX_WEB_LINK_LABEL}](${url})`;
     await io.streamMessage(turn, url ? link : 'The message named no web page.', 0);
 }
 

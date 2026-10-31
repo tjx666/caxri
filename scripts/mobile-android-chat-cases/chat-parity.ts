@@ -1,7 +1,7 @@
 import type { MobileAndroidCaseDefinition } from '../mobile-android-cases';
 
 /**
- * Chat parity with Desktop: opening cited files, the `/` menu, and the `@` menu. Handlers live in
+ * Chat parity with Desktop: opening cited files, linking bare URLs, the `/` menu, and the `@` menu. Handlers live in
  * `e2e/support/mobile-chat-cases/chat-parity.ts`.
  */
 export const cases = {
@@ -16,6 +16,12 @@ export const cases = {
         media: ['screenshot'],
         recordingOwner: 'scenario',
         scenario: 'agent-chat-file-link',
+    },
+    'MOB-CHAT-BARE-LINK-01': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'agent-chat-bare-link',
     },
     'MOB-CHAT-SLASH-01': {
         desktopProfile: 'managed-by-isolated-e2e',

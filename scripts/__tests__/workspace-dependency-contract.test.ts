@@ -102,6 +102,7 @@ describe('pnpm dependency contract', () => {
             'expo-image-picker',
             'expo-intent-launcher',
             'lucide-react-native',
+            'markdown-it',
             'markdownlint',
             'markdownlint-cli2',
             'oxlint',
