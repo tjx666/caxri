@@ -16,11 +16,11 @@ import type { CaxriDatabase } from '../db';
 import type { GitService, GitWorktreeTopology } from '../git';
 import { assertInsideRoot } from '../path-security';
 import type { SessionTranscriptContext } from '../session';
+import { BoundedSerialBatcher } from './bounded-serial-batcher';
 import { ObservedAgentCwds } from './observed-agent-cwds';
 import type { WorktreeProvenanceScope } from './provenance';
 import {
     AgentWorktreeAttribution,
-    BoundedSerialBatcher,
     isSameWorkbenchBinding,
     updateObservedAgentCwd,
 } from './provenance';

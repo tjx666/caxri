@@ -43,6 +43,7 @@ import { startCodexReview } from '../../review/codex-review';
 import { forkCodexThread, revertCodexThread } from '../../rewind/codex-rewind';
 import { CodexSideQuestions } from '../../side-question/codex-side-question';
 import { readCodexSkills } from '../../skills/codex-skills';
+import { ChatShellToolSignals, observeCodexCommand } from '../../worktree/shell-tool-signals';
 import type { CodexThreadSettings } from './chat-types';
 import { CodexComputerUseBindings } from './computer-use';
 import { CodexDeliveryCheck, didSteerCodexTurn, TURN_REQUEST_TIMEOUT_MS } from './delivery-check';
@@ -100,6 +101,8 @@ class CodexChatSession implements AgentChatProviderSession {
 
     private readonly usage: CodexUsage;
 
+    private readonly shellTools: ChatShellToolSignals;
+
     private readonly sideQuestions = new CodexSideQuestions();
     private readonly usageLimits = new CodexUsageLimits();
     readonly readSkills = () => readCodexSkills(this.connection, this.options.cwd);
@@ -120,6 +123,7 @@ class CodexChatSession implements AgentChatProviderSession {
         this.requests = new CodexRequestBroker(options, () => this.threadId);
         this.goals = new CodexGoals(options, () => this.threadId);
         this.usage = new CodexUsage(options);
+        this.shellTools = new ChatShellToolSignals((event) => options.lifecycle(event));
     }
 
     private requireConnection(): JsonRpcConnection {
@@ -157,6 +161,7 @@ class CodexChatSession implements AgentChatProviderSession {
     }
 
     private finishTurn(turn: Json): void {
+        this.shellTools.clear();
         const turnId = stringField(turn.id);
         const backgrounded = turnId
             ? this.tasks.onTurnFinished(clip(turnId, 200))
@@ -291,6 +296,7 @@ class CodexChatSession implements AgentChatProviderSession {
             }
             case 'commandExecution': {
                 this.tasks.onCommandItem(raw, turnId, isStarted);
+                observeCodexCommand(this.shellTools, raw, isStarted);
                 break;
             }
             case 'collabAgentToolCall':
@@ -320,6 +326,7 @@ class CodexChatSession implements AgentChatProviderSession {
         const unanswered = this.requests.drain();
         this.options.apply(operations);
         this.tasks.end();
+        this.shellTools.clear();
         /**
          * The process took its requests with it; resolve their attention so the Session stops waiting on them.
          */

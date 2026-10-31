@@ -4,6 +4,8 @@
  * in the user's message:
  *
  * - `approve`: a shell command needing approval; accept runs it, decline fails it.
+ * - `newworktree`: a `git worktree add` shell call, behind an approval when the message also says `approve`; nothing runs
+ *   on disk.
  * - `patch`: a file edit needing approval, reported as an ACP diff; nothing is written to disk.
  * - `question`: an `_x.ai/ask_user_question` request (one single-select and one multi-select question); the reply quotes
  *   the answers. Like Grok Build, `session/cancel` stops the turn without answering the pending question.
@@ -243,6 +245,16 @@ async function runPrompt(id: number | string | undefined, text: string, promptId
         return;
     }
     await streamText('agent_thought_chunk', 'Thinking about the request.');
+    if (text.includes('newworktree')) {
+        const ran = await wasShellCallApproved(
+            turn,
+            'git worktree add ../feature -b feature',
+            text.includes('approve'),
+        );
+        await streamText('agent_message_chunk', ran ? 'Created the worktree.' : 'Declined.');
+        finish(prompt.cancelled ? 'cancelled' : 'end_turn');
+        return;
+    }
     if (text.includes('approve')) {
         const ran = await wasShellCallApproved(turn, 'npm test', true);
         await streamText(

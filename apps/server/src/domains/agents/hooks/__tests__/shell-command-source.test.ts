@@ -54,4 +54,18 @@ describe('shellCommandMatchesAny', () => {
         expect(commandCreatesWorktree('nohup git -C repo worktree add ../feature')).toBe(true);
         expect(commandCreatesWorktree('git worktree list')).toBe(false);
     });
+
+    it.each([
+        [
+            'Codex double-quoted login shell',
+            '/bin/zsh -lc "git worktree add ../feature -b feature"',
+            true,
+        ],
+        ['single-quoted script', "bash -c 'cd repo && git -C . worktree add ../feature'", true],
+        ['a script that only lists worktrees', '/bin/zsh -lc "git worktree list"', false],
+        ['a shell running a script file', 'bash scripts/worktree.sh', false],
+        ['a second nested shell layer', `zsh -lc "bash -c 'git worktree add ../feature'"`, false],
+    ])('classifies worktree creation inside %s', (_label, command, expected) => {
+        expect(commandCreatesWorktree(command)).toBe(expected);
+    });
 });

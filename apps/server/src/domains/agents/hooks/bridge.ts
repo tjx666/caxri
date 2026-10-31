@@ -407,7 +407,7 @@ readIdentifiers(({ agentId, cwd, sessionId, toolUseId, turnId, worktreeCreateInt
  * Bump on every bridge script change, including a behavior-preserving one: same-version builds sharing the staged
  * bridge would otherwise keep rewriting each other's copy.
  */
-const BRIDGE_VERSION = 26;
+const BRIDGE_VERSION = 27;
 
 const BRIDGE_WRAPPER = String.raw`#!/bin/sh
 bridge_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)

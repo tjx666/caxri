@@ -34,6 +34,8 @@
  * - `codeblocks`: a reply with fenced code in `ts`, `bash`, `json`, and `diff`, a fence without a language, and an
  *   indented code block, so a Client's syntax highlighting can be compared across languages.
  * - `jsonout`: a command printing compact one-line JSON, so a Client's JSON output layout can be checked.
+ * - `newworktree`: a `git worktree add` that succeeds and one that exits non-zero, nothing run on disk, so a Chat's
+ *   worktree-creation signals can be checked.
  * - `testrun`: a finished multi-step turn: a thought, a test command that exits with code 1, a passing command, and a
  *   short reply, so a Client folds the work behind its `Worked for` row and shows the failed command's exit code.
  * - `manyagents`: seven `spawnAgent` calls with long titles, each child finishing before the next, then one `wait` for
@@ -91,6 +93,7 @@ import {
     startUnannouncedTerminal,
 } from './fake-codex-tasks.ts';
 import { failOnUsageLimit } from './fake-codex-usage-limit.ts';
+import { runWorktreeCommands } from './fake-codex-worktree.ts';
 
 /**
  * Plays the scenario `text` selects. `said` is the message as typed, which the default reply quotes; `text` is empty
@@ -171,6 +174,8 @@ export async function runKeywordScenario(
         await runCodeBlocks(io, turn);
     } else if (text.includes('thoughts')) {
         await runConsecutiveThoughts(io, turn);
+    } else if (text.includes('newworktree')) {
+        await runWorktreeCommands(io, turn);
     } else if (text.includes('jsonout')) {
         await runJsonCommand(io, turn);
     } else if (text.includes('testrun')) {

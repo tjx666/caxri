@@ -35,7 +35,8 @@ import { withCacheRewriteEstimate } from '../../chat-usage';
 import type { JsonRpcServerRequest } from '../../json-rpc-connection';
 import { JsonRpcConnection, JsonRpcRequestError } from '../../json-rpc-connection';
 import { queuedPromptUuid } from '../../queued-prompt-uuid';
-import type { AcpToolPresentation } from './items';
+import { ChatShellToolSignals } from '../../worktree/shell-tool-signals';
+import type { AcpToolCall, AcpToolPresentation } from './items';
 import type { AcpQuestionDialect } from './requests';
 import { AcpRequestBroker } from './requests';
 import {
@@ -101,6 +102,8 @@ export abstract class AcpChatSession implements AgentChatProviderSession {
 
     private rejectedRequests = 0;
 
+    private readonly shellTools: ChatShellToolSignals;
+
     protected connection: JsonRpcConnection | undefined;
 
     /**
@@ -124,12 +127,14 @@ export abstract class AcpChatSession implements AgentChatProviderSession {
     ) {
         this.sessionId = sessionId;
         this.isSessionBound = Boolean(options.agentSessionId);
+        this.shellTools = new ChatShellToolSignals((event) => options.lifecycle(event));
         this.updates = new AcpUpdates({
             apply: (operations) => options.apply(operations),
             activeTurnId: () => this.activeTurn?.id,
             presentation: dialect.presentation,
             ...(dialect.displayText && { displayText: dialect.displayText }),
             ...(dialect.configState && { configState: dialect.configState }),
+            onToolCall: (call) => this.onToolCall(call),
         });
         this.requests = new AcpRequestBroker({
             host: options,
@@ -138,6 +143,16 @@ export abstract class AcpChatSession implements AgentChatProviderSession {
             ...(dialect.questions && { questions: dialect.questions }),
             onDeclined: (key) => this.updates.decline(key),
         });
+    }
+
+    /**
+     * Feeds the Workbench Root's worktree attribution from shell tool calls; see {@link ChatShellToolSignals}.
+     */
+    private onToolCall(call: AcpToolCall): void {
+        if (call.kind !== 'execute') return;
+        if (call.status === 'completed') this.shellTools.ended(call.id, 'finished');
+        else if (call.status === 'failed') this.shellTools.ended(call.id, 'failed');
+        else this.shellTools.started(call.id, this.dialect.presentation.shellCommand(call));
     }
 
     private onNotification(method: string, parameters: Json): void {
@@ -204,6 +219,7 @@ export abstract class AcpChatSession implements AgentChatProviderSession {
         const turn = this.activeTurn;
         if (turn?.id !== turnId) return;
         this.activeTurn = undefined;
+        this.shellTools.clear();
         this.updates.closeStreaming();
         const durationMs = Date.now() - turn.startedAt;
         const snapshot = this.options.read();
@@ -292,6 +308,7 @@ export abstract class AcpChatSession implements AgentChatProviderSession {
         const turn = this.activeTurn;
         this.activeTurn = undefined;
         this.updates.dropStreaming();
+        this.shellTools.clear();
         const unanswered = this.requests.drain();
         this.options.apply(endedSessionOperations(snapshot));
         this.requests.resolveAttention(unanswered);
