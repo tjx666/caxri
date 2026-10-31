@@ -25,6 +25,7 @@ describe('agentChatContextNotice', () => {
         expect(agentChatContextNotice(usage, 50 * MINUTE, 't-expiring', translate)).toEqual({
             lines: ['Reply within 10m to skip a full re-read (est. ~$0.69).'],
             tone: 'warning',
+            isContextFull: false,
             dismissAt: 0,
         });
     });
@@ -41,6 +42,7 @@ describe('agentChatContextNotice', () => {
         const before = agentChatContextNotice(full, 75 * MINUTE, 't-full', translate);
         expect(before?.lines).toHaveLength(2);
         expect(before?.tone).toBe('warning');
+        expect(before?.isContextFull).toBe(true);
         dismissAgentChatCacheNotice('t-full', 0);
         const after = agentChatContextNotice(full, 75 * MINUTE, 't-full', translate);
         expect(after?.lines).toEqual([expect.stringContaining('nearly full')]);

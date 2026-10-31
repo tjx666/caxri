@@ -364,9 +364,9 @@ export const AgentChatComposer = ({
             )}
             {isMenuOpen || isRunning || !chat.snapshot?.terminalId ? null : (
                 <AgentChatContextNotice
-                    terminalId={chat.snapshot.terminalId}
+                    canSend={availability.isEnabled}
+                    chat={chat}
                     theme={theme}
-                    usage={chat.snapshot.usage}
                 />
             )}
             {isMenuOpen ? null : (

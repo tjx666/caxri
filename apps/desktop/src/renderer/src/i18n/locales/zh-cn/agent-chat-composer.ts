@@ -236,7 +236,7 @@ export const agentChatComposer: TranslatedNamespace<typeof source> = {
     'agentChat.context.cacheExpiringText': '在 {{remaining}} 内回复可避免重新读取整个对话{{cost}}',
     'agentChat.context.cacheExpiringDetail':
         '每次回复后，Agent 会把对话保持就绪 {{minutes}} 分钟。在 {{remaining}} 内发送消息可以接着上次继续；之后下次回复要重新读取整个对话（{{tokens}}）。',
-    'agentChat.context.cacheCompactingText': '{{remaining}} 后自动压缩，赶在缓存过期之前',
+    'agentChat.context.cacheCompactingText': '缓存即将过期，{{remaining}} 后自动压缩',
     'agentChat.context.cacheCompactingDetail':
         '每次回复后，Agent 会把对话保持就绪 {{minutes}} 分钟。如果你在 {{remaining}} 内没有回复，Caxri 会压缩这段对话（{{tokens}}），下次回复只需读取摘要，而不是整个对话。可以在设置中关闭。',
     'agentChat.context.pressureText': '上下文 {{tokens}} / {{window}} · 建议压缩',
