@@ -185,6 +185,9 @@ export const settingsCatalog = {
     'settings.agentChat.idleCompaction.enabled.title': 'Summarize idle Chats to keep replies fast',
     'settings.agentChat.idleCompaction.enabled.description':
         'When a long Claude or Grok Build Chat sits idle for a while, Caxri summarizes it in the background, so your next message is sent with the short summary instead of the whole conversation, which makes the reply faster and cheaper.',
+    'settings.agentChat.awayRecap.enabled.title': 'Recap Chats that finished while you were away',
+    'settings.agentChat.awayRecap.enabled.description':
+        'When a Claude or Codex Chat replies while you are looking at something else, Caxri asks it on the side for a one-line recap of where the work stands and what comes next, and shows it in Activity and at the end of the Chat. The recap never enters the conversation.',
     'settings.agentChat.autoContinueAtUsageLimit.title':
         'Continue automatically after a usage limit resets',
     'settings.agentChat.autoContinueAtUsageLimit.description':

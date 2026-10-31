@@ -72,11 +72,11 @@ export interface TerminalSuspensionPolicyInput {
      */
     chatReadLeaseAt?(terminalId: string): number | undefined;
     /**
-     * Whether this Chat's idle compaction is still to run before its prompt cache expires
-     * (`ChatIdleCompaction.isPending`). The idle rule leaves such a Chat running until the compaction is attempted or
-     * the cache expires, so suspension does not cancel the summary that keeps the user's next message cheap.
+     * Whether this Chat still has background maintenance to run before its prompt cache expires: idle compaction
+     * (`ChatIdleCompaction.isPending`) or an away recap (`ChatAwayRecap.isPending`). The idle rule leaves such a Chat
+     * running until the work is attempted or the cache expires, because a suspended Chat is never started for either.
      */
-    isChatCompactionPending?(terminalId: string): boolean;
+    isChatMaintenancePending?(terminalId: string): boolean;
     sample(terminalId: string): TerminalActivitySample | undefined;
     session(sessionId: string): SessionRecord | undefined;
 }
@@ -214,7 +214,7 @@ function decideTerminal(
     )
         return 'untouched';
     const idleDelay = idleSuspensionDelayMs(input.settings);
-    if (idleDelay === undefined || (isChat && input.isChatCompactionPending?.(terminal.id)))
+    if (idleDelay === undefined || (isChat && input.isChatMaintenancePending?.(terminal.id)))
         return readLeaseAt;
     if (
         sinceDeselected >= idleDelay &&

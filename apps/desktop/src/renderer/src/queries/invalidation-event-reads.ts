@@ -77,3 +77,24 @@ export function invalidateGitReviewQueries(
 export function invalidateBotInboxQuery(queryClient: QueryClient): void {
     void queryClient.invalidateQueries({ queryKey: BOT_INBOX_QUERY_KEY });
 }
+
+/**
+ * Refreshes the excerpt batches that ask about this Session after `agent.recapChanged`: Activity quotes the new recap
+ * in place of the reply it was asked about. A batch is keyed by every Session it asks for, so only those naming this
+ * one re-read.
+ */
+export function invalidateSessionExcerptQueries(queryClient: QueryClient, sessionId: string): void {
+    // Fire-and-forget: the refreshed queries surface any error through React Query state.
+    void queryClient.invalidateQueries({
+        predicate: (query) => {
+            const [, parameters] = query.queryKey as [
+                CaxriMethod,
+                { sessions?: ReadonlyArray<{ sessionId: string }> } | undefined,
+            ];
+            return (
+                isQueryMethod(query.queryKey, 'agent.excerpts') &&
+                parameters?.sessions?.some((session) => session.sessionId === sessionId) === true
+            );
+        },
+    });
+}

@@ -222,6 +222,15 @@ describe('Agent Chat reducer', () => {
         expect(snapshot).toEqual({ ...empty(), revision: 4 });
     });
 
+    it('keeps the away recap across a reset and clears it with null', () => {
+        const awayRecap = { text: 'Ready to merge.', lastResponseAt: 1, generatedAt: 2 };
+        let snapshot = applyAgentChatOperation(empty(), { op: 'state', state: { awayRecap } });
+        snapshot = applyAgentChatOperation(snapshot, { op: 'reset' });
+        expect(snapshot.awayRecap).toEqual(awayRecap);
+        snapshot = applyAgentChatOperation(snapshot, { op: 'state', state: { awayRecap: null } });
+        expect('awayRecap' in snapshot).toBe(false);
+    });
+
     it("drops the goal's spend with the goal", () => {
         const goal = {
             objective: 'ship it',

@@ -64,6 +64,7 @@ import {
 } from './transcript/agent-chat-presentation';
 import { AgentChatReturnHint } from './transcript/agent-chat-return-hint';
 import { isAgentChatAwaitingReplyInTimeline } from './transcript/agent-chat-timeline';
+import { AgentChatAwayRecap } from './transcript/away-recap/agent-chat-away-recap';
 import { useAgentChatTailFirstMount } from './transcript/mount/use-agent-chat-tail-first-mount';
 import { AgentChatTimelineBody } from './transcript/timeline/agent-chat-timeline-body';
 import { AgentChatTurnAnnouncer } from './turns/agent-chat-turn-announcer';
@@ -363,6 +364,7 @@ function AgentChatPaneContent({
                                     />
                                 </AgentChatTaskLinksContext>
                             </AgentChatExpansionContext>
+                            <AgentChatAwayRecap snapshot={snapshot} terminalId={terminalId} />
                             <AgentChatEmptyState
                                 hint={
                                     processState !== 'detached' &&

@@ -320,9 +320,14 @@ or said so the user can decide whether to open the Session. `agent.excerpts` (re
 per view) answers per Session and attention generation: a Chat Agent that is waiting on the user
 shows the question or approval it is asking, read from the live Chat's in-memory request without
 starting a provider; every other case shows the closing message of the latest turn from the on-disk
-transcript. A Terminal Agent has no live request to read, so it only gets the transcript's last
+transcript. When the Chat has a current away recap
+([Agent Chat: Away recap](agent-chat.md#away-recap)), the row shows that recap instead of the reply
+(`kind: recap`, led by a sparkle glyph and spoken as "Recap:"), but never in place of a pending
+question or approval. A Terminal Agent has no live request to read, so it only gets the transcript's last
 reply. Rows clamp the quote to two lines. The text is user content shown
 locally: the Server never persists or logs it, and the Renderer keeps it only in the query cache.
+A new recap is announced with the transient `agent.recapChanged` event, which refetches the
+Session's excerpt.
 
 ## Past conversations
 
@@ -362,7 +367,8 @@ saw the user stop looking.
 
 This view reports state; it does not schedule work. Beyond the New Session row it offers no way to
 create Sessions, and it does not dispatch Agents,
-summarize transcripts (an excerpt is a clipped quote of the Agent's own words, never a summary), or
+summarize transcripts itself (an excerpt is a clipped quote of the Agent's own words; the only
+summary it shows is the away recap the Agent wrote about its own Chat), or
 add event granularity beyond the six `AgentActivityState` values.
 [Issue #601](https://github.com/tjx666/caxri/issues/601) tracks a larger butler-window design whose
 queue board would reuse this projection.

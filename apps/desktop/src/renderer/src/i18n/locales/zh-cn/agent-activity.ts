@@ -4,6 +4,7 @@ import type { agentActivity as source } from '../en/agent-activity';
 
 export const agentActivity: TranslatedNamespace<typeof source> = {
     'agentActivity.treeLabel': '活动',
+    'agentActivity.recapLabel': '回顾：',
     'agentActivity.empty': '没有等待你处理的 Agent 会话。',
     'agentActivity.markReadFailed': '无法将会话标记为已读',
     'agentActivity.group.pinned': '置顶',

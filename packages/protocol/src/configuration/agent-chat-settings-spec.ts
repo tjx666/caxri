@@ -86,6 +86,20 @@ export const agentChatSettingsSpec = [
         default: true,
     },
     /**
+     * After Claude Code's recap of what happened while the user was away: generated out of band through a tool-less
+     * side question, so the conversation itself never carries the instruction (see `ChatAwayRecap`).
+     */
+    {
+        kind: 'boolean',
+        key: 'agentChat.awayRecap.enabled',
+        title: 'Recap Chats that finished while you were away',
+        description:
+            'When a Claude or Codex Chat replies while you are looking at something else, Caxri asks it on the side for a one-line recap of where the work stands and what comes next, and shows it in Activity and at the end of the Chat. The recap never enters the conversation.',
+        category: 'agents',
+        keywords: ['agent', 'chat', 'recap', 'summary', 'away', 'return', 'activity'],
+        default: true,
+    },
+    /**
      * Named after Claude Code's own `autoContinueAtUsageLimit`, which its docs leave to the interactive CLI: a Chat
      * driven through the Agent SDK does not get it, so Server Core owns the wait for both providers.
      */

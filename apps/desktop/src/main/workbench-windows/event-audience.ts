@@ -49,6 +49,7 @@ export const EVENT_AUDIENCE = {
     'agent.message.held': 'all',
     'agent.messaging.changed': 'all',
     'agent.dispatch.changed': 'all',
+    'agent.recapChanged': 'all',
     'keybindings.changed': 'all',
     'theme.changed': 'all',
     'updates.state': 'all',

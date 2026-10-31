@@ -34,6 +34,7 @@ import type { ChatRewindHost, ChatRewindRequest } from './rewind/chat-rewind';
 import { restoreChatFiles, rewindChat } from './rewind/chat-rewind';
 import { previewChatRestore } from './rewind/chat-rewind-preview';
 import type { AgentChatServiceOptions } from './service-options';
+import { generateChatAwayRecap } from './side-question/chat-away-recap';
 import { askChatSideQuestion } from './side-question/chat-side-question';
 import type { ChatTaskHost } from './tasks/read';
 import { readChatTask, readChatTaskHistory, stopChatTask } from './tasks/read';
@@ -371,6 +372,14 @@ export class AgentChatService {
     askSideQuestion(terminalId: string, question: string, history: readonly ChatSideExchange[]) {
         const state = this.states.get(terminalId);
         return askChatSideQuestion(this.options, terminalId, state, question, history);
+    }
+
+    /**
+     * Generates the away recap for the reply at `lastResponseAt`; see `generateChatAwayRecap`. Never starts a provider.
+     */
+    recapAway(terminalId: string, lastResponseAt: number): Promise<string> {
+        const state = this.states.get(terminalId);
+        return generateChatAwayRecap(this.options, this.states, terminalId, state, lastResponseAt);
     }
 
     async stopTask(terminalId: string, taskId: string): Promise<void> {

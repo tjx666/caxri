@@ -227,7 +227,7 @@ export class ChatIdleCompaction {
 
     /**
      * Whether this Chat's idle compaction is still to run before its cache expires: the idle-suspension rule keeps such
-     * a Chat running until then (`isChatCompactionPending`), because a suspended Chat is never started to compact. The
+     * a Chat running until then (`isChatMaintenancePending`), because a suspended Chat is never started to compact. The
      * hold ends once the compaction was attempted (whatever its outcome) or the cache expired, never applies to a Chat
      * that ended with its merged pull request (there is nothing to wait for), and never covers the compaction's own
      * response, so a Chat still above the threshold afterwards is not kept one cache lifetime after another.

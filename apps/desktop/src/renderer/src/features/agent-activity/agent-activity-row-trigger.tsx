@@ -9,6 +9,7 @@ import {
     CircleX,
     Clock,
     FolderTree,
+    Sparkles,
     Unplug,
 } from 'lucide-react';
 
@@ -253,6 +254,17 @@ export function AgentActivityRowTrigger({
                         className="agent-activity-excerpt line-clamp-2 text-[11px] leading-4 wrap-break-word text-muted"
                         data-excerpt-kind={excerpt.kind}
                     >
+                        {/* A recap is the Agent's own summary rather than a quote, so it carries a glyph and a spoken label. */}
+                        {excerpt.kind === 'recap' && (
+                            <>
+                                <Sparkles
+                                    aria-hidden="true"
+                                    className="mr-1 inline-block align-[-1px]"
+                                    size={10}
+                                />
+                                <span className="sr-only">{t('agentActivity.recapLabel')}</span>
+                            </>
+                        )}
                         {excerpt.text}
                     </span>
                 )}

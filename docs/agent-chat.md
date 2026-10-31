@@ -1723,6 +1723,41 @@ Grok Build does not, and the PTY surface is untouched.
   closed reason (`unsupported`, `notRunning`, `timeout`, `empty`, `providerError`), the history length,
   and the duration. The question and answer text are never logged.
 
+## Away recap
+
+When a Chat replies while the user is looking at something else, Server Core asks it on the side for
+a one- or two-sentence recap of where the work stands and the next step, after Claude Code's recap
+on return. It is the side-question path above with a fixed prompt, so nothing enters the
+conversation, the Agent's instructions, or its transcript; Claude answers through the live session's
+cache and Codex through an ephemeral read-only fork. `agentChat.awayRecap.enabled` (default on)
+turns it off.
+
+- **When.** `ChatAwayRecap` sweeps live Chats every 30 seconds. A reply's recap is due three minutes
+  after it, or at 80% of a shorter cache lifetime, and is dropped once 90% of the lifetime passed,
+  because a cold cache would re-read the whole conversation (`agentChatAwayRecapWindow`). A Codex
+  ChatGPT sign-in has no expiry, so it never goes stale.
+- **Who gets one.** Only a Session's primary Chat on a provider with `chatSideQuestion`, and only if
+  the user did not see the reply land: the Session is not in a focused, visible window, no phone is
+  following it, and `lastViewedAt` predates the reply. A reply gets at most one decision.
+- **Skips.** A brief answer with no tool work that an Activity excerpt already quotes whole
+  (`brief_reply`), a conversation that ended with the Session's merged pull request
+  (`pull_request_merged`), and a cache that cooled while the Chat stayed busy or stopped
+  (`cache_expired`). A busy, stopped, or compacting Chat is looked at again on the next sweep.
+- **Suspension.** While a recap may still come, idle suspension keeps the Chat running
+  (`isChatMaintenancePending`, shared with idle compaction), since a stopped provider cannot answer
+  a side question and the recap never starts one.
+- **Where it shows.** The answer lands on the projection as `awayRecap` (`text` up to 400 characters,
+  `lastResponseAt`, `generatedAt`), memory only and kept across a projection reset. It is current only
+  while no turn runs and no newer reply landed (`currentAgentChatAwayRecap`). The transcript shows it
+  as a card after the last reply, labelled "While you were away" with its age and a close button
+  (dismissal is per recap and lives in Renderer memory), and Activity quotes it as the Session's
+  excerpt ([Activity view: Excerpts](activity-view.md#excerpts)). Mobile receives the field but does
+  not render it yet.
+- **Log.** `agent_chat.away_recap` records the closed outcome `generated`, `skipped`, or `failed`;
+  the skip reason above or the failure reason `changed`, `notRunning`, `timeout`, `empty`,
+  `providerError`, or `usageGuard`; the provider, how long after the reply it ran, the recap length,
+  and the duration. The recap text is never logged.
+
 ## Context usage and cache
 
 The snapshot's `usage` (`packages/protocol/src/agent/agent-chat-usage.ts`) describes the context
@@ -2095,7 +2130,7 @@ provider, whether files were reverted, turns removed, duration through the resta
 `agent_chat.files_restored` (closed outcome `restored`, `refused`, or `failed`, the same closed
 reason, the error code, provider, turns whose file changes were undone, duration),
 `agent_chat.side_question` (closed outcome `answered`, `refused`, or `failed`, closed reason, history length,
-duration), `agent_chat.forked` (closed outcome `forked`, `refused`, or `failed`, the error code when it did not
+duration), `agent_chat.away_recap` (see [Away recap](#away-recap)), `agent_chat.forked` (closed outcome `forked`, `refused`, or `failed`, the error code when it did not
 fork, provider, turns kept, malformed transcript lines skipped (Claude Code only), whether a failure
 left the provider's forked record `orphaned`, duration), `agent_chat.subagents_reconciled` (closed reason `serverStart`, terminals marked stopped), and `agent_chat.fork_release_failed` (debug
 level, closed reason `rejected`, `timedOut`, or `stopped` when Codex could not unsubscribe from a

@@ -22,6 +22,7 @@ import { agentChatMcpServerSchema, MAX_AGENT_CHAT_MCP_SERVERS } from './agent-ch
 import { agentChatPermissionModeSchema } from './agent-chat-permissions.js';
 import { agentChatRequestSchema, MAX_AGENT_CHAT_QUESTIONS } from './agent-chat-requests.js';
 import {
+    agentChatAwayRecapSchema,
     agentChatGoalUsageSchema,
     agentChatTurnMetricsSchema,
     agentChatTurnUsageSchema,
@@ -575,6 +576,10 @@ export const agentChatSnapshotSchema = z.strictObject({
             resetsAt: z.number().int().positive(),
         })
         .optional(),
+    /**
+     * Server Core's out-of-band recap for a user who stepped away; see {@link agentChatAwayRecapSchema}.
+     */
+    awayRecap: agentChatAwayRecapSchema.optional(),
 });
 
 export type AgentChatItem = z.infer<typeof agentChatItemSchema>;

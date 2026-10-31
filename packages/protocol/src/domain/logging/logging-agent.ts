@@ -87,6 +87,14 @@ export const agentChatLogEvents = {
      */
     sideQuestion: 'agent_chat.side_question',
     /**
+     * One away recap decision for a Chat's latest reply (`ChatAwayRecap`), recorded once per reply: a closed `outcome`
+     * (`generated`, `skipped`, `failed`), a closed `reason` when it was not generated (`brief_reply`, `cache_expired`,
+     * `pull_request_merged` for a skip; `changed`, `notRunning`, `timeout`, `empty`, `providerError`, `usageGuard` for
+     * a failure; else null), the provider, how long the user had been away since the reply (`awayMs`), the recap's
+     * length in characters, and the duration. Never carries recap or conversation text.
+     */
+    awayRecap: 'agent_chat.away_recap',
+    /**
      * One "Restore code to here" with a closed `outcome` (`restored`, `refused`, `failed`), a closed `reason` for a
      * refusal or capability failure (`capability`, `turnRunning`, `notTurnStart`, `unknownMessage`, else null), the
      * error `code` (null on success), the provider, the turns whose file changes were undone, and the duration. Never
