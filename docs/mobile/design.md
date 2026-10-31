@@ -381,7 +381,11 @@ commands · 12s`); a failed member puts a failure glyph on the group. Tapping ex
   commentary fold behind a `Worked for X`, `Failed after X` (danger), or `Stopped after X`
   (warning) row over a hairline, placed where the work began; a tap anywhere on its full-width,
   `48dp` row shows or hides them, and a
-  running turn never folds. The Agent's plan
+  running turn never folds. When Server Core recapped a reply nobody watched land
+  (`currentAgentChatAwayRecap`), a quiet card after the last reply says `While you were away`, how
+  long ago, and the recap, with a close button; it is closed per recap in app memory, leaves when the
+  Chat replies again, starts a turn, or a message is on its way, and is absent offline with no copy
+  (`MOB-CHAT-AWAY-RECAP-01`). The Agent's plan
   is a one-row card above the composer (`Plan`, the current step, a segment per step, `2/5`) that
   expands to its steps. Below it one quiet status row leads with what the turn is
   doing and carries a badge of the running subagents and background shells (a glyph and count per

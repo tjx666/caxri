@@ -29,6 +29,7 @@ import {
 import type { Translate } from '../../i18n';
 import { translate } from '../../i18n';
 import type { DiffLine } from '../changes/changes-model';
+import type { AgentChatAwayRecapEntry } from './agent-chat-away-recap-entry';
 import { agentChatWorkEntry } from './agent-chat-timeline-work';
 
 /**
@@ -47,6 +48,7 @@ type AgentChatMessageEntry = Extract<
  * ends with what it left behind (`artifacts`) under its final reply.
  */
 export type AgentChatTimelineEntry =
+    | AgentChatAwayRecapEntry
     | { kind: 'feedback'; id: string; notice: Extract<AgentChatItem, { type: 'notice' }> }
     | {
           kind: 'message';

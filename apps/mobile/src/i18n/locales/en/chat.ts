@@ -5,6 +5,8 @@ export const chat = {
     'chat.answered.hideAnswers': 'Hides the answers',
     'chat.answered.showAnswers': 'Shows the answers',
     'chat.answered.skipped': 'Skipped',
+    'chat.awayRecap.dismiss': 'Dismiss recap',
+    'chat.awayRecap.label': 'While you were away',
     'chat.changes.hideChanges':
         '{{title}}. Hide changes, {{additions}} lines added, {{deletions}} removed',
     'chat.changes.hideDiff':
