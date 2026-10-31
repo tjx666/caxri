@@ -44,28 +44,33 @@ export const AgentChatContextNotice = ({
     // Bumped on dismissal: the dismissal lives outside React state, so the banner re-reads it.
     const [, setDismissals] = useState(0);
     const notice = agentChatContextNotice(usage, now, terminalId, t);
-    const { dismissAt } = notice ?? {};
     const compact = notice?.isContextFull ? compaction.compact : undefined;
+    const action = compact
+        ? {
+              actionLabel: t('chat.notice.compact'),
+              actionTestID: 'agent-chat-context-notice-compact',
+              isBusy: compaction.isBusy,
+              onAction: compact,
+          }
+        : { actionLabel: t('chat.notice.usage'), onAction: () => setOpen(true) };
+    const dismissAt = notice?.dismissAt;
+    const dismiss =
+        dismissAt === undefined
+            ? {}
+            : {
+                  onSecondaryAction: () => {
+                      dismissAgentChatCacheNotice(terminalId, dismissAt);
+                      setDismissals((count) => count + 1);
+                  },
+                  secondaryActionLabel: t('chat.notice.dismiss'),
+              };
     return (
         <>
             {notice ? (
                 <NoticeBanner
-                    actionLabel={t(compact ? 'chat.notice.compact' : 'chat.notice.usage')}
-                    actionTestID={compact ? 'agent-chat-context-notice-compact' : undefined}
-                    isBusy={compact ? compaction.isBusy : undefined}
+                    {...action}
+                    {...dismiss}
                     message={notice.lines.join('\n')}
-                    onAction={compact ?? (() => setOpen(true))}
-                    onSecondaryAction={
-                        dismissAt === undefined
-                            ? undefined
-                            : () => {
-                                  dismissAgentChatCacheNotice(terminalId, dismissAt);
-                                  setDismissals((count) => count + 1);
-                              }
-                    }
-                    secondaryActionLabel={
-                        dismissAt === undefined ? undefined : t('chat.notice.dismiss')
-                    }
                     testID="agent-chat-context-notice"
                     theme={theme}
                     tone={notice.tone}
