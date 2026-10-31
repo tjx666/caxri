@@ -201,7 +201,8 @@ not establish publication or complete coverage; inspect structured errors and in
    see (copy, labels, toasts, layout, or style) requires a before/after `comparison` pair of the
    same view on the pre-change and delivered code
    ([references/report.md](references/report.md#before-and-after-evidence)); an after-only
-   screenshot cannot show what it replaced. UI with no prior state is exempt. A desktop case that
+   screenshot cannot show what it replaced. A mobile case takes its baseline as an earlier round
+   instead (same reference). UI with no prior state is exempt. A desktop case that
    imports a theme or must show update UI declares `themeImportFixture` or `updateFixture`; the launcher arms Main
    fixtures only from these declarations
    ([references/report.md](references/report.md#initialize-from-the-frozen-plan)).
