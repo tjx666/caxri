@@ -18,9 +18,17 @@ import {
     publishConcurrentValidationOutcome,
     receiptPath,
 } from './ci-concurrent-validation-report';
+import { SKIP_GATE_ARGUMENTS } from './ci-platform-gates';
 import { waitForChildExit } from './exec';
 
 const projectRoot = resolve(import.meta.dirname, '..');
+
+/**
+ * ESLint, Vitest, and the bundle budget run in their own hosted jobs on this route too. On the shared 3-core `macos-15`
+ * runner, cold ESLint beside the Electron pools took 1170 s at two workers and never finished at `auto`, which alone
+ * aborted the 25-minute window (#1869).
+ */
+const SPLIT_GATE_ARGUMENTS = Object.keys(SKIP_GATE_ARGUMENTS);
 
 type ConcurrentValidationComponent =
     'checks' | 'desktop-exclusive' | 'e2e-auxiliary' | 'parallel-safe';
@@ -473,7 +481,12 @@ async function execute(): Promise<void> {
                 (await run(
                     processes,
                     'bun',
-                    ['run', 'scripts/ci-platform-checks.ts', '--skip-node-pty-preparation'],
+                    [
+                        'run',
+                        'scripts/ci-platform-checks.ts',
+                        '--skip-node-pty-preparation',
+                        ...SPLIT_GATE_ARGUMENTS,
+                    ],
                     {
                         cwd: worktree,
                         environment: checksEnvironment,

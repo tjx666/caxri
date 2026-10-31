@@ -180,12 +180,15 @@ pool runs (about 45s on the historical self-hosted runner). On the E2E branch th
 dispatch-only CI parity cases (about 200s, one worker), `parallel-safe`, and the manifest. The
 target is 85% of the deadline (21m15s), which leaves room for one slow pool without a red run.
 
-The window's floor is set by the checks branch, not by E2E alone. ESLint, oxlint, Vitest, and the
-bundle budget finished about 15 minutes in on
-Actions run `38197586711`, and the three-worker
-pool cannot run at full speed until they do. Once `desktop-exclusive` is shorter than that branch,
-moving more specs out of it saves only about 40% of each moved second, because the moved work lands
-in the contended part of the three-worker pool.
+On the historical self-hosted runner the window's floor was set by the checks branch: ESLint,
+oxlint, Vitest, and the bundle budget finished about 15 minutes in on Actions run `38197586711`.
+On the 3-core `macos-15` image that branch never finished. Cold ESLint beside the Electron pools
+took 912 s with `concurrency=off`, 1170 s with `2`, and did not finish in 25 minutes with `auto`
+(runs `41215993831`, `41220371428`, `41220368184`), so every optimized `hosted-full` dispatch aborted
+before its performance gates ran ([issue caxri#1869](https://github.com/tjx666/caxri/issues/1869)).
+The optimized route therefore keeps ESLint, Vitest, and the bundle budget in their own `lint`,
+`unit`, and `bundle-budget` jobs, exactly as the automated full scope does, and the window's checks
+branch runs only the remaining light gates. The CI gate requires those jobs on this route too.
 
 ### Default to the parallel pool
 
@@ -413,8 +416,8 @@ cold Android Gradle build that only started after the Linux natives finished. Th
   `optimized`.
 - An explicitly authorized `hosted-full` dispatch checks out the dispatched SHA. With
   `e2e_profile: optimized`, the E2E job installs once, creates an owned disposable checkout of that
-  same SHA for full platform checks, and overlaps those checks with exact-head E2E on the selected
-  runner. There is no PR synthetic-merge or `main`-push E2E path.
+  same SHA for the platform checks other than ESLint, Vitest, and the bundle budget (those keep
+  their own jobs), and overlaps those checks with exact-head E2E on the selected runner. There is no PR synthetic-merge or `main`-push E2E path.
 - Exact-head E2E verifies native modules and builds once, then runs `desktop-exclusive` with one
   worker, the dispatch-only CI-parity cases, and `parallel-safe` with three namespaced workers. The
   `hosted-full` route runs the same orchestration on `macos-15`. The `workflow_dispatch` worker input
@@ -491,10 +494,10 @@ wall time alone hides it.
   worker count; a missing, stale, malformed, or non-zero component fails closed.
 - Focused checks, `checks-only` and `hosted-smoke` dispatches, one-worker controls, and non-optimized
   profiles keep their standalone paths. Only an explicitly authorized optimized `hosted-full`
-  dispatch can replace the standalone checks job with the concurrent path.
-- Vitest defaults to the audited `optimized` partition and two workers on both the standalone and
-  the concurrent full path, so the checks branch finishes early and overlaps as little of
-  `parallel-safe` as it can instead of spreading the same work into it. The `legacy` partition and worker caps 1-4 remain
+  dispatch can replace the standalone checks job with the concurrent path; `lint`, `unit`, and
+  `bundle-budget` still run beside it.
+- Vitest defaults to the audited `optimized` partition and two workers in the sharded `unit` job,
+  which runs on every full scope, including the optimized `hosted-full` route. The `legacy` partition and worker caps 1-4 remain
   workflow-dispatch controls for same-head measurement; real watcher, process-global, bridge, and
   Git suites stay in `serial-native`.
 

@@ -233,12 +233,7 @@ jobs:
     name: lint
     needs: retry-policy
     if: >-
-      needs.retry-policy.outputs.checks_scope == 'full' &&
-      (
-        github.event_name != 'workflow_dispatch' ||
-        inputs.validation_target != 'hosted-full' ||
-        needs.retry-policy.outputs.e2e_profile != 'optimized'
-      )
+      needs.retry-policy.outputs.checks_scope == 'full'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -286,12 +281,7 @@ jobs:
     name: bundle budget
     needs: retry-policy
     if: >-
-      needs.retry-policy.outputs.checks_scope == 'full' &&
-      (
-        github.event_name != 'workflow_dispatch' ||
-        inputs.validation_target != 'hosted-full' ||
-        needs.retry-policy.outputs.e2e_profile != 'optimized'
-      )
+      needs.retry-policy.outputs.checks_scope == 'full'
     runs-on: macos-15
     timeout-minutes: 20
     env:
@@ -333,16 +323,8 @@ jobs:
     name: unit (${{ matrix.shard }})
     needs: retry-policy
     if: >-
-      (
-        needs.retry-policy.outputs.checks_scope == 'full' ||
-        needs.retry-policy.outputs.checks_scope == 'affected'
-      ) &&
-      (
-        github.event_name != 'workflow_dispatch' ||
-        inputs.validation_target != 'hosted-full' ||
-        needs.retry-policy.outputs.checks_scope != 'full' ||
-        needs.retry-policy.outputs.e2e_profile != 'optimized'
-      )
+      needs.retry-policy.outputs.checks_scope == 'full' ||
+      needs.retry-policy.outputs.checks_scope == 'affected'
     strategy:
       fail-fast: true
       matrix:
@@ -572,9 +554,6 @@ jobs:
           CAXRI_CHECKS_HEAD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
           CAXRI_CHECKS_REQUIRE_MERGE: ${{ github.event_name == 'pull_request' }}
           CAXRI_GITHUB_TOKEN: ${{ github.token }}
-          CAXRI_VITEST_MAX_WORKERS: ${{ inputs.vitest_max_workers || '2' }}
-          CAXRI_VITEST_PARTITION: ${{ inputs.vitest_partition || 'optimized' }}
-          ESLINT_CONCURRENCY: ${{ inputs.eslint_concurrency || 'off' }}
         run: |
           if [ -z "$CAXRI_CHECKS_REVISION" ] || [ -z "$CAXRI_CHECKS_FETCH_REF" ]; then
             echo "The workflow event is missing its immutable revision SHA" >&2
@@ -845,15 +824,21 @@ jobs:
             test "$CHECKS_RESULT" = success
           fi
 
-          # The sharded unit job runs exactly when checks runs the full or affected scope.
-          if { test "$CHECKS_SCOPE" = full || test "$CHECKS_SCOPE" = affected; } && test "$CHECKS_RESULT" != skipped; then
+          # The optimized hosted-full route skips the checks job but still runs the split gates in their own jobs.
+          SPLIT_GATES_EXPECTED=false
+          if test "$CHECKS_RESULT" != skipped || { test "$VALIDATION_TARGET" = hosted-full && test "$CHECKS_SCOPE" = full; }; then
+            SPLIT_GATES_EXPECTED=true
+          fi
+
+          # The sharded unit job runs exactly when the full or affected scope runs.
+          if { test "$CHECKS_SCOPE" = full || test "$CHECKS_SCOPE" = affected; } && test "$SPLIT_GATES_EXPECTED" = true; then
             test "$UNIT_RESULT" = success
           else
             test "$UNIT_RESULT" = skipped
           fi
 
-          # The Linux lint and macOS bundle budget jobs run exactly when checks runs the full scope.
-          if test "$CHECKS_SCOPE" = full && test "$CHECKS_RESULT" != skipped; then
+          # The Linux lint and macOS bundle budget jobs run exactly when the full scope runs.
+          if test "$CHECKS_SCOPE" = full && test "$SPLIT_GATES_EXPECTED" = true; then
             test "$LINT_RESULT" = success
             test "$BUNDLE_BUDGET_RESULT" = success
           else

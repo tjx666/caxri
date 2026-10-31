@@ -22,6 +22,10 @@ const trustAction = await readFile(
     'utf8',
 );
 const checksWorktree = await readFile(new URL('../ci-checks-worktree.ts', import.meta.url), 'utf8');
+const concurrentValidation = await readFile(
+    new URL('../ci-concurrent-validation.ts', import.meta.url),
+    'utf8',
+);
 
 interface WorkflowJob {
     'if'?: string;
@@ -247,15 +251,20 @@ describe('CI workflow contract', () => {
         expect(lint.steps.find((step) => step.name === 'Run ESLint')?.env?.ESLINT_CONCURRENCY).toBe(
             'auto',
         );
-        // The optimized hosted-full route runs every check inside E2E, so unit and lint skip exactly when checks does.
+        // The optimized hosted-full route replaces only the checks job; unit, lint, and the bundle budget keep their
+        // own jobs so the concurrent E2E window does not carry them (#1869).
         for (const condition of [
             "inputs.validation_target != 'hosted-full'",
             "needs.retry-policy.outputs.e2e_profile != 'optimized'",
         ]) {
-            expect(job.if).toContain(condition);
-            expect(lint.if).toContain(condition);
             expect(unit.jobs.checks.if).toContain(condition);
+            expect(job.if).not.toContain(condition);
+            expect(lint.if).not.toContain(condition);
+            expect(unit.jobs['bundle-budget'].if).not.toContain(condition);
         }
+        expect(concurrentValidation).toContain(
+            "'scripts/ci-platform-checks.ts',\n                        '--skip-node-pty-preparation',\n                        ...SPLIT_GATE_ARGUMENTS,",
+        );
     });
 
     it('skips every macOS-only gate in the Linux full-scope platform checks', () => {
@@ -315,6 +324,9 @@ describe('CI workflow contract', () => {
         expect(gate).toContain('test "$LINT_RESULT" = skipped');
         expect(gate).toContain('test "$BUNDLE_BUDGET_RESULT" = success');
         expect(gate).toContain('test "$BUNDLE_BUDGET_RESULT" = skipped');
+        expect(gate).toContain(
+            'test "$CHECKS_RESULT" != skipped || { test "$VALIDATION_TARGET" = hosted-full && test "$CHECKS_SCOPE" = full; }',
+        );
         expect(gate).toContain('hosted-smoke)');
         expect(gate).toContain('hosted-full)');
         expect(gate).not.toContain('self-hosted-final');
