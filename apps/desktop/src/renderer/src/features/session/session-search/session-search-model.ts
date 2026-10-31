@@ -191,6 +191,76 @@ export function retainedSelectionIndex(
 }
 
 /**
+ * One selectable line of the result list: a conversation, or one branch listed under an expanded fork group.
+ */
+export interface SessionSearchRow {
+    /**
+     * Stable identity; a branch row is prefixed by its group's key because the group row shows the same conversation as
+     * its latest branch.
+     */
+    key: string;
+    /**
+     * What Enter acts on and the preview shows: the conversation itself, or the branch.
+     */
+    entry: SessionSearchEntry;
+    /**
+     * Set on a fork group's row: how many other branches it stands for, and whether they are listed below it.
+     */
+    group?: { otherBranches: number; isExpanded: boolean };
+    /**
+     * Set on a branch row: the key of the group row that lists it.
+     */
+    parentKey?: string;
+}
+
+/**
+ * Flattens the results into selectable rows, listing the branches of each expanded fork group under its row.
+ */
+export function sessionSearchRows(
+    entries: readonly SessionSearchEntry[],
+    expandedKeys: ReadonlySet<string>,
+): SessionSearchRow[] {
+    return entries.flatMap((entry): SessionSearchRow[] => {
+        const { branches } = entry;
+        if (!branches) return [{ key: entry.key, entry }];
+        const isExpanded = expandedKeys.has(entry.key);
+        const row: SessionSearchRow = {
+            key: entry.key,
+            entry,
+            group: { otherBranches: branches.length - 1, isExpanded },
+        };
+        if (!isExpanded) return [row];
+        return [
+            row,
+            ...branches.map((branch) => ({
+                key: `${entry.key}#${branch.key}`,
+                entry: branch,
+                parentKey: entry.key,
+            })),
+        ];
+    });
+}
+
+/**
+ * What ArrowRight (expand) or ArrowLeft (collapse) does on the selected row: the group row to toggle, and the row to
+ * select afterwards. Collapsing from a branch row returns to its group. Undefined when the key means nothing here.
+ */
+export function branchToggle(
+    row: SessionSearchRow | undefined,
+    direction: 'collapse' | 'expand',
+): { groupKey: string; isExpanded: boolean; selectKey: string } | undefined {
+    if (!row) return undefined;
+    if (row.group) {
+        if (row.group.isExpanded === (direction === 'expand')) return undefined;
+        return { groupKey: row.key, isExpanded: direction === 'expand', selectKey: row.key };
+    }
+    const { parentKey } = row;
+    if (direction === 'collapse' && parentKey !== undefined)
+        return { groupKey: parentKey, isExpanded: false, selectKey: parentKey };
+    return undefined;
+}
+
+/**
  * How the result list is ordered: the Server's ranking, or newest conversation first.
  */
 export const sessionSearchSorts = ['relevance', 'recent'] as const;

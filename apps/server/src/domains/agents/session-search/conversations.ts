@@ -23,6 +23,10 @@ export interface Conversation {
      * A hosted conversation whose body was never indexed because no Session held it then.
      */
     isBodiless: boolean;
+    /**
+     * Key of the conversation this one was forked from, when its transcript names one.
+     */
+    forkedFromKey?: string;
 }
 
 export interface ContentHit {
@@ -102,6 +106,9 @@ export function groupConversations(rows: readonly StoredTranscript[]) {
                 hasMain: !row.isContinuation,
                 isHosted: row.state === 'hosted',
                 isBodiless: isBodiless(row),
+                ...(row.forkedFromId !== undefined && {
+                    forkedFromKey: conversationKey(row.provider, row.forkedFromId),
+                }),
             });
             continue;
         }
@@ -112,11 +119,36 @@ export function groupConversations(rows: readonly StoredTranscript[]) {
             existing.hasMain = true;
             if (row.title !== undefined) existing.title = row.title;
             if (row.cwd !== undefined) existing.cwd = row.cwd;
+            if (row.forkedFromId !== undefined)
+                existing.forkedFromKey = conversationKey(row.provider, row.forkedFromId);
         }
         existing.title ??= row.title;
         existing.cwd ??= row.cwd;
     }
     return { conversations, keyByTranscript };
+}
+
+/**
+ * The key of each conversation's fork tree: the oldest ancestor its transcripts name, which may itself be missing from
+ * the index (a deleted or excluded original still ties its surviving branches together). A conversation outside any
+ * fork maps to its own key. Fork cycles, which no provider writes, stop at the first repeated key.
+ */
+export function forkRoots(conversations: ReadonlyMap<string, Conversation>): Map<string, string> {
+    return new Map(conversations.keys().map((key) => [key, oldestAncestor(conversations, key)]));
+}
+
+function oldestAncestor(conversations: ReadonlyMap<string, Conversation>, start: string): string {
+    const seen = new Set([start]);
+    let current = start;
+    for (
+        let parent = conversations.get(current)?.forkedFromKey;
+        parent !== undefined && !seen.has(parent);
+        parent = conversations.get(current)?.forkedFromKey
+    ) {
+        seen.add(parent);
+        current = parent;
+    }
+    return current;
 }
 
 /**

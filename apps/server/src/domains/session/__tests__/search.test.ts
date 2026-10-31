@@ -196,6 +196,47 @@ describe('SessionSearchService', () => {
         expect(withoutHint.entries.some((entry) => entry.isCurrentProject)).toBe(false);
     });
 
+    it('collapses the branches of one fork group into the most recently active one', async () => {
+        const ORIGINAL = '019a0000-0000-7000-8000-00000000b001';
+        const BRANCH = '019a0000-0000-7000-8000-00000000b002';
+        const forkGroup = `codex:${ORIGINAL}`;
+        const f = await fixture([
+            hit(ORIGINAL, { forkGroup, totalMessages: 4, updatedAt: 1_000, score: 9 }),
+            hit(BRANCH, { forkGroup, totalMessages: 7, updatedAt: 3_000, score: 8 }),
+            hit(EXTERNAL, { updatedAt: 2_000, score: 1 }),
+        ]);
+
+        const { entries } = await f.service.search({ query: 'tax' });
+
+        expect(entries.map((entry) => entry.agentSessionId)).toEqual([BRANCH, EXTERNAL]);
+        const [group] = entries;
+        expect(
+            group.branches?.map((branch) => [branch.agentSessionId, branch.totalMessages]),
+        ).toEqual([
+            [BRANCH, 7],
+            [ORIGINAL, 4],
+        ]);
+        expect(group.branches?.every((branch) => branch.status === 'external')).toBe(true);
+        expect(entries[1].branches).toBeUndefined();
+    });
+
+    it('keeps each branch status when a Session already holds one of them', async () => {
+        const BRANCH = '019a0000-0000-7000-8000-00000000b002';
+        const forkGroup = `codex:${HELD}`;
+        const f = await fixture([
+            hit(HELD, { forkGroup, totalMessages: 4, updatedAt: 1_000, score: 9 }),
+            hit(BRANCH, { forkGroup, totalMessages: 7, updatedAt: 3_000, score: 8 }),
+        ]);
+
+        const { entries } = await f.service.search({ query: 'invoice' });
+
+        const [group] = entries;
+        // The held Session's activity is newer than the transcript mtimes, so it leads its group.
+        expect(group.agentSessionId).toBe(HELD);
+        expect(group.branches?.map((branch) => branch.status)).toEqual(['open', 'external']);
+        expect(group.branches?.[0].sessionId).toBe(f.open.session.id);
+    });
+
     it('relaxes to any word on a Session title when the index holds nothing', async () => {
         const f = await fixture();
 

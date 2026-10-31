@@ -14,10 +14,12 @@ import type {
     SessionSearchSort,
 } from './session-search-model';
 import {
+    branchToggle,
     removeSessionSearchOperator,
     removeSessionSearchOperators,
     retainedSelectionIndex,
     sessionSearchFilterChips,
+    sessionSearchRows,
     sortSessionSearchEntries,
 } from './session-search-model';
 
@@ -47,6 +49,10 @@ export function useSessionSearch() {
     const [sort, setSort] = useState<SessionSearchSort>('relevance');
     const [scope, setScope] = useState<SessionSearchScope>('currentProject');
     const [selectedKey, setSelectedKey] = useState<string>();
+    /**
+     * Keys of the fork groups whose branches are listed.
+     */
+    const [expandedKeys, setExpandedKeys] = useState<ReadonlySet<string>>(new Set());
     const workbenchProjectId = useWorkbenchStore(
         (state) => selectSelectedProject(state.bootstrap)?.id,
     );
@@ -81,6 +87,7 @@ export function useSessionSearch() {
         () => sortSessionSearchEntries(response.data?.entries ?? [], sort),
         [response.data, sort],
     );
+    const rows = useMemo(() => sessionSearchRows(entries, expandedKeys), [entries, expandedKeys]);
     /**
      * The selection follows a conversation, not a row number: a refresh while history is still indexing re-ranks the
      * rows, and Enter must still act on the conversation the user picked. Only a new query or filter starts back at the
@@ -93,12 +100,13 @@ export function useSessionSearch() {
     if (selectionKey !== undefined && selectionKey !== selectionScope) {
         setSelectionScope(selectionKey);
         setSelectedKey(undefined);
+        setExpandedKeys(new Set());
     }
     const filterChips = useMemo(
         () => sessionSearchFilterChips(response.data?.filters),
         [response.data],
     );
-    const selectedIndex = retainedSelectionIndex(entries, selectedKey);
+    const selectedIndex = retainedSelectionIndex(rows, selectedKey);
     return {
         query,
         setQuery,
@@ -142,9 +150,27 @@ export function useSessionSearch() {
         refetch: () => response.refetch(),
         result: response.data,
         entries,
+        rows,
         selectedIndex,
-        selected: entries.at(selectedIndex),
-        setSelectedIndex: (index: number) => setSelectedKey(entries.at(index)?.key),
+        selectedRow: rows.at(selectedIndex),
+        selected: rows.at(selectedIndex)?.entry,
+        setSelectedIndex: (index: number) => setSelectedKey(rows.at(index)?.key),
+        /**
+         * Expands or collapses the selected fork group, moving the selection to the group when a branch collapses it.
+         * Returns whether the key applied, so the caller keeps the arrow's text-editing meaning otherwise.
+         */
+        toggleBranches: (direction: 'collapse' | 'expand') => {
+            const toggle = branchToggle(rows.at(selectedIndex), direction);
+            if (!toggle) return false;
+            setExpandedKeys((current) => {
+                const next = new Set(current);
+                if (toggle.isExpanded) next.add(toggle.groupKey);
+                else next.delete(toggle.groupKey);
+                return next;
+            });
+            setSelectedKey(toggle.selectKey);
+            return true;
+        },
         isLoading: response.data === undefined && !response.isError,
         isFetching: response.isFetching,
         isError: response.isError && response.data === undefined,

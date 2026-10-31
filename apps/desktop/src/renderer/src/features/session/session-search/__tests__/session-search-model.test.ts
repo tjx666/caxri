@@ -2,6 +2,7 @@ import type { SessionSearchEntry, SessionSearchResult } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import {
+    branchToggle,
     hasActiveSearchFilters,
     nextProviderFilter,
     nextStatusFilter,
@@ -13,6 +14,7 @@ import {
     sessionSearchFindQuery,
     sessionSearchIndexLabel,
     sessionSearchRelaxationNoticeKey,
+    sessionSearchRows,
     shortFolder,
     snippetSegments,
     sortSessionSearchEntries,
@@ -228,6 +230,61 @@ describe('Session search model', () => {
         expect(retainedSelectionIndex(rows('new', 'a', 'b', 'c'), 'c')).toBe(3);
         expect(retainedSelectionIndex(rows('a', 'b'), 'c')).toBe(0);
         expect(retainedSelectionIndex(rows('a', 'b'), undefined)).toBe(0);
+    });
+
+    describe('fork groups', () => {
+        const branch = (suffix: string, updatedAt: number): SessionSearchEntry => ({
+            ...base,
+            key: `codex:${suffix}`,
+            agentSessionId: suffix,
+            updatedAt,
+        });
+        const latest = branch('c', 3);
+        const group: SessionSearchEntry = {
+            ...latest,
+            branches: [latest, branch('b', 2), branch('a', 1)],
+        };
+        const plain = branch('z', 0);
+
+        it('lists the branches only under an expanded group, each a selectable row of its own', () => {
+            expect(sessionSearchRows([group, plain], new Set()).map((row) => row.key)).toEqual([
+                'codex:c',
+                'codex:z',
+            ]);
+            const rows = sessionSearchRows([group, plain], new Set(['codex:c']));
+            expect(rows.map((row) => row.key)).toEqual([
+                'codex:c',
+                'codex:c#codex:c',
+                'codex:c#codex:b',
+                'codex:c#codex:a',
+                'codex:z',
+            ]);
+            expect(rows[0].group).toEqual({ otherBranches: 2, isExpanded: true });
+            expect(rows[2]).toMatchObject({ parentKey: 'codex:c' });
+            // Enter on a branch row acts on that branch, not on the group's latest one.
+            expect(rows[2].entry.agentSessionId).toBe('b');
+        });
+
+        it('expands with ArrowRight and collapses with ArrowLeft from the group or one of its branches', () => {
+            const collapsed = sessionSearchRows([group], new Set())[0];
+            expect(branchToggle(collapsed, 'expand')).toEqual({
+                groupKey: 'codex:c',
+                isExpanded: true,
+                selectKey: 'codex:c',
+            });
+            expect(branchToggle(collapsed, 'collapse')).toBeUndefined();
+            const rows = sessionSearchRows([group], new Set(['codex:c']));
+            expect(branchToggle(rows[0], 'expand')).toBeUndefined();
+            expect(branchToggle(rows[0], 'collapse')).toMatchObject({ isExpanded: false });
+            expect(branchToggle(rows[2], 'collapse')).toEqual({
+                groupKey: 'codex:c',
+                isExpanded: false,
+                selectKey: 'codex:c',
+            });
+            expect(branchToggle(rows[2], 'expand')).toBeUndefined();
+            const [plainRow] = sessionSearchRows([plain], new Set());
+            expect(branchToggle(plainRow, 'expand')).toBeUndefined();
+        });
     });
 });
 
