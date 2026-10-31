@@ -7,12 +7,8 @@ import {
     fileReferenceTarget,
     proseFileReferences,
 } from '@caxri/markdown/file-reference';
-import type {
-    ASTNode,
-    MarkdownParser,
-    RenderRules,
-} from '@ronradtke/react-native-markdown-display';
-import Markdown, { createMarkdownIt, parser } from '@ronradtke/react-native-markdown-display';
+import type { ASTNode, RenderRules } from '@ronradtke/react-native-markdown-display';
+import Markdown from '@ronradtke/react-native-markdown-display';
 
 import { HighlightedCode } from '../../components/highlighted-code';
 import { openLink } from '../../lib/open-link';
@@ -20,6 +16,7 @@ import { MONOSPACE_FONT } from '../../theme/monospace';
 import type { MobileTheme } from '../../theme/tokens';
 import { fenceLanguage } from '../panels/file-language';
 import { ConversationFileOpener } from './conversation-file-opener';
+import { MARKDOWN_IT, parseMarkdown } from './conversation-markdown-parser';
 import type { ConversationTextReveal } from './conversation-text-reveal';
 import {
     colorWithOpacity,
@@ -45,14 +42,6 @@ const headingStyle = (fontSize: number, color: string) => ({
     marginTop: 12,
 });
 
-/**
- * The library defaults these props inline (`markdownit = createMarkdownIt()`, a fresh `topLevelMaxExceededItem`
- * element), so every render built a new markdown-it parser and a new AST renderer. Module constants keep both stable;
- * `createMarkdownIt()` with no options is exactly the library's default parser (typographer on, no plugins). The
- * renderer never reaches `topLevelMaxExceededItem` because `maxTopLevelChildren` stays unset.
- */
-// oxlint-disable-next-line typescript/no-unsafe-assignment -- The library types the return as markdown-it's class but ships those types only as a devDependency; `MarkdownParser` is the prop's own structural type.
-const MARKDOWN_IT: MarkdownParser = createMarkdownIt();
 const NO_IMAGE_HANDLERS: string[] = [];
 
 /**
@@ -60,23 +49,6 @@ const NO_IMAGE_HANDLERS: string[] = [];
  * budget (`use-conversation-paced-text`).
  */
 const FADE_REDRAW_MS = 32;
-
-/**
- * The library's own parse (the one `Markdown` runs on a string), kept so the reply can mark its fading text nodes
- * before handing the tree back.
- */
-const parseMarkdown = (text: string): ASTNode[] => {
-    let nodes: ASTNode[] = [];
-    void parser(
-        text,
-        (parsed) => {
-            nodes = parsed;
-            return null;
-        },
-        MARKDOWN_IT,
-    );
-    return nodes;
-};
 
 /**
  * When a streaming reply's text changed, for `ConversationMarkdown` to fade in what arrived.
@@ -131,6 +103,11 @@ function useRevealingMarkdown(
     });
     return nodes && current ? withFadingTextNodes(nodes, current, now) : text;
 }
+
+/**
+ * The library defaults `topLevelMaxExceededItem` to a fresh element inline, so every render built a new AST renderer;
+ * module constants keep it stable. The renderer never reaches that item because `maxTopLevelChildren` stays unset.
+ */
 const TOP_LEVEL_MAX_EXCEEDED_ITEM = null;
 
 /**
