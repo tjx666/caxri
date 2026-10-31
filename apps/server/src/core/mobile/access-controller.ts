@@ -46,6 +46,7 @@ import { invokeMobileTerminalRequest } from './terminal-requests';
 import { invokeMobileTimelineRequest } from './timeline-requests';
 import { createMobileUpdateRequests } from './update-bundle';
 import { invokeMobileUploadRequest } from './upload-requests';
+import { createMobileVideoRequests } from './video';
 
 const requiredGateway = (gateway: MobileGateway | undefined): MobileGateway => {
     if (!gateway) throw new CaxriError('UNAVAILABLE', 'Mobile access is unavailable');
@@ -80,6 +81,11 @@ export const openMobileAccessController = (options: {
     });
     const accessPersistence = createMobileAccessPersistence(registry, options.logger);
     const previews = createMobilePreviewRequests({
+        logger: options.logger,
+        random: randomBytes,
+        registry,
+    });
+    const videos = createMobileVideoRequests({
         logger: options.logger,
         random: randomBytes,
         registry,
@@ -181,7 +187,7 @@ export const openMobileAccessController = (options: {
             withAuthority(async () => {
                 isClosed = true;
                 abortOperations();
-                await Promise.all([gateway?.close(), previews.clear()]);
+                await Promise.all([gateway?.close(), previews.clear(), videos.clear()]);
             }),
         publish: (event) => {
             if (event.event === 'settings.changed') applyRelaySetting?.();
@@ -236,6 +242,7 @@ export const openMobileAccessController = (options: {
                         assertOpen();
                         abortOperations();
                         void previews.clear();
+                        void videos.clear();
                         return accessPersistence.apply(activeGateway, false);
                     });
                 case 'mobile.device.list':
@@ -451,6 +458,17 @@ export const openMobileAccessController = (options: {
                 case 'mobile.preview.open': {
                     const principal = currentPairedPrincipal(context.principal, request.method);
                     return previews.invoke(
+                        request,
+                        principal,
+                        domainService,
+                        () => activeGateway.connectionAddress(context),
+                        () => currentPairedPrincipal(principal, request.method),
+                    );
+                }
+                case 'mobile.video.read':
+                case 'mobile.video.open': {
+                    const principal = currentPairedPrincipal(context.principal, request.method);
+                    return videos.invoke(
                         request,
                         principal,
                         domainService,

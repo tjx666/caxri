@@ -51,6 +51,7 @@
         "expo-splash-screen": "~58.0.10",
         "expo-status-bar": "~58.0.3",
         "expo-system-ui": "~58.0.6",
+        "expo-video": "~58.0.13",
         "lucide-react-native": "catalog:",
         "markdown-it": "catalog:",
         "prism-react-renderer": "catalog:",

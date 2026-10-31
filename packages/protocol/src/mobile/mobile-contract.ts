@@ -62,6 +62,7 @@ import {
     mobileTimelineMessageMethods,
 } from './mobile-timeline-message-contract.js';
 import { mobileUpdateMethods } from './mobile-update-contract.js';
+import { mobileVideoMethods } from './mobile-video-contract.js';
 
 export type { MobileDeviceRole } from './device-role.js';
 export { mobileDeviceRoleSchema } from './device-role.js';
@@ -404,6 +405,7 @@ export const mobileMethods = {
     ...mobileBotInboxMethods,
     ...mobileHostStatusMethods,
     ...mobilePreviewMethods,
+    ...mobileVideoMethods,
 } as const satisfies Record<string, MethodSpec>;
 
 /**

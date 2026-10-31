@@ -1,11 +1,10 @@
 import { proseFileReferences, proseWebLinks } from '@caxri/markdown';
 import {
+    agentChatAbsolutePaths,
     agentChatImageTokenRanges,
     agentChatSessionReferenceRanges,
     longPasteReferenceRanges,
 } from '@caxri/protocol';
-
-import { agentChatAbsolutePaths } from '../attachments/agent-chat-path-pills';
 
 /**
  * A run of a user's message: plain text, a file path that opens in the editor, an absolute path drawn as the pill the

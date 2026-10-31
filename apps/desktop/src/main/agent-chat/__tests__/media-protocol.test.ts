@@ -13,7 +13,7 @@ const electronMock = vi.hoisted(() => ({
 }));
 vi.mock('electron', () => electronMock);
 
-import { agentChatByteRange, agentChatMediaResponse } from '../media-protocol';
+import { agentChatMediaResponse } from '../media-protocol';
 
 const fixture = { directory: '' };
 
@@ -81,20 +81,5 @@ describe('agentChatMediaResponse', () => {
         expect((await agentChatMediaResponse(request('video', folder))).status).toBe(404);
         const gone = request('video', join(fixture.directory, 'gone.mov'));
         expect((await agentChatMediaResponse(gone)).status).toBe(404);
-    });
-});
-
-describe('agentChatByteRange', () => {
-    it('reads open-ended, suffix, and clamped ranges', () => {
-        expect(agentChatByteRange('bytes=0-', 10)).toEqual({ start: 0, end: 9 });
-        expect(agentChatByteRange('bytes=-3', 10)).toEqual({ start: 7, end: 9 });
-        expect(agentChatByteRange('bytes=5-99', 10)).toEqual({ start: 5, end: 9 });
-    });
-
-    it('sends the whole file for no or a multi-part range, and refuses one past the end', () => {
-        expect(agentChatByteRange(null, 10)).toBeUndefined();
-        expect(agentChatByteRange('bytes=0-1,4-5', 10)).toBeUndefined();
-        expect(agentChatByteRange('bytes=10-', 10)).toBe('unsatisfiable');
-        expect(agentChatByteRange('bytes=6-2', 10)).toBe('unsatisfiable');
     });
 });
