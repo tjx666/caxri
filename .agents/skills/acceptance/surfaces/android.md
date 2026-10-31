@@ -111,6 +111,10 @@ bun run --cwd apps/mobile android:device tap \
   --serial "$SERIAL" --check-id session-detail-back
 ```
 
+The receipt keeps only the first node per `testID`, so it cannot count repeated controls: two Copy
+buttons sharing `agent-chat-work-copy` read as one. Give each instance its own `testID` when a
+scenario must find or count it.
+
 Never upload `uiautomator dump` XML. Raw trees can contain pairing data, visible text, Session names,
 Terminal output, and accessibility descriptions. Prefer semantic identifiers over coordinates; use
 coordinates only after a sanitized inspection proves one unambiguous target.
