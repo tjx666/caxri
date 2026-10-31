@@ -1,4 +1,4 @@
-import type { BootstrapState, BotBoard, BotIdentity, BotSnapshot } from '@caxri/protocol';
+import type { BootstrapState, BotAgent, BotBoard, BotIdentity, BotSnapshot } from '@caxri/protocol';
 
 import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
@@ -24,13 +24,16 @@ function adoptSnapshot(snapshot: BotSnapshot): void {
     });
 }
 
+function adoptStartedSnapshot(snapshot: BotSnapshot): void {
+    adoptSnapshot(snapshot);
+    useWorkbenchStore.setState({ bootstrap: snapshot.workbench });
+}
+
 const ensureRequest = { inFlight: undefined as Promise<void> | undefined };
 
 async function runEnsure(): Promise<void> {
     try {
-        const snapshot = await caxri.request('bot.ensure');
-        adoptSnapshot(snapshot);
-        useWorkbenchStore.setState({ bootstrap: snapshot.workbench });
+        adoptStartedSnapshot(await caxri.request('bot.ensure'));
     } finally {
         ensureRequest.inFlight = undefined;
     }
@@ -47,6 +50,27 @@ async function runEnsure(): Promise<void> {
 export function ensureCaxriBot(): Promise<void> {
     ensureRequest.inFlight ??= runEnsure();
     return ensureRequest.inFlight;
+}
+
+/**
+ * Whether opening this window should first ask the user to start Caxri Bot, and with which Agent preselected. Caxri Bot
+ * keeps running after its window closes and runs its Agents with full access, so the first start is the user's explicit
+ * choice rather than a side effect of opening the window. Once its rows exist (it ran before, even if stopped since),
+ * reopening resumes it as before. Reads only: neither request creates or launches anything.
+ */
+export async function readCaxriBotStartPrompt(): Promise<{ agent: BotAgent } | undefined> {
+    if (await caxri.request('bot.snapshot')) return undefined;
+    const data = await caxri.request('bot.data');
+    return { agent: data.conversation.agent };
+}
+
+/**
+ * Starts Caxri Bot from the start prompt. A different Agent goes through `bot.switchAgent`, which stores the choice
+ * and, with no Caxri Bot yet, creates it on that Agent in the same request.
+ */
+export async function startCaxriBot(agent: BotAgent, storedAgent: BotAgent): Promise<void> {
+    if (agent === storedAgent) return ensureCaxriBot();
+    adoptStartedSnapshot(await caxri.request('bot.switchAgent', { agent }));
 }
 
 /**

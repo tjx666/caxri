@@ -104,6 +104,21 @@ export const caxriBot = {
     'caxriBot.clearData.outcome.summary': 'Cleared {{parts}}',
     'caxriBot.clearData.outcome.nothing': 'There was nothing left to clear',
 
+    // First start
+    'caxriBot.start.title': 'Start Caxri Bot',
+    'caxriBot.start.description':
+        'Describe a goal and Caxri Bot breaks it into tasks, starts a coding Agent for each one in a visible Session, and reports back.',
+    'caxriBot.start.agentLabel': 'Agent',
+    'caxriBot.start.permissionsLabel': 'Permissions',
+    'caxriBot.start.permissions':
+        'Full access: Caxri Bot and the Agents it starts edit files and run commands without asking.',
+    'caxriBot.start.surfaceLabel': 'Runs in',
+    'caxriBot.start.surface': 'A Terminal. Switch it to Chat from the title bar once it starts.',
+    'caxriBot.start.backgroundLabel': 'Window',
+    'caxriBot.start.background':
+        'Closing this window keeps Caxri Bot and its Agents running. Stop it from More > Stop Caxri Bot.',
+    'caxriBot.start.action': 'Start Caxri Bot',
+
     // Caxri Bot Terminal
     'caxriBot.terminal.couldNotStart': 'Caxri Bot could not start.',
     'caxriBot.terminal.couldNotStartHint':

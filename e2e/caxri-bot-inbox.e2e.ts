@@ -7,6 +7,7 @@ import type { BotInboxItem } from '@caxri/protocol';
 import type { Page } from '@playwright/test';
 
 import { createFakeAgentMode } from './support/agent-fixture.ts';
+import { openCaxriBot } from './support/caxri-bot.ts';
 import { expect, test } from './support/fixtures.ts';
 import {
     closeAppQuietly,
@@ -110,7 +111,7 @@ test('Caxri Bot Needs you column groups, replies, dismisses, merges, and becomes
             title: 'Approve the release?',
         });
 
-        await pageRequest(running.page, 'caxriBot.open');
+        await openCaxriBot(running.page);
         const bot = await botWindow();
         await bot.setViewportSize({ width: 1400, height: 800 });
         const inbox = bot.locator('.caxri-bot-inbox');

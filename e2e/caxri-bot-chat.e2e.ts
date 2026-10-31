@@ -8,6 +8,7 @@ import type { BotSnapshot } from '@caxri/protocol';
 
 import { openBackgroundWork } from './support/agent-chat-background-work.ts';
 import { createFakeAgentMode } from './support/agent-fixture.ts';
+import { openCaxriBot } from './support/caxri-bot.ts';
 import { expect, test } from './support/fixtures.ts';
 import {
     closeAppQuietly,
@@ -61,7 +62,7 @@ if (process.argv.includes('app-server')) {
     const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
     try {
         await createShellSession(running.page);
-        await pageRequest(running.page, 'caxriBot.open');
+        await openCaxriBot(running.page);
         await expect.poll(() => running.app.windows().length).toBe(2);
         const bot = running.app.windows().find((page) => page !== running.page)!;
         await expect(bot.locator('.terminal-pane .xterm-rows')).toContainText(

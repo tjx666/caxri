@@ -6,6 +6,7 @@ import type { BotSnapshot } from '@caxri/protocol';
 import type { Page } from '@playwright/test';
 
 import { createFakeAgentMode } from './support/agent-fixture.ts';
+import { openCaxriBot } from './support/caxri-bot.ts';
 import { expect, test } from './support/fixtures.ts';
 import type { RunningCaxri } from './support/helpers.ts';
 import {
@@ -16,7 +17,7 @@ import {
 } from './support/helpers.ts';
 
 async function openBotWindow({ app, page: workbench }: RunningCaxri): Promise<Page> {
-    await pageRequest(workbench, 'caxriBot.open');
+    await openCaxriBot(workbench);
     await expect.poll(() => app.windows().length).toBe(2);
     const bot = app.windows().find((page) => page !== workbench)!;
     await expect(bot.locator('.terminal-pane .terminal-surface')).toHaveAttribute(

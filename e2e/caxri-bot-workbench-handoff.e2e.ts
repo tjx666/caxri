@@ -3,13 +3,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { createFakeAgentMode } from './support/agent-fixture.ts';
+import { openCaxriBot } from './support/caxri-bot.ts';
 import { allowE2EErrors, expect, test } from './support/fixtures.ts';
-import {
-    clickTerminalLink,
-    createShellSession,
-    launchCaxri,
-    pageRequest,
-} from './support/helpers.ts';
+import { clickTerminalLink, createShellSession, launchCaxri } from './support/helpers.ts';
 import { chooseContextMenuItem } from './support/native-context-menu.ts';
 
 /**
@@ -41,7 +37,7 @@ test('Caxri Bot Terminal opens Settings in the Workbench scrolled to the missing
         env: { PATH: '/caxri-e2e-missing', SHELL: '/usr/bin/false' },
     });
     try {
-        await pageRequest(running.page, 'caxriBot.open');
+        await openCaxriBot(running.page);
         await expect.poll(() => running.app.windows().length).toBe(2);
         const bot = running.app.windows().find((page) => page !== running.page)!;
         const failed = bot.locator('[data-terminal-exit-state="failed"]');
@@ -101,7 +97,7 @@ test('Caxri Bot Terminal links URLs and files, opening a file through the Workbe
     const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
     try {
         await createShellSession(running.page);
-        await pageRequest(running.page, 'caxriBot.open');
+        await openCaxriBot(running.page);
         await expect.poll(() => running.app.windows().length).toBe(2);
         const bot = running.app.windows().find((page) => page !== running.page)!;
         const pane = bot.locator('.terminal-pane');

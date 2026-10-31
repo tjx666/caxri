@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import type { AppSettings } from '@caxri/protocol';
 
 import { createFakeAgentMode } from './support/agent-fixture.ts';
+import { openCaxriBot } from './support/caxri-bot.ts';
 import { expect, test } from './support/fixtures.ts';
 import { createShellSession, launchCaxri, pageRequest } from './support/helpers.ts';
 
@@ -60,7 +61,7 @@ test('Caxri Bot window follows the app zoom and zooms from its own shortcut', as
         });
         await expect.poll(async () => (await zoomOf()).map(({ level }) => level)).toEqual([1]);
 
-        await pageRequest(running.page, 'caxriBot.open');
+        await openCaxriBot(running.page);
         await expect.poll(() => running.app.windows().length).toBe(2);
         const bot = running.app.windows().find((page) => page !== running.page)!;
         await expect(bot.locator('.terminal-pane .xterm-rows')).toContainText('Fake codex ready');
@@ -139,7 +140,7 @@ test('Caxri Bot title bar swaps the traffic-light clearance for the logo in full
         }, isFullScreen);
     try {
         await createShellSession(running.page);
-        await pageRequest(running.page, 'caxriBot.open');
+        await openCaxriBot(running.page);
         await expect.poll(() => running.app.windows().length).toBe(2);
         const bot = running.app.windows().find((page) => page !== running.page)!;
         const header = bot.locator('.caxri-bot-header');
@@ -185,7 +186,7 @@ test('Workbench and Caxri Bot keep the fullscreen title bar after a reload', asy
     const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
     try {
         await createShellSession(running.page);
-        await pageRequest(running.page, 'caxriBot.open');
+        await openCaxriBot(running.page);
         await expect.poll(() => running.app.windows().length).toBe(2);
         const bot = running.app.windows().find((page) => page !== running.page)!;
         const botHeader = bot.locator('.caxri-bot-header');
@@ -247,7 +248,7 @@ test('Caxri Bot window reopens where it was closed', async ({}) => {
         );
     try {
         await createShellSession(running.page);
-        await pageRequest(running.page, 'caxriBot.open');
+        await openCaxriBot(running.page);
         await expect.poll(() => running.app.windows().length).toBe(2);
         const moved = { x: 40, y: 60, width: 900, height: 600 };
         await running.app.evaluate(({ BrowserWindow }, bounds) => {
@@ -263,7 +264,7 @@ test('Caxri Bot window reopens where it was closed', async ({}) => {
                 ?.close();
         });
         await expect.poll(() => running.app.windows().length).toBe(1);
-        await pageRequest(running.page, 'caxriBot.open');
+        await openCaxriBot(running.page);
         await expect.poll(() => running.app.windows().length).toBe(2);
 
         await expect.poll(botBounds).toEqual(moved);
@@ -305,7 +306,7 @@ test('Caxri Bot window reopens at its remembered bounds across an app restart', 
         );
     try {
         await createShellSession(running.page);
-        await pageRequest(running.page, 'caxriBot.open');
+        await openCaxriBot(running.page);
         await expect.poll(() => running.app.windows().length).toBe(2);
         const moved = { x: 50, y: 70, width: 1_000, height: 700 };
         await running.app.evaluate(({ BrowserWindow }, bounds) => {

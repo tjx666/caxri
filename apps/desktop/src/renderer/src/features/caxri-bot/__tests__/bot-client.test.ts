@@ -19,8 +19,10 @@ import {
 } from '../../../stores/workbench';
 import {
     ensureCaxriBot,
+    readCaxriBotStartPrompt,
     readCaxriBotWorkbench,
     refreshBotBoardPullRequests,
+    startCaxriBot,
     useCaxriBotStore,
 } from '../bot-client';
 
@@ -98,6 +100,49 @@ describe('Caxri Bot snapshot', () => {
 
         await expect(readCaxriBotWorkbench()).rejects.toThrow('Caxri Bot is no longer set up');
         expect(useCaxriBotStore.getState().identity).toBeUndefined();
+    });
+});
+
+describe('Caxri Bot start prompt', () => {
+    beforeEach(() => {
+        mocks.request.mockReset();
+        useWorkbenchStore.setState({ bootstrap: undefined });
+        useCaxriBotStore.setState({ identity: undefined, workspacePath: undefined });
+    });
+
+    it('asks before the first start with the stored Agent and launches nothing', async () => {
+        mocks.request
+            .mockResolvedValueOnce(null)
+            .mockResolvedValueOnce({ conversation: { agent: 'claude', isBound: false } });
+
+        await expect(readCaxriBotStartPrompt()).resolves.toEqual({ agent: 'claude' });
+        expect(mocks.request.mock.calls).toEqual([['bot.snapshot'], ['bot.data']]);
+    });
+
+    it('skips the prompt once Caxri Bot exists, even when it is stopped', async () => {
+        mocks.request.mockResolvedValueOnce(snapshot('bot-terminal'));
+
+        await expect(readCaxriBotStartPrompt()).resolves.toBeUndefined();
+        expect(mocks.request.mock.calls).toEqual([['bot.snapshot']]);
+    });
+
+    it('starts on the stored Agent through the shared ensure', async () => {
+        mocks.request.mockResolvedValueOnce(snapshot('bot-terminal'));
+
+        await startCaxriBot('codex', 'codex');
+
+        expect(mocks.request.mock.calls).toEqual([['bot.ensure']]);
+        expect(storedTerminalIds()).toEqual(['bot-terminal']);
+    });
+
+    it('starts on another Agent by storing it in the same request', async () => {
+        mocks.request.mockResolvedValueOnce(snapshot('bot-terminal'));
+
+        await startCaxriBot('claude', 'codex');
+
+        expect(mocks.request.mock.calls).toEqual([['bot.switchAgent', { agent: 'claude' }]]);
+        expect(storedTerminalIds()).toEqual(['bot-terminal']);
+        expect(useCaxriBotStore.getState().identity?.terminalId).toBe('bot-terminal');
     });
 });
 

@@ -6,6 +6,7 @@ import { solarizedLightTheme } from '@caxri/protocol';
 import type { Page } from '@playwright/test';
 
 import { createFakeAgentMode } from './support/agent-fixture.ts';
+import { openCaxriBot } from './support/caxri-bot.ts';
 import { expect, test } from './support/fixtures.ts';
 import {
     closeAppQuietly,
@@ -67,7 +68,7 @@ test('the status bar Needs you chip opens the Bot Inbox on its first item', asyn
         await expect(chip).toHaveAccessibleName(/^Open Inbox: 2 Caxri Bot items/u);
 
         // Narrow enough that the Inbox overlays the Terminal as a drawer, with the Inbox hidden from the title bar.
-        await pageRequest(running.page, 'caxriBot.open');
+        await openCaxriBot(running.page);
         let bot = await botWindow();
         await bot.setViewportSize({ width: 900, height: 700 });
         // The toggle's name also carries the open item count, as "Needs you 2".

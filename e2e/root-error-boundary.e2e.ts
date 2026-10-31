@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { createFakeAgentMode } from './support/agent-fixture.ts';
+import { openCaxriBot } from './support/caxri-bot.ts';
 import type { Page } from './support/fixtures.ts';
 import { allowE2EErrors, expect, test } from './support/fixtures.ts';
 import { createShellSession, launchCaxri, pageRequest } from './support/helpers.ts';
@@ -88,7 +89,7 @@ test('Renderer entries recover from a provider render failure', async () => {
             (page) => expect(page.locator('[data-benchmark-window]')).toBeVisible(),
         );
 
-        await pageRequest(running.page, 'caxriBot.open');
+        await openCaxriBot(running.page);
         await expect.poll(() => running.app.windows().length).toBe(3);
         const bot = running.app.windows().find((page) => page.url().includes('caxri-bot.html'))!;
         await failProviderThenReload(
