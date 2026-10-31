@@ -10,7 +10,9 @@ const reply: AgentTimelineItem[] = [
     { id: 'a', type: 'agentMessage', text: 'All **done**.' },
 ];
 
-function sources(options: { request?: AgentChatRequest; items?: AgentTimelineItem[] } = {}) {
+function sources(
+    options: { request?: AgentChatRequest; items?: AgentTimelineItem[]; recap?: string } = {},
+) {
     const sessions: Record<
         string,
         { primaryAgentTerminalId?: string; attentionGeneration: number }
@@ -29,6 +31,7 @@ function sources(options: { request?: AgentChatRequest; items?: AgentTimelineIte
             database: { getSession: (id: string) => sessions[id] } as unknown as CaxriDatabase,
             timeline: { read } as unknown as AgentTimelineService,
             pendingRequest,
+            awayRecap: () => options.recap,
         },
     };
 }
@@ -63,6 +66,28 @@ describe('readAgentExcerpts', () => {
         await expect(
             readAgentExcerpts(wired, [{ sessionId: 'asked', attentionGeneration: 4 }]),
         ).resolves.toEqual({ asked: { kind: 'reply', text: 'All done.' } });
+    });
+
+    it('shows the away recap in place of the reply, but never over a pending request', async () => {
+        const { read, sources: wired } = sources({ recap: 'Tests pass; merge next.' });
+        await expect(
+            readAgentExcerpts(wired, [{ sessionId: 'asked', attentionGeneration: 4 }]),
+        ).resolves.toEqual({ asked: { kind: 'recap', text: 'Tests pass; merge next.' } });
+        expect(read).not.toHaveBeenCalled();
+        const asked = sources({
+            recap: 'Tests pass; merge next.',
+            request: {
+                id: 'r',
+                kind: 'question',
+                questions: [
+                    { id: 'q', header: 'h', question: 'Merge?', options: [], allowsOther: true },
+                ],
+            },
+        });
+        const excerpts = await readAgentExcerpts(asked.sources, [
+            { sessionId: 'asked', attentionGeneration: 4 },
+        ]);
+        expect(excerpts.asked).toEqual({ kind: 'request', text: 'Merge?' });
     });
 
     it('omits a stale generation, a Session without an Agent, and an unknown Session', async () => {

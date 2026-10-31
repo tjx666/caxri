@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest';
 
 import type { AgentChatItem } from '../agent-chat-contract.js';
 import {
+    agentChatAwayRecapWindow,
     agentChatCacheClock,
     agentChatContextLimit,
     agentChatContextPercent,
     agentChatContextUsage,
+    currentAgentChatAwayRecap,
     formatMergeNotice,
     isAgentChatEndedByMerge,
 } from '../agent-chat-usage.js';
@@ -124,5 +126,44 @@ describe('isAgentChatEndedByMerge', () => {
         expect(isAgentChatEndedByMerge([userMessage('Earlier')], merged)).toBe(true);
         expect(isAgentChatEndedByMerge([], { state: 'closed', url })).toBe(false);
         expect(isAgentChatEndedByMerge([], undefined)).toBe(false);
+    });
+});
+
+describe('agentChatAwayRecapWindow', () => {
+    it('is due three minutes after the reply, or earlier for a short cache, and stale near its expiry', () => {
+        expect(agentChatAwayRecapWindow(undefined)).toBeUndefined();
+        expect(agentChatAwayRecapWindow({ cacheTtlMinutes: 60, lastResponseAt: 0 })).toEqual({
+            dueAt: 3 * MINUTE,
+            staleAt: 54 * MINUTE,
+        });
+        expect(agentChatAwayRecapWindow({ cacheTtlMinutes: 2, lastResponseAt: 0 })).toEqual({
+            dueAt: 1.6 * MINUTE,
+            staleAt: 1.8 * MINUTE,
+        });
+    });
+
+    it('never goes stale for a cache with no known expiry', () => {
+        expect(agentChatAwayRecapWindow({ lastResponseAt: 0 })).toEqual({ dueAt: 3 * MINUTE });
+    });
+});
+
+describe('currentAgentChatAwayRecap', () => {
+    const awayRecap = { text: 'Ready to merge.', lastResponseAt: 5, generatedAt: 6 };
+
+    it('returns the recap only while it describes the latest reply and no turn runs', () => {
+        expect(
+            currentAgentChatAwayRecap({ awayRecap, usage: { totalTokens: 0, lastResponseAt: 5 } }),
+        ).toBe(awayRecap);
+        expect(
+            currentAgentChatAwayRecap({ awayRecap, usage: { totalTokens: 0, lastResponseAt: 9 } }),
+        ).toBeUndefined();
+        expect(
+            currentAgentChatAwayRecap({
+                activeTurnId: 'turn',
+                awayRecap,
+                usage: { totalTokens: 0, lastResponseAt: 5 },
+            }),
+        ).toBeUndefined();
+        expect(currentAgentChatAwayRecap(undefined)).toBeUndefined();
     });
 });

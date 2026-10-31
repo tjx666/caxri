@@ -61,10 +61,10 @@ interface TerminalSuspensionServiceOptions {
         ): Promise<TerminalRecord | undefined>;
     };
     /**
-     * Whether a Chat's idle compaction is still due before its cache expires; see `isChatCompactionPending` on the
-     * policy input.
+     * Whether a Chat's idle compaction or away recap is still due before its cache expires; see
+     * `isChatMaintenancePending` on the policy input.
      */
-    isChatCompactionPending?: (terminalId: string) => boolean;
+    isChatMaintenancePending?: (terminalId: string) => boolean;
     watchHub: Pick<WatchHub, 'registerPoller'>;
 }
 
@@ -148,7 +148,7 @@ export class TerminalSuspensionService {
             chatReadLeaseAt: (terminalId) => this.options.chats?.readLeaseAt(terminalId),
             isChatSuspendable: (terminalId) =>
                 this.options.chats?.isSuspendable(terminalId) ?? false,
-            isChatCompactionPending: this.options.isChatCompactionPending,
+            isChatMaintenancePending: this.options.isChatMaintenancePending,
             isObservedRemotely: (terminalId) =>
                 this.options.remoteObservers.some((source) =>
                     source.isObservedRemotely(terminalId),

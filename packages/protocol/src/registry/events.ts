@@ -272,6 +272,13 @@ export const serverEventPayloads = {
         kind: z.enum(['progress', 'transition']).optional(),
     }),
     /**
+     * One-shot invalidation after Server Core generated an away recap for the Session's primary Chat, so Activity
+     * re-reads its excerpt (`agent.excerpts`). Identity only, never the recap text.
+     */
+    'agent.recapChanged': z.object({
+        sessionId: identifierSchema,
+    }),
+    /**
      * One-shot invalidation after the Server-owned review comment store changed for one Session + repository. The
      * payload is deliberately identity-only, never comment text: see the diagnostics privacy rule in `AGENTS.md`.
      */

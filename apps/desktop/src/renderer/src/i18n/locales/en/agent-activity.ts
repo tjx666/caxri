@@ -1,5 +1,6 @@
 export const agentActivity = {
     'agentActivity.treeLabel': 'Activity',
+    'agentActivity.recapLabel': 'Recap: ',
     'agentActivity.empty': 'No Agent Session is waiting on you.',
     'agentActivity.markReadFailed': 'Unable to mark the Session read',
     'agentActivity.group.pinned': 'Pinned',

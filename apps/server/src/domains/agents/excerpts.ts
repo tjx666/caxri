@@ -41,12 +41,17 @@ export interface AgentExcerptSources {
      * The first request a live Chat is waiting on, read from its in-memory projection. It must not start a provider.
      */
     pendingRequest: (terminalId: string) => AgentChatRequest | undefined;
+    /**
+     * A live Chat's current away recap (`currentAgentChatAwayRecap`), read from its in-memory projection.
+     */
+    awayRecap: (terminalId: string) => string | undefined;
 }
 
 /**
- * Excerpts for the asked Sessions. A Session waiting on the user shows what it asked when its Chat is live; every other
- * case shows the closing message of its latest turn from the on-disk transcript. Terminal Agents have no live request
- * to read, so they only ever get the transcript's reply. Nothing here starts a provider, and no text is logged.
+ * Excerpts for the asked Sessions. A Session waiting on the user shows what it asked when its Chat is live; a live Chat
+ * that replied while the user was away shows its recap; every other case shows the closing message of its latest turn
+ * from the on-disk transcript. Terminal Agents have no live request to read, so they only ever get the transcript's
+ * reply. Nothing here starts a provider, and no text is logged.
  */
 export async function readAgentExcerpts(
     sources: AgentExcerptSources,
@@ -65,6 +70,8 @@ export async function readAgentExcerpts(
                     sessionId,
                     { kind: 'request', text: clipToLength(asked, AGENT_EXCERPT_MAX_LENGTH) },
                 ] as const;
+            const recap = sources.awayRecap(terminalId);
+            if (recap) return [sessionId, { kind: 'recap', text: recap }] as const;
             const page = await sources.timeline.read(
                 sessionId,
                 terminalId,

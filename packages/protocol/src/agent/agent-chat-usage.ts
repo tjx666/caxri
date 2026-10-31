@@ -188,6 +188,67 @@ export function agentChatIdleCompactionAt(
 }
 
 /**
+ * Upper bound of one away recap. The prompt asks for one or two sentences; this only caps a model that ignores it.
+ */
+export const AGENT_CHAT_AWAY_RECAP_MAX_LENGTH = 400;
+
+/**
+ * A short recap Server Core generated out of band after the user stepped away (`ChatAwayRecap`): what the conversation
+ * is about, where it stands, and the next step. It is the answer of a tool-less side question, so the provider's
+ * conversation never sees it. It belongs to the response at `lastResponseAt` and stops being current once a newer
+ * response lands ({@link currentAgentChatAwayRecap}). Memory only, like the rest of the projection.
+ */
+export const agentChatAwayRecapSchema = z.strictObject({
+    text: z.string().min(1).max(AGENT_CHAT_AWAY_RECAP_MAX_LENGTH),
+    lastResponseAt: z.number().int().nonnegative(),
+    generatedAt: z.number().int().nonnegative(),
+});
+
+/**
+ * How long after a reply the user must still be away before a recap is generated. Shorter than any prompt cache, so a
+ * user who glances away for a moment never pays for one, and one who left gets it while the cache is still warm.
+ */
+const AWAY_RECAP_DELAY_MS = 3 * 60_000;
+
+/**
+ * Within a cache lifetime, the recap is due at the earlier of {@link AWAY_RECAP_DELAY_MS} and this fraction, and is
+ * dropped past {@link AWAY_RECAP_STALE_FRACTION}: generating from a cold cache would re-read the whole conversation.
+ */
+const AWAY_RECAP_DUE_FRACTION = 0.8;
+const AWAY_RECAP_STALE_FRACTION = 0.9;
+
+/**
+ * When the recap for the Chat's latest reply is due, and when it is no longer worth generating (`staleAt` is absent for
+ * a cache with no known expiry, such as a Codex ChatGPT sign-in). `undefined` before the first reply.
+ */
+export function agentChatAwayRecapWindow(
+    usage: Pick<AgentChatUsage, 'cacheTtlMinutes' | 'lastResponseAt'> | undefined,
+): { dueAt: number; staleAt?: number } | undefined {
+    const lastResponseAt = usage?.lastResponseAt;
+    if (lastResponseAt === undefined) return undefined;
+    const ttlMs = usage?.cacheTtlMinutes === undefined ? undefined : usage.cacheTtlMinutes * 60_000;
+    if (ttlMs === undefined) return { dueAt: lastResponseAt + AWAY_RECAP_DELAY_MS };
+    return {
+        dueAt:
+            lastResponseAt +
+            Math.min(AWAY_RECAP_DELAY_MS, Math.round(ttlMs * AWAY_RECAP_DUE_FRACTION)),
+        staleAt: lastResponseAt + Math.round(ttlMs * AWAY_RECAP_STALE_FRACTION),
+    };
+}
+
+/**
+ * The Chat's away recap while it still describes the conversation: it was generated for the latest reply and no turn
+ * has started since. Every surface that shows a recap reads it through here, so none shows a stale one.
+ */
+export function currentAgentChatAwayRecap(
+    snapshot: Pick<AgentChatSnapshot, 'activeTurnId' | 'awayRecap' | 'usage'> | undefined,
+): NonNullable<AgentChatSnapshot['awayRecap']> | undefined {
+    const recap = snapshot?.awayRecap;
+    if (!recap || snapshot.activeTurnId !== undefined) return undefined;
+    return snapshot.usage?.lastResponseAt === recap.lastResponseAt ? recap : undefined;
+}
+
+/**
  * The message Caxri sends a Session's primary Agent when its pull request merges (`projectStatus.notifyAgentOnMerge`).
  */
 export function formatMergeNotice(url: string): string {

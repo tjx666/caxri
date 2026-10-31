@@ -4,7 +4,7 @@ import type { CaxriDatabase } from './db';
 import type { DomainDependencies } from './domain-services';
 import type { PullRequestSettlementWiring } from './pull-request';
 import type { createRootServices } from './root-services';
-import { ChatIdleCompaction } from './session';
+import { ChatAwayRecap, ChatIdleCompaction } from './session';
 import type { TerminalManager } from './terminal';
 import {
     createTerminalHandlers,
@@ -17,12 +17,12 @@ import type { WindowPresence } from './window-presence';
 type RootServices = Awaited<ReturnType<typeof createRootServices>>;
 
 /**
- * Owns the background Agent supervision slice: idle suspension, Chat idle compaction, automatic continuation after a
- * usage limit resets, and the resource and PTY usage monitors. Create: builds the services and publishes the suspension
- * service through `suspensionState` for the launch hooks wired before it exists. Register: the returned `handlers` are
- * the Terminal methods that read them. Start: `start` begins every poller once every handler is registered. Close:
- * `close` stops suspension and idle compaction before the resource monitor; the composition root calls it after Chats
- * and benchmarks shut down and before Terminals do.
+ * Owns the background Agent supervision slice: idle suspension, Chat idle compaction and away recaps, automatic
+ * continuation after a usage limit resets, and the resource and PTY usage monitors. Create: builds the services and
+ * publishes the suspension service through `suspensionState` for the launch hooks wired before it exists. Register: the
+ * returned `handlers` are the Terminal methods that read them. Start: `start` begins every poller once every handler is
+ * registered. Close: `close` stops suspension, idle compaction, and away recaps before the resource monitor; the
+ * composition root calls it after Chats and benchmarks shut down and before Terminals do.
  */
 export function createTerminalSupervision({
     agentChat,
@@ -41,7 +41,7 @@ export function createTerminalSupervision({
     coordinator: Pick<AgentCoordinator, 'maintenanceTurns'>;
     database: CaxriDatabase;
     dependencies: DomainDependencies;
-    presence: Pick<WindowPresence, 'isSettled' | 'visibleSessionIds'>;
+    presence: Pick<WindowPresence, 'isSettled' | 'visibleSessionIds' | 'watchedSessionId'>;
     settlementWiring: Pick<PullRequestSettlementWiring, 'pullRequest'>;
     suspensionState: { service?: TerminalSuspensionService };
     terminals: TerminalManager;
@@ -56,6 +56,17 @@ export function createTerminalSupervision({
         settings: () => configuration.getSettings().value,
         watchHub,
     });
+    const awayRecap = new ChatAwayRecap({
+        agentChat,
+        database,
+        maintenanceTurns: coordinator.maintenanceTurns,
+        logger,
+        presence,
+        pullRequest: (sessionId) => settlementWiring.pullRequest(sessionId),
+        send,
+        settings: () => configuration.getSettings().value,
+        watchHub,
+    });
     const terminalSuspension = new TerminalSuspensionService({
         database,
         logger,
@@ -67,7 +78,8 @@ export function createTerminalSupervision({
         remoteObservers: [dependencies.terminalExecution, transcripts, agentChat],
         terminals,
         chats: agentChat,
-        isChatCompactionPending: (terminalId) => idleCompaction.isPending(terminalId),
+        isChatMaintenancePending: (terminalId) =>
+            idleCompaction.isPending(terminalId) || awayRecap.isPending(terminalId),
         watchHub,
     });
     suspensionState.service = terminalSuspension;
@@ -92,6 +104,7 @@ export function createTerminalSupervision({
         start: (): void => {
             terminalSuspension.start();
             idleCompaction.start();
+            awayRecap.start();
             agentChat.states.usageLimitWaits?.start(watchHub);
             resourceMonitor.start();
             ptyUsage.start();
@@ -99,6 +112,7 @@ export function createTerminalSupervision({
         close: async (): Promise<void> => {
             await terminalSuspension.close();
             await idleCompaction.close();
+            await awayRecap.close();
             await agentChat.states.usageLimitWaits?.close();
             await resourceMonitor.close();
             await ptyUsage.close();

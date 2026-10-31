@@ -21,6 +21,8 @@ export const agentChatTimeline: TranslatedNamespace<typeof source> = {
     'agentChat.returnHint.jumpOne': '跳到这条回复开头',
     'agentChat.returnHint.jumpOther': '跳到第一条未读',
     'agentChat.returnHint.dismiss': '关闭',
+    'agentChat.awayRecap.label': '离开期间',
+    'agentChat.awayRecap.dismiss': '关闭回顾',
     'agentChat.timeline.announcement.replyReady': '回复已就绪',
     'agentChat.timeline.announcement.turnFailed': '本轮失败',
     'agentChat.timeline.announcement.stopped': '已停止',

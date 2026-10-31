@@ -59,10 +59,10 @@ describe('TerminalSuspensionService: Agent Chats', () => {
                 ),
             ),
         };
-        const isChatCompactionPending = vi.fn(() => true);
+        const isChatMaintenancePending = vi.fn(() => true);
         const harness = createHarness({
             chats,
-            isChatCompactionPending,
+            isChatMaintenancePending,
             settings: idleAfterThirtyMinutes,
         });
         harness.terminals.set(
@@ -76,9 +76,9 @@ describe('TerminalSuspensionService: Agent Chats', () => {
         harness.service.start();
         harness.advance(31 * 60_000);
         expect(await harness.service.sweep()).toEqual([]);
-        expect(isChatCompactionPending).toHaveBeenCalledWith('terminal-a');
+        expect(isChatMaintenancePending).toHaveBeenCalledWith('terminal-a');
 
-        isChatCompactionPending.mockReturnValue(false);
+        isChatMaintenancePending.mockReturnValue(false);
         harness.advance(15_000);
         expect(await harness.service.sweep()).toEqual(['terminal-a']);
         expect(chats.suspendIdle).toHaveBeenCalledWith('terminal-a', 'idle');

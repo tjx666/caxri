@@ -79,7 +79,12 @@ export { parseCodexRolloutName } from './providers/codex/rollouts';
 export { locateEarlierCodexRollouts } from './providers/codex/transcript';
 export { grokHome } from './providers/grok/paths';
 export { agentCommandEnvironment } from './rename';
-export { readAgentReplySummary, summarizeLatestAgentReply } from './reply-summary';
+export {
+    clipToLength,
+    readAgentReplySummary,
+    summarizeLatestAgentReply,
+    toPlainLine,
+} from './reply-summary';
 export { AgentRunAutonomy } from './run-autonomy';
 export { type AgentAdapter, AgentService, createLocalAgentAdapters } from './service';
 export { type SessionActivityTransition } from './session-activity-log';

@@ -23,6 +23,8 @@ export const agentChatTimeline = {
     'agentChat.returnHint.jumpOne': 'Jump to its start',
     'agentChat.returnHint.jumpOther': 'Jump to first unread',
     'agentChat.returnHint.dismiss': 'Dismiss',
+    'agentChat.awayRecap.label': 'While you were away',
+    'agentChat.awayRecap.dismiss': 'Dismiss recap',
     'agentChat.timeline.announcement.replyReady': 'Reply ready',
     'agentChat.timeline.announcement.turnFailed': 'Turn failed',
     'agentChat.timeline.announcement.stopped': 'Stopped',

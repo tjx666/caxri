@@ -42,6 +42,7 @@ export type TransientServerEvent = Extract<
             | 'notifications.helperUnavailable'
             | 'gpu.recoveryRequested'
             | 'gitReview.changed'
+            | 'agent.recapChanged'
             | 'projectStatus.alert'
             | 'projectStatus.changed'
             | 'session.airplaneModeChanged'
@@ -152,6 +153,11 @@ const TRANSIENT_SERVER_EVENT_NAMES = new Set<ServerEvent['event']>([
      * Renderer's own `gitReview.list`/`gitReview.pending` re-fetch on reconnect covers the same ground directly.
      */
     'gitReview.changed',
+    /**
+     * Recaps live on the memory-only Chat projection: a reconnecting Renderer re-reads excerpts anyway, and a restarted
+     * Server Core has no recap to point at.
+     */
+    'agent.recapChanged',
     /**
      * Replaying a delivery alert after a reconnect would re-notify a failure the user already dismissed.
      */

@@ -4,9 +4,11 @@ import { z } from 'zod';
 import { identifierSchema } from '../domain/identifiers.js';
 import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
+import { AGENT_CHAT_AWAY_RECAP_MAX_LENGTH } from './agent-chat-usage.js';
 
 /**
- * Upper bound of one excerpt; the hover card and Activity rows clamp it to a couple of lines anyway.
+ * Upper bound of a quoted excerpt (a request or a reply); the hover card and Activity rows clamp it to a couple of
+ * lines anyway. A recap is the model's own short text and is bounded by `AGENT_CHAT_AWAY_RECAP_MAX_LENGTH` instead.
  */
 export const AGENT_EXCERPT_MAX_LENGTH = 240;
 
@@ -17,11 +19,12 @@ export const AGENT_EXCERPT_MAX_SESSIONS = 50;
 
 const agentExcerptSchema = z.strictObject({
     /**
-     * `request` is what the Agent is waiting on (a question it asked, or the action it wants approved); `reply` is the
+     * `request` is what the Agent is waiting on (a question it asked, or the action it wants approved); `recap` is the
+     * away recap Server Core generated for a live Chat's latest reply (`currentAgentChatAwayRecap`); `reply` is the
      * closing message of its latest turn.
      */
-    kind: z.enum(['request', 'reply']),
-    text: z.string().min(1).max(AGENT_EXCERPT_MAX_LENGTH),
+    kind: z.enum(['request', 'recap', 'reply']),
+    text: z.string().min(1).max(AGENT_CHAT_AWAY_RECAP_MAX_LENGTH),
 });
 
 export const agentExcerptMethods = {

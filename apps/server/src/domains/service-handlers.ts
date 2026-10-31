@@ -1,6 +1,6 @@
 import process from 'node:process';
 
-import { CaxriError } from '@caxri/protocol';
+import { CaxriError, currentAgentChatAwayRecap } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 
 import type { AgentChatService } from './agent-chat';
@@ -226,6 +226,10 @@ export function createServiceHandlers(services: {
                     timeline,
                     pendingRequest: (terminalId) =>
                         services.agentChat.states.pendingRequest(terminalId),
+                    awayRecap: (terminalId) =>
+                        currentAgentChatAwayRecap(
+                            services.agentChat.states.get(terminalId)?.projection.snapshot,
+                        )?.text,
                 },
                 sessions,
             ),

@@ -38,7 +38,10 @@ vi.mock('../terminal', () => ({
     TerminalSuspensionService: recorder('suspension'),
 }));
 
-vi.mock('../session', () => ({ ChatIdleCompaction: recorder('idleCompaction') }));
+vi.mock('../session', () => ({
+    ChatAwayRecap: recorder('awayRecap'),
+    ChatIdleCompaction: recorder('idleCompaction'),
+}));
 
 function compose() {
     lifecycle.events.length = 0;
@@ -69,13 +72,13 @@ describe('createTerminalSupervision', () => {
 
     it('holds idle suspension for a Chat whose idle compaction is pending', () => {
         const { supervision } = compose();
-        const { isChatCompactionPending } = (
+        const { isChatMaintenancePending } = (
             supervision.terminalSuspension as unknown as {
-                options: { isChatCompactionPending: (terminalId: string) => boolean };
+                options: { isChatMaintenancePending: (terminalId: string) => boolean };
             }
         ).options;
 
-        expect(isChatCompactionPending('chat-1')).toBe(true);
+        expect(isChatMaintenancePending('chat-1')).toBe(true);
         expect(lifecycle.events).toEqual(['idleCompaction.isPending:chat-1']);
     });
 
@@ -86,10 +89,11 @@ describe('createTerminalSupervision', () => {
         await supervision.close();
 
         // Suspension and the resource monitor keep the order the composition root closed them in before this slice owned
-        // them; idle compaction and the usage-limit waits sit between.
+        // them; idle compaction, the away recap, and the usage-limit waits sit between.
         expect(lifecycle.events).toEqual([
             'suspension.start',
             'idleCompaction.start',
+            'awayRecap.start',
             'usageLimitWaits.start',
             'monitor.start',
             'ptyUsage.start',
@@ -97,6 +101,8 @@ describe('createTerminalSupervision', () => {
             'suspension.close:end',
             'idleCompaction.close:begin',
             'idleCompaction.close:end',
+            'awayRecap.close:begin',
+            'awayRecap.close:end',
             'usageLimitWaits.close:begin',
             'usageLimitWaits.close:end',
             'monitor.close:begin',

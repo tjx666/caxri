@@ -24,6 +24,7 @@ import {
     invalidateBotInboxQuery,
     invalidateGitReviewQueries,
     invalidatePermissionAutoAllowQuery,
+    invalidateSessionExcerptQueries,
 } from './invalidation-event-reads';
 import type { PendingFileChangeBatch, ViewChange } from './invalidation-hidden-window';
 import { createHiddenWindowDeferral } from './invalidation-hidden-window';
@@ -519,6 +520,10 @@ export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () 
         }
         if (event.event === 'agent.permissionAutoAllowChanged') {
             invalidatePermissionAutoAllowQuery(queryClient, event.payload.sessionId);
+            return;
+        }
+        if (event.event === 'agent.recapChanged') {
+            invalidateSessionExcerptQueries(queryClient, event.payload.sessionId);
             return;
         }
         if (event.event === 'gitReview.changed') {

@@ -167,6 +167,7 @@ const settingsProjection: SettingsProjection = {
     'session.defaultAgent': exportAsIs,
     'session.openAgentsInChat': exportAsIs,
     'agentChat.idleCompaction.enabled': exportAsIs,
+    'agentChat.awayRecap.enabled': exportAsIs,
     'agentChat.autoContinueAtUsageLimit': exportAsIs,
     'agentChat.longPasteThreshold': exportAsIs,
     'agentChat.workingIndicator': exportAsIs,

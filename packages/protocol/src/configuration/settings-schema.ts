@@ -202,6 +202,7 @@ export const appSettingsSchema = z.object({
         .default(spec['session.defaultAgent'].default),
     'session.openAgentsInChat': booleanField(spec['session.openAgentsInChat']),
     'agentChat.idleCompaction.enabled': booleanField(spec['agentChat.idleCompaction.enabled']),
+    'agentChat.awayRecap.enabled': booleanField(spec['agentChat.awayRecap.enabled']),
     'agentChat.autoContinueAtUsageLimit': booleanField(spec['agentChat.autoContinueAtUsageLimit']),
     'agentChat.longPasteThreshold': integerField(spec['agentChat.longPasteThreshold']),
     'agentChat.workingIndicator': z

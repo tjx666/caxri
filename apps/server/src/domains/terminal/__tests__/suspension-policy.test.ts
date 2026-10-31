@@ -50,7 +50,7 @@ interface Scenario {
     deselectedAt?: number;
     chatReadLeaseAt?: number;
     isChatSuspendable?: boolean;
-    isChatCompactionPending?: boolean;
+    isChatMaintenancePending?: boolean;
     isObservedRemotely?: boolean;
     sample?: TerminalActivitySample;
     selectedSessionId?: string;
@@ -66,7 +66,7 @@ function decide(scenario: Scenario = {}) {
         chatReadLeaseAt: () => scenario.chatReadLeaseAt,
         deselectedAt: () => scenario.deselectedAt,
         isChatSuspendable: () => scenario.isChatSuspendable ?? false,
-        isChatCompactionPending: () => scenario.isChatCompactionPending ?? false,
+        isChatMaintenancePending: () => scenario.isChatMaintenancePending ?? false,
         isObservedRemotely: () => scenario.isObservedRemotely ?? false,
         now: NOW,
         sample: () => scenario.sample,
@@ -271,8 +271,8 @@ describe('decideTerminalSuspensions: idle rule', () => {
             isChatSuspendable: true,
         };
 
-        expect(decide({ ...idleChat, isChatCompactionPending: true })).toEqual([]);
-        expect(decide({ ...idleChat, isChatCompactionPending: false })).toEqual([
+        expect(decide({ ...idleChat, isChatMaintenancePending: true })).toEqual([]);
+        expect(decide({ ...idleChat, isChatMaintenancePending: false })).toEqual([
             { reason: 'idle', terminalId: 'terminal-1' },
         ]);
         // Only a Chat compacts; a PTY Agent's idle suspension is unchanged.
@@ -281,7 +281,7 @@ describe('decideTerminalSuspensions: idle rule', () => {
                 deselectedAt: NOW - halfHour,
                 sample: idleSample,
                 settings: idleOn,
-                isChatCompactionPending: true,
+                isChatMaintenancePending: true,
             }),
         ).toEqual([{ reason: 'idle', terminalId: 'terminal-1' }]);
     });
@@ -433,7 +433,7 @@ describe('decideTerminalSuspensions: Chat observation lease', () => {
         expect(
             decide({
                 ...leased,
-                isChatCompactionPending: true,
+                isChatMaintenancePending: true,
                 settings: { 'terminal.idleSuspension.enabled': true },
             }),
         ).toEqual([{ reason: 'observation', terminalId: 'terminal-1' }]);

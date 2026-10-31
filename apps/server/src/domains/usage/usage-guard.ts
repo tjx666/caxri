@@ -21,6 +21,7 @@ export type UsageGuardPath =
     | 'chat_command'
     | 'chat_queue'
     | 'chat_side_question'
+    | 'away_recap'
     | 'idle_compaction'
     | 'delegation'
     | 'dispatch'

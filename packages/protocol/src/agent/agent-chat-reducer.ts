@@ -226,6 +226,7 @@ export function applyAgentChatOperation(
                 ...(snapshot.idleCompactionHold && {
                     idleCompactionHold: snapshot.idleCompactionHold,
                 }),
+                ...(snapshot.awayRecap && { awayRecap: snapshot.awayRecap }),
             };
         }
         case 'upsertItem': {
@@ -282,6 +283,7 @@ export function applyAgentChatOperation(
             if (state.usageGuard !== undefined) next.usageGuard = state.usageGuard ?? undefined;
             if (state.idleCompactionHold !== undefined)
                 next.idleCompactionHold = state.idleCompactionHold ?? undefined;
+            if (state.awayRecap !== undefined) next.awayRecap = state.awayRecap ?? undefined;
             for (const key of [
                 'failure',
                 'activeTurnId',
@@ -300,6 +302,7 @@ export function applyAgentChatOperation(
                 'queuePauseReason',
                 'usageGuard',
                 'idleCompactionHold',
+                'awayRecap',
             ] as const)
                 if (next[key] === undefined) delete next[key];
             return next;
