@@ -242,6 +242,8 @@
             },
             "apps/mobile": {
                 "entry": [
+                    "plugins/with-android-bundle-environment-input.ts",
+                    "plugins/with-android-gradle-build-cache.ts",
                     "plugins/with-android-mlkit-keep-rules.ts",
                     "plugins/with-android-release-signing.ts",
                     "plugins/with-android-sdk-download-disabled.ts",
