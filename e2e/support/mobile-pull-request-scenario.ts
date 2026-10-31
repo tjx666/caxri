@@ -350,8 +350,9 @@ export async function executeMobileStatusTreeMergeScenario(
         }
         await capture(environment, 'status-two-merges', artifacts);
         if (buttons !== 2) {
+            // Keep the capture and receipt, then fail, so the runner records the baseline round as `failed`.
             await finish(environment, artifacts, { mergeButtons: buttons, surface: 'status' });
-            return;
+            throw new Error(`Status panel shows ${buttons} Merge buttons instead of 2`);
         }
 
         // The lower row is the submodule's pull request, which the Session header never offers to merge.
