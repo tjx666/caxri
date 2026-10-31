@@ -30,11 +30,12 @@ export const ConversationToolGroupView = ({
     isRunning,
     kind,
     mcpIconUrls,
+    onPress,
     summary,
     testID,
     theme,
 }: {
-    children: ReactNode;
+    children?: ReactNode;
     count: number;
     duration?: string | null;
     failure?: 'declined' | 'failed';
@@ -51,6 +52,11 @@ export const ConversationToolGroupView = ({
      * The icon URLs of the MCP server a `mcp` summary leads with.
      */
     mcpIconUrls?: readonly string[];
+    /**
+     * Replaces expansion: a summary of one call would only list a row repeating its title, so a tap opens that call
+     * instead, as Desktop's one-call summary shows the call's detail. The row then carries no chevron.
+     */
+    onPress?: () => void;
     summary: string;
     testID: string;
     theme: MobileTheme;
@@ -62,18 +68,25 @@ export const ConversationToolGroupView = ({
     return (
         <View>
             <Pressable
-                accessibilityLabel={`${summary}. ${t(
-                    count === 1
-                        ? 'conversation.tool.callCountOne'
-                        : 'conversation.tool.callCountOther',
-                    { count },
-                )}`}
+                accessibilityLabel={`${summary}. ${
+                    onPress
+                        ? t('conversation.tool.openDetail')
+                        : t(
+                              count === 1
+                                  ? 'conversation.tool.callCountOne'
+                                  : 'conversation.tool.callCountOther',
+                              { count },
+                          )
+                }`}
                 accessibilityRole="button"
-                accessibilityState={{ expanded }}
-                onPress={() => {
-                    disclose();
-                    setExpanded((current) => !current);
-                }}
+                accessibilityState={onPress ? undefined : { expanded }}
+                onPress={
+                    onPress ??
+                    (() => {
+                        disclose();
+                        setExpanded((current) => !current);
+                    })
+                }
                 style={({ pressed }) => [
                     styles.toolRow,
                     pressed ? { backgroundColor: theme.surface } : null,
@@ -105,7 +118,7 @@ export const ConversationToolGroupView = ({
                 {duration ? (
                     <Text style={[styles.toolDuration, { color: theme.muted }]}>{duration}</Text>
                 ) : null}
-                <Chevron color={theme.muted} size={16} />
+                {onPress ? null : <Chevron color={theme.muted} size={16} />}
             </Pressable>
             {expanded ? (
                 <View style={[styles.toolChildren, { borderColor: theme.border }]}>{children}</View>
