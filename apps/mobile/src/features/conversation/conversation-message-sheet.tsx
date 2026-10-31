@@ -1,5 +1,5 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import * as Clipboard from 'expo-clipboard';
@@ -30,11 +30,16 @@ type Busy = 'copy' | 'edit' | 'select';
  */
 export const ConversationMessageSheet = ({
     edit,
+    isSelectingFirst = false,
     onClose,
     readText,
     theme,
 }: {
     edit?: ConversationMessageEditAction;
+    /**
+     * Opens straight on Select Text, for a reply's More menu, which offers it as its own entry.
+     */
+    isSelectingFirst?: boolean;
     onClose: () => void;
     readText: () => Promise<string>;
     theme: MobileTheme;
@@ -66,6 +71,13 @@ export const ConversationMessageSheet = ({
         }
         setBusy(undefined);
     };
+    const isSelectingFirstReference = useRef(isSelectingFirst);
+    useEffect(() => {
+        if (!isSelectingFirstReference.current) return;
+        isSelectingFirstReference.current = false;
+        void run('select', setSelectText);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- Runs once, on the sheet's first render.
+    }, []);
     return (
         <BottomSheet
             closeLabel={t('conversation.message.close')}

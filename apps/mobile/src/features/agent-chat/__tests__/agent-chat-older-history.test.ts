@@ -166,8 +166,8 @@ describe('phone Chat older history', () => {
         expect(merged.items.map((value) => value.id)).toEqual(['a', 'b', 'c']);
         expect(merged.turns).toEqual([{ id: 'turn-1', status: 'completed' }]);
         const timeline = buildAgentChatTimeline(merged);
-        // One fold for the whole turn, then its final reply.
-        expect(timeline.map((entry) => entry.kind)).toEqual(['turn', 'message']);
+        // One fold for the whole turn, then its final reply and the reply's action bar.
+        expect(timeline.map((entry) => entry.kind)).toEqual(['turn', 'message', 'replyActions']);
     });
 });
 

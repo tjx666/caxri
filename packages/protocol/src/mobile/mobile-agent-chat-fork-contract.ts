@@ -27,13 +27,17 @@ export type MobileContinuationOrigin = z.infer<typeof mobileContinuationOriginSc
  */
 export const mobileAgentChatForkMethods = {
     /**
-     * The phone's Fork Session, forwarded to `agentChat.fork` without an `itemId`: copies the whole conversation into a
-     * new Session of the same Project, which the phone then opens. A running turn or a Chat with no turn yet fails with
-     * `CONFLICT` before anything is created.
+     * The phone's Fork Session and a reply's "Fork in New Chat", forwarded to `agentChat.fork`: copies the conversation
+     * into a new Session of the same Project, which the phone then opens. Without `itemId` the whole conversation is
+     * copied; with it, everything before that user message, which is how a reply forks with its turn kept and every
+     * later turn left out. A running turn or a Chat with no turn yet fails with `CONFLICT` before anything is created.
      */
     'mobile.agentChat.fork': {
         ...commandPolicy('server', 'control', ['sessions.write']),
-        params: z.strictObject(terminalTarget),
+        params: z.strictObject({
+            ...terminalTarget,
+            itemId: agentChatMethods['agentChat.fork'].params.shape.itemId,
+        }),
         result: agentChatMethods['agentChat.fork'].result,
     },
     /**

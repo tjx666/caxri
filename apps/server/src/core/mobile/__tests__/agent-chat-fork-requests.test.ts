@@ -23,6 +23,25 @@ describe('mobile Agent Chat Fork and Continue in Another Agent', () => {
         });
     });
 
+    it('forks a reply with its turn kept by forking before the next turn’s message', async () => {
+        const forward = vi.fn<(operation: unknown) => Promise<unknown>>(async () => ({
+            sessionId: 'session-2',
+            terminalId: 'terminal-2',
+        }));
+        await invoke(
+            {
+                method: 'mobile.agentChat.fork',
+                params: { terminalId: 'terminal-1', itemId: 'user-2' },
+            },
+            domainFixture({ surface: 'chat' }),
+            forward,
+        );
+        expect(forward).toHaveBeenCalledWith({
+            method: 'agentChat.fork',
+            params: { terminalId: 'terminal-1', itemId: 'user-2' },
+        });
+    });
+
     it("continues as the menu's manual continuation and drops the delegation id", async () => {
         const forward = vi.fn<(operation: unknown) => Promise<unknown>>(async () => ({
             sessionId: 'session-3',

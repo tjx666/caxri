@@ -20,9 +20,7 @@ import type { ConversationMessageTarget } from '../conversation/conversation-mes
 import { ConversationMessageActions } from '../conversation/conversation-message-actions';
 import { ConversationMessageSheet } from '../conversation/conversation-message-sheet';
 import { ConversationUserAttachments } from '../conversation/conversation-user-attachments';
-import { conversationActionText } from '../conversation/conversation-user-text';
 import { ConversationList } from '../conversation/conversation-view';
-import { MessageReadOfflineError } from '../conversation/read-whole-message';
 import { SavedCopyNote } from '../read-cache/saved-copy-note';
 import {
     dismissAgentChatAwayRecap,
@@ -35,10 +33,7 @@ import type { AgentChatHandoffSource } from './agent-chat-handoff';
 import { AgentChatHandoffScope } from './agent-chat-handoff-scope';
 import { AgentChatMcpServersContext } from './agent-chat-mcp-icons';
 import type { AgentChatEditTarget } from './agent-chat-message-edit';
-import {
-    agentChatMessageEditAvailability,
-    isAgentChatMessageClipped,
-} from './agent-chat-message-edit';
+import { agentChatMessageEditAvailability } from './agent-chat-message-edit';
 import {
     agentChatComposerAvailability,
     agentChatEmptyMessage,
@@ -68,6 +63,11 @@ import { AgentChatUsageGuardCard } from './agent-chat-usage-guard-card';
 import type { AgentChatController } from './use-agent-chat';
 import { useAgentChatHistory } from './use-agent-chat-history';
 import { useAgentChatMessageAttachments } from './use-agent-chat-message-attachments';
+import {
+    AgentChatReplyActionsContext,
+    readAgentChatMessageText,
+    useAgentChatReplyActions,
+} from './use-agent-chat-reply-actions';
 import { useIsRequestBesideKeyboard } from './use-request-beside-keyboard';
 
 /**
@@ -76,6 +76,7 @@ import { useIsRequestBesideKeyboard } from './use-request-beside-keyboard';
 const TIMELINE_MIN_HEIGHT = 96;
 
 const AgentChatBody = ({
+    canFork,
     canSend,
     chat,
     enterFrom,
@@ -86,6 +87,10 @@ const AgentChatBody = ({
     provider,
     theme,
 }: {
+    /**
+     * Only a control device may fork, as `mobile.agentChat.fork` requires.
+     */
+    canFork: boolean;
     /**
      * A view-only device cannot message the Chat, so its empty state does not invite it to.
      */
@@ -101,7 +106,17 @@ const AgentChatBody = ({
 }) => {
     const { t } = useTranslation();
     const { pending } = chat;
-    const [actionTarget, setActionTarget] = useState<ConversationMessageTarget>();
+    /**
+     * The message whose actions sheet is open: long-pressed, or a reply's Select Text (`isSelectingFirst`).
+     */
+    const [actionTarget, setActionTarget] = useState<
+        ConversationMessageTarget & { isSelectingFirst?: boolean }
+    >();
+    const selectText = useCallback(
+        (message: ConversationMessageTarget) =>
+            setActionTarget({ ...message, isSelectingFirst: true }),
+        [],
+    );
     /**
      * The window with the older pages the reader loaded in front of it; turn folds and artifacts build over both.
      */
@@ -167,6 +182,14 @@ const AgentChatBody = ({
         },
         [terminalId],
     );
+    const replyActions = useAgentChatReplyActions({
+        canFork,
+        canSend,
+        chat,
+        isConnected,
+        onSelectText: selectText,
+        snapshot: loadedSnapshot,
+    });
     const renderEntry = useCallback(
         (entry: TimelineEntry) => (
             <AgentChatTimelineEntry
@@ -199,20 +222,22 @@ const AgentChatBody = ({
                 <AgentChatMcpServersContext value={mcpServers}>
                     <AgentChatHandoffScope canSend={canSend} chat={chat} source={handoffSource}>
                         <ConversationMessageActions value={setActionTarget}>
-                            <AgentChatUsageActionScope value={usageScope}>
-                                <ConversationList
-                                    entries={entries}
-                                    enterFrom={enterFrom}
-                                    followKey={pending.sendCount}
-                                    isConnected={isConnected}
-                                    isTurnStart={isAgentChatTurnStart}
-                                    onFollowingChange={setFollowing}
-                                    onRetry={chat.refresh}
-                                    renderEntry={renderEntry}
-                                    theme={theme}
-                                    timeline={timeline}
-                                />
-                            </AgentChatUsageActionScope>
+                            <AgentChatReplyActionsContext value={replyActions}>
+                                <AgentChatUsageActionScope value={usageScope}>
+                                    <ConversationList
+                                        entries={entries}
+                                        enterFrom={enterFrom}
+                                        followKey={pending.sendCount}
+                                        isConnected={isConnected}
+                                        isTurnStart={isAgentChatTurnStart}
+                                        onFollowingChange={setFollowing}
+                                        onRetry={chat.refresh}
+                                        renderEntry={renderEntry}
+                                        theme={theme}
+                                        timeline={timeline}
+                                    />
+                                </AgentChatUsageActionScope>
+                            </AgentChatReplyActionsContext>
                         </ConversationMessageActions>
                     </AgentChatHandoffScope>
                 </AgentChatMcpServersContext>
@@ -302,7 +327,7 @@ const AgentChatMessageSheet = ({
     canSend: boolean;
     chat: AgentChatController;
     isConnected: boolean;
-    message: ConversationMessageTarget;
+    message: ConversationMessageTarget & { isSelectingFirst?: boolean };
     onClose: () => void;
     onEditMessage: (target: AgentChatEditTarget, text: string) => void;
     /**
@@ -313,24 +338,7 @@ const AgentChatMessageSheet = ({
 }) => {
     const { t } = useTranslation();
     const isLive = isConnected && chat.savedAt === undefined;
-    const readText = async (): Promise<string> => {
-        const isClipped = isAgentChatMessageClipped(message.text);
-        /**
-         * A saved copy still reads the whole text while the phone is connected: the Server finds the message by id, or
-         * says it is gone. Only an unreachable computer leaves a clipped message unreadable.
-         */
-        if (!isConnected) {
-            if (isClipped) throw new MessageReadOfflineError();
-            return message.text;
-        }
-        try {
-            // A Desktop hand-off message copies and edits as the user's note, never the Agent's instructions.
-            return conversationActionText(await chat.readMessage(message.id));
-        } catch (error) {
-            if (isClipped) throw error;
-            return message.text;
-        }
-    };
+    const readText = () => readAgentChatMessageText(chat, isConnected, message);
     const availability = isLive
         ? agentChatMessageEditAvailability(snapshot, message.id, t)
         : { canEdit: false as const, reason: t('chat.disabled.send.offline') };
@@ -353,6 +361,7 @@ const AgentChatMessageSheet = ({
                       }
                     : undefined
             }
+            isSelectingFirst={message.isSelectingFirst}
             onClose={onClose}
             readText={readText}
             theme={theme}
@@ -513,6 +522,7 @@ export const AgentChatView = ({
                 <SavedCopyNote savedAt={chat.savedAt} testID="agent-chat-saved" theme={theme} />
                 <View style={[styles.body, isTimelineYielding && styles.bodyYielding]}>
                     <AgentChatBody
+                        canFork={deviceRole === 'control'}
                         canSend={canRetry}
                         chat={chat}
                         enterFrom={enterFrom}

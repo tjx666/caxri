@@ -432,6 +432,13 @@ record is the source of truth.
   diff, 1 MiB of diffs per file-change item, and a 4 MiB aggregate text budget. The budget also holds
   while a reply streams. Older items leave the projection first and `truncated` is set. A diff cut
   by either diff bound carries its own `truncated` flag, so the pane marks where it stops.
+- Web sources: because a tool's output keeps only its tail, Server Core reads the pages a web tool
+  searched or fetched off the whole result before clipping it and records them as the tool call's
+  `sources` (at most 10, each an http(s) URL with an optional title;
+  `packages/protocol/src/agent/web-sources/`). Claude Code's `WebSearch` `Links:` array, an MCP
+  search's `Title:`/`URL:` entries, and the URLs a fetch named count; loose URLs inside fetched page
+  text do not. Codex's `webSearch` reports only the page it opened. Mobile lists a turn's sources on
+  its reply's action bar.
 - Items that leave the projection are not lost. Server Core moves them, with their turns, into a
   per-Chat history archive (`apps/server/src/domains/agent-chat/history/archive.ts`, bounded
   at 20,000 items and 32 MiB of text). `agentChat.readHistory` pages back through it, at most 200

@@ -1,11 +1,7 @@
 import type { AgentChatItem } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { withAgentChatAwayRecap } from '../agent-chat-away-recap-entry';
-import type { AgentChatTimelineEntry } from '../agent-chat-timeline';
 import {
-    agentChatChangeColor,
-    agentChatChangeRows,
     agentChatTurnTone,
     buildAgentChatTimeline,
     toggleAgentChatExpansion,
@@ -93,7 +89,14 @@ describe('buildAgentChatTimeline', () => {
             ],
             turns: [{ id: 't1', status: 'completed', durationMs: 65_000 }],
         };
-        expect(ids(timeline)).toEqual(['u1', 'turn:t1', 'a1', 'artifacts:t1', 'n1']);
+        expect(ids(timeline)).toEqual([
+            'u1',
+            'turn:t1',
+            'a1',
+            'artifacts:t1',
+            'reply-actions:t1',
+            'n1',
+        ]);
         const entries = buildAgentChatTimeline(timeline);
         expect(entries[1]).toMatchObject({
             label: 'Worked for 1m 5s',
@@ -116,6 +119,7 @@ describe('buildAgentChatTimeline', () => {
             'work:c1',
             'a1',
             'artifacts:t1',
+            'reply-actions:t1',
             'n1',
         ]);
         expect(expanded[1]).toMatchObject({ fold: 'expanded' });
@@ -172,7 +176,17 @@ describe('buildAgentChatTimeline', () => {
                 },
                 new Set(['t2']),
             ).map((entry) => entry.id),
-        ).toEqual(['u-t1', 'turn:t1', 'a-t1', 'u-t2', 'turn:t2', 'work:c-t2', 'a-t2']);
+        ).toEqual([
+            'u-t1',
+            'turn:t1',
+            'a-t1',
+            'reply-actions:t1',
+            'u-t2',
+            'turn:t2',
+            'work:c-t2',
+            'a-t2',
+            'reply-actions:t2',
+        ]);
     });
 
     it('says how a steered turn stopped under its last segment when that segment folded nothing', () => {
@@ -193,6 +207,7 @@ describe('buildAgentChatTimeline', () => {
             'u2',
             'turn:t1:1',
             'a2',
+            'reply-actions:t1',
         ]);
         expect(entries[1]).toMatchObject({ label: 'Worked for 1m', status: 'completed' });
         expect(entries[4]).toMatchObject({ label: 'Stopped after 30s', status: 'interrupted' });
@@ -219,6 +234,7 @@ describe('buildAgentChatTimeline', () => {
             'u2',
             'turn:t1:1',
             'a2',
+            'reply-actions:t1',
         ]);
         expect(entries[1]).toMatchObject({
             label: 'Worked for 1m',
@@ -232,7 +248,7 @@ describe('buildAgentChatTimeline', () => {
         });
         expect(
             buildAgentChatTimeline(timeline, new Set(['t1:1'])).map((entry) => entry.id),
-        ).toEqual(['u1', 'turn:t1', 'a1', 'u2', 'turn:t1:1', 'work:c2', 'a2']);
+        ).toEqual(['u1', 'turn:t1', 'a1', 'u2', 'turn:t1:1', 'work:c2', 'a2', 'reply-actions:t1']);
     });
 
     it('keeps provider feedback severity, source, and complete details in dedicated cards', () => {
@@ -280,8 +296,66 @@ describe('buildAgentChatTimeline', () => {
             ],
             turns: [{ id: 't1', status: 'completed', durationMs: 2000 }],
         });
-        expect(entries.map((entry) => entry.id)).toEqual(['u1', 'turn:t1', 'a1']);
+        expect(entries.map((entry) => entry.id)).toEqual([
+            'u1',
+            'turn:t1',
+            'a1',
+            'reply-actions:t1',
+        ]);
         expect(entries[1]).not.toHaveProperty('fold');
+    });
+
+    it('ends a finished turn’s final reply with its action bar, its time, and the pages it reached', () => {
+        const entries = buildAgentChatTimeline({
+            items: [
+                { id: 'u1', turnId: 't1', type: 'userMessage', text: 'Find it' },
+                {
+                    id: 'w1',
+                    turnId: 't1',
+                    type: 'toolCall',
+                    name: 'WebSearch',
+                    status: 'completed',
+                    summary: 'tab groups',
+                    sources: [{ url: 'https://example.com/a', title: 'A' }],
+                },
+                {
+                    id: 'w2',
+                    turnId: 't1',
+                    type: 'toolCall',
+                    name: 'WebFetch',
+                    status: 'completed',
+                    summary: 'https://example.com/b',
+                },
+                {
+                    id: 'a1',
+                    turnId: 't1',
+                    type: 'agentMessage',
+                    text: 'Found.',
+                    streaming: false,
+                    createdAt: 5_000,
+                },
+                { id: 'u2', turnId: 't2', type: 'userMessage', text: 'More' },
+                { id: 'a2', turnId: 't2', type: 'agentMessage', text: '…', streaming: true },
+            ],
+            turns: [
+                { id: 't1', status: 'completed' },
+                { id: 't2', status: 'running' },
+            ],
+            activeTurnId: 't2',
+        });
+        expect(entries.find((entry) => entry.kind === 'replyActions')).toEqual({
+            kind: 'replyActions',
+            id: 'reply-actions:t1',
+            turnId: 't1',
+            replyId: 'a1',
+            sentAt: 5_000,
+            sources: [
+                { url: 'https://example.com/a', title: 'A' },
+                { url: 'https://example.com/b' },
+            ],
+        });
+        // The running turn's reply carries no bar yet.
+        expect(entries.filter((entry) => entry.kind === 'replyActions')).toHaveLength(1);
     });
 
     it('places artifacts at the end of a turn that ended without a reply', () => {
@@ -413,37 +487,6 @@ describe('agentChatTurnTone', () => {
     });
 });
 
-describe('agentChatChangeRows', () => {
-    it("draws a Chat diff in the Changes tab's row shape", () => {
-        expect(
-            agentChatChangeRows([
-                { kind: 'hunk', text: '@@ -1 +1 @@' },
-                { kind: 'removed', text: 'a', oldLine: 1 },
-                { kind: 'added', text: 'b', newLine: 1 },
-                { kind: 'context', text: 'c', oldLine: 2, newLine: 2 },
-            ]),
-        ).toEqual([
-            {
-                id: '0',
-                kind: 'hunk',
-                content: '@@ -1 +1 @@',
-                oldLine: null,
-                newLine: null,
-                marker: ' ',
-            },
-            { id: '1', kind: 'removed', content: 'a', oldLine: 1, newLine: null, marker: '−' },
-            { id: '2', kind: 'added', content: 'b', oldLine: null, newLine: 1, marker: '+' },
-            { id: '3', kind: 'context', content: 'c', oldLine: 2, newLine: 2, marker: ' ' },
-        ]);
-    });
-
-    it('colors each change kind with its Git status color', () => {
-        expect(agentChatChangeColor('add')).toBe('gitAdded');
-        expect(agentChatChangeColor('delete')).toBe('gitDeleted');
-        expect(agentChatChangeColor('update')).toBe('gitModified');
-    });
-});
-
 describe('withAgentChatPendingEntries', () => {
     it('ends the timeline with recorded answers, then the messages still on their way', () => {
         const built = buildAgentChatTimeline({ items: [], turns: [] });
@@ -544,54 +587,5 @@ describe('answered question requests', () => {
             timeline: [],
         });
         expect(entry).toMatchObject({ kind: 'answered', id: 'pending:answer:r1' });
-    });
-});
-
-describe('withAgentChatAwayRecap', () => {
-    const reply: AgentChatTimelineEntry = {
-        kind: 'message',
-        id: 'a1',
-        message: { id: 'a1', type: 'agentMessage', text: 'Done.' },
-    };
-    const recap = { text: 'Shipped the fix.', lastResponseAt: 100, generatedAt: 200 };
-    const snapshot = { activeTurnId: undefined, awayRecap: recap, usage: { lastResponseAt: 100 } };
-
-    it('adds the current recap after the last reply', () => {
-        const entries = withAgentChatAwayRecap([reply], snapshot as never, undefined);
-        expect(entries.at(-1)).toEqual({
-            kind: 'awayRecap',
-            id: 'away-recap',
-            generatedAt: 200,
-            text: 'Shipped the fix.',
-        });
-    });
-
-    it('leaves out a recap the user closed, but not the next one', () => {
-        expect(withAgentChatAwayRecap([reply], snapshot as never, 200)).toEqual([reply]);
-        expect(withAgentChatAwayRecap([reply], snapshot as never, 150)).toHaveLength(2);
-    });
-
-    it('drops the recap once a turn runs or a newer reply landed', () => {
-        const running = { ...snapshot, activeTurnId: 't2' };
-        expect(withAgentChatAwayRecap([reply], running as never, undefined)).toEqual([reply]);
-        const replied = { ...snapshot, usage: { lastResponseAt: 300 } };
-        expect(withAgentChatAwayRecap([reply], replied as never, undefined)).toEqual([reply]);
-    });
-
-    it('shows nothing without a recap', () => {
-        expect(withAgentChatAwayRecap([reply], undefined, undefined)).toEqual([reply]);
-    });
-
-    it('leaves with a message still on its way', () => {
-        const pending: AgentChatTimelineEntry = {
-            kind: 'pending',
-            id: 'p1',
-            text: 'next',
-            imageUris: [],
-        };
-        expect(withAgentChatAwayRecap([reply, pending], snapshot as never, undefined)).toEqual([
-            reply,
-            pending,
-        ]);
     });
 });

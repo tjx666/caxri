@@ -64,6 +64,7 @@ export const PopoverMenu = ({
  */
 export const PopoverAction = ({
     accessibilityHint,
+    detail,
     disabled = false,
     icon: Icon,
     label,
@@ -73,6 +74,10 @@ export const PopoverAction = ({
     tone = 'default',
 }: {
     accessibilityHint?: string;
+    /**
+     * A second line under the label, such as why a disabled action cannot run now.
+     */
+    detail?: string;
     disabled?: boolean;
     icon: ComponentType<LucideProps>;
     label: string;
@@ -99,12 +104,38 @@ export const PopoverAction = ({
             testID={testID}
         >
             <Icon color={tone === 'danger' ? theme.danger : theme.muted} size={18} />
-            <Text numberOfLines={1} style={[mobileType.body, styles.actionLabel, { color }]}>
-                {label}
-            </Text>
+            <View style={styles.actionBody}>
+                <Text numberOfLines={1} style={[mobileType.body, { color }]}>
+                    {label}
+                </Text>
+                {detail ? (
+                    <Text style={[mobileType.meta, { color: theme.muted }]}>{detail}</Text>
+                ) : null}
+            </View>
         </Pressable>
     );
 };
+
+/**
+ * A muted caption heading a {@link PopoverMenu}, such as when the message it acts on was sent.
+ */
+export const PopoverHeading = ({
+    label,
+    testID,
+    theme,
+}: {
+    label: string;
+    testID?: string;
+    theme: MobileTheme;
+}) => (
+    <Text
+        numberOfLines={1}
+        style={[mobileType.meta, styles.heading, { color: theme.muted }]}
+        testID={testID}
+    >
+        {label}
+    </Text>
+);
 
 /**
  * A hairline between groups of {@link PopoverAction} rows.
@@ -128,7 +159,8 @@ const styles = StyleSheet.create({
         minHeight: mobileControl.row,
         paddingHorizontal: mobileSpace.lg,
     },
-    actionLabel: { flexShrink: 1 },
+    actionBody: { flexShrink: 1, paddingVertical: mobileSpace.xs },
+    heading: { paddingHorizontal: mobileSpace.lg, paddingVertical: mobileSpace.sm },
     divider: { height: StyleSheet.hairlineWidth, marginVertical: mobileSpace.xs },
 });
 

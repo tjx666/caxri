@@ -33,6 +33,7 @@ import {
     agentChatUsageLimitSchema,
 } from './agent-usage-continuation.js';
 import { agentChatDelegatedTaskSchema } from './delegation/agent-delegated-task.js';
+import { agentChatWebSourcesSchema } from './web-sources/agent-chat-web-source-schema.js';
 
 const boundedText = z.string().max(MAX_AGENT_CHAT_TEXT_LENGTH);
 const boundedOutput = z.string().max(MAX_AGENT_CHAT_OUTPUT_LENGTH);
@@ -271,6 +272,7 @@ export const agentChatItemSchema = z.discriminatedUnion('type', [
         input: z.string().max(1_000).optional(),
         output: boundedOutput.optional(),
         durationMs: z.number().nonnegative().optional(),
+        sources: agentChatWebSourcesSchema.optional(),
     }),
     z.strictObject({
         ...itemBase,
