@@ -87,6 +87,7 @@ export const chat: TranslatedNamespace<typeof source> = {
     'chat.mentions.sessions': '会话',
     'chat.notice.cacheExpired': '已空闲 {{idle}} · 下一条回复将重新读取整段对话{{cost}}。',
     'chat.notice.cacheExpiring': '在 {{remaining}} 内回复可免于整段重读{{cost}}。',
+    'chat.notice.compact': '压缩对话',
     'chat.notice.cost': '（预估约 {{cost}}）',
     'chat.notice.dismiss': '关闭',
     'chat.notice.pressure': '上下文 {{tokens}} / {{window}} 已接近上限，建议尽快压缩。',

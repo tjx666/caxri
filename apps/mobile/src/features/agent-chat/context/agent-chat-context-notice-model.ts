@@ -32,6 +32,10 @@ export interface AgentChatContextNotice {
      */
     tone: 'muted' | 'warning';
     /**
+     * True while the nearly-full-context line shows, so the banner can offer Compact as Desktop's row does.
+     */
+    isContextFull: boolean;
+    /**
      * Present while a cache notice shows: the reply the Dismiss button holds the notice for.
      */
     dismissAt?: number;
@@ -83,6 +87,7 @@ export function agentChatContextNotice(
     return {
         lines,
         tone: pressure || cache?.state !== 'expired' ? 'warning' : 'muted',
+        isContextFull: pressure !== undefined,
         dismissAt: cache ? usage.lastResponseAt : undefined,
     };
 }

@@ -89,6 +89,7 @@ export const chat = {
     'chat.notice.cacheExpired':
         'Idle {{idle}} · the next reply re-reads the whole conversation{{cost}}.',
     'chat.notice.cacheExpiring': 'Reply within {{remaining}} to skip a full re-read{{cost}}.',
+    'chat.notice.compact': 'Compact',
     'chat.notice.cost': ' (est. ~{{cost}})',
     'chat.notice.dismiss': 'Dismiss',
     'chat.notice.pressure': 'Context {{tokens}} of {{window}} is nearly full. Compact it soon.',
