@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdir, rm } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 
@@ -11,7 +11,7 @@ import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scen
 import { capture, finish } from './mobile-agent-actions-scenarios';
 import {
     checkBounds,
-    scrollTimelineTo,
+    scrollTimelineUntil,
     waitForCheck,
     waitForNoCheck,
 } from './mobile-agent-chat-helpers';
@@ -28,10 +28,12 @@ import {
 const run = promisify(execFile);
 
 /**
- * The synthetic video every case seeds: 20 seconds of FFmpeg's `testsrc`, whose frame counter shows where playback is,
- * so a screenshot after a seek proves the scrub landed.
+ * The synthetic video every case cites: 20 seconds of FFmpeg's `testsrc`, whose frame counter shows where playback is,
+ * so a screenshot after a seek proves the scrub landed. It lives under `/tmp` rather than the fixture Project: the fake
+ * Codex echoes the message, and the system temp directory holding the Project is account-specific, so a recording must
+ * not show it. Server Core serves any path the message cites, inside a Project or not.
  */
-const VIDEO = 'media/demo.mp4';
+const VIDEO_NAME = 'demo.mp4';
 const VIDEO_SECONDS = 20;
 
 /**
@@ -39,8 +41,9 @@ const VIDEO_SECONDS = 20;
  */
 const TIME_BAR = 'com.caxri.mobile:id/exo_progress';
 
-const seedVideo = async (root: string) => {
-    await mkdir(join(root, 'media'), { recursive: true });
+const createVideo = async (): Promise<string> => {
+    const directory = await mkdtemp('/tmp/caxri-video-');
+    const video = join(directory, VIDEO_NAME);
     await run('ffmpeg', [
         '-loglevel',
         'error',
@@ -52,34 +55,47 @@ const seedVideo = async (root: string) => {
         'libx264',
         '-pix_fmt',
         'yuv420p',
-        join(root, VIDEO),
+        video,
     ]);
+    return video;
 };
 
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * Pairs a Codex Chat fixture whose Project holds {@link VIDEO}, sends a message citing it, and opens the Chat on the
- * phone with the video's card in view. Returns the card's `testID` suffix.
+ * Drags the timeline toward earlier messages until the whole card is below the timeline's top edge, so a screenshot
+ * shows all of it rather than its lower strip.
+ */
+const showCard = (serial: string, card: string) =>
+    scrollTimelineUntil(serial, async () => {
+        const nodes = await mobileSemantics(serial);
+        const frame = checkBounds(nodes, 'conversation-view');
+        const bounds = checkBounds(nodes, `agent-chat-message-video-${card}`);
+        return Boolean(frame && bounds && bounds.top >= frame.top + 16);
+    });
+
+/**
+ * Pairs a Codex Chat fixture, sends a message citing a synthetic video, and opens the Chat on the phone with the
+ * video's card in view. Returns the card's `testID` suffix; `stop` also removes the video.
  */
 async function openChatWithVideo(environment: MobileAgentScenarioEnvironment) {
     const { serial } = environment;
-    const fixture = await createMobileAcceptanceFixture({
-        mode: 'agent-chat',
-        seedProject: seedVideo,
-        serial,
-    });
+    const video = await createVideo();
+    const fixture = await createMobileAcceptanceFixture({ mode: 'agent-chat', serial });
+    const stop = async () => {
+        await fixture.stop();
+        await rm(join(video, '..'), { force: true, recursive: true });
+    };
     const chat = fixture.agentChat;
     const sessionId = fixture.allowedSessionId;
     if (!chat || !sessionId) {
-        await fixture.stop();
+        await stop();
         throw new Error('Chat fixture is unavailable');
     }
     try {
         await fixture.pair();
         await tapMobileCheck(serial, `session-row-${sessionId}`);
         await waitForCheck(serial, 'agent-chat-status-empty');
-        const video = join(fixture.testDirectory, 'allowed-project', VIDEO);
         await chat.send({
             text: agentChatTextWithPathReferences(
                 'Why does the toast flicker?',
@@ -98,10 +114,10 @@ async function openChatWithVideo(environment: MobileAgentScenarioEnvironment) {
         if (!message) throw new Error('The cited message is missing');
         await waitForNoCheck(serial, 'agent-chat-activity');
         const card = `${message.id}-0`;
-        await scrollTimelineTo(serial, `agent-chat-message-video-${card}`);
-        return { card, fixture, sessionId, video };
+        await showCard(serial, card);
+        return { card, sessionId, stop, video };
     } catch (error) {
-        await fixture.stop();
+        await stop();
         throw error;
     }
 }
@@ -150,7 +166,7 @@ export async function executeMobileChatVideoScenario(
 ): Promise<void> {
     const { remoteVideoPath, serial } = environment;
     if (!remoteVideoPath) throw new Error('MOB-CHAT-VIDEO-01 records playback and scrubbing');
-    const { card, fixture } = await openChatWithVideo(environment);
+    const { card, stop } = await openChatWithVideo(environment);
     let recording: Awaited<ReturnType<typeof startMobileFramebufferRecording>> | undefined;
     try {
         await waitForCheck(serial, `agent-chat-message-video-poster-${card}`, 60_000);
@@ -195,7 +211,7 @@ export async function executeMobileChatVideoScenario(
         });
     } finally {
         await recording?.stop();
-        await fixture.stop();
+        await stop();
     }
 }
 
@@ -208,18 +224,19 @@ export async function executeMobileChatVideoUnavailableScenario(
     artifacts: string[],
 ): Promise<void> {
     const { serial } = environment;
-    const { card, fixture, sessionId, video } = await openChatWithVideo(environment);
+    const { card, sessionId, stop, video } = await openChatWithVideo(environment);
     try {
         await waitForCheck(serial, `agent-chat-message-video-poster-${card}`, 60_000);
         await rm(video);
         await tapMobileCheck(serial, 'session-detail-back');
         await tapMobileCheck(serial, `session-row-${sessionId}`);
-        await scrollTimelineTo(serial, `agent-chat-message-video-${card}`);
         await waitForCheck(serial, `agent-chat-message-video-unavailable-${card}`);
+        await showCard(serial, card);
         await capture(environment, 'unavailable', artifacts);
-        await tapMobileCheckByBounds(serial, `agent-chat-message-video-${card}`);
-        await pause(1_000);
+        // The card is disabled, which the tap helpers refuse, so the semantics prove it cannot open the player.
         const nodes = await mobileSemantics(serial);
+        const node = nodes.find(({ checkId }) => checkId === `agent-chat-message-video-${card}`);
+        if (node?.enabled !== false) throw new Error('The unavailable card can still be opened');
         if (checkBounds(nodes, 'agent-chat-video-player'))
             throw new Error('An unavailable card opened the player');
         await finish(environment, artifacts, {
@@ -228,6 +245,6 @@ export async function executeMobileChatVideoUnavailableScenario(
             status: 'passed',
         });
     } finally {
-        await fixture.stop();
+        await stop();
     }
 }
