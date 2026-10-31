@@ -72,3 +72,59 @@ export async function executeMobileChatGoalScenario(
         await fixture.stop();
     }
 }
+
+/**
+ * `MOB-CHAT-GOAL-OUTCOME-01`: a Claude Code goal that ended keeps its row and names the outcome. The fake's evaluator
+ * fails a condition naming `impossible` and meets one naming `achievable` (`fake-claude-goal.ts`); expanding the row
+ * shows the evaluator's reason.
+ */
+export async function executeMobileChatGoalOutcomeScenario(
+    environment: MobileAgentScenarioEnvironment,
+    artifacts: string[],
+): Promise<void> {
+    const { serial } = environment;
+    const fixture = await createMobileAcceptanceFixture({
+        chatProvider: 'claude',
+        mode: 'agent-chat',
+        serial,
+    });
+    try {
+        await fixture.pair();
+        const chat = fixture.agentChat;
+        if (!chat || !fixture.allowedSessionId) throw new Error('Chat fixture is unavailable');
+        await chat.runCommand({
+            name: AGENT_CHAT_GOAL_COMMAND,
+            arguments: 'Ship an impossible fix',
+        });
+        await waitForMobile(
+            () => chat.read(),
+            (snapshot) => snapshot.goal?.status === 'failed' && !snapshot.activeTurnId,
+        );
+        await tapMobileCheck(serial, `session-row-${fixture.allowedSessionId}`);
+        await tapMobileCheck(serial, 'agent-chat-goal-summary');
+        await waitForCheck(serial, 'agent-chat-goal-reason');
+        await capture(environment, 'goal-failed', artifacts);
+        await tapMobileCheck(serial, 'agent-chat-goal-summary');
+        await waitForNoCheck(serial, 'agent-chat-goal-reason');
+
+        await chat.runCommand({
+            name: AGENT_CHAT_GOAL_COMMAND,
+            arguments: 'Keep the achievable checks green',
+        });
+        await waitForMobile(
+            () => chat.read(),
+            (snapshot) => snapshot.goal?.status === 'complete' && !snapshot.activeTurnId,
+        );
+        await tapMobileCheck(serial, 'agent-chat-goal-summary');
+        await waitForCheck(serial, 'agent-chat-goal-reason');
+        await capture(environment, 'goal-complete', artifacts);
+
+        await finish(environment, artifacts, {
+            complete: 'shown',
+            failed: 'shown',
+            status: 'passed',
+        });
+    } finally {
+        await fixture.stop();
+    }
+}

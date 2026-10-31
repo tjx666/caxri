@@ -299,3 +299,53 @@ test("a Claude Code Chat's built-in /goal enters Goal mode on Tab instead of sen
         await rm(directory, { recursive: true, force: true });
     }
 });
+
+/**
+ * Claude Code writes how a goal ended only to its transcript, and the goal row keeps that outcome until cleared. The
+ * fake's evaluator fails a condition naming `impossible` and meets one naming `achievable` (`fake-claude-goal.ts`).
+ */
+// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
+test('a Claude Chat goal row says whether the goal was achieved or could not be', async ({}, testInfo) => {
+    // Claude Code keys its transcript directory by its real working directory, so the Project root must be resolved.
+    const created = await mkdtemp(join(tmpdir(), 'caxri-claude-goal-outcome-'));
+    const directory = await realpath(created);
+    const userData = join(directory, 'user-data');
+    const root = join(directory, 'project');
+    await mkdir(root);
+    const agentMode = await fakeClaudeChatAgentMode(userData);
+    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    try {
+        const { page } = running;
+        await createProjectSession(page, 'shell');
+        await openAgentChat(page, 'Claude Chat');
+        const chat = page.locator(VISIBLE_SESSION);
+        const message = chat.getByRole('textbox', { name: 'Message' });
+        const row = chat.locator('[data-agent-chat-goal]');
+        const setGoal = async (condition: string) => {
+            await chat.getByRole('button', { name: 'Add files and more' }).click();
+            await page.getByRole('menuitem', { name: /^Goal/u }).click();
+            await message.fill(condition);
+            await message.press('Enter');
+        };
+
+        await setGoal('Ship an impossible fix');
+        await expect(row).toHaveAttribute('data-agent-chat-goal', 'failed');
+        await expect(row).toContainText('Goal not achieved');
+        await row.getByRole('button', { name: 'Show the whole goal' }).click();
+        await expect(row.locator('[data-agent-chat-goal-reason]')).toHaveText(
+            'The condition needs access this session does not have, so it cannot be met.',
+        );
+        await page.screenshot({ path: testInfo.outputPath('claude-goal-failed.png') });
+        // An ended goal no longer runs a turn, so clearing it says Clear rather than Clear and stop.
+        await expect(row.getByRole('button', { name: 'Clear goal', exact: true })).toBeVisible();
+
+        await setGoal('Keep the achievable checks green');
+        await expect(row).toHaveAttribute('data-agent-chat-goal', 'complete');
+        await expect(row).toContainText('Goal achieved');
+        await expect(row).toContainText('Keep the achievable checks green');
+        await page.screenshot({ path: testInfo.outputPath('claude-goal-complete.png') });
+    } finally {
+        await closeAppQuietly(running.app);
+        await rm(directory, { recursive: true, force: true });
+    }
+});
