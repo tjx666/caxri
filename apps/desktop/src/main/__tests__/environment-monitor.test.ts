@@ -43,6 +43,8 @@ function createTest(options?: {
     timeZone?: string;
 }) {
     let currentSettings = options?.settings ?? settings();
+    let currentTime = Date.parse('2026-10-28T03:00:00.000Z');
+    let tick: (() => void) | undefined;
     let connections = options?.connections ?? [];
     const ips = [...(options?.ips ?? ['203.0.113.10'])];
     const fetchPublicIp = vi.fn(() => Promise.resolve(ips.shift() ?? '203.0.113.10'));
@@ -81,10 +83,13 @@ function createTest(options?: {
         focusMainWindow: vi.fn(() => Promise.resolve()),
         getSystemTimeZone: () => options?.timeZone ?? 'Asia/Shanghai',
         loadSettings,
-        now: () => Date.parse('2026-10-28T03:00:00.000Z'),
+        now: () => currentTime,
         readConnections,
         readNodes: vi.fn(() => Promise.resolve(['Node A', 'Node B'])),
-        setInterval: vi.fn(() => 1) as unknown as typeof globalThis.setInterval,
+        setInterval: vi.fn((callback: () => void) => {
+            tick = callback;
+            return 1;
+        }) as unknown as typeof globalThis.setInterval,
     });
     return {
         monitor,
@@ -99,6 +104,13 @@ function createTest(options?: {
             currentSettings = next;
         },
         show,
+        /**
+         * Advances the clock and fires the monitor's interval once.
+         */
+        tick: (elapsedMs: number) => {
+            currentTime += elapsedMs;
+            tick?.();
+        },
     };
 }
 
@@ -232,6 +244,31 @@ describe('environment monitor', () => {
 
         expect(test.fetchPublicIp).toHaveBeenCalledTimes(1);
         expect(test.monitor.read()).toMatchObject({ state: 'healthy', issues: [] });
+    });
+
+    it('reuses settings across interval ticks until they change or go a minute unread', async () => {
+        const test = createTest({
+            settings: settings({ 'environmentMonitor.publicIpChanges': false }),
+        });
+        await test.monitor.initialize();
+        expect(test.loadSettings).toHaveBeenCalledTimes(1);
+
+        test.tick(5_000);
+        test.tick(5_000);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        expect(test.loadSettings).toHaveBeenCalledTimes(1);
+        await test.monitor.checkNow();
+        expect(test.loadSettings).toHaveBeenCalledTimes(2);
+
+        test.monitor.observe({ event: 'settings.changed', payload: { source: '{}' } });
+        await vi.waitFor(() => expect(test.loadSettings).toHaveBeenCalledTimes(3));
+        test.tick(5_000);
+        // Lets the queued tick check run to completion before asserting it read nothing.
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        expect(test.loadSettings).toHaveBeenCalledTimes(3);
+
+        test.tick(60_000);
+        await vi.waitFor(() => expect(test.loadSettings).toHaveBeenCalledTimes(4));
     });
 
     it('checks only a selected system time zone and never derives one from the IP', async () => {
