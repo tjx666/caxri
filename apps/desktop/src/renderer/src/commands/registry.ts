@@ -177,6 +177,12 @@ export interface CommandContext {
     };
     dialogs: {
         openSettings(view?: SettingsView): void;
+        /**
+         * True while the Settings page is up and focus sits on the page itself (or nowhere), so `Escape` may close it.
+         * Focus inside a popup portaled out of the page (a Select list, a menu) leaves `Escape` to that popup.
+         */
+        canCloseSettings(): boolean;
+        closeSettings(): void;
         openPalette(): void;
         openUsage(): void;
         openEnvironment(): void;

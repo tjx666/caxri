@@ -4,8 +4,6 @@ import type {
     AgentHookHealthMap,
     AgentSkillHealth,
     AppSettings,
-    ArgvConfig,
-    ArgvConfigChanges,
     Keybinding,
 } from '@caxri/protocol';
 import { builtinThemes, findMatchingBuiltinTheme } from '@caxri/protocol';
@@ -13,18 +11,8 @@ import { builtinThemes, findMatchingBuiltinTheme } from '@caxri/protocol';
 import { translate } from '../../../i18n';
 import { caxri } from '../../../lib/caxri';
 import { useDialogStore } from '../../../stores/dialogs';
-import {
-    describeFailure,
-    dismissToastsMatching,
-    isCancelledRequest,
-    pushToast,
-} from '../../../stores/toasts';
+import { pushToast } from '../../../stores/toasts';
 import { refreshWorkbench } from '../../../stores/workbench';
-import {
-    argvRestartNotice,
-    isArgvRestartNotice,
-    rememberArgvRestartNotice,
-} from '../argv-restart-notice';
 import type { ConfigKind } from '../config-edit';
 import { applyFormEdit, CONFIG_FILE_NAMES, CONFIG_KINDS } from '../config-edit';
 import {
@@ -43,33 +31,31 @@ import {
     updateKeybindings,
     updateSettings,
     updateTheme,
-    writeArgvConfig,
 } from '../settings-client';
 import type { ConfigAction, ConfigSourceError } from '../settings-drafts';
-import { configReducer, initialConfigState, parseConfigSource } from '../settings-drafts';
+import {
+    configReducer,
+    initialConfigState,
+    invalidSourceDraft,
+    parseConfigSource,
+} from '../settings-drafts';
+import { reportSettingsError } from '../settings-error-report';
 import { rowFocusRequest, settingsSectionForRequest } from '../settings-focus-requests';
 import { createSettingsWriteCoordinator } from '../settings-write-coordinator';
 import { applyBuiltinTheme, applyThemeColorEdit } from '../theme-edit';
 import type { ThemeImportResult } from '../theme-import-error';
 import { describeThemeImportFailure } from '../theme-import-error';
 import { resetThemeImportWarningDismissals } from '../theme-import-warnings';
+import { useArgvConfig } from './use-argv-config';
 
 const onApplied = (): void => {
     // Fire-and-forget: `refreshWorkbench` reports failures through its own request pipeline, so
     // callers of this synchronous-looking wrapper never need to await the outcome.
     void refreshWorkbench();
 };
-/**
- * Main answers every queued Renderer request with `CANCELLED` once quit starts, so a debounced write or reload still in
- * flight at quit must not raise a notification over a window that is already going away (same rule as `tryCommand`).
- */
-export function reportSettingsError(error: unknown, label: string): void {
-    if (isCancelledRequest(error)) return;
-    pushToast('error', describeFailure(error, label, translate));
-}
-
 export function useSettingsPageController() {
     const request = useDialogStore((state) => state.settingsRequest);
+    const isPageOpen = useDialogStore((state) => state.settingsPageOpen);
     const [tab, setTab] = useState<ConfigKind>('settings');
     const [view, setView] = useState<'ui' | 'source'>('ui');
     /**
@@ -84,16 +70,11 @@ export function useSettingsPageController() {
         Partial<Record<ConfigKind, ConfigSourceError>>
     >({});
     const [loaded, setLoaded] = useState(false);
-    // No explicit reset-on-close: the Settings tab unmounts like any other document tab when it stops being the active
-    // tab in its pane, which already clears every piece of local state below, this one included.
+    // The page stays mounted while hidden, so the open request below clears this rather than an unmount.
     const [themeImportResult, setThemeImportResult] = useState<ThemeImportResult | undefined>();
     const [agentHookHealth, setAgentHookHealth] = useState<AgentHookHealthMap>();
     const [agentSkillHealth, setAgentSkillHealth] = useState<AgentSkillHealth>();
-    const [argvConfig, setArgvConfig] = useState<ArgvConfig>();
-    const argvWriteGeneration = useRef(0);
-    // Boot-session baseline for the restart hint: what the running instance actually launched
-    // with, as of Settings load. Diverging from it needs a restart; returning to it does not.
-    const argvConfigAtLoad = useRef<ArgvConfig | undefined>(undefined);
+    const { applyLoadedArgvConfig, argvConfig, updateArgvConfig } = useArgvConfig();
     const handledRequestId = useRef(0);
 
     const [state, dispatch] = useReducer(configReducer, initialConfigState);
@@ -265,15 +246,14 @@ export function useSettingsPageController() {
                     theme: { value: themeResult.value, source: themeResult.source },
                 });
                 setAgentHookHealth(hookHealth);
-                setArgvConfig(argvResult.value);
-                argvConfigAtLoad.current ??= argvResult.value;
+                applyLoadedArgvConfig(argvResult.value);
                 setLoaded(true);
             } catch (error: unknown) {
                 reportSettingsError(error, translate('settings.page.loadFailed'));
             }
         }
         void loadConfig();
-    }, [dispatchConfig]);
+    }, [applyLoadedArgvConfig, dispatchConfig]);
 
     const loadAgentSkillHealth = useCallback((): void => {
         async function loadSkillHealth(): Promise<void> {
@@ -364,19 +344,31 @@ export function useSettingsPageController() {
         });
     }, [loaded]);
 
-    // Only load once per mount: further edits inside this session must keep the in-memory state
-    // instead of re-reading from disk (external changes already stay in sync via the event
-    // subscription above). Switching away from the Settings tab and back is a fresh mount, and
-    // therefore a fresh read, same as reopening any other document tab.
+    // Only load once per mount: the page stays mounted while hidden, so edits keep their in-memory
+    // state instead of re-reading from disk, and external changes stay in sync through the event
+    // subscription above.
     useEffect(() => {
         if (!loaded) load();
     }, [load, loaded]);
 
-    // Provider skill files can change through the offline CLI while the app is running. Refresh on
-    // mount instead of persisting derived filesystem health or showing the first read forever.
+    /**
+     * Closing the page is a commit boundary, like switching section or view: a valid Source draft is written now. An
+     * invalid one cannot be, and is kept rather than thrown away; the warning says so, and the next untargeted open
+     * lands back on it (`invalidSourceDraft`).
+     */
+    const wasPageOpen = useRef(isPageOpen);
     useEffect(() => {
-        loadAgentSkillHealth();
-    }, [loadAgentSkillHealth]);
+        if (wasPageOpen.current === isPageOpen) return;
+        wasPageOpen.current = isPageOpen;
+        if (isPageOpen) return;
+        if (view === 'source') commitSource(tab);
+        const invalidKind = invalidSourceDraft(stateReference.current);
+        if (invalidKind)
+            pushToast(
+                'warning',
+                translate('settings.page.unsavedSource', { file: CONFIG_FILE_NAMES[invalidKind] }),
+            );
+    }, [commitSource, isPageOpen, tab, view]);
 
     useEffect(() => {
         if (handledRequestId.current === request.id) return;
@@ -391,13 +383,19 @@ export function useSettingsPageController() {
             handledRequestId.current = request.id;
             if (view === 'source') commitSource(tab);
             const section = settingsSectionForRequest(request.view);
-            setTab(section.tab);
-            setView(section.view);
+            const draftKind =
+                request.view === 'ui' ? invalidSourceDraft(stateReference.current) : undefined;
+            setTab(draftKind ?? section.tab);
+            setView(draftKind ? 'source' : section.view);
+            setThemeImportResult(undefined);
+            // Provider skill files can change through the offline CLI while the app runs, so every open re-reads
+            // them instead of showing the first read forever.
+            loadAgentSkillHealth();
         });
         return () => {
             isCancelled = true;
         };
-    }, [commitSource, request.id, request.view, tab, view]);
+    }, [commitSource, loadAgentSkillHealth, request.id, request.view, tab, view]);
 
     const changeTab = (next: ConfigKind): void => {
         if (next === tab) return;
@@ -523,39 +521,6 @@ export function useSettingsPageController() {
         const next = applyBuiltinTheme(state.theme.source, theme);
         dispatchConfig({ type: 'theme/changed', value: next.value, source: next.source });
         persistNow('theme', next.source);
-    };
-
-    const updateArgvConfig = (changes: ArgvConfigChanges): void => {
-        // Main-owned boot config (`argv.jsonc`): written directly through its desktop method, not
-        // the settings.jsonc draft/debounce pipeline. Optimistic update, "tell the user, do not
-        // revert" on failure, matching the settings write path above; the generation counter drops
-        // out-of-order responses from rapid toggles, mirroring `writeGeneration`.
-        setArgvConfig((current) => (current ? { ...current, ...changes } : current));
-        const generation = ++argvWriteGeneration.current;
-        void (async (): Promise<void> => {
-            try {
-                const result = await writeArgvConfig({ changes });
-                if (argvWriteGeneration.current !== generation) return;
-                setArgvConfig(result.value);
-                const notice = argvRestartNotice({
-                    applied: result.value,
-                    baseline: argvConfigAtLoad.current,
-                });
-                // The card is a status, not an event: retract the previous wording first so a write that changes which
-                // flags are pending (including one that returns the last of them to its launch value) can never leave
-                // a stale instruction on screen.
-                dismissToastsMatching(isArgvRestartNotice);
-                // Held until dismissed: the user is still looking at the Settings row they just flipped, so a
-                // four-second expiry would take away the only record of the restart they now owe before they can act
-                // on it.
-                if (notice) {
-                    rememberArgvRestartNotice(notice);
-                    pushToast('info', notice, { persist: true });
-                }
-            } catch (error) {
-                reportSettingsError(error, 'argv.jsonc');
-            }
-        })();
     };
 
     const importTheme = async (): Promise<void> => {

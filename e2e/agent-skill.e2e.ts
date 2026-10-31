@@ -8,7 +8,7 @@ import process from 'node:process';
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
-import { openSettingsTab, revealSettingsSection } from './support/settings.ts';
+import { openSettingsPage, revealSettingsSection } from './support/settings.ts';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 const cliPath = join(projectRoot, 'apps', 'cli', 'dist', 'caxri.cjs');
@@ -202,7 +202,7 @@ process.stdin.resume();
 
         running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
         const sessionId = await createProjectSession(running.page, 'codex');
-        const settingsTab = await openSettingsTab(running.page);
+        const settingsTab = await openSettingsPage(running.page);
         await revealSettingsSection(settingsTab, 'Codex');
         const codexSkill = settingsTab.locator('[data-agent-skill-health="codex"]');
         await expect(codexSkill).toContainText(`Bundled v${bundled.bundledVersion}`);
@@ -220,10 +220,9 @@ process.stdin.resume();
         await expect(globalSkill.locator('code')).toHaveText(
             'caxri skills install caxri-cli --provider codex --global --yes',
         );
-        // Settings is a Workbench tab now, not a modal (issue caxri#1289): `Cmd+W` closes it
-        // outright; there is no "Close" button to click anymore.
+        // `Cmd+W` closes the Settings page (issue caxri#2369).
         await running.page.keyboard.press('Meta+w');
-        await expect(settingsTab).toHaveCount(0);
+        await expect(settingsTab).toBeHidden();
         await pageRequest(running.page, 'terminal.create', { sessionId, kind: 'codex' });
         await expect.poll(async () => (await captures(capturePath)).length).toBe(2);
         await expect(running.page.locator('.xterm-rows')).toContainText('Skill Agent ready');

@@ -6,7 +6,7 @@ import type { ThemeTokens } from '@caxri/protocol';
 
 import { expect, test } from './support/fixtures.ts';
 import { launchCaxri, pageRequest } from './support/helpers.ts';
-import { openSettingsSection, openSettingsTab } from './support/settings.ts';
+import { openSettingsPage, openSettingsSection } from './support/settings.ts';
 
 test('Theme presets apply, persist, and detach after a color edit', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-theme-presets-e2e-'));
@@ -16,7 +16,7 @@ test('Theme presets apply, persist, and detach after a color edit', async () => 
 
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
-        let settingsTab = await openSettingsTab(running.page);
+        let settingsTab = await openSettingsPage(running.page);
         await openSettingsSection(settingsTab, 'Theme');
         const preset = settingsTab.getByRole('combobox', { name: 'Theme preset' });
         await expect(preset).toContainText('Dracula');
@@ -58,11 +58,10 @@ test('Theme presets apply, persist, and detach after a color edit', async () => 
             )
             .toBe('#fdf6e3');
 
-        // Settings is a Workbench tab now, not a modal (issue caxri#1289): force a real
-        // close and reopen with `Cmd+W`/`Cmd+,` so the preset read below can only pass off a fresh
-        // mount, proving the choice was actually persisted rather than just still sitting in memory.
+        // Close and reopen with `Cmd+W`/`Cmd+,`: the page stays mounted while closed (issue caxri#2369),
+        // so persistence is proven by the `theme.get` read above; this checks the reopened page agrees.
         await running.page.keyboard.press('Meta+w');
-        settingsTab = await openSettingsTab(running.page);
+        settingsTab = await openSettingsPage(running.page);
         await openSettingsSection(settingsTab, 'Theme');
         const restoredPreset = settingsTab.getByRole('combobox', { name: 'Theme preset' });
         await expect(restoredPreset).toContainText('Solarized Light');
@@ -100,7 +99,7 @@ test('Follow system appearance switches presets live and stops on an explicit si
             getComputedStyle(document.documentElement).getPropertyValue('--background').trim(),
         );
     try {
-        const settingsTab = await openSettingsTab(running.page);
+        const settingsTab = await openSettingsPage(running.page);
         await openSettingsSection(settingsTab, 'Theme');
         await settingsTab.getByRole('button', { name: 'Follow system appearance' }).click();
         // The Theme tab itself owns the pair: both pickers are here, not behind a pointer to General.

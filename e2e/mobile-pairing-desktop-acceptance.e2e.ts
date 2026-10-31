@@ -7,7 +7,7 @@ import { execFileAsync } from '@caxri/system';
 import { markCaseLifecycleReady } from '../.agents/skills/acceptance/scripts/case-lifecycle.ts';
 import { expect, test } from './support/fixtures.ts';
 import { createMobileAcceptanceFixture } from './support/mobile-acceptance-fixture.ts';
-import { openSettingsTab, revealSettingsSection } from './support/settings.ts';
+import { openSettingsPage, revealSettingsSection } from './support/settings.ts';
 
 /**
  * Automatic failure artifacts can freeze the short-lived QR credential outside the report-bound privacy scan. This spec
@@ -103,7 +103,7 @@ test('pairs from Desktop Settings without capturing the pairing credential', asy
             launchId: environment.launchId,
         });
         await fixture.running.page.setViewportSize({ height: 900, width: 1_200 });
-        const settingsTab = await openSettingsTab(fixture.running.page);
+        const settingsTab = await openSettingsPage(fixture.running.page);
         await revealSettingsSection(settingsTab, 'Mobile');
         const mobileForm = settingsTab.getByTestId('mobile-access-form');
         await expect(mobileForm).toContainText('Turn on to let a phone pair with this computer');

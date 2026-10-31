@@ -1107,8 +1107,8 @@ not an underline.
 glyph reused for two meanings on one screen is a bug: the Git tab keeps the branch mark, so the
 Source Control caption drops it, repository rows take a repository mark (`FolderGit2`, or the
 vendored `archive` codicon for a submodule) regardless of panel mode, and the mode switch's
-working-tree segment takes a diff mark. The Settings tab takes the gear (`Settings`) because
-`SlidersHorizontal` is the Settings page's own UI view switch; the Agent status tab and the `tok/s`
+working-tree segment takes a diff mark. The Settings page's Back button takes an arrow, not the
+gear, because the button leaves Settings rather than naming it; the Agent status tab and the `tok/s`
 chip share `Gauge` because they show the same measurement. A Chat turn's rate in its fold row takes
 the glyph of the service tier most of its responses ran on (`Rabbit` for fast, `Gauge` for standard
 or unknown, `Turtle` for flex), never a threshold on the number, since what counts as fast differs by
@@ -1599,13 +1599,21 @@ Terminal` otherwise, with the command's shortcut (`⌥⌘K`) beside it. It sends
 the shortcut does: a Chat gets it at the end of its draft and comes forward with the caret after it.
 The editor toolbar shows only while the editor has focus. References: Cursor, VS Code Copilot.
 
-**Settings**: a Workbench tab, not a modal: `Cmd+,`, the menu, and the palette all open or focus
-this one tab instead of raising a dialog, so it composes with every other document (the Archived
-Sessions manager still floats its own confirmation dialog over it, exactly as it would over any
-other tab). Its description reads: "Changes apply immediately and are stored as editable files."
+**Settings**: a window-level page, not a modal and not a pane tab: `Cmd+,`, the menu, the palette,
+and every Open Settings action replace the center workspace with the page, and Settings never
+enters a Session's pane layout. The Primary Side Bar stays; the Workbench, Panel, and Secondary
+Side Bar stay mounted but hidden underneath, so a half-typed Terminal command or a Monaco
+selection survives. The page header is the window title bar, with a Back button on the left; Back
+or `Escape` (only when nothing inside the page claims it, such as a popup, an input, or Monaco)
+returns to the covered Session and the focus it had. Selecting another Session, opening a file,
+creating a Terminal, or `Cmd+W` also closes the page. Before the first Project exists the same page
+covers the Welcome view. Leaving the page commits a valid Source draft; an invalid one is kept,
+a warning says it was not saved, and the next plain open lands back on it. The Archived Sessions
+manager still floats its own dialog over the page. References: Superset, Orca, T3 Code. Its
+description reads: "Changes apply immediately and are stored as editable files."
 It has exactly one navigation: a left column listing the `settings.jsonc` categories and their
 subcategories, then Keybindings and Theme after a separator. No horizontal section strip sits above
-it: the Workbench tab bar is already the page's only tab row. The column stays mounted and in place
+it. The column stays mounted and in place
 for every section and for the Source view; picking a category from Keybindings, Theme, or Source
 returns to the Settings list scrolled to it. The current category takes `aria-current="location"`,
 the current file section `aria-current="page"`.
@@ -1667,8 +1675,8 @@ Archived Sessions manager, a confirmation, an import prompt) is reported through
 nowhere else, so sinking it there would turn each of those failures into silence. The dialog still
 owns Escape, the backdrop, and the pointer. What the exception does not buy is operability: the
 dialog's focus trap keeps the toast's own buttons out of Tab order, so a failure the dialog can
-report in place belongs in the dialog, not in a toast. Settings is not one of these: as a Workbench
-tab it owns no backdrop and traps no focus, so a failure raised there (a rejected settings write, an
+report in place belongs in the dialog, not in a toast. Settings is not one of these: as a page it
+owns no backdrop and traps no focus, so a failure raised there (a rejected settings write, an
 argv restart notice) already reaches the user through this same toast channel with nothing to
 compete with.
 
@@ -1740,7 +1748,7 @@ every future launch draws, so it passes the shared confirmation modal first, and
 say all three consequences: it restarts now, it lasts past this session, Settings takes it back.
 
 A boot-flag write that only the next launch picks up is held for the same reason: closing or
-switching away from the Settings tab must not make the notice disappear before the user acts on it,
+switching away from the Settings page must not make the notice disappear before the user acts on it,
 and it carries the only statement of what the restart is owed for. That one is a status rather than
 an event, so it names every flag still differing from the running instance's launch values, and it
 is retracted once none remain.

@@ -631,9 +631,9 @@ test('startup failure uses a compact danger status without covering output', asy
         const settingsTab = running.page.locator('[data-settings-page]');
         await expect(settingsTab).toBeVisible();
         await captureRecoveryEvidence(running.page, 'open-settings');
-        // Settings is a Workbench tab (issue caxri#1289); `Cmd+W` closes it like any document tab.
+        // `Cmd+W` closes the Settings page (issue caxri#2369).
         await running.page.keyboard.press('Meta+w');
-        await expect(settingsTab).toHaveCount(0);
+        await expect(settingsTab).toBeHidden();
         // The Runtime failure is covered by its integration test; this persisted state verifies the Renderer copy.
         const terminalId = await running.page
             .locator('.terminal-pane')

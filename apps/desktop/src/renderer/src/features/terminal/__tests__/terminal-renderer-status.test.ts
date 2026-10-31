@@ -33,6 +33,16 @@ describe('terminalRendererIndicator', () => {
         ).toBeUndefined();
     });
 
+    it('stays silent for a pane suspended under the Settings page', () => {
+        expect(
+            terminalRendererIndicator(
+                status({ mode: 'dom', reason: 'suspended', trigger: 'keep-alive-suspend' }),
+                {},
+                translate,
+            ),
+        ).toBeUndefined();
+    });
+
     it('explains why the Terminal fell back to software rendering', () => {
         expect(
             terminalRendererIndicator(status({ mode: 'dom', reason: 'disabled' }), {}, translate),

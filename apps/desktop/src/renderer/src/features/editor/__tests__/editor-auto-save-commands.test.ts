@@ -1,5 +1,5 @@
 import type { AppSettings, BootstrapState, ServerEvent } from '@caxri/protocol';
-import { settingsTabPath } from '@caxri/protocol';
+import { usageTabPath } from '@caxri/protocol';
 import type { EditorDocument } from '@desktop-shared/editor-state';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -87,7 +87,7 @@ describe('shouldAutoSaveDocument', () => {
             false,
         ],
         ['a document that is no longer cached', 'onFocusChange', '/project/a.ts', undefined, false],
-        ['a virtual tab', 'onFocusChange', settingsTabPath(), document(settingsTabPath()), false],
+        ['a virtual tab', 'onFocusChange', usageTabPath(), document(usageTabPath()), false],
     ] as const)('decides %s', (_label, mode, path, value, expected) => {
         expect(shouldAutoSaveDocument(mode, path, value)).toBe(expected);
     });

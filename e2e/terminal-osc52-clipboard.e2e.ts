@@ -16,7 +16,7 @@ import {
     VISIBLE_SESSION,
     waitForNewTerminalId,
 } from './support/helpers.ts';
-import { openSettingsTab, revealSettingsSection } from './support/settings.ts';
+import { openSettingsPage, revealSettingsSection } from './support/settings.ts';
 
 function osc52(payload: string, selection = 'c'): string {
     return String.raw`printf '\033]52;${selection};${payload}\007'`;
@@ -93,7 +93,7 @@ test('OSC 52 clipboard writes honor opt-out and remain bounded, write-only, and 
             });
         });
 
-        const initialSettingsTab = await openSettingsTab(running.page);
+        const initialSettingsTab = await openSettingsPage(running.page);
         await revealSettingsSection(initialSettingsTab, 'Terminal');
         const initialSetting = initialSettingsTab.getByRole('switch', {
             name: 'Let programs in the Terminal copy to your clipboard',
@@ -108,9 +108,8 @@ test('OSC 52 clipboard writes honor opt-out and remain bounded, write-only, and 
                 return settings.value['terminal.osc52ClipboardWrite'];
             })
             .toBe(false);
-        // Settings is a Workbench tab now, not a modal (issue caxri#1289): it occupies the
-        // same pane a Terminal session would, so `Cmd+W` closes it outright to get the Terminal
-        // back in view before typing into it below; there is no "Close" button to click anymore.
+        // The Settings page covers the Workbench (issue caxri#2369): `Cmd+W` closes it to get the
+        // Terminal back in view before typing into it below.
         await running.page.keyboard.press('Meta+w');
 
         await typeTerminal(running.page, osc52(encoded('DISABLED_BLOCKED')));
@@ -130,7 +129,7 @@ test('OSC 52 clipboard writes honor opt-out and remain bounded, write-only, and 
             ),
         ).toBe(0);
 
-        const settingsTab = await openSettingsTab(running.page);
+        const settingsTab = await openSettingsPage(running.page);
         // Settings rows are virtualized, so reveal the Terminal section before querying its switch.
         await revealSettingsSection(settingsTab, 'Terminal');
         const setting = settingsTab.getByRole('switch', {

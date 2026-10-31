@@ -10,7 +10,11 @@ import type { Locator, Page } from './support/fixtures.ts';
 import { expect, test } from './support/fixtures.ts';
 import type { RunningCaxriWithClipboard } from './support/helpers.ts';
 import { launchCaxri, pageRequest } from './support/helpers.ts';
-import { openSettingsSection, openSettingsTab, revealSettingsSection } from './support/settings.ts';
+import {
+    openSettingsPage,
+    openSettingsSection,
+    revealSettingsSection,
+} from './support/settings.ts';
 
 /**
  * The Monaco container for a config kind, located by `data-config-source` rather than by accessible name.
@@ -50,7 +54,7 @@ test('Settings keeps actions visible and provides highlighted editors and live T
         pageErrors.push(error.message);
     });
     try {
-        const settingsTab = await openSettingsTab(running.page);
+        const settingsTab = await openSettingsPage(running.page);
         await expect(settingsTab.locator('.monaco-editor')).toHaveCount(0);
         await settingsTab.getByRole('button', { name: 'Source' }).click();
         const settingsEditor = configSource(settingsTab, 'settings');
@@ -97,8 +101,8 @@ test('Settings keeps actions visible and provides highlighted editors and live T
                 ).toBeVisible(),
             ),
         );
-        // Dismisses the "Default Agent" dropdown popup, not Settings itself; Settings is a
-        // persistent Workbench tab now and Escape has nothing of its own to close here.
+        // Dismisses the "Default Agent" dropdown popup, not Settings itself: the open popup owns
+        // Escape, so the Settings page's own Escape binding stands down.
         await running.page.keyboard.press('Escape');
 
         // Rows outside the viewport are not in the DOM (virtual rendering): reveal each provider
@@ -295,7 +299,7 @@ test('Settings source mode preserves drafts across tabs and discards an invalid 
         // `settingsTab` stays valid for the whole test: unlike the former dialog, this Workbench
         // tab is never actually closed below, only navigated within (UI/Source view, Settings /
         // Keybindings / Theme sub-tabs), so the same locator keeps resolving to it throughout.
-        const settingsTab = await openSettingsTab(running.page);
+        const settingsTab = await openSettingsPage(running.page);
         await expect(settingsTab.locator('.monaco-editor')).toHaveCount(0);
 
         await settingsTab.getByRole('button', { name: 'Source' }).click();
@@ -389,14 +393,11 @@ test('Settings source mode preserves drafts across tabs and discards an invalid 
             'keep-source-comment',
         );
 
-        // Settings is a Workbench tab now, not a modal, so there is nothing for Escape to dismiss
-        // (issue caxri#1289): the "close and reopen" round trip that used to force a remount
-        // (and, with it, reset the UI/Source view toggle to its default) becomes an explicit
-        // switch back to the UI view instead. `openSettingsTab` still works afterward: re-pressing
-        // `Cmd+,` while the tab is already open and active is a harmless no-op refocus, which this
-        // also exercises.
+        // The Settings page stays mounted while closed (issue caxri#2369), so this switches back to
+        // the UI view explicitly. `openSettingsPage` still works afterward: re-pressing `Cmd+,`
+        // while the page is already open issues a fresh request, which this also exercises.
         await settingsTab.getByRole('button', { name: 'UI', exact: true }).click();
-        await openSettingsTab(running.page);
+        await openSettingsPage(running.page);
         await revealSettingsSection(settingsTab, 'Terminal');
         await expect(
             settingsTab.getByRole('spinbutton', { name: 'Terminal Font size' }),

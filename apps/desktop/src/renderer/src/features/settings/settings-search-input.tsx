@@ -36,6 +36,7 @@ export function SettingsSearchInput({
                 ref={inputRef}
                 appearance="embedded"
                 aria-label={label}
+                data-settings-search=""
                 placeholder={placeholder}
                 size="dense"
                 value={value}

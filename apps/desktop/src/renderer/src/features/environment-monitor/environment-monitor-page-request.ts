@@ -17,16 +17,11 @@ export function openEnvironmentPage(): void {
  * Opens or focuses the single Environment document tab for global page requests made while a Session is selected.
  */
 export function useEnvironmentTabOpener(): void {
-    const request = useDialogStore((state) => state.workbenchPageRequest);
+    const requestId = useDialogStore((state) => state.environmentPageRequestId);
     const handledRequestId = useRef(0);
     useEffect(() => {
-        if (
-            request.surface !== 'environment' ||
-            request.id === 0 ||
-            handledRequestId.current === request.id
-        )
-            return;
-        handledRequestId.current = request.id;
+        if (requestId === 0 || handledRequestId.current === requestId) return;
+        handledRequestId.current = requestId;
         openEditorTab(environmentTabPath());
-    }, [request]);
+    }, [requestId]);
 }

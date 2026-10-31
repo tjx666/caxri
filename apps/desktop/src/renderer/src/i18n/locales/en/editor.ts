@@ -72,7 +72,6 @@ export const editor = {
     'editor.load.loadingAgentStatus': 'Loading Agent status…',
     'editor.load.loadingAgentContext': 'Loading context…',
     'editor.load.loadingAgentSideChat': 'Loading side chat…',
-    'editor.load.loadingSettings': 'Loading Settings…',
     'editor.load.loadingUsage': 'Loading Usage…',
     'editor.load.loadingEnvironment': 'Loading Environment…',
 
@@ -135,7 +134,6 @@ export const editor = {
     'editor.untitled.openFailed': "Couldn't open a new untitled file",
     'editor.untitled.savedButNotReopened':
         'Saved to {{path}}, but the file is too large to reopen here. The untitled buffer stays open.',
-    'editor.tab.settings': 'Settings',
     'editor.tab.usage': 'Usage',
     'editor.tab.environment': 'Environment',
 

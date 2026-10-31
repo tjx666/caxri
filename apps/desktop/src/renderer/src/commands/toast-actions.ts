@@ -31,6 +31,7 @@ import {
 import { openProcessExplorer } from '../features/process-explorer/process-explorer-commands';
 import { unarchiveSession } from '../features/session/session-archive-commands';
 import { turnOffClaudeWindows } from '../features/settings/claude-windows/claude-windows-default-notice';
+import { revealSelectedSessionWorkbench } from '../features/settings/settings-page-commands';
 import { createTerminalForSession } from '../features/terminal/terminal-commands';
 import { terminalToastActionHandlers } from '../features/terminal/terminal-toast-actions';
 import {
@@ -192,6 +193,7 @@ export const toastActionHandlers: ToastActionHandlers = {
                 ? undefined
                 : translate('toasts.actionUnavailable.missingSession'),
         run: ({ cwd, kind, paneId, sessionId, split, surface }) => {
+            revealSelectedSessionWorkbench(sessionId);
             void createTerminalForSession(sessionId, kind, { cwd, paneId, split, surface });
         },
     },

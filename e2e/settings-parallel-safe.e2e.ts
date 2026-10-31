@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { expect, test } from './support/fixtures.ts';
 import { createShellSession, launchCaxri, pageRequest } from './support/helpers.ts';
-import { openSettingsSection, openSettingsTab } from './support/settings.ts';
+import { openSettingsPage, openSettingsSection } from './support/settings.ts';
 
 test('Settings preserves a tab selected while its initial configuration is loading', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'caxri-settings-load-e2e-'));
@@ -30,7 +30,7 @@ test('Settings preserves a tab selected while its initial configuration is loadi
                 }
             ).caxriE2E.waitForSettingsLoadGate(),
         );
-        // Not `openSettingsTab`: that helper's own visibility wait would resolve trivially (the
+        // Not `openSettingsPage`: that helper's own visibility wait would resolve trivially (the
         // outer `data-settings-page` wrapper mounts synchronously; only the data inside it awaits
         // the gate below) but adds a retrying assertion between the press and the gate wait this
         // test deliberately keeps tight.
@@ -49,12 +49,10 @@ test('Settings preserves a tab selected while its initial configuration is loadi
         });
         await expect(settingsTab.getByRole('button', { name: 'Import Theme' })).toBeVisible();
         await expect(theme).toHaveAttribute('aria-current', 'page');
-        // Settings is a Workbench tab now, not a modal (issue caxri#1289): `Cmd+W` closes
-        // the active tab the same way it would close any other document tab, which is the
-        // tab-appropriate replacement for the old "Escape to dismiss the dialog" step this test
-        // used to force a fresh mount before reopening.
-        await running.page.keyboard.press('Meta+w');
-        await expect(settingsTab).toHaveCount(0);
+        // Escape closes the window-level Settings page (issue caxri#2369). The page stays mounted
+        // while hidden, so the untargeted reopen below must move it back to the Settings list.
+        await running.page.keyboard.press('Escape');
+        await expect(settingsTab).toBeHidden();
         await running.page.keyboard.press('Meta+,');
         await expect(settingsTab.getByLabel('Search settings')).toBeVisible();
     } finally {
@@ -63,7 +61,7 @@ test('Settings preserves a tab selected while its initial configuration is loadi
     }
 });
 
-test('Settings shortcut opens while Terminal input has focus', async () => {
+test('Settings opens over a focused Terminal and Escape hands focus back to it', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-settings-shortcut-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -76,7 +74,24 @@ test('Settings shortcut opens while Terminal input has focus', async () => {
         await terminalInput.focus();
         await expect(terminalInput).toBeFocused();
 
-        await openSettingsTab(running.page);
+        const settingsPage = await openSettingsPage(running.page);
+        // The search field takes focus on open: a first Escape clears a query, and only an empty field closes the page.
+        const search = settingsPage.getByLabel('Search settings');
+        await expect(search).toBeFocused();
+        await search.pressSequentially('font');
+        await running.page.keyboard.press('Escape');
+        await expect(search).toHaveValue('');
+        await expect(settingsPage).toBeVisible();
+        await running.page.keyboard.press('Escape');
+        await expect(settingsPage).toBeHidden();
+        await expect(terminalInput).toBeFocused();
+
+        // Settings is a window-level page, never a pane tab (issue caxri#2369).
+        const bootstrap = await pageRequest<{ sessionStates: Array<{ paneLayout?: unknown }> }>(
+            running.page,
+            'app.bootstrap',
+        );
+        expect(JSON.stringify(bootstrap.sessionStates)).not.toContain('caxri-settings://');
     } finally {
         try {
             await running.app.close();
@@ -96,7 +111,7 @@ test('Keyboard Shortcuts records, validates, resets, and dispatches a custom bin
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         await createShellSession(running.page);
-        const settingsTab = await openSettingsTab(running.page);
+        const settingsTab = await openSettingsPage(running.page);
         await openSettingsSection(settingsTab, 'Keybindings');
 
         const search = settingsTab.getByLabel('Search keyboard shortcuts');
@@ -114,7 +129,7 @@ test('Keyboard Shortcuts records, validates, resets, and dispatches a custom bin
         await expect(secondarySidebarRow.locator('[data-shortcut="cmd+]"] kbd')).toHaveCount(2);
 
         // The chord already belongs to Session MRU globally. Recording must receive it before
-        // the capture-phase dispatcher consumes the command behind the Settings tab.
+        // the capture-phase dispatcher consumes the command behind the Settings page.
         await secondarySidebarEdit.click();
         await secondarySidebarEdit.press('Control+Alt+Tab');
         await expect(secondarySidebarEdit).toContainText('⌃⌥⇥');
@@ -218,10 +233,8 @@ test('Keyboard Shortcuts records, validates, resets, and dispatches a custom bin
             })
             .toBe('cmd+shift+f');
 
-        // Settings is a Workbench tab now, not a modal (issue caxri#1289): `Cmd+W` closes it
-        // outright, the tab-appropriate replacement for the old "Escape to dismiss the dialog" step,
-        // needed so the rest of this check exercises the custom binding against the plain
-        // Workbench, with no Settings surface still mounted alongside it.
+        // `Cmd+W` closes the Settings page (issue caxri#2369), so the rest of this check exercises
+        // the custom binding against the plain Workbench.
         await running.page.keyboard.press('Meta+w');
         await expect(running.page.locator('.secondary-sidebar')).toBeVisible();
         await running.page.keyboard.press('Meta+Alt+I');
@@ -252,9 +265,9 @@ test('Settings opens before the first Project exists and closes back to the Welc
         await running.page.keyboard.press('Meta+,');
         const settingsPage = running.page.locator('[data-settings-page]');
         await expect(settingsPage).toBeVisible();
-        await expect(welcome).toHaveCount(0);
-        await running.page.getByRole('button', { name: 'Close Settings' }).click();
-        await expect(settingsPage).toHaveCount(0);
+        await expect(welcome).toBeHidden();
+        await settingsPage.getByRole('button', { name: 'Back', exact: true }).click();
+        await expect(settingsPage).toBeHidden();
         await expect(welcome).toBeVisible();
     } finally {
         await running.app.close();

@@ -92,11 +92,10 @@ test('Session history navigates back and forward from the PrimarySidebar header 
 
         /**
          * A global gesture must stand down behind a modal: switching the Session underneath an open dialog would leave
-         * that dialog editing a Session the user can no longer see. Settings itself stopped being a modal (issue
-         * caxri#1289: it is a Workbench document tab now, scoped to its own Session's pane, so it is meant to move out
-         * of view with a Session switch exactly like any other tab). The Archived Sessions manager is still a real
-         * `Dialog` reachable straight from the PrimarySidebar, so it stands in here as the modal this gesture must
-         * still stand down behind.
+         * that dialog editing a Session the user can no longer see. Settings itself is a page, not a modal (issue
+         * caxri#2369: a Session switch closes it, since the user asked to see that Session). The Archived Sessions
+         * manager is still a real `Dialog` reachable straight from the PrimarySidebar, so it stands in here as the
+         * modal this gesture must still stand down behind.
          */
         // Re-selecting the Session already on screen is a no-op that leaves the shortcut a non-editable focus target.
         await sessionCard(running.page, sessionA).click();

@@ -5,8 +5,8 @@ import { useTranslation } from '../../i18n';
 import { setArchivedSessionsOpen } from '../../stores/dialogs';
 
 /**
- * Opens the archived Sessions manager. The manager is its own dialog, floating over the Settings tab like any other
- * modal opened over a document; there is no modal layer to close first any more.
+ * Opens the archived Sessions manager. The manager is its own dialog, floating over the Settings page; the page is not
+ * a modal, so there is no modal layer to close first.
  */
 export function ArchivedSessionsEntry() {
     const { t } = useTranslation();

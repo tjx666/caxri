@@ -1,5 +1,5 @@
 import type { BootstrapState } from '@caxri/protocol';
-import { settingsTabPath } from '@caxri/protocol';
+import { usageTabPath } from '@caxri/protocol';
 import { afterEach, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -93,7 +93,7 @@ it('activates the opened file when nothing else was selected meanwhile', async (
     expect(activeTabId()).toBe('tab-1');
 });
 
-it('keeps a Settings tab opened by a shortcut while an earlier file open was still reading', async () => {
+it('keeps a Usage tab opened by a shortcut while an earlier file open was still reading', async () => {
     installTabs(['/project/long.ts', '/project/short.ts'], 0);
     const read = Promise.withResolvers<unknown>();
     mocks.request.mockImplementation((method) =>
@@ -101,9 +101,9 @@ it('keeps a Settings tab opened by a shortcut while an earlier file open was sti
     );
 
     const opening = openFileForSession('session-1', '/project/short.ts');
-    openEditorTab(settingsTabPath());
+    openEditorTab(usageTabPath());
     read.resolve({ content: 'short', mtimeMs: 1, path: '/project/short.ts', size: 5 });
 
     await expect(opening).resolves.toBe(false);
-    expect(activeTabPath()).toBe(settingsTabPath());
+    expect(activeTabPath()).toBe(usageTabPath());
 });

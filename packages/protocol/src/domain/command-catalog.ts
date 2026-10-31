@@ -30,6 +30,7 @@ import { editorCommandDefinitions } from './editor/command-definitions.js';
  * - `botHandOverAvailable` / `botTakeBackAvailable`: a local window whose selected Session Caxri Bot does not (or does)
  *   manage. Exactly one of the pair holds while a Session is selected, so the palette offers Hand Over or Take Back the
  *   way the Session row's menu does; with no Session selected, Hand Over still opens the empty picker.
+ * - `settingsPageOpen`: the window shows the Settings page, so there is a page to close.
  */
 export type CommandWhen =
     | 'botHandOverAvailable'
@@ -45,7 +46,8 @@ export type CommandWhen =
     | 'agentChatSideChat'
     | 'agentChatWaiting'
     | 'agentChatApproval'
-    | 'pinnedSessions';
+    | 'pinnedSessions'
+    | 'settingsPageOpen';
 
 export interface CommandDefinition {
     id: CommandId;
@@ -346,6 +348,13 @@ export const commandDefinitions: CommandDefinition[] = [
         description: 'Open Caxri Settings',
         keywords: ['preferences', 'language', 'locale', '语言', '设置'],
         nativeMenu: { menu: 'application', group: 0, order: 0 },
+    },
+    {
+        id: 'settings.close',
+        title: 'Close Settings',
+        category: 'Preferences',
+        description: 'Close the Settings page and return to the Session it covered',
+        when: 'settingsPageOpen',
     },
     {
         id: 'settings.openSource',

@@ -54,16 +54,27 @@ export interface SessionSearchSeed {
 
 interface DialogState {
     archivedSessionsOpen: boolean;
+    /**
+     * The latest Settings open, carried as a bumped revision rather than a boolean so a deep link (a notification
+     * pointing at one row, `Cmd+K Cmd+S` while Settings is already open) still navigates when the page is up already.
+     * Whether the page is showing at all is {@link DialogState.settingsPageOpen}.
+     */
     settingsRequest: { id: number; view: SettingsView; provider?: AgentProvider };
     /**
-     * The latest global Workbench page request. Before a Session exists, `NoSessionSurface` renders this page in place
-     * of Welcome; with a Session, each page's opener turns the same request into an ordinary document tab.
+     * Whether this window shows the Settings page in place of the Workbench. Settings is global, so it belongs to the
+     * window and never to a Session's pane layout (issue #2369): switching Sessions, restarting, or opening another
+     * window can never strand or restore Settings.
      */
-    workbenchPageRequest: { id: number; surface: 'environment' | 'settings' };
+    settingsPageOpen: boolean;
     /**
-     * The last global Workbench page request the user closed from the Welcome view.
+     * The latest Environment page request. Before a Session exists, `NoSessionSurface` renders the page in place of
+     * Welcome; with a Session, `useEnvironmentTabOpener` turns the same request into an ordinary document tab.
      */
-    sessionlessWorkbenchPageDismissedId: number;
+    environmentPageRequestId: number;
+    /**
+     * The last Environment page request the user closed from the Welcome view.
+     */
+    sessionlessEnvironmentDismissedId: number;
     paletteOpen: boolean;
     projectSearchOpen: boolean;
     /**
@@ -146,12 +157,18 @@ interface DialogState {
     openModalIds: Set<string>;
     setArchivedSessionsOpen(isOpen: boolean): void;
     /**
-     * Bumps {@link DialogState.settingsRequest}. The Settings surface is an ordinary Workbench document tab, opened
-     * through `openEditorTab` by the request listener in `app.tsx`, not tracked here as an open/closed boolean.
+     * Shows the Settings page and bumps {@link DialogState.settingsRequest}. The first open of a closed page remembers
+     * what held keyboard focus, so {@link DialogState.closeSettings} can hand it back.
      */
     openSettings(view?: SettingsView, provider?: AgentProvider): void;
+    /**
+     * Hides the Settings page. `restoreFocus` returns focus to whatever held it when the page opened (the Terminal,
+     * Chat composer, or editor the user came from); a close caused by navigating somewhere else passes `false`, since
+     * that navigation decides focus itself.
+     */
+    closeSettings(options: { restoreFocus: boolean }): void;
     openEnvironment(): void;
-    dismissSessionlessWorkbenchPage(): void;
+    dismissSessionlessEnvironment(): void;
     setPaletteOpen(isOpen: boolean): void;
     setProjectSearchOpen(isOpen: boolean): void;
     openProjectSearch(seed?: ProjectSearchSeed): void;
@@ -189,11 +206,50 @@ interface DialogState {
     isModalOpen(): boolean;
 }
 
+/**
+ * The element that held focus when the Settings page opened. Kept outside the store: a DOM node is neither data the
+ * store inspector can serialize nor state any component renders from.
+ */
+const settingsReturnFocus: { element?: HTMLElement } = {};
+
+function rememberSettingsReturnFocus(): void {
+    // Store tests run without a DOM.
+    if (typeof document === 'undefined') return;
+    const focused = document.activeElement;
+    settingsReturnFocus.element =
+        focused instanceof HTMLElement && focused !== document.body ? focused : undefined;
+}
+
+/**
+ * Deferred a frame so the Workbench has un-hidden first: an element inside a `hidden` Session or the hidden Panel
+ * cannot take focus. A target that is gone (its Terminal closed, its Session deleted while Settings was up) or still
+ * hidden (the Workbench now shows another Session) is skipped rather than focused somewhere the user cannot see.
+ */
+function restoreSettingsReturnFocus(): void {
+    const element = settingsReturnFocus.element;
+    settingsReturnFocus.element = undefined;
+    if (!element) return;
+    requestAnimationFrame(() => {
+        if (!element.isConnected || element.closest('[hidden]')) return;
+        // Something else took focus in the meantime (a dialog opened by the same keystroke): leave it there. The
+        // Command Palette that ran Close Settings is still closing and holds focus only until it unmounts.
+        const active = document.activeElement;
+        if (
+            active &&
+            active !== document.body &&
+            !active.closest('[data-settings-page], [data-command-palette]')
+        )
+            return;
+        element.focus({ preventScroll: true });
+    });
+}
+
 export const useDialogStore = createStore<DialogState>('dialogs', (set, get) => ({
     archivedSessionsOpen: false,
     settingsRequest: { id: 0, view: 'ui' },
-    workbenchPageRequest: { id: 0, surface: 'settings' },
-    sessionlessWorkbenchPageDismissedId: 0,
+    settingsPageOpen: false,
+    environmentPageRequestId: 0,
+    sessionlessEnvironmentDismissedId: 0,
     paletteOpen: false,
     projectSearchOpen: false,
     projectSearchSeedRequest: { id: 0, seed: {} },
@@ -215,25 +271,23 @@ export const useDialogStore = createStore<DialogState>('dialogs', (set, get) => 
     statusBarPickerRequest: undefined,
     openModalIds: new Set(),
     setArchivedSessionsOpen: (archivedSessionsOpen) => set({ archivedSessionsOpen }),
-    openSettings: (view = 'ui', provider) =>
+    openSettings: (view = 'ui', provider) => {
+        if (!get().settingsPageOpen) rememberSettingsReturnFocus();
         set((state) => ({
+            settingsPageOpen: true,
             settingsRequest: { id: state.settingsRequest.id + 1, view, provider },
-            workbenchPageRequest: {
-                id: state.workbenchPageRequest.id + 1,
-                surface: 'settings',
-            },
-        })),
+        }));
+    },
+    closeSettings: ({ restoreFocus }) => {
+        if (!get().settingsPageOpen) return;
+        set({ settingsPageOpen: false });
+        if (restoreFocus) restoreSettingsReturnFocus();
+        else settingsReturnFocus.element = undefined;
+    },
     openEnvironment: () =>
-        set((state) => ({
-            workbenchPageRequest: {
-                id: state.workbenchPageRequest.id + 1,
-                surface: 'environment',
-            },
-        })),
-    dismissSessionlessWorkbenchPage: () =>
-        set((state) => ({
-            sessionlessWorkbenchPageDismissedId: state.workbenchPageRequest.id,
-        })),
+        set((state) => ({ environmentPageRequestId: state.environmentPageRequestId + 1 })),
+    dismissSessionlessEnvironment: () =>
+        set((state) => ({ sessionlessEnvironmentDismissedId: state.environmentPageRequestId })),
     setPaletteOpen: (paletteOpen) => set({ paletteOpen }),
     setProjectSearchOpen: (projectSearchOpen) => set({ projectSearchOpen }),
     openProjectSearch: (seed = {}) =>
@@ -318,6 +372,8 @@ export const useDialogStore = createStore<DialogState>('dialogs', (set, get) => 
 
 export const openSettings = (view: SettingsView = 'ui'): void =>
     useDialogStore.getState().openSettings(view);
+export const closeSettings = (options: { restoreFocus: boolean }): void =>
+    useDialogStore.getState().closeSettings(options);
 export const setArchivedSessionsOpen = (isOpen: boolean): void =>
     useDialogStore.getState().setArchivedSessionsOpen(isOpen);
 export const setPaletteOpen = (isOpen: boolean): void =>

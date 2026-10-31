@@ -19,7 +19,7 @@ import {
     VISIBLE_SESSION,
     waitForRuntimeReady,
 } from './support/helpers.ts';
-import { openSettingsSection, openSettingsTab } from './support/settings.ts';
+import { openSettingsPage, openSettingsSection } from './support/settings.ts';
 
 test('complete local workbench workflow, recovery, privacy, and persistence', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-e2e-'));
@@ -110,7 +110,11 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
         await expect(infoTab).toHaveClass(/active/);
         await expect(running.page.locator('.terminal-info-card')).not.toHaveCount(0);
 
-        const settingsTab = await openSettingsTab(running.page);
+        // Counted before opening: the covered Workbench is hidden while the page is up.
+        const tabCountWithoutSettings = await running.page
+            .locator(`${VISIBLE_SESSION} .work-tab`)
+            .count();
+        const settingsTab = await openSettingsPage(running.page);
         await openSettingsSection(settingsTab, 'Theme');
         await expect(running.page.getByText('Dracula', { exact: true })).toBeVisible();
         await running.page.getByRole('button', { name: 'Source' }).click();
@@ -121,17 +125,12 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
         await expect(
             running.page.locator('[data-config-source="theme"] .view-lines'),
         ).toContainText('#282a36');
-        const tabCountWithSettings = await running.page
-            .locator(`${VISIBLE_SESSION} .work-tab`)
-            .count();
-        // Settings is a Workbench tab now, not a modal (issue caxri#1289): `Cmd+W` closes the
-        // active tab exactly like it would for any other document, which here is the Settings tab
-        // itself, one fewer `.work-tab` than before, not the Terminal or editor tab underneath it,
-        // the way the old modal-swallowed shortcut used to prove by changing nothing at all.
+        // Settings is a window-level page over the Workbench (issue caxri#2369): `Cmd+W` closes the
+        // page itself and leaves every pane tab underneath it in place.
         await running.page.keyboard.press('Meta+W');
-        await expect(settingsTab).toHaveCount(0);
+        await expect(settingsTab).toBeHidden();
         await expect(running.page.locator(`${VISIBLE_SESSION} .work-tab`)).toHaveCount(
-            tabCountWithSettings - 1,
+            tabCountWithoutSettings,
         );
 
         await running.app.evaluate(({ dialog }, path) => {

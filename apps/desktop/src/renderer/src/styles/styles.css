@@ -28,6 +28,29 @@
         content-visibility: hidden;
         z-index: -1;
     }
+
+    /*
+     * The closed Settings page (`features/settings/settings-page-host.tsx`) keeps its layout for the same reason:
+     * `display: none` would drop the settings list's scroll position and its virtualizer's row measurements, so a
+     * reopen would land somewhere in the middle of the list. It covers the Workbench rather than sharing a cell with
+     * it, so `visibility: hidden` also takes its own box out of painting and hit testing.
+     */
+    .settings-page-host[hidden] {
+        display: block !important;
+        visibility: hidden;
+        content-visibility: hidden;
+    }
+}
+
+/*
+ * While the window-level Settings page (`features/settings/settings-page-host.tsx`) covers them, the Workbench column
+ * (its Panel included) and the Secondary Side Bar stay mounted but out of reach. `visibility: hidden` keeps their
+ * layout, so no Terminal or tree re-measures to zero and resizes when Settings closes, while taking them out of
+ * painting, hit testing, the Tab order, and the accessibility tree.
+ */
+.app-shell.settings-page-open > .workbench-column,
+.app-shell.settings-page-open > .secondary-sidebar {
+    visibility: hidden;
 }
 
 /** Sonner supplies layout and lifecycle; these overrides follow the live Caxri theme. */

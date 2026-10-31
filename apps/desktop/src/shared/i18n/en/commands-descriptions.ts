@@ -158,6 +158,8 @@ export const commandDescriptions = {
     'commands.description.benchmark.open':
         'Run one prompt across several Agents and models and compare quality, time, tokens, and cost',
     'commands.description.settings.open': 'Open Caxri Settings',
+    'commands.description.settings.close':
+        'Close the Settings page and return to the Session it covered',
     'commands.description.settings.openSource': 'Open settings.jsonc in the Caxri source editor',
     'commands.description.settings.openKeybindings': 'Edit Caxri keyboard shortcuts',
     'commands.description.settings.openNotifications':

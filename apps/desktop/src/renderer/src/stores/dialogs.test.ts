@@ -108,3 +108,43 @@ describe('Session search seed', () => {
         expect(useDialogStore.getState().sessionSearchRequest).toEqual({ id: 2, seed: {} });
     });
 });
+
+describe('Settings page', () => {
+    beforeEach(() => {
+        useDialogStore.setState({
+            settingsPageOpen: false,
+            settingsRequest: { id: 0, view: 'ui' },
+        });
+    });
+
+    it('opens the page and issues a fresh request for the asked view', () => {
+        useDialogStore.getState().openSettings('keybindings');
+
+        expect(useDialogStore.getState().settingsPageOpen).toBe(true);
+        expect(useDialogStore.getState().settingsRequest).toEqual({
+            id: 1,
+            view: 'keybindings',
+            provider: undefined,
+        });
+    });
+
+    it('issues a new request when opened again while already open, so a deep link still lands', () => {
+        useDialogStore.getState().openSettings();
+        useDialogStore.getState().openSettings('notifications');
+
+        expect(useDialogStore.getState().settingsPageOpen).toBe(true);
+        expect(useDialogStore.getState().settingsRequest.id).toBe(2);
+        expect(useDialogStore.getState().settingsRequest.view).toBe('notifications');
+    });
+
+    it('closes the page without touching the request it last handled', () => {
+        useDialogStore.getState().openSettings('notifications');
+        useDialogStore.getState().closeSettings({ restoreFocus: false });
+
+        expect(useDialogStore.getState().settingsPageOpen).toBe(false);
+        expect(useDialogStore.getState().settingsRequest).toMatchObject({
+            id: 1,
+            view: 'notifications',
+        });
+    });
+});

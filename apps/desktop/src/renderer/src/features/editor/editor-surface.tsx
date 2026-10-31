@@ -100,15 +100,6 @@ const PreviewSurface = lazy(async () => {
 });
 
 /**
- * Lazy for the same reason as the others above: Settings pulls in the whole config-editing form tree, the theme editor,
- * and the keybindings table, which a Session that never opens the tab must not pay for.
- */
-const SettingsWorkbenchPage = lazy(async () => {
-    const module = await import('../settings/settings-workbench-page');
-    return { default: module.SettingsWorkbenchPage };
-});
-
-/**
  * Lazy so a Session that never opens the Usage report does not load its charts.
  */
 const UsageWorkbenchPage = lazy(async () => {
@@ -320,7 +311,6 @@ const VIRTUAL_TAB_SURFACES: Record<
         const tab = parseFilePreviewTab(path);
         return tab && <PreviewSurface key={tab.path} paneId={paneId} tab={tab} />;
     },
-    settings: () => <SettingsWorkbenchPage />,
     usage: () => <UsageWorkbenchPage />,
 };
 

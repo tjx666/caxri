@@ -7,7 +7,7 @@ import { draculaTheme } from '@caxri/protocol';
 
 import { allowE2EErrors, expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
-import { openSettingsSection, openSettingsTab } from './support/settings.ts';
+import { openSettingsPage, openSettingsSection } from './support/settings.ts';
 
 test('VS Code theme import updates editor syntax and reports missing syntax rules', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-import-e2e-'));
@@ -62,13 +62,13 @@ test('VS Code theme import updates editor syntax and reports missing syntax rule
         );
         await createProjectSession(running.page);
         await running.page.getByRole('treeitem', { name: 'sample.ts', exact: true }).click();
-        // The preview tab activates once its file loads; open Settings only after that, or the late preview
-        // activation would put `sample.ts` back in front of the new Settings tab.
+        // The preview tab activates once its file loads; wait for it so the syntax-color assertions after
+        // Settings closes read a rendered editor.
         await expect(
             running.page.locator('.view-line').filter({ hasText: '// note' }),
         ).toBeVisible();
 
-        let settings = await openSettingsTab(running.page);
+        let settings = await openSettingsPage(running.page);
         await openSettingsSection(settings, 'Theme');
         await settings.getByRole('button', { name: 'Import Theme' }).click();
         await expect(settings.getByText('Semantic token colors were not imported.')).toBeVisible();
@@ -86,11 +86,9 @@ test('VS Code theme import updates editor syntax and reports missing syntax rule
                 },
                 terminal: { selectionBackground: '#55667788' },
             });
-        // Settings is a Workbench tab now, not a modal (issue caxri#1289), and it occupies the
-        // same pane the `sample.ts` editor tab does: close it outright so that editor tab is the
-        // active one again for the syntax-color assertions below.
+        // `Cmd+W` closes the Settings page (issue caxri#2369).
         await running.page.keyboard.press('Meta+w');
-        await expect(settings).toHaveCount(0);
+        await expect(settings).toBeHidden();
 
         const comment = running.page.locator('.view-line').filter({ hasText: '// note' });
         await expect(comment.locator('span span').first()).toHaveCSS('color', 'rgb(17, 34, 51)');
@@ -109,7 +107,7 @@ test('VS Code theme import updates editor syntax and reports missing syntax rule
             'rgb(34, 51, 68)',
         );
 
-        settings = await openSettingsTab(running.page);
+        settings = await openSettingsPage(running.page);
         await openSettingsSection(settings, 'Theme');
         await settings.getByRole('button', { name: 'Import Theme' }).click();
         await expect(settings.getByText('Syntax colors were not imported.')).toBeVisible();
@@ -149,7 +147,7 @@ test('theme import warnings can be dismissed and do not return after restart', a
             dialog.showOpenDialog = () => Promise.resolve({ canceled: false, filePaths: [path] });
         }, themePath);
         await createProjectSession(running.page);
-        const settings = await openSettingsTab(running.page);
+        const settings = await openSettingsPage(running.page);
         await openSettingsSection(settings, 'Theme');
         await settings.getByRole('button', { name: 'Import Theme' }).click();
         const warning = settings
@@ -172,7 +170,7 @@ test('theme import warnings can be dismissed and do not return after restart', a
         await running.app.close();
         isFirstClosed = true;
         restarted = await launchCaxri({ userDataDir: userData, testRootPath: root });
-        const reopened = await openSettingsTab(restarted.page);
+        const reopened = await openSettingsPage(restarted.page);
         await openSettingsSection(reopened, 'Theme');
         await expect(reopened.getByText('Semantic token colors were not imported.')).toHaveCount(0);
         expect(
@@ -187,7 +185,7 @@ test('theme import warnings can be dismissed and do not return after restart', a
 
 // eslint-disable-next-line no-empty-pattern -- Playwright requires object destructuring for its fixture argument
 test('theme import contrast failure names the color roles and measured ratio', async ({}, testInfo) => {
-    // No `ERROR_TOAST`: the failure is reported inline in the Settings Workbench tab (issue caxri#1289), so the
+    // No `ERROR_TOAST`: the failure is reported inline on the Settings page, so the
     // only error that still crosses a process boundary is Server Core rejecting the theme.
     allowE2EErrors([
         { source: 'server-core', event: 'ipc.request_failed', code: 'VALIDATION', count: 1 },
@@ -210,7 +208,7 @@ test('theme import contrast failure names the color roles and measured ratio', a
         }, themePath);
         await createProjectSession(running.page);
         const before = await pageRequest<{ value: ThemeTokens }>(running.page, 'theme.get');
-        const settings = await openSettingsTab(running.page);
+        const settings = await openSettingsPage(running.page);
         await openSettingsSection(settings, 'Theme');
         await settings.getByRole('button', { name: 'Import Theme' }).click();
 

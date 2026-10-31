@@ -432,9 +432,9 @@ test('Agent Commands & Skills stays discoverable, describes its target, and pres
                 diffEnabled: false,
                 recent: ['/status', '/diff', '$e2e-required', '$e2e-action'],
             });
-        // Settings is a Workbench tab (issue caxri#1289); `Cmd+W` closes it like any document tab.
+        // `Cmd+W` closes the Settings page (issue caxri#2369).
         await running.page.keyboard.press('Meta+w');
-        await expect(settingsTab).toHaveCount(0);
+        await expect(settingsTab).toBeHidden();
 
         await input.focus();
         await running.page.keyboard.press('Meta+Shift+A');
@@ -462,7 +462,7 @@ test('Agent Commands & Skills stays discoverable, describes its target, and pres
             })
             .toBe(false);
         await running.page.keyboard.press('Meta+w');
-        await expect(settingsTab).toHaveCount(0);
+        await expect(settingsTab).toBeHidden();
 
         await input.focus();
         await running.page.keyboard.press('Meta+Shift+A');

@@ -56,7 +56,7 @@ import { didSelectSession } from './features/session/session-commands';
 import { SessionMruSwitcher } from './features/session/session-mru-switcher';
 import { SessionSearchDialog } from './features/session/session-search/session-search-dialog';
 import { subscribeClaudeWindowsDefaultNotice } from './features/settings/claude-windows/claude-windows-default-notice';
-import { useSettingsTabOpener } from './features/settings/settings-tab-opener';
+import { SettingsPageHost } from './features/settings/settings-page-host';
 import { subscribeShareRequests } from './features/share/share-request-store';
 import { ShareToSessionDialog } from './features/share/share-to-session-dialog';
 import { ConnectSshHostDialog } from './features/ssh-host/connect-ssh-host-dialog';
@@ -232,12 +232,12 @@ export function App() {
     const isFullScreen = useIsFullScreen();
     const isSecondarySidebarVisible = useIsSecondarySidebarShown();
     const isWorkbenchPaused = isConnectionOverlayVisible(useSshEnvironment());
+    const isSettingsPageOpen = useDialogStore((state) => state.settingsPageOpen);
 
     useEffect(() => subscribeEnvironment(), []);
     useEffect(() => subscribeFileWatchLimitAlerts(), []);
     useRuntimeAttachment();
     useStartupLoaderRemoval(isAttached);
-    useSettingsTabOpener();
     useEnvironmentTabOpener();
     useRuntimeQueryInvalidation();
     useEffect(() => subscribeAgentChatPatches(queryClient), []);
@@ -309,7 +309,8 @@ export function App() {
                              * drag and through React on commit/reset. The 0px tracks hold the divider hit bands, which
                              * straddle the seam; see `PanelDivider`. `minmax(320px, 1fr)` reserves the main pane so a resize never overlaps it.
                              */
-                            'app-shell grid h-screen w-screen bg-background',
+                            'app-shell relative grid h-screen w-screen bg-background',
+                            isSettingsPageOpen && 'settings-page-open',
                             appShellGridClassName({
                                 isZenMode,
                                 isFullScreen,
@@ -350,7 +351,23 @@ export function App() {
                         <RendererPerformanceProfiler surface="workbench">
                             <WorkbenchColumn />
                         </RendererPerformanceProfiler>
-                        {isSecondarySidebarVisible && (
+                        {/*
+                         * Spans every track right of the Primary Side Bar: Settings replaces the Workbench and the
+                         * Session-scoped Secondary Side Bar, while the Session list stays usable for leaving it.
+                         * Absolutely positioned inside that grid area, so it overlaps the tracks without taking part in
+                         * auto-placement, which would otherwise push the Workbench column into a new row.
+                         */}
+                        <SettingsPageHost
+                            className={cn(
+                                // An explicit end line: an absolutely positioned grid item's `auto` end
+                                // reaches the container's edge, which would cover the status bar.
+                                '[grid-row:1/2]',
+                                isPrimarySidebarVisible
+                                    ? '[grid-column:3/-1]'
+                                    : '[grid-column:1/-1]',
+                            )}
+                        />
+                        {isSecondarySidebarVisible && !isSettingsPageOpen && (
                             <PanelDivider
                                 ariaLabel={t('workbench.resizeSecondarySidebar')}
                                 size={secondarySidebarWidth}

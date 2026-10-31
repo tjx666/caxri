@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
     archiveSession: vi.fn(),
@@ -32,6 +32,7 @@ vi.mock('../features/workbench/pane-actions', async (importOriginal) => ({
     getPaneLayout: () => mocks.paneLayout,
 }));
 
+import { useDialogStore } from '../stores/dialogs';
 import { executeCommand, isCommandAvailable } from './execute';
 
 /**
@@ -91,5 +92,36 @@ describe('closing the other tabs', () => {
         mocks.paneLayout = paneWith([terminalTab]);
 
         expect(isCommandAvailable('workbench.closeOtherTabs')).toBe(false);
+    });
+});
+
+/**
+ * The Settings page covers the Workbench, so `Cmd+W` closes it instead of a pane tab the user cannot see.
+ */
+describe('closing the active tab under the Settings page', () => {
+    beforeEach(() => {
+        mocks.closeTerminal.mockReset();
+        mocks.activeTab = terminalTab;
+        useDialogStore.setState({ settingsPageOpen: true });
+        // Nothing holds focus, as after a click on the page background.
+        vi.stubGlobal('document', { activeElement: null });
+    });
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    it('closes Settings and leaves the covered Terminal open', () => {
+        executeCommand('workbench.closeActiveTab');
+
+        expect(useDialogStore.getState().settingsPageOpen).toBe(false);
+        expect(mocks.closeTerminal).not.toHaveBeenCalled();
+    });
+
+    it('makes settings.close available only while the page is open', () => {
+        expect(isCommandAvailable('settings.close')).toBe(true);
+
+        useDialogStore.setState({ settingsPageOpen: false });
+
+        expect(isCommandAvailable('settings.close')).toBe(false);
     });
 });

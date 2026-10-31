@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { allowE2EErrors, expect, test } from './support/fixtures.ts';
 import { createShellSession, launchCaxri, VISIBLE_TERMINAL_INPUT } from './support/helpers.ts';
-import { openSettingsTab } from './support/settings.ts';
+import { openSettingsPage } from './support/settings.ts';
 
 /**
  * Mirrors `SURFACE_FAULT_KEY` in the Renderer; the value names the surface scope whose first surface throws next.
@@ -56,7 +56,7 @@ test('a surface render failure stays local to its surface', async () => {
 
         // Settings page: the page header and navigation stay, only the content is replaced.
         await page.evaluate((key) => sessionStorage.setItem(key, 'settings'), SURFACE_FAULT_KEY);
-        const settings = await openSettingsTab(page);
+        const settings = await openSettingsPage(page);
         const settingsFailure = settings
             .getByRole('alert')
             .filter({ hasText: 'This part of the window could not be displayed.' });

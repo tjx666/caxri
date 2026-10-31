@@ -3,7 +3,12 @@ import { draculaTheme } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import type { ConfigAction, ConfigState } from '../settings-drafts';
-import { configReducer, initialConfigState, parseConfigSource } from '../settings-drafts';
+import {
+    configReducer,
+    initialConfigState,
+    invalidSourceDraft,
+    parseConfigSource,
+} from '../settings-drafts';
 
 const SETTINGS_SOURCE = `{
   // This comment must survive a source-to-UI round trip.
@@ -304,5 +309,32 @@ describe('configReducer theme import warnings', () => {
             theme: { value: imported, source: 'theme' },
         });
         expect(loaded.theme.warnings).toEqual([]);
+    });
+});
+
+/**
+ * Closing Settings with an unparsable Source draft keeps it, and the next untargeted open must land back on that file.
+ */
+describe('invalidSourceDraft', () => {
+    it('finds no draft while every source matches what was applied', () => {
+        expect(invalidSourceDraft(loadedState())).toBeUndefined();
+    });
+
+    it('ignores an edited draft that still parses, since closing commits it', () => {
+        const state = configReducer(loadedState(), {
+            type: 'settings/sourceChanged',
+            source: SETTINGS_SOURCE,
+        });
+
+        expect(invalidSourceDraft(state)).toBeUndefined();
+    });
+
+    it('names the file whose edited draft no longer parses', () => {
+        const state = configReducer(loadedState(), {
+            type: 'keybindings/sourceChanged',
+            source: '[{ "key": ',
+        });
+
+        expect(invalidSourceDraft(state)).toBe('keybindings');
     });
 });

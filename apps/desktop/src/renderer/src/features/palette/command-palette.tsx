@@ -228,6 +228,7 @@ function CommandPaletteBody() {
     };
     const isLocalOnlyAvailable = useIsLocalOnlyAvailable();
     const isSshHost = useIsSshHost();
+    const isSettingsPageOpen = useDialogStore((state) => state.settingsPageOpen);
     /**
      * Read fresh on each open, as the Session row menu does: Caxri Bot takes and returns Sessions without a Workbench
      * record change. The cache entry is the one the Session row markers share.
@@ -245,6 +246,7 @@ function CommandPaletteBody() {
         }),
         localMachine: isLocalOnlyAvailable,
         pinnedSessions: pinnedSessions(allSessions).length > 0,
+        settingsPageOpen: isSettingsPageOpen,
         sshHost: isSshHost,
         sessionHasLiveAgent:
             selectedSession !== undefined && hasLiveAgentTerminal(selectedSession.id, terminals),
@@ -309,6 +311,7 @@ function CommandPaletteBody() {
         <>
             <DialogTitle className="sr-only">{t('palette.title')}</DialogTitle>
             <Command
+                data-command-palette=""
                 label={t('palette.title')}
                 className="w-full"
                 filter={(value, search) => paletteSearchScore(searchEntries.get(value), search)}

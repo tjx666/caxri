@@ -12,7 +12,6 @@ import { useWorkbenchStore } from '../../stores/workbench';
 import { retainAgentChatComposerState } from '../agent-chat/composer-input/agent-chat-drafts';
 import { EnvironmentWorkbenchPage } from '../environment-monitor/environment-workbench-page';
 import { useReportViewedSession } from '../session/hooks/use-report-viewed-session';
-import { SettingsWorkbenchPage } from '../settings/settings-workbench-page';
 import { retainTerminalProgress } from '../terminal/terminal-progress';
 import { reconcileSessionAnimations } from './hidden-session-transitions';
 import { PaneView } from './pane-view';
@@ -26,29 +25,26 @@ import {
 import { WelcomeView } from './welcome-view';
 
 /**
- * What the Workbench shows with no selected Session. Global pages are normally Session pane tabs, but before the first
- * Project exists there is no pane to open them into. A request made in this state replaces Welcome with the same page
- * until the user closes it (the button or `Cmd+W`, through `workbench.closeActiveTab`). Requests made before this view
- * mounted were already answered while a Session was selected and do not reopen here.
+ * What the Workbench shows with no selected Session. The Environment page is normally a Session pane tab, but before
+ * the first Project exists there is no pane to open it into. A request made in this state replaces Welcome with the
+ * page until the user closes it (the button or `Cmd+W`, through `workbench.closeActiveTab`). Requests made before this
+ * view mounted were already answered while a Session was selected and do not reopen here. Settings needs none of this:
+ * it is a window-level page over whatever the Workbench shows, Welcome included.
  */
 function NoSessionSurface() {
     const { t } = useTranslation();
-    const request = useDialogStore((state) => state.workbenchPageRequest);
-    const dismissedId = useDialogStore((state) => state.sessionlessWorkbenchPageDismissedId);
-    const [mountedRequestId] = useState(request.id);
-    if (request.id <= Math.max(mountedRequestId, dismissedId)) return <WelcomeView />;
-    const closeLabel = t(
-        request.surface === 'environment'
-            ? 'workbench.closeEnvironment'
-            : 'workbench.closeSettings',
-    );
+    const requestId = useDialogStore((state) => state.environmentPageRequestId);
+    const dismissedId = useDialogStore((state) => state.sessionlessEnvironmentDismissedId);
+    const [mountedRequestId] = useState(requestId);
+    if (requestId <= Math.max(mountedRequestId, dismissedId)) return <WelcomeView />;
+    const closeLabel = t('workbench.closeEnvironment');
     const closeButton = (
         <Tooltip content={closeLabel}>
             <Button
                 aria-label={closeLabel}
                 size="icon"
                 variant="ghost"
-                onClick={() => useDialogStore.getState().dismissSessionlessWorkbenchPage()}
+                onClick={() => useDialogStore.getState().dismissSessionlessEnvironment()}
             >
                 <X size={14} />
             </Button>
@@ -56,11 +52,7 @@ function NoSessionSurface() {
     );
     return (
         <div className="h-full min-h-0">
-            {request.surface === 'environment' ? (
-                <EnvironmentWorkbenchPage headerAction={closeButton} />
-            ) : (
-                <SettingsWorkbenchPage headerAction={closeButton} />
-            )}
+            <EnvironmentWorkbenchPage headerAction={closeButton} />
         </div>
     );
 }
@@ -78,6 +70,13 @@ function NoSessionSurface() {
 export function Workbench() {
     const session = useSelectedSession();
     const selectedSessionId = session?.id;
+    /**
+     * The Settings page covers the Workbench, so while it is up no Session is on screen: the selected one goes off
+     * screen exactly like a Session kept alive in the background (GPU released, buffers, Editor models, and scroll
+     * offsets kept), which is what makes closing Settings a redraw rather than a rebuild.
+     */
+    const isSettingsPageOpen = useDialogStore((state) => state.settingsPageOpen);
+    const visibleSessionId = isSettingsPageOpen ? undefined : selectedSessionId;
     const storedRetained = useSessionKeepAliveStore((state) => state.retained);
     /**
      * Derived for this render, committed to the store right after. Reading the store alone would render one frame in
@@ -155,7 +154,7 @@ export function Workbench() {
         // One frame later, so the blur that hiding causes has started its transitions and the switch has painted.
         const frame = requestAnimationFrame(() => reconcileSessionAnimations(document));
         return () => cancelAnimationFrame(frame);
-    }, [selectedSessionId]);
+    }, [visibleSessionId]);
     return (
         <section className="workbench grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)] bg-background">
             {session ? (
@@ -180,10 +179,10 @@ export function Workbench() {
                          * so it takes no pointer), so `inert` is not set: toggling it restyled the whole subtree on
                          * every switch. Animations are paused by `reconcileSessionAnimations`.
                          */
-                        hidden={sessionId !== selectedSessionId}
+                        hidden={sessionId !== visibleSessionId}
                     >
                         <PaneView
-                            isVisible={sessionId === selectedSessionId}
+                            isVisible={sessionId === visibleSessionId}
                             sessionId={sessionId}
                         />
                     </div>
