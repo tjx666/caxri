@@ -147,9 +147,9 @@ Extensions localize the VS Code way, and an extension that ships nothing stays E
   than in a module constant.
 - **Language.** `caxri.env.language` is the app's interface language (`en` or `zh-CN`): the `workbench.language`
   setting, or the Desktop's system language when it follows the system. On a change Server Core tells the Extension
-  Host first, which fires `caxri.env.onDidChangeLanguage` for activated extensions, then republishes the catalog, which
-  makes clients re-read titles and controlled views. An extension tree is not re-read on its own: fire
-  `onDidChangeTreeData` from `onDidChangeLanguage`, as the Status extension does.
+  Host first, which re-reads every loaded tree view and fires `caxri.env.onDidChangeLanguage` for activated extensions,
+  then republishes the catalog, which makes clients re-read titles, controlled views, and badges. An extension
+  subscribes only to drop copy it cached in the previous language.
 
 The catalog carries the English text as `sourceTitle` and `sourceDescription` on a translated command, so the palette
 still matches an English query. The language is one Server-wide value, so a phone paired with a Chinese Desktop shows

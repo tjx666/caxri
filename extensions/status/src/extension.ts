@@ -92,15 +92,6 @@ export class ProjectStatusProvider implements TreeDataProvider<StatusNode> {
         this.changed.fire(undefined);
     }
 
-    /**
-     * Rows and the badge tooltip are worded when they are built, so a language switch re-reads both from the Server's
-     * cached Project Status instead of forcing a provider refetch.
-     */
-    languageChanged(): void {
-        this.badgeChanged.fire();
-        this.changed.fire(undefined);
-    }
-
     dispose(): void {
         this.badgeChanged.dispose();
         this.changed.dispose();
@@ -164,6 +155,5 @@ export function activate(context: ExtensionContext): void {
                 provider.projectStatusChanged();
         }),
         caxri.workspace.onDidChangeProjectStatus(() => provider.projectStatusChanged()),
-        caxri.env.onDidChangeLanguage(() => provider.languageChanged()),
     );
 }

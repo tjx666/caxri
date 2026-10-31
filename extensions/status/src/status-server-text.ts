@@ -10,7 +10,7 @@ import { l10n } from 'caxri';
  * `{provider}` and `{service}` match only the four provider names, so a template such as `{provider} failed` cannot
  * swallow an unrelated sentence that happens to end in "failed". Every other placeholder matches any text.
  */
-export const SERVER_STATUS_TEXT_TEMPLATES = [
+const SERVER_STATUS_TEXT_TEMPLATES = [
     '{provider} not installed',
     '{provider} not signed in',
     '{provider} not linked',

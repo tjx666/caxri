@@ -43,7 +43,7 @@ export interface ExtensionLocalization {
     ignoredFiles: Array<{ file: string; reason: LocalizationFileIssue }>;
 }
 
-export type LocalizationFileIssue = 'escapes-root' | 'invalid' | 'manifest-invalid' | 'unreadable';
+type LocalizationFileIssue = 'escapes-root' | 'invalid' | 'manifest-invalid' | 'unreadable';
 
 type FileRead =
     | { kind: 'absent' }
@@ -103,7 +103,7 @@ function resolveText(value: string, bundles: readonly ExtensionL10nBundle[]): st
  * and descriptions. Ids, commands, and every other field stay literal, so a translation can never re-point a
  * contribution. `bundles` is searched in order, the requested language before the default.
  */
-export function localizeManifest(
+function localizeManifest(
     manifest: ExtensionManifest,
     bundles: readonly ExtensionL10nBundle[],
 ): ExtensionManifest {

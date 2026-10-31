@@ -17,6 +17,10 @@ export interface TreeScopeState {
     itemIds: Map<string, string>;
     nextHandle: number;
     refreshEpoch: number;
+    /**
+     * The Server scope this state was last read for, so a Host-wide change such as a language switch can refresh it.
+     */
+    context?: ExtensionViewEventScope;
 }
 
 /**
@@ -59,9 +63,14 @@ function emptyTreeScope(): TreeScopeState {
 /**
  * The scope's state, created on first use and marked most recently used.
  */
-export function treeScopeFor(provider: ProviderRegistration, scopeKey: string): TreeScopeState {
+export function treeScopeFor(
+    provider: ProviderRegistration,
+    context: ExtensionViewEventScope | undefined,
+): TreeScopeState {
+    const scopeKey = treeScopeKey(context);
     const existing = provider.scopes.get(scopeKey);
     const state = existing ?? emptyTreeScope();
+    state.context = context;
     provider.scopes.delete(scopeKey);
     provider.scopes.set(scopeKey, state);
     if (!existing && provider.scopes.size > MAX_TREE_SCOPES_PER_VIEW) {
@@ -120,4 +129,17 @@ export function retireTreeHandles(state: TreeScopeState, handles: ReadonlySet<st
         state.itemIds.delete(handle);
         state.children.delete(handle);
     }
+}
+
+/**
+ * Every tree scope a Server request has read, as the view and Server scope to refresh it in.
+ */
+export function loadedTreeScopes(
+    providers: ReadonlyMap<string, ProviderRegistration>,
+): Array<[viewId: string, provider: ProviderRegistration, context: ExtensionViewEventScope]> {
+    const scopes: Array<[string, ProviderRegistration, ExtensionViewEventScope]> = [];
+    for (const [viewId, provider] of providers)
+        for (const { context } of provider.scopes.values())
+            if (context) scopes.push([viewId, provider, context]);
+    return scopes;
 }

@@ -51,6 +51,7 @@ import { serializeTreeItem } from './tree-item-dto';
 import type { ProviderRegistration, TreeScopeState } from './tree-provider-handles';
 import {
     collectDescendantHandles,
+    loadedTreeScopes,
     resetTreeScope,
     retireTreeHandles,
     stableTreeHandle,
@@ -347,10 +348,13 @@ export function notifyProjectStatusChanged(context: ExtensionViewEventScope): { 
 }
 
 /**
- * Switches the language bindings read, then lets activated extensions drop copy cached in the old one.
+ * Switches the language bindings read and re-reads every loaded tree scope, since rows are worded when built and a
+ * provider's own refresh outside a Server scope is dropped; then extensions drop copy cached in the old language.
  */
 export function notifyLanguageChanged(locale: AppLocale): { notified: number } {
     setAppLanguage(locale);
+    for (const [viewId, provider, context] of loadedTreeScopes(providers))
+        withViewEventContext(context, () => scheduleRefresh(viewId, provider, undefined));
     return notifyActivated((binding) => binding.notifyLanguage(locale));
 }
 
@@ -477,7 +481,7 @@ export async function getTreeChildren(parameters: {
         throw Object.assign(new Error(`No provider registered for ${parameters.viewId}`), {
             code: 'PROVIDER_MISSING',
         });
-    const state = treeScopeFor(provider, treeScopeKey(parameters.context));
+    const state = treeScopeFor(provider, parameters.context);
     const parent = parameters.parentHandle
         ? state.elements.get(parameters.parentHandle)
         : undefined;
