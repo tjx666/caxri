@@ -78,7 +78,9 @@ lists delegation targets.
 
 Caxri installs its bundled skills to `~/.gemini/config/skills/<name>/SKILL.md` globally and to
 `<project>/.agents/skills` locally, the same Project directory Codex reads. `agy` 1.4.11 reads both
-roots; no environment variable relocates the global one.
+roots; no environment variable relocates the global one. The installer makes `caxri-cli` a symlink
+to a versioned release directory, as for the other Agents; a one-time `agy -p` probe of 1.4.11 listed
+the skill from such a Project-local install.
 
 ## Conversation title
 
