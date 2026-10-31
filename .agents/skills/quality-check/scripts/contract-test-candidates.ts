@@ -34,6 +34,7 @@ export function contractTestCandidates(
         ...localeContractTestCandidates(files, removedFiles),
         ...e2ePoolContractTestCandidates(files, removedFiles),
         ...ciLogSafetyContractTestCandidates(files, removedFiles),
+        ...atomicWriteContractTestCandidates(files, removedFiles),
     ];
 }
 
@@ -274,4 +275,29 @@ function ciLogSafetyContractTestCandidates(
     )
         ? [CI_E2E_LOG_SAFETY_TEST]
         : [];
+}
+
+const ATOMIC_WRITE_CONTRACT_TEST = 'scripts/__tests__/atomic-write-contract.test.ts';
+
+/**
+ * The atomic-write contract reads every tooling source under `scripts/` and `.agents/skills/*\/scripts/` with
+ * `readdir`, so a new script with an inline write-then-rename passed the changed-file check and failed only in a CI
+ * unit shard. A removed path is included because the contract's allowlist names files that may disappear.
+ */
+function atomicWriteContractTestCandidates(
+    files: readonly string[],
+    removedFiles: readonly string[],
+): string[] {
+    return [...files, ...removedFiles].some((file) =>
+        isAtomicWriteScanPath(file.replaceAll('\\', '/')),
+    )
+        ? [ATOMIC_WRITE_CONTRACT_TEST]
+        : [];
+}
+
+function isAtomicWriteScanPath(file: string): boolean {
+    if (!file.endsWith('.ts') || file.endsWith('.test.ts')) return false;
+    if (file.split('/').some((segment) => segment === '__tests__' || segment === 'node_modules'))
+        return false;
+    return file.startsWith('scripts/') || /^\.agents\/skills\/[^/]+\/scripts\//u.test(file);
 }

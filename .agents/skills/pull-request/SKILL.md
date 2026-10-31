@@ -77,6 +77,9 @@ or cancels the delivery, or a concrete blocker requires their input.
    Write every `--body-file` to a fresh quoted `mktemp` file and remove it after use; never a
    fixed path such as `/tmp/pr-body.md`, which two parallel sessions overwrote into each other's PR
    body. A per-PR-number name still does not isolate concurrent updates of the same PR.
+   To edit an existing body, join the read, the edit, a `test -s "$body"` guard, and the update
+   with `&&`, then read the body back: `gh pr view ... > "$body" && edit; gh pr edit --body-file`
+   ran the update after a network timeout emptied the read and wiped a PR's validation record.
    A shared UI primitive that changes locator attributes or overlay opening or pointer behavior
    (`title` becoming the shared Tooltip; a focus tooltip now intercepting a right-click) reaches
    every caller: trace them into `e2e/`, search obsolete locators (`getByTitle`) and the affected
