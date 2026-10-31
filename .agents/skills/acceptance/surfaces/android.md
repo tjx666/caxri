@@ -39,8 +39,9 @@ The guarded release runner holds a repository-wide lock for that emulator serial
 installation through fixture IME restoration and device cleanup. If another worktree owns the
 serial, wait for its run to finish before starting another round. Do not select the fixture IME or
 clear the package outside the serial lock while another Acceptance run is active.
-An isolated mobile case waits up to three minutes for another worktree's active desktop lease after
-the APK build. The lease remains fail-closed for stale or invalid ownership; never stop the sibling
+After the APK build the runner waits up to twenty minutes for another worktree's active desktop
+lease, logging the holder and the waited time; in a measured round that wait (about 270s) outlasted
+the whole build stage (about 110s). The lease remains fail-closed for stale or invalid ownership; never stop the sibling
 desktop instance to unblock a round.
 The runner also refuses to start, and each case to begin, while the emulator shows an "isn't
 responding" dialog, which a host running several emulators tends to produce. Reboot that serial
@@ -68,7 +69,7 @@ CAXRI_MOBILE_ACCEPTANCE_CASE_ID="MOB-E2E-01" \
 ```
 
 The guarded runner first requires a clean source tree at the frozen report commit, then builds
-Desktop artifacts, regenerates Android native sources, creates and installs a release APK, verifies
+Desktop artifacts, prepares the Android native project, creates and installs a release APK, verifies
 the non-debuggable package, clears only `com.caxri.mobile` before
 and after the case, launches an isolated Desktop/Server fixture, pairs through the encrypted gateway,
 and sends one fixed bounded reply. Stage and overall deadlines bound every child command. It never
@@ -89,6 +90,43 @@ pairing link, QR payload, reply text, Session identity, Terminal
 content, Project path, source, logs, and environment values. The runner writes this receipt from its
 cleanup path for `passed`, `failed`, and pre-launch `blocked` outcomes so a failed round can still be
 finalized honestly.
+
+### Release build speed and concurrency
+
+`scripts/mobile-android-release-build.ts` owns the build stage. It builds the workspace packages once,
+reuses `apps/mobile/android` while the stamp `android/.caxri-prebuild.json` matches the committed
+prebuild inputs and the generated sources, and otherwise runs `expo prebuild --clean`. Skipping
+prebuild matters beyond its own few seconds: prebuild deletes `android/.gradle`, and with it Gradle's
+execution history, so every round used to recompile all native modules. Gradle then builds only the
+emulator's `ro.product.cpu.abi` with the build cache on (`apps/mobile/plugins/with-android-gradle-build-cache.ts`).
+`apps/mobile/plugins/with-android-bundle-environment-input.ts` declares the inlined `EXPO_PUBLIC_*`
+values as bundle task inputs; without it an incremental build reported the JS bundle up to date and
+shipped the previous round's Acceptance fault.
+
+Release builds queue behind `ANDROID_BUILD_SLOT_COUNT` machine-wide slots
+(`scripts/mobile-android-build-slot.ts`); the runner logs when it waits. Case execution was already
+serialized by the desktop lease, so the slots only bound the Gradle stage. Measured on an 18-core
+Apple Silicon host with 128 GB RAM and other sessions active (load 40 to 110), four cold one-ABI
+builds with the cache took:
+
+| Concurrent builds | Makespan (4 builds) | Single build | Failures |
+| ----------------- | ------------------- | ------------ | -------- |
+| 1                 | 819s                | 154s to 240s | 0        |
+| 2                 | 726s                | 271s to 385s | 0        |
+| 4                 | 610s                | 468s to 610s | 0        |
+| 6                 | 216s, 5 failed      | 98s to 216s  | 5 of 6   |
+
+Three concurrent builds of six took 1010s (464s to 525s each, no failures), about 168s per build
+against 205s serial and 152s at four. Six concurrent builds failed with
+`Timeout waiting to lock journal cache` and `Timeout waiting to lock file hash cache`. The slot count
+is three: most of the throughput gain, with headroom below the failure point for Gradle builds that
+run outside Acceptance (development builds hold the same locks without a slot).
+Before the slots, unqueued concurrent builds from several worktrees also failed with
+`Timeout waiting to lock file hash cache` or `Timeout waiting to lock artifact cache` on the shared
+`~/.gradle/caches`. Single-build measurements (same host): all four ABIs from scratch 344s idle; one
+ABI 246s to 282s against 496s for all four at the same load; an unchanged rebuild 23s once prebuild is
+skipped, against a full recompile after any prebuild; a cache restore after `--clean` 138s against
+279s; a cold worktree with the cache 195s to 276s against 437s.
 
 ### Per-case motion and app language
 

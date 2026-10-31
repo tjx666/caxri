@@ -50,6 +50,7 @@ import {
     findAndroidNativeInitFailures,
     parseAndroidPackageUid,
 } from './mobile-android-native-init';
+import { buildAndroidAcceptanceRelease } from './mobile-android-release-build';
 import { readAndroidScenarioArtifacts } from './mobile-android-scenario-artifacts';
 
 const root = resolve(import.meta.dirname, '..');
@@ -477,27 +478,16 @@ await withRepoLock(
             // Before the half-hour build, so a hung emulator fails in seconds.
             assertAndroidResponsive(serial, adbRead);
             run('bun', ['run', 'build'], BUILD_TIMEOUT_MS);
-            run(
-                'bun',
-                ['run', '--cwd', 'apps/mobile', 'prebuild:android', '--', '--clean'],
-                BUILD_TIMEOUT_MS,
-                acceptanceBuildEnvironment,
-            );
-            run(
-                'bun',
-                [
-                    'run',
-                    '--cwd',
-                    'apps/mobile',
-                    'android',
-                    '--',
-                    '--build-only',
-                    '--variant',
-                    'release',
-                ],
-                ANDROID_RELEASE_BUILD_TIMEOUT_MS,
-                acceptanceBuildEnvironment,
-            );
+            await buildAndroidAcceptanceRelease({
+                adbRead,
+                environment: acceptanceBuildEnvironment,
+                read: (command, arguments_) => read(command, arguments_, SOURCE_TIMEOUT_MS),
+                root,
+                run: (command, arguments_, environment, timeoutMs) =>
+                    run(command, arguments_, timeoutMs, environment),
+                timeouts: { build: BUILD_TIMEOUT_MS, release: ANDROID_RELEASE_BUILD_TIMEOUT_MS },
+                waitDeadlineMs: activeDeadlineMs,
+            });
             adbRun(['install', '-r', releaseApk]);
             apkSha256 = createHash('sha256')
                 .update(await readFile(releaseApk))

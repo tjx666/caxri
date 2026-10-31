@@ -142,7 +142,8 @@ additionally requires `--yes` and should carry a stable `--request-id`. The plan
 
 The guarded cross-device path accepts only one explicit disposable emulator serial. Before touching
 the device it requires a clean worktree at the frozen report commit. It regenerates the native
-project, installs the release APK, clears only
+project only when its prebuild inputs changed, builds the emulator's ABI inside a machine-wide build
+slot (see the Android surface guide), installs the release APK, clears only
 `com.caxri.mobile`, and records report-bound lifecycle and result receipts:
 
 ```bash
