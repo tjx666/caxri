@@ -248,8 +248,10 @@ export function formatCiNotification(
     }
     const outcome =
         newlyFailed.length > 0 ? 'failed' : (state.conclusion || 'failed').replaceAll('_', ' ');
+    // A cancelled run is usually superseded by a newer push, which `--sha` then follows; it is not a failure.
+    const isCancelled = newlyFailed.length === 0 && state.conclusion === 'cancelled';
     return withSubtitle({
-        title: `CI failed · ${target}`,
+        title: `${isCancelled ? 'CI cancelled' : 'CI failed'} · ${target}`,
         message:
             failedJobs.length > 0
                 ? `${workflow} ${outcome}: ${failedJobs.join(', ')}`

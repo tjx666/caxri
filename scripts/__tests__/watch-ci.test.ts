@@ -168,6 +168,14 @@ describe('watch-ci', () => {
         expect(
             formatCiNotification({
                 ...run,
+                conclusion: 'cancelled',
+                jobs: [job('checks', 'completed', 'cancelled')],
+                status: 'completed',
+            }).title,
+        ).toBe('CI cancelled · feat/example');
+        expect(
+            formatCiNotification({
+                ...run,
                 conclusion: 'success',
                 jobs: [job('checks', 'completed', 'success')],
                 status: 'completed',
