@@ -111,6 +111,10 @@ test('executes one report-bound Android product scenario', async ({}) => {
         );
         return;
     }
+    if (/^MOB-(?:PROJECT|PANELS)-/u.test(environment.caseId)) {
+        await executeMobileProjectPanelsScenario(environment, artifacts);
+        return;
+    }
     if (uiAudit.isMobileUiAuditCase(environment.caseId)) {
         await uiAudit.executeMobileUiAuditScenario(environment, artifacts);
         return;
@@ -622,10 +626,6 @@ test('executes one report-bound Android product scenario', async ({}) => {
                 { ...environment, launchId, remoteVideoPath, sourceCommit },
                 artifacts,
             );
-            break;
-        case 'MOB-PROJECT-01':
-        case 'MOB-PANELS-01':
-            await executeMobileProjectPanelsScenario(environment, artifacts);
             break;
         case 'MOB-MOTION-01':
         case 'MOB-MOTION-02':
