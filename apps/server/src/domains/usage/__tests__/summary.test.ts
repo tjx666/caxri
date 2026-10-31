@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { ModelPrice } from '../pricing';
 import type { UsageRecord } from '../record';
-import { summarizeUsage } from '../summary';
+import { sessionCostOf, summarizeUsage } from '../summary';
 
 const HOUR_SECONDS = 1_700_000_000 - (1_700_000_000 % 3600);
 const PRICE: ModelPrice = [1e-6, 2e-6, 1e-7, 1.25e-6, 2e-6];
@@ -73,5 +73,19 @@ describe('summarizeUsage', () => {
 
         expect(summary.costUsd).toBeCloseTo(100e-6 + 200e-6 + 200e-6 + 0.5);
         expect(summary.unpricedModels).toEqual([]);
+    });
+});
+
+describe('sessionCostOf', () => {
+    const priceOf = (model: string) => (model === 'priced' ? PRICE : undefined);
+
+    it('sums every record and flags an unpriced model as partial', () => {
+        const cost = sessionCostOf([record, undefined, record], priceOf);
+        expect(cost?.costUsd).toBeCloseTo(2 * summarizeUsage(record, priceOf).costUsd);
+        expect(cost?.isPartial).toBe(true);
+    });
+
+    it('is undefined while no record holds token usage', () => {
+        expect(sessionCostOf([undefined, { ...record, tokens: [] }], priceOf)).toBeUndefined();
     });
 });

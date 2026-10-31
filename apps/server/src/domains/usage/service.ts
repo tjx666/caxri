@@ -3,6 +3,7 @@ import { homedir } from 'node:os';
 import type {
     AgentProvider,
     AgentUsageReadout,
+    SessionCost,
     UsageLimit,
     UsageNotice,
     UsageReport,
@@ -40,6 +41,7 @@ import {
 } from './scan-progress';
 import type { ClaudeTranscriptMisses, UsageScanOptions, UsageTranscriptFiles } from './scanner';
 import { compressedFailureCounter, scanUsage, UsageTranscriptLocator } from './scanner';
+import { sessionCostOf } from './summary';
 import { UsageNoticeDismissals } from './usage-notice-dismissals';
 import { waitBriefly } from './wait-briefly';
 
@@ -512,6 +514,24 @@ export class UsageService {
     async readTerminalTask(terminalId: string, taskId: string): Promise<AgentUsageReadout | null> {
         await this.loadPricing();
         return this.live.readTask(terminalId, taskId);
+    }
+
+    /**
+     * One Session's all-time Agent spend for its sidebar card. Waits briefly for the ledger sync like a report does,
+     * but reads only that Session's rows and builds no report.
+     */
+    async sessionCost(sessionId: string): Promise<SessionCost | null> {
+        await Promise.all([
+            this.loadPricing(),
+            waitBriefly(this.syncs.run('ledger', () => this.syncLedger())),
+        ]);
+        const rows = this.options.database.agentSessionUsage.listForSession(sessionId);
+        return (
+            sessionCostOf(
+                rows.map((row) => parseUsageRecord(row.usageJson)),
+                (model) => this.pricing.priceOf(model),
+            ) ?? null
+        );
     }
 
     /**

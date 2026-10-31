@@ -124,3 +124,65 @@ describe('TerminalResourceMonitor', () => {
         expect(alertStates(events)).toEqual(['raised', 'cleared']);
     });
 });
+
+describe('TerminalResourceMonitor.sessionResources', () => {
+    const chat = { ...terminal, id: 'chat-1', title: 'Codex Chat' };
+    const other = { ...terminal, id: 'terminal-2', sessionId: 'session-2' };
+    // PTY root 100 with a child; Chat provider group leader 200 with a child; another Session's PTY 300.
+    const TABLE = [
+        '100 1 2.0 102400',
+        '101 100 8.0 204800',
+        '200 1 10.0 307200',
+        '201 200 5.0 102400',
+        '300 1 90.0 1048576',
+    ].join('\n');
+
+    const PTY_ROOTS: Record<string, number> = { 'terminal-1': 100, 'terminal-2': 300 };
+
+    function createSessionMonitor(
+        chatGroups: Array<{ pgid: number; terminalId: string }>,
+        ptyRoots: Record<string, number> = PTY_ROOTS,
+    ) {
+        const terminals = [terminal, chat, other];
+        const sample = vi.fn(() => Promise.resolve(new ProcessTable(parseProcessTable(TABLE))));
+        const monitor = new TerminalResourceMonitor({
+            chatProcessGroups: () => chatGroups,
+            database: {
+                getSession: () => {},
+                listTerminals: (sessionId) =>
+                    terminals.filter((entry) => !sessionId || entry.sessionId === sessionId),
+            },
+            logger: { write: vi.fn() } as never,
+            sampleProcessTable: sample,
+            send: vi.fn(),
+            terminals: {
+                processId: (id) => ptyRoots[id],
+            },
+            watchHub: { registerPoller: vi.fn() },
+        });
+        return { monitor, sample };
+    }
+
+    it('sums PTY Terminal trees and Chat provider trees of one Session only', async () => {
+        const { monitor } = createSessionMonitor([
+            { pgid: 200, terminalId: 'chat-1' },
+            { pgid: 300, terminalId: 'terminal-2' },
+        ]);
+        await expect(monitor.sessionResources('session-1')).resolves.toEqual({
+            cpuPercent: 25,
+            memoryMb: 700,
+            processCount: 4,
+        });
+    });
+
+    it('returns null without sampling when nothing of the Session runs', async () => {
+        const { monitor, sample } = createSessionMonitor([]);
+        await expect(monitor.sessionResources('session-3')).resolves.toBeNull();
+        expect(sample).not.toHaveBeenCalled();
+    });
+
+    it('returns null when the recorded roots have already exited', async () => {
+        const { monitor } = createSessionMonitor([{ pgid: 999, terminalId: 'chat-1' }], {});
+        await expect(monitor.sessionResources('session-1')).resolves.toBeNull();
+    });
+});

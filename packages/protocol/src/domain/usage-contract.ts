@@ -390,11 +390,30 @@ export const usageReportSchema = z.object({
 });
 export type UsageReport = z.infer<typeof usageReportSchema>;
 
+const sessionCostSchema = z.object({
+    costUsd: usd,
+    /**
+     * True when a model the Session used has no known price, so `costUsd` undercounts.
+     */
+    isPartial: z.boolean(),
+});
+export type SessionCost = z.infer<typeof sessionCostSchema>;
+
 export const usageMethods = {
     'usage.report': {
         ...commandPolicy('server', 'read'),
         params: usageReportParametersSchema,
         result: usageReportSchema,
+    },
+    /**
+     * Everything one Session's Agent conversations have cost so far, attributed the way the Usage page's Session rows
+     * are (to the Session that first hosted each conversation) and priced the same way. `null` while the ledger holds
+     * no usage for it.
+     */
+    'usage.sessionCost': {
+        ...commandPolicy('server', 'read'),
+        params: z.strictObject({ sessionId: identifierSchema }),
+        result: sessionCostSchema.nullable(),
     },
     /**
      * The newest plan rate-limit reading of every provider Server Core has seen, from the usage ledger and running

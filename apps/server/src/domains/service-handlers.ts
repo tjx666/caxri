@@ -443,6 +443,7 @@ export function createServiceHandlers(services: {
         'usage.limits': () => usage.readLimits(),
         'usage.dismissNotice': ({ provider, notice }) => usage.dismissNotice(provider, notice),
         'usage.report': (parameters) => usage.report(parameters),
+        'usage.sessionCost': ({ sessionId }) => usage.sessionCost(sessionId),
         'terminal.agentUsage': ({ terminalId }) => usage.readTerminal(terminalId),
         'terminal.agentTaskUsage': ({ terminalId, taskId }) =>
             usage.readTerminalTask(terminalId, taskId),

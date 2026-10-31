@@ -7,6 +7,7 @@ import { terminalPreviewSchema } from './terminal-preview.js';
 import { terminalSnapshotSchema } from './terminal-record.js';
 import {
     ptyUsageSchema,
+    sessionResourceUsageSchema,
     terminalProcessEntrySchema,
     terminalResourceUsageSchema,
 } from './terminal-resources.js';
@@ -41,6 +42,15 @@ export const terminalReadMethods = {
         ...serverRead,
         params: z.object({ terminalId: identifierSchema }),
         result: terminalResourceUsageSchema.nullable(),
+    },
+    /**
+     * One Session's live CPU and memory across its PTY Terminals and Chat providers, sampled once per request for the
+     * sidebar's Session card; `null` when nothing of the Session is running.
+     */
+    'terminal.sessionResources': {
+        ...serverRead,
+        params: z.object({ sessionId: identifierSchema }),
+        result: sessionResourceUsageSchema.nullable(),
     },
     /**
      * Every running Terminal's PTY root PID with its Session, so a process inspector can group OS processes by the
