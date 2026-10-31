@@ -96,6 +96,7 @@ export {
     SessionSearchIndex,
     SessionSearchIndexUnavailableError,
 } from './session-search';
+export { type AgentSignInProbe, createAgentSignInProbe } from './sign-in-status';
 export { agentSkillHealthReader } from './skills';
 export {
     ThroughputAccumulator,

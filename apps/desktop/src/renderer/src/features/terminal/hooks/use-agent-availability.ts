@@ -1,7 +1,6 @@
-import type { TerminalKind } from '@caxri/protocol';
-
 import { useCaxriQuery } from '../../../queries/client';
-import { unavailableAgentKinds } from '../new-terminal-agent';
+import type { AgentReadiness } from '../new-terminal-agent';
+import { agentReadinessIssues } from '../new-terminal-agent';
 
 /**
  * A missing CLI rarely appears between two opens of the same menu, and the Server answers from its executable cache, so
@@ -10,22 +9,23 @@ import { unavailableAgentKinds } from '../new-terminal-agent';
 const AGENT_AVAILABILITY_STALE_MS = 30_000;
 
 /**
- * The Agents whose CLI Caxri cannot find, read when a New Session or New Terminal control opens. The probe only
- * resolves each configured executable (it launches no Agent), so it is cheap. Empty until the answer arrives and when
- * the request fails: an annotation is a hint, never a gate on creating the Session.
+ * The Agents that cannot start yet (CLI not found, or signed out) and why, read when a New Session or New Terminal
+ * control opens. The probe resolves each configured executable and asks an installed CLI's status command (it starts no
+ * conversation), and the Server caches both answers, so it is cheap. Empty until the answer arrives and when the
+ * request fails: an annotation is a hint, never a gate on creating the Session.
  *
  * @param isEnabled Whether the control is open; a closed one does not ask.
  */
-export function useAgentAvailability(isEnabled = true): ReadonlySet<TerminalKind> {
+export function useAgentAvailability(isEnabled = true): AgentReadiness {
     const { data } = useCaxriQuery(
         'agentAvailability.get',
         {},
         {
             enabled: isEnabled,
             retry: false,
-            select: unavailableAgentKinds,
+            select: agentReadinessIssues,
             staleTime: AGENT_AVAILABILITY_STALE_MS,
         },
     );
-    return data ?? unavailableAgentKinds(undefined);
+    return data ?? agentReadinessIssues(undefined);
 }

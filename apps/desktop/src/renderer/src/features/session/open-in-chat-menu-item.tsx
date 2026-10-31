@@ -7,6 +7,7 @@ import { useSettings } from '../../stores/selectors';
 import { tryCommand } from '../../stores/toasts';
 import { applyFormEdit } from '../settings/config-edit';
 import { getSettings, updateSettings } from '../settings/settings-client';
+import type { AgentReadinessIssue } from '../terminal/new-terminal-agent';
 import { agentChoiceMarker } from '../terminal/new-terminal-agent';
 
 /**
@@ -63,18 +64,18 @@ export function OpenInChatSwitch() {
 
 /**
  * The one muted suffix an Agent row carries in the New Session and New Terminal menus and the Agent-choice dialog: `Not
- * installed`, `Chat`, `Default`, or those joined (`agentChoiceMarker`).
+ * installed`, `Sign in required`, `Chat`, `Default`, or those joined (`agentChoiceMarker`).
  */
 export function AgentChoiceMarker({
     isDefault,
-    isUnavailable = false,
+    issue,
     surface,
 }: {
     isDefault: boolean;
-    isUnavailable?: boolean;
+    issue?: AgentReadinessIssue;
     surface: TerminalSurface;
 }) {
     const { t } = useTranslation();
-    const marker = agentChoiceMarker({ isDefault, isUnavailable, surface }, t);
+    const marker = agentChoiceMarker({ isDefault, issue, surface }, t);
     return marker ? <span className="text-muted">{marker}</span> : null;
 }

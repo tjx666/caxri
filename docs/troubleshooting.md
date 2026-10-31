@@ -33,7 +33,14 @@ the copy in Applications rather than the app inside the mounted disk image.
 
 Caxri runs your installed Agent CLI; it does not bundle one. Install the CLI and confirm it works in
 Terminal, then in **Settings → Agents** open the Agent and set **Executable** to its full path (for
-example the output of `which claude`). Restart the Agent Terminal afterwards.
+example the output of `which claude`). Restart the Agent Terminal afterwards. The New Session and New
+Terminal menus mark such an Agent **Not installed**.
+
+## Agent reads "Sign in required"
+
+The Agent's CLI is installed but reported that it is signed out (Claude Code and Codex answer this;
+other Agents never show the mark). Sign in from a Terminal with `claude auth login` or
+`codex login`, then reopen the menu; the mark clears within about 30 seconds.
 
 ## Caxri couldn't start its background service
 

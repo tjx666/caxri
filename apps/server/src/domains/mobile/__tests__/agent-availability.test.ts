@@ -86,6 +86,7 @@ describe('desktop Agent availability', () => {
                 getSettings: () => ({ value: defaultAppSettings }),
             } as unknown as ConfigService,
             discover,
+            signIn: { read: () => Promise.resolve('signedIn') },
         });
         const result = await handler();
         expect(result.providers).toEqual([
@@ -95,5 +96,29 @@ describe('desktop Agent availability', () => {
             { kind: 'antigravity', available: false },
         ]);
         expect(JSON.stringify(result)).not.toContain('/fixture/bin');
+    });
+
+    it('marks an installed Agent that reported itself signed out, and only that one', async () => {
+        const signIn = vi.fn((provider: string) =>
+            Promise.resolve(provider === 'claude' ? ('signedOut' as const) : ('unknown' as const)),
+        );
+        const handler = createAgentAvailabilityHandler({
+            configuration: {
+                getSettings: () => ({ value: defaultAppSettings }),
+            } as unknown as ConfigService,
+            discover: (provider: string) =>
+                Promise.resolve(provider === 'grok' ? undefined : `/fixture/bin/${provider}`),
+            signIn: { read: signIn },
+        });
+        await expect(handler()).resolves.toEqual({
+            providers: [
+                { kind: 'claude', available: true, needsSignIn: true },
+                { kind: 'codex', available: true },
+                { kind: 'grok', available: false },
+                { kind: 'antigravity', available: true },
+            ],
+        });
+        // A missing CLI is never asked about its sign-in.
+        expect(signIn.mock.calls.map(([provider]) => provider)).not.toContain('grok');
     });
 });

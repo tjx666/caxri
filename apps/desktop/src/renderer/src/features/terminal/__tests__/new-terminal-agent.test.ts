@@ -5,7 +5,8 @@ import { describe, expect, it } from 'vitest';
 import { translate } from '../../../i18n';
 import {
     agentChoiceMarker,
-    agentInstallHint,
+    agentReadinessHint,
+    agentReadinessIssues,
     isSameNewTerminalTarget,
     newAgentSurface,
     newSessionActionLabel,
@@ -16,7 +17,6 @@ import {
     newTerminalCommandTarget,
     resolveNewTerminalAgent,
     resolveNewTerminalTarget,
-    unavailableAgentKinds,
 } from '../new-terminal-agent';
 
 const CATALOG_ORDER: TerminalKind[] = [...agentProviderIds, 'shell'];
@@ -115,7 +115,7 @@ describe('newTerminalAgentChoices', () => {
 
     it('marks the configured default and nothing else', () => {
         expect(newTerminalAgentChoices('grok', false).filter((choice) => choice.isDefault)).toEqual(
-            [{ isDefault: true, isUnavailable: false, kind: 'grok', surface: 'pty' }],
+            [{ isDefault: true, issue: undefined, kind: 'grok', surface: 'pty' }],
         );
     });
 
@@ -222,55 +222,79 @@ describe('agentChoiceMarker', () => {
     });
 });
 
-describe('Agent availability annotations', () => {
+describe('Agent readiness annotations', () => {
     const availability = {
         providers: [
             { kind: 'claude', available: false },
-            { kind: 'codex', available: true },
+            { kind: 'codex', available: true, needsSignIn: true },
             { kind: 'grok', available: false },
+            { kind: 'antigravity', available: true },
         ],
     } as const;
 
-    it('collects only the Agents the Server could not find', () => {
-        expect([...unavailableAgentKinds({ providers: [...availability.providers] })]).toEqual([
-            'claude',
-            'grok',
+    it('records a missing CLI and a signed-out CLI and nothing for ready Agents', () => {
+        expect([...agentReadinessIssues({ providers: [...availability.providers] })]).toEqual([
+            ['claude', 'notInstalled'],
+            ['codex', 'signInRequired'],
+            ['grok', 'notInstalled'],
         ]);
     });
 
     it('annotates nothing before the query answers or when it fails', () => {
-        expect(unavailableAgentKinds(undefined).size).toBe(0);
+        expect(agentReadinessIssues(undefined).size).toBe(0);
     });
 
-    it('keeps every Agent listed in catalog order and only flags the missing ones', () => {
-        const unavailable = unavailableAgentKinds({ providers: [...availability.providers] });
-        const choices = newTerminalAgentChoices('codex', false, unavailable);
+    it('keeps every Agent listed in catalog order and only flags the ones that cannot start', () => {
+        const readiness = agentReadinessIssues({ providers: [...availability.providers] });
+        const choices = newTerminalAgentChoices('codex', false, readiness);
         expect(choices.map(({ kind }) => kind)).toEqual(CATALOG_ORDER);
         expect(
-            choices.filter(({ isUnavailable }) => isUnavailable).map(({ kind }) => kind),
-        ).toEqual(['claude', 'grok']);
+            choices
+                .filter(({ issue }) => issue !== undefined)
+                .map(({ kind, issue }) => [kind, issue]),
+        ).toEqual([
+            ['claude', 'notInstalled'],
+            ['codex', 'signInRequired'],
+            ['grok', 'notInstalled'],
+        ]);
     });
 
-    it('puts the Not installed suffix first and leaves installed rows unchanged', () => {
+    it('puts the readiness suffix first and leaves ready rows unchanged', () => {
         expect(
-            agentChoiceMarker({ isDefault: false, isUnavailable: true, surface: 'pty' }, translate),
+            agentChoiceMarker(
+                { isDefault: false, issue: 'notInstalled', surface: 'pty' },
+                translate,
+            ),
         ).toBe('Not installed');
         expect(
-            agentChoiceMarker({ isDefault: true, isUnavailable: true, surface: 'chat' }, translate),
+            agentChoiceMarker(
+                { isDefault: true, issue: 'notInstalled', surface: 'chat' },
+                translate,
+            ),
         ).toBe('Not installed · Chat · Default');
         expect(
             agentChoiceMarker(
-                { isDefault: true, isUnavailable: false, surface: 'chat' },
+                { isDefault: false, issue: 'signInRequired', surface: 'chat' },
                 translate,
             ),
-        ).toBe('Chat · Default');
+        ).toBe('Sign in required · Chat');
+        expect(agentChoiceMarker({ isDefault: true, surface: 'chat' }, translate)).toBe(
+            'Chat · Default',
+        );
     });
 
-    it('offers an install hint for each Agent CLI and none for Shell', () => {
-        expect(agentInstallHint('claude', translate)).toContain('Claude Code');
-        expect(agentInstallHint('codex', translate)).toContain('@openai/codex');
-        expect(agentInstallHint('grok', translate)).toContain('Grok Build');
-        expect(agentInstallHint('antigravity', translate)).toContain('antigravity.google');
-        expect(agentInstallHint('shell', translate)).toBeUndefined();
+    it('offers an install hint for each Agent CLI, a sign-in hint where the CLI has a command, and none for Shell', () => {
+        expect(agentReadinessHint('claude', 'notInstalled', translate)).toContain('Claude Code');
+        expect(agentReadinessHint('codex', 'notInstalled', translate)).toContain('@openai/codex');
+        expect(agentReadinessHint('grok', 'notInstalled', translate)).toContain('Grok Build');
+        expect(agentReadinessHint('antigravity', 'notInstalled', translate)).toContain(
+            'antigravity.google',
+        );
+        expect(agentReadinessHint('shell', 'notInstalled', translate)).toBeUndefined();
+        expect(agentReadinessHint('claude', 'signInRequired', translate)).toContain(
+            'claude auth login',
+        );
+        expect(agentReadinessHint('codex', 'signInRequired', translate)).toContain('codex login');
+        expect(agentReadinessHint('claude', undefined, translate)).toBeUndefined();
     });
 });
