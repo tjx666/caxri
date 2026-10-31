@@ -33,6 +33,7 @@ export const commandIds = [
     'session.delete',
     'session.archive',
     'session.compactWarm',
+    'session.interruptAndCompact',
     'session.enterAirplaneMode',
     'session.detach',
     'session.resume',

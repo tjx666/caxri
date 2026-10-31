@@ -26,7 +26,10 @@ import {
     sessionReopenConversationParametersSchema,
     sessionReopenConversationResultSchema,
 } from './session-agent-history.js';
-import { sessionCompactionResultSchema } from './session-compaction.js';
+import {
+    sessionCompactionResultSchema,
+    sessionInterruptCompactionResultSchema,
+} from './session-compaction.js';
 import {
     sessionConversationReferenceParametersSchema,
     sessionConversationReferenceResultSchema,
@@ -78,6 +81,15 @@ export const sessionMethods = {
         ...commandPolicy('server', 'control'),
         params: z.object({}),
         result: sessionCompactionResultSchema,
+    },
+    /**
+     * Interrupts every running Agent turn, then runs `session.compactWarm`; nothing is stopped and interrupted Agents
+     * stay idle (docs/session-compaction.md#interrupt-and-compact). Refused with `CONFLICT` while Airplane Mode is on.
+     */
+    'session.interruptAndCompact': {
+        ...commandPolicy('server', 'control'),
+        params: z.object({}),
+        result: sessionInterruptCompactionResultSchema,
     },
     /**
      * Airplane Mode (docs/airplane-mode.md): interrupts running turns and compacts eligible Sessions, then stops every

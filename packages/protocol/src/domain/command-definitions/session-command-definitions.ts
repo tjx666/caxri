@@ -51,6 +51,14 @@ export const sessionCommandDefinitions: CommandDefinition[] = [
         keywords: ['warm cache', 'prompt cache', 'compact', 'context'],
     },
     {
+        id: 'session.interruptAndCompact',
+        title: 'Interrupt and Compact All Sessions',
+        category: 'Session',
+        description:
+            'Interrupt every running Agent turn and compact the conversations at once, leaving the Agents idle',
+        keywords: ['stop', 'interrupt', 'compact', 'context', 'pause'],
+    },
+    {
         id: 'session.enterAirplaneMode',
         title: 'Enter Airplane Mode',
         category: 'Session',

@@ -5,7 +5,8 @@ status: current
 
 # Session compaction
 
-Caxri compacts Agent conversations in two ways: a batch command the user runs, and idle compaction
+Caxri compacts Agent conversations in three ways: a batch command the user runs, the same batch after
+interrupting every running turn ([Interrupt and compact](#interrupt-and-compact)), and idle compaction
 that Server Core runs for a large Claude Code or Grok Build Chat shortly before its prompt cache
 expires ([Idle Chat compaction](#idle-chat-compaction)).
 
@@ -25,6 +26,19 @@ history. One failed Session does not prevent the remaining Sessions from being c
 every Agent, and waits for the submitted compactions to finish. A PTY turn it interrupted with a
 provably empty composer has no idle proof (an interrupt sends no `Stop`), so its empty-composer
 proof stands in for one.
+
+## Interrupt and compact
+
+**Session: Interrupt and Compact All Sessions** compacts now, without waiting for turns to end or for
+the prompt cache to near expiry, and without stopping anything. Server Core
+(`SessionInterruptCompaction` in `apps/server/src/domains/session/interrupt-compaction.ts`) interrupts
+every running primary Agent turn the way [Airplane Mode](airplane-mode.md#entering) does (a Chat's
+Stop, or a standalone Escape to a PTY whose composer is provably empty; any other PTY turn keeps
+running), waits up to 15 seconds for those turns to settle, then runs the batch above. The
+interrupted Agents stay idle afterwards; nothing tells them to continue. The notification leads with
+the number of interrupted turns. The command is refused while Airplane Mode is on, and each run logs
+`session.interrupt_compaction` with its running, interrupted, and submitted counts, whether every
+interrupted turn settled, and its duration.
 
 ## Cache estimates
 

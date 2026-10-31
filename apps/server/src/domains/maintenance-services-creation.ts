@@ -6,7 +6,7 @@ import type { DomainHandlers } from './domain-services';
 import type { SessionParkingOptions } from './parking-handlers';
 import { detachSessionAgents } from './parking-handlers';
 import { isPtyTerminal } from './pty-guard';
-import { AirplaneMode, SessionCompaction } from './session';
+import { AirplaneMode, SessionCompaction, SessionInterruptCompaction } from './session';
 import type { TerminalSuspensionService } from './terminal';
 import { createInterruptedTerminalRestorer, TerminalRestoreSupervisor } from './terminal';
 
@@ -35,10 +35,11 @@ const AIRPLANE_CANCEL_CONTINUE_PROMPT =
 
 /**
  * Owns the Session maintenance slice: the batch compaction (`session.compactWarm`) and Airplane Mode
- * (docs/airplane-mode.md), which compacts through it before parking. Create: the Airplane Mode service, its own restore
- * supervisor (resuming Sessions one after another must not abort the selected Session's restore), and the launch fence
- * on Terminal suspension. Start: finishes an entry or resume a previous Server Core left unfinished. Close: stops the
- * wait and any resume still running.
+ * (docs/airplane-mode.md), which compacts through it before parking, and interrupt and compact
+ * (`session.interruptAndCompact`), which shares Airplane Mode's interrupt. Create: the Airplane Mode service, its own
+ * restore supervisor (resuming Sessions one after another must not abort the selected Session's restore), and the
+ * launch fence on Terminal suspension. Start: finishes an entry or resume a previous Server Core left unfinished.
+ * Close: stops the wait and any resume still running.
  */
 export function createSessionMaintenanceServices(options: {
     agentChat: AgentChatService;
@@ -93,6 +94,26 @@ export function createSessionMaintenanceServices(options: {
         coordinator.observeInput(terminalId, '\u{1B}');
         return true;
     };
+    /**
+     * Interrupts the Session's running turn without stopping its Agent, so the batch compaction can reach it.
+     */
+    const didInterruptTurn = async (sessionId: string): Promise<boolean> => {
+        const terminal = primaryAgent(sessionId);
+        if (!terminal) return false;
+        if (isPtyTerminal(terminal))
+            return (
+                database.getSession(sessionId)?.agentActivityState === 'running' &&
+                didInterruptPty(terminal.id, terminal.provider)
+            );
+        if (!agentChat.hasActiveTurn(terminal.id)) return false;
+        await agentChat.interrupt(terminal.id);
+        return true;
+    };
+    const isTurnRunning = (sessionId: string): boolean => {
+        const terminal = primaryAgent(sessionId);
+        if (terminal && !isPtyTerminal(terminal)) return agentChat.hasActiveTurn(terminal.id);
+        return database.getSession(sessionId)?.agentActivityState === 'running';
+    };
     const restores = new TerminalRestoreSupervisor();
     const restoreSession = createInterruptedTerminalRestorer({
         ...options.restorerOptions,
@@ -124,23 +145,8 @@ export function createSessionMaintenanceServices(options: {
             // (`agentBackgroundWork`); a dev server left running in the background does not count.
             return coordinator.agentOperation(terminal.id) === 'background';
         },
-        interrupt: async (sessionId) => {
-            const terminal = primaryAgent(sessionId);
-            if (!terminal) return false;
-            if (isPtyTerminal(terminal))
-                return (
-                    database.getSession(sessionId)?.agentActivityState === 'running' &&
-                    didInterruptPty(terminal.id, terminal.provider)
-                );
-            if (!agentChat.hasActiveTurn(terminal.id)) return false;
-            await agentChat.interrupt(terminal.id);
-            return true;
-        },
-        isTurnRunning: (sessionId) => {
-            const terminal = primaryAgent(sessionId);
-            if (terminal && !isPtyTerminal(terminal)) return agentChat.hasActiveTurn(terminal.id);
-            return database.getSession(sessionId)?.agentActivityState === 'running';
-        },
+        interrupt: didInterruptTurn,
+        isTurnRunning,
         continueLive: async (sessionId) => {
             const terminal = primaryAgent(sessionId);
             if (!terminal) return;
@@ -186,6 +192,18 @@ export function createSessionMaintenanceServices(options: {
         publish: (state) => send({ event: 'session.airplaneModeChanged', payload: state }),
         logger,
     });
+    const interruptCompaction = new SessionInterruptCompaction({
+        listSessionIds: () =>
+            database
+                .listVisibleSessions()
+                .filter((session) => session.archivedAt === undefined)
+                .map((session) => session.id),
+        isTurnRunning,
+        interrupt: didInterruptTurn,
+        compact: (signal) => compaction.run(signal),
+        isAirplaneModeActive: () => airplaneMode.status().phase !== 'off',
+        logger,
+    });
     options.terminalSuspension.setAirplaneFence({
         holds: () => airplaneMode.holds(),
         parked: (sessionId) => airplaneMode.noteParked(sessionId),
@@ -196,9 +214,11 @@ export function createSessionMaintenanceServices(options: {
         | 'session.compactWarm'
         | 'session.enterAirplaneMode'
         | 'session.exitAirplaneMode'
+        | 'session.interruptAndCompact'
         | 'session.skipAirplaneModeCompaction'
     > = {
         'session.compactWarm': (_parameters, signal) => compaction.run(signal),
+        'session.interruptAndCompact': (_parameters, signal) => interruptCompaction.run(signal),
         'session.enterAirplaneMode': () => airplaneMode.enter(),
         'session.skipAirplaneModeCompaction': () => airplaneMode.skipCompaction(),
         'session.exitAirplaneMode': ({ sessionIds }) => airplaneMode.exit(sessionIds),

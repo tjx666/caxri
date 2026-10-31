@@ -1,4 +1,8 @@
-import type { SessionCompactionOutcome, SessionCompactionResult } from '@caxri/protocol';
+import type {
+    SessionCompactionOutcome,
+    SessionCompactionResult,
+    SessionInterruptCompactionResult,
+} from '@caxri/protocol';
 
 import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
@@ -40,18 +44,36 @@ export function describeSessionCompaction(result: SessionCompactionResult): stri
 }
 
 /**
- * One palette action scans all visible Sessions; the Server owns eligibility and generation checks.
+ * Prefixes the batch description with how many running turns were interrupted first, when any were.
  */
-export async function compactWarmSessions(): Promise<void> {
+export function describeInterruptCompaction(result: SessionInterruptCompactionResult): string {
+    const description = describeSessionCompaction(result);
+    if (result.interrupted === 0) return description;
+    const interrupted = translate(
+        result.interrupted === 1
+            ? 'session.compaction.interruptedOne'
+            : 'session.compaction.interruptedOther',
+        { count: result.interrupted },
+    );
+    return `${interrupted} ${description}`;
+}
+
+/**
+ * Both palette actions scan all visible Sessions and share one in-flight guard; the Server owns eligibility and
+ * generation checks.
+ */
+async function runCompactionBatch<Result extends SessionCompactionResult>(
+    progressKey: 'session.compaction.interruptProgress' | 'session.compaction.progress',
+    request: () => Promise<Result>,
+    describe: (result: Result) => string,
+): Promise<void> {
     if (batch.running) return;
     batch.running = true;
     // Captured once so dismissal matches the exact text that was shown, even if the language changes mid-batch.
-    const progressMessage = translate('session.compaction.progress');
+    const progressMessage = translate(progressKey);
     pushToast('info', progressMessage, { history: false });
     try {
-        const result = await tryCommand(translate('session.compaction.failed'), () =>
-            caxri.request('session.compactWarm', {}),
-        );
+        const result = await tryCommand(translate('session.compaction.failed'), request);
         dismissToastsMatching((message) => message === progressMessage);
         if (result)
             pushToast(
@@ -60,10 +82,29 @@ export async function compactWarmSessions(): Promise<void> {
                 )
                     ? 'warning'
                     : 'info',
-                describeSessionCompaction(result),
+                describe(result),
             );
     } finally {
         dismissToastsMatching((message) => message === progressMessage);
         batch.running = false;
     }
+}
+
+export async function compactWarmSessions(): Promise<void> {
+    await runCompactionBatch(
+        'session.compaction.progress',
+        () => caxri.request('session.compactWarm', {}),
+        describeSessionCompaction,
+    );
+}
+
+/**
+ * Interrupts every running turn first; the interrupted Agents stay idle afterwards.
+ */
+export async function interruptAndCompactSessions(): Promise<void> {
+    await runCompactionBatch(
+        'session.compaction.interruptProgress',
+        () => caxri.request('session.interruptAndCompact', {}),
+        describeInterruptCompaction,
+    );
 }

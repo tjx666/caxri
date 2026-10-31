@@ -151,6 +151,7 @@ export const commandDefinitions: CommandDefinition[] = [
     fromCatalog('session.renameWithAi', (context) => context.session.renameSelectedWithAi()),
     fromCatalog('session.archive', (context) => context.session.archiveSelected()),
     fromCatalog('session.compactWarm', (context) => context.session.compactWarm()),
+    fromCatalog('session.interruptAndCompact', (context) => context.session.interruptAndCompact()),
     fromCatalog('session.enterAirplaneMode', (context) => context.session.enterAirplaneMode()),
     fromCatalog('session.detach', (context) => context.session.detachSelected()),
     fromCatalog('session.resume', (context) => context.session.resumeSelected()),

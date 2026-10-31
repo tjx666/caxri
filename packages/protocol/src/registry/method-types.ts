@@ -320,6 +320,7 @@ export const effectfulCommandRecovery = {
     'session.archive': 'durable',
     'session.confirmArchiveWorktree': 'memory',
     'session.compactWarm': 'memory',
+    'session.interruptAndCompact': 'memory',
     'session.enterAirplaneMode': 'durable',
     'session.skipAirplaneModeCompaction': 'memory',
     'session.exitAirplaneMode': 'durable',

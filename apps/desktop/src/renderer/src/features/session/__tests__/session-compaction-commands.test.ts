@@ -1,7 +1,10 @@
 import type { SessionCompactionOutcome, SessionCompactionResult } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { describeSessionCompaction } from '../session-compaction-commands';
+import {
+    describeInterruptCompaction,
+    describeSessionCompaction,
+} from '../session-compaction-commands';
 
 function resultOf(outcomes: SessionCompactionOutcome[], deferred = 0): SessionCompactionResult {
     return {
@@ -43,6 +46,23 @@ describe('describeSessionCompaction', () => {
     it('drops the deferred count when nothing was deferred', () => {
         expect(describeSessionCompaction(resultOf(['submitted', 'not_running']))).toBe(
             'Compaction requested for 1 Session. Skipped: 1 Agent stopped.',
+        );
+    });
+});
+
+describe('describeInterruptCompaction', () => {
+    it('leads with the interrupted turns', () => {
+        expect(
+            describeInterruptCompaction({
+                ...resultOf(['submitted', 'submitted']),
+                interrupted: 1,
+            }),
+        ).toBe('Interrupted 1 running turn. Compaction requested for 2 Sessions.');
+    });
+
+    it('matches the batch description when nothing was interrupted', () => {
+        expect(describeInterruptCompaction({ ...resultOf(['busy']), interrupted: 0 })).toBe(
+            describeSessionCompaction(resultOf(['busy'])),
         );
     });
 });
