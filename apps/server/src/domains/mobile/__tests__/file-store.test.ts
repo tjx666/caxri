@@ -166,4 +166,56 @@ describe('MobileFileStore', () => {
         expect(() => store.paths('device:1', 'session-one', [attachmentId('d')])).toThrow();
         await vi.waitFor(async () => expect(await readdir(root)).toEqual([]));
     });
+    const uploadTiny = async (store: MobileFileStore, id: string) => {
+        const { path } = await store.upload({
+            attachmentId: id,
+            name: 'a.txt',
+            owner: 'device:1',
+            sessionId: 'session-one',
+            size: 1,
+            chunkIndex: 0,
+            chunk: Buffer.from('a').toString('base64'),
+        });
+        return path!;
+    };
+    const idOf = (index: number) => `file_${index.toString(16).padStart(32, '0')}`;
+
+    it('keeps a cited file past its hour but deletes an uncited one', async () => {
+        const { store } = await newStore();
+        // Installed before the uploads so their expiry timers are the fake ones.
+        vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+        let uncited: string;
+        try {
+            const cited = await uploadTiny(store, idOf(1));
+            uncited = await uploadTiny(store, idOf(2));
+            expect(store.paths('device:1', 'session-one', [idOf(1)])).toEqual([cited]);
+            vi.advanceTimersByTime(3 * 60 * 60_000);
+            expect(store.paths('device:1', 'session-one', [idOf(1)])).toEqual([cited]);
+            expect(() => store.paths('device:1', 'session-one', [idOf(2)])).toThrow();
+        } finally {
+            vi.useRealTimers();
+        }
+        const root = dirname(dirname(uncited));
+        await vi.waitFor(async () => {
+            const entries = await readdir(root);
+            expect(entries).toEqual([idOf(1)]);
+        });
+    });
+
+    it('frees the quota of cited files and evicts the oldest only when the room is needed', async () => {
+        const { store } = await newStore();
+        const paths: string[] = [];
+        for (let index = 1; index <= 64; index += 1) {
+            // eslint-disable-next-line no-await-in-loop -- Sequential uploads fill the quota in order.
+            paths.push(await uploadTiny(store, idOf(index)));
+        }
+        await expect(uploadTiny(store, idOf(65))).rejects.toMatchObject({ code: 'CAPACITY' });
+        const allIds = Array.from({ length: 64 }, (_, index) => idOf(index + 1));
+        store.paths('device:1', 'session-one', allIds);
+        // Every sent file left the quota, so the next upload fits; the cited files stay readable meanwhile.
+        const fresh = await uploadTiny(store, idOf(65));
+        expect(store.paths('device:1', 'session-one', [idOf(65)])).toEqual([fresh]);
+        expect(() => store.paths('device:1', 'session-one', [idOf(1)])).toThrow();
+        expect(store.paths('device:1', 'session-one', [idOf(2)])).toEqual([paths[1]]);
+    });
 });

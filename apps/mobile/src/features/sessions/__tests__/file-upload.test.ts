@@ -3,7 +3,7 @@ import { Buffer } from 'node:buffer';
 import { MOBILE_FILE_CHUNK_BYTES } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
-import { encodeBase64, uploadFileChunks } from '../file-upload';
+import { chunkRetryDelayMs, encodeBase64, uploadFileChunks } from '../file-upload';
 
 describe('encodeBase64', () => {
     it.each([0, 1, 2, 3, 4, 5, 255, 1_000])('matches Node for %i bytes', (length) => {
@@ -86,5 +86,62 @@ describe('uploadFileChunks', () => {
             }),
         ).rejects.toThrow('offline');
         expect(failing.mock.calls.length).toBeLessThan(10);
+    });
+
+    it('sends a chunk again after a transient failure, with a growing pause', async () => {
+        const calls = new Map<number, number>();
+        const waits: number[] = [];
+        const path = await uploadFileChunks({
+            size: MOBILE_FILE_CHUNK_BYTES * 3,
+            isCancelled: () => false,
+            maxAttempts: 3,
+            onProgress: () => {},
+            readChunk: (index) => `c${index}`,
+            sendChunk: (index) => {
+                const attempt = (calls.get(index) ?? 0) + 1;
+                calls.set(index, attempt);
+                if (index === 1 && attempt < 3) return Promise.reject(new Error('blink'));
+                return Promise.resolve(
+                    index === 2 ? { ready: true, path: '/tmp/f/x' } : { ready: false },
+                );
+            },
+            wait: (ms) => {
+                waits.push(ms);
+                return Promise.resolve();
+            },
+        });
+        expect(path).toBe('/tmp/f/x');
+        expect(calls.get(1)).toBe(3);
+        expect(waits).toEqual([chunkRetryDelayMs(1), chunkRetryDelayMs(2)]);
+    });
+
+    it('gives up after the last attempt or when the error is not worth retrying', async () => {
+        const always = vi.fn(() => Promise.reject(new Error('down')));
+        await expect(
+            uploadFileChunks({
+                size: 1,
+                isCancelled: () => false,
+                maxAttempts: 3,
+                onProgress: () => {},
+                readChunk: () => 'x',
+                sendChunk: always,
+                wait: () => Promise.resolve(),
+            }),
+        ).rejects.toThrow('down');
+        expect(always).toHaveBeenCalledTimes(3);
+        const refused = vi.fn(() => Promise.reject(new Error('no')));
+        await expect(
+            uploadFileChunks({
+                size: 1,
+                isCancelled: () => false,
+                maxAttempts: 3,
+                onProgress: () => {},
+                readChunk: () => 'x',
+                sendChunk: refused,
+                shouldRetry: () => false,
+                wait: () => Promise.resolve(),
+            }),
+        ).rejects.toThrow('no');
+        expect(refused).toHaveBeenCalledTimes(1);
     });
 });

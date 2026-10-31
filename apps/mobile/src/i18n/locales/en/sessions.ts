@@ -141,6 +141,8 @@ export const sessions = {
         'Sessions appear once this app and Caxri on your computer match.',
     'sessions.home.versionMismatchTitle': 'Update required',
     'sessions.file.attachFailedTitle': 'Unable to attach file',
+    'sessions.file.capacity':
+        'Your computer is holding too many uploaded files right now. Try again in a moment.',
     'sessions.file.expired': 'This file expired on your computer. Retry to upload it again.',
     'sessions.file.label': '{{name}}, {{size}}',
     'sessions.file.labelFailed': '{{label}}, upload failed',
@@ -161,6 +163,7 @@ export const sessions = {
     'sessions.image.expired': 'This image expired on your computer. Remove it and attach it again.',
     'sessions.image.failedHint': 'Shows why the upload failed, with Retry and Remove.',
     'sessions.image.invalid': 'This image could not be prepared for upload.',
+    'sessions.image.limit': 'Up to {{count}} images per message.',
     'sessions.image.position': 'Image {{index}} of {{count}}',
     'sessions.image.positionFailed': '{{position}}, upload failed',
     'sessions.image.positionPreparing': '{{position}}, preparing',

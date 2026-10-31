@@ -47,6 +47,11 @@ interface Upload {
     path?: string;
     completing?: Promise<void>;
     expiresAt: number;
+    /**
+     * Set once a message cited the file. A cited file no longer expires and no longer counts against the quota; it is
+     * evicted, oldest first, only when a new upload needs the room.
+     */
+    citedAt?: number;
     timer?: ReturnType<typeof setTimeout>;
 }
 
@@ -54,6 +59,8 @@ interface Upload {
  * Files of any type a phone uploads for an Agent to read. Unlike `MobileImageStore`, chunks go straight to disk because
  * a phone video runs to many megabytes. A completed file sits at `<root>/<attachmentId>/<name>`, so the Agent sees the
  * name the user picked, and stays for an hour for a message to cite it, including when the send receipt is uncertain.
+ * Once a message cited it, it stays until the Server restarts or a later upload needs its room, because the Agent may
+ * read it again long after.
  */
 export class MobileFileStore {
     readonly #uploads = new Map<string, Upload>();
@@ -116,8 +123,38 @@ export class MobileFileStore {
         }
     }
 
+    /**
+     * Uploads that still count against the quota: everything except files a message already cited.
+     */
+    #quotaUploads(): Upload[] {
+        return this.#uploads
+            .values()
+            .filter((upload) => upload.citedAt === undefined)
+            .toArray();
+    }
+
     #retainedBytes(): number {
-        return this.#uploads.values().reduce((total, upload) => total + upload.size, 0);
+        return this.#quotaUploads().reduce((total, upload) => total + upload.size, 0);
+    }
+
+    /**
+     * Cited files are kept for the Agent, but never at the cost of refusing a new upload; and they still occupy disk,
+     * so past the same limits the oldest go first.
+     */
+    #evictCited(incomingSize: number): void {
+        const cited = this.#uploads
+            .entries()
+            .filter(([, upload]) => upload.citedAt !== undefined)
+            .toArray()
+            .toSorted(([, a], [, b]) => a.citedAt! - b.citedAt!);
+        let bytes = cited.reduce((total, [, upload]) => total + upload.size, 0);
+        let count = cited.length;
+        for (const [id, upload] of cited) {
+            if (count < MAX_COMPLETED_FILES && bytes + incomingSize <= MAX_RETAINED_BYTES) break;
+            this.#discard(id);
+            bytes -= upload.size;
+            count -= 1;
+        }
     }
 
     #start(parameters: {
@@ -128,7 +165,8 @@ export class MobileFileStore {
         size: number;
     }): Upload {
         const { attachmentId, name, owner, sessionId, size } = parameters;
-        const uploads = this.#uploads.values().toArray();
+        this.#evictCited(size + this.#retainedBytes());
+        const uploads = this.#quotaUploads();
         if (uploads.filter((item) => !item.path).length >= MAX_PENDING_UPLOADS)
             throw new CaxriError('CAPACITY', 'Too many pending mobile file uploads');
         if (uploads.filter((item) => item.path).length >= MAX_COMPLETED_FILES)
@@ -243,16 +281,26 @@ export class MobileFileStore {
      * cite it, and only in the Session it was uploaded to.
      */
     paths(owner: string, sessionId: string, attachmentIds: readonly string[]): string[] {
-        return attachmentIds.map((id) => {
+        const paths = attachmentIds.map((id) => {
             const upload = this.#uploads.get(id);
             if (
                 !upload?.path ||
                 upload.owner !== owner ||
                 upload.sessionId !== sessionId ||
-                upload.expiresAt <= Date.now()
+                (upload.citedAt === undefined && upload.expiresAt <= Date.now())
             )
                 throw new CaxriError('NOT_FOUND', 'File attachment is unavailable');
             return upload.path;
         });
+        // Marked only after every ID resolved, so a message that fails to cite one file does not pin the others.
+        for (const id of attachmentIds) {
+            const upload = this.#uploads.get(id)!;
+            if (upload.citedAt === undefined) {
+                upload.citedAt = Date.now();
+                clearTimeout(upload.timer);
+                upload.timer = undefined;
+            }
+        }
+        return paths;
     }
 }

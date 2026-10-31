@@ -2,6 +2,8 @@ import { MAX_MOBILE_FILE_BYTES } from '@caxri/protocol';
 
 import type { Translate } from '../../i18n';
 import { translate } from '../../i18n';
+import { mobileErrorMessage } from '../connection/mobile-error-message';
+import { MobileGatewayRequestError } from '../connection/mobile-gateway-errors';
 import { AttachmentStore } from './attachment-store';
 
 /**
@@ -68,6 +70,40 @@ export const expireFileAttachments = (
           )
         : attachments;
 };
+
+/**
+ * Milliseconds until the first ready file passes its reuse window, or `undefined` when none will. The composer sleeps
+ * until then and expires the file, so Send never offers a file the Server has already deleted.
+ */
+export const nextFileExpiryDelayMs = (
+    attachments: readonly FileAttachment[],
+    now: number,
+): number | undefined => {
+    const deadlines = attachments.flatMap((item) =>
+        item.state === 'ready' && item.uploadedAt !== undefined
+            ? [item.uploadedAt + FILE_ATTACHMENT_REUSE_MS]
+            : [],
+    );
+    return deadlines.length === 0 ? undefined : Math.max(0, Math.min(...deadlines) - now + 1);
+};
+
+/**
+ * Whether a failed chunk is worth sending again: a refusal with an explicit code (`VALIDATION`, `CAPACITY`, ...) will
+ * be refused again, while a timeout or a dropped connection is the network blinking.
+ */
+export const isTransientUploadError = (error: unknown): boolean =>
+    !(error instanceof MobileGatewayRequestError) ||
+    error.code === 'UNAVAILABLE' ||
+    error.code === 'TIMEOUT' ||
+    error.code === 'INTERNAL';
+
+/**
+ * Why a file upload failed, with a specific sentence when the computer is holding too many uploads.
+ */
+export const fileUploadFailureMessage = (error: unknown, t: Translate = translate): string =>
+    error instanceof MobileGatewayRequestError && error.code === 'CAPACITY'
+        ? t('sessions.file.capacity')
+        : mobileErrorMessage(error, t('sessions.image.uploadFailed'), t);
 
 /**
  * Why Send waits on the files, or `null` when every one is uploaded. A failed file blocks too, because sending without
