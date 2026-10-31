@@ -122,7 +122,8 @@ export type MobileControlRequest = Extract<
             | 'mobile.files.search'
             | 'mobile.files.write'
             | 'mobile.update.check'
-            | 'mobile.update.prepare';
+            | 'mobile.update.prepare'
+            | 'mobile.diagnostics.reportExit';
     }
 >;
 type MobileDesktopOperation = Extract<

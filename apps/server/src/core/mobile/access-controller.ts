@@ -27,6 +27,7 @@ import { invokeMobileBotInboxRequest } from './bot-inbox-requests';
 import { readMobileDashboard, showMobileSession } from './dashboard-requests';
 import { invokeMobileDesktopUpdateRequest } from './desktop-update-requests';
 import { MobileDeviceRegistry } from './device-registry';
+import { createMobileExitReports } from './exit-report';
 import { invokeMobileFileRequest } from './file-requests';
 import { MobileGateway } from './gateway';
 import { mobileHostDisplayName } from './host-display-name';
@@ -97,6 +98,7 @@ export const openMobileAccessController = (options: {
         registry,
     });
     const readHostStatus = createMobileHostStatusReader(options.logger);
+    const reportExit = createMobileExitReports(options.logger);
     let isClosed = false;
     let applyRelaySetting: (() => void) | undefined;
     const assertOpen = (): void => {
@@ -514,6 +516,10 @@ export const openMobileAccessController = (options: {
                     return updateRequests.invoke(request, (source) =>
                         activeGateway.prepareUpdateDownload(context, source),
                     );
+                }
+                case 'mobile.diagnostics.reportExit': {
+                    const principal = currentPairedPrincipal(context.principal, request.method);
+                    return reportExit(principal.deviceId, request.params);
                 }
                 case 'mobile.panels.list':
                 case 'mobile.tree.children':
