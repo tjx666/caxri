@@ -31,6 +31,7 @@ export const desktopUpdate: TranslatedNamespace<typeof source> = {
     'desktopUpdate.label': 'Caxri',
     'desktopUpdate.manualInstall': '这个更新需要在电脑上打开下载好的磁盘映像来安装。',
     'desktopUpdate.rateLimited': '请稍后再试',
+    'desktopUpdate.unpackaged': '开发版，不检查更新',
     'desktopUpdate.readyDetail': '已下载并校验。点按以重启电脑上的 Caxri。',
     'desktopUpdate.resetsData':
         '这个更新会清空你的 Project 和 Session 列表。请在电脑上安装，那里可以先导出它们。',

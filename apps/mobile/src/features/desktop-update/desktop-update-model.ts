@@ -40,6 +40,12 @@ export interface DesktopUpdateView {
 const isBusyCheck = (state: UpdateState): boolean =>
     state.status === 'checking' || state.status === 'downloading';
 
+/**
+ * A development build never checks, so asking it again is pointless and its answer is not a failure.
+ */
+const isUnpackaged = (state: UpdateState): boolean =>
+    state.status === 'unavailable' && state.reason === 'unpackaged';
+
 const versionNote = (state: UpdateState, t: Translate): string | undefined => {
     switch (state.status) {
         case 'checking':
@@ -47,7 +53,12 @@ const versionNote = (state: UpdateState, t: Translate): string | undefined => {
         case 'up-to-date':
             return t('update.upToDate');
         case 'unavailable':
-            return t(state.rateLimited ? 'desktopUpdate.rateLimited' : 'update.checkFailed');
+            if (state.reason === 'unpackaged') return t('desktopUpdate.unpackaged');
+            return t(
+                state.reason === 'rate-limited'
+                    ? 'desktopUpdate.rateLimited'
+                    : 'update.checkFailed',
+            );
         case 'error':
             return state.action === 'check' ? t('update.checkFailed') : undefined;
         case 'idle':
@@ -179,9 +190,12 @@ export const desktopUpdateView = (
     return {
         version: {
             canCheck:
-                !isBusyCheck(state) && state.status !== 'ready' && phase.kind !== 'restarting',
+                !isBusyCheck(state) &&
+                state.status !== 'ready' &&
+                !isUnpackaged(state) &&
+                phase.kind !== 'restarting',
             isFailure:
-                state.status === 'unavailable' ||
+                (state.status === 'unavailable' && !isUnpackaged(state)) ||
                 (state.status === 'error' && state.action === 'check'),
             value: [state.currentVersion, note].filter(Boolean).join(' · '),
         },

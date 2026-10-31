@@ -34,6 +34,21 @@ describe('desktop update model', () => {
         );
     });
 
+    it('does not offer a check on a development build', () => {
+        expect(
+            desktopUpdateView(
+                online({ status: 'unavailable', currentVersion: '0.0.3', reason: 'unpackaged' }),
+                { kind: 'idle' },
+            ),
+        ).toEqual({
+            version: {
+                canCheck: false,
+                isFailure: false,
+                value: '0.0.3 · Development build, updates off',
+            },
+        });
+    });
+
     it('moves an available update through download to a confirmed restart', () => {
         expect(
             desktopUpdateView(

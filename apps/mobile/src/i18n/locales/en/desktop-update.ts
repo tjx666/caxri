@@ -28,6 +28,7 @@ export const desktopUpdate = {
     'desktopUpdate.manualInstall':
         'Install this one on your computer by opening the downloaded disk image.',
     'desktopUpdate.rateLimited': 'Try again later',
+    'desktopUpdate.unpackaged': 'Development build, updates off',
     'desktopUpdate.readyDetail': 'Downloaded and verified. Tap to restart Caxri on your computer.',
     'desktopUpdate.resetsData':
         'This update clears your Projects and Sessions. Install it on your computer, where you can export them first.',
