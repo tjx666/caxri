@@ -7,7 +7,8 @@ status: current
 
 A paired Android phone updates itself from the Desktop it is paired with. Each Desktop release
 carries the matching release-signed arm64 APK, so a phone never needs `adb`, a cable, or a download
-site to follow Desktop.
+site to follow Desktop. The other direction, updating the computer from the phone, is
+[Updating the computer from the phone](desktop-update.md).
 
 ## Install from GitHub Releases
 

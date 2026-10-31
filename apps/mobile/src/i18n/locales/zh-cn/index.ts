@@ -9,6 +9,7 @@ import { common } from './common';
 import { components } from './components';
 import { connection } from './connection';
 import { conversation } from './conversation';
+import { desktopUpdate } from './desktop-update';
 import { hostStatus } from './host-status';
 import { inbox } from './inbox';
 import { pairing } from './pairing';
@@ -31,6 +32,7 @@ export const zhCNResources: TranslatedNamespace<typeof enResources> = {
     ...components,
     ...connection,
     ...conversation,
+    ...desktopUpdate,
     ...hostStatus,
     ...inbox,
     ...pairing,

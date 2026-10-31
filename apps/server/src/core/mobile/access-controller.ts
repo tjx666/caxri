@@ -7,6 +7,7 @@ import { assertNever, CaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 
 import type { MobileDeviceStore } from '../../domains/db';
+import type { ServerDesktopRouter } from '../desktop-router';
 import type { ServerDomainService } from '../domain-service';
 import type { ExtensionService } from '../extensions/service';
 import type { MobileAccessController } from './access-controller-contract';
@@ -24,6 +25,7 @@ import { invokeMobileAttentionRequest } from './attention-requests';
 import { createMobileAuthorityQueue } from './authority-queue';
 import { invokeMobileBotInboxRequest } from './bot-inbox-requests';
 import { readMobileDashboard, showMobileSession } from './dashboard-requests';
+import { invokeMobileDesktopUpdateRequest } from './desktop-update-requests';
 import { MobileDeviceRegistry } from './device-registry';
 import { invokeMobileFileRequest } from './file-requests';
 import { MobileGateway } from './gateway';
@@ -70,6 +72,10 @@ export const openMobileAccessController = (options: {
      * Directory holding the Android update bundle shipped with this Desktop build, when there is one.
      */
     updateDirectory?: string;
+    /**
+     * Reaches Desktop Main for `mobile.desktopUpdate.*`; unset (and so `offline`) until Server Core starts routing.
+     */
+    desktopRouter?: () => Pick<ServerDesktopRouter, 'installUpdate' | 'update'> | undefined;
 }): MobileAccessController => {
     const registry = MobileDeviceRegistry.open({ store: options.store });
     let gateway: MobileGateway | undefined;
@@ -442,6 +448,23 @@ export const openMobileAccessController = (options: {
                     const status = await readHostStatus(domainService);
                     currentPairedPrincipal(context.principal, request.method);
                     return status;
+                }
+                case 'mobile.desktopUpdate.read':
+                case 'mobile.desktopUpdate.download':
+                case 'mobile.desktopUpdate.install': {
+                    const invoke = async () => {
+                        assertOpen();
+                        currentPairedPrincipal(context.principal, request.method);
+                        return invokeMobileDesktopUpdateRequest(
+                            request,
+                            options.desktopRouter?.(),
+                            domainService,
+                        );
+                    };
+                    // The restart takes the authority order, so a revoke that lands first wins.
+                    return request.method === 'mobile.desktopUpdate.install'
+                        ? withAuthority(invoke)
+                        : invoke();
                 }
                 case 'mobile.files.write': {
                     /**

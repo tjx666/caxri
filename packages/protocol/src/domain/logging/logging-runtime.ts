@@ -239,5 +239,6 @@ export const serverCoreLogEvents = {
 
 export const updatesLogEvents = {
     install: 'updates.install',
+    remoteInstall: 'updates.remote_install',
     state: 'updates.state',
 } as const;

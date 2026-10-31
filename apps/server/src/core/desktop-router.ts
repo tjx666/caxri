@@ -5,15 +5,19 @@ import type {
     DesktopOperation,
     DesktopTargetPayload,
     EditorNavigationTarget,
+    RemoteUpdateInstallResult,
     ServerOperationParameters,
     ServerOperationResult,
+    UpdateState,
     WorkbenchRequestContext,
 } from '@caxri/protocol';
 import {
     CaxriError,
     isCaxriError,
     PATH_OUTSIDE_PROJECTS_MESSAGE,
+    remoteUpdateInstallResultSchema,
     SESSION_SELECTION_REQUIRED_MESSAGE,
+    updateStateSchema,
 } from '@caxri/protocol';
 
 import type { ServerDomainService } from '../core/domain-service';
@@ -92,6 +96,12 @@ function isDesktopConfirmationAccepted(result: unknown): boolean {
         throw new CaxriError('INTERNAL', 'Desktop returned an invalid confirmation');
     return result.confirmed;
 }
+
+const isUnsupportedDesktopUpdate = (result: unknown): boolean =>
+    typeof result === 'object' && result !== null && 'unsupported' in result;
+
+const invalidDesktopUpdate = () =>
+    new CaxriError('INTERNAL', 'Desktop returned an invalid update answer');
 
 function assertNotCancelled(signal?: AbortSignal): void {
     if (signal?.aborted) throw new CaxriError('CANCELLED', 'Desktop operation was cancelled');
@@ -293,6 +303,43 @@ export class ServerDesktopRouter {
         const lease = await this.requireLease(shouldLaunch);
         await this.options.bridge.invoke({ kind: 'focus' }, lease.generation);
         return { state: 'focused', generation: lease.generation };
+    }
+
+    /**
+     * Reads or advances Desktop Main's app update for a paired phone. Never launches Desktop: an update needs the Main
+     * that will restart, so `offline` is the answer when none is attached.
+     */
+    async update(
+        action: 'check' | 'download' | 'read',
+    ): Promise<UpdateState | 'offline' | 'unsupported'> {
+        const lease = this.options.bridge.lease();
+        if (!lease) return 'offline';
+        const result = await this.options.bridge.invoke(
+            { kind: 'update', action },
+            lease.generation,
+        );
+        if (isUnsupportedDesktopUpdate(result)) return 'unsupported';
+        const parsed = updateStateSchema.safeParse(result);
+        if (!parsed.success) throw invalidDesktopUpdate();
+        return parsed.data;
+    }
+
+    /**
+     * Asks Desktop Main to restart into the staged `version` the phone confirmed. Main answers before it starts
+     * quitting, so `restarting` reaches the phone ahead of the disconnect.
+     */
+    async installUpdate(version: string): Promise<RemoteUpdateInstallResult> {
+        const lease = this.options.bridge.lease();
+        if (!lease) return { outcome: 'blocked', reason: 'desktop-offline' };
+        const result = await this.options.bridge.invoke(
+            { kind: 'update', action: 'install', version },
+            lease.generation,
+        );
+        if (isUnsupportedDesktopUpdate(result))
+            return { outcome: 'blocked', reason: 'unsupported' };
+        const parsed = remoteUpdateInstallResultSchema.safeParse(result);
+        if (!parsed.success) throw invalidDesktopUpdate();
+        return parsed.data;
     }
 
     async discard(

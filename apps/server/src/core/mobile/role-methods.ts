@@ -238,6 +238,12 @@ const mobileGatewayMethodsByRole = {
          */
         'mobile.host.status',
         /**
+         * Restarting the computer's Caxri ends every running Terminal and Chat on it, beyond any one Project grant.
+         */
+        'mobile.desktopUpdate.read',
+        'mobile.desktopUpdate.download',
+        'mobile.desktopUpdate.install',
+        /**
          * A preview proxies every HTTP method to a local web server, so it can change that server's state like a
          * browser on the computer; it stays with the role that already drives Terminals.
          */

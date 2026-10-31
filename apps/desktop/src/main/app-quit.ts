@@ -11,9 +11,14 @@ export type AppQuitDecision = 'cancel' | 'keep-running' | 'stop';
 export type AppQuitOutcome = 'cancelled' | 'kept-running' | 'stop-failed' | 'stopped';
 /**
  * `update` is the `Restart to Update` quit: it asks only about what the restart ends, always stops Server Core (the
- * bundle it runs from is about to be replaced), and reopens Caxri on the new version.
+ * bundle it runs from is about to be replaced), and reopens Caxri on the new version. `remote-update` is the same
+ * restart started from a paired phone, which already showed what it ends: nobody may be at the computer, so it never
+ * prompts, and unsaved Editor buffers block it instead of asking.
  */
-export type AppQuitIntent = 'relaunch' | 'system-shutdown' | 'update' | 'user';
+export type AppQuitIntent = 'relaunch' | 'remote-update' | 'system-shutdown' | 'update' | 'user';
+
+const isUpdateRestart = (intent: AppQuitIntent): boolean =>
+    intent === 'update' || intent === 'remote-update';
 /**
  * Termination signals Main treats as an already accepted quit; see {@link resolveSignalQuit}.
  */
@@ -71,6 +76,11 @@ export interface AppQuitOptions {
      * saving (issue caxri#1631). See `decideUnsavedEditors` for its fail-open read and fail-closed save.
      */
     decideUnsavedEditors: () => Promise<'cancel' | 'continue'>;
+    /**
+     * The `remote-update` counterpart of {@link AppQuitOptions.decideUnsavedEditors}: saves what auto save can and
+     * resolves how many buffers are still unsaved, without a prompt. Any count above zero cancels the restart.
+     */
+    countUnsavedEditorsForRemoteUpdate: () => Promise<number>;
     detachAll: () => Promise<unknown>;
     exit: () => void;
     logFailure: (level: 'error' | 'warn', stage: AppQuitFailureStage, message: string) => void;
@@ -414,6 +424,9 @@ async function confirmReviewOnly(
  * restarts: unlike a quit, nothing traps the user, who can simply ask again.
  */
 async function decideUpdateRestart(options: AppQuitOptions): Promise<AppQuitDecision> {
+    // The phone confirmed what the restart ends before it asked; only a buffer saved nowhere still stops it.
+    if (options.quitIntent() === 'remote-update')
+        return (await options.countUnsavedEditorsForRemoteUpdate()) > 0 ? 'cancel' : 'stop';
     if ((await options.decideUnsavedEditors()) === 'cancel') return 'cancel';
     const [pendingReviewComments, status] = await Promise.all([
         readPendingReviewSummary(options),
@@ -443,7 +456,7 @@ async function decideUpdateRestart(options: AppQuitOptions): Promise<AppQuitDeci
  * {@link appQuitPrompt}, and the review-only prompt appears only when nothing is running to ask about.
  */
 async function decideAppQuit(options: AppQuitOptions): Promise<AppQuitDecision> {
-    if (options.quitIntent() === 'update') return decideUpdateRestart(options);
+    if (isUpdateRestart(options.quitIntent())) return decideUpdateRestart(options);
     if (options.quitIntent() !== 'user') return 'keep-running';
 
     if ((await options.decideUnsavedEditors()) === 'cancel') return 'cancel';
@@ -494,7 +507,7 @@ export async function resolveAppQuit(options: AppQuitOptions): Promise<AppQuitOu
         await attempt(options, 'disconnect', options.closeDesktop);
         // After a failed stop the installer still runs: the next launch replaces a Server Core left on the old build.
         await attempt(options, 'update', () =>
-            options.applyUpdate({ relaunch: options.quitIntent() === 'update' }),
+            options.applyUpdate({ relaunch: isUpdateRestart(options.quitIntent()) }),
         );
         options.exit();
         return stopFailure ? 'stop-failed' : 'stopped';

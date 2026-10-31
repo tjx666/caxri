@@ -211,6 +211,8 @@ export const effectfulCommandRecovery = {
     'mobile.project.reorder': 'durable',
     'mobile.files.write': 'memory',
     'mobile.update.prepare': 'memory',
+    'mobile.desktopUpdate.download': 'memory',
+    'mobile.desktopUpdate.install': 'memory',
     'mobile.preview.open': 'memory',
     'desktop.focus': 'durable',
     'desktop.openPath': 'durable',

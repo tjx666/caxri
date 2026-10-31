@@ -13,6 +13,11 @@ export interface DesktopOperationHandlers {
     openWithDefaultApp(path: string): Promise<void>;
     reveal(path: string): void;
     status(): 'background' | 'window';
+    /**
+     * The app update a paired phone drives. Absent where this Desktop does not own the app update (an SSH Host window),
+     * which answers `unsupported`.
+     */
+    update?(operation: Extract<DesktopOperation, { kind: 'update' }>): Promise<unknown>;
 }
 
 /**
@@ -53,6 +58,8 @@ async function handleDesktopOperation(
         }
         case 'confirmGitDiscard':
             return { confirmed: await handlers.confirmGitDiscard(operation.target) };
+        case 'update':
+            return handlers.update ? handlers.update(operation) : { unsupported: true };
         default:
             return assertNever(operation, 'Unhandled Desktop operation');
     }

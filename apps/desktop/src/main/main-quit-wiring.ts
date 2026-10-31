@@ -83,6 +83,7 @@ export function createMainQuitHandler(options: MainQuitWiringOptions) {
         },
         ...createAppQuitPromptOptions(dialog, options.focusedWindow),
         decideUnsavedEditors: () => options.unsavedEditors.decide('quit'),
+        countUnsavedEditorsForRemoteUpdate: () => options.unsavedEditors.countForRemoteUpdate(),
         detachAll: async () => {
             await options.sshHostEnvironments()?.detachTerminals();
             return server().request('terminal.detachAll');

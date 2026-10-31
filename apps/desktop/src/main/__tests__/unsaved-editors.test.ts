@@ -351,4 +351,19 @@ describe('createWorkbenchUnsavedEditors', () => {
 
         expect(dialog.showMessageBox).not.toHaveBeenCalled();
     });
+    it('counts every window for a phone restart without prompting or saving', async () => {
+        const { dialog, editors, requests } = setup({ 'main': 1, 'win-1': 2 });
+
+        await expect(editors.countForRemoteUpdate()).resolves.toBe(3);
+
+        expect(dialog.showMessageBox).not.toHaveBeenCalled();
+        expect(requests.some(({ action }) => action === 'saveAll')).toBe(false);
+        expect(requests.filter(({ action }) => action === 'reveal')).toHaveLength(2);
+    });
+
+    it('counts nothing for a phone restart when every buffer is saved', async () => {
+        const { editors } = setup({ main: 0 });
+
+        await expect(editors.countForRemoteUpdate()).resolves.toBe(0);
+    });
 });

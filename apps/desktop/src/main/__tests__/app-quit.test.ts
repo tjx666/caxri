@@ -17,6 +17,7 @@ function options(overrides: Partial<AppQuitOptions> = {}): AppQuitOptions {
         confirm: vi.fn().mockResolvedValue('keep-running'),
         confirmPendingReviewComments: vi.fn().mockResolvedValue('discard'),
         confirmUpdateRestart: vi.fn().mockResolvedValue('restart'),
+        countUnsavedEditorsForRemoteUpdate: vi.fn().mockResolvedValue(0),
         decideUnsavedEditors: vi.fn().mockResolvedValue('continue'),
         detachAll: vi.fn().mockResolvedValue(undefined),
         exit: vi.fn(),
@@ -440,6 +441,37 @@ describe('resolveAppQuit for Restart to Update', () => {
         await expect(resolveAppQuit(target)).resolves.toBe('cancelled');
 
         expect(target.stopServer).not.toHaveBeenCalled();
+    });
+
+    it('restarts for a phone without prompting, even while work is running', async () => {
+        const target = options({
+            quitIntent: () => 'remote-update',
+            readStatus: vi
+                .fn()
+                .mockResolvedValue({ running: { terminals: 2, chats: 1 }, clientCount: 2 }),
+            readPendingReviewComments: vi.fn().mockResolvedValue({ count: 3, groups: [] }),
+        });
+
+        await expect(resolveAppQuit(target)).resolves.toBe('stopped');
+
+        expect(target.decideUnsavedEditors).not.toHaveBeenCalled();
+        expect(target.confirmUpdateRestart).not.toHaveBeenCalled();
+        expect(target.confirm).not.toHaveBeenCalled();
+        expect(target.stopServer).toHaveBeenCalledOnce();
+        expect(target.applyUpdate).toHaveBeenCalledWith({ relaunch: true });
+    });
+
+    it('cancels a phone restart that unsaved Editor buffers would lose', async () => {
+        const target = options({
+            quitIntent: () => 'remote-update',
+            countUnsavedEditorsForRemoteUpdate: vi.fn().mockResolvedValue(2),
+        });
+
+        await expect(resolveAppQuit(target)).resolves.toBe('cancelled');
+
+        expect(target.acceptQuit).not.toHaveBeenCalled();
+        expect(target.stopServer).not.toHaveBeenCalled();
+        expect(target.exit).not.toHaveBeenCalled();
     });
 
     it('words the prompt around the restart and defaults to Cancel', () => {

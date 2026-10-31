@@ -26,7 +26,9 @@ shows the state and asks for the next step.
    with the `update` intent: unsaved editors are confirmed as usual, and running Terminals, Chats,
    other connected clients, or pending review comments raise a single **Restart and Update?**
    prompt. There is no keep-running choice: Server Core is stopped, because a Server from the old
-   build would be replaced on the next launch anyway.
+   build would be replaced on the next launch anyway. A paired phone can start the same restart
+   (see [Updating the computer from the phone](mobile/desktop-update.md)); it confirms on the
+   phone instead, so the computer skips these prompts and cancels only on unsaved editors.
 5. **Install on quit.** An ordinary quit that stops Server Core also installs a staged update, so
    the next launch is the new version, unless the update clears data (see
    [Updates that clear data](#updates-that-clear-data)). A quit that keeps tasks running in the background does not
@@ -93,3 +95,7 @@ phase with a closed `outcome`:
 `baseline-bumped` for a real database baseline upgrade, or `staged-unreadable` / `installed-unreadable`
 when a bundle's `CaxriSchemaBaseline` could not be read and the prompt appears as a fail-safe. An
 `apply` outcome other than `installed` is logged as an error.
+
+`updates.remote_install` logs each restart a paired phone requests, with `outcome` `restarting`
+or `blocked`. A blocked one is a warning carrying a closed `reason`: `not-ready`,
+`version-changed`, `resets-data`, `manual-install`, or `unsaved-editors`.

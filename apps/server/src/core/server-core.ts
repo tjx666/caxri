@@ -86,7 +86,8 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
     });
     // Fed by `ControlServer` and `MobileGateway` below into one aggregate for `docs/adr/0010-server-core-idle-exit.md`.
     const idleExitConnections = createIdleExitConnectionTracker();
-    const credentials = createServerCredentialAccess();
+    let desktopRouter: ServerDesktopRouter | undefined;
+    const credentials = createServerCredentialAccess({ desktopRouter: () => desktopRouter });
     logger.updateBaseContext({ bootId: lease.identity.processIdentity, buildId: options.buildId });
     const agentEndpoints = new AgentEndpointRegistry(lease.identity.processIdentity, { logger });
     let server: ControlServer | undefined;
@@ -115,7 +116,6 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         userDataPath: lease.paths.userDataPath,
     });
     let extensionService: ExtensionService | undefined;
-    let desktopRouter: ServerDesktopRouter | undefined;
     const requireDesktopRouter = (): ServerDesktopRouter => {
         if (!desktopRouter) throw new CaxriError('UNAVAILABLE', 'Desktop routing is unavailable');
         return desktopRouter;

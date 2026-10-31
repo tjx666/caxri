@@ -32,6 +32,7 @@ import {
     mobileChangesListResultSchema,
 } from './mobile-changes-contract.js';
 import { mobileDashboardSessionSchema } from './mobile-dashboard-session-contract.js';
+import { mobileDesktopUpdateMethods } from './mobile-desktop-update-contract.js';
 import {
     MAX_MOBILE_FILE_ATTACHMENTS,
     mobileFileAttachmentIdSchema,
@@ -76,6 +77,7 @@ export * from './mobile-attention-contract.js';
 export * from './mobile-bot-inbox-contract.js';
 export * from './mobile-changes-contract.js';
 export * from './mobile-dashboard-session-contract.js';
+export * from './mobile-desktop-update-contract.js';
 export { MOBILE_FILES_MAX_ENTRIES, MOBILE_FILES_READ_MAX_BYTES } from './mobile-file-limits.js';
 export * from './mobile-file-upload-contract.js';
 export * from './mobile-files-contract.js';
@@ -419,6 +421,7 @@ export const mobileMethods = {
     ...mobileUpdateMethods,
     ...mobileBotInboxMethods,
     ...mobileHostStatusMethods,
+    ...mobileDesktopUpdateMethods,
     ...mobilePreviewMethods,
     ...mobileVideoMethods,
 } as const satisfies Record<string, MethodSpec>;
