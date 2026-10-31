@@ -220,7 +220,7 @@ export function usageLimitedUntil(
  * before it resets, and the credits notice, shown while the weekly window is at the usage guard but the account keeps
  * working on credits.
  */
-const usageNoticeSchema = z.enum(['planPace', 'credits']);
+export const usageNoticeSchema = z.enum(['planPace', 'credits']);
 export type UsageNotice = z.infer<typeof usageNoticeSchema>;
 
 /**

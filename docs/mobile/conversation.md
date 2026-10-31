@@ -103,6 +103,18 @@ line stays. Unlike Desktop, the phone does not know the Server's idle-compaction
 never shows the "auto-compacts in" state and counts down to the expiry instead, and its dismissal
 is kept in memory per app run rather than shared with Desktop (Desktop's is also memory-only).
 
+**Usage limits.** The phone acts on usage limits as Desktop does, through the same Server Core
+methods ([Usage limits and cross-Agent continuation](../agent-usage-continuation.md)). A turn the
+plan's limit failed shows `Continue now` (or `Continue` once the reset passed) and `Cancel` beside
+its wait line (`mobile.agentChat.usageLimitWait`). While the account is at the weekly usage guard, a
+card at the top of the Chat offers `Generate hand-off` (with the document's progress, failure
+reason, and Copy), `Cancel` for the stopped turn's wait, and `Continue anyway`
+(`mobile.agentChat.generateHandoff`, `mobile.agentChat.bypassUsageGuard`). These need reply access
+and a connection; otherwise the buttons are disabled with the reason beneath them. An account working
+on credits past its weekly window gets Desktop's credits notice above the composer instead of the
+pace reminder; its close button hides it for a day on every Client
+(`mobile.agentChat.dismissUsageNotice`). Continuing in another Agent stays in the Session menu.
+
 **Cited files.** A file the conversation cites opens a read-only file viewer: a Markdown link to a
 local path, an inline code span or prose run that `@caxri/markdown/file-reference` recognizes as a
 file reference (the detection Desktop's Chat uses), or a file chip under a message. The viewer reads

@@ -73,7 +73,8 @@ export const chat = {
     'chat.disabled.send.failed': 'Retry the Chat before sending a message.',
     'chat.disabled.send.handedOff': 'Resume the Chat on your computer to send messages.',
     'chat.disabled.send.offline': 'Reconnect to send messages.',
-    'chat.disabled.send.usageGuard': 'Weekly usage is nearly used up. Hand off on your computer.',
+    'chat.disabled.send.usageGuard':
+        'Weekly usage is nearly used up. Hand off from the card above.',
     'chat.disabled.settings.offline': 'Reconnect to change the model and permissions.',
     'chat.dock.collapse': 'Fold the goal, activity, and queue into one row',
     'chat.dock.expand': 'Show the goal, activity, and queue rows',
@@ -125,10 +126,52 @@ export const chat = {
     'chat.usage.tokensCacheWrite': '{{count}} cache write',
     'chat.usage.tokensInput': '{{count}} input',
     'chat.usage.tokensOutput': '{{count}} output',
-    'chat.usageGuard.banner':
-        '{{provider}} weekly usage is at {{percent}}%. New requests are paused for {{reset}}, until it resets. Hand off to another Agent on your computer.',
+    'chat.creditsNotice.credits':
+        '{{provider}} weekly usage at {{percent}}%: requests continue on credits',
+    'chat.creditsNotice.creditsLeft':
+        '{{provider}} weekly usage at {{percent}}%: requests continue on credits, {{balance}} left',
+    'chat.creditsNotice.detail':
+        "New requests spend the account's credits until the weekly limit resets.",
+    'chat.creditsNotice.dismiss': 'Hide for a day',
+    'chat.creditsNotice.extraUsage':
+        '{{provider}} weekly usage at {{percent}}%: requests continue on extra usage',
+    'chat.creditsNotice.extraUsageLeft':
+        '{{provider}} weekly usage at {{percent}}%: requests continue on extra usage, {{balance}} left this month',
+    'chat.usageActions.access': 'Reply access is required to act on usage limits.',
+    'chat.usageActions.offline': 'Reconnect to act on usage limits.',
+    'chat.usageGuard.continueAnyway': 'Continue anyway',
+    'chat.usageGuard.continueAnywayFailed': "Couldn't resume requests",
+    'chat.usageGuard.continueAnywayHint':
+        'Resumes requests on this {{provider}} account until the weekly limit resets. This spends the allowance reserved for a hand-off.',
+    'chat.usageGuard.copied': 'Hand-off copied',
+    'chat.usageGuard.copy': 'Copy hand-off',
+    'chat.usageGuard.copyFailed': "Couldn't copy the hand-off",
+    'chat.usageGuard.detail':
+        'Caxri paused new requests so you can hand this work off before it runs out.',
+    'chat.usageGuard.document': 'Hand-off document',
+    'chat.usageGuard.failed.empty':
+        'The hand-off came back empty. Continue in Another Agent still carries this conversation.',
+    'chat.usageGuard.failed.rejected':
+        'The hand-off was refused. Continue in Another Agent still carries this conversation.',
+    'chat.usageGuard.failed.timeout':
+        'The hand-off timed out. Continue in Another Agent still carries this conversation.',
+    'chat.usageGuard.failed.unavailable':
+        'The hand-off could not start. Continue in Another Agent still carries this conversation.',
+    'chat.usageGuard.generate': 'Generate hand-off',
+    'chat.usageGuard.generateFailed': "Couldn't generate a hand-off",
+    'chat.usageGuard.generateHint':
+        '{{provider}} writes a hand-off document with the last of its weekly allowance. Once per account until the weekly limit resets.',
+    'chat.usageGuard.generating': 'Writing the hand-off…',
+    'chat.usageGuard.headline': '{{provider}} is at {{percent}}% of its weekly limit',
     'chat.usageGuard.resetDays': '{{days}}d {{hours}}h',
     'chat.usageGuard.resetHours': '{{hours}}h {{minutes}}m',
+    'chat.usageGuard.used': 'This account already wrote a hand-off this week',
+    'chat.usageLimit.auto.cancel': 'Cancel',
+    'chat.usageLimit.auto.cancelFailed': "Couldn't cancel the automatic continuation",
+    'chat.usageLimit.auto.cancelHint': 'Stops waiting; the Chat stays as it is.',
+    'chat.usageLimit.auto.continue': 'Continue',
+    'chat.usageLimit.auto.continueFailed': "Couldn't continue this Chat",
+    'chat.usageLimit.auto.continueNow': 'Continue now',
     'chat.usageLimit.auto.attemptsUsed':
         'Stopped continuing automatically after {{count}} tries into the limit',
     'chat.usageLimit.auto.continued': 'Continued automatically at {{time}}',

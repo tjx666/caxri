@@ -215,30 +215,6 @@ export const agentChatDisabledReason = (
 };
 
 /**
- * The usage guard's banner (issue #2580): how much of the week the provider's account used, when it resets, and where
- * the way forward is. Generating a hand-off and continuing in another Agent stay on the computer, which can open the
- * new Session beside this one.
- */
-export const agentChatUsageGuardBanner = (
-    guard: Pick<NonNullable<AgentChatSnapshot['usageGuard']>, 'resetsAt' | 'usedPercent'>,
-    providerName: string,
-    now: number,
-    t: Translate = translate,
-): string => {
-    const minutes = Math.max(1, Math.ceil((guard.resetsAt - now) / 60_000));
-    const hours = Math.floor(minutes / 60);
-    const reset =
-        hours >= 24
-            ? t('chat.usageGuard.resetDays', { days: Math.floor(hours / 24), hours: hours % 24 })
-            : t('chat.usageGuard.resetHours', { hours, minutes: minutes % 60 });
-    return t('chat.usageGuard.banner', {
-        provider: providerName,
-        percent: Math.floor(guard.usedPercent),
-        reset,
-    });
-};
-
-/**
  * The messages that carry images and how many each has, as a stable string so a view can memoize on it while replies
  * stream. Empty when no message has images.
  */

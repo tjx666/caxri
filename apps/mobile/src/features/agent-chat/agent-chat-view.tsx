@@ -57,7 +57,11 @@ import {
     withAgentChatPendingEntries,
 } from './agent-chat-timeline';
 import { AgentChatTimelineEntry } from './agent-chat-timeline-entry';
-import { AgentChatUsageGuardBanner } from './agent-chat-usage-guard-banner';
+import {
+    agentChatUsageActionBlockedReason,
+    AgentChatUsageActionScope,
+} from './agent-chat-usage-actions';
+import { AgentChatUsageGuardCard } from './agent-chat-usage-guard-card';
 import type { AgentChatController } from './use-agent-chat';
 import { useAgentChatHistory } from './use-agent-chat-history';
 import { useIsRequestBesideKeyboard } from './use-request-beside-keyboard';
@@ -175,6 +179,14 @@ const AgentChatBody = ({
         () => (serverList ? new Map(serverList.map((server) => [server.name, server])) : undefined),
         [serverList],
     );
+    const usageBlockedReason = agentChatUsageActionBlockedReason({ canSend, isConnected }, t);
+    const usageScope = useMemo(
+        () =>
+            terminalId === undefined
+                ? undefined
+                : { blockedReason: usageBlockedReason, terminalId },
+        [terminalId, usageBlockedReason],
+    );
     const renderImages = useMemo(() => {
         const counts = new Map<string, number>(
             imageCounts ? (JSON.parse(imageCounts) as Array<[string, number]>) : [],
@@ -197,18 +209,20 @@ const AgentChatBody = ({
                 <AgentChatMcpServersContext value={mcpServers}>
                     <AgentChatHandoffScope canSend={canSend} chat={chat} source={handoffSource}>
                         <ConversationMessageActions value={setActionTarget}>
-                            <ConversationList
-                                entries={entries}
-                                enterFrom={enterFrom}
-                                followKey={pending.sendCount}
-                                isConnected={isConnected}
-                                isTurnStart={isAgentChatTurnStart}
-                                onFollowingChange={setFollowing}
-                                onRetry={chat.refresh}
-                                renderEntry={renderEntry}
-                                theme={theme}
-                                timeline={timeline}
-                            />
+                            <AgentChatUsageActionScope value={usageScope}>
+                                <ConversationList
+                                    entries={entries}
+                                    enterFrom={enterFrom}
+                                    followKey={pending.sendCount}
+                                    isConnected={isConnected}
+                                    isTurnStart={isAgentChatTurnStart}
+                                    onFollowingChange={setFollowing}
+                                    onRetry={chat.refresh}
+                                    renderEntry={renderEntry}
+                                    theme={theme}
+                                    timeline={timeline}
+                                />
+                            </AgentChatUsageActionScope>
                         </ConversationMessageActions>
                     </AgentChatHandoffScope>
                 </AgentChatMcpServersContext>
@@ -444,6 +458,10 @@ export const AgentChatView = ({
         [deviceRole, isConnected, t],
     );
     const isTimelineYielding = useIsRequestBesideKeyboard(chat);
+    const usageBlockedReason = agentChatUsageActionBlockedReason(
+        { canSend: canRetry, isConnected },
+        t,
+    );
 
     return (
         <View style={styles.root} testID="agent-chat">
@@ -476,9 +494,11 @@ export const AgentChatView = ({
                 />
             ) : null}
             {snapshot?.usageGuard ? (
-                <AgentChatUsageGuardBanner
+                <AgentChatUsageGuardCard
+                    blockedReason={usageBlockedReason}
                     guard={snapshot.usageGuard}
                     provider={provider}
+                    terminalId={snapshot.terminalId}
                     theme={theme}
                 />
             ) : null}

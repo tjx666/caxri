@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { isPlanPaceDismissed, limitPaceShortfall } from '@caxri/protocol';
+import { isPlanPaceDismissed, limitPaceShortfall, weeklyCreditsWindow } from '@caxri/protocol';
 import { TrendingUp, X } from 'lucide-react-native';
 
 import { Card } from '../../components/card';
@@ -8,7 +8,10 @@ import { useTranslation } from '../../i18n';
 import { mobileControl, mobileSpace, mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
 import { agentChatPlanLimitRows } from './agent-chat-plan-limits';
-import { useAgentChatPlanLimits, useDismissAgentChatPlanPace } from './use-agent-chat-plan-limits';
+import {
+    useAgentChatPlanLimits,
+    useDismissAgentChatUsageNotice,
+} from './use-agent-chat-plan-limits';
 
 const styles = StyleSheet.create({
     row: {
@@ -45,12 +48,14 @@ export const AgentChatPlanPaceNotice = ({
 }) => {
     const { t } = useTranslation();
     const limit = useAgentChatPlanLimits(terminalId);
-    const dismiss = useDismissAgentChatPlanPace(terminalId);
+    const dismiss = useDismissAgentChatUsageNotice(terminalId, 'planPace');
     // Read at render: the limits re-read every 30 seconds, which re-renders the countdown often enough for a day.
     // eslint-disable-next-line react-hooks/purity -- a pace is relative to the render time by definition
     const now = Date.now();
     const shortfall = limitPaceShortfall(limit, now);
     if (!limit || !shortfall || isPlanPaceDismissed(limit, now)) return null;
+    // An account working on credits past its weekly window gets the credits notice instead, dismissed or not.
+    if (weeklyCreditsWindow(limit, now)) return null;
     const row = agentChatPlanLimitRows({ ...limit, windows: [shortfall.window] }, now, t).at(0);
     if (!row) return null;
     const text = t('chat.model.paceWarning', {

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { UsageLimit } from '../../domain/usage-contract.js';
 import {
+    agentChatUsageGuardOffer,
     CREDITS_NOTICE_DISMISS_MS,
     weeklyCreditsNotice,
     weeklyCreditsWindow,
@@ -10,6 +11,7 @@ import {
 
 const NOW = Date.parse('2026-10-28T12:00:00.000Z');
 const resetsAt = NOW + 2 * 86_400_000;
+const GUARD = { provider: 'claude', usedPercent: 99.4, resetsAt: NOW + 3_600_000 } as const;
 
 const limit = (usedPercent: number, credits?: UsageLimit['credits']): UsageLimit => ({
     provider: 'codex',
@@ -46,5 +48,39 @@ describe('weeklyCreditsNotice', () => {
         expect(
             weeklyCreditsNotice(dismissed, NOW - 60_000 + CREDITS_NOTICE_DISMISS_MS),
         ).toBeDefined();
+    });
+});
+
+describe('agentChatUsageGuardOffer', () => {
+    it('offers the one hand-off only while the lease is free and the provider can still answer', () => {
+        expect(agentChatUsageGuardOffer({ ...GUARD, handoff: 'available' }, true)).toEqual({
+            generate: true,
+            used: false,
+        });
+        // At 100% the provider refuses the turn, which would spend the lease on nothing.
+        expect(
+            agentChatUsageGuardOffer({ ...GUARD, usedPercent: 100, handoff: 'available' }, true)
+                .generate,
+        ).toBe(false);
+        expect(agentChatUsageGuardOffer({ ...GUARD, handoff: 'available' }, false).generate).toBe(
+            false,
+        );
+    });
+
+    it('says the lease is gone when another Chat on the account took it', () => {
+        expect(agentChatUsageGuardOffer({ ...GUARD, handoff: 'used' }, true)).toEqual({
+            generate: false,
+            used: true,
+        });
+        expect(
+            agentChatUsageGuardOffer(
+                {
+                    ...GUARD,
+                    handoff: 'used',
+                    document: { status: 'generated', text: 'Next', createdAt: NOW },
+                },
+                true,
+            ),
+        ).toEqual({ generate: false, used: false });
     });
 });

@@ -26,6 +26,7 @@ import {
 
 import type { ServerDomainService } from '../domain-service';
 import { terminalForPrincipal } from './action-requests';
+import { invokeMobileAgentChatUsageRequest } from './agent-chat-usage-requests';
 
 /**
  * Every phone Chat method. The access controller routes the whole namespace here, so a new `mobile.agentChat.*` method
@@ -372,19 +373,16 @@ export async function invokeMobileAgentChatRequest(
             reauthorize();
             return clipAgentChatTaskSnapshotForMobile(task, projectRoot);
         }
-        case 'mobile.agentChat.readUsage': {
-            const readout = await domainService.request('terminal.agentUsage', { terminalId });
-            reauthorize();
-            return readout;
-        }
-        case 'mobile.agentChat.dismissPlanPace': {
-            if (!terminal.provider)
-                throw new CaxriError('CONFLICT', 'This Chat has no Agent provider yet');
-            await forward({
-                method: 'usage.dismissNotice',
-                params: { provider: terminal.provider, notice: 'planPace' },
+        case 'mobile.agentChat.readUsage':
+        case 'mobile.agentChat.dismissUsageNotice':
+        case 'mobile.agentChat.usageLimitWait':
+        case 'mobile.agentChat.generateHandoff':
+        case 'mobile.agentChat.bypassUsageGuard': {
+            return invokeMobileAgentChatUsageRequest(request, terminal, {
+                domainService,
+                forward,
+                reauthorize,
             });
-            return null;
         }
         case 'mobile.agentChat.stopTask': {
             await forward({

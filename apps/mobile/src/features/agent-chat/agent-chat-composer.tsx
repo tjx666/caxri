@@ -28,6 +28,7 @@ import {
     AttachButton,
 } from './agent-chat-composer-buttons';
 import { AgentChatComposerInput } from './agent-chat-composer-input';
+import { AgentChatCreditsNotice } from './agent-chat-credits-notice';
 import { AgentChatEditBanner } from './agent-chat-edit-banner';
 import { AgentChatMentionList } from './agent-chat-mention-list';
 import {
@@ -356,7 +357,14 @@ export const AgentChatComposer = ({
         >
             {/* The command menu takes the model and permission row's place, so the keyboard-up screen keeps its room. */}
             {isMenuOpen || !chat.snapshot?.terminalId ? null : (
-                <AgentChatPlanPaceNotice terminalId={chat.snapshot.terminalId} theme={theme} />
+                <>
+                    <AgentChatCreditsNotice
+                        provider={provider}
+                        terminalId={chat.snapshot.terminalId}
+                        theme={theme}
+                    />
+                    <AgentChatPlanPaceNotice terminalId={chat.snapshot.terminalId} theme={theme} />
+                </>
             )}
             {isMenuOpen || isRunning || !chat.snapshot?.terminalId ? null : (
                 <AgentChatContextNotice

@@ -86,7 +86,8 @@ by itself once the limit resets (issue #2220). Owner: `continuation/chat-usage-l
 - **Attempts.** Each continuation that fails into the limit again counts toward
   `AGENT_CHAT_AUTO_CONTINUE_MAX_ATTEMPTS` (3); the last one is `skipped` with `attemptsUsed`.
   Human input resets the count.
-- **Ending a wait.** The card offers `Continue now` and `Cancel` while waiting. A message the user
+- **Ending a wait.** The card offers `Continue now` and `Cancel` while waiting, on Desktop and on
+  the phone's usage-limit card alike (`mobile.agentChat.usageLimitWait`, reply access). A message the user
   sends, `Continue in <Agent>`, turning the setting off, switching the Terminal to the PTY surface,
   or closing, deleting, or archiving it also ends it. A cancelled wait does not arm again for the
   same notice, and one that ends while the plan limits are read before sending sends nothing.
@@ -124,7 +125,8 @@ requests continue on credits, 1,250 left` (Claude: `... on extra usage, $37.40 l
   Nothing is paused, and the pace reminder gives way to it. Its close button hides it for a day
   (`CREDITS_NOTICE_DISMISS_MS`) on every Client: `usage.dismissNotice` with `notice: 'credits'`
   keeps the time in `app_state` (`creditsNoticeDismissals`), returned as
-  `UsageLimit.creditsNoticeDismissedAt` (`weeklyCreditsNotice`). The phone does not show it yet.
+  `UsageLimit.creditsNoticeDismissedAt` (`weeklyCreditsNotice`). The phone shows the same notice
+  above its composer and dismisses it through `mobile.agentChat.dismissUsageNotice`.
 - **What it blocks.** Every ordinary model request on that account fails with `USAGE_LIMITED`:
   Chat send, steer, queued follow-ups, slash commands, side questions, delegation, dispatch, Session
   auto-naming, and idle compaction. Arming interrupts the account's running turns (recorded as
@@ -140,7 +142,12 @@ Agent` continues from the deterministic package, with the hand-off document firs
   window: the record stays, marked `bypassed`, so a later reading of the same window does not arm it
   again, and the paused queues resume. Clicking the card's headline folds the rest of it, hand-off
   document included, remembered per Chat for the window's lifetime.
-- **Mobile** shows the blocked state as a banner, with the same wait line as the guard card, and disables send. **Caxri Bot window**
+- **Mobile** shows the guard as a card at the top of the Chat with the same headline, reset, wait
+  line, and hand-off document, and disables send. Its `Generate hand-off`, `Cancel`, and `Continue
+anyway` forward through `mobile.agentChat.generateHandoff`, `mobile.agentChat.usageLimitWait`, and
+  `mobile.agentChat.bypassUsageGuard` (reply access, like sending); without reply access or offline
+  the buttons are disabled with the reason beneath them. Continuing in another Agent stays in the
+  Session menu's `Continue in Another Agent…`. **Caxri Bot window**
   has no Workbench to show a new Session, so it offers the hand-off but no continuation.
 
 ### PTY Terminals

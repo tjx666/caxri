@@ -1,7 +1,7 @@
 import { useId, useState } from 'react';
 
 import type { AgentChatHandoff, AgentChatUsageGuard } from '@caxri/protocol';
-import { agentProviderCatalog } from '@caxri/protocol';
+import { agentChatUsageGuardOffer, agentProviderCatalog } from '@caxri/protocol';
 import { ChevronRight, FileText, Gauge } from 'lucide-react';
 
 import { useClockTick } from '@/hooks/use-clock-tick';
@@ -24,7 +24,6 @@ import {
 import { agentChatChevronMotion } from '../transcript/agent-chat-disclosure';
 import { AgentChatAutoContinueActions } from './agent-chat-auto-continue-actions';
 import { AgentChatAutoContinueLine } from './agent-chat-auto-continue-line';
-import { agentChatUsageGuardOffer } from './agent-chat-continuation';
 import { AgentChatContinueInAgent } from './agent-chat-continue-in-agent';
 import {
     bypassAgentChatUsageGuard,

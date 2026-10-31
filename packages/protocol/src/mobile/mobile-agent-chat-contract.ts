@@ -9,7 +9,7 @@ import { agentChatMethods } from '../agent/agent-chat-methods.js';
 import { agentChatHistoryPageSchema } from '../agent/agent-chat-patch-contract.js';
 import { agentChatTaskSnapshotSchema } from '../agent/agent-chat-task-contract.js';
 import { identifierSchema } from '../domain/identifiers.js';
-import { agentUsageReadoutSchema } from '../domain/usage-contract.js';
+import { agentUsageReadoutSchema, usageNoticeSchema } from '../domain/usage-contract.js';
 import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
 import {
@@ -150,12 +150,41 @@ export const mobileAgentChatMethods = {
         result: agentUsageReadoutSchema.nullable(),
     },
     /**
-     * The phone's pace reminder close button: `usage.dismissNotice` for the Chat's provider, so the reminder stays
-     * hidden for the day on this phone after a relaunch and on Desktop too. It only hides a reminder, so every role
-     * that may read the limit may dismiss it.
+     * The phone's close button on a plan notice: `usage.dismissNotice` for the Chat's provider, so the pace reminder
+     * stays hidden for the day (the credits notice for a day) on this phone after a relaunch and on Desktop too. It
+     * only hides a notice, so every role that may read the limit may dismiss it.
      */
-    'mobile.agentChat.dismissPlanPace': {
+    'mobile.agentChat.dismissUsageNotice': {
         ...commandPolicy('server', 'write', ['sessions.read']),
+        params: z.strictObject({ ...terminalTarget, notice: usageNoticeSchema }),
+        result: z.null(),
+    },
+    /**
+     * The usage-limit card's Continue now (or Continue, once the reset passed) and Cancel, forwarded to
+     * `agentChat.usageLimitWait`. Continuing starts the Chat's next turn as sending would, so it carries the sending
+     * grant; Cancel rides with it.
+     */
+    'mobile.agentChat.usageLimitWait': {
+        ...commandPolicy('server', 'control', ['terminals.steer']),
+        params: agentChatMethods['agentChat.usageLimitWait'].params,
+        result: z.null(),
+    },
+    /**
+     * The usage guard card's Generate hand-off, forwarded to `agentChat.generateHandoff`: this Chat's own model writes
+     * a hand-off document on the budget the guard kept, once per account and weekly window. The document lands on the
+     * snapshot's `usageGuard.document`.
+     */
+    'mobile.agentChat.generateHandoff': {
+        ...commandPolicy('server', 'control', ['terminals.steer']),
+        params: z.strictObject(terminalTarget),
+        result: z.null(),
+    },
+    /**
+     * The usage guard card's Continue anyway, forwarded to `agentChat.bypassUsageGuard`: admits the account's requests
+     * for the rest of the guard's weekly window.
+     */
+    'mobile.agentChat.bypassUsageGuard': {
+        ...commandPolicy('server', 'control', ['terminals.steer']),
         params: z.strictObject(terminalTarget),
         result: z.null(),
     },

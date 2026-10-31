@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 
-import type { AgentUsageReadout } from '@caxri/protocol';
+import type { AgentUsageReadout, UsageLimit, UsageNotice } from '@caxri/protocol';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { useMobileClient } from '../connection/mobile-client-provider';
@@ -52,12 +52,20 @@ export const useAgentChatUsage = (
 export const useAgentChatPlanLimits = (terminalId: string) => useAgentChatUsage(terminalId)?.limit;
 
 /**
- * The pace reminder's close button: the Server keeps the dismissal for the Chat's provider
- * (`mobile.agentChat.dismissPlanPace`), so the reminder stays hidden for the rest of the day after the OS kills and
- * relaunches the app, and on Desktop too. The cached limit takes the dismissal at once, so the row disappears before
- * the next read; a failed request leaves the next read to bring the reminder back.
+ * Where each notice's dismissal lands on the cached limit, as Desktop's `usage-notice-client`.
  */
-export const useDismissAgentChatPlanPace = (terminalId: string) => {
+const DISMISSED_AT = {
+    credits: 'creditsNoticeDismissedAt',
+    planPace: 'paceDismissedAt',
+} as const satisfies Record<UsageNotice, keyof UsageLimit>;
+
+/**
+ * A plan notice's close button (the pace reminder, or the credits notice): the Server keeps the dismissal for the
+ * Chat's provider (`mobile.agentChat.dismissUsageNotice`), so the notice stays hidden after the OS kills and relaunches
+ * the app, and on Desktop too. The cached limit takes the dismissal at once, so the row disappears before the next
+ * read; a failed request leaves the next read to bring the notice back.
+ */
+export const useDismissAgentChatUsageNotice = (terminalId: string, notice: UsageNotice) => {
     const { connectionScopeKey, request } = useMobileClient();
     const queryClient = useQueryClient();
     return useCallback(async (): Promise<void> => {
@@ -66,13 +74,16 @@ export const useDismissAgentChatPlanPace = (terminalId: string) => {
         await queryClient.cancelQueries({ queryKey });
         queryClient.setQueryData<AgentUsageReadout | null>(queryKey, (readout) =>
             readout?.limit
-                ? { ...readout, limit: { ...readout.limit, paceDismissedAt: Date.now() } }
+                ? {
+                      ...readout,
+                      limit: { ...readout.limit, [DISMISSED_AT[notice]]: Date.now() },
+                  }
                 : readout,
         );
         try {
-            await request('mobile.agentChat.dismissPlanPace', { terminalId });
+            await request('mobile.agentChat.dismissUsageNotice', { terminalId, notice });
         } catch {
-            // The next read takes the Server's answer and shows the reminder again.
+            // The next read takes the Server's answer and shows the notice again.
         }
-    }, [connectionScopeKey, queryClient, request, terminalId]);
+    }, [connectionScopeKey, notice, queryClient, request, terminalId]);
 };

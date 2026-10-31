@@ -457,4 +457,42 @@ describe('mobile Agent Chat projection', () => {
             edit.safeParse({ terminalId: 'terminal-1', id: 'q', text: 'x'.repeat(17_000) }).success,
         ).toBe(false);
     });
+
+    it("answers a usage-limit wait for one turn, with Desktop's two actions only", () => {
+        const parameters = mobileAgentChatMethods['mobile.agentChat.usageLimitWait'].params;
+        const wait = { terminalId: 'terminal-1', turnId: 'turn-1' };
+        for (const action of ['cancel', 'continueNow'])
+            expect(parameters.safeParse({ ...wait, action }).success).toBe(true);
+        expect(parameters.safeParse({ ...wait, action: 'bypass' }).success).toBe(false);
+        expect(parameters.safeParse({ terminalId: 'terminal-1', action: 'cancel' }).success).toBe(
+            false,
+        );
+    });
+
+    it('dismisses the pace reminder or the credits notice, and nothing else', () => {
+        const parameters = mobileAgentChatMethods['mobile.agentChat.dismissUsageNotice'].params;
+        for (const notice of ['planPace', 'credits'])
+            expect(parameters.safeParse({ terminalId: 'terminal-1', notice }).success).toBe(true);
+        expect(parameters.safeParse({ terminalId: 'terminal-1', notice: 'guard' }).success).toBe(
+            false,
+        );
+        expect(parameters.safeParse({ terminalId: 'terminal-1' }).success).toBe(false);
+    });
+
+    it('names only the Chat for the usage guard actions, and needs the sending capability', () => {
+        for (const method of [
+            'mobile.agentChat.generateHandoff',
+            'mobile.agentChat.bypassUsageGuard',
+            'mobile.agentChat.usageLimitWait',
+        ] as const) {
+            const spec = mobileAgentChatMethods[method];
+            expect(spec.requiredCapabilities).toEqual(['terminals.steer']);
+            expect(spec.effect).toBe('control');
+        }
+        const generate = mobileAgentChatMethods['mobile.agentChat.generateHandoff'].params;
+        expect(generate.safeParse({ terminalId: 'terminal-1' }).success).toBe(true);
+        expect(generate.safeParse({ terminalId: 'terminal-1', provider: 'codex' }).success).toBe(
+            false,
+        );
+    });
 });
