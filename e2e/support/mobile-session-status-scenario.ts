@@ -40,9 +40,11 @@ export async function executeMobileSessionStatusScenario(
         const bound = await waitForMobile(
             () => pageRequest<BootstrapState>(page, 'app.bootstrap'),
             (state) =>
+                // Input reaches the fixture Agent by Terminal id, so its provider session id is not needed here.
                 sessionIds.every((id) =>
                     state.terminals.some(
-                        (terminal) => terminal.sessionId === id && Boolean(terminal.agentSessionId),
+                        (terminal) =>
+                            terminal.sessionId === id && terminal.lastProcessState === 'running',
                     ),
                 ),
         );
