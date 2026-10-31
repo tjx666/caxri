@@ -10,12 +10,14 @@
  */
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { chmod, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, readFile, rm } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
+
+import { writeTextAtomic } from './atomic-json';
 
 const run = promisify(execFile);
 
@@ -63,10 +65,7 @@ async function verifiedArchive(options: PrepareAlerterOptions): Promise<string> 
             `alerter ${ALERTER_VERSION} archive does not match its pinned SHA-256 (expected ${expected}, got ${actual}).`,
         );
     }
-    await mkdir(options.cacheDirectory, { recursive: true });
-    const partial = `${archivePath}.partial`;
-    await writeFile(partial, downloaded);
-    await rename(partial, archivePath);
+    await writeTextAtomic(archivePath, downloaded, { ensureParent: true });
     return archivePath;
 }
 
