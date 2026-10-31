@@ -7,6 +7,7 @@ import { Card } from '../../components/card';
 import { useTranslation } from '../../i18n';
 import { mobileControl, mobileSpace, mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
+import { AgentChatPlanPaceNotice } from './agent-chat-plan-pace-notice';
 import { useAgentChatUsage, useDismissAgentChatUsageNotice } from './use-agent-chat-plan-limits';
 
 const styles = StyleSheet.create({
@@ -35,7 +36,7 @@ const styles = StyleSheet.create({
  * Nothing is paused and there is nothing to hand off. Its close button hides it for a day on every Client and across
  * relaunches, because the Server keeps the dismissal; the pace reminder gives way to it.
  */
-export const AgentChatCreditsNotice = ({
+const AgentChatCreditsNotice = ({
     provider,
     terminalId,
     theme,
@@ -84,3 +85,17 @@ export const AgentChatCreditsNotice = ({
         </Card>
     );
 };
+
+/**
+ * The usage notices above the composer's model row: the credits notice, then the pace reminder, which gives way to it.
+ */
+export const AgentChatUsageNotices = (properties: {
+    provider: string;
+    terminalId: string;
+    theme: MobileTheme;
+}) => (
+    <>
+        <AgentChatCreditsNotice {...properties} />
+        <AgentChatPlanPaceNotice terminalId={properties.terminalId} theme={properties.theme} />
+    </>
+);

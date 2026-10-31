@@ -38,7 +38,7 @@
  * `ultracode` key turns it off. A `fastMode` flag setting turns Fast mode on, which `initialize`, the init message, and
  * the result report.
  *
- * A `side_question` control request is answered at once, even mid-turn (`fake-claude-side.ts`).
+ * A `side_question` control request is answered at once, even mid-turn, unless held (`fake-claude-side.ts`).
  *
  * Like the real CLI, `session_state_changed` is reported only under `CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS=1`, subagent
  * text only when `initialize` asked for `forwardSubagentText`, and an interrupt kills background subagents unless
@@ -58,6 +58,7 @@ import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 import readline from 'node:readline';
+import { setTimeout as delay } from 'node:timers/promises';
 
 import { didRunApprovalScenario } from './fake-claude-approvals.ts';
 import { didRunCompactingTurn, runCompactCommand } from './fake-claude-compaction.ts';
@@ -82,7 +83,7 @@ import {
 } from './fake-claude-replies.ts';
 import { resumedLeaf, rewindFiles } from './fake-claude-rewind.ts';
 import { loadFakeClaudeScriptOrExit } from './fake-claude-script.ts';
-import { answerSideQuestion } from './fake-claude-side.ts';
+import { answerSideQuestion, didHoldSideQuestion } from './fake-claude-side.ts';
 import { didStartBackgroundTask, runSubagent, taskControl } from './fake-claude-tasks.ts';
 import { didRunUsageLimitScenario } from './fake-claude-usage-limit.ts';
 import { noteFakeClaudeWindowRequest } from './fake-claude-window.ts';
@@ -214,10 +215,6 @@ function record(entry: Json) {
         })}\n`,
     );
     state.lastUuid = uuid;
-}
-
-function delay(ms: number) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function frame(entry: Json): Json {
@@ -538,6 +535,7 @@ lines.on('line', (line) => {
     }
     if (message.type === 'control_request') {
         const request = message.request as Json;
+        if (didHoldSideQuestion(request, () => lines.emit('line', line))) return;
         if (request.subtype === 'set_model' && isControlled('reject-model-change')) {
             send({
                 type: 'control_response',
