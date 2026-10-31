@@ -18,6 +18,24 @@ const RUN_START_TIMEOUT_MS = 600_000;
  * end the watcher before it ever reached a run, leaving the agent to notice and restart it by hand.
  */
 const MAX_STARTUP_READ_FAILURES = 5;
+/**
+ * Lookups for the run that replaced a cancelled one, POLL_INTERVAL_MS apart. A replacement is normally listed already,
+ * since it is what cancelled the run, so this only covers GitHub's listing lag.
+ */
+const SUPERSEDING_DISCOVERY_ATTEMPTS = 4;
+/**
+ * Bounds how many replacements one run may chain through, so a head whose runs keep being cancelled still exits.
+ */
+const MAX_SUPERSEDING_HOPS = 5;
+
+/**
+ * One workflow run of the pull request's head. Run IDs grow with creation time, so a higher ID is a newer run.
+ */
+export interface PrRun {
+    event: string;
+    id: string;
+    name: string;
+}
 
 export type PrStartupStep =
     | { kind: 'watch'; runIds: string[] }
@@ -71,7 +89,22 @@ async function ghApi(path: string, jq: string): Promise<string> {
 interface PrHead {
     headSha: string;
     mergeableState: string | undefined;
-    runIds: string[];
+    runs: PrRun[];
+}
+
+async function listHeadRuns(headSha: string, workflow: string | undefined): Promise<PrRun[]> {
+    const select = workflow ? ` | select(.name == ${JSON.stringify(workflow)})` : '';
+    const output = await ghApi(
+        `actions/runs?head_sha=${headSha}&per_page=20`,
+        `.workflow_runs[]${select} | [.id, .event, .name] | @tsv`,
+    );
+    return output
+        .split('\n')
+        .filter(Boolean)
+        .map((line) => {
+            const [id = '', event = '', name = ''] = line.split('\t', 3);
+            return { event, id, name };
+        });
 }
 
 /**
@@ -82,13 +115,7 @@ async function readPrHead(pr: string, workflow: string | undefined): Promise<PrH
     const [headSha = '', mergeableState] = (
         await ghApi(`pulls/${pr}`, '.head.sha + " " + .mergeable_state')
     ).split(' ', 2);
-    const runIds = await ghApi(
-        `actions/runs?head_sha=${headSha}&per_page=20`,
-        workflow
-            ? `.workflow_runs[] | select(.name == ${JSON.stringify(workflow)}) | .id`
-            : '.workflow_runs[].id',
-    );
-    return { headSha, mergeableState, runIds: runIds.split('\n').filter(Boolean) };
+    return { headSha, mergeableState, runs: await listHeadRuns(headSha, workflow) };
 }
 
 /**
@@ -101,14 +128,14 @@ interface ResolveDependencies {
 
 /**
  * Waits for the current head of pull request `pr` to have workflow runs, only those named `workflow` when given, and
- * returns their IDs. Throws when the pull request conflicts with its base or no run starts in time; a few consecutive
- * failed lookups are retried.
+ * returns the head and its runs. Throws when the pull request conflicts with its base or no run starts in time; a few
+ * consecutive failed lookups are retried.
  */
 export async function resolvePrRuns(
     pr: string,
     workflow?: string,
     { readHead = readPrHead, wait = sleep }: ResolveDependencies = {},
-): Promise<string[]> {
+): Promise<{ headSha: string; runs: PrRun[] }> {
     const startedAt = Date.now();
     let previousRunIds: string[] | undefined;
     let failedReads = 0;
@@ -126,14 +153,15 @@ export async function resolvePrRuns(
             await wait(POLL_INTERVAL_MS);
             continue;
         }
-        const { headSha, mergeableState, runIds } = head;
+        const { headSha, mergeableState, runs } = head;
+        const runIds = runs.map((run) => run.id);
         const step = prStartupStep({
             mergeableState,
             previousRunIds,
             runIds,
             waitedMs: Date.now() - startedAt,
         });
-        if (step.kind === 'watch') return step.runIds;
+        if (step.kind === 'watch') return { headSha, runs };
         if (step.kind === 'conflict') {
             throw new Error(
                 `PR #${pr} conflicts with its base branch, so GitHub starts no CI for it; rebase onto the latest base and push again`,
@@ -146,4 +174,88 @@ export async function resolvePrRuns(
         // eslint-disable-next-line no-await-in-loop -- startup poll: fixed cadence
         await wait(POLL_INTERVAL_MS);
     }
+}
+
+/**
+ * The newest run of `run`'s workflow and event on the same head that started after it, or `undefined` when none did.
+ */
+export function newerSameWorkflowRun(run: PrRun, candidates: readonly PrRun[]): PrRun | undefined {
+    let newest: PrRun | undefined;
+    for (const candidate of candidates) {
+        if (candidate.name !== run.name || candidate.event !== run.event) continue;
+        if (Number(candidate.id) <= Number(newest?.id ?? run.id)) continue;
+        newest = candidate;
+    }
+    return newest;
+}
+
+async function readRunConclusion(runId: string): Promise<string> {
+    return ghApi(`actions/runs/${runId}`, '.conclusion // ""');
+}
+
+/**
+ * Seams for tests; production reads GitHub and waits in real time.
+ */
+interface SupersedeDependencies {
+    listRuns?: (headSha: string, workflow: string | undefined) => Promise<PrRun[]>;
+    readConclusion?: (runId: string) => Promise<string>;
+    wait?: (ms: number) => Promise<unknown>;
+}
+
+/**
+ * Watches `runs` of `headSha` with `isRunGood` and returns whether each workflow's evidence succeeded. Pushing a draft
+ * and then marking it ready starts every workflow twice on the same head, and `concurrency` cancels the first runs, so
+ * a cancelled run is judged by the newer run of its workflow that replaced it. A cancelled run with no replacement (a
+ * manual cancel) still fails, as does a replacement that fails or is cancelled without a successor of its own.
+ */
+export async function didPrRunsSucceed(
+    headSha: string,
+    runs: readonly PrRun[],
+    isRunGood: (runId: string) => Promise<boolean>,
+    workflow?: string,
+    {
+        listRuns = listHeadRuns,
+        readConclusion = readRunConclusion,
+        wait = sleep,
+    }: SupersedeDependencies = {},
+): Promise<boolean> {
+    const watched = new Map<string, Promise<boolean>>();
+    const watch = (runId: string): Promise<boolean> => {
+        let result = watched.get(runId);
+        if (!result) {
+            result = isRunGood(runId);
+            watched.set(runId, result);
+        }
+        return result;
+    };
+    const findReplacement = async (run: PrRun): Promise<PrRun | undefined> => {
+        for (let attempt = 0; attempt < SUPERSEDING_DISCOVERY_ATTEMPTS; attempt += 1) {
+            // eslint-disable-next-line no-await-in-loop -- each listing waits for the previous one to miss
+            if (attempt > 0) await wait(POLL_INTERVAL_MS);
+            // eslint-disable-next-line no-await-in-loop -- see above
+            const replacement = newerSameWorkflowRun(run, await listRuns(headSha, workflow));
+            if (replacement) return replacement;
+        }
+        return;
+    };
+    const didEvidenceSucceed = async (run: PrRun): Promise<boolean> => {
+        let current = run;
+        for (let hop = 0; hop <= MAX_SUPERSEDING_HOPS; hop += 1) {
+            // eslint-disable-next-line no-await-in-loop -- each hop depends on the run the previous one found
+            if (await watch(current.id)) return true;
+            // eslint-disable-next-line no-await-in-loop -- see above
+            if (hop === MAX_SUPERSEDING_HOPS || (await readConclusion(current.id)) !== 'cancelled')
+                return false;
+            // eslint-disable-next-line no-await-in-loop -- see above
+            const replacement = await findReplacement(current);
+            if (!replacement) return false;
+            console.log(
+                `${current.name} (run ${current.id}) was cancelled by a newer run on the same head; following run ${replacement.id}`,
+            );
+            current = replacement;
+        }
+        return false;
+    };
+    const outcomes = await Promise.all(runs.map(didEvidenceSucceed));
+    return outcomes.every(Boolean);
 }

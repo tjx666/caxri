@@ -127,7 +127,9 @@ or cancels the delivery, or a concrete blocker requires their input.
    stale evidence. Right after a push, watch checks with `bun run scripts/watch-ci.ts --pr <number>`
    using the harness-specific ownership rules in the reference below: it waits for the new head's
    runs, watches every workflow, and fails at once when the PR conflicts with its base, which starts
-   no CI. A diff that qualifies for [Fast merge without CI](#fast-merge-without-ci) adds
+   no CI. A run cancelled by a newer run of its workflow on the same head (a push followed by
+   `gh pr ready` starts each workflow twice) is judged by that newer run, so do not re-verify the
+   replacement's conclusion by hand. A diff that qualifies for [Fast merge without CI](#fast-merge-without-ci) adds
    `--workflow Guards`, so the watcher returns as soon as the required check does instead of
    waiting on the slower `checks` job. Use `--run <id>` for a single known run. After a merge,
    `--sha <merge commit>` (full or short) follows every run of that commit, including a
