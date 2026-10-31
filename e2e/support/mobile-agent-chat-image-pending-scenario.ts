@@ -3,6 +3,7 @@ import { join } from 'node:path';
 
 import type { AgentChatSnapshot } from '@caxri/protocol';
 
+import { writeJsonAtomic } from '../../scripts/atomic-json';
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scenarios';
 import { capture, finish } from './mobile-agent-actions-scenarios';
@@ -67,11 +68,22 @@ export async function executeMobileChatImagePendingScenario(
         await fixture.pair();
         await tapMobileCheck(serial, `session-row-${fixture.allowedSessionId}`);
         await tapMobileCheckByBounds(serial, `agent-chat-message-image-${message.id}-0`);
-        await waitForCheck(serial, 'agent-chat-image-viewer-placeholder', 60_000);
-        const waiting = await mobileSemantics(serial);
-        if (hasCheck(waiting, PREVIEW_NOTE) || hasCheck(waiting, 'agent-chat-image-viewer-image'))
-            throw new Error('The viewer called the original unavailable before it was recorded');
+        const opened = await waitForMobile(
+            () => mobileSemantics(serial),
+            (nodes) =>
+                hasCheck(nodes, 'agent-chat-image-viewer-placeholder') ||
+                hasCheck(nodes, PREVIEW_NOTE),
+            60_000,
+        );
         await capture(environment, 'viewer-waiting', artifacts);
+        if (hasCheck(opened, PREVIEW_NOTE)) {
+            // Keeps the frame citable in a failed baseline round, as the runner binds the manifest either way.
+            await writeJsonAtomic(environment.artifactManifestPath, {
+                artifacts,
+                schemaVersion: 1,
+            });
+            throw new Error('The viewer called the original unavailable before it was recorded');
+        }
 
         await rm(hold);
         // The first poll comes 2 seconds after the pending answer and backs off from there.
