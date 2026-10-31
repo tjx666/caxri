@@ -187,13 +187,17 @@ esac
             const selectedPaletteCommand = () =>
                 command.evaluate((element) => (element as HTMLElement).dataset.selected);
 
-            // Keyboard focus on the row opens the hover card, which leaves the PR to the row and is not in the Tab order.
+            // Keyboard focus on the row opens the hover card, which restates the PR (the row hides its glyph under the
+            // pointer) and is not in the Tab order.
             await running.page.locator('.project-select').focus();
             await running.page.keyboard.press('ArrowDown');
             await expect(card).toBeFocused();
             const hoverCard = running.page.locator('.session-activity-card');
             await expect(hoverCard).toBeVisible();
-            await expect(hoverCard).not.toContainText('#42');
+            await expect(hoverCard.locator('.session-card-pull-request')).toContainText(
+                'Pull request fixture',
+            );
+            await expect(hoverCard.locator('.session-card-pull-request')).toContainText('#42');
             await running.page.keyboard.press('Tab');
             await expect(card).not.toBeFocused();
             await expect(hoverCard).toHaveCount(0);
