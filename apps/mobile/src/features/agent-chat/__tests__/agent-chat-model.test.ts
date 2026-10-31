@@ -20,7 +20,6 @@ import {
     agentChatProviderName,
     agentChatRequestBlockedReason,
     agentChatSendFailureMessage,
-    agentChatUsageGuardBanner,
     canAttachAgentChatImages,
     isAgentChatFailureRetryable,
     isAgentChatHandedOff,
@@ -394,15 +393,12 @@ describe('Agent Chat model', () => {
             isEnabled: false,
         });
         expect(agentChatDisabledReason({ ...input, snapshot: guarded })).toBe(
-            'Weekly usage is nearly used up. Hand off on your computer.',
+            'Weekly usage is nearly used up. Hand off from the card above.',
         );
         // The model and permission level spend no usage, so they stay changeable.
         expect(
             agentChatDisabledReason({ ...input, action: 'configure', snapshot: guarded }),
         ).toBeUndefined();
-        expect(agentChatUsageGuardBanner(usageGuard, 'Claude', NOW)).toBe(
-            'Claude weekly usage is at 99%. New requests are paused for 2d 3h, until it resets. Hand off to another Agent on your computer.',
-        );
     });
 
     it('does not invite a message into an empty Chat this device cannot send to', () => {

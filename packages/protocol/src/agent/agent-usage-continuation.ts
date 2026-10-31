@@ -155,6 +155,23 @@ export const agentChatUsageGuardSchema = agentUsageGuardSchema.extend({
 export type AgentChatUsageGuard = z.infer<typeof agentChatUsageGuardSchema>;
 
 /**
+ * What the usage guard's card offers right now, on Desktop and the phone alike. `generate` is the one hand-off, offered
+ * while the account's lease is free, the provider can run a tool-less side turn, and the window is not already at 100%,
+ * where the provider would refuse the turn and spend the lease on nothing. `used` tells the user why it is gone when
+ * another Chat took it.
+ */
+export function agentChatUsageGuardOffer(
+    guard: Pick<AgentChatUsageGuard, 'document' | 'handoff' | 'usedPercent'>,
+    canAskSideQuestion: boolean,
+): { generate: boolean; used: boolean } {
+    const isOpen = guard.handoff === 'available' && guard.document === undefined;
+    return {
+        generate: isOpen && canAskSideQuestion && guard.usedPercent < 100,
+        used: guard.handoff !== 'available' && guard.document === undefined,
+    };
+}
+
+/**
  * Why a provider cannot take over the work. `current` is the Chat's own provider; `unsupported` has no Agent Chat.
  */
 const agentChatContinuationTargetUnavailableSchema = z.enum([

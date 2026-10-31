@@ -32,7 +32,7 @@ const mobileGatewayMethodsByRole = {
         'mobile.agentChat.readTask',
         'mobile.agentChat.readHistory',
         'mobile.agentChat.readUsage',
-        'mobile.agentChat.dismissPlanPace',
+        'mobile.agentChat.dismissUsageNotice',
         'mobile.agentChat.readMessage',
         'mobile.session.show',
         'mobile.timeline.read',
@@ -54,7 +54,7 @@ const mobileGatewayMethodsByRole = {
         'mobile.agentChat.readTask',
         'mobile.agentChat.readHistory',
         'mobile.agentChat.readUsage',
-        'mobile.agentChat.dismissPlanPace',
+        'mobile.agentChat.dismissUsageNotice',
         'mobile.agentChat.readMessage',
         /**
          * Sending is a reply device's whole job; Retry only resumes a failed Chat so that reply can be delivered.
@@ -89,6 +89,14 @@ const mobileGatewayMethodsByRole = {
          * A slash command is typed and sent from the composer like a message, so it carries the sending grant.
          */
         'mobile.agentChat.runCommand',
+        /**
+         * The usage-limit and usage guard cards' actions decide how this Chat's next turn runs (Continue now starts it,
+         * Continue anyway admits it, Generate hand-off writes the brief its work continues from), so they carry the
+         * sending grant, as Desktop keeps them beside the composer.
+         */
+        'mobile.agentChat.usageLimitWait',
+        'mobile.agentChat.generateHandoff',
+        'mobile.agentChat.bypassUsageGuard',
         'mobile.session.show',
         'mobile.timeline.read',
         'mobile.timeline.readMessage',
@@ -117,7 +125,7 @@ const mobileGatewayMethodsByRole = {
         'mobile.agentChat.readTask',
         'mobile.agentChat.readHistory',
         'mobile.agentChat.readUsage',
-        'mobile.agentChat.dismissPlanPace',
+        'mobile.agentChat.dismissUsageNotice',
         'mobile.agentChat.readMessage',
         'mobile.agentChat.send',
         'mobile.agentChat.retry',
@@ -130,6 +138,9 @@ const mobileGatewayMethodsByRole = {
         'mobile.agentChat.editQueued',
         'mobile.agentChat.rewind',
         'mobile.agentChat.runCommand',
+        'mobile.agentChat.usageLimitWait',
+        'mobile.agentChat.generateHandoff',
+        'mobile.agentChat.bypassUsageGuard',
         /**
          * Approvals, answers, and Stop match `mobile.attention.answer` and `agent.control.interrupt`: control only.
          */

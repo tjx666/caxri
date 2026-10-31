@@ -1,4 +1,5 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
+import { use } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import type { AgentChatItem } from '@caxri/protocol';
@@ -9,20 +10,55 @@ import { Card } from '../../components/card';
 import { useTranslation } from '../../i18n';
 import { mobileSpace, mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
+import { AgentChatUsageActionScope, agentChatUsageLimitButtons } from './agent-chat-usage-actions';
+import { AgentChatUsageButtons } from './agent-chat-usage-buttons';
 import {
     agentChatAutoContinueLabel,
     agentChatUsageLimitHeadline,
     agentChatUsageLimitReset,
 } from './agent-chat-usage-limit';
+import { useAgentChatUsageAction } from './use-agent-chat-usage-action';
 import { useMinuteClock } from './use-minute-clock';
 
 type Notice = Extract<AgentChatItem, { type: 'notice' }>;
 
 /**
+ * Continue now (or Continue, once the reset passed) and Cancel for the turn a usage limit failed, on the Chat the
+ * timeline belongs to (`AgentChatUsageActionScope`).
+ */
+const UsageLimitActions = ({
+    provider,
+    scope,
+    theme,
+    turnId,
+    usageLimit,
+}: {
+    provider: string;
+    scope: { blockedReason: string | undefined; terminalId: string };
+    theme: MobileTheme;
+    turnId: string | undefined;
+    usageLimit: NonNullable<Notice['usageLimit']>;
+}) => {
+    const { pending, run } = useAgentChatUsageAction(scope.terminalId);
+    return (
+        <AgentChatUsageButtons
+            blockedReason={scope.blockedReason}
+            buttons={agentChatUsageLimitButtons(usageLimit, turnId)}
+            onPress={(action) => {
+                void run(action, turnId);
+            }}
+            pending={pending}
+            provider={provider}
+            testID="chat-usage-limit"
+            theme={theme}
+        />
+    );
+};
+
+/**
  * A turn the provider failed because the plan's usage limit is used up, after Desktop's notice: which window ran out
- * and when it resets, the provider's own words muted beneath, and whether the Chat continues on its own once the limit
- * resets. The actions (Continue now, Cancel, Continue in another Agent) stay on Desktop until the phone gains the
- * gateway methods for them.
+ * and when it resets, the provider's own words muted beneath, whether the Chat continues on its own once the limit
+ * resets, and Continue now and Cancel for that wait. Continuing in another Agent lives in the Session's menu.
  */
 const UsageLimitContent = ({
     item,
@@ -37,6 +73,7 @@ const UsageLimitContent = ({
 }) => {
     const { locale, t } = useTranslation();
     const now = useMinuteClock();
+    const scope = use(AgentChatUsageActionScope);
     const reset = agentChatUsageLimitReset(usageLimit, now, t);
     const detail = agentChatNoticeMessage(item, t);
     // A later turn failed on the limit too and carries the wait (Desktop collapses it the same way).
@@ -71,6 +108,15 @@ const UsageLimitContent = ({
                             {agentChatAutoContinueLabel(usageLimit.autoContinue, now, locale, t)}
                         </Text>
                     </View>
+                ) : null}
+                {scope ? (
+                    <UsageLimitActions
+                        provider={provider}
+                        scope={scope}
+                        theme={theme}
+                        turnId={item.turnId}
+                        usageLimit={usageLimit}
+                    />
                 ) : null}
             </View>
         </>

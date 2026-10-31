@@ -1,6 +1,5 @@
 import type {
     AgentChatContinuationTarget,
-    AgentChatUsageGuard,
     AgentChatUsageLimit,
     AgentProvider,
 } from '@caxri/protocol';
@@ -59,22 +58,6 @@ export function agentChatUsageLimitHeadline(
     t: Translate,
 ): string {
     return t(`agentChat.usageLimit.${limit.window}`, { provider: providerName });
-}
-
-/**
- * What the usage guard's card offers right now. `generate` is the one hand-off, offered while the account's lease is
- * free, the provider can run a tool-less side turn, and the window is not already at 100%, where the provider would
- * refuse the turn and spend the lease on nothing. `used` tells the user why it is gone when another Chat took it.
- */
-export function agentChatUsageGuardOffer(
-    guard: Pick<AgentChatUsageGuard, 'document' | 'handoff' | 'usedPercent'>,
-    canAskSideQuestion: boolean,
-): { generate: boolean; used: boolean } {
-    const isOpen = guard.handoff === 'available' && guard.document === undefined;
-    return {
-        generate: isOpen && canAskSideQuestion && guard.usedPercent < 100,
-        used: guard.handoff !== 'available' && guard.document === undefined,
-    };
 }
 
 /**

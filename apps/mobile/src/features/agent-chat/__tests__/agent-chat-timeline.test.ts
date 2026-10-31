@@ -256,6 +256,14 @@ describe('buildAgentChatTimeline', () => {
                 heading: { kind: 'command', plugin: 'Example', command: 'display-test' },
                 message: 'Command result.',
             },
+            // A used-up plan limit has no heading, but its card carries the wait and its actions.
+            {
+                id: 'limit',
+                type: 'notice' as const,
+                kind: 'error' as const,
+                message: "You've hit your session limit",
+                usageLimit: { window: 'session' as const, resetsAt: 1 },
+            },
         ];
         expect(buildAgentChatTimeline({ items: notices, turns: [] })).toEqual(
             notices.map((notice) => ({ kind: 'feedback', id: notice.id, notice })),
