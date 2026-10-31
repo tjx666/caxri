@@ -36,6 +36,15 @@ function headingRepeatedKind<Kind>(
 }
 
 /**
+ * Hover opens the heading's list beside the side bar 100ms before the split's tooltip appears, so the two are on screen
+ * together: the tooltip sits on the opposite (left) edge and never flips back across the list. The default bottom edge
+ * was shifted sideways by the side bar's right edge and drawn over the list's first rows.
+ */
+function splitTooltipPlacement(anchor: CreateSessionAnchor) {
+    return anchor === 'heading' ? ({ keepSide: true, side: 'left' } as const) : {};
+}
+
+/**
  * The Terminal-choice menu for a new Session, hung from whichever control opened it.
  *
  * The menu replaces a centered modal so the choice lands where the pointer already is. Its open state lives in the
@@ -167,7 +176,11 @@ function SessionCreationMenu({
      * through `render` and a plain function component drops the props it injects.
      */
     const triggerWithTooltip = splitLabel ? (
-        <Tooltip content={splitLabel} shortcut={sessionCreateShortcut}>
+        <Tooltip
+            content={splitLabel}
+            shortcut={sessionCreateShortcut}
+            {...splitTooltipPlacement(anchor)}
+        >
             {menuTrigger}
         </Tooltip>
     ) : (
