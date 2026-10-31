@@ -23,7 +23,6 @@ import {
 import type { CaxriDatabase } from '../db';
 import type { WorktreeTopologyReader } from './import-conversation';
 import { importExternalConversation, isInside, OUTSIDE_SCOPE_MESSAGE } from './import-conversation';
-import { collapseForkGroups, keepForkIdentity } from './search-fork-groups';
 import type { HeldConversation, Holdings, RankedEntry, SearchScope } from './search-entries';
 import {
     compareRanked,
@@ -33,6 +32,7 @@ import {
     sessionEntry,
     sessionStatus,
 } from './search-entries';
+import { collapseForkGroups, keepForkIdentity } from './search-fork-groups';
 
 /**
  * Index hits requested per search: several conversations can fold into one Session row, so ask for more than one page.
