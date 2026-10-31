@@ -5,7 +5,11 @@ import process from 'node:process';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { inspectDesktopLease } from '../../.agents/skills/switch-worktree/scripts/desktop-lease';
+import {
+    acquireDesktopLease,
+    inspectDesktopLease,
+    releaseDesktopLease,
+} from '../../.agents/skills/switch-worktree/scripts/desktop-lease';
 import { runCapture } from '../../.agents/skills/switch-worktree/scripts/process';
 import { createAndroidAcceptanceDesktopLease } from '../mobile-android-desktop-lease';
 
@@ -50,6 +54,25 @@ describe('Android Acceptance desktop lease', () => {
         await lease.release();
         expect(process.env.CAXRI_DESKTOP_COORDINATOR_TOKEN).toBeUndefined();
         expect((await inspectDesktopLease(root)).state).toBe('free');
+    });
+
+    it('names the sibling that holds the desktop and how long the round waited', async () => {
+        delete process.env.CAXRI_DESKTOP_COORDINATOR_TOKEN;
+        const root = await createRepo();
+        const sibling = await acquireDesktopLease(root, 'Sibling E2E', process.pid);
+        const messages: string[] = [];
+        const lease = createAndroidAcceptanceDesktopLease(root, (message) =>
+            messages.push(message),
+        );
+
+        const claimed = lease.claim();
+        await expect.poll(() => messages.length).toBe(1);
+        await releaseDesktopLease(sibling);
+        await claimed;
+        await lease.release();
+
+        expect(messages[0]).toBe('Waiting for the desktop lease held by Sibling E2E (repository)');
+        expect(messages[1]).toMatch(/^Desktop lease acquired after \d+s$/u);
     });
 
     it('keeps an inherited coordinator token instead of claiming a second lease', async () => {

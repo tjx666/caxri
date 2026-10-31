@@ -39,8 +39,9 @@ The guarded release runner holds a repository-wide lock for that emulator serial
 installation through fixture IME restoration and device cleanup. If another worktree owns the
 serial, wait for its run to finish before starting another round. Do not select the fixture IME or
 clear the package outside the serial lock while another Acceptance run is active.
-An isolated mobile case waits up to three minutes for another worktree's active desktop lease after
-the APK build. The lease remains fail-closed for stale or invalid ownership; never stop the sibling
+After the APK build the runner waits up to twenty minutes for another worktree's active desktop
+lease, logging the holder and the waited time; in a measured round that wait (about 270s) outlasted
+the whole build stage (about 110s). The lease remains fail-closed for stale or invalid ownership; never stop the sibling
 desktop instance to unblock a round.
 The runner also refuses to start, and each case to begin, while the emulator shows an "isn't
 responding" dialog, which a host running several emulators tends to produce. Reboot that serial
