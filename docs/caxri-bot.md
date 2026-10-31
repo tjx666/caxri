@@ -18,6 +18,19 @@ Open it with **View > Open Caxri Bot** or the Command Palette entry
 brings the existing window forward. Clicking a board row selects that Session in the Workbench and
 focuses the main window.
 
+The first time the window opens, before Caxri Bot has ever been created, its middle column shows a
+start prompt instead of a Terminal (`bot-start-prompt.tsx`). It names the Agent (Codex or Claude
+Code, preselected from the stored `app_state.botAgent` choice), the permissions (full access, the
+same default every Agent starts with), that it runs in a Terminal the title bar can switch to Chat,
+and that closing the window keeps Caxri Bot and its Agents running until **Stop Caxri Bot**. Nothing
+is created or launched until the user presses **Start Caxri Bot**: the prompt is decided by
+`bot.snapshot` and `bot.data`, which only read. Start runs `bot.ensure`, or `bot.switchAgent` when
+the user picked the other Agent, which stores the choice and creates Caxri Bot on it in one request.
+Once Caxri Bot's rows exist, even stopped, reopening the window resumes it as described under
+[Server model](#server-model). Clear Caxri Bot Data keeps those rows, so it does not bring the prompt
+back. The Workbench's **Hand Over to Caxri Bot** is an explicit request too, so it still starts
+Caxri Bot directly.
+
 ## Window and Desktop Main
 
 `CaxriBotWindowController` (`apps/desktop/src/main/caxri-bot-window.ts`) owns the window.

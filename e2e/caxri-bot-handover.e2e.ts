@@ -6,6 +6,7 @@ import type { BotHandoverResult, BotManagedSessions } from '@caxri/protocol';
 
 import { fakeCodexChatAgentMode, openAgentChat } from './support/agent-chat-fixture.ts';
 import { createFakeAgentMode } from './support/agent-fixture.ts';
+import { openCaxriBot } from './support/caxri-bot.ts';
 import { expect, test } from './support/fixtures.ts';
 import {
     closeAppQuietly,
@@ -75,7 +76,7 @@ test('Caxri Bot hand-over picker hands Sessions and an outside conversation over
         const ownSessionIds = before.sessions.map(({ id }) => id);
         expect(ownSessionIds).toHaveLength(2);
 
-        await pageRequest(running.page, 'caxriBot.open');
+        await openCaxriBot(running.page);
         await expect.poll(() => running.app.windows().length).toBe(2);
         const bot = running.app.windows().find((page) => page !== running.page)!;
         await expect(bot.locator('.terminal-pane .xterm-rows')).toContainText('Fake codex ready');

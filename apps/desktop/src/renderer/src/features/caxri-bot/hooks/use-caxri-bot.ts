@@ -1,12 +1,19 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
+import type { BotAgent } from '@caxri/protocol';
 import { debounce } from 'es-toolkit';
 
 import { caxri } from '../../../lib/caxri';
 import { caxriQueryKey, queryClient } from '../../../queries/client';
 import { syncWindowFullScreen } from '../../../stores/window-full-screen';
 import { refreshWorkbench, useWorkbenchStore } from '../../../stores/workbench';
-import { ensureCaxriBot, refreshBotBoardPullRequests, useCaxriBotStore } from '../bot-client';
+import {
+    ensureCaxriBot,
+    readCaxriBotStartPrompt,
+    refreshBotBoardPullRequests,
+    startCaxriBot,
+    useCaxriBotStore,
+} from '../bot-client';
 import { requestBotPalette } from '../bot-dialogs-store';
 import { botEventEffect } from '../bot-events';
 import { invalidateBotInbox } from '../bot-inbox-commands';
@@ -19,7 +26,13 @@ import { revealBotInbox } from '../bot-inbox-store';
 const BOARD_REFRESH_DEBOUNCE_MS = 500;
 
 export type CaxriBotStatus =
-    { kind: 'error'; error: unknown } | { kind: 'loading' } | { kind: 'ready' };
+    | { kind: 'error'; error: unknown }
+    | { kind: 'loading' }
+    /**
+     * Caxri Bot has never been created: the window asks before the first start, with this Agent preselected.
+     */
+    | { kind: 'prompt'; agent: BotAgent }
+    | { kind: 'ready' };
 
 const LOADING: CaxriBotStatus = { kind: 'loading' };
 const READY: CaxriBotStatus = { kind: 'ready' };
@@ -50,9 +63,18 @@ function flushDeferredSnapshot(): void {
  * current from Server events. This is the window's only event subscription; it never calls `subscribeWorkbenchEvents`,
  * whose UI commands and Workbench-wide reads belong to the Workbench window.
  */
-export function useCaxriBot(): { retry: () => void; status: CaxriBotStatus } {
+export function useCaxriBot(): {
+    retry: () => void;
+    start: (agent: BotAgent) => void;
+    status: CaxriBotStatus;
+} {
     const [status, setStatus] = useState<CaxriBotStatus>(LOADING);
     const [attempt, setAttempt] = useState(0);
+    /**
+     * The Agent the user chose in the start prompt, consumed by the next start attempt. Later attempts (a Server
+     * restart, a retry) find Caxri Bot's rows and resume it through `bot.ensure` like any reopen.
+     */
+    const chosenStart = useRef<{ agent: BotAgent; storedAgent: BotAgent } | undefined>(undefined);
 
     useEffect(() => {
         const refetchBoard = debounce(() => {
@@ -111,9 +133,19 @@ export function useCaxriBot(): { retry: () => void; status: CaxriBotStatus } {
 
     useEffect(() => {
         const run = { isCurrent: true };
+        const choice = chosenStart.current;
+        chosenStart.current = undefined;
         const start = async (): Promise<void> => {
             try {
-                await ensureCaxriBot();
+                if (choice) await startCaxriBot(choice.agent, choice.storedAgent);
+                else {
+                    const prompt = await readCaxriBotStartPrompt();
+                    if (prompt) {
+                        if (run.isCurrent) setStatus({ kind: 'prompt', agent: prompt.agent });
+                        return;
+                    }
+                    await ensureCaxriBot();
+                }
             } catch (error) {
                 if (run.isCurrent) setStatus({ kind: 'error', error });
                 return;
@@ -131,6 +163,12 @@ export function useCaxriBot(): { retry: () => void; status: CaxriBotStatus } {
 
     return {
         retry: () => {
+            setStatus(LOADING);
+            setAttempt((current) => current + 1);
+        },
+        start: (agent) => {
+            if (status.kind !== 'prompt') return;
+            chosenStart.current = { agent, storedAgent: status.agent };
             setStatus(LOADING);
             setAttempt((current) => current + 1);
         },

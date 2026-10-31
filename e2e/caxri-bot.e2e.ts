@@ -7,6 +7,7 @@ import { isDeepStrictEqual } from 'node:util';
 import type { BotSnapshot, BotStatus } from '@caxri/protocol';
 
 import { createFakeAgentMode } from './support/agent-fixture.ts';
+import { openCaxriBot } from './support/caxri-bot.ts';
 import { dropFinderFiles } from './support/finder-file-drop.ts';
 import { expect, test } from './support/fixtures.ts';
 import {
@@ -40,6 +41,23 @@ test('Caxri Bot keeps running after its window closes and stops on request', asy
 
         await pageRequest(running.page, 'caxriBot.open');
         const firstWindow = await botWindow();
+        // The first open explains what will run and starts nothing until the user presses Start.
+        const startPrompt = firstWindow.getByRole('region', { name: 'Start Caxri Bot' });
+        await expect(startPrompt).toContainText(
+            'Closing this window keeps Caxri Bot and its Agents running',
+        );
+        await expect(startPrompt.getByRole('button', { name: 'Codex' })).toHaveAttribute(
+            'aria-pressed',
+            'true',
+        );
+        await testInfo.attach('bot-start-prompt', {
+            body: await firstWindow.screenshot(),
+            contentType: 'image/png',
+        });
+        expect(await pageRequest(running.page, 'bot.snapshot')).toBeNull();
+        await expect(chip).toHaveCount(0);
+        await startPrompt.getByRole('button', { name: 'Start Caxri Bot', exact: true }).click();
+        await expect(startPrompt).toHaveCount(0);
         await expect(chip).toContainText('Caxri Bot');
         const { identity } = await pageRequest<BotSnapshot>(running.page, 'bot.snapshot');
 
@@ -59,7 +77,7 @@ test('Caxri Bot keeps running after its window closes and stops on request', asy
             .poll(() => pageRequest<BotStatus>(running.page, 'bot.status'))
             .toEqual({ state: 'stopped' });
 
-        await pageRequest(running.page, 'caxriBot.open');
+        await openCaxriBot(running.page);
         const reopenedWindow = await botWindow();
         await expect(chip).toContainText('Caxri Bot');
         const reopened = await pageRequest<BotSnapshot>(running.page, 'bot.snapshot');
@@ -99,7 +117,7 @@ test('Close Tab in the focused Caxri Bot window closes that window, not a Workbe
         await createShellSession(running.page);
         const workbenchTerminals = running.page.locator('.terminal-pane');
         await expect(workbenchTerminals).toHaveCount(1);
-        await pageRequest(running.page, 'caxriBot.open');
+        await openCaxriBot(running.page);
         await expect.poll(() => running.app.windows().length).toBe(2);
         await expect(running.page.locator('.bot-status-chip')).toContainText('Caxri Bot');
 
@@ -158,7 +176,7 @@ test('Caxri Bot Terminal opens its context menu in Caxri Bot window', async ({},
     const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
     try {
         await createShellSession(running.page);
-        await pageRequest(running.page, 'caxriBot.open');
+        await openCaxriBot(running.page);
         await expect.poll(() => running.app.windows().length).toBe(2);
         const bot = running.app.windows().find((page) => page !== running.page)!;
         const pane = bot.locator('.terminal-pane');
@@ -221,7 +239,7 @@ test('Caxri Bot restarts under its open window after Server Core restarts', asyn
     };
     try {
         await createShellSession(running.page);
-        await pageRequest(running.page, 'caxriBot.open');
+        await openCaxriBot(running.page);
         await expect.poll(() => running.app.windows().length).toBe(2);
         const bot = running.app.windows().find((page) => page !== running.page)!;
         await expect.poll(status).not.toEqual({ state: 'stopped' });
@@ -334,7 +352,7 @@ test('Caxri Bot Terminal runs the shortcuts its context menu offers', async ({},
     const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
     try {
         await createShellSession(running.page);
-        await pageRequest(running.page, 'caxriBot.open');
+        await openCaxriBot(running.page);
         await expect.poll(() => running.app.windows().length).toBe(2);
         const bot = running.app.windows().find((page) => page !== running.page)!;
         const pane = bot.locator('.terminal-pane');
@@ -399,7 +417,7 @@ test('Caxri Bot Terminal restarts from its shortcut after it exits', async ({}, 
     const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
     try {
         await createShellSession(running.page);
-        await pageRequest(running.page, 'caxriBot.open');
+        await openCaxriBot(running.page);
         await expect.poll(() => running.app.windows().length).toBe(2);
         const bot = running.app.windows().find((page) => page !== running.page)!;
         const pane = bot.locator('.terminal-pane');
@@ -463,7 +481,7 @@ test('Caxri Bot Terminal inserts the path of a screenshot dropped from Finder', 
     const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
     try {
         await createShellSession(running.page);
-        await pageRequest(running.page, 'caxriBot.open');
+        await openCaxriBot(running.page);
         await expect.poll(() => running.app.windows().length).toBe(2);
         const bot = running.app.windows().find((page) => page !== running.page)!;
         const pane = bot.locator('.terminal-pane');

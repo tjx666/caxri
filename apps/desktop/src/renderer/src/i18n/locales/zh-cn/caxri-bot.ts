@@ -106,6 +106,21 @@ export const caxriBot: TranslatedNamespace<typeof source> = {
     'caxriBot.clearData.outcome.summary': '已清除{{parts}}',
     'caxriBot.clearData.outcome.nothing': '没有可清除的内容了',
 
+    // First start
+    'caxriBot.start.title': '启动 Caxri Bot',
+    'caxriBot.start.description':
+        '描述一个目标，Caxri Bot 会把它拆成任务，为每个任务在可见的会话中启动一个编码 Agent，并向你汇报。',
+    'caxriBot.start.agentLabel': 'Agent',
+    'caxriBot.start.permissionsLabel': '权限',
+    'caxriBot.start.permissions':
+        '完全访问：Caxri Bot 及其启动的 Agent 会直接编辑文件和运行命令，不再询问。',
+    'caxriBot.start.surfaceLabel': '运行方式',
+    'caxriBot.start.surface': '在 Terminal 中运行。启动后可从标题栏切换到对话。',
+    'caxriBot.start.backgroundLabel': '窗口',
+    'caxriBot.start.background':
+        '关闭此窗口后，Caxri Bot 及其 Agent 会继续运行。可通过“更多 > 停止 Caxri Bot”停止。',
+    'caxriBot.start.action': '启动 Caxri Bot',
+
     // Caxri Bot Terminal
     'caxriBot.terminal.couldNotStart': 'Caxri Bot 无法启动。',
     'caxriBot.terminal.couldNotStartHint': '请重试。如果仍然失败，下方的详细信息说明了出错原因。',

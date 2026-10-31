@@ -1,5 +1,6 @@
 import type { DragEvent } from 'react';
 
+import type { BotAgent } from '@caxri/protocol';
 import { isChatTerminal } from '@caxri/protocol';
 
 import { SurfaceErrorBoundary } from '../../components/surface-error-boundary';
@@ -12,6 +13,7 @@ import { AgentChatTerminalContent } from '../agent-chat/tasks/agent-chat-termina
 import { didPasteDropIntoTerminal, isTerminalPasteDrag } from '../terminal/terminal-drop';
 import { TerminalPane } from '../terminal/terminal-pane';
 import { useCaxriBotStore } from './bot-client';
+import { BotStartPrompt } from './bot-start-prompt';
 import type { CaxriBotStatus } from './hooks/use-caxri-bot';
 
 /**
@@ -26,10 +28,19 @@ import type { CaxriBotStatus } from './hooks/use-caxri-bot';
  * files from Finder, most often a screenshot for Caxri Bot to hand on, and Workbench Files entries, Editor tabs, or
  * Projects insert their paths while the Terminal runs.
  */
-export function BotTerminal({ onRetry, status }: { onRetry: () => void; status: CaxriBotStatus }) {
+export function BotTerminal({
+    onRetry,
+    onStart,
+    status,
+}: {
+    onRetry: () => void;
+    onStart: (agent: BotAgent) => void;
+    status: CaxriBotStatus;
+}) {
     const { t } = useTranslation();
     const terminalId = useCaxriBotStore((state) => state.identity?.terminalId);
     const terminal = useTerminal(terminalId ?? '');
+    if (status.kind === 'prompt') return <BotStartPrompt agent={status.agent} onStart={onStart} />;
     if (status.kind === 'error')
         return (
             <div

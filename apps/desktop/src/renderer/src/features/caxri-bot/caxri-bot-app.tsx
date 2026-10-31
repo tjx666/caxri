@@ -37,7 +37,7 @@ import { useCaxriBot } from './hooks/use-caxri-bot';
  */
 export function CaxriBotApp() {
     const { t } = useTranslation();
-    const { retry, status } = useCaxriBot();
+    const { retry, start, status } = useCaxriBot();
     useWorkbenchAppearance();
     useWindowZoomFactor();
     useBotShortcuts();
@@ -78,7 +78,7 @@ export function CaxriBotApp() {
                         </>
                     )}
                     <main className="caxri-bot-terminal relative min-h-0 min-w-0 flex-1">
-                        <BotTerminal onRetry={retry} status={status} />
+                        <BotTerminal onRetry={retry} onStart={start} status={status} />
                     </main>
                     <BotInboxColumn />
                 </div>
