@@ -123,3 +123,25 @@ export function summarizeUsage(
     summary.unpricedModels = [...unpriced];
     return summary;
 }
+
+/**
+ * Sums one Session's ledger records the way the Usage report sums a Session row over all time. `undefined` when the
+ * records hold no token usage yet.
+ */
+export function sessionCostOf(
+    records: Iterable<UsageRecord | undefined>,
+    priceOf: ModelPriceLookup,
+): { costUsd: number; isPartial: boolean } | undefined {
+    let costUsd = 0;
+    let isPartial = false;
+    let hasUsage = false;
+    for (const record of records) {
+        if (!record) continue;
+        for (const bucket of pricedUsageBuckets(record, priceOf)) {
+            hasUsage = true;
+            costUsd += bucket.costUsd;
+            if (!bucket.isPriced) isPartial = true;
+        }
+    }
+    return hasUsage ? { costUsd, isPartial } : undefined;
+}

@@ -17,7 +17,10 @@ interface TerminalHandlerOptions {
     countLiveChats: (sessionId?: string) => number;
     database: Pick<CaxriDatabase, 'getTerminal'>;
     ptyUsage: Pick<PtyUsageMonitor, 'usage'>;
-    resourceMonitor: Pick<TerminalResourceMonitor, 'processes' | 'readingOverride'>;
+    resourceMonitor: Pick<
+        TerminalResourceMonitor,
+        'processes' | 'readingOverride' | 'sessionResources'
+    >;
     terminals: Pick<
         TerminalManager,
         | 'attach'
@@ -55,6 +58,7 @@ export function createTerminalHandlers({
     | 'terminal.resize'
     | 'terminal.resources'
     | 'terminal.runningCount'
+    | 'terminal.sessionResources'
     | 'terminal.snapshot'
     | 'terminal.suspend'
 > {
@@ -91,6 +95,7 @@ export function createTerminalHandlers({
                 await terminals.resources(terminalId),
                 await resourceMonitor.readingOverride(terminalId),
             ),
+        'terminal.sessionResources': ({ sessionId }) => resourceMonitor.sessionResources(sessionId),
         'terminal.processes': () => ({ terminals: resourceMonitor.processes() }),
         'terminal.ptyUsage': async () => ({ usage: (await ptyUsage.usage()) ?? null }),
         /**

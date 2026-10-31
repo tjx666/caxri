@@ -1,4 +1,5 @@
 import type { AgentChatService } from './agent-chat';
+import { chatStateStore } from './agent-chat';
 import type { AgentCoordinator } from './agents';
 import type { CaxriDatabase } from './db';
 import type { DomainDependencies } from './domain-services';
@@ -72,6 +73,7 @@ export function createTerminalSupervision({
     });
     suspensionState.service = terminalSuspension;
     const resourceMonitor = new TerminalResourceMonitor({
+        chatProcessGroups: () => chatStateStore(database).processGroups.list(),
         database,
         logger,
         send,

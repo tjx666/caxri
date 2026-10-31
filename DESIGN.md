@@ -536,10 +536,15 @@ the track visible because Delete already owns the keyboard action; the hover but
 the tree's single Tab stop. The Portal
 card opens to the PrimarySidebar's right after a short hover delay (or immediately on intentional keyboard focus),
 collision-shifts within the viewport, and is a glance: the full title, the primary Agent icon, last active time, and
-Project, plus one muted status line (`Working`, `Unread, finished`, `Detached`) only when the row's
-status glyph is non-default; a settled Session keeps the two-line card. Removed facts live elsewhere:
-the pull request is the row's PR glyph and the row context menu, the creating Session and past
-conversations open from the row context menu, and the accessible description still carries the
+Project; then the facts a person cannot see without opening the Session. The pull request line (after the Codex app)
+restates the row's PR glyph, which collapses under the pointer, with its CI rollup as a dot on the glyph's corner and
+the PR title. The metrics line shows live `CPU` and `Mem` across the Session's PTY Terminals and Chat providers and its
+all-time spend, in `tabular-nums` with the value in `--foreground` after a muted name; it is read once when the card
+opens and never polled, a stopped Session omits CPU and memory, and unknown or unpriced-only spend is omitted rather
+than shown as `$0`. While the first read is in flight an Agent Session reserves the line with a skeleton so the card
+does not grow under the pointer. One muted status line (`Working`, `Unread, finished`, `Detached`) follows only when
+the row's status glyph is non-default. Removed facts live elsewhere:
+opening the pull request, the creating Session, and past conversations go through the row context menu, and the accessible description still carries the
 Worktree, pull request, activity, and unread-attention sentences. Opening a
 modal closes the card and gives the modal ownership of Escape. Canceling a picker restores the exact
 opening control without reopening its detail card; a command's explicit focus handoff takes precedence.

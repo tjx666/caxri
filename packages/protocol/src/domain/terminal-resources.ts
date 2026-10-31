@@ -17,6 +17,18 @@ export const terminalResourceUsageSchema = z.object({
 export type TerminalResourceUsage = z.infer<typeof terminalResourceUsageSchema>;
 
 /**
+ * Everything one Session is running right now, summed: each PTY Terminal's process tree and each live Chat provider's
+ * process tree. CPU is summed `ps` `%cpu`, so it can exceed 100.
+ */
+export const sessionResourceUsageSchema = z.object({
+    cpuPercent: z.number().nonnegative(),
+    memoryMb: z.number().nonnegative(),
+    processCount: z.number().int().nonnegative(),
+});
+
+export type SessionResourceUsage = z.infer<typeof sessionResourceUsageSchema>;
+
+/**
  * Where a Terminal's whole process tree (the PTY shell plus every descendant) counts as using too much. One pair of
  * numbers is shared by the Server Core monitor that raises the alert, the status bar chip that turns red, and Process
  * Explorer's row highlight, so the three surfaces can never disagree about whether the same Terminal is "high".

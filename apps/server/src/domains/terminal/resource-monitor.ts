@@ -3,6 +3,7 @@ import process from 'node:process';
 import type {
     ServerEvent,
     SessionRecord,
+    SessionResourceUsage,
     TerminalProcessEntry,
     TerminalRecord,
     TerminalResourceAlert,
@@ -31,9 +32,14 @@ const HIGH_SAMPLES_BEFORE_ALERT = 2;
 const MAX_TITLE_LENGTH = 512;
 
 interface TerminalResourceMonitorOptions {
+    /**
+     * Process groups of the live Chat provider processes, keyed by the Chat's Terminal ID (`agentChatProcessGroups`). A
+     * Chat has no PTY, so its Agent process tree is reachable only through its group leader.
+     */
+    chatProcessGroups?: () => ReadonlyArray<{ pgid: number; terminalId: string }>;
     database: {
         getSession(id: string): SessionRecord | undefined;
-        listTerminals(): TerminalRecord[];
+        listTerminals(sessionId?: string): TerminalRecord[];
     };
     intervalMs?: number;
     logger: StructuredLogger;
@@ -149,6 +155,40 @@ export class TerminalResourceMonitor {
                 },
             ];
         });
+    }
+
+    /**
+     * One Session's whole live footprint at this instant: every running PTY Terminal's process tree plus every live
+     * Chat provider's process tree, summed. Sampled on request (a sidebar card opening) rather than polled, so an idle
+     * workbench pays nothing for it. `null` when nothing of the Session is running.
+     */
+    async sessionResources(sessionId: string): Promise<SessionResourceUsage | null> {
+        const terminalIds = new Set(
+            this.options.database.listTerminals(sessionId).map((terminal) => terminal.id),
+        );
+        if (terminalIds.size === 0) return null;
+        const roots = new Set<number>();
+        for (const terminalId of terminalIds) {
+            const processId = this.options.terminals.processId(terminalId);
+            if (processId !== undefined) roots.add(processId);
+        }
+        const chatGroups = this.options.chatProcessGroups?.() ?? [];
+        for (const group of chatGroups)
+            if (terminalIds.has(group.terminalId)) roots.add(group.pgid);
+        if (roots.size === 0) return null;
+        const table = await (this.options.sampleProcessTable ?? sampleProcessTable)();
+        const total: SessionResourceUsage = { cpuPercent: 0, memoryMb: 0, processCount: 0 };
+        for (const root of roots) {
+            const usage = table.usage(root);
+            if (!usage) continue;
+            total.cpuPercent += usage.cpuPercent;
+            total.memoryMb += usage.memoryMb;
+            total.processCount += usage.processCount;
+        }
+        if (total.processCount === 0) return null;
+        total.cpuPercent = Math.round(total.cpuPercent * 10) / 10;
+        total.memoryMb = Math.round(total.memoryMb * 10) / 10;
+        return total;
     }
 
     start(): void {
