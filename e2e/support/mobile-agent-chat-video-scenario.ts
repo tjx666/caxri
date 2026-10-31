@@ -137,6 +137,13 @@ async function tapPlayer(serial: string): Promise<void> {
     ]);
 }
 
+/**
+ * Sends a media key. Every `expo-video` player registers a Media3 session, so pause and play reach it the way a headset
+ * button would, without racing the on-screen controls that hide themselves a few seconds after a touch.
+ */
+const pressMediaKey = (serial: string, key: 'KEYCODE_MEDIA_PAUSE' | 'KEYCODE_MEDIA_PLAY') =>
+    adbShell(serial, ['input', 'keyevent', key]);
+
 const timeBar = (serial: string) => mobileNativeControlBounds(serial, { resourceId: TIME_BAR });
 
 /**
@@ -194,18 +201,14 @@ export async function executeMobileChatVideoScenario(
         // The player plays at once and keeps the screen moving, so it is followed by time, not by UIAutomator.
         await pause(3_000);
         await capture(environment, 'playing', artifacts);
-        // While playing the screen keeps moving and UIAutomator cannot read it, so the taps are blind: show, then pause.
-        await tapPlayer(serial);
-        await pause(500);
-        await tapPlayer(serial);
+        await pressMediaKey(serial, 'KEYCODE_MEDIA_PAUSE');
         await waitForCheck(serial, 'agent-chat-video-player-view');
         await showControls(serial);
         await capture(environment, 'paused', artifacts);
         await seekTo(serial, 0.25);
         await pause(1_000);
         await capture(environment, 'scrubbed', artifacts);
-        await showControls(serial);
-        await tapPlayer(serial);
+        await pressMediaKey(serial, 'KEYCODE_MEDIA_PLAY');
         await pause(2_000);
         await recording.stop();
         recording = undefined;
