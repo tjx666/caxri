@@ -87,6 +87,7 @@ describe('AgentChatService usage limits', () => {
             { provider: 'claude', unavailable: 'current' },
             { provider: 'codex' },
             { provider: 'grok', unavailable: 'notInstalled' },
+            { provider: 'antigravity' },
         ]);
         await expect(
             chat.usage!.continueIn(chat.terminal.id, 'grok', { turnId }),

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import type { StoredAgentDelegation } from '../../db';
-import { applyDelegationLifecycle, isReceiptTransition } from '../lifecycle';
+import { applyDelegationLifecycle, isReceiptTransition, recoveredDelegation } from '../lifecycle';
+import { shouldCollectDelegation } from '../result';
 
 const record: StoredAgentDelegation = {
     receipt: {
@@ -279,6 +280,39 @@ describe('Delegation continuation correlation', () => {
             receipt: { status: 'awaiting_ready' },
         });
         expect(started?.receipt.failure).toBeUndefined();
+    });
+});
+
+describe('Antigravity delegation completion', () => {
+    const antigravity: StoredAgentDelegation = {
+        ...record,
+        receipt: { ...record.receipt, provider: 'antigravity' },
+        turnId: 'step-4',
+    };
+    const stop = {
+        ...signal,
+        provider: 'antigravity' as const,
+        phase: 'turnFinished' as const,
+        agentTurnId: 'step-4',
+    };
+
+    it('reads the conversation only after the Stop that ended its turn', () => {
+        expect(shouldCollectDelegation(antigravity)).toBe(false);
+        expect(
+            applyDelegationLifecycle(antigravity, { ...stop, agentTurnId: 'step-9' }),
+        ).toBeUndefined();
+        const stopped = applyDelegationLifecycle(antigravity, stop);
+        expect(stopped?.receipt.status).toBe('collecting');
+        expect(shouldCollectDelegation(stopped!)).toBe(true);
+    });
+
+    it('collects after a restart only once Stop arrived', () => {
+        expect(recoveredDelegation(antigravity)).toMatchObject({
+            shouldCollect: false,
+            next: { receipt: { status: 'interrupted', failure: 'host_reset' } },
+        });
+        const stopped = applyDelegationLifecycle(antigravity, stop)!;
+        expect(recoveredDelegation(stopped).shouldCollect).toBe(true);
     });
 });
 

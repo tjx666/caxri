@@ -7,6 +7,8 @@ import type {
 import { CaxriError } from '@caxri/protocol';
 import { expandLaunchArguments } from '@caxri/utils';
 
+import type { AgentEnvironment } from './contract';
+
 export interface DelegationEvidence {
     sessionId: string;
     promptDigest: string;
@@ -36,6 +38,19 @@ export interface AgentDelegationAdapter {
      * Native finality is incremental, but this provider stores answer chunks in earlier records.
      */
     completionRequiresTranscript?: boolean;
+    /**
+     * The native record has no turn-end marker, so only the provider's final `Stop` hook proves an answer is final.
+     * Collection waits for it instead of polling a running turn, and a restart collects only a task that saw it.
+     */
+    completionAwaitsStop?: boolean;
+    /**
+     * Reads the native conversation as delegation content when it is not a transcript file Caxri can tail.
+     */
+    readTranscript?(
+        this: void,
+        sessionId: string,
+        environment: AgentEnvironment,
+    ): Promise<string | undefined>;
     createSessionId(): string | undefined;
     validateLaunch(launch: AgentLaunchSettings): void;
     selectLaunch(launch: AgentLaunchSettings, selection: DelegationSelection): AgentLaunchSettings;

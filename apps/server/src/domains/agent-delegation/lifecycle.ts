@@ -39,9 +39,10 @@ export function isReceiptTransition(
 
 /**
  * What a Server restart does with a task that was still active. A retired native process may have persisted completion
- * just before the restart, so a task with a recorded answer or a native-completion turn is collected, never replayed;
- * every other task was cut off by the host reset. So is every task of a Chat child (`isChatTerminal`): its answer lives
- * in the Chat projection, which did not survive the restart.
+ * just before the restart, so a task with a recorded answer or a native-completion turn is collected, never replayed (a
+ * provider whose answer awaits its Stop only once that Stop arrived); every other task was cut off by the host reset.
+ * So is every task of a Chat child (`isChatTerminal`): its answer lives in the Chat projection, which did not survive
+ * the restart.
  */
 export function recoveredDelegation(
     record: StoredAgentDelegation,
@@ -51,9 +52,11 @@ export function recoveredDelegation(
     shouldCollect: boolean;
 } {
     const hasAnswer = record.receipt.status === 'collecting' && Boolean(record.responseDigest);
+    const adapter = delegationAdapter(record.receipt.provider);
     const isNativeTurn =
         Boolean(record.turnId) &&
-        delegationAdapter(record.receipt.provider).completion === 'native-completion';
+        adapter.completion === 'native-completion' &&
+        (!adapter.completionAwaitsStop || record.receipt.status === 'collecting');
     const { terminalId } = record.receipt;
     const isChatChild = Boolean(terminalId && isChatTerminal?.(terminalId));
     const shouldCollect =
@@ -102,8 +105,8 @@ export function applyDelegationLifecycle(
         signal.launchId !== record.launchId
     )
         return;
-    const isNativeCompletion =
-        delegationAdapter(record.receipt.provider).completion === 'native-completion';
+    const adapter = delegationAdapter(record.receipt.provider);
+    const isNativeCompletion = adapter.completion === 'native-completion';
     if (
         isNativeCompletion &&
         !record.providerSessionId &&
@@ -191,6 +194,7 @@ export function applyDelegationLifecycle(
         } as const;
         return patch('failed', failures[signal.agentFailure ?? 'provider_failed']);
     }
+    if (adapter.completionAwaitsStop) return patch('collecting');
     // Codex may continue this same turn after another Stop hook blocks; keep it cancelable until native completion.
     if (isNativeCompletion)
         return record.receipt.provider === 'grok'

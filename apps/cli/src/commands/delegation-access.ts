@@ -32,7 +32,7 @@ export const DELEGATION_ACCESS_COMMANDS: RemoteCommandDefinition[] = [
         quietIdKey: 'clientId',
         requiresHumanOwner: true,
         summary: 'Authorize a bounded external caller in an explicit directory.',
-        usage: '--root <absolute-path> --provider <claude|codex|grok> [--register-project] [--ttl-ms <duration>]',
+        usage: '--root <absolute-path> --provider <claude|codex|grok|antigravity> [--register-project] [--ttl-ms <duration>]',
         confirmation: 'Authorize this external caller and create its dedicated Session?',
         parseParams: (tokens) => {
             const values = options(tokens);

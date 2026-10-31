@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const delegationProviderSchema = z.enum(['claude', 'codex', 'grok']);
+export const delegationProviderSchema = z.enum(['claude', 'codex', 'grok', 'antigravity']);
 export const delegationPresetNameSchema = z.string().regex(/^[a-z][a-z0-9-]{0,63}$/u);
 export const delegationModelSchema = z.string().trim().min(1).max(256);
 export const delegationEffortSchema = z.enum(['low', 'medium', 'high', 'xhigh', 'max', 'ultra']);
@@ -24,7 +24,8 @@ export function isDelegationEffortSupported(
 ): boolean {
     if (effort === undefined) return true;
     if (provider === 'grok') return (GROK_REASONING_EFFORTS as readonly string[]).includes(effort);
-    if (provider === 'claude') return ['low', 'medium', 'high', 'xhigh', 'max'].includes(effort);
+    if (provider === 'claude' || provider === 'antigravity')
+        return ['low', 'medium', 'high', 'xhigh', 'max'].includes(effort);
     const olderModels = ['gpt-5.5', 'gpt-5.4', 'gpt-5.4-mini', 'gpt-5.3-codex-spark'];
     if (model && olderModels.includes(model))
         return ['low', 'medium', 'high', 'xhigh'].includes(effort);

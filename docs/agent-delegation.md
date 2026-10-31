@@ -5,7 +5,7 @@ status: current
 
 # Visible Agent delegation
 
-Visible delegation runs a task in a managed Claude, Codex or Grok Terminal (a Claude or Codex child opens as an
+Visible delegation runs a task in a managed Claude, Codex, Grok, or Antigravity Terminal (a Claude or Codex child opens as an
 Agent Chat while Open Agents in Chat is on; see [Agent Chat children](#agent-chat-children)), in a sibling pane of the caller's
 Session or in a new Session the caller creates for it (see
 [Start work in a new Session](#start-work-in-a-new-session)). Wide caller panes split right; narrow or
@@ -189,7 +189,7 @@ installed automatically. The default maximum depth is two; supported values are 
 ```
 
 `agent delegate presets --project <id> --session <id>` returns the caller's available roster.
-`create --preset review` selects that named entry. An owner may add `--caller claude|codex|grok` to use
+`create --preset review` selects that named entry. An owner may add `--caller claude|codex|grok|antigravity` to use
 that caller's bindings; a managed Agent's identity always comes from its authenticated Terminal.
 Attempting to claim another provider is rejected before roster disclosure or launch.
 
@@ -244,6 +244,9 @@ record fails closed. Running tasks have no Claude-style 15-second missing-result
 Codex's persisted state proves the exact thread and turn have ended, collection gets 15 seconds to
 find the final event before returning `result_missing`; a missing file cannot reserve the Terminal
 forever. This state proves finality only and never substitutes for the answer event.
+
+Antigravity's `agy` waits for its authenticated `Stop` before collection and reads the answer from its
+conversation database; [Antigravity](antigravity.md#delegation) owns the details.
 
 Grok Build requires version 1.0.24 or newer within major 1. Caxri preallocates its native session ID,
 binds the authenticated `UserPromptSubmit` to the private pointer digest and exact `promptId`, and

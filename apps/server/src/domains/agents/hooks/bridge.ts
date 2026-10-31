@@ -25,7 +25,7 @@ const HOOK_TURN_ID_KEYS: Record<AgentProvider, readonly string[]> = {
     codex: ['turn_id', 'turnId'],
     grok: ['promptId'],
     /**
-     * Antigravity's hook payloads carry no per-turn identifier, only a numeric execution counter.
+     * Antigravity's hook payloads carry no per-turn identifier; the bridge derives one from `initialNumSteps`.
      */
     antigravity: [],
 };
@@ -138,7 +138,7 @@ function hasWakingBackgroundWork(tasks) {
 function readIdentifiers(callback) {
   let source = '';
   let done = false;
-  const captureDigests = ['claude', 'codex', 'grok'].includes(provider) && process.env.CAXRI_HOOK_DIGEST === '1';
+  const captureDigests = ['claude', 'codex', 'grok', 'antigravity'].includes(provider) && process.env.CAXRI_HOOK_DIGEST === '1';
   // Antigravity puts the user's prompt in every payload, so a long prompt must not truncate away the conversation scope.
   const sourceLimit = captureDigests || provider === 'antigravity' ? 1048576 : 65536;
   let overflow = false;
@@ -207,6 +207,11 @@ function readIdentifiers(callback) {
       if (typeof value === 'string' && value.length > 0 && value.length <= 256) sessionId = value;
       const turnValue = firstPresent(payload, turnIdKeys);
       if (typeof turnValue === 'string' && turnValue.length > 0 && turnValue.length <= 256) turnId = turnValue;
+      // Antigravity names no turn. A turn's first call starts after the steps already in the conversation, so that
+      // count is unique per turn; Server Core gives the matching Stop the same id.
+      if (provider === 'antigravity' && signal.phase === 'turnStarted' && Number.isSafeInteger(payload.initialNumSteps) &&
+          payload.initialNumSteps >= 0)
+        turnId = 'step-' + payload.initialNumSteps;
       const toolValue = payload && (payload.tool_use_id ?? payload.toolUseId);
       if (typeof toolValue === 'string' && toolValue.length > 0 && toolValue.length <= 256) toolUseId = toolValue;
       worktreeCreateIntent = hasWorktreeCreateIntent(payload);
@@ -216,8 +221,9 @@ function readIdentifiers(callback) {
           failure = ['rate_limit', 'billing_error', 'authentication_failed', 'max_output_tokens'].includes(payload.error) ? payload.error : 'provider_failed';
         if (signal.phase === 'turnFailed' && provider === 'grok' && payload.hook_event_name === 'StopCancelled')
           failure = 'provider_failed';
-        if (signal.phase === 'turnStarted' && typeof payload.prompt === 'string')
-          promptDigest = createHash('sha256').update(payload.prompt).digest('hex');
+        const prompt = provider === 'antigravity' ? payload.lastUserInput : payload.prompt;
+        if (signal.phase === 'turnStarted' && typeof prompt === 'string')
+          promptDigest = createHash('sha256').update(prompt).digest('hex');
         const response = provider === 'grok' ? payload.lastAssistantMessage : payload.last_assistant_message;
         if (signal.phase === 'turnFinished' && !failure && typeof response === 'string') {
           responseDigest = createHash('sha256').update(response).digest('hex');

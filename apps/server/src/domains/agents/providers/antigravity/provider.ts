@@ -5,6 +5,7 @@ import { expandLaunchArguments } from '@caxri/utils';
 
 import type { AgentProviderDescriptor } from '../../contract';
 import { isOpaqueAgentSessionId } from '../../contract';
+import { antigravityDelegationAdapter } from './delegation';
 import { antigravityHookAdapter } from './hooks';
 import { antigravityConversationPath } from './paths';
 import { readAntigravityState } from './state';
@@ -29,6 +30,7 @@ const CONFLICTING_ARGUMENTS = new Set([
 
 export const antigravityProvider: AgentProviderDescriptor = {
     id: 'antigravity',
+    delegation: antigravityDelegationAdapter,
     hooks: antigravityHookAdapter,
     readState: readAntigravityState,
     resumeArguments: (sessionId) => [...agentProviderCatalog.antigravity.resumeArgs, sessionId],
