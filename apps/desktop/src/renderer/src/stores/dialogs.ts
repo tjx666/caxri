@@ -19,9 +19,10 @@ export type SettingsView =
 /**
  * Which control the open Session-creation menu belongs under. The Project heading's New Session button and the
  * empty-Project row's own New Session button are separate anchors for the same menu, and both can render a trigger for
- * one Project at once.
+ * one Project at once. `activity` is the Activity view's New Session row, the only trigger while the Primary Side Bar
+ * shows Activity instead of the Project tree.
  */
-export type CreateSessionAnchor = 'heading' | 'emptyProject';
+export type CreateSessionAnchor = 'heading' | 'emptyProject' | 'activity';
 
 /**
  * A status-bar chip whose popover can also be opened from a command. Both chips hang off the Session the status bar

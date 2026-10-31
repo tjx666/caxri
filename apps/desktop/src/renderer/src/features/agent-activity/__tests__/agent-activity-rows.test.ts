@@ -351,6 +351,9 @@ describe('agentActivityGroups', () => {
 });
 
 describe('agentActivityRenameRow', () => {
+    const OPEN = new Set<never>();
+    const PINNED_COLLAPSED = new Set(['pinned'] as const);
+
     it('keeps an unpinned Session on its status row while the Pinned group is open', () => {
         const groups = groupsOf(
             [
@@ -359,8 +362,8 @@ describe('agentActivityRenameRow', () => {
             ],
             [terminal('waiting')],
         );
-        expect(agentActivityRenameRow(groups, 'waiting', true)).toEqual({
-            expandPinned: false,
+        expect(agentActivityRenameRow(groups, 'waiting', OPEN)).toEqual({
+            expandGroupId: undefined,
             rowId: 'waiting',
         });
     });
@@ -370,21 +373,32 @@ describe('agentActivityRenameRow', () => {
             [session('pinned', { agentActivityState: 'waiting', pinnedAt: 1 })],
             [terminal('pinned')],
         );
-        expect(agentActivityRenameRow(groups, 'pinned', true)).toEqual({
-            expandPinned: false,
+        expect(agentActivityRenameRow(groups, 'pinned', OPEN)).toEqual({
+            expandGroupId: undefined,
             rowId: 'pinned:pinned',
         });
-        expect(agentActivityRenameRow(groups, 'pinned', false)).toEqual({
-            expandPinned: false,
+        expect(agentActivityRenameRow(groups, 'pinned', PINNED_COLLAPSED)).toEqual({
+            expandGroupId: undefined,
             rowId: 'pinned',
         });
     });
 
     it('opens a collapsed Pinned group for a Session listed nowhere else', () => {
         const groups = groupsOf([session('pinned', { pinnedAt: 1 })]);
-        expect(agentActivityRenameRow(groups, 'pinned', false)).toEqual({
-            expandPinned: true,
+        expect(agentActivityRenameRow(groups, 'pinned', PINNED_COLLAPSED)).toEqual({
+            expandGroupId: 'pinned',
             rowId: 'pinned:pinned',
+        });
+    });
+
+    it('opens the collapsed status group that holds the row', () => {
+        const groups = groupsOf(
+            [session('waiting', { agentActivityState: 'waiting' })],
+            [terminal('waiting')],
+        );
+        expect(agentActivityRenameRow(groups, 'waiting', new Set(['waiting'] as const))).toEqual({
+            expandGroupId: 'waiting',
+            rowId: 'waiting',
         });
     });
 });

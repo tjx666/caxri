@@ -37,86 +37,77 @@ const GROUP_ICONS: Record<AgentActivityGroupId, LucideIcon> = {
 };
 function AgentActivityGroupIcon({ groupId }: { groupId: AgentActivityGroupId }) {
     const Icon = GROUP_ICONS[groupId];
-    return <Icon aria-hidden="true" className="agent-activity-heading-icon flex-none" size={12} />;
+    return (
+        <Icon
+            aria-hidden="true"
+            className="agent-activity-heading-icon flex-none text-muted"
+            size={12}
+        />
+    );
 }
 
-const PINNED_DISCLOSURE_KEYS: ReadonlySet<string> = new Set([
-    'ArrowLeft',
-    'ArrowRight',
-    'Enter',
-    ' ',
-]);
+const DISCLOSURE_KEYS: ReadonlySet<string> = new Set(['ArrowLeft', 'ArrowRight', 'Enter', ' ']);
 
 /**
- * One group heading in the Activity tree.
+ * One group heading in the Activity tree: a disclosure, like the Project tree's Project and Pinned headings, so Enter,
+ * Space, and Left/Right toggle it the way a tree branch does. A collapsed group still shows its count, so nothing reads
+ * as gone.
  *
- * A status heading is a `treeitem` because everything inside `role="tree"` has to be one, but an `aria-disabled` one
- * with no Tab stop: those groups are derived from Agent state and cannot be collapsed, so there is no action to land
- * focus on. Arrow keys step over it, the same way DESIGN.md has them step over a branch placeholder.
- *
- * The Pinned heading (`pinnedDisclosure`) is the one focus stop: it collapses, like the Project tree's Pinned heading,
- * so Enter, Space, and Left/Right toggle it the way a tree branch does.
+ * Every heading after the first draws a hairline above itself and gains extra top space. Without it the groups ran
+ * together into one long list, because a heading is a single muted line about as tall as the Session rows' own second
+ * line; the line marks where one state ends without spending a row on it (Paseo spaces its status groups the same
+ * way).
  */
 export function AgentActivityHeading({
+    expanded,
     group,
     heading,
-    pinnedDisclosure,
+    roving,
+    onFocus,
+    onToggle,
 }: {
+    expanded: boolean;
     group: AgentActivityGroup;
     heading: ReturnType<typeof agentActivityHeadingPresentation>;
-    pinnedDisclosure:
-        | { expanded: boolean; onFocus: () => void; onToggle: () => void; roving: boolean }
-        | undefined;
+    roving: boolean;
+    onFocus: () => void;
+    onToggle: () => void;
 }) {
-    const content = (
-        <>
-            <AgentActivityGroupIcon groupId={group.id} />
-            <span>{heading.label}</span>
-            {heading.count !== undefined && (
-                <span aria-hidden="true" className="tabular-nums">
-                    {heading.count}
-                </span>
-            )}
-            <span className="sr-only">{heading.summary}</span>
-        </>
-    );
-    if (!pinnedDisclosure)
-        return (
-            <div
-                aria-disabled="true"
-                aria-level={1}
-                className="agent-activity-heading mt-2 flex items-center gap-1.5 px-2 pb-1 text-[11px] font-medium text-muted first:mt-0"
-                data-activity-group={group.id}
-                data-row-id={group.id}
-                role="treeitem"
-            >
-                {content}
-            </div>
-        );
-    const { expanded, onFocus, onToggle, roving } = pinnedDisclosure;
     const Chevron = expanded ? ChevronDown : ChevronRight;
     return (
         <div
             aria-expanded={expanded}
             aria-level={1}
             aria-selected={false}
-            className="agent-activity-heading agent-activity-pinned-heading mt-2 flex cursor-pointer items-center gap-1.5 rounded-md px-2 pb-1 text-[11px] font-medium text-muted first:mt-0 hover:text-foreground focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none"
+            className="agent-activity-heading group/activity-heading relative mt-3 flex h-7 flex-none cursor-pointer items-center gap-1.5 rounded-md px-2 text-[11px] font-semibold text-foreground select-none before:pointer-events-none before:absolute before:inset-x-2 before:-top-2 before:h-px before:bg-border first:mt-0 first:before:hidden hover:bg-state-hover focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none"
             data-activity-group={group.id}
             data-row-id={group.id}
+            data-expanded={expanded}
             role="treeitem"
             tabIndex={roving ? 0 : -1}
             onClick={onToggle}
             onFocus={onFocus}
             onKeyDown={(event) => {
-                if (!PINNED_DISCLOSURE_KEYS.has(event.key)) return;
+                if (!DISCLOSURE_KEYS.has(event.key)) return;
                 if (expanded && event.key === 'ArrowRight') return;
                 if (!expanded && event.key === 'ArrowLeft') return;
                 event.preventDefault();
                 onToggle();
             }}
         >
-            {content}
-            <Chevron aria-hidden="true" className="flex-none" size={12} />
+            <AgentActivityGroupIcon groupId={group.id} />
+            <span className="truncate">{heading.label}</span>
+            {heading.count !== undefined && (
+                <span aria-hidden="true" className="font-normal text-muted tabular-nums">
+                    {heading.count}
+                </span>
+            )}
+            <span className="sr-only">{heading.summary}</span>
+            <Chevron
+                aria-hidden="true"
+                className="ml-auto flex-none text-muted opacity-0 transition-opacity group-hover/activity-heading:opacity-100 group-focus-visible/activity-heading:opacity-100 group-data-[expanded=false]/activity-heading:opacity-100"
+                size={12}
+            />
         </div>
     );
 }

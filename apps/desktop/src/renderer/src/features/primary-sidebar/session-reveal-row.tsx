@@ -1,7 +1,8 @@
 import { useTranslation } from '../../i18n';
 
 /**
- * The `Show N more` row that closes a windowed Session list, shared by Project groups and the Pinned group.
+ * The `Show N more` row that closes a windowed Session list, shared by Project groups, the Pinned group, and the
+ * Activity view's windowed status groups.
  *
  * The button is the row: it holds the roving Tab stop, so it carries the tree semantics itself instead of sitting
  * inside a `treeitem` wrapper focus never reaches. It is deliberately content-width rather than `w-full`: a full-width
@@ -11,12 +12,18 @@ import { useTranslation } from '../../i18n';
  * would spend width on a meaning the row does not have.
  */
 export function SessionRevealRow({
+    ariaLabel: ariaLabelOverride,
     count,
     projectTitle,
     roving,
     rowId,
     onReveal,
 }: {
+    /**
+     * Replaces the Project/Pinned accessible name, for a list whose group is neither (the Activity view's status
+     * groups).
+     */
+    ariaLabel?: string;
     /**
      * How many Sessions this activation reveals; the visible label (`Show N more`) and the accessible name both carry
      * it.
@@ -32,7 +39,8 @@ export function SessionRevealRow({
 }) {
     const { t } = useTranslation();
     const ariaLabel =
-        projectTitle === undefined
+        ariaLabelOverride ??
+        (projectTitle === undefined
             ? t(
                   count === 1
                       ? 'primarySidebar.pinned.revealAriaLabelOne'
@@ -44,7 +52,7 @@ export function SessionRevealRow({
                       ? 'primarySidebar.project.revealAriaLabelOne'
                       : 'primarySidebar.project.revealAriaLabelOther',
                   { count, title: projectTitle },
-              );
+              ));
     return (
         <button
             className="session-reveal mt-0.5 ml-5.5 flex h-6 w-fit max-w-[calc(100%-22px)] cursor-pointer items-center overflow-hidden rounded-md border-0 bg-transparent px-2 text-xs whitespace-nowrap text-muted hover:bg-state-hover hover:text-foreground focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none"

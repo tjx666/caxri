@@ -51,6 +51,39 @@ is a raised hand rather than a bell because the Status Bar's notification center
 An empty group is not rendered. Inside a group, rows keep Session activity recency, so the newest
 event in a group is always its first row.
 
+Every heading after the first draws a hairline above itself with extra space, and headings use the
+foreground color in semibold with a muted count. Before that a heading was one muted 11px line,
+about as tall as a row's own second line, so the groups ran together into one long list and the end
+of **Needs attention** was hard to find. Paseo spaces its status groups the same way.
+
+Every group collapses from its heading to that heading and its count, and the choice persists across
+launches (`useAgentActivityGroupCollapse`). Pinned shares the Project tree Pinned group's record, so
+the two bodies never disagree about it. **Pinned**, **Recently finished**, and **Idle** can grow
+without bound, so they show their newest five Sessions and the Project tree's `Show N more` row,
+stepping by ten (`WINDOWED_SESSION_LIST_GROUPS` and `sessionListWindow` in `@caxri/protocol`, the
+same window the phone's home list uses). The groups that ask for the user (**Needs attention**,
+**Working**, **Waiting**, **Failed**) always list everything, because a hidden row there is work
+nobody sees. The selected Session stays on screen below a window, and the revealed counts reset on
+relaunch like the Project tree's. Orca and Paseo both make every Activity status group collapsible;
+T3 Code windows its Settled shelf the same way.
+
+## Starting a Session
+
+The Activity body replaces the Project tree, which holds the only other pointer entry to a new
+Session (the Project heading's pencil). The queue therefore keeps a **New Session** row above its
+scroller, outside the tree because it is not a row of the queue, and it does not scroll away. Its
+trailing edge names the target Project: the one `session.create` uses (the selected Session's), or
+the first listed Project when that one is hidden. A press opens the New Session list rather than
+creating directly, because the list is also where another Project is chosen: with more than one
+Project it leads with a **Project** choice that re-targets the Agent options below it and keeps the
+menu open, after T3 Code's sidebar New thread, which asks for the Project the same way. The Agent
+options, Empty Session, and Import from History are the Project heading's own list.
+
+`Cmd+N` (`session.create`) reaches the same menu: while the side bar shows Activity,
+`openSessionCreationMenu` hands a Project-heading claim to this row's `activity` anchor, since no
+Project heading is mounted to open it. A configured default Agent still creates directly from the
+shortcut.
+
 The group rules, their order, the retention window, and the in-group order live in
 `packages/protocol/src/domain/session/session-activity-group.ts`, which the phone's home list also uses, so
 a Session sits under the same heading on Desktop and on the phone. The phone differs in one place:
@@ -192,15 +225,17 @@ leads with **Mark as Read** (Delete's pointer twin, so Archive loses its `delete
 
 ## Interaction
 
-The list is one ARIA tree with a single Tab stop. Group headings are `aria-disabled` tree items
-with no Tab stop, because they are derived from Agent state and cannot be collapsed; arrow keys step
-over them.
+The list is one ARIA tree with a single Tab stop. Group headings are collapsible tree items and
+focus stops, like the Project tree's Project and Pinned headings; a `Show N more` row is a focus stop
+too.
 
 | Input                   | Result                                                         |
 | ----------------------- | -------------------------------------------------------------- |
 | Click, `Enter`, `Space` | Select that Session; keep a newly viewed row in place          |
-| `Up` / `Down`           | Move between Session rows, skipping headings                   |
-| `Home` / `End`          | First / last Session row                                       |
+| Same on a heading       | Collapse or expand that group                                  |
+| `Left` / `Right`        | Collapse / expand the focused heading's group                  |
+| `Up` / `Down`           | Move between rendered rows, headings included                  |
+| `Home` / `End`          | First / last rendered row                                      |
 | `Delete` / `Backspace`  | Mark the row read, clearing its reminder without opening it    |
 | Row's check button      | The pointer equivalent of Delete                               |
 | Double-click, Rename    | Edit that Session's title inline                               |
@@ -258,7 +293,9 @@ into the same trap.
 | `.../features/agent-activity/agent-activity-rows.ts`         | Grouping, ordering, the next-attention walk, the badge tally |
 | `packages/protocol/.../session/session-activity-group.ts`    | Group order, retention window, row order shared with mobile  |
 | `.../agent-activity-glyph.ts`                                | Which shape, which words, and the tint a row's state earns   |
-| `.../agent-activity-tree.ts`                                 | Flattening and keyboard row math                             |
+| `.../agent-activity-tree.ts`                                 | Flattening, collapse, windows, and keyboard row math         |
+| `.../use-agent-activity-group-collapse.ts`                   | Which groups are collapsed, persisted to `localStorage`      |
+| `.../session/create-session-menu.tsx`                        | The New Session row (`ActivitySessionCreationMenu`)          |
 | `.../use-agent-activity-clock.ts`                            | The subscription to the shared window clock                  |
 | `.../agent-activity-view.tsx`, `agent-activity-row-item.tsx` | Rendering, roving focus, and mark-read                       |
 | `.../agent-activity-commands.ts`                             | `session.focusNextAttention`                                 |
@@ -323,7 +360,8 @@ saw the user stop looking.
 
 ## Non-goals
 
-This view reports state; it does not schedule work. It does not create Sessions, dispatch Agents,
+This view reports state; it does not schedule work. Beyond the New Session row it offers no way to
+create Sessions, and it does not dispatch Agents,
 summarize transcripts (an excerpt is a clipped quote of the Agent's own words, never a summary), or
 add event granularity beyond the six `AgentActivityState` values.
 [Issue #601](https://github.com/tjx666/caxri/issues/601) tracks a larger butler-window design whose

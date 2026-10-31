@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => {
         openCreateSessionMenu: vi.fn(),
         pendingProjectId: undefined as string | undefined,
         pendingRoot: undefined as string | undefined,
+        primarySidebarActivityMode: false,
         primarySidebarVisible: true,
         setPrimarySidebarVisible: vi.fn(),
         getQueryData: vi.fn(),
@@ -73,6 +74,7 @@ vi.mock('../../../stores/chrome-layout', () => ({
         state.primarySidebarVisible,
     useChromeLayoutStore: {
         getState: vi.fn(() => ({
+            primarySidebarActivityMode: mocks.primarySidebarActivityMode,
             primarySidebarVisible: mocks.primarySidebarVisible,
             setPrimarySidebarVisible: mocks.setPrimarySidebarVisible,
         })),
@@ -147,6 +149,7 @@ describe('Session creation commands', () => {
         mocks.pendingProjectId = undefined;
         mocks.pendingRoot = undefined;
         mocks.primarySidebarVisible = true;
+        mocks.primarySidebarActivityMode = false;
         useLastAgentChoiceStore.setState({ kind: undefined });
     });
 
@@ -264,6 +267,19 @@ describe('Session creation commands', () => {
 
         expect(mocks.setPrimarySidebarVisible).toHaveBeenCalledWith(true);
         expect(mocks.openCreateSessionMenu).toHaveBeenCalledWith('project-1', 'heading');
+    });
+
+    /**
+     * Activity replaces the Project tree, so no Project heading is mounted to hang a heading claim from; the Activity
+     * view's New Session row takes it instead.
+     */
+    it('hands a heading claim to the Activity New Session row while the side bar shows Activity', () => {
+        mocks.getBootstrap.mockReturnValue({ settings: { 'session.defaultAgent': null } });
+        mocks.primarySidebarActivityMode = true;
+
+        beginSessionCreation('project-1');
+
+        expect(mocks.openCreateSessionMenu).toHaveBeenCalledWith('project-1', 'activity');
     });
 
     it('leaves the Primary Side Bar alone when the default Agent short-circuits the choice', async () => {
