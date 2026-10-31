@@ -24,7 +24,7 @@ const PROGRAMMATIC_GATE_PATTERNS: readonly RegExp[] = [
     /\bbun run (?:check|test|lint|typecheck)\b/iu,
     /\b(?:build|CI) (?:is green|passe[sd]|succeed(?:s|ed))\b/iu,
     /\bcompiles\b/iu,
-    /单元测试|集成测试|回归测试|快照测试|契约测试|测试覆盖率|类型检查|构建通过|编译通过|CI\s*(?:通过|全绿|变绿)/u,
+    /单元测试|单测|集成测试|回归测试|快照测试|契约测试|测试覆盖率|类型检查|构建通过|编译通过|CI\s*(?:通过|全绿|变绿)/u,
 ];
 
 /**
