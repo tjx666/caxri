@@ -58,6 +58,13 @@ export const agentChatTimeline = {
     'agentChat.message.steeredHint':
         'Steered: sent while the Agent was working, so it joined the running turn',
     'agentChat.message.copy': 'Copy message',
+    'agentChat.version.previous': 'Previous version',
+    'agentChat.version.next': 'Next version',
+    'agentChat.version.position': 'Version {{index}} of {{count}}',
+    'agentChat.version.current': 'Current',
+    'agentChat.version.earlierNotice':
+        'You are viewing an earlier version. The conversation continues on the current version, and new messages go there.',
+    'agentChat.version.showCurrent': 'Show current version',
     'agentChat.message.turnCost': 'Estimated cost of this turn at API list prices: {{cost}}',
     'agentChat.message.showLess': 'Show less',
     'agentChat.delegated.by': 'Delegated by',

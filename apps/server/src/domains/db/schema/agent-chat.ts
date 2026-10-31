@@ -82,3 +82,35 @@ export const agentChatSubagents = sqliteTable(
         check('agent_chat_subagents_status', isOneOf(table.status, subagentStatuses)),
     ],
 );
+
+/**
+ * The turns "Edit from here" replaced, kept so the Chat can still show them as an earlier version of the conversation
+ * after the provider rewound its own record (Codex `thread/revert` and Grok Build's rewind delete them). A row holds
+ * the replaced slice of the projection, from the edited message on, as JSON. `anchor_turn_id` is the last turn the
+ * rewind kept, as the rebuilt projection names it (null when the edited message was the conversation's first), and
+ * `agent_session_id` is the conversation it belongs to, so a Chat that starts another conversation stops showing it.
+ * `parent_version_id` is the version whose content holds the anchor, null while it is the conversation that continues:
+ * a later edit further up moves the versions anchored in the turns it replaces under the new version. Turn ids alone
+ * cannot say this, since Grok Build names replayed turns by position (`history:N`), which a later branch reuses.
+ * Bounded per Chat (`MAX_AGENT_CHAT_VERSIONS`, `MAX_AGENT_CHAT_VERSION_BYTES`, oldest dropped first) and cascaded away
+ * with the Terminal. Conversation content: private domain data, never logged. See `docs/agent-chat.md`.
+ */
+export const agentChatVersions = sqliteTable(
+    'agent_chat_versions',
+    {
+        terminalId: text('terminal_id')
+            .notNull()
+            .references(() => terminals.id, { onDelete: 'cascade' }),
+        id: text('id').notNull(),
+        agentSessionId: text('agent_session_id'),
+        parentVersionId: text('parent_version_id'),
+        anchorTurnId: text('anchor_turn_id'),
+        itemsJson: text('items_json').notNull(),
+        turnsJson: text('turns_json').notNull(),
+        createdAt: integer('created_at').notNull(),
+    },
+    (table) => [
+        primaryKey({ columns: [table.terminalId, table.id] }),
+        index('agent_chat_versions_terminal').on(table.terminalId, table.createdAt),
+    ],
+);

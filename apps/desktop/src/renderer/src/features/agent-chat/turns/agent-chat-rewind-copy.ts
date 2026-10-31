@@ -4,9 +4,9 @@ import type { ConfirmRequest } from '../../../stores/confirmations';
 /**
  * The in-app question an "Edit from here" asks before it replaces more than one later turn, or `undefined` when it
  * sends without asking. One turn is the message's own turn, which the edit banner already names; replacing several is
- * easy to miss under that muted caption and cannot be taken back from the Chat, so it asks and points at Fork, which
- * keeps them. An edit that also reverts files asks in the native revert dialog instead, so it never stacks a second
- * question on the same send.
+ * easy to miss under that muted caption: the replaced turns stay only as a read-only earlier version the Agent no
+ * longer remembers, so it asks and points at Fork, which keeps them going. An edit that also reverts files asks in the
+ * native revert dialog instead, so it never stacks a second question on the same send.
  */
 export function agentChatReplaceTurnsConfirm({
     removedTurns,

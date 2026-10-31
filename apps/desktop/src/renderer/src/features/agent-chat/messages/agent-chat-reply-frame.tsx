@@ -21,6 +21,7 @@ export function AgentChatReplyFrame({
     children,
     className,
     isPinned = false,
+    persistentActions,
     ...rest
 }: Omit<ComponentProps<'div'>, 'children' | 'onBlur' | 'onFocus'> & {
     actions: ReactNode;
@@ -33,6 +34,11 @@ export function AgentChatReplyFrame({
      * Keeps the row mounted without hover or focus, while one of its actions is still running and shows a spinner.
      */
     isPinned?: boolean;
+    /**
+     * Leads the row and stays shown without hover or focus: a user message's version switcher, which must stay findable
+     * once the message has earlier versions.
+     */
+    persistentActions?: ReactNode;
 }) {
     const [isHovered, setHovered] = useState(false);
     const [isFocusWithin, setFocusWithin] = useState(false);
@@ -54,11 +60,12 @@ export function AgentChatReplyFrame({
             onPointerLeave={() => setHovered(false)}
         >
             {children}
-            {actions !== null && (
+            {(actions !== null || persistentActions) && (
                 <div
                     className={cn('mt-0.5 flex h-6 items-center gap-1', actionsClassName)}
                     data-agent-chat-find-ignore=""
                 >
+                    {persistentActions}
                     {(isHovered || isFocusWithin || isPinned) && actions}
                 </div>
             )}

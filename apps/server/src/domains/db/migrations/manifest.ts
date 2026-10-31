@@ -4,6 +4,7 @@
 // hand-editing migration files.
 import baselineMigrationSql from './0000_baseline.sql?raw';
 import terminalPtyExhaustedMigrationSql from './0001_terminal_pty_exhausted.sql?raw';
+import agentChatVersionsMigrationSql from './0002_agent_chat_versions.sql?raw';
 import migrationJournal from './meta/_journal.json';
 
 interface MigrationJournal {
@@ -42,6 +43,7 @@ export function assertMigrationManifestMatchesJournal(
 export const migrationManifest = [
     { tag: '0000_baseline', sql: baselineMigrationSql },
     { tag: '0001_terminal_pty_exhausted', sql: terminalPtyExhaustedMigrationSql },
+    { tag: '0002_agent_chat_versions', sql: agentChatVersionsMigrationSql },
 ] as const;
 
 // Intentional: this check must run at module initialization (see the docstring above) so an

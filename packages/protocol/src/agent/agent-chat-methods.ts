@@ -29,6 +29,7 @@ import {
 import { agentChatHistoryPageSchema } from './agent-chat-patch-contract.js';
 import { agentChatDefaultSchema, agentChatPermissionModeSchema } from './agent-chat-permissions.js';
 import { agentChatDecisionSchema } from './agent-chat-requests.js';
+import { agentChatVersionMethods } from './agent-chat-rewind.js';
 import { agentChatTaskSnapshotSchema } from './agent-chat-task-contract.js';
 import { agentChatContinuationTargetSchema } from './agent-usage-continuation.js';
 import { agentProviderSchema } from './agents.js';
@@ -192,10 +193,11 @@ export const agentChatMethods = {
     },
     /**
      * "Edit from here": rewinds the conversation to just before user message `itemId` through the provider's own
-     * record, removing that turn and every later one, then sends the edited message as the new next turn.
-     * `restoreFiles` also restores the files those turns changed from the provider's file checkpoints; a provider
-     * without them (`capabilities.chatRewindFiles`) fails with `VALIDATION`. A running turn, or a message that did not
-     * start its turn, fails with `CONFLICT` before anything changes.
+     * record, removing that turn and every later one, then sends the edited message as the new next turn. The removed
+     * turns are kept as an earlier version (`agentChat.listVersions`). `restoreFiles` also restores the files those
+     * turns changed from the provider's file checkpoints; a provider without them (`capabilities.chatRewindFiles`)
+     * fails with `VALIDATION`. A running turn, or a message that did not start its turn, fails with `CONFLICT` before
+     * anything changes.
      */
     'agentChat.rewind': {
         ...commandPolicy('server', 'control'),
@@ -209,6 +211,7 @@ export const agentChatMethods = {
             .refine(hasMessageContent, { message: 'A message needs text or an image' }),
         result: z.null(),
     },
+    ...agentChatVersionMethods,
     /**
      * "Fork from here": copies the conversation up to just before user message `itemId` into a new Agent Session
      * through the provider's own fork, then opens it as a Chat in a new Session of the same Project and cwd, without

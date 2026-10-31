@@ -95,7 +95,7 @@ export const agentChatChanges = {
     // Edit, restore, and fork from a message
     'agentChat.undo.replaceTurnsTitle': 'Replace {{count}} turns?',
     'agentChat.undo.replaceTurnsMessage':
-        "Sending this edit removes this message's turn and the {{count}} after it from the conversation. To keep them, cancel and use Fork from Here instead.",
+        "Sending this edit replaces this message's turn and the {{count}} after it. They stay viewable as an earlier version of this message, but the Agent no longer remembers them. To keep continuing them, cancel and use Fork from Here instead.",
     'agentChat.undo.replaceTurnsConfirm': 'Replace Turns',
     'agentChat.undo.restoringCode': 'Restoring code…',
     'agentChat.undo.restoreSuccessOne': 'Restored the code changed in 1 turn',

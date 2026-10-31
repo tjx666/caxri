@@ -39,7 +39,7 @@ import { AgentChatJumpToLatest } from '../transcript/agent-chat-jump-to-latest';
 import { agentChatSettledChunks } from '../transcript/agent-chat-settled-chunks';
 import { AgentChatSettledTimeline } from '../transcript/agent-chat-settled-timeline';
 import { buildAgentChatTimeline } from '../transcript/agent-chat-timeline';
-import { AgentChatTimelineEntryView } from '../transcript/agent-chat-timeline-entry-view';
+import { AgentChatTimelineEntryView } from '../transcript/timeline/agent-chat-timeline-entry-view';
 import { AgentChatTaskElapsed, AgentChatTaskGlyph } from './agent-chat-task-glyph';
 import { revealAgentChat } from './agent-chat-task-opener';
 import { AgentChatTaskOutput } from './agent-chat-task-output';

@@ -92,7 +92,7 @@ export const agentChatChanges: TranslatedNamespace<typeof source> = {
     // Edit, restore, and fork from a message
     'agentChat.undo.replaceTurnsTitle': '替换 {{count}} 轮？',
     'agentChat.undo.replaceTurnsMessage':
-        '发送此编辑会从对话中移除这条消息所在的一轮及其后的 {{count}} 轮。如需保留，请取消并改用“从此处分叉”。',
+        '发送此编辑会替换这条消息所在的一轮及其后的 {{count}} 轮。它们会保留为这条消息的较早版本，可以切回查看，但 Agent 不再记得它们。如需继续这些轮次，请取消并改用“从此处分叉”。',
     'agentChat.undo.replaceTurnsConfirm': '替换',
     'agentChat.undo.restoringCode': '正在恢复代码…',
     'agentChat.undo.restoreSuccessOne': '已恢复 1 轮更改的代码',

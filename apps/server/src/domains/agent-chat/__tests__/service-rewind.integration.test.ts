@@ -4,6 +4,8 @@ import type { StructuredLogger } from '@caxri/system';
 import type { Mock } from 'vitest';
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
 
+import type { CaxriDatabase } from '../../db';
+import { listChatVersions, readChatVersion } from '../rewind/chat-versions';
 import { fixture } from './chat-service-fixture';
 
 type Provider = 'claude' | 'codex' | 'grok';
@@ -40,6 +42,18 @@ async function threeTurns(provider: Provider) {
 }
 
 /**
+ * The user messages of each earlier version the Chat keeps, oldest first, with the version's anchor.
+ */
+function versions(database: CaxriDatabase, terminalId: string) {
+    return listChatVersions(database, terminalId).map((version) => ({
+        anchorTurnId: version.anchorTurnId,
+        texts: readChatVersion(database, terminalId, version.id).items.flatMap((item) =>
+            item.type === 'userMessage' ? [item.text] : [],
+        ),
+    }));
+}
+
+/**
  * The fields of the only `event` record written so far.
  */
 function loggedFields(logWrite: Mock<StructuredLogger['write']>, event: string) {
@@ -52,7 +66,8 @@ describe('AgentChatService rewind', () => {
     it.each<Provider>(['claude', 'codex', 'grok'])(
         'edits a %s conversation from an earlier message',
         async (provider) => {
-            const { service, terminal, until, secondId, logWrite } = await threeTurns(provider);
+            const { service, terminal, until, secondId, logWrite, database } =
+                await threeTurns(provider);
             await service.rewind(terminal.id, {
                 itemId: secondId,
                 restoreFiles: false,
@@ -69,9 +84,46 @@ describe('AgentChatService rewind', () => {
 
             // The provider's own record agrees: a later resume shows the same two turns, not the rewound ones.
             await service.restart(terminal.id);
-            expect(userTexts(service.read(terminal.id))).toEqual(['first', 'second, rewritten']);
+            const resumed = service.read(terminal.id);
+            expect(userTexts(resumed)).toEqual(['first', 'second, rewritten']);
+            // The replaced turns stay as an earlier version, anchored on the kept turn as a replay names it.
+            expect(versions(database, terminal.id)).toEqual([
+                { anchorTurnId: resumed.turns[0].id, texts: ['second', 'third'] },
+            ]);
         },
     );
+
+    it('keeps the whole conversation as a version when the first Claude message is edited', async () => {
+        const { service, terminal, until, client, database } = await threeTurns('claude');
+        await service.rewind(terminal.id, {
+            itemId: client().items[0].id,
+            restoreFiles: false,
+            message: { text: 'from scratch' },
+        });
+        await until(
+            (snapshot) => userTexts(snapshot).includes('from scratch') && !snapshot.activeTurnId,
+        );
+        expect(versions(database, terminal.id)).toEqual([
+            { anchorTurnId: null, texts: ['first', 'second', 'third'] },
+        ]);
+    });
+
+    it('keeps no version when the rewind is refused', async () => {
+        const { service, terminal, until, secondId, database } = await threeTurns('codex');
+        await service.send(terminal.id, { text: 'slow' });
+        await until((snapshot) => snapshot.activeTurnId !== undefined);
+        await expect(
+            service.rewind(terminal.id, {
+                itemId: secondId,
+                restoreFiles: false,
+                message: { text: 'again' },
+            }),
+        ).rejects.toMatchObject({ code: 'CONFLICT' });
+        expect(versions(database, terminal.id)).toEqual([]);
+        expect(() => readChatVersion(database, terminal.id, 'missing')).toThrow(
+            expect.objectContaining({ code: 'NOT_FOUND' }),
+        );
+    });
 
     it('edits a Grok conversation after a steered message, which has no rewind point of its own (#1721)', async () => {
         const { service, terminal, until } = await fixture({ provider: 'grok' });

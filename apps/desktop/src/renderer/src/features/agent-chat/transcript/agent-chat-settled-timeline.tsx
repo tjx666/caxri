@@ -14,7 +14,7 @@ import {
     agentChatTimelineEntryKey,
     agentChatTurnStartId,
 } from './agent-chat-timeline';
-import { AgentChatTimelineEntryView } from './agent-chat-timeline-entry-view';
+import { AgentChatTimelineEntryView } from './timeline/agent-chat-timeline-entry-view';
 
 interface SettledChunkProperties {
     entries: readonly AgentChatTimelineEntry[];
