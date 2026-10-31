@@ -29,6 +29,7 @@ import {
     collectMobileAcceptanceArtifacts,
     createMobileAcceptanceArtifact,
     interruptAndroidScreenrecord,
+    recordAndroidSetupBlockedCase,
     runMobileAcceptanceCommand,
     startMobileAcceptanceRecording,
     writeMobileAcceptanceArtifact,
@@ -100,20 +101,25 @@ const run = (
         timeoutMs,
     });
 
-const read = (command: string, arguments_: string[], timeoutMs: number): string =>
+const read = (
+    command: string,
+    arguments_: string[],
+    timeoutMs: number,
+    deadlineMs = activeDeadlineMs,
+) =>
     runMobileAcceptanceCommand({
         arguments: arguments_,
         captureOutput: true,
         command,
         cwd: root,
-        deadlineMs: activeDeadlineMs,
+        deadlineMs,
         timeoutMs,
     });
 
 const adbRun = (arguments_: string[], deadlineMs = activeDeadlineMs): string =>
     run(adb, ['-s', serial, ...arguments_], DEVICE_TIMEOUT_MS, process.env, deadlineMs);
-const adbRead = (arguments_: string[]): string =>
-    read(adb, ['-s', serial, ...arguments_], DEVICE_TIMEOUT_MS);
+const adbRead = (arguments_: string[], deadlineMs = activeDeadlineMs): string =>
+    read(adb, ['-s', serial, ...arguments_], DEVICE_TIMEOUT_MS, deadlineMs);
 
 async function waitForCheck(checkId: string, timeoutMs = DEVICE_TIMEOUT_MS): Promise<void> {
     const deadline = Date.now() + timeoutMs;
@@ -426,61 +432,6 @@ async function executeCase(
     if (failure) throw failure instanceof Error ? failure : new Error('Android Acceptance failed');
 }
 
-async function recordSetupBlockedCase(
-    caseId: MobileAndroidAcceptanceCaseId,
-    sourceCommit: string,
-): Promise<void> {
-    const planned = await loadAcceptanceCasePlan(reportDirectory, caseId);
-    const definition = mobileAndroidAcceptanceCase(caseId);
-    await clearMobileAcceptanceCaseArtifacts(reportDirectory, caseId);
-    const launchId = await beginCaseLifecycle(reportDirectory, {
-        caseId,
-        profileIdentity: `android-emulator:${serial}:setup-blocked:${randomUUID()}`,
-        stateIsolation: planned.item.stateIsolation,
-    });
-    let isCleanupCompleted = false;
-    let failure: unknown;
-    try {
-        adbRun(['shell', 'pm', 'clear', 'com.caxri.mobile'], overallDeadlineMs);
-        isCleanupCompleted = true;
-    } catch (error) {
-        failure = error;
-    }
-    try {
-        await completeCaseLifecycle(reportDirectory, {
-            caseId,
-            cleanupCompleted: isCleanupCompleted,
-            cleanupRequested: true,
-            launchId,
-        });
-    } catch (error) {
-        failure ??= error;
-    }
-    await writeMobileAcceptanceReceipt(
-        join(reportDirectory, 'assets', `${caseId}-mobile-device.json`),
-        {
-            appId: 'com.caxri.mobile',
-            artifacts: [],
-            build: { identity: 'unavailable', mode: 'release' },
-            caseId,
-            cleanup: {
-                appData: isCleanupCompleted ? 'cleared' : 'preserved',
-                desktopProfile: definition.desktopProfile,
-            },
-            device: { id: serial, kind: 'emulator', platform: 'android' },
-            launchId,
-            outcome: 'acceptance-run-blocked-before-device-ready',
-            schemaVersion: 1,
-            sourceCommit,
-            status: 'blocked',
-        },
-    );
-    if (failure)
-        throw failure instanceof Error
-            ? failure
-            : new Error('Blocked Android Acceptance cleanup failed');
-}
-
 const plannedCases = await Promise.all(
     caseIds.map((caseId) => loadAcceptanceCasePlan(reportDirectory, caseId)),
 );
@@ -571,7 +522,14 @@ await withRepoLock(
                 try {
                     // Each frozen mobile check needs its own blocked lifecycle and device receipt for round finalization.
                     // eslint-disable-next-line no-await-in-loop
-                    await recordSetupBlockedCase(caseId, sourceCommit);
+                    await recordAndroidSetupBlockedCase({
+                        caseId,
+                        desktopProfile: mobileAndroidAcceptanceCase(caseId).desktopProfile,
+                        reportDirectory,
+                        runDevice: (arguments_) => adbRead(arguments_, overallDeadlineMs),
+                        serial,
+                        sourceCommit,
+                    });
                 } catch (error) {
                     receiptFailure ??= error;
                 }

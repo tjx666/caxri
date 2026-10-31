@@ -1,14 +1,20 @@
 import { Buffer } from 'node:buffer';
 import type { ChildProcess } from 'node:child_process';
 import { spawn, spawnSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { readdir, readFile, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import process from 'node:process';
 
+import {
+    beginCaseLifecycle,
+    completeCaseLifecycle,
+} from '../.agents/skills/acceptance/scripts/case-lifecycle';
 import { assertDecodablePng } from '../.agents/skills/acceptance/scripts/png-integrity';
+import { loadAcceptanceCasePlan } from '../.agents/skills/acceptance/scripts/report';
 import { writeJsonAtomic, writeTextAtomic } from './atomic-json';
+import type { mobileAndroidAcceptanceCase } from './mobile-android-cases';
 
 const COMMIT_PATTERN = /^[0-9a-f]{7,64}$/iu;
 const RECORDING_START_TIMEOUT_MS = 5_000;
@@ -356,6 +362,88 @@ export function assertMobileAcceptanceSourceIdentity(input: {
 /**
  * Publishes the final receipt atomically so an authorized clean retry replaces only its predecessor.
  */
+/**
+ * Clears an Android app's data only when the app is installed. A run blocked before the release APK was ever installed
+ * (a cold Gradle build killed by its budget) has nothing to clear, yet `pm clear` on the missing package failed, left
+ * the isolated launch uncleaned, and refused every retry in that round. `pm list packages <id>` exits 0 and prints one
+ * `package:<id>` line per substring match, so only an exact line counts as installed; a failed query still throws and
+ * keeps the launch uncleaned.
+ */
+export function clearAndroidAppDataIfInstalled(
+    appId: string,
+    runDevice: (arguments_: string[]) => string,
+): 'absent' | 'cleared' {
+    const listed = runDevice(['shell', 'pm', 'list', 'packages', appId]);
+    const isInstalled = listed.split(/\r?\n/u).some((line) => line.trim() === `package:${appId}`);
+    if (!isInstalled) return 'absent';
+    runDevice(['shell', 'pm', 'clear', appId]);
+    return 'cleared';
+}
+
 export function writeMobileAcceptanceReceipt(path: string, receipt: unknown): Promise<void> {
     return writeJsonAtomic(path, receipt);
+}
+
+/**
+ * Records a blocked lifecycle and device receipt for a frozen Android case whose run stopped before the device was
+ * ready (a failed build, emulator, or Desktop setup), so the round can still be finalized. Cleanup clears app data only
+ * when the app is installed; see {@link clearAndroidAppDataIfInstalled}.
+ */
+export async function recordAndroidSetupBlockedCase(input: {
+    caseId: string;
+    desktopProfile: ReturnType<typeof mobileAndroidAcceptanceCase>['desktopProfile'];
+    reportDirectory: string;
+    runDevice: (arguments_: string[]) => string;
+    serial: string;
+    sourceCommit: string;
+}): Promise<void> {
+    const { caseId, reportDirectory, serial } = input;
+    const planned = await loadAcceptanceCasePlan(reportDirectory, caseId);
+    await clearMobileAcceptanceCaseArtifacts(reportDirectory, caseId);
+    const launchId = await beginCaseLifecycle(reportDirectory, {
+        caseId,
+        profileIdentity: `android-emulator:${serial}:setup-blocked:${randomUUID()}`,
+        stateIsolation: planned.item.stateIsolation,
+    });
+    let isCleanupCompleted = false;
+    let failure: unknown;
+    try {
+        clearAndroidAppDataIfInstalled('com.caxri.mobile', input.runDevice);
+        isCleanupCompleted = true;
+    } catch (error) {
+        failure = error;
+    }
+    try {
+        await completeCaseLifecycle(reportDirectory, {
+            caseId,
+            cleanupCompleted: isCleanupCompleted,
+            cleanupRequested: true,
+            launchId,
+        });
+    } catch (error) {
+        failure ??= error;
+    }
+    await writeMobileAcceptanceReceipt(
+        join(reportDirectory, 'assets', `${caseId}-mobile-device.json`),
+        {
+            appId: 'com.caxri.mobile',
+            artifacts: [],
+            build: { identity: 'unavailable', mode: 'release' },
+            caseId,
+            cleanup: {
+                appData: isCleanupCompleted ? 'cleared' : 'preserved',
+                desktopProfile: input.desktopProfile,
+            },
+            device: { id: serial, kind: 'emulator', platform: 'android' },
+            launchId,
+            outcome: 'acceptance-run-blocked-before-device-ready',
+            schemaVersion: 1,
+            sourceCommit: input.sourceCommit,
+            status: 'blocked',
+        },
+    );
+    if (failure)
+        throw failure instanceof Error
+            ? failure
+            : new Error('Blocked Android Acceptance cleanup failed');
 }
