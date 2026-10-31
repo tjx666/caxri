@@ -161,8 +161,9 @@ export function isClaudeUsageLimitContinuePrompt(uuid: string): boolean {
 }
 
 /**
- * A prompt as the projection records it and as the SDK sends it. Claude Code does not echo the prompt back, so the
- * projection's user message is made here, with the Client's thumbnails rather than the images themselves.
+ * A prompt as the projection records it and as the SDK sends it. Claude Code echoes a prompt only once it takes it in,
+ * which for a steered one is long after the user sent it, so the projection's user message is made here, with the
+ * Client's thumbnails rather than the images themselves.
  */
 export function claudeUserPrompt(prompt: {
     uuid: UUID;

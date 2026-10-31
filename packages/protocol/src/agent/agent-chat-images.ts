@@ -1,3 +1,33 @@
+import { z } from 'zod';
+
+import { MAX_AGENT_CHAT_THUMBNAIL_LENGTH } from './agent-chat-limits.js';
+
+export const agentChatImageMediaTypeSchema = z.enum([
+    'image/png',
+    'image/jpeg',
+    'image/gif',
+    'image/webp',
+]);
+
+/**
+ * Only an inline base64 raster image may be rendered, so a provider or Client cannot make the Renderer load a remote
+ * URL through a thumbnail.
+ */
+export const agentChatThumbnailSchema = z
+    .string()
+    .max(MAX_AGENT_CHAT_THUMBNAIL_LENGTH)
+    .regex(/^data:image\/(?:png|jpeg|gif|webp);base64,[\d+/A-Za-z]+={0,2}$/u);
+
+/**
+ * An image attached to a user message. `thumbnail` is absent when the provider's history carries the image but no
+ * preview Caxri made, such as a resumed conversation; the Chat then shows a placeholder.
+ */
+export const agentChatImageReferenceSchema = z.strictObject({
+    thumbnail: agentChatThumbnailSchema.optional(),
+});
+
+export type AgentChatImageMediaType = z.infer<typeof agentChatImageMediaTypeSchema>;
+
 /**
  * Where a message's images sit in its text. The Claude Code and Codex TUIs both write a pasted image into the prompt as
  * `[Image #N]`, numbered by the image's position in the message, and send the images beside the text; a Chat message

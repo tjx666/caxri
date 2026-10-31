@@ -5,7 +5,7 @@ import {
     agentChatImageTokenRanges,
     agentChatTextWithOffsetImages,
     agentChatTextWithRenumberedImages,
-} from '../agent-chat-image-tokens';
+} from '../agent-chat-images';
 
 describe('agent chat image tokens', () => {
     it('writes the placeholder both terminal Agents use', () => {

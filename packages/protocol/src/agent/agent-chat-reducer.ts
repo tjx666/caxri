@@ -193,6 +193,21 @@ function resolveRetries(items: AgentChatItem[], progress: AgentChatItem): AgentC
     return items;
 }
 
+function isAwaitingAgent(item: AgentChatItem): boolean {
+    return item.type === 'userMessage' && item.isAwaitingAgent === true;
+}
+
+/**
+ * Where a new item goes: last, but before the steered messages the Agent has not taken in yet, so they stay at the end
+ * until it does and then sit where it read them.
+ */
+function insertionIndex(items: readonly AgentChatItem[], item: AgentChatItem): number {
+    if (isAwaitingAgent(item)) return items.length;
+    let index = items.length;
+    while (index > 0 && isAwaitingAgent(items[index - 1])) index -= 1;
+    return index;
+}
+
 /**
  * Applies one patch operation. Shared by Server Core, which owns the projection, and every Client that mirrors it, so
  * both sides converge on the same bounded snapshot.
@@ -232,7 +247,8 @@ export function applyAgentChatOperation(
         case 'upsertItem': {
             const index = snapshot.items.findIndex((item) => item.id === operation.item.id);
             const items = [...snapshot.items];
-            if (index === -1) items.push(operation.item);
+            if (index === -1)
+                items.splice(insertionIndex(items, operation.item), 0, operation.item);
             else items[index] = withCreatedAt(operation.item, snapshot.items[index]);
             return enforceBudget({ ...snapshot, items: resolveRetries(items, operation.item) });
         }

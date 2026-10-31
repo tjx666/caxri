@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { identifierSchema } from '../domain/identifiers.js';
 import { agentChatCommandSchema, MAX_AGENT_CHAT_COMMANDS } from './agent-chat-commands.js';
 import { agentChatGoalSchema } from './agent-chat-goal-contract.js';
+import { agentChatImageReferenceSchema } from './agent-chat-images.js';
 import {
     MAX_AGENT_CHAT_DIFF_LENGTH,
     MAX_AGENT_CHAT_FILE_CHANGES,
@@ -16,7 +17,6 @@ import {
     MAX_AGENT_CHAT_QUEUE,
     MAX_AGENT_CHAT_TASKS,
     MAX_AGENT_CHAT_TEXT_LENGTH,
-    MAX_AGENT_CHAT_THUMBNAIL_LENGTH,
 } from './agent-chat-limits.js';
 import { agentChatMcpServerSchema, MAX_AGENT_CHAT_MCP_SERVERS } from './agent-chat-mcp.js';
 import { agentChatPermissionModeSchema } from './agent-chat-permissions.js';
@@ -36,30 +36,6 @@ import { agentChatDelegatedTaskSchema } from './delegation/agent-delegated-task.
 
 const boundedText = z.string().max(MAX_AGENT_CHAT_TEXT_LENGTH);
 const boundedOutput = z.string().max(MAX_AGENT_CHAT_OUTPUT_LENGTH);
-
-export const agentChatImageMediaTypeSchema = z.enum([
-    'image/png',
-    'image/jpeg',
-    'image/gif',
-    'image/webp',
-]);
-
-/**
- * Only an inline base64 raster image may be rendered, so a provider or Client cannot make the Renderer load a remote
- * URL through a thumbnail.
- */
-export const agentChatThumbnailSchema = z
-    .string()
-    .max(MAX_AGENT_CHAT_THUMBNAIL_LENGTH)
-    .regex(/^data:image\/(?:png|jpeg|gif|webp);base64,[\d+/A-Za-z]+={0,2}$/u);
-
-/**
- * An image attached to a user message. `thumbnail` is absent when the provider's history carries the image but no
- * preview Caxri made, such as a resumed conversation; the Chat then shows a placeholder.
- */
-const agentChatImageReferenceSchema = z.strictObject({
-    thumbnail: agentChatThumbnailSchema.optional(),
-});
 
 /**
  * A reasoning effort level, as the provider names it (`low`, `high`, `xhigh`, ...). Kept open because each provider and
@@ -185,6 +161,12 @@ export const agentChatItemSchema = z.discriminatedUnion('type', [
          * once the turn ended. Absent for a message that started a turn directly.
          */
         delivery: z.enum(['steered', 'queued']).optional(),
+        /**
+         * Set while a message steered into the running turn waits for the Agent to take it in, which Claude Code does
+         * only at its next model request. Until then every new item goes before it (`applyAgentChatOperation`), so a
+         * reply the Agent wrote without reading the message never shows under it.
+         */
+        isAwaitingAgent: z.literal(true).optional(),
         /**
          * Set by Server Core when `text` is a delegated task pointer rather than something the user typed.
          */
@@ -591,5 +573,4 @@ export type AgentChatPlan = z.infer<typeof agentChatPlanSchema>;
 export type AgentChatFailureReason = z.infer<typeof agentChatFailureReasonSchema>;
 export type AgentChatSnapshot = z.infer<typeof agentChatSnapshotSchema>;
 export type AgentChatModel = z.infer<typeof agentChatModelSchema>;
-export type AgentChatImageMediaType = z.infer<typeof agentChatImageMediaTypeSchema>;
 /* eslint-enable unicorn/max-nested-calls */

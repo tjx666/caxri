@@ -1,9 +1,7 @@
 import { z } from 'zod';
 
-import {
-    agentChatImageMediaTypeSchema,
-    agentChatSnapshotSchema,
-} from '../agent/agent-chat-contract.js';
+import { agentChatSnapshotSchema } from '../agent/agent-chat-contract.js';
+import { agentChatImageMediaTypeSchema } from '../agent/agent-chat-images.js';
 import { MAX_AGENT_CHAT_IMAGES } from '../agent/agent-chat-limits.js';
 import { agentChatMethods } from '../agent/agent-chat-methods.js';
 import { agentChatHistoryPageSchema } from '../agent/agent-chat-patch-contract.js';

@@ -18,7 +18,7 @@ import type {
 import { CaxriError } from '@caxri/protocol';
 
 import { ChatTurnUsage, claudeTurnResponse } from '../../../usage';
-import { clip, isRecord, slashCommandPrompt, stringField } from '../../chat-items';
+import { isRecord, slashCommandPrompt, stringField } from '../../chat-items';
 import type {
     AgentChatDriver,
     AgentChatProviderSession,
@@ -34,7 +34,7 @@ import type {
 } from '../../chat-provider';
 import { AgentChatStartError } from '../../chat-provider';
 import { isClaudeGoalClearDuringTurn } from '../../goals/claude-goals';
-import { claudeHistoryOperations, claudeTaskHistoryOperations } from '../../history/claude-history';
+import { claudeHistoryOperations } from '../../history/claude-history';
 import { didClaudeInterruptTimeout, stopClaudeTurn } from '../../interrupt/claude-interrupt';
 import type { ClaudeChatSettings } from '../../launch-settings';
 import { claudeChatSettings } from '../../launch-settings';
@@ -69,13 +69,13 @@ import {
 } from './models';
 import { ClaudePermissions } from './permissions';
 import { ClaudePlanLimits } from './plan-limits';
-import { PromptQueue, withTimeout } from './prompt-queue';
+import { ClaudeSteers, PromptQueue, withTimeout } from './prompt-queue';
 import { ClaudeRequestBroker } from './requests';
 import { reportClaudeSessionEnd } from './session-end';
 import { claudeQueryOptions, claudeStartError } from './session-open';
 import { withClaudeShellHooks } from './shell-hooks';
 import { ClaudeStream } from './stream';
-import { readClaudeSubagentTranscript } from './subagent-transcript';
+import { readClaudeTaskHistory } from './subagent-transcript';
 import { onClaudeApiRetry, onClaudeCompactBoundary, onClaudeStatus } from './system-notices';
 import { ClaudeTasks } from './tasks';
 import { applyClaudeToolResults, ClaudeToolClock } from './tool-results';
@@ -116,6 +116,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
     private readonly stream: ClaudeStream;
 
     private readonly tasks: ClaudeTasks;
+    private readonly steers = new ClaudeSteers((operations) => this.options.apply(operations));
     private readonly toolClock = new ClaudeToolClock();
     private readonly turnUsage = new ChatTurnUsage();
     private readonly fastMode = new ClaudeFastModeGate();
@@ -267,6 +268,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
             }
             case 'session_state_changed': {
                 this.turns.onSessionState(message.state);
+                if (!this.options.read().activeTurnId) this.steers.releaseAll();
                 return;
             }
             case 'status': {
@@ -313,6 +315,10 @@ class ClaudeChatSession implements AgentChatProviderSession {
                 return;
             }
             case 'user': {
+                if ('isReplay' in message) {
+                    this.steers.onReplay(message.uuid);
+                    return;
+                }
                 const content = applyClaudeToolResults(this.options, message, (id) => ({
                     wasDeclined: this.requests.takeDeclined(id),
                     durationMs: this.toolClock.stop(id),
@@ -322,6 +328,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
             }
             case 'result': {
                 this.turns.finish(message);
+                if (!this.options.read().activeTurnId) this.steers.releaseAll();
                 this.options.apply(this.fastMode.report(claudeFastMode(message)));
                 if (!this.options.read().activeTurnId) this.context.request();
                 return;
@@ -342,6 +349,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
         if (this.isEnded) return;
         this.isEnded = true;
         this.prompts.end();
+        this.steers.releaseAll();
         this.tasks.close();
         reportClaudeSessionEnd({
             child: this.process?.child,
@@ -393,7 +401,11 @@ class ClaudeChatSession implements AgentChatProviderSession {
             ...(options.delivery && { delivery: options.delivery }),
             ...(activeTurnId && options.delivery === 'steered' && { priority: 'next' as const }),
         });
-        if (!options.isHidden) this.options.apply([{ op: 'upsertItem', item: prompt.item }]);
+        if (!options.isHidden) {
+            const isSteered = activeTurnId !== undefined && options.delivery === 'steered';
+            const item = isSteered ? this.steers.hold(prompt.item) : prompt.item;
+            this.options.apply([{ op: 'upsertItem', item }]);
+        }
         this.prompts.push(prompt.message);
     }
 
@@ -544,22 +556,9 @@ class ClaudeChatSession implements AgentChatProviderSession {
         await this.tasks.stop(taskId);
     }
 
-    /**
-     * Rebuilds a subagent this process never streamed (an earlier process, a resumed conversation) from the transcript
-     * Claude Code wrote for it. A background shell keeps no record once its process is gone.
-     */
-    async readTaskHistory(taskId: string): Promise<ChatTaskHistory | undefined> {
-        const transcript = await readClaudeSubagentTranscript({
-            environment: this.options.environment,
-            cwd: this.options.cwd,
-            sessionId: this.sessionId,
-            toolUseId: taskId,
-        });
-        if (!transcript) return undefined;
-        return {
-            taskId: clip(transcript.toolUseId, 200),
-            operations: claudeTaskHistoryOperations(transcript.content, transcript.truncated),
-        };
+    readTaskHistory(taskId: string): Promise<ChatTaskHistory | undefined> {
+        const { environment, cwd } = this.options;
+        return readClaudeTaskHistory({ environment, cwd, sessionId: this.sessionId, taskId });
     }
 
     readContext() {

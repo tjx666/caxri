@@ -43,6 +43,19 @@ describe('Agent Chat reducer', () => {
         expect(() => agentChatSnapshotSchema.parse(snapshot)).not.toThrow();
     });
 
+    it('keeps a steered message the Agent has not taken in after every later item', () => {
+        const steer = { id: 's', type: 'userMessage' as const, text: 'and then' };
+        const reply = { id: 'r', type: 'agentMessage' as const, text: 'Done', streaming: false };
+        const answer = { id: 'n', type: 'agentMessage' as const, text: 'Ok', streaming: false };
+        const snapshot = [
+            { op: 'upsertItem' as const, item: { ...steer, isAwaitingAgent: true as const } },
+            { op: 'upsertItem' as const, item: reply },
+            { op: 'upsertItem' as const, item: steer },
+            { op: 'upsertItem' as const, item: answer },
+        ].reduce(applyAgentChatOperation, empty());
+        expect(snapshot.items).toEqual([reply, steer, answer]);
+    });
+
     it('settles a retry notice only on progress after it, not on a tool that started before the outage', () => {
         let snapshot = applyAgentChatOperation(empty(), {
             op: 'upsertItem',

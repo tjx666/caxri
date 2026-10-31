@@ -6,7 +6,7 @@ import {
     parseAgentChatSessionHandoff,
     splitAgentChatSessionHandoffNote,
 } from './agent-chat-commands.js';
-import { agentChatImageMediaTypeSchema } from './agent-chat-contract.js';
+import { agentChatImageMediaTypeSchema } from './agent-chat-images.js';
 import { MAX_AGENT_CHAT_PICKED_IMAGES_BYTES } from './agent-chat-limits.js';
 
 /**

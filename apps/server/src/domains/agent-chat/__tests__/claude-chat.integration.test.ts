@@ -1,3 +1,6 @@
+import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+
 import { describe, expect, it, vi } from 'vitest';
 
 import { fixture } from './chat-service-fixture';
@@ -347,5 +350,43 @@ describe('AgentChatService with a fake Claude Code CLI', () => {
         );
         expect(done.turns).toHaveLength(1);
         expect(done.items.filter((item) => item.type === 'userMessage')).toHaveLength(2);
+    });
+
+    it('keeps a steered message below the reply Claude wrote before taking it in', async () => {
+        const { claudeConfigDirectory, service, terminal, until } = await fixture({
+            provider: 'claude',
+        });
+        const hold = join(claudeConfigDirectory, 'hold-reply');
+        await mkdir(claudeConfigDirectory, { recursive: true });
+        await writeFile(hold, '');
+        await service.send(terminal.id, { text: 'think quietly' });
+        await until((snapshot) => snapshot.activeTurnId !== undefined);
+        await service.send(terminal.id, { text: 'and then' }, 'steer');
+        const waiting = await until((snapshot) =>
+            snapshot.items.some((item) => item.type === 'userMessage' && item.text === 'and then'),
+        );
+        expect(waiting.items.at(-1)).toMatchObject({ text: 'and then', isAwaitingAgent: true });
+        await rm(hold);
+        const done = await until(
+            (snapshot) =>
+                !snapshot.activeTurnId &&
+                snapshot.items.some(
+                    (item) => item.type === 'agentMessage' && item.text.includes('and then'),
+                ),
+        );
+        const conversation = done.items.flatMap((item) =>
+            item.type === 'userMessage' || item.type === 'agentMessage'
+                ? [`${item.type}:${item.text}`]
+                : [],
+        );
+        expect(conversation).toEqual([
+            'userMessage:think quietly',
+            'agentMessage:Done thinking.',
+            'userMessage:and then',
+            'agentMessage:Hello from fake Claude. You said: and then [next]',
+        ]);
+        expect(done.items.some((item) => item.type === 'userMessage' && item.isAwaitingAgent)).toBe(
+            false,
+        );
     });
 });

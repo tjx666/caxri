@@ -13,13 +13,12 @@ import { agentChatCommandSchema } from './agent-chat-commands.js';
 import { agentChatContextReportSchema } from './agent-chat-context.js';
 import {
     agentChatEffortSchema,
-    agentChatImageMediaTypeSchema,
     agentChatModelSchema,
     agentChatQueuedMessageSchema,
     agentChatSnapshotSchema,
     agentChatTaskSchema,
-    agentChatThumbnailSchema,
 } from './agent-chat-contract.js';
+import { agentChatImageMediaTypeSchema, agentChatThumbnailSchema } from './agent-chat-images.js';
 import {
     MAX_AGENT_CHAT_IMAGE_BYTES,
     MAX_AGENT_CHAT_IMAGES,

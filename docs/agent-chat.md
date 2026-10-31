@@ -347,8 +347,13 @@ pending permission prompts and questions until the user answers:
   authoritatively: Claude Code starts turns on its own (for example once a background task
   finishes), which open under a synthetic `auto:` id, so the queue waits for them, the composer
   offers Stop, and a surface switch asks before ending that work. Output that arrives with no turn
-  open also opens one. A steered message is sent with `priority: 'next'`. The prompt is recorded
-  locally because Claude Code does not echo it.
+  open also opens one. A steered message is sent with `priority: 'next'`, which Claude Code folds
+  in only at its next model request. The prompt is recorded locally at once, marked
+  `isAwaitingAgent` so every later item goes before it (the shared reducer keeps such messages at
+  the end), and the mark comes off when Claude Code echoes the prompt's uuid
+  (`--replay-user-messages`), which it does at the fold rather than on receipt. A reply the Agent
+  wrote before reading the message therefore shows above it, as a history reload does. A turn or
+  process that ends without the fold clears the mark.
 - Text and thinking stream from `stream_event` deltas and are finalized by the complete
   `assistant` frame under the same id (model message id plus the block's per-kind ordinal).
 - `Bash` is a command row that keeps the tool's `description`. Its result settles the exit code
@@ -1485,7 +1490,7 @@ after this turn`, or `Queue paused · sends nothing until you resume` with Resum
   (`agent-chat-image-placeholders.ts`). At send the placeholders are renumbered 1..k in the order the
   images are sent, which is the numbering the Agent reads: Claude Code receives the text block
   before its images, as its TUI sends them, and the queue renumbers a joined message's placeholders
-  past the images of the messages before it (`packages/protocol/src/agent/agent-chat-image-tokens.ts`).
+  past the images of the messages before it (`packages/protocol/src/agent/agent-chat-images.ts`).
   The sent bubble draws each placeholder that names one of its images as the same pill.
 - **Other files and folders.** Files and folders in `+` opens the native open panel through
   `dialog.selectPaths`, which takes several files and folders at once (Chromium's file input cannot
