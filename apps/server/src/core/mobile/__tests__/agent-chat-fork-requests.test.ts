@@ -44,6 +44,36 @@ describe('mobile Agent Chat Fork and Continue in Another Agent', () => {
         });
     });
 
+    it("continues a usage-limit card's failed turn, or the usage guard's window, as Desktop's same control does", async () => {
+        const forward = vi.fn<(operation: unknown) => Promise<unknown>>(async () => ({
+            sessionId: 'session-3',
+            delegationId: 'delegation-1',
+        }));
+        for (const origin of [
+            { kind: 'usageLimit', turnId: 'turn-7' },
+            { kind: 'usageGuard' },
+        ] as const)
+            // eslint-disable-next-line no-await-in-loop -- The forwarded calls are asserted in request order.
+            await invoke(
+                {
+                    method: 'mobile.agentChat.continueInAgent',
+                    params: { terminalId: 'terminal-1', provider: 'claude', origin },
+                },
+                domainFixture({ surface: 'chat' }),
+                forward,
+            );
+        expect(forward.mock.calls.map(([operation]) => operation)).toEqual([
+            {
+                method: 'agentChat.continueInAgent',
+                params: { terminalId: 'terminal-1', provider: 'claude', turnId: 'turn-7' },
+            },
+            {
+                method: 'agentChat.continueInAgent',
+                params: { terminalId: 'terminal-1', provider: 'claude' },
+            },
+        ]);
+    });
+
     it('lists the continuation targets Core reports', async () => {
         const targets = [
             { provider: 'codex' as const, unavailable: 'current' as const },

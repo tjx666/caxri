@@ -60,45 +60,70 @@ export const SelectedSessionDetail = ({
         await refresh();
     }, [refresh, request, selected]);
     const management = useSessionManagement();
-    const { archive, clearError, fork, setPinned } = management;
+    const { archive, clearError, fork, handOverToBot, resume, setPinned, takeBackFromBot } =
+        management;
     const openSession = useOpenSession(layout);
     const [sheetMode, setSheetMode] = useState<SessionActionsMode | null>(null);
     const terminalId = selected.primaryTerminal?.id;
     const selectedId = selected.id;
-    const isForking =
-        management.pending?.action === 'fork' && management.pending.sessionId === selectedId;
+    const createdBySessionId = selected.createdBySessionId;
+    const isBusy = management.pending?.sessionId === selectedId;
     /**
-     * Only a control device may fork, continue, or delete, as only it sees the long-press sheet. A failure the sheet
-     * shows is not repeated under the header.
+     * Only a control device may fork, continue, delete, or use the Agent group, as only it sees the long-press sheet. A
+     * failure the sheet shows is not repeated under the header.
      */
     const sessionActions = useMemo<SessionMenuActions | undefined>(
         () =>
             sessions.deviceRole === 'control'
                 ? {
                       error: sheetMode === null ? management.error : null,
-                      isForking,
+                      isBusy,
                       onAction: (action) => {
                           clearError();
-                          if (action !== 'fork') {
-                              setSheetMode(action);
-                              return;
+                          switch (action) {
+                              case 'fork': {
+                                  if (!terminalId) return;
+                                  void fork(selectedId, terminalId).then((sessionId) => {
+                                      if (sessionId) openSession(sessionId);
+                                  });
+                                  return;
+                              }
+                              case 'goToCreator': {
+                                  if (createdBySessionId) openSession(createdBySessionId);
+                                  return;
+                              }
+                              case 'resume': {
+                                  void resume(selectedId);
+                                  return;
+                              }
+                              case 'handOver': {
+                                  void handOverToBot(selectedId);
+                                  return;
+                              }
+                              case 'takeBack': {
+                                  void takeBackFromBot(selectedId);
+                                  return;
+                              }
+                              default: {
+                                  setSheetMode(action);
+                              }
                           }
-                          if (!terminalId) return;
-                          void fork(selectedId, terminalId).then((sessionId) => {
-                              if (sessionId) openSession(sessionId);
-                          });
                       },
                   }
                 : undefined,
         [
             clearError,
+            createdBySessionId,
             fork,
-            isForking,
+            handOverToBot,
+            isBusy,
             management.error,
             openSession,
+            resume,
             selectedId,
             sessions.deviceRole,
             sheetMode,
+            takeBackFromBot,
             terminalId,
         ],
     );

@@ -12,11 +12,11 @@ dispatcher also grants only the capabilities for that role.
 
 ## Current method grants
 
-| Role      | Additional methods beyond the preceding role                                                                                                                                                                                                                                                                                                                                                                                    |
-| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `view`    | Dashboard, Session, timeline, changes, Terminal preview, Project panel reads, `mobile.agent.actions`, `mobile.files.search`, `mobile.attention.list`, `mobile.agentChat.read`, `mobile.agentChat.readHistory`, `mobile.agentChat.readImage`, `mobile.agentChat.readTask`, `mobile.pullRequest.read`, and `mobile.agentUsage.read`                                                                                               |
-| `reply`   | `session.markRead`, `mobile.agent.submit`, `mobile.image.upload`, `mobile.agentChat.send`, `mobile.agentChat.configure`, `mobile.agentChat.retry`, `mobile.agentChat.{removeQueued,sendQueuedNow,resumeQueue}`, `mobile.agentChat.{takeQueued,readQueued,editQueued}`, `mobile.agentChat.runCommand`, and `mobile.session.conversationReference`                                                                                |
-| `control` | Agent interrupt, Session management, Terminal control, Project add, `mobile.files.write`, `mobile.attention.answer`, `mobile.agentChat.respond`, `mobile.agentChat.implementPlan`, `mobile.agentChat.interrupt`, `mobile.agentChat.stopTask`, `mobile.agentChat.{fork,continuationTargets,continueInAgent}`, `mobile.botInbox.{list,reply}`, `mobile.host.status`, `mobile.preview.{list,open}`, and `mobile.pullRequest.merge` |
+| Role      | Additional methods beyond the preceding role                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `view`    | Dashboard, Session, timeline, changes, Terminal preview, Project panel reads, `mobile.agent.actions`, `mobile.files.search`, `mobile.attention.list`, `mobile.agentChat.read`, `mobile.agentChat.readHistory`, `mobile.agentChat.readImage`, `mobile.agentChat.readTask`, `mobile.pullRequest.read`, and `mobile.agentUsage.read`                                                                                                                                                                                                         |
+| `reply`   | `session.markRead`, `mobile.agent.submit`, `mobile.image.upload`, `mobile.agentChat.send`, `mobile.agentChat.configure`, `mobile.agentChat.retry`, `mobile.agentChat.{removeQueued,sendQueuedNow,resumeQueue}`, `mobile.agentChat.{takeQueued,readQueued,editQueued}`, `mobile.agentChat.runCommand`, and `mobile.session.conversationReference`                                                                                                                                                                                          |
+| `control` | Agent interrupt, Session management, Terminal control, Project add, `mobile.files.write`, `mobile.attention.answer`, `mobile.agentChat.respond`, `mobile.agentChat.implementPlan`, `mobile.agentChat.interrupt`, `mobile.agentChat.stopTask`, `mobile.agentChat.{fork,continuationTargets,continueInAgent}`, `mobile.session.{menuState,restartAgent,detach,resume,reopenConversation,handOverToBot,takeBackFromBot}`, `mobile.botInbox.{list,reply}`, `mobile.host.status`, `mobile.preview.{list,open}`, and `mobile.pullRequest.merge` |
 
 `mobile.agentChat.configure` carries one field-level rule: a `reply` device may switch the model,
 effort, and ultracode, but a `permissionMode` or `planMode` change needs `control`, because a
@@ -103,10 +103,26 @@ saving it, so the user still reviews and saves it through `mobile.session.rename
 
 `mobile.agentChat.fork` and `mobile.agentChat.continueInAgent` resolve the Chat Terminal through the
 device grant first, then call Desktop's `agentChat.fork` (the whole conversation, no message
-anchor) and `agentChat.continueInAgent` (always a manual continuation). Each returns the new
-Session's id so the phone opens it. `mobile.agentChat.continuationTargets` lists the other Agents
-with Desktop's availability reasons for the Continue in Another Agent picker. All three require the
-control role.
+anchor) and `agentChat.continueInAgent`. Each returns the new Session's id so the phone opens it.
+`mobile.agentChat.continueInAgent` takes an optional `origin` naming the entry that asked: `menu`
+(the default, a manual continuation), `usageLimit` with the failed turn's `turnId` (the usage-limit
+card), or `usageGuard` (the usage guard banner). Server Core resolves a repeated `usageLimit` or
+`usageGuard` request to the Session it already created, as it does for Desktop's card.
+`mobile.agentChat.continuationTargets` lists the other Agents with Desktop's availability reasons
+for the Continue in Another Agent picker. All three require the control role.
+
+The Session menu's Agent group follows the same grant-first rule and calls Desktop's own handlers:
+`mobile.session.restartAgent` restarts the primary Agent in `resume` mode (`terminal.restart`),
+`mobile.session.detach` and `mobile.session.resume` call `session.detach` and `session.resume`
+(without a window, so the computer's selected Session stays put), `mobile.session.reopenConversation`
+calls `session.reopenConversation`, `mobile.session.handOverToBot` calls `bot.ensure` and then
+`bot.session.handOver`, and `mobile.session.takeBackFromBot` calls `bot.session.takeBack`. A
+hand-over refusal is a result carrying Desktop's reason, not an error. Restart and Detach end a
+running turn, so the phone confirms them in its own sheet. `mobile.session.menuState` is the read
+behind the menu: whether Caxri Bot manages the Session, whether the primary Agent holds a
+conversation Restart can resume, and the closed conversations Reopen can bring back. All of them
+require the control role. Copy Transcript Path, Open in New Window, and Open Project in Editor stay
+Desktop-only: they name a path on the computer or open a computer window, which a phone cannot use.
 
 `mobile.terminal.switchSurface` reopens a granted Agent Terminal on the other surface (PTY or
 Chat). It resolves the Terminal through the principal-scoped query first, so a Terminal outside

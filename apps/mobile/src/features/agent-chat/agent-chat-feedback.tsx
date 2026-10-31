@@ -10,6 +10,7 @@ import { Card } from '../../components/card';
 import { useTranslation } from '../../i18n';
 import { mobileSpace, mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
+import { AgentChatContinueAction } from './agent-chat-continue';
 import { AgentChatUsageActionScope, agentChatUsageLimitButtons } from './agent-chat-usage-actions';
 import { AgentChatUsageButtons } from './agent-chat-usage-buttons';
 import {
@@ -58,7 +59,8 @@ const UsageLimitActions = ({
 /**
  * A turn the provider failed because the plan's usage limit is used up, after Desktop's notice: which window ran out
  * and when it resets, the provider's own words muted beneath, whether the Chat continues on its own once the limit
- * resets, and Continue now and Cancel for that wait. Continuing in another Agent lives in the Session's menu.
+ * resets, and Continue now and Cancel for that wait. A control device also continues the failed turn in another Agent
+ * from here, and every device sees where it continued.
  */
 const UsageLimitContent = ({
     item,
@@ -116,6 +118,14 @@ const UsageLimitContent = ({
                         theme={theme}
                         turnId={item.turnId}
                         usageLimit={usageLimit}
+                    />
+                ) : null}
+                {/* As on Desktop, only the failed turn offers a way on, and not once it continued by itself. */}
+                {item.turnId && usageLimit.autoContinue?.status !== 'continued' ? (
+                    <AgentChatContinueAction
+                        continuedIn={usageLimit.continuedIn}
+                        origin={{ kind: 'usageLimit', turnId: item.turnId }}
+                        theme={theme}
                     />
                 ) : null}
             </View>

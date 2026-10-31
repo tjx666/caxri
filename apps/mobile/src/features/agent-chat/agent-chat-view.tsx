@@ -25,6 +25,7 @@ import { conversationActionText } from '../conversation/conversation-user-text';
 import { ConversationList } from '../conversation/conversation-view';
 import { MessageReadOfflineError } from '../conversation/read-whole-message';
 import { SavedCopyNote } from '../read-cache/saved-copy-note';
+import { AgentChatContinueScope } from './agent-chat-continue';
 import { AgentChatDock } from './agent-chat-dock';
 import type { AgentChatHandoffSource } from './agent-chat-handoff';
 import { AgentChatHandoffScope } from './agent-chat-handoff-scope';
@@ -403,8 +404,8 @@ export const AgentChatView = ({
      */
     isConnected: boolean;
     /**
-     * The Chat was detached for another client. Like the detached PTY chip, the notice offers no action: the phone
-     * cannot resume a Session, and Retry restarts only a failed Chat.
+     * The Chat was detached for another client. Like the detached PTY chip, the notice offers no action: Resume Agent
+     * lives in the Session menu of a control device, and Retry restarts only a failed Chat.
      */
     isHandedOff: boolean;
     /**
@@ -464,88 +465,96 @@ export const AgentChatView = ({
     );
 
     return (
-        <View style={styles.root} testID="agent-chat">
-            {failure ? (
-                <NoticeBanner
-                    actionLabel={canRetryFailure ? t('common.retry') : undefined}
-                    isBusy={isRestarting}
-                    message={
-                        restartError ??
-                        agentChatFailureMessage(
-                            failure.reason,
-                            { canRetry, providerName: provider, surface: 'mobile' },
-                            t,
-                        )
-                    }
-                    onAction={() => {
-                        void restart();
-                    }}
-                    testID="agent-chat-failed"
-                    theme={theme}
-                    tone="danger"
-                />
-            ) : null}
-            {isHandedOff ? (
-                <NoticeBanner
-                    message={agentChatHandedOffBanner(t)}
-                    testID="agent-chat-handed-off"
-                    theme={theme}
-                    tone="muted"
-                />
-            ) : null}
-            {snapshot?.usageGuard ? (
-                <AgentChatUsageGuardCard
-                    blockedReason={usageBlockedReason}
-                    guard={snapshot.usageGuard}
-                    provider={provider}
-                    terminalId={snapshot.terminalId}
-                    theme={theme}
-                />
-            ) : null}
-            {shouldShowAgentChatStaleNotice(chat, isConnected) ? (
-                <NoticeBanner
-                    actionLabel={t('common.retry')}
-                    message={t('chat.stale')}
-                    onAction={chat.refresh}
-                    testID="agent-chat-stale"
-                    theme={theme}
-                    tone="muted"
-                />
-            ) : null}
-            {/* Saved-copy and state notices share the top of the segment, as on the Conversation. */}
-            <SavedCopyNote savedAt={chat.savedAt} testID="agent-chat-saved" theme={theme} />
-            <View style={[styles.body, isTimelineYielding && styles.bodyYielding]}>
-                <AgentChatBody
-                    canSend={canRetry}
+        <AgentChatContinueScope
+            deviceRole={deviceRole}
+            isConnected={isConnected}
+            sessionId={handoffSource.sessionId}
+            terminalId={snapshot?.terminalId}
+            theme={theme}
+        >
+            <View style={styles.root} testID="agent-chat">
+                {failure ? (
+                    <NoticeBanner
+                        actionLabel={canRetryFailure ? t('common.retry') : undefined}
+                        isBusy={isRestarting}
+                        message={
+                            restartError ??
+                            agentChatFailureMessage(
+                                failure.reason,
+                                { canRetry, providerName: provider, surface: 'mobile' },
+                                t,
+                            )
+                        }
+                        onAction={() => {
+                            void restart();
+                        }}
+                        testID="agent-chat-failed"
+                        theme={theme}
+                        tone="danger"
+                    />
+                ) : null}
+                {isHandedOff ? (
+                    <NoticeBanner
+                        message={agentChatHandedOffBanner(t)}
+                        testID="agent-chat-handed-off"
+                        theme={theme}
+                        tone="muted"
+                    />
+                ) : null}
+                {snapshot?.usageGuard ? (
+                    <AgentChatUsageGuardCard
+                        blockedReason={usageBlockedReason}
+                        guard={snapshot.usageGuard}
+                        provider={provider}
+                        terminalId={snapshot.terminalId}
+                        theme={theme}
+                    />
+                ) : null}
+                {shouldShowAgentChatStaleNotice(chat, isConnected) ? (
+                    <NoticeBanner
+                        actionLabel={t('common.retry')}
+                        message={t('chat.stale')}
+                        onAction={chat.refresh}
+                        testID="agent-chat-stale"
+                        theme={theme}
+                        tone="muted"
+                    />
+                ) : null}
+                {/* Saved-copy and state notices share the top of the segment, as on the Conversation. */}
+                <SavedCopyNote savedAt={chat.savedAt} testID="agent-chat-saved" theme={theme} />
+                <View style={[styles.body, isTimelineYielding && styles.bodyYielding]}>
+                    <AgentChatBody
+                        canSend={canRetry}
+                        chat={chat}
+                        enterFrom={enterFrom}
+                        handoffSource={handoffSource}
+                        isConnected={isConnected}
+                        isHandedOff={isHandedOff}
+                        onEditMessage={onEditMessage}
+                        provider={provider}
+                        theme={theme}
+                    />
+                </View>
+                {dockedPlan ? (
+                    <AgentChatPlanCard
+                        isTurnRunning={dockedPlan.isTurnRunning}
+                        plan={dockedPlan.plan}
+                        theme={theme}
+                    />
+                ) : null}
+                <AgentChatDock
+                    blockedReason={blockedReason}
+                    canAct={canActOnQueue}
                     chat={chat}
-                    enterFrom={enterFrom}
-                    handoffSource={handoffSource}
+                    deviceRole={deviceRole}
                     isConnected={isConnected}
-                    isHandedOff={isHandedOff}
-                    onEditMessage={onEditMessage}
+                    isTimelineYielding={isTimelineYielding}
+                    onEditQueued={onEditQueued}
                     provider={provider}
                     theme={theme}
                 />
             </View>
-            {dockedPlan ? (
-                <AgentChatPlanCard
-                    isTurnRunning={dockedPlan.isTurnRunning}
-                    plan={dockedPlan.plan}
-                    theme={theme}
-                />
-            ) : null}
-            <AgentChatDock
-                blockedReason={blockedReason}
-                canAct={canActOnQueue}
-                chat={chat}
-                deviceRole={deviceRole}
-                isConnected={isConnected}
-                isTimelineYielding={isTimelineYielding}
-                onEditQueued={onEditQueued}
-                provider={provider}
-                theme={theme}
-            />
-        </View>
+        </AgentChatContinueScope>
     );
 };
 

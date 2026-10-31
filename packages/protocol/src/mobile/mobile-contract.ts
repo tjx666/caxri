@@ -49,6 +49,7 @@ import {
 import { mobilePanelsMethods } from './mobile-panels-contract.js';
 import { mobilePreviewInternalMethods, mobilePreviewMethods } from './mobile-preview-contract.js';
 import { mobilePullRequestMethods } from './mobile-pull-request-contract.js';
+import { mobileSessionAgentMethods } from './mobile-session-agent-contract.js';
 import { mobileSessionManagementMethods } from './mobile-session-management-contract.js';
 import { mobileSessionSearchMethods } from './mobile-session-search-contract.js';
 import { mobileTerminalMethods } from './mobile-terminal-contract.js';
@@ -66,6 +67,7 @@ export type { MobileDeviceRole } from './device-role.js';
 export { mobileDeviceRoleSchema } from './device-role.js';
 export * from './mobile-access-contract.js';
 export * from './mobile-agent-chat-contract.js';
+export type { MobileContinuationOrigin } from './mobile-agent-chat-fork-contract.js';
 export * from './mobile-agent-chat-state-clip.js';
 export * from './mobile-agent-chat-window.js';
 export * from './mobile-agent-usage-contract.js';
@@ -82,6 +84,7 @@ export * from './mobile-message-read-contract.js';
 export * from './mobile-panels-contract.js';
 export * from './mobile-preview-contract.js';
 export * from './mobile-pull-request-contract.js';
+export * from './mobile-session-agent-contract.js';
 export * from './mobile-session-management-contract.js';
 export * from './mobile-session-search-contract.js';
 export * from './mobile-terminal-contract.js';
@@ -372,6 +375,7 @@ export const mobileMethods = {
         result: mobileSessionCreateResultSchema,
     },
     ...mobileSessionManagementMethods,
+    ...mobileSessionAgentMethods,
     ...mobileSessionSearchMethods,
     ...mobileTerminalMethods,
     ...mobileAgentChatMethods,

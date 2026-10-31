@@ -88,17 +88,37 @@ export const continuationChoices = (
  * The step a Session actions sheet shows: its action list, or one action's own step that the Session menu can open
  * directly.
  */
-export type SessionActionsMode = 'continue' | 'delete' | 'menu' | 'rename';
+export type SessionActionsMode =
+    'continue' | 'delete' | 'detach' | 'menu' | 'rename' | 'reopen' | 'restart';
 
 /**
- * What the Session menu needs to offer Fork Session, Continue in Another Agent, and Delete Session. Only a control
- * device receives it; the actions themselves run where the Session actions sheet lives.
+ * A Session menu entry: Fork and the Agent group's Resume, Hand Over, and Take Back run at once, Go to Creating Session
+ * opens that Session, and the rest open their step of the Session actions sheet.
+ */
+export type SessionMenuAction =
+    | 'continue'
+    | 'delete'
+    | 'detach'
+    | 'fork'
+    | 'goToCreator'
+    | 'handOver'
+    | 'reopen'
+    | 'restart'
+    | 'resume'
+    | 'takeBack';
+
+/**
+ * What the Session menu needs to offer Fork Session, Continue in Another Agent, Delete Session, and the Agent group.
+ * Only a control device receives it; the actions themselves run where the Session actions sheet lives.
  */
 export interface SessionMenuActions {
     /**
      * The last failure of an action started from the menu, shown under the header because no sheet is open for it.
      */
     error: string | null;
-    isForking: boolean;
-    onAction: (action: 'continue' | 'delete' | 'fork') => void;
+    /**
+     * Whether an action that runs at once (Fork, Resume, Hand Over, Take Back) is still in flight.
+     */
+    isBusy: boolean;
+    onAction: (action: SessionMenuAction) => void;
 }
