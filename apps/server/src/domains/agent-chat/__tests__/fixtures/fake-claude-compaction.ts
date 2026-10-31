@@ -8,10 +8,22 @@ const delay = (ms: number) =>
     });
 
 /**
- * The `/compact` command after it reported `compacting`: `break` in the command fails it the way Claude Code reports a
- * conversation too short to compact, anything else compacts.
+ * The sizes a `/compact` of the large-context turn reports, so the context drops below the suggestion threshold the way
+ * a real compaction's `post_tokens` makes it.
  */
-export async function runCompactCommand(io: FakeClaudeIo, startedAt: number, text: string) {
+const LARGE_CONTEXT_COMPACTION = { pre_tokens: 141_240, post_tokens: 12_480 };
+
+/**
+ * The `/compact` command after it reported `compacting`: `break` in the command fails it the way Claude Code reports a
+ * conversation too short to compact, anything else compacts. Compacting right after a large-context turn reports the
+ * context's sizes, as Claude Code's `compact_metadata` does; otherwise the boundary carries none, so the total stays.
+ */
+export async function runCompactCommand(
+    io: FakeClaudeIo,
+    startedAt: number,
+    text: string,
+    isLargeContext = false,
+) {
     await delay(300);
     if (text.includes('break')) {
         io.system('status', {
@@ -22,7 +34,12 @@ export async function runCompactCommand(io: FakeClaudeIo, startedAt: number, tex
         io.result(startedAt, 'Compaction failed.', true);
         return;
     }
-    io.system('compact_boundary');
+    io.system(
+        'compact_boundary',
+        isLargeContext
+            ? { compact_metadata: { trigger: 'manual', ...LARGE_CONTEXT_COMPACTION } }
+            : undefined,
+    );
     io.record({ type: 'system', subtype: 'compact_boundary' });
     io.system('status', { status: null, compact_result: 'success' });
     io.result(startedAt, 'Compacted.');

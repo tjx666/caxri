@@ -411,7 +411,9 @@ async function runTurn({ text, content, priority, uuid, isAuto = false }: Queued
     if (text.trimStart().startsWith('/compact')) {
         system('status', { status: 'compacting' });
         if (text.includes('crash')) exitProcess(1);
-        await runCompactCommand(scenarioIo, startedAt, text);
+        await runCompactCommand(scenarioIo, startedAt, text, state.isLargeContextTurn);
+        // The summary replaced the large context, so later context reports start small again.
+        state.isLargeContextTurn = false;
         return;
     }
     const imageCount = Array.isArray(content)

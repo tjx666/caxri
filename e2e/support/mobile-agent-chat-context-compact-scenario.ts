@@ -1,7 +1,12 @@
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scenarios';
 import { capture, finish } from './mobile-agent-actions-scenarios';
-import { hideChatKeyboard, typeChatDraft, waitForCheck } from './mobile-agent-chat-helpers';
+import {
+    hideChatKeyboard,
+    typeChatDraft,
+    waitForCheck,
+    waitForNoCheck,
+} from './mobile-agent-chat-helpers';
 import { observeMobileNode, tapMobileCheck, waitForMobile } from './mobile-android';
 
 /**
@@ -56,6 +61,7 @@ export async function executeMobileChatContextCompactScenario(
         );
         if (!notice) throw new Error('The compaction did not finish');
         await waitForCheck(serial, `conversation-event-${notice.id}`);
+        await waitForNoCheck(serial, 'agent-chat-context-notice', 60_000);
         const draft = await observeMobileNode(serial, 'agent-chat-composer-input', {
             kind: 'equals',
             value: DRAFT,
