@@ -134,6 +134,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 ## T3 Code (MIT)
 
 - **Activity queue placement and retention**: Left Side Bar queue (with the Codex app); 15-minute window. Evidence: `docs/activity-view.md`; `packages/protocol/src/domain/session/session-activity-group.ts`.
+- **Activity New Session row**: A fixed New Session entry above the queue that asks which Project before the Agent, after the sidebar New thread button. Evidence: `docs/activity-view.md` (Starting a Session); `apps/desktop/src/renderer/src/features/session/create-session-menu.tsx`.
 - **Chat composer card, Plan card, drafts**: Composer drawer and tray (with LobeHub), task badge, localStorage drafts. Evidence: `DESIGN.md` (Chat composer); `apps/desktop/src/renderer/src/features/agent-chat/composer-input/agent-chat-drafts.ts`.
 - **Open work-group shimmer**: The running turn's latest work group keeps its active sweep between calls, not only while one is in flight (`work-live` stays `active` after its command completes). Evidence: `apps/desktop/src/renderer/src/features/agent-chat/tools/agent-chat-work-group.tsx`.
 - **Side pane minimum width**: A 360px minimum for the pane beside the Chat, as for its right panel. Evidence: `apps/desktop/src/renderer/src/features/agent-chat/tasks/beside-chat-layout.ts`.
@@ -162,6 +163,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 ## Paseo (Apache-2.0)
 
 - **Activity group headings**: Glyph before each heading. Evidence: `docs/activity-view.md`.
+- **Activity group boundaries and collapse**: Extra space between status groups and a collapsible, persisted heading on every group (with Orca). Evidence: `docs/activity-view.md`; `apps/desktop/src/renderer/src/features/agent-activity/agent-activity-heading.tsx`.
 - **Diff stat colors**: Green and red at equal lightness. Evidence: `packages/protocol/src/domain/diff-stat-colors.ts`.
 - **Mobile read cache, image viewer, model sheet**: 50 cached messages per Chat; pinch, pan, double-tap viewer; bottom sheet. Evidence: `apps/mobile/src/features/read-cache/read-cache-model.ts`; `apps/mobile/src/features/agent-chat/agent-chat-image-viewer.tsx`.
 - **Copy Resume Command**: Continue a conversation in another client (with Jean). Evidence: `paseo.md`; `jean.md`; `apps/desktop/src/renderer/src/features/terminal/terminal-surface-commands.ts`.

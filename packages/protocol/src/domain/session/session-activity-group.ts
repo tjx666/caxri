@@ -31,6 +31,16 @@ export const PINNED_DUPLICATE_SESSION_ACTIVITY_GROUPS: ReadonlySet<SessionActivi
     new Set(['attention', 'working', 'waiting', 'failed']);
 
 /**
+ * Session list groups that can grow without bound, so Desktop's Activity view and the phone's home list both show their
+ * newest few and a `Show N more` row (`sessionListWindow`), the way the Project tree windows each Project. The status
+ * groups that ask for the user (attention, working, waiting, failed) always list everything, since a hidden row there
+ * is work nobody sees.
+ */
+export const WINDOWED_SESSION_LIST_GROUPS: ReadonlySet<'pinned' | SessionActivityGroupId> = new Set(
+    ['pinned', 'finished', 'idle'],
+);
+
+/**
  * How long a finished, already-read Session stays under "Recently finished".
  *
  * Both ends of this window are deliberate. Dropping a Session the moment it is read would mean a turn that finished

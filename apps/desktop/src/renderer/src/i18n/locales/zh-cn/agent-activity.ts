@@ -20,6 +20,8 @@ export const agentActivity: TranslatedNamespace<typeof source> = {
     'agentActivity.heading.unreadSessionsOther': '{{count}} 个未读会话',
     'agentActivity.heading.sessionsOne': '{{count}} 个会话',
     'agentActivity.heading.sessionsOther': '{{count}} 个会话',
+    'agentActivity.revealAriaLabelOne': '在“{{group}}”中再显示 {{count}} 个会话',
+    'agentActivity.revealAriaLabelOther': '在“{{group}}”中再显示 {{count}} 个会话',
     'agentActivity.glyph.detached': '已分离',
     'agentActivity.viewedAndRead': '已查看并已读',
     'agentActivity.markRead': '标为已读',

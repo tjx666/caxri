@@ -1,5 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 
+import { nextRevealedSessionCount } from '@caxri/protocol';
+
 import { useRelativeTimes } from '@/hooks/use-relative-time';
 
 import { useScrollEdge } from '../../hooks/use-scroll-edge';
@@ -7,16 +9,17 @@ import { useSessionExcerpts } from '../../hooks/use-session-excerpts';
 import { useTranslation } from '../../i18n';
 import { useProjects, useSelectedSession, useSessions, useTerminals } from '../../stores/selectors';
 import { tryCommand } from '../../stores/toasts';
-import { usePinnedCollapse } from '../primary-sidebar/hooks/use-pinned-collapse';
 import { useSessionPullRequestPoll } from '../primary-sidebar/hooks/use-session-pull-request';
 import { useSessionRename } from '../primary-sidebar/hooks/use-session-rename';
 import { sessionWorktreeProject, topLevelProjects } from '../primary-sidebar/project-visibility';
+import { SessionRevealRow } from '../primary-sidebar/session-reveal-row';
 import { sessionAgentTerminal } from '../session/session-agent-terminal';
 import { markSessionRead } from '../session/session-commands';
 import { AgentActivityHeading } from './agent-activity-heading';
+import { AgentActivityNewSessionBar } from './agent-activity-new-session-bar';
 import { AgentActivityRowItem } from './agent-activity-row-item';
 import type {
-    AgentActivityGroup,
+    AgentActivityGroupId,
     AgentActivityRow,
     AgentActivitySelectionAnchor,
 } from './agent-activity-rows';
@@ -34,17 +37,10 @@ import {
     rovingAgentActivityRowId,
 } from './agent-activity-tree';
 import { useAgentActivityClock } from './use-agent-activity-clock';
+import { useAgentActivityGroupCollapse } from './use-agent-activity-group-collapse';
 
 const NO_RECORDS: never[] = [];
 const VERTICAL_KEYS: ReadonlySet<string> = new Set(['ArrowDown', 'ArrowUp', 'End', 'Home']);
-
-type RenderRow =
-    | {
-          group: AgentActivityGroup;
-          heading: ReturnType<typeof agentActivityHeadingPresentation>;
-          kind: 'heading';
-      }
-    | { kind: 'session'; row: AgentActivityRow };
 
 /**
  * Every Project's Agent Sessions in one flat, attention-first list.
@@ -64,11 +60,14 @@ export function AgentActivityView() {
     const [focusedRowId, setFocusedRowId] = useState<string>();
     const treeReference = useRef<HTMLDivElement>(null);
     const scrollReference = useRef<HTMLDivElement>(null);
+    const groupCollapse = useAgentActivityGroupCollapse();
     /**
-     * Shares the Project tree Pinned group's remembered disclosure state: both bodies show the same pinned Sessions, so
-     * collapsing them in one and finding them open in the other would read as two different features.
+     * How far each windowed group was revealed. Kept in memory only, like the Project tree's windows: a relaunch starts
+     * from the short lists again, the same way it starts scrolled to the top.
      */
-    const pinnedCollapse = usePinnedCollapse();
+    const [revealedCounts, setRevealedCounts] = useState<
+        Partial<Record<AgentActivityGroupId, number>>
+    >({});
     // The Project tree's own inset-shadow scroll cue (`primary-sidebar-project-tree.tsx`), bound to this queue's
     // scroller too: `.scroll-edge-shell`'s `::after` in styles.css reads the `data-scrolled` attribute this sets.
     useScrollEdge(scrollReference);
@@ -143,8 +142,13 @@ export function AgentActivityView() {
         ],
     );
     const rows = useMemo(
-        () => flattenAgentActivityRows(groups, { pinnedExpanded: pinnedCollapse.expanded }),
-        [groups, pinnedCollapse.expanded],
+        () =>
+            flattenAgentActivityRows(groups, {
+                collapsedGroupIds: groupCollapse.collapsedGroupIds,
+                revealedCounts,
+                selectedSessionId,
+            }),
+        [groupCollapse.collapsedGroupIds, groups, revealedCounts, selectedSessionId],
     );
     const rovingRowId = rovingAgentActivityRowId(rows, focusedRowId, selectedSessionId);
     const sessionRows = useMemo(() => groups.flatMap((group) => group.rows), [groups]);
@@ -155,25 +159,14 @@ export function AgentActivityView() {
     const excerpts = useSessionExcerpts(attentionSessions);
     const visibleSessions = useMemo(() => sessionRows.map((row) => row.session), [sessionRows]);
     const sessionRename = useSessionRename(visibleSessions, (session) => {
-        const target = agentActivityRenameRow(groups, session.id, pinnedCollapse.expanded);
-        if (target.expandPinned) pinnedCollapse.expand();
+        const target = agentActivityRenameRow(groups, session.id, groupCollapse.collapsedGroupIds);
+        if (target.expandGroupId) groupCollapse.expand(target.expandGroupId);
         return target.rowId;
     });
-    /**
-     * Headings and Session rows are rendered as one keyed sequence under a single parent rather than one fragment per
-     * group. A Session that changes state moves between groups constantly, and a per-group fragment makes that a change
-     * of parent; React unmounts the row and rebuilds it, so a focused row loses focus to `<body>` every time the Agent
-     * it describes does anything. Keyed siblings are moved instead.
-     */
-    const renderRows = useMemo(
+    const headings = useMemo(
         () =>
-            groups.flatMap<RenderRow>((group) => [
-                { group, heading: agentActivityHeadingPresentation(group, t), kind: 'heading' },
-                ...(!pinnedCollapse.expanded && group.id === 'pinned'
-                    ? []
-                    : group.rows.map((row) => ({ kind: 'session' as const, row }))),
-            ]),
-        [groups, pinnedCollapse.expanded, t],
+            new Map(groups.map((group) => [group.id, agentActivityHeadingPresentation(group, t)])),
+        [groups, t],
     );
     /**
      * `narrow` ("8m ago") rather than the prose form the Session cards use. A row here spends its one line on a Project
@@ -211,8 +204,11 @@ export function AgentActivityView() {
 
     if (groups.length === 0)
         return (
-            <div className="agent-activity-empty flex min-h-0 flex-1 items-center justify-center p-6 text-center text-xs text-muted">
-                {t('agentActivity.empty')}
+            <div className="flex min-h-0 flex-1 flex-col">
+                <AgentActivityNewSessionBar />
+                <div className="agent-activity-empty flex min-h-0 flex-1 items-center justify-center p-6 text-center text-xs text-muted">
+                    {t('agentActivity.empty')}
+                </div>
             </div>
         );
 
@@ -229,9 +225,10 @@ export function AgentActivityView() {
          * `primary-sidebar-tree-keys.ts`: clearing a reminder is a queue action people repeat, so focus has to advance
          * to the next row rather than follow the one that just left "Needs attention".
          */
+        const sessionTreeRows = rows.filter((candidate) => candidate.kind === 'session');
         const focusAfterRead =
-            nextAgentActivityRowId(rows, row.rowId, 'ArrowDown') ??
-            nextAgentActivityRowId(rows, row.rowId, 'ArrowUp');
+            nextAgentActivityRowId(sessionTreeRows, row.rowId, 'ArrowDown') ??
+            nextAgentActivityRowId(sessionTreeRows, row.rowId, 'ArrowUp');
         setSelection((current) =>
             current.anchor?.sessionId === row.session.id
                 ? { ...current, anchor: undefined }
@@ -246,68 +243,97 @@ export function AgentActivityView() {
     };
 
     return (
-        <div className="scroll-edge-shell relative min-h-0 flex-1">
-            <div
-                ref={scrollReference}
-                className="agent-activity absolute inset-0 overflow-auto p-2"
-                data-scrolled="false"
-            >
+        <div className="flex min-h-0 flex-1 flex-col">
+            <AgentActivityNewSessionBar />
+            <div className="scroll-edge-shell relative min-h-0 flex-1">
                 <div
-                    ref={treeReference}
-                    aria-label={t('agentActivity.treeLabel')}
-                    className="flex flex-col gap-0.5"
-                    role="tree"
-                    onKeyDown={(event) => {
-                        if (event.target instanceof HTMLInputElement) return;
-                        // Same guard as `handlePrimarySidebarTreeKey`: an unbound chord such as macOS's Cmd+Down ("scroll to
-                        // bottom") must keep its native meaning rather than being eaten as a row move.
-                        if (event.altKey || event.metaKey || event.ctrlKey) return;
-                        if (!VERTICAL_KEYS.has(event.key)) return;
-                        const nextRowId = nextAgentActivityRowId(
-                            rows,
-                            focusedRowId,
-                            event.key as AgentActivityVerticalKey,
-                        );
-                        if (!nextRowId) return;
-                        event.preventDefault();
-                        focusRow(nextRowId);
-                    }}
+                    ref={scrollReference}
+                    className="agent-activity absolute inset-0 overflow-auto p-2"
+                    data-scrolled="false"
                 >
-                    {renderRows.map((entry) =>
-                        entry.kind === 'heading' ? (
-                            <AgentActivityHeading
-                                key={entry.group.id}
-                                group={entry.group}
-                                heading={entry.heading}
-                                pinnedDisclosure={
-                                    entry.group.id === 'pinned'
-                                        ? {
-                                              expanded: pinnedCollapse.expanded,
-                                              roving: rovingRowId === entry.group.id,
-                                              onFocus: () => setFocusedRowId(entry.group.id),
-                                              onToggle: pinnedCollapse.toggle,
-                                          }
-                                        : undefined
-                                }
-                            />
-                        ) : (
-                            <AgentActivityRowItem
-                                key={entry.row.rowId}
-                                excerpt={excerpts[entry.row.session.id]}
-                                inPinnedGroup={entry.row.rowId !== entry.row.session.id}
-                                relativeTime={relativeTimeBySessionId.get(entry.row.session.id)}
-                                roving={rovingRowId === entry.row.rowId}
-                                row={entry.row}
-                                selected={selectedSessionId === entry.row.session.id}
-                                sessionRename={sessionRename}
-                                worktreeProject={worktreeProjectBySessionId.get(
-                                    entry.row.session.id,
-                                )}
-                                onFocusChange={setFocusedRowId}
-                                onMarkRead={() => markRead(entry.row)}
-                            />
-                        ),
-                    )}
+                    <div
+                        ref={treeReference}
+                        aria-label={t('agentActivity.treeLabel')}
+                        className="flex flex-col gap-0.5"
+                        role="tree"
+                        onKeyDown={(event) => {
+                            if (event.target instanceof HTMLInputElement) return;
+                            // Same guard as `handlePrimarySidebarTreeKey`: an unbound chord such as macOS's Cmd+Down ("scroll to
+                            // bottom") must keep its native meaning rather than being eaten as a row move.
+                            if (event.altKey || event.metaKey || event.ctrlKey) return;
+                            if (!VERTICAL_KEYS.has(event.key)) return;
+                            const nextRowId = nextAgentActivityRowId(
+                                rows,
+                                focusedRowId,
+                                event.key as AgentActivityVerticalKey,
+                            );
+                            if (!nextRowId) return;
+                            event.preventDefault();
+                            focusRow(nextRowId);
+                        }}
+                    >
+                        {rows.map((entry) => {
+                            if (entry.kind === 'group') {
+                                const heading = headings.get(entry.id);
+                                if (!heading) return null;
+                                return (
+                                    <AgentActivityHeading
+                                        key={entry.id}
+                                        expanded={entry.expanded}
+                                        group={entry.group}
+                                        heading={heading}
+                                        roving={rovingRowId === entry.id}
+                                        onFocus={() => setFocusedRowId(entry.id)}
+                                        onToggle={() => groupCollapse.toggle(entry.id)}
+                                    />
+                                );
+                            }
+                            if (entry.kind === 'reveal')
+                                return (
+                                    <SessionRevealRow
+                                        key={entry.id}
+                                        ariaLabel={t(
+                                            entry.nextRevealCount === 1
+                                                ? 'agentActivity.revealAriaLabelOne'
+                                                : 'agentActivity.revealAriaLabelOther',
+                                            {
+                                                count: entry.nextRevealCount,
+                                                group: headings.get(entry.groupId)?.label ?? '',
+                                            },
+                                        )}
+                                        count={entry.nextRevealCount}
+                                        roving={rovingRowId === entry.id}
+                                        rowId={entry.id}
+                                        onReveal={() => {
+                                            setFocusedRowId(entry.id);
+                                            setRevealedCounts((current) => ({
+                                                ...current,
+                                                [entry.groupId]: nextRevealedSessionCount(
+                                                    entry.windowCount,
+                                                ),
+                                            }));
+                                        }}
+                                    />
+                                );
+                            return (
+                                <AgentActivityRowItem
+                                    key={entry.id}
+                                    excerpt={excerpts[entry.sessionId]}
+                                    inPinnedGroup={entry.row.rowId !== entry.sessionId}
+                                    relativeTime={relativeTimeBySessionId.get(entry.sessionId)}
+                                    roving={rovingRowId === entry.id}
+                                    row={entry.row}
+                                    selected={selectedSessionId === entry.sessionId}
+                                    sessionRename={sessionRename}
+                                    worktreeProject={worktreeProjectBySessionId.get(
+                                        entry.sessionId,
+                                    )}
+                                    onFocusChange={setFocusedRowId}
+                                    onMarkRead={() => markRead(entry.row)}
+                                />
+                            );
+                        })}
+                    </div>
                 </div>
             </div>
         </div>

@@ -1,10 +1,20 @@
 import type { MouseEventHandler, ReactElement } from 'react';
 import { cloneElement, useEffect } from 'react';
 
-import type { ProjectRecord } from '@caxri/protocol';
+import type { ProjectRecord, TerminalKind } from '@caxri/protocol';
 import { History, SquareDashed, SquarePen } from 'lucide-react';
 
-import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from '../../components/ui/menu';
+import {
+    Menu,
+    MenuContent,
+    MenuGroup,
+    MenuGroupLabel,
+    MenuItem,
+    MenuRadioGroup,
+    MenuRadioItem,
+    MenuSeparator,
+    MenuTrigger,
+} from '../../components/ui/menu';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
 import { resolveAgentIcon } from '../../icons/agents/agent-icon-registry';
@@ -42,6 +52,54 @@ function headingRepeatedKind<Kind>(
  */
 function splitTooltipPlacement(anchor: CreateSessionAnchor) {
     return anchor === 'heading' ? ({ keepSide: true, side: 'left' } as const) : {};
+}
+
+/**
+ * The choices every New Session menu offers for one Project: the Agents, the no-Terminal escape hatch, importing a
+ * conversation started outside Caxri, and the Chat preference.
+ */
+function SessionCreationMenuItems({
+    project,
+    repeatedKind,
+}: {
+    project: ProjectRecord;
+    repeatedKind: TerminalKind | undefined;
+}) {
+    const { t } = useTranslation();
+    const settings = useSettings();
+    const defaultAgent = settings?.['session.defaultAgent'];
+    const openInChat = settings?.['session.openAgentsInChat'];
+    return (
+        <>
+            <AgentChoiceMenuItems
+                defaultAgent={defaultAgent}
+                openInChat={openInChat}
+                repeatedKind={repeatedKind}
+                onChoose={(kind) => chooseSessionTerminalKind(project.id, kind)}
+            />
+            <MenuSeparator />
+            {/**
+             * Set apart by its separator and a muted icon: skipping the Terminal is an escape hatch, not a peer of the real
+             * options. Its label keeps the normal foreground, since muted text on an enabled item reads as disabled.
+             */}
+            <MenuItem onClick={() => chooseSessionTerminalKind(project.id, null)}>
+                <SquareDashed className="text-muted" size={14} />
+                <span className="flex-1 truncate">{t('session.create.withoutTerminal')}</span>
+            </MenuItem>
+            {/**
+             * Picks up a conversation started outside Caxri: Session search opened on the conversations not yet in Caxri, this
+             * Project's first, where Enter imports one as a new Session.
+             */}
+            <MenuItem
+                onClick={() => openSessionSearch({ status: 'external', projectId: project.id })}
+            >
+                <History className="text-muted" size={14} />
+                <span className="flex-1 truncate">{t('session.create.importFromHistory')}</span>
+            </MenuItem>
+            <MenuSeparator />
+            <OpenInChatMenuItem />
+        </>
+    );
 }
 
 /**
@@ -234,33 +292,10 @@ function SessionCreationMenu({
                 side={anchor === 'heading' ? 'right' : undefined}
                 sideOffset={anchor === 'heading' ? 12 : undefined}
             >
-                <AgentChoiceMenuItems
-                    defaultAgent={defaultAgent}
-                    openInChat={openInChat}
+                <SessionCreationMenuItems
+                    project={project}
                     repeatedKind={headingRepeatedKind(anchor, splitKind)}
-                    onChoose={(kind) => chooseSessionTerminalKind(project.id, kind)}
                 />
-                <MenuSeparator />
-                {/**
-                 * Set apart by its separator and a muted icon: skipping the Terminal is an escape hatch, not a peer of the real
-                 * options. Its label keeps the normal foreground, since muted text on an enabled item reads as disabled.
-                 */}
-                <MenuItem onClick={() => chooseSessionTerminalKind(project.id, null)}>
-                    <SquareDashed className="text-muted" size={14} />
-                    <span className="flex-1 truncate">{t('session.create.withoutTerminal')}</span>
-                </MenuItem>
-                {/**
-                 * Picks up a conversation started outside Caxri: Session search opened on the conversations not yet in Caxri, this
-                 * Project's first, where Enter imports one as a new Session.
-                 */}
-                <MenuItem
-                    onClick={() => openSessionSearch({ status: 'external', projectId: project.id })}
-                >
-                    <History className="text-muted" size={14} />
-                    <span className="flex-1 truncate">{t('session.create.importFromHistory')}</span>
-                </MenuItem>
-                <MenuSeparator />
-                <OpenInChatMenuItem />
             </MenuContent>
         </Menu>
     );
@@ -350,5 +385,92 @@ export function EmptyProjectSessionMenu({
                 </button>
             }
         />
+    );
+}
+
+/**
+ * The Activity view's New Session row and its menu. The Activity body replaces the Project tree, so without this row
+ * the only pointer entry to a new Session (the Project heading's pencil) is gone while the queue is showing.
+ *
+ * The row targets the Project `session.create` would use (the selected Session's), named on its trailing edge so the
+ * press never lands somewhere unexpected. A press always opens the list, never a direct create: the list is also where
+ * the user switches to another Project, so a press that skipped it would leave no way to reach the others. With more
+ * than one Project the list leads with a Project choice (T3 Code's sidebar New thread asks for the Project the same
+ * way); picking one re-targets the Agent choices below it and keeps the menu open.
+ */
+export function ActivitySessionCreationMenu({
+    defaultProject,
+    projects,
+}: {
+    defaultProject: ProjectRecord;
+    projects: readonly ProjectRecord[];
+}) {
+    const claimedProjectId = useDialogStore((state) =>
+        state.createSessionMenu?.anchor === 'activity'
+            ? state.createSessionMenu.projectId
+            : undefined,
+    );
+    const { t } = useTranslation();
+    const project =
+        projects.find((candidate) => candidate.id === claimedProjectId) ?? defaultProject;
+    /**
+     * Same orphaned-claim guard as `SessionCreationMenu`: switching the side bar back to the Project tree unmounts this
+     * row without Base UI reporting a close.
+     */
+    useEffect(
+        () => () => {
+            if (useDialogStore.getState().createSessionMenu?.anchor === 'activity')
+                closeCreateSessionMenu();
+        },
+        [],
+    );
+    return (
+        <Menu
+            open={claimedProjectId !== undefined}
+            onOpenChange={(nextOpen) => {
+                if (nextOpen) openSessionCreationMenu(project.id, 'activity');
+                else closeCreateSessionMenu();
+            }}
+        >
+            <MenuTrigger
+                render={
+                    <button
+                        type="button"
+                        className="agent-activity-new-session flex h-7 w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-xs text-foreground hover:bg-state-hover focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none aria-expanded:bg-state-hover"
+                        aria-label={t('session.create.newInProject', { project: project.title })}
+                    >
+                        <SquarePen className="flex-none text-muted" size={13} />
+                        <span className="flex-none">{t('session.create.newSession')}</span>
+                        <span className="ml-auto min-w-0 truncate text-muted">{project.title}</span>
+                    </button>
+                }
+            />
+            <MenuContent
+                aria-label={t('session.create.newInProject', { project: project.title })}
+                align="start"
+            >
+                {projects.length > 1 && (
+                    <>
+                        <MenuGroup>
+                            <MenuGroupLabel>{t('session.create.projectLabel')}</MenuGroupLabel>
+                            <MenuRadioGroup
+                                value={project.id}
+                                onValueChange={(projectId: string) =>
+                                    openSessionCreationMenu(projectId, 'activity')
+                                }
+                            >
+                                {projects.map((candidate) => (
+                                    <MenuRadioItem key={candidate.id} value={candidate.id}>
+                                        <span className="flex-1 truncate">{candidate.title}</span>
+                                    </MenuRadioItem>
+                                ))}
+                            </MenuRadioGroup>
+                        </MenuGroup>
+                        <MenuSeparator />
+                    </>
+                )}
+                <SessionCreationMenuItems project={project} repeatedKind={undefined} />
+            </MenuContent>
+        </Menu>
     );
 }

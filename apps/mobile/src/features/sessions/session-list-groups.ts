@@ -1,21 +1,14 @@
-import { nextRevealedSessionCount, sessionListWindow } from '@caxri/protocol';
+import {
+    nextRevealedSessionCount,
+    sessionListWindow,
+    WINDOWED_SESSION_LIST_GROUPS,
+} from '@caxri/protocol';
 
 import type { SessionListEntry } from './hooks/use-session-polling';
 import type { MobileSessionListGroup } from './session-model';
 
 type HeaderEntry = Extract<SessionListEntry, { type: 'header' }>;
 type SessionEntry = Extract<SessionListEntry, { type: 'session' }>;
-
-/**
- * Groups that can grow without bound, so they show their newest few and a reveal row, as Desktop's sidebar windows each
- * Project. The status groups that ask for the user (attention, working, waiting, failed) always list everything, since
- * a hidden row there is work nobody sees.
- */
-const WINDOWED_GROUPS: ReadonlySet<MobileSessionListGroup> = new Set([
-    'pinned',
-    'finished',
-    'idle',
-]);
 
 /**
  * What the reader chose for one group: whether it is collapsed to its header, and how far its window was revealed
@@ -72,7 +65,7 @@ export function sessionListRows(
         const isCollapsed = state.isCollapsed === true;
         rows.push({ ...header, count: sessions.length, isCollapsed });
         if (isCollapsed) continue;
-        if (!WINDOWED_GROUPS.has(header.group)) {
+        if (!WINDOWED_SESSION_LIST_GROUPS.has(header.group)) {
             rows.push(...sessions);
             continue;
         }

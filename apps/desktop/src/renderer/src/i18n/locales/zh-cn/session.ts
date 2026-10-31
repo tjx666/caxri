@@ -9,6 +9,7 @@ export const session: TranslatedNamespace<typeof source> = {
     // Session creation menu and dialog
     'session.create.newSession': '新建会话',
     'session.create.newInProject': '在 {{project}} 中新建会话',
+    'session.create.projectLabel': '项目',
     'session.create.actionInProject': '在 {{project}} 中{{action}}',
     'session.create.withoutTerminal': '空会话',
     'session.create.lastUsed': '上次使用',

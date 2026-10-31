@@ -108,9 +108,15 @@ export function pressHeadingNewSession(projectId: string): void {
  * default on press and opens this list on hover.
  */
 export function openSessionCreationMenu(projectId: string, anchor: CreateSessionAnchor): void {
-    if (!isPrimarySidebarShown(useChromeLayoutStore.getState()))
-        useChromeLayoutStore.getState().setPrimarySidebarVisible(true);
-    useDialogStore.getState().openCreateSessionMenu(projectId, anchor);
+    const layout = useChromeLayoutStore.getState();
+    if (!isPrimarySidebarShown(layout)) layout.setPrimarySidebarVisible(true);
+    /**
+     * While the side bar shows Activity no Project heading is mounted, so a heading claim (the default for the command
+     * palette, the native menu, and the shortcut) would open nothing; the Activity view's New Session row takes it.
+     */
+    const resolvedAnchor =
+        anchor === 'heading' && layout.primarySidebarActivityMode ? 'activity' : anchor;
+    useDialogStore.getState().openCreateSessionMenu(projectId, resolvedAnchor);
 }
 
 /**

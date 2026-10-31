@@ -16,6 +16,8 @@ export const agentActivity = {
     'agentActivity.heading.unreadSessionsOther': '{{count}} unread Sessions',
     'agentActivity.heading.sessionsOne': '{{count}} Session',
     'agentActivity.heading.sessionsOther': '{{count}} Sessions',
+    'agentActivity.revealAriaLabelOne': 'Show {{count}} more Session in {{group}}',
+    'agentActivity.revealAriaLabelOther': 'Show {{count}} more Sessions in {{group}}',
     'agentActivity.glyph.detached': 'Detached',
     'agentActivity.viewedAndRead': 'Viewed and read',
     'agentActivity.markRead': 'Mark as Read',

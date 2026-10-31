@@ -392,6 +392,45 @@ test('Activity groups every Project’s Sessions attention-first and clears a re
         // tree would cost them their place after every single row.
         await expect(tree).toBeVisible();
 
+        /*
+         * Activity replaces the Project tree, so it carries its own New Session entry. It targets the selected
+         * Session's Project, and its list re-targets another Project without closing.
+         */
+        const newSessionRow = page.locator('.agent-activity-new-session');
+        await expect(newSessionRow).toContainText('service-integration-platform-workspace');
+        await newSessionRow.click();
+        const creationMenu = page.getByRole('menu');
+        await expect(creationMenu.getByRole('menuitemradio')).toHaveCount(PROJECT_NAMES.length);
+        await creationMenu.getByRole('menuitemradio', { name: 'web-client-portal' }).click();
+        await expect(creationMenu).toBeVisible();
+        await expect(newSessionRow).toContainText('web-client-portal');
+        const sessionCountBefore = (
+            await pageRequest<{ sessions: unknown[] }>(page, 'app.bootstrap')
+        ).sessions.length;
+        await creationMenu.getByRole('menuitem', { name: 'Empty Session' }).click();
+        await expect
+            .poll(
+                async () =>
+                    (await pageRequest<{ sessions: unknown[] }>(page, 'app.bootstrap')).sessions
+                        .length,
+            )
+            .toBe(sessionCountBefore + 1);
+        await expect(creationMenu).toHaveCount(0);
+
+        // Every group heading is a disclosure: collapsing one keeps its heading and count, and drops its rows.
+        const idleHeading = tree.locator('.agent-activity-heading[data-activity-group="idle"]');
+        await idleHeading.click();
+        await expect(idleHeading).toHaveAttribute('aria-expanded', 'false');
+        await expect(tree.locator('.agent-activity-row[data-activity-group="idle"]')).toHaveCount(
+            0,
+        );
+        await page.screenshot({
+            path: test.info().outputPath('activity-new-session-collapsed-group.png'),
+            mask: [page.locator('.xterm')],
+        });
+        await idleHeading.press('ArrowRight');
+        await expect(idleHeading).toHaveAttribute('aria-expanded', 'true');
+
         await activityToggle.click();
         await expect(activityToggle).toHaveAttribute('aria-pressed', 'false');
         await expect(projectTree).toBeVisible();

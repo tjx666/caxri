@@ -8,6 +8,7 @@ export const session = {
     // Session creation menu and dialog
     'session.create.newSession': 'New Session',
     'session.create.newInProject': 'New Session in {{project}}',
+    'session.create.projectLabel': 'Project',
     'session.create.actionInProject': '{{action}} in {{project}}',
     'session.create.withoutTerminal': 'Empty Session',
     'session.create.lastUsed': 'Last used',

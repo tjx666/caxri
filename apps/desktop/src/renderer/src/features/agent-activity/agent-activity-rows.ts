@@ -325,14 +325,14 @@ function agentActivityPinnedRowId(sessionId: string): string {
 /**
  * The row a command-driven rename (`session.rename`) edits: the Session's first rendered copy. Only a pinned Session
  * has a Pinned copy, and it renders first while the Pinned group is open; an unpinned Session must keep its status row,
- * or the editor targets a row that does not exist and the command silently does nothing (issue #2629). A Session listed
- * only under a collapsed Pinned group has no rendered row, so `expandPinned` asks the caller to open the group first.
+ * or the editor targets a row that does not exist and the command silently does nothing (issue #2629). A row inside a
+ * collapsed group is not rendered, so `expandGroupId` asks the caller to open that group first.
  */
 export function agentActivityRenameRow(
     groups: readonly AgentActivityGroup[],
     sessionId: string,
-    isPinnedExpanded: boolean,
-): { expandPinned: boolean; rowId: string } {
+    collapsedGroupIds: ReadonlySet<AgentActivityGroupId>,
+): { expandGroupId: AgentActivityGroupId | undefined; rowId: string } {
     const isPinned = groups.some(
         (group) => group.id === 'pinned' && group.rows.some((row) => row.session.id === sessionId),
     );
@@ -340,9 +340,17 @@ export function agentActivityRenameRow(
         .filter((group) => group.id !== 'pinned')
         .flatMap((group) => group.rows)
         .find((row) => row.session.id === sessionId);
-    if (isPinned && (isPinnedExpanded || !statusRow))
-        return { expandPinned: !isPinnedExpanded, rowId: agentActivityPinnedRowId(sessionId) };
-    return { expandPinned: false, rowId: statusRow?.rowId ?? sessionId };
+    const pinnedCollapsed = collapsedGroupIds.has('pinned');
+    if (isPinned && (!pinnedCollapsed || !statusRow))
+        return {
+            expandGroupId: pinnedCollapsed ? 'pinned' : undefined,
+            rowId: agentActivityPinnedRowId(sessionId),
+        };
+    return {
+        expandGroupId:
+            statusRow && collapsedGroupIds.has(statusRow.groupId) ? statusRow.groupId : undefined,
+        rowId: statusRow?.rowId ?? sessionId,
+    };
 }
 
 /**
