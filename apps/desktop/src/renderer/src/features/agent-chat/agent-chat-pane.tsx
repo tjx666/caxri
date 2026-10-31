@@ -27,7 +27,7 @@ import { useIsAgentChatComposerReady } from './composer-input/device-state/use-i
 import { useAgentChatComposerSnapshot } from './composer-snapshot/use-agent-chat-composer-snapshot';
 import { AgentChatFindScope } from './find/agent-chat-find-scope';
 import { useAgentChatActivationFocus } from './hooks/use-agent-chat-activation-focus';
-import { agentChatEditActionsOutside, useAgentChatEditActions } from './hooks/use-agent-chat-edit';
+import { useAgentChatEditActions } from './hooks/use-agent-chat-edit';
 import type { AgentChatExpansion } from './hooks/use-agent-chat-expansion';
 import { AgentChatExpansionContext } from './hooks/use-agent-chat-expansion';
 import type { AgentChatDropHandlers } from './hooks/use-agent-chat-file-input';
@@ -67,11 +67,7 @@ import { isAgentChatAwaitingReplyInTimeline } from './transcript/agent-chat-time
 import { useAgentChatTailFirstMount } from './transcript/mount/use-agent-chat-tail-first-mount';
 import { AgentChatTimelineBody } from './transcript/timeline/agent-chat-timeline-body';
 import { AgentChatTurnAnnouncer } from './turns/agent-chat-turn-announcer';
-import { AgentChatEarlierVersionNotice } from './versions/agent-chat-earlier-version-notice';
-import {
-    AgentChatVersionsContext,
-    useAgentChatVersionView,
-} from './versions/use-agent-chat-versions';
+import { useAgentChatVersionView } from './versions/use-agent-chat-versions';
 import { markAgentChatOnScreen } from './waiting/agent-chat-on-screen';
 
 /**
@@ -183,16 +179,7 @@ function AgentChatPaneContent({
         { canFork, providerName, capabilities },
     );
     const pending = useAgentChatPending(terminalId, snapshot);
-    const versionView = useAgentChatVersionView(
-        terminalId,
-        pending.timelineSnapshot,
-        capabilities.chatRewind,
-    );
-    const { versions } = versionView;
-    const timelineEditActions = useMemo(
-        () => agentChatEditActionsOutside(editActions, versions?.isEarlier),
-        [editActions, versions],
-    );
+    const versionView = useAgentChatVersionView(terminalId, pending.timelineSnapshot, editActions);
     // The waiting popup leaves out a Chat on screen here, whose own request card already asks.
     useEffect(
         () => (isSessionVisible ? markAgentChatOnScreen(terminalId) : undefined),
@@ -358,34 +345,22 @@ function AgentChatPaneContent({
                             }) && <ConversationLoading />}
                             <AgentChatExpansionContext value={expansion}>
                                 <AgentChatTaskLinksContext value={taskLinks}>
-                                    <AgentChatVersionsContext value={versions}>
-                                        <AgentChatTimelineBody
-                                            dayBreaks={dayBreaks}
-                                            editActions={timelineEditActions}
-                                            activeTurnId={versionView.snapshot?.activeTurnId}
-                                            isAwaitingReply={
-                                                pending.timeline.length === 0 &&
-                                                !versionView.isViewingEarlier &&
-                                                isAgentChatAwaitingReplyInTimeline(
-                                                    snapshot,
-                                                    timeline,
-                                                )
-                                            }
-                                            mcpServers={snapshot?.mcpServers}
-                                            mountedFrom={mountedFrom}
-                                            pending={pending}
-                                            readBackHistory={readBackHistory}
-                                            settledChunks={settledChunks}
-                                            terminalId={terminalId}
-                                            timeline={timeline}
-                                            onOpenFile={openFile}
-                                        />
-                                    </AgentChatVersionsContext>
-                                    {versionView.isViewingEarlier && (
-                                        <AgentChatEarlierVersionNotice
-                                            onShowCurrent={versionView.showCurrent}
-                                        />
-                                    )}
+                                    <AgentChatTimelineBody
+                                        dayBreaks={dayBreaks}
+                                        isAwaitingReply={
+                                            pending.timeline.length === 0 &&
+                                            isAgentChatAwaitingReplyInTimeline(snapshot, timeline)
+                                        }
+                                        mcpServers={snapshot?.mcpServers}
+                                        mountedFrom={mountedFrom}
+                                        pending={pending}
+                                        readBackHistory={readBackHistory}
+                                        settledChunks={settledChunks}
+                                        terminalId={terminalId}
+                                        timeline={timeline}
+                                        versionView={versionView}
+                                        onOpenFile={openFile}
+                                    />
                                 </AgentChatTaskLinksContext>
                             </AgentChatExpansionContext>
                             <AgentChatEmptyState

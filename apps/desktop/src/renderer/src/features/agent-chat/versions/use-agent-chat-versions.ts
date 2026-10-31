@@ -3,6 +3,8 @@ import { createContext, useCallback, useContext, useMemo } from 'react';
 import type { AgentChatSnapshot, AgentChatVersionContent } from '@caxri/protocol';
 import { useQueries, useQuery } from '@tanstack/react-query';
 
+import type { AgentChatEditActions } from '../hooks/use-agent-chat-edit';
+import { agentChatEditActionsOutside } from '../hooks/use-agent-chat-edit';
 import {
     selectAgentChatVersionSelection,
     showCurrentAgentChatVersion,
@@ -38,20 +40,31 @@ export function useAgentChatVersions(): AgentChatVersions | undefined {
 
 const EMPTY_SUMMARIES: never[] = [];
 
+export interface AgentChatVersionView {
+    snapshot: AgentChatSnapshot | undefined;
+    versions: AgentChatVersions | undefined;
+    /**
+     * The Chat's Edit, Fork, and Restore actions, offered by no message of an earlier version.
+     */
+    editActions: AgentChatEditActions | undefined;
+    isViewingEarlier: boolean;
+    showCurrent: () => void;
+}
+
 /**
  * The Chat pane's earlier versions: the snapshot its timeline renders with the selected versions swapped in, the
- * context its user messages read, and whether an earlier version is on screen. Only a provider that rewinds
- * (`isEnabled`) keeps any.
+ * context its user messages read, and whether an earlier version is on screen. Only a Chat that offers "Edit from here"
+ * (`editActions`, present when the provider rewinds) keeps any.
  */
 export function useAgentChatVersionView(
     terminalId: string,
     snapshot: AgentChatSnapshot | undefined,
-    isEnabled: boolean,
-) {
+    editActions: AgentChatEditActions | undefined,
+): AgentChatVersionView {
     const hasTurns = (snapshot?.turns.length ?? 0) > 0;
     const summaries = useQuery({
         ...agentChatVersionsQuery(terminalId, snapshot?.historyId),
-        enabled: isEnabled && hasTurns && snapshot?.historyId !== undefined,
+        enabled: editActions !== undefined && hasTurns && snapshot?.historyId !== undefined,
     }).data;
     const stored = useAgentChatVersionSelectionStore(selectAgentChatVersionSelection(terminalId));
     const selection = useMemo(() => new Map(Object.entries(stored)), [stored]);
@@ -84,11 +97,23 @@ export function useAgentChatVersionView(
             isEarlier: (itemId) => view.earlierItemIds.has(itemId),
         };
     }, [terminalId, view]);
+    const versionEditActions = useMemo(
+        () => agentChatEditActionsOutside(editActions, versions?.isEarlier),
+        [editActions, versions],
+    );
     const showCurrent = useCallback(() => showCurrentAgentChatVersion(terminalId), [terminalId]);
-    return {
-        snapshot: snapshot && view ? agentChatSnapshotWithVersions(snapshot, view) : snapshot,
-        versions,
-        isViewingEarlier: view?.isViewingEarlier ?? false,
-        showCurrent,
-    };
+    const shown = useMemo(
+        () => (snapshot && view ? agentChatSnapshotWithVersions(snapshot, view) : snapshot),
+        [snapshot, view],
+    );
+    return useMemo(
+        () => ({
+            snapshot: shown,
+            versions,
+            editActions: versionEditActions,
+            isViewingEarlier: view?.isViewingEarlier ?? false,
+            showCurrent,
+        }),
+        [shown, versions, versionEditActions, view, showCurrent],
+    );
 }

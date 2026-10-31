@@ -18,6 +18,9 @@ import {
     AgentChatReferencesContext,
     useAgentChatReferenceIndex,
 } from '../../references/use-agent-chat-references';
+import { AgentChatEarlierVersionNotice } from '../../versions/agent-chat-earlier-version-notice';
+import type { AgentChatVersionView } from '../../versions/use-agent-chat-versions';
+import { AgentChatVersionsContext } from '../../versions/use-agent-chat-versions';
 import { AgentChatPendingTimeline } from '../agent-chat-pending-timeline';
 import { AgentChatSettledTimeline } from '../agent-chat-settled-timeline';
 import type { AgentChatTimelineEntry } from '../agent-chat-timeline';
@@ -72,9 +75,7 @@ function LiveTimelineEntries({
  * The Chat's settled, live, and pending timelines under the contexts their rows read.
  */
 export function AgentChatTimelineBody({
-    activeTurnId,
     dayBreaks,
-    editActions,
     isAwaitingReply,
     mcpServers,
     mountedFrom,
@@ -84,10 +85,9 @@ export function AgentChatTimelineBody({
     settledChunks,
     terminalId,
     timeline,
+    versionView,
 }: {
-    activeTurnId: string | undefined;
     dayBreaks: ReadonlyMap<string, number>;
-    editActions: ComponentProps<typeof AgentChatEditContext>['value'];
     isAwaitingReply: boolean;
     mcpServers: AgentChatSnapshot['mcpServers'];
     /**
@@ -100,7 +100,13 @@ export function AgentChatTimelineBody({
     settledChunks: ComponentProps<typeof AgentChatSettledTimeline>['chunks'];
     terminalId: string;
     timeline: readonly AgentChatTimelineEntry[];
+    /**
+     * The earlier versions on screen: their actions, the turn running in the version shown, and the notice that an
+     * earlier one is.
+     */
+    versionView: AgentChatVersionView;
 }) {
+    const { editActions, isViewingEarlier, snapshot, versions } = versionView;
     const servers = useAgentChatMcpServers(mcpServers);
     const skills = useAgentChatSkillHost(terminalId);
     const references = useAgentChatReferenceIndex(settledChunks, timeline);
@@ -121,15 +127,24 @@ export function AgentChatTimelineBody({
                             />
                         </AgentChatReadBackHistoryContext>
                         <AgentChatEditContext value={editActions}>
-                            <LiveTimelineEntries
-                                dayBreaks={dayBreaks}
-                                mountedFrom={mountedFrom}
-                                timeline={timeline}
-                                onOpenFile={onOpenFile}
-                            />
-                            {isAwaitingReply && <AgentChatReplyPlaceholder turnId={activeTurnId} />}
+                            <AgentChatVersionsContext value={versions}>
+                                <LiveTimelineEntries
+                                    dayBreaks={dayBreaks}
+                                    mountedFrom={mountedFrom}
+                                    timeline={timeline}
+                                    onOpenFile={onOpenFile}
+                                />
+                            </AgentChatVersionsContext>
+                            {isAwaitingReply && !isViewingEarlier && (
+                                <AgentChatReplyPlaceholder turnId={snapshot?.activeTurnId} />
+                            )}
                             <AgentChatPendingTimeline pending={pending} onOpenFile={onOpenFile} />
                         </AgentChatEditContext>
+                        {isViewingEarlier && (
+                            <AgentChatEarlierVersionNotice
+                                onShowCurrent={versionView.showCurrent}
+                            />
+                        )}
                     </AgentChatReferencesContext>
                 </AgentChatSkillsContext>
             </AgentChatTerminalContext>

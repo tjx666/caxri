@@ -79,8 +79,15 @@ interface Content {
     turns: readonly AgentChatTurn[];
 }
 
-function firstUserMessageId(items: readonly AgentChatItem[], turnId: string): string | undefined {
-    return items.find((item) => item.type === 'userMessage' && item.turnId === turnId)?.id;
+/**
+ * The position of the user message that starts each turn.
+ */
+function turnStarts(items: readonly AgentChatItem[]): Map<string, number> {
+    const starts = new Map<string, number>();
+    for (const [index, item] of items.entries())
+        if (item.type === 'userMessage' && item.turnId !== undefined && !starts.has(item.turnId))
+            starts.set(item.turnId, index);
+    return starts;
 }
 
 /**
@@ -107,9 +114,11 @@ export function agentChatVersionView(
         incoming: AgentChatVersionSwitcher | undefined,
     ): { items: AgentChatItem[]; turns: AgentChatTurn[] } => {
         const { items, turns } = content;
+        const starts = turnStarts(items);
         for (const [index, turn] of turns.entries()) {
-            const messageId = firstUserMessageId(items, turn.id);
-            if (!messageId) continue;
+            const cut = starts.get(turn.id);
+            if (cut === undefined) continue;
+            const messageId = items[cut].id;
             if (index === 0 && incoming) {
                 switchers.set(messageId, incoming);
                 continue;
@@ -137,7 +146,6 @@ export function agentChatVersionView(
                 continue;
             }
             isViewingEarlier = true;
-            const cut = items.findIndex((item) => item.id === messageId);
             const tail = walk(picks, versionId, switcher);
             for (const item of tail.items) earlierItemIds.add(item.id);
             return {
