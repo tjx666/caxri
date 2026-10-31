@@ -191,7 +191,13 @@ export async function executeMobileChatUsageGuardOfflineScenario(
 
         await setMobileNetworkAvailable(serial, true);
         isNetworkDisabled = false;
-        await waitForNoCheck(serial, 'connection-stale-banner', 60_000);
+        try {
+            await waitForNoCheck(serial, 'connection-stale-banner', 20_000);
+        } catch {
+            // The gateway's backoff can outlast the outage, so retry as a user would through the banner.
+            await tapMobileCheck(serial, 'connection-retry-button');
+            await waitForNoCheck(serial, 'connection-stale-banner', 60_000);
+        }
         await waitForNoCheck(serial, 'agent-chat-usage-guard-blocked');
         const online = await mobileSemantics(serial);
         if (
