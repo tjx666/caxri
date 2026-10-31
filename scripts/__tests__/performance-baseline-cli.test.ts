@@ -203,6 +203,25 @@ describe('performance-baseline-derive resolveInputPaths', () => {
         );
     });
 
+    it('collects the Agent Chat switch receipts named by --receipt-name', async () => {
+        root = await mkdtemp(join(tmpdir(), 'caxri-performance-derive-chat-'));
+        await mkdir(join(root, 'run-1'), { recursive: true });
+        await writeFile(join(root, 'run-1', 'agent-chat-session-switch.json'), '{}', 'utf8');
+        await writeFile(join(root, 'run-1', 'renderer-performance.json'), '{}', 'utf8');
+
+        const options = parseDeriveArguments([
+            '--input-dir',
+            root,
+            '--receipt-name',
+            'agent-chat-session-switch.json',
+            '--spec',
+            'e2e/agent-chat-switch.performance.e2e.ts',
+        ]);
+        await expect(resolveInputPaths(options)).resolves.toEqual([
+            join(root, 'run-1', 'agent-chat-session-switch.json'),
+        ]);
+    });
+
     it('throws when --input-dir finds nothing rather than silently deriving from zero receipts', async () => {
         root = await mkdtemp(join(tmpdir(), 'caxri-performance-derive-empty-'));
         const options = parseDeriveArguments([
@@ -289,6 +308,17 @@ describe('performance-trend-check parseArguments', () => {
         expect(options.baseline).toBe('scripts/performance-baseline.json');
         expect(options.windowSize).toBe(20);
         expect(options.alarmRatio).toBe(0.02);
+        expect(options.receiptName).toBe('renderer-performance.json');
+    });
+
+    it('reads another benchmark receipt with --receipt-name', () => {
+        const options = parseTrendArguments([
+            '--receipts-dir',
+            'dir',
+            '--receipt-name',
+            'agent-chat-session-switch.json',
+        ]);
+        expect(options.receiptName).toBe('agent-chat-session-switch.json');
     });
 
     it('rejects a non-positive --window or --alarm-ratio', () => {

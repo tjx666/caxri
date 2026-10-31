@@ -12,6 +12,12 @@ import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
 /**
+ * Receipt file name the Renderer benchmark writes; the Agent Chat switch benchmark writes
+ * `agent-chat-session-switch.json`.
+ */
+export const DEFAULT_RECEIPT_NAME = 'renderer-performance.json';
+
+/**
  * Recursively finds every file named exactly `filename` under `rootPath`. Recursion is manual (not `readdir(..., {
  * recursive: true })`) so a symlink inside a downloaded artifact directory is never followed twice -- matching the same
  * concern `scripts/ci-bundle-budget.ts`'s `measureBytes` documents. Used to collect `renderer-performance.json`
@@ -20,7 +26,7 @@ import { join } from 'node:path';
  */
 export async function findReceiptFiles(
     rootPath: string,
-    filename = 'renderer-performance.json',
+    filename = DEFAULT_RECEIPT_NAME,
 ): Promise<string[]> {
     const entries = await readdir(rootPath, { withFileTypes: true });
     const found: string[] = [];

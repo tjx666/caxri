@@ -1,13 +1,19 @@
 name: Performance trend
 
-# Manually inspects gradual Renderer performance creep by comparing recent receipts with the committed baseline.
-# The historical baseline came from different runner hardware and is unarmed until macos-15 is recalibrated, so
-# this workflow remains dispatch-only and never becomes a required pull-request check.
+# Manually inspects gradual performance creep of one benchmark by comparing its recent receipts with that
+# benchmark's committed baseline. The Renderer baseline came from different runner hardware and is unarmed until
+# macos-15 is recalibrated, so this workflow remains dispatch-only and never becomes a required pull-request check.
 on:
   workflow_dispatch:
     inputs:
+      benchmark:
+        description: Benchmark whose receipts and baseline to compare
+        required: false
+        default: renderer
+        type: choice
+        options: [renderer, agent-chat-switch]
       window:
-        description: Rolling window size (most recent renderer-performance-receipt artifacts to compare)
+        description: Rolling window size (most recent receipt artifacts of the benchmark to compare)
         required: false
         default: '20'
       alarm_ratio:
@@ -45,21 +51,54 @@ jobs:
       # `scripts/performance-trend-check.ts` and its `scripts/performance-baseline.ts`/`scripts/performance-trend.ts`
       # dependencies are plain Node/Bun modules with no workspace package imports, so this job needs no
       # `pnpm install` -- only Bun itself, to run the TypeScript entrypoint directly.
-      - name: Download recent renderer-performance receipts
+      # Each benchmark uploads its own artifact and receipt file and owns its own baseline. The Agent Chat switch
+      # receipt has no `durationMs`, so its trend reads the p50 time until each scenario's conversation is readable.
+      - name: Select benchmark
+        id: benchmark
+        env:
+          CAXRI_TREND_BENCHMARK: ${{ github.event.inputs.benchmark || 'renderer' }}
+        run: |
+          set -euo pipefail
+          case "$CAXRI_TREND_BENCHMARK" in
+            renderer)
+              {
+                echo "artifact=renderer-performance-receipt"
+                echo "receipt=renderer-performance.json"
+                echo "baseline=scripts/performance-baseline.json"
+                echo "metrics=durationMs"
+              } >> "$GITHUB_OUTPUT"
+              ;;
+            agent-chat-switch)
+              {
+                echo "artifact=agent-chat-switch-performance-receipt"
+                echo "receipt=agent-chat-session-switch.json"
+                echo "baseline=scripts/performance-baseline.agent-chat-switch.json"
+                echo "metrics=scenarios.keptAlive.readableMs.p50,scenarios.cached.readableMs.p50,scenarios.uncached.readableMs.p50,scenarios.cold.readableMs.p50"
+              } >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "::error::unknown benchmark $CAXRI_TREND_BENCHMARK"
+              exit 1
+              ;;
+          esac
+
+      - name: Download recent benchmark receipts
         id: fetch-receipts
         env:
           GH_TOKEN: ${{ github.token }}
           CAXRI_TREND_WINDOW: ${{ github.event.inputs.window || '20' }}
+          CAXRI_TREND_ARTIFACT: ${{ steps.benchmark.outputs.artifact }}
+          CAXRI_TREND_RECEIPT: ${{ steps.benchmark.outputs.receipt }}
         run: |
           set -euo pipefail
           receipts_dir="$RUNNER_TEMP/performance-trend-receipts"
           mkdir -p "$receipts_dir"
 
-          # Newest first, skip expired (7-day retention, see the `renderer-performance-receipt` upload in ci.yml),
+          # Newest first, skip expired (7-day retention, see the receipt uploads in ci.yml),
           # take the requested window. A median is order-independent, so only "these are the N most recent" matters
           # here -- scripts/performance-trend-check.ts does not re-sort or re-select what this step hands it.
           mapfile -t artifacts < <(
-            gh api "repos/${{ github.repository }}/actions/artifacts?name=renderer-performance-receipt&per_page=100" \
+            gh api "repos/${{ github.repository }}/actions/artifacts?name=$CAXRI_TREND_ARTIFACT&per_page=100" \
               --paginate --jq '.artifacts[] | select(.expired == false) | "\(.created_at) \(.id) \(.workflow_run.id)"' \
               | sort -r \
               | head -n "$CAXRI_TREND_WINDOW"
@@ -67,11 +106,11 @@ jobs:
 
           for line in "${artifacts[@]}"; do
             read -r _created_at artifact_id run_id <<< "$line"
-            gh run download "$run_id" --name renderer-performance-receipt --dir "$receipts_dir/$artifact_id" || \
-              echo "::warning::failed to download renderer-performance-receipt artifact $artifact_id from run $run_id"
+            gh run download "$run_id" --name "$CAXRI_TREND_ARTIFACT" --dir "$receipts_dir/$artifact_id" || \
+              echo "::warning::failed to download $CAXRI_TREND_ARTIFACT artifact $artifact_id from run $run_id"
           done
 
-          count=$(find "$receipts_dir" -name renderer-performance.json | wc -l | tr -d ' ')
+          count=$(find "$receipts_dir" -name "$CAXRI_TREND_RECEIPT" | wc -l | tr -d ' ')
           echo "receipt_count=$count" >> "$GITHUB_OUTPUT"
           echo "receipts_dir=$receipts_dir" >> "$GITHUB_OUTPUT"
 
@@ -81,7 +120,9 @@ jobs:
           CAXRI_TREND_ALARM_RATIO: ${{ github.event.inputs.alarm_ratio || '0.02' }}
         run: >-
           bun run performance:trend:check --
-          --baseline scripts/performance-baseline.json
+          --baseline "${{ steps.benchmark.outputs.baseline }}"
+          --receipt-name "${{ steps.benchmark.outputs.receipt }}"
+          --metrics "${{ steps.benchmark.outputs.metrics }}"
           --receipts-dir "${{ steps.fetch-receipts.outputs.receipts_dir }}"
           --window "$CAXRI_TREND_WINDOW"
           --alarm-ratio "$CAXRI_TREND_ALARM_RATIO"
