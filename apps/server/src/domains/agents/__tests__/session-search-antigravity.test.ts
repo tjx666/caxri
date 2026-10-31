@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, utimes } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -89,13 +89,19 @@ describe('Session search over Antigravity conversations', () => {
         await Promise.all(
             ['', '-wal', '-shm'].map((suffix) => rm(`${path}${suffix}`, { force: true })),
         );
+        const nextTurnAt = AT + 60;
         await writeAntigravityConversation(home, {
             ...conversation,
             turns: [
                 ...conversation.turns,
-                { prompt: 'Now add an onboarding checklist', at: AT + 60 },
+                { prompt: 'Now add an onboarding checklist', at: nextTurnAt },
             ],
         });
+        /**
+         * Both databases are the same size, and Linux reuses the freed inode and stamps files from a coarse clock, so a
+         * rewrite within one tick would carry the identity the indexer already stored. A real next turn lands later.
+         */
+        await utimes(path, nextTurnAt, nextTurnAt);
         await engine.indexer.refresh();
 
         expect(
