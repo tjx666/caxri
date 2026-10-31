@@ -152,13 +152,41 @@ async function ghApi(path: string, jq: string): Promise<string> {
 }
 
 /**
- * Resolves a full or abbreviated commit SHA to the full SHA through the API, which also accepts short forms, so a merge
- * commit that is not fetched locally still resolves.
+ * Seams for {@link resolveCommitSha}; production reads GitHub and waits in real time.
  */
-async function resolveCommitSha(sha: string): Promise<string> {
-    const full = await ghApi(`commits/${sha}`, '.sha');
-    if (!/^[0-9a-f]{40}$/u.test(full)) throw new Error(`could not resolve commit ${sha}`);
-    return full;
+export interface ResolveDependencies {
+    lookup?: (sha: string) => Promise<string>;
+    wait?: (ms: number) => Promise<unknown>;
+}
+
+/**
+ * Resolves a full or abbreviated commit SHA to the full SHA through the API, which also accepts short forms, so a merge
+ * commit that is not fetched locally still resolves. A dropped connection (`EOF`) right after a merge used to end the
+ * watcher before it followed anything, so transport failures get the same retry budget as run listing; an HTTP 4xx
+ * answer (an unknown SHA, missing auth) or a malformed SHA fails at once.
+ */
+export async function resolveCommitSha(
+    sha: string,
+    {
+        lookup = (value) => ghApi(`commits/${value}`, '.sha'),
+        wait = sleep,
+    }: ResolveDependencies = {},
+): Promise<string> {
+    for (let attempt = 1; ; attempt += 1) {
+        let full: string;
+        try {
+            // eslint-disable-next-line no-await-in-loop -- retry loop: each attempt waits for the previous one
+            full = await lookup(sha);
+        } catch (error) {
+            if (attempt >= MAX_LIST_FAILURES || /\(HTTP 4\d\d\)/u.test(String(error))) throw error;
+            console.error(`commit lookup failed (retrying): ${String(error)}`);
+            // eslint-disable-next-line no-await-in-loop -- retry loop: fixed cadence
+            await wait(POLL_INTERVAL_MS);
+            continue;
+        }
+        if (!/^[0-9a-f]{40}$/u.test(full)) throw new Error(`could not resolve commit ${sha}`);
+        return full;
+    }
 }
 
 async function listCommitRuns(sha: string): Promise<Array<Omit<CommitRun, 'completedAtMs'>>> {

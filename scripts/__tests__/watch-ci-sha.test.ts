@@ -13,6 +13,7 @@ import {
     isSuccessfulConclusion,
     nextFollowStep,
     parseWorkflowRunChains,
+    resolveCommitSha,
 } from '../watch-ci-sha';
 
 const chains = new Map([['CI', ['Release macOS']]]);
@@ -187,6 +188,35 @@ describe('followCommit', () => {
         await expect(
             followCommit('sha', () => Promise.resolve(true), { chains, listRuns: broken, wait }),
         ).rejects.toThrow('offline');
+    });
+});
+
+describe('resolveCommitSha', () => {
+    const wait = async () => {};
+    const full = 'a'.repeat(40);
+
+    it('retries a dropped connection, then gives up after repeated failures', async () => {
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        const lookup = vi.fn().mockRejectedValueOnce(new Error('EOF')).mockResolvedValue(full);
+        expect(await resolveCommitSha('aaaa', { lookup, wait })).toBe(full);
+        expect(lookup).toHaveBeenCalledTimes(2);
+        const broken = vi.fn().mockRejectedValue(new Error('EOF'));
+        await expect(resolveCommitSha('aaaa', { lookup: broken, wait })).rejects.toThrow('EOF');
+        expect(broken).toHaveBeenCalledTimes(5);
+    });
+
+    it('fails at once on an HTTP 4xx answer or a malformed SHA', async () => {
+        const missing = vi
+            .fn()
+            .mockRejectedValue(new Error('gh: No commit found for SHA: aaaa (HTTP 422)'));
+        await expect(resolveCommitSha('aaaa', { lookup: missing, wait })).rejects.toThrow(
+            'HTTP 422',
+        );
+        expect(missing).toHaveBeenCalledTimes(1);
+        const malformed = vi.fn().mockResolvedValue('');
+        await expect(resolveCommitSha('aaaa', { lookup: malformed, wait })).rejects.toThrow(
+            'could not resolve commit aaaa',
+        );
     });
 });
 

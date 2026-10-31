@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
     assertMobileAcceptanceSourceIdentity,
     captureMobileAcceptanceCommand,
+    clearAndroidAppDataIfInstalled,
     clearMobileAcceptanceCaseArtifacts,
     collectMobileAcceptanceArtifacts,
     createMobileAcceptanceArtifact,
@@ -369,5 +370,31 @@ describe('mobile Acceptance runtime', () => {
 
         expect(interrupt).not.toHaveBeenCalled();
         expect(child.kill).not.toHaveBeenCalled();
+    });
+});
+
+describe('clearAndroidAppDataIfInstalled', () => {
+    const appId = 'com.caxri.mobile';
+
+    it('skips clearing when only a longer package id matches', () => {
+        const runDevice = vi.fn().mockReturnValue('package:com.caxri.mobile.dev\n');
+        expect(clearAndroidAppDataIfInstalled(appId, runDevice)).toBe('absent');
+        expect(runDevice).toHaveBeenCalledTimes(1);
+    });
+
+    it('clears the data of an installed app', () => {
+        const runDevice = vi
+            .fn()
+            .mockReturnValueOnce('package:com.caxri.mobile\r\n')
+            .mockReturnValue('Success');
+        expect(clearAndroidAppDataIfInstalled(appId, runDevice)).toBe('cleared');
+        expect(runDevice).toHaveBeenLastCalledWith(['shell', 'pm', 'clear', appId]);
+    });
+
+    it('propagates a failed package query instead of reporting the app absent', () => {
+        const runDevice = vi.fn(() => {
+            throw new Error('device offline');
+        });
+        expect(() => clearAndroidAppDataIfInstalled(appId, runDevice)).toThrow('device offline');
     });
 });
