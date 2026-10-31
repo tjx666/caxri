@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import type { MobileDesktopUpdateResult } from '@caxri/protocol';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -12,6 +12,13 @@ import { isDesktopUpdateMoving } from './desktop-update-model';
  * How often Settings re-reads while a check or download is moving on the computer.
  */
 const MOVING_POLL_MS = 2_000;
+
+/**
+ * The phone's own phase; an accepted restart also carries the connection and clock it started on.
+ */
+type TrackedPhase =
+    | Exclude<DesktopUpdatePhase, { kind: 'restarting' }>
+    | { kind: 'restarting'; version: string; epoch: number; at: number };
 
 const desktopUpdateQueryKey = (scope: string) => ['mobile', 'desktop-update', scope] as const;
 
@@ -30,11 +37,7 @@ export const useDesktopUpdate = (isControl: boolean) => {
     const queryKey = useMemo(() => desktopUpdateQueryKey(scope), [scope]);
     const isObservable =
         isControl && connectionScopeKey !== null && isForeground && status === 'connected';
-    const [phase, setPhase] = useState<DesktopUpdatePhase>({ kind: 'idle' });
-    /**
-     * The connection and clock the accepted restart started on.
-     */
-    const restartMark = useRef<{ epoch: number; at: number } | undefined>(undefined);
+    const [phase, setPhase] = useState<TrackedPhase>({ kind: 'idle' });
     const query = useQuery({
         enabled: isObservable && isFocused,
         gcTime: 60_000,
@@ -52,15 +55,11 @@ export const useDesktopUpdate = (isControl: boolean) => {
         staleTime: 0,
     });
     const result = query.data;
-    const { dataUpdatedAt } = query;
-    useEffect(() => {
-        const mark = restartMark.current;
-        if (!mark || phase.kind !== 'restarting') return;
-        if (dataUpdatedAt > mark.at && connectionEpoch !== mark.epoch) {
-            restartMark.current = undefined;
-            setPhase({ kind: 'idle' });
-        }
-    }, [connectionEpoch, dataUpdatedAt, phase]);
+    const isRestartOver =
+        phase.kind === 'restarting' &&
+        query.dataUpdatedAt > phase.at &&
+        connectionEpoch !== phase.epoch;
+    const shownPhase: DesktopUpdatePhase = isRestartOver ? { kind: 'idle' } : phase;
     const store = useCallback(
         (next: MobileDesktopUpdateResult) => queryClient.setQueryData(queryKey, next),
         [queryClient, queryKey],
@@ -76,11 +75,14 @@ export const useDesktopUpdate = (isControl: boolean) => {
     const install = useCallback(
         async (version: string) => {
             const answer = await request('mobile.desktopUpdate.install', { version });
-            if (answer.outcome === 'restarting')
-                restartMark.current = { epoch: connectionEpoch, at: Date.now() };
             setPhase(
                 answer.outcome === 'restarting'
-                    ? { kind: 'restarting', version: answer.version }
+                    ? {
+                          kind: 'restarting',
+                          version: answer.version,
+                          epoch: connectionEpoch,
+                          at: Date.now(),
+                      }
                     : {
                           kind: 'blocked',
                           reason: answer.reason,
@@ -93,5 +95,5 @@ export const useDesktopUpdate = (isControl: boolean) => {
         },
         [connectionEpoch, query, request],
     );
-    return { check, download, install, isObservable, phase, result };
+    return { check, download, install, isObservable, phase: shownPhase, result };
 };
