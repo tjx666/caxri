@@ -4,18 +4,12 @@ import { EventEmitter } from 'node:events';
 import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import process from 'node:process';
 import { PassThrough } from 'node:stream';
 import { promisify } from 'node:util';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import {
-    authenticatedGitEnvironment,
-    checksWorktreePath,
-    createFetchedCheckout,
-    verifyRevisionProvenance,
-} from '../ci-checks-worktree';
+import { authenticatedGitEnvironment, verifyRevisionProvenance } from '../ci-checks-worktree';
 import {
     ConcurrentValidationProcesses,
     concurrentValidationProvenance,
@@ -35,11 +29,8 @@ import {
 } from './ci-platform-gates.fixture';
 
 const greenReceipt = {
-    checks: 0,
     desktopExclusive: 0,
     e2eSetup: 0,
-    failureCensus: 0,
-    failureIsolation: 0,
     manifest: 0,
     parallelSafe: 0,
     provenance: {
@@ -62,22 +53,17 @@ describe('concurrent CI validation', () => {
 
     it('lists every non-zero component with its exit code, log hint, and receipt path', () => {
         const summary = formatConcurrentValidationFailureSummary(
-            { ...greenReceipt, checks: 1, failureCensus: 2, parallelSafe: 1 },
+            { ...greenReceipt, desktopExclusive: 2, parallelSafe: 1 },
             '/tmp/ci-concurrent-validation.json',
         );
-        expect(summary).toContain('- checks: exit 1.');
-        expect(summary).toContain('- failureCensus: exit 2.');
+        expect(summary).toContain('- desktopExclusive: exit 2.');
         expect(summary).toContain('- parallelSafe: exit 1.');
-        expect(summary).toContain('Full platform checks failed with exit');
-        expect(summary).toContain('Full platform checks could not prepare');
-        expect(summary).toContain('Full platform checks could not start');
-        expect(summary).toContain('Bounded E2E failure census failed with exit');
-        expect(summary).toContain('Bounded E2E failure census could not start');
+        expect(summary).toContain('Desktop-exclusive E2E pool failed with exit');
         expect(summary).toContain('Parallel-safe E2E pool failed with exit');
         expect(summary).toContain('Parallel-safe E2E pool could not start');
         expect(summary).toContain('Receipt: /tmp/ci-concurrent-validation.json');
         expect(summary).not.toContain('e2eSetup');
-        expect(summary).not.toContain('desktopExclusive');
+        expect(summary).not.toContain('manifest');
     });
 
     it('does not list skipped null components as failures', () => {
@@ -85,47 +71,21 @@ describe('concurrent CI validation', () => {
             ...greenReceipt,
             e2eSetup: 1,
             desktopExclusive: null,
-            failureCensus: null,
-            failureIsolation: null,
             manifest: null,
             parallelSafe: null,
         });
         expect(summary).toContain('- e2eSetup: exit 1.');
         expect(summary).not.toContain('desktopExclusive');
-        expect(summary).not.toContain('failureCensus');
         expect(summary).not.toContain('parallelSafe');
-    });
-
-    it('omits unstarted E2E components when checks fail before they spawn', () => {
-        const summary = formatConcurrentValidationFailureSummary({
-            ...greenReceipt,
-            checks: 1,
-            desktopExclusive: null,
-            e2eSetup: null,
-            failureCensus: null,
-            failureIsolation: null,
-            manifest: null,
-            parallelSafe: null,
-        });
-        expect(summary).toContain('- checks: exit 1.');
-        expect(summary).not.toContain('e2eSetup');
-        expect(summary).not.toContain('failureIsolation');
-        expect(summary).not.toContain('failureCensus');
-        expect(summary).not.toContain('parallelSafe');
-        expect(summary).not.toContain('desktopExclusive');
-        expect(summary).not.toContain('manifest');
         expect(
             parseConcurrentValidationReceipt({
                 ...greenReceipt,
-                checks: 1,
                 desktopExclusive: null,
-                e2eSetup: null,
-                failureCensus: null,
-                failureIsolation: null,
+                e2eSetup: 1,
                 manifest: null,
                 parallelSafe: null,
             }),
-        ).toMatchObject({ checks: 1, e2eSetup: null });
+        ).toMatchObject({ desktopExclusive: null, e2eSetup: 1 });
     });
 
     it('terminates a sibling process group after a non-zero child exit', async () => {
@@ -386,19 +346,12 @@ describe('concurrent CI validation', () => {
     });
 
     it('fails each independently receipted validation surface closed', () => {
-        expect(isVerificationPassed(greenReceipt, 'checks', greenReceipt.provenance)).toBe(true);
         expect(isVerificationPassed(greenReceipt, 'parallel-safe', greenReceipt.provenance)).toBe(
             true,
         );
         expect(
             isVerificationPassed(greenReceipt, 'desktop-exclusive', greenReceipt.provenance),
         ).toBe(true);
-        expect(isVerificationPassed(greenReceipt, 'e2e-auxiliary', greenReceipt.provenance)).toBe(
-            true,
-        );
-        expect(
-            isVerificationPassed({ ...greenReceipt, checks: 1 }, 'checks', greenReceipt.provenance),
-        ).toBe(false);
         expect(
             isVerificationPassed(
                 { ...greenReceipt, parallelSafe: null },
@@ -408,25 +361,18 @@ describe('concurrent CI validation', () => {
         ).toBe(false);
         expect(
             isVerificationPassed(
-                { ...greenReceipt, failureCensus: 1 },
-                'e2e-auxiliary',
+                { ...greenReceipt, desktopExclusive: 1 },
+                'desktop-exclusive',
                 greenReceipt.provenance,
             ),
         ).toBe(false);
         expect(
-            isVerificationPassed(
-                { ...greenReceipt, e2eSetup: null },
-                'e2e-auxiliary',
-                greenReceipt.provenance,
-            ),
-        ).toBe(false);
-        expect(
-            isVerificationPassed(greenReceipt, 'checks', {
+            isVerificationPassed(greenReceipt, 'desktop-exclusive', {
                 ...greenReceipt.provenance,
                 runAttempt: '2',
             }),
         ).toBe(false);
-        expect(() => parseConcurrentValidationReceipt({ checks: 0 })).toThrow(
+        expect(() => parseConcurrentValidationReceipt({ desktopExclusive: 0 })).toThrow(
             'Invalid concurrent validation receipt',
         );
     });
@@ -449,27 +395,6 @@ describe('concurrent CI validation', () => {
             runAttempt: '2',
             runId: '456',
         });
-    });
-
-    it('derives the disposable checks checkout only from the owned E2E temp root', () => {
-        expect(
-            checksWorktreePath({
-                CAXRI_RUNNER_OWNER: 'caxri-123-1-e2e',
-                TMPDIR: '/private/tmp/caxri-123-1-e2e',
-            }),
-        ).toBe('/private/tmp/caxri-123-1-e2e/synthetic-merge-checks');
-        expect(() =>
-            checksWorktreePath({
-                CAXRI_RUNNER_OWNER: 'unowned',
-                TMPDIR: '/private/tmp/unowned',
-            }),
-        ).toThrow('Invalid E2E runner owner');
-        expect(() =>
-            checksWorktreePath({
-                CAXRI_RUNNER_OWNER: 'caxri-123-1-e2e',
-                TMPDIR: '/tmp/foreign-root',
-            }),
-        ).toThrow('does not match the owned short temporary path');
     });
 
     it('authenticates a missing synthetic merge fetch without persisting the job token', () => {
@@ -495,7 +420,6 @@ describe('concurrent CI validation', () => {
         const fixtureRoot = await mkdtemp(join(tmpdir(), 'caxri-shallow-merge-'));
         const source = join(fixtureRoot, 'source');
         const shallow = join(fixtureRoot, 'shallow');
-        const disposable = join(fixtureRoot, 'disposable');
 
         try {
             await execFileAsync('git', ['init', source]);
@@ -550,41 +474,6 @@ describe('concurrent CI validation', () => {
                 { cwd: source },
             );
             expect(advancedMergeOutput.trim()).not.toBe(mergeRevision);
-
-            const checkoutProcesses = new ConcurrentValidationProcesses();
-            await createFetchedCheckout(
-                disposable,
-                {
-                    baseFetchReference: baseRevision,
-                    expectedBaseRevision: baseRevision,
-                    expectedRevision: mergeRevision,
-                    fetchReference: mergeRevision,
-                    headRevision,
-                    isMergeRequired: true,
-                    remoteUrl: `file://${source}`,
-                },
-                { ...process.env, CAXRI_GITHUB_TOKEN: 'test-token' },
-                {
-                    execFile: (command, arguments_, options) =>
-                        checkoutProcesses.capture(command, arguments_, options),
-                },
-            );
-            const { stdout: disposableHead } = await execFileAsync('git', ['rev-parse', 'HEAD'], {
-                cwd: disposable,
-            });
-            expect(disposableHead.trim()).toBe(mergeRevision);
-            const { stdout: mergeBase } = await execFileAsync(
-                'git',
-                ['merge-base', baseRevision, 'HEAD'],
-                { cwd: disposable },
-            );
-            expect(mergeBase.trim()).toBe(baseRevision);
-            await expect(
-                access(join(disposable, '.git', 'objects', 'info', 'alternates')),
-            ).rejects.toThrow();
-            await expect(
-                execFileAsync('git', ['remote', 'get-url', 'origin'], { cwd: disposable }),
-            ).rejects.toThrow();
         } finally {
             await rm(fixtureRoot, { recursive: true });
         }

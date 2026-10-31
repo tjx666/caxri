@@ -7,11 +7,8 @@ import {
 } from '../ci-concurrent-validation';
 
 const greenReceipt = {
-    checks: 0,
     desktopExclusive: 0,
     e2eSetup: 0,
-    failureCensus: 0,
-    failureIsolation: 0,
     manifest: 0,
     parallelSafe: 0,
     provenance: {
@@ -30,20 +27,19 @@ const greenReceipt = {
  * runner's receipt leaves the other component's entries `null`.
  */
 describe('concurrent CI validation components', () => {
-    it('verifies a parallel-safe shard receipt that never ran the checks or the exclusive pool', () => {
+    it('verifies a parallel-safe shard receipt that never ran the exclusive pool', () => {
         const shardReceipt = {
             ...greenReceipt,
-            checks: null,
             desktopExclusive: null,
-            failureCensus: null,
-            failureIsolation: null,
         };
-        expect(parseConcurrentValidationReceipt(shardReceipt)).toMatchObject({ checks: null });
+        expect(parseConcurrentValidationReceipt(shardReceipt)).toMatchObject({
+            desktopExclusive: null,
+        });
         expect(isVerificationPassed(shardReceipt, 'parallel-safe', greenReceipt.provenance)).toBe(
             true,
         );
         // A null entry means "did not run here" and never satisfies a verification of that component.
-        for (const component of ['checks', 'desktop-exclusive', 'e2e-auxiliary'] as const) {
+        for (const component of ['desktop-exclusive'] as const) {
             expect(isVerificationPassed(shardReceipt, component, greenReceipt.provenance)).toBe(
                 false,
             );

@@ -411,6 +411,73 @@ jobs:
           CAXRI_E2E_CLIPBOARD_PROTECTION: skip-hosted
         run: bun run test:smoke
 
+  # The full platform checks of the optimized hosted-full route, on a Linux runner of their own. They used to run beside the
+  # exclusive E2E pool inside the 25-minute window, where oxlint type-aware (about 3.2 GB RSS) stretched the Electron
+  # Vite build from about 100 s to 384 s (#1869). `checks` is skipped on this route and `e2e` does not wait for this job,
+  # so it overlaps the E2E legs; the `CI gate` requires it. Every full-scope gate is platform-neutral, and hosted-full is
+  # `workflow_dispatch` only, so the dispatched SHA is the exact tree the old synthetic-merge worktree checked.
+  checks-hosted-full:
+    name: checks-hosted-full
+    needs: retry-policy
+    timeout-minutes: 30
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      inputs.validation_target == 'hosted-full' &&
+      needs.retry-policy.outputs.checks_scope == 'full' &&
+      needs.retry-policy.outputs.e2e_profile == 'optimized'
+    runs-on: ubuntu-latest
+    env:
+      CAXRI_EXPECTED_HEAD: ${{ github.sha }}
+      CAXRI_RUNNER_AGENT_DISCOVERY: blocked
+    steps:
+      - name: Verify hosted runner boundary before checkout
+        run: |
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          test "$RUNNER_OS" = Linux
+          test "$RUNNER_ARCH" = X64
+      - id: checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # React Doctor reports only issues new relative to the base; a shallow checkout breaks that base detection.
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify read-only event trust boundary
+        uses: ./.github/actions/verify-trust-boundary
+        with:
+          policy-domain: ci
+          event-name: ${{ github.event_name }}
+          actor: ${{ github.actor }}
+          triggering-actor: ${{ github.triggering_actor }}
+          event-repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          event-ref: ${{ github.ref }}
+          pull-request-author: ${{ github.event.pull_request.user.login || github.actor }}
+          allow-external-pull-request: 'true'
+      - id: setup
+        uses: ./.github/actions/setup-caxri-job
+        with:
+          setup-toolchain: 'true'
+          install-dependencies: 'true'
+          install-electron: 'false'
+          install-playwright-shell: 'false'
+          install-media-tools: 'false'
+      - name: Resolve the diff base
+        env:
+          CAXRI_CHECKS_BASE_REVISION: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          CAXRI_CHECKS_HEAD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+          CAXRI_GITHUB_TOKEN: ${{ github.token }}
+        run: bun run scripts/ci-checks-diff-base.ts
+      - name: Run full platform checks
+        env:
+          ESLINT_CONCURRENCY: ${{ inputs.eslint_concurrency || 'off' }}
+          GITLEAKS_BASE_REVISION: >-
+            ${{ github.event_name == 'pull_request'
+              && github.event.pull_request.base.sha
+              || github.event_name == 'push'
+              && github.event.before
+              || '' }}
+          GITLEAKS_HEAD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: bun run scripts/ci-platform-checks.ts --skip-node-pty-preparation --skip-vitest --skip-eslint --skip-bundle-budget
+
   e2e:
     name: e2e
     timeout-minutes: 30
@@ -446,6 +513,9 @@ jobs:
     runs-on: macos-15
     env:
       CAXRI_E2E_AGENT_MODE: blocked
+      # The optimized full-scope route runs every test once at full parallelism instead of stopping at 3 failures and
+      # rerunning the rest one spec at a time, which overran the window (#1869). Other routes keep the CI cap.
+      CAXRI_E2E_MAX_FAILURES: ${{ needs.retry-policy.outputs.mode == 'full' && needs.retry-policy.outputs.checks_scope == 'full' && needs.retry-policy.outputs.e2e_profile == 'optimized' && '0' || '' }}
       CAXRI_E2E_PARALLEL_WORKERS: ${{ inputs.e2e_parallel_workers || '3' }}
       CAXRI_E2E_PROFILE: ${{ needs.retry-policy.outputs.e2e_profile }}
       CAXRI_E2E_RUNNER_KIND: github-hosted
@@ -528,55 +598,23 @@ jobs:
             PNPM_VERSION="$(pnpm --version)" \
             LOCKFILE_SHA256="$(shasum -a 256 pnpm-lock.yaml | awk '{print $1}')" \
             bun -e 'console.log(`CAXRI_VALIDATION_ENV ${JSON.stringify({ bun: Bun.version, e2eParallelWorkers: process.env.E2E_PARALLEL_WORKERS, e2eProfile: process.env.E2E_PROFILE, exactHead: process.env.CAXRI_EXPECTED_HEAD, lockfileSha256: process.env.LOCKFILE_SHA256, node: process.env.NODE_VERSION, pnpm: process.env.PNPM_VERSION, runnerLabels: process.env.RUNNER_LABELS?.split(","), runnerName: process.env.RUNNER_NAME, vitestMaxWorkers: process.env.VITEST_MAX_WORKERS, vitestPartition: process.env.VITEST_PARTITION })}`)'
-      # The exclusive leg of the hosted-full route: the synthetic-merge checks beside the single-worker pool. The
-      # three-worker pool shards run in `e2e-parallel` and the performance gates in `e2e-perf`, each on its own runner
-      # and its own 25-minute deadline (#1869).
+      # The exclusive leg of the hosted-full route: the single-worker pool alone. The platform checks run in
+      # `checks-hosted-full`, the three-worker pool shards in `e2e-parallel`, and the performance gates plus the
+      # interruption-recovery and failure-census proofs in `e2e-perf`, each on its own runner (#1869).
       - id: concurrent-full
-        name: Execute synthetic-merge checks and exact-head exclusive E2E concurrently
+        name: Execute exact-head exclusive E2E
         if: >-
           needs.retry-policy.outputs.mode == 'full' &&
           needs.retry-policy.outputs.checks_scope == 'full' &&
           needs.retry-policy.outputs.e2e_profile == 'optimized'
         env:
-          CAXRI_CHECKS_BASE_FETCH_REF: >-
-            ${{ github.event_name == 'pull_request'
-              && github.event.pull_request.base.sha
-              || github.event_name == 'push'
-              && github.event.before
-              || format('refs/heads/{0}', github.event.repository.default_branch) }}
-          CAXRI_CHECKS_BASE_REVISION: >-
-            ${{ github.event_name == 'pull_request'
-              && github.event.pull_request.base.sha
-              || github.event_name == 'push'
-              && github.event.before
-              || '' }}
-          CAXRI_CHECKS_FETCH_REF: ${{ github.sha }}
-          CAXRI_CHECKS_HEAD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
-          CAXRI_CHECKS_REQUIRE_MERGE: ${{ github.event_name == 'pull_request' }}
           CAXRI_E2E_COMPONENT: exclusive
-          CAXRI_GITHUB_TOKEN: ${{ github.token }}
         run: |
-          if [ -z "$CAXRI_CHECKS_REVISION" ] || [ -z "$CAXRI_CHECKS_FETCH_REF" ]; then
+          if [ -z "$CAXRI_CHECKS_REVISION" ]; then
             echo "The workflow event is missing its immutable revision SHA" >&2
             exit 1
           fi
           bun run scripts/ci-concurrent-validation.ts run
-      - id: full-checks-receipt
-        name: Verify full platform checks
-        if: >-
-          always() &&
-          needs.retry-policy.outputs.mode == 'full' &&
-          needs.retry-policy.outputs.checks_scope == 'full' &&
-          needs.retry-policy.outputs.e2e_profile == 'optimized'
-        run: bun run scripts/ci-concurrent-validation.ts verify checks
-      - id: auxiliary-receipt
-        name: Verify E2E auxiliary contracts
-        if: >-
-          always() &&
-          needs.retry-policy.outputs.mode == 'full' &&
-          needs.retry-policy.outputs.checks_scope == 'full' &&
-          needs.retry-policy.outputs.e2e_profile == 'optimized'
-        run: bun run scripts/ci-concurrent-validation.ts verify e2e-auxiliary
       - id: desktop-exclusive-receipt
         name: Run desktop-exclusive pool
         if: >-
@@ -724,9 +762,9 @@ jobs:
           path: test-results/public-receipts/parallel-safe.json
           if-no-files-found: error
           retention-days: 7
-      # A concurrent-validation pool can fail its receipt check without ever starting: a sibling `checks` failure
-      # aborts the run before this pool's turn, and `ci-concurrent-validation.json` records the pool as `null`. There is
-      # nothing to upload then, so that branch waits for the pool's own receipt.
+      # A concurrent-validation pool can fail its receipt check without ever starting (a setup failure or the shared
+      # deadline), and `ci-concurrent-validation.json` records the pool as `null`. There is nothing to upload then, so
+      # that branch waits for the pool's own receipt.
       - name: Upload desktop-exclusive failure artifacts
         if: >-
           always() &&
@@ -755,13 +793,6 @@ jobs:
           path: test-results/public-receipts/control.json
           if-no-files-found: error
           retention-days: 7
-      - name: Remove synthetic-merge checks worktree
-        if: >-
-          always() &&
-          needs.retry-policy.outputs.mode == 'full' &&
-          needs.retry-policy.outputs.checks_scope == 'full' &&
-          needs.retry-policy.outputs.e2e_profile == 'optimized'
-        run: bun run scripts/ci-checks-worktree.ts remove
       - name: Remove hosted E2E temporary root
         if: always()
         shell: bash
@@ -785,7 +816,7 @@ jobs:
       matrix:
         shard: ['1/2', '2/2']
     needs: [retry-policy]
-    # The hosted-full optimized full-scope route only. `checks` is skipped there and runs inside the exclusive `e2e` leg,
+    # The hosted-full optimized full-scope route only. `checks` is skipped there and runs as `checks-hosted-full`,
     # so these legs depend on the policy alone and start with it, in parallel with `e2e`.
     if: >-
       !cancelled() &&
@@ -799,6 +830,8 @@ jobs:
     runs-on: macos-15
     env:
       CAXRI_E2E_AGENT_MODE: blocked
+      # Run every test once instead of stopping at 3 failures and rerunning the rest at one worker (#1869).
+      CAXRI_E2E_MAX_FAILURES: '0'
       CAXRI_E2E_PARALLEL_WORKERS: ${{ inputs.e2e_parallel_workers || '3' }}
       CAXRI_E2E_PROFILE: ${{ needs.retry-policy.outputs.e2e_profile }}
       CAXRI_E2E_RUNNER_KIND: github-hosted
@@ -934,7 +967,7 @@ jobs:
     name: e2e-perf
     timeout-minutes: 30
     needs: [retry-policy]
-    # The hosted-full optimized full-scope route only. `checks` is skipped there and runs inside the exclusive `e2e` leg,
+    # The hosted-full optimized full-scope route only. `checks` is skipped there and runs as `checks-hosted-full`,
     # so these legs depend on the policy alone and start with it, in parallel with `e2e`.
     if: >-
       !cancelled() &&
@@ -1023,6 +1056,22 @@ jobs:
         id: ci-parity
         if: always() && steps.e2e-build.outcome == 'success'
         run: bun run scripts/ci-metrics.ts --label "CI parity workers=1 repeat=3" -- bun run scripts/run-ci-parity.ts
+      - name: Verify Server artifact native modules
+        id: native-compatibility
+        if: always() && steps.e2e-build.outcome == 'success'
+        run: bun run scripts/ci-metrics.ts --label "Server artifact native compatibility" -- bun run spike:native
+      # The two auxiliary proofs of the E2E harness itself. They ran inside the exclusive leg's 25-minute window (about
+      # 50 s); here they have spare room beside the performance gates (#1869).
+      - name: Prove desktop worker interruption recovery
+        id: failure-isolation
+        if: always() && steps.native-compatibility.outcome == 'success'
+        run: >-
+          bun run scripts/ci-metrics.ts --label "Desktop worker interruption recovery" --
+          bun run scripts/run-e2e-failure-isolation.ts
+      - name: Prove bounded E2E failure census
+        id: failure-census
+        if: always() && steps.native-compatibility.outcome == 'success'
+        run: bun run scripts/run-e2e-census-fixture.ts
       - name: Run Renderer performance gate
         id: renderer-performance
         if: always() && steps.e2e-build.outcome == 'success'
@@ -1101,11 +1150,23 @@ jobs:
     name: CI gate
     if: ${{ !cancelled() }}
     needs:
-      [retry-policy, checks, lint, bundle-budget, unit, hosted-smoke, e2e, e2e-parallel, e2e-perf]
+      [
+        retry-policy,
+        checks,
+        checks-hosted-full,
+        lint,
+        bundle-budget,
+        unit,
+        hosted-smoke,
+        e2e,
+        e2e-parallel,
+        e2e-perf,
+      ]
     runs-on: ubuntu-latest
     steps:
       - name: Verify required execution path
         env:
+          CHECKS_HOSTED_FULL_RESULT: ${{ needs.checks-hosted-full.result }}
           CHECKS_RESULT: ${{ needs.checks.result }}
           CHECKS_SCOPE: ${{ needs.retry-policy.outputs.checks_scope }}
           E2E_PARALLEL_RESULT: ${{ needs.e2e-parallel.result }}
@@ -1123,15 +1184,19 @@ jobs:
           test "$RETRY_POLICY_RESULT" = success
           if test "$CHECKS_SCOPE" = skipped; then
             test "$CHECKS_RESULT" = skipped
+            test "$CHECKS_HOSTED_FULL_RESULT" = skipped
           elif test "$VALIDATION_TARGET" = hosted-full; then
             if test "$CHECKS_SCOPE" = full && test "$E2E_PROFILE" = optimized; then
-              # The exclusive `e2e` leg verifies the synthetic-merge checks itself, so its success covers them.
+              # `checks` is skipped here; the Linux `checks-hosted-full` job owns the platform checks.
               test "$CHECKS_RESULT" = skipped
+              test "$CHECKS_HOSTED_FULL_RESULT" = success
             else
               test "$CHECKS_RESULT" = success
+              test "$CHECKS_HOSTED_FULL_RESULT" = skipped
             fi
           else
             test "$CHECKS_RESULT" = success
+            test "$CHECKS_HOSTED_FULL_RESULT" = skipped
           fi
 
           # The optimized hosted-full route skips the checks job but still runs the split gates in their own jobs.

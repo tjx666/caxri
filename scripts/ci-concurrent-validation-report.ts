@@ -26,11 +26,8 @@ export interface ConcurrentValidationProvenance {
 }
 
 export interface ConcurrentValidationReceipt {
-    checks: number | null;
     desktopExclusive: number | null;
     e2eSetup: number | null;
-    failureCensus: number | null;
-    failureIsolation: number | null;
     manifest: number | null;
     parallelSafe: number | null;
     provenance: ConcurrentValidationProvenance;
@@ -38,10 +35,7 @@ export interface ConcurrentValidationReceipt {
 }
 
 const RECEIPT_EXIT_KEYS = [
-    'checks',
     'e2eSetup',
-    'failureIsolation',
-    'failureCensus',
     'parallelSafe',
     'desktopExclusive',
     'manifest',
@@ -51,18 +45,14 @@ const RECEIPT_EXIT_KEYS = [
  * Job-log search anchors for each receipted component. The concurrent `run` step inherits child stdio, so these strings
  * are the practical way to jump to the failing fragment without knowing the receipt file exists.
  */
-function componentLogHint(label: string, preparationFailure?: string): string {
+function componentLogHint(label: string): string {
     const anchors = [`"${label} failed with exit"`, `"${label} could not start"`];
-    if (preparationFailure) anchors.push(`"${preparationFailure}"`);
     return `Search the job log for ${anchors.join(' or ')}.`;
 }
 
 const RECEIPT_LOG_HINTS = {
-    checks: componentLogHint('Full platform checks', 'Full platform checks could not prepare'),
     desktopExclusive: componentLogHint('Desktop-exclusive E2E pool'),
     e2eSetup: `${componentLogHint('Electron Vite build')} ${componentLogHint('Electron native compatibility')}`,
-    failureCensus: componentLogHint('Bounded E2E failure census'),
-    failureIsolation: componentLogHint('Desktop worker interruption recovery'),
     manifest: componentLogHint('E2E execution receipt'),
     parallelSafe: componentLogHint('Parallel-safe E2E pool'),
 } as const satisfies Record<(typeof RECEIPT_EXIT_KEYS)[number], string>;

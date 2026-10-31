@@ -343,11 +343,10 @@ function parseBaseArgument(argv: readonly string[]): string | undefined {
 /**
  * Picks the revision to compare against: `--base`, then the CI-provided base, then the merge-base with `origin/main`.
  *
- * CI's full platform checks run in a synthetic-merge checkout that has no `origin/main` ref; they receive the fetched
- * base revision through `CAXRI_REACT_DOCTOR_BASE` instead (written by `scripts/ci-checks-worktree.ts` and
- * `scripts/ci-checks-diff-base.ts`, and read the same way by `scripts/doctor-changed.ts`), so every changed-scope gate
- * compares against one CI-provided base. Returns `null` for GitHub's all-zero `before` SHA on an initial branch push,
- * which has no base to compare against.
+ * CI's `checks` job runs in a synthetic-merge checkout that has no `origin/main` ref; it receives the verified base
+ * revision through `CAXRI_REACT_DOCTOR_BASE` instead (written by `scripts/ci-checks-diff-base.ts`, and read the same
+ * way by `scripts/doctor-changed.ts`), so every changed-scope gate compares against one CI-provided base. Returns
+ * `null` for GitHub's all-zero `before` SHA on an initial branch push, which has no base to compare against.
  */
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/source-size-ratchet.test.ts
 export async function resolveRatchetBase(
