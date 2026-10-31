@@ -142,6 +142,13 @@ async function isCommitAvailable(
     }
 }
 
+/**
+ * A fetch starts git's detached auto-maintenance, whose `gc` rewrites `.git/shallow` while the next deepening fetch
+ * runs, failing it with "shallow file has changed since we read it" (#1869, hosted-full run 41224291826). This
+ * throwaway repository never needs maintenance.
+ */
+const FETCH_ARGUMENTS = ['fetch', '--no-auto-maintenance', '--no-tags'];
+
 async function ensureRevisionAvailable(
     expectedRevision: string | undefined,
     fetchReference: string,
@@ -159,7 +166,7 @@ async function ensureRevisionAvailable(
         return expectedRevision;
     }
 
-    await execute('git', ['fetch', '--no-tags', '--depth=1', 'origin', fetchReference], {
+    await execute('git', [...FETCH_ARGUMENTS, '--depth=1', 'origin', fetchReference], {
         cwd: repoRoot,
         env: authenticatedGitEnvironment(environment),
     });
@@ -217,7 +224,7 @@ async function ensureDiffBaseAvailable(
         // eslint-disable-next-line no-await-in-loop -- bounded progressive history fetch avoids a full clone normally
         await execute(
             'git',
-            ['fetch', '--no-tags', `--deepen=${deepenBy}`, 'origin', revision, baseRevision],
+            [...FETCH_ARGUMENTS, `--deepen=${deepenBy}`, 'origin', revision, baseRevision],
             { cwd: repoRoot, env: authenticatedGitEnvironment(environment) },
         );
         // eslint-disable-next-line no-await-in-loop -- re-check after each bounded deepening step
@@ -231,7 +238,7 @@ async function ensureDiffBaseAvailable(
         if (stdout.trim() === 'true') {
             await execute(
                 'git',
-                ['fetch', '--no-tags', '--unshallow', 'origin', revision, baseRevision],
+                [...FETCH_ARGUMENTS, '--unshallow', 'origin', revision, baseRevision],
                 { cwd: repoRoot, env: authenticatedGitEnvironment(environment) },
             );
             mergeBase = await readMergeBase(revision, baseRevision, repoRoot, environment, execute);
