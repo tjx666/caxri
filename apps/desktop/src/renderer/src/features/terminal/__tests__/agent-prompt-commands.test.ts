@@ -23,12 +23,8 @@ vi.mock('../terminal-pane-handlers', () => ({
     whenTerminalAttached: mocks.whenTerminalAttached,
 }));
 
-const {
-    agentPromptText,
-    chooseAgentPromptTerminal,
-    MAX_AGENT_PROMPT_LENGTH,
-    sendPromptToSessionAgent,
-} = await import('../agent-prompt-commands');
+const { chooseAgentPromptTerminal, MAX_AGENT_PROMPT_LENGTH, sendPromptToSessionAgent } =
+    await import('../agent-prompt-commands');
 
 function terminal(overrides: Partial<TerminalRecord> & Pick<TerminalRecord, 'id'>): TerminalRecord {
     return { sessionId: 'session-1', createdAt: 1, orderIndex: 0, ...overrides } as TerminalRecord;
@@ -54,20 +50,6 @@ const otherSession = terminal({
     createdAt: 10,
     provider: 'claude',
     surface: 'chat',
-});
-
-describe('agentPromptText', () => {
-    it('keeps newlines and tabs, normalizes line endings, and drops other control characters', () => {
-        expect(agentPromptText('  Fix\r\nthis\r\tnow\u{1B}[201~\u{7F}\u{0}  ')).toBe(
-            'Fix\nthis\n\tnow[201~',
-        );
-    });
-
-    it('rejects anything that is not a non-empty string', () => {
-        expect(agentPromptText(undefined)).toBeUndefined();
-        expect(agentPromptText({ prompt: 'Fix' })).toBeUndefined();
-        expect(agentPromptText(' \u{1B} ')).toBeUndefined();
-    });
 });
 
 describe('chooseAgentPromptTerminal', () => {

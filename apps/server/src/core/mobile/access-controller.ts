@@ -531,6 +531,7 @@ export const openMobileAccessController = (options: {
                         domainService,
                         getExtensionService?.(),
                         () => currentPairedPrincipal(principal, request.method),
+                        forwardOperation,
                     );
                 }
                 default:

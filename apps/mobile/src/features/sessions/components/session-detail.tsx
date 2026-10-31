@@ -164,6 +164,7 @@ export const SessionDetail = ({
                     isPanelSessionSegment(segment) ? (
                         <ProjectPanelView
                             deviceRole={deviceRole}
+                            onOpenChat={() => onSegmentChange('conversation')}
                             panelId={panelIdOfSegment(segment)}
                             panels={panels}
                             sessionId={session.id}

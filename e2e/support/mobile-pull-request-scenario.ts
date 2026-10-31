@@ -28,7 +28,13 @@ const SLUG = 'owner/example';
  */
 type PullRequestFixture = 'failing' | 'ready';
 
-const CHECKS: Record<PullRequestFixture, Array<{ name: string; conclusion: string }>> = {
+/**
+ * The fake `gh` also serves `conflicting`: passing checks on a pull request GitHub reports as not mergeable, so the
+ * Status panel offers the Agent's `Resolve` in place of `Merge`.
+ */
+type FakeGhFixture = PullRequestFixture | 'conflicting';
+
+const CHECKS: Record<FakeGhFixture, Array<{ name: string; conclusion: string }>> = {
     failing: [
         { name: 'lint', conclusion: 'FAILURE' },
         { name: 'e2e', conclusion: 'FAILURE' },
@@ -36,6 +42,10 @@ const CHECKS: Record<PullRequestFixture, Array<{ name: string; conclusion: strin
         { name: 'build', conclusion: 'SUCCESS' },
     ],
     ready: [
+        { name: 'lint', conclusion: 'SUCCESS' },
+        { name: 'unit', conclusion: 'SUCCESS' },
+    ],
+    conflicting: [
         { name: 'lint', conclusion: 'SUCCESS' },
         { name: 'unit', conclusion: 'SUCCESS' },
     ],
@@ -78,7 +88,7 @@ interface FakeRepo {
  */
 function fakeGhScript(
     repo: FakeRepo,
-    fixture: PullRequestFixture,
+    fixture: FakeGhFixture,
     statePath: string,
     mergeLog: string,
 ): string {
@@ -90,7 +100,8 @@ function fakeGhScript(
         startedAt: '2026-10-20T00:00:00.000Z',
         completedAt: '2026-10-20T00:02:00.000Z',
     }));
-    const mergeStateStatus = fixture === 'failing' ? 'UNSTABLE' : 'CLEAN';
+    const mergeStateStatus =
+        fixture === 'failing' ? 'UNSTABLE' : fixture === 'conflicting' ? 'DIRTY' : 'CLEAN';
     const branchResponse = JSON.stringify({
         data: { repository: { ref: { target: { oid: repo.head } } } },
     });
@@ -106,7 +117,7 @@ function fakeGhScript(
             headRefOid: repo.head,
             headRefName: BRANCH,
             baseRefName: 'main',
-            mergeable: 'MERGEABLE',
+            mergeable: fixture === 'conflicting' ? 'CONFLICTING' : 'MERGEABLE',
             mergeStateStatus,
             ...(state === 'MERGED' && { mergeCommit: { oid: 'c'.repeat(40) } }),
         });
@@ -134,7 +145,7 @@ esac
  */
 async function writeFakeGh(
     directory: string,
-    fixture: PullRequestFixture,
+    fixture: FakeGhFixture,
     repos: readonly FakeRepo[],
 ): Promise<{ bin: string; mergeLog: string }> {
     const bin = join(directory, 'bin');
@@ -389,5 +400,90 @@ export async function executeMobileStatusTreeMergeScenario(
     } finally {
         await mobile.stop();
         await cleanup();
+    }
+}
+
+/**
+ * `MOB-CHAT-STATUS-TREE-RESOLVE-01`: a pull request with merge conflicts shows the Agent's `Resolve` in the phone's
+ * Status panel in place of `Merge`. Tapping it and confirming sends Desktop's prepared prompt to the Session's Agent
+ * Chat (`caxri.sendToAgent`, which only the Desktop Renderer resolved before), and the phone then shows that Chat with
+ * the prompt as the newest message. No merge ever reaches GitHub.
+ */
+export async function executeMobileStatusTreeResolveScenario(
+    environment: MobileAgentScenarioEnvironment,
+    artifacts: string[],
+): Promise<void> {
+    const { serial } = environment;
+    const ghDirectory = await mkdtemp(join(tmpdir(), 'caxri-mobile-gh-'));
+    let gh: { bin: string; mergeLog: string } | undefined;
+    let mobile: Awaited<ReturnType<typeof createMobileAcceptanceFixture>>;
+    try {
+        mobile = await createMobileAcceptanceFixture({
+            chatProvider: 'claude',
+            mode: 'agent-chat',
+            serial,
+            seedProject: async (root) => {
+                await seedRepo(root);
+                const head = await git(root, 'rev-parse', 'HEAD');
+                gh = await writeFakeGh(ghDirectory, 'conflicting', [
+                    { head, number: 42, slug: SLUG },
+                ]);
+            },
+            env: { PATH: `${join(ghDirectory, 'bin')}:${process.env.PATH ?? ''}` },
+        });
+    } catch (error) {
+        await rm(ghDirectory, { force: true, recursive: true });
+        throw error;
+    }
+    try {
+        const chat = mobile.agentChat;
+        if (!gh || !chat || !mobile.allowedSessionId)
+            throw new Error('Pull request fixture is unavailable');
+        await mobile.pair();
+        await tapMobileCheck(serial, `session-row-${mobile.allowedSessionId}`);
+        await tapMobileCheck(serial, 'session-segment-panel-caxri.project-status');
+        // The first inline action of the pull request row, which is `Resolve` while the pull request conflicts.
+        const resolve = await waitForMobile(
+            async () =>
+                (await mobileSemantics(serial)).find((node) =>
+                    /^tree-row-action-[\d.]+-0$/u.test(node.checkId),
+                ),
+            (node) => node !== undefined,
+            60_000,
+        );
+        if (!resolve) throw new Error('Resolve is not on the Status panel');
+        await capture(environment, 'status-resolve', artifacts);
+
+        await tapMobileCheck(serial, resolve.checkId);
+        await waitForCheck(serial, `${resolve.checkId}-confirm`);
+        await capture(environment, 'resolve-confirmation', artifacts);
+        await tapMobileCheck(serial, `${resolve.checkId}-confirm-confirm`);
+
+        const sent = await waitForMobile(
+            () => chat.read(),
+            (snapshot) =>
+                snapshot.items.some(
+                    (item) =>
+                        item.type === 'userMessage' && item.text.includes('has merge conflicts'),
+                ),
+        );
+        // The phone switched to the Session's Chat, where the prompt reads as the newest message.
+        await waitForCheck(serial, 'agent-chat-composer-input');
+        await capture(environment, 'resolve-sent', artifacts);
+
+        const merges = (await readFile(gh.mergeLog, 'utf8')).trim();
+        if (merges) throw new Error(`Resolve must not merge: ${JSON.stringify(merges)}`);
+        await finish(environment, artifacts, {
+            merge: 'none',
+            prompt: sent.items.some(
+                (item) => item.type === 'userMessage' && item.text.includes('#42'),
+            )
+                ? 'in-session-chat'
+                : 'missing',
+            surface: 'status',
+        });
+    } finally {
+        await mobile.stop();
+        await rm(ghDirectory, { force: true, recursive: true });
     }
 }

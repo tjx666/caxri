@@ -60,6 +60,7 @@ export * from './delegation/agent-delegation-contract.js';
 export * from './delegation/agent-delegation-settings.js';
 export * from './delegation/agent-delegation-usage.js';
 export * from './delegation/delegation-access-contract.js';
+export * from './prompt/agent-prompt-text.js';
 export * from './provider-autonomy.js';
 export * from './provider-messaging-contract.js';
 export * from './secret/secret-contract.js';

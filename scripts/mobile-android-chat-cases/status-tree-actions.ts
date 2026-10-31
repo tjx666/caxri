@@ -10,4 +10,10 @@ export const cases = {
         recordingOwner: 'scenario',
         scenario: 'status-tree-merge',
     },
+    'MOB-CHAT-STATUS-TREE-RESOLVE-01': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'status-tree-resolve',
+    },
 } as const satisfies Record<string, MobileAndroidCaseDefinition>;
