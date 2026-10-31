@@ -33,7 +33,9 @@ export function SettingsPageHost({ className }: { className?: string }) {
             className={cn('settings-page-host absolute inset-0 z-10 bg-background', className)}
             hidden={!isOpen}
         >
-            <SurfaceErrorBoundary resetKey="settings-page" scope="settings">
+            {/* Its own scope: this outer boundary only catches a failed page load, and sharing `settings` with the
+                content boundary inside would let it claim an injected Settings fault before the content does. */}
+            <SurfaceErrorBoundary resetKey="settings-page" scope="settings-page">
                 <Suspense fallback={null}>
                     <SettingsWorkbenchPage />
                 </Suspense>
