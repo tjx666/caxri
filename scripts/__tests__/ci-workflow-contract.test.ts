@@ -77,7 +77,7 @@ describe('CI workflow contract', () => {
     });
 
     it('keeps the explicitly authorized full E2E route hosted and manual', () => {
-        const e2e = workflow.match(/\n {2}e2e:\n([\s\S]*?)\n {2}ci:/u)?.[1] ?? '';
+        const e2e = workflow.match(/\n {2}e2e:\n([\s\S]*?)\n {2}e2e-parallel:/u)?.[1] ?? '';
 
         expect(e2e).toContain('runs-on: macos-15');
         expect(e2e).toContain('test "$RUNNER_ENVIRONMENT" = github-hosted');
@@ -141,7 +141,7 @@ describe('CI workflow contract', () => {
 
     it('fails closed off GitHub-hosted runners and installs tools without persistent assumptions', () => {
         const checks = workflow.match(/\n {2}checks:\n([\s\S]*?)\n {2}hosted-smoke:/u)?.[1] ?? '';
-        const e2e = workflow.match(/\n {2}e2e:\n([\s\S]*?)\n {2}ci:/u)?.[1] ?? '';
+        const e2e = workflow.match(/\n {2}e2e:\n([\s\S]*?)\n {2}e2e-parallel:/u)?.[1] ?? '';
 
         expect(setupAction.indexOf('Verify GitHub-hosted runner boundary')).toBeLessThan(
             setupAction.indexOf('Read mise tool versions'),
@@ -317,6 +317,8 @@ describe('CI workflow contract', () => {
             'unit',
             'hosted-smoke',
             'e2e',
+            'e2e-parallel',
+            'e2e-perf',
         ]);
         expect(gate).toContain('test "$UNIT_RESULT" = success');
         expect(gate).toContain('test "$UNIT_RESULT" = skipped');
@@ -333,6 +335,76 @@ describe('CI workflow contract', () => {
         expect(gate).toContain('automated|checks-only)');
         expect(gate).toContain('test "$E2E_RESULT" = skipped');
         expect(gate).toContain('test "$E2E_RESULT" = success');
+        // The split hosted-full route requires every leg; no other route may run them.
+        expect(gate).toContain('test "$E2E_PARALLEL_RESULT" = success');
+        expect(gate).toContain('test "$E2E_PERF_RESULT" = success');
+        expect(gate).toContain('test "$E2E_PARALLEL_RESULT" = skipped');
+        expect(gate).toContain('test "$E2E_PERF_RESULT" = skipped');
+        expect(gate).toContain(
+            'test "$RETRY_MODE" = full && test "$CHECKS_SCOPE" = full && test "$E2E_PROFILE" = optimized',
+        );
+        expect(gate).not.toContain('FULL_CHECKS_RESULT');
+    });
+
+    it('splits the hosted-full window into exclusive, sharded parallel-safe, and performance legs', () => {
+        const e2e = workflow.match(/\n {2}e2e:\n([\s\S]*?)\n {2}e2e-parallel:/u)?.[1] ?? '';
+        const parallel =
+            workflow.match(/\n {2}e2e-parallel:\n([\s\S]*?)\n {2}# Performance and parity/u)?.[1] ??
+            '';
+        const performance_ = workflow.match(/\n {2}e2e-perf:\n([\s\S]*?)\n {2}ci:/u)?.[1] ?? '';
+        const jobs = document.jobs as Record<
+            string,
+            WorkflowJob & {
+                'strategy'?: { 'fail-fast'?: boolean; 'matrix'?: { shard?: string[] } };
+                'timeout-minutes'?: number;
+            }
+        >;
+
+        // The exclusive leg keeps the checks branch but no longer runs the sharded pool or the performance gates.
+        expect(e2e).toContain('CAXRI_E2E_COMPONENT: exclusive');
+        expect(e2e).toContain('verify checks');
+        expect(e2e).toContain('verify desktop-exclusive');
+        expect(e2e).not.toContain('verify parallel-safe');
+        expect(e2e).not.toContain('parallel-safe-receipt');
+        expect(e2e).not.toContain('outputs:');
+        expect(e2e).not.toContain('steps.concurrent-full.outputs.aborted');
+
+        // The shards run only on the optimized full-scope hosted-full route and never block each other.
+        expect(jobs['e2e-parallel'].strategy?.['fail-fast']).toBe(false);
+        expect(jobs['e2e-parallel'].strategy?.matrix?.shard).toEqual(['1/2', '2/2']);
+        expect(jobs['e2e-parallel']['timeout-minutes']).toBe(30);
+        expect(parallel).toContain('CAXRI_E2E_COMPONENT: parallel-safe');
+        expect(parallel).toContain('CAXRI_E2E_SHARD: ${{ matrix.shard }}');
+        expect(parallel).toContain('verify parallel-safe');
+        expect(parallel).not.toContain('verify checks');
+        expect(parallel).not.toContain('benchmark:renderer');
+        expect(parallel).toContain(
+            'name: e2e-parallel-safe-failure-artifacts-shard-${{ strategy.job-index }}',
+        );
+
+        // The performance leg is independent of the window and owns parity and every performance gate.
+        expect(jobs['e2e-perf']['timeout-minutes']).toBe(30);
+        expect(performance_).toContain('run: bun run benchmark:renderer');
+        expect(performance_).toContain('scripts/run-ci-parity.ts');
+        expect(performance_).toContain(
+            'bunx playwright test e2e/agent-chat-switch.performance.e2e.ts',
+        );
+        expect(performance_).toContain('scripts/performance-baseline-gate.ts');
+        expect(performance_).not.toContain('run-e2e-pools.ts');
+        expect(performance_).not.toContain('ci-concurrent-validation.ts');
+        for (const name of ['e2e-parallel', 'e2e-perf']) {
+            const condition = String(jobs[name].if).replaceAll(/\s+/gu, ' ');
+            for (const required of [
+                "github.event_name == 'workflow_dispatch'",
+                "inputs.validation_target == 'hosted-full'",
+                "needs.retry-policy.outputs.mode == 'full'",
+                "needs.retry-policy.outputs.checks_scope == 'full'",
+                "needs.retry-policy.outputs.e2e_profile == 'optimized'",
+            ]) {
+                expect(condition).toContain(required);
+            }
+            expect(jobs[name]['runs-on']).toBe('macos-15');
+        }
     });
 
     it('keeps performance trend comparison manual while the hosted baseline is unarmed', () => {

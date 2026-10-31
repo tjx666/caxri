@@ -7,7 +7,6 @@ import { ConcurrentValidationProcesses, isVerificationPassed } from '../ci-concu
 
 const greenReceipt = {
     checks: 0,
-    ciParity: 0,
     desktopExclusive: 0,
     e2eSetup: 0,
     failureCensus: 0,

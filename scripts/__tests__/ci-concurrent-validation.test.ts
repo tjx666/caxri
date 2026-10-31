@@ -36,7 +36,6 @@ import {
 
 const greenReceipt = {
     checks: 0,
-    ciParity: 0,
     desktopExclusive: 0,
     e2eSetup: 0,
     failureCensus: 0,
@@ -85,7 +84,6 @@ describe('concurrent CI validation', () => {
         const summary = formatConcurrentValidationFailureSummary({
             ...greenReceipt,
             e2eSetup: 1,
-            ciParity: null,
             desktopExclusive: null,
             failureCensus: null,
             failureIsolation: null,
@@ -93,7 +91,6 @@ describe('concurrent CI validation', () => {
             parallelSafe: null,
         });
         expect(summary).toContain('- e2eSetup: exit 1.');
-        expect(summary).not.toContain('ciParity');
         expect(summary).not.toContain('desktopExclusive');
         expect(summary).not.toContain('failureCensus');
         expect(summary).not.toContain('parallelSafe');
@@ -103,7 +100,6 @@ describe('concurrent CI validation', () => {
         const summary = formatConcurrentValidationFailureSummary({
             ...greenReceipt,
             checks: 1,
-            ciParity: null,
             desktopExclusive: null,
             e2eSetup: null,
             failureCensus: null,
@@ -117,13 +113,11 @@ describe('concurrent CI validation', () => {
         expect(summary).not.toContain('failureCensus');
         expect(summary).not.toContain('parallelSafe');
         expect(summary).not.toContain('desktopExclusive');
-        expect(summary).not.toContain('ciParity');
         expect(summary).not.toContain('manifest');
         expect(
             parseConcurrentValidationReceipt({
                 ...greenReceipt,
                 checks: 1,
-                ciParity: null,
                 desktopExclusive: null,
                 e2eSetup: null,
                 failureCensus: null,

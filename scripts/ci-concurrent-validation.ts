@@ -33,6 +33,22 @@ const SPLIT_GATE_ARGUMENTS = Object.keys(SKIP_GATE_ARGUMENTS);
 type ConcurrentValidationComponent =
     'checks' | 'desktop-exclusive' | 'e2e-auxiliary' | 'parallel-safe';
 
+/**
+ * Which slice of the hosted-full E2E work this runner owns. Each runs in its own job with its own 25-minute deadline
+ * (#1869): `exclusive` is the single-worker pool beside the platform checks, `parallel-safe` is one shard of the
+ * three-worker pool and carries no checks branch.
+ */
+type E2EValidationComponent = 'exclusive' | 'parallel-safe';
+
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/ci-concurrent-validation.test.ts
+export function resolveE2EComponent(environment: NodeJS.ProcessEnv): E2EValidationComponent {
+    const component = environment.CAXRI_E2E_COMPONENT;
+    if (component !== 'exclusive' && component !== 'parallel-safe') {
+        throw new Error('CAXRI_E2E_COMPONENT must be exclusive or parallel-safe');
+    }
+    return component;
+}
+
 type E2EValidationResults = Omit<ConcurrentValidationReceipt, 'checks' | 'provenance' | 'version'>;
 
 interface ConcurrentValidationProcessOperations {
@@ -252,10 +268,9 @@ export function parseConcurrentValidationReceipt(value: unknown): ConcurrentVali
         provenance.profile !== 'optimized' ||
         !/^[1-9]\d*$/u.test(provenance.runAttempt ?? '') ||
         !/^[1-9]\d*$/u.test(provenance.runId ?? '') ||
-        !isExitCode(receipt.checks) ||
+        !isOptionalExitCode(receipt.checks) ||
         !isOptionalExitCode(receipt.e2eSetup) ||
         ![
-            receipt.ciParity,
             receipt.desktopExclusive,
             receipt.failureCensus,
             receipt.failureIsolation,
@@ -337,9 +352,19 @@ export async function runE2ESetup(execute: E2ESetupRunner): Promise<number | nul
     return execute('Electron native compatibility', 'bun', ['run', 'spike:native']);
 }
 
+const NOT_RUN_E2E: E2EValidationResults = {
+    desktopExclusive: null,
+    e2eSetup: null,
+    failureCensus: null,
+    failureIsolation: null,
+    manifest: null,
+    parallelSafe: null,
+};
+
 async function runE2E(
     environment: NodeJS.ProcessEnv,
     processes: ConcurrentValidationProcesses,
+    component: E2EValidationComponent,
 ): Promise<E2EValidationResults> {
     /**
      * The native probe consumes the built standalone Server artifact and the compiled client package that resolves it.
@@ -351,18 +376,52 @@ async function runE2E(
             label,
         }),
     );
-    if (e2eSetup !== 0) {
-        return {
-            ciParity: null,
-            desktopExclusive: null,
-            e2eSetup,
-            failureCensus: null,
-            failureIsolation: null,
-            manifest: null,
-            parallelSafe: null,
-        };
-    }
+    if (e2eSetup !== 0) return { ...NOT_RUN_E2E, e2eSetup };
+    return component === 'parallel-safe'
+        ? runParallelSafeE2E(environment, processes, e2eSetup)
+        : runExclusiveE2E(environment, processes, e2eSetup);
+}
 
+/**
+ * One shard of the three-worker pool on a runner of its own. `CAXRI_E2E_SHARD` reaches `run-e2e-pools.ts` through the
+ * inherited environment. Parity and the performance gates run in the independent `e2e-perf` job, so nothing here
+ * competes with the pool for the window.
+ */
+async function runParallelSafeE2E(
+    environment: NodeJS.ProcessEnv,
+    processes: ConcurrentValidationProcesses,
+    e2eSetup: number,
+): Promise<E2EValidationResults> {
+    const parallelWorkers = environment.CAXRI_E2E_PARALLEL_WORKERS ?? '3';
+    const shard = environment.CAXRI_E2E_SHARD;
+    const parallelSafe = await runReceiptedE2E(
+        processes,
+        'bun',
+        measured(
+            `Playwright parallel-safe workers=${parallelWorkers}${shard ? ` shard=${shard}` : ''}`,
+            'bun',
+            ['run', 'scripts/run-e2e-pools.ts', '--pool', 'parallel-safe'],
+        ),
+        { environment, label: 'Parallel-safe E2E pool' },
+    );
+    const manifest = await runReceiptedE2E(
+        processes,
+        'bun',
+        ['run', 'scripts/report-e2e-manifest.ts', 'parallel-safe'],
+        { environment, label: 'E2E execution receipt' },
+    );
+    return { ...NOT_RUN_E2E, e2eSetup, manifest, parallelSafe };
+}
+
+/**
+ * The single-worker work beside the platform-checks branch: interruption recovery, the failure census, and the
+ * exclusive pool. Both fixtures and the pool always run: {@link runReceiptedE2E} never aborts a sibling.
+ */
+async function runExclusiveE2E(
+    environment: NodeJS.ProcessEnv,
+    processes: ConcurrentValidationProcesses,
+    e2eSetup: number,
+): Promise<E2EValidationResults> {
     const failureIsolation = await runReceiptedE2E(
         processes,
         'bun',
@@ -381,13 +440,6 @@ async function runE2E(
             label: 'Bounded E2E failure census',
         },
     );
-    /**
-     * The single-worker work runs first on purpose. Both pools always run: {@link runReceiptedE2E} never aborts a
-     * sibling, so order only decides what shares the runner with the CPU-heavy platform-checks branch (ESLint plus
-     * Vitest). The exclusive pool and dispatch-only CI parity barely compete for cores, so they fill that window and
-     * the three-worker pool mostly follows it. Parity used to run last, where its ~200s pushed every manual full run
-     * past the shared deadline (issue #1846).
-     */
     const desktopExclusive = await runReceiptedE2E(
         processes,
         'bun',
@@ -399,44 +451,19 @@ async function runE2E(
         ]),
         { environment, label: 'Desktop-exclusive E2E pool' },
     );
-    const ciParity =
-        process.env.GITHUB_EVENT_NAME === 'workflow_dispatch'
-            ? await runReceiptedE2E(
-                  processes,
-                  'bun',
-                  measured('CI parity workers=1 repeat=3', 'bun', [
-                      'run',
-                      'scripts/run-ci-parity.ts',
-                  ]),
-                  { environment, label: 'Deterministic CI-parity cases' },
-              )
-            : 0;
-    const parallelWorkers = process.env.CAXRI_E2E_PARALLEL_WORKERS ?? '3';
-    const parallelSafe = await runReceiptedE2E(
-        processes,
-        'bun',
-        measured(`Playwright parallel-safe workers=${parallelWorkers}`, 'bun', [
-            'run',
-            'scripts/run-e2e-pools.ts',
-            '--pool',
-            'parallel-safe',
-        ]),
-        { environment, label: 'Parallel-safe E2E pool' },
-    );
     const manifest = await runReceiptedE2E(
         processes,
         'bun',
-        ['run', 'scripts/report-e2e-manifest.ts', 'parallel-safe', 'desktop-exclusive'],
+        ['run', 'scripts/report-e2e-manifest.ts', 'desktop-exclusive'],
         { environment, label: 'E2E execution receipt' },
     );
     return {
-        ciParity,
+        ...NOT_RUN_E2E,
         desktopExclusive,
         e2eSetup,
         failureCensus,
         failureIsolation,
         manifest,
-        parallelSafe,
     };
 }
 
@@ -451,25 +478,32 @@ export function isVerificationPassed(
     expectedProvenance: ConcurrentValidationProvenance,
 ): boolean {
     if (JSON.stringify(receipt.provenance) !== JSON.stringify(expectedProvenance)) return false;
+    // A `null` entry means the component never ran on this runner, so it can never satisfy a verification.
     if (component === 'checks') return receipt.checks === 0;
-    if (component === 'parallel-safe') return receipt.parallelSafe === 0;
+    if (component === 'parallel-safe') {
+        return [receipt.e2eSetup, receipt.parallelSafe, receipt.manifest].every(
+            (result) => result === 0,
+        );
+    }
     if (component === 'desktop-exclusive') return receipt.desktopExclusive === 0;
     return [
         receipt.e2eSetup,
         receipt.failureIsolation,
         receipt.failureCensus,
-        receipt.ciParity,
         receipt.manifest,
     ].every((result) => result === 0);
 }
 
 async function execute(): Promise<void> {
     const provenance = concurrentValidationProvenance(process.env);
+    const component = resolveE2EComponent(process.env);
     await rm(receiptPath, { force: true });
     const safeEnvironment = sanitizedChildEnvironment(process.env);
     const processes = new ConcurrentValidationProcesses();
     const deadline = scheduleConcurrentValidationDeadline(processes);
-    const checksPromise = (async (): Promise<number> => {
+    const checksPromise = (async (): Promise<number | null> => {
+        // The parallel-safe shards run on their own runners; the platform checks belong to the exclusive leg only.
+        if (component === 'parallel-safe') return null;
         try {
             const { checksEnvironment, worktree } = await prepareChecksWorktree(process.env, {
                 execFile: (command, arguments_, options) =>
@@ -500,7 +534,7 @@ async function execute(): Promise<void> {
             return 1;
         }
     })();
-    const e2ePromise = runE2E(safeEnvironment, processes);
+    const e2ePromise = runE2E(safeEnvironment, processes, component);
     try {
         const [checks, e2e] = await Promise.all([checksPromise, e2ePromise]);
         const receipt = { checks, ...e2e, provenance, version: 1 as const };

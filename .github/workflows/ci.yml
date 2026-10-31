@@ -414,9 +414,6 @@ jobs:
   e2e:
     name: e2e
     timeout-minutes: 30
-    outputs:
-      full_checks_result: ${{ steps.full-checks-receipt.outcome }}
-      renderer_performance_result: ${{ steps.renderer-performance.outcome }}
     needs: [retry-policy, checks]
     # Keep failed-dependency handling, but let superseded runs release their concurrency slot.
     # https://docs.github.com/en/actions/how-tos/troubleshoot-workflows#canceling-workflows
@@ -531,8 +528,11 @@ jobs:
             PNPM_VERSION="$(pnpm --version)" \
             LOCKFILE_SHA256="$(shasum -a 256 pnpm-lock.yaml | awk '{print $1}')" \
             bun -e 'console.log(`CAXRI_VALIDATION_ENV ${JSON.stringify({ bun: Bun.version, e2eParallelWorkers: process.env.E2E_PARALLEL_WORKERS, e2eProfile: process.env.E2E_PROFILE, exactHead: process.env.CAXRI_EXPECTED_HEAD, lockfileSha256: process.env.LOCKFILE_SHA256, node: process.env.NODE_VERSION, pnpm: process.env.PNPM_VERSION, runnerLabels: process.env.RUNNER_LABELS?.split(","), runnerName: process.env.RUNNER_NAME, vitestMaxWorkers: process.env.VITEST_MAX_WORKERS, vitestPartition: process.env.VITEST_PARTITION })}`)'
+      # The exclusive leg of the hosted-full route: the synthetic-merge checks beside the single-worker pool. The
+      # three-worker pool shards run in `e2e-parallel` and the performance gates in `e2e-perf`, each on its own runner
+      # and its own 25-minute deadline (#1869).
       - id: concurrent-full
-        name: Execute synthetic-merge checks and exact-head E2E concurrently
+        name: Execute synthetic-merge checks and exact-head exclusive E2E concurrently
         if: >-
           needs.retry-policy.outputs.mode == 'full' &&
           needs.retry-policy.outputs.checks_scope == 'full' &&
@@ -553,6 +553,7 @@ jobs:
           CAXRI_CHECKS_FETCH_REF: ${{ github.sha }}
           CAXRI_CHECKS_HEAD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
           CAXRI_CHECKS_REQUIRE_MERGE: ${{ github.event_name == 'pull_request' }}
+          CAXRI_E2E_COMPONENT: exclusive
           CAXRI_GITHUB_TOKEN: ${{ github.token }}
         run: |
           if [ -z "$CAXRI_CHECKS_REVISION" ] || [ -z "$CAXRI_CHECKS_FETCH_REF" ]; then
@@ -576,14 +577,6 @@ jobs:
           needs.retry-policy.outputs.checks_scope == 'full' &&
           needs.retry-policy.outputs.e2e_profile == 'optimized'
         run: bun run scripts/ci-concurrent-validation.ts verify e2e-auxiliary
-      - id: parallel-safe-receipt
-        name: Run parallel-safe pool
-        if: >-
-          always() &&
-          needs.retry-policy.outputs.mode == 'full' &&
-          needs.retry-policy.outputs.checks_scope == 'full' &&
-          needs.retry-policy.outputs.e2e_profile == 'optimized'
-        run: bun run scripts/ci-concurrent-validation.ts verify parallel-safe
       - id: desktop-exclusive-receipt
         name: Run desktop-exclusive pool
         if: >-
@@ -643,15 +636,12 @@ jobs:
         id: ci-parity
         if: always() && steps.e2e-build.outcome == 'success' && github.event_name == 'workflow_dispatch'
         run: bun run scripts/ci-metrics.ts --label "CI parity workers=1 repeat=3" -- bun run scripts/run-ci-parity.ts
-      # `ci-concurrent-validation.ts run` exits zero after an abort, and a SIGTERM mid Electron launch leaves a
-      # pending desktop lease handoff that would fail this gate with an unrelated lease error (issue #1852). A missing
-      # `aborted` output (the step crashed before publishing it) also skips the gate.
+      # The hosted-full route runs this gate in `e2e-perf`, so only the direct routes reach it here.
       - name: Run Renderer performance gate
         id: renderer-performance
         if: >-
           always() &&
           (
-            (steps.concurrent-full.outcome == 'success' && steps.concurrent-full.outputs.aborted == 'false') ||
             steps.control.outcome == 'success' ||
             steps.desktop-exclusive.outcome == 'success'
           )
@@ -719,21 +709,13 @@ jobs:
           # A run that failed before writing its receipt already fails its own step.
           if-no-files-found: warn
           retention-days: 7
-      # A concurrent-validation pool can fail its receipt check without ever starting: a sibling `checks` failure
-      # aborts the run before this pool's turn, and `ci-concurrent-validation.json` records the pool as `null`. There is
-      # nothing to upload then, so that branch waits for the pool's own receipt. The direct pool step always launched
-      # `run-e2e-pools.ts`, which writes the receipt on every exit path including a SIGTERM abort.
+      # The direct pool step always launches `run-e2e-pools.ts`, which writes the receipt on every exit path including a
+      # SIGTERM abort. The hosted-full route runs this pool in `e2e-parallel` and uploads from there.
       - name: Upload parallel-safe failure artifacts
         if: >-
           always() &&
           steps.prepare-public-e2e-receipts.outcome == 'success' &&
-          (
-            steps.parallel-safe.outcome == 'failure' ||
-            (
-              steps.parallel-safe-receipt.outcome == 'failure' &&
-              hashFiles('test-results/receipts/parallel-safe.json') != ''
-            )
-          )
+          steps.parallel-safe.outcome == 'failure'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: e2e-parallel-safe-failure-artifacts
@@ -742,6 +724,9 @@ jobs:
           path: test-results/public-receipts/parallel-safe.json
           if-no-files-found: error
           retention-days: 7
+      # A concurrent-validation pool can fail its receipt check without ever starting: a sibling `checks` failure
+      # aborts the run before this pool's turn, and `ci-concurrent-validation.json` records the pool as `null`. There is
+      # nothing to upload then, so that branch waits for the pool's own receipt.
       - name: Upload desktop-exclusive failure artifacts
         if: >-
           always() &&
@@ -790,19 +775,344 @@ jobs:
             test "$(cat "$temporary_root/.caxri-owner")" = "$owner"
             rm -rf -- "$temporary_root"
           fi
+  # One shard of the parallel-safe pool per runner (hosted-full only). Sharding keeps the three-worker pool, which ran at
+  # about 0.27 tests/s on one runner, from sharing a 25-minute window with the exclusive pool (#1869).
+  e2e-parallel:
+    name: e2e-parallel (${{ matrix.shard }})
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ['1/2', '2/2']
+    needs: [retry-policy]
+    # The hosted-full optimized full-scope route only. `checks` is skipped there and runs inside the exclusive `e2e` leg,
+    # so these legs depend on the policy alone and start with it, in parallel with `e2e`.
+    if: >-
+      !cancelled() &&
+      github.event_name == 'workflow_dispatch' &&
+      inputs.validation_target == 'hosted-full' &&
+      needs.retry-policy.result == 'success' &&
+      needs.retry-policy.outputs.run_e2e == 'true' &&
+      needs.retry-policy.outputs.mode == 'full' &&
+      needs.retry-policy.outputs.checks_scope == 'full' &&
+      needs.retry-policy.outputs.e2e_profile == 'optimized'
+    runs-on: macos-15
+    env:
+      CAXRI_E2E_AGENT_MODE: blocked
+      CAXRI_E2E_PARALLEL_WORKERS: ${{ inputs.e2e_parallel_workers || '3' }}
+      CAXRI_E2E_PROFILE: ${{ needs.retry-policy.outputs.e2e_profile }}
+      CAXRI_E2E_RUNNER_KIND: github-hosted
+      CAXRI_E2E_RUNNER_REASON: ${{ inputs.validation_target }}
+      CAXRI_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      # For pull_request workflows, GitHub defines github.sha as the synthetic merge commit captured
+      # for this event. Fetch that immutable SHA directly instead of the moving refs/pull/*/merge ref.
+      CAXRI_CHECKS_REVISION: ${{ github.sha }}
+      CAXRI_RUNNER_AGENT_DISCOVERY: blocked
+      CAXRI_RUNNER_OWNER: caxri-${{ github.run_id }}-${{ github.run_attempt }}-e2e
+      PW_TEST_REPORTER: ''
+      CAXRI_E2E_SHARD: ${{ matrix.shard }}
+    steps:
+      - name: Verify hosted runner boundary before checkout
+        run: |
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          test "$RUNNER_OS" = macOS
+          test "$RUNNER_ARCH" = ARM64
+      - name: Prepare hosted E2E temporary root
+        shell: bash
+        run: |
+          owner="$CAXRI_RUNNER_OWNER"
+          [[ "$owner" =~ ^caxri-[0-9]+-[0-9]+-e2e$ ]]
+          temporary_root="/private/tmp/$owner"
+          test ! -e "$temporary_root"
+          test ! -L "$temporary_root"
+          umask 077
+          mkdir "$temporary_root"
+          printf '%s\n' "$owner" > "$temporary_root/.caxri-owner"
+          {
+            echo "TEMP=$temporary_root"
+            echo "TMP=$temporary_root"
+            echo "TMPDIR=$temporary_root"
+          } >> "$GITHUB_ENV"
+      - id: checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # PR E2E must execute the same exact pushed head whose immutable receipt and tree were
+          # validated by retry-policy. The PR base identity is checked separately by that policy.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Verify privileged dispatch trust boundary
+        uses: ./.github/actions/verify-trust-boundary
+        with:
+          policy-domain: ci
+          event-name: ${{ github.event_name }}
+          actor: ${{ github.actor }}
+          triggering-actor: ${{ github.triggering_actor }}
+          event-repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          event-ref: ${{ github.ref }}
+          pull-request-author: ${{ github.event.pull_request.user.login || github.actor }}
+      - id: setup
+        uses: ./.github/actions/setup-caxri-job
+        with:
+          setup-toolchain: 'true'
+          install-dependencies: 'true'
+          install-electron: 'true'
+          install-playwright-shell: ${{ needs.retry-policy.outputs.mode == 'full' && needs.retry-policy.outputs.checks_scope == 'full' && needs.retry-policy.outputs.e2e_profile == 'optimized' }}
+          install-media-tools: 'true'
+      - name: Report E2E runner route
+        run: |
+          {
+            echo "## E2E runner route"
+            echo
+            echo "| Runner | Kind | Reason | Shard | Exact head |"
+            echo "| --- | --- | --- | --- | --- |"
+            echo "| \`$RUNNER_NAME\` | \`$CAXRI_E2E_RUNNER_KIND\` | $CAXRI_E2E_RUNNER_REASON | \`$CAXRI_E2E_SHARD\` | \`$CAXRI_EXPECTED_HEAD\` |"
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Record validation environment
+        env:
+          E2E_PROFILE: ${{ needs.retry-policy.outputs.e2e_profile }}
+          RUNNER_LABELS: github-hosted,macOS,ARM64,macos-15
+          VITEST_MAX_WORKERS: ${{ inputs.vitest_max_workers || '2' }}
+          VITEST_PARTITION: ${{ inputs.vitest_partition || 'optimized' }}
+          E2E_PARALLEL_WORKERS: ${{ inputs.e2e_parallel_workers || '3' }}
+        run: |
+          # JavaScript expands this template literal, not the shell.
+          # shellcheck disable=SC2016
+          NODE_VERSION="$(node --version)" \
+            PNPM_VERSION="$(pnpm --version)" \
+            LOCKFILE_SHA256="$(shasum -a 256 pnpm-lock.yaml | awk '{print $1}')" \
+            bun -e 'console.log(`CAXRI_VALIDATION_ENV ${JSON.stringify({ bun: Bun.version, e2eParallelWorkers: process.env.E2E_PARALLEL_WORKERS, e2eProfile: process.env.E2E_PROFILE, exactHead: process.env.CAXRI_EXPECTED_HEAD, lockfileSha256: process.env.LOCKFILE_SHA256, node: process.env.NODE_VERSION, pnpm: process.env.PNPM_VERSION, runnerLabels: process.env.RUNNER_LABELS?.split(","), runnerName: process.env.RUNNER_NAME, vitestMaxWorkers: process.env.VITEST_MAX_WORKERS, vitestPartition: process.env.VITEST_PARTITION })}`)'
+      - id: concurrent-parallel-safe
+        name: Execute one parallel-safe shard
+        env:
+          CAXRI_E2E_COMPONENT: parallel-safe
+        run: |
+          if [ -z "$CAXRI_CHECKS_REVISION" ]; then
+            echo "The workflow event is missing its immutable revision SHA" >&2
+            exit 1
+          fi
+          bun run scripts/ci-concurrent-validation.ts run
+      - id: parallel-safe-receipt
+        name: Verify parallel-safe shard
+        if: always() && steps.concurrent-parallel-safe.outcome != 'skipped'
+        run: bun run scripts/ci-concurrent-validation.ts verify parallel-safe
+      - name: Prepare public E2E receipts
+        id: prepare-public-e2e-receipts
+        if: always()
+        run: bun run scripts/prepare-public-e2e-receipts.ts
+      # The shard's own receipt exists whenever the pool started; a setup failure leaves none and fails the verify step.
+      - name: Upload parallel-safe failure artifacts
+        if: >-
+          always() &&
+          steps.prepare-public-e2e-receipts.outcome == 'success' &&
+          steps.parallel-safe-receipt.outcome == 'failure' &&
+          hashFiles('test-results/receipts/parallel-safe.json') != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: e2e-parallel-safe-failure-artifacts-shard-${{ strategy.job-index }}
+          # Only schema-validated receipts may leave the runner. Playwright outputs can embed repository source and
+          # Terminal snapshots even when their paths are redacted, so they remain on the disposable hosted machine.
+          path: test-results/public-receipts/parallel-safe.json
+          if-no-files-found: error
+          retention-days: 7
+      - name: Remove hosted E2E temporary root
+        if: always()
+        shell: bash
+        run: |
+          owner="$CAXRI_RUNNER_OWNER"
+          [[ "$owner" =~ ^caxri-[0-9]+-[0-9]+-e2e$ ]]
+          temporary_root="/private/tmp/$owner"
+          if [[ -e "$temporary_root" || -L "$temporary_root" ]]; then
+            test -d "$temporary_root"
+            test ! -L "$temporary_root"
+            test "$(cat "$temporary_root/.caxri-owner")" = "$owner"
+            rm -rf -- "$temporary_root"
+          fi
+  # Performance and parity gates of the hosted-full route, on a runner of their own so neither the 25-minute concurrent
+  # window nor a busy sibling pool can skew or abort them (#1869).
+  e2e-perf:
+    name: e2e-perf
+    timeout-minutes: 30
+    needs: [retry-policy]
+    # The hosted-full optimized full-scope route only. `checks` is skipped there and runs inside the exclusive `e2e` leg,
+    # so these legs depend on the policy alone and start with it, in parallel with `e2e`.
+    if: >-
+      !cancelled() &&
+      github.event_name == 'workflow_dispatch' &&
+      inputs.validation_target == 'hosted-full' &&
+      needs.retry-policy.result == 'success' &&
+      needs.retry-policy.outputs.run_e2e == 'true' &&
+      needs.retry-policy.outputs.mode == 'full' &&
+      needs.retry-policy.outputs.checks_scope == 'full' &&
+      needs.retry-policy.outputs.e2e_profile == 'optimized'
+    runs-on: macos-15
+    env:
+      CAXRI_E2E_AGENT_MODE: blocked
+      CAXRI_E2E_PARALLEL_WORKERS: ${{ inputs.e2e_parallel_workers || '3' }}
+      CAXRI_E2E_PROFILE: ${{ needs.retry-policy.outputs.e2e_profile }}
+      CAXRI_E2E_RUNNER_KIND: github-hosted
+      CAXRI_E2E_RUNNER_REASON: ${{ inputs.validation_target }}
+      CAXRI_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      # For pull_request workflows, GitHub defines github.sha as the synthetic merge commit captured
+      # for this event. Fetch that immutable SHA directly instead of the moving refs/pull/*/merge ref.
+      CAXRI_CHECKS_REVISION: ${{ github.sha }}
+      CAXRI_RUNNER_AGENT_DISCOVERY: blocked
+      CAXRI_RUNNER_OWNER: caxri-${{ github.run_id }}-${{ github.run_attempt }}-e2e
+      PW_TEST_REPORTER: ''
+    steps:
+      - name: Verify hosted runner boundary before checkout
+        run: |
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          test "$RUNNER_OS" = macOS
+          test "$RUNNER_ARCH" = ARM64
+      - name: Prepare hosted E2E temporary root
+        shell: bash
+        run: |
+          owner="$CAXRI_RUNNER_OWNER"
+          [[ "$owner" =~ ^caxri-[0-9]+-[0-9]+-e2e$ ]]
+          temporary_root="/private/tmp/$owner"
+          test ! -e "$temporary_root"
+          test ! -L "$temporary_root"
+          umask 077
+          mkdir "$temporary_root"
+          printf '%s\n' "$owner" > "$temporary_root/.caxri-owner"
+          {
+            echo "TEMP=$temporary_root"
+            echo "TMP=$temporary_root"
+            echo "TMPDIR=$temporary_root"
+          } >> "$GITHUB_ENV"
+      - id: checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # PR E2E must execute the same exact pushed head whose immutable receipt and tree were
+          # validated by retry-policy. The PR base identity is checked separately by that policy.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Verify privileged dispatch trust boundary
+        uses: ./.github/actions/verify-trust-boundary
+        with:
+          policy-domain: ci
+          event-name: ${{ github.event_name }}
+          actor: ${{ github.actor }}
+          triggering-actor: ${{ github.triggering_actor }}
+          event-repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          event-ref: ${{ github.ref }}
+          pull-request-author: ${{ github.event.pull_request.user.login || github.actor }}
+      - id: setup
+        uses: ./.github/actions/setup-caxri-job
+        with:
+          setup-toolchain: 'true'
+          install-dependencies: 'true'
+          install-electron: 'true'
+          install-playwright-shell: ${{ needs.retry-policy.outputs.mode == 'full' && needs.retry-policy.outputs.checks_scope == 'full' && needs.retry-policy.outputs.e2e_profile == 'optimized' }}
+          install-media-tools: 'true'
+      - name: Report E2E runner route
+        run: |
+          {
+            echo "## E2E runner route"
+            echo
+            echo "| Runner | Kind | Reason | Exact head |"
+            echo "| --- | --- | --- | --- |"
+            echo "| \`$RUNNER_NAME\` | \`$CAXRI_E2E_RUNNER_KIND\` | $CAXRI_E2E_RUNNER_REASON | \`$CAXRI_EXPECTED_HEAD\` |"
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Build Electron bundles
+        id: e2e-build
+        run: bun run scripts/ci-metrics.ts --label "Electron Vite build" -- bun run build
+      - name: Run deterministic CI-parity cases
+        id: ci-parity
+        if: always() && steps.e2e-build.outcome == 'success'
+        run: bun run scripts/ci-metrics.ts --label "CI parity workers=1 repeat=3" -- bun run scripts/run-ci-parity.ts
+      - name: Run Renderer performance gate
+        id: renderer-performance
+        if: always() && steps.e2e-build.outcome == 'success'
+        run: bun run benchmark:renderer
+      # Reuses the profiling build `benchmark:renderer` just made instead of building again; the spec rejects any other
+      # build mode, so a failed or skipped build fails here rather than measuring the wrong Renderer.
+      - name: Run Agent Chat switch performance gate
+        id: agent-chat-switch-performance
+        if: always() && steps.renderer-performance.outcome != 'skipped'
+        env:
+          CAXRI_AGENT_CHAT_SWITCH_BENCHMARK: '1'
+          CAXRI_E2E_OUTPUT_DIR: test-results/agent-chat-switch-performance
+        run: bunx playwright test e2e/agent-chat-switch.performance.e2e.ts
+      # The committed baseline was derived from different runner hardware and is deliberately unarmed. Keep running
+      # the comparison so it records an explicit unarmed verdict without blocking until macos-15 is recalibrated.
+      - name: Run Renderer performance baseline gate
+        id: renderer-performance-baseline
+        if: always() && steps.renderer-performance.outcome != 'skipped'
+        env:
+          CI_CHANGED_FILES: ${{ needs.retry-policy.outputs.changed_files }}
+        run: >-
+          bun run scripts/performance-baseline-gate.ts --receipt
+          test-results/receipts/renderer-performance.json --baseline scripts/performance-baseline.json
+      # No runner-derived baseline exists yet, so this records a NO-BASELINE verdict until one is derived and armed
+      # from the uploaded receipts (docs/ci-performance.md).
+      - name: Run Agent Chat switch performance baseline gate
+        id: agent-chat-switch-performance-baseline
+        if: always() && steps.agent-chat-switch-performance.outcome != 'skipped'
+        env:
+          CI_CHANGED_FILES: ${{ needs.retry-policy.outputs.changed_files }}
+        run: >-
+          bun run scripts/performance-baseline-gate.ts --receipt
+          test-results/receipts/agent-chat-session-switch.json
+          --baseline scripts/performance-baseline.agent-chat-switch.json
+      - name: Prepare public E2E receipts
+        id: prepare-public-e2e-receipts
+        if: always()
+        run: bun run scripts/prepare-public-e2e-receipts.ts
+      - name: Upload Renderer performance receipt
+        if: >-
+          always() &&
+          steps.prepare-public-e2e-receipts.outcome == 'success' &&
+          steps.renderer-performance.outcome != 'skipped'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: renderer-performance-receipt
+          path: test-results/public-receipts/renderer-performance.json
+          if-no-files-found: error
+          retention-days: 7
+      - name: Upload Agent Chat switch performance receipt
+        if: >-
+          always() &&
+          steps.prepare-public-e2e-receipts.outcome == 'success' &&
+          steps.agent-chat-switch-performance.outcome != 'skipped'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: agent-chat-switch-performance-receipt
+          path: test-results/public-receipts/agent-chat-session-switch.json
+          # A run that failed before writing its receipt already fails its own step.
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Remove hosted E2E temporary root
+        if: always()
+        shell: bash
+        run: |
+          owner="$CAXRI_RUNNER_OWNER"
+          [[ "$owner" =~ ^caxri-[0-9]+-[0-9]+-e2e$ ]]
+          temporary_root="/private/tmp/$owner"
+          if [[ -e "$temporary_root" || -L "$temporary_root" ]]; then
+            test -d "$temporary_root"
+            test ! -L "$temporary_root"
+            test "$(cat "$temporary_root/.caxri-owner")" = "$owner"
+            rm -rf -- "$temporary_root"
+          fi
   ci:
     name: CI gate
     if: ${{ !cancelled() }}
-    needs: [retry-policy, checks, lint, bundle-budget, unit, hosted-smoke, e2e]
+    needs:
+      [retry-policy, checks, lint, bundle-budget, unit, hosted-smoke, e2e, e2e-parallel, e2e-perf]
     runs-on: ubuntu-latest
     steps:
       - name: Verify required execution path
         env:
           CHECKS_RESULT: ${{ needs.checks.result }}
           CHECKS_SCOPE: ${{ needs.retry-policy.outputs.checks_scope }}
-          E2E_RESULT: ${{ needs.e2e.result }}
+          E2E_PARALLEL_RESULT: ${{ needs.e2e-parallel.result }}
+          E2E_PERF_RESULT: ${{ needs.e2e-perf.result }}
           E2E_PROFILE: ${{ needs.retry-policy.outputs.e2e_profile }}
-          FULL_CHECKS_RESULT: ${{ needs.e2e.outputs.full_checks_result }}
+          E2E_RESULT: ${{ needs.e2e.result }}
+          RETRY_MODE: ${{ needs.retry-policy.outputs.mode }}
           LINT_RESULT: ${{ needs.lint.result }}
           BUNDLE_BUDGET_RESULT: ${{ needs.bundle-budget.result }}
           RETRY_POLICY_RESULT: ${{ needs.retry-policy.result }}
@@ -815,8 +1125,8 @@ jobs:
             test "$CHECKS_RESULT" = skipped
           elif test "$VALIDATION_TARGET" = hosted-full; then
             if test "$CHECKS_SCOPE" = full && test "$E2E_PROFILE" = optimized; then
+              # The exclusive `e2e` leg verifies the synthetic-merge checks itself, so its success covers them.
               test "$CHECKS_RESULT" = skipped
-              test "$FULL_CHECKS_RESULT" = success
             else
               test "$CHECKS_RESULT" = success
             fi
@@ -850,14 +1160,27 @@ jobs:
             hosted-smoke)
               test "$SMOKE_RESULT" = success
               test "$E2E_RESULT" = skipped
+              test "$E2E_PARALLEL_RESULT" = skipped
+              test "$E2E_PERF_RESULT" = skipped
               ;;
             hosted-full)
               test "$SMOKE_RESULT" = skipped
               test "$E2E_RESULT" = success
+              # The optimized full-scope route splits the parallel-safe shards and the performance gates into their
+              # own legs; every other hosted-full route runs them inside `e2e`.
+              if test "$RETRY_MODE" = full && test "$CHECKS_SCOPE" = full && test "$E2E_PROFILE" = optimized; then
+                test "$E2E_PARALLEL_RESULT" = success
+                test "$E2E_PERF_RESULT" = success
+              else
+                test "$E2E_PARALLEL_RESULT" = skipped
+                test "$E2E_PERF_RESULT" = skipped
+              fi
               ;;
             automated|checks-only)
               test "$SMOKE_RESULT" = skipped
               test "$E2E_RESULT" = skipped
+              test "$E2E_PARALLEL_RESULT" = skipped
+              test "$E2E_PERF_RESULT" = skipped
               ;;
             *)
               echo "Unknown validation target: $VALIDATION_TARGET" >&2

@@ -26,8 +26,7 @@ export interface ConcurrentValidationProvenance {
 }
 
 export interface ConcurrentValidationReceipt {
-    checks: number;
-    ciParity: number | null;
+    checks: number | null;
     desktopExclusive: number | null;
     e2eSetup: number | null;
     failureCensus: number | null;
@@ -45,7 +44,6 @@ const RECEIPT_EXIT_KEYS = [
     'failureCensus',
     'parallelSafe',
     'desktopExclusive',
-    'ciParity',
     'manifest',
 ] as const satisfies ReadonlyArray<keyof ConcurrentValidationReceipt>;
 
@@ -61,7 +59,6 @@ function componentLogHint(label: string, preparationFailure?: string): string {
 
 const RECEIPT_LOG_HINTS = {
     checks: componentLogHint('Full platform checks', 'Full platform checks could not prepare'),
-    ciParity: componentLogHint('Deterministic CI-parity cases'),
     desktopExclusive: componentLogHint('Desktop-exclusive E2E pool'),
     e2eSetup: `${componentLogHint('Electron Vite build')} ${componentLogHint('Electron native compatibility')}`,
     failureCensus: componentLogHint('Bounded E2E failure census'),

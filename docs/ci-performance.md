@@ -172,13 +172,53 @@ the pool on one worker forever. Under three workers it passes alongside `work-ta
 
 ### The 25-minute concurrent-validation budget
 
-`scheduleConcurrentValidationDeadline` in `scripts/ci-concurrent-validation.ts` aborts the whole
-window 25 minutes after `execute()` starts, so the clock includes the checks worktree install, the
-Electron build, native verification, interruption recovery, and the failure census before either
-pool runs (about 45s on the historical self-hosted runner). On the E2E branch the window then holds
-`desktop-exclusive`, the
-dispatch-only CI parity cases (about 200s, one worker), `parallel-safe`, and the manifest. The
-target is 85% of the deadline (21m15s), which leaves room for one slow pool without a red run.
+`scheduleConcurrentValidationDeadline` in `scripts/ci-concurrent-validation.ts` aborts a runner's
+window 25 minutes after `execute()` starts. The deadline is per runner: the optimized `hosted-full`
+route now splits the work across three jobs, each with its own window and its own 30-minute job
+timeout (issue #1869), selected by `CAXRI_E2E_COMPONENT`:
+
+| Job            | Component       | Work                                                                                                                             |
+| -------------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `e2e`          | `exclusive`     | Electron build, native verification, interruption recovery, failure census, `desktop-exclusive`, the checks branch, its manifest |
+| `e2e-parallel` | `parallel-safe` | Build and native verification, then one shard `i/N` of `parallel-safe` (matrix `1/2`, `2/2`, `fail-fast: false`), its manifest   |
+| `e2e-perf`     | none            | Build, dispatch-only CI parity, `benchmark:renderer`, the Agent Chat switch gate, and both baseline gates                        |
+
+Run `41226124386` measured the single-runner window: Electron Vite build 157s, interruption
+recovery 32s, `desktop-exclusive` 882s (two failures), CI parity 181s, and `parallel-safe` (392
+tests) at about 0.27 tests/s with three workers. Together with the checks branch that overran the
+window and aborted it, so the performance gates never ran. Splitting gives each leg its own clock:
+the exclusive leg is about 20 minutes (build, recovery, census, and the 882s pool), each shard owns
+about half of the 392 tests, and the performance leg no longer depends on whether the window
+aborted.
+
+- `run-e2e-pools.ts --pool parallel-safe` reads `--shard <i>/<N>` or `CAXRI_E2E_SHARD`. The partition
+  lives in `scripts/e2e-pool-shard.ts`: specs are weighed by their declared `test(` calls and
+  assigned longest-first to the lightest shard (name order breaks ties), so every runner derives the
+  same split from the same checkout, each spec lands in exactly one shard, and a shard's receipt is
+  validated against exactly the specs it was dispatched. Playwright's own `--shard` is not used: its
+  per-shard listing needs `--reporter=json`, which the public log boundary
+  (`scripts/__tests__/ci-e2e-log-safety.test.ts`) keeps out of repository scripts. Census reruns are
+  unaffected.
+- The receipt keeps the pool name `parallel-safe`; each shard is its own runner, so the shard's
+  `planned`, `started`, and `hash` describe that shard only. The shard prints
+  `CAXRI_E2E_SHARD {"planned","pool","shard","specs"}` with its planned test count after the pool
+  ends, and the step summary labels the pool row with its shard. A cross-shard total is read by summing the shard
+  manifests (`CAXRI_E2E_MANIFEST`) in the job logs.
+- The shard leg writes `checks: null`, `desktopExclusive: null`, `failureIsolation: null`, and
+  `failureCensus: null` in its concurrent-validation receipt; the `exclusive` leg writes
+  `parallelSafe: null`. A `null` entry never satisfies a verification, and `verify parallel-safe`
+  requires setup, the pool, and the manifest to be zero.
+- The `ci` gate requires `e2e`, `e2e-parallel`, and `e2e-perf` to succeed on the optimized
+  full-scope `hosted-full` route and requires the latter two to be skipped everywhere else. The
+  exclusive leg verifies the synthetic-merge checks in its own job, so the gate no longer reads a
+  matrix output for them.
+- Artifact names are unique per leg: `e2e-parallel-safe-failure-artifacts-shard-<index>` per shard,
+  `e2e-desktop-exclusive-failure-artifacts` for the exclusive leg, and the unchanged
+  `renderer-performance-receipt` and `agent-chat-switch-performance-receipt` from `e2e-perf`.
+
+The original single-window accounting follows. On the historical self-hosted runner the window held
+`desktop-exclusive`, the dispatch-only CI parity cases (about 200s, one worker), `parallel-safe`,
+and the manifest after the shared setup (about 45s), with a target of 85% of the deadline (21m15s).
 
 On the historical self-hosted runner the window's floor was set by the checks branch: ESLint,
 oxlint, Vitest, and the bundle budget finished about 15 minutes in on Actions run `38197586711`.
@@ -495,7 +535,8 @@ wall time alone hides it.
 - Focused checks, `checks-only` and `hosted-smoke` dispatches, one-worker controls, and non-optimized
   profiles keep their standalone paths. Only an explicitly authorized optimized `hosted-full`
   dispatch can replace the standalone checks job with the concurrent path; `lint`, `unit`, and
-  `bundle-budget` still run beside it.
+  `bundle-budget` still run beside it, and `e2e-parallel` and `e2e-perf` take the sharded pool and the
+  performance gates off that window (see the 25-minute budget section).
 - Vitest defaults to the audited `optimized` partition and two workers in the sharded `unit` job,
   which runs on every full scope, including the optimized `hosted-full` route. The `legacy` partition and worker caps 1-4 remain
   workflow-dispatch controls for same-head measurement; real watcher, process-global, bridge, and

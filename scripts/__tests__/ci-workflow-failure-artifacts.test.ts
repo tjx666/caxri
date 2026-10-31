@@ -87,7 +87,7 @@ describe('CI E2E artifacts', () => {
             ],
             [
                 'Upload parallel-safe failure artifacts',
-                "always() && steps.prepare-public-e2e-receipts.outcome == 'success' && ( steps.parallel-safe.outcome == 'failure' || ( steps.parallel-safe-receipt.outcome == 'failure' && hashFiles('test-results/receipts/parallel-safe.json') != '' ) )",
+                "always() && steps.prepare-public-e2e-receipts.outcome == 'success' && steps.parallel-safe.outcome == 'failure'",
             ],
             [
                 'Upload desktop-exclusive failure artifacts',
@@ -137,19 +137,27 @@ describe('CI E2E artifacts', () => {
 
     it('uploads a concurrent pool only once that pool actually started and left its receipt', () => {
         const document = parse(workflow) as {
-            jobs: { e2e: { steps: Array<{ if?: string; name?: string }> } };
+            jobs: {
+                'e2e': { steps: Array<{ if?: string; name?: string }> };
+                'e2e-parallel': { steps: Array<{ if?: string; name?: string }> };
+            };
         };
-        for (const pool of ['parallel-safe', 'desktop-exclusive']) {
-            const upload = document.jobs.e2e.steps.find(
-                (step) => step.name === `Upload ${pool} failure artifacts`,
-            );
-            const condition = String(upload?.if).replaceAll(/\s+/gu, ' ');
-            // The direct pool step always launched the pool, so it uploads unconditionally on failure and keeps
-            // `if-no-files-found: error` meaningful; the concurrent receipt check can fail for a pool that never ran.
-            expect(condition).toContain(`steps.${pool}.outcome == 'failure' ||`);
-            expect(condition).toContain(
-                `steps.${pool}-receipt.outcome == 'failure' && hashFiles('test-results/receipts/${pool}.json') != ''`,
-            );
-        }
+        // The sharded leg uploads only once the shard's own receipt exists, since a setup failure leaves none.
+        const shardUpload = document.jobs['e2e-parallel'].steps.find(
+            (step) => step.name === 'Upload parallel-safe failure artifacts',
+        );
+        expect(String(shardUpload?.if).replaceAll(/\s+/gu, ' ')).toContain(
+            "steps.parallel-safe-receipt.outcome == 'failure' && hashFiles('test-results/receipts/parallel-safe.json') != ''",
+        );
+        const upload = document.jobs.e2e.steps.find(
+            (step) => step.name === 'Upload desktop-exclusive failure artifacts',
+        );
+        const condition = String(upload?.if).replaceAll(/\s+/gu, ' ');
+        // The direct pool step always launched the pool, so it uploads unconditionally on failure and keeps
+        // `if-no-files-found: error` meaningful; the concurrent receipt check can fail for a pool that never ran.
+        expect(condition).toContain("steps.desktop-exclusive.outcome == 'failure' ||");
+        expect(condition).toContain(
+            "steps.desktop-exclusive-receipt.outcome == 'failure' && hashFiles('test-results/receipts/desktop-exclusive.json') != ''",
+        );
     });
 });
