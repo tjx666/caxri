@@ -3,7 +3,7 @@ import { useEffect } from 'react';
 import Constants from 'expo-constants';
 
 import { useMobileClient } from '../connection/mobile-client-provider';
-import { reportPreviousExit } from './previous-exit';
+import { reportPreviousExits } from './previous-exit';
 import { nativePreviousExitPorts } from './previous-exit-native';
 
 /**
@@ -12,8 +12,8 @@ import { nativePreviousExitPorts } from './previous-exit-native';
 const reportState = { isSettled: false };
 
 /**
- * Tells the paired Desktop why the previous app process ended abnormally, once a connection is up. A failed report
- * stays pending and is retried on the next connection.
+ * Tells the paired Desktop why earlier app processes ended abnormally, once a connection is up. A failed report stays
+ * pending and is retried on the next connection.
  */
 export const usePreviousExitReport = (): void => {
     const { request, status } = useMobileClient();
@@ -24,7 +24,7 @@ export const usePreviousExitReport = (): void => {
         reportState.isSettled = true;
         const report = async () => {
             try {
-                await reportPreviousExit(
+                await reportPreviousExits(
                     {
                         ...nativePreviousExitPorts,
                         report: (parameters) =>

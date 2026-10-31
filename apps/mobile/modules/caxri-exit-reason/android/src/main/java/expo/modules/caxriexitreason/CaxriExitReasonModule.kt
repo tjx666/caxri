@@ -49,7 +49,9 @@ class CaxriExitReasonModule : Module() {
       .filter { it.processName == context.packageName }
       .map { exit ->
         mapOf(
+          "pid" to exit.pid,
           "reason" to exit.reason,
+          "importance" to exit.importance,
           "timestamp" to exit.timestamp.toDouble(),
           "uncaughtClass" to uncaughtClass,
           "uncaughtAt" to uncaughtAt,
