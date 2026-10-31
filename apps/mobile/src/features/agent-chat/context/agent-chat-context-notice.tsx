@@ -6,11 +6,13 @@ import { NoticeBanner } from '../../../components/notice-banner';
 import { useTranslation } from '../../../i18n';
 import type { MobileTheme } from '../../../theme/tokens';
 import { AgentChatSessionUsageSheet } from '../agent-chat-session-usage-sheet';
+import type { AgentChatController } from '../use-agent-chat';
 import { useMinuteClock } from '../use-minute-clock';
 import {
     agentChatContextNotice,
     dismissAgentChatCacheNotice,
 } from './agent-chat-context-notice-model';
+import { useAgentChatCompact } from './use-agent-chat-compact';
 
 /**
  * Desktop's context and prompt cache reminder above the composer (`agentChatContextNotice`): one banner whose countdown
@@ -20,39 +22,37 @@ import {
  * context stays.
  */
 export const AgentChatContextNotice = ({
-    isCompactBusy,
-    onCompact,
+    canSend,
+    chat,
     terminalId,
     theme,
     usage,
 }: {
     /**
-     * True while the compact command is on its way to Server Core.
+     * Whether this phone may send to the Chat; a view-only phone keeps the Usage button.
      */
-    isCompactBusy: boolean;
-    /**
-     * Runs the provider's compact command; omitted when the provider reports none or the phone cannot send.
-     */
-    onCompact: (() => void) | undefined;
+    canSend: boolean;
+    chat: Pick<AgentChatController, 'runCommand' | 'snapshot'>;
     terminalId: string;
     theme: MobileTheme;
     usage: AgentChatUsage | undefined;
 }) => {
     const { t } = useTranslation();
+    const compaction = useAgentChatCompact(chat, canSend);
     const now = useMinuteClock();
     const [isOpen, setOpen] = useState(false);
     // Bumped on dismissal: the dismissal lives outside React state, so the banner re-reads it.
     const [, setDismissals] = useState(0);
     const notice = agentChatContextNotice(usage, now, terminalId, t);
     const { dismissAt } = notice ?? {};
-    const compact = notice?.isContextFull ? onCompact : undefined;
+    const compact = notice?.isContextFull ? compaction.compact : undefined;
     return (
         <>
             {notice ? (
                 <NoticeBanner
                     actionLabel={t(compact ? 'chat.notice.compact' : 'chat.notice.usage')}
                     actionTestID={compact ? 'agent-chat-context-notice-compact' : undefined}
-                    isBusy={compact ? isCompactBusy : undefined}
+                    isBusy={compact ? compaction.isBusy : undefined}
                     message={notice.lines.join('\n')}
                     onAction={compact ?? (() => setOpen(true))}
                     onSecondaryAction={

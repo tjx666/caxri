@@ -42,7 +42,6 @@ import { AgentChatSessionUsageButton } from './agent-chat-session-usage-sheet';
 import { AgentChatSettings } from './agent-chat-settings';
 import { sheetStyles } from './agent-chat-sheet-styles';
 import { AgentChatContextNotice } from './context/agent-chat-context-notice';
-import { useAgentChatCompact } from './context/use-agent-chat-compact';
 import type { AgentChatController } from './use-agent-chat';
 import { useAgentChatAppCommands } from './use-agent-chat-app-commands';
 import { useAgentChatComposerAction } from './use-agent-chat-composer-action';
@@ -287,7 +286,6 @@ export const AgentChatComposer = ({
         provider,
     });
     const isEditable = availability.isEnabled && !isRunningCommand && !isSendingEdit;
-    const compaction = useAgentChatCompact(chat, availability.isEnabled);
     const mentions = useAgentChatMentions({
         draft,
         // An edit's text can cite files and Sessions too; only a composer that cannot send hides the list.
@@ -366,8 +364,8 @@ export const AgentChatComposer = ({
             )}
             {isMenuOpen || isRunning || !chat.snapshot?.terminalId ? null : (
                 <AgentChatContextNotice
-                    isCompactBusy={compaction.isBusy}
-                    onCompact={compaction.compact}
+                    canSend={availability.isEnabled}
+                    chat={chat}
                     terminalId={chat.snapshot.terminalId}
                     theme={theme}
                     usage={chat.snapshot.usage}
