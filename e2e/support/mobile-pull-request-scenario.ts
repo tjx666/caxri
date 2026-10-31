@@ -239,7 +239,6 @@ export async function executeMobilePullRequestScenario(
 }
 
 const SUBMODULE_SLUG = 'owner/library';
-const MERGE_ACTION = 'tree-row-action-0';
 
 /**
  * Adds a `library` submodule on the same branch, published on its own GitHub remote, so Project Status lists it as a
@@ -264,12 +263,12 @@ async function seedSubmodule(root: string, source: string): Promise<string> {
 }
 
 /**
- * The Status panel's Merge buttons, top to bottom. Every row numbers its own actions, so each PR row's Merge carries
- * the same check id and the panel's order (primary repository first, then its submodule) tells them apart.
+ * The Status panel's Merge buttons, top to bottom: the first inline action of each row, `tree-row-action-<position>-0`,
+ * which on a pull request row is its Merge. The panel lists the primary repository first, then its submodule.
  */
 async function mergeButtons(serial: string) {
     return (await mobileSemantics(serial))
-        .filter((node) => node.checkId === MERGE_ACTION)
+        .filter((node) => /^tree-row-action-[\d.]+-0$/u.test(node.checkId))
         .map((node) => androidBounds(node.bounds))
         .filter((bounds) => bounds !== null)
         .toSorted((left, right) => left.top - right.top);

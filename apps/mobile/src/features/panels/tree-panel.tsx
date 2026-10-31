@@ -28,6 +28,7 @@ const TreeChildren = ({
     depth,
     deviceRole,
     parentHandle,
+    parentPosition,
     sessionId,
     theme,
     viewId,
@@ -35,6 +36,7 @@ const TreeChildren = ({
     depth: number;
     deviceRole: DeviceRole;
     parentHandle?: string;
+    parentPosition?: string;
     sessionId: string;
     theme: MobileTheme;
     viewId: string;
@@ -100,13 +102,16 @@ const TreeChildren = ({
         );
     return (
         <>
-            {(children.data?.items ?? []).map((item) => (
+            {(children.data?.items ?? []).map((item, index) => (
                 // eslint-disable-next-line @typescript-eslint/no-use-before-define, no-use-before-define -- Rows and their children recurse into each other.
                 <TreeRow
                     key={item.handle}
                     depth={depth}
                     deviceRole={deviceRole}
                     item={item}
+                    position={
+                        parentPosition === undefined ? `${index}` : `${parentPosition}.${index}`
+                    }
                     sessionId={sessionId}
                     theme={theme}
                     viewId={viewId}
@@ -120,6 +125,7 @@ const TreeRow = ({
     depth,
     deviceRole,
     item,
+    position,
     sessionId,
     theme,
     viewId,
@@ -127,6 +133,11 @@ const TreeRow = ({
     depth: number;
     deviceRole: DeviceRole;
     item: TreeItem;
+    /**
+     * The row's place in the tree as sibling indexes (`1.2` is the third child of the second root row). It keys the
+     * inline actions' test IDs, which must differ between rows yet must not carry a handle, a label, or a path.
+     */
+    position: string;
     sessionId: string;
     theme: MobileTheme;
     viewId: string;
@@ -179,7 +190,7 @@ const TreeRow = ({
                                 key={index}
                                 action={action}
                                 sessionId={sessionId}
-                                testID={`tree-row-action-${index}`}
+                                testID={`tree-row-action-${position}-${index}`}
                                 theme={theme}
                             />
                         ))}
@@ -191,6 +202,7 @@ const TreeRow = ({
                     depth={depth + 1}
                     deviceRole={deviceRole}
                     parentHandle={item.handle}
+                    parentPosition={position}
                     sessionId={sessionId}
                     theme={theme}
                     viewId={viewId}
