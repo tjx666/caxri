@@ -51,7 +51,7 @@ import {
     parseAndroidPackageUid,
 } from './mobile-android-native-init';
 import { buildAndroidAcceptanceRelease } from './mobile-android-release-build';
-import { readAndroidScenarioArtifacts } from './mobile-android-scenario-artifacts';
+import { bindAndroidScenarioArtifacts } from './mobile-android-scenario-artifacts';
 
 const root = resolve(import.meta.dirname, '..');
 const adb = join(homedir(), 'Library', 'Android', 'sdk', 'platform-tools', 'adb');
@@ -325,22 +325,14 @@ async function executeCase(
             await new Promise((resolve) => setTimeout(resolve, 250));
         }
         await executeScenario(caseId, launchId, remoteVideoPath, sourceCommit);
-        const scenarioArtifacts = await readAndroidScenarioArtifacts(reportDirectory, caseId);
-        for (const artifactPath of scenarioArtifacts) {
-            // Sequential hashing preserves frozen artifact order and bounds device evidence memory.
-            // eslint-disable-next-line no-await-in-loop
-            const artifact = await createMobileAcceptanceArtifact(
-                join(reportDirectory, artifactPath),
-                {
-                    path: artifactPath,
-                    source: 'android-framebuffer',
-                    type: 'screenshot',
-                },
-            );
-            artifacts.push(artifact);
-        }
     } catch (error) {
         failure = error;
+    }
+    try {
+        if (isLifecycleReady)
+            artifacts.push(...(await bindAndroidScenarioArtifacts(reportDirectory, caseId)));
+    } catch (error) {
+        failure ??= error;
     } finally {
         const activeRecording = recording;
         const collected = await collectMobileAcceptanceArtifacts({
