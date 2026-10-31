@@ -233,6 +233,8 @@ async function packageFlavor(
     // The remote layers use the freshly built Server bundles but are flavor-independent because remote targets always
     // omit Source Maps. Build them once before packaging the first flavor; the second build preserves dist/remote.
     if (flavor === 'include') await runRequired('bun', ['run', 'build:remote-layers'], cwd);
+    // The bundled notification helper; its download is cached, so the second flavor only unpacks it again.
+    await runRequired('bun', ['run', 'build:alerter'], cwd);
     await runRequired(
         join(cwd, 'node_modules/.bin/electron-builder'),
         [

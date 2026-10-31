@@ -144,6 +144,12 @@ ripgrep is Copyright (c) 2015 Andrew Gallant and licensed under the MIT License.
 
 vscode-ripgrep is Copyright (c) Microsoft Corporation and licensed under the MIT License. The vendored license text is in `licenses/VSCODE_RIPGREP_LICENSE.txt`; the upstream source is <https://github.com/microsoft/vscode-ripgrep>.
 
+## alerter
+
+Caxri bundles the `alerter` executable from its v26.5 GitHub Release as `Contents/Resources/bin/alerter` to show clickable macOS notification banners from unsigned builds. The binary is redistributed unmodified with its upstream signature.
+
+alerter is Copyright (c) 2015 Valere JEANTET and licensed under the MIT License. The vendored license text is in `licenses/ALERTER_LICENSE.txt`; the upstream source is <https://github.com/vjeantet/alerter>.
+
 ## vscode-languagedetection
 
 Caxri bundles the language detection model and its loader from Microsoft's `@vscode/vscode-languagedetection` package to choose the language of an untitled Editor buffer, as VS Code does. The model is loaded from local packaged assets, never fetched remotely, and runs on the CPU TensorFlow.js backend.

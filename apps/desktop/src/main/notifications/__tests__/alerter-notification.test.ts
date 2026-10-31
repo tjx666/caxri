@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
     ALERTER_NEGATIVE_PROBE_TTL_MS,
+    alerterCandidates,
     buildAlerterArguments,
     createAlerterNotificationDriver,
     isAlerterClick,
@@ -181,5 +182,18 @@ describe('alerter lookup caching', () => {
         });
 
         await expect(driver.isAvailable()).resolves.toBe(true);
+    });
+
+    it('tries the helper bundled with a packaged build before Homebrew, and only Homebrew in development', () => {
+        const resourcesPath = '/Applications/Caxri.app/Contents/Resources';
+        expect(alerterCandidates({ isPackaged: true, resourcesPath })).toEqual([
+            `${resourcesPath}/bin/alerter`,
+            '/opt/homebrew/bin/alerter',
+            '/usr/local/bin/alerter',
+        ]);
+        expect(alerterCandidates({ isPackaged: false, resourcesPath })).toEqual([
+            '/opt/homebrew/bin/alerter',
+            '/usr/local/bin/alerter',
+        ]);
     });
 });

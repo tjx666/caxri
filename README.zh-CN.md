@@ -59,21 +59,29 @@ Code、Codex 和 Grok Build）构建软件。你可以同时运行很多 Agent�
 
 - 运行 macOS 13（Ventura）或更高版本的 Apple 芯片 Mac。
 - 至少安装并登录一个受支持的 Agent CLI（Claude Code、Codex 或 Grok Build）。请先确认它能在终端中正常使用。Shell 会话不需要 Agent CLI。
-- [Homebrew](https://brew.sh/)，仅用于安装可选的通知辅助程序。
 
 发布版本目前仅支持 Apple 芯片；Intel Mac 可以从源码构建 Caxri（见
 [CONTRIBUTING.md](CONTRIBUTING.md)）。其他桌面平台暂未支持。远程 SSH 主机可以是 Linux 或 macOS。
 
 ## 安装
 
-把下面这段话粘贴给你的编码 Agent（Claude Code、Codex、Grok Build 或类似工具）：
+在终端中运行：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/tjx666/caxri/main/install.sh | bash
+```
+
+它只依赖 macOS 自带的工具：下载最新版本，与发布的 SHA-256 不一致时拒绝安装；新副本就位后才替换
+`/Applications/Caxri.app`（安装失败会保留旧版本）；只清除 Caxri 自身的下载隔离属性。再次运行即可更新，
+你的项目、会话和设置不会被改动。
+
+或者把下面这段话粘贴给你的编码 Agent（Claude Code、Codex、Grok Build 或类似工具）：
 
 ```text
 Install Caxri for me by following https://raw.githubusercontent.com/tjx666/caxri/main/docs/install.md
 ```
 
-Agent 会检查你的 Mac，下载并校验最新版本，完成安装，并提供可选设置：通知横幅、`caxri`
-命令，以及语言、默认 Agent、字号等初始设置。若要手动安装，请按同一页面操作：
+Agent 会检查你的 Mac，用同一个脚本安装 Caxri，并提供可选设置：`caxri` 命令，以及语言、默认 Agent、字号等初始设置。若要手动安装，请按同一页面操作：
 [docs/install.md](docs/install.md)。
 
 **Caxri 目前尚未经过 Apple 公证。** 如果 macOS 提示 Apple 无法验证 Caxri，打开**系统设置 → 隐私与安全性**点击**仍要打开**，或者运行一次下面的命令，然后重新打开：
@@ -129,7 +137,7 @@ caxri --help
 - **`caxri` 命令链接（仅在你安装后存在）。** 命令面板中的**在 PATH 中安装 'caxri' 命令**会创建符号链接
   `/usr/local/bin/caxri`。删除应用前请运行**从 PATH 中卸载 'caxri' 命令**，或之后用 `sudo rm /usr/local/bin/caxri`
   移除。
-- **通知辅助程序。** `alerter` 由你通过 Homebrew 安装；Caxri 只负责运行它。
+- **通知辅助程序。** Caxri 在应用内附带 [`alerter`](https://github.com/vjeantet/alerter)（`Contents/Resources/bin/alerter`），只用它显示通知横幅。
 - **你的数据。** 配置档（数据库、设置）位于 `~/Library/Application Support/Caxri`，日志在其中的 `logs`
   文件夹。使用**帮助 → 在访达中显示日志**打开它们。
 - **两类网络请求。** Caxri 会向 GitHub 的公开发布 API 查询新版本；在 Claude 窗口设置开启期间，还会向 Claude

@@ -23,10 +23,11 @@ the copy in Applications rather than the app inside the mounted disk image.
 ## No notifications appear
 
 1. Open **Settings → Notifications → System notifications**. It shows the helper status.
-2. If the helper is missing, run `brew install vjeantet/tap/alerter`, then choose **Check Again**.
+2. Release builds ship the helper inside the app. If it still shows as missing, the app copy is
+   incomplete: reinstall it with the command in the README. A development build has no bundled
+   copy; run `brew install vjeantet/tap/alerter`, then choose **Check Again**.
 3. Choose **Send Test Notification**. If no banner appears, open **System Settings → Notifications**
    and allow notifications for the entry named "alerter".
-4. Fully quit and reopen Caxri if the helper was installed while it was running.
 
 ## Agent not found
 
