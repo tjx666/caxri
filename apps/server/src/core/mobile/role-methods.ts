@@ -213,6 +213,7 @@ const mobileGatewayMethodsByRole = {
         'mobile.terminal.switchSurface',
         'mobile.project.browse',
         'mobile.project.add',
+        'mobile.project.reorder',
         'mobile.files.write',
         'mobile.attention.answer',
         /**

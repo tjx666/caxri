@@ -6,11 +6,32 @@ import type { MobileDeviceRegistry } from './device-registry';
 
 type MobileProjectRequest = Extract<
     ServerRequest,
-    { method: 'mobile.project.browse' | 'mobile.project.add' }
+    { method: 'mobile.project.browse' | 'mobile.project.add' | 'mobile.project.reorder' }
 >;
 
+type MobileProjectReorderParameters = Extract<
+    ServerRequest,
+    { method: 'mobile.project.reorder' }
+>['params'];
+
 /**
- * Browses the Mac's home directory for a new Project, or adds one, from a `control` device.
+ * Maps a phone's "before/after this neighbor" onto `project.reorder`'s index among every top-level Project, so Projects
+ * the device cannot see keep their places relative to each other. Returns `undefined` when either Project is not a
+ * current top-level Project.
+ */
+function mobileProjectReorderTargetIndex(
+    topLevelProjectIds: readonly string[],
+    { projectId, anchorProjectId, placement }: MobileProjectReorderParameters,
+): number | undefined {
+    if (projectId === anchorProjectId || !topLevelProjectIds.includes(projectId)) return undefined;
+    const remaining = topLevelProjectIds.filter((id) => id !== projectId);
+    const anchorIndex = remaining.indexOf(anchorProjectId);
+    if (anchorIndex === -1) return undefined;
+    return placement === 'before' ? anchorIndex : anchorIndex + 1;
+}
+
+/**
+ * Browses the Mac's home directory for a new Project, adds one, or reorders granted Projects, from a `control` device.
  */
 export async function invokeMobileProjectRequest(
     request: MobileProjectRequest,
@@ -26,6 +47,29 @@ export async function invokeMobileProjectRequest(
         });
         reauthorize();
         return result;
+    }
+    if (request.method === 'mobile.project.reorder') {
+        const { projectId, anchorProjectId } = request.params;
+        if (
+            !principal.projectIds.includes(projectId) ||
+            !principal.projectIds.includes(anchorProjectId)
+        )
+            throw new CaxriError('NOT_FOUND', 'Project not found');
+        const { projects } = await domainService.request('project.list', {});
+        const targetIndex = mobileProjectReorderTargetIndex(
+            projects
+                // The in-process handler answers full Project records; the union type only narrows per view.
+                .filter(
+                    (project) =>
+                        !('ownerProjectId' in project) || project.ownerProjectId === undefined,
+                )
+                .map(({ id }) => id),
+            request.params,
+        );
+        if (targetIndex === undefined) throw new CaxriError('NOT_FOUND', 'Project not found');
+        reauthorize();
+        await domainService.request('project.reorder', { projectId, targetIndex });
+        return null;
     }
     const result = await domainService.request('mobile.project.addInternal', {
         ...request.params,

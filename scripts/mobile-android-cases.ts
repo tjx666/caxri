@@ -198,6 +198,12 @@ const androidCases = {
         recordingOwner: 'scenario',
         scenario: 'add-nested-project',
     },
+    'MOB-PROJECT-REORDER-01': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'reorder-project-filters',
+    },
     'MOB-PANELS-01': {
         desktopProfile: 'managed-by-isolated-e2e',
         media: ['screenshot'],

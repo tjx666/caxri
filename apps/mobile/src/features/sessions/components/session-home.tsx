@@ -14,6 +14,7 @@ import type { MobileTheme } from '../../../theme/tokens';
 import { useMobileClient } from '../../connection/mobile-client-provider';
 import { AttentionCards } from '../../conversation/attention-cards';
 import type { MobileLayoutMode } from '../../layout/layout-mode';
+import { useProjectReorder } from '../hooks/use-project-reorder';
 import { useSessionManagement } from '../hooks/use-session-management';
 import type { SwipeRow } from '../open-swipe-row';
 import { createOpenSwipeRow } from '../open-swipe-row';
@@ -167,6 +168,8 @@ export const SessionHome = ({
             listInteractionReference.current = null;
         };
     }, []);
+    const projectOrder = useProjectReorder(projects);
+    const { move: moveProject } = projectOrder;
     const activeProjectId = activeProjectFilter(ui.projectId, projects);
     const filtered = useMemo(
         () =>
@@ -312,6 +315,7 @@ export const SessionHome = ({
                         : undefined
                 }
                 onChooseProject={chooseProject}
+                onMoveProject={deviceRole === 'control' ? moveProject : undefined}
                 onOpenArchived={() => router.navigate(`/h/${encodeURIComponent(hostId)}/archived`)}
                 onOpenInbox={
                     deviceRole === 'control'
@@ -326,7 +330,7 @@ export const SessionHome = ({
                         : undefined
                 }
                 onOpenUsage={() => router.navigate(`/h/${encodeURIComponent(hostId)}/usage`)}
-                projects={projects}
+                projects={projectOrder.projects}
                 theme={theme}
             />
             {!hasLoaded || filtered.length === 0 ? (

@@ -68,6 +68,7 @@ type MobileDomainMethods = Pick<
     | 'mobile.project.browseInternal'
     | 'mobile.project.add'
     | 'mobile.project.addInternal'
+    | 'mobile.project.reorder'
     | 'mobile.panels.list'
     | 'mobile.tree.children'
     | 'mobile.files.list'
@@ -330,6 +331,9 @@ export function createMobileDomainHandlers(options: {
             if (principal.kind !== 'paired-device' || principal.role !== 'control')
                 throw new CaxriError('FORBIDDEN', 'Adding a Project requires the control role');
             return addProject({ path });
+        },
+        'mobile.project.reorder': () => {
+            throw new CaxriError('FORBIDDEN', 'Reordering Projects requires a paired device');
         },
         /**
          * Panels and Conversation Tree read the Extension Host directly from the mobile access controller, which is the

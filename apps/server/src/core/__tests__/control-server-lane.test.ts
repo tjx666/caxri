@@ -206,6 +206,7 @@ const expectedLanes: Record<string, ControlLane> = {
     'mobile.pairing.create': 'ordered',
     'mobile.project.add': 'ordered',
     'mobile.project.addInternal': 'ordered',
+    'mobile.project.reorder': 'ordered',
     'mobile.pullRequest.merge': 'ordered',
     'mobile.session.archive': 'ordered',
     'mobile.session.conversationReference': 'ordered',

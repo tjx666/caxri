@@ -93,6 +93,82 @@ describe('MobileAccessController Project add, read-only panels, tree, and files'
         }
     });
 
+    it('maps a granted Project reorder onto the full top-level Project order', async () => {
+        const store = createMemoryMobileDeviceStore();
+        const registry = MobileDeviceRegistry.open({ store });
+        const paired = await registry.pair({
+            displayName: 'Test phone',
+            platform: 'ios',
+            projectIds: ['project-1', 'project-3'],
+        });
+        const principal = registry.authenticate({
+            credential: paired.credential,
+            deviceId: paired.device.deviceId,
+            generation: paired.device.generation,
+        });
+        const controller = openMobileAccessController({ store });
+        controller.attach(
+            { invoke: vi.fn() },
+            'b'.repeat(32),
+            { serverId: 'a'.repeat(32), stateEpoch: 'c'.repeat(32) },
+            {} as ServerDomainService,
+            terminalExecution,
+            () => {},
+        );
+        const context: CommandExecutionContext = { capabilities: [], principal };
+        const request = vi.fn((method: string) => {
+            if (method === 'project.list')
+                return Promise.resolve({
+                    projects: [
+                        { id: 'project-1', title: 'One' },
+                        { id: 'project-worktree', title: 'Worktree', ownerProjectId: 'project-1' },
+                        { id: 'project-2', title: 'Hidden' },
+                        { id: 'project-3', title: 'Three' },
+                    ],
+                });
+            if (method === 'project.reorder') return Promise.resolve([]);
+            throw new Error(`Unexpected method: ${method}`);
+        });
+        const domainService = { request } as unknown as ServerDomainService;
+        try {
+            await expect(
+                controller.invokeControl(
+                    {
+                        method: 'mobile.project.reorder',
+                        params: {
+                            projectId: 'project-3',
+                            anchorProjectId: 'project-1',
+                            placement: 'before',
+                        },
+                    },
+                    context,
+                    domainService,
+                ),
+            ).resolves.toBeNull();
+            expect(request).toHaveBeenCalledWith('project.reorder', {
+                projectId: 'project-3',
+                targetIndex: 0,
+            });
+            await expect(
+                controller.invokeControl(
+                    {
+                        method: 'mobile.project.reorder',
+                        params: {
+                            projectId: 'project-1',
+                            anchorProjectId: 'project-2',
+                            placement: 'after',
+                        },
+                    },
+                    context,
+                    domainService,
+                ),
+            ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+            expect(request).toHaveBeenCalledTimes(2);
+        } finally {
+            await controller.close();
+        }
+    });
+
     it('rejects Project files outside the granted Project scope', async () => {
         const store = createMemoryMobileDeviceStore();
         const registry = MobileDeviceRegistry.open({ store });

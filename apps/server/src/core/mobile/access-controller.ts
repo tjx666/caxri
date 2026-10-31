@@ -402,7 +402,8 @@ export const openMobileAccessController = (options: {
                     });
                 }
                 case 'mobile.project.browse':
-                case 'mobile.project.add': {
+                case 'mobile.project.add':
+                case 'mobile.project.reorder': {
                     const principal = currentPairedPrincipal(context.principal, request.method);
                     return invokeMobileProjectRequest(
                         request,

@@ -9,6 +9,7 @@ import { pageRequest } from './helpers';
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import {
     adbShell,
+    androidBounds,
     captureMobileFramebuffer,
     mobileSemantics,
     tapMobileCheck,
@@ -52,6 +53,63 @@ async function finish(
     ]);
 }
 
+type Fixture = Awaited<ReturnType<typeof createMobileAcceptanceFixture>>;
+
+/**
+ * Adds the isolated home's `mobile-new-project/nested` folder from the phone's New Session screen, which grants it to
+ * the paired device and selects it for the new Session. `artifacts` receives the browse screenshots when present.
+ */
+async function addProjectFromPhone(
+    environment: Environment,
+    fixture: Fixture,
+    artifacts?: string[],
+): Promise<string> {
+    await tapMobileCheck(environment.serial, 'new-session-button');
+    await waitForMobile(
+        () => mobileSemantics(environment.serial),
+        (nodes) => hasCheck(nodes, 'new-session-add-project'),
+    );
+    await tapMobileCheck(environment.serial, 'new-session-add-project');
+    await waitForMobile(
+        () => mobileSemantics(environment.serial),
+        (nodes) => hasCheck(nodes, 'add-project-folder-mobile-new-project'),
+    );
+    if (artifacts) await capture(environment, 'browse-home', artifacts);
+    await tapMobileCheck(environment.serial, 'add-project-folder-mobile-new-project');
+    const nestedId = 'add-project-add-mobile-new-project/nested';
+    await waitForMobile(
+        () => mobileSemantics(environment.serial),
+        (nodes) => hasCheck(nodes, nestedId),
+    );
+    if (artifacts) await capture(environment, 'browse-nested', artifacts);
+    await tapMobileCheck(environment.serial, nestedId);
+    const rootPath = await realpath(
+        join(
+            fixture.testDirectory,
+            'user-data',
+            'e2e-agents',
+            'home',
+            'mobile-new-project',
+            'nested',
+        ),
+    );
+    const state = await waitForMobile(
+        () => pageRequest<BootstrapState>(fixture.running.page, 'app.bootstrap'),
+        (current) => current.projects.some(({ rootPath: root }) => root === rootPath),
+    );
+    const added = state.projects.find((project) => project.rootPath === rootPath)!;
+    await waitForMobile(
+        () => mobileSemantics(environment.serial),
+        (nodes) =>
+            hasCheck(nodes, 'new-session-screen') &&
+            nodes.some(
+                ({ checkId, selected }) =>
+                    checkId === `new-session-project-${added.id}` && selected,
+            ),
+    );
+    return added.id;
+}
+
 async function addNestedProject(environment: Environment, artifacts: string[]): Promise<void> {
     const fixture = await createMobileAcceptanceFixture({
         isolatedProjectHome: true,
@@ -60,53 +118,98 @@ async function addNestedProject(environment: Environment, artifacts: string[]): 
     });
     try {
         await fixture.pair();
-        await tapMobileCheck(environment.serial, 'new-session-button');
-        await waitForMobile(
-            () => mobileSemantics(environment.serial),
-            (nodes) => hasCheck(nodes, 'new-session-add-project'),
-        );
-        await tapMobileCheck(environment.serial, 'new-session-add-project');
-        await waitForMobile(
-            () => mobileSemantics(environment.serial),
-            (nodes) => hasCheck(nodes, 'add-project-folder-mobile-new-project'),
-        );
-        await capture(environment, 'browse-home', artifacts);
-        await tapMobileCheck(environment.serial, 'add-project-folder-mobile-new-project');
-        const nestedId = 'add-project-add-mobile-new-project/nested';
-        await waitForMobile(
-            () => mobileSemantics(environment.serial),
-            (nodes) => hasCheck(nodes, nestedId),
-        );
-        await capture(environment, 'browse-nested', artifacts);
-        await tapMobileCheck(environment.serial, nestedId);
-        const rootPath = await realpath(
-            join(
-                fixture.testDirectory,
-                'user-data',
-                'e2e-agents',
-                'home',
-                'mobile-new-project',
-                'nested',
-            ),
-        );
-        const state = await waitForMobile(
-            () => pageRequest<BootstrapState>(fixture.running.page, 'app.bootstrap'),
-            (current) => current.projects.some(({ rootPath: root }) => root === rootPath),
-        );
-        const added = state.projects.find((project) => project.rootPath === rootPath)!;
-        await waitForMobile(
-            () => mobileSemantics(environment.serial),
-            (nodes) =>
-                hasCheck(nodes, 'new-session-screen') &&
-                nodes.some(
-                    ({ checkId, selected }) =>
-                        checkId === `new-session-project-${added.id}` && selected,
-                ),
-        );
+        await addProjectFromPhone(environment, fixture, artifacts);
         await capture(environment, 'selected-project', artifacts);
         await finish(environment, artifacts, {
             nestedTap: 'semantic',
             projectGrantedAndSelected: true,
+            status: 'passed',
+        });
+    } finally {
+        await fixture.stop();
+    }
+}
+
+const chipBounds = (nodes: Awaited<ReturnType<typeof mobileSemantics>>, projectId: string) => {
+    const node = nodes.find(({ checkId }) => checkId === `project-filter-${projectId}`);
+    return (node && androidBounds(node.bounds)) ?? undefined;
+};
+
+/**
+ * `MOB-PROJECT-REORDER-01`: the phone holds two of the Mac's three Projects. Dragging the second Project chip in front
+ * of the first moves it on the phone and in the Mac's Project order, while the Project the phone cannot see keeps its
+ * place relative to the others; a plain tap on a chip still filters.
+ */
+async function reorderProjectFilters(environment: Environment, artifacts: string[]): Promise<void> {
+    const fixture = await createMobileAcceptanceFixture({
+        isolatedProjectHome: true,
+        mode: 'launch-failure',
+        serial: environment.serial,
+    });
+    const desktopOrder = async () =>
+        (await pageRequest<BootstrapState>(fixture.running.page, 'app.bootstrap')).projects
+            .filter(({ ownerProjectId }) => ownerProjectId === undefined)
+            .map(({ id }) => id);
+    try {
+        await fixture.pair();
+        const addedId = await addProjectFromPhone(environment, fixture);
+        await adbShell(environment.serial, ['input', 'keyevent', 'KEYCODE_BACK']);
+        const allowedId = fixture.allowedProjectId;
+        const hiddenId = fixture.deniedProjectId;
+        const before = await desktopOrder();
+        if (before.join(',') !== [allowedId, hiddenId, addedId].join(','))
+            throw new Error(`Unexpected starting Project order: ${before.join(',')}`);
+        const nodes = await waitForMobile(
+            () => mobileSemantics(environment.serial),
+            (current) =>
+                chipBounds(current, allowedId) !== undefined &&
+                chipBounds(current, addedId) !== undefined,
+        );
+        const allowed = chipBounds(nodes, allowedId)!;
+        const added = chipBounds(nodes, addedId)!;
+        if (!(allowed.left < added.left)) throw new Error('Chips did not start in Mac order');
+        await capture(environment, 'before', artifacts);
+
+        // `draganddrop` holds the first point for the long-press timeout before moving, as a finger picking up a chip.
+        const y = String(Math.floor((added.top + added.bottom) / 2));
+        await adbShell(environment.serial, [
+            'input',
+            'draganddrop',
+            String(Math.floor((added.left + added.right) / 2)),
+            y,
+            String(allowed.left + 4),
+            y,
+            '900',
+        ]);
+        const after = await waitForMobile(desktopOrder, (order) => order[0] === addedId);
+        if (after.join(',') !== [addedId, allowedId, hiddenId].join(','))
+            throw new Error(`Unexpected Project order after the drag: ${after.join(',')}`);
+        const moved = await waitForMobile(
+            () => mobileSemantics(environment.serial),
+            (current) => {
+                const first = chipBounds(current, addedId);
+                const second = chipBounds(current, allowedId);
+                return first !== undefined && second !== undefined && first.left < second.left;
+            },
+        );
+        if (moved.some(({ checkId }) => checkId === `project-filter-${hiddenId}`))
+            throw new Error('The phone showed a Project outside its grant');
+        await capture(environment, 'after', artifacts);
+
+        await tapMobileCheck(environment.serial, `project-filter-${allowedId}`);
+        await waitForMobile(
+            () => mobileSemantics(environment.serial),
+            (current) =>
+                current.some(
+                    ({ checkId, selected }) =>
+                        checkId === `project-filter-${allowedId}` && selected,
+                ),
+        );
+        await capture(environment, 'tap-filters', artifacts);
+        await finish(environment, artifacts, {
+            desktopOrderAfter: 'moved-first-hidden-kept-after',
+            phoneOrderAfter: 'moved-first',
+            tapStillFilters: true,
             status: 'passed',
         });
     } finally {
@@ -312,6 +415,10 @@ export async function executeMobileProjectPanelsScenario(
     switch (environment.caseId) {
         case 'MOB-PROJECT-01': {
             await addNestedProject(environment, artifacts);
+            break;
+        }
+        case 'MOB-PROJECT-REORDER-01': {
+            await reorderProjectFilters(environment, artifacts);
             break;
         }
         case 'MOB-PANELS-01': {
