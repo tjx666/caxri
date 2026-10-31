@@ -123,17 +123,17 @@ async function openChatWithVideo(environment: MobileAgentScenarioEnvironment) {
 }
 
 /**
- * Taps the player at `heightFraction` of its height, in the middle horizontally. The play/pause button sits at the
- * center; a tap higher up only shows or hides the controls.
+ * Taps the middle of the player. While the controls are hidden a tap only shows them; once shown, the same spot is
+ * their play/pause button.
  */
-async function tapPlayer(serial: string, heightFraction = 0.5): Promise<void> {
+async function tapPlayer(serial: string): Promise<void> {
     const view = checkBounds(await mobileSemantics(serial), 'agent-chat-video-player');
     if (!view) throw new Error('The player is not open');
     await adbShell(serial, [
         'input',
         'tap',
         String(Math.round((view.left + view.right) / 2)),
-        String(Math.round(view.top + (view.bottom - view.top) * heightFraction)),
+        String(Math.round((view.top + view.bottom) / 2)),
     ]);
 }
 
@@ -146,7 +146,7 @@ const timeBar = (serial: string) => mobileNativeControlBounds(serial, { resource
 async function showControls(serial: string) {
     const shown = await timeBar(serial);
     if (shown) return shown;
-    await tapPlayer(serial, 0.3);
+    await tapPlayer(serial);
     const bar = await waitForMobile(
         () => timeBar(serial),
         (bounds) => bounds !== null,
@@ -194,8 +194,8 @@ export async function executeMobileChatVideoScenario(
         // The player plays at once and keeps the screen moving, so it is followed by time, not by UIAutomator.
         await pause(3_000);
         await capture(environment, 'playing', artifacts);
-        // While playing the screen keeps moving, so the controls are shown by a blind tap before pressing pause.
-        await tapPlayer(serial, 0.3);
+        // While playing the screen keeps moving and UIAutomator cannot read it, so the taps are blind: show, then pause.
+        await tapPlayer(serial);
         await pause(500);
         await tapPlayer(serial);
         await waitForCheck(serial, 'agent-chat-video-player-view');
