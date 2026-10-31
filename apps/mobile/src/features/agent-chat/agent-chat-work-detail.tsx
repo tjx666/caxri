@@ -1,4 +1,5 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type { AgentChatWorkItem } from '@caxri/protocol';
@@ -14,10 +15,9 @@ import {
     unwrapShellCommand,
 } from '@caxri/protocol';
 import * as Clipboard from 'expo-clipboard';
-import { Copy } from 'lucide-react-native';
+import { Check, CircleAlert, Copy } from 'lucide-react-native';
 
 import { HighlightedCode } from '../../components/highlighted-code';
-import { showToast } from '../../components/toast-store';
 import { useTranslation } from '../../i18n';
 import { MONOSPACE_FONT } from '../../theme/monospace';
 import type { MobileTheme } from '../../theme/tokens';
@@ -28,6 +28,66 @@ import { AgentChatFileChanges } from './agent-chat-file-changes';
 import { AgentChatTaskDetailBody } from './agent-chat-task-detail';
 import { useAgentChatSubagentTask, useAgentChatTaskLink } from './agent-chat-task-links';
 import { useAgentChatTaskStop } from './use-agent-chat-task-detail';
+
+/**
+ * How long Copy shows its confirmation, matching Desktop's `COPY_FEEDBACK_RESET_MS`.
+ */
+const COPY_FEEDBACK_RESET_MS = 2000;
+
+/**
+ * Copy confirms in place, like Desktop's `CopyIconButton`, instead of with a toast: the detail sheet is an Android
+ * `Modal` window that covers the app's root toast, so a toast here would never be seen.
+ */
+const CopyButton = ({
+    code,
+    testID,
+    theme,
+}: {
+    code: string;
+    testID: string;
+    theme: MobileTheme;
+}) => {
+    const { t } = useTranslation();
+    const [status, setStatus] = useState<'copied' | 'failed' | 'idle'>('idle');
+    useEffect(() => {
+        if (status === 'idle') return;
+        const timer = setTimeout(() => setStatus('idle'), COPY_FEEDBACK_RESET_MS);
+        return () => clearTimeout(timer);
+    }, [status]);
+    const label = {
+        copied: t('chat.work.copied'),
+        failed: t('chat.work.copyFailed'),
+        idle: t('chat.work.copy'),
+    }[status];
+    return (
+        <Pressable
+            accessibilityLabel={label}
+            accessibilityLiveRegion="polite"
+            accessibilityRole="button"
+            hitSlop={8}
+            onPress={() => {
+                void Clipboard.setStringAsync(code)
+                    .then(() => setStatus('copied'))
+                    .catch(() => setStatus('failed'));
+            }}
+            style={({ pressed }) => [
+                styles.copy,
+                { backgroundColor: theme.elevated, opacity: pressed ? 0.5 : 1 },
+            ]}
+            testID={testID}
+        >
+            {status === 'copied' ? (
+                <View testID="agent-chat-work-copied">
+                    <Check color={theme.success} size={15} />
+                </View>
+            ) : status === 'failed' ? (
+                <CircleAlert color={theme.danger} size={15} />
+            ) : (
+                <Copy color={theme.muted} size={15} />
+            )}
+        </Pressable>
+    );
+};
 
 /**
  * A code block in the detail sheet: syntax colored, selectable, and capped in height so a long output scrolls inside
@@ -47,39 +107,20 @@ const CodeBlock = ({
     copyTestID?: string;
     language: string | undefined;
     theme: MobileTheme;
-}) => {
-    const { t } = useTranslation();
-    return (
-        <View>
-            <ScrollView
-                nestedScrollEnabled
-                style={[styles.code, { backgroundColor: theme.elevated }]}
-                testID="agent-chat-work-code"
-            >
-                <Text selectable style={[styles.codeText, { color: theme.text }]}>
-                    <HighlightedCode code={code} language={codeLanguage(language)} />
-                </Text>
-            </ScrollView>
-            <Pressable
-                accessibilityLabel={t('chat.work.copy')}
-                accessibilityRole="button"
-                hitSlop={8}
-                onPress={() => {
-                    void Clipboard.setStringAsync(code)
-                        .then(() => showToast('success', t('chat.work.copied')))
-                        .catch(() => showToast('error', t('chat.work.copyFailed')));
-                }}
-                style={({ pressed }) => [
-                    styles.copy,
-                    { backgroundColor: theme.elevated, opacity: pressed ? 0.5 : 1 },
-                ]}
-                testID={copyTestID}
-            >
-                <Copy color={theme.muted} size={15} />
-            </Pressable>
-        </View>
-    );
-};
+}) => (
+    <View>
+        <ScrollView
+            nestedScrollEnabled
+            style={[styles.code, { backgroundColor: theme.elevated }]}
+            testID="agent-chat-work-code"
+        >
+            <Text selectable style={[styles.codeText, { color: theme.text }]}>
+                <HighlightedCode code={code} language={codeLanguage(language)} />
+            </Text>
+        </ScrollView>
+        <CopyButton code={code} testID={copyTestID} theme={theme} />
+    </View>
+);
 
 const Output = ({
     language,

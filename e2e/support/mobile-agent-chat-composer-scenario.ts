@@ -246,7 +246,7 @@ export async function executeMobileChatComposerScenario(
         await capture(environment, 'command-json-detail', artifacts);
         await waitForCheck(serial, 'agent-chat-work-copy-command');
         await tapMobileCheckByBounds(serial, 'agent-chat-work-copy');
-        await waitForCheck(serial, 'toast');
+        await waitForCheck(serial, 'agent-chat-work-copied');
         await capture(environment, 'command-copied', artifacts);
         await tapMobileCheckByBounds(serial, 'tool-detail-close');
         await waitForNoCheck(serial, 'conversation-tool-detail');
