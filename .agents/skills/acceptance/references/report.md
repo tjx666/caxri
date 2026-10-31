@@ -537,6 +537,16 @@ evidence, not a comparison pair. Capture the `before` half from a build of the
 merge base (for example a separate worktree at `origin/main`) and prove it runs
 the old code by reading the changed value, not by trusting the checkout.
 
+A mobile case cannot carry that pair in one round: finalization binds every
+cited Android or iOS screenshot to the round's own device receipt and frozen
+commit. Capture the baseline as its own earlier round of the same case instead,
+frozen at a commit that adds only the case and its fixtures (the product code
+still equals the merge base), and run the delivered commit as the next round.
+The baseline round records the old UI honestly, usually as `fail`, and each
+round's `report.md` names the other. For example, `MOB-CHAT-BARE-LINK-01` ran
+on its test-only commit, showed the reply URL as plain text, then passed on the
+fix in round 2.
+
 ## Video chapters
 
 A `video` evidence entry takes `chapters`: `step` (an action, with `label`),
