@@ -24,6 +24,7 @@ import type { AgentChatHost } from './agent-chat-host';
 import { agentChatHostCapabilities } from './agent-chat-host';
 import { AgentChatComposer } from './composer/agent-chat-composer';
 import type { AgentChatComposerInput } from './composer/agent-chat-composer-view';
+import { useIsAgentChatComposerReady } from './composer-input/device-state/use-is-agent-chat-composer-ready';
 import { useAgentChatComposerSnapshot } from './composer-snapshot/use-agent-chat-composer-snapshot';
 import { AgentChatFindScope } from './find/agent-chat-find-scope';
 import { useAgentChatActivationFocus } from './hooks/use-agent-chat-activation-focus';
@@ -164,7 +165,12 @@ interface AgentChatPaneProperties {
  * `agentChat.patch` (see `agent-chat-client.ts`), so this view only reads it. Mounted per Terminal (keyed by its id),
  * so scroll-follow state never carries from one Chat to another.
  */
-export function AgentChatPane({
+export function AgentChatPane(properties: AgentChatPaneProperties) {
+    // Renders nothing for the moment a reloaded window reads its stored images (see the hook).
+    return useIsAgentChatComposerReady() ? <AgentChatPaneContent {...properties} /> : null;
+}
+
+function AgentChatPaneContent({
     ariaLabel,
     host,
     isSessionVisible,

@@ -27,7 +27,11 @@ const asyncBackend = () => {
             }),
         list: () =>
             later(() =>
-                [...entries].map(([name, entry]) => ({ name, modifiedAt: entry.modifiedAt })),
+                [...entries].map(([name, entry]) => ({
+                    name,
+                    modifiedAt: entry.modifiedAt,
+                    size: entry.text.length,
+                })),
             ),
         read: (name) => later(() => entries.get(name)?.text ?? null),
         remove: (name) =>
@@ -207,5 +211,90 @@ describe('device store over an asynchronous backend', () => {
         await store.flush();
         expect(entries.keys().toArray()).toEqual(['backup-b']);
         await expect(store.load(scope, 'backup-b', valueSchema)).resolves.toBeNull();
+    });
+});
+
+describe('device store retention by characters', () => {
+    beforeEach(() => {
+        vi.useFakeTimers();
+    });
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
+    const sortedNames = (entries: Map<string, unknown>) =>
+        entries
+            .keys()
+            .toArray()
+            .toSorted((left, right) => left.localeCompare(right));
+    const sizeOf = (text: string) => encodeDeviceStoreEntry(3, scope, 7, { text }).length;
+
+    it('keeps the newest entries that fit the budget and evicts the older whole', async () => {
+        const { backend, entries } = asyncBackend();
+        const budget = sizeOf('a'.repeat(10)) * 2;
+        const store = createDeviceStore({
+            backend,
+            now: () => 7,
+            retention: { isBounded: (name) => name.startsWith('file-'), maxCharacters: budget },
+            version: 3,
+            writeDelayMs: 1_000,
+        });
+        store.setScope(scope);
+        store.save(scope, 'note', { text: 'z'.repeat(1_000) });
+        await store.flush();
+        for (const name of ['file-1', 'file-2', 'file-3']) {
+            store.save(scope, name, { text: 'a'.repeat(10) });
+            // eslint-disable-next-line no-await-in-loop -- each write must land before the next is scheduled
+            await store.flush();
+        }
+        expect(sortedNames(entries)).toEqual(['file-2', 'file-3', 'note']);
+        // An entry larger than the whole budget is dropped rather than cut.
+        store.save(scope, 'file-big', { text: 'b'.repeat(budget) });
+        await store.flush();
+        expect(sortedNames(entries)).toEqual(['note']);
+    });
+
+    it('reads the backend listing once and follows its own mutations afterwards', async () => {
+        const { backend, entries } = asyncBackend();
+        const list = vi.spyOn(backend, 'list');
+        const store = createDeviceStore({
+            backend,
+            now: () => 7,
+            retention: { isBounded: () => true, maxCharacters: sizeOf('a') * 2 },
+            version: 3,
+            writeDelayMs: 1_000,
+        });
+        store.setScope(scope);
+        for (const name of ['1', '2', '3']) {
+            store.save(scope, name, { text: 'a' });
+            // eslint-disable-next-line no-await-in-loop -- each write must land before the next is scheduled
+            await store.flush();
+        }
+        store.remove('3');
+        store.save(scope, '4', { text: 'a' });
+        await store.flush();
+        expect(list).toHaveBeenCalledTimes(1);
+        expect(sortedNames(entries)).toEqual(['2', '4']);
+    });
+
+    it('applies every rule of a list to its own family', async () => {
+        const { backend, entries } = asyncBackend();
+        const store = createDeviceStore({
+            backend,
+            now: () => 7,
+            retention: [
+                { isBounded: (name) => name.startsWith('draft-'), maxEntries: 1 },
+                { isBounded: (name) => name.startsWith('image-'), maxCharacters: sizeOf('a') },
+            ],
+            version: 3,
+            writeDelayMs: 1_000,
+        });
+        store.setScope(scope);
+        for (const name of ['draft-1', 'image-1', 'draft-2', 'image-2']) {
+            store.save(scope, name, { text: 'a' });
+            // eslint-disable-next-line no-await-in-loop -- each write must land before the next is scheduled
+            await store.flush();
+        }
+        expect(sortedNames(entries)).toEqual(['draft-2', 'image-2']);
     });
 });

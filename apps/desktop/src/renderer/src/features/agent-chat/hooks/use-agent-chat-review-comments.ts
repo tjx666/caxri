@@ -1,10 +1,7 @@
 import { useState, useSyncExternalStore } from 'react';
 
-import {
-    appendToAgentChatDraft,
-    readAgentChatDraft,
-    subscribeAgentChatDraftChanges,
-} from '../composer-input/agent-chat-drafts';
+import { appendToAgentChatDraft, readAgentChatDraft } from '../composer-input/agent-chat-drafts';
+import { subscribeAgentChatDraftChanges } from '../composer-input/device-state/agent-chat-composer-listeners';
 import {
     pendingReviewCommentFlags,
     removeAgentChatReviewCommentWithUndo,

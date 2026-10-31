@@ -21,10 +21,10 @@ import {
     retainAgentChatComposerState,
     returnUnsentAgentChatMessage,
     subscribeAgentChatDraftUpdates,
-    subscribeAgentChatUnsentReturns,
     writeAgentChatAttachments,
     writeAgentChatDraft,
 } from '../agent-chat-drafts';
+import { subscribeAgentChatUnsentReturns } from '../device-state/agent-chat-composer-listeners';
 
 describe('Agent Chat drafts', () => {
     it('keeps one draft per Chat and forgets an emptied one', () => {
