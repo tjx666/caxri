@@ -4,8 +4,16 @@ import type { MethodResult } from '@caxri/protocol';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { useMobileClient } from '../connection/mobile-client-provider';
+import { readTreeChildren } from './tree-children-read';
 
 export type Panel = MethodResult<'mobile.panels.list'>['panels'][number];
+
+const panelQueryKey = (connectionScopeKey: string | null, key: readonly unknown[]) => [
+    'mobile',
+    'panels',
+    connectionScopeKey ?? 'unpaired',
+    ...key,
+];
 
 /**
  * Every Panels read is a one-shot, read-only request. Only the extension tree subscribes (see
@@ -22,7 +30,7 @@ const usePanelRead = <Result>(
         gcTime: 5 * 60_000,
         networkMode: 'always',
         queryFn: read,
-        queryKey: ['mobile', 'panels', connectionScopeKey ?? 'unpaired', ...key],
+        queryKey: panelQueryKey(connectionScopeKey, key),
         refetchOnReconnect: false,
         refetchOnWindowFocus: false,
         retry: false,
@@ -36,12 +44,22 @@ const usePanelsList = (sessionId: string) => {
 };
 
 export const useTreeChildren = (sessionId: string, viewId: string, parentHandle?: string) => {
-    const { request } = useMobileClient();
+    const { connectionScopeKey, request } = useMobileClient();
+    const queryClient = useQueryClient();
     return usePanelRead(['tree', sessionId, viewId, parentHandle ?? null], () =>
-        request('mobile.tree.children', {
-            sessionId,
-            viewId,
-            ...(parentHandle !== undefined && { parentHandle }),
+        readTreeChildren({
+            onRootSnapshot: (root) =>
+                queryClient.setQueryData(
+                    panelQueryKey(connectionScopeKey, ['tree', sessionId, viewId, null]),
+                    root,
+                ),
+            parentHandle,
+            read: () =>
+                request('mobile.tree.children', {
+                    sessionId,
+                    viewId,
+                    ...(parentHandle !== undefined && { parentHandle }),
+                }),
         }),
     );
 };

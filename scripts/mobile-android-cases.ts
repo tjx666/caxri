@@ -204,6 +204,12 @@ const androidCases = {
         recordingOwner: 'scenario',
         scenario: 'browse-panels',
     },
+    'MOB-PANELS-TREE-REFRESH-01': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'refresh-expanded-tree',
+    },
     'MOB-CONV-01': {
         desktopProfile: 'managed-by-isolated-e2e',
         media: ['screenshot'],

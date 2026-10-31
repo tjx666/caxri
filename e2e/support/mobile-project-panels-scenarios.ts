@@ -8,6 +8,7 @@ import { allowE2EErrors } from './fixtures';
 import { pageRequest } from './helpers';
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import {
+    adbShell,
     captureMobileFramebuffer,
     mobileSemantics,
     tapMobileCheck,
@@ -231,11 +232,97 @@ async function browsePanels(environment: Environment, artifacts: string[]): Prom
     }
 }
 
+/**
+ * Refreshes the whole fixture tree from Desktop while the phone shows its default-expanded branch, then collapses that
+ * branch. A full refresh retires every handle; the phone re-reads the root and the expanded branch together, and the
+ * branch read lands before the slower root read re-registers handles, so the Server answers it with the root level and
+ * `reset`. Rendering that root under the branch nested the branch inside itself forever and took the app down.
+ */
+async function refreshExpandedTree(environment: Environment, artifacts: string[]): Promise<void> {
+    const fixture = await createMobileAcceptanceFixture({
+        mode: 'launch-failure',
+        serial: environment.serial,
+    });
+    try {
+        await fixture.pair();
+        const sessionId = fixture.allowedSessionId;
+        if (!sessionId) throw new Error('Panels Session is unavailable');
+        const state = await pageRequest<BootstrapState>(fixture.running.page, 'app.bootstrap');
+        const session = state.sessions.find(({ id }) => id === sessionId)!;
+        await tapMobileCheck(environment.serial, `session-row-${sessionId}`);
+        await waitForMobile(
+            () => mobileSemantics(environment.serial),
+            (nodes) => hasCheck(nodes, 'session-segment-panel-caxri.fixture'),
+        );
+        await tapMobileCheck(environment.serial, 'session-segment-panel-caxri.fixture');
+        await waitForMobile(
+            () => mobileSemantics(environment.serial),
+            (nodes) =>
+                hasCheck(nodes, 'tree-panel-caxri.fixture.tree') && hasCheck(nodes, 'tree-row'),
+        );
+        const appPid = async () =>
+            (await adbShell(environment.serial, ['pidof', 'com.caxri.mobile'])).trim();
+        const pid = await appPid();
+        const refreshes = 5;
+        for (let refresh = 0; refresh < refreshes; refresh += 1) {
+            // eslint-disable-next-line no-await-in-loop -- each refresh lands on the tree the previous one left.
+            await pageRequest(fixture.running.page, 'viewContainers.executeCommand', {
+                commandId: 'caxri.fixture.refresh',
+                context: {
+                    kind: 'session',
+                    sessionId,
+                    workbenchRootProjectId: session.workbenchRootProjectId,
+                },
+            });
+            // eslint-disable-next-line no-await-in-loop -- the phone re-reads the tree after the refresh hint.
+            await new Promise((resolve) => setTimeout(resolve, 1_500));
+            // eslint-disable-next-line no-await-in-loop -- survival is checked after every refresh.
+            if ((await appPid()) !== pid)
+                throw new Error(`The app process did not survive tree refresh ${refresh + 1}`);
+        }
+        // Before the fix the nested rows grew until Fabric ran out of memory a few seconds after the last refresh.
+        await new Promise((resolve) => setTimeout(resolve, 8_000));
+        if ((await appPid()) !== pid)
+            throw new Error('The app process did not survive the refreshed tree settling');
+        await capture(environment, 'refreshed', artifacts);
+        // Root rows: Lazy children, then Provider expanded, which the provider expands by default.
+        await tapMobileCheckByBounds(environment.serial, 'tree-row', { rowOffset: 1 });
+        await new Promise((resolve) => setTimeout(resolve, 1_500));
+        if ((await appPid()) !== pid)
+            throw new Error('The app process did not survive collapsing the refreshed branch');
+        await waitForMobile(
+            () => mobileSemantics(environment.serial),
+            (nodes) => hasCheck(nodes, 'tree-panel-caxri.fixture.tree'),
+        );
+        await capture(environment, 'collapsed', artifacts);
+        await finish(environment, artifacts, {
+            processSurvived: true,
+            refreshes,
+            status: 'passed',
+        });
+    } finally {
+        await fixture.stop();
+    }
+}
+
 export async function executeMobileProjectPanelsScenario(
     environment: Environment,
     artifacts: string[],
 ): Promise<void> {
-    if (environment.caseId === 'MOB-PROJECT-01') await addNestedProject(environment, artifacts);
-    else if (environment.caseId === 'MOB-PANELS-01') await browsePanels(environment, artifacts);
-    else throw new Error(`Unsupported mobile Project/Panels case: ${environment.caseId}`);
+    switch (environment.caseId) {
+        case 'MOB-PROJECT-01': {
+            await addNestedProject(environment, artifacts);
+            break;
+        }
+        case 'MOB-PANELS-01': {
+            await browsePanels(environment, artifacts);
+            break;
+        }
+        case 'MOB-PANELS-TREE-REFRESH-01': {
+            await refreshExpandedTree(environment, artifacts);
+            break;
+        }
+        default:
+            throw new Error(`Unsupported mobile Project/Panels case: ${environment.caseId}`);
+    }
 }
