@@ -63,6 +63,21 @@ with the Save Pressable that was disabled during submission.
 semantic tap helper to verify the returned Edit button is enabled after saving. Keep the action
 away from the screen edge with a full touch target.
 
+## Timing a whole Android gesture to capture its in-flight frame
+
+**Situation:** An Android case must show a chip lifted mid-drag, with its neighbors stepping aside,
+before the drop.
+
+**Does not work:** Starting `input draganddrop` (or `swipe`) without awaiting it, sleeping, then
+capturing. The gesture can end before the capture, so the "dragging" frame matches the dropped
+state; a guard that compares it only with the pre-drag frame still passes, because a reorder also
+changes the strip.
+
+**Works:** Hold the pointer: `input motionevent DOWN`, wait past the long-press delay, send `MOVE`
+steps, capture while the finger is down, then `UP`. Compare the held frame's region with both the
+before and the dropped state, and look at it to confirm the item is still held.
+`reorderProjectFilters` in `e2e/support/mobile-project-panels-scenarios.ts` is the reference.
+
 ## Assuming a native Android Photo Picker thumbnail has a resource ID
 
 **Situation:** A disposable Android 36 emulator has exactly one fixture-owned JPEG in the system
