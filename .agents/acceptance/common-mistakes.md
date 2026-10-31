@@ -337,6 +337,11 @@ queues the test root for the real Add Project flow, so the direct call fails wit
 fixture is added without a native file picker. Use the bridge afterwards for `session.create`,
 `session.rename`, and `session.archive` to shape the fixture state.
 
+In a paired mobile scenario, create every extra Session in the Project the phone was granted:
+`pageRequest(page, 'session.create', { projectId: fixture.allowedProjectId, defaultAgent: 'claude' })`.
+`createProjectSession` goes through `Cmd+O` and adds a new Project, so its Session never appears on
+the phone and the mobile list silently shows fewer rows than the case expects.
+
 ## Reopening a flow while a dialog is still mounted
 
 **Situation:** A Radix/Base UI dialog such as Archived Sessions is open when the next step presses a

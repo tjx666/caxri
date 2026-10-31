@@ -186,6 +186,15 @@ jobs:
           install-electron: ${{ needs.retry-policy.outputs.checks_scope == 'focused-source' || needs.retry-policy.outputs.checks_scope == 'affected' }}
           install-playwright-shell: ${{ needs.retry-policy.outputs.checks_scope == 'focused-source' || needs.retry-policy.outputs.checks_scope == 'affected' }}
           install-media-tools: ${{ needs.retry-policy.outputs.checks_scope == 'focused-source' || needs.retry-policy.outputs.checks_scope == 'affected' }}
+      - name: Resolve the diff base
+        # The checkout is the synthetic merge ref, so a pull request diffs against its verified first parent rather than
+        # the payload base, which goes stale when `main` advances while the run is queued. Exported via GITHUB_ENV, so no
+        # later step may override CAXRI_REACT_DOCTOR_BASE in its own `env`.
+        env:
+          CAXRI_CHECKS_BASE_REVISION: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          CAXRI_CHECKS_HEAD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+          CAXRI_GITHUB_TOKEN: ${{ github.token }}
+        run: bun run scripts/ci-checks-diff-base.ts
       - name: Run gitleaks
         # Scoped to the commits this push or pull request actually introduced. Manual dispatches retain the
         # wrapper's intentional full-history audit when no base revision exists.
@@ -204,13 +213,11 @@ jobs:
         env:
           CI_CHANGED_FILES: ${{ needs.retry-policy.outputs.changed_files }}
           CI_CHECKS_SCOPE: ${{ needs.retry-policy.outputs.checks_scope }}
-          CAXRI_REACT_DOCTOR_BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
         run: bun run scripts/run-ci-focused-checks.ts
       - name: Run full platform checks
         if: needs.retry-policy.outputs.checks_scope == 'full'
         env:
           ESLINT_CONCURRENCY: ${{ inputs.eslint_concurrency || 'off' }}
-          CAXRI_REACT_DOCTOR_BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
           GITLEAKS_BASE_REVISION: >-
             ${{ github.event_name == 'pull_request'
               && github.event.pull_request.base.sha
