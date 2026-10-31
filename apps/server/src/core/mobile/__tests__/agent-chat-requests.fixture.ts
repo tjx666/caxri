@@ -2,6 +2,7 @@
 import type {
     AgentChatContinuationTarget,
     AgentChatHistoryPage,
+    AgentChatImagePending,
     AgentChatSnapshot,
     AgentChatWaitingEntry,
     AgentProvider,
@@ -52,7 +53,11 @@ export function domainFixture(options: {
     provider?: AgentProvider;
     snapshot?: AgentChatSnapshot;
     terminals?: number;
-    original?: string;
+    /**
+     * What Core's `agentChat.readImage` returns: an original's base64, or `{ pending: true }` while the record lacks
+     * the message.
+     */
+    original?: string | AgentChatImagePending;
     /**
      * What Core's `agentChat.readHistory` returns.
      */
@@ -102,7 +107,9 @@ export function domainFixture(options: {
             if (method === 'agentChat.readImage')
                 return options.original === undefined
                     ? null
-                    : { mediaType: 'image/png', data: options.original };
+                    : typeof options.original === 'string'
+                      ? { mediaType: 'image/png', data: options.original }
+                      : options.original;
             throw new Error(`Unexpected ${method}`);
         },
     );

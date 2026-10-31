@@ -10,6 +10,12 @@ export const cases = {
         recordingOwner: 'scenario',
         scenario: 'agent-chat-file',
     },
+    'MOB-CHAT-IMAGE-PENDING-01': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'agent-chat-image-pending',
+    },
     'MOB-CHAT-VIDEO-01': {
         desktopProfile: 'managed-by-isolated-e2e',
         media: ['screenshot', 'video'],

@@ -41,7 +41,9 @@ describe('Agent Chat images and slash commands with a fake Codex app-server', ()
             data: 'R0lGODlh',
         });
         await expect(readChatImage(records, terminal.id, resumed.id, 2)).resolves.toBeNull();
-        await expect(readChatImage(records, terminal.id, 'missing', 0)).resolves.toBeNull();
+        await expect(readChatImage(records, terminal.id, 'missing', 0)).resolves.toEqual({
+            pending: true,
+        });
     });
 
     it('lists /compact and runs it as a compaction turn', async () => {
@@ -104,7 +106,49 @@ describe('Agent Chat images and slash commands with a fake Claude Code CLI', () 
             data: 'R0lGODlh',
         });
         await expect(readChatImage(records, terminal.id, resumed.id, 2)).resolves.toBeNull();
-        await expect(readChatImage(records, terminal.id, 'missing', 0)).resolves.toBeNull();
+    });
+
+    it('answers pending for a message sent mid-turn until Claude Code records it, then reads it', async () => {
+        const { claudeConfigDirectory, database, agentEnvironment, service, terminal, until } =
+            await fixture({ provider: 'claude' });
+        await service.send(terminal.id, { text: 'first' });
+        await until((current) => current.turns.at(-1)?.status === 'completed');
+        const records = { database, agentEnvironment };
+        const queuedId = 'queued-message-1';
+        // The Chat already shows the message, but the transcript holds nothing under its id yet.
+        await expect(readChatImage(records, terminal.id, queuedId, 0)).resolves.toEqual({
+            pending: true,
+        });
+
+        // Once the running turn takes the message in, Claude Code appends it as a `queued_command` attachment.
+        const files = await readdir(join(claudeConfigDirectory, 'projects'), {
+            recursive: true,
+            withFileTypes: true,
+        });
+        const transcript = files.find((entry) => entry.isFile() && entry.name.endsWith('.jsonl'));
+        if (!transcript) throw new Error('fake Claude wrote no transcript');
+        await appendFile(
+            join(transcript.parentPath, transcript.name),
+            `${JSON.stringify({
+                type: 'attachment',
+                attachment: {
+                    type: 'queued_command',
+                    source_uuid: queuedId,
+                    prompt: [
+                        { type: 'text', text: 'look' },
+                        {
+                            type: 'image',
+                            source: { type: 'base64', media_type: 'image/png', data: 'R0lGODlh' },
+                        },
+                    ],
+                },
+            })}\n`,
+        );
+        await expect(readChatImage(records, terminal.id, queuedId, 0)).resolves.toEqual({
+            mediaType: 'image/png',
+            data: 'R0lGODlh',
+        });
+        await expect(readChatImage(records, terminal.id, queuedId, 1)).resolves.toBeNull();
     });
 
     it('reads an image back once later turns push its message past the resume tail', async () => {

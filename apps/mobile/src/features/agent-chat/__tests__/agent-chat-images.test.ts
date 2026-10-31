@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import type { AgentChatImageData } from '../agent-chat-images';
 import {
     agentChatImageDataUri,
     agentChatViewerAccessibility,
@@ -28,11 +29,19 @@ describe('Agent Chat image paging', () => {
         );
         expect(image).toEqual({ mediaType: 'image/png', data: 'QUJDREVGRw==' });
         expect(progress).toEqual([1 / 3, 2 / 3, 1]);
-        expect(agentChatImageDataUri(image!)).toBe('data:image/png;base64,QUJDREVGRw==');
+        expect(agentChatImageDataUri(image as AgentChatImageData)).toBe(
+            'data:image/png;base64,QUJDREVGRw==',
+        );
     });
 
     it('resolves null for a message without that image', async () => {
         expect(await readAgentChatImage(() => Promise.resolve(null))).toBeNull();
+    });
+
+    it('passes on pending while the record does not hold the message yet', async () => {
+        expect(await readAgentChatImage(() => Promise.resolve({ pending: true }))).toEqual({
+            pending: true,
+        });
     });
 
     it('refuses to join chunks of an image that changed while loading', async () => {

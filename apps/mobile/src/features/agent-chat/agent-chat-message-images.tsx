@@ -53,7 +53,10 @@ const Thumbnail = ({
                     style={styles.image}
                     testID={`agent-chat-message-thumbnail-${itemId}-${index}`}
                 />
-            ) : thumbnail.isLoading || original.isLoading ? (
+            ) : thumbnail.isLoading ||
+              original.isLoading ||
+              thumbnail.isWaiting ||
+              original.isWaiting ? (
                 <Spinner color={theme.muted} />
             ) : (
                 // The provider's record no longer has the image; the tile keeps its place.

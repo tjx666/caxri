@@ -20,7 +20,6 @@ import {
 } from './agent-chat-contract.js';
 import { agentChatImageMediaTypeSchema, agentChatThumbnailSchema } from './agent-chat-images.js';
 import {
-    MAX_AGENT_CHAT_IMAGE_BYTES,
     MAX_AGENT_CHAT_IMAGES,
     MAX_AGENT_CHAT_IMAGES_TOTAL_BYTES,
     MAX_AGENT_CHAT_MESSAGE_LENGTH,
@@ -32,31 +31,15 @@ import { agentChatVersionMethods } from './agent-chat-rewind.js';
 import { agentChatTaskSnapshotSchema } from './agent-chat-task-contract.js';
 import { agentChatContinuationTargetSchema } from './agent-usage-continuation.js';
 import { agentProviderSchema } from './agents.js';
+import {
+    agentChatImageInputSchema,
+    agentChatImageMethods,
+} from './images/agent-chat-image-contract.js';
 
-export type AgentChatImageInput = z.infer<typeof agentChatImageInputSchema>;
 export type AgentChatMessageInput = Omit<
     z.infer<typeof agentChatSendParametersSchema>,
     'terminalId'
 >;
-
-/**
- * Upper bound of an image's base64 length, from its byte limit.
- */
-const MAX_IMAGE_BASE64_LENGTH = Math.ceil(MAX_AGENT_CHAT_IMAGE_BYTES / 3) * 4;
-
-/**
- * An image a message sends. `data` is the full image, delivered to the provider and never stored in the projection or
- * logs; `thumbnail` is the preview the user message shows.
- */
-export const agentChatImageInputSchema = z.strictObject({
-    mediaType: agentChatImageMediaTypeSchema,
-    data: z
-        .string()
-        .min(1)
-        .max(MAX_IMAGE_BASE64_LENGTH)
-        .regex(/^[\d+/A-Za-z]+={0,2}$/u),
-    thumbnail: agentChatThumbnailSchema,
-});
 
 /**
  * Upper bound of one message's combined image base64 length, from {@link MAX_AGENT_CHAT_IMAGES_TOTAL_BYTES}. Padding
@@ -211,6 +194,7 @@ export const agentChatMethods = {
         result: z.null(),
     },
     ...agentChatVersionMethods,
+    ...agentChatImageMethods,
     /**
      * "Fork from here": copies the conversation up to just before user message `itemId` into a new Agent Session
      * through the provider's own fork, then opens it as a Chat in a new Session of the same Project and cwd, without
@@ -284,25 +268,6 @@ export const agentChatMethods = {
         ...commandPolicy('server', 'read'),
         params: z.strictObject({ ...terminalTarget, taskId: agentChatTaskSchema.shape.id }),
         result: agentChatTaskSnapshotSchema,
-    },
-    /**
-     * Returns the original of an image a user message carried, read from the provider's own record, so a Client can
-     * preview an image the projection holds without a thumbnail (a resumed conversation). `index` is the image's
-     * position in the message's `images`. Resolves `null` when the record no longer has that image or the provider
-     * keeps none.
-     */
-    'agentChat.readImage': {
-        ...commandPolicy('server', 'read'),
-        params: z.strictObject({
-            ...terminalTarget,
-            itemId: z.string().min(1).max(200),
-            index: z
-                .number()
-                .int()
-                .min(0)
-                .max(MAX_AGENT_CHAT_IMAGES - 1),
-        }),
-        result: agentChatImageInputSchema.omit({ thumbnail: true }).nullable(),
     },
     /**
      * Returns what fills the Chat's context item by item and how the prompt cache held up request by request, for the
