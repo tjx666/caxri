@@ -31,7 +31,7 @@ describe('isRowModified', () => {
         const current = settings();
         const binding = { type: 'files-exclude', key: 'git.diffExclude' } as const;
         expect(isRowModified(binding, { settings: current })).toBe(false);
-        current['git.diffExclude'] = {};
+        current['git.diffExclude'] = { '**/*.test.*': true };
         expect(isRowModified(binding, { settings: current })).toBe(true);
         expect(rowResetAction(binding, current)).toEqual({
             kind: 'field',

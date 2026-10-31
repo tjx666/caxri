@@ -1,14 +1,22 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { execFileAsync } from '@caxri/system';
 
+import { e2eSettingsPath } from './support/e2e-profile.ts';
 import { expect, test } from './support/fixtures.ts';
 import { clickGitGroupAction, createProjectSession, launchCaxri } from './support/helpers.ts';
 import { openSettingsTab } from './support/settings.ts';
 
-test('Git diff exclusions hide changes, reveal on demand, and refresh from Settings', async () => {
+const OPTED_IN_EXCLUSIONS = {
+    '**/*.test.*': true,
+    '**/*.spec.*': true,
+    '**/__tests__/**': true,
+    '**/locales/**': true,
+} as const;
+
+test('Opted-in Git diff exclusions hide changes, reveal on demand, and refresh from Settings', async () => {
     const testInfo = test.info();
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-git-diff-excludes-e2e-'));
     const userData = join(testDirectory, 'user-data');
@@ -25,6 +33,12 @@ test('Git diff exclusions hide changes, reveal on demand, and refresh from Setti
     await execFileAsync('git', ['commit', '-am', 'test-only change'], { cwd: root });
     await writeFile(join(root, 'README.md'), 'after\n', 'utf8');
     await writeFile(join(root, 'example.test.ts'), 'export const value = "after";\n', 'utf8');
+    // Exclusions ship empty, so this profile opts into the test and translation filter a user can add.
+    await mkdir(join(userData, 'config'), { recursive: true });
+    await writeFile(
+        e2eSettingsPath(userData),
+        `${JSON.stringify({ 'files.autoSave': 'off', 'session.openAgentsInChat': false, 'git.diffExclude': OPTED_IN_EXCLUSIONS }, null, 2)}\n`,
+    );
 
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
@@ -105,7 +119,7 @@ test('Git diff exclusions hide changes, reveal on demand, and refresh from Setti
         ).toBeVisible();
         const patterns = firstSettingRow.getByRole('list', { name: 'Excluded file patterns' });
         await expect(patterns.locator('li')).toHaveCount(4);
-        for (const pattern of ['**/*.test.*', '**/*.spec.*', '**/__tests__/**', '**/locales/**']) {
+        for (const pattern of Object.keys(OPTED_IN_EXCLUSIONS)) {
             // eslint-disable-next-line no-await-in-loop -- each removal re-renders the same persisted Settings row.
             await firstSettingRow
                 .getByRole('button', {
@@ -141,7 +155,7 @@ test('Git diff exclusions hide changes, reveal on demand, and refresh from Setti
     }
 });
 
-test('The shipped exclusions hide translation catalogs and keep the source that drove them', async () => {
+test('Tests and translation catalogs stay visible by default', async () => {
     const testInfo = test.info();
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-git-locales-excludes-e2e-'));
     const root = join(testDirectory, 'project');
@@ -152,20 +166,24 @@ test('The shipped exclusions hide translation catalogs and keep the source that 
     await execFileAsync('git', ['config', 'user.email', 'caxri@example.com'], { cwd: root });
     await execFileAsync('git', ['config', 'user.name', 'Caxri E2E'], { cwd: root });
     /**
-     * The two shapes a localized repository actually has: generated catalogs at the root and the workspace package that
-     * declares them. One product change rewrites both, and neither is what a reviewer opens.
+     * The two shapes a localized repository actually has (generated catalogs at the root and the workspace package that
+     * declares them) beside a source file and its test. An Agent change rewrites all four, and a reviewer must see
+     * each.
      */
     const catalog = join(root, 'locales', 'zh-CN', 'runtime.json');
     const declaration = join(root, 'packages', 'locales', 'src', 'runtime.ts');
     const source = join(root, 'packages', 'runtime', 'src', 'index.ts');
+    const sourceTest = join(root, 'packages', 'runtime', 'src', 'index.test.ts');
     await writeFile(catalog, '{ "title": "before" }\n', 'utf8');
     await writeFile(declaration, 'export const title = "before";\n', 'utf8');
     await writeFile(source, 'export const runtime = "before";\n', 'utf8');
+    await writeFile(sourceTest, 'export const tested = "before";\n', 'utf8');
     await execFileAsync('git', ['add', '.'], { cwd: root });
     await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: root });
     await writeFile(catalog, '{ "title": "after" }\n', 'utf8');
     await writeFile(declaration, 'export const title = "after";\n', 'utf8');
     await writeFile(source, 'export const runtime = "after";\n', 'utf8');
+    await writeFile(sourceTest, 'export const tested = "after";\n', 'utf8');
 
     const running = await launchCaxri({
         userDataDir: join(testDirectory, 'user-data'),
@@ -177,25 +195,18 @@ test('The shipped exclusions hide translation catalogs and keep the source that 
         await page.getByRole('tab', { name: 'Git', exact: true }).click();
         const gitPanel = page.locator('.git-panel');
         const files = gitPanel.locator('.git-repository-section .git-files');
-        await expect(
-            files.locator('.git-row[data-path="packages/runtime/src/index.ts"]'),
-        ).toBeVisible();
-        await expect(files.locator('.git-row[data-path="locales/zh-CN/runtime.json"]')).toHaveCount(
-            0,
-        );
-        await expect(
-            files.locator('.git-row[data-path="packages/locales/src/runtime.ts"]'),
-        ).toHaveCount(0);
-        const showExcluded = gitPanel.getByRole('button', { name: /^Show excluded files/ });
-        await expect(showExcluded).toHaveAccessibleName(/^Show excluded files \(2\)$/);
-        await gitPanel.screenshot({ path: testInfo.outputPath('git-locales-excluded.png') });
-        await showExcluded.click();
-        await expect(
-            files.locator('.git-row[data-path="locales/zh-CN/runtime.json"]'),
-        ).toBeVisible();
-        await expect(
-            files.locator('.git-row[data-path="packages/locales/src/runtime.ts"]'),
-        ).toBeVisible();
+        for (const path of [
+            'packages/runtime/src/index.ts',
+            'packages/runtime/src/index.test.ts',
+            'locales/zh-CN/runtime.json',
+            'packages/locales/src/runtime.ts',
+        ]) {
+            // eslint-disable-next-line no-await-in-loop -- each row is asserted against the same settled list.
+            await expect(files.locator(`.git-row[data-path="${path}"]`)).toBeVisible();
+        }
+        // Nothing is hidden, so the reveal control has nothing to toggle and stays off screen.
+        await expect(gitPanel.getByRole('button', { name: /^Show excluded files/ })).toHaveCount(0);
+        await gitPanel.screenshot({ path: testInfo.outputPath('git-default-visible.png') });
     } finally {
         await running.app.close();
         await rm(testDirectory, { recursive: true, force: true });

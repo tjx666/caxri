@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 
+import { e2eSettingsPath } from './support/e2e-profile.ts';
 import type { E2EApp as ElectronApp } from './support/electron-app.ts';
 import type { Page } from './support/fixtures.ts';
 import { expect, test } from './support/fixtures.ts';
@@ -132,6 +133,48 @@ async function clickTerminalCopyMenuItem(app: ElectronApp): Promise<void> {
     });
 }
 
+test('Selecting Terminal text keeps the clipboard until Cmd+C by default', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-selection-default-e2e-'));
+    const root = join(testDirectory, 'project');
+    const output = join(testDirectory, 'output.sh');
+    const text = 'SELECT_ONLY_TARGET';
+    await mkdir(root, { recursive: true });
+    await writeFile(output, `#!/bin/sh\nprintf '${text}\\n'\n`);
+    await chmod(output, 0o700);
+
+    const running = await launchCaxri({
+        clipboard: true,
+        userDataDir: join(testDirectory, 'user-data'),
+        testRootPath: root,
+        windowMode: 'visible',
+    });
+    try {
+        await createShellSession(running.page);
+        const terminalId = (await terminalIds(running.page))[0];
+        await typeInTerminal(running.page, terminalId, output);
+        await expect(
+            running.page.locator(`.terminal-pane[data-terminal-id="${terminalId}"] .xterm-rows`),
+        ).toContainText(text);
+
+        await running.clipboard.writeText('USER_CLIPBOARD');
+        await selectTerminalText(running.page, terminalId, text, text);
+        const input = running.page.locator(
+            `.terminal-pane[data-terminal-id="${terminalId}"] .xterm-helper-textarea`,
+        );
+        // A selection change copies synchronously when the setting is on; this window covers that write landing.
+        await running.page.waitForTimeout(500);
+        expect(await running.clipboard.textEquals('USER_CLIPBOARD')).toBe(true);
+
+        await input.focus();
+        await input.press('Meta+C');
+        await expect.poll(() => running.clipboard.textEquals(text)).toBe(true);
+        await running.clipboard.claimText(text);
+    } finally {
+        await running.app.close();
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
 test('Cmd+C copies the focused Editor or Terminal selection across split panes', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-selection-e2e-'));
     const isCiParity = process.env.CAXRI_CI_PARITY_CASE === 'long-path-wrapped-terminal';
@@ -157,6 +200,12 @@ test('Cmd+C copies the focused Editor or Terminal selection across split panes',
         writeFile(join(root, 'editor-copy.ts'), editorCopyText),
     ]);
     await Promise.all([chmod(multilineOutput, 0o700), chmod(splitOutput, 0o700)]);
+    // Copy on select ships off; this spec proves it and Cmd+C coexist once the user turns it on.
+    await mkdir(join(userData, 'config'), { recursive: true });
+    await writeFile(
+        e2eSettingsPath(userData),
+        `${JSON.stringify({ 'files.autoSave': 'off', 'session.openAgentsInChat': false, 'terminal.copyOnSelect': true }, null, 2)}\n`,
+    );
 
     const running = await launchCaxri({
         clipboard: true,

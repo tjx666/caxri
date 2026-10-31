@@ -297,7 +297,7 @@ export const settingsCatalog: TranslatedNamespace<typeof source> = {
 
     'settings.git.diffExclude.title': '排除的 Git 差异文件',
     'settings.git.diffExclude.description':
-        '在 Git 更改列表和“打开所有更改”中隐藏匹配的仓库相对路径。默认排除测试和翻译目录。使用源代码管理中的眼睛按钮可临时显示它们。支持 *、** 和 ?；这不会改变 Git 的跟踪状态。',
+        '在 Git 更改列表和“打开所有更改”中隐藏匹配的仓库相对路径。默认不排除任何文件，Agent 的每处改动都可见。使用源代码管理中的眼睛按钮可临时显示被隐藏的文件。支持 *、** 和 ?；这不会改变 Git 的跟踪状态。',
 
     'settings.files.maxFileBytes.title': '可编辑文件的最大大小',
     'settings.files.maxFileBytes.description':
