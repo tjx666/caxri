@@ -497,9 +497,8 @@ async function sessionSearch(
         throw new Error('Opening the archived result did not restore the Session');
     await capture(environment, 'restored-opened', artifacts, 'session-detail-back');
 
+    // Session detail's back returns to the Session list, wherever the detail was opened from.
     await tapMobileCheck(serial, 'session-detail-back');
-    await waitFor(serial, (nodes) => hasCheck(nodes, 'session-search-input'));
-    await tapMobileCheck(serial, 'session-search-back');
     await waitFor(serial, (nodes) => hasCheck(nodes, 'session-search-button'));
     await setMobileNetworkAvailable(serial, false);
     try {
