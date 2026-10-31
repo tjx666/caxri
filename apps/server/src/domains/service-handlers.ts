@@ -289,6 +289,8 @@ export function createServiceHandlers(services: {
         'files.write': ({ sessionId, path, content }) => files.write(sessionId, path, content),
         'session.search': (parameters, signal) => sessionSearch.search(parameters, signal),
         'session.searchPreview': (parameters, signal) => sessionSearch.preview(parameters, signal),
+        'session.searchInternal': ({ projectScope, ...parameters }, signal) =>
+            sessionSearch.search(parameters, signal, projectScope),
         'session.importConversationInternal': ({ provider, agentSessionId, projectScope }) =>
             sessionSearch.importConversation(provider, agentSessionId, projectScope),
         'session.agentHistory': ({ sessionId }, signal) =>

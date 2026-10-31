@@ -55,6 +55,7 @@ export type MobileControlRequest = Extract<
             | 'mobile.session.suggestTitle'
             | 'mobile.session.conversationReference'
             | 'mobile.session.archived'
+            | 'mobile.session.search'
             | 'mobile.terminal.takeOver'
             | 'mobile.terminal.release'
             | 'mobile.terminal.input'

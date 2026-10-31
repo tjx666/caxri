@@ -8,6 +8,7 @@ import {
     EllipsisVertical,
     FolderPlus,
     Gauge,
+    Search,
     Settings,
 } from 'lucide-react-native';
 
@@ -56,6 +57,7 @@ export const SessionHomeHeader = ({
     onChooseProject,
     onOpenArchived,
     onOpenInbox,
+    onOpenSearch,
     onOpenSettings,
     onOpenStatus,
     onOpenUsage,
@@ -75,6 +77,7 @@ export const SessionHomeHeader = ({
      * appears under the filters only while Caxri Bot has raised something.
      */
     onOpenInbox?: () => void;
+    onOpenSearch: () => void;
     onOpenSettings: () => void;
     /**
      * Present only for a control device: computer status names Sessions from every Project.
@@ -123,6 +126,14 @@ export const SessionHomeHeader = ({
                     showsHorizontalScrollIndicator={false}
                     style={styles.chipsScroll}
                     testID="session-project-filters"
+                />
+                <IconButton
+                    accessibilityHint={t('sessions.search.openHint')}
+                    accessibilityLabel={t('sessions.search.open')}
+                    icon={Search}
+                    onPress={onOpenSearch}
+                    testID="session-search-button"
+                    theme={theme}
                 />
                 <View collapsable={false} ref={menuAnchor}>
                     <IconButton

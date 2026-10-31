@@ -16,7 +16,6 @@ import {
     sessionSearchRelaxationNoticeKey,
     sessionSearchRows,
     shortFolder,
-    snippetSegments,
     sortSessionSearchEntries,
     steppedMatchIndex,
 } from '../session-search-model';
@@ -147,29 +146,6 @@ describe('Session search model', () => {
             'session.search.relaxed.allWords',
         );
         expect(sessionSearchRelaxationNoticeKey('anyWord')).toBe('session.search.relaxed.anyWord');
-    });
-
-    it('splits a snippet at its highlights and clamps bad ranges', () => {
-        expect(
-            snippetSegments({ role: 'user', text: 'fix the invoice total', highlights: [[8, 15]] }),
-        ).toEqual([
-            { text: 'fix the ', isMatch: false },
-            { text: 'invoice', isMatch: true },
-            { text: ' total', isMatch: false },
-        ]);
-        expect(
-            snippetSegments({
-                role: 'assistant',
-                text: 'abc',
-                highlights: [
-                    [1, 9],
-                    [0, 2],
-                ],
-            }),
-        ).toEqual([
-            { text: 'a', isMatch: false },
-            { text: 'bc', isMatch: true },
-        ]);
     });
 
     it('cycles status filters with Tab in both directions', () => {

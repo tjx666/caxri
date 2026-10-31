@@ -391,6 +391,19 @@ const androidCases = {
         recordingOwner: 'scenario',
         scenario: 'ui-audit-host-status',
     },
+    'MOB-SESSION-SEARCH-01': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'ui-audit-session-search',
+    },
+    'MOB-SESSION-SEARCH-ZH-01': {
+        appLocale: 'zh-CN',
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'ui-audit-session-search',
+    },
 } as const satisfies Record<string, MobileAndroidCaseDefinition>;
 
 /**
@@ -449,7 +462,7 @@ export function shouldCaptureAdapterScreenshot(caseId: string, isLifecycleReady:
         definition.scenario !== 'terminal-scrollback' &&
         !caseId.startsWith('MOB-CHANGES-') &&
         !caseId.startsWith('MOB-MOTION-') &&
-        !caseId.startsWith('MOB-UI-') &&
+        !definition.scenario.startsWith('ui-audit-') &&
         !caseId.startsWith('MOB-E2E-') &&
         caseId !== 'MOB-CROSS-01' &&
         caseId !== 'MOB-PARTIAL-01'

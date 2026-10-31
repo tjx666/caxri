@@ -50,6 +50,7 @@ import { mobilePanelsMethods } from './mobile-panels-contract.js';
 import { mobilePreviewInternalMethods, mobilePreviewMethods } from './mobile-preview-contract.js';
 import { mobilePullRequestMethods } from './mobile-pull-request-contract.js';
 import { mobileSessionManagementMethods } from './mobile-session-management-contract.js';
+import { mobileSessionSearchMethods } from './mobile-session-search-contract.js';
 import { mobileTerminalMethods } from './mobile-terminal-contract.js';
 import {
     mobileTimelineReadParametersSchema,
@@ -82,6 +83,7 @@ export * from './mobile-panels-contract.js';
 export * from './mobile-preview-contract.js';
 export * from './mobile-pull-request-contract.js';
 export * from './mobile-session-management-contract.js';
+export * from './mobile-session-search-contract.js';
 export * from './mobile-terminal-contract.js';
 export * from './mobile-timeline-contract.js';
 export * from './mobile-timeline-message-contract.js';
@@ -370,6 +372,7 @@ export const mobileMethods = {
         result: mobileSessionCreateResultSchema,
     },
     ...mobileSessionManagementMethods,
+    ...mobileSessionSearchMethods,
     ...mobileTerminalMethods,
     ...mobileAgentChatMethods,
     ...mobileAgentChatForkMethods,

@@ -121,6 +121,7 @@ The implemented device grants, method matrix, and cancellation behavior are docu
 /h/[hostId]/usage         Agent usage
 /h/[hostId]/inbox         Needs you (Caxri Bot inbox)
 /h/[hostId]/archived      Archived Sessions
+/h/[hostId]/search        Session search (titles, folders, IDs, and messages)
 /h/[hostId]/settings      This device: role, pairing, version and update check, GitHub links, forget the computer
 /browser?url=…            In-app browser, over whatever opened it
 ```

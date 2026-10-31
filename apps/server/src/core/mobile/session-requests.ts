@@ -10,12 +10,13 @@ import {
     readMobileArchivedSessions,
     suggestMobileSessionTitle,
 } from './session-management';
+import { searchMobileSessions } from './session-search-requests';
 
 type PairedPrincipal = Extract<Principal, { kind: 'paired-device' }>;
 
 /**
- * Every phone Session method: create, the archived list, Rename with AI, the Chat `@` Session reference, and the
- * management writes.
+ * Every phone Session method: create, the archived list, search, Rename with AI, the Chat `@` Session reference, and
+ * the management writes.
  */
 export type MobileSessionRequest =
     | MobileSessionManagementRequest
@@ -26,6 +27,7 @@ export type MobileSessionRequest =
                   | 'mobile.session.archived'
                   | 'mobile.session.conversationReference'
                   | 'mobile.session.create'
+                  | 'mobile.session.search'
                   | 'mobile.session.suggestTitle';
           }
       >;
@@ -38,6 +40,7 @@ const mobileSessionMethods: ReadonlySet<string> = new Set<MobileSessionRequest['
     'mobile.session.delete',
     'mobile.session.rename',
     'mobile.session.restore',
+    'mobile.session.search',
     'mobile.session.setPinned',
     'mobile.session.suggestTitle',
     'mobile.terminal.switchSurface',
@@ -105,6 +108,12 @@ export const invokeMobileSessionRequest = async (
                 principal,
                 request.params.sessionId,
             );
+            currentPairedPrincipal(principal, request.method);
+            return result;
+        }
+        case 'mobile.session.search': {
+            const principal = currentPairedPrincipal(context.principal, request.method);
+            const result = await searchMobileSessions(domainService, principal, request);
             currentPairedPrincipal(principal, request.method);
             return result;
         }
