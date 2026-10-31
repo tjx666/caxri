@@ -1,12 +1,12 @@
 import { repoContext, withRepoLock } from '../.agents/skills/switch-worktree/scripts/repo';
 
 /**
- * How many Android Acceptance release builds may run at once across every worktree of this repository. Each Gradle
- * build already parallelizes across all cores, and concurrent builds contend on the shared `~/.gradle/caches` locks:
- * extra builds then fail with `Timeout waiting to lock file hash cache` instead of finishing sooner. See
- * `.agents/skills/acceptance/surfaces/android.md` for the measurements behind the value.
+ * How many Android Acceptance release builds may run at once across every worktree of this repository. Throughput still
+ * rose from one to four concurrent builds, while six failed five of six builds on the shared `~/.gradle/caches` locks
+ * (`Timeout waiting to lock journal cache`). Three keeps most of the gain and leaves headroom for Gradle builds that
+ * run outside Acceptance. See `.agents/skills/acceptance/surfaces/android.md` for the measurements.
  */
-export const ANDROID_BUILD_SLOT_COUNT = 2;
+export const ANDROID_BUILD_SLOT_COUNT = 3;
 
 const SLOT_POLL_MS = 2_000;
 
