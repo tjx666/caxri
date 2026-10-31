@@ -1,8 +1,8 @@
-import type { AppLocale, UpdateState } from '@caxri/protocol';
+import type { AppLocale, UpdateState, UpdateUnavailableReason } from '@caxri/protocol';
 import { isUpdateVersionSkipped } from '@caxri/protocol';
 import { formatBytes } from '@caxri/utils';
 
-import type { Translate } from '../../i18n';
+import type { Translate, TranslationKey } from '../../i18n';
 import { translate } from '../../i18n';
 import { formatTime } from '../../lib/locale-format';
 
@@ -30,6 +30,17 @@ export function updateRetryTimeLabel(
     if (retryAt === undefined || !Number.isFinite(retryAt) || retryAt <= now) return undefined;
     return formatTime(retryAt, {}, locale);
 }
+
+/**
+ * Sentences for the `unavailable` causes a retry cannot fix; `rate-limited` composes its own pause copy instead.
+ */
+const UNAVAILABLE_REASON_KEYS: Record<
+    Exclude<UpdateUnavailableReason, 'rate-limited'>,
+    TranslationKey
+> = {
+    'feed-unavailable': 'updates.status.unavailable.feedUnavailable',
+    'unpackaged': 'updates.status.unavailable.unpackaged',
+};
 
 export interface UpdateStatusCopy {
     title: string;
@@ -68,13 +79,15 @@ export function describeUpdateStatus(
                 description: t('updates.status.version', { version: state.currentVersion }),
             };
         case 'unavailable': {
-            if (!state.rateLimited)
-                return { title: t('updates.status.unavailable.title'), description: state.reason };
+            if (state.reason !== 'rate-limited')
+                return {
+                    title: t('updates.status.unavailable.title'),
+                    description: t(UNAVAILABLE_REASON_KEYS[state.reason]),
+                };
             const resumesAt = updateRetryTimeLabel(state.retryAt, t.locale, options.now);
             return {
                 title: t('updates.status.paused.title'),
                 description: t('updates.status.paused.description', {
-                    reason: state.reason,
                     resume: resumesAt
                         ? t('updates.status.paused.resumesAt', { time: resumesAt })
                         : t('updates.status.paused.resumesLater'),
@@ -144,7 +157,7 @@ export function describeUpdateStatus(
  * check bypasses the recorded window.
  */
 export function canRetryUpdateCheck(state: UpdateState | undefined): boolean {
-    return state?.status !== 'unavailable' || state.rateLimited === true;
+    return state?.status !== 'unavailable' || state.reason === 'rate-limited';
 }
 
 /**

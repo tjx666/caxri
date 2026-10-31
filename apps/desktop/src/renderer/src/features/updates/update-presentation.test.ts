@@ -1,7 +1,9 @@
 import type { UpdateState } from '@caxri/protocol';
+import { interpolate } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { translate } from '../../i18n';
+import { translate, withLocale } from '../../i18n';
+import { zhCNResources } from '../../i18n/locales/zh-cn';
 import {
     canRetryUpdateCheck,
     describeUpdateChip,
@@ -273,8 +275,7 @@ describe('describeUpdateStatus', () => {
     const rateLimited: UpdateState = {
         status: 'unavailable',
         currentVersion: '1.0.0',
-        reason: 'Update checks are rate limited by GitHub right now.',
-        rateLimited: true,
+        reason: 'rate-limited',
         retryAt: Date.UTC(2026, 0, 2, 12, 10, 0),
     };
     const now = Date.UTC(2026, 0, 2, 12, 0, 0);
@@ -282,8 +283,20 @@ describe('describeUpdateStatus', () => {
     it('names the resume time and says a manual check does not wait for it', () => {
         const copy = describeUpdateStatus(rateLimited, { now, t: translate });
         expect(copy.title).toBe('Update checks are paused');
+        expect(copy.description).toContain('rate limited by GitHub');
         expect(copy.description).toContain('Automatic checks resume after');
         expect(copy.description).toContain('without waiting');
+    });
+
+    it('renders the rate-limit cause in the interface language', () => {
+        const chinese: Record<string, string> = zhCNResources;
+        const zh = withLocale(
+            (key, parameters) => interpolate(chinese[key] ?? key, parameters),
+            'zh-CN',
+        );
+        const copy = describeUpdateStatus(rateLimited, { now, t: zh });
+        expect(copy.description).toContain('GitHub 暂时限制了更新检查的频率');
+        expect(copy.description).not.toContain('rate limited');
     });
 
     it('still explains the pause when GitHub reported no deadline', () => {
@@ -306,7 +319,7 @@ describe('describeUpdateStatus', () => {
                 {
                     status: 'unavailable',
                     currentVersion: '1.0.0',
-                    reason: 'Update checks are available in packaged Caxri builds.',
+                    reason: 'unpackaged',
                 },
                 { t: translate },
             ),
@@ -362,8 +375,7 @@ describe('canRetryUpdateCheck', () => {
             canRetryUpdateCheck({
                 status: 'unavailable',
                 currentVersion: '1.0.0',
-                reason: 'Update checks are rate limited by GitHub right now.',
-                rateLimited: true,
+                reason: 'rate-limited',
             }),
         ).toBe(true);
     });
@@ -373,7 +385,7 @@ describe('canRetryUpdateCheck', () => {
             canRetryUpdateCheck({
                 status: 'unavailable',
                 currentVersion: '1.0.0',
-                reason: 'Update checks are available in packaged Caxri builds.',
+                reason: 'unpackaged',
             }),
         ).toBe(false);
     });
