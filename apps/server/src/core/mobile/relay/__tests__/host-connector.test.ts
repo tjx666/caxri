@@ -194,8 +194,11 @@ describe('RelayHostConnector', () => {
     });
 
     it('leaves expired pairing grants out of the registration', async () => {
+        // Computed before the connector reads its clock: a per-call `Date.now() - 1` raced the
+        // connector's own `now` read and let the grant look unexpired after a >1 ms stall.
+        const expiredAt = Date.now() - 60_000;
         const { connector, relay } = await setup({
-            grants: () => [{ keyHash: KEY_A, expiresAt: Date.now() - 1 }, { keyHash: KEY_B }],
+            grants: () => [{ keyHash: KEY_A, expiresAt: expiredAt }, { keyHash: KEY_B }],
         });
         const hostArrived = relay.nextHost();
         connector.start();
