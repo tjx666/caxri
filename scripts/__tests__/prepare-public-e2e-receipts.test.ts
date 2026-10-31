@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
     preparePublicE2EReceipts,
     publicE2EPoolReceiptSchema,
+    toPublicAgentChatSwitchReceipt,
     toPublicE2EPoolReceipt,
 } from '../prepare-public-e2e-receipts';
 import { createE2EPoolReceipt, stableErrorIdentity } from '../reporters/e2e-receipt-reporter';
@@ -138,6 +139,46 @@ async function expectRejectedReceipt(value: unknown): Promise<void> {
     await expect(access(outputDirectory)).rejects.toThrow();
 }
 
+function chatSwitchSummary() {
+    const distribution = { p50: 40, p95: 60, max: 70 };
+    const surface = { renders: distribution, actualDurationMs: distribution };
+    return {
+        iterations: 20,
+        readableMs: distribution,
+        interactiveMs: distribution,
+        shownMs: distribution,
+        maxFrameGapMs: distribution,
+        longestAnimationFrameMs: { p50: null, p95: null, max: null },
+        readRequests: { p50: 0, p95: 0, max: 0 },
+        react: {
+            commitCount: distribution,
+            surfaces: {
+                'primary-sidebar': surface,
+                'workbench': surface,
+                'secondary-sidebar': surface,
+            },
+        },
+    };
+}
+
+function agentChatSwitchReceipt() {
+    return {
+        kind: 'agent-chat-session-switch',
+        turnCount: 16,
+        scenarios: {
+            keptAlive: chatSwitchSummary(),
+            cached: chatSwitchSummary(),
+            uncached: chatSwitchSummary(),
+            cold: chatSwitchSummary(),
+        },
+        hiddenStreaming: {
+            commitCount: 8,
+            workbench: { renders: 5, actualDurationMs: 0.6 },
+            keptAliveStreaming: chatSwitchSummary(),
+        },
+    };
+}
+
 describe('public E2E receipts', () => {
     it('projects only closed failure metadata and ignores every raw diagnostic file', async () => {
         const { outputDirectory, sourceDirectory } = await fixtureDirectories();
@@ -204,6 +245,38 @@ describe('public E2E receipts', () => {
         const outputPath = join(outputDirectory, 'renderer-performance.json');
         const output = await readFile(outputPath, 'utf8');
         expect(JSON.parse(output)).toEqual(rendererReceipt);
+    });
+
+    it('publishes the Agent Chat switch distributions and keeps the per-switch samples private', async () => {
+        const { outputDirectory, sourceDirectory } = await fixtureDirectories();
+        const receipt = agentChatSwitchReceipt();
+        await writeFile(
+            join(sourceDirectory, 'agent-chat-session-switch.json'),
+            JSON.stringify({ ...receipt, samples: { keptAlive: [{ contentMs: 40 }] } }),
+            'utf8',
+        );
+
+        await expect(
+            preparePublicE2EReceipts({ outputDirectory, sourceDirectory }),
+        ).resolves.toEqual(['agent-chat-session-switch.json']);
+        const output = await readFile(
+            join(outputDirectory, 'agent-chat-session-switch.json'),
+            'utf8',
+        );
+        expect(JSON.parse(output)).toEqual(receipt);
+    });
+
+    it('rejects an Agent Chat switch receipt carrying text', () => {
+        const receipt = agentChatSwitchReceipt();
+        expect(() =>
+            toPublicAgentChatSwitchReceipt({
+                ...receipt,
+                scenarios: {
+                    ...receipt.scenarios,
+                    cached: { ...receipt.scenarios.cached, lastMessage: 'private reply' },
+                },
+            }),
+        ).toThrow();
     });
 
     it('normalizes census line selectors before publishing abort metadata', () => {

@@ -59,6 +59,10 @@ describe('CI E2E artifacts', () => {
                 'test-results/public-receipts/renderer-performance.json',
             ],
             [
+                'Upload Agent Chat switch performance receipt',
+                'test-results/public-receipts/agent-chat-session-switch.json',
+            ],
+            [
                 'Upload parallel-safe failure artifacts',
                 'test-results/public-receipts/parallel-safe.json',
             ],
@@ -78,6 +82,10 @@ describe('CI E2E artifacts', () => {
                 "always() && steps.prepare-public-e2e-receipts.outcome == 'success' && steps.renderer-performance.outcome != 'skipped'",
             ],
             [
+                'Upload Agent Chat switch performance receipt',
+                "always() && steps.prepare-public-e2e-receipts.outcome == 'success' && steps.agent-chat-switch-performance.outcome != 'skipped'",
+            ],
+            [
                 'Upload parallel-safe failure artifacts',
                 "always() && steps.prepare-public-e2e-receipts.outcome == 'success' && ( steps.parallel-safe.outcome == 'failure' || ( steps.parallel-safe-receipt.outcome == 'failure' && hashFiles('test-results/receipts/parallel-safe.json') != '' ) )",
             ],
@@ -94,7 +102,7 @@ describe('CI E2E artifacts', () => {
                 "always() && steps.prepare-public-e2e-receipts.outcome == 'success' && steps.verify-packaged.outcome == 'failure'",
             ],
         ]);
-        expect(ciUploads).toHaveLength(4);
+        expect(ciUploads).toHaveLength(5);
         expect(releaseFailureUploads).toHaveLength(1);
         expect(uploads).toHaveLength(expectedPaths.size);
         for (const upload of uploads) {
