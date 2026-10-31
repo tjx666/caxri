@@ -399,6 +399,7 @@ export const SessionHome = ({
             <SessionActionsSheet
                 management={management}
                 onClose={() => setActionSession(null)}
+                onOpenSession={onOpenSession}
                 session={actionSession}
                 theme={theme}
             />

@@ -11,6 +11,7 @@ import { useMobileClient } from '../../connection/mobile-client-provider';
 import type { MobileLayoutMode } from '../../layout/layout-mode';
 import { mobileLayoutMode } from '../../layout/layout-mode';
 import { useMobileUpdateNotice } from '../../update/use-mobile-update-notice';
+import { useOpenSession } from '../hooks/use-open-session';
 import { isConnectionBannerShown } from '../session-notices';
 import { useHostSessions } from './host-sessions-provider';
 import { SessionHome } from './session-home';
@@ -65,8 +66,7 @@ export const SessionsScreen = ({ routeSessionId }: { routeSessionId: string | nu
     const { height, width } = useWindowDimensions();
     const layout = mobileLayoutMode(width, height);
     const { getLastSeenAt, retryConnection, status } = useMobileClient();
-    const { hostId, sessions } = useHostSessions();
-    const { selectSession } = sessions;
+    const { hostId } = useHostSessions();
     const updateNotice = useMobileUpdateNotice();
     /**
      * Lazy-initialized so the first paint already reflects the client's current `lastSeenAt` instead of the
@@ -93,19 +93,7 @@ export const SessionsScreen = ({ routeSessionId }: { routeSessionId: string | nu
         };
     }, [getLastSeenAt, status]);
 
-    const openSession = useCallback(
-        (sessionId: string): void => {
-            selectSession(sessionId);
-            const href =
-                `/h/${encodeURIComponent(hostId)}/s/${encodeURIComponent(sessionId)}` as const;
-            /**
-             * Each stacked split view would keep its own Terminal WebView mounted, so a tablet swaps the one it shows.
-             */
-            if (layout === 'phone') router.navigate(href);
-            else router.replace(href);
-        },
-        [hostId, layout, router, selectSession],
-    );
+    const openSession = useOpenSession(layout);
     const openNewSession = useCallback((): void => {
         router.navigate(`/h/${encodeURIComponent(hostId)}/new`);
     }, [hostId, router]);

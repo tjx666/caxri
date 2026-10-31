@@ -18,6 +18,7 @@ import { principalSchema } from '../transport/principal.js';
 import { mobileDeviceRoleSchema } from './device-role.js';
 import { mobileAccessStatusSchema } from './mobile-access-contract.js';
 import { mobileAgentChatMethods } from './mobile-agent-chat-contract.js';
+import { mobileAgentChatForkMethods } from './mobile-agent-chat-fork-contract.js';
 import { mobileAgentUsageMethods } from './mobile-agent-usage-contract.js';
 import {
     mobileAttentionAnswerParametersSchema,
@@ -391,6 +392,24 @@ export const mobileMethods = {
         params: z.strictObject({ sessionId: identifierSchema, pinned: z.boolean() }),
         result: mobileSessionMutationResultSchema,
     },
+    /**
+     * Deletes a Session's metadata through Desktop's own `session.delete`; the Project folder and user files stay. The
+     * phone asks for confirmation itself, since Desktop's native dialog would open on the computer.
+     */
+    'mobile.session.delete': {
+        ...commandPolicy('server', 'write', ['sessions.write']),
+        params: z.strictObject({ sessionId: identifierSchema }),
+        result: mobileSessionMutationResultSchema,
+    },
+    /**
+     * Rename with AI: a title from the Session's Agent conversation through `session.suggestTitle`, not applied. The
+     * phone fills its rename field with it and commits through `mobile.session.rename`.
+     */
+    'mobile.session.suggestTitle': {
+        ...commandPolicy('server', 'read', ['sessions.read']),
+        params: z.strictObject({ sessionId: identifierSchema }),
+        result: z.strictObject({ title: sessionRenameTitleSchema }),
+    },
     'mobile.session.archived': {
         ...commandPolicy('server', 'read', ['sessions.read']),
         params: z.strictObject({}),
@@ -398,6 +417,7 @@ export const mobileMethods = {
     },
     ...mobileTerminalMethods,
     ...mobileAgentChatMethods,
+    ...mobileAgentChatForkMethods,
     'mobile.device.revoke': {
         ...commandPolicy('desktop', 'control'),
         params: z.strictObject({ deviceId: mobileDeviceIdSchema }),

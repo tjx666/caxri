@@ -74,6 +74,7 @@ import { executeMobilePullRequestScenario } from '../mobile-pull-request-scenari
 import { executeMobileReadCacheScenario } from '../mobile-read-cache-scenario';
 import { executeMobileReplyPlaceholderScenario } from '../mobile-reply-placeholder-scenario';
 import { executeMobileSavedTurnArtifactsScenario } from '../mobile-saved-turn-artifacts-scenario';
+import { executeMobileSessionActionsScenario } from '../mobile-session-actions-scenario';
 import {
     executeMobileSessionGroupsScenario,
     executeMobileSessionSwipeScenario,
@@ -548,4 +549,5 @@ export const handlers = {
     'MOB-CHAT-USAGE-WAIT-01': executeMobileChatUsageWaitScenario,
     'MOB-CHAT-PLAN-APPROVAL-01': executeMobileChatPlanApprovalScenario,
     'MOB-CHAT-USAGE-01': executeMobileSessionUsageScenario,
+    'MOB-CHAT-SESSION-ACTIONS-01': executeMobileSessionActionsScenario,
 } satisfies Record<string, MobileChatCaseHandler>;

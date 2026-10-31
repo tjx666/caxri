@@ -13,6 +13,7 @@ import { useChangesList } from '../../changes/use-changes';
 import type { useConversationTimeline } from '../../conversation/use-conversation-timeline';
 import { ProjectPanelView } from '../../panels/panels-view';
 import { useSessionPanels } from '../../panels/use-panels';
+import type { SessionMenuActions } from '../session-management-model';
 import type { MobileSessionItem } from '../session-model';
 import type { SessionSegment } from '../session-ui-state';
 import {
@@ -48,6 +49,7 @@ export const SessionDetail = ({
     savedAt,
     segment,
     session,
+    sessionActions,
     theme,
     wideChanges,
     wideBackgroundSegment,
@@ -81,6 +83,7 @@ export const SessionDetail = ({
     savedAt: number | null;
     segment: SessionSegment;
     session: MobileSessionItem;
+    sessionActions?: SessionMenuActions;
     theme: MobileTheme;
     wideChanges: boolean;
     wideBackgroundSegment: 'conversation' | 'terminal';
@@ -136,6 +139,7 @@ export const SessionDetail = ({
                 segment={segment}
                 segments={segments}
                 session={session}
+                sessionActions={sessionActions}
                 theme={theme}
             />
             {conversationFallback ? (

@@ -36,11 +36,8 @@ import { createMobilePairing, invokeMobileProjectRequest } from './project-reque
 import { mergeMobilePullRequest, readMobilePullRequest } from './pull-request-requests';
 import { createRelaySettingFollower } from './relay';
 import { isMobileGatewayMethodAllowedForRole } from './role-methods';
-import {
-    applyMobileSessionManagement,
-    readMobileArchivedSessions,
-    sessionForPrincipal,
-} from './session-management';
+import { sessionForPrincipal } from './session-management';
+import { invokeMobileSessionRequest, isMobileSessionRequest } from './session-requests';
 import {
     authorizeMobileSubscriptionResource,
     isMobileSubscriptionEvent,
@@ -228,6 +225,14 @@ export const openMobileAccessController = (options: {
                 };
                 return isMobileAgentChatRead(request) ? invoke() : withAuthority(invoke);
             }
+            if (isMobileSessionRequest(request)) {
+                requiredGateway(gateway);
+                return invokeMobileSessionRequest(request, context, domainService, {
+                    assertOpen,
+                    currentPairedPrincipal,
+                    runRevocableOperation,
+                });
+            }
             const activeGateway = requiredGateway(gateway);
             switch (request.method) {
                 case 'mobile.access.status':
@@ -378,60 +383,6 @@ export const openMobileAccessController = (options: {
                         currentPairedPrincipal(principal, request.method);
                         return result;
                     });
-                }
-                case 'mobile.session.create': {
-                    /**
-                     * Keep only admission in the authority queue; Terminal launch may outlive revocation. A revoked
-                     * client cannot receive a result after a durable create and must reconcile from dashboard when
-                     * paired again before retrying.
-                     */
-                    return runRevocableOperation(
-                        () => {
-                            assertOpen();
-                            const principal = currentPairedPrincipal(
-                                context.principal,
-                                request.method,
-                            );
-                            if (!principal.projectIds.includes(request.params.projectId))
-                                throw new CaxriError('NOT_FOUND', 'Project not found');
-                            return principal;
-                        },
-                        (principal, signal) =>
-                            domainService.requestWithSignal(
-                                'mobile.session.createForPrincipal',
-                                { ...request.params, principal },
-                                signal,
-                            ),
-                        (principal, signal) => {
-                            if (signal.aborted)
-                                throw new CaxriError(
-                                    'CANCELLED',
-                                    'Mobile Session creation was canceled',
-                                );
-                            currentPairedPrincipal(principal, request.method);
-                        },
-                    );
-                }
-                case 'mobile.session.archived': {
-                    const principal = currentPairedPrincipal(context.principal, request.method);
-                    const result = await readMobileArchivedSessions(domainService, principal);
-                    currentPairedPrincipal(principal, request.method);
-                    return result;
-                }
-                case 'mobile.session.rename':
-                case 'mobile.session.archive':
-                case 'mobile.session.restore':
-                case 'mobile.session.setPinned':
-                case 'mobile.terminal.switchSurface': {
-                    return runRevocableOperation(
-                        () => {
-                            assertOpen();
-                            return currentPairedPrincipal(context.principal, request.method);
-                        },
-                        (principal, signal) =>
-                            applyMobileSessionManagement(domainService, principal, request, signal),
-                        (principal) => currentPairedPrincipal(principal, request.method),
-                    );
                 }
                 case 'mobile.agentUsage.read': {
                     const principal = currentPairedPrincipal(context.principal, request.method);
