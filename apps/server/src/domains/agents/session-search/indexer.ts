@@ -14,6 +14,10 @@ import {
     readCodexThreadIndex,
 } from '../external-conversation-parsers';
 import { compactInlineMediaPayloads } from '../inline-media';
+import {
+    antigravityConversationStamp,
+    readAntigravityConversation,
+} from '../providers/antigravity/conversation-database';
 import { isCompressedTranscriptPath } from '../transcript-compression';
 import type { DiscoveredTranscript } from '../transcript-discovery';
 import { discoverTranscripts } from '../transcript-discovery';
@@ -110,6 +114,19 @@ function isSkippedHosted(stored: StoredTranscript | undefined): boolean {
     return stored?.state === 'hosted' && stored.scanOffset === 0;
 }
 
+/**
+ * An Antigravity conversation is a SQLite database whose recent writes sit in its write-ahead log, so its identity
+ * covers both files.
+ */
+async function transcriptIdentity(
+    provider: StoredTranscript['provider'],
+    path: string,
+): Promise<FileIdentity | undefined> {
+    if (provider !== 'antigravity') return fileIdentity(path);
+    const stamp = await antigravityConversationStamp(path);
+    return stamp && { inode: stamp.inode, size: stamp.size, mtimeMs: stamp.mtimeMs };
+}
+
 async function fileIdentity(path: string): Promise<FileIdentity | undefined> {
     try {
         const stats = await lstat(path);
@@ -145,16 +162,6 @@ class MessageCollector {
 
     constructor(private remainingChars: number) {}
 
-    private add(message: VisibleTranscriptMessage): void {
-        if (message.isChunk && this.chunk?.role === message.role) {
-            if (this.chunk.text.length < MAX_MESSAGE_CHARS) this.chunk.text += message.text;
-            return;
-        }
-        this.closeChunk();
-        if (message.isChunk) this.chunk = { role: message.role, text: message.text };
-        else this.push(message.role, message.text);
-    }
-
     private closeChunk(): void {
         if (!this.chunk) return;
         this.push(this.chunk.role, this.chunk.text);
@@ -166,6 +173,16 @@ class MessageCollector {
         if (!text || text.length > this.remainingChars) return;
         this.remainingChars -= text.length;
         this.messages.push({ role, text });
+    }
+
+    add(message: VisibleTranscriptMessage): void {
+        if (message.isChunk && this.chunk?.role === message.role) {
+            if (this.chunk.text.length < MAX_MESSAGE_CHARS) this.chunk.text += message.text;
+            return;
+        }
+        this.closeChunk();
+        if (message.isChunk) this.chunk = { role: message.role, text: message.text };
+        else this.push(message.role, message.text);
     }
 
     accept(line: string): void {
@@ -222,8 +239,6 @@ export class SessionSearchIndexer {
         identity: FileIdentity,
         codex: CodexThreadIndex | undefined,
     ): Promise<ParsedConversation | ConversationExclusionReason> {
-        // Antigravity keeps conversations in SQLite, not a transcript; discovery lists none for it.
-        if (transcript.provider === 'antigravity') return 'unreadable';
         return classifyConversationCandidate(
             {
                 provider: transcript.provider,
@@ -232,6 +247,7 @@ export class SessionSearchIndexer {
                 updatedAt: identity.mtimeMs,
             },
             codex?.names ?? new Map(),
+            this.environment,
         );
     }
 
@@ -253,7 +269,7 @@ export class SessionSearchIndexer {
         const seen = new Set(discovered.map((found) => found.main.path));
         const changed: ChangedTranscript[] = [];
         await mapWithConcurrency(discovered, IDENTITY_CONCURRENCY, async (found) => {
-            const identity = await fileIdentity(found.main.path);
+            const identity = await transcriptIdentity(found.provider, found.main.path);
             if (!identity) return;
             const row = stored.get(found.main.path);
             // A hosted body skipped while no Session held it is read once a Session takes the conversation over.
@@ -350,8 +366,12 @@ export class SessionSearchIndexer {
         held: HeldKeys,
         onScanFailure: (reason: TranscriptScanFailureReason) => void,
     ): Promise<ConversationExclusionReason | undefined> {
-        // A compressed transcript is never appended to, so any change to it is a new file read from the start.
+        /**
+         * A compressed transcript is never appended to, so any change to it is a new file read from the start. An
+         * Antigravity database has no byte cursor, so every change re-reads the conversation.
+         */
         const isSameFile =
+            found.provider !== 'antigravity' &&
             !isCompressedTranscriptPath(found.main.path) &&
             stored !== undefined &&
             stored.inode === identity.inode &&
@@ -420,9 +440,28 @@ export class SessionSearchIndexer {
          * reads the rest of the file next time instead of trusting a half-indexed one.
          */
         const id = this.store.saveTranscript({ ...conversation, size: -1 });
-        const final = await this.scanContent({ ...conversation, id }, identity, onScanFailure);
+        const final =
+            found.provider === 'antigravity'
+                ? this.indexAntigravity({ ...conversation, id })
+                : await this.scanContent({ ...conversation, id }, identity, onScanFailure);
         this.store.saveTranscript(final);
         return undefined;
+    }
+
+    /**
+     * Reads an Antigravity conversation's visible messages from its database in one go; the row was cleared above.
+     */
+    private indexAntigravity(
+        transcript: TranscriptUpsert & { id: number },
+    ): TranscriptUpsert & { id: number } {
+        const collector = new MessageCollector(MAX_TRANSCRIPT_CHARS);
+        const visible = readAntigravityConversation(transcript.path)?.messages ?? [];
+        for (const message of visible) collector.add({ ...message, isChunk: false });
+        const messages = collector.drain();
+        const indexed = { ...transcript, scanOffset: 0, isSkippingLine: false };
+        const indexedChars = indexedLength(messages);
+        this.store.appendMessages({ ...indexed, size: -1, indexedChars }, messages);
+        return { ...indexed, indexedChars };
     }
 
     private async scanContent(
@@ -534,7 +573,7 @@ export class SessionSearchIndexer {
             .toSorted((left, right) => Number(left.isContinuation) - Number(right.isContinuation))
             .at(0);
         if (!main) return;
-        const identity = await fileIdentity(main.path);
+        const identity = await transcriptIdentity(provider, main.path);
         if (!identity) return;
         const codex =
             provider === 'codex'

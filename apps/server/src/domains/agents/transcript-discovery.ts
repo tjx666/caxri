@@ -7,6 +7,11 @@ import type { AgentProvider } from '@caxri/protocol';
 import type { AgentEnvironment } from './contract';
 import { isOpaqueAgentSessionId } from './contract';
 import { agentProviders } from './providers';
+import {
+    antigravityConversationId,
+    antigravityConversationsDirectory,
+} from './providers/antigravity/conversation-database';
+import { antigravityStateDirectory } from './providers/antigravity/paths';
 import { resolveCodexHome } from './providers/codex/paths';
 import { parseCodexRolloutFile } from './providers/codex/rollouts';
 import { grokHome, readGrokCwdMarker } from './providers/grok/paths';
@@ -45,6 +50,10 @@ export interface DiscoveredTranscript {
      */
     transcriptId: string;
     agentSessionId: string;
+    /**
+     * For Antigravity, a SQLite conversation database rather than a JSONL transcript: read it only through
+     * `providers/antigravity/conversation-database.ts`, never through the line-oriented transcript readers.
+     */
     main: AgentTranscriptLocation;
     /**
      * Known from the layout itself (Grok names its directory after the cwd); otherwise read from the transcript.
@@ -279,6 +288,31 @@ async function discoverGrok(environment: AgentEnvironment): Promise<DiscoveredTr
 }
 
 /**
+ * `~/.gemini/antigravity-cli/conversations/<conversation id>.db`, one SQLite database per conversation.
+ */
+async function discoverAntigravity(environment: AgentEnvironment): Promise<DiscoveredTranscript[]> {
+    const root = antigravityConversationsDirectory(environment);
+    const names = await fileNames(root);
+    return names.flatMap((name) => {
+        const agentSessionId = antigravityConversationId(name);
+        if (!agentSessionId) return [];
+        return [
+            {
+                provider: 'antigravity' as const,
+                transcriptId: agentSessionId,
+                agentSessionId,
+                main: {
+                    baseRoot: antigravityStateDirectory(environment),
+                    root,
+                    path: join(root, name),
+                },
+                isContinuation: false,
+            },
+        ];
+    });
+}
+
+/**
  * Exhaustive on purpose, like the usage parsers: a newly catalogued provider fails to compile until it declares where
  * its transcripts live.
  */
@@ -292,10 +326,7 @@ const discoverers: Record<
     claude: discoverClaude,
     codex: discoverCodex,
     grok: discoverGrok,
-    /**
-     * Antigravity keeps each conversation in its own SQLite database, which Session search does not read yet.
-     */
-    antigravity: () => Promise.resolve([]),
+    antigravity: discoverAntigravity,
 };
 
 /**

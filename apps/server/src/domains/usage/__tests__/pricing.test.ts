@@ -10,6 +10,7 @@ import {
     cacheWritePrice,
     costOf,
     estimateCacheRewriteUsd,
+    estimateResponseUsd,
     modelPriceCandidates,
     ModelPricing,
     offlinePriceListFetch,
@@ -216,5 +217,22 @@ describe('cache rewrite estimates', () => {
         expect(estimateCacheRewriteUsd(100_000, 'claude-opus-5-5', 5)).toBeCloseTo(0.5);
         expect(estimateCacheRewriteUsd(100_000, 'fake-model', 60)).toBeUndefined();
         expect(estimateCacheRewriteUsd(0, 'claude-opus-5-5', 60)).toBeUndefined();
+    });
+
+    it('prices an Antigravity response by its Gemini family from the bundled list', () => {
+        // `agy` reports a serving variant (`-n`) the price list does not name.
+        expect(
+            estimateResponseUsd(
+                {
+                    input: 1_000_000,
+                    output: 0,
+                    cacheRead: 0,
+                    cacheWrite: 0,
+                    cacheWrite1h: 0,
+                    reasoning: 0,
+                },
+                'gemini-3.8-flash-n',
+            ),
+        ).toBeGreaterThan(0);
     });
 });

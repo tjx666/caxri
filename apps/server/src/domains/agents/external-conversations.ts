@@ -8,7 +8,7 @@ import type { AgentEnvironment } from './contract';
 import { isOpaqueAgentSessionId } from './contract';
 import type {
     CodexThreadIndex,
-    ConversationCandidate as Candidate,
+    ConversationCandidate,
     ExternalConversationProvider,
     ParsedConversation,
 } from './external-conversation-parsers';
@@ -21,6 +21,8 @@ import { claudeTranscriptBaseRoot, resolveClaudeConfigDirectory } from './provid
 import { resolveCodexHome } from './providers/codex/paths';
 import { parseCodexRolloutName } from './providers/codex/rollouts';
 import { grokHome } from './providers/grok/paths';
+
+type Candidate = ConversationCandidate & { provider: ExternalConversationProvider };
 
 /**
  * One Agent conversation found in a provider's own store on this machine, typically started outside Caxri.
