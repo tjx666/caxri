@@ -27,6 +27,8 @@ describe('agentChatGoalBarView', () => {
             objective: 'Ship the release',
             elapsed: '1m 0s',
             isActive: true,
+            outcome: undefined,
+            reason: undefined,
             isTicking: false,
             toggle: 'pause',
         });
@@ -51,5 +53,34 @@ describe('agentChatGoalBarView', () => {
         expect(
             agentChatGoalBarView({ ...idle, goal: goal({ status: 'complete' }) }, 0, false),
         ).toMatchObject({ status: 'Goal achieved', toggle: undefined });
+    });
+
+    it('names how a goal ended and why, as Desktop does', () => {
+        expect(
+            agentChatGoalBarView(
+                {
+                    ...idle,
+                    goal: goal({ status: 'complete', reason: 'All checks pass', pausable: false }),
+                },
+                0,
+                false,
+            ),
+        ).toMatchObject({ outcome: 'complete', reason: 'All checks pass', toggle: undefined });
+        expect(
+            agentChatGoalBarView(
+                {
+                    ...idle,
+                    goal: goal({ status: 'failed', reason: 'Deadline passed', pausable: false }),
+                },
+                0,
+                false,
+            ),
+        ).toMatchObject({
+            status: 'Goal not achieved',
+            outcome: 'failed',
+            reason: 'Deadline passed',
+            isActive: false,
+            toggle: undefined,
+        });
     });
 });

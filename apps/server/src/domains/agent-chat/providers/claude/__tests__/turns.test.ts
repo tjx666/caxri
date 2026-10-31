@@ -1,6 +1,6 @@
 import type { AgentChatSnapshot, AgentChatTask } from '@caxri/protocol';
 import { applyAgentChatOperation, emptyAgentChatSnapshot } from '@caxri/protocol';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { AgentChatSessionHost, ChatLifecycleEvent } from '../../../chat-provider';
 import { chatTextDigest } from '../../../chat-turn-answer';
@@ -217,14 +217,14 @@ describe('ClaudeTurns goal', () => {
         local_command_source: '<local-command-stdout>Goal set: Green CI</local-command-stdout>',
     };
 
-    it('drops the goal when its turn completes with nothing left to wake Claude Code', () => {
+    it('drops the goal when its turn completes with nothing left to wake Claude Code and no recorded outcome', async () => {
         const { host, turns } = harness();
         turns.begin('turn-1');
         turns.goals.applyFeedback(goalSet);
         expect(host.read().goal).toMatchObject({ objective: 'Green CI', pausable: false });
         turns.onSessionState('running');
         turns.onSessionState('idle');
-        expect(host.read().goal).toBeUndefined();
+        await vi.waitFor(() => expect(host.read().goal).toBeUndefined());
     });
 
     it('keeps the goal through an interrupt and while background work will wake Claude Code', () => {

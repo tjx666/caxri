@@ -33,11 +33,17 @@ describe('changeAgentChatGoal', () => {
 });
 
 describe('agentChatGoalClearLabelKey', () => {
-    it('names the stopped turn only for a goal that cannot pause while a turn runs', () => {
-        expect(agentChatGoalClearLabelKey({ pausable: false }, true)).toBe(
-            'agentChat.goal.clearAndStop',
+    it('names the stopped turn only for an active goal that cannot pause while a turn runs', () => {
+        const active = { pausable: false, status: 'active' } as const;
+        expect(agentChatGoalClearLabelKey(active, true)).toBe('agentChat.goal.clearAndStop');
+        expect(agentChatGoalClearLabelKey(active, false)).toBe('agentChat.goal.clear');
+        expect(agentChatGoalClearLabelKey({ status: 'active' }, true)).toBe('agentChat.goal.clear');
+        // A goal Claude Code already settled no longer runs inside the turn.
+        expect(agentChatGoalClearLabelKey({ pausable: false, status: 'complete' }, true)).toBe(
+            'agentChat.goal.clear',
         );
-        expect(agentChatGoalClearLabelKey({ pausable: false }, false)).toBe('agentChat.goal.clear');
-        expect(agentChatGoalClearLabelKey({}, true)).toBe('agentChat.goal.clear');
+        expect(agentChatGoalClearLabelKey({ pausable: false, status: 'failed' }, true)).toBe(
+            'agentChat.goal.clear',
+        );
     });
 });

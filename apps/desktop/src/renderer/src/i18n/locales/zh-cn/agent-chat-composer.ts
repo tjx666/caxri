@@ -72,6 +72,7 @@ export const agentChatComposer: TranslatedNamespace<typeof source> = {
     'agentChat.goal.status.usageLimited': '目标达到用量上限',
     'agentChat.goal.status.budgetLimited': '目标达到预算上限',
     'agentChat.goal.status.complete': '目标已达成',
+    'agentChat.goal.status.failed': '目标无法达成',
     'agentChat.goal.steps': '目标累计步数：{{count}}',
     'agentChat.goal.tokens': '目标累计已用 {{count}} 个 token',
     'agentChat.goal.cost': '目标累计估算花费：${{value}}',

@@ -15,6 +15,7 @@ const STATUS_LABELS = {
     usageLimited: 'chat.goal.status.usageLimited',
     budgetLimited: 'chat.goal.status.budgetLimited',
     complete: 'chat.goal.status.complete',
+    failed: 'chat.goal.status.failed',
 } as const satisfies Record<AgentChatGoal['status'], TranslationKey>;
 
 /**
@@ -31,6 +32,15 @@ export interface AgentChatGoalBarView {
      */
     elapsed: string;
     isActive: boolean;
+    /**
+     * How the goal ended, which colors its glyph as Desktop's row does; `undefined` while it runs or is otherwise
+     * stopped.
+     */
+    outcome: 'complete' | 'failed' | undefined;
+    /**
+     * Why the provider ended the goal, shown with the full objective.
+     */
+    reason: string | undefined;
     /**
      * Whether the goal's time still counts up, so the bar needs a clock.
      */
@@ -70,6 +80,8 @@ export const agentChatGoalBarView = (
         objective: goal.objective,
         elapsed: formatAgentChatGoalDuration(agentChatGoalElapsedSeconds(goal, now, turnStartedAt)),
         isActive,
+        outcome: goal.status === 'complete' || goal.status === 'failed' ? goal.status : undefined,
+        reason: goal.reason,
         isTicking: isActive && turnStartedAt !== undefined,
         toggle: agentChatGoalToggle(goal),
     };

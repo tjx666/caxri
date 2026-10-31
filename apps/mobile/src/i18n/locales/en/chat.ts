@@ -167,6 +167,7 @@ export const chat = {
     'chat.goal.status.blocked': 'Goal stalled',
     'chat.goal.status.budgetLimited': 'Goal budget reached',
     'chat.goal.status.complete': 'Goal achieved',
+    'chat.goal.status.failed': 'Goal not achieved',
     'chat.goal.status.paused': 'Goal paused',
     'chat.goal.status.usageLimited': 'Goal hit usage limits',
     'chat.handedOffBanner': '{{notice}}. Resume it there to continue.',

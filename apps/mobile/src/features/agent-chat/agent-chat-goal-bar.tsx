@@ -62,7 +62,13 @@ export const AgentChatGoalBar = ({
             setBusy(false);
         }
     };
-    const accent = view.isActive ? theme.primary : theme.muted;
+    const accent = view.isActive
+        ? theme.primary
+        : view.outcome === 'complete'
+          ? theme.success
+          : view.outcome === 'failed'
+            ? theme.danger
+            : theme.muted;
     const toggle = view.toggle;
     return (
         <Animated.View layout={layout} style={styles.dock} testID="agent-chat-goal">
@@ -112,6 +118,7 @@ export const AgentChatGoalBar = ({
                     isBusy={isBusy}
                     isExpanded={isExpanded}
                     objective={view.objective}
+                    reason={view.reason}
                     onClear={() => setConfirmingClear(true)}
                     theme={theme}
                 />
@@ -167,8 +174,8 @@ const GoalToggleButton = ({
 };
 
 /**
- * The expanded objective with its Clear button, plus the failure line; split out of `AgentChatGoalBar` for the same
- * reason as `GoalToggleButton`.
+ * The expanded objective, the provider's reason for an ended goal, and the Clear button, plus the failure line; split
+ * out of `AgentChatGoalBar` for the same reason as `GoalToggleButton`.
  */
 const GoalBarDetails = ({
     canAct,
@@ -177,6 +184,7 @@ const GoalBarDetails = ({
     isExpanded,
     objective,
     onClear,
+    reason,
     theme,
 }: {
     canAct: boolean;
@@ -185,6 +193,7 @@ const GoalBarDetails = ({
     isExpanded: boolean;
     objective: string;
     onClear: () => void;
+    reason: string | undefined;
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
@@ -199,6 +208,15 @@ const GoalBarDetails = ({
                     >
                         {objective}
                     </Text>
+                    {reason ? (
+                        <Text
+                            selectable
+                            style={[styles.full, { color: theme.muted }]}
+                            testID="agent-chat-goal-reason"
+                        >
+                            {reason}
+                        </Text>
+                    ) : null}
                     {canAct ? (
                         <Button
                             icon={Trash2}

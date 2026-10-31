@@ -23,7 +23,18 @@ const STATUS_LABELS = {
     usageLimited: 'agentChat.goal.status.usageLimited',
     budgetLimited: 'agentChat.goal.status.budgetLimited',
     complete: 'agentChat.goal.status.complete',
+    failed: 'agentChat.goal.status.failed',
 } as const satisfies Record<AgentChatGoal['status'], TranslationKey>;
+
+/**
+ * The glyph's color: `--accent` while the goal is pursued, and the outcome's status color once the provider settled it,
+ * so an achieved goal reads apart from one it gave up on at a glance.
+ */
+const GLYPH_TONES: Partial<Record<AgentChatGoal['status'], string>> = {
+    active: 'text-accent',
+    complete: 'text-success',
+    failed: 'text-danger',
+};
 
 /**
  * The goal's time, ticking each second while a turn works on it. Mounted only then, so an idle goal re-renders nothing.
@@ -58,7 +69,7 @@ function GoalGlyph({ goal, step }: { goal: AgentChatGoal; step: number | undefin
             )}
             <Goal
                 aria-hidden="true"
-                className={cn('size-3.5', goal.status === 'active' ? 'text-accent' : 'text-muted')}
+                className={cn('size-3.5', GLYPH_TONES[goal.status] ?? 'text-muted')}
             />
         </span>
     );
@@ -71,8 +82,8 @@ function GoalGlyph({ goal, step }: { goal: AgentChatGoal; step: number | undefin
  * the glyph ripples with each step, the objective carries the working text's sweep, and the time and figures count the
  * whole goal, so they keep growing when the provider starts its next turn. The glyph stays between the provider's
  * turns, so the row does not swap its lead each time one ends and the next begins. A goal that is not active names its
- * status, since nothing else on screen says it stopped. A completed goal stays until cleared, so its outcome is not
- * lost when the turn ends.
+ * status, since nothing else on screen says it stopped. A goal that completed or failed stays until cleared, so its
+ * outcome is not lost when the turn ends, and Expand shows the provider's reason for it below the objective.
  */
 export function AgentChatGoalBar({
     goal,
@@ -140,9 +151,14 @@ export function AgentChatGoalBar({
                 />
             </div>
             {isExpanded && (
-                <p className="m-0 max-h-40 overflow-y-auto px-3 pb-2 leading-5 wrap-anywhere whitespace-pre-wrap text-foreground">
-                    {goal.objective}
-                </p>
+                <div className="flex max-h-40 flex-col gap-1.5 overflow-y-auto px-3 pb-2 leading-5 wrap-anywhere whitespace-pre-wrap">
+                    <p className="m-0 text-foreground">{goal.objective}</p>
+                    {goal.reason && (
+                        <p className="m-0 text-muted" data-agent-chat-goal-reason="">
+                            {goal.reason}
+                        </p>
+                    )}
+                </div>
             )}
         </div>
     );

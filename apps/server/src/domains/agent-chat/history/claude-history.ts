@@ -18,7 +18,8 @@ import {
     stringField,
 } from '../chat-items';
 import { claudeFeedbackItems, claudeFeedbackToolUseId } from '../feedback/claude-feedback';
-import { claudeGoalNotice } from '../goals/claude-goals';
+import type { ClaudeGoalOutcome } from '../goals/claude-goals';
+import { claudeGoalNotice, claudeGoalOutcome, endedClaudeGoal } from '../goals/claude-goals';
 import { claudeResponseUsage } from '../providers/claude/context';
 import {
     claudeUserImageCount,
@@ -60,31 +61,42 @@ interface HistoryState {
      */
     lastResponse?: { message: Json; at: number };
     /**
-     * The goal the transcript leaves active, and the index of the first turn opened after it was set: its time is the
-     * sum of those turns' durations.
+     * The goal the transcript leaves, and the index of the first turn opened after it was set: its time is the sum of
+     * those turns' durations. `outcome` is set once Claude Code settled it.
      */
-    goal?: { objective: string; sinceTurn: number };
+    goal?: { objective: string; sinceTurn: number; outcome?: ClaudeGoalOutcome };
     turnClock: ClaudeTurnClock;
 }
 
 /**
- * Keeps the active goal across a goal record: a new objective starts its own time, the same one keeps it.
+ * Keeps the active goal across a goal record: a new objective, or the same one set again after it ended, starts its own
+ * time; the same active one keeps it.
  */
 function setHistoryGoal(state: HistoryState, condition: string | undefined): void {
     const objective = clip(condition?.trim() ?? '', MAX_AGENT_CHAT_GOAL_OBJECTIVE_LENGTH);
     if (!objective) delete state.goal;
-    else if (state.goal?.objective !== objective)
+    else if (state.goal?.objective !== objective || state.goal.outcome)
         state.goal = { objective, sinceTurn: state.turns.length };
 }
 
 /**
  * Claude Code writes the goal's state to the transcript only, as `goal_status` attachments (verified with Claude Code
  * 2.1.310): `met: false` when the goal is set (`sentinel`) and after each check that found it unmet (`reason`), and
- * `met: true` or `failed: true` once it ends.
+ * `met: true` or `failed: true` once it ends. An ended goal keeps its row with the outcome, as the live Chat does.
  */
 function applyGoalStatus(state: HistoryState, attachment: Json): void {
-    if (attachment.met === true || attachment.failed === true) delete state.goal;
-    else setHistoryGoal(state, stringField(attachment.condition));
+    const outcome = claudeGoalOutcome(attachment);
+    if (!outcome) {
+        setHistoryGoal(state, stringField(attachment.condition));
+        return;
+    }
+    const objective = outcome.objective || state.goal?.objective;
+    if (!objective) return;
+    state.goal = {
+        objective,
+        sinceTurn: state.goal?.sinceTurn ?? state.turns.length,
+        outcome,
+    };
 }
 
 /**
@@ -100,13 +112,16 @@ function applyGoalNotices(state: HistoryState, notices: readonly AgentChatItem[]
 }
 
 /**
- * The goal row for a replayed transcript whose goal is still active. Claude Code has no Pause, and reports no tokens.
+ * The goal row for a replayed transcript's last goal, active or ended. Claude Code has no Pause, and reports tokens
+ * only once the goal ends.
  */
 function historyGoal(state: HistoryState, now: number): AgentChatGoal | undefined {
     if (!state.goal) return undefined;
     const workedMs = state.turns
         .slice(state.goal.sinceTurn)
         .reduce((total, turn) => total + (turn.durationMs ?? 0), 0);
+    const goal = { objective: state.goal.objective, timeUsedSeconds: Math.round(workedMs / 1000) };
+    if (state.goal.outcome) return endedClaudeGoal(goal, state.goal.outcome, now);
     return {
         objective: state.goal.objective,
         status: 'active',
@@ -440,8 +455,8 @@ export function claudeRewindPoint(
  * visible user prompt opens a turn. The whole tail is replayed: what the projection's budget evicts stays in Server
  * Core's history archive, and `truncated` marks a tail that stops short of the transcript's start. Every resumed turn
  * is finished: a resume never re-enters a turn the previous process was running. `resumeAt` ends the history at that
- * record, for the restart right after a rewind. A goal the transcript leaves active comes back as the snapshot's
- * `goal`, since Claude Code streams no goal state of its own.
+ * record, for the restart right after a rewind. The transcript's last goal, active or ended with its outcome, comes
+ * back as the snapshot's `goal`, since Claude Code streams no goal state of its own.
  */
 export function claudeHistoryOperations(
     transcript: string,
