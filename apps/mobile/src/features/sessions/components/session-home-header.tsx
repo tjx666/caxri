@@ -1,6 +1,6 @@
-import { useCallback, useRef } from 'react';
+import { useRef } from 'react';
 import type { HostInstance } from 'react-native';
-import { FlatList, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import {
     Activity,
@@ -12,7 +12,6 @@ import {
     Settings,
 } from 'lucide-react-native';
 
-import { Chip } from '../../../components/chip';
 import { IconButton } from '../../../components/icon-button';
 import { PopoverAction, PopoverDivider, PopoverMenu } from '../../../components/popover-menu';
 import { usePopoverAnchor } from '../../../components/use-popover-anchor';
@@ -21,12 +20,9 @@ import { mobileSpace, mobileType } from '../../../theme/scale';
 import type { MobileTheme } from '../../../theme/tokens';
 import { BotInboxHomeEntry } from '../../bot-inbox/bot-inbox-home-entry';
 import type { useSessionPolling } from '../hooks/use-session-polling';
+import { ProjectFilterChips } from './project-filter-chips';
 
 type Project = ReturnType<typeof useSessionPolling>['projects'][number];
-interface ProjectChoice {
-    title: string;
-    id: string | null;
-}
 
 const styles = StyleSheet.create({
     header: {
@@ -41,13 +37,6 @@ const styles = StyleSheet.create({
         paddingHorizontal: mobileSpace.lg,
         paddingTop: mobileSpace.xs,
     },
-    chips: {
-        gap: mobileSpace.sm,
-        paddingBottom: mobileSpace.sm,
-        paddingHorizontal: mobileSpace.lg,
-        paddingTop: mobileSpace.xs,
-    },
-    chipsScroll: { flex: 1 },
 });
 
 export const SessionHomeHeader = ({
@@ -55,6 +44,7 @@ export const SessionHomeHeader = ({
     hostDisplayName,
     onAddProject,
     onChooseProject,
+    onMoveProject,
     onOpenArchived,
     onOpenInbox,
     onOpenSearch,
@@ -71,6 +61,10 @@ export const SessionHomeHeader = ({
      */
     onAddProject?: () => void;
     onChooseProject: (projectId: string | null) => void;
+    /**
+     * Present only for a control device: a held Project chip can be dragged to a new place.
+     */
+    onMoveProject?: (projectId: string, toIndex: number) => void;
     onOpenArchived: () => void;
     /**
      * Present only for a control device: the Bot Inbox spans every Project, beyond a narrower device grant. Its entry
@@ -94,38 +88,15 @@ export const SessionHomeHeader = ({
     const menuAnchor = useRef<HostInstance>(null);
     const menu = usePopoverAnchor(menuAnchor);
     const { close: closeMenu } = menu;
-    const projectChoices: ProjectChoice[] = [
-        { id: null, title: t('sessions.home.allProjects') },
-        ...projects,
-    ];
-    const renderProject = useCallback(
-        ({ item }: { item: ProjectChoice }) => {
-            const isSelected = activeProjectId === item.id;
-            return (
-                <Chip
-                    accessibilityLabel={item.title}
-                    label={item.title}
-                    onPress={() => onChooseProject(item.id)}
-                    selected={isSelected}
-                    testID={`project-filter-${item.id ?? 'all'}`}
-                    theme={theme}
-                />
-            );
-        },
-        [activeProjectId, onChooseProject, theme],
-    );
     return (
         <>
             <View style={styles.header}>
-                <FlatList
-                    contentContainerStyle={styles.chips}
-                    data={projectChoices}
-                    horizontal
-                    keyExtractor={(item) => item.id ?? 'all'}
-                    renderItem={renderProject}
-                    showsHorizontalScrollIndicator={false}
-                    style={styles.chipsScroll}
-                    testID="session-project-filters"
+                <ProjectFilterChips
+                    activeProjectId={activeProjectId}
+                    onChooseProject={onChooseProject}
+                    onMoveProject={onMoveProject}
+                    projects={projects}
+                    theme={theme}
                 />
                 <IconButton
                     accessibilityHint={t('sessions.search.openHint')}

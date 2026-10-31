@@ -226,6 +226,16 @@ const mobileProjectAddResultSchema = z.strictObject({
 });
 
 /**
+ * A phone sees only its granted Projects, so it names a neighbor rather than a global index; the Server maps the move
+ * onto the full Project order Desktop's sidebar shows.
+ */
+const mobileProjectReorderParametersSchema = z.strictObject({
+    projectId: identifierSchema,
+    anchorProjectId: identifierSchema,
+    placement: z.enum(['before', 'after']),
+});
+
+/**
  * Most Agent actions one `mobile.agent.actions` reply carries; a phone menu shows a handful, and a full skill list
  * would not fit one gateway frame.
  */
@@ -395,6 +405,11 @@ export const mobileMethods = {
         ...commandPolicy('server', 'write', ['projects.write']),
         params: mobileProjectAddParametersSchema,
         result: mobileProjectAddResultSchema,
+    },
+    'mobile.project.reorder': {
+        ...commandPolicy('server', 'write', ['projects.write']),
+        params: mobileProjectReorderParametersSchema,
+        result: z.null(),
     },
     ...mobilePanelsMethods,
     ...mobilePullRequestMethods,

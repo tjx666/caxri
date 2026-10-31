@@ -244,7 +244,11 @@ describe('MobileAccessController role and resource authority', () => {
         for (const role of ['view', 'reply', 'control'] as const)
             for (const method of ['mobile.session.archived', 'mobile.session.search'])
                 expect(isMobileGatewayMethodAllowedForRole(role, method)).toBe(true);
-        for (const method of ['mobile.project.browse', 'mobile.project.add']) {
+        for (const method of [
+            'mobile.project.browse',
+            'mobile.project.add',
+            'mobile.project.reorder',
+        ]) {
             expect(isMobileGatewayMethodAllowedForRole('view', method)).toBe(false);
             expect(isMobileGatewayMethodAllowedForRole('reply', method)).toBe(false);
             expect(isMobileGatewayMethodAllowedForRole('control', method)).toBe(true);

@@ -107,6 +107,7 @@ export type MobileControlRequest = Extract<
             | 'mobile.pairing.create'
             | 'mobile.project.browse'
             | 'mobile.project.add'
+            | 'mobile.project.reorder'
             | 'mobile.panels.list'
             | 'mobile.agentUsage.read'
             | 'mobile.pullRequest.read'

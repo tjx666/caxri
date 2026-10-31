@@ -148,6 +148,8 @@ export const sessions: TranslatedNamespace<typeof source> = {
     'sessions.home.computerStatus': '电脑状态',
     'sessions.home.newSessionHint': '打开新建会话界面。',
     'sessions.home.pairedComputer': '已配对的电脑：{{host}}',
+    'sessions.home.projectReorderHint': '长按后拖动可调整顺序。',
+    'sessions.home.projectReorderFailed': '项目顺序未保存。',
     'sessions.home.savedCopy': '显示的是{{saved}}的会话。',
     'sessions.home.settings': '设置',
     'sessions.home.truncated': '显示 {{total}} 个会话中的 {{shown}} 个',

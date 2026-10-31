@@ -156,6 +156,8 @@ export const sessions = {
     'sessions.home.computerStatus': 'Computer status',
     'sessions.home.newSessionHint': 'Opens the New Session screen.',
     'sessions.home.pairedComputer': 'Paired computer: {{host}}',
+    'sessions.home.projectReorderHint': 'Touch and hold, then drag to reorder.',
+    'sessions.home.projectReorderFailed': 'The Project order was not saved.',
     'sessions.home.savedCopy': 'Showing Sessions {{saved}}.',
     'sessions.home.settings': 'Settings',
     'sessions.home.truncated': 'Showing {{shown}} of {{total}} Sessions',

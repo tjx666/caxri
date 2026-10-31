@@ -121,6 +121,7 @@ const shortLivedDurableMethods = new Set<string>([
     'mobile.agentChat.fork',
     'mobile.botInbox.reply',
     'mobile.project.add',
+    'mobile.project.reorder',
     'mobile.pullRequest.merge',
     'mobile.session.archive',
     'mobile.session.create',
