@@ -224,18 +224,21 @@ export const AgentChatWorkGroup = ({
                         isRunning={isOpen || summarized.some(isAgentChatWorkRunning)}
                         kind={glyph.kind}
                         mcpIconUrls={mcpIconUrls}
+                        onPress={summarized.length === 1 ? () => select(first) : undefined}
                         summary={summarizeAgentChatWork(summarized, t, { isOpen })}
                         testID={`agent-chat-work-group-${first.id}`}
                         theme={theme}
                     >
-                        {summarized.map((item) => (
-                            <AgentChatWorkRow
-                                item={item}
-                                key={item.id}
-                                onPress={select}
-                                theme={theme}
-                            />
-                        ))}
+                        {summarized.length === 1
+                            ? null
+                            : summarized.map((item) => (
+                                  <AgentChatWorkRow
+                                      item={item}
+                                      key={item.id}
+                                      onPress={select}
+                                      theme={theme}
+                                  />
+                              ))}
                     </ConversationToolGroupView>
                 ) : null}
                 {rows.map((item, index) => (
