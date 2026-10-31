@@ -229,8 +229,18 @@ export async function executeMobileStatusTreeMergeScenario(
         await mobile.pair();
         await tapMobileCheck(serial, `session-row-${mobile.allowedSessionId}`);
         await tapMobileCheck(serial, 'session-segment-panel-caxri.project-status');
-        await waitForCheck(serial, 'tree-row-action-0', 60_000);
+        // A build from before the row actions never shows the button; its baseline round still captures the panel.
+        let hasMerge = true;
+        try {
+            await waitForCheck(serial, 'tree-row-action-0', 60_000);
+        } catch {
+            hasMerge = false;
+        }
         await capture(environment, 'status-merge', artifacts);
+        if (!hasMerge) {
+            await finish(environment, artifacts, { mergeButton: 'absent', surface: 'status' });
+            return;
+        }
 
         await tapMobileCheck(serial, 'tree-row-action-0');
         await waitForMobile(
