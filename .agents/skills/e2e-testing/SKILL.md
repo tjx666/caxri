@@ -116,6 +116,9 @@ Use the launch helpers instead of the developer's real profile:
   A spec that needs a specific multi-step turn instead passes a scripted-turn file through the
   fixtures' `scriptPath` option (`fake-claude-script.ts`, `fake-codex-script.ts`); a message equal
   to a scripted prompt bypasses the keywords.
+- When adding provider metadata commands, update synthetic executables used under the `real`
+  policy too, such as `e2e/agent-login-path.e2e.ts`. Answer `login status` without starting a
+  long-lived Agent, and distinguish captured metadata probes from actual launches by their argv.
 - A fault-injection environment flag must reach the process that owns the seam. Cover Desktop to
   Server forwarding with a boundary test and verify the controlled delay or failure occurs before
   interpreting the product assertion; setting the launcher environment alone is not proof.

@@ -34,15 +34,20 @@ exec node "${join(bin, 'codex.js')}" "$@"
         join(bin, 'codex.js'),
         String.raw`const fs = require('node:fs');
 const version = process.argv.includes('--version');
+const status = process.argv[2] === 'login' && process.argv[3] === 'status';
 fs.appendFileSync(${JSON.stringify(probeLog)}, JSON.stringify({
   caxriE2E: process.env.CAXRI_E2E,
   githubToken: process.env.GITHUB_TOKEN,
   path: process.env.PATH,
   shellExported: process.env.SHELL_EXPORTED_API_KEY,
+  status,
   version,
 }) + '\n');
 if (version) {
   console.log('codex-login-path 1.0');
+} else if (status) {
+  /** Sign-in discovery precedes the Agent launch and must finish without impersonating its process. */
+  console.log('Logged in');
 } else {
   console.log('Codex login PATH ready');
   setInterval(() => {}, 1000);
@@ -123,14 +128,16 @@ exec /bin/zsh "$@"
                                 githubToken?: string;
                                 path?: string;
                                 shellExported?: string;
+                                status: boolean;
                                 version: boolean;
                             },
                     );
+                const agent = records.find((record) => !record.version && !record.status);
                 return {
                     filtered: records.every((record) => !record.caxriE2E && !record.githubToken),
                     path: records.at(0)?.path,
-                    shellExported: records.find((record) => !record.version)?.shellExported,
-                    running: records.some((record) => !record.version),
+                    shellExported: agent?.shellExported,
+                    running: agent !== undefined,
                     version: records.some((record) => record.version),
                 };
             })
