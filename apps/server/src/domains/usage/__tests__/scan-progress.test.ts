@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { DiscoveredTranscript } from '../../agents';
-import { describeOutsideTranscripts, reportedPendingScans } from '../service';
+import { describeOutsideTranscripts, reportedPendingScans } from '../scan-progress';
 
 describe('reportedPendingScans', () => {
     it('reports a scan still discovering transcripts as pending', () => {

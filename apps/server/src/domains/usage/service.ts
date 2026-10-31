@@ -10,7 +10,7 @@ import type {
 } from '@caxri/protocol';
 import { agentProviderIds, logEventCatalog } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { mapWithConcurrency, SingleFlight } from '@caxri/system';
+import { SingleFlight } from '@caxri/system';
 
 import type { AgentEnvironment, DiscoveredTranscript } from '../agents';
 import {
@@ -33,15 +33,16 @@ import type { UsageRecord } from './record';
 import { parseUsageRecord } from './record';
 import type { OutsideUsageEntry, UsageLedgerEntry, UsageReportInput } from './report';
 import { buildUsageReport } from './report';
+import {
+    describeOutsideTranscripts,
+    reportedPendingScans,
+    SCAN_CONCURRENCY,
+} from './scan-progress';
 import type { ClaudeTranscriptMisses, UsageScanOptions, UsageTranscriptFiles } from './scanner';
 import { compressedFailureCounter, scanUsage, UsageTranscriptLocator } from './scanner';
 import { UsageNoticeDismissals } from './usage-notice-dismissals';
 import { waitBriefly } from './wait-briefly';
 
-/**
- * Transcripts parsed concurrently during one ledger sync.
- */
-const SCAN_CONCURRENCY = 4;
 const PROVIDER_IDS = new Set<string>(agentProviderIds);
 /**
  * Passes one sync makes: the second rescans the transcripts the first found to be copies of a source it indexed later.
@@ -69,41 +70,12 @@ export interface UsageServiceOptions {
 
 type ScanOutcome = 'scanned' | 'unchanged' | 'unavailable' | 'failed';
 
-export interface DescribedTranscript {
-    transcript: DiscoveredTranscript;
-    files: UsageTranscriptFiles | undefined;
-}
-
-/**
- * Stats every outside transcript so the scan can order them newest first. A long history holds thousands of them, and
- * each describe walks the filesystem for side files, so the walks share the parse step's concurrency budget instead of
- * all starting at once.
- */
-export function describeOutsideTranscripts(
-    queue: readonly DiscoveredTranscript[],
-    describe: UsageTranscriptLocator['describe'],
-): Promise<DescribedTranscript[]> {
-    return mapWithConcurrency(queue, SCAN_CONCURRENCY, async (transcript) => ({
-        transcript,
-        files: await describe(transcript.provider, transcript.main),
-    }));
-}
-
 function ledgerReference(row: Pick<AgentSessionUsageRow, 'provider' | 'agentSessionId'>): string {
     return `ledger:${row.provider}:${row.agentSessionId}`;
 }
 
 function outsideReference(row: Pick<ExternalAgentUsageRow, 'provider' | 'transcriptId'>): string {
     return `outside:${row.provider}:${row.transcriptId}`;
-}
-
-/**
- * Transcripts a report says are still being read. Discovery runs before the queue is counted, so a running scan reports
- * at least one: otherwise the page would read as finished and stop polling quickly while discovery is still walking a
- * large history.
- */
-export function reportedPendingScans(isScanning: boolean, counted: number): number {
-    return isScanning ? Math.max(1, counted) : 0;
 }
 
 /**
