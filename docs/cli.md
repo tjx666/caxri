@@ -181,7 +181,7 @@ operations (`agent dispatch` and `agent control`), and owner-only simulated inpu
 
 Every CLI artifact embeds the version-matched canonical `caxri-cli` Agent skill. `skills list`,
 `skills get`, and `skills status` work without a Server. Installation requires an explicit
-`--provider claude|codex|grok` and `--local|--global` scope; Project-local is recommended, global scope
+`--provider claude|codex|grok|antigravity` and `--local|--global` scope; Project-local is recommended, global scope
 is never implied, and Caxri refuses to overwrite unmarked, modified, unknown-schema, or newer
 entries. The canonical source is [`skills/caxri-cli/SKILL.md`](../skills/caxri-cli/SKILL.md), and
 the CLI build validates every executable example and declared capability against the live

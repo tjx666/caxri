@@ -578,7 +578,8 @@ const usageParsers: Record<
     codex: codexUsageParser,
     grok: grokUsageParser,
     /**
-     * Antigravity keeps no transcript file, so usage accounting never streams one; this parser counts nothing.
+     * Antigravity keeps a SQLite database rather than a transcript; `IncrementalUsageScan` reads it directly and never
+     * streams lines to this parser.
      */
     antigravity: () => ({ line: () => {}, finish: () => {} }),
 };

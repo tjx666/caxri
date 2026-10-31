@@ -36,6 +36,495 @@
     "claude-sonnet-4-6": [0.000003, 0.000015, 3e-7, 0.00000375, 0.000006],
     "claude-sonnet-5": [0.000002, 0.00001, 2e-7, 0.0000025, 0.000004],
     "claude-sonnet-5-5": [0.000002, 0.00001, 1e-7, 0.0000025, 0.000004],
+    "gemini-2.0-flash-exp-image-generation": [0, 0, null, null, null],
+    "gemini-2.5-computer-use-preview-10-2025": [
+        0.00000125,
+        0.00001,
+        null,
+        null,
+        null,
+        { "tiers": [[200, 0.0000025, 0.000015, null, null, null]] }
+    ],
+    "gemini-2.5-flash": [
+        3e-7,
+        0.0000025,
+        3e-8,
+        null,
+        null,
+        { "serviceTiers": { "priority": 1.8, "flex": 0.5 } }
+    ],
+    "gemini-2.5-flash-image": [
+        3e-7,
+        0.0000025,
+        null,
+        null,
+        null,
+        { "serviceTiers": { "flex": 0.5 } }
+    ],
+    "gemini-2.5-flash-lite": [
+        1e-7,
+        4e-7,
+        1e-8,
+        null,
+        null,
+        { "serviceTiers": { "priority": 1.8, "flex": 0.5 } }
+    ],
+    "gemini-2.5-flash-lite-preview-09-2025": [1e-7, 4e-7, 1e-8, null, null],
+    "gemini-2.5-flash-native-audio-latest": [5e-7, 0.000002, null, null, null],
+    "gemini-2.5-flash-native-audio-preview-09-2025": [5e-7, 0.000002, null, null, null],
+    "gemini-2.5-flash-native-audio-preview-12-2025": [5e-7, 0.000002, null, null, null],
+    "gemini-2.5-flash-preview-09-2025": [3e-7, 0.0000025, 3e-8, null, null],
+    "gemini-2.5-flash-preview-tts": [5e-7, 0.00001, null, null, null],
+    "gemini-2.5-pro": [
+        0.00000125,
+        0.00001,
+        1.25e-7,
+        null,
+        null,
+        {
+            "tiers": [[200, 0.0000025, 0.000015, 2.5e-7, 2.5e-7, null]],
+            "serviceTiers": { "priority": 1.8, "flex": 0.5 }
+        }
+    ],
+    "gemini-2.5-pro-preview-tts": [0.000001, 0.00002, 1.25e-7, null, null],
+    "gemini-3-flash-preview": [
+        5e-7,
+        0.000003,
+        5e-8,
+        null,
+        null,
+        { "serviceTiers": { "priority": 1.8, "flex": 0.5 } }
+    ],
+    "gemini-3-pro-image": [
+        0.000002,
+        0.000012,
+        2e-7,
+        null,
+        null,
+        {
+            "tiers": [[200, 0.000004, 0.000018, 4e-7, null, null]],
+            "serviceTiers": { "priority": 1.8, "flex": 0.5 }
+        }
+    ],
+    "gemini-3-pro-image-preview": [
+        0.000002,
+        0.000012,
+        2e-7,
+        null,
+        null,
+        {
+            "tiers": [[200, 0.000004, 0.000018, 4e-7, null, null]],
+            "serviceTiers": { "priority": 1.8 }
+        }
+    ],
+    "gemini-3.1-flash-image": [
+        5e-7,
+        0.000003,
+        5e-8,
+        null,
+        null,
+        { "serviceTiers": { "priority": 1.8, "flex": 0.5 } }
+    ],
+    "gemini-3.1-flash-image-preview": [5e-7, 0.000003, 5e-8, null, null],
+    "gemini-3.1-flash-lite": [
+        2.5e-7,
+        0.0000015,
+        2.5e-8,
+        null,
+        null,
+        { "serviceTiers": { "priority": 1.8, "flex": 0.5 } }
+    ],
+    "gemini-3.1-flash-lite-image": [
+        2.5e-7,
+        0.0000015,
+        2.5e-8,
+        null,
+        null,
+        { "serviceTiers": { "priority": 1.8, "flex": 0.5 } }
+    ],
+    "gemini-3.1-flash-lite-preview": [2.5e-7, 0.0000015, 2.5e-8, null, null],
+    "gemini-3.1-flash-live-preview": [7.5e-7, 0.0000045, null, null, null],
+    "gemini-3.1-pro-preview": [
+        0.000002,
+        0.000012,
+        2e-7,
+        null,
+        null,
+        {
+            "tiers": [[200, 0.000004, 0.000018, 4e-7, 2.5e-7, null]],
+            "serviceTiers": { "priority": 1.8, "flex": 0.5 }
+        }
+    ],
+    "gemini-3.1-pro-preview-customtools": [
+        0.000002,
+        0.000012,
+        2e-7,
+        null,
+        null,
+        { "tiers": [[200, 0.000004, 0.000018, 4e-7, 2.5e-7, null]] }
+    ],
+    "gemini-3.5-flash": [
+        0.0000015,
+        0.000009,
+        1.5e-7,
+        null,
+        null,
+        { "serviceTiers": { "priority": 1.8, "flex": 0.5 } }
+    ],
+    "gemini-3.5-flash-lite": [
+        3e-7,
+        0.0000025,
+        3e-8,
+        null,
+        null,
+        { "serviceTiers": { "priority": 1.8, "flex": 0.5 } }
+    ],
+    "gemini-3.6-flash": [
+        7.5e-7,
+        0.00000375,
+        7.5e-8,
+        null,
+        null,
+        { "serviceTiers": { "priority": 1.8, "flex": 0.5 } }
+    ],
+    "gemini-3.7-flash": [
+        7.5e-7,
+        0.00000375,
+        7.5e-8,
+        null,
+        null,
+        { "serviceTiers": { "priority": 1.8, "flex": 0.5 } }
+    ],
+    "gemini-3.8-flash": [
+        7.5e-7,
+        0.00000375,
+        7.5e-8,
+        null,
+        null,
+        { "serviceTiers": { "priority": 1.8, "flex": 0.5 } }
+    ],
+    "gemini-3.8-flash-cyber": [
+        0.0000015,
+        0.0000075,
+        1.5e-7,
+        null,
+        null,
+        { "serviceTiers": { "priority": 1.8, "flex": 0.5 } }
+    ],
+    "gemini-3.8-live": [7.5e-7, 0.0000045, null, null, null],
+    "gemini-3.8-live-extended-thinking": [7.5e-7, 0.0000045, null, null, null],
+    "gemini-embedding-001": [1.5e-7, 0, null, null, null],
+    "gemini-embedding-2": [2e-7, 0, null, null, null],
+    "gemini-embedding-2-preview": [2e-7, 0, null, null, null],
+    "gemini-exp-1206": [3e-7, 0.0000025, 3e-8, null, null],
+    "gemini-flash-experimental": [0, 0, null, null, null],
+    "gemini-flash-latest": [
+        7.5e-7,
+        0.00000375,
+        7.5e-8,
+        null,
+        null,
+        { "serviceTiers": { "priority": 1.8, "flex": 0.5 } }
+    ],
+    "gemini-flash-lite-latest": [
+        3e-7,
+        0.0000025,
+        3e-8,
+        null,
+        null,
+        { "serviceTiers": { "priority": 1.8, "flex": 0.5 } }
+    ],
+    "gemini-live-2.5-flash-native-audio": [5e-7, 0.000002, null, null, null],
+    "gemini-live-2.5-flash-preview-native-audio-09-2025": [5e-7, 0.000002, null, null, null],
+    "gemini-nano-banana-2.1": [
+        0.0000015,
+        0.0000075,
+        1.5e-7,
+        null,
+        null,
+        { "serviceTiers": { "priority": 1.8 } }
+    ],
+    "gemini-omni-flash-preview": [0.0000015, 0.000009, null, null, null],
+    "gemini-pro-latest": [
+        0.000002,
+        0.000012,
+        2e-7,
+        null,
+        null,
+        {
+            "tiers": [[200, 0.000004, 0.000018, 4e-7, null, null]],
+            "serviceTiers": { "priority": 1.8, "flex": 0.5 }
+        }
+    ],
+    "gemini-robotics-er-1.5-preview": [3e-7, 0.0000025, 0, null, null],
+    "gemini-robotics-er-2-preview": [0.000001, 0.000005, 1e-7, null, null],
+    "gemini/deep-research-max-preview-04-2026": [0.000002, 0.000012, null, null, null],
+    "gemini/deep-research-preview-04-2026": [0.000002, 0.000012, null, null, null],
+    "gemini/deep-research-pro-preview-12-2025": [0.000002, 0.000012, null, null, null],
+    "gemini/gemini-2.0-flash-exp-image-generation": [0, 0, null, null, null],
+    "gemini/gemini-2.5-computer-use-preview-10-2025": [
+        0.00000125,
+        0.00001,
+        null,
+        null,
+        null,
+        { "tiers": [[200, 0.0000025, 0.000015, null, null, null]] }
+    ],
+    "gemini/gemini-2.5-flash": [
+        3e-7,
+        0.0000025,
+        3e-8,
+        null,
+        null,
+        { "serviceTiers": { "priority": 1.8, "flex": 0.5 } }
+    ],
+    "gemini/gemini-2.5-flash-image": [
+        3e-7,
+        0.0000025,
+        3e-8,
+        null,
+        null,
+        { "serviceTiers": { "priority": 1.8, "flex": 0.5 } }
+    ],
+    "gemini/gemini-2.5-flash-lite": [
+        1e-7,
+        4e-7,
+        1e-8,
+        null,
+        null,
+        { "serviceTiers": { "priority": 1.8, "flex": 0.5 } }
+    ],
+    "gemini/gemini-2.5-flash-native-audio-latest": [5e-7, 0.000002, null, null, null],
+    "gemini/gemini-2.5-flash-native-audio-preview-09-2025": [5e-7, 0.000002, null, null, null],
+    "gemini/gemini-2.5-flash-native-audio-preview-12-2025": [5e-7, 0.000002, null, null, null],
+    "gemini/gemini-2.5-flash-preview-tts": [5e-7, 0.00001, null, null, null],
+    "gemini/gemini-2.5-pro": [
+        0.00000125,
+        0.00001,
+        1.25e-7,
+        null,
+        null,
+        {
+            "tiers": [[200, 0.0000025, 0.000015, 2.5e-7, null, null]],
+            "serviceTiers": { "priority": 1.8, "flex": 0.5 }
+        }
+    ],
+    "gemini/gemini-2.5-pro-preview-tts": [0.000001, 0.00002, 1.25e-7, null, null],
+    "gemini/gemini-3-flash-preview": [
+        5e-7,
+        0.000003,
+        5e-8,
+        null,
+        null,
+        { "serviceTiers": { "priority": 1.8, "flex": 0.5 } }
+    ],
+    "gemini/gemini-3-pro-image": [
+        0.000002,
+        0.000012,
+        null,
+        null,
+        null,
+        { "serviceTiers": { "priority": 1.8, "flex": 0.5 } }
+    ],
+    "gemini/gemini-3-pro-image-preview": [
+        0.000002,
+        0.000012,
+        null,
+        null,
+        null,
+        { "serviceTiers": { "priority": 1.8, "flex": 0.5 } }
+    ],
+    "gemini/gemini-3.1-flash-image": [5e-7, 0.000003, null, null, null],
+    "gemini/gemini-3.1-flash-image-preview": [5e-7, 0.000003, null, null, null],
+    "gemini/gemini-3.1-flash-lite": [
+        2.5e-7,
+        0.0000015,
+        2.5e-8,
+        null,
+        null,
+        { "serviceTiers": { "priority": 1.8, "flex": 0.5 } }
+    ],
+    "gemini/gemini-3.1-flash-lite-image": [2.5e-7, 0.0000015, null, null, null],
+    "gemini/gemini-3.1-flash-lite-preview": [
+        2.5e-7,
+        0.0000015,
+        2.5e-8,
+        null,
+        null,
+        { "serviceTiers": { "priority": 1.8, "flex": 0.5 } }
+    ],
+    "gemini/gemini-3.1-flash-live-preview": [7.5e-7, 0.0000045, null, null, null],
+    "gemini/gemini-3.1-flash-tts-preview": [0.000001, 0.00002, null, null, null],
+    "gemini/gemini-3.1-pro-preview": [
+        0.000002,
+        0.000012,
+        2e-7,
+        null,
+        null,
+        {
+            "tiers": [[200, 0.000004, 0.000018, 4e-7, null, null]],
+            "serviceTiers": { "priority": 1.8, "flex": 0.5 }
+        }
+    ],
+    "gemini/gemini-3.1-pro-preview-customtools": [
+        0.000002,
+        0.000012,
+        2e-7,
+        null,
+        null,
+        {
+            "tiers": [[200, 0.000004, 0.000018, 4e-7, null, null]],
+            "serviceTiers": { "priority": 1.8, "flex": 0.5 }
+        }
+    ],
+    "gemini/gemini-3.5-flash": [
+        0.0000015,
+        0.000009,
+        1.5e-7,
+        null,
+        null,
+        { "serviceTiers": { "priority": 1.8, "flex": 0.5 } }
+    ],
+    "gemini/gemini-3.5-flash-lite": [
+        3e-7,
+        0.0000025,
+        3e-8,
+        null,
+        null,
+        { "serviceTiers": { "priority": 1.8, "flex": 0.5 } }
+    ],
+    "gemini/gemini-3.5-live-translate-preview": [0.0000035, 0.000021, null, null, null],
+    "gemini/gemini-3.5-transcribe": [0.000002, 0.000012, null, null, null],
+    "gemini/gemini-3.5-transcribe-live": [0.0000035, 0.000021, null, null, null],
+    "gemini/gemini-3.6-flash": [
+        7.5e-7,
+        0.00000375,
+        7.5e-8,
+        null,
+        null,
+        { "serviceTiers": { "priority": 1.8, "flex": 0.5 } }
+    ],
+    "gemini/gemini-3.7-flash": [
+        7.5e-7,
+        0.00000375,
+        7.5e-8,
+        null,
+        null,
+        { "serviceTiers": { "priority": 1.8, "flex": 0.5 } }
+    ],
+    "gemini/gemini-3.8-flash": [
+        7.5e-7,
+        0.00000375,
+        7.5e-8,
+        null,
+        null,
+        { "serviceTiers": { "priority": 1.8, "flex": 0.5 } }
+    ],
+    "gemini/gemini-3.8-flash-lite-tts": [
+        5e-7,
+        0.000006,
+        1.25e-7,
+        null,
+        null,
+        { "serviceTiers": { "priority": 1.8, "flex": 0.5 } }
+    ],
+    "gemini/gemini-3.8-flash-tts": [
+        5e-7,
+        0.000009,
+        1.25e-7,
+        null,
+        null,
+        { "serviceTiers": { "priority": 1.8, "flex": 0.5 } }
+    ],
+    "gemini/gemini-3.8-live": [7.5e-7, 0.0000045, null, null, null],
+    "gemini/gemini-3.8-live-extended-thinking": [7.5e-7, 0.0000045, null, null, null],
+    "gemini/gemini-4-argon": [
+        0.000002,
+        0.00001,
+        1e-7,
+        null,
+        null,
+        { "serviceTiers": { "priority": 1.8, "flex": 0.5 } }
+    ],
+    "gemini/gemini-embedding-001": [1.5e-7, 0, null, null, null],
+    "gemini/gemini-embedding-2": [2e-7, 0, null, null, null],
+    "gemini/gemini-embedding-2-preview": [2e-7, 0, null, null, null],
+    "gemini/gemini-exp-1114": [
+        0,
+        0,
+        null,
+        null,
+        null,
+        { "tiers": [[128, 0, 0, null, null, null]] }
+    ],
+    "gemini/gemini-exp-1206": [
+        0,
+        0,
+        null,
+        null,
+        null,
+        { "tiers": [[128, 0, 0, null, null, null]] }
+    ],
+    "gemini/gemini-flash-latest": [
+        7.5e-7,
+        0.00000375,
+        7.5e-8,
+        null,
+        null,
+        { "serviceTiers": { "priority": 1.8, "flex": 0.5 } }
+    ],
+    "gemini/gemini-flash-lite-latest": [
+        3e-7,
+        0.0000025,
+        3e-8,
+        null,
+        null,
+        { "serviceTiers": { "priority": 1.8, "flex": 0.5 } }
+    ],
+    "gemini/gemini-gemma-2-27b-it": [3.5e-7, 0.00000105, null, null, null],
+    "gemini/gemini-gemma-2-9b-it": [3.5e-7, 0.00000105, null, null, null],
+    "gemini/gemini-live-2.5-flash-preview-native-audio-09-2025": [5e-7, 0.000002, null, null, null],
+    "gemini/gemini-nano-banana-2.1": [0.0000015, 0.0000075, null, null, null],
+    "gemini/gemini-omni-1.1-flash": [0.0000015, 0.000009, null, null, null],
+    "gemini/gemini-omni-flash-preview": [0.0000015, 0.000009, null, null, null],
+    "gemini/gemini-pro-latest": [
+        0.000002,
+        0.000012,
+        2e-7,
+        null,
+        null,
+        {
+            "tiers": [[200, 0.000004, 0.000018, 4e-7, null, null]],
+            "serviceTiers": { "priority": 1.8, "flex": 0.5 }
+        }
+    ],
+    "gemini/gemini-robotics-er-2-preview": [0.000001, 0.000005, 1e-7, null, null],
+    "gemini/gemini-robotics-er-2-streaming-preview": [0.000001, 0.000005, null, null, null],
+    "gemini/gemma-3-27b-it": [0, 0, null, null, null, { "tiers": [[128, 0, 0, null, null, null]] }],
+    "gemini/gemma-4-26b-a4b-it": [0, 0, null, null, null],
+    "gemini/gemma-4-31b-it": [0, 0, null, null, null],
+    "gemini/learnlm-1.5-pro-experimental": [
+        0,
+        0,
+        null,
+        null,
+        null,
+        { "tiers": [[128, 0, 0, null, null, null]] }
+    ],
+    "gemini/lyria-3-clip-preview": [0, 0, null, null, null],
+    "gemini/lyria-3-pro-preview": [0, 0, null, null, null],
+    "gemini/lyria-3.5": [0, 0, null, null, null],
+    "gemini/lyria-3.5-clip-preview": [0, 0, null, null, null],
+    "gemini/lyria-3.5-pro-preview": [0, 0, null, null, null],
+    "gemini/lyria-realtime-exp": [0, 0, null, null, null],
+    "gemini/nano-banana-pro-preview": [
+        0.000002,
+        0.000012,
+        null,
+        null,
+        null,
+        { "serviceTiers": { "priority": 1.8, "flex": 0.5 } }
+    ],
     "gpt-3.5-turbo": [5e-7, 0.0000015, null, null, null],
     "gpt-3.5-turbo-0125": [5e-7, 0.0000015, null, null, null],
     "gpt-3.5-turbo-1106": [0.000001, 0.000002, null, null, null],
@@ -113,6 +602,7 @@
     "gpt-4o-mini-audio-preview-2024-12-17": [1.5e-7, 6e-7, null, null, null],
     "gpt-4o-mini-realtime-preview-2024-12-17": [6e-7, 0.0000024, 3e-7, null, null],
     "gpt-4o-mini-search-preview": [1.5e-7, 6e-7, 7.5e-8, null, null],
+    "gpt-4o-mini-search-preview-2025-03-11": [1.5e-7, 6e-7, 7.5e-8, null, null],
     "gpt-4o-mini-transcribe": [0.00000125, 0.000005, null, null, null],
     "gpt-4o-mini-transcribe-2025-03-20": [0.00000125, 0.000005, null, null, null],
     "gpt-4o-mini-transcribe-2025-12-15": [0.00000125, 0.000005, null, null, null],
@@ -120,6 +610,7 @@
     "gpt-4o-mini-tts-2025-03-20": [6e-7, 0.00001, null, null, null],
     "gpt-4o-mini-tts-2025-12-15": [6e-7, 0.00001, null, null, null],
     "gpt-4o-search-preview": [0.0000025, 0.00001, 0.00000125, null, null],
+    "gpt-4o-search-preview-2025-03-11": [0.0000025, 0.00001, 0.00000125, null, null],
     "gpt-4o-transcribe": [0.0000025, 0.00001, null, null, null],
     "gpt-4o-transcribe-diarize": [0.0000025, 0.00001, null, null, null],
     "gpt-5": [
@@ -157,22 +648,8 @@
         null,
         { "serviceTiers": { "priority": 1.8, "flex": 0.5 } }
     ],
-    "gpt-5-nano": [
-        5e-8,
-        4e-7,
-        5e-9,
-        null,
-        null,
-        { "serviceTiers": { "priority": 50, "flex": 0.5 } }
-    ],
-    "gpt-5-nano-2025-08-07": [
-        5e-8,
-        4e-7,
-        5e-9,
-        null,
-        null,
-        { "serviceTiers": { "priority": 50, "flex": 0.5 } }
-    ],
+    "gpt-5-nano": [5e-8, 4e-7, 5e-9, null, null, { "serviceTiers": { "flex": 0.5 } }],
+    "gpt-5-nano-2025-08-07": [5e-8, 4e-7, 5e-9, null, null, { "serviceTiers": { "flex": 0.5 } }],
     "gpt-5-pro": [0.000015, 0.00012, null, null, null],
     "gpt-5-pro-2025-10-06": [0.000015, 0.00012, null, null, null],
     "gpt-5-search-api": [0.00000125, 0.00001, 1.25e-7, null, null],
@@ -312,6 +789,7 @@
         }
     ],
     "gpt-5.5-cyber": [0.0000125, 0.000075, 0.00000125, null, null],
+    "gpt-5.5-cyber-preview": [0.0000125, 0.000075, 0.00000125, null, null],
     "gpt-5.5-pro": [
         0.00003,
         0.00018,
@@ -402,6 +880,14 @@
             "serviceTiers": { "priority": 2, "flex": 0.5 }
         }
     ],
+    "gpt-6-rosalind": [
+        0.000015,
+        0.000075,
+        0.0000015,
+        0.00001875,
+        null,
+        { "tiers": [[272, 0.00003, 0.0001125, 0.000003, 0.0000375, null]] }
+    ],
     "gpt-6-sol": [
         0.000002,
         0.00001,
@@ -424,10 +910,22 @@
             "serviceTiers": { "priority": 2, "flex": 0.5 }
         }
     ],
+    "gpt-6.1-terra": [
+        0.000001,
+        0.000005,
+        5e-8,
+        0.00000125,
+        null,
+        {
+            "tiers": [[272, 0.000002, 0.0000075, 1e-7, 0.0000025, null]],
+            "serviceTiers": { "priority": 2, "flex": 0.5 }
+        }
+    ],
     "gpt-audio": [0.0000025, 0.00001, null, null, null],
     "gpt-audio-1.5": [0.0000025, 0.00001, null, null, null],
     "gpt-audio-2025-08-28": [0.0000025, 0.00001, null, null, null],
     "gpt-audio-mini": [6e-7, 0.0000024, null, null, null],
+    "gpt-audio-mini-2025-10-06": [6e-7, 0.0000024, null, null, null],
     "gpt-audio-mini-2025-12-15": [6e-7, 0.0000024, null, null, null],
     "gpt-daybreak-blue-latest": [
         0.000004,
@@ -478,6 +976,7 @@
         { "serviceTiers": { "priority": 1.75, "flex": 0.5 } }
     ],
     "o3-deep-research": [0.00001, 0.00004, 0.0000025, null, null],
+    "o3-deep-research-2025-06-26": [0.00001, 0.00004, 0.0000025, null, null],
     "o3-mini": [0.0000011, 0.0000044, 5.5e-7, null, null],
     "o3-mini-2025-01-31": [0.0000011, 0.0000044, 5.5e-7, null, null],
     "o3-pro": [0.00002, 0.00008, null, null, null],
@@ -499,6 +998,7 @@
         { "serviceTiers": { "priority": 1.81818, "flex": 0.5 } }
     ],
     "o4-mini-deep-research": [0.000002, 0.000008, 5e-7, null, null],
+    "o4-mini-deep-research-2025-06-26": [0.000002, 0.000008, 5e-7, null, null],
     "xai/grok-4.20": [
         0.00000125,
         0.0000025,

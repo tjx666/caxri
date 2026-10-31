@@ -4,6 +4,11 @@ import { readBoundedRegularFileText } from '@caxri/system';
 import Database from 'better-sqlite3';
 
 import type { AgentEnvironment } from './contract';
+import {
+    ANTIGRAVITY_SUBAGENT_SOURCE,
+    readAntigravityConversation,
+    readAntigravityConversationSummary,
+} from './providers/antigravity/conversation-database';
 import { isHostedClaudeEntrypoint } from './providers/claude/entrypoint';
 import { claudeTranscriptRoot } from './providers/claude/paths';
 import { resolveCodexStateDirectories } from './providers/codex/paths';
@@ -25,11 +30,18 @@ import {
 
 export type ExternalConversationProvider = 'claude' | 'codex' | 'grok';
 
+/**
+ * Providers whose conversations the parsers classify. Antigravity is parsed for Session search only: the
+ * outside-conversation list feeds Caxri Bot hand-over, which needs visible delegation that Antigravity lacks.
+ */
+type ConversationParserProvider = ExternalConversationProvider | 'antigravity';
+
 export interface ConversationCandidate {
-    provider: ExternalConversationProvider;
+    provider: ConversationParserProvider;
     providerSessionId: string;
     /**
-     * The transcript whose mtime is `updatedAt`: Claude `<id>.jsonl`, Codex rollout, Grok `updates.jsonl`.
+     * The transcript whose mtime is `updatedAt`: Claude `<id>.jsonl`, Codex rollout, Grok `updates.jsonl`, Antigravity
+     * `conversations/<id>.db`.
      */
     path: string;
     updatedAt: number;
@@ -126,13 +138,17 @@ export async function parseConversationCandidate(
 export async function classifyConversationCandidate(
     candidate: ConversationCandidate,
     codexNames: ReadonlyMap<string, string>,
+    environment?: AgentEnvironment,
 ): Promise<ConversationParse> {
-    return (await settled(() => parseCandidate(candidate, codexNames))) ?? 'unreadable';
+    return (
+        (await settled(() => parseCandidate(candidate, codexNames, environment))) ?? 'unreadable'
+    );
 }
 
 function parseCandidate(
     candidate: ConversationCandidate,
     codexNames: ReadonlyMap<string, string>,
+    environment: AgentEnvironment | undefined,
 ): Promise<ConversationParse> {
     switch (candidate.provider) {
         case 'claude':
@@ -141,6 +157,10 @@ function parseCandidate(
             return parseCodexConversation(candidate, codexNames.get(candidate.providerSessionId));
         case 'grok':
             return parseGrokConversation(candidate);
+        case 'antigravity':
+            return Promise.resolve(
+                environment ? parseAntigravityConversation(candidate, environment) : 'unreadable',
+            );
     }
 }
 
@@ -553,4 +573,24 @@ async function parseGrokConversation(candidate: ConversationCandidate): Promise<
         finishConversation(cwd, stringField(summary, 'generated_title'), prompt.prompt, head),
         stringField(summary, 'parent_session_id'),
     );
+}
+
+// Antigravity
+
+/**
+ * Antigravity keeps the folder and its generated title in `conversation_summaries.db` and the conversation itself in
+ * `conversations/<id>.db`; see `providers/antigravity/conversation-database.ts`. A conversation a parent spawned as a
+ * subagent is not one the user had.
+ */
+function parseAntigravityConversation(
+    candidate: ConversationCandidate,
+    environment: AgentEnvironment,
+): ConversationParse {
+    const conversation = readAntigravityConversation(candidate.path);
+    if (!conversation) return 'unreadable';
+    if (conversation.source === ANTIGRAVITY_SUBAGENT_SOURCE) return 'sidechain';
+    const summary = readAntigravityConversationSummary(environment, candidate.providerSessionId);
+    if (!summary) return 'missingMetadata';
+    const prompt = conversation.messages.find((message) => message.role === 'user')?.text;
+    return finishConversation(summary.cwd, summary.title, prompt);
 }

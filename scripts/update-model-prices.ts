@@ -13,7 +13,8 @@ if (!response.ok) throw new Error(`Price list request failed: ${response.status}
 /**
  * Model families Caxri's Agent providers report in their transcripts.
  */
-const BUNDLED_MODEL_PATTERN = /^(?:anthropic\/|openai\/|xai\/)?(?:claude|gpt|codex|grok|o\d)/;
+const BUNDLED_MODEL_PATTERN =
+    /^(?:anthropic\/|openai\/|xai\/)?(?:claude|gpt|codex|grok|gemini|o\d)/;
 const prices = projectLiteLlmPrices(await response.json());
 const entries = Object.entries(prices)
     .filter(([model]) => BUNDLED_MODEL_PATTERN.test(model))

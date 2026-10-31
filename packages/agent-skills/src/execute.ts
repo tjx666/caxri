@@ -128,12 +128,10 @@ function managedBundle(): ManagedSkillBundle {
 
 function providerRoot(context: SkillExecutionContext, provider: SkillProvider): string {
     const integration = requireAgentSkillProviderIntegration(provider);
-    const configured = context.environment[integration.configEnvironmentVariable];
+    const variable = integration.configEnvironmentVariable;
+    const configured = variable ? context.environment[variable] : undefined;
     if (configured && !isAbsolute(configured))
-        throw new CaxriError(
-            'VALIDATION',
-            `${integration.configEnvironmentVariable} must be absolute`,
-        );
+        throw new CaxriError('VALIDATION', `${variable} must be absolute`);
     return resolve(configured ?? join(context.home, integration.defaultConfigDirectory));
 }
 

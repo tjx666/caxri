@@ -11,15 +11,19 @@ import type {
 } from '../agents';
 import {
     agentProviders,
+    antigravityConversationPath,
+    antigravityConversationStamp,
+    antigravityStateDirectory,
     isCompressedTranscriptPath,
     locateAgentTranscriptForIdentity,
     locateEarlierCodexRollouts,
+    readAntigravityConversation,
     scanTranscriptLines,
 } from '../agents';
 import type { RateLimitObservation } from './accumulator';
 import { UsageAccumulator } from './accumulator';
 import type { ClaudeMessageUsage, UsageLineParser, UsageParserOptions } from './parsers';
-import { usageParserFor } from './parsers';
+import { usageKeyDigest, usageParserFor } from './parsers';
 import type { UsageRecord } from './record';
 import { USAGE_RECORD_VERSION } from './record';
 
@@ -109,6 +113,27 @@ async function fileStamp(path: string): Promise<FileStamp | undefined> {
     } catch {
         return undefined;
     }
+}
+
+/**
+ * An Antigravity conversation is a SQLite database whose recent writes sit in its write-ahead log, so its stamp covers
+ * both files.
+ */
+async function mainFileStamp(
+    provider: AgentProvider,
+    path: string,
+): Promise<FileStamp | undefined> {
+    if (provider !== 'antigravity') return fileStamp(path);
+    const stamp = await antigravityConversationStamp(path);
+    return stamp && { stamp: `${stamp.size}:${stamp.mtimeMs}`, bornAt: stamp.bornAt };
+}
+
+function antigravityLocation(
+    environment: AgentEnvironment,
+    agentSessionId: string,
+): AgentTranscriptLocation {
+    const path = antigravityConversationPath(environment, agentSessionId);
+    return { baseRoot: antigravityStateDirectory(environment), root: dirname(path), path };
 }
 
 async function directoryMtime(path: string): Promise<number | undefined> {
@@ -220,8 +245,11 @@ export class UsageTranscriptLocator {
      * history keeps the hours it happened in instead of arriving as one lump with the first total after the revert.
      */
     async locate(target: UsageScanTarget): Promise<UsageTranscriptFiles | undefined> {
-        let main = await locateAgentTranscriptForIdentity(target, this.environment);
-        let mainStamp = main && (await fileStamp(main.path));
+        let main =
+            target.provider === 'antigravity'
+                ? antigravityLocation(this.environment, target.agentSessionId)
+                : await locateAgentTranscriptForIdentity(target, this.environment);
+        let mainStamp = main && (await mainFileStamp(target.provider, main.path));
         if (!mainStamp && target.provider === 'claude') {
             main = await this.findClaudeTranscript(target.agentSessionId);
             mainStamp = main && (await fileStamp(main.path));
@@ -242,7 +270,7 @@ export class UsageTranscriptLocator {
         provider: AgentProvider,
         main: AgentTranscriptLocation,
     ): Promise<UsageTranscriptFiles | undefined> {
-        const mainStamp = await fileStamp(main.path);
+        const mainStamp = await mainFileStamp(provider, main.path);
         return mainStamp ? this.withSideFiles(provider, main, mainStamp) : undefined;
     }
 }
@@ -336,7 +364,49 @@ export class IncrementalUsageScan {
         ];
     }
 
+    /**
+     * An Antigravity database has no byte cursor to resume from, so each advance re-reads the conversation into a fresh
+     * aggregate. One model call (a `gen_metadata` row) is one billed unit.
+     */
+    private readAntigravity(files: UsageTranscriptFiles): void {
+        const accumulator = new UsageAccumulator();
+        accumulator.bornAt = files.bornAt;
+        const conversation = readAntigravityConversation(files.main.path);
+        const activity = conversation?.activity ?? [];
+        for (const at of activity) accumulator.markActivity(at);
+        accumulator.endStream();
+        const conversationId = basename(files.main.path, '.db');
+        const generations = conversation?.generations ?? [];
+        for (const generation of generations) {
+            const at = generation.at ?? activity.at(-1);
+            if (at === undefined) continue;
+            const digest = usageKeyDigest('antigravity', `${conversationId}:${generation.index}`);
+            accumulator.addKey(digest);
+            if (this.options.isCountedElsewhere?.(digest)) continue;
+            accumulator.addUsage(
+                at,
+                generation.model,
+                {
+                    input: generation.input,
+                    output: generation.output,
+                    cacheRead: generation.cacheRead,
+                    cacheWrite: generation.cacheWrite,
+                    cacheWrite1h: 0,
+                    reasoning: generation.reasoning,
+                },
+                {
+                    contextTokens: generation.input + generation.cacheRead + generation.cacheWrite,
+                },
+            );
+        }
+        this.accumulator = accumulator;
+    }
+
     private async readAppended(files: UsageTranscriptFiles): Promise<StreamReadOutcome> {
+        if (this.provider === 'antigravity') {
+            this.readAntigravity(files);
+            return 'read';
+        }
         this.accumulator.bornAt = files.bornAt;
         for (const [location, options] of this.parserOptions(files)) {
             let stream = this.streams.get(location.path);

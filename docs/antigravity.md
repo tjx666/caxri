@@ -47,7 +47,40 @@ marks the turn failed. Both events carry the `conversationId`, which binds the T
 `SessionStart` is deliberately not bound: a subagent's conversation fires it too, with nothing that
 tells it apart from the main one, and any identity signal rebinds the Terminal.
 
-Native rename, Agent messaging, Agent Actions, and bundled skills are unavailable.
+Native rename, Agent messaging, Agent Actions, and Agent delegation are unavailable; delegation
+and messaging are tracked in [issue #3272](https://github.com/tjx666/caxri/issues/3272).
+
+## Conversation database
+
+Session search and Usage read `~/.gemini/antigravity-cli/conversations/<id>.db` directly, opened
+read-only (`providers/antigravity/conversation-database.ts`). Each conversation is a SQLite database
+in WAL mode whose `steps` and `gen_metadata` rows hold protobuf blobs; the field numbers come from the
+descriptors embedded in `agy` 1.4.11 and were checked against real databases with a content-free
+structural probe. A layout change degrades to missing values, never a throw.
+
+- **Messages**: only `USER_INPUT` and `PLANNER_RESPONSE` steps are decoded, taking the user's query
+  and the reply's visible response. Thinking, tool calls, tool output, and system steps are never
+  selected. A conversation whose `trajectory_meta.source` is `SUBAGENT` is excluded, like other
+  Agents' sidechains.
+- **Folder and title**: from `conversation_summaries.db` (`workspace_uris` and `title`); the raw
+  first prompt in `preview` is never read.
+- **Usage**: one `gen_metadata` row is one billed model call, keyed by conversation id and row index.
+  `input` excludes cache reads, which are counted separately, and `output` already includes thinking
+  tokens. A running `agy` appends to the write-ahead log, so the change stamp covers the database and
+  its `-wal` file, and each refresh re-reads the whole conversation. Cost uses the Gemini API list price of
+  the model family (`gemini-3.8-flash-n` prices as `gemini-3.8-flash`), which the bundled price
+  snapshot includes for offline use.
+
+The Bot handover's external conversation list does not include Antigravity yet, because it only
+lists delegation targets.
+
+## Bundled skills
+
+Caxri installs its bundled skills to `~/.gemini/config/skills/<name>/SKILL.md` globally and to
+`<project>/.agents/skills` locally, the same Project directory Codex reads. `agy` 1.4.11 reads both
+roots; no environment variable relocates the global one. The installer makes `caxri-cli` a symlink
+to a versioned release directory, as for the other Agents; a one-time `agy -p` probe of 1.4.11 listed
+the skill from such a Project-local install.
 
 ## Conversation title
 

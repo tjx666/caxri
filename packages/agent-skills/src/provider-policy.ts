@@ -2,7 +2,13 @@ import type { AgentProvider } from '@caxri/protocol';
 import { agentProviderCatalog, agentProviderIds, CaxriError } from '@caxri/protocol';
 
 export interface AgentSkillProviderIntegration {
-    configEnvironmentVariable: string;
+    /**
+     * The variable that relocates the provider's configuration root; omitted when the provider reads none.
+     */
+    configEnvironmentVariable?: string;
+    /**
+     * The configuration root under the home directory; global skills live in its `skills` folder.
+     */
     defaultConfigDirectory: string;
     localSkillsDirectory: string;
 }
@@ -34,9 +40,14 @@ export const agentSkillProviderIntegrations: Record<
         localSkillsDirectory: '.agents',
     },
     /**
-     * Antigravity reads skills from its own customization roots, which Caxri has not reviewed yet.
+     * `agy` discovers skills as `<name>/SKILL.md` under `<workspace>/.agents/skills` and `~/.gemini/config/skills`, the
+     * roots its built-in workflow-migration skill names; no environment variable relocates `~/.gemini`. Verified
+     * against `agy` 1.4.11.
      */
-    antigravity: null,
+    antigravity: {
+        defaultConfigDirectory: '.gemini/config',
+        localSkillsDirectory: '.agents',
+    },
 };
 
 export const agentSkillProviderIds = agentProviderIds.filter(

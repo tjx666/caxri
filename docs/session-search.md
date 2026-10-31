@@ -6,7 +6,7 @@ status: current
 # Session search
 
 Press `Command+Shift+S`, or run **Search Sessions** from the Command Palette, the Session menu,
-or Archived Sessions. One picker finds every Claude, Codex, and Grok conversation on this machine,
+or Archived Sessions. One picker finds every Claude, Codex, Grok, and Antigravity conversation on this machine,
 whether it is an open Caxri Session, an archived one, or a conversation run in a plain terminal
 that Caxri never saw.
 
@@ -23,7 +23,8 @@ more characters lands on that conversation first. An empty query lists recent co
 Message text means the visible user and assistant messages, extracted through the same boundary
 title generation and the conversation reader use: tool calls and output, reasoning, sidechains,
 injected instructions, and Terminal screen contents never match. Grok's stream chunks are joined
-into one message first. Inline Markdown markers (code spans, `**`, `__`, `~~`) are dropped from
+into one message first, and Antigravity's messages come from its conversation database
+([Antigravity](antigravity.md#conversation-database)). Inline Markdown markers (code spans, `**`, `__`, `~~`) are dropped from
 both the indexed text and the query, so a sentence copied from a rendered Agent Chat message still
 matches. Scripted runs (a Claude conversation whose first entry point is `sdk-cli`, Codex subagent
 threads) are not conversations the user had and never appear. A Claude conversation an application
@@ -36,7 +37,7 @@ hosted conversations no Session holds.
 
 ### Operators, relaxation, and the current Project
 
-The query accepts `agent:claude|codex|grok`, `project:<text>` (or `project:"two words"`),
+The query accepts `agent:claude|codex|grok|antigravity`, `project:<text>` (or `project:"two words"`),
 `before:YYYY-MM-DD`, and `after:YYYY-MM-DD`. They narrow the search and are not matched as words:
 `agent:` repeats widen to several Agents and combine with the Agent chips by intersection,
 `project:` keeps conversations whose folder contains the text (case-insensitive), `before:` excludes

@@ -13,7 +13,11 @@ import type { StructuredLogger } from '@caxri/system';
 import { mapWithConcurrency, SingleFlight } from '@caxri/system';
 
 import type { AgentEnvironment, DiscoveredTranscript } from '../agents';
-import { discoverTranscripts, readTranscriptCwd } from '../agents';
+import {
+    discoverTranscripts,
+    readAntigravityConversationSummary,
+    readTranscriptCwd,
+} from '../agents';
 import type { AgentSessionUsageRow, CaxriDatabase, ExternalAgentUsageRow } from '../db';
 import type { ExternalStatusRunner } from '../external-status';
 import { UsageKeyIndex } from './key-index';
@@ -415,7 +419,12 @@ export class UsageService {
                 cwd:
                     transcript.cwd ??
                     previous?.cwd ??
-                    (await readTranscriptCwd(transcript.main)) ??
+                    (transcript.provider === 'antigravity'
+                        ? readAntigravityConversationSummary(
+                              this.options.environment,
+                              transcript.agentSessionId,
+                          )?.cwd
+                        : await readTranscriptCwd(transcript.main)) ??
                     null,
                 sourceFingerprint: files.fingerprint,
                 scannedAt: this.now(),
