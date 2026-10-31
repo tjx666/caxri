@@ -399,6 +399,8 @@ export class FileService {
         const resolved: Array<{ path: string; specifier: string }> = [];
         const uniqueSpecifiers = new Set(parameters.specifiers);
         const budget = { remaining: 4096 };
+        const probe = (candidates: string[]) =>
+            resolveImportSpecifier(this.projectRoots, parameters, candidates, budget);
         const config = parameters.specifiers.some(
             (specifier) => !isRelativeImportSpecifier(specifier),
         )
@@ -411,14 +413,9 @@ export class FileService {
             const candidates = isRelativeImportSpecifier(specifier)
                 ? relativeImportCandidatePaths(from.workspacePath ?? from.path, specifier)
                 : tsconfigImportTargets(config, specifier).flatMap(importCandidatePaths);
+
             // oxlint-disable-next-line react-doctor/async-await-in-loop
-            // eslint-disable-next-line no-await-in-loop -- see above
-            let path = await resolveImportSpecifier(
-                this.projectRoots,
-                parameters,
-                candidates,
-                budget,
-            );
+            let path = await probe(candidates); // eslint-disable-line no-await-in-loop -- see above
             if (!path && !isRelativeImportSpecifier(specifier) && budget.remaining > 0) {
                 // oxlint-disable-next-line react-doctor/async-await-in-loop
                 // eslint-disable-next-line no-await-in-loop -- package fallback follows alias resolution
@@ -428,13 +425,7 @@ export class FileService {
                     specifier,
                 );
                 // oxlint-disable-next-line react-doctor/async-await-in-loop
-                // eslint-disable-next-line no-await-in-loop -- first authorized target wins
-                path = await resolveImportSpecifier(
-                    this.projectRoots,
-                    parameters,
-                    packageCandidates,
-                    budget,
-                );
+                path = await probe(packageCandidates); // eslint-disable-line no-await-in-loop -- first authorized target wins
             }
             if (path) resolved.push({ path, specifier });
         }
