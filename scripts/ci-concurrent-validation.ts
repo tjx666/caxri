@@ -25,8 +25,8 @@ type ConcurrentValidationComponent = 'desktop-exclusive' | 'parallel-safe';
 
 /**
  * Which slice of the hosted-full E2E work this runner owns. Each runs in its own job with its own 25-minute deadline
- * (#1869): `exclusive` is the single-worker pool, `parallel-safe` is one shard of the three-worker pool. The platform
- * checks run in their own Linux job on this route.
+ * (#1869): `exclusive` is one shard of the single-worker pool, `parallel-safe` is one shard of the three-worker pool.
+ * The platform checks run in their own Linux job on this route.
  */
 type E2EValidationComponent = 'exclusive' | 'parallel-safe';
 
@@ -397,8 +397,9 @@ async function runParallelSafeE2E(
 }
 
 /**
- * The single-worker leg: setup, the exclusive pool, and its manifest. Interruption recovery and the failure-census
- * fixture run as plain steps in `e2e-perf`, outside this window.
+ * The single-worker leg: setup, one shard of the exclusive pool (`CAXRI_E2E_SHARD`, absent means the whole pool), and
+ * its manifest. Interruption recovery and the failure-census fixture run as plain steps in `e2e-perf`, outside this
+ * window.
  */
 async function runExclusiveE2E(
     environment: NodeJS.ProcessEnv,
@@ -408,12 +409,11 @@ async function runExclusiveE2E(
     const desktopExclusive = await runReceiptedE2E(
         processes,
         'bun',
-        measured('Playwright desktop-exclusive workers=1', 'bun', [
-            'run',
-            'scripts/run-e2e-pools.ts',
-            '--pool',
-            'desktop-exclusive',
-        ]),
+        measured(
+            `Playwright desktop-exclusive workers=1${environment.CAXRI_E2E_SHARD ? ` shard=${environment.CAXRI_E2E_SHARD}` : ''}`,
+            'bun',
+            ['run', 'scripts/run-e2e-pools.ts', '--pool', 'desktop-exclusive'],
+        ),
         { environment, label: 'Desktop-exclusive E2E pool' },
     );
     const manifest = await runReceiptedE2E(

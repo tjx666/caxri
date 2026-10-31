@@ -97,6 +97,9 @@ describe('E2E pools', () => {
         expect(parseE2EPool(['--pool', 'parallel-safe'])).toBe('parallel-safe');
         expect(parseE2EPool(['--pool', 'desktop-exclusive'])).toBe('desktop-exclusive');
         expect(parseE2EPool(['--pool', 'control'])).toBe('control');
+        expect(parseE2EPool(['--pool', 'desktop-exclusive', '--shard', '2/2'])).toBe(
+            'desktop-exclusive',
+        );
         expect(() => parseE2EPool([])).toThrow('Usage: run-e2e-pools.ts');
         expect(() => parseE2EPool(['--pool', 'unknown'])).toThrow('Usage: run-e2e-pools.ts');
     });

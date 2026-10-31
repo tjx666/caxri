@@ -598,7 +598,8 @@ jobs:
             PNPM_VERSION="$(pnpm --version)" \
             LOCKFILE_SHA256="$(shasum -a 256 pnpm-lock.yaml | awk '{print $1}')" \
             bun -e 'console.log(`CAXRI_VALIDATION_ENV ${JSON.stringify({ bun: Bun.version, e2eParallelWorkers: process.env.E2E_PARALLEL_WORKERS, e2eProfile: process.env.E2E_PROFILE, exactHead: process.env.CAXRI_EXPECTED_HEAD, lockfileSha256: process.env.LOCKFILE_SHA256, node: process.env.NODE_VERSION, pnpm: process.env.PNPM_VERSION, runnerLabels: process.env.RUNNER_LABELS?.split(","), runnerName: process.env.RUNNER_NAME, vitestMaxWorkers: process.env.VITEST_MAX_WORKERS, vitestPartition: process.env.VITEST_PARTITION })}`)'
-      # The exclusive leg of the hosted-full route: the single-worker pool alone. The platform checks run in
+      # The exclusive leg of the hosted-full route: the first half of the single-worker pool alone (the second half runs
+      # in `e2e-parallel`). The platform checks run in
       # `checks-hosted-full`, the three-worker pool shards in `e2e-parallel`, and the performance gates plus the
       # interruption-recovery and failure-census proofs in `e2e-perf`, each on its own runner (#1869).
       - id: concurrent-full
@@ -609,6 +610,9 @@ jobs:
           needs.retry-policy.outputs.e2e_profile == 'optimized'
         env:
           CAXRI_E2E_COMPONENT: exclusive
+          # Exclusive means one Electron at a time per machine, so the pool splits across two runners; this step only
+          # runs on the optimized full-scope route. The direct pool steps below keep running the whole pool.
+          CAXRI_E2E_SHARD: 1/2
         run: |
           if [ -z "$CAXRI_CHECKS_REVISION" ]; then
             echo "The workflow event is missing its immutable revision SHA" >&2
@@ -806,15 +810,20 @@ jobs:
             test "$(cat "$temporary_root/.caxri-owner")" = "$owner"
             rm -rf -- "$temporary_root"
           fi
-  # One shard of the parallel-safe pool per runner (hosted-full only). Sharding keeps the three-worker pool, which ran at
-  # about 0.27 tests/s on one runner, from sharing a 25-minute window with the exclusive pool (#1869).
+  # One shard of the parallel-safe pool per runner (hosted-full only), plus the second half of the desktop-exclusive pool
+  # as an `include` entry. Sharding keeps the three-worker pool, which ran at about 0.27 tests/s on one runner, and the
+  # one-worker pool from filling a 25-minute window alone (#1869). `matrix.component` is unset for the parallel-safe
+  # shards; the `2/2` entry cannot extend one of them, so GitHub adds it as its own leg.
   e2e-parallel:
-    name: e2e-parallel (${{ matrix.shard }})
+    name: e2e-parallel (${{ matrix.component == 'exclusive' && 'exclusive ' || '' }}${{ matrix.shard }})
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        shard: ['1/2', '2/2']
+        shard: ['1/3', '2/3', '3/3']
+        include:
+          - component: exclusive
+            shard: '2/2'
     needs: [retry-policy]
     # The hosted-full optimized full-scope route only. `checks` is skipped there and runs as `checks-hosted-full`,
     # so these legs depend on the policy alone and start with it, in parallel with `e2e`.
@@ -844,6 +853,9 @@ jobs:
       CAXRI_RUNNER_OWNER: caxri-${{ github.run_id }}-${{ github.run_attempt }}-e2e
       PW_TEST_REPORTER: ''
       CAXRI_E2E_SHARD: ${{ matrix.shard }}
+      CAXRI_E2E_COMPONENT: ${{ matrix.component || 'parallel-safe' }}
+      # The pool this leg runs, which names its receipt and failure artifact.
+      CAXRI_E2E_SHARD_POOL: ${{ matrix.component == 'exclusive' && 'desktop-exclusive' || 'parallel-safe' }}
     steps:
       - name: Verify hosted runner boundary before checkout
         run: |
@@ -915,37 +927,35 @@ jobs:
             PNPM_VERSION="$(pnpm --version)" \
             LOCKFILE_SHA256="$(shasum -a 256 pnpm-lock.yaml | awk '{print $1}')" \
             bun -e 'console.log(`CAXRI_VALIDATION_ENV ${JSON.stringify({ bun: Bun.version, e2eParallelWorkers: process.env.E2E_PARALLEL_WORKERS, e2eProfile: process.env.E2E_PROFILE, exactHead: process.env.CAXRI_EXPECTED_HEAD, lockfileSha256: process.env.LOCKFILE_SHA256, node: process.env.NODE_VERSION, pnpm: process.env.PNPM_VERSION, runnerLabels: process.env.RUNNER_LABELS?.split(","), runnerName: process.env.RUNNER_NAME, vitestMaxWorkers: process.env.VITEST_MAX_WORKERS, vitestPartition: process.env.VITEST_PARTITION })}`)'
-      - id: concurrent-parallel-safe
-        name: Execute one parallel-safe shard
-        env:
-          CAXRI_E2E_COMPONENT: parallel-safe
+      - id: concurrent-shard
+        name: Execute one pool shard
         run: |
           if [ -z "$CAXRI_CHECKS_REVISION" ]; then
             echo "The workflow event is missing its immutable revision SHA" >&2
             exit 1
           fi
           bun run scripts/ci-concurrent-validation.ts run
-      - id: parallel-safe-receipt
-        name: Verify parallel-safe shard
-        if: always() && steps.concurrent-parallel-safe.outcome != 'skipped'
-        run: bun run scripts/ci-concurrent-validation.ts verify parallel-safe
+      - id: shard-receipt
+        name: Verify pool shard
+        if: always() && steps.concurrent-shard.outcome != 'skipped'
+        run: bun run scripts/ci-concurrent-validation.ts verify "$CAXRI_E2E_SHARD_POOL"
       - name: Prepare public E2E receipts
         id: prepare-public-e2e-receipts
         if: always()
         run: bun run scripts/prepare-public-e2e-receipts.ts
       # The shard's own receipt exists whenever the pool started; a setup failure leaves none and fails the verify step.
-      - name: Upload parallel-safe failure artifacts
+      - name: Upload pool shard failure artifacts
         if: >-
           always() &&
           steps.prepare-public-e2e-receipts.outcome == 'success' &&
-          steps.parallel-safe-receipt.outcome == 'failure' &&
-          hashFiles('test-results/receipts/parallel-safe.json') != ''
+          steps.shard-receipt.outcome == 'failure' &&
+          hashFiles(format('test-results/receipts/{0}.json', env.CAXRI_E2E_SHARD_POOL)) != ''
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: e2e-parallel-safe-failure-artifacts-shard-${{ strategy.job-index }}
+          name: e2e-${{ env.CAXRI_E2E_SHARD_POOL }}-failure-artifacts-shard-${{ strategy.job-index }}
           # Only schema-validated receipts may leave the runner. Playwright outputs can embed repository source and
           # Terminal snapshots even when their paths are redacted, so they remain on the disposable hosted machine.
-          path: test-results/public-receipts/parallel-safe.json
+          path: test-results/public-receipts/${{ env.CAXRI_E2E_SHARD_POOL }}.json
           if-no-files-found: error
           retention-days: 7
       - name: Remove hosted E2E temporary root

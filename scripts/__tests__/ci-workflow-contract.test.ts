@@ -375,7 +375,13 @@ describe('CI workflow contract', () => {
         const jobs = document.jobs as Record<
             string,
             WorkflowJob & {
-                'strategy'?: { 'fail-fast'?: boolean; 'matrix'?: { shard?: string[] } };
+                'strategy'?: {
+                    'fail-fast'?: boolean;
+                    'matrix'?: {
+                        include?: Array<{ component?: string; shard?: string }>;
+                        shard?: string[];
+                    };
+                };
                 'timeout-minutes'?: number;
             }
         >;
@@ -383,23 +389,42 @@ describe('CI workflow contract', () => {
         // The exclusive leg runs the single-worker pool alone: no checks branch, sharded pool, or performance gate, and
         // no auxiliary proofs inside the window.
         expect(e2e).toContain('CAXRI_E2E_COMPONENT: exclusive');
+        // The exclusive leg owns the first half of the pool, and only on the step that runs the concurrent window.
+        expect(e2e).toContain('CAXRI_E2E_SHARD: 1/2');
+        expect(e2e.match(/CAXRI_E2E_SHARD:/gu)).toHaveLength(1);
+        expect(e2e.indexOf('CAXRI_E2E_SHARD: 1/2')).toBeGreaterThan(
+            e2e.indexOf('id: concurrent-full'),
+        );
+        expect(e2e.indexOf('CAXRI_E2E_SHARD: 1/2')).toBeLessThan(
+            e2e.indexOf('id: desktop-exclusive-receipt'),
+        );
         expect(e2e).not.toContain('verify checks');
         expect(e2e).not.toContain('verify e2e-auxiliary');
         expect(e2e).not.toContain('CAXRI_CHECKS_FETCH_REF');
         expect(e2e).not.toContain('ci-checks-worktree.ts');
         expect(e2e).toContain('verify desktop-exclusive');
         expect(e2e).not.toContain('verify parallel-safe');
-        expect(e2e).not.toContain('parallel-safe-receipt');
+        expect(e2e).not.toContain('shard-receipt');
         expect(e2e).not.toContain('outputs:');
         expect(e2e).not.toContain('steps.concurrent-full.outputs.aborted');
 
-        // The shards run only on the optimized full-scope hosted-full route and never block each other.
+        // The shards run only on the optimized full-scope hosted-full route and never block each other. Three
+        // parallel-safe shards plus the second exclusive half (an `include` entry whose shard cannot extend one of the
+        // three) keep every runner's window under the target.
         expect(jobs['e2e-parallel'].strategy?.['fail-fast']).toBe(false);
-        expect(jobs['e2e-parallel'].strategy?.matrix?.shard).toEqual(['1/2', '2/2']);
+        expect(jobs['e2e-parallel'].strategy?.matrix?.shard).toEqual(['1/3', '2/3', '3/3']);
+        expect(jobs['e2e-parallel'].strategy?.matrix?.include).toEqual([
+            { component: 'exclusive', shard: '2/2' },
+        ]);
         expect(jobs['e2e-parallel']['timeout-minutes']).toBe(30);
-        expect(parallel).toContain('CAXRI_E2E_COMPONENT: parallel-safe');
+        expect(parallel).toContain(
+            "CAXRI_E2E_COMPONENT: ${{ matrix.component || 'parallel-safe' }}",
+        );
+        expect(parallel).toContain(
+            "CAXRI_E2E_SHARD_POOL: ${{ matrix.component == 'exclusive' && 'desktop-exclusive' || 'parallel-safe' }}",
+        );
         expect(parallel).toContain('CAXRI_E2E_SHARD: ${{ matrix.shard }}');
-        expect(parallel).toContain('verify parallel-safe');
+        expect(parallel).toContain('verify "$CAXRI_E2E_SHARD_POOL"');
         expect(parallel).not.toContain('verify checks');
         // Both pooled legs run every test once instead of capping at 3 failures and rerunning at one worker (#1869).
         expect(parallel).toContain("CAXRI_E2E_MAX_FAILURES: '0'");
@@ -407,7 +432,10 @@ describe('CI workflow contract', () => {
         expect(e2e).toContain("&& '0' || ''");
         expect(parallel).not.toContain('benchmark:renderer');
         expect(parallel).toContain(
-            'name: e2e-parallel-safe-failure-artifacts-shard-${{ strategy.job-index }}',
+            'name: e2e-${{ env.CAXRI_E2E_SHARD_POOL }}-failure-artifacts-shard-${{ strategy.job-index }}',
+        );
+        expect(parallel).toContain(
+            'path: test-results/public-receipts/${{ env.CAXRI_E2E_SHARD_POOL }}.json',
         );
 
         // The performance leg is independent of the window and owns parity and every performance gate.

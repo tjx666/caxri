@@ -23,7 +23,7 @@ const greenReceipt = {
 };
 
 /**
- * The hosted-full route runs the exclusive pool and each parallel-safe shard on separate runners (#1869), so each
+ * The hosted-full route runs each desktop-exclusive and parallel-safe shard on separate runners (#1869), so each
  * runner's receipt leaves the other component's entries `null`.
  */
 describe('concurrent CI validation components', () => {
@@ -53,6 +53,23 @@ describe('concurrent CI validation components', () => {
                 ),
             ).toBe(false);
         }
+    });
+
+    it('verifies a desktop-exclusive shard receipt that never ran the parallel-safe pool', () => {
+        const shardReceipt = { ...greenReceipt, parallelSafe: null };
+        expect(
+            isVerificationPassed(shardReceipt, 'desktop-exclusive', greenReceipt.provenance),
+        ).toBe(true);
+        expect(isVerificationPassed(shardReceipt, 'parallel-safe', greenReceipt.provenance)).toBe(
+            false,
+        );
+        expect(
+            isVerificationPassed(
+                { ...shardReceipt, desktopExclusive: 1 },
+                'desktop-exclusive',
+                greenReceipt.provenance,
+            ),
+        ).toBe(false);
     });
 
     it('requires an explicit E2E component selector', () => {

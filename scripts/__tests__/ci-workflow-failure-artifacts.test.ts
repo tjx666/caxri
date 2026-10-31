@@ -142,12 +142,13 @@ describe('CI E2E artifacts', () => {
                 'e2e-parallel': { steps: Array<{ if?: string; name?: string }> };
             };
         };
-        // The sharded leg uploads only once the shard's own receipt exists, since a setup failure leaves none.
+        // The sharded leg uploads only once the shard's own receipt exists, since a setup failure leaves none. The
+        // receipt and artifact are named after the pool the matrix entry ran (parallel-safe or desktop-exclusive).
         const shardUpload = document.jobs['e2e-parallel'].steps.find(
-            (step) => step.name === 'Upload parallel-safe failure artifacts',
+            (step) => step.name === 'Upload pool shard failure artifacts',
         );
         expect(String(shardUpload?.if).replaceAll(/\s+/gu, ' ')).toContain(
-            "steps.parallel-safe-receipt.outcome == 'failure' && hashFiles('test-results/receipts/parallel-safe.json') != ''",
+            "steps.shard-receipt.outcome == 'failure' && hashFiles(format('test-results/receipts/{0}.json', env.CAXRI_E2E_SHARD_POOL)) != ''",
         );
         const upload = document.jobs.e2e.steps.find(
             (step) => step.name === 'Upload desktop-exclusive failure artifacts',

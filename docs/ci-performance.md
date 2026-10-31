@@ -177,12 +177,13 @@ window 25 minutes after `execute()` starts. The deadline is per runner: the opti
 route now splits the work across three jobs, each with its own window and its own 30-minute job
 timeout (issue #1869), selected by `CAXRI_E2E_COMPONENT`:
 
-| Job                  | Component       | Work                                                                                                                           |
-| -------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `e2e`                | `exclusive`     | Electron build, native verification, `desktop-exclusive`, its manifest                                                         |
-| `e2e-parallel`       | `parallel-safe` | Build and native verification, then one shard `i/N` of `parallel-safe` (matrix `1/2`, `2/2`, `fail-fast: false`), its manifest |
-| `e2e-perf`           | none            | Build, native verification, interruption recovery, failure-census fixture, dispatch-only CI parity, the performance gates      |
-| `checks-hosted-full` | none            | The full platform checks on `ubuntu-latest`, outside every E2E window                                                          |
+| Job                  | Component       | Work                                                                                                                                       |
+| -------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `e2e`                | `exclusive`     | Electron build, native verification, `desktop-exclusive` shard `1/2`, its manifest                                                         |
+| `e2e-parallel`       | `parallel-safe` | Build and native verification, then one shard `i/3` of `parallel-safe` (matrix `1/3`, `2/3`, `3/3`, `fail-fast: false`), its manifest      |
+| `e2e-parallel`       | `exclusive`     | The matrix `include` entry `{component: exclusive, shard: 2/2}`: build, native verification, `desktop-exclusive` shard `2/2`, its manifest |
+| `e2e-perf`           | none            | Build, native verification, interruption recovery, failure-census fixture, dispatch-only CI parity, the performance gates                  |
+| `checks-hosted-full` | none            | The full platform checks on `ubuntu-latest`, outside every E2E window                                                                      |
 
 Run `41226124386` measured the single-runner window: Electron Vite build 157s, interruption
 recovery 32s, `desktop-exclusive` 882s (two failures), CI parity 181s, and `parallel-safe` (392
@@ -220,7 +221,7 @@ Interruption recovery (33 s) and the failure-census fixture (17 s) prove the har
 product, so they run as plain steps in `e2e-perf`, which has about 9 minutes of spare room, and no
 longer count against the exclusive window.
 
-Estimated windows after these changes (not yet measured; run `41230137464` is the baseline): shard 2
+Estimated windows after the second iteration (superseded by the third iteration below; run `41230137464` is the baseline): shard 2
 with 208 tests at about 0.27 tests/s is about 770 s plus roughly 110 s of build and manifest, or 14.7
 minutes; shard 1 is about 13.2 minutes. The exclusive leg is about 100 s of build and manifest plus
 102 tests at 8.6 to 10.7 s each, or 16.5 to 21.3 minutes against the 21.25 minute budget. If the
@@ -229,7 +230,44 @@ first rerun lands above about 19.5 minutes, shard `desktop-exclusive` across two
 one-line matrix change if a shard measures above 18 minutes. Failures that reproduce at one worker
 are real test failures to triage separately, not window problems.
 
-- `run-e2e-pools.ts --pool parallel-safe` reads `--shard <i>/<N>` or `CAXRI_E2E_SHARD`. The partition
+### Third iteration: three parallel-safe shards, two exclusive shards
+
+Run `41234104765` (the second iteration) hit no deadline, but three legs still sat at or over the 21m15s
+target. Each window below is the measured build and manifest time plus the measured pool time:
+
+| Leg                | Build and setup | Pool   | Tests | Window                 |
+| ------------------ | --------------- | ------ | ----: | ---------------------- |
+| `e2e` (exclusive)  | 118 s           | 1127 s |   102 | 20.8 min               |
+| `e2e-parallel` 1/2 | 131 s           | 1171 s |   184 | 21.7 min (over target) |
+| `e2e-parallel` 2/2 | 96 s            | 1047 s |   208 | 19.0 min               |
+
+`e2e-perf` was comfortably inside its job, and `checks-hosted-full` took 2.5 minutes on Linux. The exclusive
+leg's 1127 s includes four real failures that spend their timeouts; those failures are tracked separately and
+were not fixed here, so every figure above is inflated by them.
+
+The layout now is:
+
+- `parallel-safe` runs as three shards (`1/3`, `2/3`, `3/3`).
+- `desktop-exclusive` runs as two shards. "Exclusive" means one Electron at a time per machine, so two
+  runners may each run half. `e2e` runs shard `1/2` (`CAXRI_E2E_SHARD=1/2` on the `concurrent-full` step
+  only, so the direct control, focused, and `e2e-only` pool steps keep running the whole pool). Shard `2/2`
+  is an `include` entry of the `e2e-parallel` matrix carrying `component: exclusive`; its shard value
+  matches none of the `parallel-safe` shards, so GitHub adds it as an extra leg instead of extending one.
+  The gate's job set stays `e2e`, `e2e-parallel`, `e2e-perf`, and `checks-hosted-full`.
+- Each `e2e-parallel` leg derives its pool from the matrix: `CAXRI_E2E_COMPONENT` is `matrix.component`
+  or `parallel-safe`, and `CAXRI_E2E_SHARD_POOL` (`desktop-exclusive` or `parallel-safe`) selects the
+  `verify` argument, the receipt that gates the failure upload, and the artifact. Failure artifacts are
+  `e2e-<pool>-failure-artifacts-shard-<job-index>`, unique per leg.
+
+Estimated windows (estimates, not measurements; they scale the measured per-test cost and add the measured
+setup). The parallel-safe pool cost 5.0 s per test on the 208-test shard and 6.4 s on the 184-test shard,
+so a shard of about 131 tests is about 655 to 835 s plus roughly 100 to 130 s of setup, or 12.6 to 16 minutes.
+The exclusive pool cost about 11 s per test including the failure timeouts, so a half of about 51 tests is
+about 560 s plus 118 s of setup, or about 11 minutes. Specs are weighed by declared `test(` count, so the
+real split can be uneven; a half 25% heavier than the other would still be about 13.5 minutes. Read the
+`CAXRI_E2E_SHARD` summary line of the next run before adjusting further.
+
+- `run-e2e-pools.ts --pool parallel-safe|desktop-exclusive` reads `--shard <i>/<N>` or `CAXRI_E2E_SHARD`. The partition
   lives in `scripts/e2e-pool-shard.ts`: specs are weighed by their declared `test(` calls and
   assigned longest-first to the lightest shard (name order breaks ties), so every runner derives the
   same split from the same checkout, each spec lands in exactly one shard, and a shard's receipt is
@@ -237,19 +275,20 @@ are real test failures to triage separately, not window problems.
   per-shard listing needs `--reporter=json`, which the public log boundary
   (`scripts/__tests__/ci-e2e-log-safety.test.ts`) keeps out of repository scripts. Census reruns are
   unaffected.
-- The receipt keeps the pool name `parallel-safe`; each shard is its own runner, so the shard's
+- The receipt keeps the pool name (`parallel-safe` or `desktop-exclusive`); each shard is its own runner, so the shard's
   `planned`, `started`, and `hash` describe that shard only. The shard prints
   `CAXRI_E2E_SHARD {"planned","pool","shard","specs"}` with its planned test count after the pool
   ends, and the step summary labels the pool row with its shard. A cross-shard total is read by summing the shard
   manifests (`CAXRI_E2E_MANIFEST`) in the job logs.
-- The shard leg writes `desktopExclusive: null` in its concurrent-validation receipt; the `exclusive`
-  leg writes `parallelSafe: null`. A `null` entry never satisfies a verification, and `verify parallel-safe`
+- A `parallel-safe` shard leg writes `desktopExclusive: null` in its concurrent-validation receipt; an
+  `exclusive` leg (`e2e` or the `e2e-parallel` include entry) writes `parallelSafe: null`. A `null` entry never satisfies a verification, and `verify parallel-safe`
   requires setup, the pool, and the manifest to be zero.
 - The `ci` gate requires `e2e`, `e2e-parallel`, `e2e-perf`, and `checks-hosted-full` to succeed on
   the optimized full-scope `hosted-full` route (where `checks` is skipped) and requires the latter
   three to be skipped everywhere else.
-- Artifact names are unique per leg: `e2e-parallel-safe-failure-artifacts-shard-<index>` per shard,
-  `e2e-desktop-exclusive-failure-artifacts` for the exclusive leg, and the unchanged
+- Artifact names are unique per leg: `e2e-parallel-safe-failure-artifacts-shard-<index>` per parallel-safe
+  shard, `e2e-desktop-exclusive-failure-artifacts-shard-<index>` for the second exclusive half,
+  `e2e-desktop-exclusive-failure-artifacts` for the exclusive leg in `e2e`, and the unchanged
   `renderer-performance-receipt` and `agent-chat-switch-performance-receipt` from `e2e-perf`.
 
 The original single-window accounting follows. On the historical self-hosted runner the window held

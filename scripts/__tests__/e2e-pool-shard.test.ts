@@ -1,5 +1,8 @@
+import { readdirSync } from 'node:fs';
+
 import { describe, expect, it } from 'vitest';
 
+import { createE2EPoolPlan } from '../../e2e/support/pools';
 import { narrowInvocationsToShard, parseE2EShard, shardSpecs, specWeight } from '../e2e-pool-shard';
 import { parseE2EPool } from '../run-e2e-pools';
 
@@ -73,5 +76,29 @@ describe('E2E pool shards', () => {
         ).toEqual(invocations[0].specs.toSorted((left, right) => left.localeCompare(right)));
         expect(first).toHaveLength(1);
         expect(second).toHaveLength(1);
+    });
+
+    it('splits the desktop-exclusive pool into two shards that together cover every exclusive spec once', async () => {
+        const root = new URL('../../', import.meta.url).pathname;
+        const specs = readdirSync(`${root}e2e`)
+            .filter((name) => name.endsWith('.e2e.ts'))
+            .map((name) => `e2e/${name}`)
+            .toSorted((left, right) => left.localeCompare(right));
+        const { desktopExclusiveInvocations } = createE2EPoolPlan(specs);
+        const whole = desktopExclusiveInvocations.flatMap(({ specs: owned }) => owned);
+        const halves = await Promise.all(
+            [1, 2].map((index) =>
+                narrowInvocationsToShard(desktopExclusiveInvocations, { index, total: 2 }, root),
+            ),
+        );
+        const [first, second] = halves.map((half) => half.flatMap(({ specs: owned }) => owned));
+        expect(first.length).toBeGreaterThan(0);
+        expect(second.length).toBeGreaterThan(0);
+        expect(new Set([...first, ...second]).size).toBe(whole.length);
+        const byName = (left: string, right: string): number => left.localeCompare(right);
+        expect([...first, ...second].toSorted(byName)).toEqual(whole.toSorted(byName));
+        for (const half of halves) {
+            expect(half.every(({ specs: owned }) => owned.length > 0)).toBe(true);
+        }
     });
 });

@@ -5,8 +5,9 @@ import process from 'node:process';
 import type { E2EPoolInvocation } from '../e2e/support/pools';
 
 /**
- * One slice of the `parallel-safe` pool. Hosted-full runs the pool as a matrix of runners so its wall time stops
- * competing with the exclusive pool for the 25-minute window (#1869).
+ * One slice of the `parallel-safe` or `desktop-exclusive` pool. Hosted-full runs each pool as slices on separate
+ * runners so no single runner's wall time exceeds the 25-minute window (#1869). `desktop-exclusive` only means one
+ * Electron at a time per machine, so two runners may each run their own half.
  */
 export interface E2EShard {
     index: number;

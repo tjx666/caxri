@@ -472,8 +472,10 @@ async function main(): Promise<void> {
     installAbortHandlers();
     const pool = parseE2EPool(process.argv.slice(2));
     const shard = parseE2EShard(process.argv.slice(2));
-    if (shard && pool !== 'parallel-safe') {
-        throw new Error('Only the parallel-safe E2E pool can be sharded');
+    if (shard && pool === 'control') {
+        throw new Error(
+            'The control E2E pool runs whole; only the parallel-safe and desktop-exclusive pools can be sharded',
+        );
     }
     /**
      * Every pool hands Playwright an explicit spec list, which the `globalSetup` guard reads as a focused run. Refuse
@@ -486,9 +488,10 @@ async function main(): Promise<void> {
     }
     const parallelWorkers = resolveParallelWorkers(process.env);
     const plan = createE2EPoolPlan(await discoverE2ESpecs());
-    const parallelSafeInvocations = shard
-        ? await narrowInvocationsToShard(plan.parallelSafeInvocations, shard, projectRoot)
-        : plan.parallelSafeInvocations;
+    const shardedInvocations = async (
+        whole: readonly E2EPoolInvocation[],
+    ): Promise<E2EPoolInvocation[]> =>
+        shard ? narrowInvocationsToShard(whole, shard, projectRoot) : [...whole];
     const invocations =
         pool === 'control'
             ? [
@@ -499,8 +502,8 @@ async function main(): Promise<void> {
                   },
               ]
             : pool === 'parallel-safe'
-              ? parallelSafeInvocations
-              : plan.desktopExclusiveInvocations;
+              ? await shardedInvocations(plan.parallelSafeInvocations)
+              : await shardedInvocations(plan.desktopExclusiveInvocations);
     let execution: { receipt: E2EPoolReceipt; result: number };
     if (pool === 'parallel-safe') {
         const coordinator = await acquireDesktopLease(
