@@ -347,6 +347,14 @@ export async function executeMobileRecoveryScenario(
                     () => mobileSemantics(environment.serial),
                     (nodes) => nodes.some(({ checkId }) => checkId === 'session-list'),
                 );
+                // Clearing app data keeps Android's exit history, so a crash from an earlier run on this emulator may be
+                // reported on pairing. Count only exits from this scenario's crash onward, by the device clock.
+                const crashedFrom =
+                    Number((await adbShell(environment.serial, ['date +%s'])).trim()) * 1000;
+                const ownReports = async () =>
+                    (await previousExitReports(log)).filter(
+                        ({ exitedAt }) => typeof exitedAt === 'number' && exitedAt >= crashedFrom,
+                    );
                 // `am crash` throws an uncaught Java exception in the app's main thread, as a real crash would.
                 await adbShell(environment.serial, ['am', 'crash', 'com.caxri.mobile']);
                 await waitForMobile(
@@ -355,7 +363,7 @@ export async function executeMobileRecoveryScenario(
                 );
                 await openApp();
                 const reports = await waitForMobile(
-                    () => previousExitReports(log),
+                    ownReports,
                     (entries) => entries.length > 0,
                     30_000,
                 );
@@ -370,7 +378,7 @@ export async function executeMobileRecoveryScenario(
                 await adbShell(environment.serial, ['am', 'force-stop', 'com.caxri.mobile']);
                 await openApp();
                 await new Promise((resolve) => setTimeout(resolve, 5000));
-                expect(await previousExitReports(log)).toHaveLength(1);
+                expect(await ownReports()).toHaveLength(1);
                 await finish(environment, artifacts, {
                     crash: 'reported-once-after-reconnect',
                     exceptionClass: reports[0]?.exceptionClass,
