@@ -1603,31 +1603,40 @@ enters Goal mode and Enter sends `/goal <condition>` as prompt text. The list be
 
 Claude Code streams no goal state to the SDK: its `active_goal` frames stay internal outside remote
 sessions, and its `goal_status` attachments reach only the transcript (verified with Claude Code
-2.1.304). Server Core keeps the snapshot's `goal` from what it does stream (`ClaudeGoals` in
+2.1.304 and 2.1.312). Server Core keeps the snapshot's `goal` from what it does stream (`ClaudeGoals` in
 `apps/server/src/domains/agent-chat/goals/claude-goals.ts`):
 
 - The `/goal` replies (`parseAgentChatGoalReply`): `Goal set:` and `Goal active:` show the goal as
   `active`; `Goal cleared:`, `No goal set`, and Claude Code's `Goal cleared after an unrecoverable
 error` warning drop it.
 - `/goal <condition>` is one query that keeps going while the goal's Stop hook finds the condition
-  unmet, so a turn that completes with no background work left to wake Claude Code passed that check,
-  and the goal leaves. An interrupted or failed turn, one waiting on background work, and one that
-  only printed the goal's status keep it, with the turn's time added to `timeUsedSeconds`.
+  unmet, so a turn that completes with no background work left to wake Claude Code settled the goal.
+  How it settled is written only to the transcript, as a `goal_status` attachment with `met: true`
+  (achieved) or `failed: true` (the evaluator judged it impossible), each with the evaluator's
+  `reason`, `durationMs`, and `tokens` (verified with Claude Code 2.1.312). Server Core reads the
+  transcript's tail after such a turn, retrying briefly because Claude Code may append the record
+  just after `result`, and keeps the goal as `complete` or `failed` with that reason, time, and
+  tokens (`latestClaudeGoalOutcome`). A check older than the turn does not count; with no readable
+  outcome the goal leaves as before. An ended goal stays until the user clears it or sets another,
+  as a completed Codex goal does, and later turns leave it as it is. An interrupted or failed turn,
+  one waiting on background work, and one that only printed the goal's status keep an active goal,
+  with the turn's time added to `timeUsedSeconds`.
 - The goal carries `pausable: false`, so no Client offers Pause: Claude Code's `/goal pause` would set
   a goal named `pause`. Clear sends `/goal clear`.
 - Claude Code's SDK mode holds a slash command until the running query ends (only its interactive
   `/goal` runs beside a turn), and the goal's query runs until the condition is met, so a clear that
-  waited in the follow-up queue would never land. While a goal is set and a turn runs, `/goal clear`
+  waited in the follow-up queue would never land. While an active goal is set and a turn runs, `/goal clear`
   stops that turn (labeled as the user's Stop), waits for it to end, and then runs at once
   (`AgentChatProviderSession.stopsTurnForCommand`); the follow-up queue is not paused, so queued
   messages go out after the clear. Without a goal, `/goal clear` waits like any other command.
 - A Chat reopened from history (a Server Core restart, or a switch from the Terminal) reads the
   transcript's goal records in order (`claude-history.ts`): a `goal_status` attachment with
   `met: false` (written when the goal is set and after each check that found it unmet) or a
-  `Goal set:` reply keeps the goal active, while `met: true`, `failed: true`, `Goal cleared:`, and
-  the error warning drop it. A goal still active at the end comes back as the snapshot's `goal`
-  without Pause, its `timeUsedSeconds` summing the replayed durations of the turns opened after it was
-  set.
+  `Goal set:` reply keeps the goal active, `met: true` and `failed: true` end it as `complete` or
+  `failed` with the evaluator's reason, and `Goal cleared:` and the error warning drop it. The last
+  goal comes back as the snapshot's `goal` without Pause; an active one's `timeUsedSeconds` sums the
+  replayed durations of the turns opened after it was set, and an ended one takes Claude Code's own
+  `durationMs`.
 
 ## Side chat
 

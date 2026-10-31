@@ -13,7 +13,10 @@ import {
     executeMobileChatPreviewScenario,
 } from '../mobile-agent-chat-error-scenario';
 import { executeMobileChatFeedbackScenario } from '../mobile-agent-chat-feedback-scenario';
-import { executeMobileChatGoalScenario } from '../mobile-agent-chat-goal-scenario';
+import {
+    executeMobileChatGoalOutcomeScenario,
+    executeMobileChatGoalScenario,
+} from '../mobile-agent-chat-goal-scenario';
 import {
     agentText,
     hasCheck,
@@ -542,6 +545,7 @@ export const handlers = {
     'MOB-CHAT-LIST-QUESTION-01': (environment, artifacts) =>
         executeMobileChatListApprovalScenario(environment, artifacts, 'claude'),
     'MOB-CHAT-GOAL-01': executeMobileChatGoalScenario,
+    'MOB-CHAT-GOAL-OUTCOME-01': executeMobileChatGoalOutcomeScenario,
     'MOB-CHAT-RUNNING-OPEN-01': executeMobileChatRunningTurnScenario,
     'MOB-CHAT-SEND-UNKNOWN-01': executeMobileChatSendUnknownScenario,
     'MOB-CHAT-SURFACE-SWITCH-01': executeMobileChatSurfaceSwitchScenario,

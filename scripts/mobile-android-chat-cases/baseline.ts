@@ -281,6 +281,12 @@ export const cases = {
         recordingOwner: 'scenario',
         scenario: 'agent-chat-goal',
     },
+    'MOB-CHAT-GOAL-OUTCOME-01': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'agent-chat-goal-outcome',
+    },
     'MOB-CHAT-RUNNING-OPEN-01': {
         desktopProfile: 'managed-by-isolated-e2e',
         media: ['screenshot', 'video'],

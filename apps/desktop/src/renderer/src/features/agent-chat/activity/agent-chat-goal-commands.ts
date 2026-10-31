@@ -32,14 +32,15 @@ export async function changeAgentChatGoal(
 }
 
 /**
- * The Clear button's label. Claude Code's goal runs inside the turn (its goals cannot pause), so clearing one while a
- * turn runs first stops that turn; the label names that consequence before the click.
+ * The Clear button's label. Claude Code's goal runs inside the turn (its goals cannot pause), so clearing an active one
+ * while a turn runs first stops that turn; the label names that consequence before the click. A goal that already ended
+ * only leaves the row.
  */
 export function agentChatGoalClearLabelKey(
-    goal: Pick<AgentChatGoal, 'pausable'>,
+    goal: Pick<AgentChatGoal, 'pausable' | 'status'>,
     isTurnRunning: boolean,
 ): TranslationKey {
-    return isTurnRunning && goal.pausable === false
+    return isTurnRunning && goal.pausable === false && goal.status === 'active'
         ? 'agentChat.goal.clearAndStop'
         : 'agentChat.goal.clear';
 }

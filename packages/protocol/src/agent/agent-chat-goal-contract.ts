@@ -6,6 +6,12 @@ import { z } from 'zod';
 export const MAX_AGENT_CHAT_GOAL_OBJECTIVE_LENGTH = 4_000;
 
 /**
+ * The longest goal-ending reason a snapshot carries. Claude Code's evaluator writes a paragraph; this keeps a runaway
+ * one from bloating every snapshot.
+ */
+export const MAX_AGENT_CHAT_GOAL_REASON_LENGTH = 4_000;
+
+/**
  * Where a provider's long-running goal stands: Codex's thread goal statuses, which keep the Agent starting turns on its
  * own while `active`.
  */
@@ -19,6 +25,11 @@ export const agentChatGoalStatusSchema = z.enum([
     'usageLimited',
     'budgetLimited',
     'complete',
+    /**
+     * The provider judged the goal impossible and stopped pursuing it for good (Claude Code's "Goal could not be
+     * achieved"). Unlike `blocked`, nothing resumes it; only a new goal does.
+     */
+    'failed',
 ]);
 
 /**
@@ -35,6 +46,11 @@ export const agentChatGoalSchema = z.strictObject({
      */
     tokenBudget: z.number().int().positive().optional(),
     timeUsedSeconds: z.number().nonnegative(),
+    /**
+     * Why the provider ended the goal, from its last check: what made it `complete` or `failed`. Absent while the goal
+     * runs and for a provider that gives no reason.
+     */
+    reason: z.string().max(MAX_AGENT_CHAT_GOAL_REASON_LENGTH).optional(),
     /**
      * When the provider last reported the goal, in epoch milliseconds.
      */

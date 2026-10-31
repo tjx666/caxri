@@ -5,8 +5,9 @@ import { describe, expect, it } from 'vitest';
 import { claudeHistoryOperations } from '../history/claude-history';
 
 /**
- * Transcript records in the shapes Claude Code 2.1.310 writes for `/goal` (read from real session transcripts; the
- * conditions here are invented). Each record continues the previous one, as a linear conversation does.
+ * Transcript records in the shapes Claude Code 2.1.310 and 2.1.312 write for `/goal` (read from real session
+ * transcripts; the conditions here are invented). Each record continues the previous one, as a linear conversation
+ * does.
  */
 type RecordBody = Record<string, unknown>;
 
@@ -111,14 +112,22 @@ describe('Claude transcript goal replay', () => {
         expect(agentChatGoalToggle(goal!)).toBeUndefined();
     });
 
-    it('drops a goal that was met or failed', () => {
+    it('keeps a goal that was met or failed with its outcome and reason', () => {
         expect(
             replayedGoal([
                 goalSet('All tests pass'),
                 ...goalTurn('fix it', 1_000),
                 goalMet('All tests pass'),
             ]),
-        ).toBeUndefined();
+        ).toEqual({
+            objective: 'All tests pass',
+            status: 'complete',
+            reason: 'All checks pass.',
+            tokensUsed: 1_000,
+            timeUsedSeconds: 60,
+            updatedAt: NOW,
+            pausable: false,
+        });
         expect(
             replayedGoal([
                 goalSet('All tests pass'),
@@ -134,7 +143,19 @@ describe('Claude transcript goal replay', () => {
                     },
                 },
             ]),
-        ).toBeUndefined();
+        ).toMatchObject({ status: 'failed', reason: 'Gave up.', timeUsedSeconds: 1 });
+    });
+
+    it('starts the same goal over when it is set again after it ended', () => {
+        const goal = replayedGoal([
+            goalSet('All tests pass'),
+            ...goalTurn('first', 40_000),
+            goalMet('All tests pass'),
+            goalSet('All tests pass'),
+            ...goalTurn('second', 10_000),
+        ]);
+        expect(goal).toMatchObject({ status: 'active', timeUsedSeconds: 10 });
+        expect(goal).not.toHaveProperty('reason');
     });
 
     it('drops a goal the user cleared, or Claude Code cleared after an error', () => {

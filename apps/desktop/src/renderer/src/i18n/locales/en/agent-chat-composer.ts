@@ -80,6 +80,7 @@ export const agentChatComposer = {
     'agentChat.goal.status.usageLimited': 'Goal hit usage limits',
     'agentChat.goal.status.budgetLimited': 'Goal budget reached',
     'agentChat.goal.status.complete': 'Goal achieved',
+    'agentChat.goal.status.failed': 'Goal not achieved',
     'agentChat.goal.steps': 'Steps toward this goal: {{count}}',
     'agentChat.goal.tokens': '{{count}} tokens toward this goal',
     'agentChat.goal.cost': 'Estimated cost of this goal: ${{value}}',

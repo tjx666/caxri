@@ -161,6 +161,7 @@ export const chat: TranslatedNamespace<typeof source> = {
     'chat.goal.status.blocked': '目标停滞',
     'chat.goal.status.budgetLimited': '目标达到预算上限',
     'chat.goal.status.complete': '目标已达成',
+    'chat.goal.status.failed': '目标无法达成',
     'chat.goal.status.paused': '已暂停的目标',
     'chat.goal.status.usageLimited': '目标达到用量上限',
     'chat.handedOffBanner': '{{notice}}。请在电脑上恢复后继续。',
