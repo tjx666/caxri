@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 import type { SessionPullRequest } from '../domain/session-pull-request.js';
-import type { AgentChatItem } from './agent-chat-contract.js';
+import type { AgentChatItem, AgentChatSnapshot } from './agent-chat-contract.js';
 import { MAX_AGENT_CHAT_GOAL_OBJECTIVE_LENGTH } from './agent-chat-goal-contract.js';
 import { agentThroughputSpeedSchema } from './agent-throughput-contract.js';
 import type { AgentProvider } from './agents.js';
@@ -144,6 +144,12 @@ const IDLE_COMPACTION_MIN_TTL_MINUTES = 60;
 const IDLE_COMPACTION_FIRE_FRACTION = 0.9;
 
 /**
+ * How long after a plan limit's reset a held idle compaction runs: a provider's reset time is rounded, and a request at
+ * the exact second may still be refused.
+ */
+const IDLE_COMPACTION_RESET_MARGIN_MS = 30_000;
+
+/**
  * The providers whose Chats are compacted while idle. Codex is left out: a ChatGPT sign-in keeps its cache with no
  * expiry, so there is nothing to save (see `codexCacheTtlMinutes` in Server Core).
  */
@@ -154,10 +160,15 @@ const IDLE_COMPACTION_PROVIDERS: ReadonlySet<AgentProvider> = new Set(['claude',
  * usage: the provider is not covered, the cache lifetime is unknown or too short, the context is too small, or no
  * response started the cache. It is due from that moment until the cache expires (`lastResponseAt + cacheTtlMinutes`);
  * a compaction resets `lastResponseAt`, so one response is compacted at most once.
+ *
+ * `hold` is the snapshot's `idleCompactionHold`: a used-up plan limit found when compaction came due. For the response
+ * it names, compaction moves past the reset while the cache still holds then, and is dropped when the cache expires
+ * first, so the user decides how to go on instead of a compaction failing into the limit.
  */
 export function agentChatIdleCompactionAt(
     usage: Pick<AgentChatUsage, 'cacheTtlMinutes' | 'lastResponseAt' | 'totalTokens'> | undefined,
     provider: AgentProvider | undefined,
+    hold?: AgentChatSnapshot['idleCompactionHold'],
 ): number | undefined {
     if (!usage || !provider || !IDLE_COMPACTION_PROVIDERS.has(provider)) return undefined;
     const { cacheTtlMinutes, lastResponseAt, totalTokens } = usage;
@@ -168,7 +179,12 @@ export function agentChatIdleCompactionAt(
         totalTokens < AGENT_CHAT_IDLE_COMPACTION_MIN_TOKENS
     )
         return undefined;
-    return lastResponseAt + Math.round(cacheTtlMinutes * 60_000 * IDLE_COMPACTION_FIRE_FRACTION);
+    const dueAt =
+        lastResponseAt + Math.round(cacheTtlMinutes * 60_000 * IDLE_COMPACTION_FIRE_FRACTION);
+    if (hold?.lastResponseAt !== lastResponseAt) return dueAt;
+    const expiresAt = lastResponseAt + cacheTtlMinutes * 60_000;
+    const afterReset = hold.resetsAt + IDLE_COMPACTION_RESET_MARGIN_MS;
+    return afterReset < expiresAt ? Math.max(dueAt, afterReset) : undefined;
 }
 
 /**

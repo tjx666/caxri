@@ -81,6 +81,7 @@ export const agentChatLabelsZhCN: TranslatedNamespace<typeof agentChatLabelsEn> 
     'agentChat.notice.modelChanged': '模型已切换',
     'agentChat.notice.verificationNeeded': '需要验证账号',
     'agentChat.notice.caxriNote': 'Caxri 已告知 Agent',
+    'agentChat.notice.idleCompactionFailed': '空闲自动压缩未完成',
     'agentChat.message.agentError': 'Agent 报告了错误',
     'agentChat.message.answered': '已回答',
     'agentChat.message.answeredWith': '已回答：{{message}}',

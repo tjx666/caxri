@@ -124,6 +124,18 @@ once: a compaction resets the response time, and a refused or failed attempt wai
 response. A Chat that stays busy through the whole window is given up as `cache_expired`. Every attempt
 logs `session.idle_compaction` with its closed `outcome`, provider, context size, and idle time.
 
+Before sending, an idle compaction asks the provider for its plan limits (Claude Code's `/usage`
+answer). When a window is used up and no credits keep the account working, the command would only
+fail into the limit, so nothing is sent: the attempt logs `usage_limited` and records
+`idleCompactionHold` (the response it holds and the limit's reset) on the Chat snapshot.
+`agentChatIdleCompactionAt` reads that hold on both Server Core and Desktop: when the reset comes
+before the cache expires, compaction moves to 30 seconds after the reset and runs then; otherwise the
+response is not compacted at all, the idle suspension hold ends, and the cache row falls back to its
+expiring and expired notices, so the user decides how to go on (reply anyway, or continue in a new
+Chat). A provider without a plan-limit read (Grok Build) compacts as before. If the compaction still
+fails, the provider's error notice is headed `Idle compaction did not run` instead of reading like a
+failure of the user's own command.
+
 Because a suspended Chat is never started to compact, idle suspension waits for this one: while a Chat
 is eligible, its current response has not been attempted, and its cache has not expired
 (`ChatIdleCompaction.isPending`), the idle rule leaves it running, unless the conversation ended with its merged pull request ([Agent suspension](agent-suspension.md#agent-chats)).

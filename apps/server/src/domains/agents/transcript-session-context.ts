@@ -117,7 +117,7 @@ const WORKTREE_TEXT_HINT = /workdir|\bcd\s|git\s+(?:-C|switch|checkout|worktree)
  * a format example, and scanning it would bind every Session in that repository to `ABC-123`.
  */
 const INSTRUCTION_ENVELOPE_PATTERN =
-    /<(INSTRUCTIONS|system-reminder|user_instructions|user-prompt-submit-hook|environment_context|command-message|local-command-stdout)>[\s\S]*?<\/\1>/g;
+    /<(INSTRUCTIONS|system-reminder|user_instructions|user-prompt-submit-hook|environment_context|command-message|local-command-stdout|local-command-stderr)>[\s\S]*?<\/\1>/g;
 
 interface TranscriptContentBlock {
     content?: unknown;

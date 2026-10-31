@@ -193,6 +193,44 @@ test('Continue now resumes a Claude Chat waiting for its limit without a visible
 });
 
 // eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
+test('a later usage-limit failure folds the earlier notice into one muted line', async ({}, testInfo) => {
+    const created = await mkdtemp(join(tmpdir(), 'caxri-usage-limit-superseded-'));
+    const directory = await realpath(created);
+    const userData = join(directory, 'user-data');
+    const root = join(directory, 'project');
+    await mkdir(root, { recursive: true });
+    const agentMode = await createFakeAgentMode({
+        userDataDir: userData,
+        providers: { claude: { executableSource: fakeClaudeChatExecutableSource({}) } },
+    });
+    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    try {
+        const { page } = running;
+        await createProjectSession(page, 'shell');
+        await openAgentChat(page, 'Claude Chat');
+        const chat = page.locator(VISIBLE_SESSION);
+        const message = chat.getByRole('textbox', { name: 'Message' });
+        const notices = chat.locator('[data-agent-chat-usage-limit="session"]');
+        await message.fill('usage exhausted');
+        await message.press('Enter');
+        await expect(notices.locator('[data-agent-chat-auto-continue="waiting"]')).toBeVisible();
+        await message.fill('usage exhausted');
+        await message.press('Enter');
+
+        // Only the latest failure keeps the wait and its actions; the earlier one stays as a muted record.
+        await expect(notices).toHaveCount(2);
+        const superseded = notices.first();
+        await expect(superseded).toHaveAttribute('data-superseded', '');
+        await expect(superseded.getByRole('button')).toHaveCount(0);
+        await expect(chat.locator('[data-agent-chat-auto-continue="waiting"]')).toHaveCount(1);
+        await page.screenshot({ path: testInfo.outputPath('usage-limit-superseded.png') });
+    } finally {
+        await closeAppQuietly(running.app);
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
 test('a turn the weekly guard stopped waits for the reset on the guard card and Cancel ends it', async ({}, testInfo) => {
     const created = await mkdtemp(join(tmpdir(), 'caxri-usage-guard-wait-'));
     const directory = await realpath(created);

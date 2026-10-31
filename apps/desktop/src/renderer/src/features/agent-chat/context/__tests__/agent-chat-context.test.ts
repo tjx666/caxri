@@ -57,6 +57,19 @@ describe('agentChatContextAlerts', () => {
         );
     });
 
+    it('says why no compaction came when the plan limit held it past the cache', () => {
+        expect(
+            agentChatContextAlerts(usage, 55 * MINUTE, undefined, translate, {
+                isHeldByUsageLimit: true,
+            }).cache,
+        ).toMatchObject({
+            state: 'expiring',
+            detail: expect.stringMatching(
+                /standard API prices\. Caxri did not compact it automatically because the plan limit is used up until after the cache expires\.$/,
+            ) as unknown,
+        });
+    });
+
     it('says the Chat compacts on its own when idle compaction is due before the cache expires', () => {
         const compactsAt = 54 * MINUTE;
         expect(agentChatContextAlerts(usage, 49 * MINUTE, compactsAt, translate)).toEqual({});

@@ -21,7 +21,8 @@ type Notice = Extract<AgentChatItem, { type: 'notice' }>;
  * resets, the provider's own words muted beneath, and the ways forward: the Chat continuing on its own once the limit
  * resets (issue #2220), with Continue now and Cancel, and continuing in another Agent. The composer stays usable, and
  * sending anything ends the wait. Once the Chat continued on its own, the other Agent is no longer offered. A task
- * tab's read-only timeline has no Terminal, so it shows the failure without the actions.
+ * tab's read-only timeline has no Terminal, so it shows the failure without the actions. A notice a later failed turn
+ * superseded collapses to its muted headline.
  */
 export function AgentChatUsageLimitNotice({
     item,
@@ -35,11 +36,28 @@ export function AgentChatUsageLimitNotice({
     const terminalId = useAgentChatTerminal();
     const provider = useTerminal(terminalId ?? '')?.kind;
     const providerName = resolveAgentIcon(provider).label;
+    // Once the reset passed, "resets now" would stay on the notice for good.
     const reset =
-        usageLimit.resetsAt === undefined
+        usageLimit.resetsAt === undefined || usageLimit.resetsAt <= now
             ? undefined
             : localizedLimitReset(usageLimit.resetsAt, now, t);
     const detail = agentChatNoticeMessage(item, t);
+    const headline =
+        usageLimit.trigger === 'usageGuard'
+            ? t('agentChat.usageLimit.guardStopped', { provider: providerName })
+            : agentChatUsageLimitHeadline(usageLimit, providerName, t);
+    // A later turn failed on the limit too and carries the wait: this one is only a line in the history.
+    if (usageLimit.superseded)
+        return (
+            <div
+                className="flex items-center gap-2 text-[12px] leading-5 text-muted"
+                data-agent-chat-usage-limit={usageLimit.window}
+                data-superseded=""
+            >
+                <Gauge aria-hidden className="size-3.5 shrink-0" />
+                <span className="min-w-0 truncate select-text">{headline}</span>
+            </div>
+        );
     return (
         <div
             className="flex items-start gap-2 text-[12px] leading-5"
@@ -48,9 +66,7 @@ export function AgentChatUsageLimitNotice({
             <Gauge aria-hidden className="mt-0.5 size-3.5 shrink-0 text-danger" />
             <div className="flex min-w-0 flex-col gap-1.5 select-text">
                 <div className="text-danger">
-                    {usageLimit.trigger === 'usageGuard'
-                        ? t('agentChat.usageLimit.guardStopped', { provider: providerName })
-                        : agentChatUsageLimitHeadline(usageLimit, providerName, t)}
+                    {headline}
                     {reset && <span className="text-muted"> · {reset}</span>}
                 </div>
                 {detail && usageLimit.trigger !== 'usageGuard' && (

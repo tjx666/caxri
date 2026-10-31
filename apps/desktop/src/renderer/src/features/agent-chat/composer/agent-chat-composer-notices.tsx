@@ -38,7 +38,9 @@ export function AgentChatComposerNotices({
     notice: string | undefined;
     onCompact: (() => void) | undefined;
     onContinueInNewChat: () => void;
-    snapshot: Pick<AgentChatSnapshot, 'items' | 'usage' | 'usageGuard'> | undefined;
+    snapshot:
+        | Pick<AgentChatSnapshot, 'idleCompactionHold' | 'items' | 'usage' | 'usageGuard'>
+        | undefined;
     terminalId: string;
 }) {
     const guard = snapshot?.usageGuard;
@@ -55,6 +57,7 @@ export function AgentChatComposerNotices({
             <AgentChatEditBar edit={edit} />
             {guard && <AgentChatUsageGuardCard guard={guard} terminalId={terminalId} />}
             <AgentChatContextAlerts
+                idleCompactionHold={snapshot?.idleCompactionHold}
                 isContinuing={isContinuing}
                 isShown={hasStripRoom}
                 items={snapshot?.items}

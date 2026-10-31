@@ -1,5 +1,5 @@
 import type { TerminalRecord } from '@caxri/protocol';
-import { CaxriError } from '@caxri/protocol';
+import { CaxriError, usageLimitedUntil } from '@caxri/protocol';
 import { assertE2EAgentChatInput, readE2EAgentPolicy } from '@caxri/system';
 
 import type { CaxriDatabase } from '../db';
@@ -35,11 +35,25 @@ function isChatIdleForSuspension(
 }
 
 /**
+ * When the provider's used-up plan limit resets, or `undefined` when a request would go through or the provider cannot
+ * tell (no plan-limit read, or the read failed): compaction then goes ahead as before.
+ */
+async function planLimitedUntil(session: {
+    readPlanLimits?(): Promise<Parameters<typeof usageLimitedUntil>[0]>;
+}): Promise<number | undefined> {
+    try {
+        return usageLimitedUntil(await session.readPlanLimits?.(), Date.now());
+    } catch {
+        return undefined;
+    }
+}
+
+/**
  * What a Chat's maintenance sweeps need from the service that owns it.
  */
 interface ChatIdleMaintenanceHost {
     database: Pick<CaxriDatabase, 'getTerminal'>;
-    states: Pick<ChatStates, 'get' | 'assertUsage'>;
+    states: Pick<ChatStates, 'apply' | 'get' | 'assertUsage'>;
     hasStart(terminalId: string): boolean;
     enqueue(terminalId: string, state: ChatState, deliver: ChatStateDelivery): Promise<void>;
 }
@@ -81,23 +95,37 @@ export class ChatIdleMaintenance {
      * Batch or idle compaction: runs the provider's native compaction on an idle Chat, through the send chain, only
      * while the same launch is still idle when the command reaches the head of the chain. Rejects otherwise. An `idle`
      * compaction labels its `compacted` notice so the transcript says Caxri ran it before the cache expired.
+     *
+     * An `idle` compaction first asks the provider for its plan limits: with a window used up, the command would only
+     * fail into the limit (and leave an error the user did not ask for), so it records the hold on the Chat
+     * (`idleCompactionHold`) and resolves `usageLimited` instead of sending.
      */
     async compactIdle(
         terminalId: string,
         launchId: string,
         reason: 'batch' | 'idle' = 'batch',
-    ): Promise<void> {
+    ): Promise<'submitted' | 'usageLimited'> {
         const state = this.host.states.get(terminalId);
         assertE2EAgentChatInput(readE2EAgentPolicy(), '/compact');
         this.host.states.assertUsage(terminalId, 'idle_compaction');
         if (!state || state.launchId !== launchId)
             throw new CaxriError('CONFLICT', 'This Chat changed before compaction');
+        let outcome: 'submitted' | 'usageLimited' = 'submitted';
         await this.host.enqueue(terminalId, state, async (session) => {
             if (state.launchId !== launchId || this.idleLaunchId(terminalId) !== launchId)
                 throw new CaxriError('CONFLICT', 'This Chat changed before compaction');
             if (!isAgentChatCommandListed(state.projection.snapshot, 'compact'))
                 throw new CaxriError('VALIDATION', '/compact is not available in this Chat');
             if (reason === 'batch') return session.runCommand('compact', undefined);
+            const resetsAt = await planLimitedUntil(session);
+            const lastResponseAt = state.projection.snapshot.usage?.lastResponseAt;
+            if (resetsAt !== undefined && lastResponseAt !== undefined) {
+                outcome = 'usageLimited';
+                this.host.states.apply(terminalId, [
+                    { op: 'state', state: { idleCompactionHold: { lastResponseAt, resetsAt } } },
+                ]);
+                return;
+            }
             state.projection.noteIdleCompaction();
             try {
                 await session.runCommand('compact', undefined);
@@ -106,6 +134,7 @@ export class ChatIdleMaintenance {
                 throw error;
             }
         });
+        return outcome;
     }
 
     /**

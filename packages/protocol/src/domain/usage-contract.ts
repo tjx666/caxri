@@ -196,6 +196,26 @@ export function hasUsableCredits(credits: UsageCredits | undefined): boolean {
 }
 
 /**
+ * When the latest of the plan windows that are used up resets, or `undefined` when the provider would take a request
+ * now: no window is at 100% with a later reset, or the account keeps working past its windows on credits. `window`
+ * narrows the check to one general window; an unnamed window then never counts.
+ */
+export function usageLimitedUntil(
+    limit: Pick<UsageLimit, 'credits' | 'windows'> | undefined,
+    now: number,
+    window?: 'session' | 'weekly',
+): number | undefined {
+    if (!limit || hasUsableCredits(limit.credits)) return undefined;
+    let until: number | undefined;
+    for (const { resetsAt, scope, usedPercent } of limit.windows) {
+        if (resetsAt === undefined || usedPercent < 100 || resetsAt <= now) continue;
+        if (window !== undefined && scope !== window) continue;
+        until = Math.max(until ?? 0, resetsAt);
+    }
+    return until;
+}
+
+/**
  * The plan notices a user can dismiss (`usage.dismissNotice`): the pace reminder, which warns that a window runs out
  * before it resets, and the credits notice, shown while the weekly window is at the usage guard but the account keeps
  * working on credits.

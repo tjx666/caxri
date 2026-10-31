@@ -25,10 +25,17 @@ const IDLE_COMPACTION_SWEEP_INTERVAL_MS = 30_000;
  * other error, `cache_expired` when the cache expired before the Chat was idle long enough to compact (a turn or
  * request kept it busy through the whole window), and `pull_request_merged` when the Session's pull request merged and
  * nothing but the merge notice reached the Chat since (`isAgentChatEndedByMerge`), so the delivery is done and a next
- * message is unlikely to need the cache.
+ * message is unlikely to need the cache, and `usage_limited` when the provider's plan limit was used up, so nothing was
+ * sent (the Chat's `idleCompactionHold` decides whether compaction runs after the reset).
  */
 type IdleCompactionOutcome =
-    'cache_expired' | 'changed' | 'failed' | 'pull_request_merged' | 'submitted' | 'unsupported';
+    | 'cache_expired'
+    | 'changed'
+    | 'failed'
+    | 'pull_request_merged'
+    | 'submitted'
+    | 'unsupported'
+    | 'usage_limited';
 
 interface Options {
     agentChat: Pick<AgentChatService, 'compactIdle' | 'idleLaunchId'> & {
@@ -110,7 +117,7 @@ export class ChatIdleCompaction {
         // Read from the projection directly: `AgentChatService.read` would start a stopped provider.
         const snapshot = agentChat.states.get(terminalId)?.projection.snapshot;
         const usage = snapshot?.usage;
-        const dueAt = agentChatIdleCompactionAt(usage, provider);
+        const dueAt = agentChatIdleCompactionAt(usage, provider, snapshot?.idleCompactionHold);
         if (
             dueAt === undefined ||
             !provider ||
@@ -174,6 +181,8 @@ export class ChatIdleCompaction {
         this.attempted.set(terminalId, lastResponseAt);
         const { error, outcome } = await this.compact(terminalId, launchId);
         if (outcome === 'submitted') this.submittedFor.set(terminalId, lastResponseAt);
+        // The hold just recorded decides from here: the next sweep compacts after the reset, or leaves the Chat alone.
+        else if (outcome === 'usage_limited') this.attempted.delete(terminalId);
         this.options.logger.write(
             outcome === 'failed' ? 'warn' : 'info',
             logEventCatalog.sessionCompaction.idle,
@@ -182,6 +191,9 @@ export class ChatIdleCompaction {
                 fields: {
                     ...fields,
                     outcome,
+                    ...(outcome === 'usage_limited' && {
+                        afterReset: this.eligible(terminalId) !== undefined,
+                    }),
                     ...(error !== undefined && { error: errorMessage(error, 'unknown') }),
                 },
             },
@@ -196,8 +208,13 @@ export class ChatIdleCompaction {
         // Open the window before delivery so the compaction turn it starts never reaches Session state.
         maintenanceTurns.begin(terminalId);
         try {
-            await this.options.agentChat.compactIdle(terminalId, launchId, 'idle');
-            return { outcome: 'submitted' };
+            if (
+                (await this.options.agentChat.compactIdle(terminalId, launchId, 'idle')) ===
+                'submitted'
+            )
+                return { outcome: 'submitted' };
+            maintenanceTurns.end(terminalId, 'undelivered');
+            return { outcome: 'usage_limited' };
         } catch (error) {
             maintenanceTurns.end(terminalId, 'undelivered');
             if (error instanceof CaxriError && error.code === 'CONFLICT')

@@ -48,6 +48,15 @@ export function agentChatContextAlerts(
     now: number,
     idleCompactionAt: number | undefined,
     t: Translate,
+    {
+        isHeldByUsageLimit = false,
+    }: {
+        /**
+         * Idle compaction dropped this response because the plan limit resets only after the cache expires; the cache
+         * notice's detail says so, so the user knows why no compaction came.
+         */
+        isHeldByUsageLimit?: boolean;
+    } = {},
 ): AgentChatContextAlerts {
     const state = agentChatContextAlertsState(usage, now, idleCompactionAt);
     if (!usage) return {};
@@ -60,7 +69,9 @@ export function agentChatContextAlerts(
             usage.cacheRewriteUsd === undefined
                 ? ''
                 : t('agentChat.context.cacheCost', { cost: formatUsd(usage.cacheRewriteUsd) });
-        const costNote = cost && t('agentChat.context.cacheDetailCost');
+        const detailNote = `${cost && t('agentChat.context.cacheDetailCost')}${
+            isHeldByUsageLimit ? t('agentChat.context.cacheHeldByUsageLimit') : ''
+        }`;
         const remaining = roundedUpDuration(cache.remainingMs ?? 0, t);
         if (cache.state === 'expired')
             alerts.cache = {
@@ -69,19 +80,19 @@ export function agentChatContextAlerts(
                     duration: localizedDuration(idleMs, t),
                     cost,
                 }),
-                detail: `${t('agentChat.context.cacheDetail', { minutes, tokens })}${costNote}`,
+                detail: `${t('agentChat.context.cacheDetail', { minutes, tokens })}${detailNote}`,
             };
         else if (cache.state === 'compacting')
             alerts.cache = {
                 state: 'compacting',
                 text: t('agentChat.context.cacheCompactingText', { remaining }),
-                detail: `${t('agentChat.context.cacheCompactingDetail', { minutes, remaining, tokens })}${costNote}`,
+                detail: `${t('agentChat.context.cacheCompactingDetail', { minutes, remaining, tokens })}${detailNote}`,
             };
         else
             alerts.cache = {
                 state: 'expiring',
                 text: t('agentChat.context.cacheExpiringText', { remaining, cost }),
-                detail: `${t('agentChat.context.cacheExpiringDetail', { minutes, remaining, tokens })}${costNote}`,
+                detail: `${t('agentChat.context.cacheExpiringDetail', { minutes, remaining, tokens })}${detailNote}`,
             };
     }
     if (pressure)

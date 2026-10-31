@@ -61,6 +61,9 @@ const agentChatPatchOperationSchema = z.discriminatedUnion('op', [
                     .unwrap()
                     .nullable(),
                 usageGuard: agentChatSnapshotSchema.shape.usageGuard.unwrap().nullable(),
+                idleCompactionHold: agentChatSnapshotSchema.shape.idleCompactionHold
+                    .unwrap()
+                    .nullable(),
             })
             .partial(),
     }),

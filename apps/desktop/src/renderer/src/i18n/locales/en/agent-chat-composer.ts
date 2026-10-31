@@ -243,6 +243,8 @@ export const agentChatComposer = {
     'agentChat.context.cacheDetail':
         'The Agent keeps a conversation ready for {{minutes}} minutes after each reply. After that, the next reply reads the whole conversation ({{tokens}}) again, which is slower and costs more.',
     'agentChat.context.cacheDetailCost': ' The cost is an estimate at standard API prices.',
+    'agentChat.context.cacheHeldByUsageLimit':
+        ' Caxri did not compact it automatically because the plan limit is used up until after the cache expires.',
     'agentChat.context.cacheExpiringText':
         'Reply within {{remaining}} to skip a full re-read{{cost}}',
     'agentChat.context.cacheExpiringDetail':

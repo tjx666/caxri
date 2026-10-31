@@ -82,6 +82,7 @@ export const agentChatLabelsEn = {
     'agentChat.notice.modelChanged': 'Model changed',
     'agentChat.notice.verificationNeeded': 'Account verification needed',
     'agentChat.notice.caxriNote': 'Caxri told the Agent',
+    'agentChat.notice.idleCompactionFailed': 'Idle compaction did not run',
     'agentChat.message.agentError': 'The Agent reported an error',
     'agentChat.message.answered': 'Answered',
     'agentChat.message.answeredWith': 'Answered: {{message}}',

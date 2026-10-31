@@ -1,4 +1,4 @@
-import type { AgentChatItem, AgentChatUsage } from '@caxri/protocol';
+import type { AgentChatItem, AgentChatSnapshot, AgentChatUsage } from '@caxri/protocol';
 import {
     agentChatIdleCompactionAt,
     agentChatUndismissedContextAlerts,
@@ -38,6 +38,7 @@ function useAgentChatIdleCompactionAt(
     terminalId: string,
     usage: AgentChatUsage | undefined,
     items: readonly AgentChatItem[] | undefined,
+    hold: AgentChatSnapshot['idleCompactionHold'],
 ): number | undefined {
     const provider = useWorkbenchStore((state) => {
         const terminal = state.bootstrap?.terminals.find(({ id }) => id === terminalId);
@@ -55,7 +56,7 @@ function useAgentChatIdleCompactionAt(
         (state) =>
             (state.bootstrap?.settings ?? defaultAppSettings)['agentChat.idleCompaction.enabled'],
     );
-    return isEnabled && !isMerged ? agentChatIdleCompactionAt(usage, provider) : undefined;
+    return isEnabled && !isMerged ? agentChatIdleCompactionAt(usage, provider, hold) : undefined;
 }
 
 /**
@@ -182,6 +183,7 @@ function ContextActions({
  * Tab stop so a keyboard user can open the tooltip with its numbers.
  */
 export function AgentChatContextAlerts({
+    idleCompactionHold,
     isContinuing,
     isShown,
     items,
@@ -190,6 +192,10 @@ export function AgentChatContextAlerts({
     terminalId,
     usage,
 }: {
+    /**
+     * The Chat's `idleCompactionHold`: idle compaction found the plan limit used up and moved or dropped compaction.
+     */
+    idleCompactionHold: AgentChatSnapshot['idleCompactionHold'];
     /**
      * True while the new Chat is being opened; the button dims and the handler ignores further clicks.
      */
@@ -216,10 +222,20 @@ export function AgentChatContextAlerts({
         (state) => state.dismissedResponseAt[terminalId],
     );
     const now = useClockTick('minute');
-    const idleCompactionAt = useAgentChatIdleCompactionAt(terminalId, usage, items);
+    const idleCompactionAt = useAgentChatIdleCompactionAt(
+        terminalId,
+        usage,
+        items,
+        idleCompactionHold,
+    );
     const lastResponseAt = usage?.lastResponseAt;
     const alerts = agentChatUndismissedContextAlerts(
-        agentChatContextAlerts(usage, now, idleCompactionAt, t),
+        agentChatContextAlerts(usage, now, idleCompactionAt, t, {
+            isHeldByUsageLimit:
+                idleCompactionAt === undefined &&
+                idleCompactionHold !== undefined &&
+                idleCompactionHold.lastResponseAt === lastResponseAt,
+        }),
         lastResponseAt,
         dismissedResponseAt,
     );

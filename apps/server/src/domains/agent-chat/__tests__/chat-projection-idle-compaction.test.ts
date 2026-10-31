@@ -42,6 +42,31 @@ describe('ChatProjection noteIdleCompaction', () => {
         ]);
     });
 
+    it("heads a failed idle compaction as Caxri's own, a warning with the provider's reason alone", () => {
+        const chat = projection();
+        chat.noteIdleCompaction();
+        chat.apply([
+            {
+                op: 'upsertItem',
+                item: {
+                    id: 'compact-error:1',
+                    type: 'notice',
+                    kind: 'error',
+                    message: 'Error during compaction: Example limit reached',
+                },
+            },
+        ]);
+        chat.apply([compacted('n1', 'manual')]);
+        expect(chat.snapshot.items).toEqual([
+            expect.objectContaining({
+                kind: 'warning',
+                heading: { kind: 'event', event: 'idleCompactionFailed' },
+                message: 'Example limit reached',
+            }),
+            expect.objectContaining({ compaction: { beforeTokens: 9, trigger: 'manual' } }),
+        ]);
+    });
+
     it('labels nothing once the provider refused the idle compaction', () => {
         const chat = projection();
         chat.noteIdleCompaction();
