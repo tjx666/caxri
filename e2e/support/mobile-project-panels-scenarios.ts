@@ -192,7 +192,7 @@ async function reorderProjectFilters(environment: Environment, artifacts: string
             y,
             '3000',
         ]);
-        await new Promise((resolve) => setTimeout(resolve, 1800));
+        await new Promise((resolve) => setTimeout(resolve, 2600));
         const moving = await mobileRegionFingerprint(environment.serial, strip);
         await capture(environment, 'dragging', artifacts);
         await drag;
