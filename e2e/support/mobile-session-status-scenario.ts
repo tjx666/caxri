@@ -1,6 +1,6 @@
 import type { BootstrapState } from '@caxri/protocol';
 
-import { createProjectSession, pageRequest } from './helpers';
+import { pageRequest } from './helpers';
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scenarios';
 import { capture, finish } from './mobile-agent-actions-scenarios';
@@ -32,10 +32,21 @@ export async function executeMobileSessionStatusScenario(
         if (!fixture.allowedSessionId)
             throw new Error('Session status fixture Session is unavailable');
         await fixture.pair();
+        /**
+         * `createProjectSession` would add a Project the phone was not granted, so the extra Sessions join the paired
+         * one.
+         */
+        const createAllowedSession = async () =>
+            (
+                await pageRequest<{ session: { id: string } }>(page, 'session.create', {
+                    projectId: fixture.allowedProjectId,
+                    defaultAgent: 'claude',
+                })
+            ).session.id;
         const sessionIds = [
             fixture.allowedSessionId,
-            await createProjectSession(page, 'claude'),
-            await createProjectSession(page, 'claude'),
+            await createAllowedSession(),
+            await createAllowedSession(),
         ];
         const bound = await waitForMobile(
             () => pageRequest<BootstrapState>(page, 'app.bootstrap'),
