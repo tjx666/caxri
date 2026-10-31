@@ -1993,8 +1993,22 @@ Core proves it against the Project's Git worktree topology, then follows it unde
 returns a Session still rooted on that worktree to its owning Project. The hook waits (bounded to 2
 seconds) until the value is durable. Because the transcript now lives under the worktree's provider
 directory, a Chat start or resume launches Claude Code in `agentProviderStateRoot`, so the
-conversation is found again after a restart. Codex and Grok Chats
-expose no blocking pre-tool callback and do not report these phases.
+conversation is found again after a restart.
+
+Codex and ACP Chats (Grok Build, Antigravity) have no blocking pre-tool callback, so
+`apps/server/src/domains/agent-chat/worktree/shell-tool-signals.ts` synthesizes the same three
+phases from protocol notifications: a Codex `commandExecution` item and an ACP `execute` tool call
+start the command when first seen, and its `completed` (exit code 0) or `failed`/`declined` outcome
+ends it. Both providers report a command before they ask for its approval, so with approvals on the
+before-snapshot is captured while the command waits; under Full access it races the command. A
+late snapshot already holds the new worktree and proves no unique addition, so the race costs a
+missed follow rather than a wrong root, and the user can still pick the worktree from "From this
+conversation". Server Core holds an outcome that overtakes its start's priming or snapshot until
+that start lands (`AgentWorktreeAttribution.afterStart`), so the Chat never delays a signal. Only a
+command started in the running turn reports an outcome: a Codex background terminal that finishes
+after its turn would otherwise read as a running turn. A `session/load` replay reports nothing. The
+shared classifier unwraps one `sh`/`bash`/`zsh -c` layer, because Codex reports every command as
+`/bin/zsh -lc "<script>"`.
 
 A Claude Chat whose turn ends while a background subagent, workflow, or shell task is still running reports
 `turnFinished` with `agentBackgroundWork`, the same evidence the Terminal hook bridge derives from

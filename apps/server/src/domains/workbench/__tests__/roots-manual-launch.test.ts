@@ -66,6 +66,35 @@ describe('WorkbenchRootService manual Agent launch attribution', () => {
         context.database.close();
     });
 
+    it('pairs an outcome that arrives before its start finished priming', async () => {
+        const context = await fixture();
+        const priming = Promise.withResolvers<GitWorktreeTopology>();
+        context.worktreeTopology.mockImplementationOnce(() => priming.promise);
+        // A Codex or ACP Chat cannot hold the command back, so its outcome can overtake the start's Git reads.
+        const started = context.service.observeShellToolStarted(
+            shellStarted(context, { worktreeCreateIntent: true }),
+            () => true,
+        );
+        context.service.observeShellToolFinished(
+            shellFinished(context, { worktreeCreateIntent: true }),
+        );
+        // Longer than the outcome's settle delay, so an unpaired validation would already have run and found nothing.
+        await new Promise((resolve) => setTimeout(resolve, 150));
+        priming.resolve(context.getTopology());
+        await expect(started).resolves.toBe('accepted');
+        context.setWorktrees([
+            { branch: 'main', rootPath: context.ownerRoot },
+            { branch: 'feature/chat', rootPath: context.worktreeRoot },
+        ]);
+        await vi.waitFor(() =>
+            expect(
+                context.events.filter((event) => event.event === 'workbench.candidate'),
+            ).toHaveLength(1),
+        );
+        await context.service.close();
+        context.database.close();
+    });
+
     it.each(['priming', 'capture', 'outcome'] as const)(
         'fences a manual launch retired during %s',
         async (stage) => {

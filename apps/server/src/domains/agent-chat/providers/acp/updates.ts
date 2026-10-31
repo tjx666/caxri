@@ -47,6 +47,10 @@ export interface AcpUpdatesHost {
      * The Chat state a `config_option_update` changes, such as the reasoning effort.
      */
     configState?: (configOptions: unknown) => Partial<AgentChatSnapshot> | undefined;
+    /**
+     * A live tool call changed, after its update was merged. A `session/load` replay reports none.
+     */
+    onToolCall?: (call: AcpToolCall) => void;
 }
 
 export function stopReasonStatus(stopReason: unknown): AgentChatTurn['status'] {
@@ -257,6 +261,7 @@ export class AcpUpdates {
                 ),
             },
         ]);
+        if (!this.replay) this.host.onToolCall?.(merged);
         return merged;
     }
 

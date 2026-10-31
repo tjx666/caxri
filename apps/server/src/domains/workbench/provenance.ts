@@ -7,6 +7,7 @@ import type { AgentEndpointLifecycle } from '../agent-endpoints';
 import type { AgentLifecycleSignal, AgentSignalDecision } from '../agents';
 import type { CaxriDatabase } from '../db';
 import type { GitService, GitWorktreeTopology } from '../git';
+import { BoundedSerialBatcher } from './bounded-serial-batcher';
 import type { WorkbenchRootService } from './roots';
 
 const MAX_PENDING_CREATIONS = 256;
@@ -101,68 +102,6 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T
     }
 }
 
-interface BoundedSerialBatcherOptions<Key> {
-    capacity: number;
-    delayMs: number;
-    onCapacity(): void;
-    run(keys: readonly Key[]): Promise<void>;
-}
-
-/**
- * Coalesces a high-frequency lifecycle boundary into one active batch plus one bounded pending set. New keys received
- * while Git work is in flight cannot append promise-chain nodes; they become one later batch instead.
- */
-export class BoundedSerialBatcher<Key> {
-    private readonly pending = new Set<Key>();
-    private active = false;
-    private closed = false;
-    private timer?: NodeJS.Timeout;
-
-    constructor(private readonly options: BoundedSerialBatcherOptions<Key>) {}
-
-    private arm(): void {
-        if (this.active || this.closed || this.timer || this.pending.size === 0) return;
-        this.timer = setTimeout(() => {
-            this.timer = undefined;
-            this.flush();
-        }, this.options.delayMs);
-        this.timer.unref();
-    }
-
-    private flush(): void {
-        if (this.active || this.closed) return;
-        const keys = [...this.pending];
-        this.pending.clear();
-        this.active = true;
-        // The lifecycle callback is synchronous; the batch owns and contains its asynchronous failure.
-        void this.options
-            .run(keys)
-            .catch(() => {})
-            .finally(() => {
-                this.active = false;
-                this.arm();
-            });
-    }
-
-    schedule(key: Key): boolean {
-        if (this.closed) return false;
-        if (!this.pending.has(key) && this.pending.size >= this.options.capacity) {
-            this.options.onCapacity();
-            return false;
-        }
-        this.pending.add(key);
-        this.arm();
-        return true;
-    }
-
-    close(): void {
-        this.closed = true;
-        if (this.timer) clearTimeout(this.timer);
-        this.timer = undefined;
-        this.pending.clear();
-    }
-}
-
 /**
  * Pairs one classified Bash PreToolUse hook with its outcome and proves a unique linked-worktree addition without
  * accepting commands, paths, output, or CLI reports as authority.
@@ -172,6 +111,10 @@ export class AgentWorktreeAttribution {
     private readonly pendingCreations = new Map<string, PendingWorktreeCreation>();
     private readonly provenanceBaselines = new Map<string, WorktreeProvenanceBaseline>();
     private readonly pendingPrimings = new Map<string, Promise<boolean>>();
+    /**
+     * Creation starts still priming or capturing, so an outcome that overtakes its start pairs with it once it lands.
+     */
+    private readonly startingCreations = new Map<string, Promise<AgentSignalDecision>>();
     private creationOverflowedUntil = 0;
 
     constructor(private readonly options: AgentWorktreeAttributionOptions) {
@@ -439,6 +382,67 @@ export class AgentWorktreeAttribution {
         }
     }
 
+    private async startCreation(
+        signal: AgentLifecycleSignal,
+        isCurrentLaunch: () => boolean,
+    ): Promise<AgentSignalDecision> {
+        const startedAt = Date.now();
+        /**
+         * A manually resumed Agent inherits Shell hook authority, not the managed Agent's launch callback. Establish
+         * its repository identity while PreToolUse still blocks execution (a Chat provider that cannot block reports
+         * the start as early as it can); never infer a creation from the wider Shell lifetime. The current-launch
+         * predicate fences restoration and retirement races.
+         */
+        if (this.provenanceBaselines.get(launchKey(signal))?.provider !== signal.provider) {
+            const terminal = this.options.database.getTerminal(signal.terminalId)!;
+            const session = this.options.database.getSession(terminal.sessionId)!;
+            const deadline = startedAt + PRE_TOOL_TOPOLOGY_TIMEOUT_MS;
+            const primed = await withTimeout(
+                this.prime(
+                    {
+                        launchId: signal.launchId,
+                        projectId: session.projectId,
+                        provider: signal.provider,
+                        sessionId: session.id,
+                        terminalId: terminal.id,
+                    },
+                    () => isCurrentLaunch() && Date.now() < deadline,
+                ),
+                PRE_TOOL_TOPOLOGY_TIMEOUT_MS,
+            );
+            if (!primed) {
+                const isCurrent = isCurrentLaunch();
+                this.options.logger.write('info', workbenchRootLogEvents.provenanceUnavailable, {
+                    durationMs: Date.now() - startedAt,
+                    fields: {
+                        reason: isCurrent ? 'pre_tool_prime_unavailable' : 'stale_launch',
+                        terminalId: signal.terminalId,
+                    },
+                });
+                return isCurrent ? 'accepted' : 'staleLaunch';
+            }
+        }
+        if (!isCurrentLaunch()) return 'staleLaunch';
+        const reservation = this.reservePendingCreation(signal, isCurrentLaunch, startedAt);
+        if (reservation && !reservation.pending.ambiguous)
+            await this.options.runQueued(() => this.capture(reservation.key, reservation.pending));
+        return 'accepted';
+    }
+
+    /**
+     * Runs `settle` once the creation's own start has captured its before-snapshot, or at once when none is starting. A
+     * Chat provider that cannot hold a command back (Codex, ACP) reports its outcome without waiting for the start to
+     * be processed, so a fast command's outcome may arrive while the start is still priming or capturing.
+     */
+    private afterStart(key: string, settle: () => void): void {
+        const starting = this.startingCreations.get(key);
+        if (!starting) {
+            settle();
+            return;
+        }
+        void starting.catch(() => 'accepted').then(settle);
+    }
+
     async prime(
         scope: WorktreeProvenanceScope,
         isCurrentLaunch: () => boolean = () => true,
@@ -520,61 +524,23 @@ export class AgentWorktreeAttribution {
         if (!isCurrentLaunch()) return 'staleLaunch';
         const scope = this.terminalScope(signal);
         if (scope !== 'accepted') return scope;
-        const startedAt = Date.now();
-        if (signal.worktreeCreateIntent && signal.agentToolUseId) {
-            /**
-             * A manually resumed Agent inherits Shell hook authority, not the managed Agent's launch callback.
-             * Establish its repository identity while PreToolUse still blocks execution; never infer a creation from
-             * the wider Shell lifetime. The current-launch predicate fences restoration and retirement races.
-             */
-            if (this.provenanceBaselines.get(launchKey(signal))?.provider !== signal.provider) {
-                const terminal = this.options.database.getTerminal(signal.terminalId)!;
-                const session = this.options.database.getSession(terminal.sessionId)!;
-                const deadline = startedAt + PRE_TOOL_TOPOLOGY_TIMEOUT_MS;
-                const primed = await withTimeout(
-                    this.prime(
-                        {
-                            launchId: signal.launchId,
-                            projectId: session.projectId,
-                            provider: signal.provider,
-                            sessionId: session.id,
-                            terminalId: terminal.id,
-                        },
-                        () => isCurrentLaunch() && Date.now() < deadline,
-                    ),
-                    PRE_TOOL_TOPOLOGY_TIMEOUT_MS,
-                );
-                if (!primed) {
-                    const isCurrent = isCurrentLaunch();
-                    this.options.logger.write(
-                        'info',
-                        workbenchRootLogEvents.provenanceUnavailable,
-                        {
-                            durationMs: Date.now() - startedAt,
-                            fields: {
-                                reason: isCurrent ? 'pre_tool_prime_unavailable' : 'stale_launch',
-                                terminalId: signal.terminalId,
-                            },
-                        },
-                    );
-                    return isCurrent ? 'accepted' : 'staleLaunch';
-                }
-            }
-            if (!isCurrentLaunch()) return 'staleLaunch';
-            const reservation = this.reservePendingCreation(signal, isCurrentLaunch, startedAt);
-            if (reservation && !reservation.pending.ambiguous)
-                await this.options.runQueued(() =>
-                    this.capture(reservation.key, reservation.pending),
-                );
+        const key = signal.worktreeCreateIntent ? creationKey(signal) : undefined;
+        if (!key) return 'accepted';
+        const starting = this.startCreation(signal, isCurrentLaunch);
+        this.startingCreations.set(key, starting);
+        try {
+            return await starting;
+        } finally {
+            if (this.startingCreations.get(key) === starting) this.startingCreations.delete(key);
         }
-        return 'accepted';
     }
 
     observeFinished(signal: AgentLifecycleSignal): AgentSignalDecision {
         const scope = this.terminalScope(signal);
         if (scope !== 'accepted') return scope;
         const key = creationKey(signal);
-        if (key && signal.worktreeCreateIntent) this.creationValidations.schedule(key);
+        if (key && signal.worktreeCreateIntent)
+            this.afterStart(key, () => this.creationValidations.schedule(key));
         return 'accepted';
     }
 
@@ -582,13 +548,15 @@ export class AgentWorktreeAttribution {
         const scope = this.terminalScope(signal);
         if (scope !== 'accepted') return scope;
         const key = creationKey(signal);
-        if (key && signal.worktreeCreateIntent) this.pendingCreations.delete(key);
+        if (key && signal.worktreeCreateIntent)
+            this.afterStart(key, () => this.pendingCreations.delete(key));
         return 'accepted';
     }
 
     close(): void {
         this.creationValidations.close();
         this.pendingCreations.clear();
+        this.startingCreations.clear();
         this.provenanceBaselines.clear();
         this.creationOverflowedUntil = 0;
     }
