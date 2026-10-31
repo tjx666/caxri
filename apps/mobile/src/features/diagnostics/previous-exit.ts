@@ -128,11 +128,14 @@ export const reportPreviousExits = async (
     app: PreviousExitApp,
 ): Promise<number> => {
     const reports = previousExitReports(await ports.readExits(), app, await ports.loadReportedAt());
-    for (const report of reports) {
-        // eslint-disable-next-line no-await-in-loop -- Exits go oldest first, each remembered once Desktop accepted it.
+    const send = async (report: MobileReportExitParameters) => {
         await ports.report(report);
-        // eslint-disable-next-line no-await-in-loop -- The saved time must never skip an exit that was not accepted.
         await ports.saveReportedAt(report.exitedAt);
+    };
+    for (const report of reports) {
+        // Sequential on purpose: the saved time must never pass an exit Desktop has not accepted yet.
+        // react-doctor-disable-next-line react-doctor/async-await-in-loop -- sequential on purpose; see above
+        await send(report); // eslint-disable-line no-await-in-loop -- see above
     }
     return reports.length;
 };
