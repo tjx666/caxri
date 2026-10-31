@@ -188,12 +188,7 @@ export function AgentChatPane({
     const { composerEdit, editActions, setEditingId } = useAgentChatEditActions(
         terminalId,
         snapshot,
-        {
-            canFork,
-            providerName,
-            supportsRewind: capabilities.chatRewind,
-            supportsRewindFiles: capabilities.chatRewindFiles,
-        },
+        { canFork, providerName, capabilities },
     );
     const pending = useAgentChatPending(terminalId, snapshot);
     // The waiting popup leaves out a Chat on screen here, whose own request card already asks.
