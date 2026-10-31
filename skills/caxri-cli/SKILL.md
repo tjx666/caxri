@@ -227,7 +227,7 @@ Then write the task to a file and run
 
 ## Keep dispatch, control, and steer separate
 
-- `agent delegate create` runs a task from `--prompt-file` in a visible Claude, Codex or Grok child Terminal.
+- `agent delegate create` runs a task from `--prompt-file` in a visible Claude, Codex, Grok, or Antigravity child Terminal.
   Use `agent delegate presets --project <id> --session <id>` to discover caller-specific presets,
   then select `--preset <name>` or explicit `--provider` with optional `--model` and `--effort`.
   The Server enforces preset exclusions and nesting depth. Follow-up and resume keep their saved

@@ -20,13 +20,13 @@ export function collectionIntervalMs(provider: AgentProvider): number {
 }
 
 export function shouldCollectDelegation(record: StoredAgentDelegation): boolean {
-    return (
-        record.receipt.status === 'collecting' ||
-        Boolean(
-            record.turnId &&
-            isDelegationActive(record.receipt) &&
-            delegationAdapter(record.receipt.provider).completion === 'native-completion',
-        )
+    if (record.receipt.status === 'collecting') return true;
+    const adapter = delegationAdapter(record.receipt.provider);
+    return Boolean(
+        record.turnId &&
+        isDelegationActive(record.receipt) &&
+        adapter.completion === 'native-completion' &&
+        !adapter.completionAwaitsStop,
     );
 }
 

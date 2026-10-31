@@ -42,6 +42,8 @@ export async function readDelegationTranscript(
 ): Promise<DelegationTranscriptBatch> {
     const identity = boundAgentIdentity(database, terminalId);
     if (!identity || identity.agentSessionId !== sessionId) return { content: '' };
+    const readNative = agentProviders[identity.provider].delegation?.readTranscript;
+    if (readNative) return { content: (await readNative(sessionId, environment)) ?? '' };
     const status = turnId
         ? await agentProviders[identity.provider].readTurnStatus?.(
               { agentSessionId: sessionId, agentTurnId: turnId },

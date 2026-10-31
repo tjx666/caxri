@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { once } from 'node:events';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { createServer } from 'node:net';
@@ -45,6 +46,7 @@ async function deliver(
     provider: AgentProvider,
     payload: Record<string, unknown>,
     phase = 'turnStarted',
+    environment: Record<string, string> = {},
 ): Promise<Array<Record<string, unknown>>> {
     const sharedPath = await mkdtemp(join(tmpdir(), 'caxri-turn-bridge-'));
     temporaryDirectories.push(sharedPath);
@@ -73,6 +75,7 @@ async function deliver(
                 CAXRI_HOOK_TERMINAL_ID: 'turn-terminal',
                 CAXRI_HOOK_TOKEN: 'turn-token',
                 PATH: process.env.PATH,
+                ...environment,
             },
         });
         /**
@@ -137,6 +140,27 @@ describe('Antigravity hook bridge', () => {
         expect(packet).toMatchObject({ phase: 'turnStarted', agentSessionId: conversationId });
         expect(JSON.stringify(packet)).not.toContain('Synthetic prompt');
         expect(await deliver('antigravity', { ...main, invocationNum: 1 })).toEqual([]);
+    });
+
+    it('names the turn by the steps before it and digests the submitted prompt for delegation', async () => {
+        const [packet] = await deliver(
+            'antigravity',
+            { ...main, initialNumSteps: 4 },
+            'turnStarted',
+            { CAXRI_HOOK_DIGEST: '1' },
+        );
+        expect(packet).toMatchObject({
+            agentTurnId: 'step-4',
+            agentPromptDigest: createHash('sha256').update('Synthetic prompt').digest('hex'),
+        });
+        expect(JSON.stringify(packet)).not.toContain('Synthetic prompt');
+        const [stop] = await deliver(
+            'antigravity',
+            { ...main, initialNumSteps: 4, terminationReason: 'NO_TOOL_CALL', fullyIdle: true },
+            'turnFinished',
+        );
+        // Stop's step count has moved on, so Server Core, not the bridge, names its turn.
+        expect(stop.agentTurnId).toBeUndefined();
     });
 
     it("ignores a subagent's events, which carry no user input", async () => {

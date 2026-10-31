@@ -47,8 +47,32 @@ marks the turn failed. Both events carry the `conversationId`, which binds the T
 `SessionStart` is deliberately not bound: a subagent's conversation fires it too, with nothing that
 tells it apart from the main one, and any identity signal rebinds the Terminal.
 
-Native rename, Agent messaging, Agent Actions, and Agent delegation are unavailable; delegation
-and messaging are tracked in [issue #3272](https://github.com/tjx666/caxri/issues/3272).
+Native rename, Agent messaging, and Agent Actions are unavailable. Messaging stays off as for Grok
+Build, yet an `agy` Terminal can still start a delegation through the `caxri` CLI.
+
+## Delegation
+
+An `agy` Terminal can be a delegation target and caller. A target launches with the task pointer as
+`-i <pointer>`, and `--model` and `--effort` select the model and thinking level. Initial arguments
+are limited to `--model`, `--effort`, `--mode`, `--add-dir`, `--sandbox`, and
+`--dangerously-skip-permissions`; it requires `agy` 1.4.11 or later within major 1.
+
+- **Turn identity**: `agy` names no turn, so the bridge names one from `PreInvocation`'s
+  `initialNumSteps` (`step-<n>`), the step count a turn starts after, which no earlier turn in the
+  conversation shares. `Stop` carries a moved count, so Server Core gives a main-Agent `Stop` the
+  turn its launch opened in the same conversation.
+- **Correlation**: with delegation digests enabled, the bridge hashes `lastUserInput`, which equals
+  the submitted pointer, as the turn's prompt digest; the text itself never leaves the bridge.
+- **Completion**: the conversation database records no turn end, so the task enters `collecting`
+  only after the matching `Stop`, and a Server restart before it interrupts the task. Collection
+  reads the visible messages and takes the last reply after the pointer's latest occurrence.
+- **Permissions**: the pointer file lives outside the Project. Without
+  `--dangerously-skip-permissions`, `agy` may ask before reading it, and Caxri does not bridge that
+  prompt to attention.
+
+A one-time content-free probe of `agy` 1.4.12 confirmed these payloads: `PreInvocation` carries
+`initialNumSteps` and `lastUserInput`, `Stop` carries `executionNum`, `terminationReason`, and
+`fullyIdle` but no turn id, and the conversation database held the exact pointer and the reply.
 
 ## Conversation database
 
@@ -71,8 +95,7 @@ structural probe. A layout change degrades to missing values, never a throw.
   the model family (`gemini-3.8-flash-n` prices as `gemini-3.8-flash`), which the bundled price
   snapshot includes for offline use.
 
-The Bot handover's external conversation list does not include Antigravity yet, because it only
-lists delegation targets.
+The Bot handover's external conversation list does not include Antigravity yet.
 
 ## Bundled skills
 

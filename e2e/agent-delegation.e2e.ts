@@ -22,6 +22,8 @@ for (const [callerProvider, targetProvider] of [
     ['claude', 'codex'],
     ['claude', 'grok'],
     ['grok', 'claude'],
+    ['claude', 'antigravity'],
+    ['antigravity', 'claude'],
 ] as const) {
     test(`visible ${targetProvider} delegation from ${callerProvider} preserves caller focus and returns the exact durable answer`, async () => {
         const testInfo = test.info();
@@ -40,7 +42,7 @@ for (const [callerProvider, targetProvider] of [
 // 合成调用方通过继承的受管凭据运行真实 CLI，仅保存非秘密上下文及断言回执。
 const fs = require('node:fs');
 const { spawnSync } = require('node:child_process');
-if(process.argv.includes('--version')) { console.log(${JSON.stringify(callerProvider === 'codex' ? 'codex-cli 0.153.4' : callerProvider === 'grok' ? 'grok 1.0.24' : '2.1.266 (Claude Code)')}); process.exit(0); }
+if(process.argv.includes('--version')) { console.log(${JSON.stringify(callerProvider === 'codex' ? 'codex-cli 0.153.4' : callerProvider === 'grok' ? 'grok 1.0.24' : callerProvider === 'antigravity' ? '1.4.12' : '2.1.266 (Claude Code)')}); process.exit(0); }
 // 该超时必须覆盖最长的 CLI 内部等待（delegate wait --timeout 20000）外加进程启动与 IPC 往返。
 // 原值 25000 只留 5 秒余量，在三个 Electron worker 共用 runner 时不够，这正是此前把本规格挡在并行池外的原因。
 const cli = args => spawnSync(process.execPath, [${JSON.stringify(cliPath)}, ...args, '--json'], {encoding:'utf8',env:process.env,timeout:45000});
@@ -74,7 +76,8 @@ process.stdin.on('data', chunk => {
   const resumedReceipt=resumed.status===0?JSON.parse(resumed.stdout):null;
   const resumeWait=resumedReceipt?cli(['agent','delegate','wait',resumedReceipt.delegationId,'--timeout','20000']):null;
   const resumeResult=resumeWait?.status===0?JSON.parse(resumeWait.stdout):null;
-  if(![result,followResult,resumeResult].every(value=>value?.receipt.usage?.inputTokens===10&&value?.receipt.usage?.outputTokens===5)){fs.writeFileSync(${JSON.stringify(resultPath)},JSON.stringify({code:98,outcomes:[result,followResult,resumeResult].map(value=>({status:value?.receipt.status,failure:value?.receipt.failure,correlationFailure:value?.receipt.correlationFailure}))}));return;}
+  // agy's conversation database records no per-turn usage Caxri reads, so its receipts carry none.
+  if(![result,followResult,resumeResult].every(value=>${targetProvider === 'antigravity'}?value?.receipt.status==='completed':value?.receipt.usage?.inputTokens===10&&value?.receipt.usage?.outputTokens===5)){fs.writeFileSync(${JSON.stringify(resultPath)},JSON.stringify({code:98,outcomes:[result,followResult,resumeResult].map(value=>({status:value?.receipt.status,failure:value?.receipt.failure,correlationFailure:value?.receipt.correlationFailure}))}));return;}
   fs.writeFileSync(${JSON.stringify(resultPath)},JSON.stringify({code:waited.status,receipt:result?.receipt,retriedSame:retried.status===0&&JSON.parse(retried.stdout).delegationId===receipt.delegationId,answerMatched:result?.answer?.text==='Synthetic delegation complete',followStatus:followResult?.receipt.status,followAnswerMatched:followResult?.answer?.text==='Synthetic follow-up complete',resumeStatus:resumeResult?.receipt.status,resumeFailure:resumeResult?.receipt.failure,resumeAnswerMatched:resumeResult?.answer?.text==='Synthetic resume complete',sameTerminal:followReceipt?.terminalId===receipt.terminalId&&resumedReceipt?.terminalId===receipt.terminalId}));
   process.stdout.write('Synthetic caller collected delegated answer\r\n');
 });
@@ -117,6 +120,7 @@ process.stdout.write('Synthetic caller ready\r\n');
                 },
             };
             settings.value['agents.providers'].grok.hooks.enabled = true;
+            settings.value['agents.providers'].antigravity.hooks.enabled = true;
             await pageRequest(running.page, 'settings.update', {
                 source: JSON.stringify(settings.value),
             });
@@ -228,6 +232,7 @@ process.stdout.write('Synthetic caller ready\r\n');
                 'settings.get',
             );
             settings.value['agents.providers'].grok.hooks.enabled = true;
+            settings.value['agents.providers'].antigravity.hooks.enabled = true;
             await pageRequest(running.page, 'settings.update', {
                 source: JSON.stringify(settings.value),
             });

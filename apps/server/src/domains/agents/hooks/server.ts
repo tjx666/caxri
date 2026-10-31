@@ -38,6 +38,10 @@ interface RegisteredLaunch {
     launchId: string;
     provider?: AgentProvider;
     terminalId: string;
+    /**
+     * The turn an Antigravity `Stop` ends; see {@link withStopTurn}.
+     */
+    openTurn?: { agentSessionId?: string; agentTurnId: string };
 }
 
 interface HookWireAuth {
@@ -266,6 +270,34 @@ function packetDiagnosticFields(packet: HookWirePacket) {
 }
 
 /**
+ * Antigravity's `Stop` carries only the conversation id, not the turn it ends. `agy` runs one turn per conversation at
+ * a time, so a main-Agent `Stop` ends the turn its launch's first `PreInvocation` opened in the same conversation, and
+ * takes that turn's id like every other provider's `Stop` does.
+ */
+function withStopTurn(
+    signal: HookWireSignal,
+    launch: RegisteredLaunch | undefined,
+): HookWireSignal {
+    if (!launch || signal.agentId || signal.provider !== 'antigravity') return signal;
+    if (signal.phase === 'turnStarted') {
+        launch.openTurn = signal.agentTurnId
+            ? { agentSessionId: signal.agentSessionId, agentTurnId: signal.agentTurnId }
+            : undefined;
+        return signal;
+    }
+    const { openTurn } = launch;
+    if (
+        !openTurn ||
+        signal.agentTurnId ||
+        (signal.phase !== 'turnFinished' && signal.phase !== 'turnFailed') ||
+        openTurn.agentSessionId !== signal.agentSessionId
+    )
+        return signal;
+    launch.openTurn = undefined;
+    return { ...signal, agentTurnId: openTurn.agentTurnId };
+}
+
+/**
  * Authenticated local signal boundary. Provider hooks can report only a phase, opaque PTY generation, bounded opaque
  * provider identifiers, a worktree-create classification, and the event's own bounded absolute working directory;
  * prompt text, tool arguments, tool results, and provider hook payloads never cross into Caxri.
@@ -404,7 +436,7 @@ export class AgentHookServer {
                 }
                 return;
             }
-            const signal = packet;
+            const signal = withStopTurn(packet, this.launchesByToken.get(packet.token));
             let result: AgentHookSignalResult;
             try {
                 result = await this.onSignal(signal);
