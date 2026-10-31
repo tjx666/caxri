@@ -6,6 +6,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMobileClient } from '../connection/mobile-client-provider';
 import { sessionPullRequestQueryKey } from '../pull-request/use-session-pull-request';
 import { readTreeChildren } from './tree-children-read';
+import { refreshTreeThenPullRequest } from './tree-refresh';
 
 export type Panel = MethodResult<'mobile.panels.list'>['panels'][number];
 
@@ -68,10 +69,9 @@ export const useTreeChildren = (sessionId: string, viewId: string, parentHandle?
 /**
  * Keeps the extension tree this Session shows current: each `extensionViews.changed` hint re-reads the tree queries in
  * place. Rows stay on screen while the read runs, so scroll position and expanded state survive and no loading state
- * appears; a failed re-read keeps the last rows and the next hint or a pull-to-retry tries again. Once the tree has
- * re-read, the header's pull request re-reads too, because the Status panel changes when it does. Not alongside it: a
- * row's `Merge` hints before its forced status refresh lands, and only the tree's read waits for that refresh, so a
- * concurrent header read would get the cached open pull request and no later hint would correct it.
+ * appears; a failed re-read keeps the last rows and the next hint or a pull-to-retry tries again. The header's pull
+ * request re-reads after the tree, because the Status panel changes when it does (see
+ * {@link refreshTreeThenPullRequest}).
  */
 export const useExtensionTreeSubscription = (sessionId: string) => {
     const { connectionScopeKey, isForeground, status, subscribe, subscriptionAvailable } =
@@ -83,13 +83,12 @@ export const useExtensionTreeSubscription = (sessionId: string) => {
         const queryKey = ['mobile', 'panels', connectionScopeKey, 'tree', sessionId];
         let isDisposed = false;
         const watch: { handle: Awaited<ReturnType<typeof subscribe>> | null } = { handle: null };
-        const refresh = async (): Promise<void> => {
-            await queryClient.invalidateQueries({ queryKey });
-            await queryClient.invalidateQueries({
-                exact: true,
-                queryKey: sessionPullRequestQueryKey(connectionScopeKey, sessionId),
-            });
-        };
+        const refresh = (): Promise<void> =>
+            refreshTreeThenPullRequest(
+                queryClient,
+                queryKey,
+                sessionPullRequestQueryKey(connectionScopeKey, sessionId),
+            );
         const attach = async (): Promise<void> => {
             try {
                 const acquired = await subscribe(
