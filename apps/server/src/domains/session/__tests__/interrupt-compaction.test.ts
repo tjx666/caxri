@@ -74,6 +74,8 @@ describe('SessionInterruptCompaction', () => {
     it('does not count a turn it could not interrupt safely', async () => {
         const harness = createHarness({
             interrupt: (sessionId) => Promise.resolve(sessionId === 's1'),
+            // Nothing settles here, so keep the bounded wait short.
+            interruptWaitMs: 20,
         });
 
         const result = await harness.service.run();
