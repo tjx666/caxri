@@ -18,6 +18,7 @@ export const cases = {
         scenario: 'agent-chat-video',
     },
     'MOB-CHAT-VIDEO-02': {
+        appLocale: 'zh-CN',
         desktopProfile: 'managed-by-isolated-e2e',
         media: ['screenshot'],
         recordingOwner: 'scenario',
