@@ -245,10 +245,16 @@ Run the gates that actually cover the changed files first, and require them to p
 | ---------------------------------- | ------------------------------------------------------------------------------------ |
 | Any `.md`                          | `bun run lint:markdown`, `bun run format:check`                                      |
 | `.agents/skills/**` or `AGENTS.md` | plus `bunx vitest run scripts/__tests__/skill-invocation.test.ts`                    |
+| A skill's `SKILL.md`               | plus `bun run --silent check <changed SKILL.md paths> --test`                        |
 | Renderer styling                   | `bun run lint`, the change's own test, and the CDP visual check `AGENTS.md` requires |
 | Locally verified code change       | `check --lint --test --type --knip --related` (below), `CI-E2E-Tests`, CDP           |
 
-`check --test` selects only tests that import a changed file directly, so a test reaching it through
+Some skill tests read their `SKILL.md` as data, and `check --test` selects every test of the skill
+owning a changed `SKILL.md`: `label-axes.test.ts` compares the `file-issue` label tables against a
+fixed list, so a Markdown-only label addition that skipped it merged and turned `checks` red for
+later unrelated pull requests.
+
+`check --test` otherwise selects only tests that import a changed file directly, so a test reaching it through
 another module is skipped: `status-merge.test.ts` imports `status-tree.ts`, which reaches
 `status-agent-actions.ts`, and a stale assertion there merged under this class and turned `main`'s
 hosted `checks` red. Before a fast merge of a code change, also pass `--related`, which runs every
