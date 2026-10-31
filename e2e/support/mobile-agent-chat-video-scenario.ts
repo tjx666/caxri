@@ -28,13 +28,13 @@ import {
 const run = promisify(execFile);
 
 /**
- * The synthetic video every case cites: 20 seconds of FFmpeg's `testsrc`, whose frame counter shows where playback is,
+ * The synthetic video every case cites: 60 seconds of FFmpeg's `testsrc`, whose frame counter shows where playback is,
  * so a screenshot after a seek proves the scrub landed. It lives under `/tmp` rather than the fixture Project: the fake
  * Codex echoes the message, and the system temp directory holding the Project is account-specific, so a recording must
  * not show it. Server Core serves any path the message cites, inside a Project or not.
  */
 const VIDEO_NAME = 'demo.mp4';
-const VIDEO_SECONDS = 20;
+const VIDEO_SECONDS = 60;
 
 /**
  * The player's progress bar. `expo-video` draws Media3's `PlayerView` controls, whose ids merge into the app package.
@@ -186,7 +186,7 @@ export async function executeMobileChatVideoScenario(
         await tapPlayer(serial);
         await waitForCheck(serial, 'agent-chat-video-player-view');
         await capture(environment, 'paused', artifacts);
-        await seekTo(serial, 0.75);
+        await seekTo(serial, 0.25);
         await pause(1_000);
         await capture(environment, 'scrubbed', artifacts);
         await tapPlayer(serial);
